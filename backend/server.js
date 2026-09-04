@@ -1141,6 +1141,10 @@ const dbConfig = {
         host: process.env.DB_HOST_LOCAL,
         port: Number(process.env.DB_PORT_LOCAL || process.env.DB_PORT)
     },
+    lan: {
+        host: process.env.DB_HOST_LAN,
+        port: Number(process.env.DB_PORT_LAN || process.env.DB_PORT_LOCAL || process.env.DB_PORT)
+    },
     remote: {
         host: process.env.DB_HOST_REMOTE,
         port: Number(process.env.DB_PORT_REMOTE || process.env.DB_PORT)
@@ -1224,11 +1228,14 @@ function probarPuertoTcp(host, port, timeoutMs = 5000) {
 }
 
 let localNetworkProbe = null;
+/** 'local' | 'lan' | 'remote' — resultado de las dos variables DB_HOST_LOCAL / DB_HOST_LAN */
+let mysqlDestinoTipo = 'remote';
 
 /**
- * Detecta MySQL local (Docker / LAN) una sola vez y reutiliza el resultado
- * en todos los pools. Evita 4 sondas paralelas que en Windows + Docker
- * suelen caducar y empujan el arranque a GoDaddy.
+ * Detecta MySQL una sola vez y reutiliza el resultado en todos los pools.
+ * 1) DB_HOST_LOCAL (esta PC / Docker local)
+ * 2) DB_HOST_LAN (contenedor en otra PC de la misma red)
+ * Si ambas fallan, el arranque usa DB_HOST_REMOTE.
  */
 async function isLocalNetwork() {
     if (!localNetworkProbe) {
@@ -1246,13 +1253,32 @@ async function isLocalNetwork() {
                     if (host !== dbConfig.local.host) {
                         dbConfig.local.host = host;
                     }
+                    mysqlDestinoTipo = 'local';
                     return true;
                 }
             }
 
+            const lanHost = dbConfig.lan.host && String(dbConfig.lan.host).trim();
+            const lanPort = Number(dbConfig.lan.port || port);
+            if (lanHost) {
+                const okLan = await probarPuertoTcp(lanHost, lanPort, 5000);
+                if (okLan) {
+                    dbConfig.local.host = lanHost;
+                    dbConfig.local.port = lanPort;
+                    mysqlDestinoTipo = 'lan';
+                    return true;
+                }
+                console.warn(
+                    `  MySQL del contenedor LAN no respondió en ${lanHost}:${lanPort}.`
+                );
+            }
+
             console.warn(
-                `  MySQL local no respondió en ${candidatos.join(' / ')}:${port}. Se usará el host remoto.`
+                `  MySQL local no respondió en ${candidatos.join(' / ')}:${port}` +
+                (lanHost ? ` ni en LAN ${lanHost}:${lanPort}` : '') +
+                `. Se usará el host remoto.`
             );
+            mysqlDestinoTipo = 'remote';
             return false;
         })();
     }
@@ -1390,7 +1416,10 @@ async function initializePool() {
     isOnLocalNetwork = isLocal;
 
     const cfg = isLocal ? dbConfig.local : dbConfig.remote;
-    startupLog.setMysqlInfo(`${isLocal ? 'red local' : 'remota'} ${cfg.host}:${cfg.port}`);
+    const etiquetaDestino = mysqlDestinoTipo === 'lan'
+        ? 'contenedor LAN'
+        : (isLocal ? 'local' : 'remota');
+    startupLog.setMysqlInfo(`${etiquetaDestino} ${cfg.host}:${cfg.port}`);
 
     pool = await conectarPool(isLocal, {
         database: dbConfig.database,
@@ -1411,7 +1440,7 @@ async function exigirPoolPrincipal() {
     }
     if (!pool || typeof pool.query !== 'function') {
         const err = new Error(
-            'MySQL local no está disponible. Confirme que el servicio MySQL esté en ejecución en 127.0.0.1:3306.'
+            'MySQL no está disponible. Confirme Docker local (127.0.0.1:3306) o DB_HOST_LAN en backend/.env.'
         );
         err.statusCode = 503;
         throw err;
@@ -24383,6 +24412,11 @@ chatSocketIo = initChatSocket(server, {
         console.warn('[CORREO-ADJUNTOS] No se pudo iniciar cron de limpieza:', err?.message || err);
     }
 
+    // Validar Drive antes de cualquier sync (evita spam si OAuth es placeholder/inválido).
+    try {
+        await (driveService.arranqueAuthPromise || Promise.resolve());
+    } catch (_e) { /* ignore */ }
+
     // Pool principal ya esperado antes de listen; continuar con pools satélite
     await poolProteccionCivilReady;
 
@@ -24485,7 +24519,7 @@ chatSocketIo = initChatSocket(server, {
 
     // Sincronizar carpetas con Google Drive
     if (!driveService.driveDisponible()) {
-        console.warn('  [WARN] Drive sync omitido (Google Drive no configurado en este entorno)');
+        logDebug('  Drive sync omitido (Google Drive no configurado en este entorno)');
     } else {
         try {
             const areas = await sincronizarCarpetasCursos();
@@ -24883,6 +24917,8 @@ chatSocketIo = initChatSocket(server, {
         } catch (e) {
             startupLog.serviceFail('Catálogo PC', e.message);
         }
+    } else {
+        startupLog.serviceOk('Catálogo PC', 'omitido (sin Drive)');
     }
 
     // Crear tabla notificaciones personales de usuario

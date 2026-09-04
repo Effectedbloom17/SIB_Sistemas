@@ -611,7 +611,12 @@ async function seedEjemploSiVacio(pool) {
         try {
             await sincronizarResidenteADrive(pool, id);
         } catch (e) {
-            console.warn('[RRHH] Sync ejemplo existente falló:', e.message);
+            const msg = String(e.message || '');
+            if (/DRIVE-AUTH|invalid_client|OAuth client was not found|bloqueado temporalmente/i.test(msg)) {
+                // Desarrollo sin OAuth real: no ensuciar consola
+            } else {
+                console.warn('[RRHH] Sync ejemplo existente falló:', msg);
+            }
         }
         return obtener(pool, id);
     }

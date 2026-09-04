@@ -31,6 +31,7 @@ content = content.replace(/^DB_PORT=.+$/m, 'DB_PORT=3306');
 content = content.replace(/^NODE_ENV=.+$/m, 'NODE_ENV=development');
 content = content.replace(/^PORT=.+$/m, 'PORT=3100');
 content = content.replace(/^PUBLIC_API_URL=.+$/m, 'PUBLIC_API_URL=http://localhost:3100');
+// GOOGLE_* y otras APIs se toman del .env.example (desarrollo compartido).
 
 if (!/^# Generado para desarrollo local/m.test(content)) {
   content =
@@ -42,7 +43,9 @@ if (!/^# Generado para desarrollo local/m.test(content)) {
 fs.writeFileSync(envPath, content, 'utf8');
 console.log('✓ Creado backend/.env para desarrollo local');
 console.log('  JWT_SECRET generado automáticamente');
-console.log('  DB: root@127.0.0.1:3306 (docker compose)');
+console.log('  DB local: root@127.0.0.1:3306 (docker compose)');
+console.log('  DB LAN:   DB_HOST_LAN en backend/.env (IP de la PC que corre Docker)');
 console.log('');
 console.log('Siguiente paso: docker compose up -d  (si MariaDB no está corriendo)');
+console.log('Para abrir el contenedor a otras PCs de la WiFi: npm run db:lan');
 console.log('Luego: npm start');

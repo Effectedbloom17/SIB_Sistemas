@@ -45,6 +45,38 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
 
+function esCredencialGooglePlaceholder(valor) {
+    const v = String(valor || '').trim().toLowerCase();
+    if (!v) return true;
+    return (
+        v.includes('xxxxx') ||
+        v.includes('changeme') ||
+        v.includes('tu_') ||
+        v === 'id_carpeta_raiz_en_drive' ||
+        v.startsWith('1//xxxxx') ||
+        v === 'gocspx-xxxxx' ||
+        /^x+\.apps\.googleusercontent\.com$/.test(v) ||
+        v.endsWith('xxxxx.apps.googleusercontent.com')
+    );
+}
+
+function oauthDriveConfigurado() {
+    return (
+        !esCredencialGooglePlaceholder(GOOGLE_CLIENT_ID) &&
+        !esCredencialGooglePlaceholder(GOOGLE_CLIENT_SECRET) &&
+        !esCredencialGooglePlaceholder(GOOGLE_REFRESH_TOKEN)
+    );
+}
+
+function desactivarDrivePorFalloAuth(motivo) {
+    authMethod = 'none';
+    drive = null;
+    _driveAuthClient = null;
+    _oauth2Client = null;
+    driveAuthBlockedUntil = Date.now() + DRIVE_AUTH_COOLDOWN_MS;
+    driveAuthLastError = motivo || 'OAuth no disponible';
+}
+
 function driveDisponible() {
     return !!drive && authMethod !== 'none';
 }
@@ -284,7 +316,7 @@ async function forzarRefrescoToken() {
     }
 }
 
-if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_REFRESH_TOKEN) {
+if (oauthDriveConfigurado()) {
     // ── OAuth2 con Refresh Token ──
     const oauth2Client = new google.auth.OAuth2(
         GOOGLE_CLIENT_ID,
@@ -317,9 +349,23 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_REFRESH_TOKEN) {
                 startupLog.serviceOk('Drive', result.email || 'OAuth2');
                 return result;
             }
+            const esDev = String(process.env.NODE_ENV || '').toLowerCase() !== 'production';
+            if (esDev) {
+                desactivarDrivePorFalloAuth(result.message);
+                startupLog.serviceOk('Drive', 'omitido en desarrollo (OAuth inválido)');
+                startupLog.detail(`[DRIVE-AUTH] ${result.message}`);
+                return { ok: false, skipped: true, message: result.message };
+            }
             startupLog.serviceFail('Drive', result.message || 'token inválido');
             return result;
         } catch (e) {
+            const esDev = String(process.env.NODE_ENV || '').toLowerCase() !== 'production';
+            if (esDev) {
+                desactivarDrivePorFalloAuth(e.message);
+                startupLog.serviceOk('Drive', 'omitido en desarrollo (OAuth no disponible)');
+                startupLog.detail(`[DRIVE-AUTH] ${e.message}`);
+                return { ok: false, skipped: true, message: e.message };
+            }
             startupLog.serviceFail('Drive', e.message);
             return { ok: false, message: e.message };
         }
@@ -337,8 +383,9 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_REFRESH_TOKEN) {
             process.exit(1);
         }
 
-        startupLog.serviceFail('Drive', 'no configurado');
+        startupLog.serviceOk('Drive', 'omitido (sin credenciales reales)');
         authMethod = 'none';
+        arranqueAuthPromise = Promise.resolve({ ok: false, skipped: true });
     } else {
 
         const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf-8'));

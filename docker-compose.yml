@@ -5,12 +5,18 @@ services:
     restart: unless-stopped
     environment:
       MARIADB_ROOT_PASSWORD: root
+      # Permite root desde otras PCs de la LAN (además de localhost).
+      MARIADB_ROOT_HOST: "%"
       TZ: America/Mexico_City
+    command:
+      - --bind-address=0.0.0.0
+      - --skip-name-resolve
     ports:
-      - "3306:3306"
+      - "0.0.0.0:3306:3306"
     volumes:
       - biznaga_mariadb_data:/var/lib/mysql
       - ./docker/init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql:ro
+      - ./docker/init-lan-grants.sql:/docker-entrypoint-initdb.d/02-init-lan-grants.sql:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s
@@ -26,7 +32,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "8080:80"
+      - "0.0.0.0:8080:80"
     environment:
       PMA_HOST: db
       PMA_PORT: 3306
