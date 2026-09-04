@@ -55,11 +55,47 @@ function Get-AuthHash {
     }
 }
 
+function Invoke-Git {
+    param([Parameter(Mandatory = $true)][string[]]$Args, [string]$WorkDir = $PSScriptRoot)
+    Push-Location $WorkDir
+    try {
+        & git @Args
+        if ($LASTEXITCODE -ne 0) {
+            throw "git $($Args -join ' ') fallo con codigo $LASTEXITCODE"
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
+function Set-GitAuthorEnv {
+    param([string]$WorkDir = $PSScriptRoot)
+
+    # No modifica git config. Solo variables de entorno para este proceso.
+    $name = $env:GIT_AUTHOR_NAME
+    $email = $env:GIT_AUTHOR_EMAIL
+
+    if ([string]::IsNullOrWhiteSpace($name) -or [string]::IsNullOrWhiteSpace($email)) {
+        try {
+            $name = (& git -C $WorkDir log -1 --format="%an" 2>$null | Select-Object -First 1)
+            $email = (& git -C $WorkDir log -1 --format="%ae" 2>$null | Select-Object -First 1)
+        } catch { }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($name)) { $name = "EffectedBloom17" }
+    if ([string]::IsNullOrWhiteSpace($email)) { $email = "hectortorruco1911@gmail.com" }
+
+    $env:GIT_AUTHOR_NAME = $name.Trim()
+    $env:GIT_AUTHOR_EMAIL = $email.Trim()
+    $env:GIT_COMMITTER_NAME = $env:GIT_AUTHOR_NAME
+    $env:GIT_COMMITTER_EMAIL = $env:GIT_AUTHOR_EMAIL
+}
+
 function Test-Authorization {
     Write-Host ""
     Write-Host "Autorizacion requerida (jefe de departamento)" -ForegroundColor Yellow
     $user = Read-Host "Usuario"
-    $secure = Read-Host "Contraseña" -AsSecureString
+    $secure = Read-Host "Contrasena" -AsSecureString
     $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
     try {
         $pass = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
@@ -73,19 +109,6 @@ function Test-Authorization {
     $hash = Get-AuthHash -User $user -Password $pass
     $pass = $null
     return ($hash -eq $ExpectedHash)
-}
-
-function Invoke-Git {
-    param([Parameter(Mandatory = $true)][string[]]$Args, [string]$WorkDir = $PSScriptRoot)
-    Push-Location $WorkDir
-    try {
-        & git @Args
-        if ($LASTEXITCODE -ne 0) {
-            throw "git $($Args -join ' ') fallo con codigo $LASTEXITCODE"
-        }
-    } finally {
-        Pop-Location
-    }
 }
 
 function Get-RelativePathUnix {
@@ -132,6 +155,7 @@ if (-not (Test-Path (Join-Path $root ".git"))) {
 
 # Quitar del working tree local cualquier archivo de produccion que no deba estar en SIB.
 Remove-ProtectedFromTree -Root $root
+Set-GitAuthorEnv -WorkDir $root
 
 $status = & git -C $root status --porcelain
 if ($status) {
@@ -243,6 +267,7 @@ try {
 
     Push-Location $tempRoot
     try {
+        Set-GitAuthorEnv -WorkDir $tempRoot
         git add -A
         $pending = git status --porcelain
         if (-not $pending) {
