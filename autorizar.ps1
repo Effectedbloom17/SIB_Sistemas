@@ -119,7 +119,7 @@ function Get-RelativePathUnix {
 
 function Test-IsProtected {
     param([string]$RelPath)
-    $norm = ($RelPath -replace '\\', '/').TrimStart('/')
+    $norm = (Normalize-GitRelPath $RelPath)
     foreach ($p in $ProtectedPaths) {
         $pp = ($p -replace '\\', '/').TrimStart('/')
         if ($norm -eq $pp -or $norm.StartsWith("$pp/")) {
@@ -127,6 +127,66 @@ function Test-IsProtected {
         }
     }
     return $false
+}
+
+function Normalize-GitRelPath {
+    param([string]$RelPath)
+    if ($null -eq $RelPath) { return '' }
+    $p = [string]$RelPath
+    $p = $p.Trim().Trim('"').Trim("'")
+    $p = $p -replace '\\', '/'
+    return $p.TrimStart('/')
+}
+
+function Get-FullFromRel {
+    param([string]$Root, [string]$RelPath)
+    $rel = Normalize-GitRelPath $RelPath
+    if ([string]::IsNullOrWhiteSpace($rel)) { return $null }
+    return [System.IO.Path]::GetFullPath((Join-Path $Root ($rel -replace '/', [IO.Path]::DirectorySeparatorChar)))
+}
+
+function Test-PathSafe {
+    param([string]$FullPath)
+    if ([string]::IsNullOrWhiteSpace($FullPath)) { return $false }
+    try {
+        return [System.IO.File]::Exists($FullPath) -or [System.IO.Directory]::Exists($FullPath)
+    } catch {
+        return $false
+    }
+}
+
+function Remove-PathSafe {
+    param([string]$FullPath)
+    if (-not (Test-PathSafe $FullPath)) { return }
+    try {
+        if ([System.IO.Directory]::Exists($FullPath)) {
+            [System.IO.Directory]::Delete($FullPath, $true)
+        } elseif ([System.IO.File]::Exists($FullPath)) {
+            [System.IO.File]::Delete($FullPath)
+        }
+    } catch {
+        # Rutas con encoding raro: no abortar la sincronizacion.
+    }
+}
+
+function Copy-FileSafe {
+    param([string]$Source, [string]$Destination)
+    if (-not (Test-PathSafe $Source)) { return $false }
+    try {
+        $parent = [System.IO.Path]::GetDirectoryName($Destination)
+        if ($parent -and -not [System.IO.Directory]::Exists($parent)) {
+            [void][System.IO.Directory]::CreateDirectory($parent)
+        }
+        if ([System.IO.Directory]::Exists($Source)) {
+            Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force -ErrorAction Stop
+        } else {
+            [System.IO.File]::Copy($Source, $Destination, $true)
+        }
+        return $true
+    } catch {
+        Write-Host "  Omitido (ruta no copiable): $(Split-Path -Leaf $Source)" -ForegroundColor DarkYellow
+        return $false
+    }
 }
 
 function Remove-ProtectedFromTree {
@@ -224,42 +284,45 @@ try {
     Write-Host "Copiando cambios de residentes al arbol privado..." -ForegroundColor Yellow
 
     # Borrar tracked files del privado excepto protegidos y .git
-    $privateFiles = & git -C $tempRoot ls-files
-    foreach ($f in $privateFiles) {
-        if (Test-IsProtected -RelPath $f) { continue }
-        $full = Join-Path $tempRoot ($f -replace '/', '\')
-        if (Test-Path -LiteralPath $full) {
-            Remove-Item -LiteralPath $full -Force -ErrorAction SilentlyContinue
-        }
+    # core.quotepath=false evita comillas/octales en nombres con acentos.
+    $privateList = @(git -C $tempRoot -c core.quotepath=false ls-files)
+    foreach ($f in $privateList) {
+        $rel = Normalize-GitRelPath $f
+        if ([string]::IsNullOrWhiteSpace($rel)) { continue }
+        if (Test-IsProtected -RelPath $rel) { continue }
+        $full = Get-FullFromRel -Root $tempRoot -RelPath $rel
+        Remove-PathSafe -FullPath $full
     }
 
     # Copiar archivos versionables del repo actual (residentes)
-    $sourceFiles = & git -C $root ls-files
-    foreach ($f in $sourceFiles) {
-        if (Test-IsProtected -RelPath $f) { continue }
-        $src = Join-Path $root ($f -replace '/', '\')
-        if (-not (Test-Path -LiteralPath $src)) { continue }
-        $dst = Join-Path $tempRoot ($f -replace '/', '\')
-        $dstParent = Split-Path -Parent $dst
-        if (-not (Test-Path $dstParent)) {
-            New-Item -ItemType Directory -Path $dstParent -Force | Out-Null
+    $sourceList = @(git -C $root -c core.quotepath=false ls-files)
+    $copied = 0
+    $skipped = 0
+    foreach ($f in $sourceList) {
+        $rel = Normalize-GitRelPath $f
+        if ([string]::IsNullOrWhiteSpace($rel)) { continue }
+        if (Test-IsProtected -RelPath $rel) { continue }
+        $src = Get-FullFromRel -Root $root -RelPath $rel
+        $dst = Get-FullFromRel -Root $tempRoot -RelPath $rel
+        if (Copy-FileSafe -Source $src -Destination $dst) {
+            $copied++
+        } else {
+            $skipped++
         }
-        Copy-Item -LiteralPath $src -Destination $dst -Force
     }
+    Write-Host "  Archivos copiados: $copied (omitidos: $skipped)" -ForegroundColor DarkGray
 
     # Restaurar archivos protegidos del privado
     foreach ($p in $ProtectedPaths) {
         $bak = Join-Path $backupDir ($p -replace '/', '\')
-        if (Test-Path -LiteralPath $bak) {
+        if (Test-PathSafe $bak) {
             $dst = Join-Path $tempRoot ($p -replace '/', '\')
             $dstParent = Split-Path -Parent $dst
-            if (-not (Test-Path $dstParent)) {
-                New-Item -ItemType Directory -Path $dstParent -Force | Out-Null
+            if ($dstParent -and -not (Test-PathSafe $dstParent)) {
+                [void][System.IO.Directory]::CreateDirectory($dstParent)
             }
-            if (Test-Path -LiteralPath $dst) {
-                Remove-Item -LiteralPath $dst -Recurse -Force
-            }
-            Copy-Item -LiteralPath $bak -Destination $dst -Recurse -Force
+            Remove-PathSafe -FullPath $dst
+            Copy-FileSafe -Source $bak -Destination $dst | Out-Null
         }
     }
 
