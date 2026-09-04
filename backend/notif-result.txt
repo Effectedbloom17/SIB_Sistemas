@@ -1,0 +1,114 @@
+[dotenv@17.2.3] injecting env (23) from .env -- tip: ­ƒöÉ prevent building .env in docker: https://dotenvx.com/prebuild
+
+=== ULTIMAS INSCRIPCIONES ===
+{
+  "inscripcion_id": 724,
+  "programado_id": 94,
+  "created_at": "2026-03-10T22:46:56.000Z",
+  "emp_nombre": "CARLOS EDUARDO MARTINEZ LOPEZ",
+  "empresa_id": 24,
+  "nombre_curso": "AVANZADO ISO 9001:2015",
+  "nombre_empresa": "NVIDIA",
+  "inst_nombre": "Ing. mauricio",
+  "inst_email": "fatimajulietr@gmail.com",
+  "inst_uid": 75,
+  "usr_id": 75,
+  "usr_email": "fatimajulietr@gmail.com",
+  "usr_nombre": "Ing. mauricio"
+}
+{
+  "inscripcion_id": 728,
+  "programado_id": 94,
+  "created_at": "2026-03-10T22:46:56.000Z",
+  "emp_nombre": "JUAN PABLO FLORES REYES",
+  "empresa_id": 24,
+  "nombre_curso": "AVANZADO ISO 9001:2015",
+  "nombre_empresa": "NVIDIA",
+  "inst_nombre": "Ing. mauricio",
+  "inst_email": "fatimajulietr@gmail.com",
+  "inst_uid": 75,
+  "usr_id": 75,
+  "usr_email": "fatimajulietr@gmail.com",
+  "usr_nombre": "Ing. mauricio"
+}
+{
+  "inscripcion_id": 727,
+  "programado_id": 94,
+  "created_at": "2026-03-10T22:46:56.000Z",
+  "emp_nombre": "ANA PATRICIA GOMEZ SANCHEZ",
+  "empresa_id": 24,
+  "nombre_curso": "AVANZADO ISO 9001:2015",
+  "nombre_empresa": "NVIDIA",
+  "inst_nombre": "Ing. mauricio",
+  "inst_email": "fatimajulietr@gmail.com",
+  "inst_uid": 75,
+  "usr_id": 75,
+  "usr_email": "fatimajulietr@gmail.com",
+  "usr_nombre": "Ing. mauricio"
+}
+{
+  "inscripcion_id": 726,
+  "programado_id": 94,
+  "created_at": "2026-03-10T22:46:56.000Z",
+  "emp_nombre": "JOSE LUIS RAMIREZ TORRES",
+  "empresa_id": 24,
+  "nombre_curso": "AVANZADO ISO 9001:2015",
+  "nombre_empresa": "NVIDIA",
+  "inst_nombre": "Ing. mauricio",
+  "inst_email": "fatimajulietr@gmail.com",
+  "inst_uid": 75,
+  "usr_id": 75,
+  "usr_email": "fatimajulietr@gmail.com",
+  "usr_nombre": "Ing. mauricio"
+}
+{
+  "inscripcion_id": 725,
+  "programado_id": 94,
+  "created_at": "2026-03-10T22:46:56.000Z",
+  "emp_nombre": "MARIA GUADALUPE HERNANDEZ GARCIA",
+  "empresa_id": 24,
+  "nombre_curso": "AVANZADO ISO 9001:2015",
+  "nombre_empresa": "NVIDIA",
+  "inst_nombre": "Ing. mauricio",
+  "inst_email": "fatimajulietr@gmail.com",
+  "inst_uid": 75,
+  "usr_id": 75,
+  "usr_email": "fatimajulietr@gmail.com",
+  "usr_nombre": "Ing. mauricio"
+}
+
+=== USUARIOS DE EMPRESA NVIDIA (id=24) ===
+{
+  "id": 74,
+  "nombre": "David",
+  "email": "juancrewff@gmail.com",
+  "empresa_id": 24,
+  "nombre_empresa": "NVIDIA"
+}
+
+=== TABLA notificacion_usuario CREADA/EXISTENTE ===
+
+=== NOTIFICACION INSERTADA PARA INSTRUCTOR (usr=75) ===
+=== NOTIFICACION INSERTADA PARA EMPRESA (usr=74) ===
+
+=== NOTIFICACIONES EN BD ===
+{
+  "notif_id": 1,
+  "usuario_id": 75,
+  "titulo": "Nuevos participantes registrados",
+  "mensaje": "La empresa NVIDIA ha registrado 5 participantes para el curso \"AVANZADO ISO 9001:2015\" (programado #94).",
+  "tipo": "info",
+  "referencia_id": 94,
+  "descartada": 0,
+  "created_at": "2026-03-10T23:11:36.000Z"
+}
+{
+  "notif_id": 2,
+  "usuario_id": 74,
+  "titulo": "Participantes registrados",
+  "mensaje": "Tu inscripci├│n de 5 participantes al curso \"AVANZADO ISO 9001:2015\" ha sido registrada correctamente.",
+  "tipo": "success",
+  "referencia_id": 94,
+  "descartada": 0,
+  "created_at": "2026-03-10T23:11:36.000Z"
+}

@@ -1,0 +1,92 @@
+# See http://help.github.com/ignore-files/ for more about ignoring files.
+
+# compiled output
+/dist
+/tmp
+/out-tsc
+/.angular
+
+# dependencies
+/node_modules
+/backend/node_modules
+package-lock.json
+/backend/package-lock.json
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# misc
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Snapshots SQL locales (generar con backend/backup-db.js; no versionar dumps)
+/backend/backup-*.sql
+/backend/*.sql.gz
+
+# Backend uploads
+/backend/uploads
+/backend/storage
+/backend/data/ticket-evidencias
+*.log
+
+# Environment files (NUNCA commitear - contienen credenciales)
+.env
+.env.local
+/backend/.env
+/backend/.env.produccion
+/backend/.env.*
+!backend/.env.example
+
+# Claude Code configuracion local
+.claude/settings.local.json
+
+# Documento de accesos y credenciales (NUNCA a git)
+ACCESOS-Y-DEPLOY.md
+
+# Operaciones / credenciales de producción (solo repo privado del jefe)
+# Si ya estaban trackeados en SitemaCapacitacion, Git los conserva allí.
+/deploy.ps1
+/backup_db.ps1
+/download-db-backups.ps1
+/INFRAESTRUCTURA-PRODUCCION.md
+/backend/MIGRACION-PRODUCCION.md
+/docker/restore-backups.ps1
+/backend/scripts/db-backup-mensual.sh
+/.github/skills/deploy-produccion-biznaga/
+/reports/security-audit/
+
+# Build artifacts
+dist.zip
+*.zip
+
+# Google Calendar credentials (never commit these!)
+google-calendar.config.ts
+**/google-calendar.config.ts
+!**/google-calendar.config.example.ts
+
+# Google Drive credentials (never commit these!)
+/backend/google-credentials.json
+**/google-credentials.json

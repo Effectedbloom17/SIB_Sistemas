@@ -1,0 +1,134 @@
+<!-- Header Estándar -->
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+
+  <!-- Botón de regreso -->
+  <button class="btn btn-outline-light"
+          [routerLink]="['/dashboard']"
+          style="position: absolute; left: 2rem; top: 2rem; z-index: 3; padding: 0.6rem 1.5rem; border-radius: 8px;">
+    <i class="fas fa-arrow-left mr-2"></i>Volver
+  </button>
+
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-chalkboard-teacher"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">
+            {{ tituloCategoria }}
+          </h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Contenedor Principal -->
+<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+
+      <!-- Estado Vacío -->
+      <div class="row" *ngIf="cursosFiltrados.length === 0">
+        <div class="col-12">
+          <div class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+            <div class="card-body text-center py-5">
+              <i class="fas fa-graduation-cap fa-2x text-muted"></i>
+              <p class="text-muted mt-2 mb-3">No hay cursos registrados en esta categoría</p>
+              <button class="btn btn-success shadow"
+                      style="background: linear-gradient(135deg, #38512F 0%, #5a7456 100%);
+                             border: none; padding: 0.6rem 1.5rem; font-weight: 600;">
+                <i class="fas fa-plus mr-2"></i>Crear Nuevo Curso
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grid de Cursos -->
+      <div class="row" *ngIf="cursosFiltrados.length > 0">
+        <div class="col-xl-4 col-lg-4 col-md-6 mb-4" *ngFor="let curso of cursosFiltrados">
+          <div class="card shadow-lg border-0"
+               style="border-radius: 15px; overflow: hidden; background-color: #fff; height: 100%; display: flex; flex-direction: column;">
+
+            <!-- Card Header -->
+            <div class="card-header border-0" style="padding: 1.5rem 1.5rem 1rem 1.5rem;">
+              <div class="row align-items-center">
+                <div class="col">
+                  <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">
+                    Curso
+                  </h6>
+                  <h2 class="mb-0" style="color: #38512F; font-weight: 700; font-size: 1.5rem;">
+                    {{ curso.nombre }}
+                  </h2>
+                </div>
+                <div class="col-auto">
+                  <span class="avatar rounded-circle shadow-sm d-flex align-items-center justify-content-center"
+                        [style.background]="curso.estado === 'abierto' ? 'linear-gradient(135deg, #28a745 0%, #20c997 100%)' : 'linear-gradient(135deg, #6c757d 0%, #495057 100%)'"
+                        style="width: 50px; height: 50px;">
+                    <i class="fas text-white"
+                       [ngClass]="curso.estado === 'abierto' ? 'fa-check-circle' : 'fa-lock'"
+                       style="font-size: 1.5rem;"></i>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card Body -->
+            <div class="card-body" style="padding: 1rem 1.5rem 1.5rem 1.5rem; flex-grow: 1; display: flex; flex-direction: column;">
+
+              <!-- Estado y Empresa -->
+              <div class="mb-3">
+                <span class="badge mr-2"
+                      [ngClass]="curso.estado === 'abierto' ? 'badge-success' : 'badge-secondary'"
+                      style="padding: 0.4rem 0.8rem; font-size: 0.75rem;">
+                  <i class="fas fa-circle mr-1" style="font-size: 0.5rem;"></i>{{ curso.estado | titlecase }}
+                </span>
+                <span class="text-muted" style="font-size: 0.85rem;">{{ curso.empresa }}</span>
+              </div>
+
+              <!-- Instructor -->
+              <div class="mb-3">
+                <small class="text-muted">
+                  <i class="fas fa-user-tie mr-2" style="color: #768D6B;"></i>
+                  <strong>{{ curso.instructor }}</strong>
+                </small>
+              </div>
+
+              <!-- Cupos -->
+              <div class="mb-3 flex-grow-1">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <small class="text-muted">
+                    <i class="fas fa-users mr-1" style="color: #768D6B;"></i>
+                    Cupos: <strong>{{ curso.ocupados }} / {{ curso.cupos }}</strong>
+                  </small>
+                  <small class="font-weight-bold" style="color: #38512F;">
+                    {{ (curso.ocupados / curso.cupos) * 100 | number:'1.0-0' }}%
+                  </small>
+                </div>
+                <div class="progress" style="height: 8px; border-radius: 4px; background-color: #e9ecef;">
+                  <div class="progress-bar"
+                       [style.width.%]="(curso.ocupados / curso.cupos) * 100"
+                       [style.background]="curso.estado === 'abierto' ? 'linear-gradient(135deg, #38512F 0%, #5a7456 100%)' : 'linear-gradient(135deg, #6c757d 0%, #495057 100%)'">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Botón de Acción -->
+              <button class="btn btn-success shadow btn-block"
+                      (click)="verDetalleCurso(curso)"
+                      style="background: linear-gradient(135deg, #38512F 0%, #5a7456 100%);
+                             border: none; padding: 0.6rem 1rem; font-weight: 600;">
+                <i class="fas fa-calendar-alt mr-2"></i>Gestionar Agenda
+              </button>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

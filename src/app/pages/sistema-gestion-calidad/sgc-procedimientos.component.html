@@ -1,0 +1,427 @@
+<div class="header header-bg-image sgc-hero sgc-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="sgc-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i class="fas fa-file-pdf" aria-hidden="true"></i>
+          </div>
+          <p class="text-white mb-1 sgc-hero-tagline">SGC · Calidad</p>
+          <h1 class="text-white mb-0 sgc-hero-title">Procedimientos</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid sgc-main-wrap mt--5">
+  <div class="row justify-content-center">
+    <div class="col-12 sgc-content-col">
+      <section class="sgc-proc-panel" aria-labelledby="sgc-proc-heading">
+        <header class="sgc-proc-panel__header">
+          <div class="sgc-proc-panel__intro">
+            <span class="sgc-proc-panel__eyebrow">Documentación corporativa</span>
+            <h2 id="sgc-proc-heading" class="sgc-proc-panel__title">Procedimientos oficiales</h2>
+            <p class="sgc-proc-panel__lead mb-0">
+              {{ totalDocumentos }} procedimientos en PDF organizados por área.
+              Selecciona uno para previsualizarlo en pantalla completa.
+            </p>
+          </div>
+
+          <div class="sgc-proc-panel__tools">
+            <button *ngIf="puedeGestionar"
+                    type="button"
+                    class="sgc-proc-btn-upload"
+                    (click)="abrirPanelSubida()">
+              <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+              Subir procedimiento
+            </button>
+
+            <div class="sgc-proc-panel__search">
+              <i class="fas fa-search" aria-hidden="true"></i>
+              <input type="search"
+                     class="form-control form-control-sm"
+                     placeholder="Buscar por código o nombre…"
+                     [(ngModel)]="busqueda"
+                     (ngModelChange)="aplicarFiltro()"
+                     aria-label="Buscar procedimientos"
+                     [attr.aria-expanded]="buscando">
+              <button *ngIf="buscando"
+                      type="button"
+                      class="sgc-proc-panel__search-clear"
+                      (click)="limpiarBusqueda()"
+                      aria-label="Limpiar búsqueda">
+                <i class="fas fa-times" aria-hidden="true"></i>
+              </button>
+              <span class="sgc-proc-panel__search-count" *ngIf="buscando">
+                {{ documentosFiltrados.length }}
+              </span>
+            </div>
+          </div>
+        </header>
+
+        <div *ngIf="cargandoLista" class="sgc-proc-loading" role="status">
+          <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+          <span>Cargando procedimientos…</span>
+        </div>
+
+        <div class="sgc-proc-workspace" [class.sgc-proc-workspace--searching]="buscando" *ngIf="!cargandoLista">
+          <aside class="sgc-proc-nav" aria-label="Áreas de procedimientos">
+            <div class="sgc-proc-nav__head">
+              <span class="sgc-proc-nav__label">Áreas</span>
+              <span class="sgc-proc-nav__count">{{ categorias.length }}</span>
+            </div>
+            <nav class="sgc-proc-nav__list" role="tablist" aria-orientation="vertical">
+              <button *ngFor="let cat of categorias; trackBy: trackByCategoria"
+                      type="button"
+                      class="sgc-proc-nav__item"
+                      role="tab"
+                      [class.sgc-proc-nav__item--active]="esCategoriaActiva(cat)"
+                      [attr.aria-selected]="esCategoriaActiva(cat)"
+                      [style.--proc-color]="cat.colorInicio"
+                      [style.--proc-color-end]="cat.colorFin"
+                      (click)="seleccionarCategoria(cat)">
+                <span class="sgc-proc-nav__rail" aria-hidden="true"></span>
+                <span class="sgc-proc-nav__icon" aria-hidden="true">
+                  <i [class]="cat.iconClass"></i>
+                </span>
+                <span class="sgc-proc-nav__text">
+                  <span class="sgc-proc-nav__prefijo">{{ cat.prefijo }}</span>
+                  <span class="sgc-proc-nav__title">{{ cat.titulo }}</span>
+                  <span class="sgc-proc-nav__meta">
+                    {{ contarPorCategoria(cat.id) }} procedimiento{{ contarPorCategoria(cat.id) !== 1 ? 's' : '' }}
+                  </span>
+                </span>
+              </button>
+            </nav>
+          </aside>
+
+          <div class="sgc-proc-content"
+               aria-live="polite"
+               [style.--proc-panel-color]="categoriaSeleccionada.colorInicio">
+            <div *ngIf="buscando" class="sgc-proc-content__banner sgc-proc-content__banner--search">
+              <span class="sgc-proc-content__badge">Búsqueda</span>
+              <h3 class="sgc-proc-content__title">Resultados</h3>
+              <p class="sgc-proc-content__desc mb-0">Coincidencias para «{{ busqueda.trim() }}».</p>
+            </div>
+
+            <div *ngIf="!buscando" class="sgc-proc-content__banner">
+              <span class="sgc-proc-content__badge">{{ categoriaSeleccionada.prefijo }}</span>
+              <h3 class="sgc-proc-content__title">{{ categoriaSeleccionada.titulo }}</h3>
+              <p class="sgc-proc-content__desc mb-0">{{ categoriaSeleccionada.descripcion }}</p>
+            </div>
+
+            <div class="sgc-proc-docs"
+                 [style.--proc-color]="buscando ? '#64748b' : categoriaSeleccionada.colorInicio"
+                 [style.--proc-color-end]="buscando ? '#94a3b8' : categoriaSeleccionada.colorFin">
+              <div class="sgc-proc-docs__deco" aria-hidden="true"></div>
+              <div class="sgc-proc-docs__head">
+                <div>
+                  <h4 class="sgc-proc-docs__title">
+                    {{ buscando ? 'Procedimientos encontrados' : 'Documentos PDF' }}
+                  </h4>
+                  <p class="sgc-proc-docs__subtitle mb-0">
+                    {{ documentosFiltrados.length }} documento{{ documentosFiltrados.length !== 1 ? 's' : '' }}
+                    · {{ etiquetaRolUsuario }}
+                  </p>
+                </div>
+                <button *ngIf="puedeGestionar && !buscando"
+                        type="button"
+                        class="sgc-proc-docs__add"
+                        (click)="abrirPanelSubida()">
+                  <i class="fas fa-plus" aria-hidden="true"></i>
+                  Nuevo
+                </button>
+              </div>
+
+              <div *ngIf="documentosFiltrados.length === 0" class="sgc-proc-empty" role="status">
+                <i class="fas fa-search sgc-proc-empty__icon" aria-hidden="true"></i>
+                <p class="sgc-proc-empty__text mb-0">No hay procedimientos que coincidan.</p>
+                <button *ngIf="puedeGestionar"
+                        type="button"
+                        class="btn btn-sm sgc-proc-btn-upload mt-3"
+                        (click)="abrirPanelSubida()">
+                  <i class="fas fa-plus mr-1" aria-hidden="true"></i>
+                  Subir el primero
+                </button>
+              </div>
+
+              <div *ngIf="documentosFiltrados.length > 0" class="sgc-proc-grid" role="list">
+                <article *ngFor="let doc of documentosFiltrados; trackBy: trackByCodigo"
+                         class="sgc-proc-card"
+                         role="listitem"
+                         tabindex="0"
+                         (click)="abrirDocumento(doc)"
+                         (keyup.enter)="abrirDocumento(doc)"
+                         [attr.aria-label]="'Abrir ' + doc.codigo + ' ' + doc.titulo">
+                  <div class="sgc-proc-card__preview">
+                    <div class="sgc-proc-card__frame">
+                      <img *ngIf="!miniatura(doc).error"
+                           class="sgc-proc-card__thumb"
+                           [src]="miniatura(doc).urlStr"
+                           [alt]="'Vista previa de ' + doc.titulo"
+                           loading="lazy"
+                           (error)="onErrorMiniatura(doc)">
+                      <div *ngIf="miniatura(doc).error" class="sgc-proc-card__placeholder">
+                        <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                      </div>
+                      <div class="sgc-proc-card__shine" aria-hidden="true"></div>
+                    </div>
+                    <span class="sgc-proc-card__type">PDF</span>
+                    <div class="sgc-proc-card__overlay">
+                      <span class="sgc-proc-card__open">
+                        <i class="fas fa-expand" aria-hidden="true"></i>
+                        Ver procedimiento
+                      </span>
+                      <button *ngIf="puedeGestionar && doc.id"
+                              type="button"
+                              class="sgc-proc-card__replace"
+                              title="Reemplazar archivo"
+                              (click)="abrirPanelReemplazo(doc, $event)">
+                        <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                        Reemplazar
+                      </button>
+                    </div>
+                  </div>
+                  <div class="sgc-proc-card__body">
+                    <div class="sgc-proc-card__meta">
+                      <span class="sgc-proc-card__code">{{ doc.codigo }}</span>
+                      <span *ngIf="buscando" class="sgc-proc-card__area">{{ nombreCategoria(doc.categoriaId) }}</span>
+                    </div>
+                    <h5 class="sgc-proc-card__name">{{ doc.titulo }}</h5>
+                    <div class="sgc-proc-card__footer">
+                      <button *ngIf="puedeGestionar && doc.id"
+                              type="button"
+                              class="sgc-proc-card__replace-btn"
+                              title="Reemplazar PDF"
+                              (click)="abrirPanelReemplazo(doc, $event)">
+                        <i class="fas fa-exchange-alt" aria-hidden="true"></i>
+                      </button>
+                      <div class="sgc-proc-card__action" aria-hidden="true">
+                        <i class="fas fa-arrow-right"></i>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- Visor PDF pantalla completa -->
+<div class="sgc-proc-visor" *ngIf="mostrarVisor && documentoActivo"
+     role="dialog" aria-modal="true"
+     [attr.aria-label]="'Vista de ' + documentoActivo.codigo">
+  <div class="sgc-proc-visor__backdrop" (click)="cerrarVisor()"></div>
+  <div class="sgc-proc-visor__panel">
+    <header class="sgc-proc-visor__head">
+      <div class="sgc-proc-visor__title-wrap">
+        <span class="sgc-proc-visor__icon">
+          <i class="fas fa-file-pdf" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="sgc-proc-visor__code">{{ documentoActivo.codigo }}</strong>
+          <small class="sgc-proc-visor__subtitle">{{ documentoActivo.titulo }}</small>
+        </div>
+      </div>
+      <div class="sgc-proc-visor__actions">
+        <button *ngIf="puedeGestionar"
+                type="button"
+                class="btn btn-sm btn-outline-light sgc-proc-visor__btn"
+                (click)="descargarPdfVisor()"
+                [disabled]="!previewBlob && visorCargando">
+          <i class="fas fa-file-download mr-1" aria-hidden="true"></i>
+          Descargar en PDF
+        </button>
+        <button type="button" class="btn btn-sm btn-light sgc-proc-visor__btn" (click)="cerrarVisor()">
+          <i class="fas fa-times mr-1" aria-hidden="true"></i>
+          Cerrar
+        </button>
+      </div>
+    </header>
+    <div class="sgc-proc-visor__body">
+      <app-pdf-canvas-viewer
+        *ngIf="!visorError"
+        [blob]="previewBlob"
+        [preparando]="visorCargando && !previewBlob"
+        [progresoServidor]="visorProgreso"
+        [etiquetaServidor]="visorEtiqueta"
+        [lento]="visorLento"
+        tema="oscuro"
+        (fallo)="onErrorVisor($event)">
+      </app-pdf-canvas-viewer>
+      <div *ngIf="visorError" class="sgc-proc-visor__fallback">
+        <i class="fas fa-exclamation-triangle fa-2x mb-3" aria-hidden="true"></i>
+        <p class="mb-2">{{ visorError }}</p>
+        <button *ngIf="puedeGestionar"
+                type="button"
+                class="btn btn-light btn-sm"
+                (click)="descargarPdfVisor()">
+          <i class="fas fa-file-download mr-1" aria-hidden="true"></i>
+          Descargar en PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal subir procedimiento -->
+<div class="sgc-proc-modal" *ngIf="mostrarSubida" role="dialog" aria-modal="true" aria-labelledby="sgc-proc-upload-title">
+  <div class="sgc-proc-modal__backdrop" (click)="cerrarPanelSubida()"></div>
+  <div class="sgc-proc-modal__panel">
+    <header class="sgc-proc-modal__head">
+      <h3 id="sgc-proc-upload-title" class="sgc-proc-modal__title mb-0">
+        <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+        Subir procedimiento
+      </h3>
+      <button type="button" class="btn btn-sm btn-light" (click)="cerrarPanelSubida()" [disabled]="subiendo">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </header>
+    <div class="sgc-proc-modal__body">
+      <p class="sgc-proc-modal__hint">
+        El PDF se guarda en Google Drive (Calidad → Procedimientos) y queda registrado en la base de datos.
+      </p>
+
+      <div class="sgc-proc-form-row">
+        <label class="sgc-proc-label" for="proc-codigo">Código</label>
+        <input id="proc-codigo"
+               type="text"
+               class="form-control form-control-sm sgc-proc-input"
+               placeholder="Ej. SP-P-09"
+               [(ngModel)]="formCodigo"
+               [disabled]="subiendo"
+               maxlength="32"
+               autocomplete="off">
+      </div>
+
+      <div class="sgc-proc-form-row">
+        <label class="sgc-proc-label" for="proc-titulo">Título</label>
+        <input id="proc-titulo"
+               type="text"
+               class="form-control form-control-sm sgc-proc-input"
+               placeholder="Nombre del procedimiento"
+               [(ngModel)]="formTitulo"
+               [disabled]="subiendo"
+               maxlength="255"
+               autocomplete="off">
+      </div>
+
+      <div class="sgc-proc-form-row">
+        <label class="sgc-proc-label" for="proc-area">Área</label>
+        <select id="proc-area"
+                class="form-control form-control-sm sgc-proc-input"
+                [(ngModel)]="formCategoriaId"
+                [disabled]="subiendo">
+          <option *ngFor="let cat of categorias" [value]="cat.id">
+            {{ cat.prefijo }} — {{ cat.titulo }}
+          </option>
+        </select>
+      </div>
+
+      <label class="sgc-proc-drop" [class.sgc-proc-drop--ready]="!!archivoSubida" [class.sgc-proc-drop--busy]="subiendo">
+        <input type="file"
+               accept="application/pdf,.pdf"
+               class="sgc-proc-drop__input"
+               (change)="onArchivoSubida($event)"
+               [disabled]="subiendo">
+        <span class="sgc-proc-drop__icon" aria-hidden="true">
+          <i class="fas" [ngClass]="archivoSubida ? 'fa-file-pdf' : 'fa-file-upload'"></i>
+        </span>
+        <span class="sgc-proc-drop__label">
+          {{ archivoSubida ? archivoSubida.name : 'Seleccionar PDF' }}
+        </span>
+        <span class="sgc-proc-drop__hint">
+          {{ archivoSubida ? (archivoSubida.size / 1024 | number:'1.0-0') + ' KB · clic para cambiar' : 'Solo PDF · el código y título se pueden autocompletar del nombre' }}
+        </span>
+      </label>
+      <button *ngIf="archivoSubida && !subiendo"
+              type="button"
+              class="btn btn-link btn-sm px-0 sgc-proc-drop-clear"
+              (click)="quitarArchivoSubida()">
+        Quitar archivo
+      </button>
+
+      <div *ngIf="errorSubida" class="alert alert-danger sgc-proc-alert" role="alert">{{ errorSubida }}</div>
+    </div>
+    <footer class="sgc-proc-modal__foot">
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cerrarPanelSubida()" [disabled]="subiendo">
+        Cancelar
+      </button>
+      <button type="button"
+              class="btn btn-sm sgc-proc-btn-upload"
+              (click)="confirmarSubida()"
+              [disabled]="subiendo || !archivoSubida || !formCodigo.trim() || !formTitulo.trim()">
+        <i class="fas" [ngClass]="subiendo ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+        {{ subiendo ? 'Subiendo…' : 'Subir y registrar' }}
+      </button>
+    </footer>
+  </div>
+</div>
+
+<!-- Modal reemplazar archivo -->
+<div class="sgc-proc-modal" *ngIf="mostrarReemplazo && documentoReemplazo"
+     role="dialog" aria-modal="true" aria-labelledby="sgc-proc-replace-title">
+  <div class="sgc-proc-modal__backdrop" (click)="cerrarPanelReemplazo()"></div>
+  <div class="sgc-proc-modal__panel">
+    <header class="sgc-proc-modal__head sgc-proc-modal__head--amber">
+      <h3 id="sgc-proc-replace-title" class="sgc-proc-modal__title mb-0">
+        <i class="fas fa-sync-alt" aria-hidden="true"></i>
+        Reemplazar archivo
+      </h3>
+      <button type="button" class="btn btn-sm btn-light" (click)="cerrarPanelReemplazo()" [disabled]="reemplazando">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </header>
+    <div class="sgc-proc-modal__body">
+      <div class="sgc-proc-replace-meta">
+        <span class="sgc-proc-card__code">{{ documentoReemplazo.codigo }}</span>
+        <strong>{{ documentoReemplazo.titulo }}</strong>
+        <p class="mb-0 text-muted small">
+          Se actualiza el PDF en Drive conservando el mismo registro y código en la base de datos.
+        </p>
+      </div>
+
+      <label class="sgc-proc-drop" [class.sgc-proc-drop--ready]="!!archivoReemplazo" [class.sgc-proc-drop--busy]="reemplazando">
+        <input type="file"
+               accept="application/pdf,.pdf"
+               class="sgc-proc-drop__input"
+               (change)="onArchivoReemplazo($event)"
+               [disabled]="reemplazando">
+        <span class="sgc-proc-drop__icon" aria-hidden="true">
+          <i class="fas" [ngClass]="archivoReemplazo ? 'fa-file-pdf' : 'fa-exchange-alt'"></i>
+        </span>
+        <span class="sgc-proc-drop__label">
+          {{ archivoReemplazo ? archivoReemplazo.name : 'Seleccionar PDF actualizado' }}
+        </span>
+        <span class="sgc-proc-drop__hint">
+          {{ archivoReemplazo ? (archivoReemplazo.size / 1024 | number:'1.0-0') + ' KB' : 'Reemplaza el contenido sin cambiar el código' }}
+        </span>
+      </label>
+      <button *ngIf="archivoReemplazo && !reemplazando"
+              type="button"
+              class="btn btn-link btn-sm px-0 sgc-proc-drop-clear"
+              (click)="quitarArchivoReemplazo()">
+        Quitar archivo
+      </button>
+
+      <div *ngIf="errorReemplazo" class="alert alert-danger sgc-proc-alert" role="alert">{{ errorReemplazo }}</div>
+    </div>
+    <footer class="sgc-proc-modal__foot">
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cerrarPanelReemplazo()" [disabled]="reemplazando">
+        Cancelar
+      </button>
+      <button type="button"
+              class="btn btn-sm btn-warning"
+              (click)="confirmarReemplazo()"
+              [disabled]="reemplazando || !archivoReemplazo">
+        <i class="fas" [ngClass]="reemplazando ? 'fa-spinner fa-spin' : 'fa-sync-alt'" aria-hidden="true"></i>
+        {{ reemplazando ? 'Actualizando…' : 'Reemplazar PDF' }}
+      </button>
+    </footer>
+  </div>
+</div>

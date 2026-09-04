@@ -1,0 +1,1092 @@
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden" [class.correo-header--empresa]="modoEmpresa">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2 correo-header-icon" [class.correo-header-icon--empresa]="modoEmpresa">
+            <i class="fas" [ngClass]="modoEmpresa ? 'fa-building' : 'fa-envelope'"></i>
+          </div>
+          <div class="d-flex align-items-center justify-content-center flex-wrap gap-2 mb-1">
+            <h1 class="text-white mb-0 correo-header-title">{{ modoEmpresa ? 'Correo Empresarial' : 'Centro de Correo' }}</h1>
+          </div>
+          <p class="text-white mb-0 correo-header-subtitle">
+            {{ modoEmpresa ? 'Bandeja corporativa de contacto@biznaga.com.mx' : 'Gestiona tu bandeja y envia mensajes desde la plataforma' }}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5 correo-page" [class.correo-page--empresa]="modoEmpresa">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+      <div class="card shadow-lg border-0 correo-card">
+        <div class="card-body correo-card-body">
+
+          <div *ngIf="errorCorreo || errorCarpetas" class="alert alert-warning correo-alert" role="alert">
+            <i class="fas fa-exclamation-triangle mr-2"></i>{{ errorCorreo || errorCarpetas }}
+          </div>
+          <div *ngIf="mensajeExito" class="alert alert-success correo-alert" role="alert">
+            <i class="fas fa-check-circle mr-2"></i>{{ mensajeExito }}
+          </div>
+
+          <div class="correo-shell" [class.correo-shell--empresa]="modoEmpresa">
+
+            <!-- Sidebar estilo Gmail -->
+            <aside class="correo-sidebar">
+              <button type="button" class="correo-compose-btn" (click)="abrirRedactar()">
+                <i class="fas fa-pen"></i>
+                Redactar
+              </button>
+
+              <nav class="correo-nav">
+                <button
+                  *ngFor="let carpeta of carpetasDisponibles"
+                  type="button"
+                  class="correo-nav-item"
+                  [class.is-active]="(vistaActiva === 'lista' || vistaActiva === 'lectura') && carpetaActiva === carpeta.id"
+                  [class.is-disabled]="!carpeta.disponible"
+                  [disabled]="!carpeta.disponible"
+                  (click)="cambiarCarpeta(carpeta.id)">
+                  <span class="correo-nav-icon"><i class="fas" [ngClass]="'fa-' + iconoCarpeta(carpeta.icono)"></i></span>
+                  <span class="correo-nav-text">
+                    <strong>{{ carpeta.etiqueta }}</strong>
+                    <small>{{ carpeta.total }} mensajes</small>
+                  </span>
+                  <span *ngIf="carpeta.id === 'inbox' && carpeta.noLeidos > 0" class="correo-nav-badge">{{ carpeta.noLeidos }}</span>
+                </button>
+              </nav>
+
+              <div class="correo-sidebar-account" [class.correo-sidebar-account--empresa]="modoEmpresa">
+                <span class="correo-sidebar-account-label">{{ modoEmpresa ? 'Cuenta empresa' : 'Cuenta' }}</span>
+                <span class="correo-sidebar-account-value">{{ cuentaActiva || 'Sin correo' }}</span>
+              </div>
+
+              <div class="correo-sidebar-footer">
+                <small>Ultima sync: {{ ultimaActualizacion }}</small>
+              </div>
+            </aside>
+
+            <!-- Vista: lista de mensajes -->
+            <section *ngIf="vistaActiva === 'lista'" class="correo-main correo-main-list">
+              <div class="correo-main-toolbar">
+                <div class="correo-main-toolbar-left">
+                  <h5 class="mb-0 correo-main-title">{{ etiquetaCarpetaActiva }}</h5>
+                  <small class="text-muted">{{ totalMensajesCarpetaActiva }} mensajes</small>
+                </div>
+                <button type="button" class="correo-btn correo-btn-ghost" [disabled]="cargando" (click)="refrescar()">
+                  <i class="fas fa-sync-alt" [class.fa-spin]="cargando"></i>
+                  Actualizar
+                </button>
+              </div>
+
+              <div class="correo-search">
+                <div class="correo-search-box" (click)="$event.stopPropagation()">
+                  <button type="button" class="correo-search-submit" title="Buscar en los correos" (click)="buscarCorreos()">
+                    <i class="fas fa-search"></i>
+                  </button>
+                  <input
+                    class="correo-search-input"
+                    placeholder="Buscar palabras o frases en los correos"
+                    type="text"
+                    autocomplete="off"
+                    [(ngModel)]="filtroCorreo"
+                    (focus)="abrirHistorialBusquedas($event)"
+                    (keydown.enter)="buscarCorreos()"
+                    (keydown.escape)="limpiarBusqueda()">
+                  <button
+                    *ngIf="filtroCorreo || busquedaAplicada"
+                    type="button"
+                    class="correo-search-clear"
+                    title="Limpiar búsqueda"
+                    (click)="limpiarBusqueda()">
+                    <i class="fas fa-times"></i>
+                  </button>
+
+                  <div *ngIf="historialBusquedasAbierto" class="correo-search-history">
+                    <div class="correo-search-history-header">
+                      <span>Búsquedas recientes</span>
+                      <button type="button" (click)="borrarHistorialBusquedas($event)">Borrar todo</button>
+                    </div>
+                    <div class="correo-search-history-list">
+                      <button
+                        *ngFor="let busqueda of busquedasRecientes"
+                        type="button"
+                        class="correo-search-history-item"
+                        (click)="usarBusquedaReciente(busqueda, $event)">
+                        <i class="fas fa-history"></i>
+                        <span>{{ busqueda.termino }}</span>
+                        <i
+                          class="fas fa-times correo-search-history-remove"
+                          title="Eliminar del historial"
+                          (click)="eliminarBusquedaReciente(busqueda, $event)"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="correo-pagination" aria-label="Paginación de correos">
+                  <span>{{ rangoPaginaInicio }}-{{ rangoPaginaFin }} de {{ totalResultados }}</span>
+                  <button
+                    type="button"
+                    title="Página anterior"
+                    [disabled]="cargando || paginaActual <= 1"
+                    (click)="cambiarPagina(paginaActual - 1)">
+                    <i class="fas fa-chevron-left"></i>
+                  </button>
+                  <span class="correo-pagination-page">{{ paginaActual }} / {{ totalPaginas }}</span>
+                  <button
+                    type="button"
+                    title="Página siguiente"
+                    [disabled]="cargando || paginaActual >= totalPaginas"
+                    (click)="cambiarPagina(paginaActual + 1)">
+                    <i class="fas fa-chevron-right"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="correo-list">
+                <div *ngIf="cargando" class="correo-empty">
+                  <i class="fas fa-spinner fa-spin fa-2x"></i>
+                  <p>Cargando mensajes del buzon...</p>
+                </div>
+
+                <button
+                  *ngFor="let mensaje of mensajesFiltrados"
+                  [hidden]="cargando"
+                  type="button"
+                  class="correo-row"
+                  [class.is-unread]="!mensaje.leido"
+                  (click)="seleccionarMensaje(mensaje)">
+                  <span class="correo-row-status" [class.is-unread]="!mensaje.leido"></span>
+                  <span class="correo-row-from">{{ remitenteListaVisible(mensaje) }}</span>
+                  <span class="correo-row-subject">
+                    <strong>{{ mensaje.asunto }}</strong>
+                    <span *ngIf="mensaje.resumen" class="correo-row-snippet"> — {{ mensaje.resumen }}</span>
+                  </span>
+                  <span class="correo-row-meta">
+                    <i *ngIf="mensaje.tieneAdjunto" class="fas fa-paperclip"></i>
+                    <span class="correo-row-date">{{ mensaje.fechaLista || mensaje.fecha }}</span>
+                  </span>
+                </button>
+
+                <div *ngIf="!cargando && mensajesFiltrados.length === 0" class="correo-empty">
+                  <i class="fas fa-2x" [ngClass]="busquedaAplicada ? 'fa-search' : 'fa-inbox'"></i>
+                  <p>{{ busquedaAplicada ? 'No se encontraron correos con esa búsqueda' : 'No hay mensajes disponibles' }}</p>
+                </div>
+              </div>
+            </section>
+
+            <!-- Vista: lectura completa -->
+            <section *ngIf="vistaActiva === 'lectura' && mensajeSeleccionado" class="correo-main correo-main-reading">
+              <div class="correo-reading-toolbar">
+                <div class="correo-toolbar-icons">
+                  <button
+                    type="button"
+                    class="correo-icon-btn"
+                    title="Volver a bandeja"
+                    (click)="abrirLista()">
+                    <i class="fas fa-arrow-left"></i>
+                  </button>
+                  <span class="correo-toolbar-divider" aria-hidden="true"></span>
+                  <button
+                    type="button"
+                    class="correo-icon-btn"
+                    title="Archivar"
+                    [disabled]="accionCorreoEnProceso"
+                    (click)="archivarMensaje()">
+                    <i class="fas fa-archive"></i>
+                  </button>
+                  <button
+                    type="button"
+                    class="correo-icon-btn"
+                    title="Marcar como spam"
+                    [disabled]="accionCorreoEnProceso"
+                    (click)="marcarComoSpam()">
+                    <i class="fas fa-exclamation-circle"></i>
+                  </button>
+                  <button
+                    type="button"
+                    class="correo-icon-btn correo-icon-btn-danger"
+                    title="Eliminar"
+                    [disabled]="accionCorreoEnProceso || eliminandoCorreo"
+                    (click)="eliminarMensaje()">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                  <button
+                    type="button"
+                    class="correo-icon-btn"
+                    title="Marcar como no leido"
+                    [disabled]="accionCorreoEnProceso"
+                    (click)="marcarComoNoLeido()">
+                    <i class="fas fa-envelope"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="correo-reading-header">
+                <h2 class="correo-reading-subject">
+                  {{ mensajeSeleccionado.asunto }}
+                  <span *ngIf="esVistaContestacion" class="correo-reading-badge-contestacion" title="Este mensaje es una contestación">
+                    Contestación
+                  </span>
+                </h2>
+
+                <div class="correo-gmail-header">
+                  <div class="correo-gmail-header-main">
+                    <div class="correo-gmail-sender">
+                      <span class="correo-gmail-sender-name">{{ remitenteNombreVisible }}</span>
+                      <span *ngIf="remitenteCorreoVisible" class="correo-gmail-sender-email">&lt;{{ remitenteCorreoVisible }}&gt;</span>
+                    </div>
+
+                    <div class="correo-gmail-recipient-wrap">
+                      <button
+                        type="button"
+                        class="correo-gmail-details-toggle"
+                        (click)="toggleDetalleCorreo($event)">
+                        {{ etiquetaDestinatarioVisible }}
+                        <i class="fas fa-caret-down" [class.is-open]="detalleCorreoAbierto"></i>
+                      </button>
+
+                      <div
+                        *ngIf="detalleCorreoAbierto"
+                        class="correo-gmail-details-panel"
+                        (click)="$event.stopPropagation()">
+                        <dl class="correo-gmail-details-list">
+                          <div class="correo-gmail-details-row">
+                            <dt>de:</dt>
+                            <dd>{{ detalleCorreo?.de || remitenteCompletoVisible }}</dd>
+                          </div>
+                          <div class="correo-gmail-details-row" *ngIf="detalleCorreo?.responderA || remitenteCorreoVisible">
+                            <dt>responder a:</dt>
+                            <dd>{{ detalleCorreo?.responderA || remitenteCorreoVisible }}</dd>
+                          </div>
+                          <div class="correo-gmail-details-row">
+                            <dt>para:</dt>
+                            <dd>{{ detalleCorreo?.para || mensajeSeleccionado.destinatario || cuentaActiva }}</dd>
+                          </div>
+                          <div class="correo-gmail-details-row" *ngIf="detalleCorreo?.cc">
+                            <dt>cc:</dt>
+                            <dd>{{ detalleCorreo.cc }}</dd>
+                          </div>
+                          <div class="correo-gmail-details-row" *ngIf="detalleCorreo?.cco">
+                            <dt>cco:</dt>
+                            <dd>{{ detalleCorreo.cco }}</dd>
+                          </div>
+                          <div class="correo-gmail-details-row">
+                            <dt>fecha:</dt>
+                            <dd>{{ detalleCorreo?.fecha || fechaEncabezadoVisible }}</dd>
+                          </div>
+                          <div class="correo-gmail-details-row">
+                            <dt>asunto:</dt>
+                            <dd>{{ detalleCorreo?.asunto || mensajeSeleccionado.asunto }}</dd>
+                          </div>
+                          <div class="correo-gmail-details-row" *ngIf="detalleCorreo?.enviadoPor">
+                            <dt>enviado por:</dt>
+                            <dd>{{ detalleCorreo.enviadoPor }}</dd>
+                          </div>
+                          <div class="correo-gmail-details-row" *ngIf="detalleCorreo?.firmadoPor">
+                            <dt>firmado por:</dt>
+                            <dd>{{ detalleCorreo.firmadoPor }}</dd>
+                          </div>
+                          <div class="correo-gmail-details-row">
+                            <dt>seguridad:</dt>
+                            <dd class="correo-gmail-security">
+                              <i class="fas fa-lock"></i>
+                              <span>{{ detalleCorreo?.seguridad || 'Cifrado estandar (TLS)' }}</span>
+                            </dd>
+                          </div>
+                        </dl>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="correo-gmail-header-actions">
+                    <span class="correo-gmail-date">{{ fechaEncabezadoVisible }}</span>
+                    <button
+                      type="button"
+                      class="correo-icon-btn correo-icon-btn-sm"
+                      [class.is-active]="mensajeSeleccionado.favorito"
+                      title="Favorito"
+                      [disabled]="accionCorreoEnProceso"
+                      (click)="toggleFavorito($event)">
+                      <i class="fas fa-star"></i>
+                    </button>
+                    <button
+                      type="button"
+                      class="correo-icon-btn correo-icon-btn-sm"
+                      title="Responder"
+                      (click)="responderMensaje()">
+                      <i class="fas fa-reply"></i>
+                    </button>
+                    <div class="correo-menu-wrap">
+                      <button
+                        type="button"
+                        class="correo-icon-btn correo-icon-btn-sm"
+                        title="Mas opciones"
+                        (click)="toggleMenuAcciones($event)">
+                        <i class="fas fa-ellipsis-v"></i>
+                      </button>
+
+                      <div
+                        *ngIf="menuAccionesAbierto"
+                        class="correo-menu-panel"
+                        (click)="$event.stopPropagation()">
+                        <button type="button" class="correo-menu-item" (click)="responderMensaje()">
+                          <i class="fas fa-reply"></i>
+                          <span>Responder</span>
+                        </button>
+                        <button type="button" class="correo-menu-item" (click)="reenviarMensaje()">
+                          <i class="fas fa-share"></i>
+                          <span>Reenviar</span>
+                        </button>
+                        <button type="button" class="correo-menu-item" (click)="eliminarMensaje()">
+                          <i class="fas fa-trash"></i>
+                          <span>Eliminar</span>
+                        </button>
+                        <button type="button" class="correo-menu-item" (click)="marcarComoNoLeido()">
+                          <i class="fas fa-envelope"></i>
+                          <span>Marcar como no leido</span>
+                        </button>
+                        <button type="button" class="correo-menu-item" (click)="marcarComoSpam()">
+                          <i class="fas fa-exclamation-circle"></i>
+                          <span>Denunciar spam</span>
+                        </button>
+                        <button type="button" class="correo-menu-item" (click)="imprimirMensaje()">
+                          <i class="fas fa-print"></i>
+                          <span>Imprimir</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="correo-reading-body">
+                <div *ngIf="cargandoContenido" class="correo-empty correo-empty-inline">
+                  <i class="fas fa-spinner fa-spin fa-2x"></i>
+                  <p>Cargando contenido del correo...</p>
+                </div>
+
+                <!-- Conversación citada: minimizada al inicio (estilo Gmail / redactar) -->
+                <div
+                  *ngIf="!cargandoContenido && conversacionHtml"
+                  class="correo-reading-conversacion">
+                  <button
+                    *ngIf="!conversacionExpandida"
+                    type="button"
+                    class="correo-reading-conversacion-dots"
+                    title="Mostrar conversación anterior"
+                    (click)="expandirConversacionLectura()">
+                    <span></span><span></span><span></span>
+                    <em>Conversación</em>
+                  </button>
+
+                  <div *ngIf="conversacionExpandida" class="correo-reading-conversacion-bloque">
+                    <button
+                      type="button"
+                      class="correo-reading-conversacion-dots correo-reading-conversacion-dots--active"
+                      title="Ocultar conversación anterior"
+                      (click)="colapsarConversacionLectura()">
+                      <span></span><span></span><span></span>
+                      <em>Ocultar conversación</em>
+                    </button>
+                    <div
+                      class="correo-reading-conversacion-contenido"
+                      [innerHTML]="conversacionHtmlSeguro"></div>
+                  </div>
+                </div>
+
+                <iframe
+                  #cuerpoIframe
+                  class="correo-body-iframe"
+                  [class.correo-body-iframe-hidden]="cargandoContenido || !mostrarCuerpoIframe"
+                  sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                  title="Contenido del correo"
+                  (load)="ajustarAlturaIframe($event)">
+                </iframe>
+
+                <div
+                  *ngIf="!cargandoContenido && cuerpoTextoPlano"
+                  class="correo-body-texto">
+                  {{ cuerpoTextoPlano }}
+                </div>
+
+                <div *ngIf="cargandoAdjuntos || adjuntos.length > 0 || mensajeSeleccionado?.tieneAdjunto" class="correo-adjuntos">
+                  <div class="correo-adjuntos-header">
+                    <div class="correo-adjuntos-title">
+                      <i class="fas fa-paperclip"></i>
+                      <span>Adjuntos</span>
+                    </div>
+                    <span *ngIf="adjuntos.length" class="correo-adjuntos-count">{{ adjuntos.length }} archivo(s)</span>
+                  </div>
+
+                  <div *ngIf="cargandoAdjuntos" class="correo-adjuntos-loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Cargando adjuntos...</span>
+                  </div>
+
+                  <div *ngIf="!cargandoAdjuntos && errorAdjuntos" class="correo-adjuntos-error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>{{ errorAdjuntos }}</span>
+                  </div>
+
+                  <div *ngIf="!cargandoAdjuntos && !errorAdjuntos && adjuntos.length === 0" class="correo-adjuntos-empty">
+                    No hay adjuntos disponibles
+                  </div>
+
+                  <div *ngIf="!cargandoAdjuntos && !errorAdjuntos && adjuntos.length > 0" class="correo-adjuntos-list">
+                    <button
+                      *ngFor="let adjunto of adjuntos"
+                      type="button"
+                      class="correo-adjunto-item"
+                      [disabled]="descargandoAdjuntoId === (mensajeSeleccionado?.uid + '-' + adjunto.indice)"
+                      (click)="descargarAdjunto(adjunto)">
+                      <div class="correo-adjunto-preview">
+                        <div class="correo-adjunto-preview-icon">
+                          <i class="fas fa-file-alt"></i>
+                        </div>
+                        <span class="correo-adjunto-doc">{{ obtenerTipoArchivo(adjunto.nombre) }}</span>
+                      </div>
+                      <span class="correo-adjunto-name">{{ adjunto.nombre }}</span>
+                      <span *ngIf="adjunto.size" class="correo-adjunto-size">{{ formatearBytes(adjunto.size) }}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Compose inline estilo Gmail (Responder / Reenviar) -->
+                <div
+                  *ngIf="borradorInline as borrador"
+                  class="correo-compose-inline"
+                  [attr.data-compose-id]="borrador.id"
+                  [class.correo-compose-inline--empresa]="modoEmpresa"
+                  [class.is-dragover]="borrador.soltandoAdjuntos"
+                  (dragenter)="onComposeDragEnter($event, borrador)"
+                  (dragover)="onComposeDragOver($event, borrador)"
+                  (dragleave)="onComposeDragLeave($event, borrador)"
+                  (drop)="onComposeDrop($event, borrador)">
+                  <div class="correo-compose-drop-overlay" *ngIf="borrador.soltandoAdjuntos" aria-hidden="true">
+                    <i class="fas fa-paperclip"></i>
+                    <span>Suelta para adjuntar</span>
+                  </div>
+                  <div *ngIf="borrador.error" class="correo-compose-error correo-compose-error--inline">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>{{ borrador.error }}</span>
+                  </div>
+
+                  <form class="correo-compose-inline-form" (ngSubmit)="enviarMensaje(borrador)">
+                    <div
+                      class="correo-compose-inline-para"
+                      [class.is-dropdown-activo]="borrador.campoPara.dropdownVisible">
+                      <div class="correo-compose-inline-para-left">
+                        <span class="correo-compose-inline-action-icon" [attr.title]="borrador.tipoAccion === 'reenviar' ? 'Reenviar' : 'Responder'">
+                          <i class="fas" [ngClass]="iconoComposeInline"></i>
+                        </span>
+                        <span class="correo-compose-inline-label">Para</span>
+                        <div class="correo-compose-para-chips correo-compose-para-chips--inline">
+                          <span class="correo-compose-para-chip" *ngFor="let correo of borrador.campoPara.seleccionados">
+                            <span class="correo-compose-para-chip-text">{{ correo }}</span>
+                            <button
+                              type="button"
+                              class="correo-compose-para-chip-remove"
+                              (click)="$event.stopPropagation(); eliminarCampoCorreo(borrador, 'para', correo)"
+                              aria-label="Quitar correo">
+                              <i class="fas fa-times"></i>
+                            </button>
+                          </span>
+                          <input
+                            type="text"
+                            class="correo-compose-inline-input correo-compose-para-input"
+                            data-compose-campo="para"
+                            [placeholder]="borrador.campoPara.seleccionados.length ? '' : ''"
+                            [ngModel]="borrador.campoPara.input"
+                            (ngModelChange)="onComposeCampoInput(borrador, 'para', $event)"
+                            (keydown)="onComposeCampoKeydown(borrador, 'para', $event)"
+                            (blur)="onComposeCampoBlur(borrador, 'para')"
+                            [name]="'destinatario-' + borrador.id"
+                            autocomplete="off">
+                        </div>
+                      </div>
+                      <div class="correo-compose-inline-para-right">
+                        <button *ngIf="!borrador.mostrarCc" type="button" class="correo-compose-link-btn" (click)="mostrarCampoCc(borrador)">Cc</button>
+                        <button *ngIf="!borrador.mostrarCco" type="button" class="correo-compose-link-btn" (click)="mostrarCampoCco(borrador)">Cco</button>
+                        <button type="button" class="correo-compose-tool-btn" title="Abrir en ventana" (click)="convertirInlineAFloat(borrador)">
+                          <i class="fas fa-external-link-alt"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      *ngIf="borrador.mostrarCc"
+                      class="correo-compose-inline-para correo-compose-inline-para--secundario"
+                      [class.is-dropdown-activo]="borrador.campoCc.dropdownVisible">
+                      <div class="correo-compose-inline-para-left">
+                        <span class="correo-compose-inline-label">Cc</span>
+                        <div class="correo-compose-para-chips correo-compose-para-chips--inline">
+                          <span class="correo-compose-para-chip" *ngFor="let correo of borrador.campoCc.seleccionados">
+                            <span class="correo-compose-para-chip-text">{{ correo }}</span>
+                            <button
+                              type="button"
+                              class="correo-compose-para-chip-remove"
+                              (click)="$event.stopPropagation(); eliminarCampoCorreo(borrador, 'cc', correo)"
+                              aria-label="Quitar correo CC">
+                              <i class="fas fa-times"></i>
+                            </button>
+                          </span>
+                          <input
+                            type="text"
+                            class="correo-compose-inline-input correo-compose-para-input"
+                            data-compose-campo="cc"
+                            [ngModel]="borrador.campoCc.input"
+                            (ngModelChange)="onComposeCampoInput(borrador, 'cc', $event)"
+                            (keydown)="onComposeCampoKeydown(borrador, 'cc', $event)"
+                            (blur)="onComposeCampoBlur(borrador, 'cc')"
+                            [name]="'cc-' + borrador.id"
+                            autocomplete="off">
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      *ngIf="borrador.mostrarCco"
+                      class="correo-compose-inline-para correo-compose-inline-para--secundario"
+                      [class.is-dropdown-activo]="borrador.campoCco.dropdownVisible">
+                      <div class="correo-compose-inline-para-left">
+                        <span class="correo-compose-inline-label">Cco</span>
+                        <div class="correo-compose-para-chips correo-compose-para-chips--inline">
+                          <span class="correo-compose-para-chip" *ngFor="let correo of borrador.campoCco.seleccionados">
+                            <span class="correo-compose-para-chip-text">{{ correo }}</span>
+                            <button
+                              type="button"
+                              class="correo-compose-para-chip-remove"
+                              (click)="$event.stopPropagation(); eliminarCampoCorreo(borrador, 'cco', correo)"
+                              aria-label="Quitar correo CCO">
+                              <i class="fas fa-times"></i>
+                            </button>
+                          </span>
+                          <input
+                            type="text"
+                            class="correo-compose-inline-input correo-compose-para-input"
+                            data-compose-campo="cco"
+                            [ngModel]="borrador.campoCco.input"
+                            (ngModelChange)="onComposeCampoInput(borrador, 'cco', $event)"
+                            (keydown)="onComposeCampoKeydown(borrador, 'cco', $event)"
+                            (blur)="onComposeCampoBlur(borrador, 'cco')"
+                            [name]="'cco-' + borrador.id"
+                            autocomplete="off">
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="correo-compose-scroll correo-compose-scroll--inline">
+                      <div
+                        class="correo-compose-editor"
+                        [attr.data-compose-id]="borrador.id"
+                        contenteditable="true"
+                        data-placeholder="Escribe tu mensaje..."
+                        role="textbox"
+                        aria-multiline="true">
+                      </div>
+
+                      <div *ngIf="borrador.citaHtml" class="correo-compose-cita-wrap">
+                        <button
+                          *ngIf="!borrador.citaExpandida"
+                          type="button"
+                          class="correo-compose-cita-dots"
+                          title="Mostrar mensaje citado"
+                          (click)="expandirCitaCompose(borrador)">
+                          <span></span><span></span><span></span>
+                        </button>
+                        <div *ngIf="borrador.citaExpandida" class="correo-compose-cita-bloque">
+                          <button
+                            type="button"
+                            class="correo-compose-cita-dots correo-compose-cita-dots--active"
+                            title="Ocultar mensaje citado"
+                            (click)="colapsarCitaCompose(borrador)">
+                            <span></span><span></span><span></span>
+                          </button>
+                          <div class="correo-compose-cita-contenido" [innerHTML]="citaHtmlSeguro(borrador)"></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div *ngIf="borrador.adjuntos.length" class="correo-compose-adjuntos">
+                      <div *ngFor="let adjunto of borrador.adjuntos" class="correo-compose-adjunto-chip">
+                        <i class="fas" [ngClass]="adjunto.esImagen ? 'fa-image' : 'fa-paperclip'"></i>
+                        <span class="correo-compose-adjunto-name">{{ adjunto.nombre }}</span>
+                        <span class="correo-compose-adjunto-size">{{ formatearBytes(adjunto.size) }}</span>
+                        <button type="button" class="correo-compose-adjunto-remove" title="Quitar adjunto" (click)="quitarAdjuntoCompose(borrador, adjunto.id)">
+                          <i class="fas fa-times"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div *ngIf="borrador.formatoAbierto" class="correo-compose-format-bar">
+                      <button type="button" class="correo-compose-tool-btn" title="Negrita" (click)="aplicarFormatoComando(borrador, 'bold')">
+                        <i class="fas fa-bold"></i>
+                      </button>
+                      <button type="button" class="correo-compose-tool-btn" title="Cursiva" (click)="aplicarFormatoComando(borrador, 'italic')">
+                        <i class="fas fa-italic"></i>
+                      </button>
+                      <button type="button" class="correo-compose-tool-btn" title="Subrayado" (click)="aplicarFormatoComando(borrador, 'underline')">
+                        <i class="fas fa-underline"></i>
+                      </button>
+                      <button type="button" class="correo-compose-tool-btn" title="Lista" (click)="aplicarFormatoComando(borrador, 'insertUnorderedList')">
+                        <i class="fas fa-list-ul"></i>
+                      </button>
+                      <button type="button" class="correo-compose-tool-btn" title="Quitar formato" (click)="aplicarFormatoComando(borrador, 'removeFormat')">
+                        <i class="fas fa-eraser"></i>
+                      </button>
+                    </div>
+
+                    <div class="correo-compose-footer">
+                      <button type="submit" class="correo-compose-send-btn" [disabled]="borrador.enviando">
+                        {{ borrador.enviando ? 'Enviando...' : 'Enviar' }}
+                      </button>
+                      <div class="correo-compose-footer-tools">
+                        <button type="button" class="correo-compose-tool-btn" title="Opciones de formato" [class.is-active]="borrador.formatoAbierto" (click)="toggleFormatoCompose(borrador)">
+                          <i class="fas fa-font"></i>
+                        </button>
+                        <button type="button" class="correo-compose-tool-btn" title="Adjuntar archivos" (click)="adjuntarArchivosCompose(borrador)">
+                          <i class="fas fa-paperclip"></i>
+                        </button>
+                        <button type="button" class="correo-compose-tool-btn" title="Insertar enlace" (click)="insertarEnlaceCompose(borrador)">
+                          <i class="fas fa-link"></i>
+                        </button>
+                        <button type="button" class="correo-compose-tool-btn" title="Adjuntar imagen" (click)="insertarImagenCompose(borrador)">
+                          <i class="fas fa-image"></i>
+                        </button>
+                      </div>
+                      <button type="button" class="correo-compose-tool-btn correo-compose-discard-btn" title="Descartar" (click)="descartarCompose(borrador)">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </div>
+                  </form>
+
+                  <div class="correo-compose-dropdowns-portal">
+                    <div
+                      class="correo-compose-sugerencias-dropdown correo-compose-sugerencias-dropdown--overlay"
+                      *ngIf="borrador.campoPara.dropdownVisible && borrador.campoPara.filtrados.length > 0"
+                      [ngStyle]="borrador.campoPara.dropdownStyle">
+                      <button
+                        type="button"
+                        class="correo-compose-sugerencia-item"
+                        *ngFor="let sugerencia of borrador.campoPara.filtrados"
+                        (mousedown)="seleccionarCampoSugerido(borrador, 'para', sugerencia)">
+                        <div class="correo-compose-sugerencia-avatar" [class.correo-compose-sugerencia-avatar--photo]="getCorreoAvatarUrl(sugerencia)">
+                          <img
+                            *ngIf="getCorreoAvatarUrl(sugerencia)"
+                            [src]="getCorreoAvatarUrl(sugerencia)"
+                            [alt]="sugerencia.nombre || sugerencia.email"
+                            (error)="onCorreoAvatarError(sugerencia)">
+                          <span *ngIf="!getCorreoAvatarUrl(sugerencia)">{{ getCorreoIniciales(sugerencia) }}</span>
+                        </div>
+                        <div class="correo-compose-sugerencia-content">
+                          <span class="correo-compose-sugerencia-nombre">{{ sugerencia.nombre || sugerencia.email }}</span>
+                          <span class="correo-compose-sugerencia-email" *ngIf="sugerencia.nombre">{{ sugerencia.email }}</span>
+                        </div>
+                      </button>
+                    </div>
+
+                    <div
+                      class="correo-compose-sugerencias-dropdown correo-compose-sugerencias-dropdown--overlay"
+                      *ngIf="borrador.campoCc.dropdownVisible && borrador.campoCc.filtrados.length > 0"
+                      [ngStyle]="borrador.campoCc.dropdownStyle">
+                      <button
+                        type="button"
+                        class="correo-compose-sugerencia-item"
+                        *ngFor="let sugerencia of borrador.campoCc.filtrados"
+                        (mousedown)="seleccionarCampoSugerido(borrador, 'cc', sugerencia)">
+                        <div class="correo-compose-sugerencia-avatar" [class.correo-compose-sugerencia-avatar--photo]="getCorreoAvatarUrl(sugerencia)">
+                          <img
+                            *ngIf="getCorreoAvatarUrl(sugerencia)"
+                            [src]="getCorreoAvatarUrl(sugerencia)"
+                            [alt]="sugerencia.nombre || sugerencia.email"
+                            (error)="onCorreoAvatarError(sugerencia)">
+                          <span *ngIf="!getCorreoAvatarUrl(sugerencia)">{{ getCorreoIniciales(sugerencia) }}</span>
+                        </div>
+                        <div class="correo-compose-sugerencia-content">
+                          <span class="correo-compose-sugerencia-nombre">{{ sugerencia.nombre || sugerencia.email }}</span>
+                          <span class="correo-compose-sugerencia-email" *ngIf="sugerencia.nombre">{{ sugerencia.email }}</span>
+                        </div>
+                      </button>
+                    </div>
+
+                    <div
+                      class="correo-compose-sugerencias-dropdown correo-compose-sugerencias-dropdown--overlay"
+                      *ngIf="borrador.campoCco.dropdownVisible && borrador.campoCco.filtrados.length > 0"
+                      [ngStyle]="borrador.campoCco.dropdownStyle">
+                      <button
+                        type="button"
+                        class="correo-compose-sugerencia-item"
+                        *ngFor="let sugerencia of borrador.campoCco.filtrados"
+                        (mousedown)="seleccionarCampoSugerido(borrador, 'cco', sugerencia)">
+                        <div class="correo-compose-sugerencia-avatar" [class.correo-compose-sugerencia-avatar--photo]="getCorreoAvatarUrl(sugerencia)">
+                          <img
+                            *ngIf="getCorreoAvatarUrl(sugerencia)"
+                            [src]="getCorreoAvatarUrl(sugerencia)"
+                            [alt]="sugerencia.nombre || sugerencia.email"
+                            (error)="onCorreoAvatarError(sugerencia)">
+                          <span *ngIf="!getCorreoAvatarUrl(sugerencia)">{{ getCorreoIniciales(sugerencia) }}</span>
+                        </div>
+                        <div class="correo-compose-sugerencia-content">
+                          <span class="correo-compose-sugerencia-nombre">{{ sugerencia.nombre || sugerencia.email }}</span>
+                          <span class="correo-compose-sugerencia-email" *ngIf="sugerencia.nombre">{{ sugerencia.email }}</span>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div
+  *ngFor="let borrador of composicionesFloat; let i = index; trackBy: trackComposeById"
+  class="correo-compose-float"
+  [attr.data-compose-id]="borrador.id"
+  [class.correo-compose-float--empresa]="modoEmpresa"
+  [class.is-minimized]="borrador.minimizado"
+  [class.is-expanded]="borrador.expandido"
+  [class.is-entering]="borrador.animandoEntrada"
+  [class.is-dragover]="borrador.soltandoAdjuntos && !borrador.minimizado"
+  [ngStyle]="estiloComposeFloat(borrador, i)"
+  (dragenter)="onComposeDragEnter($event, borrador)"
+  (dragover)="onComposeDragOver($event, borrador)"
+  (dragleave)="onComposeDragLeave($event, borrador)"
+  (drop)="onComposeDrop($event, borrador)">
+  <div class="correo-compose-drop-overlay" *ngIf="borrador.soltandoAdjuntos && !borrador.minimizado" aria-hidden="true">
+    <i class="fas fa-paperclip"></i>
+    <span>Suelta para adjuntar</span>
+  </div>
+  <div class="correo-compose-float-header">
+    <span class="correo-compose-float-title">{{ borrador.asunto.trim() || 'Mensaje nuevo' }}</span>
+    <div class="correo-compose-float-controls">
+      <button type="button" class="correo-compose-control-btn" title="Minimizar" (click)="minimizarCompose(borrador)">
+        <i class="fas fa-minus"></i>
+      </button>
+      <button type="button" class="correo-compose-control-btn" title="Expandir" (click)="expandirCompose(borrador)">
+        <i class="fas" [ngClass]="borrador.expandido ? 'fa-compress' : 'fa-expand'"></i>
+      </button>
+      <button type="button" class="correo-compose-control-btn" title="Cerrar" (click)="descartarCompose(borrador)">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="correo-compose-float-body" [class.is-hidden]="borrador.minimizado">
+    <div *ngIf="borrador.error" class="correo-compose-error">
+      <i class="fas fa-exclamation-triangle"></i>
+      <span>{{ borrador.error }}</span>
+    </div>
+
+    <form class="correo-compose-float-form" (ngSubmit)="enviarMensaje(borrador)">
+      <div
+        class="correo-compose-row correo-compose-row--para"
+        [class.is-dropdown-activo]="borrador.campoPara.dropdownVisible">
+        <div class="correo-compose-para-wrapper">
+          <div class="correo-compose-para-chips">
+            <span class="correo-compose-para-chip" *ngFor="let correo of borrador.campoPara.seleccionados">
+              <i class="fas fa-envelope"></i>
+              <span class="correo-compose-para-chip-text">{{ correo }}</span>
+              <button
+                type="button"
+                class="correo-compose-para-chip-remove"
+                (click)="$event.stopPropagation(); eliminarCampoCorreo(borrador, 'para', correo)"
+                aria-label="Quitar correo">
+                <i class="fas fa-times"></i>
+              </button>
+            </span>
+            <input
+              type="text"
+              class="correo-compose-inline-input correo-compose-para-input"
+              data-compose-campo="para"
+              [placeholder]="borrador.campoPara.seleccionados.length ? 'Agregar otro...' : 'Para'"
+              [ngModel]="borrador.campoPara.input"
+              (ngModelChange)="onComposeCampoInput(borrador, 'para', $event)"
+              (keydown)="onComposeCampoKeydown(borrador, 'para', $event)"
+              (blur)="onComposeCampoBlur(borrador, 'para')"
+              [name]="'destinatario-' + borrador.id"
+              autocomplete="off">
+          </div>
+        </div>
+        <div class="correo-compose-row-links">
+          <button *ngIf="!borrador.mostrarCc" type="button" class="correo-compose-link-btn" (click)="mostrarCampoCc(borrador)">Cc</button>
+          <button *ngIf="!borrador.mostrarCco" type="button" class="correo-compose-link-btn" (click)="mostrarCampoCco(borrador)">Cco</button>
+        </div>
+      </div>
+
+      <div
+        *ngIf="borrador.mostrarCc"
+        class="correo-compose-row correo-compose-row--para"
+        [class.is-dropdown-activo]="borrador.campoCc.dropdownVisible">
+        <div class="correo-compose-para-wrapper">
+          <div class="correo-compose-para-chips">
+            <span class="correo-compose-para-chip" *ngFor="let correo of borrador.campoCc.seleccionados">
+              <i class="fas fa-envelope"></i>
+              <span class="correo-compose-para-chip-text">{{ correo }}</span>
+              <button
+                type="button"
+                class="correo-compose-para-chip-remove"
+                (click)="$event.stopPropagation(); eliminarCampoCorreo(borrador, 'cc', correo)"
+                aria-label="Quitar correo CC">
+                <i class="fas fa-times"></i>
+              </button>
+            </span>
+            <input
+              type="text"
+              class="correo-compose-inline-input correo-compose-para-input"
+              data-compose-campo="cc"
+              [placeholder]="borrador.campoCc.seleccionados.length ? 'Agregar otro CC...' : 'Cc'"
+              [ngModel]="borrador.campoCc.input"
+              (ngModelChange)="onComposeCampoInput(borrador, 'cc', $event)"
+              (keydown)="onComposeCampoKeydown(borrador, 'cc', $event)"
+              (blur)="onComposeCampoBlur(borrador, 'cc')"
+              [name]="'cc-' + borrador.id"
+              autocomplete="off">
+          </div>
+        </div>
+      </div>
+
+      <div
+        *ngIf="borrador.mostrarCco"
+        class="correo-compose-row correo-compose-row--para"
+        [class.is-dropdown-activo]="borrador.campoCco.dropdownVisible">
+        <div class="correo-compose-para-wrapper">
+          <div class="correo-compose-para-chips">
+            <span class="correo-compose-para-chip" *ngFor="let correo of borrador.campoCco.seleccionados">
+              <i class="fas fa-envelope"></i>
+              <span class="correo-compose-para-chip-text">{{ correo }}</span>
+              <button
+                type="button"
+                class="correo-compose-para-chip-remove"
+                (click)="$event.stopPropagation(); eliminarCampoCorreo(borrador, 'cco', correo)"
+                aria-label="Quitar correo CCO">
+                <i class="fas fa-times"></i>
+              </button>
+            </span>
+            <input
+              type="text"
+              class="correo-compose-inline-input correo-compose-para-input"
+              data-compose-campo="cco"
+              [placeholder]="borrador.campoCco.seleccionados.length ? 'Agregar otro CCO...' : 'Cco'"
+              [ngModel]="borrador.campoCco.input"
+              (ngModelChange)="onComposeCampoInput(borrador, 'cco', $event)"
+              (keydown)="onComposeCampoKeydown(borrador, 'cco', $event)"
+              (blur)="onComposeCampoBlur(borrador, 'cco')"
+              [name]="'cco-' + borrador.id"
+              autocomplete="off">
+          </div>
+        </div>
+      </div>
+
+      <div class="correo-compose-row">
+        <input
+          type="text"
+          class="correo-compose-inline-input"
+          placeholder="Asunto"
+          [(ngModel)]="borrador.asunto"
+          [name]="'asunto-' + borrador.id">
+      </div>
+
+      <div class="correo-compose-scroll">
+        <div
+          class="correo-compose-editor"
+          [attr.data-compose-id]="borrador.id"
+          contenteditable="true"
+          data-placeholder="Escribe tu mensaje..."
+          role="textbox"
+          aria-multiline="true">
+        </div>
+
+        <div *ngIf="borrador.citaHtml" class="correo-compose-cita-wrap">
+          <button
+            *ngIf="!borrador.citaExpandida"
+            type="button"
+            class="correo-compose-cita-dots"
+            title="Mostrar mensaje citado"
+            (click)="expandirCitaCompose(borrador)">
+            <span></span><span></span><span></span>
+          </button>
+          <div *ngIf="borrador.citaExpandida" class="correo-compose-cita-bloque">
+            <button
+              type="button"
+              class="correo-compose-cita-dots correo-compose-cita-dots--active"
+              title="Ocultar mensaje citado"
+              (click)="colapsarCitaCompose(borrador)">
+              <span></span><span></span><span></span>
+            </button>
+            <div class="correo-compose-cita-contenido" [innerHTML]="citaHtmlSeguro(borrador)"></div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="cargandoComposeFirma" class="correo-compose-firma correo-compose-firma--loading">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>Cargando firma digital...</span>
+      </div>
+
+      <div
+        *ngIf="!cargandoComposeFirma && composeFirmaHtml"
+        class="correo-compose-firma"
+        [class.is-expanded]="borrador.firmaExpandida"
+        (mouseenter)="onFirmaMouseEnter(borrador)"
+        (mouseleave)="onFirmaMouseLeave(borrador)">
+        <button
+          type="button"
+          class="correo-compose-firma-label"
+          (click)="toggleFirmaCompose(borrador, $event)"
+          [attr.aria-expanded]="borrador.firmaExpandida">
+          <i class="fas fa-signature"></i>
+          <span>Firma digital</span>
+          <i class="fas fa-chevron-down correo-compose-firma-chevron"></i>
+        </button>
+        <div class="correo-compose-firma-preview" [innerHTML]="composeFirmaHtml"></div>
+      </div>
+
+      <div *ngIf="borrador.adjuntos.length" class="correo-compose-adjuntos">
+        <div *ngFor="let adjunto of borrador.adjuntos" class="correo-compose-adjunto-chip">
+          <i class="fas" [ngClass]="adjunto.esImagen ? 'fa-image' : 'fa-paperclip'"></i>
+          <span class="correo-compose-adjunto-name">{{ adjunto.nombre }}</span>
+          <span class="correo-compose-adjunto-size">{{ formatearBytes(adjunto.size) }}</span>
+          <button type="button" class="correo-compose-adjunto-remove" title="Quitar adjunto" (click)="quitarAdjuntoCompose(borrador, adjunto.id)">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+
+      <div *ngIf="borrador.formatoAbierto" class="correo-compose-format-bar">
+        <button type="button" class="correo-compose-tool-btn" title="Negrita" (click)="aplicarFormatoComando(borrador, 'bold')">
+          <i class="fas fa-bold"></i>
+        </button>
+        <button type="button" class="correo-compose-tool-btn" title="Cursiva" (click)="aplicarFormatoComando(borrador, 'italic')">
+          <i class="fas fa-italic"></i>
+        </button>
+        <button type="button" class="correo-compose-tool-btn" title="Subrayado" (click)="aplicarFormatoComando(borrador, 'underline')">
+          <i class="fas fa-underline"></i>
+        </button>
+        <button type="button" class="correo-compose-tool-btn" title="Lista" (click)="aplicarFormatoComando(borrador, 'insertUnorderedList')">
+          <i class="fas fa-list-ul"></i>
+        </button>
+        <button type="button" class="correo-compose-tool-btn" title="Quitar formato" (click)="aplicarFormatoComando(borrador, 'removeFormat')">
+          <i class="fas fa-eraser"></i>
+        </button>
+      </div>
+
+      <div class="correo-compose-footer">
+        <button type="submit" class="correo-compose-send-btn" [disabled]="borrador.enviando">
+          {{ borrador.enviando ? 'Enviando...' : 'Enviar' }}
+        </button>
+
+        <div class="correo-compose-footer-tools">
+          <button type="button" class="correo-compose-tool-btn" title="Opciones de formato" [class.is-active]="borrador.formatoAbierto" (click)="toggleFormatoCompose(borrador)">
+            <i class="fas fa-font"></i>
+          </button>
+          <button type="button" class="correo-compose-tool-btn" title="Adjuntar archivos" (click)="adjuntarArchivosCompose(borrador)">
+            <i class="fas fa-paperclip"></i>
+          </button>
+          <button type="button" class="correo-compose-tool-btn" title="Insertar enlace" (click)="insertarEnlaceCompose(borrador)">
+            <i class="fas fa-link"></i>
+          </button>
+          <button type="button" class="correo-compose-tool-btn" title="Adjuntar imagen" (click)="insertarImagenCompose(borrador)">
+            <i class="fas fa-image"></i>
+          </button>
+          <button type="button" class="correo-compose-tool-btn" title="Insertar emoji" (click)="aplicarFormatoComando(borrador, 'insertText', '🙂')">
+            <i class="far fa-smile"></i>
+          </button>
+        </div>
+
+        <button type="button" class="correo-compose-tool-btn correo-compose-discard-btn" title="Descartar" (click)="descartarCompose(borrador)">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </form>
+
+    <div class="correo-compose-dropdowns-portal">
+      <div
+        class="correo-compose-sugerencias-dropdown correo-compose-sugerencias-dropdown--overlay"
+        *ngIf="borrador.campoPara.dropdownVisible && borrador.campoPara.filtrados.length > 0"
+        [ngStyle]="borrador.campoPara.dropdownStyle">
+        <button
+          type="button"
+          class="correo-compose-sugerencia-item"
+          *ngFor="let sugerencia of borrador.campoPara.filtrados"
+          (mousedown)="seleccionarCampoSugerido(borrador, 'para', sugerencia)">
+          <div class="correo-compose-sugerencia-avatar" [class.correo-compose-sugerencia-avatar--photo]="getCorreoAvatarUrl(sugerencia)">
+            <img
+              *ngIf="getCorreoAvatarUrl(sugerencia)"
+              [src]="getCorreoAvatarUrl(sugerencia)"
+              [alt]="sugerencia.nombre || sugerencia.email"
+              (error)="onCorreoAvatarError(sugerencia)">
+            <span *ngIf="!getCorreoAvatarUrl(sugerencia)">{{ getCorreoIniciales(sugerencia) }}</span>
+          </div>
+          <div class="correo-compose-sugerencia-content">
+            <span class="correo-compose-sugerencia-nombre">{{ sugerencia.nombre || sugerencia.email }}</span>
+            <span class="correo-compose-sugerencia-email" *ngIf="sugerencia.nombre">{{ sugerencia.email }}</span>
+            <span class="correo-compose-sugerencia-email" *ngIf="!sugerencia.nombre && sugerencia.origen === 'personal'">Correo personal</span>
+          </div>
+        </button>
+      </div>
+
+      <div
+        class="correo-compose-sugerencias-dropdown correo-compose-sugerencias-dropdown--overlay"
+        *ngIf="borrador.campoCc.dropdownVisible && borrador.campoCc.filtrados.length > 0"
+        [ngStyle]="borrador.campoCc.dropdownStyle">
+        <button
+          type="button"
+          class="correo-compose-sugerencia-item"
+          *ngFor="let sugerencia of borrador.campoCc.filtrados"
+          (mousedown)="seleccionarCampoSugerido(borrador, 'cc', sugerencia)">
+          <div class="correo-compose-sugerencia-avatar" [class.correo-compose-sugerencia-avatar--photo]="getCorreoAvatarUrl(sugerencia)">
+            <img
+              *ngIf="getCorreoAvatarUrl(sugerencia)"
+              [src]="getCorreoAvatarUrl(sugerencia)"
+              [alt]="sugerencia.nombre || sugerencia.email"
+              (error)="onCorreoAvatarError(sugerencia)">
+            <span *ngIf="!getCorreoAvatarUrl(sugerencia)">{{ getCorreoIniciales(sugerencia) }}</span>
+          </div>
+          <div class="correo-compose-sugerencia-content">
+            <span class="correo-compose-sugerencia-nombre">{{ sugerencia.nombre || sugerencia.email }}</span>
+            <span class="correo-compose-sugerencia-email" *ngIf="sugerencia.nombre">{{ sugerencia.email }}</span>
+            <span class="correo-compose-sugerencia-email" *ngIf="!sugerencia.nombre && sugerencia.origen === 'personal'">Correo personal</span>
+          </div>
+        </button>
+      </div>
+
+      <div
+        class="correo-compose-sugerencias-dropdown correo-compose-sugerencias-dropdown--overlay"
+        *ngIf="borrador.campoCco.dropdownVisible && borrador.campoCco.filtrados.length > 0"
+        [ngStyle]="borrador.campoCco.dropdownStyle">
+        <button
+          type="button"
+          class="correo-compose-sugerencia-item"
+          *ngFor="let sugerencia of borrador.campoCco.filtrados"
+          (mousedown)="seleccionarCampoSugerido(borrador, 'cco', sugerencia)">
+          <div class="correo-compose-sugerencia-avatar" [class.correo-compose-sugerencia-avatar--photo]="getCorreoAvatarUrl(sugerencia)">
+            <img
+              *ngIf="getCorreoAvatarUrl(sugerencia)"
+              [src]="getCorreoAvatarUrl(sugerencia)"
+              [alt]="sugerencia.nombre || sugerencia.email"
+              (error)="onCorreoAvatarError(sugerencia)">
+            <span *ngIf="!getCorreoAvatarUrl(sugerencia)">{{ getCorreoIniciales(sugerencia) }}</span>
+          </div>
+          <div class="correo-compose-sugerencia-content">
+            <span class="correo-compose-sugerencia-nombre">{{ sugerencia.nombre || sugerencia.email }}</span>
+            <span class="correo-compose-sugerencia-email" *ngIf="sugerencia.nombre">{{ sugerencia.email }}</span>
+            <span class="correo-compose-sugerencia-email" *ngIf="!sugerencia.nombre && sugerencia.origen === 'personal'">Correo personal</span>
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<input #inputAdjuntoCompose type="file" multiple hidden (change)="onAdjuntosSeleccionados($event)">
+<input #inputImagenCompose type="file" accept="image/*" multiple hidden (change)="onImagenSeleccionada($event)">

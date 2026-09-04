@@ -1,0 +1,1596 @@
+// Estilos para el módulo de Expedientes Médicos
+
+:host {
+  font-family: 'Open Sans', sans-serif;
+}
+
+// Header con imagen de fondo
+.header-bg-image {
+  background-image: url('/assets/img/medic.jpg');
+  background-size: cover;
+  background-position: center 60%;
+  background-repeat: no-repeat;
+  min-height: 180px;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(56, 81, 47, 0.85) 0%, rgba(56, 81, 47, 0.75) 50%, rgba(30, 50, 20, 0.88) 100%);
+    z-index: 1;
+  }
+}
+
+// Cards de acción con hover
+.accion-card {
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(56, 81, 47, 0.15) !important;
+  }
+}
+
+// Cards de empresas con hover effect
+.empresa-card {
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(56, 81, 47, 0.12) !important;
+    border-left: 4px solid #38512F !important;
+  }
+}
+
+// =====================================================
+// STEPPER (Wizard de pasos)
+// =====================================================
+
+// Animación para transición entre pasos
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(15px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+// Pulso suave para el paso activo
+@keyframes activePulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(11, 105, 136, 0.45);
+  }
+
+  50% {
+    box-shadow: 0 0 0 10px rgba(11, 105, 136, 0);
+  }
+}
+
+// Brillo para la línea de progreso
+@keyframes lineShimmer {
+  0% {
+    background-position: -200% center;
+  }
+
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.stepper-section {
+  background: #fff;
+  border: none;
+  padding: 1.5rem 0.5rem 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.stepper-track {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  position: relative;
+  min-width: 0;
+  padding-bottom: 5px;
+}
+
+.stepper-line {
+  position: absolute;
+  top: 20px;
+  left: 6%;
+  right: 6%;
+  height: 3px;
+  background: #e0e6ed;
+  border-radius: 3px;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.stepper-line-progress {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #0f3661, #0b6988, #0f3661);
+  background-size: 200% 100%;
+  animation: lineShimmer 3s ease-in-out infinite;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stepper-step {
+  flex: 1 1 0;
+  min-width: 0;
+  z-index: 1;
+
+  &:hover {
+    transform: translateY(-2px);
+
+    .stepper-circle:not(.active):not(.completed) {
+      border-color: #0b6988;
+      background: rgba(11, 105, 136, 0.08) !important;
+      box-shadow: 0 4px 12px rgba(11, 105, 136, 0.18);
+    }
+  }
+}
+
+.stepper-label {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.6rem;
+  color: #4a5568;
+  font-weight: 700;
+  line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  transition: color 0.3s ease;
+}
+
+.stepper-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid #cbd5e0;
+  background: #fff !important;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+
+  span {
+    color: #a0aec0;
+    font-size: 0.9rem;
+    font-weight: 700;
+    transition: color 0.3s ease;
+  }
+
+  i {
+    color: #fff;
+    font-size: 0.8rem;
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #0b6988 0%, #0f3661 100%) !important;
+    border-color: #0b6988 !important;
+    box-shadow: 0 4px 14px rgba(11, 105, 136, 0.35);
+    animation: activePulse 2s ease-in-out infinite;
+    transform: scale(1.12);
+
+    span {
+      color: #fff !important;
+    }
+
+    &~.stepper-label {
+      color: #0b6988;
+    }
+  }
+
+  &.completed {
+    background: linear-gradient(135deg, #0b6988 0%, #055770 100%) !important;
+    border-color: #0b6988 !important;
+    box-shadow: 0 3px 8px rgba(11, 105, 136, 0.25);
+  }
+}
+
+// Cambiar color del label según estado del paso
+.stepper-step:has(.stepper-circle.active) .stepper-label {
+  color: #0b6988;
+  font-weight: 800;
+}
+
+.stepper-step:has(.stepper-circle.completed) .stepper-label {
+  color: #055770;
+}
+
+.wizard-step {
+  min-height: 200px;
+}
+
+// =====================================================
+// FORMULARIO HISTORIA CLÍNICA — fondos decorativos
+// =====================================================
+
+.hc-form-card {
+  border-radius: 15px;
+  overflow: visible;
+  background-color: #fff;
+}
+
+.hc-form-body {
+  position: relative;
+  padding: 2rem;
+  overflow: hidden;
+
+  > *:not(.hc-form-body__deco) {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+.hc-form-body__deco {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    background-color: #0b6988;
+    opacity: 0.15;
+    filter: blur(1.5px);
+    mask-repeat: no-repeat;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+  }
+
+  &::before {
+    bottom: 0;
+    left: 0;
+    width: min(580px, 88%);
+    height: min(580px, 78%);
+    mask-image: url('/assets/img/img_deco/Fondo_com_inf.png');
+    -webkit-mask-image: url('/assets/img/img_deco/Fondo_com_inf.png');
+    mask-position: bottom left;
+    -webkit-mask-position: bottom left;
+  }
+
+  &::after {
+    top: 0;
+    right: 0;
+    width: min(580px, 88%);
+    height: min(580px, 78%);
+    mask-image: url('/assets/img/img_deco/Fondo_com_sup.png');
+    -webkit-mask-image: url('/assets/img/img_deco/Fondo_com_sup.png');
+    mask-position: top right;
+    -webkit-mask-position: top right;
+  }
+}
+
+.diagnostico-textarea {
+  overflow-y: hidden !important;
+}
+
+// =====================================================
+// TABLA ANTECEDENTES LABORALES
+// =====================================================
+.antecedentes-table {
+  thead th {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: none;
+    white-space: nowrap;
+  }
+
+  tbody td {
+    padding: 0.5rem 0.4rem;
+    vertical-align: middle;
+    border-color: #E2E3DE;
+  }
+
+  .form-control-sm {
+    height: calc(1.5em + 0.5rem + 2px);
+    padding: 0.25rem 0.5rem;
+    border-color: #E2E3DE;
+
+    &:focus {
+      border-color: #768D6B;
+      box-shadow: 0 0 0 0.15rem rgba(56, 81, 47, 0.12);
+    }
+  }
+
+  .custom-control-input:checked~.custom-control-label::before {
+    background-color: #36687f;
+    border-color: #36687f;
+  }
+}
+
+// Checkbox EPP centrado
+.epp-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #36687f;
+}
+
+// Tarjetas checkbox heredo-familiares
+.heredo-check-card {
+  display: flex;
+  align-items: center;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #E2E3DE;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #A8A9A2;
+  min-height: 38px;
+  height: 38px;
+
+  &:hover {
+    border-color: #36687f;
+    background-color: rgba(54, 104, 127, 0.08);
+    color: #36687f;
+  }
+
+  &.active {
+    border-color: #36687f;
+    background-color: rgba(54, 104, 127, 0.08);
+    color: #36687f;
+  }
+}
+
+// Botón agregar registro
+.btn-outline-success:hover {
+  background-color: #38512F !important;
+  border-color: #38512F !important;
+  color: #fff !important;
+}
+
+// Inputs del formulario
+.form-control {
+  font-size: 0.875rem;
+
+  &:focus {
+    border-color: #768D6B;
+    box-shadow: 0 0 0 0.2rem rgba(56, 81, 47, 0.15);
+  }
+
+  &.is-invalid {
+    border-color: #dc3545;
+    box-shadow: none;
+
+    &:focus {
+      border-color: #dc3545;
+      box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.15);
+    }
+  }
+}
+
+// Inputs pequeños (paso 4) con altura fija
+.form-control-sm {
+  height: 38px;
+
+  &:disabled {
+    background-color: #E8E9E4 !important;
+    border-color: #D0D1CC !important;
+    color: #A8A9A2 !important;
+  }
+}
+
+.form-control-label {
+  color: #055770 !important;
+  font-weight: 700 !important;
+}
+
+.btn-agregar-registro {
+  border-color: #768D6B;
+  color: #38512F;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+
+  &:hover {
+    background-color: #36687f !important;
+    border-color: #36687f !important;
+    color: #fff !important;
+  }
+}
+
+// Mensaje de error inline
+.error-msg {
+  display: block;
+  color: #dc3545;
+  font-size: 0.7rem;
+  margin-top: 0.25rem;
+  font-weight: 500;
+}
+
+// =====================================================
+// VISTA PREVIA - FORMATO HISTORIA CLÍNICA (tipo Excel)
+// =====================================================
+
+.preview-wrapper {
+  padding: 20px;
+}
+
+.preview-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-bottom: 16px;
+  padding: 0.7rem 0.85rem;
+  background: #fff;
+  border: 1px solid #E2E3DE;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(15, 54, 97, 0.05);
+
+  .preview-actions-group {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.15rem 0;
+  }
+}
+
+.preview-btn {
+  border: 1px solid transparent;
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+
+  &:focus-visible {
+    outline: 2px solid rgba(11, 105, 136, 0.4);
+    outline-offset: 1px;
+  }
+
+  &:active {
+    transform: scale(0.94);
+  }
+}
+
+.preview-btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 38px;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  background: transparent;
+  color: #525f7f;
+  font-size: 0.8rem;
+  font-weight: 600;
+
+  i {
+    font-size: 0.82rem;
+    color: #0f3661;
+    transition: transform 0.18s ease;
+  }
+
+  &:hover {
+    background: rgba(15, 54, 97, 0.06);
+    color: #0f3661;
+
+    i {
+      transform: translateX(-2px);
+    }
+  }
+}
+
+.preview-btn-back-text {
+  letter-spacing: 0.01em;
+}
+
+.preview-btn-icon {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  font-size: 0.92rem;
+  flex-shrink: 0;
+
+  i {
+    transition: transform 0.18s ease;
+  }
+
+  &:hover i {
+    transform: scale(1.08);
+  }
+}
+
+.preview-btn-finalizar {
+  color: #38512F;
+  background: rgba(56, 81, 47, 0.08);
+  border-color: rgba(56, 81, 47, 0.18);
+
+  &:hover {
+    color: #fff;
+    background: #38512F;
+    border-color: #38512F;
+  }
+}
+
+.preview-btn-edit {
+  color: #0b6988;
+  background: rgba(11, 105, 136, 0.08);
+  border-color: rgba(11, 105, 136, 0.18);
+
+  &:hover {
+    color: #fff;
+    background: #0b6988;
+    border-color: #0b6988;
+  }
+}
+
+.preview-btn-download {
+  color: #0f3661;
+  background: rgba(15, 54, 97, 0.08);
+  border-color: rgba(15, 54, 97, 0.18);
+
+  &:hover {
+    color: #fff;
+    background: #0f3661;
+    border-color: #0f3661;
+  }
+}
+
+.preview-btn-print {
+  color: #8898aa;
+  background: rgba(136, 152, 170, 0.1);
+  border-color: rgba(136, 152, 170, 0.22);
+
+  &:hover {
+    color: #fff;
+    background: #8898aa;
+    border-color: #8898aa;
+  }
+}
+
+.preview-btn-delete {
+  color: #f5365c;
+  background: rgba(245, 54, 92, 0.08);
+  border-color: rgba(245, 54, 92, 0.18);
+
+  &:hover {
+    color: #fff;
+    background: #f5365c;
+    border-color: #f5365c;
+  }
+}
+
+@media (max-width: 576px) {
+  .preview-controls {
+    padding: 0.6rem 0.65rem;
+  }
+
+  .preview-btn-back-text {
+    display: none;
+  }
+
+  .preview-btn-back {
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .preview-btn-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 0.88rem;
+  }
+}
+
+.hc-document {
+  max-width: 210mm;
+  margin: 0 auto;
+  background: #fff;
+  padding: 15px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
+  font-family: 'Open Sans', sans-serif;
+}
+
+.hc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: -1px;
+  font-size: 11px;
+  font-family: 'Open Sans', sans-serif;
+  table-layout: fixed;
+
+  td {
+    border: 1px solid #333;
+    padding: 3px 5px;
+    vertical-align: middle;
+    line-height: 1.3;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+}
+
+// Logo + Title header cell
+.hc-logo-cell {
+  border: 1px solid #333;
+  text-align: center;
+  vertical-align: middle;
+  padding: 6px !important;
+  background: #fff;
+}
+
+.hc-logo-img {
+  max-height: 55px;
+  max-width: 160px;
+  object-fit: contain;
+}
+
+.hc-title-cell {
+  border: 1px solid #333;
+  text-align: center;
+  vertical-align: middle;
+  padding: 10px !important;
+  font-size: 18px;
+  font-weight: 700;
+  color: #38512F;
+  letter-spacing: 5px;
+  text-transform: uppercase;
+  font-family: 'Open Sans', sans-serif;
+}
+
+.hc-section-header {
+  background: #768D6B;
+  color: #fff;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 4px 6px !important;
+  text-transform: uppercase;
+}
+
+.hc-subsection {
+  background: #DDDADA;
+  font-weight: 700;
+  text-align: center;
+  font-size: 10px;
+  padding: 3px 5px !important;
+  color: #38512F;
+}
+
+.hc-col-header {
+  background: #DDDADA;
+  font-weight: 700;
+  font-size: 9px;
+  text-align: center;
+  padding: 3px 4px !important;
+  color: #333;
+}
+
+.hc-cell {
+  font-size: 10px;
+  color: #222;
+
+  strong {
+    font-weight: 700;
+    color: #000;
+    font-size: 10px;
+  }
+
+  small {
+    font-size: 8px;
+    color: #666;
+  }
+}
+
+.hc-center {
+  text-align: center;
+}
+
+.hc-check {
+  display: inline-block;
+  color: #38512F;
+  font-weight: 700;
+  font-size: 13px;
+  margin-left: 3px;
+}
+
+// Prevent page break inside small sections
+.hc-no-break {
+  page-break-inside: avoid;
+}
+
+.hc-font-normal {
+  font-weight: 400 !important;
+}
+
+.hc-forced-page-break {
+  display: block;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+// =====================================================
+// PRINT STYLES
+// =====================================================
+@media print {
+
+  @page {
+    size: Letter portrait;
+    margin: 8mm 7mm;
+  }
+
+  html,
+  body {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  #historia-clinica-print,
+  #historia-clinica-print * {
+    visibility: visible !important;
+  }
+
+  #historia-clinica-print {
+    position: relative !important;
+    left: 0 !important;
+    top: 0 !important;
+    display: block !important;
+  }
+
+  // Hide UI controls
+  .no-print,
+  .preview-controls {
+    display: none !important;
+  }
+
+  // Reset document container
+  .hc-document {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 2mm 1mm 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
+
+  .preview-wrapper {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    width: 100% !important;
+  }
+
+  // Table print optimization
+  .hc-table {
+    page-break-inside: auto !important;
+    table-layout: fixed !important;
+    width: 100% !important;
+    font-size: 8pt !important;
+    margin-bottom: -1px !important;
+    display: table !important;
+
+    td {
+      display: table-cell !important;
+      border: 1px solid #000 !important;
+      padding: 2px 3px !important;
+      font-size: 8pt !important;
+      line-height: 1.2 !important;
+      word-wrap: break-word !important;
+      overflow-wrap: break-word !important;
+      overflow: hidden !important;
+    }
+
+    // Keep individual rows together
+    tr {
+      page-break-inside: avoid !important;
+      display: table-row !important;
+    }
+  }
+
+  // Keep small tables together on one page
+  .hc-no-break {
+    page-break-inside: avoid !important;
+  }
+
+  // Reliable forced page break before "ENFERMEDADES Y DEFORMIDADES"
+  .hc-forced-page-break {
+    display: block !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  // Section headers should not be orphaned at bottom of page
+  .hc-section-header {
+    page-break-after: avoid !important;
+    background: #768D6B !important;
+    color: #fff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-size: 8pt !important;
+    padding: 2px 4px !important;
+  }
+
+  .hc-subsection {
+    page-break-after: avoid !important;
+    background: #DDDADA !important;
+    color: #38512F !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-size: 7pt !important;
+    padding: 2px 3px !important;
+  }
+
+  .hc-col-header {
+    page-break-after: avoid !important;
+    background: #DDDADA !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-size: 7pt !important;
+    padding: 1px 3px !important;
+  }
+
+  .hc-cell {
+    font-size: 8pt !important;
+    padding: 2px 3px !important;
+    line-height: 1.2 !important;
+
+    strong {
+      font-size: 8pt !important;
+    }
+
+    small {
+      font-size: 6pt !important;
+    }
+  }
+
+  // Logo
+  .hc-logo-cell {
+    padding: 3px !important;
+    border: 1px solid #000 !important;
+  }
+
+  .hc-logo-img {
+    max-height: 35px !important;
+    max-width: 100px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .hc-title-cell {
+    font-size: 13pt !important;
+    letter-spacing: 3px !important;
+    color: #38512F !important;
+    padding: 5px !important;
+    border: 1px solid #000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .hc-check {
+    font-size: 10px !important;
+    color: #38512F !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+// =====================================================
+// HISTORIAL — KPI Bar (estilo protección civil)
+// =====================================================
+$hist-primary: #38512F;
+$hist-border:  #e9ecef;
+$hist-text-dark: #32325d;
+$hist-text-muted: #8898aa;
+
+@keyframes kpiRevealHist {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes kpiIconFloatHist {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+
+@keyframes countPopHist {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+@keyframes fadeInUpHist {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.kpi-bar-hist {
+  display: flex;
+  flex-wrap: wrap;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 16px rgba(50,50,93,.08), 0 1px 4px rgba(0,0,0,.04);
+  overflow: hidden;
+  animation: fadeInUpHist 0.5s ease-out both;
+}
+
+.kpi-cell-hist {
+  flex: 1 1 130px;
+  min-width: 0;
+  text-align: center;
+  padding: 0.75rem 0.5rem 0.65rem;
+  position: relative;
+  cursor: default;
+  animation: kpiRevealHist 0.5s cubic-bezier(0.23,1,0.32,1) both;
+  transition: background 0.25s ease;
+
+  &:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 18%; bottom: 18%;
+    width: 1px;
+    background: $hist-border;
+    transition: opacity 0.25s;
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 20%; right: 20%;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    background: var(--kpi-accent, #{$hist-primary});
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+  }
+
+  &:hover {
+    background: rgba($hist-primary, 0.025);
+    &::before { transform: scaleX(1); }
+    .kpi-cell-hist-icon {
+      transform: scale(1.18) rotate(-6deg);
+      box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    }
+    .kpi-cell-hist-valor { animation: countPopHist 0.35s ease-out; }
+  }
+
+  @media (max-width: 900px) {
+    flex: 1 1 22%;
+    &:nth-child(4n)::after { display: none; }
+    &:nth-child(n+5) { border-top: 1px solid $hist-border; }
+  }
+
+  @media (max-width: 500px) {
+    flex: 0 0 50%;
+    &:nth-child(even)::after { display: none; }
+    &:nth-child(odd)::after  { display: block; }
+    &:nth-child(4n)::after   { display: none; }
+    &:nth-child(n+3) { border-top: 1px solid $hist-border; }
+  }
+}
+
+.kpi-cell-hist-icon {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+  transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s ease;
+  i { font-size: 0.7rem; color: #fff; }
+}
+
+.kpi-cell-hist-valor {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: $hist-text-dark;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  letter-spacing: -0.3px;
+}
+
+.kpi-cell-hist-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: $hist-text-muted;
+  margin-top: 2px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.kpi-cell-hist-sub {
+  font-size: 0.6rem;
+  color: darken($hist-text-muted, 2%);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kpi-cell-hist-dot {
+  display: inline-block;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+// =====================================================
+// HISTORIAL — Barra de filtros
+// =====================================================
+.filtros-historial {
+  background: #f8f9f7;
+  border-radius: 10px;
+  padding: 1.2rem 1.5rem 0.8rem;
+  border: 1px solid #E2E3DE;
+
+  .form-control-label {
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #055770 !important;
+    margin-bottom: 0.3rem;
+  }
+
+  .input-group-alternative {
+    border: 1px solid #E2E3DE;
+    background: #fff;
+
+    &:focus-within {
+      border-color: #0b6988;
+      box-shadow: 0 0 0 0.15rem rgba(15, 54, 97, 0.12);
+    }
+  }
+
+  .form-control {
+    font-size: 0.85rem;
+
+    &::placeholder {
+      color: #C0C1BC;
+    }
+  }
+
+  select.form-control {
+    appearance: auto;
+    color: #525f7f;
+  }
+}
+
+.filtro-activo-badge {
+  background-color: rgba(15, 54, 97, 0.1);
+  color: #0f3661;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(15, 54, 97, 0.2);
+
+  &:hover {
+    background-color: rgba(15, 54, 97, 0.2);
+  }
+
+  i.fa-times {
+    font-size: 0.6rem;
+    opacity: 0.7;
+  }
+}
+
+// =====================================================
+// HISTORIAL — Tabla de registros
+// =====================================================
+.historial-table {
+  table-layout: fixed;
+  width: 100%;
+
+  .historial-th,
+  .historial-td {
+    padding: 0.7rem 0.65rem !important;
+    overflow: hidden;
+  }
+}
+
+.historial-th {
+  font-size: 0.7rem !important;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #8898aa;
+  padding: 0.85rem 0.75rem !important;
+  border-bottom: 1px solid #E2E3DE;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.historial-td {
+  padding: 0.75rem !important;
+  vertical-align: middle !important;
+  border-top: 1px solid #f0f1ed;
+  font-size: 0.85rem;
+}
+
+.historial-row {
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background-color: rgba(15, 54, 97, 0.03);
+  }
+
+  &.historial-row-clickable {
+    cursor: pointer;
+
+    &:hover {
+      background-color: rgba(15, 54, 97, 0.06);
+    }
+
+    &:active {
+      background-color: rgba(15, 54, 97, 0.09);
+    }
+  }
+}
+
+.historial-th-num,
+.historial-td-num {
+  width: 4%;
+  min-width: 38px;
+  max-width: 48px;
+  text-align: center;
+}
+
+.historial-th-paciente,
+.historial-td-paciente {
+  width: 24%;
+  max-width: 210px;
+}
+
+.historial-th-folio,
+.historial-td-folio {
+  width: 17%;
+  min-width: 118px;
+  max-width: 140px;
+}
+
+.historial-th-matricula,
+.historial-td-matricula {
+  width: 11%;
+  min-width: 76px;
+  max-width: 96px;
+}
+
+.historial-th-area,
+.historial-td-area {
+  width: 16%;
+  min-width: 88px;
+  max-width: 120px;
+}
+
+.historial-th-fecha,
+.historial-td-fecha {
+  width: 14%;
+  min-width: 102px;
+  max-width: 118px;
+  white-space: nowrap;
+}
+
+.historial-num {
+  font-size: 0.78rem;
+}
+
+.historial-paciente-nombre {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-weight: 600;
+  color: #32325d;
+  font-size: 0.82rem;
+  line-height: 1.25;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.historial-folio {
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  color: #0f3661;
+  font-weight: 600;
+}
+
+.historial-matricula {
+  font-family: 'Courier New', monospace;
+  font-size: 0.78rem;
+  color: #525f7f;
+  word-break: break-word;
+}
+
+.historial-area {
+  display: block;
+  font-size: 0.72rem;
+  color: #8898aa;
+  line-height: 1.25;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.historial-fecha {
+  display: block;
+  font-size: 0.82rem;
+  color: #32325d;
+}
+
+.historial-fecha-relativa {
+  display: block;
+  color: #adb5bd;
+  font-size: 0.68rem;
+  margin-top: 0.1rem;
+}
+
+.avatar-sm {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+// =====================================================
+// HISTORIAL — Badges por tipo de historia
+// =====================================================
+.tipo-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
+  display: inline-flex;
+  align-items: center;
+
+  &.tipo-ingreso {
+    background-color: rgba(45, 206, 137, 0.12);
+    color: #1aae6f;
+    border: 1px solid rgba(45, 206, 137, 0.25);
+  }
+
+  &.tipo-periodico {
+    background-color: rgba(94, 114, 228, 0.12);
+    color: #5e72e4;
+    border: 1px solid rgba(94, 114, 228, 0.25);
+  }
+
+  &.tipo-especial {
+    background-color: rgba(255, 214, 0, 0.12);
+    color: #bf9900;
+    border: 1px solid rgba(255, 214, 0, 0.3);
+  }
+
+  &.tipo-egreso {
+    background-color: rgba(251, 99, 64, 0.12);
+    color: #fb6340;
+    border: 1px solid rgba(251, 99, 64, 0.25);
+  }
+
+  &.tipo-default {
+    background-color: rgba(136, 152, 170, 0.12);
+    color: #8898aa;
+    border: 1px solid rgba(136, 152, 170, 0.25);
+  }
+}
+
+// =====================================================
+// HISTORIAL — Botones de acción en tabla
+// =====================================================
+.btn-icon-action {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+
+  &.btn-action-ver {
+    color: #5e72e4;
+    background: rgba(94, 114, 228, 0.08);
+    border-color: rgba(94, 114, 228, 0.2);
+
+    &:hover {
+      background: #5e72e4;
+      color: #fff;
+      box-shadow: 0 3px 8px rgba(94, 114, 228, 0.3);
+    }
+  }
+
+  &.btn-action-edit {
+    color: #fb6340;
+    background: rgba(251, 99, 64, 0.08);
+    border-color: rgba(251, 99, 64, 0.2);
+
+    &:hover {
+      background: #fb6340;
+      color: #fff;
+      box-shadow: 0 3px 8px rgba(251, 99, 64, 0.3);
+    }
+  }
+
+  &.btn-action-delete {
+    color: #f5365c;
+    background: rgba(245, 54, 92, 0.08);
+    border-color: rgba(245, 54, 92, 0.2);
+
+    &:hover {
+      background: #f5365c;
+      color: #fff;
+      box-shadow: 0 3px 8px rgba(245, 54, 92, 0.3);
+    }
+  }
+}
+
+// =====================================================
+// RESPONSIVE — Stepper
+// =====================================================
+
+// Pantallas medianas (tablets / laptops pequeñas)
+@media (max-width: 992px) {
+  .stepper-section {
+    padding: 1rem 0.4rem 0.8rem;
+  }
+
+  .stepper-circle {
+    width: 36px;
+    height: 36px;
+
+    span {
+      font-size: 0.8rem;
+    }
+
+    i {
+      font-size: 0.7rem;
+    }
+  }
+
+  .stepper-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.2px;
+    margin-top: 6px;
+  }
+
+  .stepper-line {
+    top: 18px;
+  }
+}
+
+// Pantallas pequeñas (móviles grandes / tablets pequeñas)
+@media (max-width: 768px) {
+  .stepper-section {
+    padding: 0.8rem 0.3rem 0.6rem;
+  }
+
+  .stepper-circle {
+    width: 32px;
+    height: 32px;
+
+    span {
+      font-size: 0.75rem;
+    }
+
+    i {
+      font-size: 0.65rem;
+    }
+
+    &.active {
+      transform: scale(1.08);
+    }
+  }
+
+  .stepper-label {
+    font-size: 0.5rem;
+    letter-spacing: 0;
+    margin-top: 4px;
+  }
+
+  .stepper-line {
+    top: 16px;
+    left: 4%;
+    right: 4%;
+  }
+}
+
+// Pantallas muy pequeñas (móviles)
+@media (max-width: 576px) {
+  .stepper-section {
+    padding: 0.6rem 0.2rem 0.5rem;
+    overflow-x: auto;
+  }
+
+  .stepper-track {
+    min-width: 520px;
+  }
+
+  .stepper-circle {
+    width: 28px;
+    height: 28px;
+    border-width: 2px;
+
+    span {
+      font-size: 0.7rem;
+    }
+
+    i {
+      font-size: 0.6rem;
+    }
+
+    &.active {
+      transform: scale(1.05);
+      box-shadow: 0 2px 8px rgba(11, 105, 136, 0.3);
+    }
+  }
+
+  .stepper-label {
+    font-size: 0.45rem;
+    margin-top: 3px;
+    line-height: 1.2;
+  }
+
+  .stepper-line {
+    top: 14px;
+    height: 2px;
+    left: 3%;
+    right: 3%;
+  }
+}
+
+// =====================================================
+// RESPONSIVE — Formulario
+// =====================================================
+@media (max-width: 768px) {
+  .card-body {
+    padding: 1rem !important;
+  }
+
+  .card-header {
+    padding: 1rem 1.2rem 0.8rem !important;
+  }
+}
+
+// =====================================================
+// RESPONSIVE — Historial
+// =====================================================
+@media (max-width: 768px) {
+  .stat-card {
+    padding: 0.8rem 1rem;
+
+    .stat-card-icon {
+      width: 40px;
+      height: 40px;
+      font-size: 1rem;
+      margin-right: 0.8rem;
+    }
+
+    .stat-card-value {
+      font-size: 1.2rem;
+    }
+  }
+
+  .filtros-historial {
+    padding: 1rem;
+  }
+
+  .historial-th,
+  .historial-td {
+    padding: 0.6rem 0.5rem !important;
+    font-size: 0.78rem;
+  }
+
+  .btn-icon-action {
+    width: 28px;
+    height: 28px;
+    font-size: 0.7rem;
+  }
+}
+
+.top-nav-med {
+  align-items: stretch;
+  gap: 0.7rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+.top-search-group {
+  background: #f5f8fc;
+  border: 1px solid #8fb4d6;
+  border-radius: 12px;
+  height: 44px;
+  min-height: 44px;
+  box-shadow: none !important;
+  overflow: hidden;
+  transition: all 0.2s ease;
+
+  &:focus-within {
+    background: #ffffff;
+    border-color: #5a94c6;
+    box-shadow: 0 0 0 0.15rem rgba(90, 148, 198, 0.22) !important;
+  }
+
+  .input-group-prepend,
+  .input-group-text,
+  .form-control {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .input-group-prepend {
+    margin-right: 0 !important;
+  }
+}
+
+.top-search-icon {
+  background: transparent;
+  color: #4f78a0;
+  font-size: 0.82rem;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding-left: 0.75rem;
+  padding-right: 0.4rem;
+}
+
+.top-search-input {
+  background: transparent;
+  font-size: 0.84rem;
+  color: #4d6f91;
+  height: 100%;
+  box-shadow: none !important;
+
+  &::placeholder {
+    color: #7f93ad;
+    opacity: 1;
+  }
+}

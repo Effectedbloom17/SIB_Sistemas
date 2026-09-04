@@ -1,0 +1,3051 @@
+﻿<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-shield-alt"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">Protección Civil</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+
+      <!-- =====================================================
+           KPI BAR — visible para administradores
+           ===================================================== -->
+      <div class="kpi-bar mb-4" *ngIf="!esUsuarioEmpresa && vistaActual === 'empresas'">
+        <div class="kpi-cell" [style.animation-delay]="'0s'" [style.--kpi-accent]="'#d97248'">
+          <div class="kpi-cell-icon" style="background: linear-gradient(135deg,#d97248,#e8945b)">
+            <i class="fas fa-building"></i>
+          </div>
+          <div class="kpi-cell-valor">{{ totalEmpresasDashboard }}</div>
+          <div class="kpi-cell-label">Empresas registradas</div>
+          <div class="kpi-cell-sub"><span class="kpi-cell-dot" style="background:#d97248"></span>En cartera</div>
+        </div>
+
+        <div class="kpi-cell" [style.animation-delay]="'0.06s'" [style.--kpi-accent]="'#5e72e4'">
+          <div class="kpi-cell-icon" style="background: linear-gradient(135deg,#5e72e4,#825ee4)">
+            <i class="fas fa-map-marked-alt"></i>
+          </div>
+          <div class="kpi-cell-valor">{{ totalEstadosDashboard }}</div>
+          <div class="kpi-cell-label">Estados con cobertura</div>
+          <div class="kpi-cell-sub"><span class="kpi-cell-dot" style="background:#5e72e4"></span>Diferentes estados</div>
+        </div>
+
+        <div class="kpi-cell" [style.animation-delay]="'0.12s'" [style.--kpi-accent]="'#2dce89'">
+          <div class="kpi-cell-icon" style="background: linear-gradient(135deg,#2dce89,#2dcecc)">
+            <i class="fas fa-clipboard-list"></i>
+          </div>
+          <div class="kpi-cell-valor">{{ totalDocumentosAsignados }}</div>
+          <div class="kpi-cell-label">Documentos asignados</div>
+          <div class="kpi-cell-sub"><span class="kpi-cell-dot" style="background:#2dce89"></span>Total en sistema</div>
+        </div>
+
+        <div class="kpi-cell" [style.animation-delay]="'0.18s'" [style.--kpi-accent]="'#11cdef'">
+          <div class="kpi-cell-icon" style="background: linear-gradient(135deg,#11cdef,#1171ef)">
+            <i class="fas fa-percentage"></i>
+          </div>
+          <div class="kpi-cell-valor">{{ cumplimientoPromedioDashboard }}<small class="kpi-percent-symbol">%</small></div>
+          <div class="kpi-cell-label">Cumplimiento promedio</div>
+          <div class="kpi-cell-sub"><span class="kpi-cell-dot" style="background:#11cdef"></span>Documentos completos</div>
+        </div>
+
+        <div class="kpi-cell" [style.animation-delay]="'0.24s'" [style.--kpi-accent]="'#fb6340'">
+          <div class="kpi-cell-icon" style="background: linear-gradient(135deg,#fb6340,#fbb140)">
+            <i class="fas fa-clock"></i>
+          </div>
+          <div class="kpi-cell-valor">{{ archivosPendientesDashboard }}</div>
+          <div class="kpi-cell-label">Documentos pendientes</div>
+          <div class="kpi-cell-sub"><span class="kpi-cell-dot" style="background:#fb6340"></span>Sin completar</div>
+        </div>
+
+      </div>
+
+      <!-- =====================================================
+           VISTA EMPRESA: Mis Documentos de Protección Civil
+           ===================================================== -->
+      <div *ngIf="esUsuarioEmpresa" class="vista-empresa">
+        
+        <!-- Panel de cumplimiento documental -->
+        <article class="pc-cumplimiento-dashboard mb-4" aria-label="Resumen de documentación">
+          <div class="pc-cumplimiento-dashboard__glow" aria-hidden="true"></div>
+
+          <div class="pc-cumplimiento-dashboard__inner">
+            <div class="pc-cumplimiento-dashboard__hero" aria-label="Progreso de cumplimiento">
+              <div class="pc-progreso-ring"
+                   [style.--pc-progress]="progresoMisDocumentos + '%'"
+                   role="img"
+                   [attr.aria-label]="'Progreso ' + progresoMisDocumentos + ' por ciento'">
+                <div class="pc-progreso-ring__center">
+                  <span class="pc-progreso-ring__value">{{ progresoMisDocumentos }}<small>%</small></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="pc-cumplimiento-dashboard__overview">
+              <h2 class="pc-cumplimiento-dashboard__title">Estado de tu documentación</h2>
+              <p class="pc-cumplimiento-dashboard__subtitle">
+                <strong>{{ documentosAprobados }}</strong> de <strong>{{ totalArchivosIndividuales }}</strong> documentos aprobados
+              </p>
+              <p class="pc-cumplimiento-dashboard__empty-hint" *ngIf="totalArchivosIndividuales === 0">
+                Aún no hay documentos asignados a tu empresa.
+              </p>
+            </div>
+
+            <div class="pc-cumplimiento-dashboard__stats" role="list">
+              <div class="pc-cumplimiento-stat pc-cumplimiento-stat--approved" role="listitem">
+                <span class="pc-cumplimiento-stat__icon" aria-hidden="true"><i class="fas fa-check-circle"></i></span>
+                <span class="pc-cumplimiento-stat__value">{{ documentosAprobados }}</span>
+                <span class="pc-cumplimiento-stat__label">Aprobados</span>
+              </div>
+              <div class="pc-cumplimiento-stat pc-cumplimiento-stat--revision" role="listitem">
+                <span class="pc-cumplimiento-stat__icon" aria-hidden="true"><i class="fas fa-eye"></i></span>
+                <span class="pc-cumplimiento-stat__value">{{ documentosEnRevision }}</span>
+                <span class="pc-cumplimiento-stat__label">En revisión</span>
+              </div>
+              <div class="pc-cumplimiento-stat pc-cumplimiento-stat--pending" role="listitem">
+                <span class="pc-cumplimiento-stat__icon" aria-hidden="true"><i class="fas fa-clock"></i></span>
+                <span class="pc-cumplimiento-stat__value">{{ documentosPendientes }}</span>
+                <span class="pc-cumplimiento-stat__label">Pendientes</span>
+              </div>
+              <div class="pc-cumplimiento-stat pc-cumplimiento-stat--rejected" role="listitem">
+                <span class="pc-cumplimiento-stat__icon" aria-hidden="true"><i class="fas fa-times-circle"></i></span>
+                <span class="pc-cumplimiento-stat__value">{{ documentosRechazados }}</span>
+                <span class="pc-cumplimiento-stat__label">Rechazados</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Gestión de documentos (empresa — visible mientras haya documentos asignados) -->
+        <div *ngIf="mostrarSeccionSubirDocumentosEmpresa"
+             class="card shadow-lg border-0 asignacion-card" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+
+          <div class="card-header border-0 asignacion-header" style="padding: 1.5rem 2rem;">
+            <div class="row align-items-center">
+              <div class="col-12">
+                <h2 class="mb-0" style="color: #d97248; font-weight: 700; font-size: 1.5rem;">
+                  <i class="fas mr-2" [ngClass]="requiereAccionSubirDocumentosEmpresa ? 'fa-cloud-upload-alt' : 'fa-folder-open'"></i>{{ tituloSeccionDocumentosEmpresa }}
+                </h2>
+                <small class="d-block mt-1 asignacion-subtitle" style="font-size: 0.78rem;">
+                  {{ subtituloSeccionDocumentosEmpresa }}
+                </small>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-body asignacion-body" style="padding: 2rem 2.5rem 2.5rem;">
+
+            <div *ngIf="cargandoMisDocumentos" class="text-center py-5 pc-loading-documents">
+              <i class="fas fa-spinner fa-spin fa-2x"></i>
+              <p class="mt-2 mb-0">Cargando documentos...</p>
+            </div>
+
+            <div *ngIf="!cargandoMisDocumentos && misDocumentos.length === 0" class="text-center py-5">
+              <i class="fas fa-folder-open fa-2x text-muted"></i>
+              <p class="text-muted mt-2 mb-0">No hay documentos registrados para su empresa</p>
+              <small class="text-muted">Contacte al administrador para más información</small>
+            </div>
+
+            <!-- Stepper de navegación -->
+            <div class="pc-stepper-wrapper"
+                 *ngIf="!cargandoMisDocumentos && misDocumentos.length > 0"
+                 [class.compact]="misDocumentos.length <= 5"
+                 [class.single-node]="misDocumentos.length === 1">
+              <div class="pc-stepper-inner">
+                <div class="pc-stepper-line-container" *ngIf="misDocumentos.length > 1">
+                  <div class="pc-stepper-line"></div>
+                  <div class="pc-stepper-line-progress" [style.width.%]="getProgresoEmpresaStepper()"></div>
+                </div>
+                <button *ngFor="let doc of misDocumentos; let i = index"
+                        type="button"
+                        class="pc-stepper-step"
+                        [class.active]="docActivoEmpresa?.documento_id === doc.documento_id"
+                        [class.completed]="esDocStepperAprobado(doc)"
+                        [class.revision]="esDocStepperEnRevision(doc)"
+                        [class.rejected]="doc.estatus === 'rechazado' && !esDocEmpresaCompletado(doc)"
+                        (click)="seleccionarDocEmpresa(doc)">
+                  <span class="pc-stepper-circle">
+                    <i *ngIf="esDocStepperAprobado(doc)" class="fas fa-check"></i>
+                    <i *ngIf="esDocStepperEnRevision(doc)" class="fas fa-search"></i>
+                    <i *ngIf="doc.estatus === 'rechazado' && !esDocEmpresaCompletado(doc)" class="fas fa-times"></i>
+                    <span *ngIf="!esDocStepperAprobado(doc) && !esDocStepperEnRevision(doc) && !(doc.estatus === 'rechazado' && !esDocEmpresaCompletado(doc))">{{ i + 1 }}</span>
+                  </span>
+                  <div class="pc-stepper-label">{{ doc.nombre_documento }}</div>
+                </button>
+              </div>
+            </div>
+
+            <div class="doc-list-wrapper mt-3 pc-animate-section" *ngIf="!cargandoMisDocumentos && misDocumentos.length > 0 && docActivoEmpresa">
+              <div class="filtros-toolbar mb-4">
+                <div class="filtros-toolbar__label">
+                  <i class="fas fa-filter"></i>
+                  <span>Estatus de carga</span>
+                </div>
+                <div class="filtros-toolbar__group">
+                    <button type="button"
+                      class="btn btn-sm filtro-btn"
+                      [class.is-active]="estadoFiltroEmpresa === 'pendiente'"
+                      (click)="setEstadoFiltroEmpresa('pendiente', $event)">
+                    <span>Pendientes</span>
+                    <span class="badge badge-light">{{ totalPendientesEmpresa }}</span>
+                  </button>
+                    <button type="button"
+                      class="btn btn-sm filtro-btn"
+                      *ngIf="mostrarFiltroEmpresaAprobado"
+                      [class.is-active]="estadoFiltroEmpresa === 'aprobado'"
+                      (click)="setEstadoFiltroEmpresa('aprobado', $event)">
+                    <span>Aprobados</span>
+                    <span class="badge badge-light">{{ totalAprobadosEmpresa }}</span>
+                  </button>
+                    <button type="button"
+                      class="btn btn-sm filtro-btn"
+                      *ngIf="mostrarFiltroEmpresaRechazado"
+                      [class.is-active]="estadoFiltroEmpresa === 'rechazado'"
+                      (click)="setEstadoFiltroEmpresa('rechazado', $event)">
+                    <span>Rechazados</span>
+                    <span class="badge badge-light">{{ totalRechazadosEmpresa }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- ═══ CON SUB-DOCUMENTOS ═══ -->
+              <ng-container *ngIf="docActivoEmpresa!.subdocumentos?.length; else sinSubDocEmpresa">
+                <ng-template #pcDetalleSubdocEmpresa let-subdoc>
+                  <article class="pc-detail pc-revision-detail">
+                    <header class="pc-detail__head">
+                      <span class="pc-detail__badge" [ngClass]="getClaseEstatusSubdoc(subdoc.estatus)">
+                        {{ getEtiquetaEstatusSubdoc(subdoc.estatus) }}
+                      </span>
+                      <h6 class="pc-detail__title">
+                        {{ subdoc.nombre_documento }}
+                        <span class="text-danger font-weight-bold" *ngIf="subdoc.obligatorio">*</span>
+                      </h6>
+                      <p class="pc-detail__spec" *ngIf="subdoc.especificacion">{{ subdoc.especificacion }}</p>
+                    </header>
+                    <div class="pc-detail__alert pc-detail__alert--danger" *ngIf="subdoc.estatus === 'rechazado' && subdoc.comentarios">
+                      <i class="fas fa-comment-alt"></i>
+                      <div><strong>Motivo del rechazo</strong><p class="mb-0">{{ subdoc.comentarios }}</p></div>
+                    </div>
+                    <section class="pc-detail__section" *ngIf="subdoc.tipo_entrada === 'texto'">
+                      <label class="pc-detail__label">Valor a capturar</label>
+                      <div class="pc-detail__field-row">
+                        <input type="text" class="form-control"
+                               [class.texto-locked-input]="estaBloqueadoTextoEmpresa(subdoc)"
+                               [(ngModel)]="subdoc.valor_texto"
+                               [readonly]="estaBloqueadoTextoEmpresa(subdoc)"
+                               [disabled]="estaBloqueadoTextoEmpresa(subdoc)"
+                               [placeholder]="estaBloqueadoTextoEmpresa(subdoc) ? 'Dato guardado' : (subdoc.autollenado ? 'Confirma o edita el dato autollenado' : 'Escribe el valor requerido...')">
+                        <div class="pc-detail__actions">
+                          <ng-container *ngIf="subdoc.autollenado; else accionesTextoManualEmpresa">
+                            <ng-container *ngIf="subdoc.estatus !== 'aprobado'">
+                              <button type="button" class="btn btn-sm pc-auto-btn pc-auto-btn--confirm" *ngIf="!estaEditandoAutollenadoEmpresa(subdoc)" (click)="confirmarAutollenadoEmpresa(subdoc)" [disabled]="!subdoc.valor_texto"><i class="fas fa-check mr-1"></i> Confirmar</button>
+                              <button type="button" class="btn btn-sm pc-auto-btn pc-auto-btn--edit" *ngIf="!estaEditandoAutollenadoEmpresa(subdoc)" (click)="activarEdicionAutollenadoEmpresa(subdoc)"><i class="fas fa-pen mr-1"></i> Editar</button>
+                              <button type="button" class="btn btn-sm pc-auto-btn pc-auto-btn--review" *ngIf="estaEditandoAutollenadoEmpresa(subdoc)" (click)="enviarCambioAutollenadoEmpresa(subdoc)" [disabled]="!subdoc.valor_texto"><i class="fas fa-paper-plane mr-1"></i> Enviar cambio</button>
+                              <button type="button" class="btn btn-sm pc-auto-btn pc-auto-btn--ghost" *ngIf="estaEditandoAutollenadoEmpresa(subdoc)" (click)="cancelarEdicionAutollenadoEmpresa(subdoc)">Cancelar</button>
+                            </ng-container>
+                          </ng-container>
+                          <ng-template #accionesTextoManualEmpresa>
+                            <button type="button" class="btn btn-sm pc-auto-btn pc-auto-btn--confirm" *ngIf="!estaBloqueadoTextoEmpresa(subdoc)" (click)="guardarTextoEmpresa(subdoc)"><i class="fas fa-paper-plane mr-1"></i> Guardar</button>
+                            <button type="button" class="btn btn-sm pc-auto-btn pc-auto-btn--edit" *ngIf="estaBloqueadoTextoEmpresa(subdoc) && subdoc.estatus !== 'aprobado'" (click)="activarEdicionTextoEmpresa(subdoc)"><i class="fas fa-pen mr-1"></i> Editar</button>
+                          </ng-template>
+                        </div>
+                      </div>
+                    </section>
+                    <section class="pc-detail__section" *ngIf="esSubdocArchivo(subdoc)">
+                      <label class="pc-upload-zone"
+                             *ngIf="puedeAgregarArchivosAlRequisito(subdoc) && !getArchivosDocumento(subdoc).length"
+                             [class.is-dragover]="dragOverDocId === subdoc.documento_id"
+                             (dragover)="onDragOverUpload($event, subdoc.documento_id)"
+                             (dragleave)="onDragLeaveUpload($event)"
+                             (drop)="onDropArchivo($event, subdoc)">
+                        <input type="file" class="pc-upload-zone__input" multiple (change)="onArchivoSeleccionado($event, subdoc)" [attr.accept]="acceptedPcFileTypes">
+                        <span class="pc-upload-zone__icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                        <span class="pc-upload-zone__title">Arrastra tus archivos aquí</span>
+                        <span class="pc-upload-zone__hint">o haz clic para seleccionar uno o varios · PDF, imágenes, Excel o PowerPoint (máx. {{ maxPcFileMb }} MB c/u)</span>
+                      </label>
+
+                      <div class="pc-doc-tiles"
+                           *ngIf="getArchivosDocumento(subdoc).length"
+                           [class.pc-doc-tiles--single]="esPreviewArchivoUnicoCompleto(subdoc)"
+                           [class.pc-doc-tiles--with-add]="puedeAgregarArchivosAlRequisito(subdoc)">
+                        <div class="pc-doc-tile-wrap" *ngFor="let archivo of getArchivosDocumento(subdoc)">
+                          <button type="button"
+                                  class="pc-doc-tile"
+                                  (click)="visualizarArchivoDeRequisito(subdoc, archivo)"
+                                  [attr.aria-label]="'Abrir ' + archivo.nombre_archivo">
+                            <div class="pc-doc-tile__preview">
+                              <div *ngIf="archivo.drive_file_id" class="pc-doc-tile__pdf-wrap">
+                                <iframe class="pc-doc-tile__pdf-embed"
+                                        [src]="getDrivePreviewUrlById(archivo.drive_file_id) | safe"
+                                        [title]="archivo.nombre_archivo"
+                                        tabindex="-1"></iframe>
+                              </div>
+                              <div *ngIf="!archivo.drive_file_id" class="pc-doc-tile__placeholder">
+                                <i class="fas fa-file-alt"></i>
+                                <span>Archivo</span>
+                              </div>
+                              <div class="pc-doc-tile__hover" aria-hidden="true">
+                                <i class="fas fa-expand"></i>
+                                <span>Ver documento</span>
+                              </div>
+                              <span class="pc-doc-tile__type">PDF</span>
+                            </div>
+                            <div class="pc-doc-tile__meta">
+                              <strong class="pc-doc-tile__name">{{ archivo.nombre_archivo }}</strong>
+                              <small *ngIf="archivo.fecha_subida" class="pc-doc-tile__date">{{ archivo.fecha_subida }}</small>
+                            </div>
+                          </button>
+                          <button type="button"
+                                  class="pc-doc-tile-remove"
+                                  *ngIf="puedeAgregarArchivosAlRequisito(subdoc)"
+                                  (click)="eliminarArchivoEspecifico(subdoc, archivo, $event)"
+                                  [attr.aria-label]="'Eliminar ' + archivo.nombre_archivo"
+                                  title="Eliminar archivo">
+                            <i class="fas fa-trash-alt"></i>
+                          </button>
+                        </div>
+
+                        <label class="pc-upload-zone pc-upload-zone--slot"
+                               *ngIf="puedeAgregarArchivosAlRequisito(subdoc)"
+                               [class.is-dragover]="dragOverDocId === subdoc.documento_id"
+                               (dragover)="onDragOverUpload($event, subdoc.documento_id)"
+                               (dragleave)="onDragLeaveUpload($event)"
+                               (drop)="onDropArchivo($event, subdoc)">
+                          <input type="file" class="pc-upload-zone__input" multiple (change)="onArchivoSeleccionado($event, subdoc)" [attr.accept]="acceptedPcFileTypes">
+                          <span class="pc-upload-zone__icon"><i class="fas fa-plus-circle"></i></span>
+                          <span class="pc-upload-zone__title">Agregar más</span>
+                          <span class="pc-upload-zone__hint">Arrastra o haz clic</span>
+                        </label>
+                      </div>
+                    </section>
+
+                    <footer class="pc-revision-detail__footer pc-revision-detail__footer--center pc-revision-detail__footer--replace"
+                            *ngIf="puedeAgregarArchivosAlRequisito(subdoc) && getArchivosDocumento(subdoc).length && !esUsuarioEmpresa">
+                      <button type="button" class="btn btn-sm btn-success mb-0 pc-btn-marcar-entregado"
+                              (click)="marcarRequisitoEntregado(subdoc)">
+                        <i class="fas fa-check mr-1"></i> Marcar entregado
+                      </button>
+                    </footer>
+                  </article>
+                </ng-template>
+
+                <div class="pc-workspace-toolbar" *ngIf="tieneSubdocsEmpresaFiltrados">
+                  <div class="pc-workspace-search"><i class="fas fa-search"></i>
+                    <input type="search" class="form-control form-control-sm" placeholder="Buscar por nombre, archivo o dato..."
+                           [(ngModel)]="busquedaEmpresa" (ngModelChange)="onBusquedaEmpresaChange()">
+                  </div>
+                  <ng-container *ngTemplateOutlet="pcEntregaFilterToolbar; context: {
+                    filtro: filtroEntregaEmpresa,
+                    totalEntregados: totalEntregadosEmpresaMaestro,
+                    totalFaltantes: totalFaltantesEmpresaMaestro,
+                    contexto: 'empresa'
+                  }"></ng-container>
+                  <button type="button" class="btn btn-sm pc-btn-siguiente" (click)="irAlSiguientePendienteEmpresa()" title="Ir al siguiente pendiente">
+                    <i class="fas fa-forward mr-1"></i> Siguiente pendiente
+                  </button>
+                </div>
+                <div class="pc-workspace pc-workspace--balanced pc-animate-workspace" *ngIf="totalSubdocsEmpresaBusqueda > 0; else sinResultadosBusquedaEmpresa">
+                  <ng-container *ngTemplateOutlet="pcMasterChecklistAside; context: {
+                    items: subdocsEmpresaMaestroBusqueda,
+                    focus: subdocFocusEmpresa,
+                    totalEntregados: totalEntregadosEmpresaMaestro,
+                    totalItems: subdocsEmpresaMaestroBase.length,
+                    contexto: 'empresa'
+                  }"></ng-container>
+                  <main class="pc-workspace-panel pc-revision-detail pc-animate-detail" *ngIf="subdocFocusEmpresa as subdoc">
+                    <ng-container *ngTemplateOutlet="pcDetalleSubdocEmpresa; context: { $implicit: subdoc }"></ng-container>
+                  </main>
+                </div>
+                <ng-template #sinResultadosBusquedaEmpresa>
+                  <div class="doc-empty-state">
+                    <ng-container *ngIf="!tieneSubdocsEmpresaFiltrados">No hay elementos para el filtro seleccionado.</ng-container>
+                    <ng-container *ngIf="tieneSubdocsEmpresaFiltrados">No hay coincidencias para la búsqueda actual.</ng-container>
+                  </div>
+                </ng-template>
+                <div class="doc-empty-state" *ngIf="!tieneSubdocsEmpresaFiltrados">No hay elementos para el filtro seleccionado.</div>
+              </ng-container>
+              <!-- ═══ SIN SUB-DOCUMENTOS ═══ -->
+              <ng-template #sinSubDocEmpresa>
+                <div class="doc-list" *ngIf="docEmpresaCoincidefiltro">
+                <div class="doc-item"
+                     [class.doc-approved]="docActivoEmpresa!.estatus === 'aprobado'"
+                     [class.doc-pending]="docActivoEmpresa!.estatus === 'pendiente'"
+                     [class.doc-revision]="docActivoEmpresa!.estatus === 'revision'"
+                     [class.doc-rejected]="docActivoEmpresa!.estatus === 'rechazado'">
+
+                  <div class="doc-icon"
+                       [style.background]="docActivoEmpresa!.estatus === 'aprobado' ? '#d97248' : (docActivoEmpresa!.nombre_archivo ? '#e8956d' : '#adb5bd')">
+                    <i class="fas" [ngClass]="{
+                      'fa-check-circle': docActivoEmpresa!.estatus === 'aprobado',
+                      'fa-hourglass-half': docActivoEmpresa!.estatus === 'pendiente',
+                      'fa-search': docActivoEmpresa!.estatus === 'revision',
+                      'fa-times-circle': docActivoEmpresa!.estatus === 'rechazado'
+                    }"></i>
+                  </div>
+
+                  <div class="doc-info">
+                    <span class="doc-name">
+                      {{ docActivoEmpresa!.nombre_documento }}
+                      <span class="text-danger font-weight-bold" *ngIf="docActivoEmpresa!.obligatorio">*</span>
+                    </span>
+                      <div *ngIf="docActivoEmpresa!.tipo_entrada === 'texto'"
+                       class="d-flex align-items-center mt-2"
+                       [class.pc-autofill-inline]="true"
+                       style="gap: 0.4rem;">
+                      <input type="text"
+                             class="form-control form-control-sm"
+                           [class.pc-autofill-input]="true"
+                             [class.texto-locked-input]="estaBloqueadoTextoEmpresa(docActivoEmpresa!)"
+                             [(ngModel)]="docActivoEmpresa!.valor_texto"
+                             [readonly]="estaBloqueadoTextoEmpresa(docActivoEmpresa!)"
+                             [disabled]="estaBloqueadoTextoEmpresa(docActivoEmpresa!)"
+                             [placeholder]="estaBloqueadoTextoEmpresa(docActivoEmpresa!) ? 'Dato guardado' : (docActivoEmpresa!.autollenado ? 'Dato autollenado' : 'Ingresa texto...')"
+                             >
+
+                          <ng-container *ngIf="docActivoEmpresa!.autollenado; else guardadoManualTextoEmpresa">
+                        <span class="pc-autofill-actions" *ngIf="docActivoEmpresa!.estatus !== 'aprobado'">
+                          <button type="button"
+                            class="btn btn-sm pc-auto-icon-btn pc-auto-icon-btn--confirm"
+                              *ngIf="!estaEditandoAutollenadoEmpresa(docActivoEmpresa!)"
+                              (click)="confirmarAutollenadoEmpresa(docActivoEmpresa!)"
+                            title="Confirmar y aprobar"
+                              [disabled]="!docActivoEmpresa!.valor_texto">
+                          <i class="fas fa-check"></i>
+                          </button>
+                          <button type="button"
+                            class="btn btn-sm pc-auto-icon-btn pc-auto-icon-btn--edit"
+                              *ngIf="!estaEditandoAutollenadoEmpresa(docActivoEmpresa!)"
+                            (click)="activarEdicionAutollenadoEmpresa(docActivoEmpresa!)"
+                            title="Editar dato">
+                          <i class="fas fa-pen"></i>
+                          </button>
+                          <button type="button"
+                            class="btn btn-sm pc-auto-icon-btn pc-auto-icon-btn--review"
+                              *ngIf="estaEditandoAutollenadoEmpresa(docActivoEmpresa!)"
+                              (click)="enviarCambioAutollenadoEmpresa(docActivoEmpresa!)"
+                            title="Enviar a revision"
+                              [disabled]="!docActivoEmpresa!.valor_texto">
+                          <i class="fas fa-paper-plane"></i>
+                          </button>
+                          <button type="button"
+                            class="btn btn-sm pc-auto-icon-btn pc-auto-icon-btn--ghost"
+                              *ngIf="estaEditandoAutollenadoEmpresa(docActivoEmpresa!)"
+                            (click)="cancelarEdicionAutollenadoEmpresa(docActivoEmpresa!)"
+                            title="Cancelar edicion">
+                          <i class="fas fa-times"></i>
+                          </button>
+                        </span>
+                          </ng-container>
+
+                      <ng-template #guardadoManualTextoEmpresa>
+                        <span class="pc-autofill-actions">
+                          <button type="button"
+                                  class="btn btn-sm pc-auto-icon-btn pc-auto-icon-btn--confirm"
+                                  *ngIf="!estaBloqueadoTextoEmpresa(docActivoEmpresa!)"
+                                  (click)="guardarTextoEmpresa(docActivoEmpresa!)"
+                                  title="Guardar dato">
+                            <i class="fas fa-paper-plane"></i>
+                          </button>
+                          <button type="button"
+                                  class="btn btn-sm pc-auto-icon-btn pc-auto-icon-btn--edit"
+                              *ngIf="estaBloqueadoTextoEmpresa(docActivoEmpresa!) && docActivoEmpresa!.estatus !== 'aprobado'"
+                                  (click)="activarEdicionTextoEmpresa(docActivoEmpresa!)"
+                                  title="Editar dato">
+                            <i class="fas fa-pen"></i>
+                          </button>
+                        </span>
+                      </ng-template>
+                    </div>
+                    <div class="doc-meta">
+                      <span *ngIf="docActivoEmpresa!.especificacion">{{ docActivoEmpresa!.especificacion }}</span>
+                      <span *ngIf="docActivoEmpresa!.fecha_subida" class="meta-date">
+                        <i class="fas fa-calendar-alt"></i> Subido: {{ docActivoEmpresa!.fecha_subida }}
+                      </span>
+                    </div>
+
+                    <div *ngIf="docActivoEmpresa!.comentarios" class="mt-1"
+                         [ngClass]="docActivoEmpresa!.estatus === 'rechazado' ? 'border-left border-danger pl-2' : ''"
+                         [style.color]="docActivoEmpresa!.estatus === 'rechazado' ? '#dc3545' : ''">
+                      <small [ngClass]="docActivoEmpresa!.estatus !== 'rechazado' ? 'text-warning' : ''" style="font-size:0.8rem;">
+                        <i class="fas fa-comment-alt mr-1"></i>
+                        <strong *ngIf="docActivoEmpresa!.estatus === 'rechazado'">Motivo del rechazo: </strong>
+                        {{ docActivoEmpresa!.comentarios }}
+                      </small>
+                    </div>
+
+                  </div>
+
+                  <div class="doc-actions">
+                    <ng-container *ngIf="docActivoEmpresa!.tipo_entrada !== 'texto'">
+                      <button class="action-btn action-preview"
+                              (click)="visualizarDocumento(docActivoEmpresa!)"
+                              title="Ver documento"
+                              [disabled]="!docActivoEmpresa!.nombre_archivo">
+                        <i class="fas fa-eye"></i> Ver
+                      </button>
+                      <label class="action-btn action-upload mb-0" title="Subir archivo"
+                             *ngIf="docActivoEmpresa!.estatus !== 'aprobado'">
+                        <i class="fas fa-upload"></i> Subir
+                        <input type="file"
+                               multiple
+                               (change)="onArchivoSeleccionado($event, docActivoEmpresa!)"
+                           [attr.accept]="acceptedPcFileTypes"
+                               style="display: none;">
+                      </label>
+                    </ng-container>
+                  </div>
+                </div>
+                </div>
+              </ng-template>
+
+              <!-- Navegación prev / next -->
+              <div class="d-flex justify-content-between mt-3 px-1" *ngIf="misDocumentos.length > 1">
+                <button class="btn btn-sm btn-outline-secondary"
+                        [disabled]="misDocumentos.indexOf(docActivoEmpresa!) <= 0"
+                        (click)="seleccionarDocEmpresa(misDocumentos[misDocumentos.indexOf(docActivoEmpresa!) - 1])">
+                  <i class="fas fa-chevron-left mr-1"></i> Anterior
+                </button>
+                <small class="text-muted align-self-center">
+                  {{ misDocumentos.indexOf(docActivoEmpresa!) + 1 }} / {{ misDocumentos.length }} documentos
+                </small>
+                <button class="btn btn-sm btn-outline-secondary"
+                        [disabled]="misDocumentos.indexOf(docActivoEmpresa!) >= misDocumentos.length - 1"
+                        (click)="seleccionarDocEmpresa(misDocumentos[misDocumentos.indexOf(docActivoEmpresa!) + 1])">
+                  Siguiente <i class="fas fa-chevron-right ml-1"></i>
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Leyenda -->
+          <div class="card-footer bg-white border-0 py-3">
+            <div class="text-right">
+              <small style="color: #d97248;">
+                <i class="fas fa-info-circle mr-1"></i>
+                Los documentos rechazados pueden volver a subirse
+              </small>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- =====================================================
+           ANALÍTICA DE ESTATUS RESOLUTIVOS PIPC
+           ===================================================== -->
+      <div class="row mb-4 align-items-stretch pc-resolutivos-analytics"
+           *ngIf="puedeVerGraficaActividadResolutivosPipc && vistaActual === 'empresas'">
+        <div class="col-lg-9 mb-3 mb-lg-0">
+          <div class="card border-0 pc-analytics-card h-100">
+            <div class="card-header border-0 pc-analytics-card__header d-flex align-items-center justify-content-between flex-wrap">
+              <div>
+                <span class="pc-analytics-label">Histórico {{ resolutivosAnio }}</span>
+                <h2 class="pc-analytics-title mb-0">Actividad de Resolutivos PIPC</h2>
+                <small class="pc-analytics-subtitle">Registros por mes según estatus operativo</small>
+              </div>
+              <div class="pc-analytics-insights" *ngIf="!cargandoResolutivosEstadisticas">
+                <div class="pc-analytics-insight-item">
+                  <span class="pc-analytics-insight-key">Acumulado</span>
+                  <span class="pc-analytics-insight-value">{{ resolutivosActividadResumen.totalAnio }} resolutivos</span>
+                </div>
+                <div class="pc-analytics-insight-item">
+                  <span class="pc-analytics-insight-key">Promedio</span>
+                  <span class="pc-analytics-insight-value">{{ resolutivosActividadResumen.promedioMensual | number:'1.0-1' }} / mes</span>
+                </div>
+                <div class="pc-analytics-insight-item">
+                  <span class="pc-analytics-insight-key">Cambio mensual</span>
+                  <span class="pc-analytics-insight-value" [ngClass]="getResolutivosDeltaClass(resolutivosActividadResumen.variacionMensual)">
+                    {{ formatResolutivosDelta(resolutivosActividadResumen.variacionMensual) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="card-body pt-0 pc-analytics-chart-body">
+              <div *ngIf="cargandoResolutivosEstadisticas" class="pc-analytics-skeleton pc-analytics-skeleton--wide"></div>
+              <apx-chart *ngIf="!cargandoResolutivosEstadisticas && resolutivosChartsReady && resolutivosEstatusResumen.total > 0"
+                [series]="resolutivosChartOptions.series"
+                [chart]="resolutivosChartOptions.chart"
+                [xaxis]="resolutivosChartOptions.xaxis"
+                [yaxis]="resolutivosChartOptions.yaxis"
+                [dataLabels]="resolutivosChartOptions.dataLabels"
+                [fill]="resolutivosChartOptions.fill"
+                [stroke]="resolutivosChartOptions.stroke"
+                [tooltip]="resolutivosChartOptions.tooltip"
+                [grid]="resolutivosChartOptions.grid"
+                [colors]="resolutivosChartOptions.colors"
+                [plotOptions]="resolutivosChartOptions.plotOptions"
+                [legend]="resolutivosChartOptions.legend">
+              </apx-chart>
+              <div *ngIf="!cargandoResolutivosEstadisticas && resolutivosEstatusResumen.total === 0" class="pc-analytics-empty py-5 text-center">
+                <i class="fas fa-chart-bar fa-2x mb-2" style="color: #d97248; opacity: 0.45;"></i>
+                <p class="mb-0 text-muted">Sin resolutivos registrados para generar la gráfica</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-3">
+          <div class="card border-0 pc-analytics-card pc-analytics-card--estatus h-100">
+            <div class="card-header border-0 pc-analytics-card__header">
+              <span class="pc-analytics-label">Distribución</span>
+              <h2 class="pc-analytics-title mb-0">Estatus Operativo</h2>
+              <small class="pc-analytics-subtitle d-block mt-1">Vigentes · Próximo a vencer · Vencido · En trámite</small>
+            </div>
+            <div class="card-body pt-0 pc-analytics-status-body">
+              <div *ngIf="cargandoResolutivosEstadisticas" class="pc-analytics-status-loading">
+                <div class="pc-analytics-skeleton" style="height: 68px; border-radius: 12px;"></div>
+                <div class="pc-analytics-skeleton" style="height: 10px; border-radius: 10px;"></div>
+                <div class="pc-analytics-skeleton" style="height: 44px; border-radius: 10px;"></div>
+                <div class="pc-analytics-skeleton" style="height: 44px; border-radius: 10px;"></div>
+              </div>
+
+              <div *ngIf="!cargandoResolutivosEstadisticas && resolutivosEstatusCards.length > 0" class="pc-status-panel">
+                <div class="pc-status-overview">
+                  <p class="pc-status-overview-inline mb-0">
+                    <span class="pc-status-overview-mini-icon">
+                      <i class="fas fa-layer-group"></i>
+                    </span>
+                    <span class="pc-status-overview-inline-label">Total resolutivos</span>
+                    <strong class="pc-status-overview-inline-total">{{ resolutivosEstatusResumen.total }}</strong>
+                  </p>
+                </div>
+
+                <div class="pc-status-stack-wrap">
+                  <span class="pc-status-stack-caption">Distribución general</span>
+                  <div class="pc-status-stack" aria-label="Distribución de estatus resolutivos">
+                    <span *ngFor="let estado of resolutivosEstatusCards; let i = index"
+                      class="pc-status-stack-segment"
+                      [style.width.%]="estado.pct"
+                      [style.animation-delay]="(i * 0.08) + 's'"
+                      [style.background]="estado.color">
+                    </span>
+                  </div>
+                </div>
+
+                <div class="pc-status-list">
+                  <div *ngFor="let estado of resolutivosEstatusCards; let i = index"
+                    class="pc-status-item"
+                    [style.--status-color]="estado.color"
+                    [style.animation-delay]="(0.1 + i * 0.07) + 's'">
+                    <div class="pc-status-item-row">
+                      <div class="pc-status-item-main">
+                        <span class="pc-status-dot" [style.background]="estado.color"></span>
+                        <span class="pc-status-icon-wrap"
+                          [style.border-color]="estado.color"
+                          [style.color]="estado.color"
+                          [style.background]="estado.color + '1A'">
+                          <i class="fas {{ estado.icono }}"></i>
+                        </span>
+                        <span class="pc-status-item-label">{{ estado.label }}</span>
+                      </div>
+                      <div class="pc-status-item-metric">
+                        <strong>{{ estado.count }}</strong>
+                        <small>{{ estado.pct }}%</small>
+                      </div>
+                    </div>
+                    <div class="pc-status-item-progress">
+                      <span [style.width.%]="estado.pct" [style.background]="estado.color"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div *ngIf="!cargandoResolutivosEstadisticas && !resolutivosEstatusCards.length" class="pc-analytics-empty py-4 text-center">
+                <i class="fas fa-chart-pie fa-2x mb-2" style="color: #d97248; opacity: 0.45;"></i>
+                <p class="mb-0 text-muted small">Sin datos de estatus</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- =====================================================
+           VISTA DE SELECTOR DE EMPRESAS (SOLO ADMIN)
+           ===================================================== -->
+
+
+      <section *ngIf="!esUsuarioEmpresa && vistaActual === 'empresas'"
+               class="pc-empresas-selector"
+               aria-label="Seleccionar empresa">
+
+        <header class="pc-empresas-selector__header">
+          <div class="pc-empresas-selector__title-row">
+            <div class="pc-empresas-selector__intro">
+              <h2 class="pc-empresas-selector__title">Seleccionar Empresa</h2>
+              <p class="pc-empresas-selector__subtitle">Elige una empresa para gestionar su documentación de protección civil</p>
+            </div>
+            <div class="pc-empresas-selector__actions">
+              <span class="pc-empresas-selector__count" *ngIf="!cargandoEmpresas">
+                {{ empresasFiltradas.length }} {{ empresasFiltradas.length === 1 ? 'empresa' : 'empresas' }}
+              </span>
+              <a class="pc-empresas-selector__catalog-btn"
+                 [routerLink]="['/proteccion-civil/catalogo']">
+                <i class="fas fa-list-alt" aria-hidden="true"></i>
+                <span>Catálogo</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="pc-empresas-selector__filters">
+            <div class="pc-empresas-selector__search">
+              <i class="fas fa-search pc-empresas-selector__search-icon" aria-hidden="true"></i>
+              <input class="pc-empresas-selector__search-input"
+                     placeholder="Buscar por nombre o RFC..."
+                     type="search"
+                     [(ngModel)]="textoBusquedaEmpresa"
+                     (input)="filtrarEmpresas()">
+            </div>
+            <div class="pc-empresas-selector__filter notranslate" translate="no">
+              <select class="pc-empresas-selector__select notranslate"
+                      translate="no"
+                      [(ngModel)]="estadoSeleccionado"
+                      (change)="onEstadoChange()">
+                <option value="">Todos los estados</option>
+                <option *ngFor="let estado of estados" [value]="estado" class="notranslate" translate="no">{{ estado }}</option>
+              </select>
+            </div>
+            <div class="pc-empresas-selector__filter notranslate" translate="no">
+              <select class="pc-empresas-selector__select notranslate"
+                      translate="no"
+                      [(ngModel)]="municipioSeleccionado"
+                      (change)="filtrarEmpresas()"
+                      [disabled]="!estadoSeleccionado">
+                <option value="">Todos los municipios</option>
+                <option *ngFor="let municipio of municipios" [value]="municipio" class="notranslate" translate="no">{{ municipio }}</option>
+              </select>
+            </div>
+          </div>
+        </header>
+
+        <div class="pc-empresas-selector__body">
+
+          <div *ngIf="cargandoEmpresas" class="pc-empresas-selector__state">
+            <div class="pc-empresas-selector__state-icon pc-empresas-selector__state-icon--loading">
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+            </div>
+            <p class="pc-empresas-selector__state-title">Cargando empresas</p>
+            <p class="pc-empresas-selector__state-desc">Obteniendo el listado actualizado...</p>
+          </div>
+
+          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length === 0 && empresasActividadReciente.length === 0" class="pc-empresas-selector__state">
+            <div class="pc-empresas-selector__state-icon">
+              <i class="fas fa-building" aria-hidden="true"></i>
+            </div>
+            <p class="pc-empresas-selector__state-title">No hay empresas</p>
+            <p class="pc-empresas-selector__state-desc">No se encontraron empresas con los filtros aplicados.</p>
+          </div>
+
+          <section *ngIf="hayActividadRecienteEmpresas"
+                   class="pc-empresas-recientes"
+                   aria-label="Actividad reciente">
+            <div class="pc-empresas-recientes__head">
+              <div>
+                <h3 class="pc-empresas-recientes__title">
+                  <i class="fas fa-history mr-2" aria-hidden="true"></i>Actividad Reciente
+                </h3>
+              </div>
+              <button type="button"
+                      class="pc-empresas-selector__reset-btn pc-empresas-selector__reset-btn--recientes"
+                      [class.pc-empresas-selector__reset-btn--active]="empresasRecientesIds.length > 0"
+                      [disabled]="empresasRecientesIds.length === 0"
+                      (click)="limpiarActividadReciente()"
+                      title="Limpiar actividad reciente"
+                      aria-label="Limpiar actividad reciente">
+                <i class="fas fa-undo" aria-hidden="true"></i>
+              </button>
+            </div>
+            <div class="pc-empresas-recientes__cards">
+              <span class="pc-empresas-recientes__ultima-label"
+                    *ngIf="empresasActividadReciente.length"
+                    aria-hidden="true">
+                <i class="fas fa-bookmark"></i> Última visita
+              </span>
+              <div class="pc-empresas-recientes__grid">
+                <ng-container *ngFor="let empresa of empresasActividadReciente; let i = index">
+                  <ng-container *ngTemplateOutlet="pcEmpresaCard; context: {
+                    $implicit: empresa,
+                    index: i,
+                    reciente: true,
+                    ultima: i === 0
+                  }"></ng-container>
+                </ng-container>
+              </div>
+            </div>
+          </section>
+
+          <div *ngIf="hayActividadRecienteEmpresas && empresasFiltradasResto.length > 0"
+               class="pc-empresas-selector__section-label">
+            Todas las empresas
+          </div>
+
+          <div *ngIf="!cargandoEmpresas && empresasFiltradasResto.length > 0"
+               class="pc-empresas-selector__grid">
+            <ng-container *ngFor="let empresa of empresasFiltradasResto; let i = index">
+              <ng-container *ngTemplateOutlet="pcEmpresaCard; context: {
+                $implicit: empresa,
+                index: i,
+                reciente: false,
+                ultima: false
+              }"></ng-container>
+            </ng-container>
+          </div>
+
+          <ng-template #pcEmpresaCard let-empresa let-index="index" let-reciente="reciente" let-ultima="ultima">
+            <article class="pc-empresa-card empresa-card"
+                     [class.pc-empresa-card--recent]="reciente"
+                     [class.pc-empresa-card--latest]="ultima"
+                     [style.animation-delay]="(0.04 + index * 0.05) + 's'"
+                     (click)="seleccionarEmpresa(empresa)"
+                     (keydown.enter)="seleccionarEmpresa(empresa)"
+                     tabindex="0"
+                     role="button"
+                     [attr.aria-label]="ultima ? 'Última visita: ' + empresa.nombre_empresa : 'Abrir ' + empresa.nombre_empresa">
+
+              <div class="pc-empresa-card__responsable"
+                   *ngIf="empresa.responsable_pipc_nombre"
+                   [attr.title]="'Responsable de PIPC: ' + empresa.responsable_pipc_nombre">
+                <i class="fas fa-user-tie" aria-hidden="true"></i>
+                <span>{{ empresa.responsable_pipc_nombre }}</span>
+              </div>
+
+              <div class="pc-empresa-card__top">
+                <div class="pc-empresa-card__avatar avatar avatar-empresa"
+                     [ngClass]="getLogoEmpresaUrl(empresa) ? 'avatar-logo-white-bg' : getColorAvatar(index)">
+                  <ng-container *ngIf="getLogoEmpresaUrl(empresa) as logoUrl; else avatarIniciales">
+                    <img [src]="logoUrl"
+                         alt="Logo"
+                         (error)="onLogoError(empresa)">
+                  </ng-container>
+                  <ng-template #avatarIniciales>{{ getIniciales(empresa.nombre_empresa) }}</ng-template>
+                </div>
+                <div class="pc-empresa-card__meta empresa-info-texto">
+                  <h3 class="pc-empresa-card__name empresa-card-nombre">{{ empresa.nombre_empresa }}</h3>
+                </div>
+              </div>
+
+              <div class="pc-empresa-card__progress empresa-card-progreso"
+                   [class.pc-empresa-card__progress--complete]="isProcesoCompleto(empresa)"
+                   [class.pc-empresa-card__progress--docs-done]="documentosCompletosEmpresa(empresa) && !isProcesoCompleto(empresa)"
+                   [class.pc-empresa-card__progress--partial]="getProgresoProceso(empresa) > 0 && !documentosCompletosEmpresa(empresa) && !isProcesoCompleto(empresa)">
+                <div class="pc-empresa-card__progress-head">
+                  <span class="pc-empresa-card__progress-label">{{ isProcesoCompleto(empresa) ? 'Trámite' : 'Avance del trámite' }}</span>
+                  <span class="pc-empresa-card__progress-value">
+                    {{ getProgresoProceso(empresa) }}%
+                    <small *ngIf="empresa.documentos_totales">{{ empresa.documentos_completos || 0 }}/{{ empresa.documentos_totales }} docs</small>
+                  </span>
+                </div>
+                <div class="pc-empresa-card__progress-track">
+                  <span class="pc-empresa-card__progress-bar"
+                        [style.width.%]="getProgresoProceso(empresa)"></span>
+                </div>
+                <p class="pc-empresa-card__progress-hint"
+                   *ngIf="documentosCompletosEmpresa(empresa) && !isProcesoCompleto(empresa)">
+                  Documentos al 100%. {{ getTextoPendientesTramite(empresa) }}.
+                </p>
+                <p class="pc-empresa-card__progress-hint pc-empresa-card__progress-hint--ok"
+                   *ngIf="isProcesoCompleto(empresa)">
+                  Oficio y resolutivo capturados
+                </p>
+              </div>
+            </article>
+          </ng-template>
+
+        </div>
+      </section>
+
+      <!-- =====================================================
+           VISTA MENÚ DOCUMENTOS: Opciones para la empresa (SOLO ADMIN)
+           ===================================================== -->
+      <section *ngIf="!esUsuarioEmpresa && vistaActual === 'menuDocumentos' && empresaSeleccionada"
+               class="pc-menu-documentos"
+               aria-label="Gestión documental de la empresa">
+
+        <div class="pc-ops-timeline-header">
+          <div class="d-flex align-items-start justify-content-between flex-wrap pc-ops-timeline-header__row">
+            <div class="d-flex align-items-start pc-ops-timeline-title-wrap">
+              <div class="pc-ops-timeline-title-icon" aria-hidden="true">
+                <i class="fas fa-shield-alt text-white"></i>
+              </div>
+              <div class="pc-ops-timeline-title-text">
+                <h4 class="mb-0 text-white pc-ops-timeline-title">{{ empresaSeleccionada.nombre_empresa }}</h4>
+                <div class="pc-ops-timeline-meta d-flex flex-wrap align-items-center">
+                  <small class="text-white" *ngIf="opsEmpresaUbicacion">
+                    <i class="fas fa-map-marker-alt mr-1"></i>{{ opsEmpresaUbicacion }}
+                  </small>
+                  <small class="text-white" *ngIf="empresaSeleccionada.rfc">
+                    <i class="fas fa-id-card mr-1"></i>{{ empresaSeleccionada.rfc }}
+                  </small>
+                  <small class="text-white" *ngIf="opsPipcCobertura">
+                    <i class="fas fa-tasks mr-1"></i>PIPC {{ opsPipcCobertura.total_asignadas }}/{{ opsPipcCobertura.total_catalogo }}
+                  </small>
+                  <small class="text-white" *ngIf="empresaSeleccionada.documentos_totales">
+                    <i class="fas fa-folder-open mr-1"></i>{{ empresaSeleccionada.documentos_completos }}/{{ empresaSeleccionada.documentos_totales }} documentos
+                  </small>
+                  <small class="text-white">
+                    <i class="fas fa-circle mr-1"></i>{{ opsCicloCerrado ? 'Ciclo cerrado' : 'En proceso' }}
+                  </small>
+                </div>
+              </div>
+            </div>
+            <button type="button"
+                    class="btn btn-sm bg-white border-0 pc-ops-timeline-back-btn"
+                    (click)="volverAEmpresas()"
+                    aria-label="Volver a empresas">
+              <i class="fas fa-arrow-left mr-1"></i>Volver
+            </button>
+          </div>
+        </div>
+
+        <div class="pc-menu-documentos__body">
+          <div class="pc-ops-progress-summary mb-3">
+            <div class="d-flex align-items-center">
+              <div class="flex-grow-1">
+                <div class="progress pc-ops-progress-bar">
+                  <div class="progress-bar pc-ops-progress-bar__fill"
+                       [class.pc-ops-progress-bar__fill--complete]="opsProgresoCentroPorcentaje === 100"
+                       role="progressbar"
+                       [style.width.%]="opsProgresoCentroPorcentaje"
+                       [attr.aria-valuenow]="opsProgresoCentroPorcentaje"
+                       aria-valuemin="0"
+                       aria-valuemax="100"></div>
+                </div>
+              </div>
+              <small class="text-muted ml-2 pc-ops-progress-total">{{ opsProgresoCentroPorcentaje }}% del trámite</small>
+            </div>
+            <p class="pc-ops-progress-hint mb-0 mt-2"
+               *ngIf="opsMostrarPendientesTramite">
+              Documentos al 100%. {{ opsTextoPendientesTramite }}.
+            </p>
+          </div>
+
+          <!-- Stepper: nodos como pestañas del proceso -->
+          <div class="pc-ops-stepper-wrapper pc-animate-in pc-animate-section--delay-1" role="tablist" aria-label="Proceso de gestión documental de la empresa">
+            <div class="pc-ops-stepper-inner">
+              <div class="pc-ops-stepper-line-container">
+                <div class="pc-ops-stepper-line"></div>
+                <div class="pc-ops-stepper-line-progress" [style.width.%]="getPorcentajeProgresoOperaciones()"></div>
+              </div>
+
+              <button type="button"
+                      class="pc-ops-stepper-step pc-animate-step text-center cursor-pointer"
+                      *ngFor="let paso of pasosCentroOperaciones; let i = index"
+                      role="tab"
+                      [style.animation-delay]="(0.12 + i * 0.06) + 's'"
+                      [class.is-active]="pasoOperacionesSeleccionado === paso.id"
+                      [class.is-completed]="isOpsPasoMarcadoCompleto(paso.id)"
+                      [attr.id]="'pc-ops-step-' + paso.id"
+                      [attr.aria-selected]="pasoOperacionesSeleccionado === paso.id"
+                      [attr.aria-controls]="'pc-ops-panel-' + paso.id"
+                      [attr.aria-label]="'Etapa ' + (i + 1) + ': ' + paso.nombre"
+                      (click)="seleccionarPasoOperaciones(paso.id)">
+                <span class="pc-ops-stepper-circle mx-auto mb-2"
+                      [class.active]="pasoOperacionesSeleccionado === paso.id"
+                      [class.completed]="isOpsPasoMarcadoCompleto(paso.id)">
+                  <i *ngIf="isOpsPasoMarcadoCompleto(paso.id)" class="fas fa-check text-white" aria-hidden="true"></i>
+                  <i *ngIf="!isOpsPasoMarcadoCompleto(paso.id)" [class]="'fas ' + paso.icono"
+                     [class.text-white]="pasoOperacionesSeleccionado === paso.id"
+                     aria-hidden="true"></i>
+                </span>
+                <span class="pc-ops-stepper-label">
+                  <span class="font-weight-bold">{{ paso.nombre }}</span>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Contenido de la interfaz del nodo seleccionado -->
+          <div class="pc-ops-content pc-animate-panel"
+               role="tabpanel"
+               [attr.id]="'pc-ops-panel-' + pasoOperacionesSeleccionado"
+               [attr.aria-labelledby]="'pc-ops-step-' + pasoOperacionesSeleccionado">
+            <div class="pc-ops-panel-head pc-animate-section d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap: 0.5rem;">
+              <div>
+                <h4 class="mb-0 pc-ops-panel-title">
+                  <i [class]="'fas ' + (opsPasoSeleccionadoData?.icono || 'fa-circle') + ' mr-2'"></i>
+                  {{ opsPasoSeleccionadoData?.nombre }}
+                </h4>
+                <small class="pc-ops-paso-desc" *ngIf="opsPasoSeleccionadoData?.descripcion"
+                       [class.pc-ops-paso-desc--naranja]="pasoOperacionesSeleccionado === 'oficio' || pasoOperacionesSeleccionado === 'observaciones' || pasoOperacionesSeleccionado === 'resolutivo'">{{ opsPasoSeleccionadoData?.descripcion }}</small>
+              </div>
+              <div class="pc-ops-panel-head__aside">
+                <div class="pc-ops-documentacion-tabs"
+                     *ngIf="pasoOperacionesSeleccionado === 'documentacion'
+                            && !isOpsPasoCompletado('documentacion')
+                            && !cargandoDocumentos
+                            && documentos.length > 0"
+                     role="tablist"
+                     aria-label="Modo de documentación">
+                  <button type="button"
+                          class="pc-ops-documentacion-tab"
+                          role="tab"
+                          [class.is-active]="opsDocumentacionTab === 'carga'"
+                          [attr.aria-selected]="opsDocumentacionTab === 'carga'"
+                          (click)="seleccionarTabDocumentacionOps('carga')">
+                    <span class="pc-ops-documentacion-tab__icon" aria-hidden="true">
+                      <i class="fas fa-cloud-upload-alt"></i>
+                    </span>
+                    <span class="pc-ops-documentacion-tab__label">Carga</span>
+                  </button>
+                  <button type="button"
+                          class="pc-ops-documentacion-tab"
+                          role="tab"
+                          [class.is-active]="opsDocumentacionTab === 'revision'"
+                          [attr.aria-selected]="opsDocumentacionTab === 'revision'"
+                          (click)="seleccionarTabDocumentacionOps('revision')">
+                    <span class="pc-ops-documentacion-tab__icon" aria-hidden="true">
+                      <i class="fas fa-clipboard-check"></i>
+                    </span>
+                    <span class="pc-ops-documentacion-tab__label">Revisión</span>
+                    <span class="pc-ops-documentacion-tab__badge"
+                          *ngIf="entregasEnRevisionAdmin > 0"
+                          [attr.aria-label]="entregasEnRevisionAdmin + ' en revisión'">
+                      {{ entregasEnRevisionAdmin }}
+                    </span>
+                  </button>
+                </div>
+                <span class="badge badge-pill"
+                      [class.badge-ops-done]="opsPasoAsignarEtiqueta === 'COMPLETADO'"
+                      [class.badge-ops-pending]="opsPasoAsignarEtiqueta === 'PENDIENTE'">
+                  {{ opsPasoAsignarEtiqueta }}
+                </span>
+              </div>
+            </div>
+
+            <div *ngIf="pasoOperacionesSeleccionado === 'asignar'" class="pc-animate-section pc-animate-section--delay-1">
+            <app-proteccion-civil-asignar-documentos
+              [embebido]="true"
+              [empresaIdEmbebida]="empresaSeleccionada.empresa_id"
+              [nodoBloqueado]="opsPasoAsignarBloqueado"
+              [refreshToken]="opsRefreshAsignaciones"
+              (asignacionGuardada)="onAsignacionGuardadaCentroOps()"
+              (responsableActualizado)="onResponsablePipcActualizado($event)"
+              (solicitarDesbloqueo)="solicitarDesbloqueoPasoAsignar()">
+            </app-proteccion-civil-asignar-documentos>
+            </div>
+
+            <div *ngIf="pasoOperacionesSeleccionado === 'recorrido'" class="pc-animate-section pc-animate-section--delay-1">
+              <p class="pc-ops-hint-naranja small mb-3">
+                Elige registro manual (SP-F-02 por PIPC) o sube el reporte en PDF. Al subir todos los PDF requeridos, el paso se marca como completado.
+              </p>
+              <div class="pc-ops-lock-banner" *ngIf="isOpsPasoCompletado('recorrido')">
+                <span class="pc-ops-lock-banner__icon" aria-hidden="true"><i class="fas fa-lock"></i></span>
+                <div class="pc-ops-lock-banner__body">
+                  <strong>Reporte de recorrido completado</strong>
+                  <span>La información queda visible en modo consulta. Desbloquea el paso para editar o reemplazar archivos.</span>
+                </div>
+                <button type="button" class="pc-ops-lock-banner__action" (click)="desbloquearPasoOperaciones('recorrido')">
+                  <i class="fas fa-unlock-alt" aria-hidden="true"></i> Desbloquear
+                </button>
+              </div>
+              <app-proteccion-civil-reporte-recorrido
+                [empresaId]="empresaSeleccionada!.empresa_id"
+                [nodoBloqueado]="isOpsPasoCompletado('recorrido')"
+                [refreshToken]="opsRefreshRecorrido"
+                (estadoActualizado)="onRecorridoActualizadoCentroOps()"
+                (pasoCompletado)="completarPasoOperaciones('recorrido', true)"
+                (solicitarDesbloqueo)="desbloquearPasoOperaciones('recorrido')">
+              </app-proteccion-civil-reporte-recorrido>
+              <div class="d-flex justify-content-end flex-wrap mt-3" style="gap: 0.5rem;" *ngIf="!isOpsPasoCompletado('recorrido')">
+                <button type="button" class="btn pc-ops-btn-outline"
+                        (click)="completarPasoOperaciones('recorrido')">
+                  Omitir paso
+                </button>
+                <button type="button" class="btn pc-ops-btn-primary"
+                        (click)="completarPasoOperaciones('recorrido')">
+                  <i class="fas fa-check mr-1"></i>Completar nodo
+                </button>
+              </div>
+            </div>
+
+            <div *ngIf="pasoOperacionesSeleccionado === 'documentacion'"
+                 class="pc-ops-nodo-documentacion pc-animate-section pc-animate-section--delay-1"
+                 [class.pc-ops-step--locked]="isOpsPasoCompletado('documentacion')">
+              <div class="pc-ops-lock-banner" *ngIf="isOpsPasoCompletado('documentacion')">
+                <span class="pc-ops-lock-banner__icon" aria-hidden="true"><i class="fas fa-lock"></i></span>
+                <div class="pc-ops-lock-banner__body">
+                  <strong>Documentación completada</strong>
+                  <span>Puedes revisar los archivos cargados. Desbloquea el paso para subir o modificar documentación.</span>
+                </div>
+                <button type="button" class="pc-ops-lock-banner__action" (click)="desbloquearPasoOperaciones('documentacion')">
+                  <i class="fas fa-unlock-alt" aria-hidden="true"></i> Desbloquear
+                </button>
+              </div>
+              <div class="pc-ops-upload-alert" *ngIf="subiendoArchivo && !isOpsPasoCompletado('documentacion')" role="status" aria-live="polite">
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  <span>Se está subiendo el archivo, espere unos segundos...</span>
+                </div>
+                <div *ngIf="cargandoDocumentos" class="text-center py-5 pc-loading-documents">
+                  <i class="fas fa-spinner fa-spin fa-2x"></i>
+                  <p class="mt-2 mb-0">Cargando documentos...</p>
+                </div>
+                <div *ngIf="!cargandoDocumentos" class="pc-ops-documentacion-body">
+                  <div class="pc-subir-hub" *ngIf="opsDocumentacionTab === 'carga' && !isOpsPasoCompletado('documentacion')" role="tabpanel">
+                    <div *ngIf="documentos.length === 0" class="text-center py-4 mb-2">
+                      <p class="text-muted mb-0">Primero asigna documentos en el paso anterior.</p>
+                      <small class="text-muted">También puedes subir anexos en Documentación Extra.</small>
+                    </div>
+                    <ng-container *ngTemplateOutlet="adminSubirDocumentosPanel"></ng-container>
+                  </div>
+
+                  <div *ngIf="opsDocumentacionTab === 'revision' || isOpsPasoCompletado('documentacion')" class="pc-ops-revision-hub" role="tabpanel">
+                    <app-proteccion-civil-revisar-documentos
+                      [embebido]="true"
+                      [embebidoHub]="true"
+                      [empresaIdEmbebida]="empresaSeleccionada!.empresa_id"
+                      (solicitarVisor)="visualizarDocumentoDesdeRevision($event)"
+                      (revisionActualizada)="onRevisionCentroOpsActualizada()">
+                    </app-proteccion-civil-revisar-documentos>
+                  </div>
+                </div>
+                <div class="d-flex justify-content-end mt-3" *ngIf="!cargandoDocumentos && documentos.length > 0 && !isOpsPasoCompletado('documentacion')">
+                  <button type="button" class="btn pc-ops-btn-primary"
+                          [disabled]="!opsPuedeCompletar.documentacion"
+                          (click)="completarPasoOperaciones('documentacion')">
+                    <i class="fas fa-check mr-1"></i>Completar documentación
+                  </button>
+                </div>
+            </div>
+
+            <!-- Oficio de Ingreso -->
+            <div *ngIf="pasoOperacionesSeleccionado === 'oficio'"
+                 class="pc-ops-nodo-archivo-fecha pc-animate-section pc-animate-section--delay-1"
+                 [class.pc-ops-step--locked]="isOpsPasoCompletado('oficio')">
+              <div class="pc-ops-upload-alert" *ngIf="estaSubiendoEnPasoWorkflow() && !isOpsPasoCompletado('oficio')" role="status" aria-live="polite">
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                <span>Se está subiendo el archivo, espere unos segundos...</span>
+              </div>
+              <div class="pc-ops-lock-banner" *ngIf="isOpsPasoCompletado('oficio')">
+                <span class="pc-ops-lock-banner__icon" aria-hidden="true"><i class="fas fa-lock"></i></span>
+                <div class="pc-ops-lock-banner__body">
+                  <strong>Oficio de ingreso completado</strong>
+                  <span>Consulta los archivos y fechas registrados. Desbloquea el paso para modificar la información.</span>
+                </div>
+                <button type="button" class="pc-ops-lock-banner__action" (click)="desbloquearPasoOperaciones('oficio')">
+                  <i class="fas fa-unlock-alt" aria-hidden="true"></i> Desbloquear
+                </button>
+              </div>
+              <div *ngIf="!isOpsPasoCompletado('oficio') && opsPipcAsignados.length === 0" class="alert alert-warning py-2 mb-3">
+                <i class="fas fa-info-circle mr-1"></i> Primero asigna al menos un PIPC en «Asignar documentos».
+              </div>
+              <div class="pc-ops-workflow-layout" *ngIf="opsPipcAsignados.length > 0">
+                <aside class="pc-ops-workflow-sidebar">
+                  <div class="pc-ops-pipc-block mb-4" *ngFor="let pipc of opsPipcAsignados; trackBy: trackByPipcAsignado">
+                    <label class="pc-ops-field-label">Oficio — {{ pipc.nombre_documento }}</label>
+                    <label class="pc-upload-zone pc-upload-zone--compact mb-2"
+                           *ngIf="!tieneWorkflowArchivo(pipc.clave_oficio) && !isOpsPasoCompletado('oficio')">
+                      <input type="file" class="pc-upload-zone__input"
+                             [attr.accept]="acceptedPcFileTypes"
+                             (change)="onArchivoWorkflowSeleccionado($event, pipc.clave_oficio)">
+                      <span class="pc-upload-zone__icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                      <span class="pc-upload-zone__title">Subir oficio</span>
+                      <span class="pc-upload-zone__hint">PDF, imágenes u Office</span>
+                    </label>
+                    <button type="button" class="btn btn-sm btn-block mb-2"
+                            *ngIf="tieneWorkflowArchivo(pipc.clave_oficio)"
+                            [class.btn-primary]="opsOficioPreviewClave === pipc.clave_oficio"
+                            [class.btn-outline-primary]="opsOficioPreviewClave !== pipc.clave_oficio"
+                            (click)="seleccionarOficioPreview(pipc.clave_oficio)">
+                      {{ nombreArchivoLegible(opsArchivosWorkflow[pipc.clave_oficio]?.nombre_archivo) || pipc.nombre_documento }}
+                    </button>
+                    <div class="pc-ops-workflow-file-actions mb-2"
+                         *ngIf="tieneWorkflowArchivo(pipc.clave_oficio) && !isOpsPasoCompletado('oficio')">
+                      <label class="btn btn-sm btn-primary mb-0 pc-ops-workflow-action-btn">
+                        <i class="fas fa-sync-alt mr-1"></i> Reemplazar
+                        <input type="file" hidden [attr.accept]="acceptedPcFileTypes"
+                               (change)="onArchivoWorkflowSeleccionado($event, pipc.clave_oficio)">
+                      </label>
+                      <button type="button"
+                              class="btn btn-sm btn-outline-danger mb-0 pc-ops-workflow-action-btn"
+                              [disabled]="estaSubiendoEnPasoWorkflow()"
+                              (click)="eliminarArchivoWorkflow(pipc.clave_oficio)">
+                        <i class="fas fa-trash-alt mr-1"></i> Eliminar
+                      </button>
+                    </div>
+                    <label class="pc-ops-field-label">Fecha de ingreso de trámite <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control form-control-sm"
+                           [disabled]="isOpsPasoCompletado('oficio')"
+                           [ngModel]="getFechaWorkflow(pipc.clave_oficio)"
+                           (ngModelChange)="opsFechasWorkflow[pipc.clave_oficio] = $event"
+                           (change)="guardarFechaCentroOps(fechaOficioCampo(pipc), getFechaWorkflow(pipc.clave_oficio))">
+                  </div>
+                  <small class="pc-ops-hint-naranja d-block">Cada PIPC requiere oficio y fecha para completar este paso.</small>
+                </aside>
+                <main class="pc-ops-workflow-preview">
+                  <button type="button" class="pc-doc-tile pc-doc-tile--ops"
+                          *ngIf="opsOficioPreviewClave && tieneWorkflowArchivo(opsOficioPreviewClave); else oficioPreviewEmpty"
+                          (click)="visualizarWorkflowArchivo(opsOficioPreviewClave!)">
+                    <div class="pc-doc-tile__preview">
+                      <div class="pc-doc-tile__pdf-wrap" *ngIf="getWorkflowPreviewUrl(opsOficioPreviewClave!)">
+                        <iframe class="pc-doc-tile__pdf-embed"
+                                [src]="getWorkflowPreviewUrl(opsOficioPreviewClave!) | safe"
+                                [title]="nombreArchivoLegible(opsArchivosWorkflow[opsOficioPreviewClave!]?.nombre_archivo) || 'Oficio'"
+                                tabindex="-1"></iframe>
+                      </div>
+                      <div class="pc-doc-tile__hover" aria-hidden="true">
+                        <i class="fas fa-expand"></i><span>Ver documento</span>
+                      </div>
+                    </div>
+                    <div class="pc-doc-tile__meta">
+                      <strong class="pc-doc-tile__name">{{ nombreArchivoLegible(opsArchivosWorkflow[opsOficioPreviewClave!]?.nombre_archivo) }}</strong>
+                      <small *ngIf="opsArchivosWorkflow[opsOficioPreviewClave!]?.fecha_subida" class="pc-doc-tile__date">
+                        {{ opsArchivosWorkflow[opsOficioPreviewClave!]?.fecha_subida }}
+                      </small>
+                    </div>
+                  </button>
+                  <ng-template #oficioPreviewEmpty>
+                    <div class="pc-ops-preview-empty">
+                      <i class="fas fa-file-alt fa-2x text-muted mb-2"></i>
+                      <p class="text-muted mb-0 small">Sube un oficio para ver la vista previa aquí.</p>
+                    </div>
+                  </ng-template>
+                </main>
+              </div>
+              <div class="d-flex justify-content-end mt-2" *ngIf="!isOpsPasoCompletado('oficio') && opsPipcAsignados.length > 0">
+                <button type="button" class="btn pc-ops-btn-primary"
+                        [disabled]="!opsPuedeCompletar.oficio || estaSubiendoEnPasoWorkflow()"
+                        (click)="completarPasoOperaciones('oficio')">
+                  <i class="fas fa-check mr-1"></i>Completar paso
+                </button>
+              </div>
+            </div>
+
+            <!-- Observaciones (opcional): 2 archivos + fecha por PIPC -->
+            <div *ngIf="pasoOperacionesSeleccionado === 'observaciones'"
+                 class="pc-ops-nodo-observaciones pc-animate-section pc-animate-section--delay-1"
+                 [class.pc-ops-step--locked]="isOpsPasoCompletado('observaciones')">
+              <div class="pc-ops-upload-alert" *ngIf="estaSubiendoEnPasoWorkflow() && !isOpsPasoCompletado('observaciones')" role="status" aria-live="polite">
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                <span>Se está subiendo el archivo, espere unos segundos...</span>
+              </div>
+              <p class="pc-ops-hint-naranja small mb-3" *ngIf="opsPipcAsignados.length > 0">
+                Este paso es opcional. Por cada PIPC puedes subir dos oficios y registrar su fecha, omitir solo ese PIPC, u omitir todo el paso.
+              </p>
+              <p class="pc-ops-hint-naranja small mb-3" *ngIf="opsPipcAsignados.length === 0">
+                Este paso es opcional. Primero asigna al menos un PIPC para generar los apartados de carga.
+              </p>
+              <div class="pc-ops-lock-banner" *ngIf="isOpsPasoCompletado('observaciones')">
+                <span class="pc-ops-lock-banner__icon" aria-hidden="true"><i class="fas fa-lock"></i></span>
+                <div class="pc-ops-lock-banner__body">
+                  <strong>Observaciones registradas</strong>
+                  <span>Revisa los oficios y fechas capturados. Desbloquea el paso para hacer cambios.</span>
+                </div>
+                <button type="button" class="pc-ops-lock-banner__action" (click)="desbloquearPasoOperaciones('observaciones')">
+                  <i class="fas fa-unlock-alt" aria-hidden="true"></i> Desbloquear
+                </button>
+              </div>
+              <div class="pc-ops-workflow-layout" *ngIf="opsPipcAsignados.length > 0">
+                  <aside class="pc-ops-workflow-sidebar">
+                    <div class="pc-ops-pipc-block mb-4" *ngFor="let pipc of opsPipcAsignados; trackBy: trackByPipcAsignado">
+                      <label class="pc-ops-field-label">{{ pipc.nombre_documento }}</label>
+
+                      <div class="mb-3">
+                        <label class="pc-ops-field-label pc-ops-field-label--sub">Observaciones 1</label>
+                        <label class="btn btn-outline-primary btn-sm btn-block mb-2"
+                               *ngIf="!tieneWorkflowArchivo(pipc.clave_obs_1) && !isOpsPasoCompletado('observaciones')">
+                          <i class="fas fa-upload mr-1"></i> Subir archivo 1
+                          <input type="file" hidden [attr.accept]="acceptedPcFileTypes"
+                                 (change)="onArchivoWorkflowSeleccionado($event, pipc.clave_obs_1)">
+                        </label>
+                        <button type="button" class="btn btn-sm btn-block mb-2"
+                                *ngIf="tieneWorkflowArchivo(pipc.clave_obs_1)"
+                                [class.btn-primary]="opsObsPreviewClave === pipc.clave_obs_1"
+                                [class.btn-outline-primary]="opsObsPreviewClave !== pipc.clave_obs_1"
+                                (click)="seleccionarObsPreview(pipc.clave_obs_1)">
+                          {{ nombreArchivoLegible(opsArchivosWorkflow[pipc.clave_obs_1]?.nombre_archivo) || 'Archivo 1' }}
+                        </button>
+                        <div class="pc-ops-workflow-file-actions"
+                             *ngIf="tieneWorkflowArchivo(pipc.clave_obs_1) && !isOpsPasoCompletado('observaciones')">
+                          <label class="btn btn-sm btn-primary mb-0 pc-ops-workflow-action-btn">
+                            <i class="fas fa-sync-alt mr-1"></i> Reemplazar
+                            <input type="file" hidden [attr.accept]="acceptedPcFileTypes"
+                                   (change)="onArchivoWorkflowSeleccionado($event, pipc.clave_obs_1)">
+                          </label>
+                          <button type="button" class="btn btn-sm btn-outline-danger mb-0 pc-ops-workflow-action-btn"
+                                  [disabled]="estaSubiendoEnPasoWorkflow()"
+                                  (click)="eliminarArchivoWorkflow(pipc.clave_obs_1)">
+                            <i class="fas fa-trash-alt mr-1"></i> Eliminar
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="mb-3">
+                        <label class="pc-ops-field-label pc-ops-field-label--sub">Observaciones 2</label>
+                        <label class="btn btn-outline-primary btn-sm btn-block mb-2"
+                               *ngIf="!tieneWorkflowArchivo(pipc.clave_obs_2) && !isOpsPasoCompletado('observaciones')">
+                          <i class="fas fa-upload mr-1"></i> Subir archivo 2
+                          <input type="file" hidden [attr.accept]="acceptedPcFileTypes"
+                                 (change)="onArchivoWorkflowSeleccionado($event, pipc.clave_obs_2)">
+                        </label>
+                        <button type="button" class="btn btn-sm btn-block mb-2"
+                                *ngIf="tieneWorkflowArchivo(pipc.clave_obs_2)"
+                                [class.btn-primary]="opsObsPreviewClave === pipc.clave_obs_2"
+                                [class.btn-outline-primary]="opsObsPreviewClave !== pipc.clave_obs_2"
+                                (click)="seleccionarObsPreview(pipc.clave_obs_2)">
+                          {{ nombreArchivoLegible(opsArchivosWorkflow[pipc.clave_obs_2]?.nombre_archivo) || 'Archivo 2' }}
+                        </button>
+                        <div class="pc-ops-workflow-file-actions"
+                             *ngIf="tieneWorkflowArchivo(pipc.clave_obs_2) && !isOpsPasoCompletado('observaciones')">
+                          <label class="btn btn-sm btn-primary mb-0 pc-ops-workflow-action-btn">
+                            <i class="fas fa-sync-alt mr-1"></i> Reemplazar
+                            <input type="file" hidden [attr.accept]="acceptedPcFileTypes"
+                                   (change)="onArchivoWorkflowSeleccionado($event, pipc.clave_obs_2)">
+                          </label>
+                          <button type="button" class="btn btn-sm btn-outline-danger mb-0 pc-ops-workflow-action-btn"
+                                  [disabled]="estaSubiendoEnPasoWorkflow()"
+                                  (click)="eliminarArchivoWorkflow(pipc.clave_obs_2)">
+                            <i class="fas fa-trash-alt mr-1"></i> Eliminar
+                          </button>
+                        </div>
+                      </div>
+
+                      <label class="pc-ops-field-label">Fecha de ingreso de oficio con observaciones</label>
+                      <input type="date" class="form-control form-control-sm"
+                             [disabled]="isOpsPasoCompletado('observaciones')"
+                             [ngModel]="getFechaWorkflow(pipc.clave_fecha_obs)"
+                             (ngModelChange)="opsFechasWorkflow[pipc.clave_fecha_obs] = $event"
+                             (change)="guardarFechaCentroOps(fechaObsCampo(pipc), getFechaWorkflow(pipc.clave_fecha_obs))">
+                    </div>
+                  </aside>
+                  <main class="pc-ops-workflow-preview">
+                    <button type="button" class="pc-doc-tile pc-doc-tile--ops"
+                            *ngIf="opsObsPreviewClave && tieneWorkflowArchivo(opsObsPreviewClave); else obsPreviewEmpty"
+                            (click)="visualizarWorkflowArchivo(opsObsPreviewClave!)">
+                      <div class="pc-doc-tile__preview">
+                        <div class="pc-doc-tile__pdf-wrap" *ngIf="getWorkflowPreviewUrl(opsObsPreviewClave!)">
+                          <iframe class="pc-doc-tile__pdf-embed"
+                                  [src]="getWorkflowPreviewUrl(opsObsPreviewClave!) | safe"
+                                  [title]="nombreArchivoLegible(opsArchivosWorkflow[opsObsPreviewClave!]?.nombre_archivo) || 'Observación'"
+                                  tabindex="-1"></iframe>
+                        </div>
+                        <div class="pc-doc-tile__hover" aria-hidden="true">
+                          <i class="fas fa-expand"></i><span>Ver documento</span>
+                        </div>
+                      </div>
+                      <div class="pc-doc-tile__meta">
+                        <strong class="pc-doc-tile__name">{{ nombreArchivoLegible(opsArchivosWorkflow[opsObsPreviewClave!]?.nombre_archivo) }}</strong>
+                      </div>
+                    </button>
+                    <ng-template #obsPreviewEmpty>
+                      <div class="pc-ops-preview-empty">
+                        <i class="fas fa-file-alt fa-2x text-muted mb-2"></i>
+                        <p class="text-muted mb-0 small">Selecciona o sube un oficio para previsualizarlo.</p>
+                      </div>
+                    </ng-template>
+                  </main>
+                </div>
+                <div class="d-flex justify-content-end flex-wrap mt-3" style="gap: 0.5rem;" *ngIf="!isOpsPasoCompletado('observaciones')">
+                  <button type="button" class="btn pc-ops-btn-outline"
+                          [disabled]="estaSubiendoEnPasoWorkflow() || !opsObservacionesOmitible"
+                          (click)="completarPasoOperaciones('observaciones')">
+                    Omitir paso
+                  </button>
+                  <button type="button" class="btn pc-ops-btn-primary"
+                          *ngIf="opsPipcAsignados.length > 0"
+                          [disabled]="!opsPuedeCompletar.observaciones || estaSubiendoEnPasoWorkflow()"
+                          (click)="completarPasoOperaciones('observaciones')">
+                    <i class="fas fa-check mr-1"></i>Completar con archivos
+                  </button>
+                </div>
+            </div>
+
+            <!-- Resolutivo: por cada PIPC → PIPC / Factibilidad / OTMS -->
+            <div *ngIf="pasoOperacionesSeleccionado === 'resolutivo'"
+                 class="pc-ops-nodo-resolutivo pc-animate-section pc-animate-section--delay-1"
+                 [class.pc-ops-step--locked]="isOpsPasoCompletado('resolutivo')">
+              <div class="pc-ops-upload-alert" *ngIf="estaSubiendoEnPasoWorkflow() && !isOpsPasoCompletado('resolutivo')" role="status" aria-live="polite">
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                <span>Se está subiendo el archivo, espere unos segundos...</span>
+              </div>
+              <div class="pc-ops-lock-banner" *ngIf="isOpsPasoCompletado('resolutivo')">
+                <span class="pc-ops-lock-banner__icon" aria-hidden="true"><i class="fas fa-lock"></i></span>
+                <div class="pc-ops-lock-banner__body">
+                  <strong>Resolutivo completado</strong>
+                  <span>Consulta los resolutivos cargados por PIPC. Desbloquea el paso para modificar archivos o fechas.</span>
+                </div>
+                <button type="button" class="pc-ops-lock-banner__action" (click)="desbloquearPasoOperaciones('resolutivo')">
+                  <i class="fas fa-unlock-alt" aria-hidden="true"></i> Desbloquear
+                </button>
+              </div>
+              <div *ngIf="opsPipcAsignados.length === 0" class="alert alert-warning py-2 mb-3">
+                <i class="fas fa-info-circle mr-1"></i> Primero asigna al menos un PIPC en «Asignar documentos».
+              </div>
+              <ng-container *ngIf="opsPipcAsignados.length > 0">
+                <p class="pc-ops-hint-naranja small mb-3">
+                  Por cada PIPC puedes cargar PIPC, Factibilidad y/o OTMS. Completa al menos un tipo (archivo + fecha); no dejes tipos a medias.
+                </p>
+                <div class="pc-ops-resolutivo-pipc mb-4" *ngFor="let pipc of opsPipcAsignados; trackBy: trackByPipcAsignado">
+                  <h6 class="font-weight-bold text-primary mb-3">{{ pipc.nombre_documento }}</h6>
+                  <div class="row pc-ops-resolutivo-grid">
+                    <div class="col-lg-4 mb-3" *ngFor="let tipoUi of opsResolutivoTipos">
+                      <div class="pc-ops-resolutivo-col">
+                        <h6 class="font-weight-bold text-center pc-ops-resolutivo-tipo">{{ tipoUi.label }}</h6>
+                        <label class="btn btn-outline-primary btn-sm btn-block mb-2"
+                               *ngIf="!tieneWorkflowArchivo(claveResolutivoDePipc(pipc, tipoUi)) && !isOpsPasoCompletado('resolutivo')">
+                          <i class="fas fa-upload mr-1"></i> Subir {{ tipoUi.label }}
+                          <input type="file" hidden [attr.accept]="acceptedPcFileTypes"
+                                 (change)="onArchivoWorkflowSeleccionado($event, claveResolutivoDePipc(pipc, tipoUi))">
+                        </label>
+                        <div class="pc-ops-workflow-file-actions mb-2"
+                             *ngIf="tieneWorkflowArchivo(claveResolutivoDePipc(pipc, tipoUi)) && !isOpsPasoCompletado('resolutivo')">
+                          <label class="btn btn-sm btn-primary mb-0 pc-ops-workflow-action-btn">
+                            <i class="fas fa-sync-alt mr-1"></i> Reemplazar
+                            <input type="file" hidden [attr.accept]="acceptedPcFileTypes"
+                                   (change)="onArchivoWorkflowSeleccionado($event, claveResolutivoDePipc(pipc, tipoUi))">
+                          </label>
+                          <button type="button"
+                                  class="btn btn-sm btn-outline-danger mb-0 pc-ops-workflow-action-btn"
+                                  [disabled]="estaSubiendoEnPasoWorkflow()"
+                                  (click)="eliminarArchivoWorkflow(claveResolutivoDePipc(pipc, tipoUi))">
+                            <i class="fas fa-trash-alt mr-1"></i> Eliminar
+                          </button>
+                        </div>
+                        <label class="pc-ops-field-label">Fecha de aprobación</label>
+                        <input type="date" class="form-control form-control-sm"
+                               [disabled]="isOpsPasoCompletado('resolutivo')"
+                               [ngModel]="getFechaWorkflow(claveResolutivoDePipc(pipc, tipoUi))"
+                               (ngModelChange)="opsFechasWorkflow[claveResolutivoDePipc(pipc, tipoUi)] = $event"
+                               (change)="guardarFechaCentroOps(fechaResolutivoTipoCampo(pipc, tipoUi.tipo), getFechaWorkflow(claveResolutivoDePipc(pipc, tipoUi)))">
+                        <button type="button" class="pc-doc-tile pc-doc-tile--ops pc-doc-tile--compact mt-2"
+                                *ngIf="tieneWorkflowArchivo(claveResolutivoDePipc(pipc, tipoUi))"
+                                (click)="visualizarWorkflowArchivo(claveResolutivoDePipc(pipc, tipoUi))">
+                          <div class="pc-doc-tile__preview">
+                            <div class="pc-doc-tile__pdf-wrap" *ngIf="getWorkflowPreviewUrl(claveResolutivoDePipc(pipc, tipoUi))">
+                              <iframe class="pc-doc-tile__pdf-embed"
+                                      [src]="getWorkflowPreviewUrl(claveResolutivoDePipc(pipc, tipoUi)) | safe"
+                                      tabindex="-1"></iframe>
+                            </div>
+                            <div class="pc-doc-tile__hover" aria-hidden="true"><i class="fas fa-expand"></i></div>
+                          </div>
+                          <div class="pc-doc-tile__meta">
+                            <strong class="pc-doc-tile__name">{{ nombreArchivoLegible(opsArchivosWorkflow[claveResolutivoDePipc(pipc, tipoUi)]?.nombre_archivo) }}</strong>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="d-flex justify-content-end mt-2" *ngIf="!isOpsPasoCompletado('resolutivo')">
+                  <button type="button" class="btn pc-ops-btn-primary"
+                          [disabled]="!opsPuedeCompletar.resolutivo || estaSubiendoEnPasoWorkflow()"
+                          (click)="completarPasoOperaciones('resolutivo')">
+                    <i class="fas fa-check mr-1"></i>Completar paso
+                  </button>
+                </div>
+              </ng-container>
+            </div>
+
+            <!-- Finalizar -->
+            <div *ngIf="pasoOperacionesSeleccionado === 'finalizar'" class="pc-ops-nodo-finalizar pc-animate-section pc-animate-section--delay-1 text-center py-4">
+              <i class="fas fa-flag-checkered fa-3x mb-3"></i>
+              <p class="text-muted mb-3">
+                Al finalizar se cierra el ciclo PIPC actual. Podrás asignar una nueva plantilla a la empresa.
+                <br><small>Pasos obligatorios: Asignar, Documentación, Oficio de Ingreso y Resolutivo. Observaciones es opcional.</small>
+              </p>
+              <button type="button" class="btn pc-ops-btn-primary btn-lg" (click)="cerrarCicloCentroOperaciones()">
+                <i class="fas fa-flag-checkered mr-2"></i>Finalizar Protección Civil
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================
+           VISTA ASIGNAR DOCUMENTOS (SOLO ADMIN)
+           ===================================================== -->
+      <div *ngIf="!esUsuarioEmpresa && vistaActual === 'asignarDocumentos'" class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+        
+        <!-- Header con botón de regreso -->
+        <div class="card-header border-0" style="padding: 1.5rem 2rem;">
+          <div class="row align-items-center">
+            <div class="col-lg-6">
+              <button class="btn btn-link p-0 text-muted mb-2" (click)="volverAMenuDocumentos()" style="font-size: 0.9rem;">
+                <i class="fas fa-arrow-left mr-1"></i> Volver
+              </button>
+              <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">RFC: {{ empresaSeleccionada?.rfc }}</h6>
+              <h2 class="mb-0" style="color: #d97248; font-weight: 700; font-size: 1.5rem;">{{ empresaSeleccionada?.nombre_empresa }} - Asignar Documentos</h2>
+            </div>
+            <div class="col-lg-6 text-right">
+              <button class="btn btn-success shadow"
+                      (click)="abrirModalAgregar()"
+                      style="background: linear-gradient(135deg, #d97248 0%, #e8956d 100%); border: none; padding: 0.6rem 1.5rem; font-weight: 600;">
+                <i class="fas fa-plus mr-2"></i>Agregar Documento
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabla de Documentos -->
+        <div class="table-responsive">
+          <table class="table align-items-center table-flush table-hover mb-0">
+            <thead class="thead-light">
+              <tr>
+                <th scope="col" style="width: 5%;" class="text-center">#</th>
+                <th scope="col" style="width: 30%;">Documento</th>
+                <th scope="col" style="width: 40%;">Especificación</th>
+                <th scope="col" style="width: 10%;" class="text-center">Estatus</th>
+                <th scope="col" style="width: 15%;" class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              
+              <!-- Loading -->
+              <tr *ngIf="cargandoDocumentos">
+                <td colspan="5" class="text-center py-5 pc-loading-documents">
+                  <i class="fas fa-spinner fa-spin fa-2x"></i>
+                  <p class="mt-2 mb-0">Cargando documentos...</p>
+                </td>
+              </tr>
+
+              <!-- Sin documentos -->
+              <tr *ngIf="!cargandoDocumentos && documentos.length === 0">
+                <td colspan="5" class="text-center py-5">
+                  <i class="fas fa-folder-open fa-3x text-muted"></i>
+                  <p class="text-muted mt-2 mb-0">No hay documentos registrados</p>
+                  <button class="btn btn-success btn-sm mt-3" (click)="abrirModalAgregar()">
+                    <i class="fas fa-plus mr-1"></i>Agregar primer documento
+                  </button>
+                </td>
+              </tr>
+
+              <!-- Filas de Documentos -->
+              <tr *ngFor="let doc of documentos; let i = index">
+                <!-- Número y obligatorio -->
+                <td class="text-center align-middle">
+                  <span class="text-danger font-weight-bold" *ngIf="doc.obligatorio">*</span>
+                </td>
+                
+                <!-- Nombre del documento -->
+                <td class="align-middle">
+                  <span class="font-weight-bold" style="color: #344767;">{{ doc.nombre_documento }}</span>
+                </td>
+                
+                <!-- Especificación -->
+                <td class="align-middle">
+                  <small class="text-muted">{{ doc.especificacion }}</small>
+                </td>
+                
+                <!-- Estatus -->
+                <td class="text-center align-middle">
+                  <button class="btn btn-sm estatus-btn" 
+                          [ngClass]="getEstatusClass(doc.estatus)"
+                          (click)="toggleDropdown(doc.documento_id, $event)">
+                    <i class="fas mr-1" [ngClass]="getEstatusIcon(doc.estatus)"></i>
+                    {{ getEstatusTexto(doc.estatus) }}
+                    <i class="fas fa-caret-down ml-1"></i>
+                  </button>
+                </td>
+                
+                  <!-- Acciones -->
+                  <td class="text-center align-middle">
+                    <div class="d-flex justify-content-center" style="gap: 0.4rem;">
+                      <!-- Ver -->
+                      <button class="btn-drive-action"
+                              (click)="visualizarDocumento(doc)"
+                              title="Ver documento"
+                              [disabled]="!doc.nombre_archivo">
+                        <i class="fas fa-eye"></i>
+                      </button>
+
+                      <!-- Descargar -->
+                      <button class="btn-drive-action download"
+                              (click)="descargarArchivoPC(doc)"
+                              title="Descargar archivo"
+                              [disabled]="!doc.archivo_url">
+                        <i class="fas fa-download"></i>
+                      </button>
+                      
+                      <!-- Comentarios -->
+                      <button class="btn-drive-action comment"
+                              (click)="abrirModalComentario(doc)"
+                              title="Comentarios">
+                        <i class="fas fa-comment"></i>
+                      </button>
+                      
+                      <!-- Eliminar -->
+                      <button class="btn-drive-action reject"
+                              (click)="eliminarDocumento(doc)"
+                              title="Eliminar documento">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </div>
+                  </td>
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Leyenda -->
+        <div class="card-footer bg-white border-0 py-3">
+          <small class="text-danger font-weight-bold">* Documento Obligatorio</small>
+        </div>
+
+      </div>
+
+      <!-- =====================================================
+           VISTA REVISAR DOCUMENTOS (SOLO ADMIN)
+           ===================================================== -->
+      <div *ngIf="!esUsuarioEmpresa && vistaActual === 'revisarDocumentos'">
+
+        <!-- Card de Documentos -->
+        <div class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+          
+          <!-- Header -->
+          <div class="card-header border-0" style="padding: 1.5rem 2rem;">
+            <div class="row align-items-center mb-2">
+              <div class="col-lg-6">
+                <button class="btn btn-link p-0 text-muted mb-2" (click)="volverAMenuDocumentos()" style="font-size: 0.9rem;">
+                  <i class="fas fa-arrow-left mr-1"></i> Volver
+                </button>
+              </div>
+              <div class="col-lg-6 text-right">
+                <span class="badge badge-secondary" style="font-size: 0.75rem; padding: 0.4rem 0.8rem; background-color: #6c757d;">
+                  <i class="fas fa-user-shield mr-1"></i>Perfil Admin
+                </span>
+              </div>
+            </div>
+            <div class="row align-items-center">
+              <div class="col-lg-8">
+                <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">{{ empresaSeleccionada?.nombre_empresa }}</h6>
+                <h2 class="mb-0" style="color: #d97248; font-weight: 700; font-size: 1.5rem;">
+                  <i class="fas fa-clipboard-check mr-2"></i>Revisar Documentos ({{ documentos.length }})
+                </h2>
+              </div>
+              <div class="col-lg-4 text-right">
+                <span class="badge badge-lg badge-info" style="font-size: 0.9rem; padding: 0.6rem 1rem;">
+                  <i class="fas fa-search mr-1"></i>
+                  {{ contadorEnRevision }} en revisión
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabla de Documentos -->
+          <div class="table-responsive">
+            <table class="table align-items-center table-flush table-hover mb-0">
+              <thead class="thead-light">
+                <tr>
+                  <th scope="col" style="width: 5%;" class="text-center">#</th>
+                  <th scope="col" style="width: 25%;">Documento</th>
+                  <th scope="col" style="width: 25%;">Especificación</th>
+                  <th scope="col" style="width: 15%;" class="text-center">Estatus</th>
+                  <th scope="col" style="width: 15%;">Comentarios</th>
+                  <th scope="col" style="width: 15%;" class="text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                
+                <!-- Loading -->
+                <tr *ngIf="cargandoDocumentos">
+                  <td colspan="6" class="text-center py-5 pc-loading-documents">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p class="mt-2 mb-0">Cargando documentos...</p>
+                  </td>
+                </tr>
+
+                <!-- Sin documentos -->
+                <tr *ngIf="!cargandoDocumentos && documentos.length === 0">
+                  <td colspan="6" class="text-center py-5">
+                    <i class="fas fa-folder-open fa-2x text-muted"></i>
+                    <p class="text-muted mt-2 mb-0">No hay documentos asignados a esta empresa</p>
+                    <small class="text-muted">Primero asigne documentos desde la opción "Asignar Documentos"</small>
+                  </td>
+                </tr>
+
+                <!-- Filas de Documentos -->
+                <tr *ngFor="let doc of documentos; let i = index" 
+                    class="documento-row"
+                    [ngClass]="{
+                      'row-aprobado': doc.estatus === 'aprobado',
+                      'row-pendiente': doc.estatus === 'pendiente',
+                      'row-revision': doc.estatus === 'revision',
+                      'row-rechazado': doc.estatus === 'rechazado'
+                    }">
+                  <!-- Número y obligatorio -->
+                  <td class="text-center align-middle">
+                    <span class="font-weight-bold text-muted">{{ i + 1 }}</span>
+                    <span class="text-danger font-weight-bold ml-1" *ngIf="doc.obligatorio" title="Obligatorio">*</span>
+                  </td>
+                  
+                  <!-- Nombre del documento -->
+                  <td class="align-middle">
+                    <div class="d-flex align-items-center">
+                      <div class="icon-documento mr-3" 
+                           [ngClass]="{
+                             'icon-aprobado': doc.estatus === 'aprobado',
+                             'icon-pendiente': doc.estatus === 'pendiente',
+                             'icon-revision': doc.estatus === 'revision',
+                             'icon-rechazado': doc.estatus === 'rechazado'
+                           }">
+                        <i class="fas" [ngClass]="{
+                          'fa-check': doc.estatus === 'aprobado',
+                          'fa-clock': doc.estatus === 'pendiente',
+                          'fa-search': doc.estatus === 'revision',
+                          'fa-times': doc.estatus === 'rechazado'
+                        }"></i>
+                      </div>
+                      <div>
+                        <span class="font-weight-bold" style="color: #344767;">{{ doc.nombre_documento }}</span>
+                        <small *ngIf="doc.fecha_subida" class="d-block text-muted">
+                          <i class="fas fa-calendar-alt mr-1"></i>Subido: {{ doc.fecha_subida }}
+                        </small>
+                      </div>
+                    </div>
+                  </td>
+                  
+                  <!-- Especificación -->
+                  <td class="align-middle">
+                    <small class="text-muted">{{ doc.especificacion }}</small>
+                  </td>
+                  
+                  <!-- Estatus -->
+                  <td class="text-center align-middle">
+                    <span class="badge estatus-badge" 
+                          [ngClass]="getEstatusClass(doc.estatus)">
+                      <i class="fas mr-1" [ngClass]="getEstatusIcon(doc.estatus)"></i>
+                      {{ getEstatusTexto(doc.estatus) }}
+                    </span>
+                  </td>
+
+                  <!-- Comentarios -->
+                  <td class="align-middle">
+                    <div *ngIf="doc.comentarios" class="d-flex align-items-start">
+                      <i class="fas fa-comment text-warning mr-2 mt-1" style="font-size: 0.85rem;"></i>
+                      <small class="text-muted">{{ doc.comentarios }}</small>
+                    </div>
+                    <small *ngIf="!doc.comentarios" class="text-muted font-italic">Sin comentarios</small>
+                  </td>
+                  
+                  <!-- Acciones -->
+                  <td class="text-center align-middle">
+                    <div class="d-flex justify-content-center flex-wrap" style="gap: 0.4rem;">
+                      <!-- Ver documento -->
+                      <button class="btn-drive-action"
+                              (click)="visualizarDocumento(doc)"
+                              title="Ver documento"
+                              [disabled]="!doc.nombre_archivo">
+                        <i class="fas fa-eye"></i>
+                      </button>
+
+                      <!-- Aprobar -->
+                      <button class="btn-drive-action approve"
+                              (click)="cambiarEstatus(doc, 'aprobado')"
+                              title="Aprobar documento"
+                              [disabled]="(!doc.nombre_archivo && !doc.valor_texto) || doc.estatus === 'aprobado'">
+                        <i class="fas fa-check"></i>
+                      </button>
+
+                      <!-- Rechazar -->
+                      <button class="btn-drive-action reject"
+                              (click)="cambiarEstatus(doc, 'rechazado')"
+                              title="Rechazar documento"
+                              [disabled]="(!doc.nombre_archivo && !doc.valor_texto) || doc.estatus === 'rechazado'">
+                        <i class="fas fa-times"></i>
+                      </button>
+
+                      <!-- Agregar comentario -->
+                      <button class="btn-drive-action comment"
+                              (click)="abrirModalComentario(doc)"
+                              title="Agregar/editar comentario">
+                        <i class="fas fa-comment-alt"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Leyenda -->
+          <div class="card-footer bg-white border-0 py-3">
+            <div class="row align-items-center">
+              <div class="col-lg-6">
+                <small class="text-danger font-weight-bold">* Documento Obligatorio</small>
+              </div>
+              <div class="col-lg-6 text-right">
+                <small class="text-muted">
+                  <i class="fas fa-info-circle mr-1"></i>
+                  Revise y cambie el estatus de cada documento
+                </small>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- =====================================================
+           VISTA SUBIR DOCUMENTOS (SOLO ADMIN) — también embebida en centro de operaciones
+           ===================================================== -->
+      <ng-template #pcMasterChecklistAside
+                   let-items="items"
+                   let-focus="focus"
+                   let-totalEntregados="totalEntregados"
+                   let-totalItems="totalItems"
+                   let-contexto="contexto">
+        <aside class="pc-master-checklist pc-animate-checklist" aria-label="Listado maestro de documentación">
+          <div class="pc-master-checklist__meta">
+            <button type="button"
+                    class="btn btn-sm pc-btn-listado-pdf"
+                    (click)="descargarListadoEstatusPdf(contexto)"
+                    [disabled]="generandoListadoEstatusPdf">
+              <i class="fas fa-file-pdf mr-1"></i>
+              {{ generandoListadoEstatusPdf ? 'Generando...' : 'Listado maestro (PDF)' }}
+            </button>
+            <div class="pc-master-checklist__summary" role="status">
+              <span class="pc-master-checklist__summary-value">{{ totalEntregados }}/{{ totalItems }}</span>
+              <span class="pc-master-checklist__summary-label">entregados</span>
+            </div>
+          </div>
+          <div class="pc-master-checklist__cols" aria-hidden="true">
+            <span>#</span>
+            <span>Documento requerido</span>
+            <span>Entregado</span>
+          </div>
+          <div class="pc-master-checklist__body">
+            <button type="button"
+                    *ngFor="let subdoc of items"
+                    class="pc-master-checklist__row"
+                    [class.is-active]="focus?.documento_id === subdoc.documento_id"
+                    [class.is-delivered]="esSubdocEntregado(subdoc)"
+                    [class.is-missing]="!esSubdocEntregado(subdoc)"
+                    (click)="seleccionarSubdocEnChecklist(subdoc, contexto)">
+              <span class="pc-master-checklist__item">{{ obtenerIndiceMaestroSubdoc(subdoc, contexto) }}</span>
+              <span class="pc-master-checklist__doc">
+                <span class="pc-master-checklist__doc-name">
+                  {{ subdoc.nombre_documento }}<span class="text-danger" *ngIf="subdoc.obligatorio">*</span>
+                </span>
+                <small class="pc-master-checklist__doc-meta">{{ getObservacionEntregaSubdoc(subdoc) }}</small>
+              </span>
+              <span class="pc-master-checklist__status" [ngClass]="getClaseEntregaSubdoc(subdoc)">
+                <i class="fas" [ngClass]="getIconoEntregaSubdoc(subdoc)" aria-hidden="true"></i>
+                {{ getEtiquetaEntregaSubdoc(subdoc) }}
+              </span>
+            </button>
+          </div>
+        </aside>
+      </ng-template>
+
+      <ng-template #pcEntregaFilterToolbar
+                   let-filtro="filtro"
+                   let-totalEntregados="totalEntregados"
+                   let-totalFaltantes="totalFaltantes"
+                   let-contexto="contexto">
+        <div class="pc-entrega-filter" role="group" aria-label="Filtrar por entrega">
+          <button type="button"
+                  class="pc-entrega-filter__btn"
+                  [class.is-active]="filtro === 'todos'"
+                  (click)="setFiltroEntrega(contexto, 'todos', $event)">
+            Todos
+          </button>
+          <button type="button"
+                  class="pc-entrega-filter__btn"
+                  [class.is-active]="filtro === 'entregados'"
+                  (click)="setFiltroEntrega(contexto, 'entregados', $event)">
+            Entregados
+            <span class="pc-entrega-filter__count pc-entrega-filter__count--yes">{{ totalEntregados }}</span>
+          </button>
+          <button type="button"
+                  class="pc-entrega-filter__btn"
+                  [class.is-active]="filtro === 'faltantes'"
+                  (click)="setFiltroEntrega(contexto, 'faltantes', $event)">
+            Faltantes
+            <span class="pc-entrega-filter__count pc-entrega-filter__count--no">{{ totalFaltantes }}</span>
+          </button>
+        </div>
+      </ng-template>
+
+      <ng-template #adminSubirDocumentosPanel>
+      <div *ngIf="mostrarSeccionSubirDocumentosAdmin" class="pc-view-enter pc-ops-content__panel">
+        <!-- Card de Documentos -->
+        <div class="card shadow-lg border-0 asignacion-card" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+          
+          <!-- Header -->
+          <div class="card-header border-0 asignacion-header" style="padding: 1.5rem 2rem;">
+            <div class="row align-items-center">
+              <div class="col-12">
+                <button class="btn btn-link p-0 mb-2 asignacion-back-btn"
+                        *ngIf="vistaActual !== 'menuDocumentos'"
+                        (click)="volverAMenuDocumentos()">
+                  <i class="fas fa-arrow-left mr-1"></i> Volver
+                </button>
+                <h2 class="mb-0" style="color: #d97248; font-weight: 700; font-size: 1.5rem;">
+                  <i class="fas fa-cloud-upload-alt mr-2"></i>Subir Documentos
+                </h2>
+                <small class="d-block mt-1 asignacion-subtitle" style="font-size: 0.78rem;">
+                  Carga los archivos requeridos para cada documento asignado a la empresa.
+                </small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lista de documentos (mismo layout que vista empresa) -->
+          <div class="card-body asignacion-body" style="padding: 2rem 2.5rem 2.5rem;">
+            <div *ngIf="cargandoDocumentos" class="text-center py-5 pc-loading-documents">
+              <i class="fas fa-spinner fa-spin fa-2x"></i>
+              <p class="mt-2 mb-0">Cargando documentos...</p>
+            </div>
+
+            <div *ngIf="!cargandoDocumentos && documentos.length === 0" class="text-center py-5">
+              <i class="fas fa-folder-open fa-2x text-muted"></i>
+              <p class="text-muted mt-2 mb-0">No hay documentos asignados a esta empresa</p>
+              <small class="text-muted">Primero asigne documentos desde la opción "Asignar Documentos"</small>
+            </div>
+
+            <!-- Stepper de navegación -->
+            <div class="pc-stepper-wrapper pc-animate-in"
+                 *ngIf="!cargandoDocumentos && documentos.length > 0"
+                 [class.compact]="documentos.length <= 5"
+                 [class.single-node]="documentos.length === 1">
+              <div class="pc-stepper-inner">
+                <div class="pc-stepper-line-container" *ngIf="documentos.length > 1">
+                  <div class="pc-stepper-line"></div>
+                  <div class="pc-stepper-line-progress" [style.width.%]="getProgresoSubirStepper()"></div>
+                </div>
+                <button *ngFor="let doc of documentos; let i = index"
+                        type="button"
+                        class="pc-stepper-step pc-animate-step"
+                        [style.animation-delay]="(0.08 + i * 0.05) + 's'"
+                        [class.active]="docActivoSubir?.documento_id === doc.documento_id"
+                        [class.completed]="esDocStepperAprobado(doc)"
+                        [class.revision]="esDocStepperEnRevision(doc)"
+                        [class.rejected]="doc.estatus === 'rechazado' && !esDocSubirCompletado(doc)"
+                        (click)="seleccionarDocSubir(doc)">
+                  <span class="pc-stepper-circle">
+                    <i *ngIf="esDocStepperAprobado(doc)" class="fas fa-check"></i>
+                    <i *ngIf="esDocStepperEnRevision(doc)" class="fas fa-search"></i>
+                    <i *ngIf="doc.estatus === 'rechazado' && !esDocSubirCompletado(doc)" class="fas fa-times"></i>
+                    <span *ngIf="!esDocStepperAprobado(doc) && !esDocStepperEnRevision(doc) && !(doc.estatus === 'rechazado' && !esDocSubirCompletado(doc))">{{ i + 1 }}</span>
+                  </span>
+                  <div class="pc-stepper-label">{{ doc.nombre_documento }}</div>
+                </button>
+              </div>
+            </div>
+
+            <div class="pc-plantilla-pipc-actions mb-3"
+                 *ngIf="!cargandoDocumentos && docActivoSubir && esPlantillaPipcAsignada(docActivoSubir) && puedeEliminarAsignacionIndividualSubdoc">
+              <button type="button"
+                      class="pc-btn-eliminar-asignacion pc-btn-eliminar-asignacion--compact"
+                      (click)="cancelarPlantillaPipcCompleta(docActivoSubir!)">
+                <span class="pc-btn-eliminar-asignacion__icon" aria-hidden="true">
+                  <i class="fas fa-unlink"></i>
+                </span>
+                <span class="pc-btn-eliminar-asignacion__label">Cancelar plantilla PIPC</span>
+              </button>
+              <small class="pc-plantilla-pipc-actions__hint text-muted d-block mt-2">
+                Libera <strong>{{ docActivoSubir!.nombre_documento }}</strong> en «Asignar documentos» para volver a asignarla.
+              </small>
+            </div>
+
+            <!-- Tarjeta del documento activo -->
+            <div class="doc-list-wrapper mt-3 pc-animate-section" *ngIf="!cargandoDocumentos && documentos.length > 0 && docActivoSubir">
+
+              <!-- Filter tabs -->
+              <div class="filtros-toolbar filtros-toolbar--compact">
+                <div class="filtros-toolbar__label">
+                  <i class="fas fa-filter"></i>
+                  <span>Estatus de carga</span>
+                </div>
+                <div class="filtros-toolbar__group">
+                    <button type="button"
+                      class="btn btn-sm filtro-btn"
+                      [class.is-active]="estadoFiltroSubir === 'pendiente'"
+                      (click)="setEstadoFiltroSubir('pendiente', $event)">
+                    <span>Pendientes</span>
+                    <span class="badge badge-light">{{ totalPendientesSubir }}</span>
+                  </button>
+                    <button type="button"
+                      class="btn btn-sm filtro-btn"
+                      *ngIf="mostrarFiltroSubirAprobado"
+                      [class.is-active]="estadoFiltroSubir === 'aprobado'"
+                      (click)="setEstadoFiltroSubir('aprobado', $event)">
+                    <span>Aprobados</span>
+                    <span class="badge badge-light">{{ totalAprobadosSubir }}</span>
+                  </button>
+                    <button type="button"
+                      class="btn btn-sm filtro-btn"
+                      *ngIf="mostrarFiltroSubirRechazado"
+                      [class.is-active]="estadoFiltroSubir === 'rechazado'"
+                      (click)="setEstadoFiltroSubir('rechazado', $event)">
+                    <span>Rechazados</span>
+                    <span class="badge badge-light">{{ totalRechazadosSubir }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- ═══ CON SUB-DOCUMENTOS ═══ -->
+              <ng-container *ngIf="docActivoSubir!.subdocumentos?.length; else sinSubDocSubir">
+                <ng-template #pcDetalleSubdocSubir let-subdoc>
+                  <article class="pc-detail pc-revision-detail">
+                    <header class="pc-detail__head">
+                      <div class="pc-detail__head-top">
+                        <span class="pc-detail__badge" [ngClass]="getClaseEstatusSubdoc(subdoc.estatus)">
+                          {{ getEtiquetaEstatusSubdoc(subdoc.estatus) }}
+                        </span>
+                        <div class="pc-detail__head-actions" *ngIf="puedeEliminarAsignacionIndividualSubdoc">
+                          <button type="button"
+                                  class="pc-btn-reabrir-documento-item pc-btn-reabrir-documento-item--icon"
+                                  *ngIf="subdoc.estatus === 'aprobado'"
+                                  (click)="reabrirDocumentoSubdoc(subdoc)"
+                                  aria-label="Reabrir documento">
+                            <i class="fas fa-undo pc-btn-reabrir-documento-item__icon" aria-hidden="true"></i>
+                            <span class="pc-btn-reabrir-documento-item__label">Reabrir documento</span>
+                          </button>
+                          <button type="button"
+                                  class="pc-btn-eliminar-asignacion-item pc-btn-eliminar-asignacion-item--icon"
+                                  (click)="borrarAsignacionIndividualSubdoc(subdoc)"
+                                  aria-label="Eliminar asignación de este documento">
+                            <i class="fas fa-trash-alt pc-btn-eliminar-asignacion-item__icon" aria-hidden="true"></i>
+                            <span class="pc-btn-eliminar-asignacion-item__label">Eliminar asignación</span>
+                          </button>
+                        </div>
+                      </div>
+                      <h6 class="pc-detail__title">
+                        {{ subdoc.nombre_documento }}
+                        <span class="text-danger font-weight-bold" *ngIf="subdoc.obligatorio">*</span>
+                        <span class="badge badge-secondary ml-2" *ngIf="!esUsuarioEmpresa && esDocumentoSoloInterno(subdoc)" style="font-size: 0.65rem; vertical-align: middle;">Solo PC</span>
+                        <span class="badge badge-info ml-2" *ngIf="!esUsuarioEmpresa && esDocumentoSolicitadoEmpresa(subdoc)" style="font-size: 0.65rem; vertical-align: middle;">Empresa</span>
+                      </h6>
+                      <p class="pc-detail__spec" *ngIf="subdoc.especificacion">{{ subdoc.especificacion }}</p>
+                    </header>
+                    <div class="pc-detail__alert pc-detail__alert--danger" *ngIf="subdoc.estatus === 'rechazado' && subdoc.comentarios">
+                      <i class="fas fa-comment-alt"></i>
+                      <div><strong>Motivo del rechazo</strong><p class="mb-0">{{ subdoc.comentarios }}</p></div>
+                    </div>
+                    <section class="pc-detail__section pc-revision-detail__waiting pc-revision-detail__waiting--info"
+                             *ngIf="esDocumentoSolicitadoEmpresa(subdoc) && !subdocTieneEntrega(subdoc) && puedeCargarEncargadoPc(subdoc)">
+                      <div class="pc-revision-detail__waiting-box">
+                        <i class="fas fa-building" aria-hidden="true"></i>
+                        <span class="pc-revision-detail__waiting-text">Documento asignado a la empresa</span>
+                      </div>
+                    </section>
+                    <section class="pc-detail__section" *ngIf="puedeCargarEncargadoPc(subdoc) && subdoc.tipo_entrada === 'texto'">
+                      <label class="pc-detail__label">Valor a capturar</label>
+                      <div class="pc-detail__field-row">
+                        <input type="text" class="form-control"
+                               [class.texto-locked-input]="estaBloqueadoTextoSubir(subdoc)"
+                               [(ngModel)]="subdoc.valor_texto"
+                               [readonly]="estaBloqueadoTextoSubir(subdoc)"
+                               [disabled]="estaBloqueadoTextoSubir(subdoc)"
+                               [placeholder]="estaBloqueadoTextoSubir(subdoc) ? 'Dato guardado' : (subdoc.autollenado ? 'Confirma o edita el dato autollenado' : 'Escribe el valor requerido...')">
+                        <div class="pc-detail__actions">
+                          <ng-container *ngIf="subdoc.autollenado; else accionesTextoManualSubir">
+                            <ng-container *ngIf="subdoc.estatus !== 'aprobado'">
+                              <button type="button" class="btn btn-sm pc-auto-btn pc-auto-btn--confirm" *ngIf="!estaEditandoAutollenadoSubir(subdoc)" (click)="confirmarAutollenadoSubir(subdoc)" [disabled]="!subdoc.valor_texto"><i class="fas fa-check mr-1"></i> Confirmar</button>
+                              <button type="button" class="btn btn-sm pc-auto-btn pc-auto-btn--edit" *ngIf="!estaEditandoAutollenadoSubir(subdoc)" (click)="activarEdicionAutollenadoSubir(subdoc)"><i class="fas fa-pen mr-1"></i> Editar</button>
+                              <button type="button" class="btn btn-sm pc-auto-btn pc-auto-btn--review" *ngIf="estaEditandoAutollenadoSubir(subdoc)" (click)="enviarCambioAutollenadoSubir(subdoc)" [disabled]="!subdoc.valor_texto"><i class="fas fa-paper-plane mr-1"></i> Enviar cambio</button>
+                              <button type="button" class="btn btn-sm pc-auto-btn pc-auto-btn--ghost" *ngIf="estaEditandoAutollenadoSubir(subdoc)" (click)="cancelarEdicionAutollenadoSubir(subdoc)">Cancelar</button>
+                            </ng-container>
+                          </ng-container>
+                          <ng-template #accionesTextoManualSubir>
+                            <button type="button" class="btn btn-sm pc-auto-btn pc-auto-btn--confirm" *ngIf="!estaBloqueadoTextoSubir(subdoc)" (click)="guardarTextoEmpresa(subdoc)"><i class="fas fa-paper-plane mr-1"></i> Guardar</button>
+                            <button type="button" class="btn btn-sm pc-auto-btn pc-auto-btn--edit" *ngIf="estaBloqueadoTextoSubir(subdoc) && subdoc.estatus !== 'aprobado'" (click)="activarEdicionTextoSubir(subdoc)"><i class="fas fa-pen mr-1"></i> Editar</button>
+                          </ng-template>
+                        </div>
+                      </div>
+                    </section>
+                    <section class="pc-detail__section" *ngIf="esSubdocArchivo(subdoc) && (puedeCargarEncargadoPc(subdoc) || subdocTieneEntrega(subdoc))">
+                      <label class="pc-upload-zone"
+                             *ngIf="puedeCargarEncargadoPc(subdoc) && puedeAgregarArchivosAlRequisito(subdoc) && !getArchivosDocumento(subdoc).length"
+                             [class.is-dragover]="dragOverDocId === subdoc.documento_id"
+                             (dragover)="onDragOverUpload($event, subdoc.documento_id)"
+                             (dragleave)="onDragLeaveUpload($event)"
+                             (drop)="onDropArchivo($event, subdoc)">
+                        <input type="file" class="pc-upload-zone__input" multiple (change)="onArchivoSeleccionado($event, subdoc)" [attr.accept]="acceptedPcFileTypes">
+                        <span class="pc-upload-zone__icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                        <span class="pc-upload-zone__title">Arrastra tus archivos aquí</span>
+                        <span class="pc-upload-zone__hint">o haz clic para seleccionar uno o varios · PDF, imágenes, Excel o PowerPoint (máx. {{ maxPcFileMb }} MB c/u)</span>
+                      </label>
+
+                      <div class="pc-doc-tiles"
+                           *ngIf="getArchivosDocumento(subdoc).length"
+                           [class.pc-doc-tiles--single]="esPreviewArchivoUnicoCompleto(subdoc)"
+                           [class.pc-doc-tiles--with-add]="puedeCargarEncargadoPc(subdoc) && puedeAgregarArchivosAlRequisito(subdoc)">
+                        <div class="pc-doc-tile-wrap" *ngFor="let archivo of getArchivosDocumento(subdoc)">
+                          <button type="button"
+                                  class="pc-doc-tile"
+                                  (click)="visualizarArchivoDeRequisito(subdoc, archivo)"
+                                  [attr.aria-label]="'Abrir ' + archivo.nombre_archivo">
+                            <div class="pc-doc-tile__preview">
+                              <div *ngIf="archivo.drive_file_id" class="pc-doc-tile__pdf-wrap">
+                                <iframe class="pc-doc-tile__pdf-embed"
+                                        [src]="getDrivePreviewUrlById(archivo.drive_file_id) | safe"
+                                        [title]="archivo.nombre_archivo"
+                                        tabindex="-1"></iframe>
+                              </div>
+                              <div *ngIf="!archivo.drive_file_id" class="pc-doc-tile__placeholder">
+                                <i class="fas fa-file-alt"></i>
+                                <span>Archivo</span>
+                              </div>
+                              <div class="pc-doc-tile__hover" aria-hidden="true">
+                                <i class="fas fa-expand"></i>
+                                <span>Ver documento</span>
+                              </div>
+                              <span class="pc-doc-tile__type">PDF</span>
+                            </div>
+                            <div class="pc-doc-tile__meta">
+                              <strong class="pc-doc-tile__name">{{ archivo.nombre_archivo }}</strong>
+                              <small *ngIf="archivo.fecha_subida" class="pc-doc-tile__date">{{ archivo.fecha_subida }}</small>
+                            </div>
+                          </button>
+                          <button type="button"
+                                  class="pc-doc-tile-remove"
+                                  *ngIf="puedeCargarEncargadoPc(subdoc) && puedeAgregarArchivosAlRequisito(subdoc)"
+                                  (click)="eliminarArchivoEspecifico(subdoc, archivo, $event)"
+                                  [attr.aria-label]="'Eliminar ' + archivo.nombre_archivo"
+                                  title="Eliminar archivo">
+                            <i class="fas fa-trash-alt"></i>
+                          </button>
+                        </div>
+
+                        <label class="pc-upload-zone pc-upload-zone--slot"
+                               *ngIf="puedeCargarEncargadoPc(subdoc) && puedeAgregarArchivosAlRequisito(subdoc)"
+                               [class.is-dragover]="dragOverDocId === subdoc.documento_id"
+                               (dragover)="onDragOverUpload($event, subdoc.documento_id)"
+                               (dragleave)="onDragLeaveUpload($event)"
+                               (drop)="onDropArchivo($event, subdoc)">
+                          <input type="file" class="pc-upload-zone__input" multiple (change)="onArchivoSeleccionado($event, subdoc)" [attr.accept]="acceptedPcFileTypes">
+                          <span class="pc-upload-zone__icon"><i class="fas fa-plus-circle"></i></span>
+                          <span class="pc-upload-zone__title">Agregar más</span>
+                          <span class="pc-upload-zone__hint">Arrastra o haz clic</span>
+                        </label>
+                      </div>
+                    </section>
+
+                    <footer class="pc-revision-detail__footer pc-revision-detail__footer--center pc-revision-detail__footer--replace"
+                            *ngIf="puedeCargarEncargadoPc(subdoc) && puedeAgregarArchivosAlRequisito(subdoc) && getArchivosDocumento(subdoc).length">
+                      <button type="button" class="btn btn-sm btn-success mb-0 pc-btn-marcar-entregado"
+                              (click)="marcarRequisitoEntregado(subdoc)">
+                        <i class="fas fa-check mr-1"></i> Marcar entregado
+                      </button>
+                    </footer>
+                  </article>
+                </ng-template>
+
+                <div class="pc-workspace-toolbar pc-workspace-toolbar--tight" *ngIf="tieneSubdocsSubirFiltrados">
+                  <div class="pc-workspace-search"><i class="fas fa-search"></i>
+                    <input type="search" class="form-control form-control-sm" placeholder="Buscar por nombre, archivo o dato..."
+                           [(ngModel)]="busquedaSubir" (ngModelChange)="onBusquedaSubirChange()">
+                  </div>
+                  <ng-container *ngTemplateOutlet="pcEntregaFilterToolbar; context: {
+                    filtro: filtroEntregaSubir,
+                    totalEntregados: totalEntregadosSubirMaestro,
+                    totalFaltantes: totalFaltantesSubirMaestro,
+                    contexto: 'subir'
+                  }"></ng-container>
+                  <button type="button" class="btn btn-sm pc-btn-siguiente" (click)="irAlSiguientePendienteSubir()" title="Ir al siguiente pendiente">
+                    <i class="fas fa-forward mr-1"></i> Siguiente pendiente
+                  </button>
+                </div>
+                <div class="pc-workspace pc-workspace--balanced pc-animate-workspace" *ngIf="totalSubdocsSubirBusqueda > 0; else sinResultadosBusquedaSubir">
+                  <ng-container *ngTemplateOutlet="pcMasterChecklistAside; context: {
+                    items: subdocsSubirMaestroBusqueda,
+                    focus: subdocFocusSubir,
+                    totalEntregados: totalEntregadosSubirMaestro,
+                    totalItems: subdocsSubirMaestroBase.length,
+                    contexto: 'subir'
+                  }"></ng-container>
+                  <main class="pc-workspace-panel pc-revision-detail pc-animate-detail" *ngIf="subdocFocusSubir as subdoc">
+                    <ng-container *ngTemplateOutlet="pcDetalleSubdocSubir; context: { $implicit: subdoc }"></ng-container>
+                  </main>
+                </div>
+                <ng-template #sinResultadosBusquedaSubir>
+                  <div class="doc-empty-state">
+                    <ng-container *ngIf="!tieneSubdocsSubirFiltrados">No hay elementos para el filtro seleccionado.</ng-container>
+                    <ng-container *ngIf="tieneSubdocsSubirFiltrados">No hay coincidencias para la búsqueda actual.</ng-container>
+                  </div>
+                </ng-template>
+                <div class="doc-empty-state" *ngIf="!tieneSubdocsSubirFiltrados">No hay elementos para el filtro seleccionado.</div>
+              </ng-container>
+              <!-- ═══ SIN SUB-DOCUMENTOS: tarjeta individual ═══ -->
+              <!-- ═══ SIN SUB-DOCUMENTOS ═══ -->
+              <ng-template #sinSubDocSubir>
+                <div class="doc-list" *ngIf="docSubirCoincideFiltro">
+                <div class="doc-item"
+                     [class.doc-approved]="docActivoSubir!.estatus === 'aprobado'"
+                     [class.doc-pending]="docActivoSubir!.estatus === 'pendiente'"
+                     [class.doc-revision]="docActivoSubir!.estatus === 'revision'"
+                     [class.doc-rejected]="docActivoSubir!.estatus === 'rechazado'">
+
+                  <div class="doc-icon"
+                       [style.background]="docActivoSubir!.estatus === 'aprobado' ? '#d97248' : (docActivoSubir!.nombre_archivo ? '#e8956d' : '#adb5bd')">
+                    <i class="fas" [ngClass]="{
+                      'fa-check-circle': docActivoSubir!.estatus === 'aprobado',
+                      'fa-hourglass-half': docActivoSubir!.estatus === 'pendiente',
+                      'fa-search': docActivoSubir!.estatus === 'revision',
+                      'fa-times-circle': docActivoSubir!.estatus === 'rechazado'
+                    }"></i>
+                  </div>
+
+                  <div class="doc-info">
+                    <span class="doc-name">
+                      {{ docActivoSubir!.nombre_documento }}
+                      <span class="text-danger font-weight-bold" *ngIf="docActivoSubir!.obligatorio">*</span>
+                    </span>
+                      <div *ngIf="docActivoSubir!.tipo_entrada === 'texto'"
+                       class="d-flex align-items-center mt-2"
+                       [class.pc-autofill-inline]="true"
+                       style="gap: 0.4rem;">
+                      <input type="text"
+                             class="form-control form-control-sm"
+                           [class.pc-autofill-input]="true"
+                             [class.texto-locked-input]="estaBloqueadoTextoSubir(docActivoSubir!)"
+                             [(ngModel)]="docActivoSubir!.valor_texto"
+                             [readonly]="estaBloqueadoTextoSubir(docActivoSubir!)"
+                             [disabled]="estaBloqueadoTextoSubir(docActivoSubir!)"
+                             [placeholder]="estaBloqueadoTextoSubir(docActivoSubir!) ? 'Dato guardado' : (docActivoSubir!.autollenado ? 'Dato autollenado' : 'Ingresa texto...')"
+                             >
+
+                          <ng-container *ngIf="docActivoSubir!.autollenado; else guardadoManualTextoSubir">
+                        <span class="pc-autofill-actions" *ngIf="docActivoSubir!.estatus !== 'aprobado'">
+                          <button type="button"
+                            class="btn btn-sm pc-auto-icon-btn pc-auto-icon-btn--confirm"
+                              *ngIf="!estaEditandoAutollenadoSubir(docActivoSubir!)"
+                              (click)="confirmarAutollenadoSubir(docActivoSubir!)"
+                            title="Confirmar y aprobar"
+                              [disabled]="!docActivoSubir!.valor_texto">
+                          <i class="fas fa-check"></i>
+                          </button>
+                          <button type="button"
+                            class="btn btn-sm pc-auto-icon-btn pc-auto-icon-btn--edit"
+                              *ngIf="!estaEditandoAutollenadoSubir(docActivoSubir!)"
+                            (click)="activarEdicionAutollenadoSubir(docActivoSubir!)"
+                            title="Editar dato">
+                          <i class="fas fa-pen"></i>
+                          </button>
+                          <button type="button"
+                            class="btn btn-sm pc-auto-icon-btn pc-auto-icon-btn--review"
+                              *ngIf="estaEditandoAutollenadoSubir(docActivoSubir!)"
+                              (click)="enviarCambioAutollenadoSubir(docActivoSubir!)"
+                            title="Enviar a revision"
+                              [disabled]="!docActivoSubir!.valor_texto">
+                          <i class="fas fa-paper-plane"></i>
+                          </button>
+                          <button type="button"
+                            class="btn btn-sm pc-auto-icon-btn pc-auto-icon-btn--ghost"
+                              *ngIf="estaEditandoAutollenadoSubir(docActivoSubir!)"
+                            (click)="cancelarEdicionAutollenadoSubir(docActivoSubir!)"
+                            title="Cancelar edicion">
+                          <i class="fas fa-times"></i>
+                          </button>
+                        </span>
+                          </ng-container>
+
+                      <ng-template #guardadoManualTextoSubir>
+                        <span class="pc-autofill-actions">
+                          <button type="button"
+                                  class="btn btn-sm pc-auto-icon-btn pc-auto-icon-btn--confirm"
+                                  *ngIf="!estaBloqueadoTextoSubir(docActivoSubir!)"
+                                  (click)="guardarTextoEmpresa(docActivoSubir!)"
+                                  title="Guardar dato">
+                            <i class="fas fa-paper-plane"></i>
+                          </button>
+                          <button type="button"
+                                  class="btn btn-sm pc-auto-icon-btn pc-auto-icon-btn--edit"
+                              *ngIf="estaBloqueadoTextoSubir(docActivoSubir!) && docActivoSubir!.estatus !== 'aprobado'"
+                                  (click)="activarEdicionTextoSubir(docActivoSubir!)"
+                                  title="Editar dato">
+                            <i class="fas fa-pen"></i>
+                          </button>
+                        </span>
+                      </ng-template>
+                    </div>
+                    <div class="doc-meta">
+                      <span *ngIf="docActivoSubir!.especificacion">{{ docActivoSubir!.especificacion }}</span>
+                      <span *ngIf="docActivoSubir!.fecha_subida" class="meta-date">
+                        <i class="fas fa-calendar-alt"></i> Subido: {{ docActivoSubir!.fecha_subida }}
+                      </span>
+                    </div>
+
+                    <div *ngIf="docActivoSubir!.comentarios" class="mt-1"
+                         [ngClass]="docActivoSubir!.estatus === 'rechazado' ? 'border-left border-danger pl-2' : ''"
+                         [style.color]="docActivoSubir!.estatus === 'rechazado' ? '#dc3545' : ''">
+                      <small [ngClass]="docActivoSubir!.estatus !== 'rechazado' ? 'text-warning' : ''" style="font-size:0.8rem;">
+                        <i class="fas fa-comment-alt mr-1"></i>
+                        <strong *ngIf="docActivoSubir!.estatus === 'rechazado'">Motivo del rechazo: </strong>
+                        {{ docActivoSubir!.comentarios }}
+                      </small>
+                    </div>
+
+                  </div>
+
+                  <div class="doc-actions">
+                    <ng-container *ngIf="docActivoSubir!.tipo_entrada !== 'texto'">
+                      <button class="action-btn action-preview"
+                              (click)="visualizarDocumento(docActivoSubir!)"
+                              title="Ver documento"
+                              [disabled]="!docActivoSubir!.nombre_archivo">
+                        <i class="fas fa-eye"></i> Ver
+                      </button>
+                      <label class="action-btn action-upload mb-0" title="Subir archivo"
+                             *ngIf="docActivoSubir!.estatus !== 'aprobado'">
+                        <i class="fas fa-upload"></i> Subir
+                        <input type="file"
+                               multiple
+                               (change)="onArchivoSeleccionado($event, docActivoSubir!)"
+                           [attr.accept]="acceptedPcFileTypes"
+                               style="display: none;">
+                      </label>
+                    </ng-container>
+                  </div>
+                </div>
+                </div>
+              </ng-template>
+
+              <!-- Navegación prev / next -->
+              <div class="d-flex justify-content-between mt-3 px-1" *ngIf="documentos.length > 1">
+                <button class="btn btn-sm btn-outline-secondary"
+                        [disabled]="documentos.indexOf(docActivoSubir!) <= 0"
+                        (click)="seleccionarDocSubir(documentos[documentos.indexOf(docActivoSubir!) - 1])">
+                  <i class="fas fa-chevron-left mr-1"></i> Anterior
+                </button>
+                <small class="pc-docs-nav-counter align-self-center">
+                  {{ documentos.indexOf(docActivoSubir!) + 1 }} / {{ documentos.length }} documentos
+                </small>
+                <button class="btn btn-sm btn-outline-secondary"
+                        [disabled]="documentos.indexOf(docActivoSubir!) >= documentos.length - 1"
+                        (click)="seleccionarDocSubir(documentos[documentos.indexOf(docActivoSubir!) + 1])">
+                  Siguiente <i class="fas fa-chevron-right ml-1"></i>
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Documentación Extra: anexos fuera del checklist PIPC -->
+      <div class="card shadow border-0 pc-doc-extra-card mt-3" *ngIf="mostrarDocumentacionExtraPc">
+        <div class="card-header border-0 pc-doc-extra-card__header">
+          <div class="d-flex align-items-start justify-content-between flex-wrap">
+            <div>
+              <h3 class="mb-1 pc-doc-extra-card__title">
+                <i class="fas fa-folder-plus mr-2" aria-hidden="true"></i>Documentación Extra
+              </h3>
+              <p class="mb-0 pc-doc-extra-card__lead">
+                Anexos fuera del checklist PIPC. Puedes subir archivos sueltos o una carpeta completa;
+                el sistema recrea la carpeta (con su nombre original) dentro de
+                <strong>Documentación Extra</strong> en Drive.
+                Acepta cualquier tipo de archivo (hasta {{ maxPcExtraFileMb }} MB).
+              </p>
+            </div>
+            <span class="pc-doc-extra-card__count" *ngIf="!cargandoPcDocsExtra">
+              {{ pcDocsExtra.length }} archivo{{ pcDocsExtra.length !== 1 ? 's' : '' }}
+            </span>
+          </div>
+        </div>
+        <div class="card-body pc-doc-extra-card__body">
+          <div class="pc-doc-extra-upload-grid"
+               [class.is-dragover]="dragOverPcDocsExtra"
+               [class.is-disabled]="subiendoPcDocsExtra"
+               (dragover)="onDragOverPcDocsExtra($event)"
+               (dragleave)="onDragLeavePcDocsExtra($event)"
+               (drop)="onDropPcDocsExtra($event, '')">
+            <label class="pc-upload-zone pc-doc-extra-upload">
+              <input type="file"
+                     class="pc-upload-zone__input"
+                     multiple
+                     (change)="onPcDocsExtraElegidos($event, '')"
+                     [disabled]="subiendoPcDocsExtra">
+              <span class="pc-upload-zone__icon"><i class="fas fa-file-upload" aria-hidden="true"></i></span>
+              <span class="pc-upload-zone__title">Subir archivos</span>
+              <span class="pc-upload-zone__hint">Sueltos · máx. {{ maxPcExtraFileMb }} MB c/u</span>
+            </label>
+
+            <label class="pc-upload-zone pc-doc-extra-upload">
+              <input type="file"
+                     class="pc-upload-zone__input"
+                     webkitdirectory
+                     directory
+                     multiple
+                     (change)="onPcDocsExtraCarpetaElegida($event, '')"
+                     [disabled]="subiendoPcDocsExtra">
+              <span class="pc-upload-zone__icon"><i class="fas fa-folder-open" aria-hidden="true"></i></span>
+              <span class="pc-upload-zone__title">Subir carpeta</span>
+              <span class="pc-upload-zone__hint">Conserva nombre y estructura</span>
+            </label>
+          </div>
+
+          <div class="pc-doc-extra-pending" *ngIf="pcDocsExtraSeleccionados.length && subiendoPcDocsExtra">
+            <div class="pc-doc-extra-pending__head">
+              <span>
+                <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i>
+                Subiendo {{ pcDocsExtraSeleccionados.length }} archivo{{ pcDocsExtraSeleccionados.length !== 1 ? 's' : '' }}…
+              </span>
+            </div>
+            <p class="pc-doc-extra-pending__folders" *ngIf="pcDocsExtraCarpetasEnSubida.length === 1">
+              <i class="fas fa-folder-plus mr-1" aria-hidden="true"></i>
+              Creando carpeta <strong>{{ pcDocsExtraCarpetasEnSubida[0] }}</strong>
+            </p>
+            <p class="pc-doc-extra-pending__folders" *ngIf="pcDocsExtraCarpetasEnSubida.length > 1">
+              <i class="fas fa-folder-plus mr-1" aria-hidden="true"></i>
+              Creando carpetas:
+              <strong *ngFor="let c of pcDocsExtraCarpetasEnSubida; let last = last">
+                {{ c }}{{ last ? '' : ', ' }}
+              </strong>
+            </p>
+            <ul class="pc-doc-extra-pending__list" aria-label="Archivos en subida">
+              <li *ngFor="let p of pcDocsExtraSeleccionados">
+                <i class="fas" [ngClass]="p.carpetaRelativa ? 'fa-file' : 'fa-file-alt'" aria-hidden="true"></i>
+                <div class="pc-doc-extra-pending__name" [title]="p.etiqueta">
+                  <span>{{ p.file.name }}</span>
+                  <small *ngIf="p.carpetaRelativa">{{ p.carpetaRelativa }}</small>
+                </div>
+                <span class="pc-doc-extra-pending__size">{{ formatearTamanoPcExtra(p.file.size) }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div *ngIf="errorPcDocsExtra" class="alert alert-warning py-2 mt-3 mb-0 small" role="alert">
+            {{ errorPcDocsExtra }}
+            <button type="button" class="btn btn-sm btn-outline-warning ml-2" (click)="cargarPcDocumentacionExtra()">Reintentar</button>
+          </div>
+
+          <div *ngIf="cargandoPcDocsExtra" class="text-center py-3 text-muted">
+            <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i> Cargando documentación extra…
+          </div>
+
+          <div *ngIf="!cargandoPcDocsExtra && !pcDocsExtraHayContenido && !subiendoPcDocsExtra"
+               class="pc-doc-extra-empty">
+            <i class="fas fa-inbox" aria-hidden="true"></i>
+            <span>Aún no hay anexos. Sube archivos sueltos o una carpeta con documentos.</span>
+          </div>
+
+          <!-- Carpetas (acordeón) + archivos raíz estilo repositorio -->
+          <div class="pc-doc-extra-browser" *ngIf="!cargandoPcDocsExtra && pcDocsExtraHayContenido">
+            <div class="pc-doc-extra-folder-block"
+                 *ngFor="let carpeta of pcDocsExtraCarpetasRaiz; trackBy: trackByPcDocExtraCarpeta">
+              <div class="pc-doc-extra-folder-row"
+                   [class.is-open]="estaCarpetaExpandidaPcExtra(carpeta.ruta)">
+                <button type="button"
+                        class="pc-doc-extra-folder-row__toggle"
+                        (click)="toggleCarpetaPcDocsExtra(carpeta.ruta)"
+                        [attr.aria-expanded]="estaCarpetaExpandidaPcExtra(carpeta.ruta)"
+                        [attr.aria-label]="'Abrir carpeta ' + carpeta.nombre">
+                  <i class="fas pc-doc-extra-folder-row__chevron"
+                     [ngClass]="estaCarpetaExpandidaPcExtra(carpeta.ruta) ? 'fa-chevron-down' : 'fa-chevron-right'"
+                     aria-hidden="true"></i>
+                  <i class="fas fa-folder pc-doc-extra-folder-row__icon" aria-hidden="true"></i>
+                  <span class="pc-doc-extra-folder-row__name" [title]="carpeta.nombre">{{ carpeta.nombre }}</span>
+                </button>
+                <span class="pc-doc-extra-folder-row__count">
+                  {{ carpeta.cantidad }} archivo{{ carpeta.cantidad !== 1 ? 's' : '' }}
+                </span>
+                <button type="button"
+                        class="pc-doc-extra-folder-row__delete"
+                        title="Borrar Carpeta"
+                        aria-label="Borrar Carpeta"
+                        [disabled]="eliminandoPcDocsExtraCarpeta || subiendoPcDocsExtra"
+                        (click)="eliminarPcDocsExtraCarpeta(carpeta, $event)">
+                  <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                </button>
+              </div>
+
+              <div class="pc-doc-extra-folder-panel" *ngIf="estaCarpetaExpandidaPcExtra(carpeta.ruta)">
+                <ng-container *ngTemplateOutlet="pcExtraCarpetaContenido; context: { $implicit: carpeta.ruta }"></ng-container>
+              </div>
+            </div>
+
+            <div class="pc-doc-extra-folder-block" *ngIf="pcDocsExtraArchivosRaiz.length">
+              <div class="pc-doc-extra-folder-row"
+                   [class.is-open]="estaCarpetaExpandidaPcExtra(pcDocsExtraClaveRaiz)">
+                <button type="button"
+                        class="pc-doc-extra-folder-row__toggle"
+                        (click)="toggleCarpetaPcDocsExtra(pcDocsExtraClaveRaiz)"
+                        [attr.aria-expanded]="estaCarpetaExpandidaPcExtra(pcDocsExtraClaveRaiz)"
+                        aria-label="Abrir Documentación extra">
+                  <i class="fas pc-doc-extra-folder-row__chevron"
+                     [ngClass]="estaCarpetaExpandidaPcExtra(pcDocsExtraClaveRaiz) ? 'fa-chevron-down' : 'fa-chevron-right'"
+                     aria-hidden="true"></i>
+                  <i class="fas fa-file-alt pc-doc-extra-folder-row__icon pc-doc-extra-folder-row__icon--extra" aria-hidden="true"></i>
+                  <span class="pc-doc-extra-folder-row__name pc-doc-extra-folder-row__name--stacked" title="Documentación extra">
+                    Documentación extra
+                    <small class="pc-doc-extra-folder-row__sub">Archivos sueltos (fuera de carpetas)</small>
+                  </span>
+                </button>
+                <span class="pc-doc-extra-folder-row__count">
+                  {{ pcDocsExtraArchivosRaiz.length }} archivo{{ pcDocsExtraArchivosRaiz.length !== 1 ? 's' : '' }}
+                </span>
+              </div>
+
+              <div class="pc-doc-extra-folder-panel" *ngIf="estaCarpetaExpandidaPcExtra(pcDocsExtraClaveRaiz)">
+                <div class="pc-doc-extra-folder-panel__upload"
+                     [class.is-disabled]="subiendoPcDocsExtra"
+                     (dragover)="onDragOverPcDocsExtra($event)"
+                     (dragleave)="onDragLeavePcDocsExtra($event)"
+                     (drop)="onDropPcDocsExtra($event, '')">
+                  <label class="pc-doc-extra-folder-panel__btn">
+                    <input type="file" multiple hidden
+                           (change)="onPcDocsExtraElegidos($event, '')"
+                           [disabled]="subiendoPcDocsExtra">
+                    <i class="fas fa-file-upload" aria-hidden="true"></i> Archivos
+                  </label>
+                  <label class="pc-doc-extra-folder-panel__btn">
+                    <input type="file" webkitdirectory directory multiple hidden
+                           (change)="onPcDocsExtraCarpetaElegida($event, '')"
+                           [disabled]="subiendoPcDocsExtra">
+                    <i class="fas fa-folder-plus" aria-hidden="true"></i> Carpeta
+                  </label>
+                </div>
+
+                <div class="pc-doc-extra-folder-panel__label">Documentos sueltos</div>
+                <div class="pc-extra-grid" role="list">
+                  <ng-container *ngFor="let doc of pcDocsExtraArchivosRaiz; trackBy: trackByPcDocExtraId">
+                    <ng-container *ngTemplateOutlet="pcExtraDocTile; context: { $implicit: doc }"></ng-container>
+                  </ng-container>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ng-template #pcExtraCarpetaContenido let-rutaPadre>
+        <div class="pc-doc-extra-folder-panel__upload"
+             [class.is-disabled]="subiendoPcDocsExtra"
+             (dragover)="onDragOverPcDocsExtra($event)"
+             (dragleave)="onDragLeavePcDocsExtra($event)"
+             (drop)="onDropPcDocsExtra($event, rutaPadre)">
+          <label class="pc-doc-extra-folder-panel__btn">
+            <input type="file" multiple hidden
+                   (change)="onPcDocsExtraElegidos($event, rutaPadre)"
+                   [disabled]="subiendoPcDocsExtra">
+            <i class="fas fa-file-upload" aria-hidden="true"></i> Archivos
+          </label>
+          <label class="pc-doc-extra-folder-panel__btn">
+            <input type="file" webkitdirectory directory multiple hidden
+                   (change)="onPcDocsExtraCarpetaElegida($event, rutaPadre)"
+                   [disabled]="subiendoPcDocsExtra">
+            <i class="fas fa-folder-plus" aria-hidden="true"></i> Subcarpeta
+          </label>
+        </div>
+
+        <div class="pc-doc-extra-folder-block pc-doc-extra-folder-block--nested"
+             *ngFor="let sub of carpetasHijasPcExtra(rutaPadre); trackBy: trackByPcDocExtraCarpeta">
+          <div class="pc-doc-extra-folder-row"
+               [class.is-open]="estaCarpetaExpandidaPcExtra(sub.ruta)">
+            <button type="button"
+                    class="pc-doc-extra-folder-row__toggle"
+                    (click)="toggleCarpetaPcDocsExtra(sub.ruta)"
+                    [attr.aria-expanded]="estaCarpetaExpandidaPcExtra(sub.ruta)"
+                    [attr.aria-label]="'Abrir carpeta ' + sub.nombre">
+              <i class="fas pc-doc-extra-folder-row__chevron"
+                 [ngClass]="estaCarpetaExpandidaPcExtra(sub.ruta) ? 'fa-chevron-down' : 'fa-chevron-right'"
+                 aria-hidden="true"></i>
+              <i class="fas fa-folder pc-doc-extra-folder-row__icon" aria-hidden="true"></i>
+              <span class="pc-doc-extra-folder-row__name" [title]="sub.nombre">{{ sub.nombre }}</span>
+            </button>
+            <span class="pc-doc-extra-folder-row__count">
+              {{ sub.cantidad }} archivo{{ sub.cantidad !== 1 ? 's' : '' }}
+            </span>
+            <button type="button"
+                    class="pc-doc-extra-folder-row__delete"
+                    title="Borrar Carpeta"
+                    aria-label="Borrar Carpeta"
+                    [disabled]="eliminandoPcDocsExtraCarpeta || subiendoPcDocsExtra"
+                    (click)="eliminarPcDocsExtraCarpeta(sub, $event)">
+              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="pc-doc-extra-folder-panel" *ngIf="estaCarpetaExpandidaPcExtra(sub.ruta)">
+            <ng-container *ngTemplateOutlet="pcExtraCarpetaContenido; context: { $implicit: sub.ruta }"></ng-container>
+          </div>
+        </div>
+
+        <ng-container *ngIf="archivosEnCarpetaPcExtra(rutaPadre).length">
+          <div class="pc-doc-extra-folder-panel__label">Documentos de la carpeta</div>
+          <div class="pc-extra-grid" role="list">
+            <ng-container *ngFor="let doc of archivosEnCarpetaPcExtra(rutaPadre); trackBy: trackByPcDocExtraId">
+              <ng-container *ngTemplateOutlet="pcExtraDocTile; context: { $implicit: doc }"></ng-container>
+            </ng-container>
+          </div>
+        </ng-container>
+
+        <div class="pc-doc-extra-folder-panel__empty"
+             *ngIf="!carpetasHijasPcExtra(rutaPadre).length && !archivosEnCarpetaPcExtra(rutaPadre).length">
+          Carpeta vacía
+        </div>
+      </ng-template>
+
+      <ng-template #pcExtraDocTile let-doc>
+        <article class="pc-extra-tile"
+                 [ngClass]="claseTilePcExtra(doc.mimeType, doc.nombreArchivo)"
+                 role="listitem"
+                 tabindex="0"
+                 (click)="visualizarPcDocExtra(doc)"
+                 (keyup.enter)="visualizarPcDocExtra(doc)"
+                 [attr.aria-label]="'Abrir ' + doc.nombreArchivo">
+          <div class="pc-extra-tile__preview">
+            <div class="pc-extra-tile__loader" *ngIf="miniaturaPcExtra(doc).cargando" aria-hidden="true">
+              <i class="fas fa-spinner fa-spin"></i>
+            </div>
+            <img *ngIf="miniaturaPcExtra(doc).modo === 'imagen' && miniaturaPcExtra(doc).urlStr && !miniaturaPcExtra(doc).cargando"
+                 class="pc-extra-tile__thumb"
+                 [src]="miniaturaPcExtra(doc).urlStr"
+                 [alt]="doc.nombreArchivo"
+                 loading="lazy"
+                 (error)="onErrorMiniaturaPcExtra(doc, $event)">
+            <div *ngIf="(miniaturaPcExtra(doc).modo === 'icono' || miniaturaPcExtra(doc).error || (!miniaturaPcExtra(doc).urlStr && !miniaturaPcExtra(doc).cargando)) && !miniaturaPcExtra(doc).cargando"
+                 class="pc-extra-tile__placeholder">
+              <i class="fas" [ngClass]="iconoTipoPcExtra(doc.mimeType, doc.nombreArchivo)" aria-hidden="true"></i>
+              <span>{{ etiquetaTipoPcExtra(doc.mimeType, doc.nombreArchivo) }}</span>
+            </div>
+            <span class="pc-extra-tile__badge">{{ etiquetaTipoPcExtra(doc.mimeType, doc.nombreArchivo) }}</span>
+            <div class="pc-extra-tile__hover" (click)="$event.stopPropagation()">
+              <button type="button" class="pc-extra-tile__btn" title="Ver" (click)="visualizarPcDocExtra(doc, $event)">
+                <i class="fas fa-eye" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="pc-extra-tile__btn" title="Descargar" (click)="descargarPcDocExtra(doc, $event)">
+                <i class="fas fa-download" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="pc-extra-tile__btn pc-extra-tile__btn--danger" title="Eliminar" (click)="eliminarPcDocExtra(doc, $event)">
+                <i class="fas fa-trash-alt" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+          <div class="pc-extra-tile__info">
+            <h4 class="pc-extra-tile__name" [title]="doc.nombreArchivo">{{ doc.nombreArchivo }}</h4>
+            <p class="pc-extra-tile__meta mb-0">
+              <span>{{ formatearFechaPcExtra(doc.fechaSubida) }}</span>
+              <span class="pc-extra-tile__dot" aria-hidden="true">·</span>
+              <span>{{ formatearTamanoPcExtra(doc.tamanoBytes) }}</span>
+            </p>
+          </div>
+        </article>
+      </ng-template>
+      </ng-template>
+
+      <ng-container *ngIf="!esUsuarioEmpresa && vistaActual === 'subirDocumentos'">
+        <ng-container *ngTemplateOutlet="adminSubirDocumentosPanel"></ng-container>
+      </ng-container>
+
+      <!-- =====================================================
+           VISTA DE CATÁLOGO DE DOCUMENTOS (SOLO ADMIN)
+           ===================================================== -->
+      <div *ngIf="!esUsuarioEmpresa && vistaActual === 'catalogo'" class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+        
+        <!-- Header con botón de regreso -->
+        <div class="card-header border-0" style="padding: 1.5rem 2rem;">
+          <div class="row align-items-center">
+            <div class="col-lg-8">
+              <button class="btn btn-link p-0 text-muted mb-2" (click)="cerrarCatalogoDocumentos()" style="font-size: 0.9rem;">
+                <i class="fas fa-arrow-left mr-1"></i> Volver
+              </button>
+              <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">Catálogo Completo</h6>
+              <h2 class="mb-0" style="color: #d97248; font-weight: 700; font-size: 1.5rem;">Todos los Documentos</h2>
+            </div>
+            <div class="col-lg-4">
+              <div class="input-group input-group-alternative shadow-sm rounded">
+                <div class="input-group-prepend">
+                  <span class="input-group-text bg-white border-0"><i class="fas fa-search text-success"></i></span>
+                </div>
+                <input class="form-control border-0" placeholder="Buscar documento..." type="text"
+                       [(ngModel)]="textoBusquedaCatalogo" (input)="filtrarCatalogo()">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lista de Documentos -->
+        <div class="card-body p-0">
+          <div class="row no-gutters" style="min-height: 600px;">
+            
+            <!-- Panel de Documentos -->
+            <div class="col-12">
+              <div class="p-4">
+                
+                <!-- Contador de resultados -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h6 class="text-muted mb-0">
+                    <i class="fas fa-file-alt mr-2"></i>
+                    {{ catalogoDocumentosFiltrados.length }} documento{{ catalogoDocumentosFiltrados.length !== 1 ? 's' : '' }}
+                  </h6>
+                </div>
+                
+                <!-- Grid de documentos -->
+                <div class="row">
+                  
+                  <!-- Sin resultados -->
+                  <div *ngIf="catalogoDocumentosFiltrados.length === 0" class="col-12">
+                    <div class="text-center py-5">
+                      <div class="icon icon-shape bg-light text-muted rounded-circle shadow mb-4 mx-auto"
+                           style="width: 80px; height: 80px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-search fa-3x"></i>
+                      </div>
+                      <h5 class="text-muted">No se encontraron documentos</h5>
+                      <p class="text-muted mb-0">Intenta con otra búsqueda o categoría</p>
+                    </div>
+                  </div>
+                  
+                  <!-- Cards de documentos -->
+                  <div *ngFor="let doc of catalogoDocumentosFiltrados; let i = index" 
+                       class="col-md-6 col-xl-4 mb-4">
+                    <div class="card shadow-sm border-0 h-100" 
+                         style="border-radius: 12px; transition: all 0.3s ease; cursor: pointer;"
+                         (mouseenter)="$event.currentTarget.style.transform = 'translateY(-5px)'"
+                         (mouseleave)="$event.currentTarget.style.transform = 'translateY(0)'"
+                         (click)="visualizarDocumentoCatalogo(doc)">
+                      
+                      <!-- Header del card con color verde -->
+                      <div class="card-header border-0 text-center" 
+                           style="background: linear-gradient(135deg, #d97248 0%, #e8956d 100%); border-radius: 12px 12px 0 0; height: 8px;">
+                      <!-- Body del card -->
+                      <div class="card-body text-center py-4">
+                        <div class="icon icon-shape bg-gradient-success text-white rounded-circle shadow mb-3 mx-auto"
+                             style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
+                          <i class="fas fa-file-alt fa-2x"></i>
+                        </div>
+                        <h6 class="font-weight-bold mb-1" style="color: #344767; font-size: 0.9rem; min-height: 40px; display: flex; align-items: center; justify-content: center;">
+                          {{ doc.nombre }}
+                        </h6>
+                      </div>
+                    </div>
+                  </div>
+                  
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+
+      </div>
+
+      <!-- =====================================================
+           VISTA DE DETALLE DE DOCUMENTO (SOLO ADMIN)
+           ===================================================== -->
+      <div *ngIf="!esUsuarioEmpresa && vistaActual === 'detalleDocumento'" class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+        
+        <!-- Header con botón de regreso -->
+        <div class="card-header border-0" style="padding: 1.5rem 2rem; background: linear-gradient(135deg, #d97248 0%, #e8956d 100%);">
+          <div class="row align-items-center">
+            <div class="col-12">
+              <button class="btn btn-link p-0 text-white mb-2" (click)="volverACatalogo()" style="font-size: 0.9rem; opacity: 0.9;">
+                <i class="fas fa-arrow-left mr-1"></i> Volver
+              </button>
+              <h6 class="text-uppercase text-white ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px; opacity: 0.9;">Documento #{{ documentoSeleccionado?.id }}</h6>
+              <h2 class="mb-0 text-white" style="font-weight: 700; font-size: 1.5rem;">{{ documentoSeleccionado?.nombre }}</h2>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contenido del documento -->
+        <div class="card-body p-0" style="min-height: 500px; position: relative;">
+          <!-- Área de visualización del documento -->
+          <div class="documento-viewer" style="min-height: 500px; background: #f8f9fa; display: flex; align-items: center; justify-content: center;">
+            <div class="text-center py-5">
+              <div class="icon icon-shape text-white rounded-circle shadow mb-4 mx-auto"
+                   style="background: linear-gradient(135deg, #d97248 0%, #e8956d 100%); width: 80px; height: 80px; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-file-alt" style="font-size: 2.5rem;"></i>
+              </div>
+              <h4 class="mb-3" style="color: #d97248;">{{ documentoSeleccionado?.nombre }}</h4>
+              <p class="text-muted mb-4">La visualización completa del documento estará disponible próximamente.</p>
+              <button class="btn btn-outline-success" (click)="volverACatalogo()">
+                <i class="fas fa-arrow-left mr-2"></i>Volver
+              </button>
+            </div>
+          </div>
+          
+          <!-- Botón flotante de descarga -->
+          <button class="btn btn-success btn-floating-download shadow-lg" 
+                  (click)="descargarDocumentoCatalogo(documentoSeleccionado!)"
+                  title="Descargar documento">
+            <i class="fas fa-download" style="font-size: 1.2rem;"></i>
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- =====================================================
+     MODAL DE VISUALIZACIÓN DE CATÁLOGO
+     ===================================================== -->
+<div *ngIf="mostrarModalVisualizadorCatalogo && documentoSeleccionado"
+     class="modal fade show d-block"
+     tabindex="-1"
+     style="background-color: rgba(0, 0, 0, 0.7);"
+     (click)="cerrarModalVisualizadorCatalogo()">
+  <div class="modal-dialog modal-dialog-centered modal-lg" (click)="$event.stopPropagation()">
+    <div class="modal-content shadow-lg border-0" style="border-radius: 20px; overflow: hidden;">
+      
+      <!-- Header del modal -->
+      <div class="modal-header border-0 py-3" 
+           style="background: linear-gradient(135deg, #d97248 0%, #e8956d 100%);">
+        <div>
+          <h6 class="text-uppercase text-white ls-1 mb-1" style="font-size: 0.75rem; font-weight: 600; letter-spacing: 1px; opacity: 0.9;">
+            <i class="fas fa-tag mr-1"></i>{{ documentoSeleccionado.tipo }}
+          </h6>
+          <h5 class="modal-title text-white font-weight-bold mb-0" style="font-size: 1.25rem;">
+            {{ documentoSeleccionado.nombre }}
+          </h5>
+        </div>
+        <button type="button" class="close text-white" (click)="cerrarModalVisualizadorCatalogo()" style="opacity: 1; font-size: 2rem;">
+          <span>&times;</span>
+        </button>
+      </div>
+      
+      <!-- Body del modal - Vista previa -->
+      <div class="modal-body p-0" style="background: #f8f9fa;">
+        <div class="text-center py-5">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-4 mx-auto"
+               style="background: linear-gradient(135deg, #d97248 0%, #e8956d 100%); width: 100px; height: 100px; display: flex; align-items: center; justify-content: center;">
+            <i class="fas fa-file-alt" style="font-size: 3rem;"></i>
+          </div>
+          <h5 class="font-weight-bold mb-4" style="color: #d97248;">{{ documentoSeleccionado.nombre }}</h5>
+          <div class="px-4">
+            <div class="alert alert-light border shadow-sm" style="border-radius: 12px;">
+              <i class="fas fa-info-circle text-info mr-2"></i>
+              <small class="text-muted">La visualización completa del documento estará disponible próximamente.</small>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Footer del modal - Botones de acción -->
+      <div class="modal-footer border-0 bg-white" style="padding: 1.5rem;">
+        <div class="d-flex justify-content-between w-100 flex-wrap">
+          
+          <!-- Botón Ver/Visualizar -->
+          <button class="btn btn-info mb-2" 
+                  (click)="$event.stopPropagation()"
+                  title="Ver documento completo"
+                  style="border-radius: 10px; min-width: 120px;">
+            <i class="fas fa-eye mr-2"></i>Ver
+          </button>
+          
+          <!-- Botón Editar Nombre -->
+          <button class="btn btn-primary mb-2"
+                  (click)="cerrarModalVisualizadorCatalogo(); $event.stopPropagation()"
+                  title="Editar nombre del documento"
+                  style="border-radius: 10px; min-width: 120px;">
+            <i class="fas fa-edit mr-2"></i>Editar
+          </button>
+          
+          <!-- Botón Reemplazar -->
+          <button class="btn btn-warning mb-2"
+                  (click)="reemplazarDocumentoCatalogo(documentoSeleccionado); cerrarModalVisualizadorCatalogo(); $event.stopPropagation()"
+                  title="Reemplazar archivo"
+                  style="border-radius: 10px; min-width: 120px;">
+            <i class="fas fa-sync-alt mr-2"></i>Reemplazar
+          </button>
+          
+          <!-- Botón Descargar -->
+          <button class="btn btn-success mb-2"
+                  (click)="descargarDocumentoCatalogo(documentoSeleccionado); $event.stopPropagation()"
+                  title="Descargar documento"
+                  style="border-radius: 10px; min-width: 120px;">
+            <i class="fas fa-download mr-2"></i>Descargar
+          </button>
+          
+          <!-- Botón Eliminar -->
+          <button class="btn btn-danger mb-2"
+                  (click)="eliminarDocumentoCatalogo(documentoSeleccionado); cerrarModalVisualizadorCatalogo(); $event.stopPropagation()"
+                  title="Eliminar documento"
+                  style="border-radius: 10px; min-width: 120px;">
+            <i class="fas fa-trash mr-2"></i>Eliminar
+          </button>
+          
+        </div>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<!-- =====================================================
+     MODAL DE COMENTARIOS
+     ===================================================== -->
+<div *ngIf="mostrarModalComentario"
+     class="modal fade show d-block"
+     tabindex="-1"
+     style="background-color: rgba(0, 0, 0, 0.6);">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow-lg border-0" style="border-radius: 15px; overflow: hidden;">
+      
+      <div class="modal-header" style="background: linear-gradient(135deg, #d97248 0%, #e8956d 100%); border: none;">
+        <h5 class="modal-title text-white font-weight-bold">
+          <i class="fas fa-comment mr-2"></i>Comentarios
+        </h5>
+        <button type="button" class="close text-white" (click)="cerrarModalComentario()" style="opacity: 1;">
+          <span>&times;</span>
+        </button>
+      </div>
+      
+      <div class="modal-body p-4">
+        <p class="text-muted mb-2">Documento: <strong>{{ documentoComentario?.nombre_documento }}</strong></p>
+        <div class="form-group">
+          <label class="form-control-label">Observaciones del Super Admin</label>
+          <textarea class="form-control" 
+                    rows="4" 
+                    [(ngModel)]="nuevoComentario"
+                    placeholder="Escriba sus observaciones aquí..."></textarea>
+        </div>
+      </div>
+      
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-secondary" (click)="cerrarModalComentario()">Cancelar</button>
+        <button type="button" class="btn btn-success" 
+                (click)="guardarComentario()"
+                [disabled]="guardandoComentario">
+          <i class="fas fa-save mr-1"></i>
+          {{ guardandoComentario ? 'Guardando...' : 'Guardar' }}
+        </button>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<!-- =====================================================
+     MODAL DE AGREGAR DOCUMENTO
+     ===================================================== -->
+<div *ngIf="mostrarModalAgregar"
+     class="modal fade show d-block"
+     tabindex="-1"
+     style="background-color: rgba(0, 0, 0, 0.6);">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow-lg border-0" style="border-radius: 15px; overflow: hidden;">
+      
+      <div class="modal-header" style="background: linear-gradient(135deg, #d97248 0%, #e8956d 100%); border: none;">
+        <h5 class="modal-title text-white font-weight-bold">
+          <i class="fas fa-plus-circle mr-2"></i>Agregar Nuevo Documento
+        </h5>
+        <button type="button" class="close text-white" (click)="cerrarModalAgregar()" style="opacity: 1;">
+          <span>&times;</span>
+        </button>
+      </div>
+      
+      <div class="modal-body p-4">
+        <div class="form-group">
+          <label class="form-control-label">Nombre del Documento <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" 
+                 [(ngModel)]="nuevoDocumento.nombre_documento"
+                 placeholder="Ej: Constancia de Protección Civil">
+        </div>
+        
+        <div class="form-group">
+          <label class="form-control-label">Especificación / Instrucciones</label>
+          <textarea class="form-control" 
+                    rows="3"
+                    [(ngModel)]="nuevoDocumento.especificacion"
+                    placeholder="Descripción o instrucciones para obtener el documento..."></textarea>
+        </div>
+        
+        <div class="custom-control custom-checkbox">
+          <input type="checkbox" class="custom-control-input" id="obligatorio"
+                 [(ngModel)]="nuevoDocumento.obligatorio">
+          <label class="custom-control-label" for="obligatorio">
+            <span class="text-danger font-weight-bold">*</span> Documento Obligatorio
+          </label>
+        </div>
+      </div>
+      
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-secondary" (click)="cerrarModalAgregar()">Cancelar</button>
+        <button type="button" class="btn btn-success" 
+                (click)="agregarDocumento()"
+                [disabled]="guardandoDocumento || !nuevoDocumento.nombre_documento.trim()">
+          <i class="fas fa-plus mr-1"></i>
+          {{ guardandoDocumento ? 'Agregando...' : 'Agregar Documento' }}
+        </button>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<!-- Visor integrado pantalla completa (estilo documentación extra) -->
+<div *ngIf="mostrarModalVisualizador"
+     class="pc-revision-visor"
+     role="dialog"
+     aria-modal="true"
+     [attr.aria-label]="'Vista de ' + nombreArchivoActual">
+  <div class="pc-revision-visor__backdrop" (click)="cerrarVisualizador()"></div>
+  <div class="pc-revision-visor__panel">
+    <div class="pc-revision-visor__head">
+      <div class="pc-revision-visor__title-wrap">
+        <span class="pc-revision-visor__icon">
+          <i class="fas fa-file-alt" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="pc-revision-visor__title">Visor integrado de documento</strong>
+          <small class="pc-revision-visor__subtitle">{{ nombreArchivoActual }}</small>
+        </div>
+      </div>
+      <div class="pc-revision-visor__head-actions">
+        <button type="button"
+                class="btn btn-sm btn-outline-light mr-2"
+                (click)="descargarDesdeVisor()"
+                title="Descargar archivo">
+          <i class="fas fa-download mr-1" aria-hidden="true"></i> Descargar
+        </button>
+        <button type="button" class="btn btn-sm btn-light" (click)="cerrarVisualizador()">
+          <i class="fas fa-times mr-1" aria-hidden="true"></i> Volver al listado
+        </button>
+      </div>
+    </div>
+    <div class="pc-revision-visor__body">
+      <div class="pc-revision-visor__loading" *ngIf="cargandoVisualizador">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando documento…</span>
+      </div>
+      <iframe *ngIf="urlArchivoActual && !cargandoVisualizador"
+              class="pc-revision-visor__iframe"
+              [src]="urlArchivoActual | safe"
+              (load)="onVisualizadorIframeLoad()"
+              title="Visualizador de Documento">
+      </iframe>
+      <div *ngIf="!urlArchivoActual && !cargandoVisualizador" class="pc-revision-visor__fallback">
+        <i class="fas fa-file-alt fa-3x mb-3" style="opacity: 0.6" aria-hidden="true"></i>
+        <p class="mb-0">Vista previa no disponible</p>
+        <small class="text-muted">El archivo no se pudo cargar desde Google Drive</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Overlay de carga removido: ahora se usa SweetAlert -->
+
+<!-- =====================================================
+     DROPDOWN DE ESTATUS GLOBAL
+     ===================================================== -->
+<!-- Overlay para cerrar dropdown (debe ir ANTES del dropdown) -->
+<div *ngIf="dropdownAbierto !== null" 
+     class="dropdown-overlay"
+     (click)="cerrarDropdown()">
+</div>
+
+<!-- Menú dropdown -->
+<div *ngIf="dropdownAbierto !== null" 
+     class="dropdown-menu-global"
+     [style.top.px]="dropdownPosition.top"
+     [style.left.px]="dropdownPosition.left">
+  
+  <button class="dropdown-item" (click)="cambiarEstatusById(dropdownAbierto, 'aprobado')">
+    <i class="fas fa-check-circle mr-2" style="color: #d97248;"></i> Aprobado
+  </button>
+  
+  <button class="dropdown-item" (click)="cambiarEstatusById(dropdownAbierto, 'pendiente')">
+    <i class="fas fa-hourglass-half text-warning mr-2"></i> Pendiente
+  </button>
+  
+  <button class="dropdown-item" (click)="cambiarEstatusById(dropdownAbierto, 'rechazado')">
+    <i class="fas fa-times-circle text-danger mr-2"></i> Rechazado
+  </button>
+</div>

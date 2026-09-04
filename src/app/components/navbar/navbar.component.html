@@ -1,0 +1,585 @@
+<nav class="navbar navbar-top navbar-expand-md navbar-dark" id="navbar-main">
+  <div class="container-fluid">
+    <!-- Botón Hamburguesa - oculto para doctores -->
+    <button *ngIf="!esDoctor" class="hamburger-btn d-flex align-items-center justify-content-center"
+      (click)="sidebarService.toggleSidebar()" type="button" aria-label="Abrir/cerrar menú" title="Menú">
+      <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Logo Biznaga: solo para doctores -->
+    <a class="navbar-brand" *ngIf="esDoctor" routerLink="/home">
+      <img src="./assets/img/logo_biznaga.png" alt="Biznaga" class="navbar-brand-mobile">
+    </a>
+
+    <!-- Spacer -->
+    <div class="ml-auto"></div>
+
+    <!-- User - visible en todas las pantallas -->
+    <ul class="navbar-nav align-items-center ml-auto">
+
+      <!-- Solicitud de cambios a documentos SGC -->
+      <li class="nav-item notif-nav-item" *ngIf="mostrarSolicitudDocumentosNavbar">
+        <div class="novedades-wrapper sol-doc-wrapper" (click)="toggleSolicitudDocumentos($event)">
+          <button type="button" class="notif-bell-btn novedades-bell-btn sol-doc-btn"
+            [class.is-active]="solicitudDocAbierto"
+            aria-label="Solicitud de cambios a documentos"
+            title="Solicitud de cambios a documentos">
+            <i class="fas fa-file-signature"></i>
+          </button>
+
+          <div class="novedades-dropdown funcionamiento-dropdown sol-doc-dropdown" *ngIf="solicitudDocAbierto"
+            (click)="$event.stopPropagation()">
+            <div class="novedades-dropdown-header sol-doc-dropdown-header">
+              <div class="sol-doc-dropdown-header__bubbles" aria-hidden="true">
+                <span class="sol-doc-bubble sol-doc-bubble--a"></span>
+                <span class="sol-doc-bubble sol-doc-bubble--b"></span>
+                <span class="sol-doc-bubble sol-doc-bubble--c"></span>
+                <span class="sol-doc-bubble sol-doc-bubble--d"></span>
+                <span class="sol-doc-bubble sol-doc-bubble--e"></span>
+              </div>
+              <span class="novedades-dropdown-title sol-doc-dropdown-title">Solicitud de cambios a documentos</span>
+              <button type="button" class="novedades-close-btn sol-doc-close-btn"
+                (click)="cerrarSolicitudDocumentos(); $event.stopPropagation()" aria-label="Cerrar">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+
+            <div class="novedades-body">
+              <div class="novedades-form funcionamiento-form sol-doc-form">
+                <div class="tk-field tk-field--full sol-doc-nombre-field" (click)="$event.stopPropagation()">
+                  <div class="sol-doc-nombre-field__deco" aria-hidden="true"></div>
+                  <span class="tk-field-label">Nombre del documento y/o Código</span>
+                  <div class="sol-doc-combo">
+                    <label class="sol-doc-combo__input-wrap">
+                      <i class="fas fa-search"></i>
+                      <input class="dg-f05-field" type="search" name="solDocQuery"
+                        [ngModel]="solDocComboAbierto ? solDocQuery : (solDocNombre || solDocCodigo)"
+                        (ngModelChange)="onFiltroSolDoc($event)"
+                        (focus)="abrirComboSolDoc()"
+                        (blur)="confirmarDocSolDoc()"
+                        (keydown)="onComboSolDocKeydown($event)"
+                        placeholder="Buscar por nombre o código…"
+                        autocomplete="off">
+                    </label>
+                    <div class="sol-doc-combo__menu" *ngIf="solDocComboAbierto && solDocCatalogoFiltrado.length">
+                      <button type="button" class="sol-doc-combo__option"
+                        *ngFor="let doc of solDocCatalogoFiltrado; trackBy: trackBySolDocCatalogo"
+                        (mousedown)="$event.preventDefault(); seleccionarDocSolDoc(doc)">
+                        <strong>{{ doc.codigo || 'Sin código' }}</strong>
+                        <span>{{ doc.nombreDocumento }}</span>
+                        <em *ngIf="doc.versionVigente">v{{ doc.versionVigente }}</em>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sol-doc-meta" *ngIf="solDocCodigo || solDocVersion || solDocTipoDocumento">
+                  <div class="sol-doc-meta__item" *ngIf="solDocCodigo">
+                    <span>Código</span>
+                    <strong>{{ solDocCodigo }}</strong>
+                  </div>
+                  <div class="sol-doc-meta__item" *ngIf="solDocVersion">
+                    <span>Versión</span>
+                    <strong>{{ solDocVersion }}</strong>
+                  </div>
+                  <div class="sol-doc-meta__item" *ngIf="solDocTipoDocumento">
+                    <span>Tipo</span>
+                    <strong>{{ solDocTipoDocumento }}</strong>
+                  </div>
+                </div>
+
+                <div class="tk-field tk-field--full sol-doc-tipo-field" (click)="$event.stopPropagation()">
+                  <span class="tk-field-label">Tipo de solicitud</span>
+                  <div class="sol-doc-tipo-grid" role="group" aria-label="Tipo de solicitud">
+                    <button type="button" class="sol-doc-tipo-card"
+                      *ngFor="let opcion of solDocTiposOpciones; trackBy: trackBySolDocTipo"
+                      [class.is-active]="solDocTipoSolicitud === opcion.id"
+                      [attr.data-tipo]="opcion.id"
+                      (click)="seleccionarTipoSolicitudDoc(opcion.id, $event)">
+                      <i class="fas" [ngClass]="opcion.icon"></i>
+                      <span>{{ opcion.label }}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <textarea class="novedades-textarea" maxlength="4000" rows="3"
+                  [(ngModel)]="solDocMotivo"
+                  placeholder="Describe el motivo del cambio solicitado"
+                  (click)="$event.stopPropagation()"></textarea>
+
+                <div class="novedades-form-actions">
+                  <button type="button" class="novedades-add-btn" (click)="enviarSolicitudDocumento($event)"
+                    [disabled]="!solDocFormularioValido">
+                    {{ enviandoSolDoc ? 'Enviando…' : 'Enviar' }}
+                  </button>
+                </div>
+                <p class="novedades-form-ok" *ngIf="solDocEnviadoOk">
+                  <i class="fas fa-check-circle"></i>
+                  Solicitud registrada correctamente. Calidad la revisará en Solicitud de Documentos.
+                </p>
+                <p class="novedades-form-error" *ngIf="solDocError">
+                  <i class="fas fa-exclamation-circle"></i>
+                  {{ solDocError }}
+                </p>
+                <p class="sol-doc-catalog-hint" *ngIf="solDocComboAbierto && !solDocCatalogoFiltrado.length">
+                  Sin coincidencias en la Lista Maestra. Puedes escribir el nombre o código manualmente.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <!-- Correos pendientes de revisar -->
+      <li class="nav-item notif-nav-item" *ngIf="mostrarNotificacionCorreo">
+        <button type="button" class="notif-bell-btn"
+          [class.is-active]="correosNoLeidos > 0"
+          (click)="abrirCorreo()"
+          [attr.aria-label]="correosNoLeidos > 0
+            ? correosNoLeidos + ' correos sin revisar'
+            : 'Correo, sin mensajes pendientes'"
+          [title]="correosNoLeidos > 0
+            ? 'Correo: ' + correosNoLeidos + ' sin revisar'
+            : 'Correo: todo revisado'">
+          <i class="fas" [class.fa-envelope]="correosNoLeidos === 0"
+            [class.fa-envelope-open-text]="correosNoLeidos > 0"></i>
+          <span class="notif-badge" *ngIf="correosNoLeidos > 0">
+            {{ correosNoLeidos > 99 ? '99+' : correosNoLeidos }}
+          </span>
+        </button>
+      </li>
+
+      <!-- Estatus de Tickets: solo visible si el usuario ya envió tickets -->
+      <li class="nav-item notif-nav-item" *ngIf="misTickets.length > 0">
+        <div class="estatus-tickets-wrapper" (click)="toggleEstatusTickets($event)">
+          <button type="button" class="notif-bell-btn estatus-tickets-btn"
+            [class.is-active]="estatusTicketsAbiertos"
+            aria-label="Estatus de Tickets"
+            title="Estatus de Tickets">
+            <i class="fas fa-clipboard-check"></i>
+            <span class="notif-badge" *ngIf="estatusTicketsBadge > 0">
+              {{ estatusTicketsBadge > 99 ? '99+' : estatusTicketsBadge }}
+            </span>
+          </button>
+
+          <div class="novedades-dropdown estatus-tickets-dropdown" *ngIf="estatusTicketsAbiertos"
+            (click)="$event.stopPropagation()">
+            <div class="novedades-dropdown-header">
+              <span class="novedades-dropdown-title">Estatus de Tickets</span>
+              <button type="button" class="novedades-close-btn"
+                (click)="cerrarEstatusTickets(); $event.stopPropagation()" aria-label="Cerrar">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+
+            <div class="novedades-body">
+              <div class="tk-panel-loading" *ngIf="cargandoMisTickets">
+                <span class="tk-panel-spinner"></span>
+                <span>Cargando tickets…</span>
+              </div>
+
+              <div class="tk-status-empty" *ngIf="!cargandoMisTickets && !misTickets.length">
+                <i class="fas fa-check-circle"></i>
+                <p>No tienes tickets activos en seguimiento.</p>
+              </div>
+
+              <div class="tk-status-row" *ngFor="let ticket of misTickets; trackBy: trackByTicketPendiente">
+                <div class="tk-status-row-text">
+                  <span class="tk-status-row-title">{{ tituloTicketEstatus(ticket) }}</span>
+                  <span class="tk-status-row-desc">{{ ticket.descripcion || 'Sin descripción' }}</span>
+                  <span class="tk-status-row-meta">
+                    Última modificación {{ fechaTicketUi(ticket.updated_at || ticket.created_at) }}
+                  </span>
+                </div>
+                <span class="novedades-estatus" [attr.data-estado]="ticket.estado || 'abierto'">
+                  {{ estatusTicketLabel(ticket.estado) }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <!-- Funcionamiento del sistema (alta de tickets) -->
+      <li class="nav-item notif-nav-item">
+        <div class="novedades-wrapper" (click)="toggleFuncionamiento($event)">
+          <button type="button" class="notif-bell-btn novedades-bell-btn"
+            [class.is-active]="funcionamientoAbierto"
+            aria-label="Funcionamiento del sistema"
+            title="Funcionamiento del sistema">
+            <i class="fas fa-cogs"></i>
+          </button>
+
+          <div class="novedades-dropdown funcionamiento-dropdown" *ngIf="funcionamientoAbierto"
+            (click)="$event.stopPropagation()">
+            <div class="novedades-dropdown-header">
+              <span class="novedades-dropdown-title">Funcionamiento del sistema</span>
+              <button type="button" class="novedades-close-btn"
+                (click)="cerrarFuncionamiento(); $event.stopPropagation()" aria-label="Cerrar">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+
+            <div class="novedades-body">
+              <div class="novedades-form funcionamiento-form">
+                <div class="tk-form-row">
+                  <div class="tk-field" (click)="$event.stopPropagation()">
+                    <span class="tk-field-label">Área</span>
+                    <button type="button" class="tk-select-trigger"
+                      [class.is-open]="areaMenuAbierto"
+                      [class.has-value]="!!ticketArea"
+                      (click)="toggleAreaMenu($event)">
+                      <span class="tk-select-value">{{ ticketArea || 'Selecciona el área' }}</span>
+                      <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="tk-select-menu" *ngIf="areaMenuAbierto">
+                      <button type="button" class="tk-select-option"
+                        *ngFor="let area of areasTicket"
+                        [class.is-active]="ticketArea === area"
+                        (click)="seleccionarArea(area, $event)">
+                        <i class="fas fa-folder"></i>
+                        <span>{{ area }}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="tk-field" (click)="$event.stopPropagation()">
+                    <span class="tk-field-label">Prioridad</span>
+                    <button type="button" class="tk-select-trigger tk-select-trigger--prio"
+                      [class.is-open]="prioridadMenuAbierto"
+                      [attr.data-prioridad]="ticketPrioridad || null"
+                      (click)="togglePrioridadMenu($event)">
+                      <span class="tk-select-value">{{ prioridadTicketLabel(ticketPrioridad) || 'Prioridad' }}</span>
+                      <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="tk-select-menu" *ngIf="prioridadMenuAbierto">
+                      <button type="button" class="tk-select-option tk-select-option--prio"
+                        *ngFor="let p of prioridadesTicket"
+                        [attr.data-prioridad]="p.valor"
+                        [class.is-active]="ticketPrioridad === p.valor"
+                        (click)="seleccionarPrioridad(p.valor, $event)">
+                        <span class="tk-prio-dot" [attr.data-prioridad]="p.valor"></span>
+                        <span>{{ p.label }}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="tk-field tk-field--full" (click)="$event.stopPropagation()">
+                  <span class="tk-field-label">Tipo</span>
+                  <div class="tk-tipo-toggle" role="group" aria-label="Tipo de reporte">
+                    <button type="button" class="tk-tipo-btn"
+                      [class.is-active]="ticketTipo === 'falla'"
+                      title="Falla"
+                      (click)="seleccionarTipo('falla', $event)">
+                      <i class="fas fa-exclamation-triangle"></i>
+                      Falla
+                    </button>
+                    <button type="button" class="tk-tipo-btn"
+                      [class.is-active]="ticketTipo === 'sugerencia'"
+                      title="Sugerencia de mejora"
+                      (click)="seleccionarTipo('sugerencia', $event)">
+                      <i class="fas fa-lightbulb"></i>
+                      Sugerencia
+                    </button>
+                  </div>
+                </div>
+
+                <textarea class="novedades-textarea" maxlength="2000" rows="2"
+                  [(ngModel)]="ticketDescripcion"
+                  [placeholder]="ticketTipo === 'falla'
+                    ? 'Describe la falla y cómo reproducirla'
+                    : 'Describe la sugerencia u observación'"
+                  (click)="cerrarMenusTicket(); $event.stopPropagation()"></textarea>
+
+                <div class="tk-evidencias" (click)="$event.stopPropagation()">
+                  <input #evidenciaInput type="file" accept="image/jpeg,image/png,image/webp"
+                    multiple hidden (change)="onEvidenciasSeleccionadas($event)">
+                  <button type="button" class="tk-evidencias-add"
+                    [disabled]="ticketEvidencias.length >= maxEvidencias"
+                    (click)="abrirSelectorEvidencias($event)">
+                    <i class="fas fa-paperclip"></i>
+                    <span>
+                      {{ ticketEvidencias.length >= maxEvidencias
+                        ? 'Límite alcanzado'
+                        : 'Evidencias' }}
+                    </span>
+                    <em>{{ ticketEvidencias.length }}/{{ maxEvidencias }}</em>
+                  </button>
+                  <div class="tk-evidencias-list" *ngIf="ticketEvidencias.length">
+                    <div class="tk-evidencia-item"
+                      *ngFor="let ev of ticketEvidencias; let i = index; trackBy: trackByEvidenciaIndex">
+                      <img [src]="ev.previewUrl" alt="Evidencia {{ i + 1 }}">
+                      <div class="tk-evidencia-fields">
+                        <input type="text" class="tk-evidencia-caption" maxlength="500"
+                          [(ngModel)]="ev.descripcion"
+                          placeholder="Nota de esta imagen">
+                        <button type="button" class="tk-evidencia-remove"
+                          (click)="quitarEvidencia(i, $event)" aria-label="Quitar evidencia">
+                          <i class="fas fa-times"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="novedades-form-actions">
+                  <button type="button" class="novedades-add-btn" (click)="enviarTicket($event)"
+                    [disabled]="enviandoTicket || !ticketArea || !ticketPrioridad || !ticketTipo || !ticketDescripcion.trim()">
+                    {{ enviandoTicket ? 'Enviando…' : 'Enviar' }}
+                  </button>
+                </div>
+                <p class="novedades-form-ok" *ngIf="ticketEnviadoOk">Ticket enviado correctamente.</p>
+                <p class="novedades-form-error" *ngIf="ticketError">{{ ticketError }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <!-- Campana de Notificaciones -->
+      <li class="nav-item notif-nav-item" *ngIf="mostrarNotificaciones">
+        <div class="notif-wrapper" (click)="toggleNotificaciones($event)">
+
+          <button class="notif-bell-btn" [class.is-active]="notifAbiertas" aria-label="Notificaciones">
+            <i class="fas fa-bell"></i>
+            <span class="notif-badge" *ngIf="totalNotificaciones > 0">
+              {{ totalNotificaciones > 99 ? '99+' : totalNotificaciones }}
+            </span>
+          </button>
+
+          <div class="notif-dropdown" *ngIf="notifAbiertas" (click)="$event.stopPropagation()">
+
+            <div class="notif-dropdown-header">
+              <span class="notif-dropdown-title">Notificaciones</span>
+              <button class="notif-close-btn" (click)="cerrarNotificaciones(); $event.stopPropagation()" aria-label="Cerrar">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+
+            <div class="notif-body" *ngIf="hayNotificaciones">
+
+              <!-- Capacitaciones recién finalizadas (panel creativo para admins) -->
+              <div class="notif-cursos-finalizados" *ngIf="cursosFinalizadosPendientes.length > 0">
+                <div class="ncf-hero">
+                  <div class="ncf-hero-glow" aria-hidden="true"></div>
+                  <div class="ncf-hero-content">
+                    <div class="ncf-hero-icon">
+                      <i class="fas fa-flag-checkered"></i>
+                    </div>
+                    <div class="ncf-hero-text">
+                      <span class="ncf-hero-eyebrow">Listas para historial</span>
+                      <span class="ncf-hero-title">Capacitaciones finalizadas</span>
+                      <span class="ncf-hero-sub">
+                        {{ cursosFinalizadosPendientes.length }}
+                        {{ cursosFinalizadosPendientes.length === 1 ? 'curso pendiente' : 'cursos pendientes' }}
+                        de revisión
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <button type="button"
+                  class="ncf-card"
+                  *ngFor="let item of cursosFinalizadosPendientes; trackBy: trackByPendienteId"
+                  (click)="abrirCursoFinalizado(item, $event)">
+                  <div class="ncf-card-avatar" [attr.aria-hidden]="true">
+                    {{ inicialesEmpresa(item.nombre_empresa) }}
+                  </div>
+                  <div class="ncf-card-body">
+                    <span class="ncf-card-badge">Finalizado</span>
+                    <p class="ncf-card-curso">{{ item.nombre_curso }}</p>
+                    <p class="ncf-card-empresa">
+                      <i class="fas fa-building"></i>
+                      {{ item.nombre_empresa }}
+                    </p>
+                  </div>
+                  <i class="fas fa-arrow-right ncf-card-arrow"></i>
+                </button>
+              </div>
+
+              <!-- Notificaciones operativas agrupadas por área -->
+              <ng-container *ngFor="let grupo of notifGrupos; trackBy: trackByGrupoKey">
+                <button type="button" class="notif-area-header"
+                  [style.border-left-color]="grupo.color"
+                  (click)="toggleGrupoNotif(grupo.key, $event)"
+                  [attr.aria-expanded]="!grupoEstaColapsado(grupo.key)">
+                  <div class="notif-area-icon" [style.background]="grupo.color + '18'">
+                    <i class="fas {{ grupo.icono }}" [style.color]="grupo.color"></i>
+                  </div>
+                  <div class="notif-area-info">
+                    <span class="notif-area-title">{{ grupo.titulo }}</span>
+                    <span class="notif-area-sub">{{ grupo.items.length }} aviso{{ grupo.items.length === 1 ? '' : 's' }}</span>
+                  </div>
+                  <span class="notif-area-count"
+                    [style.background]="grupo.color + '18'"
+                    [style.color]="grupo.color">
+                    {{ grupo.items.length }}
+                  </span>
+                  <i class="fas notif-area-chevron"
+                    [class.fa-chevron-down]="!grupoEstaColapsado(grupo.key)"
+                    [class.fa-chevron-right]="grupoEstaColapsado(grupo.key)"
+                    [style.color]="grupo.color"></i>
+                </button>
+
+                <div class="notif-area-items" *ngIf="!grupoEstaColapsado(grupo.key)">
+                  <div class="notif-item notif-item--personal"
+                    *ngFor="let notif of grupo.items; trackBy: trackByNotifId"
+                    (click)="abrirNotificacion(notif, $event)">
+                    <div class="notif-item-icon" [style.background]="getNotifAccentColor(notif) + '18'">
+                      <i class="fas {{ notif.icono || 'fa-bell' }}" [style.color]="getNotifAccentColor(notif)"></i>
+                    </div>
+                    <div class="notif-item-content">
+                      <p class="notif-item-label">{{ notif.titulo }}</p>
+                      <p class="notif-item-meta">{{ notif.mensaje }}</p>
+                    </div>
+                    <button *ngIf="!notif.auto" class="notif-dismiss-btn" (click)="descartarNotif(notif.notif_id, $event)" title="Descartar" aria-label="Descartar notificación">
+                      <i class="fas fa-times"></i>
+                    </button>
+                    <i *ngIf="notif.auto" class="fas fa-chevron-right notif-item-arrow"></i>
+                  </div>
+                </div>
+              </ng-container>
+
+              <!-- Alertas del dashboard (agrupadas) -->
+              <ng-container *ngIf="alertas.length > 0">
+                <div class="notif-section-label" *ngIf="notifGrupos.length > 0">
+                  <i class="fas fa-exclamation-triangle mr-1"></i> Alertas del sistema
+                </div>
+                <ng-container *ngFor="let alerta of alertas; let alertaIndex = index">
+
+                  <div class="notif-group-header" [style.border-left-color]="getAlertAccentColor(alerta.tipo)">
+                    <div class="notif-group-icon" [style.background]="getAlertAccentColor(alerta.tipo) + '18'">
+                      <i class="fas {{ alerta.icono }}" [style.color]="getAlertAccentColor(alerta.tipo)"></i>
+                    </div>
+                    <div class="notif-group-info">
+                      <span class="notif-group-title">{{ alerta.titulo }}</span>
+                      <span class="notif-group-sub">{{ alerta.resumen }}</span>
+                    </div>
+                    <span class="notif-group-count"
+                      [style.background]="getAlertAccentColor(alerta.tipo) + '15'"
+                      [style.color]="getAlertAccentColor(alerta.tipo)">
+                      {{ alerta.items?.length || 0 }}
+                    </span>
+                  </div>
+
+                  <div class="notif-item" *ngFor="let item of alerta.items; let itemIndex = index"
+                    (click)="abrirYDescartarAlerta(alertaIndex, itemIndex, item.ruta, $event)">
+                    <div class="notif-item-dot" [style.background]="getAlertAccentColor(alerta.tipo)"></div>
+                    <div class="notif-item-content">
+                      <p class="notif-item-label">{{ item.label }}</p>
+                      <p class="notif-item-meta">{{ item.meta }}</p>
+                    </div>
+                    <i class="fas fa-chevron-right notif-item-arrow"></i>
+                  </div>
+
+                </ng-container>
+              </ng-container>
+
+            </div>
+
+            <div class="notif-empty-state" *ngIf="!hayNotificaciones">
+              <i class="fas fa-bell-slash"></i>
+              <p>Todo está al día</p>
+            </div>
+
+          </div>
+        </div>
+      </li>
+
+      <!-- Buscador global del sistema (izquierda del perfil) -->
+      <li class="nav-item global-search-nav-item" (click)="$event.stopPropagation()">
+        <div class="global-search"
+          [class.is-expanded]="busquedaExpandida"
+          [class.has-query]="!!busquedaQuery.trim()"
+          (mouseenter)="expandirBusqueda()"
+          (mouseleave)="colapsarBusquedaSiInactiva()">
+          <div class="global-search-shell">
+            <button type="button" class="global-search-trigger"
+              (click)="toggleBusqueda($event)"
+              [attr.aria-expanded]="busquedaExpandida"
+              aria-label="Buscar en el sistema"
+              title="Buscar apartados, funciones o documentos">
+              <i class="fas fa-search"></i>
+            </button>
+            <input
+              #busquedaInput
+              type="text"
+              class="global-search-input"
+              [(ngModel)]="busquedaQuery"
+              (ngModelChange)="filtrarBusqueda()"
+              (focus)="expandirBusqueda()"
+              (keydown)="onBusquedaKeydown($event)"
+              placeholder="Buscar en el sistema…"
+              autocomplete="off"
+              aria-label="Buscar apartados, funciones o documentos"
+              [attr.aria-activedescendant]="resultadoActivoId" />
+          </div>
+
+          <div class="global-search-dropdown" *ngIf="busquedaExpandida && busquedaQuery.trim()" role="listbox">
+            <div class="global-search-dropdown-hint" *ngIf="busquedaCargando && !resultadosBusqueda.length">
+              <i class="fas fa-spinner fa-spin"></i>
+              <p>Buscando en el sistema…</p>
+            </div>
+
+            <div class="global-search-dropdown-hint" *ngIf="!busquedaCargando && !resultadosBusqueda.length">
+              <i class="fas fa-search"></i>
+              <p>Sin coincidencias para “{{ busquedaQuery.trim() }}”</p>
+            </div>
+
+            <button type="button"
+              class="global-search-result"
+              *ngFor="let item of resultadosBusqueda; let i = index; trackBy: trackByBusquedaId"
+              [id]="'global-search-result-' + i"
+              [class.is-active]="i === resultadoActivo"
+              role="option"
+              [attr.aria-selected]="i === resultadoActivo"
+              (click)="irAResultado(item, $event)"
+              (mouseenter)="resultadoActivo = i">
+              <span class="global-search-result-icon" [attr.data-tipo]="item.tipo">
+                <i class="fas" [ngClass]="item.icono"></i>
+              </span>
+              <span class="global-search-result-body">
+                <span class="global-search-result-title">{{ item.titulo }}</span>
+                <span class="global-search-result-meta">{{ item.descripcion }}</span>
+              </span>
+              <span class="global-search-result-tipo">{{ tipoBusquedaLabel(item) }}</span>
+            </button>
+          </div>
+        </div>
+      </li>
+
+      <li class="nav-item dropdown" ngbDropdown #userDropdown="ngbDropdown" placement="bottom-end" (openChange)="isUserMenuOpen = $event">
+        <a class="nav-link user-menu-trigger" [class.is-active]="isUserMenuOpen" role="button" ngbDropdownToggle>
+          <div class="media align-items-center">
+            <span class="avatar avatar-sm rounded-circle user-avatar" [class.user-avatar--photo]="fotoUrl">
+              <img *ngIf="fotoUrl" [src]="fotoUrl" alt="Foto de perfil" class="user-avatar-photo" (error)="fotoUrl = null">
+              <i *ngIf="!fotoUrl" class="ni ni-single-02 text-white"></i>
+            </span>
+            <div class="media-body ml-2 d-none d-lg-block">
+              <span class="mb-0 text-sm font-weight-bold text-white">{{ nombreUsuario }}</span>
+            </div>
+          </div>
+        </a>
+        <div class="dropdown-menu dropdown-menu-arrow dropdown-menu-right" ngbDropdownMenu>
+          <div class="dropdown-header noti-title">
+            <h6 class="text-overflow m-0">{{ nombreUsuario }}</h6>
+          </div>
+          <a class="dropdown-item" routerLink="/user-profile" (click)="userDropdown.close()">
+            <i class="ni ni-single-02"></i>
+            <span>Mi Perfil</span>
+          </a>
+          <a class="dropdown-item" (click)="cambiarIdioma(); userDropdown.close()">
+            <i class="ni ni-world-2"></i>
+            <span>{{ idiomaActual === 'en' ? 'Switch to Spanish' : 'Switch to English' }}</span>
+          </a>
+          <div class="dropdown-divider"></div>
+          <a class="dropdown-item text-danger" (click)="cerrarSesion(); userDropdown.close()">
+            <i class="ni ni-user-run"></i>
+            <span>Cerrar sesión</span>
+          </a>
+        </div>
+      </li>
+    </ul>
+  </div>
+</nav>

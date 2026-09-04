@@ -1,0 +1,131 @@
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.65rem;">
+            <i class="fas fa-certificate" aria-hidden="true"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2rem; letter-spacing: -0.3px;">
+            Historial de Constancias y DC-3
+          </h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 2.5rem;">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+      <div class="card shadow-lg border-0 historial-docs-card">
+        <div class="card-header border-0 historial-docs-card__header">
+          <h2 class="mb-0">Buscador por folio</h2>
+        </div>
+
+        <div class="card-body">
+          <div class="historial-docs-format mb-3">
+            <div class="historial-docs-format__head mb-2">
+              <h3 class="historial-docs-format__title mb-0">
+                <i class="fas fa-tags mr-2"></i>Nomenclatura del folio
+              </h3>
+              <span class="historial-docs-format__hint">Guia para capturar correctamente</span>
+            </div>
+
+            <div class="historial-docs-format__example mb-2">
+              <small>Formato recomendado</small>
+              <div class="historial-docs-format__chips" aria-label="Ejemplo de nomenclatura">
+                <span class="chip chip--course">15</span>
+                <span class="chip-separator">-</span>
+                <span class="chip chip--type">DC3</span>
+                <span class="chip-separator">-</span>
+                <span class="chip chip--date">160326</span>
+                <span class="chip-separator">-</span>
+                <span class="chip chip--person">451</span>
+              </div>
+            </div>
+
+            <div class="historial-docs-format__grid">
+              <div><strong>15</strong>: ID del curso.</div>
+              <div><strong>DC3 o C</strong>: tipo de documento.</div>
+              <div><strong>160326</strong>: fecha (DDMMAA).</div>
+              <div><strong>451</strong>: ID unico del trabajador.</div>
+            </div>
+
+          </div>
+
+          <div class="historial-docs-search">
+            <i class="fas fa-search"></i>
+            <input
+              type="text"
+              class="form-control"
+              placeholder="Escribe folio, CURP o participante"
+              [(ngModel)]="terminoBusqueda"
+              (ngModelChange)="onTerminoChange($event)"
+              (keyup.enter)="buscar()"
+            >
+            <button class="btn btn-outline-primary" type="button" [disabled]="buscando || !terminoBusqueda.trim()" (click)="buscar()">
+              <span *ngIf="!buscando"><i class="fas fa-search mr-1"></i>Buscar</span>
+              <span *ngIf="buscando"><i class="fas fa-spinner fa-spin mr-1"></i>Buscando...</span>
+            </button>
+            <button class="btn btn-outline-secondary" type="button" (click)="limpiar()">Limpiar</button>
+          </div>
+
+          <div *ngIf="error" class="alert alert-light border mt-3 mb-0 py-2">
+            <i class="fas fa-info-circle mr-1"></i>{{ error }}
+          </div>
+
+          <div class="historial-docs-table-wrap mt-3" *ngIf="resultados.length > 0">
+            <table class="table table-sm table-hover mb-0 historial-docs-table">
+              <thead>
+                <tr>
+                  <th class="col-participante">Participante</th>
+                  <th class="col-curso">Curso</th>
+                  <th class="col-acciones text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let item of resultados">
+                  <td class="col-participante">
+                    <div class="historial-cell-name">{{ item.empleado_nombre || 'N/D' }}</div>
+                    <small class="historial-cell-meta">{{ item.curp || 'Sin CURP' }}</small>
+                  </td>
+                  <td class="col-curso">
+                    <div class="historial-cell-curso">{{ item.nombre_curso || 'N/D' }}</div>
+                    <small class="historial-cell-meta">{{ item.nombre_empresa || 'N/D' }}</small>
+                  </td>
+                  <td class="col-acciones">
+                    <div class="historial-docs-actions">
+                      <button class="historial-action historial-action--constancia" type="button"
+                        title="Descargar constancia"
+                        [disabled]="!item?.constancia?.disponible || descargandoKey === ('constancia_' + item.inscripcion_id)"
+                        (click)="descargar(item, 'constancia')">
+                        <i class="fas" [ngClass]="descargandoKey === ('constancia_' + item.inscripcion_id) ? 'fa-spinner fa-spin' : 'fa-certificate'"></i>
+                        <span>{{ descargandoKey === ('constancia_' + item.inscripcion_id) ? '...' : 'Constancia' }}</span>
+                      </button>
+                      <button class="historial-action historial-action--dc3" type="button"
+                        title="Descargar DC-3"
+                        [disabled]="!item?.dc3?.disponible || descargandoKey === ('dc3_' + item.inscripcion_id)"
+                        (click)="descargar(item, 'dc3')">
+                        <i class="fas" [ngClass]="descargandoKey === ('dc3_' + item.inscripcion_id) ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
+                        <span>{{ descargandoKey === ('dc3_' + item.inscripcion_id) ? '...' : 'DC-3' }}</span>
+                      </button>
+                      <button class="historial-action historial-action--ambos" type="button"
+                        title="Descargar constancia y DC-3 en ZIP"
+                        [disabled]="(!item?.constancia?.disponible && !item?.dc3?.disponible) || descargandoKey === ('ambos_' + item.inscripcion_id)"
+                        (click)="descargarAmbos(item)">
+                        <i class="fas" [ngClass]="descargandoKey === ('ambos_' + item.inscripcion_id) ? 'fa-spinner fa-spin' : 'fa-download'"></i>
+                        <span>{{ descargandoKey === ('ambos_' + item.inscripcion_id) ? '...' : 'Ambos' }}</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

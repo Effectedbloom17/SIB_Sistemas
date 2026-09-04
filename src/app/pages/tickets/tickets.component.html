@@ -1,0 +1,233 @@
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2 tk-header-icon">
+            <i class="fas fa-tags"></i>
+          </div>
+          <h1 class="text-white mb-0 tk-header-title">Tickets</h1>
+          <p class="text-white mb-0 mt-1 tk-header-subtitle">
+            Seguimiento de fallas y sugerencias de mejora
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5 tk-page-wrap">
+  <div class="row justify-content-center">
+    <div class="col-12">
+      <div class="card shadow-lg border-0 tk-shell">
+        <div class="card-body tk-shell-body">
+
+          <div class="tk-stats">
+            <div class="tk-stat">
+              <span class="tk-stat-value">{{ total }}</span>
+              <span class="tk-stat-label">En vista</span>
+            </div>
+            <div class="tk-stat tk-stat--warn">
+              <span class="tk-stat-value">{{ noRealizados }}</span>
+              <span class="tk-stat-label">No realizados</span>
+            </div>
+            <div class="tk-stat tk-stat--info">
+              <span class="tk-stat-value">{{ enDesarrollo }}</span>
+              <span class="tk-stat-label">En desarrollo</span>
+            </div>
+            <div class="tk-stat tk-stat--ok">
+              <span class="tk-stat-value">{{ realizados }}</span>
+              <span class="tk-stat-label">Realizados</span>
+            </div>
+          </div>
+
+          <div class="tk-loading" *ngIf="cargando">
+            <div class="tk-spinner"></div>
+            <span>Cargando tickets…</span>
+          </div>
+
+          <div class="tk-error" *ngIf="error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>{{ error }}</span>
+          </div>
+
+          <section class="tk-inbox" *ngIf="!cargando && !error">
+            <header class="tk-inbox-head">
+              <div class="tk-inbox-title">
+                <h2>Tickets</h2>
+                <span class="tk-inbox-badge" *ngIf="noRealizados">{{ noRealizados }} pendientes</span>
+              </div>
+              <label class="tk-search" *ngIf="tickets.length">
+                <i class="fas fa-search"></i>
+                <input type="search" [(ngModel)]="busqueda"
+                  (ngModelChange)="onBusquedaChange()"
+                  placeholder="Buscar por área, descripción, autor o #id…" />
+              </label>
+            </header>
+
+            <div class="tk-inbox-tabs" role="tablist" aria-label="Estatus">
+              <button type="button" class="tk-chip" [class.is-active]="filtroEstado === ''" (click)="cambiarFiltroEstado('')">Todos</button>
+              <button type="button" class="tk-chip" [class.is-active]="filtroEstado === 'abierto'" (click)="cambiarFiltroEstado('abierto')">No realizados</button>
+              <button type="button" class="tk-chip" [class.is-active]="filtroEstado === 'en_progreso'" (click)="cambiarFiltroEstado('en_progreso')">En desarrollo</button>
+              <button type="button" class="tk-chip" [class.is-active]="filtroEstado === 'cerrado'" (click)="cambiarFiltroEstado('cerrado')">Realizados</button>
+            </div>
+
+            <div class="tk-empty" *ngIf="!tickets.length">
+              <div class="tk-empty-icon"><i class="fas fa-inbox"></i></div>
+              <h2>Sin tickets en este filtro</h2>
+              <p>Cuando alguien envíe un ticket desde Funcionamiento del sistema, aparecerá aquí para su seguimiento.</p>
+            </div>
+
+            <div class="tk-empty" *ngIf="tickets.length && !ticketsFiltrados.length">
+              <div class="tk-empty-icon"><i class="fas fa-search"></i></div>
+              <h2>Sin coincidencias</h2>
+              <p>Prueba con otro término de búsqueda.</p>
+            </div>
+
+            <div class="tk-feed" *ngIf="ticketsFiltrados.length" aria-label="Listado de tickets">
+              <ng-container *ngFor="let grupo of ticketsAgrupados; trackBy: trackByGrupo">
+                <h3 class="tk-feed-label">{{ grupo.etiqueta }}</h3>
+
+                <article class="tk-row" *ngFor="let ticket of grupo.tickets; trackBy: trackByTicketId"
+                  [attr.data-estado]="ticket.estado"
+                  [attr.data-tipo]="ticket.tipo || 'sugerencia'"
+                  [class.is-open]="expandidoId === ticket.ticket_id">
+
+                  <button type="button" class="tk-row-hit"
+                    (click)="seleccionarTicket(ticket)"
+                    [attr.aria-expanded]="expandidoId === ticket.ticket_id">
+                    <span class="tk-row-icon" aria-hidden="true">
+                      <i class="fas" [class.fa-exclamation-triangle]="ticket.tipo === 'falla'"
+                        [class.fa-lightbulb]="ticket.tipo !== 'falla'"></i>
+                    </span>
+
+                    <span class="tk-row-body">
+                      <strong>{{ tituloLista(ticket) }}</strong>
+                      <small>#{{ ticket.ticket_id }} · {{ snippetTicket(ticket) }}</small>
+                    </span>
+
+                    <span class="tk-row-aside">
+                      <span class="tk-status-label" [attr.data-estado]="ticket.estado">
+                        {{ estadoLabel(ticket.estado) }}
+                      </span>
+                      <i class="tk-row-dot" *ngIf="ticket.estado === 'abierto'" aria-hidden="true"></i>
+                      <i class="fas fa-chevron-down tk-row-chevron" aria-hidden="true"></i>
+                      <time>{{ tiempoRelativo(ticket.created_at) }}</time>
+                    </span>
+                  </button>
+
+                  <div class="tk-row-panel" [hidden]="expandidoId !== ticket.ticket_id" (click)="$event.stopPropagation()">
+                    <section class="tk-panel-block">
+                      <span class="tk-section-label">Descripción</span>
+                      <p>{{ ticket.descripcion || 'Este ticket no incluye una descripción.' }}</p>
+                    </section>
+
+                    <dl class="tk-facts">
+                      <div>
+                        <dt>Área</dt>
+                        <dd><i class="fas {{ areaIcon(ticket.area) }}"></i>{{ ticket.area }}</dd>
+                      </div>
+                      <div>
+                        <dt>Tipo</dt>
+                        <dd [attr.data-tipo]="ticket.tipo || 'sugerencia'">
+                          <i class="fas" [class.fa-exclamation-triangle]="ticket.tipo === 'falla'"
+                            [class.fa-lightbulb]="ticket.tipo !== 'falla'"></i>
+                          {{ tipoLabel(ticket.tipo) }}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Prioridad</dt>
+                        <dd [attr.data-prioridad]="ticket.prioridad || 'normal'">
+                          <i class="fas fa-flag"></i>{{ prioridadLabel(ticket.prioridad) }}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Solicitante</dt>
+                        <dd><i class="fas fa-user"></i>{{ autorLabel(ticket) }}</dd>
+                      </div>
+                    </dl>
+
+                    <section class="tk-evidence">
+                      <div class="tk-evidence-head">
+                        <span class="tk-section-label">Evidencia</span>
+                        <em *ngIf="ticket.evidencias?.length">{{ ticket.evidencias?.length }}</em>
+                      </div>
+                      <div class="tk-evidence-thumbs" *ngIf="ticket.evidencias?.length">
+                        <button type="button" class="tk-evidence-thumb"
+                          *ngFor="let ev of ticket.evidencias; trackBy: trackByEvidenciaId"
+                          (click)="abrirEvidencia(ticket.ticket_id, ev.evidencia_id)"
+                          [title]="ev.descripcion || 'Ver evidencia'">
+                          <img *ngIf="evidenciaSrc(ticket.ticket_id, ev.evidencia_id) as src"
+                            [src]="src"
+                            [alt]="ev.descripcion || 'Evidencia'">
+                          <span class="tk-evidencia-placeholder tk-evidencia-placeholder--error"
+                            *ngIf="evidenciaFallida(ticket.ticket_id, ev.evidencia_id)"
+                            title="No se pudo cargar la evidencia">
+                            <i class="fas fa-image"></i>
+                          </span>
+                          <span class="tk-evidencia-placeholder"
+                            *ngIf="!evidenciasUrl[ticket.ticket_id + '-' + ev.evidencia_id] && !evidenciaFallida(ticket.ticket_id, ev.evidencia_id)">
+                            <i class="fas fa-spinner fa-spin"></i>
+                          </span>
+                          <small *ngIf="ev.descripcion">{{ ev.descripcion }}</small>
+                        </button>
+                      </div>
+                      <p class="tk-info-empty" *ngIf="!ticket.evidencias?.length">Sin evidencias adjuntas</p>
+                    </section>
+
+                    <section class="tk-management">
+                      <span class="tk-management-updated">
+                        <ng-container *ngIf="ticket.updated_at">Actualizado el {{ fechaHoraUi(ticket.updated_at) }}</ng-container>
+                        <ng-container *ngIf="ticket.publicado_version"> · Publicado en v{{ ticket.publicado_version }}</ng-container>
+                      </span>
+                      <div class="tk-management-actions">
+                        <label [attr.for]="'ticket-status-' + ticket.ticket_id">Gestionar estado</label>
+                        <select
+                          id="ticket-status-{{ ticket.ticket_id }}"
+                          class="tk-estatus-select tk-estatus-select--detail"
+                          [attr.data-estado]="ticket.estado"
+                          [disabled]="actualizandoId != null"
+                          (mousedown)="$event.stopPropagation()"
+                          (change)="onEstatusChange(ticket, $event)">
+                          <option *ngFor="let op of opcionesEstatus" [value]="op.valor"
+                            [selected]="ticket.estado === op.valor">{{ op.label }}</option>
+                        </select>
+                      </div>
+                      <small *ngIf="actualizandoId === ticket.ticket_id">
+                        <i class="fas fa-spinner fa-spin"></i> Guardando cambio…
+                      </small>
+                      <small class="tk-management-error" *ngIf="errorEstado && expandidoId === ticket.ticket_id">{{ errorEstado }}</small>
+                    </section>
+                  </div>
+                </article>
+              </ng-container>
+            </div>
+
+            <nav class="tk-pagination" *ngIf="totalPaginas > 1" aria-label="Paginación de tickets">
+              <span class="tk-pagination__summary">
+                {{ rangoPagina.desde }}–{{ rangoPagina.hasta }} de {{ ticketsFiltrados.length }}
+              </span>
+              <div class="tk-pagination__controls">
+                <button type="button" (click)="cambiarPagina(paginaActual - 1)"
+                  [disabled]="paginaActual === 1" aria-label="Página anterior">
+                  <i class="fas fa-chevron-left"></i>
+                </button>
+                <button type="button" *ngFor="let pagina of paginasDisponibles"
+                  [class.is-active]="pagina === paginaActual"
+                  [attr.aria-current]="pagina === paginaActual ? 'page' : null"
+                  (click)="cambiarPagina(pagina)">
+                  {{ pagina }}
+                </button>
+                <button type="button" (click)="cambiarPagina(paginaActual + 1)"
+                  [disabled]="paginaActual === totalPaginas" aria-label="Página siguiente">
+                  <i class="fas fa-chevron-right"></i>
+                </button>
+              </div>
+            </nav>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

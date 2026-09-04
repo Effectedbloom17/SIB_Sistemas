@@ -1,0 +1,361 @@
+<div class="header header-bg-image mt-hero pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="mt-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i class="fas fa-industry" aria-hidden="true"></i>
+          </div>
+          <h1 class="text-white mb-0 mt-hero-title">Programa de mantenimiento</h1>
+          <p class="text-white mt-hero-tagline mb-0">Mantenimiento · EIN-F-01 · {{ meta.anio }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt-main-wrap mt--5">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+
+      <!-- 6 indicadores en un solo nivel -->
+      <div class="mt-kpi-bar mt-kpi-bar--six mb-4" aria-label="Indicadores de mantenimiento">
+        <div
+          class="mt-kpi-cell"
+          *ngFor="let card of kpiCards; let i = index"
+          [ngClass]="'mt-kpi-cell--' + (card.estado || 'neutro')"
+          [style.animation-delay]="(i * 0.05) + 's'"
+          [style.--kpi-accent]="card.color"
+        >
+          <div class="mt-kpi-cell-icon" [style.background]="card.gradiente">
+            <i class="fas {{ card.icono }}"></i>
+          </div>
+          <div class="mt-kpi-cell-valor">{{ card.valor }}</div>
+          <div class="mt-kpi-cell-label">{{ card.titulo }}</div>
+          <div class="mt-kpi-cell-sub">
+            <span class="mt-kpi-cell-dot" [style.background]="card.color"></span>
+            {{ card.subtitulo }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Contexto -->
+      <div class="card border-0 mt-filter-card mb-3">
+        <div class="card-body py-3 px-3 px-md-4">
+          <div class="mt-filter-grid">
+            <div class="mt-filter-head">
+              <span class="mt-section-label">Centro de mantenimiento</span>
+              <h3 class="mt-filter-title mb-0">Indicadores y programa EIN-F-01</h3>
+              <p class="mt-filter-subtitle mb-0">
+                Infraestructura general · Cláusula {{ meta.clausula }} · Rev. {{ meta.revision }}
+              </p>
+            </div>
+            <label class="mt-filter-control mt-filter-control--wide">
+              <span class="mt-filter-label">Administrador del programa</span>
+              <input
+                class="mt-filter-input"
+                type="text"
+                [(ngModel)]="meta.administrador"
+                (ngModelChange)="onMetaChange()"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panorama anual -->
+      <section class="card border-0 mt-panorama mb-4" aria-label="Panorama anual">
+        <div class="card-body">
+          <div class="mt-panorama__head">
+            <div>
+              <span class="mt-section-label">Panorama {{ meta.anio }}</span>
+              <h3 class="mt-panorama__title mb-0">Evolución de mantenimientos programados</h3>
+            </div>
+            <div class="mt-panorama__pills">
+              <span class="mt-pill mt-pill--slate">
+                <i class="fas fa-calendar-check" aria-hidden="true"></i>
+                Programados <strong>{{ totalProgramados }}</strong>
+              </span>
+              <span class="mt-pill mt-pill--green">
+                <i class="fas fa-building" aria-hidden="true"></i>
+                Internos <strong>{{ totalInternos }}</strong>
+              </span>
+              <span class="mt-pill mt-pill--amber">
+                <i class="fas fa-handshake" aria-hidden="true"></i>
+                Externos <strong>{{ totalExternos }}</strong>
+              </span>
+            </div>
+          </div>
+
+          <div class="mt-bars" role="img" [attr.aria-label]="'Programados por mes en ' + meta.anio">
+            <div class="mt-bars__col" *ngFor="let mes of meses; let mi = index">
+              <div class="mt-bars__track">
+                <div
+                  class="mt-bars__fill"
+                  [style.height.%]="alturaBarraMes(mi)"
+                  [attr.title]="mes + ': ' + programadosPorMes[mi]"
+                ></div>
+              </div>
+              <span class="mt-bars__count">{{ programadosPorMes[mi] }}</span>
+              <span class="mt-bars__label">{{ mes | slice:0:3 }}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- EIN-F-01 Programa (colapsable) -->
+      <section id="mt-sec-f01" class="mt-collapse card border-0 shadow-sm mb-4" [class.is-collapsed]="!seccionAbierta.f01">
+        <button type="button" class="mt-collapse__toggle" (click)="toggleSeccion('f01')" [attr.aria-expanded]="seccionAbierta.f01">
+          <div class="mt-collapse__toggle-main">
+            <span class="mt-collapse__icon"><i class="fas fa-industry"></i></span>
+            <div>
+              <span class="mt-section-label">EIN-F-01</span>
+              <h2 class="mt-collapse__title">Programa de mantenimiento a la infraestructura</h2>
+            </div>
+          </div>
+          <span class="mt-collapse__chevron">
+            <i class="fas" [ngClass]="seccionAbierta.f01 ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            {{ seccionAbierta.f01 ? 'Minimizar' : 'Mostrar' }}
+          </span>
+        </button>
+
+        <div class="mt-collapse__body" *ngIf="seccionAbierta.f01">
+      <div class="card mt-shell border-0 shadow-none">
+        <div class="mt-shell-accent" aria-hidden="true"></div>
+        <div class="card-body mt-shell-body">
+
+          <header class="mt-doc-head">
+            <div class="mt-doc-head__brand">
+              <img src="./assets/img/logo_biznaga.png" alt="Biznaga" class="mt-doc-head__logo" />
+              <div class="mt-doc-head__brand-text">
+                <span class="mt-doc-head__brand-name">BIZNAGA</span>
+                <span class="mt-doc-head__brand-sub">Seguridad e Higiene Industrial &amp; Ambiental</span>
+              </div>
+            </div>
+            <div class="mt-doc-head__titles">
+              <p class="mt-doc-head__sgc">Sistema de Gestión de Calidad [{{ meta.clausula }}]</p>
+              <h2 class="mt-doc-head__title">Programa de mantenimiento a la infraestructura</h2>
+            </div>
+            <div class="mt-doc-head__meta">
+              <div class="mt-doc-meta-row"><span>Código</span><strong>{{ meta.codigo }}</strong></div>
+              <div class="mt-doc-meta-row"><span>Revisión</span><strong>{{ meta.revision }}</strong></div>
+              <div class="mt-doc-meta-row"><span>Fecha de Rev.</span><strong>{{ meta.fechaRev }}</strong></div>
+            </div>
+          </header>
+
+            <div class="mt-toolbar mt-toolbar--drive">
+              <div class="mt-toolbar__fields">
+                <label class="mt-filter-control">
+                  <span class="mt-filter-label">Periodo de programación</span>
+                  <input class="mt-filter-input" type="text" [ngModel]="meta.periodo" readonly tabindex="-1" />
+                </label>
+                <label class="mt-filter-control mt-filter-control--year">
+                  <span class="mt-filter-label">Año</span>
+                  <input
+                    class="mt-filter-input"
+                    type="number"
+                    min="2020"
+                    max="2100"
+                    [(ngModel)]="meta.anio"
+                    (ngModelChange)="onMetaChange()"
+                  />
+                </label>
+              </div>
+
+              <div class="mt-drive-toolbar">
+                <span class="mt-status" *ngIf="mensajeEstado" role="status">{{ mensajeEstado }}</span>
+                <button type="button" class="btn btn-sm mt-btn-save-info"
+                  (click)="guardarInformacionDrive()" [disabled]="guardandoDrive">
+                  <i class="fas mr-1" [ngClass]="guardandoDrive ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                  Guardar información
+                </button>
+                <button type="button" class="btn btn-sm mt-btn-drive"
+                  (click)="abrirEditorIntegrado()" [disabled]="guardandoDrive">
+                  <i class="fas fa-pen mr-1"></i>
+                  Abrir editor integrado
+                </button>
+              </div>
+            </div>
+
+          <div class="mt-grid-wrap" role="region" aria-label="Programa anual por semanas" tabindex="0">
+            <table class="mt-grid">
+              <thead>
+                <tr class="mt-grid__months">
+                  <th class="mt-sticky mt-sticky--infra" rowspan="2">Infraestructura</th>
+                  <th class="mt-sticky mt-sticky--resp" rowspan="2">Responsable</th>
+                  <th class="mt-sticky mt-sticky--tipo" rowspan="2">Tipo</th>
+                  <th *ngFor="let mes of meses" class="mt-month" [attr.colspan]="semanas.length">{{ mes }}</th>
+                  <th class="mt-sticky-end" rowspan="2" aria-label="Acciones"></th>
+                </tr>
+                <tr class="mt-grid__weeks">
+                  <ng-container *ngFor="let mes of meses">
+                    <th *ngFor="let s of semanas" class="mt-week" [attr.title]="mes + ' · semana ' + s">{{ s }}</th>
+                  </ng-container>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let fila of filas; trackBy: trackByFila">
+                  <td class="mt-sticky mt-sticky--infra">
+                    <textarea
+                      class="mt-cell-textarea"
+                      rows="2"
+                      [(ngModel)]="fila.infraestructura"
+                      (ngModelChange)="onCampoFilaChange()"
+                      aria-label="Infraestructura"
+                    ></textarea>
+                  </td>
+                  <td class="mt-sticky mt-sticky--resp">
+                    <textarea
+                      class="mt-cell-textarea"
+                      rows="2"
+                      [(ngModel)]="fila.responsable"
+                      (ngModelChange)="onCampoFilaChange()"
+                      aria-label="Responsable"
+                    ></textarea>
+                  </td>
+                  <td class="mt-sticky mt-sticky--tipo">
+                    <button
+                      type="button"
+                      class="mt-chip mt-chip--ie-toggle"
+                      [class.mt-chip--int]="fila.tipo !== 'Ext'"
+                      [class.mt-chip--ext]="fila.tipo === 'Ext'"
+                      [class.is-on]="true"
+                      (click)="alternarTipo(fila)"
+                      [attr.aria-label]="'Tipo ' + etiquetaTipo(fila)"
+                      [attr.title]="'Clic para cambiar a ' + (fila.tipo === 'Ext' ? 'Interno' : 'Externo')"
+                    >{{ etiquetaTipo(fila) }}</button>
+                  </td>
+                  <ng-container *ngFor="let mes of meses; let mi = index">
+                    <td
+                      *ngFor="let s of semanas; let si = index"
+                      class="mt-slot"
+                      [class.is-reservado]="estadoCelda(fila, mi, si) === 'reservado'"
+                      [class.is-programado]="estadoCelda(fila, mi, si) === 'P'"
+                      (click)="alternarCelda(fila, mi, si)"
+                      [attr.title]="meses[mi] + ' semana ' + s + (estadoCelda(fila, mi, si) === 'P' ? ' · Programado (P)' : estadoCelda(fila, mi, si) === 'reservado' ? ' · Reservado' : '')"
+                      [attr.aria-pressed]="celdaMarcada(fila, mi, si)"
+                      role="button"
+                      tabindex="0"
+                      (keydown.enter)="alternarCelda(fila, mi, si)"
+                      (keydown.space)="$event.preventDefault(); alternarCelda(fila, mi, si)"
+                    >
+                      <span *ngIf="estadoCelda(fila, mi, si) === 'P'">P</span>
+                    </td>
+                  </ng-container>
+                  <td class="mt-sticky-end">
+                    <button
+                      type="button"
+                      class="mt-row-del"
+                      (click)="eliminarFila(fila.id)"
+                      [attr.aria-label]="'Eliminar ' + fila.infraestructura"
+                      title="Eliminar fila"
+                    >
+                      <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p class="mt-hint mt-hint--below">
+            Clic en una celda semanal: 1.º verde sin <strong>P</strong>, 2.º verde con <strong>P</strong>, 3.º blanco (sin marcar).
+            <span class="mt-hint__legenda">
+              Clic en <span class="mt-chip mt-chip--int is-on">Int</span>/<span class="mt-chip mt-chip--ext is-on">Ext</span> para alternar tipo
+            </span>
+          </p>
+
+          <footer class="mt-foot">
+            <p>
+              Formato <strong>{{ meta.codigo }}</strong> · Rev. {{ meta.revision }} · {{ meta.fechaRev }}
+              · Cláusula ISO {{ meta.clausula }} (Infraestructura)
+            </p>
+          </footer>
+
+        </div>
+      </div>
+        </div>
+      </section>
+
+      <!-- EIN-F-03 Bitácora (tabla documento, colapsable) -->
+      <section id="mt-sec-f03" class="mt-collapse card border-0 shadow-sm mb-4" [class.is-collapsed]="!seccionAbierta.f03">
+        <button type="button" class="mt-collapse__toggle" (click)="toggleSeccion('f03')" [attr.aria-expanded]="seccionAbierta.f03">
+          <div class="mt-collapse__toggle-main">
+            <span class="mt-collapse__icon"><i class="fas fa-book"></i></span>
+            <div>
+              <span class="mt-section-label">EIN-F-03</span>
+              <h2 class="mt-collapse__title mt-collapse__title--bitacora">Bitácora de mantenimiento</h2>
+            </div>
+          </div>
+          <span class="mt-collapse__chevron">
+            <i class="fas" [ngClass]="seccionAbierta.f03 ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            {{ seccionAbierta.f03 ? 'Minimizar' : 'Mostrar' }}
+          </span>
+        </button>
+        <div class="mt-collapse__body" *ngIf="seccionAbierta.f03">
+          <app-ein-f02-solicitud [embebido]="true"></app-ein-f02-solicitud>
+        </div>
+      </section>
+
+      <!-- EIN-F-04 Reporte (archivero, colapsable) -->
+      <section id="mt-sec-f04" class="mt-collapse card border-0 shadow-sm mb-4" [class.is-collapsed]="!seccionAbierta.f04">
+        <button type="button" class="mt-collapse__toggle" (click)="toggleSeccion('f04')" [attr.aria-expanded]="seccionAbierta.f04">
+          <div class="mt-collapse__toggle-main">
+            <span class="mt-collapse__icon"><i class="fas fa-file-word"></i></span>
+            <div>
+              <span class="mt-section-label">EIN-F-04</span>
+              <h2 class="mt-collapse__title">Reporte de mantenimiento</h2>
+            </div>
+          </div>
+          <span class="mt-collapse__chevron">
+            <i class="fas" [ngClass]="seccionAbierta.f04 ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            {{ seccionAbierta.f04 ? 'Minimizar' : 'Mostrar' }}
+          </span>
+        </button>
+        <div class="mt-collapse__body mt-collapse__body--embed" *ngIf="seccionAbierta.f04">
+          <app-ein-f04-reporte [embebido]="true"></app-ein-f04-reporte>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<div class="mt-drive-editor-fullscreen" *ngIf="editorDriveAbierto"
+  role="dialog" aria-modal="true" aria-label="Editor integrado EIN-F-01">
+  <div class="mt-drive-editor-fullscreen__backdrop" (click)="cerrarEditorIntegrado()"></div>
+  <div class="mt-drive-editor-fullscreen__panel">
+    <div class="mt-drive-editor-fullscreen__head">
+      <div class="mt-drive-editor-fullscreen__title-wrap">
+        <span class="mt-drive-editor-fullscreen__icon">
+          <i class="fas fa-industry" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="mt-drive-editor-fullscreen__title">Editor integrado del formato</strong>
+          <small class="mt-drive-editor-fullscreen__subtitle">
+            EIN-F-01 · Programa de mantenimiento a la infraestructura · Excel = historial visual · Corrige solo si hay errores de registro
+          </small>
+        </div>
+      </div>
+      <div class="mt-drive-editor-fullscreen__head-actions">
+        <button class="btn btn-sm btn-light" type="button" (click)="cerrarEditorIntegrado()">
+          <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+        </button>
+      </div>
+    </div>
+    <div class="mt-drive-editor-fullscreen__body">
+      <div class="mt-drive-editor-fullscreen__loading" *ngIf="editorDriveCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando plantilla en Drive…</span>
+      </div>
+      <iframe *ngIf="editorDriveUrlSafe"
+        class="mt-drive-editor-fullscreen__iframe"
+        [src]="editorDriveUrlSafe"
+        title="EIN-F-01 en Google Drive"
+        (load)="onEditorIframeLoad()"
+        allow="clipboard-read; clipboard-write"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-popups-to-escape-sandbox">
+      </iframe>
+    </div>
+  </div>
+</div>

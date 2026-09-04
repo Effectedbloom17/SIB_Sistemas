@@ -1,0 +1,583 @@
+// Mesa de Ayuda — layout tipo WhatsApp Web, paleta Biznaga
+$ch-verde: #38512f;
+$ch-verde-claro: #5c7a4e;
+$ch-borde: #e5ebe3;
+$ch-texto: #1e293b;
+$ch-muted: #64748b;
+$ch-side: #f4f7f2;
+$ch-chat-bg: #eef3eb;
+$ch-bubble-in: #ffffff;
+$ch-bubble-out: #d7e8cf;
+
+.ch-header-icon {
+  background: rgba(255, 255, 255, 0.15);
+  font-size: 1.8rem;
+}
+
+.ch-header-title {
+  font-weight: 700;
+  font-size: 2.2rem;
+  letter-spacing: -0.5px;
+}
+
+.ch-header-subtitle {
+  opacity: 0.85;
+  font-size: 0.95rem;
+}
+
+.ch-page-wrap {
+  position: relative;
+  z-index: 10;
+  margin-bottom: 3rem;
+}
+
+.ch-shell {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.ch-wa {
+  display: grid;
+  grid-template-columns: minmax(280px, 34%) 1fr;
+  min-height: 72vh;
+  background: #fff;
+
+  &--empresa {
+    grid-template-columns: 1fr;
+  }
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  // ----- Sidebar (lista) -----
+  &__sidebar {
+    display: flex;
+    flex-direction: column;
+    background: $ch-side;
+    border-right: 1px solid $ch-borde;
+    min-height: 72vh;
+
+    @media (max-width: 900px) {
+      min-height: auto;
+      max-height: 300px;
+      border-right: none;
+      border-bottom: 1px solid $ch-borde;
+    }
+  }
+
+  &__side-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1.05rem 1.1rem 0.55rem;
+  }
+
+  &__side-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: $ch-texto;
+  }
+
+  &__live {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.2rem;
+    font-size: 0.7rem;
+    color: $ch-muted;
+
+    i {
+      font-size: 0.45rem;
+      color: #94a3b8;
+    }
+
+    &.is-on i {
+      color: #22c55e;
+    }
+  }
+
+  &__icon-btn {
+    width: 2.1rem;
+    height: 2.1rem;
+    border: 1px solid $ch-borde;
+    border-radius: 10px;
+    background: #fff;
+    color: $ch-muted;
+    cursor: pointer;
+
+    &.is-active {
+      background: $ch-verde;
+      border-color: $ch-verde;
+      color: #fff;
+    }
+  }
+
+  &__search {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.35rem 1rem 0.85rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid $ch-borde;
+    border-radius: 999px;
+    background: #fff;
+    color: $ch-muted;
+
+    input {
+      border: none;
+      outline: none;
+      flex: 1;
+      font-size: 0.88rem;
+      background: transparent;
+      color: $ch-texto;
+    }
+  }
+
+  &__list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 0.5rem 0.75rem;
+  }
+
+  &__item {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding: 0.75rem 0.7rem;
+    margin-bottom: 0.15rem;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: rgba(56, 81, 47, 0.07);
+    }
+
+    &.is-active {
+      background: rgba(56, 81, 47, 0.14);
+    }
+
+    &.has-unread &-name {
+      font-weight: 800;
+    }
+  }
+
+  &__avatar {
+    flex: 0 0 auto;
+    width: 2.55rem;
+    height: 2.55rem;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, $ch-verde, $ch-verde-claro);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    overflow: hidden;
+
+    &--lg {
+      width: 2.75rem;
+      height: 2.75rem;
+      font-size: 0.8rem;
+    }
+
+    &--biz {
+      font-size: 1.05rem;
+    }
+
+    &--logo {
+      background: #fff;
+      border: 1px solid $ch-borde;
+    }
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      padding: 0.2rem;
+    }
+  }
+
+  &__item-body {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  &__item-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.4rem;
+  }
+
+  &__item-name {
+    font-size: 0.9rem;
+    color: $ch-texto;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__item-time {
+    flex: 0 0 auto;
+    font-size: 0.68rem;
+    color: $ch-muted;
+  }
+
+  &__item-preview {
+    display: block;
+    margin-top: 0.18rem;
+    font-size: 0.78rem;
+    color: $ch-muted;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__badge {
+    flex: 0 0 auto;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.35rem;
+    margin-top: 0.25rem;
+    border-radius: 999px;
+    background: $ch-verde;
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+  }
+
+  &__empty-side {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: $ch-muted;
+    font-size: 0.85rem;
+
+    i {
+      display: block;
+      margin-bottom: 0.45rem;
+      font-size: 1.4rem;
+      color: $ch-verde-claro;
+    }
+  }
+
+  // ----- Panel (chat) -----
+  &__panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 72vh;
+    background: #fff;
+
+    @media (max-width: 900px) {
+      min-height: 58vh;
+    }
+  }
+
+  &__panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1.2rem;
+    border-bottom: 1px solid $ch-borde;
+    background: #fff;
+  }
+
+  &__panel-identity {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  &__panel-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: $ch-verde;
+  }
+
+  &__panel-sub {
+    margin: 0.1rem 0 0;
+    font-size: 0.78rem;
+    color: $ch-muted;
+  }
+
+  &__horario {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: 0 0 auto;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: $ch-verde;
+    background: rgba(56, 81, 47, 0.1);
+    border: 1px solid rgba(56, 81, 47, 0.18);
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+    white-space: nowrap;
+
+    i {
+      font-size: 0.85rem;
+    }
+  }
+
+  &__estado {
+    display: none; // reemplazado por horario de atención
+  }
+
+  &__messages {
+    position: relative;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 1.2rem 1.35rem;
+    background-color: $ch-chat-bg;
+    display: flex;
+    flex-direction: column;
+    gap: 0.95rem;
+    max-height: calc(72vh - 148px);
+    min-height: 340px;
+
+    // Logo Biznaga centrado como marca de agua
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: url('/assets/img/img_deco/biz_logo.png');
+      background-repeat: no-repeat;
+      background-position: center center;
+      background-size: min(18%, 110px);
+      opacity: 0.1;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    &--center {
+      justify-content: center;
+    }
+
+    // Estado vacío (sin conversación seleccionada): fondo verde claro
+    &--idle {
+      background-color: #e8f0e4;
+
+      &::before {
+        opacity: 0.08;
+      }
+    }
+  }
+
+  &__empty {
+    margin: auto;
+    text-align: center;
+    color: $ch-muted;
+    max-width: 22rem;
+
+    h4 {
+      margin: 0 0 0.35rem;
+      color: $ch-texto;
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.85rem;
+    }
+  }
+
+  &__empty-icon {
+    width: 3.2rem;
+    height: 3.2rem;
+    margin: 0 auto 0.75rem;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: rgba(56, 81, 47, 0.12);
+    color: $ch-verde;
+    font-size: 1.3rem;
+  }
+
+  &__row {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.55rem;
+    max-width: min(78%, 560px);
+
+    &.is-theirs {
+      align-self: flex-start;
+    }
+
+    &.is-mine {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+
+      .ch-wa__meta {
+        text-align: right;
+      }
+
+      .ch-wa__bubble {
+        background: $ch-bubble-out;
+        border-bottom-right-radius: 4px;
+      }
+    }
+
+    &.is-theirs .ch-wa__bubble {
+      background: $ch-bubble-in;
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+  }
+
+  &__bubble-avatar {
+    position: relative;
+    flex: 0 0 auto;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: #d8e4d2;
+    color: $ch-verde;
+    font-size: 0.62rem;
+    font-weight: 700;
+  }
+
+  &__dot {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 0.52rem;
+    height: 0.52rem;
+    border-radius: 999px;
+    background: #22c55e;
+    border: 2px solid $ch-chat-bg;
+  }
+
+  &__bubble-wrap {
+    min-width: 0;
+  }
+
+  &__bubble {
+    padding: 0.7rem 0.95rem;
+    border-radius: 14px;
+    color: $ch-texto;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  &__meta {
+    margin-top: 0.28rem;
+    font-size: 0.7rem;
+    color: $ch-muted;
+
+    i {
+      margin-right: 0.2rem;
+    }
+  }
+
+  // ----- Composer -----
+  &__composer {
+    border-top: 1px solid $ch-borde;
+    padding: 0.8rem 1rem 1rem;
+    background: #fff;
+  }
+
+  &__composer-error {
+    margin-bottom: 0.45rem;
+    font-size: 0.82rem;
+    color: #b45309;
+  }
+
+  &__composer-row {
+    display: flex;
+    gap: 0.55rem;
+    align-items: center;
+  }
+
+  &__input {
+    flex: 1;
+    border: 1px solid $ch-borde;
+    border-radius: 999px;
+    padding: 0.72rem 1.05rem;
+    font-size: 0.92rem;
+    color: $ch-texto;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+    &:focus {
+      border-color: rgba(56, 81, 47, 0.45);
+      box-shadow: 0 0 0 3px rgba(56, 81, 47, 0.12);
+    }
+
+    &:disabled {
+      background: #f8fafc;
+    }
+  }
+
+  &__send {
+    width: 2.7rem;
+    height: 2.7rem;
+    border: none;
+    border-radius: 999px;
+    background: $ch-verde;
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+
+    &:hover:not(:disabled) {
+      background: $ch-verde-claro;
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  }
+
+  &__state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    color: $ch-muted;
+    font-size: 0.88rem;
+    padding: 1rem;
+
+    &--error {
+      color: #b45309;
+    }
+  }
+
+  &__spinner {
+    width: 1.15rem;
+    height: 1.15rem;
+    border: 2px solid rgba(56, 81, 47, 0.2);
+    border-top-color: $ch-verde;
+    border-radius: 50%;
+    animation: ch-spin 0.7s linear infinite;
+  }
+}
+
+@keyframes ch-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

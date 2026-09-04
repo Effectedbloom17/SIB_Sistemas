@@ -1,0 +1,85 @@
+// Transición suave para el contenido principal
+.main-content {
+  margin-left: 250px;
+  transition: margin-left 0.3s ease-in-out;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding-top: 0;
+  width: calc(100% - 250px);
+  overflow: visible; // Permitir que dropdowns se muestren correctamente
+
+  &.sidebar-hidden {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+// Contenido de la página crece para empujar el footer abajo
+.page-content {
+  flex: 1 0 auto;
+  width: 100%;
+  overflow: visible; // Cambiado para permitir dropdowns
+}
+
+// Footer siempre al fondo
+app-footer {
+  flex-shrink: 0;
+  width: 100%;
+}
+
+// En pantallas pequeñas, el contenido siempre ocupa todo el ancho
+@media (max-width: 767px) {
+  .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding-top: 0;
+    overflow-x: hidden;
+  }
+}
+
+// Mejorar el scroll en móvil
+@media (max-width: 767px) {
+  body {
+    overflow-x: hidden;
+  }
+
+  .page-content {
+    -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
+  }
+}
+
+// Tablets (768px - 1024px)
+@media (min-width: 768px) and (max-width: 1024px) {
+  .main-content {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+// Print: reset layout completely
+@media print {
+  .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding: 0 !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  .page-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+
+  app-sidebar,
+  app-navbar,
+  app-footer,
+  app-document-preview {
+    display: none !important;
+  }
+}

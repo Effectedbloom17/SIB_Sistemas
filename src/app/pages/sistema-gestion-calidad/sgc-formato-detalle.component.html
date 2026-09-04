@@ -1,0 +1,136 @@
+<ng-container *ngIf="config as c">
+<div class="header header-bg-image sgc-hero sgc-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="sgc-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i [class]="c.heroIconClass" aria-hidden="true"></i>
+          </div>
+          <p class="text-white mb-1 sgc-hero-chapter-label">ISO 9001:2015</p>
+          <h1 class="text-white mb-0 sgc-hero-title">{{ tituloCapitulo }}</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid sgc-main-wrap mt--5">
+  <div class="row justify-content-center">
+    <div class="col-12 sgc-content-col">
+      <div class="card sgc-shell border-0 shadow-sm">
+        <div class="sgc-shell-accent" aria-hidden="true"></div>
+        <div class="card-body sgc-shell-body">
+          <nav class="sgc-crumb" aria-label="Navegación">
+            <ol class="sgc-crumb__trail list-unstyled mb-0">
+              <li class="sgc-crumb__step">
+                <a [routerLink]="['/sistema-gestion-calidad']"
+                   [queryParams]="{ cap: c.slug }"
+                   fragment="sgc-capitulos-panel"
+                   class="sgc-crumb__link">
+                  <i class="fas fa-th-large sgc-crumb__icon" aria-hidden="true"></i>
+                  Formatos corporativos
+                </a>
+              </li>
+              <li class="sgc-crumb__sep" aria-hidden="true">
+                <i class="fas fa-chevron-right"></i>
+              </li>
+              <li class="sgc-crumb__step sgc-crumb__step--current" aria-current="page">
+                <span class="sgc-crumb__current">{{ c.titulo }}</span>
+              </li>
+            </ol>
+          </nav>
+
+          <header class="sgc-page-header">
+            <p class="sgc-intro-role text-uppercase mb-2">{{ etiquetaRolUsuario }}</p>
+            <div class="sgc-chapter-banner">
+              <span class="sgc-chapter-banner__num">Capítulo {{ c.numero }}</span>
+              <h2 class="sgc-chapter-banner__title">{{ c.titulo }}</h2>
+            </div>
+          </header>
+
+          <section *ngIf="plantillasVisibles.length > 0; else sinFormatos"
+                   class="sgc-docs-section"
+                   aria-labelledby="sgc-docs-heading">
+            <div class="sgc-docs-section__head">
+              <div>
+                <h3 id="sgc-docs-heading" class="sgc-docs-section__title">Documentos del capítulo</h3>
+                <p class="sgc-docs-section__hint mb-0">Selecciona un formato para consultarlo o completarlo en el sistema.</p>
+              </div>
+              <span class="sgc-docs-section__count">{{ plantillasVisibles.length }}</span>
+            </div>
+
+            <ul class="sgc-doc-list list-unstyled mb-0">
+              <li *ngFor="let p of plantillasVisibles; trackBy: trackByCodigo">
+                <a *ngIf="p.previewSlug; else sinVista"
+                   [routerLink]="['/sistema-gestion-calidad', c.slug, 'plantilla', p.previewSlug]"
+                   class="sgc-doc-card"
+                   [class.sgc-doc-card--excel]="tipoPlantilla(p.nombre) === 'excel'"
+                   [class.sgc-doc-card--word]="tipoPlantilla(p.nombre) === 'word'"
+                   [class.sgc-doc-card--pdf]="tipoPlantilla(p.nombre) === 'pdf'"
+                   [title]="metaFormato(p)">
+                  <div class="sgc-doc-card__accent" aria-hidden="true"></div>
+                  <div class="sgc-doc-card__icon-wrap">
+                    <span class="sgc-doc-card__icon">
+                      <i class="fas" [ngClass]="{
+                        'fa-file-excel': tipoPlantilla(p.nombre) === 'excel',
+                        'fa-file-word': tipoPlantilla(p.nombre) === 'word',
+                        'fa-file-pdf': tipoPlantilla(p.nombre) === 'pdf',
+                        'fa-file-alt': tipoPlantilla(p.nombre) === 'otro'
+                      }" aria-hidden="true"></i>
+                    </span>
+                  </div>
+                  <div class="sgc-doc-card__body">
+                    <div class="sgc-doc-card__meta-row">
+                      <span class="sgc-doc-card__code">{{ p.codigo }}</span>
+                      <span class="sgc-doc-card__tag">{{ tipoBadge(p) }}</span>
+                      <span class="sgc-doc-card__tag sgc-doc-card__tag--mode">{{ modoBadge(p) }}</span>
+                    </div>
+                    <h4 class="sgc-doc-card__title">{{ p.titulo }}</h4>
+                    <p class="sgc-doc-card__desc mb-0">{{ metaFormato(p) }}</p>
+                  </div>
+                  <span class="sgc-doc-card__action" aria-hidden="true">
+                    <i class="fas fa-arrow-right"></i>
+                  </span>
+                </a>
+                <ng-template #sinVista>
+                  <div class="sgc-doc-card sgc-doc-card--disabled"
+                       [class.sgc-doc-card--excel]="tipoPlantilla(p.nombre) === 'excel'"
+                       [class.sgc-doc-card--word]="tipoPlantilla(p.nombre) === 'word'">
+                    <div class="sgc-doc-card__accent" aria-hidden="true"></div>
+                    <div class="sgc-doc-card__icon-wrap">
+                      <span class="sgc-doc-card__icon">
+                        <i class="fas fa-file-alt" aria-hidden="true"></i>
+                      </span>
+                    </div>
+                    <div class="sgc-doc-card__body">
+                      <div class="sgc-doc-card__meta-row">
+                        <span class="sgc-doc-card__code">{{ p.codigo }}</span>
+                        <span class="sgc-doc-card__tag">{{ tipoBadge(p) }}</span>
+                        <span class="sgc-doc-card__tag sgc-doc-card__tag--muted">Próximamente</span>
+                      </div>
+                      <h4 class="sgc-doc-card__title">{{ p.titulo }}</h4>
+                    </div>
+                  </div>
+                </ng-template>
+              </li>
+            </ul>
+          </section>
+
+          <ng-template #sinFormatos>
+            <div class="sgc-empty-state" role="status">
+              <div class="sgc-empty-state__icon">
+                <i class="fas fa-folder-open" aria-hidden="true"></i>
+              </div>
+              <h3 class="sgc-empty-state__title">Formatos en preparación</h3>
+              <p class="sgc-empty-state__text mb-0">
+                Este capítulo aún no tiene plantillas registradas.
+              </p>
+            </div>
+          </ng-template>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</ng-container>

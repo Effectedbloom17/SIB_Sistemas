@@ -1,0 +1,412 @@
+<div class="mt-embed" [class.mt-embed--standalone]="!embebido">
+  <div
+    *ngIf="!embebido"
+    class="header header-bg-image mt-hero mt-hero--f04 pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden"
+  >
+    <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+      <div class="row w-100 text-center">
+        <div class="col-12">
+          <h1 class="text-white mb-0 mt-hero-title">Reporte EIN-F-04</h1>
+          <p class="text-white mt-hero-tagline mb-0">Mantenimiento · Word de reporte</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div [class.container-fluid]="!embebido" [class.mt-main-wrap]="!embebido" [class.mt--5]="!embebido">
+    <div [class.row]="!embebido" [class.justify-content-center]="!embebido">
+      <div [class.col-xl-11]="!embebido">
+
+        <div class="mt-archivero card border-0 shadow-sm" *ngIf="vista === 'archivero' || embebido">
+          <div class="mt-shell-accent" aria-hidden="true"></div>
+          <div class="card-body">
+            <div class="mt-archivero__intro">
+              <div class="mt-archivero__intro-main">
+                <div class="mt-archivero__intro-icon">
+                  <i class="fas fa-archive" aria-hidden="true"></i>
+                </div>
+                <div>
+                  <h2 class="mt-archivero__title">Archivero de reportes</h2>
+                  <p class="mt-archivero__hint">
+                    Los reportes se crean desde las respuestas del Google Forms. Abre uno para completar
+                    la gestión (tipo, fechas, responsable, evidencias), generar el Word y subir el PDF firmado.
+                  </p>
+                </div>
+              </div>
+              <div class="mt-archivero__toolbar">
+                <label class="mt-archivero__search">
+                  <i class="fas fa-search" aria-hidden="true"></i>
+                  <input type="search" [(ngModel)]="filtro" placeholder="Buscar folio, área, responsable…" />
+                </label>
+                <button type="button" class="mt-archivero__btn-nuevo" (click)="sincronizarDesdeForms()" [disabled]="sincronizandoForms">
+                  <i class="fas" [ngClass]="sincronizandoForms ? 'fa-spinner fa-spin' : 'fa-cloud-download-alt'"></i>
+                  {{ sincronizandoForms ? 'Sync…' : 'Desde Forms' }}
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-archivero__stats">
+              <span>{{ solicitudesForms.length }} {{ solicitudesForms.length === 1 ? 'reporte' : 'reportes' }}</span>
+              <span class="mt-local ml-auto" *ngIf="guardadoLocal"><i class="fas fa-hdd"></i> Local</span>
+            </div>
+
+            <ul class="mt-archivero__grid" *ngIf="solicitudesFiltradas.length; else vacio">
+              <li class="mt-book" *ngFor="let s of solicitudesFiltradas; trackBy: trackBySol"
+                [class.mt-book--done]="!!s.reporteDriveFileId">
+                <button type="button" class="mt-book__tap" (click)="abrirRegistro(s)">
+                  <span class="mt-book__binding" aria-hidden="true">
+                    <span class="mt-book__ring"></span><span class="mt-book__ring"></span>
+                    <span class="mt-book__ring"></span><span class="mt-book__ring"></span>
+                  </span>
+                  <span class="mt-book__page">
+                    <span class="mt-book__head">
+                      <span class="mt-book__icon mt-book__icon--word"><i class="fas fa-file-word"></i></span>
+                      <span class="mt-book__estado" [class.mt-book__estado--ok]="!!s.reporteDriveFileId">
+                        {{ s.reporteDriveFileId ? 'Word listo' : 'Pendiente' }}
+                      </span>
+                    </span>
+                    <span class="mt-book__origen">{{ s.nombreSolicitante || 'Sin solicitante' }}</span>
+                    <span class="mt-book__folio">{{ s.folio }}</span>
+                    <span class="mt-book__lines" aria-hidden="true"><span></span><span></span><span></span></span>
+                    <span class="mt-book__fecha-solicitud">{{ formatearFecha(s.fechaSolicitud) }}</span>
+                    <button type="button" class="mt-book__editor-btn"
+                      (click)="abrirEditorIntegradoF04(s, $event)"
+                      title="Abrir editor integrado del Word">
+                      <i class="fas fa-pen"></i> Editor integrado
+                    </button>
+                  </span>
+                </button>
+              </li>
+            </ul>
+            <ng-template #vacio>
+              <div class="mt-archivero__empty">
+                <i class="fas fa-archive"></i>
+                <p>Aún no hay reportes. Usa «Desde Forms» para sincronizar las respuestas.</p>
+              </div>
+            </ng-template>
+
+            <div class="mt-archivero__foot-actions">
+              <button type="button" class="mt-icon-btn mt-icon-btn--ghost" (click)="irAPrograma()">
+                <i class="fas fa-arrow-left"></i>
+                <span class="mt-icon-btn__label">{{ embebido ? 'Cerrar' : 'Programa' }}</span>
+              </button>
+              <button type="button" class="mt-icon-btn mt-icon-btn--ghost" (click)="irABitacoraF03()">
+                <i class="fas fa-book"></i>
+                <span class="mt-icon-btn__label">Bitácora F-03</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-editor card border-0 shadow-sm mt-editor--narrow" *ngIf="vista === 'editor' && !embebido && seleccionada as sol">
+          <div class="mt-shell-accent" aria-hidden="true"></div>
+          <div class="card-body mt-editor__body">
+            <div class="mt-editor__toolbar mt-editor__toolbar--f04">
+              <div class="mt-editor__toolbar-left">
+                <button type="button" class="mt-icon-btn mt-icon-btn--ghost" (click)="volverArchivero()">
+                  <i class="fas fa-arrow-left"></i>
+                  <span class="mt-icon-btn__label">Archivero</span>
+                </button>
+                <span class="mt-status" *ngIf="mensajeEstado">{{ mensajeEstado }}</span>
+              </div>
+              <div class="mt-editor__toolbar-actions">
+                <button type="button" class="btn btn-sm mt-btn-save-info"
+                  (click)="guardarInformacionF04()" [disabled]="generandoReporte || editorDriveAbierto">
+                  <i class="fas mr-1" [ngClass]="generandoReporte ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                  Guardar información
+                </button>
+                <div class="mt-editor__btn-group">
+                  <button type="button" class="btn btn-sm mt-btn-save-info"
+                    (click)="abrirEditorIntegradoF04()" [disabled]="generandoReporte">
+                    <i class="fas mr-1" [ngClass]="generandoReporte ? 'fa-spinner fa-spin' : 'fa-pen'"></i>
+                    Abrir editor integrado
+                  </button>
+                  <button type="button" class="btn btn-sm mt-btn-drive mt-btn-drive--icon"
+                    (click)="descargarPdfF04()" [disabled]="generandoReporte || editorDriveAbierto"
+                    title="Descargar PDF" aria-label="Descargar PDF">
+                    <i class="fas" [ngClass]="generandoReporte ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <aside class="mt-problema-ref" *ngIf="seleccionada as sol" aria-label="Referencia del problema reportado en Forms">
+              <div class="mt-problema-ref__ribbon" aria-hidden="true">
+                <i class="fas fa-eye"></i>
+                <span>Solo referencia</span>
+              </div>
+              <div class="mt-problema-ref__head">
+                <div class="mt-problema-ref__icon" aria-hidden="true">
+                  <i class="fas fa-clipboard-list"></i>
+                </div>
+                <div class="mt-problema-ref__intro">
+                  <span class="mt-problema-ref__badge">
+                    <i class="fab fa-google" aria-hidden="true"></i>
+                    Ayuda visual · Google Forms
+                  </span>
+                  <h3 class="mt-problema-ref__title">Descripción del problema</h3>
+                </div>
+              </div>
+              <blockquote
+                class="mt-problema-ref__quote"
+                [class.mt-problema-ref__quote--empty]="!sol.descripcionProblema?.trim()">
+                <span class="mt-problema-ref__quote-mark" aria-hidden="true">“</span>
+                <p>{{ sol.descripcionProblema?.trim() || 'Sin descripción en Forms.' }}</p>
+              </blockquote>
+              <div class="mt-problema-ref__meta" *ngIf="sol.nombreSolicitante || sol.fechaSolicitud">
+                <span *ngIf="sol.nombreSolicitante">
+                  <i class="fas fa-user" aria-hidden="true"></i>
+                  {{ sol.nombreSolicitante }}
+                </span>
+                <span *ngIf="sol.fechaSolicitud">
+                  <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                  Solicitud {{ formatearFecha(sol.fechaSolicitud) }}
+                </span>
+              </div>
+            </aside>
+
+            <article class="mt-doc mt-doc--f04 mt-doc--narrow" aria-label="Reporte de mantenimiento">
+              <header class="mt-doc__head mt-doc__head--f04">
+                <div class="mt-doc__brand">
+                  <strong>BIZNAGA</strong>
+                  <span>Seguridad e Higiene Industrial &amp; Ambiental</span>
+                </div>
+                <div class="mt-doc__title-wrap">
+                  <span class="mt-doc__sgc">Sistema de gestión de calidad</span>
+                  <h2 class="mt-doc__title">Reporte de mantenimiento</h2>
+                </div>
+                <table class="mt-doc__meta">
+                  <tr><th>Código</th><td>{{ meta.codigo }}</td></tr>
+                  <tr><th>No. Rev.</th><td>{{ meta.revision }}</td></tr>
+                  <tr><th>Fecha Rev.</th><td>{{ meta.fechaRev }}</td></tr>
+                  <tr><th>Folio</th><td>{{ sol.folio }}</td></tr>
+                </table>
+              </header>
+
+              <div class="mt-doc__lineas">
+                <div class="mt-doc__linea mt-doc__linea--tipo">
+                  <span class="mt-doc__label">Tipo de mantenimiento:</span>
+                  <div class="mt-doc__checks" role="group">
+                    <button type="button" class="mt-doc__check"
+                      [class.is-on]="sol.tipoMantenimiento === 'Preventivo'"
+                      (click)="sol.tipoMantenimiento = 'Preventivo'; onCampoChange()">
+                      <i class="far" [ngClass]="sol.tipoMantenimiento === 'Preventivo' ? 'fa-check-square' : 'fa-square'"></i>
+                      Preventivo
+                    </button>
+                    <button type="button" class="mt-doc__check"
+                      [class.is-on]="sol.tipoMantenimiento === 'Correctivo'"
+                      (click)="sol.tipoMantenimiento = 'Correctivo'; onCampoChange()">
+                      <i class="far" [ngClass]="sol.tipoMantenimiento === 'Correctivo' ? 'fa-check-square' : 'fa-square'"></i>
+                      Correctivo
+                    </button>
+                  </div>
+                </div>
+
+                <label class="mt-doc__linea">
+                  <span class="mt-doc__label">Fecha de la solicitud del mantenimiento*:</span>
+                  <input type="date" [(ngModel)]="sol.fechaSolicitud" (ngModelChange)="onCampoChange()" readonly tabindex="-1" />
+                </label>
+
+                <label class="mt-doc__linea">
+                  <span class="mt-doc__label">Fecha en la que se realizó el mantenimiento:</span>
+                  <input type="date" [(ngModel)]="sol.fechaRealizado" (ngModelChange)="onCampoChange()" />
+                </label>
+
+                <label class="mt-doc__linea">
+                  <span class="mt-doc__label">Responsable quien realizó el mantenimiento:</span>
+                  <input type="text" [(ngModel)]="sol.responsableMantenimiento" (ngModelChange)="onCampoChange()"
+                    placeholder="Nombre del responsable…" />
+                </label>
+              </div>
+
+              <section class="mt-doc__block">
+                <h3>Breve descripción del mantenimiento realizado</h3>
+                <textarea rows="4" [(ngModel)]="sol.descripcionMantenimientoRealizado" (ngModelChange)="onCampoChange()"
+                  placeholder="Describe la acción de mantenimiento realizada…"></textarea>
+              </section>
+
+              <section class="mt-doc__block mt-doc__block--evidencias">
+                <h3>Evidencia fotográfica</h3>
+                <div class="mt-doc__evidencias">
+                  <div *ngIf="sol.evidencias?.length" class="evidencias-grid mb-3">
+                    <div *ngFor="let ev of sol.evidencias; trackBy: trackByEv" class="evidencia-card">
+                      <button type="button" class="evidencia-card__image" (click)="abrirLightbox(ev)">
+                        <img [src]="urlPreviewEvidencia(ev)" [alt]="ev.nombre || 'Evidencia'" />
+                      </button>
+                      <div class="evidencia-card__meta">
+                        <p class="evidencia-card__name" [title]="ev.nombre">{{ ev.nombre || ev.driveFileId }}</p>
+                      </div>
+                      <div class="evidencia-card__actions">
+                        <a class="btn btn-sm btn-outline-secondary" [href]="urlHrefEvidencia(ev)" target="_blank" rel="noopener">
+                          <i class="fas fa-external-link-alt"></i>
+                        </a>
+                        <button type="button" class="btn btn-sm btn-outline-danger" (click)="quitarEvidencia(ev)">
+                          <i class="fas fa-trash-alt"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    class="drop-zone evidencias-drop-zone"
+                    [class.dragging]="arrastrandoFotos"
+                    [class.has-file]="fotosPendientes.length > 0"
+                    [class.is-disabled]="subiendoEvidencias"
+                    (dragover)="onDragOverFotos($event)"
+                    (dragleave)="onDragLeaveFotos($event)"
+                    (drop)="onDropFotos($event)"
+                    (click)="!subiendoEvidencias && abrirSelectorEvidencias()"
+                  >
+                    <input #inputEvidencias type="file" accept="image/jpeg,image/png,image/webp" multiple hidden
+                      [disabled]="subiendoEvidencias" (change)="onEvidenciasSeleccionadas($event)" />
+                    <div class="text-center">
+                      <i class="fas fa-cloud-upload-alt fa-2x mb-2 evidencias-drop-zone__icon"></i>
+                      <p class="mb-1 font-weight-600 small">
+                        {{ fotosPendientes.length ? (fotosPendientes.length + ' foto(s) listas') : 'Arrastra fotos aquí o haz clic' }}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="mt-f02-progress" *ngIf="subiendoEvidencias || progresoSubida > 0">
+                    <div class="mt-f02-progress__meta">
+                      <span>Subiendo…</span>
+                      <strong>{{ progresoSubida }}%</strong>
+                    </div>
+                    <div class="mt-f02-progress__track">
+                      <div class="mt-f02-progress__fill" [style.width.%]="progresoSubida"></div>
+                    </div>
+                  </div>
+
+                  <div *ngIf="fotosPendientes.length" class="evidencias-pending mt-2">
+                    <div *ngFor="let foto of fotosPendientes; let i = index; trackBy: trackByFile" class="evidencias-pending__item">
+                      <div class="evidencias-pending__left">
+                        <img [src]="getFotoPreview(foto)" alt="" class="evidencias-pending__thumb" />
+                        <div class="evidencias-pending__meta">
+                          <p class="evidencias-pending__name">{{ foto.name }}</p>
+                          <p class="evidencias-pending__size">{{ formatearTamano(foto.size) }}</p>
+                        </div>
+                      </div>
+                      <button type="button" class="btn btn-sm btn-link text-danger" [disabled]="subiendoEvidencias"
+                        (click)="quitarFotoPendiente(i); $event.stopPropagation()">
+                        <i class="fas fa-times"></i>
+                      </button>
+                    </div>
+                    <div class="evidencias-pending__actions mt-2">
+                      <button type="button" class="btn btn-sm btn-dark"
+                        (click)="subirFotosPendientes(); $event.stopPropagation()" [disabled]="subiendoEvidencias">
+                        {{ subiendoEvidencias ? 'Subiendo…' : 'Subir a Drive' }}
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary"
+                        (click)="limpiarFotosPendientes(); $event.stopPropagation()" [disabled]="subiendoEvidencias">
+                        Limpiar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+            </article>
+
+            <aside class="mt-firmado" aria-label="Formato firmado">
+              <div class="mt-firmado__head">
+                <div class="mt-firmado__icon">
+                  <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                </div>
+                <div>
+                  <h3 class="mt-firmado__title">Subir formato firmado</h3>
+                  <p class="mt-firmado__desc mb-0">
+                    Sube el PDF firmado de este reporte EIN-F-04. Se guarda en la carpeta de Drive de mantenimientos firmados.
+                  </p>
+                </div>
+              </div>
+
+              <label class="mt-firmado__dropzone" *ngIf="!sol.pdfFirmado?.driveFileId"
+                [class.mt-firmado__dropzone--busy]="subiendoPdfFirmado">
+                <input type="file" accept="application/pdf" hidden
+                  [disabled]="subiendoPdfFirmado" (change)="onSeleccionarPdfFirmado($event)" />
+                <span class="mt-firmado__drop-icon">
+                  <i class="fas" [ngClass]="subiendoPdfFirmado ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                </span>
+                <span class="mt-firmado__drop-title">
+                  {{ subiendoPdfFirmado ? 'Subiendo PDF…' : 'Arrastra o selecciona el PDF firmado' }}
+                </span>
+                <span class="mt-firmado__drop-hint">Formato PDF · máximo 40 MB</span>
+              </label>
+
+              <input #inputPdfFirmado type="file" accept="application/pdf" hidden
+                [disabled]="subiendoPdfFirmado" (change)="onSeleccionarPdfFirmado($event)" />
+
+              <div class="mt-firmado__file" *ngIf="sol.pdfFirmado as pdf">
+                <div class="mt-firmado__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
+                <div class="mt-firmado__file-info">
+                  <strong>{{ pdf.nombreArchivo || ('EIN-F-04 ' + sol.folio + '.pdf') }}</strong>
+                  <small *ngIf="pdf.fechaSubida">Subido el {{ formatearFechaFirmado(pdf.fechaSubida) }}</small>
+                </div>
+                <div class="mt-firmado__file-actions">
+                  <a *ngIf="pdf.webViewLink" class="btn btn-sm btn-outline-secondary"
+                    [href]="pdf.webViewLink" target="_blank" rel="noopener">
+                    <i class="fas fa-external-link-alt mr-1"></i> Abrir
+                  </a>
+                  <button type="button" class="btn btn-sm btn-outline-primary"
+                    [disabled]="subiendoPdfFirmado"
+                    (click)="inputPdfFirmado.click()">
+                    <i class="fas mr-1" [ngClass]="subiendoPdfFirmado ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                    {{ subiendoPdfFirmado ? 'Subiendo…' : 'Actualizar' }}
+                  </button>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mt-drive-editor-fullscreen" *ngIf="editorDriveAbierto"
+  role="dialog" aria-modal="true" aria-label="Editor integrado EIN-F-04">
+  <div class="mt-drive-editor-fullscreen__backdrop" (click)="cerrarEditorIntegradoF04()"></div>
+  <div class="mt-drive-editor-fullscreen__panel">
+    <div class="mt-drive-editor-fullscreen__head">
+      <div class="mt-drive-editor-fullscreen__title-wrap">
+        <span class="mt-drive-editor-fullscreen__icon">
+          <i class="fas fa-file-word" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="mt-drive-editor-fullscreen__title">Editor integrado del formato</strong>
+          <small class="mt-drive-editor-fullscreen__subtitle">
+            EIN-F-04 · Reporte de mantenimiento · Word en Drive · Corrige solo si hay errores de registro
+          </small>
+        </div>
+      </div>
+      <div class="mt-drive-editor-fullscreen__head-actions">
+        <button class="btn btn-sm btn-light" type="button" (click)="cerrarEditorIntegradoF04()">
+          <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+        </button>
+      </div>
+    </div>
+    <div class="mt-drive-editor-fullscreen__body">
+      <div class="mt-drive-editor-fullscreen__loading" *ngIf="editorDriveCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando Word en Drive…</span>
+      </div>
+      <iframe *ngIf="editorDriveUrlSafe"
+        class="mt-drive-editor-fullscreen__iframe"
+        [src]="editorDriveUrlSafe"
+        title="EIN-F-04 en Google Drive"
+        (load)="onEditorIframeLoadF04()"
+        allow="clipboard-read; clipboard-write"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-popups-to-escape-sandbox">
+      </iframe>
+    </div>
+  </div>
+</div>
+
+<div class="mt-f02-lightbox" *ngIf="lightboxAbierto" (click)="cerrarLightbox()" role="dialog" aria-modal="true">
+  <button type="button" class="mt-f02-lightbox__close" (click)="cerrarLightbox()" aria-label="Cerrar">
+    <i class="fas fa-times"></i>
+  </button>
+  <img [src]="lightboxUrl" [alt]="lightboxNombre" (click)="$event.stopPropagation()" />
+  <p class="mt-f02-lightbox__caption">{{ lightboxNombre }}</p>
+</div>

@@ -1,0 +1,707 @@
+<div class="header header-bg-image rrhh-hero pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="rrhh-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i class="fas fa-user-friends" aria-hidden="true"></i>
+          </div>
+          <h1 class="text-white mb-0 rrhh-hero-title">Residentes</h1>
+          <p class="text-white-50 rrhh-hero-sub mb-0">Recursos Humanos · Registro de residentes</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid rrhh-main mt--5">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+      <div class="card rrhh-shell border-0 shadow-sm">
+        <div class="rrhh-shell-accent" aria-hidden="true"></div>
+        <div class="card-body rrhh-shell-body">
+
+          <div class="rrhh-toolbar">
+            <div class="rrhh-toolbar__filters">
+              <label class="rrhh-search">
+                <i class="fas fa-search" aria-hidden="true"></i>
+                <input type="search"
+                       [(ngModel)]="busqueda"
+                       (keyup.enter)="cargar()"
+                       placeholder="Buscar por nombre, matrícula o escuela…"
+                       autocomplete="off">
+              </label>
+              <label class="rrhh-year">
+                <span>Año</span>
+                <input type="number"
+                       [(ngModel)]="filtroAnio"
+                       (change)="cargar()"
+                       placeholder="Todos"
+                       min="2000"
+                       max="2100">
+              </label>
+            </div>
+            <div class="rrhh-toolbar__actions">
+              <button *ngIf="spreadsheetUrl || spreadsheetId"
+                      type="button"
+                      class="rrhh-btn rrhh-btn--ghost"
+                      (click)="abrirHojaGeneral()">
+                <i class="fas fa-file-excel"></i>
+                Hoja Excel
+              </button>
+              <button type="button" class="rrhh-btn rrhh-btn--primary" (click)="abrirNuevo()">
+                <i class="fas fa-plus"></i>
+                Nuevo residente
+              </button>
+            </div>
+          </div>
+
+          <div class="rrhh-alert rrhh-alert--error" *ngIf="errorCarga && !mostrarFormulario && !mostrarDetalle">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>{{ errorCarga }}</span>
+          </div>
+          <div class="rrhh-alert rrhh-alert--ok" *ngIf="mensajeOk && !mostrarFormulario && !mostrarDetalle">
+            <i class="fas fa-check-circle"></i>
+            <span>{{ mensajeOk }}</span>
+          </div>
+
+          <div class="rrhh-list-sep" aria-hidden="true">Credenciales</div>
+
+          <section class="rrhh-list" aria-label="Credenciales de residentes">
+            <div class="rrhh-state" *ngIf="cargando">
+              <i class="fas fa-spinner fa-spin"></i>
+              <span>Cargando residentes…</span>
+            </div>
+
+            <div class="rrhh-state" *ngIf="!cargando && !residentes.length">
+              <i class="fas fa-id-card"></i>
+              <span>No hay residentes registrados.</span>
+              <button type="button" class="rrhh-btn rrhh-btn--primary" (click)="abrirNuevo()">Registrar el primero</button>
+            </div>
+
+            <div class="rrhh-badges" *ngIf="!cargando && residentes.length">
+              <button type="button"
+                      class="rrhh-badge"
+                      *ngFor="let r of residentes"
+                      (click)="abrirDetalle(r)"
+                      [attr.aria-label]="'Ver detalle de ' + r.nombre">
+                <div class="rrhh-badge__photo">
+                  <img *ngIf="r.foto_url" [src]="r.foto_url" [alt]="r.nombre">
+                  <div class="rrhh-badge__photo-fallback" *ngIf="!r.foto_url" aria-hidden="true">
+                    <i class="fas fa-user"></i>
+                  </div>
+                </div>
+
+                <h3 class="rrhh-badge__name">{{ r.nombre }}</h3>
+                <p class="rrhh-badge__role">Residente</p>
+
+                <div class="rrhh-badge__meta">
+                  <p><span>NSS:</span> {{ valorOGuion(r.nss) }}</p>
+                  <p><span>Vigencia:</span> {{ valorOGuion(r.fecha_terminacion) }}</p>
+                </div>
+
+                <div class="rrhh-badge__mark" aria-hidden="true">B</div>
+              </button>
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Detalle al seleccionar credencial (también modo edición) -->
+<div class="rrhh-modal"
+     *ngIf="mostrarDetalle && residenteDetalle"
+     role="dialog"
+     aria-modal="true"
+     [attr.aria-label]="editandoDetalle ? 'Editar residente' : 'Detalle del residente'"
+     (click)="cerrarDetalle()">
+  <div class="rrhh-modal__dialog rrhh-modal__dialog--detail" (click)="$event.stopPropagation()">
+    <header class="rrhh-detail-hero">
+      <div class="rrhh-detail-hero__bg" aria-hidden="true"></div>
+      <button type="button"
+              class="rrhh-wizard__close rrhh-detail-hero__close"
+              (click)="cerrarDetalle()"
+              [disabled]="guardando"
+              aria-label="Cerrar">
+        <i class="fas fa-times"></i>
+      </button>
+      <div class="rrhh-detail-hero__content">
+        <div class="rrhh-detail-hero__photo">
+          <img *ngIf="(editandoDetalle ? fotoPreview : residenteDetalle.foto_url)"
+               [src]="editandoDetalle ? fotoPreview : residenteDetalle.foto_url"
+               [alt]="residenteDetalle.nombre">
+          <div *ngIf="!(editandoDetalle ? fotoPreview : residenteDetalle.foto_url)"
+               class="rrhh-detail-photo__fallback"><i class="fas fa-user"></i></div>
+          <label *ngIf="editandoDetalle" class="rrhh-detail-hero__photo-edit">
+            Cambiar
+            <input type="file" accept="image/*" (change)="onFotoSeleccionada($event)" hidden>
+          </label>
+        </div>
+        <div class="rrhh-detail-hero__info">
+          <span class="rrhh-detail-hero__chip">{{ editandoDetalle ? 'Editando' : 'Residente' }}</span>
+          <h2 *ngIf="!editandoDetalle">{{ residenteDetalle.nombre }}</h2>
+          <input *ngIf="editandoDetalle"
+                 class="rrhh-detail-hero__name-input"
+                 type="text"
+                 [(ngModel)]="form.nombre"
+                 name="detalle_nombre"
+                 placeholder="Nombre del residente">
+          <div class="rrhh-detail-hero__pills" *ngIf="!editandoDetalle">
+            <span><i class="fas fa-id-card"></i> NSS {{ valorOGuion(residenteDetalle.nss) }}</span>
+            <span><i class="fas fa-calendar-check"></i> Vigencia {{ valorOGuion(residenteDetalle.fecha_terminacion) }}</span>
+            <span *ngIf="residenteDetalle.anio"><i class="fas fa-calendar"></i> Año {{ residenteDetalle.anio }}</span>
+          </div>
+          <div class="rrhh-detail-hero__pills" *ngIf="editandoDetalle">
+            <span><i class="fas fa-id-card"></i>
+              <input class="rrhh-detail-hero__pill-input" type="text" [(ngModel)]="form.nss" name="detalle_nss" placeholder="NSS">
+            </span>
+            <span><i class="fas fa-calendar-check"></i>
+              <input class="rrhh-detail-hero__pill-input" type="text" [(ngModel)]="form.fecha_terminacion" name="detalle_vigencia" placeholder="Vigencia">
+            </span>
+            <span><i class="fas fa-calendar"></i>
+              <input class="rrhh-detail-hero__pill-input" type="number" [(ngModel)]="form.anio" name="detalle_anio" placeholder="Año" min="2000" max="2100">
+            </span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="rrhh-modal__body rrhh-detail-body">
+      <div class="rrhh-alert rrhh-alert--error" *ngIf="errorCarga && editandoDetalle">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>{{ errorCarga }}</span>
+      </div>
+
+      <div class="rrhh-detail-panels">
+        <article class="rrhh-panel">
+          <header class="rrhh-panel__head">
+            <span class="rrhh-panel__icon"><i class="fas fa-user-graduate"></i></span>
+            <div>
+              <h3>Información académica</h3>
+              <p>Escuela, carrera y periodo de estancia</p>
+            </div>
+          </header>
+          <div class="rrhh-panel__grid">
+            <div class="rrhh-kv rrhh-kv--wide">
+              <span>Escuela de procedencia</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.escuela_procedencia) }}</strong>
+              <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.escuela_procedencia" name="detalle_escuela">
+            </div>
+            <div class="rrhh-kv rrhh-kv--wide">
+              <span>Carrera</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.carrera) }}</strong>
+              <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.carrera" name="detalle_carrera">
+            </div>
+            <div class="rrhh-kv">
+              <span>Edad</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.edad) }}</strong>
+              <input *ngIf="editandoDetalle" type="number" [(ngModel)]="form.edad" name="detalle_edad" min="1" max="120">
+            </div>
+            <div class="rrhh-kv">
+              <span>Estancia</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.estancia) }}</strong>
+              <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.estancia" name="detalle_estancia">
+            </div>
+            <div class="rrhh-kv">
+              <span>Matrícula</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.matricula) }}</strong>
+              <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.matricula" name="detalle_matricula">
+            </div>
+            <div class="rrhh-kv">
+              <span>Ingreso</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.fecha_ingreso) }}</strong>
+              <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.fecha_ingreso" name="detalle_ingreso" placeholder="Ej. 11-may-26">
+            </div>
+          </div>
+        </article>
+
+        <article class="rrhh-panel rrhh-panel--accent">
+          <header class="rrhh-panel__head">
+            <span class="rrhh-panel__icon"><i class="fas fa-project-diagram"></i></span>
+            <div>
+              <h3>Proyecto asignado</h3>
+              <p>Actividad y supervisión en Biznaga</p>
+            </div>
+          </header>
+          <div class="rrhh-panel__highlight" *ngIf="!editandoDetalle">
+            <span>Nombre del proyecto</span>
+            <strong>{{ valorOGuion(residenteDetalle.nombre_proyecto) }}</strong>
+          </div>
+          <div class="rrhh-panel__grid" [class.rrhh-panel__grid--single]="!editandoDetalle">
+            <div class="rrhh-kv rrhh-kv--wide" *ngIf="editandoDetalle">
+              <span>Nombre del proyecto</span>
+              <input type="text" [(ngModel)]="form.nombre_proyecto" name="detalle_proyecto">
+            </div>
+            <div class="rrhh-kv rrhh-kv--wide">
+              <span>Supervisión a cargo de</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.supervision_a_cargo) }}</strong>
+              <input *ngIf="editandoDetalle"
+                     type="text"
+                     [(ngModel)]="form.supervision_a_cargo"
+                     name="detalle_supervision"
+                     list="rrhh-supervisores-detalle"
+                     placeholder="Selecciona o escribe el nombre">
+              <datalist id="rrhh-supervisores-detalle">
+                <option *ngFor="let s of supervisoresSugeridos" [value]="s"></option>
+              </datalist>
+            </div>
+            <div class="rrhh-kv rrhh-kv--wide">
+              <span>Fecha de terminación</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.fecha_terminacion) }}</strong>
+              <input *ngIf="editandoDetalle"
+                     type="text"
+                     [(ngModel)]="form.fecha_terminacion"
+                     name="detalle_fecha_terminacion"
+                     placeholder="Ej. 21 DE AGOSTO 2026">
+            </div>
+          </div>
+        </article>
+
+        <article class="rrhh-panel">
+          <header class="rrhh-panel__head">
+            <span class="rrhh-panel__icon"><i class="fas fa-address-book"></i></span>
+            <div>
+              <h3>Datos de contacto</h3>
+              <p>Teléfono, correos y asesor académico</p>
+            </div>
+          </header>
+          <div class="rrhh-panel__grid">
+            <div class="rrhh-kv">
+              <span>Teléfono</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.telefono) }}</strong>
+              <input *ngIf="editandoDetalle" type="tel" [(ngModel)]="form.telefono" name="detalle_tel">
+            </div>
+            <div class="rrhh-kv">
+              <span>Correo personal</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.correo_personal) }}</strong>
+              <input *ngIf="editandoDetalle" type="email" [(ngModel)]="form.correo_personal" name="detalle_correo">
+            </div>
+            <div class="rrhh-kv rrhh-kv--wide">
+              <span>Correo institucional</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.correo_institucional) }}</strong>
+              <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.correo_institucional" name="detalle_correo_inst">
+            </div>
+            <div class="rrhh-kv">
+              <span>Asesor académico</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.asesor_academico) }}</strong>
+              <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.asesor_academico" name="detalle_asesor">
+            </div>
+            <div class="rrhh-kv">
+              <span>Correo del asesor</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.correo_asesor) }}</strong>
+              <input *ngIf="editandoDetalle" type="email" [(ngModel)]="form.correo_asesor" name="detalle_correo_asesor">
+            </div>
+          </div>
+        </article>
+
+        <article class="rrhh-panel rrhh-panel--warn">
+          <header class="rrhh-panel__head">
+            <span class="rrhh-panel__icon"><i class="fas fa-heartbeat"></i></span>
+            <div>
+              <h3>Información de emergencia</h3>
+              <p>Tutor, contacto y NSS del residente</p>
+            </div>
+          </header>
+          <div class="rrhh-panel__grid">
+            <div class="rrhh-kv rrhh-kv--wide">
+              <span>Padre/madre o tutor</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.tutor_nombre) }}</strong>
+              <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.tutor_nombre" name="detalle_tutor">
+            </div>
+            <div class="rrhh-kv">
+              <span>Número de contacto</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.tutor_telefono) }}</strong>
+              <input *ngIf="editandoDetalle" type="tel" [(ngModel)]="form.tutor_telefono" name="detalle_tutor_tel">
+            </div>
+            <div class="rrhh-kv">
+              <span>NSS</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.nss) }}</strong>
+              <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.nss" name="detalle_nss2">
+            </div>
+            <div class="rrhh-kv rrhh-kv--wide">
+              <span>Dirección</span>
+              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.direccion) }}</strong>
+              <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.direccion" name="detalle_dir">
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <footer class="rrhh-modal__foot rrhh-detail-foot">
+      <ng-container *ngIf="!editandoDetalle">
+        <button type="button" class="rrhh-btn rrhh-btn--ghost" (click)="activarEdicionDetalle()">
+          <i class="fas fa-pen"></i> Editar
+        </button>
+        <button type="button" class="rrhh-btn rrhh-btn--danger" (click)="eliminar(residenteDetalle)">
+          <i class="fas fa-trash"></i> Eliminar
+        </button>
+      </ng-container>
+      <ng-container *ngIf="editandoDetalle">
+        <button type="button" class="rrhh-btn rrhh-btn--ghost" (click)="cancelarEdicionDetalle()" [disabled]="guardando">
+          <i class="fas fa-times"></i> Cancelar
+        </button>
+        <button type="button" class="rrhh-btn rrhh-btn--primary" (click)="guardarDesdeDetalle()" [disabled]="guardando">
+          <i class="fas" [ngClass]="guardando ? 'fa-spinner fa-spin' : 'fa-check-circle'"></i>
+          {{ guardando ? 'Guardando…' : 'Guardar cambios' }}
+        </button>
+      </ng-container>
+    </footer>
+  </div>
+</div>
+
+<!-- Modal registro / edición (estilo wizard empresas, tema rosa) -->
+<div class="rrhh-wizard-overlay"
+     *ngIf="mostrarFormulario"
+     role="dialog"
+     aria-modal="true"
+     [attr.aria-label]="editandoId ? 'Editar residente' : 'Nuevo residente'"
+     (click)="cancelarFormulario()">
+  <div class="rrhh-wizard" (click)="$event.stopPropagation()">
+
+    <div class="rrhh-wizard__header">
+      <div class="rrhh-wizard__hero-bg" aria-hidden="true"></div>
+      <div class="rrhh-wizard__top">
+        <div class="rrhh-wizard__brand">
+          <span class="rrhh-wizard__icon"><i class="fas fa-user-friends"></i></span>
+          <h5>{{ editandoId ? 'Editar residente' : 'Nuevo residente' }}</h5>
+        </div>
+        <button type="button"
+                class="rrhh-wizard__close"
+                (click)="cancelarFormulario()"
+                [disabled]="guardando"
+                aria-label="Cerrar">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="rrhh-wizard__stepper">
+        <div class="rrhh-wizard__track">
+          <div class="rrhh-wizard__progress" [style.width]="progresoStepper"></div>
+        </div>
+        <div class="rrhh-wizard__steps">
+          <button type="button"
+                  class="rrhh-wizard__step"
+                  [class.is-active]="formPaso === 1"
+                  [class.is-done]="formPaso > 1"
+                  (click)="irPaso(1)">
+            <span class="rrhh-wizard__dot">
+              <i *ngIf="formPaso > 1" class="fas fa-check"></i>
+              <span *ngIf="formPaso <= 1">1</span>
+            </span>
+            <span class="rrhh-wizard__label">Información<br>y proyecto</span>
+          </button>
+          <button type="button"
+                  class="rrhh-wizard__step"
+                  [class.is-active]="formPaso === 2"
+                  [class.is-done]="formPaso > 2"
+                  (click)="irPaso(2)">
+            <span class="rrhh-wizard__dot">
+              <i *ngIf="formPaso > 2" class="fas fa-check"></i>
+              <span *ngIf="formPaso <= 2">2</span>
+            </span>
+            <span class="rrhh-wizard__label">Contacto y<br>emergencia</span>
+          </button>
+          <button type="button"
+                  class="rrhh-wizard__step"
+                  [class.is-active]="formPaso === 3"
+                  (click)="irPaso(3)">
+            <span class="rrhh-wizard__dot"><span>3</span></span>
+            <span class="rrhh-wizard__label">Resumen</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rrhh-wizard__body">
+      <div class="rrhh-wizard__deco" aria-hidden="true"></div>
+
+      <div class="rrhh-wizard__pane-head">
+        <div class="rrhh-wizard__pane-icon">
+          <i class="fas" [ngClass]="formPaso === 1 ? 'fa-id-card' : (formPaso === 2 ? 'fa-address-book' : 'fa-check-circle')"></i>
+        </div>
+        <div>
+          <h6 *ngIf="formPaso === 1">Información del residente y proyecto</h6>
+          <h6 *ngIf="formPaso === 2">Datos de contacto e información de emergencia</h6>
+          <h6 *ngIf="formPaso === 3">Resumen del registro</h6>
+          <p *ngIf="formPaso === 1">Datos personales, foto y proyecto asignado</p>
+          <p *ngIf="formPaso === 2">Teléfonos, correos y contacto de emergencia</p>
+          <p *ngIf="formPaso === 3">Revisa la información antes de guardar</p>
+        </div>
+        <span class="rrhh-wizard__badge">Paso {{ formPaso }} de 3</span>
+      </div>
+
+      <div class="rrhh-alert rrhh-alert--error" *ngIf="errorCarga">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>{{ errorCarga }}</span>
+      </div>
+
+      <!-- Paso 1 -->
+      <div *ngIf="formPaso === 1" class="rrhh-wizard__pane">
+        <div class="rrhh-form-layout">
+          <aside class="rrhh-photo-card">
+            <div class="rrhh-photo-card__frame" [class.has-photo]="!!fotoPreview">
+              <img *ngIf="fotoPreview" [src]="fotoPreview" alt="Vista previa">
+              <div *ngIf="!fotoPreview" class="rrhh-photo-card__empty">
+                <i class="fas fa-camera"></i>
+                <strong>Foto del residente</strong>
+                <span>JPG, PNG o WEBP · máx. 5 MB</span>
+              </div>
+            </div>
+            <label class="rrhh-photo-card__btn">
+              <i class="fas fa-cloud-upload-alt"></i>
+              {{ fotoPreview ? 'Cambiar foto' : 'Subir foto' }}
+              <input type="file" accept="image/*" (change)="onFotoSeleccionada($event)" hidden>
+            </label>
+            <button type="button" class="rrhh-link" *ngIf="fotoPreview" (click)="quitarFoto()">Quitar foto</button>
+            <p class="rrhh-photo-hint">Referencia visual solo en el sistema; no se envía al Excel.</p>
+          </aside>
+
+          <div class="rrhh-form-blocks">
+            <section class="rrhh-form-block">
+              <header class="rrhh-form-block__head">
+                <i class="fas fa-user"></i>
+                <span>Datos del residente</span>
+              </header>
+              <div class="rrhh-grid">
+                <label class="rrhh-field rrhh-field--wide">
+                  <span>Nombre</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-signature"></i>
+                    <input type="text" [(ngModel)]="form.nombre" name="nombre" required autocomplete="name" placeholder="Nombre completo">
+                  </div>
+                </label>
+                <label class="rrhh-field">
+                  <span>Año</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-calendar"></i>
+                    <input type="number" [(ngModel)]="form.anio" name="anio" min="2000" max="2100">
+                  </div>
+                </label>
+                <label class="rrhh-field">
+                  <span>Edad</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-birthday-cake"></i>
+                    <input type="number" [(ngModel)]="form.edad" name="edad" min="1" max="120">
+                  </div>
+                </label>
+                <label class="rrhh-field">
+                  <span>Estancia</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-hourglass-half"></i>
+                    <input type="text" [(ngModel)]="form.estancia" name="estancia" placeholder="Ej. 4 MESES">
+                  </div>
+                </label>
+                <label class="rrhh-field">
+                  <span>NSS del residente</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-id-card"></i>
+                    <input type="text" [(ngModel)]="form.nss" name="nss" placeholder="Número de seguro social">
+                  </div>
+                </label>
+                <label class="rrhh-field rrhh-field--wide">
+                  <span>Escuela de procedencia</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-university"></i>
+                    <input type="text" [(ngModel)]="form.escuela_procedencia" name="escuela" placeholder="Universidad o institución">
+                  </div>
+                </label>
+                <label class="rrhh-field rrhh-field--wide">
+                  <span>Carrera</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-graduation-cap"></i>
+                    <input type="text" [(ngModel)]="form.carrera" name="carrera" placeholder="Programa académico">
+                  </div>
+                </label>
+                <label class="rrhh-field">
+                  <span>Fecha de ingreso</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-sign-in-alt"></i>
+                    <input type="text" [(ngModel)]="form.fecha_ingreso" name="fecha_ingreso" placeholder="Ej. 11-may-26">
+                  </div>
+                </label>
+                <label class="rrhh-field">
+                  <span>Fecha de terminación (vigencia)</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <input type="text" [(ngModel)]="form.fecha_terminacion" name="fecha_terminacion" placeholder="Ej. 21 DE AGOSTO 2026">
+                  </div>
+                </label>
+              </div>
+            </section>
+
+            <section class="rrhh-form-block">
+              <header class="rrhh-form-block__head">
+                <i class="fas fa-briefcase"></i>
+                <span>Proyecto</span>
+              </header>
+              <div class="rrhh-grid">
+                <label class="rrhh-field rrhh-field--wide">
+                  <span>Nombre del proyecto</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-project-diagram"></i>
+                    <input type="text" [(ngModel)]="form.nombre_proyecto" name="proyecto" placeholder="Nombre del proyecto asignado">
+                  </div>
+                </label>
+                <label class="rrhh-field rrhh-field--wide">
+                  <span>Supervisión a cargo de</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-user-tie"></i>
+                    <input type="text"
+                           [(ngModel)]="form.supervision_a_cargo"
+                           name="supervision"
+                           list="rrhh-supervisores"
+                           placeholder="Selecciona o escribe el nombre">
+                    <datalist id="rrhh-supervisores">
+                      <option *ngFor="let s of supervisoresSugeridos" [value]="s"></option>
+                    </datalist>
+                  </div>
+                </label>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paso 2 -->
+      <div *ngIf="formPaso === 2" class="rrhh-wizard__pane">
+        <div class="rrhh-form-blocks rrhh-form-blocks--stack">
+          <section class="rrhh-form-block">
+            <header class="rrhh-form-block__head">
+              <i class="fas fa-phone"></i>
+              <span>Datos de contacto</span>
+            </header>
+            <div class="rrhh-grid">
+              <label class="rrhh-field">
+                <span>Número telefónico</span>
+                <div class="rrhh-field__control">
+                  <i class="fas fa-mobile-alt"></i>
+                  <input type="tel" [(ngModel)]="form.telefono" name="telefono">
+                </div>
+              </label>
+              <label class="rrhh-field">
+                <span>Correo personal</span>
+                <div class="rrhh-field__control">
+                  <i class="fas fa-envelope"></i>
+                  <input type="email" [(ngModel)]="form.correo_personal" name="correo_personal">
+                </div>
+              </label>
+              <label class="rrhh-field">
+                <span>Correo institucional (si aplica)</span>
+                <div class="rrhh-field__control">
+                  <i class="fas fa-at"></i>
+                  <input type="text" [(ngModel)]="form.correo_institucional" name="correo_institucional">
+                </div>
+              </label>
+              <label class="rrhh-field">
+                <span>Matrícula o número de control</span>
+                <div class="rrhh-field__control">
+                  <i class="fas fa-hashtag"></i>
+                  <input type="text" [(ngModel)]="form.matricula" name="matricula">
+                </div>
+              </label>
+              <label class="rrhh-field">
+                <span>Asesor académico</span>
+                <div class="rrhh-field__control">
+                  <i class="fas fa-chalkboard-teacher"></i>
+                  <input type="text" [(ngModel)]="form.asesor_academico" name="asesor">
+                </div>
+              </label>
+              <label class="rrhh-field">
+                <span>Correo del asesor</span>
+                <div class="rrhh-field__control">
+                  <i class="fas fa-envelope-open-text"></i>
+                  <input type="email" [(ngModel)]="form.correo_asesor" name="correo_asesor">
+                </div>
+              </label>
+            </div>
+          </section>
+
+          <section class="rrhh-form-block">
+            <header class="rrhh-form-block__head">
+              <i class="fas fa-heartbeat"></i>
+              <span>Información de emergencia</span>
+            </header>
+            <div class="rrhh-grid">
+              <label class="rrhh-field rrhh-field--wide">
+                <span>Nombre del padre/madre o tutor</span>
+                <div class="rrhh-field__control">
+                  <i class="fas fa-user-friends"></i>
+                  <input type="text" [(ngModel)]="form.tutor_nombre" name="tutor">
+                </div>
+              </label>
+              <label class="rrhh-field">
+                <span>Número de contacto</span>
+                <div class="rrhh-field__control">
+                  <i class="fas fa-phone"></i>
+                  <input type="tel" [(ngModel)]="form.tutor_telefono" name="tutor_tel">
+                </div>
+              </label>
+              <label class="rrhh-field rrhh-field--wide">
+                <span>Dirección</span>
+                <div class="rrhh-field__control">
+                  <i class="fas fa-map-marker-alt"></i>
+                  <input type="text" [(ngModel)]="form.direccion" name="direccion">
+                </div>
+              </label>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- Paso 3 -->
+      <div *ngIf="formPaso === 3" class="rrhh-wizard__pane">
+        <div class="rrhh-resumen">
+          <div class="rrhh-resumen__photo">
+            <img *ngIf="fotoPreview" [src]="fotoPreview" alt="Foto">
+            <div *ngIf="!fotoPreview" class="rrhh-resumen__photo-empty"><i class="fas fa-user"></i></div>
+            <div>
+              <strong>{{ valorOGuion(form.nombre) }}</strong>
+              <p>Residente · Año {{ valorOGuion(form.anio) }}</p>
+              <p>Vigencia: {{ valorOGuion(form.fecha_terminacion) }}</p>
+            </div>
+          </div>
+
+          <div class="rrhh-summary-grid">
+            <div><span>Edad</span><strong>{{ valorOGuion(form.edad) }}</strong></div>
+            <div><span>Estancia</span><strong>{{ valorOGuion(form.estancia) }}</strong></div>
+            <div class="rrhh-summary-grid__wide"><span>Escuela</span><strong>{{ valorOGuion(form.escuela_procedencia) }}</strong></div>
+            <div class="rrhh-summary-grid__wide"><span>Carrera</span><strong>{{ valorOGuion(form.carrera) }}</strong></div>
+            <div class="rrhh-summary-grid__wide"><span>Proyecto</span><strong>{{ valorOGuion(form.nombre_proyecto) }}</strong></div>
+            <div class="rrhh-summary-grid__wide"><span>Supervisión</span><strong>{{ valorOGuion(form.supervision_a_cargo) }}</strong></div>
+            <div><span>Teléfono</span><strong>{{ valorOGuion(form.telefono) }}</strong></div>
+            <div><span>Correo</span><strong>{{ valorOGuion(form.correo_personal) }}</strong></div>
+            <div><span>Matrícula</span><strong>{{ valorOGuion(form.matricula) }}</strong></div>
+            <div><span>NSS</span><strong>{{ valorOGuion(form.nss) }}</strong></div>
+            <div class="rrhh-summary-grid__wide"><span>Tutor</span><strong>{{ valorOGuion(form.tutor_nombre) }}</strong></div>
+            <div><span>Contacto emergencia</span><strong>{{ valorOGuion(form.tutor_telefono) }}</strong></div>
+            <div class="rrhh-summary-grid__wide"><span>Dirección</span><strong>{{ valorOGuion(form.direccion) }}</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="rrhh-wizard__footer">
+      <div>
+        <button type="button" class="rrhh-btn rrhh-btn--ghost" *ngIf="formPaso === 1" (click)="cancelarFormulario()" [disabled]="guardando">
+          <i class="fas fa-times"></i> Cancelar
+        </button>
+        <button type="button" class="rrhh-btn rrhh-btn--ghost" *ngIf="formPaso > 1" (click)="anteriorPaso()" [disabled]="guardando">
+          <i class="fas fa-arrow-left"></i> Regresar
+        </button>
+      </div>
+      <div>
+        <button type="button" class="rrhh-btn rrhh-btn--primary" *ngIf="formPaso < 3" (click)="siguientePaso()">
+          Siguiente <i class="fas fa-arrow-right"></i>
+        </button>
+        <button type="button" class="rrhh-btn rrhh-btn--primary" *ngIf="formPaso === 3" (click)="guardar()" [disabled]="guardando">
+          <i class="fas" [ngClass]="guardando ? 'fa-spinner fa-spin' : 'fa-check-circle'"></i>
+          {{ guardando ? 'Guardando…' : (editandoId ? 'Guardar cambios' : 'Registrar residente') }}
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>

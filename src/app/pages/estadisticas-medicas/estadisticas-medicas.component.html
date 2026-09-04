@@ -1,0 +1,638 @@
+﻿<div class="header header-bg-image pb-4 pt-3 pt-md-4 d-flex align-items-center position-relative overflow-hidden no-print">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-chart-bar"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">Estadísticas Médicas</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--3" style="position: relative; z-index: 10; margin-bottom: 2rem;">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+      <div class="estadisticas-view">
+        
+        <!-- Header compacto -->
+        <div class="stat-header">
+          <div class="d-flex align-items-center justify-content-between flex-wrap">
+            <div class="d-flex align-items-center">
+              <div>
+                <h5 class="stat-main-title mb-0">Panel de Estadísticas Médicas</h5>
+              </div>
+            </div>
+            <div class="d-flex align-items-center mt-2 mt-md-0">
+              <button *ngIf="estadisticas && estadisticas.total > 0"
+                      class="btn btn-sm btn-reporte mr-2"
+                      (click)="abrirReporte()">
+                <i class="fas fa-file-powerpoint mr-1"></i> Generar Reporte
+              </button>
+              <select class="form-control form-control-sm stat-empresa-select"
+                      [(ngModel)]="empresaEstadisticas" (change)="onEmpresaEstadisticaChange()">
+                <option [ngValue]="null">Todas las empresas</option>
+                <option *ngFor="let emp of empresas" [ngValue]="emp.empresa_id">{{ emp.nombre_empresa }}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Loading -->
+        <div *ngIf="cargandoEstadisticas" class="text-center py-5">
+          <div class="spinner-border" style="color: #0891b2;" role="status"></div>
+          <p class="text-muted mt-2 mb-0">Cargando estadísticas...</p>
+        </div>
+
+        <!-- Sin datos -->
+        <div *ngIf="!cargandoEstadisticas && estadisticas && estadisticas.total === 0" class="text-center py-5">
+          <i class="fas fa-chart-pie fa-3x text-muted mb-3"></i>
+          <h5 class="text-muted">Sin datos disponibles</h5>
+        </div>
+
+        <!-- Dashboard -->
+        <div *ngIf="!cargandoEstadisticas && estadisticas && estadisticas.total > 0" class="stat-dashboard">
+
+          <!-- ===== KPI BAR ===== -->
+          <div class="kpi-bar-stats mb-3">
+            <div class="kpi-cell-stats" [style.animation-delay]="'0s'" [style.--kpi-accent]="'#1d4ed8'">
+              <div class="kpi-cell-stats-icon" style="background: linear-gradient(135deg,#1d4ed8,#3b82f6)">
+                <i class="fas fa-file-medical"></i>
+              </div>
+              <div class="kpi-cell-stats-valor">{{ estadisticas.total }}</div>
+              <div class="kpi-cell-stats-label">Expedientes</div>
+              <div class="kpi-cell-stats-sub"><span class="kpi-cell-stats-dot" style="background:#1d4ed8"></span>Total</div>
+            </div>
+
+            <div class="kpi-cell-stats" [style.animation-delay]="'0.06s'" [style.--kpi-accent]="'#7c3aed'">
+              <div class="kpi-cell-stats-icon" style="background: linear-gradient(135deg,#7c3aed,#a78bfa)">
+                <i class="fas fa-venus-mars"></i>
+              </div>
+              <div class="kpi-cell-stats-valor">{{ chartGenero.series ? chartGenero.series[0] : 0 }} / {{ chartGenero.series ? chartGenero.series[1] : 0 }}</div>
+              <div class="kpi-cell-stats-label">Masculino / Femenino</div>
+              <div class="kpi-cell-stats-sub"><span class="kpi-cell-stats-dot" style="background:#7c3aed"></span>Distribución</div>
+            </div>
+
+            <div class="kpi-cell-stats" [style.animation-delay]="'0.12s'" [style.--kpi-accent]="'#059669'">
+              <div class="kpi-cell-stats-icon" style="background: linear-gradient(135deg,#059669,#34d399)">
+                <i class="fas fa-heartbeat"></i>
+              </div>
+              <div class="kpi-cell-stats-valor">{{ pctTANormal }}%</div>
+              <div class="kpi-cell-stats-label">T.A. Normal</div>
+              <div class="kpi-cell-stats-sub"><span class="kpi-cell-stats-dot" style="background:#059669"></span>Tensión arterial</div>
+            </div>
+
+            <div class="kpi-cell-stats" [style.animation-delay]="'0.18s'" [style.--kpi-accent]="'#d97706'">
+              <div class="kpi-cell-stats-icon" style="background: linear-gradient(135deg,#d97706,#fbbf24)">
+                <i class="fas fa-weight"></i>
+              </div>
+              <div class="kpi-cell-stats-valor">{{ pctIMCNormal }}%</div>
+              <div class="kpi-cell-stats-label">IMC Normal</div>
+              <div class="kpi-cell-stats-sub"><span class="kpi-cell-stats-dot" style="background:#d97706"></span>Índice de masa</div>
+            </div>
+
+            <div class="kpi-cell-stats" [style.animation-delay]="'0.24s'" [style.--kpi-accent]="'#dc2626'">
+              <div class="kpi-cell-stats-icon" style="background: linear-gradient(135deg,#dc2626,#f87171)">
+                <i class="fas fa-smoking-ban"></i>
+              </div>
+              <div class="kpi-cell-stats-valor">{{ pctNoFuma }}%</div>
+              <div class="kpi-cell-stats-label">No Fumadores</div>
+              <div class="kpi-cell-stats-sub"><span class="kpi-cell-stats-dot" style="background:#dc2626"></span>Sin tabaquismo</div>
+            </div>
+          </div>
+
+          <!-- ===== ROW 1: Edad + Género ===== -->
+          <div class="stat-grid-row stat-grid-2">
+            <!-- Edad -->
+            <div class="stat-card">
+              <div class="stat-card-head">
+                <strong>Grupos de Edad</strong>
+              </div>
+              <div class="stat-card-chart">
+                <apx-chart *ngIf="chartEdad.series"
+                  [series]="chartEdad.series" [chart]="chartEdad.chart"
+                  [plotOptions]="chartEdad.plotOptions" [colors]="chartEdad.colors"
+                  [dataLabels]="chartEdad.dataLabels" [xaxis]="chartEdad.xaxis"
+                  [yaxis]="chartEdad.yaxis" [grid]="chartEdad.grid"
+                  [legend]="chartEdad.legend" [tooltip]="chartEdad.tooltip">
+                </apx-chart>
+              </div>
+            </div>
+            <!-- Género -->
+            <div class="stat-card">
+              <div class="stat-card-head">
+                <strong>Distribución por Sexo</strong>
+              </div>
+              <div class="stat-card-chart">
+                <apx-chart *ngIf="chartGenero.series"
+                  [series]="chartGenero.series" [chart]="chartGenero.chart"
+                  [labels]="chartGenero.labels" [colors]="chartGenero.colors"
+                  [legend]="chartGenero.legend" [dataLabels]="chartGenero.dataLabels"
+                  [plotOptions]="chartGenero.plotOptions" [stroke]="chartGenero.stroke"
+                  [responsive]="chartGenero.responsive">
+                </apx-chart>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== ROW 2: IMC + T.A. + Adicciones ===== -->
+          <div class="stat-grid-row stat-grid-3">
+            <!-- IMC -->
+            <div class="stat-card">
+              <div class="stat-card-head">
+                <strong>Estado Nutricional (IMC)</strong>
+              </div>
+              <div class="stat-card-chart">
+                <apx-chart *ngIf="chartIMC.series"
+                  [series]="chartIMC.series" [chart]="chartIMC.chart"
+                  [plotOptions]="chartIMC.plotOptions" [colors]="chartIMC.colors"
+                  [dataLabels]="chartIMC.dataLabels" [xaxis]="chartIMC.xaxis"
+                  [yaxis]="chartIMC.yaxis" [grid]="chartIMC.grid"
+                  [legend]="chartIMC.legend" [tooltip]="chartIMC.tooltip">
+                </apx-chart>
+              </div>
+            </div>
+            <!-- Tensión Arterial -->
+            <div class="stat-card">
+              <div class="stat-card-head">
+                <strong>Cifras Tensionales</strong>
+              </div>
+              <div class="stat-card-chart">
+                <apx-chart *ngIf="chartTA.series"
+                  [series]="chartTA.series" [chart]="chartTA.chart"
+                  [labels]="chartTA.labels" [colors]="chartTA.colors"
+                  [legend]="chartTA.legend" [dataLabels]="chartTA.dataLabels"
+                  [plotOptions]="chartTA.plotOptions" [stroke]="chartTA.stroke"
+                  [responsive]="chartTA.responsive">
+                </apx-chart>
+              </div>
+            </div>
+            <!-- Adicciones -->
+            <div class="stat-card">
+              <div class="stat-card-head">
+                <strong>Adicciones</strong>
+              </div>
+              <div class="stat-card-chart">
+                <apx-chart *ngIf="chartAdicciones.series"
+                  [series]="chartAdicciones.series" [chart]="chartAdicciones.chart"
+                  [plotOptions]="chartAdicciones.plotOptions" [colors]="chartAdicciones.colors"
+                  [dataLabels]="chartAdicciones.dataLabels" [xaxis]="chartAdicciones.xaxis"
+                  [yaxis]="chartAdicciones.yaxis" [grid]="chartAdicciones.grid"
+                  [legend]="chartAdicciones.legend" [tooltip]="chartAdicciones.tooltip">
+                </apx-chart>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== ROW 3: Paraclínicos + Patologías ===== -->
+          <div class="stat-grid-row stat-grid-2">
+            <!-- Paraclínicos -->
+            <div class="stat-card">
+              <div class="stat-card-head">
+                <strong>Estudios Paraclínicos</strong>
+              </div>
+              <div class="stat-card-chart">
+                <apx-chart *ngIf="chartParaclinicos.series"
+                  [series]="chartParaclinicos.series" [chart]="chartParaclinicos.chart"
+                  [plotOptions]="chartParaclinicos.plotOptions" [colors]="chartParaclinicos.colors"
+                  [dataLabels]="chartParaclinicos.dataLabels" [xaxis]="chartParaclinicos.xaxis"
+                  [yaxis]="chartParaclinicos.yaxis" [grid]="chartParaclinicos.grid"
+                  [legend]="chartParaclinicos.legend" [tooltip]="chartParaclinicos.tooltip">
+                </apx-chart>
+              </div>
+            </div>
+            <!-- Patologías -->
+            <div class="stat-card">
+              <div class="stat-card-head">
+                <strong>Otras patologías</strong>
+              </div>
+              <div class="stat-card-chart">
+                <apx-chart *ngIf="chartPatologias.series"
+                  [series]="chartPatologias.series" [chart]="chartPatologias.chart"
+                  [plotOptions]="chartPatologias.plotOptions" [colors]="chartPatologias.colors"
+                  [dataLabels]="chartPatologias.dataLabels" [xaxis]="chartPatologias.xaxis"
+                  [yaxis]="chartPatologias.yaxis" [grid]="chartPatologias.grid"
+                  [legend]="chartPatologias.legend" [tooltip]="chartPatologias.tooltip">
+                </apx-chart>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== ROW 4: Heredo-Familiares + Órganos y Sistemas ===== -->
+          <div class="stat-grid-row stat-grid-2">
+            <!-- Antecedentes Heredo-Familiares -->
+            <div class="stat-card">
+              <div class="stat-card-head">
+                <strong>Antecedentes Heredo-Familiares</strong>
+              </div>
+              <div class="stat-card-chart">
+                <apx-chart *ngIf="chartHeredoFamiliares.series"
+                  [series]="chartHeredoFamiliares.series" [chart]="chartHeredoFamiliares.chart"
+                  [plotOptions]="chartHeredoFamiliares.plotOptions" [colors]="chartHeredoFamiliares.colors"
+                  [dataLabels]="chartHeredoFamiliares.dataLabels" [xaxis]="chartHeredoFamiliares.xaxis"
+                  [yaxis]="chartHeredoFamiliares.yaxis" [grid]="chartHeredoFamiliares.grid"
+                  [legend]="chartHeredoFamiliares.legend" [tooltip]="chartHeredoFamiliares.tooltip">
+                </apx-chart>
+              </div>
+            </div>
+            <!-- Órganos y Sistemas -->
+            <div class="stat-card">
+              <div class="stat-card-head">
+                <strong>Hallazgos Anormales por Sistema</strong>
+              </div>
+              <div class="stat-card-chart">
+                <apx-chart *ngIf="chartOrganosSistemas.series"
+                  [series]="chartOrganosSistemas.series" [chart]="chartOrganosSistemas.chart"
+                  [plotOptions]="chartOrganosSistemas.plotOptions" [colors]="chartOrganosSistemas.colors"
+                  [dataLabels]="chartOrganosSistemas.dataLabels" [xaxis]="chartOrganosSistemas.xaxis"
+                  [yaxis]="chartOrganosSistemas.yaxis" [grid]="chartOrganosSistemas.grid"
+                  [legend]="chartOrganosSistemas.legend" [tooltip]="chartOrganosSistemas.tooltip">
+                </apx-chart>
+              </div>
+            </div>
+          </div>
+
+
+        </div>
+      </div>
+
+      <!-- =====================================================
+           MODAL EDITOR DE REPORTE
+           ===================================================== -->
+      <div *ngIf="mostrarReporte" class="reporte-overlay"  (click)="$event.target === $event.currentTarget && cerrarReporte()">
+        <div class="reporte-panel">
+
+          <!-- Toolbar -->
+          <div class="reporte-toolbar">
+            <div class="d-flex align-items-center">
+              <i class="fas fa-file-medical-alt mr-2" style="color:#fff; font-size:1.2rem;"></i>
+              <div>
+                <div class="reporte-toolbar-title">Editor de Reporte</div>
+                <div class="reporte-toolbar-sub">{{ getEmpresaEstadisticasNombre() }} &middot; {{ anioReporte }}</div>
+              </div>
+            </div>
+            <div class="d-flex align-items-center">
+              <button class="btn btn-sm btn-export-ppt mr-3" (click)="exportarGoogleSlides()" [disabled]="exportandoPDF || exportandoPPT">
+                <i class="fab fa-google-drive mr-1"></i>
+                <span *ngIf="!exportandoPPT">Abrir en Google Slides</span>
+                <span *ngIf="exportandoPPT"><i class="fas fa-spinner fa-spin mr-1"></i>Generando...</span>
+              </button>
+              <button class="btn btn-sm btn-cerrar-reporte" (click)="cerrarReporte()" [disabled]="exportandoPPT">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="reporte-progress-wrap" *ngIf="exportandoPPT">
+            <div class="reporte-progress-head">
+              <span>{{ textoProgresoSlides || 'Generando reporte en Google Slides...' }}</span>
+              <span>{{ progresoSlides }}%</span>
+            </div>
+            <div class="reporte-progress-track">
+              <div class="reporte-progress-fill" [style.width.%]="progresoSlides"></div>
+            </div>
+          </div>
+
+          <!-- Slides -->
+          <div class="reporte-slides-container">
+
+            <!-- ===== SLIDE 1: PORTADA ===== -->
+            <div class="reporte-slide-print">
+              <div class="rslide-portada">
+                <div class="rslide-portada-logo">
+                  <img src="assets/img/logo_biznaga.png" alt="Biznaga" class="rslide-portada-brand-logo" />
+                  <img *ngIf="getLogoEmpresaReporteUrl()" [src]="getLogoEmpresaReporteUrl()" [alt]="getEmpresaEstadisticasNombre()" class="rslide-portada-empresa-logo" />
+                </div>
+                <div class="rslide-portada-body">
+                  <div class="rslide-portada-titulo-wrap">
+                    <textarea class="rslide-titulo-input" [(ngModel)]="reporteTituloPersonalizado" rows="2"></textarea>
+                  </div>
+                  <div class="rslide-portada-intro">
+                    <textarea class="rslide-text-editor" [(ngModel)]="reporteTextos['portada_intro']" rows="2" placeholder="Texto introductorio..."></textarea>
+                    <ul class="rslide-bullets">
+                      <li><textarea class="rslide-bullet-editor" [(ngModel)]="reporteTextos['portada_bullet1']" rows="2"></textarea></li>
+                      <li><textarea class="rslide-bullet-editor" [(ngModel)]="reporteTextos['portada_bullet2']" rows="1"></textarea></li>
+                      <li><textarea class="rslide-bullet-editor" [(ngModel)]="reporteTextos['portada_bullet3']" rows="1"></textarea></li>
+                      <li><textarea class="rslide-bullet-editor" [(ngModel)]="reporteTextos['portada_bullet4']" rows="1"></textarea></li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ===== SLIDE 2: GRUPOS DE EDAD ===== -->
+            <div class="reporte-slide-print">
+              <div class="rslide-contenido">
+                <div class="rslide-header-logos">
+                  <span class="rslide-biz-logo"><img src="assets/img/logo_biznaga.png" alt="Biznaga" class="rslide-biz-logo-img" /></span>
+                  <span class="rslide-empresa-logo" *ngIf="getLogoEmpresaReporteUrl()">
+                    <img [src]="getLogoEmpresaReporteUrl()" class="rslide-empresa-logo-img" />
+                  </span>
+                </div>
+                <div class="rslide-accent-line"></div>
+                <div class="rslide-title">GRUPOS DE EDAD</div>
+                <div class="rslide-body-2col">
+                  <div class="rslide-col-text">
+                    <div class="rslide-divider"></div>
+                    <textarea class="rslide-text-editor" [(ngModel)]="reporteTextos['edad_texto']" rows="6" placeholder="Descripción..."></textarea>
+                  </div>
+                  <div class="rslide-col-data">
+                    <div class="rslide-chart-wrap" *ngIf="reporteChartEdad.series">
+                      <apx-chart
+                        [series]="reporteChartEdad.series" [chart]="reporteChartEdad.chart"
+                        [plotOptions]="reporteChartEdad.plotOptions" [colors]="reporteChartEdad.colors"
+                        [dataLabels]="reporteChartEdad.dataLabels" [xaxis]="reporteChartEdad.xaxis"
+                        [yaxis]="reporteChartEdad.yaxis" [grid]="reporteChartEdad.grid"
+                        [legend]="reporteChartEdad.legend" [tooltip]="reporteChartEdad.tooltip">
+                      </apx-chart>
+                    </div>
+                  </div>
+                </div>
+                <div class="rslide-footer"></div>
+              </div>
+            </div>
+
+            <!-- ===== SLIDE 3: SEXO ===== -->
+            <div class="reporte-slide-print">
+              <div class="rslide-contenido">
+                <div class="rslide-header-logos">
+                  <span class="rslide-biz-logo"><img src="assets/img/logo_biznaga.png" alt="Biznaga" class="rslide-biz-logo-img" /></span>
+                  <span class="rslide-empresa-logo" *ngIf="getLogoEmpresaReporteUrl()">
+                    <img [src]="getLogoEmpresaReporteUrl()" class="rslide-empresa-logo-img" />
+                  </span>
+                </div>
+                <div class="rslide-accent-line"></div>
+                <div class="rslide-title">SEXO</div>
+                <div class="rslide-body-2col">
+                  <div class="rslide-col-text">
+                    <div class="rslide-divider"></div>
+                    <textarea class="rslide-text-editor" [(ngModel)]="reporteTextos['genero_texto']" rows="6" placeholder="Descripción..."></textarea>
+                  </div>
+                  <div class="rslide-col-data">
+                    <div class="rslide-chart-wrap" *ngIf="reporteChartGenero.series">
+                      <apx-chart
+                        [series]="reporteChartGenero.series" [chart]="reporteChartGenero.chart"
+                        [labels]="reporteChartGenero.labels" [colors]="reporteChartGenero.colors"
+                        [legend]="reporteChartGenero.legend" [dataLabels]="reporteChartGenero.dataLabels"
+                        [plotOptions]="reporteChartGenero.plotOptions" [stroke]="reporteChartGenero.stroke"
+                        [responsive]="reporteChartGenero.responsive">
+                      </apx-chart>
+                    </div>
+                  </div>
+                </div>
+                <div class="rslide-footer"></div>
+              </div>
+            </div>
+
+            <!-- ===== SLIDE 4: ESTADO NUTRICIONAL ===== -->
+            <div class="reporte-slide-print">
+              <div class="rslide-contenido">
+                <div class="rslide-header-logos">
+                  <span class="rslide-biz-logo"><img src="assets/img/logo_biznaga.png" alt="Biznaga" class="rslide-biz-logo-img" /></span>
+                  <span class="rslide-empresa-logo" *ngIf="getLogoEmpresaReporteUrl()">
+                    <img [src]="getLogoEmpresaReporteUrl()" class="rslide-empresa-logo-img" />
+                  </span>
+                </div>
+                <div class="rslide-accent-line"></div>
+                <div class="rslide-title">ESTADO NUTRICIONAL</div>
+                <div class="rslide-body-2col">
+                  <div class="rslide-col-text">
+                    <div class="rslide-divider"></div>
+                    <textarea class="rslide-text-editor" [(ngModel)]="reporteTextos['imc_texto']" rows="8" placeholder="Descripción..."></textarea>
+                  </div>
+                  <div class="rslide-col-data">
+                    <div class="rslide-chart-wrap" *ngIf="reporteChartIMC.series">
+                      <apx-chart
+                        [series]="reporteChartIMC.series" [chart]="reporteChartIMC.chart"
+                        [plotOptions]="reporteChartIMC.plotOptions" [colors]="reporteChartIMC.colors"
+                        [dataLabels]="reporteChartIMC.dataLabels" [xaxis]="reporteChartIMC.xaxis"
+                        [yaxis]="reporteChartIMC.yaxis" [grid]="reporteChartIMC.grid"
+                        [legend]="reporteChartIMC.legend" [tooltip]="reporteChartIMC.tooltip">
+                      </apx-chart>
+                    </div>
+                  </div>
+                </div>
+                <div class="rslide-footer"></div>
+              </div>
+            </div>
+
+            <!-- ===== SLIDE 5: CIFRAS TENSIONALES ===== -->
+            <div class="reporte-slide-print">
+              <div class="rslide-contenido">
+                <div class="rslide-header-logos">
+                  <span class="rslide-biz-logo"><img src="assets/img/logo_biznaga.png" alt="Biznaga" class="rslide-biz-logo-img" /></span>
+                  <span class="rslide-empresa-logo" *ngIf="getLogoEmpresaReporteUrl()">
+                    <img [src]="getLogoEmpresaReporteUrl()" class="rslide-empresa-logo-img" />
+                  </span>
+                </div>
+                <div class="rslide-accent-line"></div>
+                <div class="rslide-title">CIFRAS TENSIONALES<br><small style="font-size:0.75rem; font-weight:500;">(detección de hipertensión arterial)</small></div>
+                <div class="rslide-body-2col">
+                  <div class="rslide-col-text">
+                    <div class="rslide-divider"></div>
+                    <textarea class="rslide-text-editor" [(ngModel)]="reporteTextos['ta_texto']" rows="8" placeholder="Descripción..."></textarea>
+                  </div>
+                  <div class="rslide-col-data">
+                    <div class="rslide-chart-wrap" *ngIf="reporteChartTA.series">
+                      <apx-chart
+                        [series]="reporteChartTA.series" [chart]="reporteChartTA.chart"
+                        [labels]="reporteChartTA.labels" [colors]="reporteChartTA.colors"
+                        [legend]="reporteChartTA.legend" [dataLabels]="reporteChartTA.dataLabels"
+                        [plotOptions]="reporteChartTA.plotOptions" [stroke]="reporteChartTA.stroke"
+                        [responsive]="reporteChartTA.responsive">
+                      </apx-chart>
+                    </div>
+                  </div>
+                </div>
+                <div class="rslide-footer"></div>
+              </div>
+            </div>
+
+            <!-- ===== SLIDE 6: ADICCIONES ===== -->
+            <div class="reporte-slide-print">
+              <div class="rslide-contenido">
+                <div class="rslide-header-logos">
+                  <span class="rslide-biz-logo"><img src="assets/img/logo_biznaga.png" alt="Biznaga" class="rslide-biz-logo-img" /></span>
+                  <span class="rslide-empresa-logo" *ngIf="getLogoEmpresaReporteUrl()">
+                    <img [src]="getLogoEmpresaReporteUrl()" class="rslide-empresa-logo-img" />
+                  </span>
+                </div>
+                <div class="rslide-accent-line"></div>
+                <div class="rslide-title">ADICCIONES</div>
+                <div class="rslide-body-2col">
+                  <div class="rslide-col-text">
+                    <div class="rslide-divider"></div>
+                    <textarea class="rslide-text-editor" [(ngModel)]="reporteTextos['adicciones_texto']" rows="8" placeholder="Descripción..."></textarea>
+                  </div>
+                  <div class="rslide-col-data">
+                    <div class="rslide-chart-wrap" *ngIf="reporteChartAdicciones.series">
+                      <apx-chart
+                        [series]="reporteChartAdicciones.series" [chart]="reporteChartAdicciones.chart"
+                        [plotOptions]="reporteChartAdicciones.plotOptions" [colors]="reporteChartAdicciones.colors"
+                        [dataLabels]="reporteChartAdicciones.dataLabels" [xaxis]="reporteChartAdicciones.xaxis"
+                        [yaxis]="reporteChartAdicciones.yaxis" [grid]="reporteChartAdicciones.grid"
+                        [legend]="reporteChartAdicciones.legend" [tooltip]="reporteChartAdicciones.tooltip">
+                      </apx-chart>
+                    </div>
+                  </div>
+                </div>
+                <div class="rslide-footer"></div>
+              </div>
+            </div>
+
+            <!-- ===== SLIDE 7: PARACLÍNICOS ===== -->
+            <div class="reporte-slide-print">
+              <div class="rslide-contenido">
+                <div class="rslide-header-logos">
+                  <span class="rslide-biz-logo"><img src="assets/img/logo_biznaga.png" alt="Biznaga" class="rslide-biz-logo-img" /></span>
+                  <span class="rslide-empresa-logo" *ngIf="getLogoEmpresaReporteUrl()">
+                    <img [src]="getLogoEmpresaReporteUrl()" class="rslide-empresa-logo-img" />
+                  </span>
+                </div>
+                <div class="rslide-accent-line"></div>
+                <div class="rslide-title">ESPIROMETRÍAS Y ELECTROCARDIOGRAMAS</div>
+                <div class="rslide-body-2col">
+                  <div class="rslide-col-text">
+                    <div class="rslide-divider"></div>
+                    <textarea class="rslide-text-editor" [(ngModel)]="reporteTextos['paraclinicos_texto']" rows="8" placeholder="Descripción..."></textarea>
+                  </div>
+                  <div class="rslide-col-data">
+                    <div class="rslide-chart-wrap" *ngIf="reporteChartParaclinicos.series">
+                      <apx-chart
+                        [series]="reporteChartParaclinicos.series" [chart]="reporteChartParaclinicos.chart"
+                        [plotOptions]="reporteChartParaclinicos.plotOptions" [colors]="reporteChartParaclinicos.colors"
+                        [dataLabels]="reporteChartParaclinicos.dataLabels" [xaxis]="reporteChartParaclinicos.xaxis"
+                        [yaxis]="reporteChartParaclinicos.yaxis" [grid]="reporteChartParaclinicos.grid"
+                        [legend]="reporteChartParaclinicos.legend" [tooltip]="reporteChartParaclinicos.tooltip">
+                      </apx-chart>
+                    </div>
+                  </div>
+                </div>
+                <div class="rslide-footer"></div>
+              </div>
+            </div>
+
+            <!-- ===== SLIDE 8: OTRAS PATOLOGÍAS ===== -->
+            <div class="reporte-slide-print">
+              <div class="rslide-contenido">
+                <div class="rslide-header-logos">
+                  <span class="rslide-biz-logo"><img src="assets/img/logo_biznaga.png" alt="Biznaga" class="rslide-biz-logo-img" /></span>
+                  <span class="rslide-empresa-logo" *ngIf="getLogoEmpresaReporteUrl()">
+                    <img [src]="getLogoEmpresaReporteUrl()" class="rslide-empresa-logo-img" />
+                  </span>
+                </div>
+                <div class="rslide-accent-line"></div>
+                <div class="rslide-title">OTRAS PATOLOGÍAS</div>
+                <div class="rslide-body-2col">
+                  <div class="rslide-col-text">
+                    <div class="rslide-divider"></div>
+                    <textarea class="rslide-text-editor" [(ngModel)]="reporteTextos['patologias_texto']" rows="8" placeholder="Descripción..."></textarea>
+                  </div>
+                  <div class="rslide-col-data">
+                    <div class="rslide-chart-wrap" *ngIf="reporteChartPatologias.series">
+                      <apx-chart
+                        [series]="reporteChartPatologias.series" [chart]="reporteChartPatologias.chart"
+                        [plotOptions]="reporteChartPatologias.plotOptions" [colors]="reporteChartPatologias.colors"
+                        [dataLabels]="reporteChartPatologias.dataLabels" [xaxis]="reporteChartPatologias.xaxis"
+                        [yaxis]="reporteChartPatologias.yaxis" [grid]="reporteChartPatologias.grid"
+                        [legend]="reporteChartPatologias.legend" [tooltip]="reporteChartPatologias.tooltip">
+                      </apx-chart>
+                    </div>
+                  </div>
+                </div>
+                <div class="rslide-footer"></div>
+              </div>
+            </div>
+
+            <!-- ===== SLIDE 9: ANTECEDENTES HEREDO-FAMILIARES ===== -->
+            <div class="reporte-slide-print">
+              <div class="rslide-contenido">
+                <div class="rslide-header-logos">
+                  <span class="rslide-biz-logo"><img src="assets/img/logo_biznaga.png" alt="Biznaga" class="rslide-biz-logo-img" /></span>
+                  <span class="rslide-empresa-logo" *ngIf="getLogoEmpresaReporteUrl()">
+                    <img [src]="getLogoEmpresaReporteUrl()" class="rslide-empresa-logo-img" />
+                  </span>
+                </div>
+                <div class="rslide-accent-line"></div>
+                <div class="rslide-title">ANTECEDENTES HEREDO-FAMILIARES</div>
+                <div class="rslide-body-2col">
+                  <div class="rslide-col-text">
+                    <div class="rslide-divider"></div>
+                    <textarea class="rslide-text-editor" [(ngModel)]="reporteTextos['heredo_familiares_texto']" rows="8" placeholder="Descripción..."></textarea>
+                  </div>
+                  <div class="rslide-col-data">
+                    <div class="rslide-chart-wrap" *ngIf="reporteChartHeredoFamiliares.series">
+                      <apx-chart
+                        [series]="reporteChartHeredoFamiliares.series" [chart]="reporteChartHeredoFamiliares.chart"
+                        [plotOptions]="reporteChartHeredoFamiliares.plotOptions" [colors]="reporteChartHeredoFamiliares.colors"
+                        [dataLabels]="reporteChartHeredoFamiliares.dataLabels" [xaxis]="reporteChartHeredoFamiliares.xaxis"
+                        [yaxis]="reporteChartHeredoFamiliares.yaxis" [grid]="reporteChartHeredoFamiliares.grid"
+                        [legend]="reporteChartHeredoFamiliares.legend" [tooltip]="reporteChartHeredoFamiliares.tooltip">
+                      </apx-chart>
+                    </div>
+                  </div>
+                </div>
+                <div class="rslide-footer"></div>
+              </div>
+            </div>
+
+            <!-- ===== SLIDE 10: ÓRGANOS Y SISTEMAS ===== -->
+            <div class="reporte-slide-print">
+              <div class="rslide-contenido">
+                <div class="rslide-header-logos">
+                  <span class="rslide-biz-logo"><img src="assets/img/logo_biznaga.png" alt="Biznaga" class="rslide-biz-logo-img" /></span>
+                  <span class="rslide-empresa-logo" *ngIf="getLogoEmpresaReporteUrl()">
+                    <img [src]="getLogoEmpresaReporteUrl()" class="rslide-empresa-logo-img" />
+                  </span>
+                </div>
+                <div class="rslide-accent-line"></div>
+                <div class="rslide-title">HALLAZGOS POR ÓRGANOS Y SISTEMAS</div>
+                <div class="rslide-body-2col">
+                  <div class="rslide-col-text">
+                    <div class="rslide-divider"></div>
+                    <textarea class="rslide-text-editor" [(ngModel)]="reporteTextos['organos_sistemas_texto']" rows="8" placeholder="Descripción..."></textarea>
+                  </div>
+                  <div class="rslide-col-data">
+                    <div class="rslide-chart-wrap" *ngIf="reporteChartOrganosSistemas.series">
+                      <apx-chart
+                        [series]="reporteChartOrganosSistemas.series" [chart]="reporteChartOrganosSistemas.chart"
+                        [plotOptions]="reporteChartOrganosSistemas.plotOptions" [colors]="reporteChartOrganosSistemas.colors"
+                        [dataLabels]="reporteChartOrganosSistemas.dataLabels" [xaxis]="reporteChartOrganosSistemas.xaxis"
+                        [yaxis]="reporteChartOrganosSistemas.yaxis" [grid]="reporteChartOrganosSistemas.grid"
+                        [legend]="reporteChartOrganosSistemas.legend" [tooltip]="reporteChartOrganosSistemas.tooltip">
+                      </apx-chart>
+                    </div>
+                  </div>
+                </div>
+                <div class="rslide-footer"></div>
+              </div>
+            </div>
+
+            <!-- ===== SLIDE 11: RECOMENDACIONES ===== -->
+            <div class="reporte-slide-print">
+              <div class="rslide-contenido">
+                <div class="rslide-header-logos">
+                  <span class="rslide-biz-logo"><img src="assets/img/logo_biznaga.png" alt="Biznaga" class="rslide-biz-logo-img" /></span>
+                  <span class="rslide-empresa-logo" *ngIf="getLogoEmpresaReporteUrl()">
+                    <img [src]="getLogoEmpresaReporteUrl()" class="rslide-empresa-logo-img" />
+                  </span>
+                </div>
+                <div class="rslide-accent-line"></div>
+                <div class="rslide-title">RECOMENDACIONES PARA PLAN DE SALUD</div>
+                <div class="rslide-body-full">
+                  <textarea class="rslide-recomendaciones-editor" [(ngModel)]="reporteTextos['recomendaciones']" rows="12" placeholder="Lista de recomendaciones..."></textarea>
+                </div>
+                <div class="rslide-footer"></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,592 @@
+<div class="header header-bg-image ee-hero pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative ee-hero__inner">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="ee-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i class="fas fa-users" aria-hidden="true"></i>
+          </div>
+          <h1 class="text-white mb-0 ee-hero-title">Gestion de Empleados</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid ee-main-wrap mt--5">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+      <div class="card ee-shell border-0 shadow-lg">
+
+        <div class="ee-shell-accent" aria-hidden="true"></div>
+
+        <div class="ee-panel-header">
+          <div class="ee-panel-header__main">
+            <span class="ee-panel-header__badge">{{ esVistaAdministrador ? 'Vista Administrador' : 'Perfil Empresa' }}</span>
+            <h2 class="ee-panel-header__title">{{ esVistaAdministrador ? 'Empleados por empresa' : 'Mis empleados registrados' }}</h2>
+            <p class="ee-panel-header__meta" *ngIf="empresaObjetivoSeleccionada">
+              <span class="ee-meta-stat">
+                <i class="fas fa-id-badge"></i>
+                {{ empleados.length }} registrado{{ empleados.length === 1 ? '' : 's' }}
+              </span>
+              <span class="ee-meta-dot" aria-hidden="true"></span>
+              <span class="ee-meta-stat">
+                <i class="fas fa-filter"></i>
+                {{ empleadosFiltrados.length }} visible{{ empleadosFiltrados.length === 1 ? '' : 's' }}
+              </span>
+              <ng-container *ngIf="esVistaAdministrador">
+                <span class="ee-meta-dot" aria-hidden="true"></span>
+                <span class="ee-meta-stat ee-meta-stat--empresa">
+                  <i class="fas fa-building"></i>
+                  {{ obtenerNombreEmpresaSeleccionada() }}
+                </span>
+              </ng-container>
+            </p>
+          </div>
+
+          <div *ngIf="puedeGestionarEmpleados" class="ee-panel-header__action">
+            <button type="button" class="ee-btn ee-btn--primary" (click)="abrirModalCrear()">
+              <i class="fas fa-plus"></i>
+              <span>Agregar empleado</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="ee-filters">
+          <div *ngIf="esVistaAdministrador" class="ee-filters__field ee-filters__field--empresa">
+            <label class="ee-filters__label" for="admin-empresa-select">Empresa</label>
+            <div class="empresa-picker" [class.empresa-picker--open]="dropdownEmpresaAbierto">
+              <div class="empresa-picker__control" (click)="abrirBuscadorEmpresas()">
+                <i class="fas fa-building empresa-picker__icon" aria-hidden="true"></i>
+
+                <input
+                  id="admin-empresa-select"
+                  class="empresa-picker__input"
+                  type="text"
+                  autocomplete="off"
+                  [disabled]="cargandoEmpresas"
+                  [placeholder]="cargandoEmpresas ? 'Cargando empresas...' : 'Buscar por nombre o ID...'"
+                  [(ngModel)]="textoBusquedaEmpresa"
+                  (focus)="onInputEmpresaFocus()"
+                  (input)="onBusquedaEmpresaInput()"
+                  (keydown)="onBuscadorEmpresaKeydown($event)">
+
+                <div class="empresa-picker__actions">
+                  <button
+                    *ngIf="!cargandoEmpresas && textoBusquedaEmpresa"
+                    type="button"
+                    class="empresa-picker__clear"
+                    title="Limpiar empresa"
+                    aria-label="Limpiar empresa seleccionada"
+                    (click)="limpiarEmpresaAdminSeleccionada($event)">
+                    <i class="fas fa-times"></i>
+                  </button>
+
+                  <span class="empresa-picker__chevron" aria-hidden="true">
+                    <i class="fas" [ngClass]="dropdownEmpresaAbierto ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                  </span>
+                </div>
+              </div>
+
+              <div *ngIf="dropdownEmpresaAbierto" class="empresa-picker__dropdown">
+                <div *ngIf="cargandoEmpresas" class="empresa-picker__state">
+                  <i class="fas fa-spinner fa-spin"></i>
+                  Cargando empresas...
+                </div>
+
+                <div *ngIf="!cargandoEmpresas && empresasFiltradasPicker.length === 0" class="empresa-picker__state">
+                  <i class="fas fa-search"></i>
+                  No hay empresas que coincidan con la busqueda.
+                </div>
+
+                <div *ngIf="!cargandoEmpresas && empresasFiltradasPicker.length > 0" class="empresa-picker__list">
+                  <button
+                    type="button"
+                    class="empresa-picker__item"
+                    *ngFor="let empresa of empresasFiltradasPicker; let i = index"
+                    [class.empresa-picker__item--active]="i === empresaActivaIndice"
+                    [class.empresa-picker__item--selected]="empresa.empresa_id === empresaSeleccionadaAdminId"
+                    (click)="seleccionarEmpresaDesdeBuscador(empresa)">
+                    <span class="empresa-picker__item-name">{{ empresa.nombre_empresa }}</span>
+                    <span class="empresa-picker__item-id">ID {{ empresa.empresa_id }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ee-filters__field ee-filters__field--search">
+            <label class="ee-filters__label" for="empleados-busqueda">Buscar empleado</label>
+            <div class="ee-search" [class.ee-search--disabled]="esVistaAdministrador && !empresaObjetivoSeleccionada">
+              <i class="fas fa-search" aria-hidden="true"></i>
+              <input
+                id="empleados-busqueda"
+                type="text"
+                autocomplete="off"
+                [placeholder]="esVistaAdministrador && !empresaObjetivoSeleccionada ? 'Selecciona una empresa primero...' : 'Nombre, CURP o puesto...'"
+                [disabled]="esVistaAdministrador && !empresaObjetivoSeleccionada"
+                [(ngModel)]="textoBusqueda"
+                (input)="filtrarEmpleados()">
+            </div>
+          </div>
+        </div>
+
+        <div class="empleados-contenido">
+          <div *ngIf="morphActivo" class="morph-ghost" [ngStyle]="morphStyle"></div>
+
+          <div *ngIf="cargando" class="estado-panel estado-panel--loading">
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+            <p class="mb-0 mt-2">Cargando empleados...</p>
+          </div>
+
+          <div *ngIf="!cargando && esVistaAdministrador && !empresaObjetivoSeleccionada" class="estado-panel estado-panel--soft">
+            <i class="fas fa-building fa-2x"></i>
+            <p class="mb-0 mt-2">
+              {{ empresasDisponibles.length === 0 && !cargandoEmpresas
+                ? 'No hay empresas disponibles para consultar empleados.'
+                : 'Selecciona una empresa para consultar y filtrar sus empleados.' }}
+            </p>
+          </div>
+
+          <div *ngIf="!cargando && empresaObjetivoSeleccionada && empleados.length === 0" class="estado-panel">
+            <i class="fas fa-user-slash fa-2x"></i>
+            <p class="mb-0 mt-2">
+              {{ esVistaAdministrador
+                ? 'La empresa seleccionada aun no tiene empleados registrados.'
+                : 'Aun no hay empleados registrados para esta empresa.' }}
+            </p>
+          </div>
+
+          <div *ngIf="!cargando && empresaObjetivoSeleccionada && empleados.length > 0 && empleadosFiltrados.length === 0" class="estado-panel">
+            <i class="fas fa-search fa-2x"></i>
+            <p class="mb-0 mt-2">No se encontraron resultados para "{{ textoBusqueda }}".</p>
+          </div>
+
+          <div *ngIf="!cargando && empresaObjetivoSeleccionada && empleadosVista.length > 0"
+               class="empleados-focus-layout"
+               [class.focus-mode]="empleadoSeleccionadoId !== null">
+            <div class="empleados-grid" [class.empleados-grid--focus]="empleadoSeleccionadoId !== null">
+              <article
+                class="empleado-card"
+                *ngFor="let empleado of empleadosVista; trackBy: trackByEmpleadoId"
+                [attr.data-empleado-id]="empleado.empleado_id"
+                [attr.role]="puedeVerDetalleEmpleado ? 'button' : null"
+                [attr.tabindex]="puedeVerDetalleEmpleado ? 0 : null"
+                (click)="seleccionarEmpleado(empleado)"
+                (keydown.enter)="seleccionarEmpleado(empleado)"
+                (keydown.space)="onEmpleadoCardSpace($event, empleado)"
+                [class.empleado-card--selected]="esEmpleadoSeleccionado(empleado)"
+                [class.empleado-card--blurred]="esEmpleadoDesenfocado(empleado)"
+                [class.empleado-card--readonly]="!puedeGestionarEmpleados">
+
+                <div class="empleado-card__top">
+                  <h3 class="empleado-card__name">{{ obtenerNombreCompleto(empleado) }}</h3>
+                  <span class="empleado-card__dot" aria-hidden="true"></span>
+                </div>
+
+                <div class="empleado-card__meta">
+                  <div class="compact-block" [title]="empleado.curp || 'CURP no capturada'">
+                    <span class="compact-block__label">CURP</span>
+                    <span class="compact-block__value">{{ empleado.curp || 'CURP no capturada' }}</span>
+                  </div>
+                  <div class="compact-block compact-block--puesto" [title]="empleado.puesto || 'Puesto no capturado'">
+                    <span class="compact-block__label">Puesto</span>
+                    <span class="compact-block__value compact-block__value--text">{{ empleado.puesto || 'Puesto no capturado' }}</span>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <ng-container *ngIf="puedeVerDetalleEmpleado">
+              <aside *ngIf="obtenerEmpleadoSeleccionado() as empleadoSeleccionado"
+                     class="empleado-editor-panel"
+                     [ngStyle]="panelModoDesktop ? panelFlotanteStyle : null"
+                     [class.empleado-editor-panel--floating]="panelModoDesktop"
+                     [class.empleado-editor-panel--left]="panelModoDesktop && panelLado === 'left'"
+                     [class.empleado-editor-panel--right]="panelModoDesktop && panelLado === 'right'">
+                <div class="editor-panel__header">
+                  <div>
+                    <h4 class="editor-panel__title">{{ puedeGestionarEmpleados ? 'Empleado seleccionado' : 'Detalle del empleado' }}</h4>
+                    <p class="editor-panel__subtitle">{{ obtenerNombreCompleto(empleadoSeleccionado) }}</p>
+                  </div>
+                  <button type="button"
+                          class="btn btn-sm btn-outline-secondary editor-close-btn"
+                          [disabled]="guardandoPanel"
+                          (click)="cerrarPanelEmpleado()">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+
+                <div class="editor-panel__body">
+                  <div class="form-group">
+                    <label class="form-control-label">Nombre</label>
+                    <input class="form-control"
+                           type="text"
+                           [(ngModel)]="editorLateral.nombre"
+                           [disabled]="guardandoPanel"
+                           [readonly]="!puedeGestionarEmpleados"
+                           maxlength="120">
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-control-label">CURP</label>
+                    <input class="form-control text-uppercase"
+                           type="text"
+                           [(ngModel)]="editorLateral.curp"
+                           (input)="editorLateral.curp = (editorLateral.curp || '').toUpperCase()"
+                           [disabled]="guardandoPanel"
+                           [readonly]="!puedeGestionarEmpleados"
+                           maxlength="18">
+                  </div>
+
+                  <div class="form-group mb-0">
+                    <label class="form-control-label">Puesto</label>
+                    <input class="form-control"
+                           type="text"
+                           [(ngModel)]="editorLateral.puesto"
+                           [disabled]="guardandoPanel"
+                           [readonly]="!puedeGestionarEmpleados"
+                           maxlength="120">
+                  </div>
+
+                  <div class="editor-panel__docs">
+                    <button type="button"
+                            class="btn btn-outline-success btn-block editor-docs-btn"
+                            [disabled]="guardandoPanel"
+                            (click)="abrirModalGeneracionDocs(empleadoSeleccionado)">
+                      <i class="fas fa-file-signature mr-1"></i>Generar constancia y/o DC-3
+                    </button>
+                  </div>
+                </div>
+
+                <div *ngIf="puedeGestionarEmpleados" class="editor-panel__actions">
+                  <button type="button"
+                          class="btn btn-danger"
+                          [disabled]="guardandoPanel"
+                          (click)="eliminarEmpleado(empleadoSeleccionado)">
+                    <i class="fas fa-trash mr-1"></i>Eliminar
+                  </button>
+
+                  <button type="button"
+                          class="btn btn-success"
+                          [disabled]="guardandoPanel"
+                          (click)="guardarCambiosPanel()">
+                    <i class="fas" [ngClass]="guardandoPanel ? 'fa-spinner fa-spin' : 'fa-save'" style="margin-right: 0.4rem;"></i>
+                    {{ guardandoPanel ? 'Guardando...' : 'Guardar cambios' }}
+                  </button>
+                </div>
+              </aside>
+            </ng-container>
+          </div>
+
+          <div *ngIf="!cargando && empresaObjetivoSeleccionada && empleadosVista.length === 0 && empleadosInactivosFiltrados.length > 0" class="estado-panel estado-panel--soft">
+            <i class="fas fa-user-clock fa-2x"></i>
+            <p class="mb-0 mt-2">No hay empleados activos con el filtro actual. Abajo puedes consultar los inactivos.</p>
+          </div>
+
+          <section *ngIf="!cargando && empresaObjetivoSeleccionada && empleadosInactivosFiltrados.length > 0" class="inactivos-section">
+            <div class="inactivos-section__header">
+              <h5 class="inactivos-section__title mb-0">Empleados inactivos</h5>
+              <span class="inactivos-section__count">{{ empleadosInactivosFiltrados.length }}</span>
+            </div>
+
+            <div class="empleados-grid empleados-grid--inactivos">
+              <article class="empleado-card empleado-card--inactive" *ngFor="let empleado of empleadosInactivosFiltrados; trackBy: trackByEmpleadoId">
+                <div class="empleado-card__top">
+                  <h3 class="empleado-card__name">{{ obtenerNombreCompleto(empleado) }}</h3>
+                  <span class="empleado-card__dot" aria-hidden="true"></span>
+                </div>
+
+                <div class="empleado-card__meta">
+                  <div class="compact-block compact-block--inactive" [title]="empleado.curp || 'CURP no capturada'">
+                    <span class="compact-block__label">CURP</span>
+                    <span class="compact-block__value">{{ empleado.curp || 'CURP no capturada' }}</span>
+                  </div>
+                  <div class="compact-block compact-block--puesto compact-block--inactive" [title]="empleado.puesto || 'Puesto no capturado'">
+                    <span class="compact-block__label">Puesto</span>
+                    <span class="compact-block__value compact-block__value--text">{{ empleado.puesto || 'Puesto no capturado' }}</span>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="modalAbierto && puedeGestionarEmpleados" class="modal fade show d-block empleado-modal-overlay" tabindex="-1" style="background: rgba(0, 0, 0, 0.55);">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content border-0 shadow empleado-modal">
+      <div class="modal-header empleado-modal__header">
+        <h2 class="modal-title empleado-modal__title mb-0">{{ modoModal === 'crear' ? 'Agregar empleado' : 'Editar empleado' }}</h2>
+        <button type="button" class="close empleado-modal__close" [disabled]="guardando" (click)="cerrarModal()">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+
+      <div class="modal-body empleado-modal__body">
+        <div class="empleado-add-wrap">
+          <div class="empleado-add-head">
+            <span class="empleado-add-head__icon"><i class="fas" [ngClass]="modoModal === 'crear' ? 'fa-user-plus' : 'fa-user-edit'"></i></span>
+            <span class="empleado-add-head__text">{{ modoModal === 'crear' ? 'Captura los datos del empleado para agregarlo al listado de la empresa.' : 'Actualiza los datos del empleado seleccionado.' }}</span>
+          </div>
+
+          <div class="empleado-add-form">
+            <div>
+              <label class="empleado-add-label" for="empleado-input-nombre">Nombre completo <span>*</span></label>
+              <div class="empleado-add-field">
+                <span class="empleado-add-field__icon"><i class="fas fa-user"></i></span>
+                <input id="empleado-input-nombre" class="empleado-add-input" type="text" autocomplete="off"
+                  placeholder="Ej. JUAN PEREZ HERNANDEZ" maxlength="120" [(ngModel)]="formulario.nombre">
+              </div>
+            </div>
+
+            <div>
+              <label class="empleado-add-label" for="empleado-input-curp">CURP <span>*</span></label>
+              <div class="empleado-add-field">
+                <span class="empleado-add-field__icon"><i class="fas fa-id-card"></i></span>
+                <input id="empleado-input-curp" class="empleado-add-input" type="text" autocomplete="off"
+                  placeholder="CURP a 18 caracteres" maxlength="18" [(ngModel)]="formulario.curp"
+                  (ngModelChange)="actualizarCurpFormulario()">
+              </div>
+              <div class="empleado-add-meta">
+                <small class="empleado-add-help">Se convierte automaticamente a mayusculas.</small>
+                <small class="empleado-add-counter">{{ (formulario.curp || '').length }}/18</small>
+              </div>
+            </div>
+
+            <div>
+              <label class="empleado-add-label" for="empleado-input-puesto">Puesto</label>
+              <div class="empleado-add-field">
+                <span class="empleado-add-field__icon"><i class="fas fa-briefcase"></i></span>
+                <input id="empleado-input-puesto" class="empleado-add-input" type="text" autocomplete="off"
+                  placeholder="Opcional" maxlength="120" [(ngModel)]="formulario.puesto">
+              </div>
+            </div>
+          </div>
+
+          <div class="empleado-add-legend">* Campos obligatorios</div>
+        </div>
+      </div>
+
+      <div class="modal-footer empleado-modal__footer">
+        <button class="btn btn-outline-secondary empleado-modal__cancel" [disabled]="guardando" (click)="cerrarModal()">Cancelar</button>
+        <button class="btn btn-success empleado-modal__confirm" [disabled]="guardando" (click)="guardarEmpleado()">
+          <i class="fas" [ngClass]="guardando ? 'fa-spinner fa-spin' : 'fa-save'" style="margin-right: 0.4rem;"></i>
+          {{ guardando ? 'Guardando...' : (modoModal === 'crear' ? 'Agregar' : 'Guardar') }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="mostrarModalGeneracionDocs" class="empleado-docs-overlay" (click)="cerrarModalGeneracionDocs()">
+  <div class="empleado-docs-modal" (click)="$event.stopPropagation()">
+    <div class="empleado-docs-header">
+      <div class="empleado-docs-header-main">
+        <div class="empleado-docs-icon">
+          <i class="fas fa-file-signature"></i>
+        </div>
+        <div>
+          <h5 class="empleado-docs-title mb-0">Generar constancia y/o DC-3</h5>
+          <small class="empleado-docs-subtitle">Captura los datos clave para emitir los documentos del empleado.</small>
+        </div>
+      </div>
+      <button type="button" class="empleado-docs-close" (click)="cerrarModalGeneracionDocs()" [disabled]="generandoDocs">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="empleado-docs-body">
+      <form class="empleado-docs-form" (submit)="$event.preventDefault()">
+        <div class="empleado-docs-grid">
+          <div class="empleado-docs-panel empleado-docs-panel--info">
+            <div class="empleado-docs-info">
+              <div class="empleado-docs-info-hero" aria-hidden="true">
+                <i class="fas fa-user"></i>
+              </div>
+              <div class="empleado-docs-info-content">
+                <span class="empleado-docs-info-label">Empleado</span>
+                <h6 class="empleado-docs-info-name">{{ obtenerNombreCompleto(empleadoGeneracionDocs) || 'Empleado' }}</h6>
+                <div class="empleado-docs-info-meta">
+                  <div><strong>CURP:</strong> {{ empleadoGeneracionDocs?.curp || 'No registrada' }}</div>
+                  <div><strong>Puesto:</strong> {{ empleadoGeneracionDocs?.puesto || 'No capturado' }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="empleado-docs-panel empleado-docs-panel--form">
+            <div class="empleado-docs-section">
+              <div class="empleado-docs-section__head">
+                <i class="fas fa-book"></i>
+                <span>Asignacion</span>
+              </div>
+              <div class="empleado-docs-section__grid">
+                <div class="form-group empleado-docs-field-card" [class.empleado-docs-field-card--open]="mostrarDropdownCursoGeneracion">
+                  <label class="form-control-label empleado-docs-field-label">
+                    <i class="fas fa-graduation-cap"></i>
+                    Nombre del curso
+                  </label>
+                  <div class="empleado-docs-combobox" [class.empleado-docs-combobox--open]="mostrarDropdownCursoGeneracion">
+                    <div class="empleado-docs-combobox__control">
+                      <span class="empleado-docs-combobox__icon"><i class="fas fa-search"></i></span>
+                      <input
+                        class="empleado-docs-combobox__input"
+                        type="text"
+                        name="curso_search"
+                        autocomplete="off"
+                        placeholder="Buscar y seleccionar curso..."
+                        aria-label="Buscar y seleccionar curso"
+                        [(ngModel)]="textoBusquedaCurso"
+                        (focus)="mostrarCursosGeneracion()"
+                        (input)="onBusquedaCursoGeneracionInput()"
+                        [disabled]="cargandoCursosGeneracion || generandoDocs">
+                      <button
+                        *ngIf="textoBusquedaCurso && !cargandoCursosGeneracion && !generandoDocs"
+                        type="button"
+                        class="empleado-docs-combobox__clear"
+                        title="Limpiar curso"
+                        aria-label="Limpiar curso"
+                        (click)="limpiarCursoGeneracion($event)">
+                        <i class="fas fa-times"></i>
+                      </button>
+                      <span class="empleado-docs-combobox__chevron" aria-hidden="true">
+                        <i class="fas" [ngClass]="mostrarDropdownCursoGeneracion ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                      </span>
+                    </div>
+
+                    <div *ngIf="mostrarDropdownCursoGeneracion" class="empleado-docs-combobox__dropdown">
+                      <div *ngIf="cargandoCursosGeneracion" class="empleado-docs-combobox__state">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        Cargando cursos...
+                      </div>
+
+                      <div *ngIf="!cargandoCursosGeneracion && cursosFiltradosGeneracion.length === 0" class="empleado-docs-combobox__state">
+                        <i class="fas fa-search"></i>
+                        No hay cursos que coincidan.
+                      </div>
+
+                      <button
+                        *ngFor="let curso of cursosFiltradosGeneracion"
+                        type="button"
+                        class="empleado-docs-combobox__option empleado-docs-combobox__option--course"
+                        [class.empleado-docs-combobox__option--selected]="curso.curso_id === generacionDocsForm.curso_id"
+                        (mousedown)="seleccionarCursoGeneracion(curso)">
+                        <span class="empleado-docs-combobox__option-body">
+                          <span class="empleado-docs-combobox__option-title">{{ curso.nombre_curso }}</span>
+                          <span class="empleado-docs-combobox__option-meta" *ngIf="curso.codigo">
+                            <span>{{ curso.codigo }}</span>
+                          </span>
+                        </span>
+                        <i class="fas fa-check empleado-docs-combobox__check" *ngIf="curso.curso_id === generacionDocsForm.curso_id"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-group empleado-docs-field-card" [class.empleado-docs-field-card--open]="mostrarDropdownInstructorGeneracion">
+                  <label class="form-control-label empleado-docs-field-label">
+                    <i class="fas fa-chalkboard-teacher"></i>
+                    Instructor
+                  </label>
+                  <div class="empleado-docs-combobox" [class.empleado-docs-combobox--open]="mostrarDropdownInstructorGeneracion">
+                    <div class="empleado-docs-combobox__control">
+                      <span class="empleado-docs-combobox__icon"><i class="fas fa-search"></i></span>
+                      <input
+                        class="empleado-docs-combobox__input"
+                        type="text"
+                        name="instructor_search"
+                        autocomplete="off"
+                        placeholder="Buscar y seleccionar instructor..."
+                        aria-label="Buscar y seleccionar instructor"
+                        [(ngModel)]="textoBusquedaInstructor"
+                        (focus)="mostrarInstructoresGeneracion()"
+                        (input)="onBusquedaInstructorGeneracionInput()"
+                        [disabled]="cargandoInstructoresGeneracion || generandoDocs">
+                      <button
+                        *ngIf="textoBusquedaInstructor && !cargandoInstructoresGeneracion && !generandoDocs"
+                        type="button"
+                        class="empleado-docs-combobox__clear"
+                        title="Limpiar instructor"
+                        aria-label="Limpiar instructor"
+                        (click)="limpiarInstructorGeneracion($event)">
+                        <i class="fas fa-times"></i>
+                      </button>
+                      <span class="empleado-docs-combobox__chevron" aria-hidden="true">
+                        <i class="fas" [ngClass]="mostrarDropdownInstructorGeneracion ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                      </span>
+                    </div>
+
+                    <div *ngIf="mostrarDropdownInstructorGeneracion" class="empleado-docs-combobox__dropdown">
+                      <div *ngIf="cargandoInstructoresGeneracion" class="empleado-docs-combobox__state">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        Cargando instructores...
+                      </div>
+
+                      <div *ngIf="!cargandoInstructoresGeneracion && instructoresFiltradosGeneracion.length === 0" class="empleado-docs-combobox__state">
+                        <i class="fas fa-user-slash"></i>
+                        No hay instructores que coincidan.
+                      </div>
+
+                      <button
+                        *ngFor="let inst of instructoresFiltradosGeneracion"
+                        type="button"
+                        class="empleado-docs-combobox__option empleado-docs-combobox__option--instructor"
+                        [class.empleado-docs-combobox__option--selected]="inst.instructor_id === generacionDocsForm.instructor_id"
+                        (mousedown)="seleccionarInstructorGeneracion(inst)">
+                        <span class="empleado-docs-combobox__option-body">
+                          <span class="empleado-docs-combobox__option-title">{{ obtenerNombreInstructorGeneracion(inst) }}</span>
+                        </span>
+                        <i class="fas fa-check empleado-docs-combobox__check" *ngIf="inst.instructor_id === generacionDocsForm.instructor_id"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="empleado-docs-section">
+              <div class="empleado-docs-section__head">
+                <i class="fas fa-calendar-alt"></i>
+                <span>Agenda y detalles</span>
+              </div>
+              <div class="empleado-docs-section__grid empleado-docs-section__grid--details">
+                <div class="form-group empleado-docs-field-card">
+                  <label class="form-control-label">Cantidad de horas</label>
+                  <input class="form-control"
+                         type="number"
+                         min="1"
+                         name="horas_docs"
+                         [(ngModel)]="generacionDocsForm.horas"
+                         [disabled]="generandoDocs">
+                </div>
+
+                <div class="form-group empleado-docs-field-card">
+                  <label class="form-control-label">Fecha del curso</label>
+                  <input class="form-control"
+                         type="date"
+                         name="fecha_docs"
+                         [(ngModel)]="generacionDocsForm.fecha"
+                         [disabled]="generandoDocs">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="empleado-docs-footer">
+      <button type="button" class="btn btn-secondary" (click)="cerrarModalGeneracionDocs()" [disabled]="generandoDocs">
+        Cancelar
+      </button>
+      <button type="button" class="btn btn-success" (click)="generarConstanciasDocs()" [disabled]="generandoDocs">
+        <i class="fas" [ngClass]="generandoDocs ? 'fa-spinner fa-spin' : 'fa-file-signature'" style="margin-right: 0.4rem;"></i>
+        {{ generandoDocs ? 'Generando...' : 'Generar documentos' }}
+      </button>
+    </div>
+  </div>
+</div>

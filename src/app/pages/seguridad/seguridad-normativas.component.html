@@ -1,0 +1,147 @@
+<div class="header header-bg-image seg-hero pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative seg-hero__inner">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="seg-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i class="fas fa-shield-alt" aria-hidden="true"></i>
+          </div>
+          <p class="text-white mb-1 seg-hero-tagline">Seguridad e Higiene</p>
+          <h1 class="text-white mb-0 seg-hero-title">Catálogo de Normativas</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid seg-main-wrap mt--5">
+  <div class="seg-panel">
+    <div class="seg-stat-strip" *ngIf="!cargando && !error">
+      <div class="seg-stat-chip">
+        <span class="seg-stat-chip__val">{{ totalNormativas }}</span>
+        <span class="seg-stat-chip__lbl">Normativas</span>
+      </div>
+      <div class="seg-stat-chip">
+        <span class="seg-stat-chip__val">{{ totalRequisitos }}</span>
+        <span class="seg-stat-chip__lbl">Requisitos</span>
+      </div>
+      <div class="seg-stat-chip">
+        <span class="seg-stat-chip__val">{{ normativasFiltradas.length }}</span>
+        <span class="seg-stat-chip__lbl">Visibles</span>
+      </div>
+    </div>
+
+    <header class="seg-panel__toolbar">
+      <div class="seg-toolbar-row seg-toolbar-row--primary">
+        <div class="seg-search seg-search--grow">
+          <i class="fas fa-search" aria-hidden="true"></i>
+          <input type="search"
+                 class="form-control form-control-sm"
+                 placeholder="Buscar por clave NOM, título o número…"
+                 [(ngModel)]="busqueda"
+                 (ngModelChange)="aplicarFiltro()"
+                 aria-label="Buscar normativas">
+        </div>
+        <div class="seg-toolbar-actions" *ngIf="puedeImportar">
+          <input #inputImportar type="file" accept=".xlsx,.xls" class="d-none" (change)="onArchivoSeleccionado($event)">
+          <button type="button" class="btn btn-sm seg-btn-import" [disabled]="importando" (click)="abrirSelectorImportar()">
+            <i class="fas" [class.fa-file-excel]="!importando" [class.fa-spinner]="importando" [class.fa-spin]="importando" aria-hidden="true"></i>
+            {{ importando ? 'Importando…' : 'Importar Excel' }}
+          </button>
+        </div>
+      </div>
+      <div class="seg-toolbar-row seg-toolbar-row--chips">
+        <span class="seg-toolbar-label">Grupo</span>
+        <div class="seg-chips" role="group" aria-label="Filtrar por grupo">
+          <button type="button"
+                  class="seg-chip"
+                  [class.seg-chip--active]="!categoriaActiva"
+                  (click)="categoriaActiva = ''; aplicarFiltro()">
+            Todas <span class="seg-chip__count">{{ totalNormativas }}</span>
+          </button>
+          <button *ngFor="let cat of categorias"
+                  type="button"
+                  class="seg-chip"
+                  [class.seg-chip--active]="categoriaActiva === cat.id"
+                  (click)="seleccionarCategoria(cat.id)">
+            NOM {{ cat.prefijo }}
+            <span class="seg-chip__count">{{ contarPorCategoria(cat.id) }}</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="seg-panel__body" *ngIf="cargando">
+      <div class="seg-loading">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando catálogo…</span>
+      </div>
+    </div>
+
+    <div class="seg-panel__body seg-panel__body--error" *ngIf="!cargando && error">
+      <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+      <p>{{ error }}</p>
+      <button type="button" class="btn btn-sm seg-btn-retry" (click)="cargarCatalogo()">Reintentar</button>
+    </div>
+
+    <div class="seg-panel__body seg-panel__body--empty" *ngIf="!cargando && !error && !normativasFiltradas.length">
+      <div class="seg-empty">
+        <i class="fas fa-folder-open" aria-hidden="true"></i>
+        <h3>Sin normativas registradas</h3>
+        <p *ngIf="puedeImportar">Importe la plantilla Excel (formato NOM-001-STPS-2008) para comenzar.</p>
+        <p *ngIf="!puedeImportar">El catálogo aún no tiene normativas cargadas.</p>
+        <button *ngIf="puedeImportar" type="button" class="btn seg-btn-import-lg" [disabled]="importando" (click)="abrirSelectorImportar()">
+          <i class="fas fa-file-excel" aria-hidden="true"></i> Importar primera normativa
+        </button>
+      </div>
+    </div>
+
+    <div class="seg-catalog-table-wrap" *ngIf="!cargando && !error && normativasFiltradas.length">
+      <table class="seg-catalog-table">
+        <thead>
+          <tr>
+            <th class="col-codigo">Clave</th>
+            <th class="col-titulo">Normativa</th>
+            <th class="col-grupo d-none d-lg-table-cell">Grupo</th>
+            <th class="col-req text-center">Req.</th>
+            <th class="col-fecha d-none d-md-table-cell">Actualización</th>
+            <th class="col-accion"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let n of normativasFiltradas; trackBy: trackById"
+              class="seg-catalog-row"
+              tabindex="0"
+              (click)="abrirDetalle(n)"
+              (keydown.enter)="abrirDetalle(n)">
+            <td class="col-codigo">
+              <span class="seg-codigo-badge">{{ n.codigo }}</span>
+            </td>
+            <td class="col-titulo">
+              <span class="seg-titulo-text" [title]="n.titulo">{{ n.titulo }}</span>
+              <span class="seg-titulo-meta d-lg-none">NOM {{ categoriaLabel(n.categoria_id) }}</span>
+            </td>
+            <td class="col-grupo d-none d-lg-table-cell">
+              <span class="seg-grupo-tag">NOM {{ categoriaLabel(n.categoria_id) }}</span>
+            </td>
+            <td class="col-req text-center">
+              <span class="seg-req-count">{{ n.total_requisitos }}</span>
+            </td>
+            <td class="col-fecha d-none d-md-table-cell">
+              <span class="seg-fecha" *ngIf="n.importado_en">{{ n.importado_en | date:'dd/MM/yy' }}</span>
+              <span class="seg-fecha seg-fecha--muted" *ngIf="!n.importado_en">—</span>
+            </td>
+            <td class="col-accion text-right">
+              <button type="button" class="btn btn-sm seg-btn-ver" (click)="abrirDetalle(n); $event.stopPropagation()">
+                Ver <i class="fas fa-chevron-right" aria-hidden="true"></i>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <footer class="seg-catalog-footer">
+        <span>{{ normativasFiltradas.length }} de {{ totalNormativas }} normativas</span>
+      </footer>
+    </div>
+  </div>
+</div>

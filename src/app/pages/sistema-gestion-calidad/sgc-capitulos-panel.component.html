@@ -1,0 +1,233 @@
+<section class="sgc-cap-panel" id="sgc-capitulos-panel" aria-labelledby="sgc-cap-panel-heading">
+  <header class="sgc-cap-panel__header">
+    <div class="sgc-cap-panel__intro">
+      <span class="sgc-cap-panel__eyebrow">ISO 9001:2015 · Capítulos 4–10</span>
+      <h2 id="sgc-cap-panel-heading" class="sgc-cap-panel__title">Formatos corporativos</h2>
+      <p class="sgc-cap-panel__lead mb-0">
+        Elige un capítulo y abre sus documentos. Al seleccionar un formato, la vista ocupa todo el espacio.
+      </p>
+    </div>
+
+    <div class="sgc-cap-panel__search">
+      <i class="fas fa-search" aria-hidden="true"></i>
+      <input type="search"
+             class="form-control form-control-sm"
+             placeholder="Buscar por código, nombre o capítulo…"
+             [(ngModel)]="busqueda"
+             (ngModelChange)="aplicarFiltroFormatos()"
+             aria-label="Buscar formatos corporativos"
+             [attr.aria-expanded]="buscandoFormatos">
+      <button *ngIf="buscandoFormatos"
+              type="button"
+              class="sgc-cap-panel__search-clear"
+              (click)="limpiarBusqueda()"
+              aria-label="Limpiar búsqueda">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+      <span class="sgc-cap-panel__search-count" *ngIf="buscandoFormatos">
+        {{ formatosFiltrados.length }}
+      </span>
+    </div>
+  </header>
+
+  <div class="sgc-cap-workspace" [class.sgc-cap-workspace--searching]="buscandoFormatos">
+    <aside class="sgc-cap-nav" aria-label="Capítulos de la norma">
+      <div class="sgc-cap-nav__head">
+        <span class="sgc-cap-nav__label">Capítulos</span>
+        <span class="sgc-cap-nav__count">{{ capitulos.length }}</span>
+      </div>
+      <nav class="sgc-cap-nav__list" role="tablist" aria-orientation="vertical">
+        <button *ngFor="let c of capitulos; trackBy: trackByCapitulo"
+                type="button"
+                class="sgc-cap-nav__item"
+                role="tab"
+                [class.sgc-cap-nav__item--active]="esCapituloActivo(c)"
+                [attr.aria-selected]="esCapituloActivo(c)"
+                (click)="seleccionarCapitulo(c)">
+          <span class="sgc-cap-nav__rail" aria-hidden="true"></span>
+          <span class="sgc-cap-nav__icon" aria-hidden="true">
+            <i [class]="c.iconClass"></i>
+          </span>
+          <span class="sgc-cap-nav__text">
+            <span class="sgc-cap-nav__num">Cap. {{ c.numero }}</span>
+            <span class="sgc-cap-nav__title">{{ c.titulo }}</span>
+            <span class="sgc-cap-nav__meta">
+              {{ c.totalFormatos === 0 ? 'En preparación' : c.totalFormatos + ' formato' + (c.totalFormatos !== 1 ? 's' : '') }}
+            </span>
+          </span>
+        </button>
+      </nav>
+    </aside>
+
+    <div class="sgc-cap-content" aria-live="polite">
+      <div *ngIf="buscandoFormatos" class="sgc-cap-search-results" role="region" aria-label="Resultados de búsqueda">
+        <div class="sgc-cap-content__banner sgc-cap-content__banner--search">
+          <span class="sgc-cap-content__badge">Búsqueda</span>
+          <h3 class="sgc-cap-content__title">Resultados</h3>
+          <p class="sgc-cap-content__desc mb-0">Coincidencias para «{{ busqueda.trim() }}».</p>
+        </div>
+
+        <div class="sgc-cap-docs sgc-cap-docs--search">
+          <div class="sgc-cap-docs__deco" aria-hidden="true"></div>
+          <div class="sgc-cap-docs__head">
+            <div>
+              <h4 class="sgc-cap-docs__title">Formatos encontrados</h4>
+              <p class="sgc-cap-docs__hint mb-0">Selecciona un formato para abrirlo a pantalla completa.</p>
+            </div>
+            <span class="sgc-cap-docs__count">{{ formatosFiltrados.length }}</span>
+          </div>
+
+          <div *ngIf="formatosFiltrados.length === 0" class="sgc-cap-empty" role="status">
+            <i class="fas fa-search" aria-hidden="true"></i>
+            <p class="mb-0">Sin resultados. Prueba con un código (p. ej. DG-F-04) o el nombre del documento.</p>
+          </div>
+
+          <ul *ngIf="formatosFiltrados.length > 0" class="sgc-cap-hits list-unstyled mb-0">
+            <li *ngFor="let f of formatosFiltrados; trackBy: trackByFormato">
+              <button type="button"
+                      class="sgc-cap-hit"
+                      (click)="irAFormato(f)">
+                <span class="sgc-cap-hit__deco" aria-hidden="true"></span>
+                <span class="sgc-cap-hit__accent" aria-hidden="true"></span>
+                <span class="sgc-cap-hit__icon"
+                      [class.sgc-cap-hit__icon--excel]="tipoPlantilla(f.nombre) === 'excel'"
+                      [class.sgc-cap-hit__icon--word]="tipoPlantilla(f.nombre) === 'word'"
+                      [class.sgc-cap-hit__icon--pdf]="tipoPlantilla(f.nombre) === 'pdf'">
+                  <i class="fas" [ngClass]="{
+                    'fa-file-excel': tipoPlantilla(f.nombre) === 'excel',
+                    'fa-file-word': tipoPlantilla(f.nombre) === 'word',
+                    'fa-file-pdf': tipoPlantilla(f.nombre) === 'pdf',
+                    'fa-file-alt': tipoPlantilla(f.nombre) === 'otro'
+                  }" aria-hidden="true"></i>
+                </span>
+                <span class="sgc-cap-hit__body">
+                  <span class="sgc-cap-hit__code">{{ f.codigo }}</span>
+                  <span class="sgc-cap-hit__title">{{ f.titulo }}</span>
+                  <span class="sgc-cap-hit__chapter">
+                    Cap. {{ f.capituloNumero }} · {{ f.capituloTitulo }}
+                  </span>
+                </span>
+                <span class="sgc-cap-hit__go"><i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <ng-container *ngIf="!buscandoFormatos && configSeleccionado as c">
+        <div class="sgc-cap-content__banner">
+          <div class="sgc-cap-content__deco sgc-cap-content__deco--banner" aria-hidden="true"></div>
+          <div class="sgc-cap-content__banner-top">
+            <span class="sgc-cap-content__badge">Capítulo {{ c.numero }}</span>
+            <span class="sgc-cap-content__icon" aria-hidden="true">
+              <i [class]="c.heroIconClass"></i>
+            </span>
+          </div>
+          <h3 class="sgc-cap-content__title">{{ c.titulo }}</h3>
+          <p class="sgc-cap-content__desc mb-0" *ngIf="capituloSeleccionado">
+            {{ capituloSeleccionado.descripcion }}
+          </p>
+        </div>
+
+        <div *ngIf="c.plantillas.length > 0; else sinFormatos" class="sgc-cap-docs">
+          <div class="sgc-cap-docs__head">
+            <div>
+              <h4 class="sgc-cap-docs__title">Documentos del capítulo</h4>
+              <p class="sgc-cap-docs__hint mb-0">
+                Selecciona un formato para abrirlo a pantalla completa.
+                <span *ngIf="mostrarPaginacionDocs"> · Sección {{ paginaDocs }} de {{ totalPaginasDocs }}</span>
+              </p>
+            </div>
+            <span class="sgc-cap-docs__count">{{ c.plantillas.length }}</span>
+          </div>
+
+          <ul class="sgc-cap-doc-list list-unstyled mb-0">
+            <li *ngFor="let p of plantillasPaginadas; trackBy: trackByCodigo">
+              <a *ngIf="p.previewSlug; else sinVista"
+                 [routerLink]="['/sistema-gestion-calidad', c.slug, 'plantilla', p.previewSlug]"
+                 class="sgc-cap-doc"
+                 [class.sgc-cap-doc--excel]="tipoPlantilla(p.nombre) === 'excel'"
+                 [class.sgc-cap-doc--word]="tipoPlantilla(p.nombre) === 'word'"
+                 [class.sgc-cap-doc--pdf]="tipoPlantilla(p.nombre) === 'pdf'"
+                 [title]="p.titulo">
+                <span class="sgc-cap-doc__deco" aria-hidden="true"></span>
+                <span class="sgc-cap-doc__accent" aria-hidden="true"></span>
+                <span class="sgc-cap-doc__icon" aria-hidden="true">
+                  <i class="fas" [ngClass]="{
+                    'fa-file-excel': tipoPlantilla(p.nombre) === 'excel',
+                    'fa-file-word': tipoPlantilla(p.nombre) === 'word',
+                    'fa-file-pdf': tipoPlantilla(p.nombre) === 'pdf',
+                    'fa-file-alt': tipoPlantilla(p.nombre) === 'otro'
+                  }"></i>
+                </span>
+                <span class="sgc-cap-doc__body">
+                  <span class="sgc-cap-doc__meta">
+                    <span class="sgc-cap-doc__code">{{ p.codigo }}</span>
+                  </span>
+                  <span class="sgc-cap-doc__name">{{ p.titulo }}</span>
+                  <span class="sgc-cap-doc__desc">{{ metaFormato(p) }}</span>
+                </span>
+                <span class="sgc-cap-doc__action" aria-hidden="true">
+                  <i class="fas fa-arrow-right"></i>
+                </span>
+              </a>
+              <ng-template #sinVista>
+                <div class="sgc-cap-doc sgc-cap-doc--disabled"
+                     [class.sgc-cap-doc--excel]="tipoPlantilla(p.nombre) === 'excel'"
+                     [class.sgc-cap-doc--word]="tipoPlantilla(p.nombre) === 'word'">
+                  <span class="sgc-cap-doc__deco" aria-hidden="true"></span>
+                  <span class="sgc-cap-doc__accent" aria-hidden="true"></span>
+                  <span class="sgc-cap-doc__icon" aria-hidden="true">
+                    <i class="fas fa-file-alt"></i>
+                  </span>
+                  <span class="sgc-cap-doc__body">
+                    <span class="sgc-cap-doc__meta">
+                      <span class="sgc-cap-doc__code">{{ p.codigo }}</span>
+                      <span class="sgc-cap-doc__tag sgc-cap-doc__tag--muted">Próximamente</span>
+                    </span>
+                    <span class="sgc-cap-doc__name">{{ p.titulo }}</span>
+                  </span>
+                </div>
+              </ng-template>
+            </li>
+          </ul>
+
+          <div class="sgc-cap-docs__pager" *ngIf="mostrarPaginacionDocs">
+            <button type="button"
+                    class="sgc-cap-docs__pager-btn"
+                    [disabled]="paginaDocs <= 1"
+                    (click)="irPaginaDocs(paginaDocs - 1)"
+                    aria-label="Sección anterior">
+              <i class="fas fa-chevron-left" aria-hidden="true"></i>
+            </button>
+            <span class="sgc-cap-docs__pager-label">{{ rangoDocsEtiqueta }}</span>
+            <div class="sgc-cap-docs__pager-dots" role="tablist" aria-label="Secciones de documentos">
+              <button type="button"
+                      class="sgc-cap-docs__pager-dot"
+                      *ngFor="let pag of paginasDocs"
+                      [class.is-active]="paginaDocs === pag"
+                      [attr.aria-label]="'Sección ' + pag"
+                      [attr.aria-selected]="paginaDocs === pag"
+                      (click)="irPaginaDocs(pag)">
+              </button>
+            </div>
+            <button type="button"
+                    class="sgc-cap-docs__pager-btn"
+                    [disabled]="paginaDocs >= totalPaginasDocs"
+                    (click)="irPaginaDocs(paginaDocs + 1)"
+                    aria-label="Sección siguiente">
+              <i class="fas fa-chevron-right" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+
+        <ng-template #sinFormatos>
+          <div class="sgc-cap-empty" role="status">
+            <i class="fas fa-folder-open" aria-hidden="true"></i>
+            <p class="mb-0">Este capítulo aún no tiene plantillas registradas.</p>
+          </div>
+        </ng-template>
+      </ng-container>
+    </div>
+  </div>
+</section>

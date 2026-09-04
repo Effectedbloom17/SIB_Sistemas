@@ -1,0 +1,42 @@
+// Animación de entrada para vistas de Protección Civil
+@keyframes pcViewHeaderIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pcViewContentIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pc-view-enter-header {
+  animation: pcViewHeaderIn 0.42s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.pc-view-enter-content {
+  animation: pcViewContentIn 0.5s cubic-bezier(0.23, 1, 0.32, 1) 0.08s both;
+}
+
+.pc-view-enter {
+  animation: pcViewContentIn 0.5s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-view-enter-header,
+  .pc-view-enter-content,
+  .pc-view-enter {
+    animation: none;
+  }
+}

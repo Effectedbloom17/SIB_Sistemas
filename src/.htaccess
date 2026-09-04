@@ -1,0 +1,69 @@
+RewriteEngine On
+RewriteBase /
+
+# =====================================================
+# SPA Routing — Angular HTML5 routes
+# =====================================================
+RewriteRule ^index\.html$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.html [L]
+
+# =====================================================
+# Security Headers
+# =====================================================
+<IfModule mod_headers.c>
+    # Anti-Clickjacking: no permitir iframes de sitios externos
+    Header always set X-Frame-Options "SAMEORIGIN"
+
+    # Prevenir MIME sniffing
+    Header always set X-Content-Type-Options "nosniff"
+
+    # Content Security Policy
+    # Permite recursos de Google (Drive, Docs, Sheets, Slides, Calendar, Forms)
+    # y API de produccion para previews, calendario embebido y documentos.
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com https://translate.google.com https://translate.googleapis.com https://translate-pa.googleapis.com https://*.gstatic.com https://img1.wsimg.com; script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com https://translate.google.com https://translate.googleapis.com https://translate-pa.googleapis.com https://*.gstatic.com https://img1.wsimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://translate.googleapis.com https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https: https://api.sistema.biznaga.com.mx https://*.googleapis.com https://*.gstatic.com https://*.googleusercontent.com https://translate.google.com https://www.google.com https://drive.google.com; connect-src 'self' https://api.sistema.biznaga.com.mx https://*.googleapis.com https://*.google.com https://accounts.google.com https://apis.google.com https://translate-pa.googleapis.com https://csp.secureserver.net https://docs.google.com https://drive.google.com; frame-src 'self' blob: https://api.sistema.biznaga.com.mx https://accounts.google.com https://content.googleapis.com https://calendar.google.com https://docs.google.com https://drive.google.com https://*.google.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
+
+    # HSTS: forzar HTTPS por 1 anio
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+    # Referrer Policy
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Permissions Policy
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+
+    # Evitar que Adobe Flash/Acrobat carguen contenido cross-domain
+    Header always set X-Permitted-Cross-Domain-Policies "none"
+
+    # DNS Prefetch Control
+    Header always set X-DNS-Prefetch-Control "off"
+</IfModule>
+
+# =====================================================
+# Cache Control — Assets estaticos con cache, HTML sin cache
+# =====================================================
+<IfModule mod_expires.c>
+    ExpiresActive On
+    # JS/CSS bundles con hash: cache agresivo (1 anio)
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType text/css "access plus 1 year"
+    # Imagenes: cache moderado (1 mes)
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/webp "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    # Fonts: cache largo (1 anio)
+    ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType font/woff "access plus 1 year"
+    ExpiresByType application/font-woff2 "access plus 1 year"
+</IfModule>
+
+# HTML: no cachear (para que Angular siempre cargue el ultimo index.html)
+<FilesMatch "\.(html)$">
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </IfModule>
+</FilesMatch>

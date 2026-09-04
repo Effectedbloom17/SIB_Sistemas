@@ -1,0 +1,238 @@
+<!-- Contenedor principal -->
+<div class="login-container">
+  
+  <!-- Panel izquierdo verde con curva -->
+  <div class="left-panel">
+    <!-- Curva decorativa -->
+    <div class="curve-decoration"></div>
+    
+    <!-- Contenido del panel izquierdo -->
+    <div class="left-content">
+      <!-- Logo -->
+      <div class="logo-container">
+        <img src="assets/img/logo_biznaga.png" alt="Biznaga" class="logo-img">
+      </div>
+  
+      <p class="welcome-subtitle" >
+        Sistema Integral De Gestión de Capacitaciones <br>
+      </p>
+    </div>
+  </div>
+  
+  <!-- Panel derecho blanco con formulario -->
+  <div class="right-panel">
+
+    <!-- ==================== VISTA: LOGIN ==================== -->
+    <div class="form-container" *ngIf="vista === 'login'">
+      <h2 class="form-title">Bienvenido</h2>
+      <p class="form-subtitle">Inicia sesión en tu cuenta para continuar</p>
+      
+      <form role="form" (ngSubmit)="iniciarSesion()">
+        <div class="alert alert-danger alert-dismissible fade show" role="alert" *ngIf="mensajeError">
+          <span class="alert-icon"><i class="ni ni-fat-remove"></i></span>
+          <span class="alert-text"><strong>Error:</strong> {{mensajeError}}</span>
+        </div>
+        
+        <div class="form-group mb-4">
+          <div class="input-field">
+            <input class="custom-input" placeholder="Usuario" type="text" [(ngModel)]="usuario" name="usuario" required>
+          </div>
+        </div>
+        
+        <div class="form-group mb-3">
+          <div class="input-field">
+            <input class="custom-input" placeholder="Contraseña" type="password" [(ngModel)]="contrasena" name="contrasena" required>
+          </div>
+        </div>
+        
+        <div class="text-center mb-3">
+          <a href="javascript:void(0)" class="forgot-link" (click)="mostrarRecuperacion()">
+            ¿Olvidaste tu contraseña?
+          </a>
+        </div>
+        
+        <div class="text-center">
+          <button type="submit" class="btn-login" [disabled]="cargando">
+            <span *ngIf="!cargando">INICIAR SESIÓN</span>
+            <span *ngIf="cargando"><i class="fa fa-spinner fa-spin"></i> INGRESANDO...</span>
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ==================== VISTA: SOLICITAR CÓDIGO ==================== -->
+    <div class="form-container" *ngIf="vista === 'forgot'">
+      <div class="back-link-container">
+        <a href="javascript:void(0)" class="back-link" (click)="volverLogin()">
+          <i class="fa fa-arrow-left"></i> Volver al inicio de sesión
+        </a>
+      </div>
+
+      <div class="reset-icon-container">
+        <div class="reset-icon">
+          <i class="fa fa-lock"></i>
+        </div>
+      </div>
+
+      <h2 class="form-title">Recuperar contraseña</h2>
+      <p class="form-subtitle">Ingresa tu nombre de usuario o correo electrónico y te enviaremos un código de verificación.</p>
+      
+      <form (ngSubmit)="solicitarCodigo()">
+        <div class="alert alert-danger fade show" role="alert" *ngIf="mensajeError">
+          <span class="alert-text">{{mensajeError}}</span>
+        </div>
+
+        <div class="alert alert-success fade show" role="alert" *ngIf="mensajeExito">
+          <span class="alert-text">{{mensajeExito}}</span>
+        </div>
+        
+        <div class="form-group mb-4">
+          <div class="input-field">
+            <input class="custom-input" placeholder="Usuario o correo electrónico" type="text" 
+                   [(ngModel)]="resetIdentifier" name="resetIdentifier" required
+                   [disabled]="cargando">
+          </div>
+        </div>
+        
+        <div class="text-center">
+          <button type="submit" class="btn-login" [disabled]="cargando">
+            <span *ngIf="!cargando">ENVIAR CÓDIGO</span>
+            <span *ngIf="cargando"><i class="fa fa-spinner fa-spin"></i> ENVIANDO...</span>
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ==================== VISTA: VERIFICAR CÓDIGO ==================== -->
+    <div class="form-container" *ngIf="vista === 'verify'">
+      <div class="back-link-container">
+        <a href="javascript:void(0)" class="back-link" (click)="vista = 'forgot'; mensajeError = ''; mensajeExito = ''">
+          <i class="fa fa-arrow-left"></i> Volver
+        </a>
+      </div>
+
+      <div class="reset-icon-container">
+        <div class="reset-icon">
+          <i class="fa fa-envelope"></i>
+        </div>
+      </div>
+
+      <h2 class="form-title">Verificar código</h2>
+      <p class="form-subtitle">
+        Ingresa el código de 6 dígitos enviado a <strong>{{emailHint}}</strong>
+      </p>
+      
+      <form (ngSubmit)="verificarCodigo()">
+        <div class="alert alert-danger fade show" role="alert" *ngIf="mensajeError">
+          <span class="alert-text">{{mensajeError}}</span>
+        </div>
+
+        <div class="form-group mb-4">
+          <div class="input-field code-input-container">
+            <input class="custom-input code-input" placeholder="Código de 6 dígitos" type="text" 
+                   [(ngModel)]="resetCode" name="resetCode" required
+                   maxlength="6" pattern="[0-9]{6}"
+                   autocomplete="one-time-code"
+                   [disabled]="cargando">
+          </div>
+        </div>
+
+        <div class="text-center mb-3">
+          <span class="timer-text" *ngIf="countdown > 0">
+            Código expira en: <strong>{{countdownDisplay}}</strong>
+          </span>
+          <a href="javascript:void(0)" class="forgot-link" *ngIf="countdown <= 0" (click)="reenviarCodigo()">
+            Reenviar código
+          </a>
+        </div>
+        
+        <div class="text-center">
+          <button type="submit" class="btn-login" [disabled]="cargando || resetCode.length !== 6">
+            <span *ngIf="!cargando">VERIFICAR CÓDIGO</span>
+            <span *ngIf="cargando"><i class="fa fa-spinner fa-spin"></i> VERIFICANDO...</span>
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ==================== VISTA: NUEVA CONTRASEÑA ==================== -->
+    <div class="form-container" *ngIf="vista === 'newpass'">
+      <div class="reset-icon-container">
+        <div class="reset-icon success">
+          <i class="fa fa-check"></i>
+        </div>
+      </div>
+
+      <h2 class="form-title">Nueva contraseña</h2>
+      <p class="form-subtitle">Ingresa tu nueva contraseña. Debe tener al menos 6 caracteres.</p>
+      
+      <form (ngSubmit)="restablecerPassword()">
+        <div class="alert alert-danger fade show" role="alert" *ngIf="mensajeError">
+          <span class="alert-text">{{mensajeError}}</span>
+        </div>
+
+        <div class="form-group mb-3">
+          <div class="input-field">
+            <input class="custom-input" placeholder="Nueva contraseña" type="password" 
+                   [(ngModel)]="nuevaPassword" name="nuevaPassword" required
+                   minlength="6"
+                   [disabled]="cargando">
+          </div>
+        </div>
+
+        <div class="form-group mb-4">
+          <div class="input-field">
+            <input class="custom-input" placeholder="Confirmar contraseña" type="password" 
+                   [(ngModel)]="confirmarPassword" name="confirmarPassword" required
+                   [disabled]="cargando">
+          </div>
+        </div>
+
+        <div class="password-strength" *ngIf="nuevaPassword">
+          <div class="strength-bar">
+            <div class="strength-fill" [style.width]="passwordStrength + '%'" 
+                 [class.weak]="passwordStrength < 40"
+                 [class.medium]="passwordStrength >= 40 && passwordStrength < 70"
+                 [class.strong]="passwordStrength >= 70"></div>
+          </div>
+          <span class="strength-text" [class.weak]="passwordStrength < 40"
+                [class.medium]="passwordStrength >= 40 && passwordStrength < 70"
+                [class.strong]="passwordStrength >= 70">
+            {{passwordStrengthText}}
+          </span>
+        </div>
+        
+        <div class="text-center mt-4">
+          <button type="submit" class="btn-login" [disabled]="cargando || !nuevaPassword || nuevaPassword !== confirmarPassword || nuevaPassword.length < 6">
+            <span *ngIf="!cargando">CAMBIAR CONTRASEÑA</span>
+            <span *ngIf="cargando"><i class="fa fa-spinner fa-spin"></i> GUARDANDO...</span>
+          </button>
+        </div>
+
+        <div class="text-center mt-3" *ngIf="nuevaPassword && confirmarPassword && nuevaPassword !== confirmarPassword">
+          <span class="validation-error">Las contraseñas no coinciden</span>
+        </div>
+      </form>
+    </div>
+
+    <!-- ==================== VISTA: ÉXITO ==================== -->
+    <div class="form-container" *ngIf="vista === 'success'">
+      <div class="reset-icon-container">
+        <div class="reset-icon success">
+          <i class="fa fa-check-circle"></i>
+        </div>
+      </div>
+
+      <h2 class="form-title">¡Listo!</h2>
+      <p class="form-subtitle">Tu contraseña fue actualizada exitosamente. Ya puedes iniciar sesión con tu nueva contraseña.</p>
+
+      <div class="text-center mt-4">
+        <button class="btn-login" (click)="volverLogin()">
+          INICIAR SESIÓN
+        </button>
+      </div>
+    </div>
+
+  </div>
+  
+</div>

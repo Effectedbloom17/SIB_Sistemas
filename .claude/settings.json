@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./node_modules/**)",
+      "Read(./dist/**)",
+      "Read(./.angular/**)",
+      "Read(./.git/**)",
+      "Read(./.venv/**)",
+      "Glob(./node_modules/**)",
+      "Glob(./dist/**)",
+      "Glob(./.angular/**)",
+      "Glob(./.git/**)",
+      "Glob(./.venv/**)",
+      "Grep(./node_modules/**)",
+      "Grep(./dist/**)",
+      "Grep(./.angular/**)",
+      "Grep(./.git/**)",
+      "Grep(./.venv/**)"
+    ]
+  }
+}

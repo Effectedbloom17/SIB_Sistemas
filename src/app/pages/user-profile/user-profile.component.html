@@ -1,0 +1,742 @@
+<!-- HEADER -->
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+            style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-id-card"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">
+            Mi Perfil
+          </h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+
+      <!-- ESTADO DE CARGA -->
+      <div *ngIf="cargando" class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+        <div class="card-body text-center py-5">
+          <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+          <p class="text-muted mt-2 mb-0">Cargando perfil...</p>
+        </div>
+      </div>
+
+      <!-- CONTENIDO DEL PERFIL -->
+      <div *ngIf="!cargando && usuario" class="row">
+
+        <!-- COLUMNA IZQUIERDA: Foto y resumen -->
+        <div class="col-lg-4 mb-4">
+          <div class="card shadow-lg border-0 profile-left-card">
+
+            <!-- Avatar section (clickable to change) -->
+            <div class="profile-avatar-section">
+              <div class="profile-avatar-container mx-auto" (click)="fotoInput.click()" title="Cambiar foto de perfil">
+                <img *ngIf="fotoPreviewUrl || fotoUrl" [src]="fotoPreviewUrl || fotoUrl" alt="Foto de perfil"
+                  class="profile-avatar-img" (error)="fotoUrl = null; fotoPreviewUrl = null">
+                <div *ngIf="!fotoPreviewUrl && !fotoUrl" class="profile-avatar-placeholder">
+                  <span>{{ getIniciales() }}</span>
+                </div>
+                <div class="avatar-overlay">
+                  <i class="fas fa-camera"></i>
+                  <span>Cambiar</span>
+                </div>
+              </div>
+              <input #fotoInput type="file" accept="image/jpeg,image/png,image/webp"
+                     style="display:none" (change)="onFotoSeleccionada($event)">
+            </div>
+
+            <!-- Nombre y rol -->
+            <div class="profile-identity">
+              <!-- Modo vista -->
+              <div *ngIf="!editandoNombre">
+                <h2 class="profile-name">
+                  {{ usuario.nombre }} {{ usuario.apellido }}
+                  <button class="btn-edit-inline" (click)="iniciarEdicionNombre()" title="Editar nombre">
+                    <i class="fas fa-pen"></i>
+                  </button>
+                </h2>
+              </div>
+              <!-- Modo edición -->
+              <div *ngIf="editandoNombre" class="edit-inline-group">
+                <input type="text" class="edit-inline-input" [(ngModel)]="editNombre" placeholder="Nombre">
+                <input type="text" class="edit-inline-input" [(ngModel)]="editApellido" placeholder="Apellido">
+                <div class="edit-inline-actions">
+                  <button class="btn-edit-save" (click)="guardarNombre()"><i class="fas fa-check"></i></button>
+                  <button class="btn-edit-cancel" (click)="cancelarEdicionNombre()"><i class="fas fa-times"></i></button>
+                </div>
+              </div>
+              <p class="profile-username">@{{ usuario.username }}</p>
+              <span class="badge profile-role-badge" [ngClass]="getRolBadgeClass()">
+                <i class="fas fa-shield-alt mr-1"></i>{{ usuario.rol }}
+              </span>
+            </div>
+
+            <!-- Info de contacto editable -->
+            <div class="profile-contact-list">
+              <!-- Email -->
+              <div class="profile-contact-item" *ngIf="!editandoEmail">
+                <div class="profile-contact-icon"><i class="fas fa-envelope"></i></div>
+                <span class="profile-contact-text">{{ usuario.email || 'Sin correo' }}</span>
+                <button class="btn-edit-inline btn-edit-inline--sm" (click)="iniciarEdicionEmail()" title="Editar correo">
+                  <i class="fas fa-pen"></i>
+                </button>
+              </div>
+              <div class="profile-contact-item edit-contact-mode" *ngIf="editandoEmail">
+                <div class="profile-contact-icon"><i class="fas fa-envelope"></i></div>
+                <input type="email" class="edit-inline-input flex-fill" [(ngModel)]="editEmail" placeholder="correo@ejemplo.com">
+                <button class="btn-edit-save btn-edit-save--sm" (click)="guardarEmail()"><i class="fas fa-check"></i></button>
+                <button class="btn-edit-cancel btn-edit-cancel--sm" (click)="editandoEmail = false"><i class="fas fa-times"></i></button>
+              </div>
+
+              <!-- Teléfono -->
+              <div class="profile-contact-item" *ngIf="!editandoTelefono">
+                <div class="profile-contact-icon"><i class="fas fa-phone"></i></div>
+                <span class="profile-contact-text">{{ usuario.telefono || 'Sin teléfono' }}</span>
+                <button class="btn-edit-inline btn-edit-inline--sm" (click)="iniciarEdicionTelefono()" title="Editar teléfono">
+                  <i class="fas fa-pen"></i>
+                </button>
+              </div>
+              <div class="profile-contact-item edit-contact-mode" *ngIf="editandoTelefono">
+                <div class="profile-contact-icon"><i class="fas fa-phone"></i></div>
+                <input type="tel" class="edit-inline-input flex-fill" [(ngModel)]="editTelefono" placeholder="Teléfono">
+                <button class="btn-edit-save btn-edit-save--sm" (click)="guardarTelefono()"><i class="fas fa-check"></i></button>
+                <button class="btn-edit-cancel btn-edit-cancel--sm" (click)="editandoTelefono = false"><i class="fas fa-times"></i></button>
+              </div>
+
+              <!-- Empresa (solo lectura) -->
+              <div class="profile-contact-item" *ngIf="empresa">
+                <div class="profile-contact-icon"><i class="fas fa-building"></i></div>
+                <span class="profile-contact-text">{{ empresa.nombre_empresa }}</span>
+              </div>
+            </div>
+
+            <!-- Firma digital -->
+            <div class="profile-firma-section" *ngIf="rolUsuario === 'instructor' || rolUsuario === 'doctor' || rolUsuario === 'administrador'">
+              <p class="firma-section-label">Firma Digital</p>
+              <div class="firma-container" (click)="firmaInput.click()" title="Cambiar firma digital">
+                <img *ngIf="firmaPreviewUrl || firmaUrl" [src]="firmaPreviewUrl || firmaUrl"
+                     alt="Firma digital" class="firma-img" (error)="firmaUrl = null; firmaPreviewUrl = null">
+                <div *ngIf="!firmaPreviewUrl && !firmaUrl" class="firma-placeholder">
+                  <i class="fas fa-signature"></i>
+                  <span>Agregar firma</span>
+                </div>
+                <div class="firma-overlay">
+                  <i class="fas fa-pen"></i>
+                  <span>Cambiar</span>
+                </div>
+              </div>
+              <input #firmaInput type="file" accept="image/jpeg,image/png,image/webp"
+                     style="display:none" (change)="onFirmaSeleccionada($event)">
+            </div>
+
+            <!-- Stats footer -->
+            <div class="profile-stats-footer">
+              <div class="profile-stat">
+                <span class="stat-value" [class.text-success]="usuario.activo" [class.text-danger]="!usuario.activo">
+                  <i class="fas fa-circle" style="font-size: 0.5rem; vertical-align: middle;"></i>
+                  {{ usuario.activo ? 'Activo' : 'Inactivo' }}
+                </span>
+                <span class="stat-label">Estado</span>
+              </div>
+              <div class="profile-stat-divider"></div>
+              <div class="profile-stat">
+                <span class="stat-value">{{ formatMesAnio(usuario.created_at) }}</span>
+                <span class="stat-label">Miembro desde</span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Guardando indicador -->
+          <div *ngIf="guardando" class="text-center mt-2">
+            <i class="fas fa-spinner fa-spin text-muted"></i>
+            <span class="text-muted ml-1" style="font-size: 0.8rem;">Guardando...</span>
+          </div>
+        </div>
+
+        <!-- COLUMNA DERECHA: Contenido según rol -->
+        <div class="col-lg-8 mb-4">
+
+          <!-- ========================================= -->
+          <!-- INSTRUCTOR: Retroalimentación de encuestas -->
+          <!-- ========================================= -->
+          <div *ngIf="rolUsuario === 'instructor'">
+
+            <!-- Cargando feedback -->
+            <div *ngIf="cargandoFeedback" class="card shadow-lg border-0 panel-card">
+              <div class="card-body text-center py-5">
+                <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                <p class="text-muted mt-2 mb-0">Cargando retroalimentación...</p>
+              </div>
+            </div>
+
+            <!-- Sin datos -->
+            <div *ngIf="!cargandoFeedback && (!feedback || feedback.total_cursos === 0)" class="card shadow-lg border-0 panel-card">
+              <div class="card-body text-center py-5">
+                <i class="fas fa-chart-bar fa-2x" style="color: #A8A9A2;"></i>
+                <h5 class="mt-3" style="color: #38512F;">Sin retroalimentación aún</h5>
+                <p class="text-muted mb-0">Las evaluaciones de tus cursos aparecerán aquí conforme tus alumnos completen las encuestas de satisfacción.</p>
+              </div>
+            </div>
+
+            <!-- Con datos -->
+            <div *ngIf="!cargandoFeedback && feedback && feedback.total_cursos > 0">
+
+              <!-- Tarjeta resumen general -->
+              <div class="card shadow-lg border-0 panel-card mb-4">
+                <div class="card-header border-0 panel-header">
+                  <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                      <h6 class="text-uppercase text-muted ls-1 mb-1 panel-subtitle">Encuestas de Satisfacción</h6>
+                      <h2 class="mb-0 panel-title">Mi Retroalimentación</h2>
+                    </div>
+                    <div class="feedback-summary-badges">
+                      <span class="summary-badge">
+                        <i class="fas fa-book-open mr-1"></i> {{ feedback.total_cursos }} cursos
+                      </span>
+                      <span class="summary-badge">
+                        <i class="fas fa-users mr-1"></i> {{ feedback.total_respuestas }} respuestas
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div class="card-body panel-body">
+
+                  <!-- Desempeño del instructor -->
+                  <div class="feedback-section">
+                    <div class="feedback-section-header">
+                      <div class="feedback-section-icon"><i class="fas fa-star"></i></div>
+                      <div>
+                        <h6 class="feedback-section-title">Atención y Desempeño</h6>
+                        <p class="feedback-section-desc">¿Cómo evalúan la atención y el desempeño del instructor?</p>
+                      </div>
+                    </div>
+                    <div class="feedback-bars" *ngIf="feedback.desempeno.total > 0">
+                      <div class="feedback-bar-row">
+                        <span class="bar-label">Excelente</span>
+                        <div class="bar-track">
+                          <div class="bar-fill bar-excelente" [style.width.%]="feedback.desempeno.excelente_pct"></div>
+                        </div>
+                        <span class="bar-value">{{ feedback.desempeno.excelente_pct }}%</span>
+                      </div>
+                      <div class="feedback-bar-row">
+                        <span class="bar-label">Bueno</span>
+                        <div class="bar-track">
+                          <div class="bar-fill bar-bueno" [style.width.%]="feedback.desempeno.bueno_pct"></div>
+                        </div>
+                        <span class="bar-value">{{ feedback.desempeno.bueno_pct }}%</span>
+                      </div>
+                      <div class="feedback-bar-row">
+                        <span class="bar-label">Regular</span>
+                        <div class="bar-track">
+                          <div class="bar-fill bar-regular" [style.width.%]="feedback.desempeno.regular_pct"></div>
+                        </div>
+                        <span class="bar-value">{{ feedback.desempeno.regular_pct }}%</span>
+                      </div>
+                      <div class="feedback-bar-row">
+                        <span class="bar-label">Malo</span>
+                        <div class="bar-track">
+                          <div class="bar-fill bar-malo" [style.width.%]="feedback.desempeno.malo_pct"></div>
+                        </div>
+                        <span class="bar-value">{{ feedback.desempeno.malo_pct }}%</span>
+                      </div>
+                    </div>
+                    <p *ngIf="feedback.desempeno.total === 0" class="text-muted text-center mb-0 mt-2" style="font-size: 0.85rem;">Sin evaluaciones aún</p>
+                  </div>
+
+                  <!-- Dominio de temas -->
+                  <div class="feedback-section mt-4">
+                    <div class="feedback-section-header">
+                      <div class="feedback-section-icon feedback-section-icon--alt"><i class="fas fa-brain"></i></div>
+                      <div>
+                        <h6 class="feedback-section-title">Dominio de Temas</h6>
+                        <p class="feedback-section-desc">¿Cómo evalúan el dominio de los temas por parte del instructor?</p>
+                      </div>
+                    </div>
+                    <div class="feedback-bars" *ngIf="feedback.dominio.total > 0">
+                      <div class="feedback-bar-row">
+                        <span class="bar-label">Excelente</span>
+                        <div class="bar-track">
+                          <div class="bar-fill bar-excelente" [style.width.%]="feedback.dominio.excelente_pct"></div>
+                        </div>
+                        <span class="bar-value">{{ feedback.dominio.excelente_pct }}%</span>
+                      </div>
+                      <div class="feedback-bar-row">
+                        <span class="bar-label">Bueno</span>
+                        <div class="bar-track">
+                          <div class="bar-fill bar-bueno" [style.width.%]="feedback.dominio.bueno_pct"></div>
+                        </div>
+                        <span class="bar-value">{{ feedback.dominio.bueno_pct }}%</span>
+                      </div>
+                      <div class="feedback-bar-row">
+                        <span class="bar-label">Regular</span>
+                        <div class="bar-track">
+                          <div class="bar-fill bar-regular" [style.width.%]="feedback.dominio.regular_pct"></div>
+                        </div>
+                        <span class="bar-value">{{ feedback.dominio.regular_pct }}%</span>
+                      </div>
+                      <div class="feedback-bar-row">
+                        <span class="bar-label">Malo</span>
+                        <div class="bar-track">
+                          <div class="bar-fill bar-malo" [style.width.%]="feedback.dominio.malo_pct"></div>
+                        </div>
+                        <span class="bar-value">{{ feedback.dominio.malo_pct }}%</span>
+                      </div>
+                    </div>
+                    <p *ngIf="feedback.dominio.total === 0" class="text-muted text-center mb-0 mt-2" style="font-size: 0.85rem;">Sin evaluaciones aún</p>
+                  </div>
+
+                </div>
+              </div>
+
+              <!-- Comentarios de alumnos -->
+              <div class="card shadow-lg border-0 panel-card" *ngIf="feedback.comentarios && feedback.comentarios.length > 0">
+                <div class="card-header border-0 panel-header">
+                  <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                      <h6 class="text-uppercase text-muted ls-1 mb-1 panel-subtitle">Lo que dicen tus alumnos</h6>
+                      <h2 class="mb-0 panel-title">Comentarios y Sugerencias</h2>
+                    </div>
+                    <span class="summary-badge" *ngIf="feedback.comentarios.length > 0">
+                      {{ feedback.comentarios.length }} comentarios
+                    </span>
+                  </div>
+                </div>
+                <div class="card-body panel-body">
+                  <div class="comentario-item" *ngFor="let c of comentariosVisibles">
+                    <div class="comentario-icon"><i class="fas fa-quote-left"></i></div>
+                    <div class="comentario-content">
+                      <p class="comentario-texto">{{ c.texto }}</p>
+                      <span class="comentario-meta">
+                        <i class="fas fa-book-open mr-1"></i> {{ c.curso }}
+                        <span class="mx-1">·</span>
+                        {{ formatFechaCorta(c.fecha) }}
+                      </span>
+                    </div>
+                  </div>
+                  <!-- Ver más -->
+                  <div class="text-center mt-3" *ngIf="feedback.comentarios.length > comentariosLimite">
+                    <button class="btn-ver-mas" (click)="verMasComentarios()">
+                      <i class="fas fa-chevron-down mr-1"></i>
+                      Ver más comentarios ({{ feedback.comentarios.length - comentariosLimite }} restantes)
+                    </button>
+                  </div>
+                  <!-- Ver menos -->
+                  <div class="text-center mt-3" *ngIf="comentariosLimite > 5 && feedback.comentarios.length > 5">
+                    <button class="btn-ver-mas" (click)="comentariosLimite = 5">
+                      <i class="fas fa-chevron-up mr-1"></i>
+                      Mostrar menos
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- ========================================= -->
+          <!-- ADMIN: Rendimiento de instructores        -->
+          <!-- ========================================= -->
+          <div *ngIf="rolUsuario === 'administrador' || rolUsuario === 'root'">
+
+            <div *ngIf="cargandoRendimiento" class="card shadow-lg border-0 panel-card">
+              <div class="card-body text-center py-5">
+                <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                <p class="text-muted mt-2 mb-0">Cargando rendimiento de instructores...</p>
+              </div>
+            </div>
+
+            <div *ngIf="!cargandoRendimiento" class="admin-view-switcher">
+              <button
+                class="admin-view-btn"
+                [class.admin-view-btn--active]="vistaAdminActiva === 'instructores'"
+                (click)="cambiarVistaAdmin('instructores')">
+                <i class="fas fa-users mr-1"></i>
+                Rendimiento de Instructores
+              </button>
+              <button
+                class="admin-view-btn"
+                [class.admin-view-btn--active]="vistaAdminActiva === 'general'"
+                (click)="cambiarVistaAdmin('general')">
+                <i class="fas fa-chart-pie mr-1"></i>
+                Rendimiento General
+              </button>
+            </div>
+
+            <div *ngIf="!cargandoRendimiento && vistaAdminActiva === 'instructores'"
+                 class="card shadow-lg border-0 panel-card admin-panel-animated">
+              <div class="card-header border-0 panel-header">
+                <div class="d-flex align-items-center justify-content-between">
+                  <div>
+                    <h6 class="text-uppercase text-muted ls-1 mb-1 panel-subtitle">Equipo Docente</h6>
+                    <h2 class="mb-0 panel-title">Rendimiento de Instructores</h2>
+                  </div>
+                  <span class="summary-badge">
+                    <i class="fas fa-users mr-1"></i> {{ instructoresRendimiento.length }} instructores
+                  </span>
+                </div>
+              </div>
+              <div class="card-body panel-body" *ngIf="instructoresRendimiento.length > 0; else emptyInstructoresPanel">
+                <div class="inst-cards-grid">
+                  <div class="inst-card" *ngFor="let inst of instructoresRendimiento">
+                    <!-- Cabecera: avatar + nombre + score -->
+                    <div class="inst-card-top">
+                      <div class="inst-card-identity">
+                        <div class="instructor-avatar-sm">
+                          <img *ngIf="getInstructorFotoUrl(inst)" [src]="getInstructorFotoUrl(inst)"
+                               alt="Foto" class="instructor-avatar-img"
+                               (error)="inst.foto_drive_id = null">
+                          <div *ngIf="!getInstructorFotoUrl(inst)" class="instructor-avatar-placeholder-sm">
+                            {{ getInstructorIniciales(inst) }}
+                          </div>
+                        </div>
+                        <div class="inst-name-block">
+                          <span class="instructor-nombre">{{ inst.nombre }}</span>
+                          <span class="instructor-especialidad" *ngIf="inst.especialidad">{{ inst.especialidad }}</span>
+                        </div>
+                      </div>
+                      <div class="instructor-score" [ngClass]="getScoreClass(inst.puntaje)">
+                        <span class="score-number">{{ inst.puntaje }}</span>
+                        <span class="score-label">{{ getScoreLabel(inst.puntaje) }}</span>
+                      </div>
+                    </div>
+                    <!-- Métricas: barras de progreso -->
+                    <div class="inst-card-metrics">
+                      <div class="inst-metric">
+                        <div class="inst-metric-header">
+                          <span class="inst-metric-label">Desempeño</span>
+                          <span class="inst-metric-value">{{ inst.desempeno.excelente_pct }}%</span>
+                        </div>
+                        <div class="inst-progress-track">
+                          <div class="inst-progress-fill inst-progress--desempeno" [style.width.%]="inst.desempeno.excelente_pct"></div>
+                        </div>
+                      </div>
+                      <div class="inst-metric">
+                        <div class="inst-metric-header">
+                          <span class="inst-metric-label">Dominio</span>
+                          <span class="inst-metric-value">{{ inst.dominio.excelente_pct }}%</span>
+                        </div>
+                        <div class="inst-progress-track">
+                          <div class="inst-progress-fill inst-progress--dominio" [style.width.%]="inst.dominio.excelente_pct"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <ng-template #emptyInstructoresPanel>
+                <div class="card-body text-center py-5">
+                  <i class="fas fa-chalkboard-teacher fa-2x" style="color: #A8A9A2;"></i>
+                  <h5 class="mt-3" style="color: #38512F;">Sin datos de instructores</h5>
+                  <p class="text-muted mb-0">Todavía no hay encuestas cerradas para calcular rendimiento por instructor.</p>
+                </div>
+              </ng-template>
+            </div>
+
+            <div *ngIf="!cargandoRendimiento && vistaAdminActiva === 'general' && rendimientoGeneralAdmin as rg"
+                 class="card shadow-lg border-0 panel-card admin-panel-animated">
+              <div class="card-header border-0 panel-header">
+                <div class="d-flex align-items-center justify-content-between">
+                  <div>
+                    <h6 class="text-uppercase text-muted ls-1 mb-1 panel-subtitle">Encuestas de Satisfacción</h6>
+                    <h2 class="mb-0 panel-title">Rendimiento General</h2>
+                  </div>
+                  <span class="summary-badge">
+                    <i class="fas fa-poll mr-1"></i> {{ rg.total_respuestas || 0 }} respuestas
+                  </span>
+                </div>
+              </div>
+              <div class="card-body panel-body" *ngIf="(rg.total_respuestas || 0) > 0; else emptyGeneralPanel">
+
+                <div class="feedback-section">
+                  <div class="feedback-section-header">
+                    <div class="feedback-section-icon"><i class="fas fa-chart-line"></i></div>
+                    <div>
+                      <h6 class="feedback-section-title">Evaluación General del Curso</h6>
+                      <p class="feedback-section-desc">¿Cómo evalúa, en términos generales, el curso de capacitación?</p>
+                    </div>
+                  </div>
+                  <div class="feedback-bars" *ngIf="rg.evaluacion_curso.total > 0">
+                    <div class="feedback-bar-row">
+                      <span class="bar-label">Excelente</span>
+                      <div class="bar-track">
+                        <div class="bar-fill bar-excelente" [style.width.%]="rg.evaluacion_curso.excelente_pct"></div>
+                      </div>
+                      <span class="bar-value">{{ rg.evaluacion_curso.excelente_pct }}%</span>
+                    </div>
+                    <div class="feedback-bar-row">
+                      <span class="bar-label">Bueno</span>
+                      <div class="bar-track">
+                        <div class="bar-fill bar-bueno" [style.width.%]="rg.evaluacion_curso.bueno_pct"></div>
+                      </div>
+                      <span class="bar-value">{{ rg.evaluacion_curso.bueno_pct }}%</span>
+                    </div>
+                    <div class="feedback-bar-row">
+                      <span class="bar-label">Regular</span>
+                      <div class="bar-track">
+                        <div class="bar-fill bar-regular" [style.width.%]="rg.evaluacion_curso.regular_pct"></div>
+                      </div>
+                      <span class="bar-value">{{ rg.evaluacion_curso.regular_pct }}%</span>
+                    </div>
+                    <div class="feedback-bar-row">
+                      <span class="bar-label">Malo</span>
+                      <div class="bar-track">
+                        <div class="bar-fill bar-malo" [style.width.%]="rg.evaluacion_curso.malo_pct"></div>
+                      </div>
+                      <span class="bar-value">{{ rg.evaluacion_curso.malo_pct }}%</span>
+                    </div>
+                  </div>
+                  <p *ngIf="rg.evaluacion_curso.total === 0" class="text-muted text-center mb-0 mt-2" style="font-size: 0.85rem;">Sin evaluaciones aún</p>
+                </div>
+
+                <div class="feedback-section mt-4">
+                  <div class="feedback-section-header">
+                    <div class="feedback-section-icon feedback-section-icon--alt"><i class="fas fa-layer-group"></i></div>
+                    <div>
+                      <h6 class="feedback-section-title">Pertinencia de Temas</h6>
+                      <p class="feedback-section-desc">¿Cómo considera la pertinencia de los temas abordados durante la capacitación?</p>
+                    </div>
+                  </div>
+                  <div class="feedback-bars" *ngIf="rg.pertinencia_temas.total > 0">
+                    <div class="feedback-bar-row">
+                      <span class="bar-label">Excelente</span>
+                      <div class="bar-track">
+                        <div class="bar-fill bar-excelente" [style.width.%]="rg.pertinencia_temas.excelente_pct"></div>
+                      </div>
+                      <span class="bar-value">{{ rg.pertinencia_temas.excelente_pct }}%</span>
+                    </div>
+                    <div class="feedback-bar-row">
+                      <span class="bar-label">Bueno</span>
+                      <div class="bar-track">
+                        <div class="bar-fill bar-bueno" [style.width.%]="rg.pertinencia_temas.bueno_pct"></div>
+                      </div>
+                      <span class="bar-value">{{ rg.pertinencia_temas.bueno_pct }}%</span>
+                    </div>
+                    <div class="feedback-bar-row">
+                      <span class="bar-label">Regular</span>
+                      <div class="bar-track">
+                        <div class="bar-fill bar-regular" [style.width.%]="rg.pertinencia_temas.regular_pct"></div>
+                      </div>
+                      <span class="bar-value">{{ rg.pertinencia_temas.regular_pct }}%</span>
+                    </div>
+                    <div class="feedback-bar-row">
+                      <span class="bar-label">Malo</span>
+                      <div class="bar-track">
+                        <div class="bar-fill bar-malo" [style.width.%]="rg.pertinencia_temas.malo_pct"></div>
+                      </div>
+                      <span class="bar-value">{{ rg.pertinencia_temas.malo_pct }}%</span>
+                    </div>
+                  </div>
+                  <p *ngIf="rg.pertinencia_temas.total === 0" class="text-muted text-center mb-0 mt-2" style="font-size: 0.85rem;">Sin evaluaciones aún</p>
+                </div>
+
+                <div class="feedback-section mt-4">
+                  <div class="feedback-section-header">
+                    <div class="feedback-section-icon"><i class="fas fa-thumbs-up"></i></div>
+                    <div>
+                      <h6 class="feedback-section-title">Recomendación Biznaga</h6>
+                      <p class="feedback-section-desc">¿Recomendaría a Biznaga para impartir esta capacitación?</p>
+                    </div>
+                  </div>
+                  <div class="feedback-bars" *ngIf="rg.recomendacion_biznaga.total > 0">
+                    <div class="feedback-bar-row feedback-bar-row--wide">
+                      <span class="bar-label">Definitivamente sí</span>
+                      <div class="bar-track">
+                        <div class="bar-fill bar-excelente" [style.width.%]="rg.recomendacion_biznaga.si_pct"></div>
+                      </div>
+                      <span class="bar-value">{{ rg.recomendacion_biznaga.si_pct }}%</span>
+                    </div>
+                    <div class="feedback-bar-row feedback-bar-row--wide">
+                      <span class="bar-label">Definitivamente no</span>
+                      <div class="bar-track">
+                        <div class="bar-fill bar-malo" [style.width.%]="rg.recomendacion_biznaga.no_pct"></div>
+                      </div>
+                      <span class="bar-value">{{ rg.recomendacion_biznaga.no_pct }}%</span>
+                    </div>
+                  </div>
+                  <p *ngIf="rg.recomendacion_biznaga.total === 0" class="text-muted text-center mb-0 mt-2" style="font-size: 0.85rem;">Sin evaluaciones aún</p>
+                </div>
+              </div>
+              <ng-template #emptyGeneralPanel>
+                <div class="card-body text-center py-5">
+                  <i class="fas fa-chart-pie fa-2x" style="color: #A8A9A2;"></i>
+                  <h5 class="mt-3" style="color: #38512F;">Sin datos de rendimiento general</h5>
+                  <p class="text-muted mb-0">Aún no hay respuestas suficientes para el resumen general de encuestas.</p>
+                </div>
+              </ng-template>
+            </div>
+          </div>
+
+          <!-- ========================================= -->
+          <!-- DOCTOR: Resumen de actividad              -->
+          <!-- ========================================= -->
+          <div *ngIf="rolUsuario === 'doctor'">
+
+            <div *ngIf="cargandoDoctor" class="card shadow-lg border-0 panel-card">
+              <div class="card-body text-center py-5">
+                <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                <p class="text-muted mt-2 mb-0">Cargando resumen médico...</p>
+              </div>
+            </div>
+
+            <div *ngIf="!cargandoDoctor && resumenDoctor" class="card shadow-lg border-0 panel-card">
+              <div class="card-header border-0 panel-header">
+                <h6 class="text-uppercase text-muted ls-1 mb-1 panel-subtitle">Actividad Médica</h6>
+                <h2 class="mb-0 panel-title">Mi Resumen</h2>
+              </div>
+              <div class="card-body panel-body">
+
+                <!-- Stats cards -->
+                <div class="doctor-stats-grid">
+                  <div class="doctor-stat-card">
+                    <div class="doctor-stat-icon" style="background: linear-gradient(135deg, #38512F, #5a7456);">
+                      <i class="fas fa-file-medical"></i>
+                    </div>
+                    <div class="doctor-stat-info">
+                      <span class="doctor-stat-value">{{ resumenDoctor.mis_historias }}</span>
+                      <span class="doctor-stat-label">Historias clínicas realizadas</span>
+                    </div>
+                  </div>
+                  <div class="doctor-stat-card">
+                    <div class="doctor-stat-icon" style="background: linear-gradient(135deg, #768D6B, #8fa382);">
+                      <i class="fas fa-calendar-check"></i>
+                    </div>
+                    <div class="doctor-stat-info">
+                      <span class="doctor-stat-value">{{ resumenDoctor.historias_este_mes }}</span>
+                      <span class="doctor-stat-label">Este mes</span>
+                    </div>
+                  </div>
+                  <div class="doctor-stat-card">
+                    <div class="doctor-stat-icon" style="background: linear-gradient(135deg, #5e72e4, #7b8ef8);">
+                      <i class="fas fa-building"></i>
+                    </div>
+                    <div class="doctor-stat-info">
+                      <span class="doctor-stat-value">{{ resumenDoctor.empresas_atendidas }}</span>
+                      <span class="doctor-stat-label">Empresas atendidas</span>
+                    </div>
+                  </div>
+                  <div class="doctor-stat-card">
+                    <div class="doctor-stat-icon" style="background: linear-gradient(135deg, #A8A9A2, #c0c1bc);">
+                      <i class="fas fa-database"></i>
+                    </div>
+                    <div class="doctor-stat-info">
+                      <span class="doctor-stat-value">{{ resumenDoctor.total_historias_sistema }}</span>
+                      <span class="doctor-stat-label">Total en el sistema</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Última historia -->
+                <div class="doctor-last-record" *ngIf="resumenDoctor.ultima_historia">
+                  <div class="last-record-icon"><i class="fas fa-clock"></i></div>
+                  <div class="last-record-info">
+                    <span class="last-record-label">Último expediente elaborado</span>
+                    <span class="last-record-value">
+                      {{ resumenDoctor.ultima_historia.nombre }}
+                      — {{ formatFechaCorta(resumenDoctor.ultima_historia.created_at) }}
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <div *ngIf="!cargandoDoctor && !resumenDoctor" class="card shadow-lg border-0 panel-card">
+              <div class="card-body text-center py-5">
+                <i class="fas fa-notes-medical fa-2x" style="color: #A8A9A2;"></i>
+                <h5 class="mt-3" style="color: #38512F;">Sin actividad registrada</h5>
+                <p class="text-muted mb-0">Tu actividad médica aparecerá aquí conforme elabores historias clínicas.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- ========================================= -->
+          <!-- EMPRESA/CONSULTA/OTROS: Info del usuario  -->
+          <!-- ========================================= -->
+          <div *ngIf="rolUsuario !== 'instructor' && rolUsuario !== 'administrador' && rolUsuario !== 'root' && rolUsuario !== 'doctor'">
+            <div class="card shadow-lg border-0 panel-card">
+              <div class="card-header border-0 panel-header">
+                <h6 class="text-uppercase text-muted ls-1 mb-1 panel-subtitle">Cuenta</h6>
+                <h2 class="mb-0 panel-title">Información del Usuario</h2>
+              </div>
+              <div class="card-body panel-body">
+
+                <p class="info-section-title">Información Personal</p>
+
+                <div class="info-row" *ngIf="usuario.nombre || usuario.apellido">
+                  <div class="info-row-icon"><i class="fas fa-user"></i></div>
+                  <div class="info-row-content">
+                    <span class="info-row-label">Nombre completo</span>
+                    <span class="info-row-value">{{ usuario.nombre }} {{ usuario.apellido }}</span>
+                  </div>
+                </div>
+
+                <div class="info-row">
+                  <div class="info-row-icon"><i class="fas fa-at"></i></div>
+                  <div class="info-row-content">
+                    <span class="info-row-label">Username</span>
+                    <span class="info-row-value">{{ usuario.username }}</span>
+                  </div>
+                </div>
+
+                <div class="info-row" *ngIf="usuario.email">
+                  <div class="info-row-icon"><i class="fas fa-envelope"></i></div>
+                  <div class="info-row-content">
+                    <span class="info-row-label">Correo electrónico</span>
+                    <span class="info-row-value">{{ usuario.email }}</span>
+                  </div>
+                </div>
+
+                <p class="info-section-title mt-4">Información del Sistema</p>
+
+                <div class="info-row">
+                  <div class="info-row-icon info-row-icon--secondary"><i class="fas fa-shield-alt"></i></div>
+                  <div class="info-row-content">
+                    <span class="info-row-label">Rol asignado</span>
+                    <span class="info-row-value">
+                      <span class="badge profile-role-badge" [ngClass]="getRolBadgeClass()">{{ usuario.rol }}</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div class="info-row" *ngIf="empresa">
+                  <div class="info-row-icon info-row-icon--secondary"><i class="fas fa-building"></i></div>
+                  <div class="info-row-content">
+                    <span class="info-row-label">Empresa asociada</span>
+                    <span class="info-row-value">{{ empresa.nombre_empresa }}</span>
+                  </div>
+                </div>
+
+                <div class="info-row">
+                  <div class="info-row-icon info-row-icon--secondary"><i class="fas fa-calendar-plus"></i></div>
+                  <div class="info-row-content">
+                    <span class="info-row-label">Cuenta creada</span>
+                    <span class="info-row-value">{{ formatFechaCorta(usuario.created_at) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ESTADO VACÍO (error) -->
+      <div *ngIf="!cargando && !usuario" class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+        <div class="card-body text-center py-5">
+          <i class="fas fa-user-slash fa-2x text-muted"></i>
+          <p class="text-muted mt-2 mb-0">No se pudo cargar la información del perfil.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

@@ -1,0 +1,430 @@
+<div *ngIf="!embebido" class="header header-bg-image pc-view-enter-header pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-clipboard-check"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">
+            Revisar Documentos
+          </h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div [ngClass]="{
+       'pc-embebido-shell': embebido,
+       'pc-revision--hub': embebidoHub,
+       'container-fluid': !embebido,
+       'mt--5': !embebido,
+       'pc-view-enter-content': !embebido
+     }"
+     [attr.style]="embebido ? null : 'position: relative; z-index: 10; margin-bottom: 3rem'">
+  <div [ngClass]="embebido ? '' : 'row justify-content-center'">
+    <div [ngClass]="embebido ? '' : 'col-xl-11'">
+      <div class="card shadow-lg border-0 revision-page-card">
+        <div *ngIf="!embebidoHub" class="card-header border-0 revision-header" style="padding: 1.5rem 2rem;">
+          <div class="row align-items-center">
+            <div class="col">
+              <button *ngIf="!embebido" type="button" (click)="volver()" class="btn btn-link p-0 mb-2 revision-back-btn" style="font-size: 0.9rem;">
+                <i class="fas fa-arrow-left mr-1"></i> Volver
+              </button>
+              <h2 class="mb-0 revision-page-title" style="color: #d97248; font-weight: 700; font-size: 1.5rem;">
+                <i class="fas fa-clipboard-check mr-2"></i>Revisar Documentos
+              </h2>
+              <small class="d-block mt-1 revision-subtitle" style="font-size: 0.78rem;">
+                Revisa y aprueba los documentos que la empresa ya entregó.
+              </small>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body revision-card-body">
+
+          <div *ngIf="cargando" class="text-center py-5">
+            <i class="fas fa-spinner fa-spin fa-2x" style="color: #d97248;"></i>
+            <p class="text-muted mt-2 mb-0">Cargando documentos...</p>
+          </div>
+
+          <ng-container *ngIf="!cargando">
+
+          <div *ngIf="documentos.length === 0" class="text-center py-5">
+            <i class="fas fa-folder-open fa-2x text-muted"></i>
+            <p class="text-muted mt-2 mb-0">No hay documentos solicitados a la empresa para revisar</p>
+          </div>
+
+          <!-- Stepper de navegaci?n (documentos padre) -->
+          <div class="pc-stepper-wrapper"
+               *ngIf="documentos.length > 0"
+               [class.compact]="documentos.length <= 5"
+               [class.single-node]="documentos.length === 1">
+            <div class="pc-stepper-inner">
+              <div class="pc-stepper-line-container" *ngIf="documentos.length > 1">
+                <div class="pc-stepper-line"></div>
+                <div class="pc-stepper-line-progress" [style.width.%]="getProgresoStepper()"></div>
+              </div>
+              <button *ngFor="let doc of documentos; let i = index"
+                      type="button"
+                      class="pc-stepper-step"
+                      [class.active]="documentoSeleccionadoId === doc.id"
+                      [class.completed]="esDocumentoCompletado(doc)"
+                      [class.rejected]="esDocumentoRechazado(doc)"
+                      (click)="seleccionarDocumento(doc)">
+                <span class="pc-stepper-circle">
+                  <i *ngIf="esDocumentoCompletado(doc)" class="fas fa-check"></i>
+                  <i *ngIf="esDocumentoRechazado(doc)" class="fas fa-times"></i>
+                  <span *ngIf="!esDocumentoCompletado(doc) && !esDocumentoRechazado(doc)">{{ i + 1 }}</span>
+                </span>
+                <div class="pc-stepper-label">{{ doc.nombre }}</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Contenido del documento seleccionado -->
+          <div *ngIf="documentoSeleccionado" class="doc-list-wrapper mt-3">
+
+          <div class="d-flex justify-content-between align-items-center flex-wrap doc-grupo-header" style="gap: 0.75rem;">
+            <h5 class="mb-0 doc-grupo-header__title">
+              <i class="fas fa-folder-open mr-2" aria-hidden="true"></i>{{ documentoSeleccionado.nombre }}
+            </h5>
+            <div class="menu-dots-wrapper">
+              <button type="button"
+                      class="btn btn-icon-only rounded-circle border-0 shadow-none bg-white text-muted action-menu-floating"
+                      style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: 1px solid #eee !important;"
+                      title="Opciones de documento"
+                      (click)="toggleMenu('padre_' + documentoSeleccionado.id, $event, 'padre')">
+                <i class="fas fa-ellipsis-v"></i>
+              </button>
+              <div class="checklist-dropdown checklist-dropdown--anchored"
+                   *ngIf="menuAbiertoId === 'padre_' + documentoSeleccionado.id"
+                   (click)="$event.stopPropagation()">
+                <div class="px-3 py-2">
+                  <h6 class="dropdown-header px-0 mb-2" style="font-size: 0.65rem; color: #a0aec0; font-weight: 800; letter-spacing: 0.5px;">GESTIÓN DE ASIGNACIÓN</h6>
+                  <button type="button"
+                          class="dropdown-item text-danger rounded-lg py-2 d-flex align-items-center"
+                          (click)="cancelarAsignacion(documentoSeleccionado); cerrarMenu()"
+                          style="font-weight: 600; font-size: 0.85rem;">
+                    <i class="fas fa-trash-alt mr-2" style="font-size: 0.8rem;"></i> Eliminar asignación completa
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filtros de estatus -->
+          <div class="filtros-toolbar filtros-toolbar--compact">
+            <div class="filtros-toolbar__label">
+              <i class="fas fa-filter"></i>
+              <span>Estatus de revisión</span>
+            </div>
+            <div class="filtros-toolbar__group">
+              <button type="button"
+                      class="btn btn-sm filtro-btn"
+                      [class.is-active]="esFiltroActivo('pendiente')"
+                      (click)="setEstadoFiltro('pendiente')">
+                <span>Pendientes</span>
+                <span class="badge badge-light">{{ totalPendientes }}</span>
+              </button>
+              <button type="button"
+                      class="btn btn-sm filtro-btn"
+                      [class.is-active]="esFiltroActivo('aprobado')"
+                      (click)="setEstadoFiltro('aprobado')">
+                <span>Aprobados</span>
+                <span class="badge badge-light">{{ totalAprobados }}</span>
+              </button>
+              <button type="button"
+                      class="btn btn-sm filtro-btn"
+                      [class.is-active]="esFiltroActivo('rechazado')"
+                      (click)="setEstadoFiltro('rechazado')">
+                <span>Rechazados</span>
+                <span class="badge badge-light">{{ totalRechazados }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="archivosFiltrados.length === 0" class="doc-empty-state">
+            <i class="fas fa-inbox"></i>
+            <p>No hay {{ estadoFiltro === 'pendiente' ? 'documentos pendientes asignados' : (estadoFiltro === 'aprobado' ? 'documentos aprobados' : 'documentos rechazados') }} en este grupo.</p>
+          </div>
+
+          <ng-container *ngIf="archivosFiltrados.length > 0">
+
+            <div class="pc-workspace-toolbar pc-workspace-toolbar--tight">
+              <div class="pc-workspace-search">
+                <i class="fas fa-search"></i>
+                <input type="search"
+                       class="form-control form-control-sm"
+                       placeholder="Buscar por nombre, archivo o dato..."
+                       [(ngModel)]="busquedaRevision"
+                       (ngModelChange)="onBusquedaRevisionChange()">
+              </div>
+              <button type="button"
+                      class="btn btn-sm pc-btn-siguiente"
+                      (click)="irAlSiguientePendienteRevision()"
+                      title="Ir al siguiente pendiente">
+                <i class="fas fa-forward mr-1"></i> Siguiente pendiente
+              </button>
+            </div>
+
+            <div class="pc-revision-workspace pc-workspace--balanced" *ngIf="archivosFiltradosBusqueda.length > 0; else sinResultadosBusqueda">
+              <!-- Lista lateral -->
+              <aside class="pc-workspace-nav" aria-label="Lista de requisitos">
+                <div class="pc-nav-group" *ngIf="archivosBusquedaArchivo.length > 0">
+                  <div class="pc-nav-group__title">
+                    <i class="fas fa-file-alt"></i>
+                    <span>Archivos</span>
+                    <span class="pc-nav-group__count">{{ archivosBusquedaArchivo.length }}</span>
+                  </div>
+                  <button type="button"
+                          *ngFor="let item of archivosBusquedaArchivo; trackBy: trackByArchivoPlano"
+                          class="pc-nav-item"
+                          [class.is-active]="archivoFocus?.subRequisito.id === item.subRequisito.id"
+                          [ngClass]="getClaseEstatusNavRevision(item)"
+                          (click)="seleccionarArchivoRevision(item)">
+                    <span class="pc-nav-item__icon"><i class="fas fa-file-alt"></i></span>
+                    <span class="pc-nav-item__body">
+                      <span class="pc-nav-item__name">{{ item.subRequisito.nombre }}</span>
+                      <span class="pc-nav-item__meta">{{ getEtiquetaNavRevision(item) }}</span>
+                    </span>
+                  </button>
+                </div>
+
+                <div class="pc-nav-group" *ngIf="archivosBusquedaTexto.length > 0">
+                  <div class="pc-nav-group__title">
+                    <i class="fas fa-pen-alt"></i>
+                    <span>Texto</span>
+                    <span class="pc-nav-group__count">{{ archivosBusquedaTexto.length }}</span>
+                  </div>
+                  <button type="button"
+                          *ngFor="let item of archivosBusquedaTexto; trackBy: trackByArchivoPlano"
+                          class="pc-nav-item"
+                          [class.is-active]="archivoFocus?.subRequisito.id === item.subRequisito.id"
+                          [ngClass]="getClaseEstatusNavRevision(item)"
+                          (click)="seleccionarArchivoRevision(item)">
+                    <span class="pc-nav-item__icon"><i class="fas fa-font"></i></span>
+                    <span class="pc-nav-item__body">
+                      <span class="pc-nav-item__name">{{ item.subRequisito.nombre }}</span>
+                      <span class="pc-nav-item__meta">{{ getEtiquetaNavRevision(item) }}</span>
+                    </span>
+                  </button>
+                </div>
+              </aside>
+
+              <!-- Panel de detalle (estilo Carga directa) -->
+              <main class="pc-workspace-panel pc-revision-detail" *ngIf="archivoFocus as item">
+                <article class="pc-detail pc-revision-detail">
+                  <header class="pc-detail__head">
+                    <div class="pc-detail__head-top">
+                      <span class="pc-detail__badge" [ngClass]="getClaseEstatusNavRevision(item)">
+                        {{ getEtiquetaNavRevision(item) }}
+                      </span>
+                      <button type="button"
+                              class="btn btn-sm btn-outline-danger pc-btn-eliminar-asignacion-item"
+                              (click)="borrarAsignacionIndividual(item)"
+                              title="Eliminar asignación de este documento">
+                        <i class="fas fa-trash-alt mr-1"></i> Eliminar asignación
+                      </button>
+                    </div>
+                    <h6 class="pc-detail__title">
+                      {{ item.subRequisito.nombre }}
+                    </h6>
+                    <p class="pc-detail__spec" *ngIf="item.subRequisito.archivos.length > 0">
+                      {{ item.subRequisito.archivos.length }} archivo{{ item.subRequisito.archivos.length === 1 ? '' : 's' }} entregado{{ item.subRequisito.archivos.length === 1 ? '' : 's' }}
+                    </p>
+                  </header>
+
+                  <section class="pc-detail__section pc-revision-detail__waiting"
+                           *ngIf="!puedeGestionarRevision(item.subRequisito)">
+                    <div class="pc-revision-detail__waiting-box">
+                      <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+                      <p class="mb-1"><strong>Esperando entrega de la empresa</strong></p>
+                      <small class="text-muted">Este documento aún no fue cargado. La revisión se habilitará cuando la empresa lo suba.</small>
+                    </div>
+                  </section>
+
+                  <div class="pc-detail__alert pc-detail__alert--danger"
+                       *ngIf="item.subRequisito.estado === 'rechazado' && ultimoComentarioRechazo(item.subRequisito)">
+                    <i class="fas fa-comment-alt"></i>
+                    <div>
+                      <strong>Motivo del rechazo</strong>
+                      <p class="mb-0">{{ ultimoComentarioRechazo(item.subRequisito) }}</p>
+                    </div>
+                  </div>
+
+                  <!-- Entregable de texto -->
+                  <section class="pc-detail__section" *ngIf="puedeGestionarRevision(item.subRequisito) && item.subRequisito.tipo_entrada === 'texto'">
+                    <label class="pc-detail__label">Valor capturado</label>
+                    <div class="pc-text-preview__value pc-text-preview__value--inline"
+                         *ngIf="item.subRequisito.valor_texto; else sinTextoRevision">
+                      {{ item.subRequisito.valor_texto }}
+                    </div>
+                    <ng-template #sinTextoRevision>
+                      <div class="doc-empty-state doc-empty-state--compact">
+                        <i class="fas fa-font"></i>
+                        <p>Sin texto capturado para revisar.</p>
+                      </div>
+                    </ng-template>
+                  </section>
+
+                  <!-- Entregable de archivo: miniatura(s) clicable(s) -->
+                  <section class="pc-detail__section" *ngIf="puedeGestionarRevision(item.subRequisito) && item.subRequisito.tipo_entrada !== 'texto' && item.subRequisito.archivos.length > 0">
+                    <div class="pc-doc-tiles">
+                      <button type="button"
+                              class="pc-doc-tile"
+                              *ngFor="let archivo of item.subRequisito.archivos; let i = index"
+                              (click)="abrirDocumentoEnVisor(item, i)"
+                              [attr.aria-label]="'Abrir ' + archivo.nombre">
+                        <div class="pc-doc-tile__preview">
+                          <div *ngIf="archivo.driveFileId" class="pc-doc-tile__pdf-wrap">
+                            <iframe class="pc-doc-tile__pdf-embed"
+                                    [src]="getDrivePreviewUrlArchivo(archivo) | safe"
+                                    [title]="archivo.nombre"
+                                    tabindex="-1"></iframe>
+                          </div>
+                          <div *ngIf="!archivo.driveFileId" class="pc-doc-tile__placeholder">
+                            <i class="fas fa-file-alt"></i>
+                            <span>Archivo</span>
+                          </div>
+                          <div class="pc-doc-tile__hover" aria-hidden="true">
+                            <i class="fas fa-expand"></i>
+                            <span>Ver documento</span>
+                          </div>
+                          <span class="pc-doc-tile__type">PDF</span>
+                        </div>
+                        <div class="pc-doc-tile__meta">
+                          <strong class="pc-doc-tile__name">{{ archivo.nombre }}</strong>
+                          <small *ngIf="archivo.fechaEntrega" class="pc-doc-tile__date">
+                            {{ archivo.fechaEntrega }}
+                          </small>
+                        </div>
+                      </button>
+                    </div>
+                  </section>
+
+                  <div class="pc-reject-form" *ngIf="puedeGestionarRevision(item.subRequisito) && mostrarFormularioRechazo && item.subRequisito.estado !== 'rechazado'">
+                    <label class="pc-review-sidebar__label">Comentario / Motivo</label>
+                    <textarea class="form-control pc-review-textarea"
+                              rows="4"
+                              [(ngModel)]="item.subRequisito.comentarioActual"
+                              placeholder="Escribe el motivo del rechazo (obligatorio)..."></textarea>
+                    <div class="pc-reject-send" *ngIf="motivoRechazoValido(item.subRequisito)">
+                      <button type="button"
+                              class="btn pc-btn-enviar-rechazo"
+                              (click)="confirmarRechazoSubRequisito(item.subRequisito)"
+                              [disabled]="procesandoAccion || !motivoRechazoValido(item.subRequisito)"
+                              title="Enviar rechazo">
+                        <i class="fas fa-paper-plane"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <footer class="pc-revision-detail__footer pc-revision-detail__footer--actions"
+                          *ngIf="puedeGestionarRevision(item.subRequisito)">
+                    <button type="button"
+                            class="btn btn-sm"
+                            [class.pc-btn-rechazar]="!mostrarFormularioRechazo"
+                            [class.pc-btn-rechazar-cancel]="mostrarFormularioRechazo"
+                            (click)="togglePanelRechazo()"
+                            [disabled]="item.subRequisito.estado === 'rechazado' || procesandoAccion">
+                      <i class="fas mr-1" [class.fa-times-circle]="!mostrarFormularioRechazo" [class.fa-arrow-left]="mostrarFormularioRechazo"></i>
+                      {{ mostrarFormularioRechazo ? 'Cancelar' : 'Rechazar' }}
+                    </button>
+                    <button type="button"
+                            class="btn btn-sm pc-btn-aprobar"
+                            (click)="aprobarSubRequisito(item.subRequisito)"
+                            [disabled]="item.subRequisito.estado === 'aprobado' || procesandoAccion || mostrarFormularioRechazo || (item.subRequisito.tipo_entrada === 'texto' && !item.subRequisito.valor_texto)">
+                      <i class="fas fa-check-circle mr-1"></i> Aprobar
+                    </button>
+                  </footer>
+                </article>
+              </main>
+            </div>
+
+            <ng-template #sinResultadosBusqueda>
+              <div class="doc-empty-state">
+                <i class="fas fa-search"></i>
+                <p>No hay coincidencias para la b?squeda actual.</p>
+              </div>
+            </ng-template>
+
+          </ng-container>
+
+          <!-- Navegaci?n prev / next documento padre -->
+          <div class="d-flex justify-content-between mt-4 px-1" *ngIf="documentos.length > 1">
+            <button class="btn btn-sm btn-outline-secondary"
+                    [disabled]="documentos.indexOf(documentoSeleccionado!) <= 0"
+                    (click)="seleccionarDocumento(documentos[documentos.indexOf(documentoSeleccionado!) - 1])">
+              <i class="fas fa-chevron-left mr-1"></i> Anterior
+            </button>
+            <small class="text-muted align-self-center">
+              {{ documentos.indexOf(documentoSeleccionado!) + 1 }} / {{ documentos.length }} documentos
+            </small>
+            <button class="btn btn-sm btn-outline-secondary"
+                    [disabled]="documentos.indexOf(documentoSeleccionado!) >= documentos.length - 1"
+                    (click)="seleccionarDocumento(documentos[documentos.indexOf(documentoSeleccionado!) + 1])">
+              Siguiente <i class="fas fa-chevron-right ml-1"></i>
+            </button>
+          </div>
+
+          </div><!-- end documentoSeleccionado -->
+
+          </ng-container><!-- end !cargando -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Visor pantalla completa (solo ruta standalone; embebido usa el visor del padre) -->
+<div *ngIf="!embebido && mostrarVisorLocal"
+     class="pc-revision-visor"
+     role="dialog"
+     aria-modal="true"
+     [attr.aria-label]="'Vista de ' + nombreVisorLocal">
+  <div class="pc-revision-visor__backdrop" (click)="cerrarVisorLocal()"></div>
+  <div class="pc-revision-visor__panel">
+    <div class="pc-revision-visor__head">
+      <div class="pc-revision-visor__title-wrap">
+        <span class="pc-revision-visor__icon">
+          <i class="fas fa-file-alt" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="pc-revision-visor__title">Visor integrado de documento</strong>
+          <small class="pc-revision-visor__subtitle">{{ nombreVisorLocal }}</small>
+        </div>
+      </div>
+      <div class="pc-revision-visor__head-actions">
+        <button type="button"
+                class="btn btn-sm btn-outline-light mr-2"
+                (click)="descargarDesdeVisorLocal()"
+                title="Descargar archivo">
+          <i class="fas fa-download mr-1" aria-hidden="true"></i> Descargar
+        </button>
+        <button type="button" class="btn btn-sm btn-light" (click)="cerrarVisorLocal()">
+          <i class="fas fa-times mr-1" aria-hidden="true"></i> Volver al listado
+        </button>
+      </div>
+    </div>
+    <div class="pc-revision-visor__body">
+      <div class="pc-revision-visor__loading" *ngIf="cargandoVisorLocal">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando documento…</span>
+      </div>
+      <iframe *ngIf="urlVisorLocal && !cargandoVisorLocal"
+              class="pc-revision-visor__iframe"
+              [src]="urlVisorLocal | safe"
+              title="Visualizador de Documento">
+      </iframe>
+      <div *ngIf="!urlVisorLocal && !cargandoVisorLocal" class="pc-revision-visor__fallback">
+        <i class="fas fa-file-alt fa-3x mb-3" style="opacity: 0.6" aria-hidden="true"></i>
+        <p class="mb-0">Vista previa no disponible</p>
+        <small class="text-muted">El archivo no se pudo cargar desde Google Drive</small>
+      </div>
+    </div>
+  </div>
+</div>
+

@@ -1,0 +1,26 @@
+<div class="header header-bg-image sgc-hero sgc-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="sgc-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i class="fas fa-book-open" aria-hidden="true"></i>
+          </div>
+          <h1 class="text-white mb-0 sgc-hero-title">Capítulos</h1>
+          <p class="text-white mb-0 sgc-hero-tagline">{{ etiquetaRolUsuario }} · ISO 9001:2015</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid sgc-main-wrap mt--5">
+  <div class="row justify-content-center">
+    <div class="col-12 sgc-content-col">
+      <app-sgc-capitulos-panel
+        [syncQuery]="true"
+        [capituloInicial]="capituloInicial">
+      </app-sgc-capitulos-panel>
+    </div>
+  </div>
+</div>

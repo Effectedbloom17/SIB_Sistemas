@@ -1,0 +1,229 @@
+<div class="ct">
+  <header class="ct__bar">
+    <div class="ct__bar-main">
+      <span class="ct__chip">SP-F-28</span>
+      <div class="ct__bar-text">
+        <h2>Control de Trámites</h2>
+        <p>{{ tramitesFiltrados.length }} registro{{ tramitesFiltrados.length === 1 ? '' : 's' }}</p>
+      </div>
+    </div>
+    <label class="ct__search">
+      <i class="fas fa-search" aria-hidden="true"></i>
+      <input type="search"
+             placeholder="Buscar oficio, empresa o ítem…"
+             [(ngModel)]="busqueda"
+             (ngModelChange)="onBusquedaChange()"
+             autocomplete="off"
+             aria-label="Buscar trámites">
+    </label>
+  </header>
+
+  <div class="ct__workspace">
+    <aside class="ct__master">
+      <div *ngIf="cargandoLista" class="ct__empty">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>Cargando…</span>
+      </div>
+      <div *ngIf="!cargandoLista && errorLista" class="ct__empty ct__empty--error">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>{{ errorLista }}</span>
+      </div>
+      <div *ngIf="!cargandoLista && !errorLista && tramitesFiltrados.length === 0" class="ct__empty">
+        <i class="fas fa-inbox"></i>
+        <span>Sin trámites</span>
+      </div>
+
+      <ul class="ct__list" *ngIf="!cargandoLista && tramitesFiltrados.length > 0" role="listbox">
+        <li *ngFor="let t of tramitesPaginados; trackBy: trackByTramiteId"
+            role="option"
+            [attr.aria-selected]="tramiteSeleccionado?.tramite_id === t.tramite_id"
+            [class.is-selected]="tramiteSeleccionado?.tramite_id === t.tramite_id"
+            (click)="seleccionarTramite(t)">
+          <span class="ct__list-item">{{ t.item }}</span>
+          <div class="ct__list-body">
+            <strong [title]="t.oficio || 'Sin oficio'">{{ t.oficio || 'Sin oficio' }}</strong>
+            <small [title]="t.empresa_nombre || 'Sin empresa'">{{ t.empresa_nombre || 'Sin empresa' }}</small>
+            <div class="ct__tags">
+              <span class="ct__tag" [class.is-cerrado]="t.estatus === 'cerrado'">{{ etiquetaEstatus(t.estatus) }}</span>
+              <span class="ct__tag ct__tag--soft" *ngIf="tieneDocumento(t)">Anex</span>
+              <span class="ct__tag ct__tag--soft" *ngIf="tieneContestacion(t)">Cont</span>
+            </div>
+          </div>
+        </li>
+      </ul>
+
+      <div class="ct__pager" *ngIf="!cargandoLista && tramitesFiltrados.length > pageSize">
+        <button type="button" [disabled]="pagina <= 1" (click)="irPagina(pagina - 1)" aria-label="Anterior">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        <span>{{ pagina }} / {{ totalPaginas }}</span>
+        <button type="button" [disabled]="pagina >= totalPaginas" (click)="irPagina(pagina + 1)" aria-label="Siguiente">
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+    </aside>
+
+    <section class="ct__detail" *ngIf="tramiteSeleccionado; else sinSeleccion">
+      <div class="ct__detail-head">
+        <div class="ct__detail-titles">
+          <span class="ct__eyebrow">Vista previa</span>
+          <h3 [title]="tramiteSeleccionado.oficio">{{ tramiteSeleccionado.oficio || 'Sin oficio' }}</h3>
+        </div>
+        <div class="ct__segments ct__segments--head" role="tablist">
+          <button type="button" role="tab"
+                  [class.is-active]="ambitoActivo === 'documento'"
+                  (click)="cambiarAmbito('documento')">
+            Documento <span>{{ archivosDocumento.length }}</span>
+          </button>
+          <button type="button" role="tab"
+                  [class.is-active]="ambitoActivo === 'contestacion'"
+                  (click)="cambiarAmbito('contestacion')">
+            Contestación <span>{{ archivosContestacion.length }}</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="ct__files-strip"
+           [class.ct__files-strip--compact]="archivosActivos.length > 6"
+           *ngIf="!cargandoArchivos && archivosActivos.length; else archivosEstado">
+        <div class="ct__files-group" *ngFor="let carpeta of carpetasRaiz; trackBy: trackByRuta">
+          <button type="button" class="ct__files-group-btn"
+                  [class.is-open]="estaExpandida(carpeta.ruta)"
+                  (click)="toggleCarpeta(carpeta.ruta)">
+            <i class="fas fa-folder"></i>
+            <span>{{ carpeta.nombre }}</span>
+            <em>{{ carpeta.cantidad }}</em>
+            <i class="fas" [ngClass]="estaExpandida(carpeta.ruta) ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+          <div class="ct__files-chips" *ngIf="estaExpandida(carpeta.ruta)">
+            <ng-container *ngTemplateOutlet="chipsCarpeta; context: { $implicit: carpeta.ruta }"></ng-container>
+          </div>
+        </div>
+
+        <div class="ct__files-group" *ngIf="archivosRaiz.length">
+          <button type="button" class="ct__files-group-btn"
+                  [class.is-open]="estaExpandida(claveRaiz)"
+                  (click)="toggleCarpeta(claveRaiz)">
+            <i class="fas fa-file-alt"></i>
+            <span>Documentación extra</span>
+            <em>{{ archivosRaiz.length }}</em>
+            <i class="fas" [ngClass]="estaExpandida(claveRaiz) ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+          <div class="ct__files-chips" *ngIf="estaExpandida(claveRaiz)">
+            <button type="button" class="ct__chip-file"
+                    *ngFor="let doc of archivosRaiz; trackBy: trackByArchivoId"
+                    [class.is-active]="archivoSeleccionado?.id === doc.id"
+                    (click)="seleccionarArchivo(doc)"
+                    [title]="doc.nombreArchivo">
+              <i class="fas" [ngClass]="iconoTipo(doc.mimeType, doc.nombreArchivo)"></i>
+              <span>{{ doc.nombreArchivo }}</span>
+              <small>{{ etiquetaTipo(doc.mimeType, doc.nombreArchivo) }}</small>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <ng-template #archivosEstado>
+        <div class="ct__files-strip ct__files-strip--empty">
+          <span *ngIf="cargandoArchivos"><i class="fas fa-spinner fa-spin"></i> Cargando archivos…</span>
+          <span *ngIf="!cargandoArchivos">Sin archivos en {{ tituloAmbito | lowercase }}.</span>
+        </div>
+      </ng-template>
+
+      <div class="ct__preview">
+        <div class="ct__preview-meta" *ngIf="archivoSeleccionado">
+          <div>
+            <strong [title]="archivoSeleccionado.nombreArchivo">{{ archivoSeleccionado.nombreArchivo }}</strong>
+            <span>
+              {{ etiquetaTipo(archivoSeleccionado.mimeType, archivoSeleccionado.nombreArchivo) }}
+              · {{ formatearTamano(archivoSeleccionado.tamanoBytes) }}
+              · {{ etiquetaCarpeta(archivoSeleccionado) }}
+            </span>
+          </div>
+        </div>
+
+        <div class="ct__preview-stage">
+          <div *ngIf="previewCargando" class="ct__preview-ph">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Preparando vista previa…</span>
+          </div>
+
+          <ng-container *ngIf="!previewCargando && archivoSeleccionado && previewUrl">
+            <img *ngIf="esImagenPreview" class="ct__preview-img"
+                 [src]="previewUrl | safe" [alt]="archivoSeleccionado.nombreArchivo"
+                 (error)="onPreviewImgError()">
+            <iframe *ngIf="!esImagenPreview" class="ct__preview-embed"
+                    [src]="previewUrl | safe" [title]="archivoSeleccionado.nombreArchivo"></iframe>
+          </ng-container>
+
+          <div *ngIf="!previewCargando && !archivoSeleccionado" class="ct__preview-ph">
+            <i class="fas fa-file-alt"></i>
+            <span>Elige un archivo arriba para previsualizarlo</span>
+          </div>
+
+          <div *ngIf="!previewCargando && archivoSeleccionado && !previewUrl" class="ct__preview-ph">
+            <span>{{ previewError || 'Documento no encontrado' }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <ng-template #sinSeleccion>
+      <section class="ct__detail ct__detail--empty">
+        <i class="fas fa-hand-pointer"></i>
+        <h3>Selecciona un trámite</h3>
+        <p>Elige un oficio de la lista para ver sus documentos y contestaciones.</p>
+      </section>
+    </ng-template>
+  </div>
+</div>
+
+<ng-template #chipsCarpeta let-rutaPadre>
+  <ng-container *ngFor="let sub of carpetasHijas(rutaPadre); trackBy: trackByRuta">
+    <div class="ct__files-group ct__files-group--nested">
+      <button type="button" class="ct__files-group-btn"
+              [class.is-open]="estaExpandida(sub.ruta)"
+              (click)="toggleCarpeta(sub.ruta)">
+        <i class="fas fa-folder"></i>
+        <span>{{ sub.nombre }}</span>
+        <em>{{ sub.cantidad }}</em>
+        <i class="fas" [ngClass]="estaExpandida(sub.ruta) ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+      </button>
+      <div class="ct__files-chips" *ngIf="estaExpandida(sub.ruta)">
+        <ng-container *ngTemplateOutlet="chipsCarpeta; context: { $implicit: sub.ruta }"></ng-container>
+      </div>
+    </div>
+  </ng-container>
+
+  <button type="button" class="ct__chip-file"
+          *ngFor="let doc of archivosEn(rutaPadre); trackBy: trackByArchivoId"
+          [class.is-active]="archivoSeleccionado?.id === doc.id"
+          (click)="seleccionarArchivo(doc)"
+          [title]="doc.nombreArchivo">
+    <i class="fas" [ngClass]="iconoTipo(doc.mimeType, doc.nombreArchivo)"></i>
+    <span>{{ doc.nombreArchivo }}</span>
+    <small>{{ etiquetaTipo(doc.mimeType, doc.nombreArchivo) }}</small>
+  </button>
+</ng-template>
+
+<div class="ct__full" *ngIf="visorExpandido && previewUrl" (click)="toggleVisorExpandido()">
+  <div class="ct__full-inner" (click)="$event.stopPropagation()">
+    <header class="ct__full-head">
+      <span class="ct__full-icon"><i class="fas" [ngClass]="iconoTipo(archivoSeleccionado?.mimeType, archivoSeleccionado?.nombreArchivo || '')"></i></span>
+      <div>
+        <strong>{{ archivoSeleccionado?.nombreArchivo }}</strong>
+        <small>{{ tituloAmbito }} · {{ formatearTamano(archivoSeleccionado?.tamanoBytes) }}</small>
+      </div>
+      <button type="button" class="ct__full-drive" (click)="abrirEnDrive()">
+        <i class="fas fa-external-link-alt"></i> Abrir en Drive
+      </button>
+      <button type="button" class="ct__full-close" (click)="toggleVisorExpandido()" aria-label="Cerrar">
+        <i class="fas fa-times"></i> <span>Cerrar</span>
+      </button>
+    </header>
+    <div class="ct__full-stage">
+      <img *ngIf="esImagenPreview" [src]="previewUrl | safe" alt="">
+      <iframe *ngIf="!esImagenPreview" [src]="previewUrl | safe" title="Vista ampliada"></iframe>
+    </div>
+  </div>
+</div>

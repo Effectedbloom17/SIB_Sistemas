@@ -1,0 +1,487 @@
+<div class="pc-recorrido-spf02" [class.pc-recorrido-spf02--loading]="cargando">
+  <div class="dg-f05-loading" *ngIf="cargando" role="status">
+    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+    <span>Cargando reporte de recorrido…</span>
+  </div>
+
+  <ng-container *ngIf="!cargando">
+    <div class="alert alert-warning py-2 mb-3" *ngIf="pipcs.length === 0">
+      <i class="fas fa-info-circle mr-1"></i>
+      Primero asigna al menos un PIPC en «Asignar documentos». Cada PIPC requiere su reporte SP-F-02.
+    </div>
+
+    <ng-container *ngIf="pipcs.length">
+      <div class="pc-recorrido-spf02__modo" role="tablist" aria-label="Modo de captura del reporte">
+        <span class="pc-recorrido-spf02__modo-glider" [class.is-pdf]="esModoPdf" aria-hidden="true"></span>
+        <button type="button"
+                class="pc-recorrido-spf02__modo-btn"
+                role="tab"
+                [attr.aria-selected]="esModoManual"
+                [class.is-active]="esModoManual"
+                [disabled]="cambiandoModo"
+                (click)="seleccionarModoCaptura('manual')">
+          <i class="fas fa-edit" aria-hidden="true"></i>
+          Registro manual (SP-F-02)
+        </button>
+        <button type="button"
+                class="pc-recorrido-spf02__modo-btn"
+                role="tab"
+                [attr.aria-selected]="esModoPdf"
+                [class.is-active]="esModoPdf"
+                [disabled]="cambiandoModo"
+                (click)="seleccionarModoCaptura('pdf')">
+          <i class="fas fa-file-pdf" aria-hidden="true"></i>
+          Subir PDF
+        </button>
+      </div>
+
+      <div class="pc-recorrido-spf02__modo-viewport"
+           [class.pc-recorrido-spf02__modo-viewport--locked]="nodoBloqueado">
+
+        <div class="pc-recorrido-spf02__modo-panel" *ngIf="esModoManual" @modoPanel>
+          <nav class="pc-recorrido-spf02__pipc-nav pc-recorrido-spf02__pipc-nav--top"
+               *ngIf="pipcs.length > 1"
+               aria-label="PIPCs asignados">
+            <p class="pc-recorrido-spf02__pipc-nav-title">PIPCs asignados</p>
+            <div class="pc-recorrido-spf02__pipc-nav-row">
+              <button type="button"
+                      class="pc-recorrido-spf02__pipc-tab"
+                      *ngFor="let p of pipcs; trackBy: trackByPipc"
+                      [class.is-active]="p.documento_id === pipcActivo?.documento_id"
+                      [class.is-done]="p.completo"
+                      (click)="seleccionarPipc(p)">
+                <span class="pc-recorrido-spf02__pipc-tab-status">{{ p.completo ? 'Completo' : 'Pendiente' }}</span>
+                <span class="pc-recorrido-spf02__pipc-tab-name">{{ p.nombre_documento }}</span>
+                <span class="pc-recorrido-spf02__pipc-tab-folio">{{ datosReportePipc(p).folio || 'Sin guardar' }}</span>
+              </button>
+            </div>
+          </nav>
+
+          <div class="pc-recorrido-spf02__toolbar">
+            <div class="pc-recorrido-spf02__toolbar-meta">
+              <span class="pc-recorrido-spf02__sync" *ngIf="ultimaSync">
+                <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i> Sync: {{ ultimaSync }}
+              </span>
+              <span class="pc-recorrido-spf02__badge-pc">
+                <i class="fas fa-shield-alt" aria-hidden="true"></i> Protección Civil · no SGC
+              </span>
+              <span class="pc-recorrido-spf02__progress">
+                {{ resumenGlobal.completos }}/{{ resumenGlobal.total }} {{ resumenModoLabel }}
+              </span>
+            </div>
+            <div class="pc-recorrido-spf02__toolbar-actions" *ngIf="!nodoBloqueado">
+              <button type="button" class="btn btn-sm pc-recorrido-spf02__btn-outline"
+                      [disabled]="guardando || !reporteActivo"
+                      (click)="guardarInformacion()">
+                <i class="fas fa-spinner fa-spin mr-1" *ngIf="guardando"></i>
+                <i class="fas fa-save mr-1" *ngIf="!guardando"></i>
+                Guardar información
+              </button>
+              <button type="button" class="btn btn-sm pc-recorrido-spf02__btn-primary"
+                      [disabled]="!driveFileId && !editorUrl" (click)="abrirEditorIntegrado()">
+                <i class="fas fa-pen-fancy mr-1"></i>
+                Abrir editor integrado
+              </button>
+            </div>
+          </div>
+
+          <form class="dg-f05-form sp-f-02-form" (ngSubmit)="$event.preventDefault()"
+                (input)="onEditado()" (change)="onEditado()">
+            <div class="pc-recorrido-spf02__layout" *ngIf="reporteActivo && pipcActivo">
+              <fieldset class="pc-recorrido-spf02__fieldset" [disabled]="nodoBloqueado">
+              <div class="pc-recorrido-spf02__form-area">
+            <div class="dg-f05-doc-wrap">
+              <article class="dg-f05-doc sp-f-02-doc sp-f-02-doc--editor">
+                <header class="dg-f05-doc__header">
+                  <div>
+                    <span class="dg-f05-doc__code">SP-F-02</span>
+                    <h3 class="dg-f05-doc__title">Reporte de visita y recorrido</h3>
+                    <p class="sp-f-02-doc__pipc" *ngIf="pipcActivo">{{ pipcActivo.nombre_documento }}</p>
+                    <p class="sp-f-02-doc__folio" *ngIf="reporteActivo.folio">{{ reporteActivo.folio }}</p>
+                  </div>
+                  <div class="sgc-f-16-doc__rev">
+                    <span>Rev. {{ revision }}</span>
+                    <span>{{ fechaRevision }}</span>
+                  </div>
+                </header>
+
+                <div class="sgc-f-16-meta sp-f-02-meta">
+                  <label class="sgc-f-16-meta__field">
+                    <span class="sgc-f-16-meta__label"><i class="fas fa-building" aria-hidden="true"></i> Empresa</span>
+                    <span class="dg-f05-field dg-f05-field--empresa-display" *ngIf="nombreEmpresa">{{ nombreEmpresa }}</span>
+                    <input class="dg-f05-field" type="text" name="pc_rec_empresa"
+                      *ngIf="!nombreEmpresa"
+                      [(ngModel)]="reporteActivo.nombreEmpresa" autocomplete="off">
+                  </label>
+                  <label class="sgc-f-16-meta__field sgc-f-16-meta__field--fecha">
+                    <span class="sgc-f-16-meta__label"><i class="fas fa-calendar-day" aria-hidden="true"></i> Fecha</span>
+                    <input class="dg-f05-field" type="date" name="pc_rec_fecha" [(ngModel)]="reporteActivo.fecha">
+                  </label>
+                  <label class="sgc-f-16-meta__field">
+                    <span class="sgc-f-16-meta__label"><i class="fas fa-bullseye" aria-hidden="true"></i> Propósito</span>
+                    <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--auto" rows="1" name="pc_rec_proposito"
+                      appAutoResize [appAutoResizeRefresh]="textareaResizeToken"
+                      [(ngModel)]="reporteActivo.proposito" placeholder="Motivo de la visita o reunión"></textarea>
+                  </label>
+                  <label class="sgc-f-16-meta__field sgc-f-16-meta__field--hora">
+                    <span class="sgc-f-16-meta__label"><i class="fas fa-clock" aria-hidden="true"></i> Hora</span>
+                    <input class="dg-f05-field" type="time" name="pc_rec_hora" [(ngModel)]="reporteActivo.hora">
+                  </label>
+                  <label class="sgc-f-16-meta__field">
+                    <span class="sgc-f-16-meta__label"><i class="fas fa-users" aria-hidden="true"></i> Asistentes</span>
+                    <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--auto" rows="1" name="pc_rec_asistentes"
+                      appAutoResize [appAutoResizeRefresh]="textareaResizeToken"
+                      [(ngModel)]="reporteActivo.asistentes" placeholder="Personas presentes"></textarea>
+                  </label>
+                  <label class="sgc-f-16-meta__field">
+                    <span class="sgc-f-16-meta__label"><i class="fas fa-laptop-house" aria-hidden="true"></i> Modalidad</span>
+                    <select class="dg-f05-field" name="pc_rec_modalidad" [(ngModel)]="reporteActivo.modalidad">
+                      <option *ngFor="let m of modalidades" [value]="m">{{ m }}</option>
+                    </select>
+                  </label>
+                  <label class="sgc-f-16-meta__field">
+                    <span class="sgc-f-16-meta__label"><i class="fas fa-user-tie" aria-hidden="true"></i> Consultores</span>
+                    <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--auto" rows="1" name="pc_rec_consultores"
+                      appAutoResize [appAutoResizeRefresh]="textareaResizeToken"
+                      [(ngModel)]="reporteActivo.consultores" placeholder="Consultores Biznaga"></textarea>
+                  </label>
+                  <label class="sgc-f-16-meta__field sgc-f-16-meta__field--fecha">
+                    <span class="sgc-f-16-meta__label"><i class="fas fa-calendar-plus" aria-hidden="true"></i> Próx. visita</span>
+                    <input class="dg-f05-field" type="date" name="pc_rec_prox" [(ngModel)]="reporteActivo.proxVisita">
+                  </label>
+                </div>
+
+                <div class="dg-f05-table-panel sgc-f-16-panel">
+                  <div class="sgc-f-16-intro">
+                    <div class="sgc-f-16-intro__lead">
+                      <div class="sgc-f-16-intro__icon"><i class="fas fa-list-ul" aria-hidden="true"></i></div>
+                      <div>
+                        <h4 class="sgc-f-16-intro__title">Ítems del recorrido</h4>
+                        <p class="sgc-f-16-intro__hint">Problemas, acciones, responsable, fecha compromiso y estatus.</p>
+                      </div>
+                    </div>
+                    <ul class="sgc-f-16-stats" aria-label="Resumen del reporte">
+                      <li class="sgc-f-16-stats__item">
+                        <strong>{{ resumenActivo.total }}</strong>
+                        <span>Ítems</span>
+                      </li>
+                      <li class="sgc-f-16-stats__item sgc-f-16-stats__item--pendientes">
+                        <strong>{{ resumenActivo.abiertos }}</strong>
+                        <span>Abiertos</span>
+                      </li>
+                      <li class="sgc-f-16-stats__item">
+                        <strong>{{ resumenActivo.cerrados }}</strong>
+                        <span>Cerrados</span>
+                      </li>
+                      <li class="sgc-f-16-stats__item">
+                        <strong>{{ resumenActivo.avance }}%</strong>
+                        <span>Avance</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <section class="sgc-f-16-block" aria-labelledby="pc-rec-items">
+                    <header class="sgc-f-16-block__head" id="pc-rec-items">
+                      <span class="sgc-f-16-block__badge">1</span>
+                      <div>
+                        <strong class="sgc-f-16-block__title">Ítems del recorrido</strong>
+                        <span class="sgc-f-16-block__subtitle">Justificado en Excel · Century Gothic 10</span>
+                      </div>
+                    </header>
+                    <div class="dg-f05-table-wrap sp-f-02-table-wrap">
+                      <table class="dg-f05-table sgc-f-16-table sp-f-02-table">
+                        <colgroup>
+                          <col class="sp-f-02-col sp-f-02-col--idx">
+                          <col class="sp-f-02-col sp-f-02-col--prob">
+                          <col class="sp-f-02-col sp-f-02-col--acc">
+                          <col class="sp-f-02-col sp-f-02-col--resp">
+                          <col class="sp-f-02-col sp-f-02-col--fecha">
+                          <col class="sp-f-02-col sp-f-02-col--estatus">
+                          <col class="sp-f-02-col sp-f-02-col--obs">
+                          <col class="sp-f-02-col sp-f-02-col--act">
+                        </colgroup>
+                        <thead>
+                          <tr>
+                            <th class="sgc-f-16-table__th--idx">#</th>
+                            <th class="sp-f-02-table__th--prob">Problema / asunto / condición insegura</th>
+                            <th class="sp-f-02-table__th--acc">Acciones preventivas o correctivas</th>
+                            <th class="sp-f-02-table__th--resp">Responsable(s)</th>
+                            <th class="sgc-f-16-table__th--fecha">Fecha compromiso</th>
+                            <th class="sgc-f-16-table__th--estatus">Estatus</th>
+                            <th class="sp-f-02-table__th--obs">Observaciones</th>
+                            <th class="dg-f05-table__act" aria-label="Acciones"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr *ngFor="let item of reporteActivo.items; let i = index; trackBy: trackByIdx">
+                            <td class="sgc-f-16-table__idx" data-label="#"><span>{{ i + 1 }}</span></td>
+                            <td data-label="Problema / condición">
+                              <div class="sp-f-02-campo-media">
+                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left dg-f05-field--auto"
+                                  rows="1" appAutoResize [appAutoResizeRefresh]="textareaResizeToken"
+                                  [(ngModel)]="item.problema" [name]="'pc_rec_prob' + i"
+                                  placeholder="Hallazgo o requisito"></textarea>
+                                <div class="sp-f-02-campo-media__imagenes"
+                                  *ngIf="imagenesCampo(item, 'problema').length || puedeAgregarImagen(item, 'problema')">
+                                  <div class="sp-f-02-imagen-slot"
+                                    *ngFor="let img of imagenesCampo(item, 'problema'); let j = index">
+                                    <img *ngIf="previewImagen(img) as srcProb" [src]="srcProb"
+                                      alt="Evidencia del hallazgo" loading="lazy">
+                                    <button type="button" class="sp-f-02-imagen-slot__clear"
+                                      (click)="quitarImagen(item, 'problema', j)" aria-label="Quitar imagen">
+                                      <i class="fas fa-times" aria-hidden="true"></i>
+                                    </button>
+                                  </div>
+                                  <label class="sp-f-02-imagen-add" *ngIf="puedeAgregarImagen(item, 'problema')"
+                                    [class.sp-f-02-imagen-add--loading]="subiendoImagen(i, 'problema')">
+                                    <i class="fas" [ngClass]="subiendoImagen(i, 'problema') ? 'fa-spinner fa-spin' : 'fa-camera'" aria-hidden="true"></i>
+                                    <span>{{ imagenesCampo(item, 'problema').length ? 'Agregar' : 'Subir' }}</span>
+                                    <input type="file" accept="image/*" hidden
+                                      (change)="onSeleccionarImagen($event, item, i, 'problema')">
+                                  </label>
+                                </div>
+                                <small class="sp-f-02-campo-media__hint">Hasta 3 imágenes por celda</small>
+                              </div>
+                            </td>
+                            <td data-label="Acciones">
+                              <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left dg-f05-field--auto"
+                                rows="1" appAutoResize [appAutoResizeRefresh]="textareaResizeToken"
+                                [(ngModel)]="item.acciones" [name]="'pc_rec_acc' + i"
+                                placeholder="Acción a realizar"></textarea>
+                            </td>
+                            <td data-label="Responsable(s)">
+                              <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left dg-f05-field--auto"
+                                rows="1" appAutoResize [appAutoResizeRefresh]="textareaResizeToken"
+                                [(ngModel)]="item.responsable" [name]="'pc_rec_resp' + i"
+                                placeholder="Responsables&#10;Área / puesto"></textarea>
+                            </td>
+                            <td data-label="Fecha compromiso">
+                              <input class="dg-f05-field" type="date" [(ngModel)]="item.fechaCompromiso"
+                                [name]="'pc_rec_fc' + i">
+                            </td>
+                            <td class="sgc-f-16-table__cell--estatus" data-label="Estatus">
+                              <select class="dg-f05-field sp-f-02-estatus"
+                                [(ngModel)]="item.estatus" [name]="'pc_rec_est' + i"
+                                [ngClass]="claseEstatusSpF02(item.estatus)">
+                                <option *ngFor="let e of estatusOpciones" [value]="e">{{ e }}</option>
+                              </select>
+                            </td>
+                            <td class="sp-f-02-table__cell--obs" data-label="Observaciones">
+                              <div class="sp-f-02-campo-media">
+                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left dg-f05-field--auto sp-f-02-field--obs"
+                                  rows="1" appAutoResize [appAutoResizeRefresh]="textareaResizeToken"
+                                  [(ngModel)]="item.observaciones" [name]="'pc_rec_obs' + i"
+                                  placeholder="Notas u observaciones"></textarea>
+                                <div class="sp-f-02-campo-media__imagenes"
+                                  *ngIf="imagenesCampo(item, 'observaciones').length || puedeAgregarImagen(item, 'observaciones')">
+                                  <div class="sp-f-02-imagen-slot"
+                                    *ngFor="let img of imagenesCampo(item, 'observaciones'); let j = index">
+                                    <img *ngIf="previewImagen(img) as srcObs" [src]="srcObs"
+                                      alt="Evidencia de observación" loading="lazy">
+                                    <button type="button" class="sp-f-02-imagen-slot__clear"
+                                      (click)="quitarImagen(item, 'observaciones', j)" aria-label="Quitar imagen">
+                                      <i class="fas fa-times" aria-hidden="true"></i>
+                                    </button>
+                                  </div>
+                                  <label class="sp-f-02-imagen-add" *ngIf="puedeAgregarImagen(item, 'observaciones')"
+                                    [class.sp-f-02-imagen-add--loading]="subiendoImagen(i, 'observaciones')">
+                                    <i class="fas" [ngClass]="subiendoImagen(i, 'observaciones') ? 'fa-spinner fa-spin' : 'fa-camera'" aria-hidden="true"></i>
+                                    <span>{{ imagenesCampo(item, 'observaciones').length ? 'Agregar' : 'Subir' }}</span>
+                                    <input type="file" accept="image/*" hidden
+                                      (change)="onSeleccionarImagen($event, item, i, 'observaciones')">
+                                  </label>
+                                </div>
+                                <small class="sp-f-02-campo-media__hint">Hasta 3 imágenes por celda</small>
+                              </div>
+                            </td>
+                            <td class="dg-f05-table__act" data-label="">
+                              <button type="button" class="dg-f05-row-btn"
+                                (click)="quitarItem(i)" title="Quitar ítem">
+                                <i class="fas fa-times" aria-hidden="true"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div class="dg-f05-table-foot">
+                      <button type="button" class="dg-f05-add-btn" (click)="agregarItem()">
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                        Agregar ítem
+                      </button>
+                    </div>
+                  </section>
+                </div>
+              </article>
+            </div>
+              </div>
+              </fieldset>
+            </div>
+          </form>
+
+          <p class="pc-recorrido-spf02__hint-pendiente mt-2 mb-0" *ngIf="!nodoBloqueado && cambiosPendientes">
+            <i class="fas fa-exclamation-circle mr-1"></i>
+            Hay cambios sin guardar. Usa «Guardar información» antes de cambiar de PIPC o completar el paso.
+          </p>
+        </div>
+
+        <div class="pc-recorrido-spf02__modo-panel" *ngIf="esModoPdf" @modoPanel>
+          <div class="pc-recorrido-spf02__toolbar pc-recorrido-spf02__toolbar--pdf">
+            <div class="pc-recorrido-spf02__toolbar-meta">
+              <span class="pc-recorrido-spf02__badge-pc">
+                <i class="fas fa-shield-alt" aria-hidden="true"></i> Protección Civil · no SGC
+              </span>
+              <span class="pc-recorrido-spf02__progress">
+                {{ resumenGlobal.completos }}/{{ resumenGlobal.total }} {{ resumenModoLabel }}
+              </span>
+            </div>
+            <p class="pc-recorrido-spf02__pdf-hint mb-0">
+              <i class="fas fa-folder-open mr-1" aria-hidden="true"></i>
+              Los PDF se guardan en Google Drive dentro de la carpeta «Reporte de Recorrido».
+            </p>
+          </div>
+
+          <section class="pc-recorrido-spf02__pdf-panel">
+            <article class="pc-recorrido-spf02__pdf-card"
+                     *ngFor="let p of pipcs; trackBy: trackByPipc"
+                     [class.is-done]="p.completo"
+                     [class.is-readonly]="nodoBloqueado">
+              <header class="pc-recorrido-spf02__pdf-card-head">
+                <div class="pc-recorrido-spf02__pdf-card-title">
+                  <span class="pc-recorrido-spf02__pdf-folder-icon" aria-hidden="true">
+                    <i class="fas fa-folder-open"></i>
+                  </span>
+                  <div>
+                    <strong>{{ p.nombre_documento }}</strong>
+                    <small class="pc-recorrido-spf02__pdf-count">
+                      {{ pdfsDePipc(p).length }} {{ pdfsDePipc(p).length === 1 ? 'archivo' : 'archivos' }}
+                    </small>
+                  </div>
+                </div>
+                <span class="pc-recorrido-spf02__pdf-status" [class.is-done]="p.completo">
+                  {{ p.completo ? 'Completo' : 'Pendiente' }}
+                </span>
+              </header>
+
+              <label class="pc-upload-zone pc-recorrido-spf02__pdf-zone-full"
+                     *ngIf="!pdfsDePipc(p).length && !nodoBloqueado"
+                     [class.is-loading]="estaSubiendoPdf(p)">
+                <input type="file" accept="application/pdf,.pdf" multiple hidden
+                       [disabled]="estaSubiendoPdf(p)"
+                       (change)="onPdfSeleccionado($event, p)">
+                <span class="pc-upload-zone__icon">
+                  <i class="fas" [ngClass]="estaSubiendoPdf(p) ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                </span>
+                <span class="pc-upload-zone__title">
+                  {{ estaSubiendoPdf(p) ? 'Subiendo PDF…' : 'Arrastra o selecciona uno o varios PDF' }}
+                </span>
+                <span class="pc-upload-zone__hint">Solo PDF · máx. {{ maxPdfMb }} MB c/u</span>
+              </label>
+
+              <div class="pc-doc-tiles"
+                   *ngIf="pdfsDePipc(p).length"
+                   [class.pc-doc-tiles--single]="pdfsDePipc(p).length === 1 && nodoBloqueado"
+                   [class.pc-doc-tiles--with-add]="!nodoBloqueado">
+                <div class="pc-doc-tile-wrap"
+                     *ngFor="let pdf of pdfsDePipc(p); trackBy: trackByPdf">
+                  <button type="button"
+                          class="pc-doc-tile"
+                          (click)="abrirPdfRecorrido(pdf)"
+                          [attr.aria-label]="'Abrir ' + pdf.nombre_archivo">
+                    <div class="pc-doc-tile__preview">
+                      <div class="pc-doc-tile__pdf-wrap" *ngIf="pdf.drive_file_id">
+                        <iframe class="pc-doc-tile__pdf-embed"
+                                [src]="previewUrlPdf(pdf) | safe"
+                                [title]="pdf.nombre_archivo"
+                                tabindex="-1"></iframe>
+                      </div>
+                      <div class="pc-doc-tile__hover" aria-hidden="true">
+                        <i class="fas fa-expand"></i>
+                        <span>Ver documento</span>
+                      </div>
+                      <span class="pc-doc-tile__type">PDF</span>
+                    </div>
+                    <div class="pc-doc-tile__meta">
+                      <strong class="pc-doc-tile__name">{{ pdf.nombre_archivo }}</strong>
+                      <small *ngIf="pdf.subido_at" class="pc-doc-tile__date">{{ formatFechaPdf(pdf.subido_at) }}</small>
+                    </div>
+                  </button>
+                  <button type="button"
+                          class="pc-doc-tile-remove"
+                          *ngIf="!nodoBloqueado"
+                          (click)="eliminarPdfRecorrido(p, pdf, $event)"
+                          [attr.aria-label]="'Eliminar ' + pdf.nombre_archivo"
+                          title="Eliminar PDF">
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
+                </div>
+
+                <label class="pc-upload-zone pc-upload-zone--slot"
+                       *ngIf="!nodoBloqueado"
+                       [class.is-loading]="estaSubiendoPdf(p)">
+                  <input type="file" accept="application/pdf,.pdf" multiple hidden
+                         [disabled]="estaSubiendoPdf(p)"
+                         (change)="onPdfSeleccionado($event, p)">
+                  <span class="pc-upload-zone__icon">
+                    <i class="fas" [ngClass]="estaSubiendoPdf(p) ? 'fa-spinner fa-spin' : 'fa-plus-circle'" aria-hidden="true"></i>
+                  </span>
+                  <span class="pc-upload-zone__title">{{ estaSubiendoPdf(p) ? 'Subiendo…' : 'Agregar más' }}</span>
+                  <span class="pc-upload-zone__hint">Arrastra o haz clic</span>
+                </label>
+              </div>
+
+              <p class="pc-recorrido-spf02__pdf-empty mb-0" *ngIf="!pdfsDePipc(p).length && nodoBloqueado">
+                <i class="fas fa-eye mr-1"></i> Sin archivos registrados en este PIPC.
+              </p>
+            </article>
+          </section>
+        </div>
+      </div>
+    </ng-container>
+  </ng-container>
+</div>
+
+<div class="pc-rec-editor-fullscreen"
+     #editorOverlay
+     *ngIf="editorIntegradoVisible"
+     role="dialog"
+     aria-modal="true"
+     aria-label="Editor integrado SP-F-02">
+  <div class="pc-rec-editor-fullscreen__backdrop" (click)="cerrarEditorIntegrado()"></div>
+  <div class="pc-rec-editor-fullscreen__panel">
+    <div class="pc-rec-editor-fullscreen__head">
+      <div class="pc-rec-editor-fullscreen__title-wrap">
+        <span class="pc-rec-editor-fullscreen__icon" aria-hidden="true">
+          <i class="fas fa-clipboard-check"></i>
+        </span>
+        <div>
+          <strong class="pc-rec-editor-fullscreen__title">Editor integrado del formato</strong>
+          <small class="pc-rec-editor-fullscreen__subtitle">
+            SP-F-02 · Reporte de visita y recorrido
+            <ng-container *ngIf="pipcActivo"> · {{ pipcActivo.nombre_documento }}</ng-container>
+          </small>
+        </div>
+      </div>
+      <div class="pc-rec-editor-fullscreen__actions">
+        <button type="button" class="btn btn-sm pc-rec-editor-fullscreen__btn-volver" (click)="cerrarEditorIntegrado()">
+          <i class="fas fa-times mr-1"></i>Volver al reporte
+        </button>
+      </div>
+    </div>
+
+    <div class="pc-rec-editor-fullscreen__body">
+      <div *ngIf="cargandoEditor || !editorIntegradoUrl" class="pc-rec-editor-fullscreen__loader">
+        <i class="fas fa-spinner fa-spin fa-2x"></i>
+        <p class="mb-0 mt-2">Cargando editor integrado…</p>
+      </div>
+      <iframe *ngIf="editorIntegradoUrl"
+              class="pc-rec-editor-fullscreen__iframe"
+              [src]="editorIntegradoUrl"
+              (load)="onEditorIframeLoad()"
+              allow="clipboard-read; clipboard-write"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-popups-to-escape-sandbox"
+              title="SP-F-02 en Google Drive"
+              loading="lazy"></iframe>
+    </div>
+  </div>
+</div>

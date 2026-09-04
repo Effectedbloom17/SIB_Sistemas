@@ -1,0 +1,56 @@
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2 aviso-icon">
+            <i class="ni ni-lock-circle-open"></i>
+          </div>
+          <h1 class="text-white mb-0 aviso-title">Aviso de privacidad</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5 aviso-wrap">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+      <div class="card shadow-lg border-0 aviso-card">
+        <div class="card-header border-0 aviso-card-header">
+          <div>
+            <h6 class="text-uppercase text-muted ls-1 mb-1">Documento oficial</h6>
+            <h2 class="mb-0 aviso-card-title">{{ avisoNombre }}</h2>
+          </div>
+        </div>
+
+        <div class="card-body aviso-card-body">
+          <div *ngIf="error" class="alert alert-danger mb-3" role="alert">
+            {{ error }}
+          </div>
+
+          <div *ngIf="error" class="text-right mb-3">
+            <button type="button" class="btn btn-sm btn-primary" (click)="cargarAvisoPrivacidad()">
+              Reintentar
+            </button>
+          </div>
+
+          <div class="aviso-viewer-shell" *ngIf="avisoUrlSafe && !error">
+            <div class="aviso-loading" *ngIf="cargando">
+              <i class="fas fa-spinner fa-spin"></i>
+              <span>Cargando aviso de privacidad...</span>
+            </div>
+
+            <iframe
+              class="aviso-iframe"
+              [src]="avisoUrlSafe"
+              title="Aviso de privacidad"
+              loading="lazy"
+              (load)="onIframeLoad()">
+            </iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

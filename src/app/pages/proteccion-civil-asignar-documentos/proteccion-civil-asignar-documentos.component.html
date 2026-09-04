@@ -1,0 +1,383 @@
+﻿<div *ngIf="!embebido" class="header header-bg-image pc-view-enter-header pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-tasks"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">
+            Asignar Documentos
+          </h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div [ngClass]="embebido ? 'pc-embebido-shell' : 'container-fluid mt--5 pc-view-enter-content'"
+     [attr.style]="embebido ? null : 'position: relative; z-index: 10; margin-bottom: 3rem'">
+  <div [ngClass]="embebido ? '' : 'row justify-content-center'">
+    <div [ngClass]="embebido ? '' : 'col-xl-11'">
+      <div class="card shadow-lg border-0 asignacion-card" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+        <div class="card-header border-0 asignacion-header" style="padding: 1.5rem 2rem;">
+          <div *ngIf="!embebido" class="asignacion-header-title">
+            <button type="button" (click)="volver()" class="btn btn-link p-0 mb-2 asignacion-back-btn" style="font-size: 0.9rem;">
+              <i class="fas fa-arrow-left mr-1"></i> Volver
+            </button>
+            <h2 class="mb-0" style="color: #d97248; font-weight: 700; font-size: 1.5rem;">
+              Asignar Documentos
+            </h2>
+            <small class="d-block mt-1 asignacion-subtitle" style="font-size: 0.78rem;">
+              Selecciona los documentos y confirma la asignacion para esta empresa.
+            </small>
+          </div>
+
+          <div class="asignacion-toolbar">
+            <div class="asignacion-toolbar__left">
+              <label class="asignacion-responsable">
+                <span class="asignacion-responsable__label">
+                  <i class="fas fa-user-tie" aria-hidden="true"></i>
+                  Responsable de PIPC
+                </span>
+                <div class="asignacion-responsable__combo"
+                     [class.asignacion-responsable__combo--open]="comboResponsableAbierto">
+                  <div class="asignacion-responsable__control">
+                    <input type="text"
+                           class="asignacion-responsable__input"
+                           [ngModel]="filtroResponsable"
+                           (ngModelChange)="onResponsableInput($event)"
+                           (focus)="abrirComboResponsable()"
+                           (blur)="cerrarComboResponsableDelayed()"
+                           [disabled]="cargandoResponsable || guardandoResponsable"
+                           autocomplete="off"
+                           placeholder="Buscar usuario...">
+                    <button type="button"
+                            class="asignacion-responsable__clear"
+                            *ngIf="responsablePipcUsuarioId"
+                            (mousedown)="limpiarResponsablePipc($event)"
+                            [disabled]="guardandoResponsable"
+                            aria-label="Quitar responsable">
+                      <i class="fas fa-times"></i>
+                    </button>
+                    <i class="fas fa-chevron-down asignacion-responsable__caret" aria-hidden="true"></i>
+                  </div>
+                  <ul class="asignacion-responsable__list" *ngIf="comboResponsableAbierto">
+                    <li *ngFor="let op of responsablesFiltrados"
+                        (mousedown)="onResponsableItemMouseDown($event, op)"
+                        [class.asignacion-responsable__item--active]="responsablePipcUsuarioId === op.id">
+                      {{ op.nombre }}
+                    </li>
+                    <li *ngIf="!responsablesFiltrados.length" class="asignacion-responsable__empty">
+                      Sin coincidencias
+                    </li>
+                  </ul>
+                </div>
+                <small class="asignacion-responsable__hint" *ngIf="guardandoResponsable">
+                  <i class="fas fa-spinner fa-spin mr-1"></i>Guardando...
+                </small>
+                <small class="asignacion-responsable__hint asignacion-responsable__hint--ok"
+                       *ngIf="!guardandoResponsable && responsablePipcUsuarioId && responsableGuardadoOk">
+                  <i class="fas fa-check mr-1"></i>Responsable guardado
+                </small>
+              </label>
+            </div>
+
+            <div class="asignacion-toolbar__right">
+              <button type="button"
+                      class="btn-guardar-asignacion"
+                      (click)="guardarAsignacion()"
+                      [disabled]="guardando || totalSeleccionados === 0"
+                      [class.btn-guardar-asignacion--completado]="nodoBloqueado"
+                      [class.btn-guardar-asignacion--activo]="totalSeleccionados > 0 && !guardando">
+                <span class="btn-guardar-asignacion__shine" aria-hidden="true"></span>
+                <span class="btn-guardar-asignacion__content">
+                  <i class="fas"
+                     [ngClass]="guardando ? 'fa-spinner fa-spin' : (nodoBloqueado ? 'fa-plus' : 'fa-save')"></i>
+                  <span>{{ guardando ? 'Asignando...' : (nodoBloqueado ? 'Agregar requisitos' : 'Guardar Asignación') }}</span>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="nodoBloqueado" class="asignacion-paso-completado-hint" role="status">
+            <span class="asignacion-paso-completado-hint__icon" aria-hidden="true">
+              <i class="fas fa-check"></i>
+            </span>
+            <div class="asignacion-paso-completado-hint__content">
+              <span class="asignacion-paso-completado-hint__title">Paso completado</span>
+              <span class="asignacion-paso-completado-hint__desc">Puedes seguir asignando más PIPC. Las asignaciones adicionales no reenvían correo a la empresa.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body asignacion-body" style="padding: 2rem 2.5rem 2.5rem;">
+          <div *ngIf="cargandoCatalogo" class="text-center py-5">
+            <i class="fas fa-spinner fa-spin fa-2x text-muted mb-2"></i>
+            <p class="text-muted mb-0">Cargando documentos...</p>
+          </div>
+
+          <ng-container *ngIf="!cargandoCatalogo">
+          <div *ngIf="!hayDocumentosPipc" class="text-center py-5">
+            <i class="fas fa-inbox fa-2x text-muted"></i>
+            <p class="text-muted mt-2 mb-0">No hay plantillas PIPC disponibles para esta empresa</p>
+          </div>
+
+          <div *ngIf="hayDocumentosPipc" class="pipc-section">
+            <div class="pipc-section__header">
+              <div class="pipc-section__icon">
+                <i class="fas fa-shield-alt"></i>
+              </div>
+              <div class="pipc-section__titles">
+                <h3 class="pipc-section__title">Programa Interno de Protección Civil (PIPC)</h3>
+                <p class="pipc-section__subtitle">
+                  Selecciona las plantillas PIPC que aún no están asignadas.
+                  <span *ngIf="totalPlantillasAsignadas > 0" class="pipc-section__progress">
+                    {{ totalPlantillasAsignadas }}/{{ totalPlantillasCatalogo }} asignadas
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div class="plantillas-grid">
+              <div class="plantilla-card-wrap"
+                   *ngFor="let documento of documentosPipcVisibles; trackBy: trackByDocumento"
+                   [class.is-bloqueada]="esRamaYaAsignada(documento)">
+                <button
+                  type="button"
+                  class="plantilla-card"
+                  [class.is-selected]="isDocumentoCompleto(documento) && !esRamaYaAsignada(documento)"
+                  [class.is-active-checklist]="plantillaActivaId === documento.id"
+                  [class.is-bloqueada]="esRamaYaAsignada(documento) && !plantillaAsignadaActiva(documento)"
+                  [class.is-desbloqueada]="plantillaAsignadaActiva(documento)"
+                  (click)="onPlantillaCardClick(documento)">
+                  <span
+                    class="plantilla-card__selector"
+                    [class.is-checked]="isDocumentoCompleto(documento) && !esRamaYaAsignada(documento)"
+                    [class.is-locked]="esRamaYaAsignada(documento) && !plantillaAsignadaActiva(documento)"
+                    [class.is-desbloqueada]="plantillaAsignadaActiva(documento)"
+                    role="presentation"
+                    aria-hidden="true">
+                    <i class="fas plantilla-card__selector-icon"
+                       [ngClass]="{
+                         'fa-lock-open': plantillaAsignadaActiva(documento),
+                         'fa-lock': esRamaYaAsignada(documento) && !plantillaAsignadaActiva(documento),
+                         'fa-check': !esRamaYaAsignada(documento)
+                       }"></i>
+                  </span>
+                  <span class="plantilla-card__body">
+                    <span class="plantilla-card__nombre">{{ nombrePlantilla(documento) }}</span>
+                    <span class="plantilla-card__ubicacion" *ngIf="documento.hoja_nombre">{{ subtituloPlantilla(documento) }}</span>
+                    <span class="plantilla-card__meta plantilla-card__meta--asignada" *ngIf="esRamaYaAsignada(documento) && !plantillaAsignadaActiva(documento)">
+                      <i class="fas fa-lock mr-1"></i>Ya asignada
+                    </span>
+                    <span class="plantilla-card__meta" *ngIf="!esRamaYaAsignada(documento) && plantillaActivaId === documento.id && isDocumentoCompleto(documento)">
+                      Activa
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Checklist de documentos a solicitar -->
+            <div class="pipc-checklist-section mt-4" *ngIf="plantillaActivaId && checklistActivo as checklist">
+              <div class="pipc-checklist-tabs mb-3" *ngIf="plantillasSeleccionadas.length > 1">
+                <button
+                  type="button"
+                  class="pipc-checklist-tab"
+                  *ngFor="let plantilla of plantillasSeleccionadas; trackBy: trackByDocumento"
+                  [class.active]="plantillaActivaId === plantilla.id"
+                  (click)="activarPlantilla(plantilla)">
+                  {{ nombrePlantilla(plantilla) }}
+                </button>
+              </div>
+
+              <div class="if-doc-wrapper">
+                <div class="if-doc">
+                  <div class="cl-doc-header">
+                    <div class="cl-doc-header__title">
+                      <div class="cl-doc-header__org">PROGRAMA INTERNO DE PROTECCIÓN CIVIL</div>
+                      <div class="cl-doc-header__name">{{ checklist.nombre }}</div>
+                    </div>
+                  </div>
+
+                  <div *ngIf="checklist.cargando" class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin fa-2x text-muted mb-2"></i>
+                    <p class="text-muted mb-0">Cargando documentos de la plantilla...</p>
+                  </div>
+
+                  <div *ngIf="!checklist.cargando && checklist.error" class="alert alert-warning mt-3 mb-0">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>{{ checklist.error }}
+                  </div>
+
+                  <ng-container *ngIf="!checklist.cargando && !checklist.error && checklist.items.length > 0">
+                    <div class="alert alert-light border chk-asignados-banner mb-0" *ngIf="checklistAsignadosCount > 0">
+                      <i class="fas fa-info-circle mr-2 text-muted"></i>
+                      <strong>{{ checklistAsignadosCount }}</strong> requisito(s) de esta plantilla ya están asignados y no se pueden volver a seleccionar.
+                    </div>
+
+                    <div class="chk-summary">
+                      <div class="chk-summary__progress">
+                        <div class="cl-doc-progress">
+                          <div class="cl-doc-progress__bar">
+                            <div class="cl-doc-progress__fill" [style.width.%]="checklistPercent"></div>
+                          </div>
+                          <small class="cl-doc-progress__text">
+                            {{ checklistNecesariosSi }} de {{ checklistTotal }} pendientes
+                            <span *ngIf="checklistAsignadosCount > 0"> · {{ checklistAsignadosCount }} ya asignados</span>
+                          </small>
+                        </div>
+                      </div>
+                      <div class="chk-summary__stats">
+                        <span class="chk-stat chk-stat--total">
+                          <i class="fas fa-list-ul"></i>{{ checklistTotal }} pendientes
+                        </span>
+                        <span class="chk-stat chk-stat--si">
+                          <i class="fas fa-check"></i>{{ checklistNecesariosSi }} necesarios
+                        </span>
+                        <span class="chk-stat chk-stat--asignado" *ngIf="checklistAsignadosCount > 0">
+                          <i class="fas fa-lock"></i>{{ checklistAsignadosCount }} ya asignados
+                        </span>
+                      </div>
+                    </div>
+
+                    <div class="chk-segments">
+                      <section
+                        class="chk-segment"
+                        *ngFor="let segmento of checklistSegmentos; trackBy: trackBySegmento"
+                        [class.is-collapsed]="!isSegmentoAbierto(segmento.id)">
+                        <button
+                          type="button"
+                          class="chk-segment__head"
+                          (click)="toggleSegmento(segmento.id)">
+                          <span class="chk-segment__icon">
+                            <i class="fas" [ngClass]="segmento.icono"></i>
+                          </span>
+                          <span class="chk-segment__info">
+                            <span class="chk-segment__title">{{ segmento.titulo }}</span>
+                            <span class="chk-segment__subtitle">{{ segmento.subtitulo }}</span>
+                          </span>
+                          <span class="chk-segment__meta">
+                            <span class="chk-segment__badge" *ngIf="segmentoPendientes(segmento) > 0">
+                              {{ segmentoNecesarios(segmento) }}/{{ segmentoPendientes(segmento) }}
+                            </span>
+                            <span class="chk-segment__badge chk-segment__badge--si" *ngIf="segmentoNecesarios(segmento) > 0">
+                              necesarios
+                            </span>
+                            <span class="chk-segment__badge chk-segment__badge--asignado" *ngIf="segmentoAsignados(segmento) > 0">
+                              {{ segmentoAsignados(segmento) }} ya asignados
+                            </span>
+                            <i class="fas fa-chevron-down chk-segment__chevron"></i>
+                          </span>
+                        </button>
+
+                        <div class="chk-segment__body" *ngIf="isSegmentoAbierto(segmento.id)">
+                          <div
+                            class="chk-grid"
+                            [class.chk-grid--datos]="segmento.id === 'datos'"
+                            [class.chk-grid--documentos]="segmento.id === 'documentos'">
+                            <button
+                              type="button"
+                              class="chk-tile"
+                              *ngFor="let item of segmento.items; let i = index; trackBy: trackByChecklistItem"
+                              [class.chk-tile--selected]="item.necesario && !item.yaAsignado"
+                              [class.chk-tile--asignado]="item.yaAsignado"
+                              [class.chk-tile--texto]="item.tipo_entrada === 'texto'"
+                              [attr.aria-pressed]="item.necesario && !item.yaAsignado"
+                              [attr.aria-disabled]="item.yaAsignado"
+                              [disabled]="item.yaAsignado"
+                              (click)="toggleChecklistItem(item)">
+                              <span class="chk-tile__check" aria-hidden="true">
+                                <i class="fas" [ngClass]="item.yaAsignado ? 'fa-lock' : 'fa-check'"></i>
+                              </span>
+                              <div class="chk-tile__head">
+                                <span class="chk-tile__num">{{ i + 1 }}</span>
+                                <span class="chk-tile__label" [title]="item.documento">{{ item.documento }}</span>
+                              </div>
+                              <span class="chk-tile__status">
+                                {{ item.yaAsignado ? 'Ya asignado' : (item.necesario ? 'Necesario' : 'Opcional') }}
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      </section>
+                    </div>
+                  </ng-container>
+                </div>
+              </div>
+            </div>
+          </div>
+          </ng-container>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<ng-template #documentoTemplate let-documento="documento" let-level="level">
+  <div class="documento-row d-flex align-items-center py-3 px-4"
+       [ngClass]="{
+         'nivel-0': level === 0,
+         'nivel-1': level === 1,
+         'nivel-2': level >= 2,
+         'grupo-principal': level === 0,
+         'grupo-expandible': level === 0 && esGrupoExpandible(documento),
+         'grupo-abierto': level === 0 && isGrupoAbierto(documento)
+       }"
+       [class.is-selected]="isDocumentoCompleto(documento)"
+       (click)="toggleGrupoDocumento(documento, level)">
+    
+    <div class="mr-3 d-flex align-items-center">
+      <input
+        type="checkbox"
+        class="pc-check"
+        [checked]="isDocumentoCompleto(documento)"
+        [indeterminate]="isDocumentoIndeterminado(documento)"
+        (change)="toggleDocumento(documento, $event.target.checked)"
+        (click)="$event.stopPropagation()">
+    </div>
+
+    <ng-container *ngIf="level === 0 && esGrupoExpandible(documento); else documentoLabelSimple">
+      <div class="grupo-toggle-btn">
+        <span [ngClass]="{ 'documento-principal': level === 0, 'documento-secundario': level > 0 }">
+          {{ documento.nombre }}
+        </span>
+        <i class="fas fa-chevron-down grupo-chevron" [class.rotado]="isGrupoAbierto(documento)"></i>
+      </div>
+    </ng-container>
+
+    <ng-template #documentoLabelSimple>
+      <div class="flex-grow-1">
+        <span [ngClass]="{ 'documento-principal': level === 0, 'documento-secundario': level > 0 }">
+          {{ documento.nombre }}
+        </span>
+      </div>
+    </ng-template>
+  </div>
+
+  <ng-container *ngIf="documento.subdocumentos?.length">
+    <div *ngIf="level === 0" class="grupo-contenido" [class.expanded]="isGrupoAbierto(documento)">
+      <ng-container *ngFor="let subdoc of documento.subdocumentos; trackBy: trackByDocumento">
+        <ng-container *ngIf="esDocumentoVisible(subdoc)">
+          <ng-container
+            [ngTemplateOutlet]="documentoTemplate"
+            [ngTemplateOutletContext]="{ documento: subdoc, level: level + 1 }">
+          </ng-container>
+        </ng-container>
+      </ng-container>
+    </div>
+
+    <ng-container *ngIf="level > 0">
+      <ng-container *ngFor="let subdoc of documento.subdocumentos; trackBy: trackByDocumento">
+        <ng-container *ngIf="esDocumentoVisible(subdoc)">
+          <ng-container
+            [ngTemplateOutlet]="documentoTemplate"
+            [ngTemplateOutletContext]="{ documento: subdoc, level: level + 1 }">
+          </ng-container>
+        </ng-container>
+      </ng-container>
+    </ng-container>
+  </ng-container>
+</ng-template>

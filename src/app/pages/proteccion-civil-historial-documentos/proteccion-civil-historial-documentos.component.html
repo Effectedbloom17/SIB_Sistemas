@@ -1,0 +1,462 @@
+﻿<div *ngIf="!embebido" class="header header-bg-image pc-view-enter-header pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-history"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">
+            Historial de Documentos
+          </h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div [ngClass]="embebido ? 'pc-embebido-shell' : 'container-fluid mt--5 pc-view-enter-content'"
+     [attr.style]="embebido ? null : 'position: relative; z-index: 10; margin-bottom: 3rem'">
+  <div [ngClass]="embebido ? '' : 'row justify-content-center'">
+    <div [ngClass]="embebido ? '' : 'col-xl-11'">
+
+      <!-- Barra contextual -->
+      <div class="course-bar" *ngIf="!embebido && (vistaActual !== 'empresas' || esPerfilEmpresa)">
+        <button type="button" class="btn-back" (click)="volver()">
+          <i class="fas fa-arrow-left"></i>
+        </button>
+        <div class="course-bar-info">
+          <span class="course-bar-name">{{ tituloPrincipal }}</span>
+          <span class="course-bar-meta" *ngIf="vistaActual === 'pipcs'">
+            {{ nombreEmpresa || empresaSeleccionada?.nombre_empresa || 'Selecciona un PIPC para consultar documentos aprobados' }}
+          </span>
+          <span class="course-bar-meta" *ngIf="vistaActual === 'documentos'">
+            {{ totalDocumentosDetalle }} registro(s) aprobado(s) · {{ pipcSeleccionado?.anio }}
+          </span>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════ -->
+      <!-- VISTA: Selector de empresas + PIPCs -->
+      <!-- ═══════════════════════════════════ -->
+      <div *ngIf="vistaActual !== 'documentos'" class="card shadow-lg border-0 history-main-card">
+        <div class="card-header border-0 history-header">
+          <div class="history-title-wrap">
+            <h6 class="text-uppercase text-muted ls-1 mb-1 panel-kicker">Panel principal</h6>
+            <h2 class="mb-0 panel-title">Historial de Documentos Aprobados</h2>
+          </div>
+          <span class="history-badge-count">
+            <ng-container *ngIf="vistaActual === 'empresas'">{{ empresasFiltradas.length }} empresa(s)</ng-container>
+            <ng-container *ngIf="vistaActual === 'pipcs'">{{ totalPipcsVisibles }} PIPC(s)</ng-container>
+          </span>
+        </div>
+
+        <div class="card-body history-card-body">
+          <div class="history-filters" *ngIf="mostrarSelectorEmpresas && vistaActual === 'empresas'">
+            <div class="search-input-wrap">
+              <i class="fas fa-search search-icon"></i>
+              <input class="search-input" type="text" placeholder="Buscar por nombre o RFC..."
+                     [(ngModel)]="textoBusquedaEmpresa" (input)="filtrarEmpresas()">
+            </div>
+            <select class="filter-select" [(ngModel)]="estadoSeleccionado" (change)="onEstadoChange()">
+              <option value="">Todos los estados</option>
+              <option *ngFor="let estado of estados" [value]="estado">{{ estado }}</option>
+            </select>
+            <select class="filter-select" [(ngModel)]="municipioSeleccionado" (change)="filtrarEmpresas()">
+              <option value="">Todos los municipios</option>
+              <option *ngFor="let municipio of municipios" [value]="municipio">{{ municipio }}</option>
+            </select>
+          </div>
+
+          <div class="history-intro-banner" *ngIf="!cargando && !cargandoEmpresas && !cargandoPipcs">
+            <span class="history-intro-item">
+              <i class="fas" [ngClass]="vistaActual === 'empresas' ? 'fa-building' : 'fa-shield-alt'"></i>
+              {{ vistaActual === 'empresas' ? 'Selecciona una empresa para consultar su historial' : 'Selecciona el PIPC enviado para ver los documentos aprobados' }}
+            </span>
+            <span class="history-intro-item" *ngIf="vistaActual === 'pipcs'">
+              <i class="fas fa-filter"></i>
+              Usa el filtro de año para ubicar rápidamente el PIPC
+            </span>
+          </div>
+
+          <div *ngIf="cargando || cargandoEmpresas || cargandoPipcs" class="text-center py-5">
+            <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+            <p class="text-muted mt-2 mb-0">Cargando historial...</p>
+          </div>
+
+          <ng-container *ngIf="!cargando && !cargandoEmpresas && !cargandoPipcs">
+            <div class="history-layout" [class.single-pane-mode]="!mostrarSelectorEmpresas">
+
+              <!-- Panel empresas -->
+              <aside class="companies-pane" *ngIf="mostrarSelectorEmpresas && vistaActual !== 'documentos'">
+                <div class="pane-header-row">
+                  <span><i class="fas fa-building"></i> Empresas</span>
+                  <span>{{ empresasFiltradas.length }}</span>
+                </div>
+
+                <div *ngIf="empresasFiltradas.length === 0" class="text-center py-5">
+                  <i class="fas fa-building fa-2x text-muted"></i>
+                  <p class="text-muted mt-2 mb-0">No hay empresas para ese filtro</p>
+                </div>
+
+                <div class="companies-list">
+                  <button *ngFor="let empresa of empresasFiltradas"
+                          type="button"
+                          class="company-card"
+                          [class.active]="empresaSeleccionada?.empresa_id === empresa.empresa_id"
+                          (click)="seleccionarEmpresa(empresa)">
+                    <div class="company-head">
+                      <div class="company-logo" *ngIf="getLogoEmpresaUrl(empresa) as logoUrl; else initialsLogo">
+                        <img [src]="logoUrl" [alt]="empresa.nombre_empresa" (error)="onLogoError(empresa)">
+                      </div>
+                      <ng-template #initialsLogo>
+                        <div class="company-initials">{{ getInicialesEmpresa(empresa.nombre_empresa) }}</div>
+                      </ng-template>
+                      <div class="company-meta">
+                        <h6 class="company-name">{{ empresa.nombre_empresa }}</h6>
+                        <span class="company-rfc" *ngIf="empresa.rfc">RFC: {{ empresa.rfc }}</span>
+                        <span class="company-location">
+                          <i class="fas fa-map-marker-alt"></i>
+                          {{ empresa.ciudad || '—' }}<span *ngIf="empresa.estado">, {{ empresa.estado }}</span>
+                        </span>
+                      </div>
+                    </div>
+                    <div class="company-foot">
+                      <span class="company-foot-label">Documentos aprobados</span>
+                      <span class="company-foot-value">{{ empresa.total_documentos }}</span>
+                    </div>
+                  </button>
+                </div>
+              </aside>
+
+              <!-- Panel PIPCs -->
+              <section class="courses-pane" *ngIf="vistaActual === 'pipcs' && (empresaSeleccionada || esPerfilEmpresa); else emptySelection">
+                <div class="courses-pane-header">
+                  <div>
+                    <h5 class="courses-pane-title">{{ nombreEmpresa || empresaSeleccionada?.nombre_empresa || 'Mi empresa' }}</h5>
+                    <span class="courses-pane-subtitle">Selecciona año y PIPC para consultar el historial aprobado</span>
+                  </div>
+                  <button type="button" class="btn-reset-company" *ngIf="mostrarSelectorEmpresas" (click)="limpiarSeleccionEmpresa()">
+                    <i class="fas fa-times"></i> Quitar selección
+                  </button>
+                </div>
+
+                <div class="courses-filters">
+                  <div class="search-input-wrap courses-search-wrap">
+                    <i class="fas fa-search search-icon"></i>
+                    <input class="search-input" type="text" placeholder="Buscar PIPC..."
+                           [(ngModel)]="textoBusquedaPipc" (input)="filtrarPipcs()">
+                  </div>
+                  <select class="filter-select" [(ngModel)]="anoSeleccionado" (change)="filtrarPipcs()">
+                    <option [ngValue]="0">Todos los años</option>
+                    <option *ngFor="let ano of anosDisponibles" [ngValue]="ano">{{ ano }}</option>
+                  </select>
+                </div>
+
+                <div class="pane-header-row pane-header-row-courses" *ngIf="pipcsFiltrados.length > 0">
+                  <span><i class="fas fa-shield-alt"></i> PIPCs encontrados</span>
+                  <span>{{ pipcsFiltrados.length }}</span>
+                </div>
+
+                <div *ngIf="pipcsFiltrados.length === 0" class="text-center py-5">
+                  <i class="fas fa-calendar-times fa-2x text-muted"></i>
+                  <p class="text-muted mt-2 mb-0">No hay PIPCs aprobados {{ anoSeleccionado ? 'para el año ' + anoSeleccionado : '' }}</p>
+                </div>
+
+                <div class="courses-list" *ngIf="pipcsFiltrados.length > 0">
+                  <article class="course-item" *ngFor="let pipc of pipcsFiltrados; trackBy: trackByPipc">
+                    <div class="course-main">
+                      <h6 class="course-name">{{ pipc.titulo }}</h6>
+                      <div class="course-meta-grid">
+                        <span>
+                          <i class="fas fa-calendar-alt"></i>
+                          {{ pipc.fechaReferencia | fechaCurso:'cursoEs' }}
+                        </span>
+                        <span>
+                          <i class="fas fa-file-check"></i>
+                          {{ pipc.totalDocumentos }} archivo(s)
+                        </span>
+                        <span *ngIf="pipc.totalTextos > 0">
+                          <i class="fas fa-font"></i>
+                          {{ pipc.totalTextos }} texto(s)
+                        </span>
+                        <span>
+                          <i class="fas fa-history"></i>
+                          Año {{ pipc.anio }}
+                        </span>
+                      </div>
+                    </div>
+                    <button type="button" class="btn-open-history" (click)="abrirDetallePipc(pipc)">
+                      Ver documentos <i class="fas fa-arrow-right"></i>
+                    </button>
+                  </article>
+                </div>
+              </section>
+
+              <ng-template #emptySelection>
+                <section class="courses-pane courses-pane-empty" *ngIf="mostrarSelectorEmpresas && vistaActual === 'empresas'">
+                  <div class="empty-selection-wrap">
+                    <div class="empty-selection-icon">
+                      <i class="fas fa-hand-pointer"></i>
+                    </div>
+                    <h5 class="empty-selection-title">Selecciona una empresa para comenzar</h5>
+                    <p class="empty-selection-text">Aquí podrás consultar el historial de PIPCs aprobados y acceder a cada documento entregado.</p>
+                    <div class="empty-selection-stats">
+                      <div class="empty-stat-card">
+                        <span class="empty-stat-label">Empresas disponibles</span>
+                        <strong class="empty-stat-value">{{ empresasFiltradas.length }}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </ng-template>
+            </div>
+          </ng-container>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════ -->
+      <!-- VISTA: Documentos aprobados (detalle) -->
+      <!-- ═══════════════════════════════════ -->
+      <div *ngIf="vistaActual === 'documentos' && pipcSeleccionado" class="documents-view">
+        <div class="card main-card">
+          <div class="doc-header">
+            <div class="doc-header-left">
+              <h6 class="section-title">Expediente aprobado</h6>
+              <span class="doc-count">{{ documentosPipcDetalle.length }} archivo(s) · {{ textosPipcDetalle.length }} texto(s)</span>
+            </div>
+          </div>
+
+          <div class="search-bar">
+            <div class="search-input-wrap">
+              <i class="fas fa-search search-icon"></i>
+              <input class="search-input" type="text" placeholder="Buscar documento o texto capturado..."
+                     [(ngModel)]="textoBusquedaDocumentos" (input)="filtrarDocumentosDetalle()">
+            </div>
+          </div>
+
+          <div *ngIf="cargandoDetalle" class="empty-state">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Cargando documentos aprobados...</p>
+          </div>
+
+          <div *ngIf="!cargandoDetalle && documentosPipcDetalle.length === 0 && textosPipcDetalle.length === 0" class="empty-state">
+            <i class="fas fa-check-circle"></i>
+            <p>No hay documentos aprobados para este PIPC</p>
+          </div>
+
+          <div class="docs-section" *ngIf="!cargandoDetalle && documentosPipcDetalle.length > 0">
+            <div class="docs-section-head">
+              <h6 class="docs-section-title">Documentos aprobados</h6>
+              <span class="docs-section-subtitle">Archivos respaldados en el historial de Drive</span>
+            </div>
+
+            <div class="doc-grid doc-grid-compact">
+              <article *ngFor="let doc of documentosPipcDetalle; trackBy: trackByDocumento"
+                       class="doc-card is-uploaded">
+                <div class="doc-card-top">
+                  <div class="doc-icon" [style.background]="getColorTipo(doc.mime_type || doc.nombre_archivo)">
+                    <i class="fas" [ngClass]="getIconoTipo(doc.mime_type || doc.nombre_archivo)"></i>
+                  </div>
+                  <span class="status-badge uploaded">
+                    <i class="fas fa-check-circle"></i> Aprobado
+                  </span>
+                </div>
+
+                <div class="doc-card-body">
+                  <h4 class="doc-card-title">{{ doc.nombre_requisito || doc.nombre_archivo }}</h4>
+                  <p class="doc-card-description" *ngIf="doc.nombre_archivo && doc.nombre_requisito !== doc.nombre_archivo">
+                    {{ doc.nombre_archivo }}
+                  </p>
+
+                  <div class="doc-card-summary">
+                    <div class="doc-summary-row" *ngIf="doc.fecha_subida || doc.fecha_creacion">
+                      <span class="doc-summary-label">Aprobado</span>
+                      <span class="doc-summary-value">{{ (doc.fecha_subida || doc.fecha_creacion) | date: 'dd/MM/yyyy' }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="doc-card-actions">
+                  <button type="button" class="action-btn action-preview" (click)="verArchivo(doc)" title="Ver">
+                    <i class="fas fa-eye"></i> Ver
+                  </button>
+                  <button type="button" class="action-btn action-download" (click)="descargarArchivo(doc)" title="Descargar" *ngIf="doc.documento_id">
+                    <i class="fas fa-download"></i> Descargar
+                  </button>
+                  <button type="button" class="action-btn action-replace" (click)="reemplazarDocumentoHistorial(doc)" title="Reemplazar" *ngIf="doc.historial_id">
+                    <i class="fas fa-sync-alt"></i> Reemplazar
+                  </button>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div class="docs-section" *ngIf="!cargandoDetalle && textosPipcDetalle.length > 0">
+            <div class="docs-section-head">
+              <h6 class="docs-section-title">Textos capturados aprobados</h6>
+              <span class="docs-section-subtitle">Valores registrados en el historial</span>
+            </div>
+
+            <div class="table-responsive border rounded text-history-wrapper">
+              <table class="table table-sm mb-0 text-history-table">
+                <thead>
+                  <tr>
+                    <th>Campo</th>
+                    <th>Valor capturado</th>
+                    <th>Fecha</th>
+                    <th class="text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let texto of textosPipcDetalle; trackBy: trackByTexto">
+                    <td class="font-weight-bold">{{ texto.nombre_campo }}</td>
+                    <td class="valor-texto-cell">{{ texto.valor_texto }}</td>
+                    <td class="text-muted">{{ texto.fecha_captura ? (texto.fecha_captura | fechaCurso) : ((texto.fecha_actualizacion || texto.fecha_creacion) | date:'dd/MM/yyyy') }}</td>
+                    <td class="text-right">
+                      <button type="button" class="btn btn-sm btn-outline-danger py-1 px-2"
+                              title="Eliminar valor capturado"
+                              (click)="eliminarTextoCapturado(texto)">
+                        <i class="fas fa-trash-alt"></i>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Modal detalle -->
+<div *ngIf="mostrarModalDetalle && documentoSeleccionado"
+     class="modal fade show d-block"
+     tabindex="-1"
+     style="background-color: rgba(0, 0, 0, 0.6); z-index: 1050;">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content shadow-lg border-0" style="border-radius: 15px; overflow: hidden;">
+      <div class="modal-header py-3 modal-header-pc">
+        <h5 class="modal-title text-white font-weight-bold">
+          <i class="fas fa-file-alt mr-2"></i>Detalles del Documento
+        </h5>
+        <button type="button" class="close text-white" (click)="cerrarDetalle()" style="opacity: 1;">
+          <span>&times;</span>
+        </button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="row no-gutters">
+          <div class="col-lg-7 bg-light d-flex align-items-center justify-content-center border-right preview-col">
+            <div class="w-100 h-100 position-relative preview-wrap">
+              <div *ngIf="cargandoVisor"
+                   class="position-absolute w-100 h-100 d-flex align-items-center justify-content-center preview-loading">
+                <div class="text-center">
+                  <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                  <p class="text-muted mt-2 mb-0">Cargando vista previa...</p>
+                </div>
+              </div>
+              <iframe *ngIf="documentoSeleccionado?.archivo_url || documentoSeleccionado?.drive_file_id"
+                [src]="'https://drive.google.com/file/d/' + (documentoSeleccionado.drive_file_id || documentoSeleccionado.archivo_url) + '/preview' | safe"
+                (load)="onVisorIframeLoad()"
+                class="preview-iframe"
+                title="Vista previa del documento">
+              </iframe>
+            </div>
+          </div>
+          <div class="col-lg-5 p-4">
+            <h3 class="mb-1 doc-detail-title">{{ documentoSeleccionado.nombre_requisito || documentoSeleccionado.nombre_documento }}</h3>
+            <p class="text-muted small mb-3" *ngIf="documentoSeleccionado.fecha_subida || documentoSeleccionado.fecha_creacion">
+              <i class="fas fa-calendar-alt mr-1"></i>Aprobado: {{ (documentoSeleccionado.fecha_subida || documentoSeleccionado.fecha_creacion) | date:'dd/MM/yyyy' }}
+            </p>
+            <p class="text-muted small mb-3" *ngIf="documentoSeleccionado.nombre_archivo">
+              <i class="fas fa-paperclip mr-1"></i>{{ documentoSeleccionado.nombre_archivo }}
+            </p>
+            <div class="d-flex flex-column gap-2 mt-4">
+              <button type="button" class="btn btn-outline-success btn-sm btn-block text-left py-2 px-3 mb-2 action-modal-btn" (click)="verArchivo(documentoSeleccionado)">
+                <i class="fas fa-eye mr-3"></i> Ver archivo
+              </button>
+              <button type="button" class="btn btn-outline-info btn-sm btn-block text-left py-2 px-3 mb-2 action-modal-btn" (click)="descargarArchivo()" *ngIf="documentoSeleccionado.documento_id">
+                <i class="fas fa-download mr-3"></i> Descargar copia
+              </button>
+              <button type="button" class="btn btn-outline-warning btn-sm btn-block text-left py-2 px-3 mb-2 action-modal-btn"
+                      (click)="reemplazarDocumentoHistorial(documentoSeleccionado)" *ngIf="documentoSeleccionado.historial_id">
+                <i class="fas fa-sync-alt mr-3"></i> Reemplazar archivo
+              </button>
+              <button type="button" class="btn btn-outline-danger btn-sm btn-block text-left py-2 px-3 mb-2 action-modal-btn"
+                      (click)="eliminarDocumentoHistorial(documentoSeleccionado)" *ngIf="documentoSeleccionado.historial_id">
+                <i class="fas fa-trash-alt mr-3"></i> Eliminar del historial
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Visor fullscreen -->
+<div *ngIf="mostrarVisor"
+     class="modal fade show d-block visor-modal"
+     tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-xl visor-dialog">
+    <div class="modal-content shadow-lg border-0 visor-content">
+      <div class="modal-header modal-header-pc">
+        <h5 class="modal-title text-white font-weight-bold text-truncate visor-title">
+          <i class="fas fa-file-alt mr-2"></i>{{ nombreVisor }}
+        </h5>
+        <div class="d-flex align-items-center">
+          <button type="button" class="btn btn-sm btn-light mr-2" (click)="descargarDesdeVisor()" *ngIf="archivoVisorId">
+            <i class="fas fa-download mr-1"></i>Descargar
+          </button>
+          <button type="button" class="btn btn-sm btn-warning mr-2" (click)="reemplazarDesdeVisor()" *ngIf="documentoVisorActual?.historial_id">
+            <i class="fas fa-sync-alt mr-1"></i>Reemplazar
+          </button>
+          <button type="button" class="btn btn-sm btn-danger mr-2" (click)="eliminarDesdeVisor()" *ngIf="documentoVisorActual?.historial_id">
+            <i class="fas fa-trash-alt mr-1"></i>Eliminar
+          </button>
+          <button type="button" class="close text-white ml-2" (click)="cerrarVisor()" style="opacity: 1; font-size: 2rem;">
+            <span>&times;</span>
+          </button>
+        </div>
+      </div>
+      <div class="modal-body p-0 position-relative visor-body" [class.visor-body--pdf]="!visorEsImagen">
+        <div *ngIf="cargandoVisor && visorEsImagen"
+             class="position-absolute w-100 h-100 d-flex align-items-center justify-content-center visor-loading">
+          <div class="text-center">
+            <i class="fas fa-spinner fa-spin fa-2x visor-loading__icon"></i>
+            <p class="visor-loading__text mt-2 mb-0">Cargando vista previa...</p>
+          </div>
+        </div>
+
+        <app-pdf-canvas-viewer
+          *ngIf="!visorEsImagen && !visorError"
+          [blob]="previewBlobVisor"
+          [preparando]="cargandoVisor && !previewBlobVisor"
+          [progresoServidor]="visorProgreso"
+          [etiquetaServidor]="visorEtiqueta"
+          [lento]="visorLento"
+          tema="naranja">
+        </app-pdf-canvas-viewer>
+
+        <div *ngIf="!visorEsImagen && visorError" class="visor-fallback">
+          <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+          <p class="mb-2">{{ visorError }}</p>
+          <button type="button" class="btn btn-sm btn-light" *ngIf="archivoVisorId" (click)="descargarDesdeVisor()">
+            <i class="fas fa-download mr-1"></i>Descargar archivo
+          </button>
+        </div>
+
+        <img *ngIf="urlVisor && visorEsImagen"
+             [src]="urlVisor | safe"
+             [alt]="nombreVisor"
+             class="visor-image"
+             (load)="onVisorIframeLoad()"
+             (error)="onVisorIframeLoad()">
+      </div>
+    </div>
+  </div>
+</div>

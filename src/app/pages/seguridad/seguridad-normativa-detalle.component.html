@@ -1,0 +1,178 @@
+<div class="header header-bg-image seg-hero seg-hero--detalle pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid position-relative seg-hero__inner seg-hero__inner--detalle">
+    <button type="button" class="btn btn-sm seg-btn-back" (click)="volver()">
+      <i class="fas fa-arrow-left" aria-hidden="true"></i> Catálogo
+    </button>
+    <div class="seg-hero-detalle text-center" *ngIf="normativa">
+      <div class="seg-hero-detalle__badges justify-content-center">
+        <span class="seg-hero-detalle__codigo">{{ normativa.codigo }}</span>
+        <span class="seg-hero-detalle__meta">{{ categoriaLabel }} · {{ normativa.autoridad }} · {{ normativa.anio }}</span>
+      </div>
+      <h1 class="text-white seg-hero-title mb-0 mx-auto">{{ normativa.titulo }}</h1>
+      <p class="seg-hero-import text-white mb-0" *ngIf="normativa.importado_por">
+        Cargada por <strong>{{ normativa.importado_por }}</strong>
+        <span *ngIf="normativa.importado_perfil"> ({{ normativa.importado_perfil }})</span>
+        <span *ngIf="normativa.importado_en"> · {{ normativa.importado_en | date:'dd/MM/yyyy HH:mm' }}</span>
+      </p>
+    </div>
+    <div *ngIf="cargando && !normativa" class="text-white seg-hero-loading text-center">
+      <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Cargando normativa…
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid seg-main-wrap mt--5" *ngIf="!cargando && error">
+  <div class="seg-panel">
+    <div class="seg-panel__body seg-panel__body--error">
+      <p>{{ error }}</p>
+      <button type="button" class="btn seg-btn-back-panel" (click)="volver()">Volver al catálogo</button>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid seg-main-wrap mt--5" *ngIf="normativa && !error">
+  <div class="seg-panel">
+    <div class="seg-stat-strip seg-stat-strip--detalle" *ngIf="resumen">
+      <div class="seg-stat-chip">
+        <span class="seg-stat-chip__val">{{ resumen.total || 0 }}</span>
+        <span class="seg-stat-chip__lbl">Requisitos</span>
+      </div>
+      <div class="seg-stat-chip">
+        <span class="seg-stat-chip__val">{{ resumen.documentales || 0 }}</span>
+        <span class="seg-stat-chip__lbl">Documentales</span>
+      </div>
+      <div class="seg-stat-chip">
+        <span class="seg-stat-chip__val">{{ resumen.fisicos || 0 }}</span>
+        <span class="seg-stat-chip__lbl">Físicos</span>
+      </div>
+      <div class="seg-stat-strip__actions" *ngIf="puedeAdministrar">
+        <button type="button" class="btn btn-sm seg-btn-edit" (click)="editarNormativa()">
+          <i class="fas fa-pen" aria-hidden="true"></i> Editar
+        </button>
+        <button type="button" class="btn btn-sm seg-btn-danger" (click)="eliminarNormativa()">
+          <i class="fas fa-trash-alt" aria-hidden="true"></i> Eliminar
+        </button>
+      </div>
+    </div>
+
+    <section class="seg-historial" *ngIf="historial.length">
+      <button type="button" class="seg-historial__toggle" (click)="mostrarHistorial = !mostrarHistorial">
+        <i class="fas fa-history" aria-hidden="true"></i>
+        Registro de cambios
+        <span class="seg-historial__count">{{ historial.length }}</span>
+        <i class="fas ms-auto" [class.fa-chevron-down]="!mostrarHistorial" [class.fa-chevron-up]="mostrarHistorial"></i>
+      </button>
+      <div class="seg-historial__list" *ngIf="mostrarHistorial">
+        <article *ngFor="let h of historial" class="seg-historial__item">
+          <div class="seg-historial__meta">
+            <span class="seg-historial__accion">{{ etiquetaAccion(h.accion) }}</span>
+            <time>{{ h.creado_en | date:'dd/MM/yyyy HH:mm' }}</time>
+          </div>
+          <p class="seg-historial__user">
+            <i class="fas fa-user-circle" aria-hidden="true"></i>
+            {{ h.usuario_nombre }}
+            <span *ngIf="h.usuario_perfil"> · {{ h.usuario_perfil }}</span>
+          </p>
+          <p class="seg-historial__detalle" *ngIf="h.detalle">{{ h.detalle }}</p>
+          <p class="seg-historial__cambio" *ngIf="h.campo && h.valor_anterior !== h.valor_nuevo">
+            <span class="seg-historial__campo">{{ h.campo }}:</span>
+            <span class="seg-historial__antes">{{ h.valor_anterior || '—' }}</span>
+            <i class="fas fa-arrow-right" aria-hidden="true"></i>
+            <span class="seg-historial__despues">{{ h.valor_nuevo || '—' }}</span>
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <header class="seg-det-toolbar">
+      <div class="seg-search seg-search--wide">
+        <i class="fas fa-search" aria-hidden="true"></i>
+        <input type="search"
+               class="form-control form-control-sm"
+               placeholder="Buscar por punto, descripción o responsable…"
+               [(ngModel)]="busqueda"
+               (ngModelChange)="aplicarFiltro()"
+               aria-label="Buscar requisitos">
+      </div>
+      <span class="seg-det-count">{{ requisitosFiltrados.length }} cláusulas</span>
+    </header>
+
+    <div class="seg-clausulas-list">
+      <article *ngFor="let r of requisitosFiltrados; let i = index; trackBy: trackById"
+               class="seg-clausula"
+               [class.seg-clausula--open]="requisitoExpandido === r.id">
+        <div class="seg-clausula__head"
+             role="button"
+             tabindex="0"
+             (click)="toggleExpandir(r.id)"
+             (keydown.enter)="toggleExpandir(r.id)"
+             [attr.aria-expanded]="requisitoExpandido === r.id">
+          <div class="seg-clausula__rail">
+            <span class="seg-clausula__index">{{ i + 1 }}</span>
+            <span class="seg-clausula__punto">{{ r.punto_norma || '—' }}</span>
+          </div>
+          <div class="seg-clausula__content">
+            <div class="seg-clausula__texto seg-rich-text" [innerHTML]="textoRequisitoHtml(r)"></div>
+            <div class="seg-clausula__meta">
+              <span class="seg-pill seg-pill--tipo" *ngIf="r.tipo_evidencia">
+                <i class="fas" [ngClass]="iconoTipo(r.tipo_evidencia)" aria-hidden="true"></i>
+                {{ r.tipo_evidencia }}
+              </span>
+              <span class="seg-pill" *ngIf="r.periodicidad">
+                <i class="fas fa-clock" aria-hidden="true"></i> {{ r.periodicidad }}
+              </span>
+            </div>
+          </div>
+          <div class="seg-clausula__toggle">
+            <i class="fas" [class.fa-chevron-down]="requisitoExpandido !== r.id" [class.fa-chevron-up]="requisitoExpandido === r.id" aria-hidden="true"></i>
+          </div>
+        </div>
+
+        <div class="seg-clausula__detail" *ngIf="requisitoExpandido === r.id">
+          <div class="seg-clausula__detail-actions" *ngIf="puedeAdministrar">
+            <button type="button" class="btn btn-sm seg-btn-edit" (click)="editarRequisito(r, $event)">
+              <i class="fas fa-pen" aria-hidden="true"></i> Editar requisito
+            </button>
+          </div>
+          <div class="seg-clausula__detail-grid">
+            <div class="seg-detail-item" *ngIf="r.numero_item">
+              <i class="fas fa-hashtag" aria-hidden="true"></i>
+              <div>
+                <span class="seg-detail-item__label">Ítem</span>
+                <span class="seg-detail-item__val">{{ r.numero_item }}</span>
+              </div>
+            </div>
+            <div class="seg-detail-item" *ngIf="r.responsable">
+              <i class="fas fa-user" aria-hidden="true"></i>
+              <div>
+                <span class="seg-detail-item__label">Responsable</span>
+                <span class="seg-detail-item__val">{{ r.responsable }}</span>
+              </div>
+            </div>
+            <div class="seg-detail-item" *ngIf="r.indicador_avance !== null">
+              <i class="fas fa-chart-line" aria-hidden="true"></i>
+              <div>
+                <span class="seg-detail-item__label">Avance</span>
+                <span class="seg-detail-item__val">{{ r.indicador_avance }}%</span>
+              </div>
+            </div>
+            <div class="seg-detail-item seg-detail-item--full" *ngIf="r.evidencia_requerida">
+              <i class="fas fa-paperclip" aria-hidden="true"></i>
+              <div>
+                <span class="seg-detail-item__label">Evidencia requerida</span>
+                <span class="seg-detail-item__val">{{ r.evidencia_requerida }}</span>
+              </div>
+            </div>
+            <div class="seg-detail-item seg-detail-item--full" *ngIf="r.observaciones">
+              <i class="fas fa-sticky-note" aria-hidden="true"></i>
+              <div>
+                <span class="seg-detail-item__label">Observaciones</span>
+                <span class="seg-detail-item__val">{{ r.observaciones }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </div>
+</div>

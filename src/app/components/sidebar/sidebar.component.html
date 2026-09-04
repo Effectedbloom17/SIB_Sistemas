@@ -1,0 +1,154 @@
+<!-- Sidebar simplificado para móvil y desktop -->
+<nav class="sidebar-custom bg-white" id="sidenav-main" [class.sidebar-hidden]="!sidebarVisible"
+  [class.sidebar-visible]="sidebarVisible">
+
+  <!-- Header del Sidebar (Solo visible en móvil / menú hamburguesa) -->
+  <div class="sidebar-header">
+    <a class="sidebar-brand" routerLinkActive="active" [routerLink]="[logoRoute]" (click)="closeSidebar()">
+      <img src="./assets/img/logo_biznaga.png" class="sidebar-brand-img" alt="Biznaga">
+    </a>
+    <!-- Botón cerrar solo en móvil -->
+    <button class="sidebar-close-btn" (click)="sidebarService.hideSidebar()" *ngIf="isMobile()">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+
+  <!-- Navegación -->
+  <div class="sidebar-nav">
+    <!-- Menú categorizado: solo administrador y superadministrador -->
+    <ng-container *ngIf="useGroupedMenu">
+      <div *ngFor="let section of menuSections" class="sidebar-section"
+           [class.has-title]="!!section.title" [class.is-open]="isGroupOpen(section)">
+        <button *ngIf="section.title" type="button" class="sidebar-section-header"
+                (click)="toggleGroup(section.title, $event)"
+                [attr.aria-expanded]="isGroupOpen(section)">
+          <span class="sidebar-section-title">{{ section.title }}</span>
+          <i class="fas fa-chevron-down sidebar-section-chevron"></i>
+        </button>
+        <ul class="nav flex-column sidebar-section-items">
+          <li *ngFor="let menuItem of section.items" class="nav-item">
+            <a [class.active]="isLinkActive(menuItem)"
+               [routerLink]="[menuItem.path]" class="nav-link" [ngClass]="{
+                 'proteccion-civil-link': menuItem.path === '/proteccion-civil',
+                 'control-resolutivos-link': menuItem.path === '/proteccion-civil/control-resolutivos' || menuItem.path === '/proteccion-civil/historial-pc',
+                 'expedientes-medicos-link': menuItem.path === '/expedientes-medicos',
+                 'estadisticas-medicas-link': menuItem.path === '/estadisticas-medicas',
+                 'sistema-gestion-calidad-link': menuItem.path === '/sistema-gestion-calidad',
+                 'sgc-procedimientos-link': menuItem.path === '/sistema-gestion-calidad/procedimientos',
+                 'sgc-instructivos-link': menuItem.path === '/sistema-gestion-calidad/instructivos',
+                 'sgc-formatos-link': menuItem.path === '/sistema-gestion-calidad/formatos',
+                 'sgc-normativas-link': menuItem.path === '/sistema-gestion-calidad/normativas',
+                 'sgc-solicitud-documentos-link': menuItem.path === '/sistema-gestion-calidad/solicitud-documentos',
+                 'seguridad-normativas-link': menuItem.path === '/seguridad/normativas',
+                 'sgc-capitulos-link': false,
+                 'recursos-humanos-link': menuItem.path.startsWith('/recursos-humanos'),
+                 'ambiental-link': menuItem.path === '/ambiental',
+                 'control-proyectos-link': menuItem.path === '/control-proyectos',
+                 'control-oficios-link': menuItem.path === '/control-oficios',
+                 'sensorizacion-link': menuItem.path === '/sensores',
+                 'correo-empresa-link': menuItem.path === '/correo-empresa',
+                 'diseno-innovacion-link': menuItem.path === '/diseno-innovacion',
+                 'repositorio-link': menuItem.path === '/diseno-innovacion/repositorio',
+                 'inventario-link': menuItem.path === '/diseno-innovacion/inventario',
+                 'mantenimiento-link': menuItem.path.startsWith('/mantenimiento'),
+                 'historial-cursos-link': menuItem.path === '/historial-cursos'
+               }" (click)="closeSidebar()">
+              <i *ngIf="menuItem.iconFa" class="fas {{menuItem.iconFa}}"></i>
+              <i *ngIf="!menuItem.iconFa" class="ni {{menuItem.icon}}"></i>
+              <span class="nav-link-text">{{menuItem.title}}</span>
+              <span *ngIf="menuItem.beta" class="badge badge-warning badge-beta">BETA</span>
+              <span *ngIf="menuItem.path === '/historial-cursos'" class="historial-badge-wrap">
+                <span *ngIf="historialPendientesCount > 0"
+                      class="badge badge-historial-pendiente"
+                      [class.badge-historial-pendiente--pulse]="historialBadgePulse"
+                      [attr.title]="historialPendientesCount + ' capacitación(es) finalizada(s) por revisar'">
+                  {{ historialPendientesCount > 99 ? '99+' : historialPendientesCount }}
+                </span>
+                <span class="historial-badge-pop" *ngIf="mostrarPopHistorial">+1</span>
+              </span>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </ng-container>
+
+    <!-- Menú plano: resto de perfiles -->
+    <ul *ngIf="!useGroupedMenu" class="nav flex-column">
+      <li *ngFor="let menuItem of menuItems" class="nav-item">
+        <a [class.active]="isLinkActive(menuItem)"
+           [routerLink]="[menuItem.path]" class="nav-link" [ngClass]="{
+             'proteccion-civil-link': menuItem.path === '/proteccion-civil',
+             'control-resolutivos-link': menuItem.path === '/proteccion-civil/control-resolutivos' || menuItem.path === '/proteccion-civil/historial-pc',
+             'expedientes-medicos-link': menuItem.path === '/expedientes-medicos',
+             'estadisticas-medicas-link': menuItem.path === '/estadisticas-medicas',
+             'sistema-gestion-calidad-link': menuItem.path === '/sistema-gestion-calidad',
+             'sgc-procedimientos-link': menuItem.path === '/sistema-gestion-calidad/procedimientos',
+             'sgc-instructivos-link': menuItem.path === '/sistema-gestion-calidad/instructivos',
+             'sgc-formatos-link': menuItem.path === '/sistema-gestion-calidad/formatos',
+             'sgc-normativas-link': menuItem.path === '/sistema-gestion-calidad/normativas',
+             'sgc-solicitud-documentos-link': menuItem.path === '/sistema-gestion-calidad/solicitud-documentos',
+             'seguridad-normativas-link': menuItem.path === '/seguridad/normativas',
+             'sgc-capitulos-link': false,
+             'recursos-humanos-link': menuItem.path.startsWith('/recursos-humanos'),
+             'ambiental-link': menuItem.path === '/ambiental',
+             'control-proyectos-link': menuItem.path === '/control-proyectos',
+             'control-oficios-link': menuItem.path === '/control-oficios',
+             'sensorizacion-link': menuItem.path === '/sensores',
+             'correo-empresa-link': menuItem.path === '/correo-empresa',
+             'diseno-innovacion-link': menuItem.path === '/diseno-innovacion',
+             'repositorio-link': menuItem.path === '/diseno-innovacion/repositorio',
+             'inventario-link': menuItem.path === '/diseno-innovacion/inventario',
+             'mantenimiento-link': menuItem.path.startsWith('/mantenimiento'),
+             'historial-cursos-link': menuItem.path === '/historial-cursos'
+           }" (click)="closeSidebar()">
+          <i *ngIf="menuItem.iconFa" class="fas {{menuItem.iconFa}}"></i>
+          <i *ngIf="!menuItem.iconFa" class="ni {{menuItem.icon}}"></i>
+          <span class="nav-link-text">{{menuItem.title}}</span>
+          <span *ngIf="menuItem.beta" class="badge badge-warning badge-beta">BETA</span>
+          <span *ngIf="menuItem.path === '/historial-cursos'" class="historial-badge-wrap">
+            <span *ngIf="historialPendientesCount > 0"
+                  class="badge badge-historial-pendiente"
+                  [class.badge-historial-pendiente--pulse]="historialBadgePulse"
+                  [attr.title]="historialPendientesCount + ' capacitación(es) finalizada(s) por revisar'">
+              {{ historialPendientesCount > 99 ? '99+' : historialPendientesCount }}
+            </span>
+            <span class="historial-badge-pop" *ngIf="mostrarPopHistorial">+1</span>
+          </span>
+        </a>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Sección inferior fija al fondo: ítems de administración -->
+  <div class="sidebar-bottom-section">
+    <div *ngIf="bottomMenuItems?.length">
+      <div class="sidebar-divider"></div>
+      <ul class="nav flex-column">
+        <li *ngFor="let menuItem of bottomMenuItems" class="nav-item">
+          <a routerLinkActive="active" [routerLink]="[menuItem.path]" class="nav-link nav-link-admin"
+            (click)="closeSidebar()">
+            <i class="ni {{menuItem.icon}}"></i>
+            <span class="nav-link-text">{{menuItem.title}}</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <div class="sidebar-version">
+      <button
+        type="button"
+        class="sidebar-version-update"
+        *ngIf="nuevaVersionDisponible"
+        (click)="actualizarPagina()"
+        title="Clic para actualizar la página">
+        <i class="ni ni-notification-70" aria-hidden="true"></i>
+        <span>Nueva versión disponible. Por favor actualice la página.</span>
+      </button>
+      <span class="sidebar-version-label">v{{ appVersion }}</span>
+    </div>
+  </div>
+</nav>
+
+<!-- Overlay para cerrar sidebar en móvil -->
+<div class="sidebar-overlay" *ngIf="sidebarVisible && isMobile()" (click)="sidebarService.hideSidebar()">
+</div>

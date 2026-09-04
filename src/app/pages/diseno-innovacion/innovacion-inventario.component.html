@@ -1,0 +1,787 @@
+<div class="header header-bg-image di-inv-hero di-inv-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="di-inv-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i class="fas fa-boxes" aria-hidden="true"></i>
+          </div>
+          <p class="text-white mb-1 di-inv-hero-chapter-label">Diseño e Innovación</p>
+          <h1 class="text-white mb-0 di-inv-hero-title">Inventario</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid di-inv-main-wrap mt--5">
+  <div class="row justify-content-center">
+    <div class="col-12 di-inv-content-col">
+      <div class="card di-inv-shell border-0 shadow-sm">
+        <div class="di-inv-shell-accent" aria-hidden="true"></div>
+        <div class="card-body di-inv-shell-body">
+          <nav class="di-inv-crumb" aria-label="Navegación">
+            <ol class="di-inv-crumb__trail list-unstyled mb-0">
+              <li class="di-inv-crumb__step">
+                <a routerLink="/diseno-innovacion" class="di-inv-crumb__link">
+                  <i class="fas fa-drafting-compass di-inv-crumb__icon" aria-hidden="true"></i>
+                  Proyectos Señalización
+                </a>
+              </li>
+              <li class="di-inv-crumb__sep" aria-hidden="true">
+                <i class="fas fa-chevron-right"></i>
+              </li>
+              <li class="di-inv-crumb__step di-inv-crumb__step--current" aria-current="page">
+                <span class="di-inv-crumb__current">Inventario</span>
+              </li>
+            </ol>
+          </nav>
+
+          <header class="di-inv-page-header">
+            <div class="di-inv-page-header__copy">
+              <p class="di-inv-intro-role text-uppercase mb-2">{{ etiquetaRolUsuario }}</p>
+              <h2 class="di-inv-intro-title mb-1">Inventario de señalizaciones</h2>
+              <p class="di-inv-intro-lead mb-0">
+                Stock disponible en empresa: consulta, registra, importa desde Excel y asocia imágenes del repositorio.
+              </p>
+            </div>
+            <div class="di-inv-actions" role="group" aria-label="Acciones de inventario">
+              <button type="button" class="di-inv-action di-inv-action--primary" (click)="abrirCrear()">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>Agregar</span>
+              </button>
+              <button type="button"
+                      class="di-inv-action di-inv-action--excel"
+                      (click)="onClickImportarExcel()"
+                      [disabled]="importandoExcel">
+                <i class="fas" [ngClass]="importandoExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'" aria-hidden="true"></i>
+                <span>{{ importandoExcel ? 'Importando…' : 'Importar Excel' }}</span>
+              </button>
+              <button type="button"
+                      class="di-inv-action di-inv-action--manage"
+                      [class.di-inv-action--danger-active]="modoSeleccion || mostrarPanelEliminar"
+                      (click)="onClickEliminarInventario()"
+                      [disabled]="desactivandoInventario || borrandoDefinitivo || cargandoLista">
+                <i class="fas"
+                   [ngClass]="desactivandoInventario || borrandoDefinitivo
+                     ? 'fa-spinner fa-spin'
+                     : (modoSeleccion ? 'fa-times' : 'fa-tasks')"
+                   aria-hidden="true"></i>
+                <span>{{
+                  desactivandoInventario || borrandoDefinitivo
+                    ? 'Procesando…'
+                    : (modoSeleccion ? 'Cancelar selección' : 'Gestionar inventario')
+                }}</span>
+              </button>
+            </div>
+          </header>
+
+          <div class="di-inv-metrics" *ngIf="!cargandoLista && !errorLista">
+            <div class="di-inv-metric">
+              <div class="di-inv-metric__icon" aria-hidden="true"><i class="fas fa-layer-group"></i></div>
+              <div>
+                <span class="di-inv-metric__label">Inventario</span>
+                <strong class="di-inv-metric__value">{{ totalTipos }}</strong>
+              </div>
+            </div>
+            <div class="di-inv-metric">
+              <div class="di-inv-metric__icon di-inv-metric__icon--pieces" aria-hidden="true"><i class="fas fa-cubes"></i></div>
+              <div>
+                <span class="di-inv-metric__label">Cantidad</span>
+                <strong class="di-inv-metric__value">{{ totalPiezas }}</strong>
+              </div>
+            </div>
+            <div class="di-inv-metric di-inv-metric--wide" *ngIf="resumenPorMaterial.length">
+              <div class="di-inv-metric__icon di-inv-metric__icon--mat" aria-hidden="true"><i class="fas fa-industry"></i></div>
+              <div class="di-inv-metric__body">
+                <span class="di-inv-metric__label">Por material</span>
+                <div class="di-inv-metric__chips">
+                  <span class="di-inv-chip" *ngFor="let r of resumenPorMaterial">
+                    {{ r.material }} · {{ r.cantidad }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="di-inv-controls">
+            <div class="di-inv-search">
+              <i class="fas fa-search" aria-hidden="true"></i>
+              <input type="search"
+                     placeholder="Buscar por descripción, tipo, tamaño, material u observaciones…"
+                     [(ngModel)]="busqueda"
+                     (ngModelChange)="aplicarFiltro()"
+                     aria-label="Buscar en inventario">
+            </div>
+            <div class="di-inv-controls__side">
+              <label class="di-inv-select">
+                <span class="sr-only">Filtrar por material</span>
+                <select [(ngModel)]="filtroMaterial" (ngModelChange)="aplicarFiltro()">
+                  <option value="">Todos los materiales</option>
+                  <option *ngFor="let m of materialesDisponibles" [value]="m">{{ m }}</option>
+                </select>
+              </label>
+              <button type="button"
+                      class="di-inv-toggle"
+                      [class.di-inv-toggle--on]="verInactivos"
+                      (click)="onToggleVerInactivos()"
+                      [attr.aria-pressed]="verInactivos">
+                <i class="fas" [ngClass]="verInactivos ? 'fa-eye' : 'fa-eye-slash'" aria-hidden="true"></i>
+                {{ verInactivos ? 'Ocultar desactivados' : 'Ver desactivados' }}
+              </button>
+              <span class="di-inv-controls__count" *ngIf="!cargandoLista">
+                {{ itemsFiltrados.length }} registro{{ itemsFiltrados.length !== 1 ? 's' : '' }}
+              </span>
+            </div>
+          </div>
+
+          <div *ngIf="cargandoLista" class="di-inv-state" role="status">
+            <i class="fas fa-spinner fa-spin fa-lg text-muted" aria-hidden="true"></i>
+            <p class="mb-0 mt-2 text-muted">Cargando inventario…</p>
+          </div>
+
+          <div *ngIf="!cargandoLista && errorLista" class="alert alert-warning di-inv-alert" role="alert">
+            {{ errorLista }}
+            <button type="button" class="btn btn-sm btn-outline-warning ml-2" (click)="cargarLista()">Reintentar</button>
+          </div>
+
+          <div *ngIf="!cargandoLista && !errorLista && itemsFiltrados.length === 0"
+               class="di-inv-state" role="status">
+            <div class="di-inv-state__icon">
+              <i class="fas fa-inbox" aria-hidden="true"></i>
+            </div>
+            <h3 class="di-inv-state__title">Sin registros</h3>
+            <p class="di-inv-state__text mb-3">
+              {{ busqueda || filtroMaterial ? 'No hay coincidencias con el filtro actual.' : 'Agrega la primera señalización al inventario.' }}
+            </p>
+            <button *ngIf="!busqueda && !filtroMaterial"
+                    type="button"
+                    class="btn btn-sm di-inv-btn-primary"
+                    (click)="abrirCrear()">
+              <i class="fas fa-plus mr-1" aria-hidden="true"></i> Agregar
+            </button>
+          </div>
+
+          <div *ngIf="!cargandoLista && !errorLista && itemsFiltrados.length > 0"
+               class="di-inv-catalog-section">
+            <div class="di-inv-selection-bar"
+                 *ngIf="modoSeleccion"
+                 role="toolbar"
+                 aria-label="Acciones de selección"
+                 [class.di-inv-selection-bar--danger]="modoSeleccionAccion === 'borrar'">
+              <div class="di-inv-selection-bar__info">
+                <i class="fas" [ngClass]="modoSeleccionAccion === 'borrar' ? 'fa-exclamation-triangle' : 'fa-check-square'" aria-hidden="true"></i>
+                <div>
+                  <strong>{{ etiquetaModoSeleccion }}</strong>
+                  <span>
+                    · {{ cantidadSeleccionada }} seleccionado{{ cantidadSeleccionada !== 1 ? 's' : '' }}
+                  </span>
+                </div>
+              </div>
+              <div class="di-inv-selection-bar__actions">
+                <label class="di-inv-check di-inv-selection-bar__select-all" (click)="$event.stopPropagation()">
+                  <input type="checkbox"
+                         [checked]="todosActivosFiltradosSeleccionados"
+                         (change)="toggleSeleccionarTodosFiltrados($event)"
+                         aria-label="Seleccionar todos los visibles">
+                  <span class="di-inv-check__box" aria-hidden="true"></span>
+                  <span class="di-inv-selection-bar__select-label">Todos</span>
+                </label>
+                <ng-container *ngIf="modoSeleccionAccion === 'desactivar'; else borrarAcciones">
+                  <button type="button"
+                          class="di-inv-selection-bar__btn di-inv-selection-bar__btn--primary"
+                          (click)="confirmarDesactivarSeleccion()"
+                          [disabled]="desactivandoInventario || cantidadSeleccionada === 0">
+                    <i class="fas fa-ban" aria-hidden="true"></i>
+                    Desactivar selección
+                  </button>
+                  <button type="button"
+                          class="di-inv-selection-bar__btn di-inv-selection-bar__btn--warn"
+                          (click)="desactivarTodosDesdeSeleccion()"
+                          [disabled]="desactivandoInventario">
+                    Desactivar todos
+                  </button>
+                </ng-container>
+                <ng-template #borrarAcciones>
+                  <button type="button"
+                          class="di-inv-selection-bar__btn di-inv-selection-bar__btn--danger"
+                          (click)="confirmarBorrarSeleccion()"
+                          [disabled]="borrandoDefinitivo || cantidadSeleccionada === 0">
+                    <i class="fas fa-trash" aria-hidden="true"></i>
+                    Borrar selección
+                  </button>
+                </ng-template>
+                <button type="button"
+                        class="di-inv-selection-bar__btn"
+                        (click)="cancelarModoSeleccion()"
+                        [disabled]="desactivandoInventario || borrandoDefinitivo">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+
+            <div class="di-inv-catalog"
+                 [class.di-inv-catalog--selecting]="modoSeleccion"
+                 role="list"
+                 aria-label="Catálogo de señalizaciones">
+              <article *ngFor="let item of itemsFiltrados; trackBy: trackById"
+                       class="di-inv-product"
+                       role="listitem"
+                       tabindex="0"
+                       [attr.data-tipo]="item.tipo || ''"
+                       [class.di-inv-product--inactive]="item.activo === false"
+                       [class.di-inv-product--selected]="modoSeleccion && estaSeleccionado(item.id)"
+                       [class.di-inv-product--no-tipo]="!item.tipo"
+                       [attr.aria-label]="(item.activo === false ? 'Registro desactivado: ' : (modoSeleccion ? 'Seleccionar ' : 'Editar ')) + item.descripcion"
+                       (click)="onFilaClick(item, $event)"
+                       (keyup.enter)="onFilaClick(item, $event)">
+                <div class="di-inv-product__check" *ngIf="modoSeleccion" (click)="$event.stopPropagation()">
+                  <label class="di-inv-check"
+                         *ngIf="modoSeleccionAccion === 'borrar' || item.activo !== false">
+                    <input type="checkbox"
+                           [checked]="estaSeleccionado(item.id)"
+                           (change)="toggleSeleccion(item, $event)"
+                           [attr.aria-label]="'Seleccionar ' + item.descripcion">
+                    <span class="di-inv-check__box" aria-hidden="true"></span>
+                  </label>
+                  <span *ngIf="modoSeleccionAccion === 'desactivar' && item.activo === false"
+                        class="di-inv-check-na"
+                        title="Desactivado">—</span>
+                </div>
+
+                <div class="di-inv-product__media"
+                     [class.di-inv-product__media--empty]="!tieneImagenItem(item)"
+                     [class.di-inv-product__media--loading]="tieneImagenItem(item) && !miniaturasTabla[item.id] && miniaturasTabla[item.id] !== null">
+                  <img *ngIf="miniaturasTabla[item.id] as thumbUrl"
+                       [src]="thumbUrl"
+                       [alt]="item.descripcion"
+                       loading="lazy"
+                       class="di-inv-product__img"
+                       (error)="onErrorMiniaturaTabla(item.id)">
+                  <ng-container *ngIf="!miniaturasTabla[item.id]">
+                    <i *ngIf="tieneImagenItem(item) && miniaturasTabla[item.id] !== null"
+                       class="fas fa-spinner fa-spin di-inv-product__placeholder-icon"
+                       aria-hidden="true"></i>
+                    <i *ngIf="!tieneImagenItem(item) || miniaturasTabla[item.id] === null"
+                       class="fas fa-image di-inv-product__placeholder-icon"
+                       aria-hidden="true"></i>
+                  </ng-container>
+                  <span class="di-inv-product__status" *ngIf="item.activo === false">Desactivado</span>
+                </div>
+
+                <div class="di-inv-product__body">
+                  <div class="di-inv-product__meta-row">
+                    <span class="di-inv-tipo-badge"
+                          [class.di-inv-tipo-badge--empty]="!item.tipo"
+                          [attr.data-tipo]="item.tipo || ''"
+                          [title]="item.tipo || ''">
+                      {{ formatoTipo(item.tipo) }}
+                    </span>
+                    <span class="di-inv-product__size" [title]="item.tamano || ''">
+                      <i class="fas fa-ruler-combined" aria-hidden="true"></i>
+                      {{ item.tamano || '—' }}
+                    </span>
+                  </div>
+
+                  <span class="di-inv-material-badge"
+                        [class.di-inv-material-badge--acrylic]="item.material.toLowerCase().includes('acr')"
+                        [title]="item.material">
+                    {{ formatoMaterial(item.material) }}
+                  </span>
+
+                  <h3 class="di-inv-product__title" [title]="item.descripcion">{{ item.descripcion }}</h3>
+
+                  <p class="di-inv-product__obs mb-0"
+                     *ngIf="item.notas"
+                     [title]="item.notas">
+                    {{ item.notas }}
+                  </p>
+
+                  <div class="di-inv-product__footer"
+                       (click)="$event.stopPropagation()"
+                       (mousedown)="$event.stopPropagation()">
+                    <div class="di-inv-qty">
+                      <button type="button"
+                              class="di-inv-qty__btn"
+                              (click)="ajustarCantidad(item, -1, $event)"
+                              (mousedown)="$event.stopPropagation()"
+                              [disabled]="item.cantidad <= 0 || modoSeleccion"
+                              aria-label="Disminuir cantidad">
+                        <i class="fas fa-minus" aria-hidden="true"></i>
+                      </button>
+                      <span class="di-inv-qty__value" [attr.aria-label]="'Cantidad ' + item.cantidad">{{ item.cantidad }}</span>
+                      <button type="button"
+                              class="di-inv-qty__btn"
+                              (click)="ajustarCantidad(item, 1, $event)"
+                              (mousedown)="$event.stopPropagation()"
+                              [disabled]="modoSeleccion"
+                              aria-label="Aumentar cantidad">
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                      </button>
+                    </div>
+
+                    <button *ngIf="item.activo === false"
+                            type="button"
+                            class="di-inv-reactivar"
+                            (click)="reactivar(item, $event)"
+                            title="Reactivar registro">
+                      <i class="fas fa-undo" aria-hidden="true"></i>
+                      Reactivar
+                    </button>
+                    <span class="di-inv-product__edit" *ngIf="item.activo !== false && !modoSeleccion">
+                      <i class="fas fa-pen" aria-hidden="true"></i> Editar
+                    </span>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Panel gestionar / eliminar inventario -->
+<div class="di-inv-purge-backdrop"
+     *ngIf="mostrarPanelEliminar"
+     (click)="cerrarPanelEliminar()"
+     aria-hidden="true"></div>
+<div class="di-inv-purge"
+     *ngIf="mostrarPanelEliminar"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="di-inv-purge-title">
+  <header class="di-inv-purge__head">
+    <div class="di-inv-purge__badge">
+      <i class="fas fa-layer-group" aria-hidden="true"></i>
+      Gestión
+    </div>
+    <button type="button" class="di-inv-purge__close" (click)="cerrarPanelEliminar()" aria-label="Cerrar">
+      <i class="fas fa-times" aria-hidden="true"></i>
+    </button>
+  </header>
+  <div class="di-inv-purge__body">
+    <h2 id="di-inv-purge-title" class="di-inv-purge__title">Gestionar inventario</h2>
+    <p class="di-inv-purge__lead">
+      Elige cómo retirar registros. La desactivación es reversible; el borrado definitivo solo está disponible para super administrador.
+    </p>
+
+    <section class="di-inv-purge__section">
+      <div class="di-inv-purge__section-label">
+        <i class="fas fa-eye-slash" aria-hidden="true"></i>
+        Desactivar (recomendado)
+      </div>
+      <p class="di-inv-purge__section-hint">
+        Los registros salen del inventario activo pero permanecen en la base de datos.
+      </p>
+      <div class="di-inv-purge__grid">
+        <button type="button" class="di-inv-purge-card" (click)="iniciarModoSeleccion('desactivar')">
+          <span class="di-inv-purge-card__icon"><i class="fas fa-check-double" aria-hidden="true"></i></span>
+          <span class="di-inv-purge-card__title">Seleccionar registros</span>
+          <span class="di-inv-purge-card__text">Marca en el catálogo cuáles desactivar.</span>
+        </button>
+        <button type="button"
+                class="di-inv-purge-card di-inv-purge-card--warn"
+                (click)="desactivarTodosDesdePanel()"
+                [disabled]="totalActivos <= 0">
+          <span class="di-inv-purge-card__icon"><i class="fas fa-ban" aria-hidden="true"></i></span>
+          <span class="di-inv-purge-card__title">Desactivar todos</span>
+          <span class="di-inv-purge-card__text">{{ totalActivos }} registro(s) activo(s).</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="di-inv-purge__section di-inv-purge__section--danger" *ngIf="esSuperAdmin">
+      <div class="di-inv-purge__section-label di-inv-purge__section-label--danger">
+        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+        Borrar definitivamente
+        <span class="di-inv-purge__pill">Solo super admin</span>
+      </div>
+      <p class="di-inv-purge__section-hint">
+        Elimina el registro de la base de datos. No se puede deshacer.
+      </p>
+      <div class="di-inv-purge__grid">
+        <button type="button"
+                class="di-inv-purge-card di-inv-purge-card--danger"
+                (click)="iniciarModoSeleccion('borrar')">
+          <span class="di-inv-purge-card__icon"><i class="fas fa-trash" aria-hidden="true"></i></span>
+          <span class="di-inv-purge-card__title">Seleccionar y borrar</span>
+          <span class="di-inv-purge-card__text">Elige filas y bórralas de forma permanente.</span>
+        </button>
+        <button type="button"
+                class="di-inv-purge-card di-inv-purge-card--danger-solid"
+                (click)="borrarTodosDefinitivoDesdePanel()">
+          <span class="di-inv-purge-card__icon"><i class="fas fa-trash-alt" aria-hidden="true"></i></span>
+          <span class="di-inv-purge-card__title">Borrar todo</span>
+          <span class="di-inv-purge-card__text">Vacía por completo el inventario.</span>
+        </button>
+      </div>
+    </section>
+  </div>
+  <footer class="di-inv-purge__foot">
+    <button type="button" class="di-inv-purge__cancel" (click)="cerrarPanelEliminar()">Cerrar</button>
+  </footer>
+</div>
+
+<div class="di-inv-backdrop" *ngIf="mostrarModal" (click)="cerrarModal()" aria-hidden="true"></div>
+<div class="di-inv-modal" *ngIf="mostrarModal" role="dialog" aria-modal="true" aria-labelledby="di-inv-modal-title">
+  <header class="di-inv-modal__hero">
+    <div class="di-inv-modal__hero-bg" aria-hidden="true"></div>
+    <div class="di-inv-modal__hero-content">
+      <div class="di-inv-modal__badge">
+        <i class="fas fa-boxes" aria-hidden="true"></i>
+        <span>Inventario</span>
+      </div>
+      <div class="di-inv-modal__hero-text">
+        <h2 id="di-inv-modal-title" class="di-inv-modal__title">{{ tituloModal }}</h2>
+        <p class="di-inv-modal__subtitle">{{ subtituloModal }}</p>
+      </div>
+      <button type="button" class="di-inv-modal__close" (click)="cerrarModal()" aria-label="Cerrar" [disabled]="guardando">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </div>
+  </header>
+
+  <div class="di-inv-modal__form">
+    <div class="di-inv-modal__deco" aria-hidden="true"></div>
+
+    <div class="di-inv-modal__body">
+      <div class="di-inv-modal__inner">
+        <section class="di-inv-card">
+          <header class="di-inv-card__head">
+            <div>
+              <p class="di-inv-card__eyebrow">Conteo en empresa</p>
+              <h3 class="di-inv-card__title">{{ tituloSeccionModal }}</h3>
+            </div>
+            <div class="di-inv-card__hero">
+              <i class="fas" [ngClass]="editandoId ? 'fa-pen' : 'fa-clipboard-list'" aria-hidden="true"></i>
+            </div>
+          </header>
+
+          <div class="di-inv-layout">
+            <div class="di-inv-layout__row di-inv-layout__row--desc-tipo">
+              <label class="di-inv-field">
+                <span class="di-inv-field__label"><i class="fas fa-signature" aria-hidden="true"></i> Descripción</span>
+                <div class="di-inv-field__control">
+                  <input id="inv-desc" type="text" placeholder="Ej. Extintor, Salida de emergencia…"
+                         [(ngModel)]="form.descripcion" maxlength="255" autocomplete="off" [disabled]="guardando">
+                </div>
+              </label>
+
+              <label class="di-inv-field">
+                <span class="di-inv-field__label"><i class="fas fa-tags" aria-hidden="true"></i> Tipo <small>(clasificación)</small></span>
+                <div class="di-inv-field__control di-inv-field__control--select">
+                  <select id="inv-tipo" [(ngModel)]="form.tipo" [disabled]="guardando">
+                    <option value="">Seleccione…</option>
+                    <option *ngFor="let t of tiposClasificacion" [value]="t">{{ t }}</option>
+                  </select>
+                </div>
+              </label>
+            </div>
+
+            <div class="di-inv-layout__row di-inv-layout__row--triple">
+              <label class="di-inv-field">
+                <span class="di-inv-field__label"><i class="fas fa-ruler-combined" aria-hidden="true"></i> Tamaño</span>
+                <div class="di-inv-field__control">
+                  <input id="inv-tamano" type="text" list="inv-tamanos" placeholder="20cm x 25cm"
+                         [(ngModel)]="form.tamano" maxlength="64" autocomplete="off" [disabled]="guardando">
+                  <datalist id="inv-tamanos">
+                    <option *ngFor="let t of tamanosSugeridos" [value]="t"></option>
+                  </datalist>
+                </div>
+              </label>
+
+              <label class="di-inv-field">
+                <span class="di-inv-field__label"><i class="fas fa-layer-group" aria-hidden="true"></i> Material</span>
+                <div class="di-inv-field__control">
+                  <input id="inv-material" type="text" list="inv-materiales" placeholder="Trovicel, Acrílico…"
+                         [(ngModel)]="form.material" maxlength="128" autocomplete="off" [disabled]="guardando">
+                  <datalist id="inv-materiales">
+                    <option *ngFor="let m of materialesDisponibles" [value]="m"></option>
+                  </datalist>
+                </div>
+              </label>
+
+              <label class="di-inv-field">
+                <span class="di-inv-field__label"><i class="fas fa-hashtag" aria-hidden="true"></i> Cantidad</span>
+                <div class="di-inv-field__control">
+                  <input id="inv-cant" type="number" min="0" step="1" placeholder="0"
+                         [(ngModel)]="form.cantidad" [disabled]="guardando">
+                </div>
+              </label>
+            </div>
+
+            <label class="di-inv-field di-inv-field--wide">
+              <span class="di-inv-field__label"><i class="fas fa-align-left" aria-hidden="true"></i> Observaciones <small>(opcional)</small></span>
+              <div class="di-inv-field__control di-inv-field__control--textarea">
+                <textarea id="inv-notas" rows="3" placeholder="Observaciones del inventario…"
+                          [(ngModel)]="form.notas" maxlength="500" [disabled]="guardando"></textarea>
+              </div>
+            </label>
+
+            <section class="di-inv-field di-inv-field--wide di-inv-img-section">
+              <span class="di-inv-field__label">
+                <i class="fas fa-image" aria-hidden="true"></i>
+                Imagen asociada
+                <small>(opcional)</small>
+              </span>
+
+              <div class="di-inv-img-preview" *ngIf="tieneImagenSeleccionada">
+                <div class="di-inv-img-preview__frame">
+                  <img *ngIf="previewActivaUrl" [src]="previewActivaUrl" [alt]="etiquetaImagenActual">
+                  <i *ngIf="!previewActivaUrl" class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                </div>
+                <div class="di-inv-img-preview__meta">
+                  <strong>{{ etiquetaImagenActual }}</strong>
+                  <span *ngIf="etiquetaOrigenImagen">{{ etiquetaOrigenImagen }}</span>
+                </div>
+                <button type="button"
+                        class="di-inv-img-preview__clear"
+                        (click)="quitarImagen()"
+                        [disabled]="guardando || !!catalogoImportandoId"
+                        aria-label="Quitar imagen">
+                  <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+              </div>
+
+              <div class="di-inv-img-actions">
+                <button type="button"
+                        class="di-inv-img-action"
+                        [class.di-inv-img-action--active]="imagenModo === 'repositorio' || mostrarRepoPicker"
+                        (click)="seleccionarModoImagen('repositorio')"
+                        [disabled]="guardando || !!catalogoImportandoId">
+                  <i class="fas fa-folder-open" aria-hidden="true"></i>
+                  Desde repositorio
+                </button>
+                <button type="button"
+                        class="di-inv-img-action"
+                        [class.di-inv-img-action--active]="imagenModo === 'catalogo' || mostrarCatalogoPicker"
+                        (click)="seleccionarModoImagen('catalogo')"
+                        [disabled]="guardando || !!catalogoImportandoId">
+                  <i class="fas fa-map-signs" aria-hidden="true"></i>
+                  Catálogo de señalización
+                </button>
+                <label class="di-inv-img-action"
+                       [class.di-inv-img-action--active]="imagenModo === 'subir'"
+                       [class.di-inv-img-action--disabled]="guardando || !!catalogoImportandoId">
+                  <i class="fas fa-upload" aria-hidden="true"></i>
+                  Subir imagen
+                  <input type="file"
+                         accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml,.jpg,.jpeg,.png,.webp,.gif,.svg"
+                         (change)="onArchivoSeleccionado($event)"
+                         [disabled]="guardando || !!catalogoImportandoId"
+                         hidden>
+                </label>
+              </div>
+
+              <div class="di-inv-repo-picker" *ngIf="mostrarRepoPicker">
+                <header class="di-inv-repo-picker__head">
+                  <div>
+                    <p class="di-inv-repo-picker__eyebrow">Repositorio · solo imágenes</p>
+                    <h4 class="di-inv-repo-picker__title">{{ etiquetaRepoActual }}</h4>
+                  </div>
+                  <button type="button"
+                          class="di-inv-repo-picker__close"
+                          (click)="cerrarRepoPicker()"
+                          aria-label="Cerrar selector">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                  </button>
+                </header>
+
+                <nav class="di-inv-repo-picker__crumbs" aria-label="Ruta del repositorio">
+                  <button type="button" class="di-inv-repo-picker__crumb" (click)="irARaizRepo()">Raíz</button>
+                  <ng-container *ngFor="let miga of migasRepo">
+                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                    <button type="button" class="di-inv-repo-picker__crumb" (click)="irAMigaRepo(miga.ruta)">
+                      {{ miga.etiqueta }}
+                    </button>
+                  </ng-container>
+                </nav>
+
+                <div class="di-inv-repo-picker__toolbar">
+                  <div class="di-inv-repo-picker__search">
+                    <i class="fas fa-search" aria-hidden="true"></i>
+                    <input type="search"
+                           placeholder="Buscar imagen…"
+                           [(ngModel)]="repoBusqueda"
+                           (ngModelChange)="aplicarVistaRepo()"
+                           [disabled]="repoCargando">
+                  </div>
+                  <button *ngIf="repoCarpetaActual"
+                          type="button"
+                          class="di-inv-repo-picker__up"
+                          (click)="subirNivelRepo()">
+                    <i class="fas fa-level-up-alt" aria-hidden="true"></i>
+                    Subir nivel
+                  </button>
+                </div>
+
+                <div *ngIf="repoCargando" class="di-inv-repo-picker__state">
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  Cargando repositorio…
+                </div>
+                <div *ngIf="!repoCargando && repoError" class="di-inv-repo-picker__state di-inv-repo-picker__state--error">
+                  {{ repoError }}
+                  <button type="button" class="btn btn-sm btn-outline-secondary ml-2" (click)="cargarRepositorio()">
+                    Reintentar
+                  </button>
+                </div>
+
+                <div *ngIf="!repoCargando && !repoError" class="di-inv-repo-picker__grid">
+                  <button *ngFor="let carpeta of repoCarpetasVista; trackBy: trackByRepoCarpeta"
+                          type="button"
+                          class="di-inv-repo-folder"
+                          (click)="entrarCarpetaRepo(carpeta.ruta)">
+                    <i class="fas fa-folder" aria-hidden="true"></i>
+                    <span class="di-inv-repo-folder__name">{{ carpeta.nombre }}</span>
+                    <span class="di-inv-repo-folder__count">{{ carpeta.cantidad }} img</span>
+                  </button>
+
+                  <button *ngFor="let doc of repoImagenesVista; trackBy: trackByRepoDoc"
+                          type="button"
+                          class="di-inv-repo-img"
+                          [class.di-inv-repo-img--selected]="imagenDocumentoId === doc.id"
+                          (click)="seleccionarImagenRepo(doc)">
+                    <span class="di-inv-repo-img__thumb">
+                      <img *ngIf="repoMiniaturas[doc.id]" [src]="repoMiniaturas[doc.id]" alt="">
+                      <i *ngIf="!repoMiniaturas[doc.id] && repoCargandoMap[doc.id]"
+                         class="fas fa-spinner fa-spin"
+                         aria-hidden="true"></i>
+                      <i *ngIf="!repoMiniaturas[doc.id] && !repoCargandoMap[doc.id]"
+                         class="fas fa-image"
+                         aria-hidden="true"></i>
+                    </span>
+                    <span class="di-inv-repo-img__name" [title]="doc.nombreArchivo">{{ doc.nombreArchivo }}</span>
+                  </button>
+
+                  <p *ngIf="!repoCarpetasVista.length && !repoImagenesVista.length"
+                     class="di-inv-repo-picker__empty">
+                    No hay carpetas ni imágenes en esta ubicación.
+                  </p>
+                </div>
+              </div>
+
+              <div class="di-inv-repo-picker di-inv-catalog-picker" *ngIf="mostrarCatalogoPicker">
+                <header class="di-inv-repo-picker__head">
+                  <div>
+                    <p class="di-inv-repo-picker__eyebrow">Catálogo de señalización · imágenes</p>
+                    <h4 class="di-inv-repo-picker__title">Selecciona una señal del catálogo</h4>
+                  </div>
+                  <button type="button"
+                          class="di-inv-repo-picker__close"
+                          (click)="cerrarCatalogoPicker()"
+                          aria-label="Cerrar selector">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                  </button>
+                </header>
+
+                <div class="di-inv-repo-picker__toolbar di-inv-catalog-picker__toolbar">
+                  <div class="di-inv-repo-picker__search">
+                    <i class="fas fa-search" aria-hidden="true"></i>
+                    <input type="search"
+                           placeholder="Buscar por nombre, clasificación…"
+                           [(ngModel)]="catalogoBusqueda"
+                           (ngModelChange)="aplicarFiltroCatalogo()"
+                           [disabled]="catalogoCargando">
+                  </div>
+                  <div class="di-inv-catalog-picker__cats" role="group" aria-label="Categoría">
+                    <button type="button"
+                            class="di-inv-catalog-picker__cat"
+                            [class.di-inv-catalog-picker__cat--on]="catalogoFiltroCategoria === 'all'"
+                            (click)="setFiltroCatalogoCategoria('all')">
+                      Todas
+                    </button>
+                    <button type="button"
+                            class="di-inv-catalog-picker__cat"
+                            [class.di-inv-catalog-picker__cat--on]="catalogoFiltroCategoria === 'biznaga'"
+                            (click)="setFiltroCatalogoCategoria('biznaga')">
+                      Biznaga
+                    </button>
+                    <button type="button"
+                            class="di-inv-catalog-picker__cat"
+                            [class.di-inv-catalog-picker__cat--on]="catalogoFiltroCategoria === 'iso'"
+                            (click)="setFiltroCatalogoCategoria('iso')">
+                      ISO
+                    </button>
+                  </div>
+                </div>
+
+                <div *ngIf="catalogoCargando" class="di-inv-repo-picker__state">
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  Cargando catálogo…
+                </div>
+                <div *ngIf="!catalogoCargando && catalogoError" class="di-inv-repo-picker__state di-inv-repo-picker__state--error">
+                  {{ catalogoError }}
+                  <button type="button" class="btn btn-sm btn-outline-secondary ml-2" (click)="cargarCatalogoSigns()">
+                    Reintentar
+                  </button>
+                </div>
+
+                <div *ngIf="!catalogoCargando && !catalogoError" class="di-inv-repo-picker__grid">
+                  <button *ngFor="let sign of catalogoSignsFiltrados; trackBy: trackByCatalogSign"
+                          type="button"
+                          class="di-inv-repo-img di-inv-catalog-card"
+                          [class.di-inv-repo-img--selected]="imagenSignId === sign.id"
+                          [disabled]="!!catalogoImportandoId"
+                          (click)="seleccionarImagenCatalogo(sign)">
+                    <span class="di-inv-repo-img__thumb">
+                      <img *ngIf="catalogoMiniaturas[sign.id]" [src]="catalogoMiniaturas[sign.id]" alt="">
+                      <i *ngIf="catalogoImportandoId === sign.id"
+                         class="fas fa-spinner fa-spin"
+                         aria-hidden="true"></i>
+                      <i *ngIf="catalogoImportandoId !== sign.id && !catalogoMiniaturas[sign.id]"
+                         class="fas fa-image"
+                         aria-hidden="true"></i>
+                    </span>
+                    <span class="di-inv-repo-img__name" [title]="sign.nombreSenal || sign.nombreArchivo">
+                      {{ sign.nombreSenal || sign.nombreArchivo }}
+                    </span>
+                    <span class="di-inv-catalog-card__meta">{{ sign.categoria | uppercase }}</span>
+                  </button>
+
+                  <p *ngIf="!catalogoSignsFiltrados.length" class="di-inv-repo-picker__empty">
+                    No hay imágenes en el catálogo con el filtro actual.
+                    (Solo se listan señales con archivo de imagen; los PDF no se asocian aquí.)
+                  </p>
+                </div>
+              </div>
+
+              <p class="di-inv-img-hint">
+                Puede elegir una imagen del <strong>repositorio</strong>, del
+                <strong>catálogo de señalización</strong>
+                (<a href="https://sistema.biznaga.com.mx/#/diseno-innovacion" target="_blank" rel="noopener">
+                  (Diseño e Innovación)
+                </a>
+                o subir una nueva. El catálogo se vincula por el ID original de la señal (sin duplicar el archivo).
+              </p>
+            </section>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <footer class="di-inv-modal__actions" [class.di-inv-modal__actions--edit]="!!editandoId">
+      <button *ngIf="editandoId"
+              type="button"
+              class="di-inv-sign-btn di-inv-sign-btn--danger"
+              (click)="eliminarDesdeModal()"
+              [disabled]="guardando">
+        <i class="fas fa-ban" aria-hidden="true"></i> Desactivar
+      </button>
+      <p *ngIf="!editandoId" class="di-inv-modal__footnote">
+        <i class="fas fa-info-circle" aria-hidden="true"></i>
+        Descripción, tamaño, material y cantidad son obligatorios
+      </p>
+      <div class="di-inv-modal__buttons">
+        <button type="button" class="di-inv-sign-btn di-inv-sign-btn--ghost" (click)="cerrarModal()" [disabled]="guardando">
+          <i class="fas fa-times" aria-hidden="true"></i> Cancelar
+        </button>
+        <button type="button" class="di-inv-sign-btn di-inv-sign-btn--primary" (click)="guardar()" [disabled]="guardando">
+          <i class="fas" [ngClass]="guardando ? 'fa-spinner fa-spin' : 'fa-save'" aria-hidden="true"></i>
+          {{ guardando ? 'Guardando…' : (editandoId ? 'Guardar cambios' : 'Guardar registro') }}
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>

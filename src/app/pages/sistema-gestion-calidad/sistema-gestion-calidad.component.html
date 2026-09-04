@@ -1,0 +1,1702 @@
+<div class="header header-bg-image sgc-hero pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="sgc-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i class="fas fa-chart-line" aria-hidden="true"></i>
+          </div>
+          <h1 class="text-white mb-0 sgc-hero-title">Indicadores</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid sgc-ind-wrap mt--5">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+
+      <!-- Indicadores principales: 3 superiores + 5 inferiores -->
+      <div class="sgc-kpi-stack mb-4">
+        <div class="sgc-kpi-bar sgc-kpi-bar--superior">
+          <ng-container *ngIf="cargandoDashboard">
+            <div class="sgc-kpi-cell" *ngFor="let i of [1,2,3]">
+              <div class="sgc-shimmer" style="width:34px;height:34px;border-radius:10px;margin:0 auto 8px;"></div>
+              <div class="sgc-shimmer" style="height:22px;width:45%;border-radius:4px;margin:0 auto 6px;"></div>
+              <div class="sgc-shimmer" style="height:10px;width:72%;border-radius:4px;margin:0 auto 4px;"></div>
+              <div class="sgc-shimmer" style="height:8px;width:58%;border-radius:4px;margin:0 auto;"></div>
+            </div>
+          </ng-container>
+          <ng-container *ngIf="!cargandoDashboard">
+            <div class="sgc-kpi-cell"
+                 *ngFor="let card of kpiCardsSuperiores; let i = index"
+                 [ngClass]="'sgc-kpi-cell--' + (card.estado || 'neutro')"
+                 [style.animation-delay]="(i * 0.06) + 's'"
+                 [style.--kpi-accent]="card.color">
+              <div class="sgc-kpi-cell-icon" [style.background]="card.gradiente">
+                <i class="fas {{ card.icono }}"></i>
+              </div>
+              <div class="sgc-kpi-cell-valor">{{ card.valor }}</div>
+              <div class="sgc-kpi-cell-label">{{ card.titulo }}</div>
+              <div class="sgc-kpi-cell-sub">
+                <span class="sgc-kpi-cell-dot" [style.background]="card.color"></span>
+                {{ card.subtitulo }}
+              </div>
+            </div>
+          </ng-container>
+        </div>
+
+        <div class="sgc-kpi-bar sgc-kpi-bar--inferior">
+          <ng-container *ngIf="cargandoDashboard">
+            <div class="sgc-kpi-cell" *ngFor="let i of [1,2,3,4,5]">
+              <div class="sgc-shimmer" style="width:34px;height:34px;border-radius:10px;margin:0 auto 8px;"></div>
+              <div class="sgc-shimmer" style="height:22px;width:45%;border-radius:4px;margin:0 auto 6px;"></div>
+              <div class="sgc-shimmer" style="height:10px;width:72%;border-radius:4px;margin:0 auto 4px;"></div>
+              <div class="sgc-shimmer" style="height:8px;width:58%;border-radius:4px;margin:0 auto;"></div>
+            </div>
+          </ng-container>
+          <ng-container *ngIf="!cargandoDashboard">
+            <div class="sgc-kpi-cell"
+                 *ngFor="let card of kpiCardsInferiores; let i = index"
+                 [ngClass]="'sgc-kpi-cell--' + (card.estado || 'neutro')"
+                 [style.animation-delay]="((i + 3) * 0.06) + 's'"
+                 [style.--kpi-accent]="card.color">
+              <div class="sgc-kpi-cell-icon" [style.background]="card.gradiente">
+                <i class="fas {{ card.icono }}"></i>
+              </div>
+              <div class="sgc-kpi-cell-valor">{{ card.valor }}</div>
+              <div class="sgc-kpi-cell-label">{{ card.titulo }}</div>
+              <div class="sgc-kpi-cell-sub">
+                <span class="sgc-kpi-cell-dot" [style.background]="card.color"></span>
+                {{ card.subtitulo }}
+              </div>
+            </div>
+          </ng-container>
+        </div>
+      </div>
+
+      <!-- Filtro año -->
+      <div class="card border-0 sgc-filter-card mb-3">
+        <div class="card-body py-3 px-3 px-md-4">
+          <div class="sgc-filter-grid">
+            <div class="sgc-filter-head">
+              <span class="sgc-section-label">Centro de calidad</span>
+              <h3 class="sgc-filter-title mb-0">Indicadores y formatos SGC</h3>
+              <p class="sgc-filter-subtitle mb-0">{{ etiquetaRolUsuario }} · Objetivos de calidad y documentación ISO 9001.</p>
+            </div>
+            <div class="sgc-filter-fields">
+              <div class="sgc-filter-control">
+                <label class="sgc-filter-label" for="sgc-anio">Año</label>
+                <select id="sgc-anio" class="form-control form-control-sm sgc-filter-select"
+                        [(ngModel)]="anioSeleccionado" (change)="onAnioChange()">
+                  <option *ngFor="let a of aniosDisponibles" [ngValue]="a">{{ a }}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Delegaciones de edición SGC (solo Super admin / Calidad) -->
+      <!-- Carrusel destacado: indicadores principales -->
+      <div class="sgc-feature-carousel mb-4"
+           *ngIf="!errorDashboard"
+           (mouseenter)="onCarruselMouseEnter()"
+           (mouseleave)="onCarruselMouseLeave()">
+
+        <div class="sgc-feature-carousel__shell">
+          <button type="button"
+                  class="sgc-feature-carousel__edge sgc-feature-carousel__edge--prev"
+                  (click)="carruselAnterior()"
+                  aria-label="Indicador anterior">
+          </button>
+          <button type="button"
+                  class="sgc-feature-carousel__edge sgc-feature-carousel__edge--next"
+                  (click)="carruselSiguiente()"
+                  aria-label="Siguiente indicador">
+          </button>
+
+          <div class="sgc-feature-carousel__track"
+               [style.transform]="'translateX(-' + (carruselIndicadorActivo * 100) + '%)'">
+
+            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured">
+              <div class="sgc-feature-carousel__slide-inner">
+                <div class="sgc-avance-hero-head">
+                  <div class="sgc-avance-hero-head__main">
+                    <div class="sgc-avance-hero-badge sgc-avance-hero-badge--cap"><i class="fas fa-graduation-cap"></i></div>
+                    <div>
+                      <h2 class="sgc-section-title mb-0">Eficacia de la capacitación</h2>
+                      <p class="sgc-analytics-desc mb-0">Tasa de aprobación (resultado A) y evaluados por mes.</p>
+                    </div>
+                  </div>
+                  <div class="sgc-avance-hero-kpi sgc-avance-hero-kpi--cap sgc-hero-metric" *ngIf="!cargandoDashboard && hayDatosEficaciaCap">
+                    <div class="sgc-hero-metric__accent" aria-hidden="true"></div>
+                    <div class="sgc-hero-metric__body">
+                      <span class="sgc-hero-metric__val">{{ eficaciaCapacitacion?.tasaAprobacion || 0 }}<small>%</small></span>
+                      <span class="sgc-hero-metric__lbl">Aprobación</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sgc-chart-kpi-row sgc-chart-kpi-row--compact" [class.sgc-chart-kpi-row--intro]="indicadoresIntro" *ngIf="!cargandoDashboard && hayDatosEficaciaCap">
+                  <div class="sgc-chart-kpi" *ngFor="let item of resumenEficaciaCap; let i = index"
+                       [style.--c-accent]="item.color" [style.--kpi-delay]="(i * 0.07) + 's'">
+                    <div class="sgc-chart-kpi-icon" [style.background]="item.gradiente"><i class="fas {{ item.icono }}"></i></div>
+                    <div class="sgc-chart-kpi-body">
+                      <span class="sgc-chart-kpi-label">{{ item.label }}</span>
+                      <span class="sgc-chart-kpi-sub">{{ item.subtitulo }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sgc-analytics-card-body sgc-analytics-card-body--carousel-chart">
+                  <div *ngIf="cargandoDashboard" class="sgc-shimmer sgc-chart-skeleton sgc-chart-skeleton--carousel"></div>
+                  <div class="sgc-cap-dual" *ngIf="!cargandoDashboard && chartsReady && hayDatosEficaciaCap">
+                    <div class="sgc-cap-dual__chart">
+                      <div class="sgc-avance-panel__header">
+                        <span class="sgc-avance-panel__icon"><i class="fas fa-chart-line"></i></span>
+                        <div>
+                          <span class="sgc-avance-panel__title">Evolución mensual</span>
+                          <span class="sgc-avance-panel__sub">Tasa de aprobación y evaluados por mes · {{ anioSeleccionado }}</span>
+                        </div>
+                      </div>
+                      <div class="sgc-chart-canvas-wrap">
+                        <apx-chart
+                          [series]="eficaciaCapMensualChart.series"
+                          [chart]="eficaciaCapMensualChart.chart"
+                          [xaxis]="eficaciaCapMensualChart.xaxis"
+                          [yaxis]="eficaciaCapMensualChart.yaxis"
+                          [dataLabels]="eficaciaCapMensualChart.dataLabels"
+                          [stroke]="eficaciaCapMensualChart.stroke"
+                          [fill]="eficaciaCapMensualChart.fill"
+                          [tooltip]="eficaciaCapMensualChart.tooltip"
+                          [grid]="eficaciaCapMensualChart.grid"
+                          [colors]="eficaciaCapMensualChart.colors"
+                          [markers]="eficaciaCapMensualChart.markers"
+                          [legend]="eficaciaCapMensualChart.legend"
+                          [plotOptions]="eficaciaCapMensualChart.plotOptions"
+                        ></apx-chart>
+                      </div>
+                    </div>
+
+                    <div class="sgc-cap-dual__gauge sgc-avance-panel sgc-avance-panel--donut">
+                      <div class="sgc-avance-panel__header">
+                        <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
+                        <div>
+                          <span class="sgc-avance-panel__title">Resumen del año</span>
+                          <span class="sgc-avance-panel__sub">Vista consolidada ATH-F-08</span>
+                        </div>
+                      </div>
+                      <div class="sgc-avance-donut-inner">
+                        <div class="sgc-avance-donut-chart-wrap">
+                          <apx-chart
+                            [series]="eficaciaCapChart.series"
+                            [chart]="eficaciaCapChart.chart"
+                            [labels]="eficaciaCapChart.labels"
+                            [colors]="eficaciaCapChart.colors"
+                            [plotOptions]="eficaciaCapChart.plotOptions"
+                            [fill]="eficaciaCapChart.fill"
+                            [stroke]="eficaciaCapChart.stroke"
+                            [legend]="eficaciaCapChart.legend"
+                            [dataLabels]="eficaciaCapChart.dataLabels"
+                            [tooltip]="eficaciaCapChart.tooltip"
+                            [responsive]="eficaciaCapChart.responsive"
+                          ></apx-chart>
+                          <div class="sgc-donut-center" aria-live="polite">
+                            <span class="sgc-donut-center__val">{{ capDonutCentroValor }}</span>
+                            <span class="sgc-donut-center__lbl">{{ capDonutCentroEtiqueta }}</span>
+                            <span class="sgc-donut-center__pct" *ngIf="capDonutCentroSub">{{ capDonutCentroSub }}</span>
+                          </div>
+                        </div>
+                        <p class="sgc-avance-donut-hint">Pasa el cursor sobre un segmento para ver su detalle.</p>
+                      </div>
+                      <div class="sgc-eficacia-legend sgc-eficacia-legend--rules sgc-avance-stats-legend">
+                        <div class="sgc-eficacia-rule-card sgc-avance-stat-card"
+                             *ngFor="let item of resumenEficaciaCapDonut"
+                             [class.sgc-avance-stat-card--aprobacion]="item.label === 'Aprobación'"
+                             [class.sgc-avance-stat-card--cursos]="item.label === 'Cursos'"
+                             [class.sgc-avance-stat-card--personas]="item.label === 'Personas'">
+                          <span class="sgc-eficacia-rule-card__dot"></span>
+                          <div class="sgc-eficacia-rule-card__body">
+                            <span class="sgc-eficacia-rule-card__range">{{ item.label }}</span>
+                            <span class="sgc-eficacia-rule-card__desc">{{ item.subtitulo }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <a class="sgc-btn-add-text sgc-aud-panel__register"
+                         routerLink="/sistema-gestion-calidad/capitulo-7/plantilla/ath-f-08">
+                        <i class="fas fa-file-alt mr-1"></i> Abrir ATH-F-08
+                      </a>
+                    </div>
+                  </div>
+                  <div *ngIf="!cargandoDashboard && !hayDatosEficaciaCap" class="sgc-dash-empty">
+                    <i class="fas fa-graduation-cap fa-2x mb-2"></i>
+                    <p class="mb-2">Sin evaluaciones de capacitación para {{ anioSeleccionado }}.</p>
+                    <a class="sgc-btn-add-text"
+                       routerLink="/sistema-gestion-calidad/capitulo-7/plantilla/ath-f-08">
+                      <i class="fas fa-file-alt mr-1"></i> Abrir ATH-F-08
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured sgc-analytics-card--sat-cap">
+              <div class="sgc-feature-carousel__slide-inner">
+                <div class="sgc-avance-hero-head sgc-avance-hero-head--actions">
+                  <div class="sgc-avance-hero-head__main">
+                    <div class="sgc-avance-hero-badge sgc-avance-hero-badge--sat-cap"><i class="fas fa-clipboard-check"></i></div>
+                    <div>
+                      <h2 class="sgc-section-title mb-0">Satisfacción de la capacitación</h2>
+                      <p class="sgc-analytics-desc mb-0">Encuesta SP-F-14 · agregada por curso programado (Forms + cierres en Drive).</p>
+                    </div>
+                  </div>
+                  <div class="sgc-avance-hero-head__aside">
+                    <button type="button"
+                            class="sgc-sat-comentarios-btn sgc-sat-comentarios-btn--preguntas sgc-sat-comentarios-btn--sat-cap"
+                            (click)="abrirPreguntasSatCap()"
+                            [disabled]="!hayDatosSatisfaccionCap"
+                            title="Ver detalle por pregunta">
+                      <i class="fas fa-chart-bar"></i>
+                    </button>
+                    <button type="button"
+                            class="sgc-sat-comentarios-btn sgc-sat-comentarios-btn--sat-cap"
+                            (click)="abrirComentariosSatCap()"
+                            [disabled]="!hayDatosSatisfaccionCap"
+                            [attr.title]="totalComentariosSatisfaccionCap ? 'Ver comentarios de capacitación' : 'Sin comentarios aún'"
+                            [attr.aria-label]="'Ver comentarios de capacitación (' + totalComentariosSatisfaccionCap + ')'">
+                      <i class="fas fa-comment-alt"></i>
+                      <span class="sgc-sat-comentarios-btn__badge" *ngIf="totalComentariosSatisfaccionCap > 0">{{ totalComentariosSatisfaccionCap }}</span>
+                    </button>
+                    <div class="sgc-avance-hero-kpi sgc-avance-hero-kpi--sat-cap sgc-hero-metric" *ngIf="!cargandoDashboard && hayDatosSatisfaccionCap">
+                      <div class="sgc-hero-metric__accent" aria-hidden="true"></div>
+                      <div class="sgc-hero-metric__body">
+                        <span class="sgc-hero-metric__val">{{ satisfaccionCapacitacion?.indiceAnual || 0 }}<small>%</small></span>
+                        <span class="sgc-hero-metric__lbl">Índice anual</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sgc-chart-kpi-row sgc-chart-kpi-row--compact" [class.sgc-chart-kpi-row--intro]="indicadoresIntro" *ngIf="!cargandoDashboard && hayDatosSatisfaccionCap">
+                  <div class="sgc-chart-kpi" *ngFor="let item of resumenSatisfaccionCap; let i = index"
+                       [style.--c-accent]="item.color" [style.--kpi-delay]="(i * 0.07) + 's'">
+                    <div class="sgc-chart-kpi-icon" [style.background]="item.gradiente"><i class="fas {{ item.icono }}"></i></div>
+                    <div class="sgc-chart-kpi-body">
+                      <span class="sgc-chart-kpi-label">{{ item.label }}</span>
+                      <span class="sgc-chart-kpi-sub">{{ item.subtitulo }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sgc-analytics-card-body sgc-analytics-card-body--carousel-chart">
+                  <div *ngIf="cargandoDashboard" class="sgc-shimmer sgc-chart-skeleton sgc-chart-skeleton--carousel"></div>
+                  <div class="sgc-cap-dual sgc-cap-dual--sat-cap" *ngIf="!cargandoDashboard && chartsReady && hayDatosSatisfaccionCap">
+                    <div class="sgc-cap-dual__chart">
+                      <div class="sgc-avance-panel__header">
+                        <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-line"></i></span>
+                        <div>
+                          <span class="sgc-avance-panel__title">Evolución mensual</span>
+                          <span class="sgc-avance-panel__sub">Índice y respuestas por mes · {{ anioSeleccionado }}</span>
+                        </div>
+                      </div>
+                      <div class="sgc-chart-canvas-wrap">
+                        <apx-chart
+                          [series]="satisfaccionCapChart.series" [chart]="satisfaccionCapChart.chart"
+                          [xaxis]="satisfaccionCapChart.xaxis" [yaxis]="satisfaccionCapChart.yaxis"
+                          [dataLabels]="satisfaccionCapChart.dataLabels" [stroke]="satisfaccionCapChart.stroke"
+                          [fill]="satisfaccionCapChart.fill" [tooltip]="satisfaccionCapChart.tooltip"
+                          [grid]="satisfaccionCapChart.grid" [colors]="satisfaccionCapChart.colors"
+                          [markers]="satisfaccionCapChart.markers"
+                          [legend]="satisfaccionCapChart.legend"
+                          [plotOptions]="satisfaccionCapChart.plotOptions"
+                        ></apx-chart>
+                      </div>
+                    </div>
+
+                    <div class="sgc-cap-dual__gauge sgc-avance-panel sgc-avance-panel--donut">
+                      <div class="sgc-avance-panel__header">
+                        <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
+                        <div>
+                          <span class="sgc-avance-panel__title">Distribución general</span>
+                          <span class="sgc-avance-panel__sub">Evaluación consolidada del año</span>
+                        </div>
+                      </div>
+                      <div class="sgc-avance-donut-inner">
+                        <div class="sgc-avance-donut-chart-wrap">
+                          <apx-chart
+                            [series]="satisfaccionCapDistribChart.series"
+                            [chart]="satisfaccionCapDistribChart.chart"
+                            [labels]="satisfaccionCapDistribChart.labels"
+                            [colors]="satisfaccionCapDistribChart.colors"
+                            [plotOptions]="satisfaccionCapDistribChart.plotOptions"
+                            [stroke]="satisfaccionCapDistribChart.stroke"
+                            [legend]="satisfaccionCapDistribChart.legend"
+                            [dataLabels]="satisfaccionCapDistribChart.dataLabels"
+                            [tooltip]="satisfaccionCapDistribChart.tooltip"
+                            [responsive]="satisfaccionCapDistribChart.responsive"
+                          ></apx-chart>
+                          <div class="sgc-donut-center" aria-live="polite">
+                            <span class="sgc-donut-center__val">{{ satCapDonutCentroValor }}</span>
+                            <span class="sgc-donut-center__lbl">{{ satCapDonutCentroEtiqueta }}</span>
+                            <span class="sgc-donut-center__pct" *ngIf="satCapDonutCentroSub">{{ satCapDonutCentroSub }}</span>
+                          </div>
+                        </div>
+                        <p class="sgc-avance-donut-hint">Pasa el cursor sobre un segmento para ver su detalle.</p>
+                      </div>
+                      <div class="sgc-eficacia-legend sgc-eficacia-legend--rules sgc-avance-stats-legend">
+                        <div class="sgc-eficacia-rule-card sgc-avance-stat-card"
+                             *ngFor="let item of resumenSatCapDistrib"
+                             [class.sgc-avance-stat-card--excelente]="item.clave === 'excelente'"
+                             [class.sgc-avance-stat-card--bueno]="item.clave === 'bueno'"
+                             [class.sgc-avance-stat-card--regular]="item.clave === 'regular'"
+                             [class.sgc-avance-stat-card--malo]="item.clave === 'malo'">
+                          <span class="sgc-eficacia-rule-card__dot"></span>
+                          <div class="sgc-eficacia-rule-card__body">
+                            <span class="sgc-eficacia-rule-card__range">{{ item.label }}</span>
+                            <span class="sgc-eficacia-rule-card__desc">{{ item.subtitulo }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div *ngIf="!cargandoDashboard && !hayDatosSatisfaccionCap" class="sgc-dash-empty">
+                    <i class="fas fa-clipboard-check fa-2x mb-2"></i>
+                    <p class="mb-0">Sin respuestas de encuestas de capacitación para {{ anioSeleccionado }}.</p>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured sgc-analytics-card--accent">
+              <div class="sgc-feature-carousel__slide-inner">
+                <div class="sgc-avance-hero-head sgc-avance-hero-head--actions">
+                  <div class="sgc-avance-hero-head__main">
+                    <div class="sgc-avance-hero-badge sgc-avance-hero-badge--sat"><i class="fas fa-poll"></i></div>
+                    <div>
+                      <h2 class="sgc-section-title mb-0">Satisfacción del cliente</h2>
+                      <p class="sgc-analytics-desc mb-0">Encuesta SGC-F-26 · actualizada automáticamente desde Google Forms.</p>
+                    </div>
+                  </div>
+                  <div class="sgc-avance-hero-head__aside">
+                    <button
+                      type="button"
+                      class="sgc-sat-comentarios-btn sgc-sat-comentarios-btn--preguntas"
+                      (click)="abrirPreguntasSatisfaccion()"
+                      [disabled]="!hayDatosSatisfaccion"
+                      title="Ver detalle por pregunta">
+                      <i class="fas fa-chart-bar"></i>
+                    </button>
+                    <button
+                      type="button"
+                      class="sgc-sat-comentarios-btn"
+                      (click)="abrirComentariosSatisfaccion()"
+                      [disabled]="!hayDatosSatisfaccion"
+                      [attr.title]="totalComentariosSatisfaccion ? 'Ver comentarios de la encuesta' : 'Sin comentarios aún'"
+                      [attr.aria-label]="'Ver comentarios de satisfacción (' + totalComentariosSatisfaccion + ')'">
+                      <i class="fas fa-comment-alt"></i>
+                      <span class="sgc-sat-comentarios-btn__badge" *ngIf="totalComentariosSatisfaccion > 0">{{ totalComentariosSatisfaccion }}</span>
+                    </button>
+                    <div class="sgc-avance-hero-kpi sgc-avance-hero-kpi--sat sgc-hero-metric" *ngIf="!cargandoDashboard && hayDatosSatisfaccion">
+                      <div class="sgc-hero-metric__accent" aria-hidden="true"></div>
+                      <div class="sgc-hero-metric__body">
+                        <span class="sgc-hero-metric__val">{{ porcentajeSatisfaccionPositivas }}<small>%</small></span>
+                        <span class="sgc-hero-metric__lbl">Positivas</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sgc-chart-kpi-row" [class.sgc-chart-kpi-row--intro]="indicadoresIntro" *ngIf="!cargandoDashboard && hayDatosSatisfaccion">
+                  <div class="sgc-chart-kpi" *ngFor="let item of resumenSatisfaccion; let i = index"
+                       [style.--c-accent]="item.color" [style.--kpi-delay]="(i * 0.07) + 's'">
+                    <div class="sgc-chart-kpi-icon" [style.background]="item.gradiente"><i class="fas {{ item.icono }}"></i></div>
+                    <div class="sgc-chart-kpi-body">
+                      <span class="sgc-chart-kpi-label">{{ item.label }}</span>
+                      <span class="sgc-chart-kpi-sub">{{ item.subtitulo }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sgc-analytics-card-body sgc-analytics-card-body--carousel-chart">
+                  <div *ngIf="cargandoDashboard" class="sgc-shimmer sgc-chart-skeleton sgc-chart-skeleton--carousel"></div>
+                  <div class="sgc-cap-dual" *ngIf="!cargandoDashboard && chartsReady && hayDatosSatisfaccion">
+                    <div class="sgc-cap-dual__chart">
+                      <div class="sgc-avance-panel__header">
+                        <span class="sgc-avance-panel__icon"><i class="fas fa-chart-line"></i></span>
+                        <div>
+                          <span class="sgc-avance-panel__title">Evolución mensual</span>
+                          <span class="sgc-avance-panel__sub">Índice de satisfacción y respuestas por mes · {{ anioSeleccionado }}</span>
+                        </div>
+                      </div>
+                      <div class="sgc-chart-canvas-wrap">
+                        <apx-chart
+                          [series]="satisfaccionChart.series" [chart]="satisfaccionChart.chart"
+                          [xaxis]="satisfaccionChart.xaxis" [yaxis]="satisfaccionChart.yaxis"
+                          [dataLabels]="satisfaccionChart.dataLabels" [stroke]="satisfaccionChart.stroke"
+                          [fill]="satisfaccionChart.fill" [tooltip]="satisfaccionChart.tooltip"
+                          [grid]="satisfaccionChart.grid" [colors]="satisfaccionChart.colors"
+                          [markers]="satisfaccionChart.markers"
+                          [legend]="satisfaccionChart.legend"
+                          [plotOptions]="satisfaccionChart.plotOptions"
+                        ></apx-chart>
+                      </div>
+                    </div>
+
+                    <div class="sgc-cap-dual__gauge sgc-avance-panel sgc-avance-panel--donut">
+                      <div class="sgc-avance-panel__header">
+                        <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
+                        <div>
+                          <span class="sgc-avance-panel__title">Respuestas positivas y negativas</span>
+                          <span class="sgc-avance-panel__sub">Excelente y Bueno vs. Regular y Malo</span>
+                        </div>
+                      </div>
+                      <div class="sgc-avance-donut-inner">
+                        <div class="sgc-avance-donut-chart-wrap">
+                          <apx-chart
+                            [series]="satisfaccionRespuestasChart.series"
+                            [chart]="satisfaccionRespuestasChart.chart"
+                            [labels]="satisfaccionRespuestasChart.labels"
+                            [colors]="satisfaccionRespuestasChart.colors"
+                            [plotOptions]="satisfaccionRespuestasChart.plotOptions"
+                            [fill]="satisfaccionRespuestasChart.fill"
+                            [stroke]="satisfaccionRespuestasChart.stroke"
+                            [legend]="satisfaccionRespuestasChart.legend"
+                            [dataLabels]="satisfaccionRespuestasChart.dataLabels"
+                            [tooltip]="satisfaccionRespuestasChart.tooltip"
+                            [responsive]="satisfaccionRespuestasChart.responsive"
+                          ></apx-chart>
+                          <div class="sgc-donut-center" aria-live="polite">
+                            <span class="sgc-donut-center__val">{{ satDonutCentroValor }}</span>
+                            <span class="sgc-donut-center__lbl">{{ satDonutCentroEtiqueta }}</span>
+                            <span class="sgc-donut-center__pct" *ngIf="satDonutCentroSub">{{ satDonutCentroSub }}</span>
+                          </div>
+                        </div>
+                        <p class="sgc-avance-donut-hint">Pasa el cursor sobre un segmento para ver su detalle.</p>
+                      </div>
+                      <div class="sgc-eficacia-legend sgc-eficacia-legend--rules sgc-avance-stats-legend">
+                        <div class="sgc-eficacia-rule-card sgc-avance-stat-card"
+                             *ngFor="let item of resumenSatisfaccionRespuestas"
+                             [class.sgc-avance-stat-card--positivas]="item.clave === 'positivas'"
+                             [class.sgc-avance-stat-card--negativas]="item.clave === 'negativas'">
+                          <span class="sgc-eficacia-rule-card__dot"></span>
+                          <div class="sgc-eficacia-rule-card__body">
+                            <span class="sgc-eficacia-rule-card__range">{{ item.label }}</span>
+                            <span class="sgc-eficacia-rule-card__desc">{{ item.subtitulo }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div *ngIf="!cargandoDashboard && !hayDatosSatisfaccion" class="sgc-dash-empty">
+                    <i class="fas fa-poll fa-2x mb-2"></i>
+                    <p class="mb-0">Sin respuestas de la encuesta de satisfacción del cliente para {{ anioSeleccionado }}.</p>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <!-- Quejas y Sugerencias (Opiniones y Sugerencias) — después de Satisfacción, antes de Avance -->
+            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured sgc-analytics-card--accent"
+              [class.sgc-analytics-card--quejas-alerta]="hayQuejasSugerencias && !quejasSugerencias?.optimo">
+              <div class="sgc-feature-carousel__slide-inner">
+              <div class="sgc-avance-hero-head sgc-avance-hero-head--actions">
+                <div class="sgc-avance-hero-head__main">
+                  <div class="sgc-avance-hero-badge sgc-avance-hero-badge--quejas"><i class="fas fa-comment-dots"></i></div>
+                  <div>
+                    <span class="sgc-section-label">Objetivo · Atención al cliente</span>
+                    <h2 class="sgc-section-title mb-0">Quejas y Sugerencias</h2>
+                    <p class="sgc-analytics-desc mb-0" *ngIf="hayQuejasSugerencias">
+                      {{ quejasSugerencias?.total || 0 }} registro{{ (quejasSugerencias?.total || 0) !== 1 ? 's' : '' }}
+                      · {{ quejasSugerencias?.abiertas ?? 0 }} abierta{{ (quejasSugerencias?.abiertas || 0) !== 1 ? 's' : '' }}
+                      · {{ quejasSugerencias?.nivelActualEtiqueta }}
+                    </p>
+                    <p class="sgc-analytics-desc mb-0" *ngIf="!hayQuejasSugerencias && !cargandoDashboard">
+                      El óptimo es 0 pendientes. Los registros se capturan en Opiniones y Sugerencias.
+                    </p>
+                  </div>
+                </div>
+                <div class="sgc-avance-hero-head__aside">
+                  <div class="sgc-avance-hero-kpi"
+                    [class.sgc-avance-hero-kpi--aud]="quejasSugerencias?.optimo"
+                    [class.sgc-avance-hero-kpi--quejas-alerta]="!quejasSugerencias?.optimo"
+                    *ngIf="!cargandoDashboard && quejasSugerencias">
+                    <span class="sgc-avance-hero-kpi__val">{{ quejasSugerencias?.abiertas ?? 0 }}</span>
+                    <span class="sgc-avance-hero-kpi__lbl">Abiertas</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="sgc-analytics-card-body sgc-analytics-card-body--aud">
+                <div *ngIf="cargandoDashboard" class="sgc-shimmer sgc-chart-skeleton sgc-chart-skeleton--wide"></div>
+
+                <div class="sgc-aud-dual" *ngIf="!cargandoDashboard && (hayQuejasSugerencias || quejasSugerencias)">
+                  <div class="sgc-aud-panel sgc-aud-panel--gauge">
+                    <div class="sgc-avance-panel__header">
+                      <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
+                      <div>
+                        <span class="sgc-avance-panel__title">Nivel actual</span>
+                        <span class="sgc-avance-panel__sub">Indicador por quejas abiertas</span>
+                      </div>
+                    </div>
+                    <div class="sgc-avance-donut-inner">
+                      <div class="sgc-avance-donut-chart-wrap sgc-aud-donut-chart-wrap"
+                        [class.sgc-aud-donut-chart-wrap--alerta]="!quejasSugerencias?.optimo">
+                        <apx-chart *ngIf="chartsReady"
+                          [series]="quejasSugerenciasChart.series" [chart]="quejasSugerenciasChart.chart"
+                          [labels]="quejasSugerenciasChart.labels" [colors]="quejasSugerenciasChart.colors"
+                          [plotOptions]="quejasSugerenciasChart.plotOptions" [fill]="quejasSugerenciasChart.fill"
+                          [dataLabels]="quejasSugerenciasChart.dataLabels" [stroke]="quejasSugerenciasChart.stroke"
+                          [legend]="quejasSugerenciasChart.legend" [tooltip]="quejasSugerenciasChart.tooltip"
+                          [responsive]="quejasSugerenciasChart.responsive"
+                        ></apx-chart>
+                        <div class="sgc-donut-center sgc-donut-center--eficacia" aria-live="polite">
+                          <span class="sgc-donut-center__val">{{ quejasSugDonutCentroValor }}</span>
+                          <span class="sgc-donut-center__lbl">{{ quejasSugDonutCentroEtiqueta }}</span>
+                          <span class="sgc-donut-center__pct" *ngIf="quejasSugDonutCentroSub">{{ quejasSugDonutCentroSub }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="sgc-eficacia-legend sgc-eficacia-legend--rules">
+                      <div class="sgc-eficacia-rule-card sgc-nivel--alto"
+                        [class.sgc-eficacia-rule-card--activa]="quejasSugerencias?.optimo">
+                        <span class="sgc-eficacia-rule-card__dot"></span>
+                        <div class="sgc-eficacia-rule-card__body">
+                          <span class="sgc-eficacia-rule-card__range">0 quejas</span>
+                          <span class="sgc-eficacia-rule-card__desc">Óptimo · Sin pendientes</span>
+                        </div>
+                      </div>
+                      <div class="sgc-eficacia-rule-card sgc-nivel--bajo"
+                        [class.sgc-eficacia-rule-card--activa]="!quejasSugerencias?.optimo">
+                        <span class="sgc-eficacia-rule-card__dot"></span>
+                        <div class="sgc-eficacia-rule-card__body">
+                          <span class="sgc-eficacia-rule-card__range">≥1 queja</span>
+                          <span class="sgc-eficacia-rule-card__desc">Requiere atención</span>
+                        </div>
+                      </div>
+                    </div>
+                    <a class="sgc-btn-add-text sgc-aud-panel__register"
+                      routerLink="/quejas-sugerencias">
+                      <i class="fas fa-external-link-alt mr-1"></i> Abrir Apartado
+                    </a>
+                  </div>
+
+                  <div class="sgc-aud-panel sgc-aud-panel--timeline">
+                    <div class="sgc-aud-panel__header">
+                      <div class="sgc-aud-panel__header-main">
+                        <span class="sgc-aud-panel__header-icon"><i class="fas fa-inbox"></i></span>
+                        <div>
+                          <span class="sgc-aud-panel__title">Registros {{ anioSeleccionado }}</span>
+                          <span class="sgc-aud-panel__sub">Fecha, empresa, tipo y descripción</span>
+                        </div>
+                      </div>
+                      <span class="sgc-aud-panel__count">{{ quejasSugerencias?.total || 0 }}</span>
+                    </div>
+                    <div class="sgc-aud-timeline sgc-quejas-timeline" *ngIf="hayQuejasSugerencias">
+                      <article class="sgc-aud-timeline-item"
+                               *ngFor="let q of quejasSugerenciasLista; let i = index; let last = last"
+                               [class.sgc-aud-timeline-item--latest]="i === 0">
+                        <div class="sgc-aud-timeline-rail" aria-hidden="true">
+                          <span class="sgc-aud-timeline-dot"
+                            [ngClass]="q.abierta ? 'sgc-nivel--bajo' : 'sgc-nivel--alto'"></span>
+                          <span class="sgc-aud-timeline-line" *ngIf="!last"></span>
+                        </div>
+                        <div class="sgc-aud-timeline-card"
+                          [ngClass]="q.abierta ? 'sgc-nivel--bajo' : 'sgc-nivel--alto'">
+                          <div class="sgc-aud-timeline-card__head">
+                            <time class="sgc-aud-timeline-date">{{ formatFecha(q.fecha) }}</time>
+                            <span class="sgc-aud-timeline-tag" *ngIf="q.abierta">{{ q.estatus || 'Pendiente' }}</span>
+                            <span class="sgc-aud-timeline-tag sgc-aud-timeline-tag--ok" *ngIf="!q.abierta">{{ q.estatus || 'Realizado' }}</span>
+                          </div>
+                          <h4 class="sgc-aud-timeline-title">{{ q.empresa || 'Sin empresa' }}</h4>
+                          <p class="sgc-quejas-timeline__area" *ngIf="q.area">
+                            <i class="fas fa-sitemap" aria-hidden="true"></i> {{ q.area }}
+                          </p>
+                          <p class="sgc-quejas-timeline__desc">{{ q.descripcion || 'Sin descripción' }}</p>
+                        </div>
+                      </article>
+                    </div>
+                    <div class="sgc-dash-empty sgc-dash-empty--small" *ngIf="!hayQuejasSugerencias">
+                      <i class="fas fa-check-circle fa-2x mb-2" style="color:#16a34a"></i>
+                      <p class="mb-0">Sin registros. El indicador permanece en óptimo.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              </div>
+            </article>
+
+            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured">
+              <div class="sgc-feature-carousel__slide-inner">
+              <div class="sgc-avance-hero-head">
+                <div class="sgc-avance-hero-head__main">
+                  <div class="sgc-avance-hero-badge"><i class="fas fa-project-diagram"></i></div>
+                  <div>
+                    <h2 class="sgc-section-title mb-0">Avance de proyectos</h2>
+                    <p class="sgc-analytics-desc mb-0">Bitácora de proyectos de mejora (SGC-F-14). El promedio no incluye altas sin porcentaje.</p>
+                  </div>
+                </div>
+                <div class="sgc-avance-hero-kpi" *ngIf="!cargandoDashboard && hayDatosAvance">
+                  <span class="sgc-avance-hero-kpi__val">{{ avanceProyectos?.avancePromedio || 0 }}%</span>
+                  <span class="sgc-avance-hero-kpi__lbl">Avance promedio</span>
+                </div>
+              </div>
+
+              <div class="sgc-analytics-card-body sgc-analytics-card-body--avance">
+                <div *ngIf="cargandoDashboard" class="sgc-shimmer sgc-chart-skeleton sgc-chart-skeleton--wide"></div>
+
+                <div class="sgc-avance-dual" *ngIf="!cargandoDashboard && hayDatosAvance">
+                  <div class="sgc-avance-panel sgc-avance-panel--bars">
+                    <div class="sgc-avance-panel__header">
+                      <span class="sgc-avance-panel__icon"><i class="fas fa-tasks"></i></span>
+                      <div>
+                        <span class="sgc-avance-panel__title">Avance por proyecto</span>
+                        <span class="sgc-avance-panel__sub">
+                          {{ avanceProyectos?.total || 0 }} registrados
+                          <ng-container *ngIf="(avanceProyectos?.noIniciados || 0) > 0">
+                            · {{ avanceProyectos?.totalEnGrafico || 0 }} con avance
+                          </ng-container>
+                        </span>
+                      </div>
+                    </div>
+                    <div class="sgc-proyecto-list" *ngIf="avanceProyectos?.proyectos?.length">
+                      <div class="sgc-proyecto-row"
+                           *ngFor="let p of avanceProyectos.proyectos; let i = index"
+                           [class.sgc-proyecto-row--intro]="indicadoresIntro"
+                           [style.--row-accent]="colorAvancePorEstatus(p.estatus, p.avance)"
+                           [style.--row-delay]="(i * 0.07) + 's'">
+                        <div class="sgc-proyecto-row__body">
+                          <div class="sgc-proyecto-row__head">
+                            <span class="sgc-proyecto-row__folio" *ngIf="p.folio">{{ p.folio }}</span>
+                            <div class="sgc-proyecto-row__chips">
+                              <span class="sgc-proyecto-row__prio"
+                                    [ngClass]="clasePrioridadProyecto(p.prioridad)"
+                                    *ngIf="p.prioridad">
+                                <i class="fas fa-flag" aria-hidden="true"></i>{{ p.prioridad }}
+                              </span>
+                              <span class="sgc-proyecto-row__badge" [ngClass]="claseEstatusProyecto(p.estatus, p.avance)">
+                                {{ labelEstatusProyecto(p.estatus, p.avance) }}
+                              </span>
+                            </div>
+                          </div>
+                          <h4 class="sgc-proyecto-row__name">{{ nombreProyectoDisplay(p) }}</h4>
+                          <div class="sgc-proyecto-row__resp-line">
+                            <i class="fas fa-user" aria-hidden="true"></i>
+                            <span>{{ p.responsable || 'Sin responsable asignado' }}</span>
+                          </div>
+                        </div>
+                        <div class="sgc-proyecto-row__progress">
+                          <div class="sgc-proyecto-row__track">
+                            <div class="sgc-proyecto-row__fill"
+                                 [style.width.%]="p.avance || 0"
+                                 [style.background]="gradienteAvanceProyecto(p.estatus, p.avance)"></div>
+                          </div>
+                          <span class="sgc-proyecto-row__pct-badge"
+                                [style.--pct-color]="colorAvancePorEstatus(p.estatus, p.avance)">{{ p.avance || 0 }}%</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div *ngIf="!avanceProyectos?.proyectos?.length" class="sgc-dash-empty sgc-dash-empty--small">
+                      <i class="fas fa-list-ul fa-lg mb-2"></i>
+                      <p class="mb-0">Sin detalle de proyectos individuales.</p>
+                    </div>
+                  </div>
+
+                  <div class="sgc-avance-panel sgc-avance-panel--donut">
+                    <div class="sgc-avance-panel__header">
+                      <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
+                      <div>
+                        <span class="sgc-avance-panel__title">Distribución por estatus</span>
+                        <span class="sgc-avance-panel__sub">Solo proyectos con porcentaje de avance</span>
+                      </div>
+                    </div>
+                    <div class="sgc-avance-donut-inner">
+                      <div class="sgc-avance-donut-chart-wrap">
+                        <apx-chart *ngIf="chartsReady"
+                          [series]="avanceChart.series" [chart]="avanceChart.chart"
+                          [labels]="avanceChart.labels" [colors]="avanceChart.colors"
+                          [plotOptions]="avanceChart.plotOptions" [fill]="avanceChart.fill"
+                          [dataLabels]="avanceChart.dataLabels" [stroke]="avanceChart.stroke"
+                          [legend]="avanceChart.legend" [tooltip]="avanceChart.tooltip"
+                          [responsive]="avanceChart.responsive"
+                        ></apx-chart>
+                        <div class="sgc-donut-center" aria-live="polite">
+                          <span class="sgc-donut-center__val">{{ donutCentroValor }}</span>
+                          <span class="sgc-donut-center__lbl">{{ donutCentroEtiqueta }}</span>
+                          <span class="sgc-donut-center__pct" *ngIf="donutCentroEtiqueta !== 'Proyectos'">{{ donutCentroPct }}%</span>
+                        </div>
+                      </div>
+                      <p class="sgc-avance-donut-hint">Pasa el cursor sobre un segmento para ver su detalle.</p>
+                    </div>
+                    <div class="sgc-eficacia-legend sgc-eficacia-legend--rules sgc-avance-stats-legend"
+                         *ngIf="hayDatosAvance">
+                      <div class="sgc-eficacia-rule-card sgc-avance-stat-card"
+                           *ngFor="let item of resumenAvance"
+                           [class.sgc-avance-stat-card--concluido]="item.label === 'Concluidos'"
+                           [class.sgc-avance-stat-card--proceso]="item.label === 'En proceso'"
+                           [class.sgc-avance-stat-card--pendiente]="item.label === 'No iniciados'">
+                        <span class="sgc-eficacia-rule-card__dot"></span>
+                        <div class="sgc-eficacia-rule-card__body">
+                          <span class="sgc-eficacia-rule-card__range">{{ item.label }}</span>
+                          <span class="sgc-eficacia-rule-card__desc">{{ item.subtitulo }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <a class="sgc-btn-add-text sgc-aud-panel__register"
+                      routerLink="/sistema-gestion-calidad/capitulo-10/plantilla/sgc-f-14">
+                      <i class="fas fa-file-alt mr-1"></i> Abrir SGC-F-14
+                    </a>
+                  </div>
+                </div>
+
+                <div *ngIf="!cargandoDashboard && !hayDatosAvance" class="sgc-dash-empty">
+                  <i class="fas fa-project-diagram fa-2x mb-2"></i>
+                  <p class="mb-0">Aún no hay proyectos registrados en SGC-F-14.</p>
+                  <a class="sgc-btn-add-text mt-3"
+                    routerLink="/sistema-gestion-calidad/capitulo-10/plantilla/sgc-f-14">
+                    <i class="fas fa-file-alt mr-1"></i> Abrir SGC-F-14
+                  </a>
+                </div>
+              </div>
+              </div>
+            </article>
+
+            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured sgc-analytics-card--accent">
+              <div class="sgc-feature-carousel__slide-inner">
+              <div class="sgc-avance-hero-head sgc-avance-hero-head--actions">
+                <div class="sgc-avance-hero-head__main">
+                  <div class="sgc-avance-hero-badge sgc-avance-hero-badge--aud"><i class="fas fa-clipboard-check"></i></div>
+                  <div>
+                    <span class="sgc-section-label">Objetivo · Eficacia del SGC</span>
+                    <h2 class="sgc-section-title mb-0">Resultados de auditorías</h2>
+                    <p class="sgc-analytics-desc mb-0" *ngIf="hayAuditorias">
+                      {{ eficacia?.totalCerradas || 0 }} cerrada{{ (eficacia?.totalCerradas || 0) !== 1 ? 's' : '' }}
+                      · NC actuales (No. {{ auditoriaActualNoDisplay }}): {{ ncActualesDisplay }}
+                      · {{ nivelActualEtiquetaDisplay }}
+                    </p>
+                    <p class="sgc-analytics-desc mb-0" *ngIf="!hayAuditorias && !cargandoDashboard">
+                      Los resultados salen del formato SGC-F-10 · Informe de auditoría.
+                    </p>
+                  </div>
+                </div>
+                <div class="sgc-avance-hero-head__aside">
+                  <button type="button"
+                          class="sgc-btn-add-text sgc-aud-histograma-btn"
+                          *ngIf="!cargandoDashboard && hayAuditorias"
+                          (click)="abrirHistogramaAud()"
+                          title="Ver histograma de NC por auditoría">
+                    <i class="fas fa-chart-bar mr-1"></i> Ver histograma
+                  </button>
+                  <div class="sgc-avance-hero-kpi sgc-avance-hero-kpi--aud" *ngIf="!cargandoDashboard && hayAuditorias">
+                    <span class="sgc-avance-hero-kpi__val">{{ ncActualesDisplay }}</span>
+                    <span class="sgc-avance-hero-kpi__lbl">NC actuales</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="sgc-analytics-card-body sgc-analytics-card-body--aud">
+                <div *ngIf="cargandoDashboard" class="sgc-shimmer sgc-chart-skeleton sgc-chart-skeleton--wide"></div>
+
+                <div class="sgc-aud-dual" *ngIf="!cargandoDashboard && hayAuditorias">
+                  <div class="sgc-aud-panel sgc-aud-panel--gauge">
+                    <div class="sgc-avance-panel__header">
+                      <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
+                      <div>
+                        <span class="sgc-avance-panel__title" *ngIf="!esModoClasificacionAud">Nivel de eficacia</span>
+                        <span class="sgc-avance-panel__title" *ngIf="esModoClasificacionAud">
+                          Auditoría No. {{ auditoriaSeleccionada?.auditoriaNo }}
+                        </span>
+                        <span class="sgc-avance-panel__sub" *ngIf="!esModoClasificacionAud">
+                          Eficacia por NC · 0–2 alto · 3–4 medio · ≥5 bajo
+                        </span>
+                        <span class="sgc-avance-panel__sub" *ngIf="esModoClasificacionAud">
+                          Hallazgos · OP / NC menor / NC mayor
+                        </span>
+                      </div>
+                    </div>
+                    <div class="sgc-avance-donut-inner">
+                      <div class="sgc-avance-donut-chart-wrap sgc-aud-donut-chart-wrap">
+                        <apx-chart *ngIf="chartsReady"
+                          [series]="eficaciaChart.series" [chart]="eficaciaChart.chart"
+                          [labels]="eficaciaChart.labels" [colors]="eficaciaChart.colors"
+                          [plotOptions]="eficaciaChart.plotOptions" [fill]="eficaciaChart.fill"
+                          [dataLabels]="eficaciaChart.dataLabels" [stroke]="eficaciaChart.stroke"
+                          [legend]="eficaciaChart.legend" [tooltip]="eficaciaChart.tooltip"
+                          [responsive]="eficaciaChart.responsive"
+                        ></apx-chart>
+                        <div class="sgc-donut-center sgc-donut-center--eficacia" aria-live="polite">
+                          <span class="sgc-donut-center__val">{{ eficaciaDonutCentroValor }}</span>
+                          <span class="sgc-donut-center__lbl">{{ eficaciaDonutCentroEtiqueta }}</span>
+                          <span class="sgc-donut-center__pct" *ngIf="eficaciaDonutCentroSub">{{ eficaciaDonutCentroSub }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="sgc-eficacia-legend sgc-eficacia-legend--rules" *ngIf="!esModoClasificacionAud">
+                      <div class="sgc-eficacia-rule-card sgc-nivel--alto"
+                        [class.sgc-eficacia-rule-card--activa]="nivelActualClaveDisplay === 'alto'">
+                        <span class="sgc-eficacia-rule-card__dot"></span>
+                        <div class="sgc-eficacia-rule-card__body">
+                          <span class="sgc-eficacia-rule-card__range">0–2 NC</span>
+                          <span class="sgc-eficacia-rule-card__desc">Alto nivel de eficacia</span>
+                        </div>
+                      </div>
+                      <div class="sgc-eficacia-rule-card sgc-nivel--medio"
+                        [class.sgc-eficacia-rule-card--activa]="nivelActualClaveDisplay === 'medio'">
+                        <span class="sgc-eficacia-rule-card__dot"></span>
+                        <div class="sgc-eficacia-rule-card__body">
+                          <span class="sgc-eficacia-rule-card__range">3–4 NC</span>
+                          <span class="sgc-eficacia-rule-card__desc">Nivel medio de eficacia</span>
+                        </div>
+                      </div>
+                      <div class="sgc-eficacia-rule-card sgc-nivel--bajo"
+                        [class.sgc-eficacia-rule-card--activa]="nivelActualClaveDisplay === 'bajo'">
+                        <span class="sgc-eficacia-rule-card__dot"></span>
+                        <div class="sgc-eficacia-rule-card__body">
+                          <span class="sgc-eficacia-rule-card__range">≥5 NC</span>
+                          <span class="sgc-eficacia-rule-card__desc">Bajo nivel de eficacia</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="sgc-eficacia-legend sgc-eficacia-legend--rules" *ngIf="esModoClasificacionAud">
+                      <div class="sgc-eficacia-rule-card" style="color:#0f766e">
+                        <span class="sgc-eficacia-rule-card__dot" style="background:#15a596"></span>
+                        <div class="sgc-eficacia-rule-card__body">
+                          <span class="sgc-eficacia-rule-card__range">OP {{ auditoriaSeleccionada?.totalOp || 0 }}</span>
+                          <span class="sgc-eficacia-rule-card__desc">Oportunidad de mejora</span>
+                        </div>
+                      </div>
+                      <div class="sgc-eficacia-rule-card sgc-nivel--medio">
+                        <span class="sgc-eficacia-rule-card__dot"></span>
+                        <div class="sgc-eficacia-rule-card__body">
+                          <span class="sgc-eficacia-rule-card__range">NC menor {{ auditoriaSeleccionada?.totalNcMenor || 0 }}</span>
+                          <span class="sgc-eficacia-rule-card__desc">No conformidad menor</span>
+                        </div>
+                      </div>
+                      <div class="sgc-eficacia-rule-card sgc-nivel--bajo">
+                        <span class="sgc-eficacia-rule-card__dot"></span>
+                        <div class="sgc-eficacia-rule-card__body">
+                          <span class="sgc-eficacia-rule-card__range">NC mayor {{ auditoriaSeleccionada?.totalNcMayor || 0 }}</span>
+                          <span class="sgc-eficacia-rule-card__desc">No conformidad mayor</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button type="button" class="sgc-btn-add-text sgc-aud-panel__register"
+                      *ngIf="esModoClasificacionAud"
+                      (click)="limpiarSeleccionAuditoriaEficacia()">
+                      <i class="fas fa-chart-pie mr-1"></i> Ver eficacia general
+                    </button>
+                    <button type="button" class="sgc-btn-add-text sgc-aud-panel__register"
+                      *ngIf="!esModoClasificacionAud"
+                      (click)="abrirFormAuditoria()">
+                      <i class="fas fa-file-alt mr-1"></i> Abrir SGC-F-10
+                    </button>
+                  </div>
+
+                  <div class="sgc-aud-panel sgc-aud-panel--timeline">
+                    <div class="sgc-aud-panel__header">
+                      <div class="sgc-aud-panel__header-main">
+                        <span class="sgc-aud-panel__header-icon"><i class="fas fa-history"></i></span>
+                        <div>
+                          <span class="sgc-aud-panel__title">Histórico SGC-F-10</span>
+                          <span class="sgc-aud-panel__sub">Haz clic en una auditoría para ver OP / NC menor / NC mayor.</span>
+                        </div>
+                      </div>
+                      <span class="sgc-aud-panel__count">{{ eficacia?.totalAuditorias || 0 }}</span>
+                    </div>
+                    <div class="sgc-aud-timeline">
+                      <article class="sgc-aud-timeline-item"
+                               *ngFor="let aud of auditoriasOrdenadas; let last = last"
+                               [class.sgc-aud-timeline-item--latest]="claveAuditoria(aud) === claveAuditoria(auditoriaUltimaTomada)"
+                               [class.sgc-aud-timeline-item--curso]="aud.enCurso"
+                               [class.sgc-aud-timeline-item--selected]="estaAuditoriaSeleccionada(aud)"
+                               (click)="seleccionarAuditoriaEficacia(aud)"
+                               role="button"
+                               tabindex="0"
+                               (keydown.enter)="seleccionarAuditoriaEficacia(aud)">
+                        <div class="sgc-aud-timeline-rail" aria-hidden="true">
+                          <span class="sgc-aud-timeline-dot" [ngClass]="getNivelClase(aud.nivel)"></span>
+                          <span class="sgc-aud-timeline-line" *ngIf="!last"></span>
+                        </div>
+                        <div class="sgc-aud-timeline-card" [ngClass]="getNivelClase(aud.nivel)">
+                          <div class="sgc-aud-timeline-card__head">
+                            <time class="sgc-aud-timeline-date">{{ formatFecha(aud.fecha) }}</time>
+                            <span class="sgc-aud-timeline-tag"
+                              *ngIf="claveAuditoria(aud) === claveAuditoria(auditoriaUltimaTomada) && !aud.enCurso">Última</span>
+                            <span class="sgc-aud-timeline-tag sgc-aud-timeline-tag--curso" *ngIf="aud.enCurso">En curso</span>
+                          </div>
+                          <h4 class="sgc-aud-timeline-title">{{ aud.titulo }}</h4>
+                          <div class="sgc-aud-timeline-foot">
+                            <span class="sgc-aud-timeline-nc" [ngClass]="getNivelClase(aud.nivel)">
+                              {{ aud.no_conformidades }} NC
+                            </span>
+                            <span class="sgc-aud-timeline-nivel" [ngClass]="getNivelClase(aud.nivel)">
+                              {{ aud.nivelEtiqueta }}
+                            </span>
+                            <span class="sgc-aud-timeline-area" *ngIf="aud.area">{{ aud.area }}</span>
+                          </div>
+                        </div>
+                      </article>
+                    </div>
+                  </div>
+                </div>
+
+                <div *ngIf="!cargandoDashboard && !hayAuditorias" class="sgc-dash-empty sgc-dash-empty--small">
+                  <i class="fas fa-clipboard-check fa-2x mb-2"></i>
+                  <p class="mb-2">Aún no hay informes de auditoría en SGC-F-10.</p>
+                  <button type="button" class="sgc-btn-add-text" (click)="abrirFormAuditoria()">
+                    <i class="fas fa-file-alt mr-1"></i> Abrir SGC-F-10
+                  </button>
+                </div>
+              </div>
+              </div>
+            </article>
+
+            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured sgc-prov-slide">
+              <div class="sgc-feature-carousel__slide-inner">
+              <header class="sgc-prov-head">
+                <div class="sgc-prov-head__glow" aria-hidden="true"></div>
+                <div class="sgc-prov-head__main">
+                  <div class="sgc-prov-head__badge" aria-hidden="true"><i class="fas fa-handshake"></i></div>
+                  <div class="sgc-prov-head__copy">
+                    <p class="sgc-prov-head__eyebrow">SGC-F-29 · Control de proveedores</p>
+                    <h2 class="sgc-section-title mb-0">Evaluación de proveedores</h2>
+                    <p class="sgc-prov-head__meta" *ngIf="proveedoresF29?.periodoEvaluacion || proveedoresF29?.fechaEvaluacion">
+                      <span *ngIf="proveedoresF29?.periodoEvaluacion">
+                        <i class="fas fa-calendar-alt" aria-hidden="true"></i>{{ proveedoresF29.periodoEvaluacion }}
+                      </span>
+                      <span *ngIf="proveedoresF29?.fechaEvaluacion">
+                        <i class="fas fa-clock" aria-hidden="true"></i>{{ proveedoresF29.fechaEvaluacion }}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+                <div class="sgc-prov-head__aside">
+                  <a class="sgc-btn-add-text sgc-prov-head__formato"
+                     routerLink="/sistema-gestion-calidad/capitulo-8/plantilla/sgc-f-29">
+                    <i class="fas fa-file-alt mr-1"></i> Abrir SGC-F-29
+                  </a>
+                  <div class="sgc-prov-score" *ngIf="!cargandoDashboard && hayDatosProveedoresF29"
+                       [class.sgc-prov-score--ok]="(proveedoresF29?.promedioCalificacion || 0) >= 80"
+                       [class.sgc-prov-score--warn]="(proveedoresF29?.promedioCalificacion || 0) >= 50 && (proveedoresF29?.promedioCalificacion || 0) < 80"
+                       [class.sgc-prov-score--baja]="(proveedoresF29?.promedioCalificacion || 0) > 0 && (proveedoresF29?.promedioCalificacion || 0) < 50"
+                       [style.--score]="(proveedoresF29?.promedioCalificacion || 0) + '%'">
+                    <div class="sgc-prov-score__ring" aria-hidden="true"></div>
+                    <div class="sgc-prov-score__body">
+                      <span class="sgc-prov-score__val">{{ proveedoresF29?.promedioCalificacion || 0 }}%</span>
+                      <span class="sgc-prov-score__lbl">Promedio general</span>
+                    </div>
+                  </div>
+                </div>
+              </header>
+
+              <div class="sgc-analytics-card-body sgc-prov-body">
+                <div *ngIf="cargandoDashboard" class="sgc-shimmer sgc-chart-skeleton sgc-chart-skeleton--wide"></div>
+
+                <div class="sgc-prov-layout" *ngIf="!cargandoDashboard && hayDatosProveedoresF29">
+                  <section class="sgc-prov-rank" aria-label="Proveedores evaluados">
+                    <div class="sgc-prov-rank__top">
+                      <div class="sgc-prov-rank__heading">
+                        <span class="sgc-prov-rank__icon" aria-hidden="true"><i class="fas fa-trophy"></i></span>
+                        <div>
+                          <h3 class="sgc-prov-rank__title">Ranking</h3>
+                          <p class="sgc-prov-rank__hint">Por promedio de evaluaciones</p>
+                        </div>
+                      </div>
+                      <span class="sgc-prov-rank__count">
+                        <strong>{{ proveedoresF29?.totalProveedoresUnicos || rankingProveedoresF29.length || 0 }}</strong> proveedores
+                        · {{ proveedoresF29?.total || 0 }} eval. · umbral 80%
+                      </span>
+                    </div>
+
+                    <div class="sgc-prov-rank__list" *ngIf="rankingProveedoresF29.length">
+                      <article class="sgc-prov-item"
+                               *ngFor="let p of rankingProveedoresF29; let i = index"
+                               [class.sgc-prov-item--ok]="p.aprobado"
+                               [class.sgc-prov-item--baja]="p.promedioCalificacion !== null && !p.aprobado"
+                               [class.sgc-prov-item--top]="i === 0"
+                               [class.sgc-prov-item--open]="esProveedorF29Expandido(p.proveedor)"
+                               [style.--accent]="colorCalificacionProveedor(p.promedioCalificacion)"
+                               (click)="toggleExpandProveedorF29(p.proveedor, $event)">
+                        <span class="sgc-prov-item__pos" aria-hidden="true">{{ i + 1 }}</span>
+                        <div class="sgc-prov-item__main">
+                          <div class="sgc-prov-item__row">
+                            <h4 class="sgc-prov-item__name" [title]="p.proveedor || 'Sin nombre'">
+                              {{ p.proveedor || 'Sin nombre' }}
+                              <span class="sgc-prov-item__evals" *ngIf="(p.totalEvaluaciones || 1) > 1">
+                                {{ p.totalEvaluaciones }} evaluaciones
+                              </span>
+                            </h4>
+                            <div class="sgc-prov-item__meta">
+                              <span class="sgc-prov-item__pct">
+                                {{ p.promedioCalificacion != null ? p.promedioCalificacion + '%' : '—' }}
+                              </span>
+                              <span class="sgc-prov-item__status"
+                                    [class.is-ok]="p.aprobado"
+                                    [class.is-baja]="p.promedioCalificacion !== null && !p.aprobado">
+                                <i class="fas" [class.fa-check]="p.aprobado"
+                                   [class.fa-times]="p.promedioCalificacion !== null && !p.aprobado"
+                                   [class.fa-minus]="p.promedioCalificacion === null"
+                                   aria-hidden="true"></i>
+                                {{ p.aprobado ? 'Aprobado' : (p.promedioCalificacion !== null ? 'Reprobado' : 'Pendiente') }}
+                              </span>
+                            </div>
+                          </div>
+                          <div class="sgc-prov-item__meter" aria-hidden="true">
+                            <span class="sgc-prov-item__fill" [style.width.%]="p.promedioCalificacion || 0"></span>
+                            <span class="sgc-prov-item__mark" title="Mínimo 80%"></span>
+                          </div>
+                          <div class="sgc-prov-item__detail" *ngIf="esProveedorF29Expandido(p.proveedor) && p.evaluaciones?.length">
+                            <p class="sgc-prov-item__detail-title">Detalle de evaluaciones</p>
+                            <ul class="sgc-prov-item__detail-list">
+                              <li *ngFor="let ev of p.evaluaciones">
+                                <span class="sgc-prov-item__detail-ref">
+                                  {{ ev.referencia || ('Eval. #' + ev.no) }}
+                                  <em *ngIf="ev.fecha"> · {{ ev.fecha }}</em>
+                                  <em *ngIf="ev.evidencias"> · {{ ev.evidencias }} evid.</em>
+                                </span>
+                                <strong [class.is-ok]="ev.aprobado" [class.is-baja]="ev.calificacion != null && !ev.aprobado">
+                                  {{ ev.calificacion != null ? (ev.calificacion + '%') : '—' }}
+                                </strong>
+                              </li>
+                            </ul>
+                          </div>
+                        </div>
+                      </article>
+                    </div>
+
+                    <div *ngIf="!rankingProveedoresF29.length" class="sgc-dash-empty sgc-dash-empty--small">
+                      <i class="fas fa-list-ul fa-lg mb-2"></i>
+                      <p class="mb-0">Sin detalle de proveedores.</p>
+                    </div>
+                  </section>
+
+                  <aside class="sgc-prov-aside" aria-label="Resumen de evaluación">
+                    <div class="sgc-prov-aside__chart-block">
+                      <p class="sgc-prov-aside__label">Distribución</p>
+                      <div class="sgc-prov-aside__chart">
+                        <div class="sgc-prov-aside__chart-wrap">
+                          <apx-chart *ngIf="chartsReady"
+                            [series]="proveedoresF29Chart.series" [chart]="proveedoresF29Chart.chart"
+                            [labels]="proveedoresF29Chart.labels" [colors]="proveedoresF29Chart.colors"
+                            [plotOptions]="proveedoresF29Chart.plotOptions" [fill]="proveedoresF29Chart.fill"
+                            [dataLabels]="proveedoresF29Chart.dataLabels" [stroke]="proveedoresF29Chart.stroke"
+                            [legend]="proveedoresF29Chart.legend" [tooltip]="proveedoresF29Chart.tooltip"
+                            [responsive]="proveedoresF29Chart.responsive"
+                          ></apx-chart>
+                          <div class="sgc-prov-aside__center" aria-live="polite">
+                            <strong>{{ provF29DonutCentroValor }}</strong>
+                            <span>{{ provF29DonutCentroEtiqueta }}</span>
+                            <small *ngIf="provF29DonutCentroSub">{{ provF29DonutCentroSub }}</small>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="sgc-prov-kpis">
+                      <div class="sgc-prov-kpi sgc-prov-kpi--ok">
+                        <span class="sgc-prov-kpi__icon" aria-hidden="true"><i class="fas fa-check"></i></span>
+                        <span class="sgc-prov-kpi__num">{{ proveedoresF29?.aprobados || 0 }}</span>
+                        <div class="sgc-prov-kpi__text">
+                          <span class="sgc-prov-kpi__lbl">Aprobados</span>
+                          <span class="sgc-prov-kpi__sub">≥ 80%</span>
+                        </div>
+                      </div>
+                      <div class="sgc-prov-kpi sgc-prov-kpi--baja">
+                        <span class="sgc-prov-kpi__icon" aria-hidden="true"><i class="fas fa-times"></i></span>
+                        <span class="sgc-prov-kpi__num">{{ proveedoresF29?.reprobados || 0 }}</span>
+                        <div class="sgc-prov-kpi__text">
+                          <span class="sgc-prov-kpi__lbl">Reprobados</span>
+                          <span class="sgc-prov-kpi__sub">&lt; 80%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="sgc-prov-bars" *ngIf="criteriosProveedoresF29.length">
+                      <div class="sgc-prov-bars__head">
+                        <h3 class="sgc-prov-bars__title">Promedio por criterio</h3>
+                        <span class="sgc-prov-bars__legend">Umbral 80%</span>
+                      </div>
+                      <div class="sgc-prov-bar" *ngFor="let c of criteriosProveedoresF29; trackBy: trackByCriterioProveedor"
+                           [style.--bar-color]="colorCalificacionProveedor(c.valor)">
+                        <div class="sgc-prov-bar__head">
+                          <span class="sgc-prov-bar__lbl">{{ c.label }}</span>
+                          <strong class="sgc-prov-bar__pct">{{ c.valor }}%</strong>
+                        </div>
+                        <div class="sgc-prov-bar__track" aria-hidden="true">
+                          <span class="sgc-prov-bar__fill" [style.width.%]="c.valor"></span>
+                          <span class="sgc-prov-bar__mark"></span>
+                        </div>
+                      </div>
+                    </div>
+
+                  </aside>
+                </div>
+
+                <div *ngIf="!cargandoDashboard && !hayDatosProveedoresF29" class="sgc-dash-empty">
+                  <i class="fas fa-handshake fa-2x mb-2"></i>
+                  <p class="mb-2">Aún no hay proveedores registrados en SGC-F-29.</p>
+                  <a class="sgc-btn-add-text"
+                     routerLink="/sistema-gestion-calidad/capitulo-8/plantilla/sgc-f-29">
+                    <i class="fas fa-file-alt mr-1"></i> Abrir SGC-F-29
+                  </a>
+                </div>
+              </div>
+              </div>
+            </article>
+
+          </div>
+        </div>
+
+        <footer class="sgc-feature-carousel__footer">
+          <div class="sgc-feature-carousel__footer-main">
+            <span class="sgc-feature-carousel__timer-text"
+                  *ngIf="carruselAutoActivo && !carruselHover">
+              Próximo indicador en {{ carruselSegundosRestantes }} s...
+            </span>
+            <span class="sgc-feature-carousel__timer-text sgc-feature-carousel__timer-text--paused"
+                  *ngIf="carruselAutoActivo && carruselHover">
+              Avance automático en pausa
+            </span>
+            <span class="sgc-feature-carousel__timer-text sgc-feature-carousel__timer-text--paused"
+                  *ngIf="!carruselAutoActivo">
+              Avance automático desactivado
+            </span>
+            <div class="sgc-feature-carousel__timer-bar" *ngIf="carruselAutoActivo" aria-hidden="true">
+              <span class="sgc-feature-carousel__timer-fill"
+                    [class.is-paused]="carruselHover"
+                    [style.width.%]="carruselProgresoPct"></span>
+            </div>
+          </div>
+
+          <button type="button"
+                  class="sgc-feature-carousel__auto-toggle"
+                  [class.is-active]="carruselAutoActivo"
+                  (click)="toggleCarruselAuto()"
+                  [attr.aria-pressed]="carruselAutoActivo"
+                  [attr.aria-label]="carruselAutoActivo ? 'Desactivar avance automático' : 'Activar avance automático'"
+                  title="Avance automático">
+            <i class="fas fa-check" *ngIf="carruselAutoActivo" aria-hidden="true"></i>
+          </button>
+        </footer>
+
+        <div class="sgc-feature-carousel__dots-wrap">
+          <div class="sgc-feature-carousel__dots" role="tablist" aria-label="Indicadores destacados">
+            <button type="button"
+                    class="sgc-feature-carousel__dot"
+                    *ngFor="let slide of carruselSlides; let i = index"
+                    [class.is-active]="carruselIndicadorActivo === i"
+                    [attr.aria-selected]="carruselIndicadorActivo === i"
+                    [attr.aria-label]="slide.titulo"
+                    (click)="irACarruselSlide(i)">
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="errorDashboard && !cargandoDashboard" class="sgc-dash-error mb-3">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>No se pudieron cargar los indicadores.</span>
+        <button type="button" class="sgc-btn-retry" (click)="cargarDashboard(true)">
+          <i class="fas fa-sync-alt mr-1"></i> Reintentar
+        </button>
+      </div>
+
+      <!-- Capítulos · formatos corporativos (reemplaza Quejas / Proveedores) -->
+      <app-sgc-capitulos-panel
+        class="sgc-dash-capitulos"
+        [syncQuery]="true"
+        [capituloInicial]="capituloDashSlug">
+      </app-sgc-capitulos-panel>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: auditoría -->
+<div class="sgc-modal-overlay" *ngIf="mostrarFormAuditoria" (click)="cancelarFormAuditoria()">
+  <div class="sgc-modal" (click)="$event.stopPropagation()">
+    <header class="sgc-modal__hero">
+      <div class="sgc-modal__hero-bg" aria-hidden="true"></div>
+      <div class="sgc-modal__hero-content">
+        <div class="sgc-modal__badge"><i class="fas fa-clipboard-check"></i><span>SGC</span></div>
+        <div class="sgc-modal__hero-text">
+          <h2 class="sgc-modal__title">Registrar auditoría</h2>
+          <p class="sgc-modal__subtitle">Resultados de auditorías · Eficacia del SGC</p>
+        </div>
+        <button type="button" class="sgc-modal__close" (click)="cancelarFormAuditoria()" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+      </div>
+    </header>
+    <div class="sgc-modal__body sgc-modal__body--auditoria">
+      <div class="sgc-modal__body-content">
+        <div class="sgc-form-row">
+          <label class="sgc-form-label">Título / Nombre de la auditoría *</label>
+          <input type="text" class="sgc-form-input" [(ngModel)]="nuevaAuditoria.titulo" placeholder="Ej. Auditoría interna ISO 9001">
+        </div>
+        <div class="sgc-form-grid">
+          <div class="sgc-form-row">
+            <label class="sgc-form-label">Fecha</label>
+            <input type="date" class="sgc-form-input" [(ngModel)]="nuevaAuditoria.fecha">
+          </div>
+          <div class="sgc-form-row">
+            <label class="sgc-form-label">No conformidades</label>
+            <input type="number" min="0" class="sgc-form-input" [(ngModel)]="nuevaAuditoria.no_conformidades">
+          </div>
+        </div>
+        <div class="sgc-form-row">
+          <label class="sgc-form-label">Área / Proceso auditado</label>
+          <input type="text" class="sgc-form-input" [(ngModel)]="nuevaAuditoria.area" placeholder="Ej. Capacitación, Dirección...">
+        </div>
+        <div class="sgc-form-row">
+          <label class="sgc-form-label">Observaciones</label>
+          <textarea class="sgc-form-input sgc-form-input--area" rows="3" [(ngModel)]="nuevaAuditoria.observaciones" placeholder="Hallazgos, comentarios..."></textarea>
+        </div>
+        <p class="sgc-form-hint">
+          <i class="fas fa-info-circle mr-1"></i>
+          0–2 NC = Alto nivel · 3–4 NC = Nivel medio · ≥5 NC = Bajo nivel de eficacia.
+        </p>
+      </div>
+    </div>
+    <div class="sgc-modal__foot">
+      <button type="button" class="sgc-btn-ghost" (click)="cancelarFormAuditoria()">Cancelar</button>
+      <button type="button" class="sgc-btn-primary" (click)="guardarAuditoria()" [disabled]="guardandoAuditoria">
+        <i class="fas" [ngClass]="guardandoAuditoria ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+        {{ guardandoAuditoria ? 'Guardando...' : 'Guardar auditoría' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: queja del cliente -->
+<div class="sgc-modal-overlay" *ngIf="mostrarFormQueja" (click)="cancelarFormQueja()">
+  <div class="sgc-modal" (click)="$event.stopPropagation()">
+    <header class="sgc-modal__hero">
+      <div class="sgc-modal__hero-bg" aria-hidden="true"></div>
+      <div class="sgc-modal__hero-content">
+        <div class="sgc-modal__badge"><i class="fas fa-comment-dots"></i><span>SGC</span></div>
+        <div class="sgc-modal__hero-text">
+          <h2 class="sgc-modal__title">Registrar queja</h2>
+          <p class="sgc-modal__subtitle">Quejas del cliente · Indicadores SGC</p>
+        </div>
+        <button type="button" class="sgc-modal__close" (click)="cancelarFormQueja()" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+      </div>
+    </header>
+    <div class="sgc-modal__body sgc-modal__body--auditoria">
+      <div class="sgc-modal__body-content">
+        <div class="sgc-form-row">
+          <label class="sgc-form-label">Cliente *</label>
+          <input type="text" class="sgc-form-input" [(ngModel)]="nuevaQueja.cliente" placeholder="Nombre del cliente">
+        </div>
+        <div class="sgc-form-grid">
+          <div class="sgc-form-row">
+            <label class="sgc-form-label">Fecha</label>
+            <input type="date" class="sgc-form-input" [(ngModel)]="nuevaQueja.fecha">
+          </div>
+          <div class="sgc-form-row">
+            <label class="sgc-form-label">Estatus</label>
+            <select class="sgc-form-input" [(ngModel)]="nuevaQueja.estatus">
+              <option *ngFor="let e of estatusQuejaOpciones" [ngValue]="e">{{ e }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="sgc-form-row">
+          <label class="sgc-form-label">Área / Servicio</label>
+          <input type="text" class="sgc-form-input" [(ngModel)]="nuevaQueja.area" placeholder="Ej. Capacitación, Consultoría...">
+        </div>
+        <div class="sgc-form-row">
+          <label class="sgc-form-label">Descripción</label>
+          <textarea class="sgc-form-input sgc-form-input--area" rows="3" [(ngModel)]="nuevaQueja.descripcion" placeholder="Detalle de la queja..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="sgc-modal__foot">
+      <button type="button" class="sgc-btn-ghost" (click)="cancelarFormQueja()">Cancelar</button>
+      <button type="button" class="sgc-btn-primary" (click)="guardarQueja()" [disabled]="guardandoQueja">
+        <i class="fas" [ngClass]="guardandoQueja ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+        {{ guardandoQueja ? 'Guardando...' : 'Guardar queja' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: evaluación de proveedor -->
+<div class="sgc-modal-overlay" *ngIf="mostrarFormProveedor" (click)="cancelarFormProveedor()">
+  <div class="sgc-modal" (click)="$event.stopPropagation()">
+    <header class="sgc-modal__hero">
+      <div class="sgc-modal__hero-bg" aria-hidden="true"></div>
+      <div class="sgc-modal__hero-content">
+        <div class="sgc-modal__badge"><i class="fas fa-truck"></i><span>SGC</span></div>
+        <div class="sgc-modal__hero-text">
+          <h2 class="sgc-modal__title">Registrar evaluación</h2>
+          <p class="sgc-modal__subtitle">Evaluación de proveedores · Indicadores SGC</p>
+        </div>
+        <button type="button" class="sgc-modal__close" (click)="cancelarFormProveedor()" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+      </div>
+    </header>
+    <div class="sgc-modal__body sgc-modal__body--auditoria">
+      <div class="sgc-modal__body-content">
+        <div class="sgc-form-row">
+          <label class="sgc-form-label">Proveedor *</label>
+          <input type="text" class="sgc-form-input" [(ngModel)]="nuevaEvaluacion.proveedor" placeholder="Nombre del proveedor">
+        </div>
+        <div class="sgc-form-grid">
+          <div class="sgc-form-row">
+            <label class="sgc-form-label">Fecha</label>
+            <input type="date" class="sgc-form-input" [(ngModel)]="nuevaEvaluacion.fecha">
+          </div>
+          <div class="sgc-form-row">
+            <label class="sgc-form-label">Calificación (0–100)</label>
+            <input type="number" min="0" max="100" class="sgc-form-input" [(ngModel)]="nuevaEvaluacion.calificacion">
+          </div>
+        </div>
+        <div class="sgc-form-row">
+          <label class="sgc-form-label">Observaciones</label>
+          <textarea class="sgc-form-input sgc-form-input--area" rows="3" [(ngModel)]="nuevaEvaluacion.observaciones" placeholder="Comentarios..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="sgc-modal__foot">
+      <button type="button" class="sgc-btn-ghost" (click)="cancelarFormProveedor()">Cancelar</button>
+      <button type="button" class="sgc-btn-primary" (click)="guardarEvaluacionProveedor()" [disabled]="guardandoProveedor">
+        <i class="fas" [ngClass]="guardandoProveedor ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+        {{ guardandoProveedor ? 'Guardando...' : 'Guardar evaluación' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-modal-overlay" *ngIf="mostrarComentariosSatisfaccion" (click)="cerrarComentariosSatisfaccion()">
+  <div class="sgc-modal sgc-modal--comentarios" (click)="$event.stopPropagation()">
+    <header class="sgc-modal__hero">
+      <div class="sgc-modal__hero-bg" aria-hidden="true"></div>
+      <div class="sgc-modal__hero-content">
+        <div class="sgc-modal__badge"><i class="fas fa-comment-alt"></i><span>SGC-F-26</span></div>
+        <div class="sgc-modal__hero-text">
+          <h2 class="sgc-modal__title">Comentarios de la encuesta</h2>
+          <p class="sgc-modal__subtitle">
+            {{ totalComentariosSatisfaccion }} comentario{{ totalComentariosSatisfaccion !== 1 ? 's' : '' }}
+            · Satisfacción del cliente · {{ anioSeleccionado }}
+          </p>
+        </div>
+        <button type="button" class="sgc-modal__close" (click)="cerrarComentariosSatisfaccion()" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+      </div>
+    </header>
+    <div class="sgc-modal__body sgc-modal__body--comentarios">
+      <div class="sgc-sat-comentarios-list" *ngIf="totalComentariosSatisfaccion > 0">
+        <article class="sgc-sat-comentario" *ngFor="let c of comentariosSatisfaccion; let i = index">
+          <div class="sgc-sat-comentario__meta">
+            <span class="sgc-sat-comentario__empresa"><i class="fas fa-building"></i> {{ c.empresa || 'Sin empresa' }}</span>
+            <span class="sgc-sat-comentario__fecha" *ngIf="c.fecha">{{ c.fecha }}</span>
+          </div>
+          <p class="sgc-sat-comentario__texto">{{ c.texto }}</p>
+          <span class="sgc-sat-comentario__servicio" *ngIf="c.servicio">{{ acortarEtiquetaServicio(c.servicio) }}</span>
+        </article>
+      </div>
+      <div class="sgc-dash-empty sgc-dash-empty--modal" *ngIf="totalComentariosSatisfaccion === 0">
+        <i class="fas fa-comment-slash fa-2x mb-2"></i>
+        <p class="mb-0">No hay comentarios registrados para {{ anioSeleccionado }}.</p>
+      </div>
+    </div>
+    <div class="sgc-modal__foot">
+      <button type="button" class="sgc-btn-primary" (click)="cerrarComentariosSatisfaccion()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-modal-overlay" *ngIf="mostrarComentariosSatCap" (click)="cerrarComentariosSatCap()">
+  <div class="sgc-modal sgc-modal--comentarios sgc-modal--sat-cap" (click)="$event.stopPropagation()">
+    <header class="sgc-modal__hero">
+      <div class="sgc-modal__hero-bg" aria-hidden="true"></div>
+      <div class="sgc-modal__hero-content">
+        <div class="sgc-modal__badge sgc-modal__badge--sat-cap"><i class="fas fa-comment-alt"></i><span>SP-F-14</span></div>
+        <div class="sgc-modal__hero-text">
+          <h2 class="sgc-modal__title">Comentarios de capacitación</h2>
+          <p class="sgc-modal__subtitle">
+            {{ totalComentariosSatisfaccionCap }} comentario{{ totalComentariosSatisfaccionCap !== 1 ? 's' : '' }}
+            · Encuestas por curso · {{ anioSeleccionado }}
+          </p>
+        </div>
+        <button type="button" class="sgc-modal__close" (click)="cerrarComentariosSatCap()" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+      </div>
+    </header>
+    <div class="sgc-modal__body sgc-modal__body--comentarios">
+      <div class="sgc-sat-comentarios-list" *ngIf="totalComentariosSatisfaccionCap > 0">
+        <article class="sgc-sat-comentario" *ngFor="let c of comentariosSatisfaccionCap">
+          <div class="sgc-sat-comentario__meta">
+            <span class="sgc-sat-comentario__empresa"><i class="fas fa-building"></i> {{ c.empresa || 'Sin empresa' }}</span>
+            <span class="sgc-sat-comentario__fecha" *ngIf="c.fecha">{{ c.fecha }}</span>
+          </div>
+          <p class="sgc-sat-comentario__texto">{{ c.texto }}</p>
+          <span class="sgc-sat-comentario__servicio" *ngIf="c.curso">{{ c.curso }}</span>
+        </article>
+      </div>
+      <div class="sgc-dash-empty sgc-dash-empty--modal" *ngIf="totalComentariosSatisfaccionCap === 0">
+        <i class="fas fa-comment-slash fa-2x mb-2"></i>
+        <p class="mb-0">No hay comentarios de capacitación para {{ anioSeleccionado }}.</p>
+      </div>
+    </div>
+    <div class="sgc-modal__foot">
+      <button type="button" class="sgc-btn-primary" (click)="cerrarComentariosSatCap()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-modal-overlay" *ngIf="mostrarPreguntasSatCap" (click)="cerrarPreguntasSatCap()">
+  <div class="sgc-modal sgc-modal--preguntas sgc-modal--sat-cap" (click)="$event.stopPropagation()">
+    <header class="sgc-modal__hero">
+      <div class="sgc-modal__hero-bg" aria-hidden="true"></div>
+      <div class="sgc-modal__hero-content">
+        <div class="sgc-modal__badge sgc-modal__badge--sat-cap"><i class="fas fa-chart-bar"></i><span>SP-F-14</span></div>
+        <div class="sgc-modal__hero-text">
+          <h2 class="sgc-modal__title">Detalle por pregunta</h2>
+          <p class="sgc-modal__subtitle">
+            {{ metaPreguntasSatCap.totalRespuestas }} respuestas agregadas
+            · {{ metaPreguntasSatCap.cursos }} curso(s) · {{ metaPreguntasSatCap.etiquetaPeriodo }}
+          </p>
+        </div>
+        <button type="button" class="sgc-modal__close" (click)="cerrarPreguntasSatCap()" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+      </div>
+    </header>
+    <div class="sgc-modal__filtros" *ngIf="mesesDisponiblesSatCap.length > 0">
+      <div class="sgc-modal__filtro" (click)="$event.stopPropagation()">
+        <span class="sgc-modal__filtro-label"><i class="fas fa-calendar-alt" aria-hidden="true"></i> Mes</span>
+        <div class="sgc-sat-combo" [class.sgc-sat-combo--open]="filtroMesSatCapAbierto">
+          <button type="button" class="sgc-sat-combo__control" (click)="toggleComboMesSatCap($event)">
+            <span class="sgc-sat-combo__icon" aria-hidden="true"><i class="fas fa-calendar-alt"></i></span>
+            <span class="sgc-sat-combo__value">{{ etiquetaFiltroMesSatCap }}</span>
+            <span class="sgc-sat-combo__chevron" aria-hidden="true"><i class="fas fa-chevron-down"></i></span>
+          </button>
+          <div class="sgc-sat-combo__dropdown" (click)="$event.stopPropagation()">
+            <div class="sgc-sat-combo__dropdown-head">
+              <span class="sgc-sat-combo__dropdown-title"><i class="fas fa-calendar-alt"></i> Meses</span>
+              <span class="sgc-sat-combo__dropdown-count">{{ mesesDisponiblesSatCap.length }}</span>
+            </div>
+            <div class="sgc-sat-combo__options">
+              <button type="button" class="sgc-sat-combo__option"
+                      [class.sgc-sat-combo__option--selected]="filtroMesSatCap == null"
+                      (click)="seleccionarMesSatCap(null, $event)">
+                <span class="sgc-sat-combo__option-icon" aria-hidden="true"><i class="fas fa-globe"></i></span>
+                <span class="sgc-sat-combo__option-text">Todo el año</span>
+                <span class="sgc-sat-combo__option-check" *ngIf="filtroMesSatCap == null" aria-hidden="true"><i class="fas fa-check"></i></span>
+              </button>
+              <button type="button" class="sgc-sat-combo__option"
+                      *ngFor="let m of mesesDisponiblesSatCap; trackBy: trackByMesSat"
+                      [class.sgc-sat-combo__option--selected]="filtroMesSatCap === m.mes_num"
+                      (click)="seleccionarMesSatCap(m.mes_num, $event)">
+                <span class="sgc-sat-combo__option-icon" aria-hidden="true"><i class="fas fa-calendar"></i></span>
+                <span class="sgc-sat-combo__option-text">{{ m.mes }} · {{ m.totalRespuestas }} resp.</span>
+                <span class="sgc-sat-combo__option-check" *ngIf="filtroMesSatCap === m.mes_num" aria-hidden="true"><i class="fas fa-check"></i></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="sgc-modal__body sgc-modal__body--preguntas">
+      <div class="sgc-sat-cap-preguntas-grid" *ngIf="preguntasChoiceSatCap.length > 0">
+        <article class="sgc-sat-cap-pregunta-card" *ngFor="let pregunta of preguntasChoiceSatCap">
+          <header class="sgc-sat-cap-pregunta-card__head">
+            <h3>{{ pregunta.title }}</h3>
+            <span class="sgc-sat-cap-pregunta-card__count">{{ pregunta.total_respuestas || 0 }} resp.</span>
+          </header>
+          <div class="sgc-sat-cap-opciones">
+            <div class="sgc-sat-cap-opcion" *ngFor="let opt of pregunta.options">
+              <div class="sgc-sat-cap-opcion__row">
+                <span class="sgc-sat-cap-opcion__label">{{ opt.label }}</span>
+                <span class="sgc-sat-cap-opcion__val">{{ opt.count || 0 }} · {{ opt.percent || 0 }}%</span>
+              </div>
+              <div class="sgc-sat-cap-opcion__bar">
+                <span [style.width.%]="opt.percent || 0" [style.background]="colorOpcionSatCap(opt.label)"></span>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+      <div class="sgc-dash-empty sgc-dash-empty--modal" *ngIf="preguntasChoiceSatCap.length === 0">
+        <i class="fas fa-chart-bar fa-2x mb-2"></i>
+        <p class="mb-0" *ngIf="filtroMesSatCap != null">No hay respuestas para el mes seleccionado.</p>
+        <p class="mb-0" *ngIf="filtroMesSatCap == null">No hay preguntas con respuestas para mostrar.</p>
+      </div>
+    </div>
+    <div class="sgc-modal__foot">
+      <button type="button" class="sgc-btn-primary" (click)="cerrarPreguntasSatCap()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-modal-overlay" *ngIf="mostrarPreguntasSatisfaccion" (click)="cerrarPreguntasSatisfaccion()">
+  <div class="sgc-modal sgc-modal--preguntas sgc-modal--sat-cliente" (click)="$event.stopPropagation()">
+    <header class="sgc-modal__hero">
+      <div class="sgc-modal__hero-bg" aria-hidden="true"></div>
+      <div class="sgc-modal__hero-content">
+        <div class="sgc-modal__badge sgc-modal__badge--sat-cliente"><i class="fas fa-chart-bar"></i><span>SGC-F-26</span></div>
+        <div class="sgc-modal__hero-text">
+          <h2 class="sgc-modal__title">Detalle por pregunta</h2>
+          <p class="sgc-modal__subtitle">
+            {{ metaPreguntasSatCliente.totalRespuestas }} respuestas
+            · {{ metaPreguntasSatCliente.empresas }} empresa(s) · {{ metaPreguntasSatCliente.etiquetaPeriodo }}
+          </p>
+        </div>
+        <button type="button" class="sgc-modal__close" (click)="cerrarPreguntasSatisfaccion()" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+      </div>
+    </header>
+    <div class="sgc-modal__filtros" *ngIf="respuestasLiteSatCliente.length > 0">
+      <div class="sgc-modal__filtro" (click)="$event.stopPropagation()">
+        <span class="sgc-modal__filtro-label"><i class="fas fa-calendar-alt" aria-hidden="true"></i> Mes</span>
+        <div class="sgc-sat-combo sgc-sat-combo--cliente" [class.sgc-sat-combo--open]="filtroMesSatClienteAbierto">
+          <button type="button" class="sgc-sat-combo__control" (click)="toggleComboMesSatCliente($event)">
+            <span class="sgc-sat-combo__icon" aria-hidden="true"><i class="fas fa-calendar-alt"></i></span>
+            <span class="sgc-sat-combo__value">{{ etiquetaFiltroMesSatCliente }}</span>
+            <span class="sgc-sat-combo__chevron" aria-hidden="true"><i class="fas fa-chevron-down"></i></span>
+          </button>
+          <div class="sgc-sat-combo__dropdown" (click)="$event.stopPropagation()">
+            <div class="sgc-sat-combo__dropdown-head">
+              <span class="sgc-sat-combo__dropdown-title"><i class="fas fa-calendar-alt"></i> Meses</span>
+              <span class="sgc-sat-combo__dropdown-count">{{ mesesDisponiblesSatCliente.length }}</span>
+            </div>
+            <div class="sgc-sat-combo__options">
+              <button type="button" class="sgc-sat-combo__option"
+                      [class.sgc-sat-combo__option--selected]="filtroMesSatCliente == null"
+                      (click)="seleccionarMesSatCliente(null, $event)">
+                <span class="sgc-sat-combo__option-icon" aria-hidden="true"><i class="fas fa-globe"></i></span>
+                <span class="sgc-sat-combo__option-text">Todo el año</span>
+                <span class="sgc-sat-combo__option-check" *ngIf="filtroMesSatCliente == null" aria-hidden="true"><i class="fas fa-check"></i></span>
+              </button>
+              <button type="button" class="sgc-sat-combo__option"
+                      *ngFor="let m of mesesDisponiblesSatCliente; trackBy: trackByMesSat"
+                      [class.sgc-sat-combo__option--selected]="filtroMesSatCliente === m.mes_num"
+                      (click)="seleccionarMesSatCliente(m.mes_num, $event)">
+                <span class="sgc-sat-combo__option-icon" aria-hidden="true"><i class="fas fa-calendar"></i></span>
+                <span class="sgc-sat-combo__option-text">{{ m.mes }} · {{ m.respuestas }} resp.</span>
+                <span class="sgc-sat-combo__option-check" *ngIf="filtroMesSatCliente === m.mes_num" aria-hidden="true"><i class="fas fa-check"></i></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sgc-modal__filtro sgc-modal__filtro--wide" (click)="$event.stopPropagation()">
+        <span class="sgc-modal__filtro-label"><i class="fas fa-building" aria-hidden="true"></i> Empresa</span>
+        <div class="sgc-sat-combo sgc-sat-combo--cliente" [class.sgc-sat-combo--open]="filtroEmpresaSatClienteAbierto">
+          <button type="button" class="sgc-sat-combo__control" (click)="toggleComboEmpresaSatCliente($event)">
+            <span class="sgc-sat-combo__icon" aria-hidden="true"><i class="fas fa-briefcase"></i></span>
+            <span class="sgc-sat-combo__value">{{ etiquetaFiltroEmpresaSatCliente }}</span>
+            <span class="sgc-sat-combo__chevron" aria-hidden="true"><i class="fas fa-chevron-down"></i></span>
+          </button>
+          <div class="sgc-sat-combo__dropdown" (click)="$event.stopPropagation()">
+            <div class="sgc-sat-combo__dropdown-head">
+              <span class="sgc-sat-combo__dropdown-title"><i class="fas fa-building"></i> Empresas</span>
+              <span class="sgc-sat-combo__dropdown-count">{{ empresasDisponiblesSatCliente.length }}</span>
+            </div>
+            <div class="sgc-sat-combo__options">
+              <button type="button" class="sgc-sat-combo__option"
+                      [class.sgc-sat-combo__option--selected]="!filtroEmpresaSatCliente"
+                      (click)="seleccionarEmpresaSatCliente('', $event)">
+                <span class="sgc-sat-combo__option-icon" aria-hidden="true"><i class="fas fa-globe"></i></span>
+                <span class="sgc-sat-combo__option-text">Todas las empresas</span>
+                <span class="sgc-sat-combo__option-check" *ngIf="!filtroEmpresaSatCliente" aria-hidden="true"><i class="fas fa-check"></i></span>
+              </button>
+              <button type="button" class="sgc-sat-combo__option"
+                      *ngFor="let emp of empresasDisponiblesSatCliente; trackBy: trackByEmpresaSat"
+                      [class.sgc-sat-combo__option--selected]="filtroEmpresaSatCliente === emp"
+                      (click)="seleccionarEmpresaSatCliente(emp, $event)">
+                <span class="sgc-sat-combo__option-icon" aria-hidden="true"><i class="fas fa-building"></i></span>
+                <span class="sgc-sat-combo__option-text">{{ emp }}</span>
+                <span class="sgc-sat-combo__option-check" *ngIf="filtroEmpresaSatCliente === emp" aria-hidden="true"><i class="fas fa-check"></i></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button type="button"
+              class="sgc-sat-filtro-toggle sgc-sat-filtro-toggle--cliente"
+              [class.sgc-sat-filtro-toggle--active]="filtroNegativosSatCliente"
+              (click)="toggleFiltroNegativosSatCliente($event)"
+              [disabled]="!respuestasLiteSatCliente.length">
+        <i class="fas fa-filter" aria-hidden="true"></i>
+        Filtrar negativos
+      </button>
+    </div>
+    <div class="sgc-modal__body sgc-modal__body--preguntas">
+      <div class="sgc-sat-cap-preguntas-grid" *ngIf="preguntasChoiceSatisfaccion.length > 0">
+        <article class="sgc-sat-cap-pregunta-card sgc-sat-cap-pregunta-card--cliente" *ngFor="let pregunta of preguntasChoiceSatisfaccion">
+          <header class="sgc-sat-cap-pregunta-card__head">
+            <h3>{{ pregunta.title }}</h3>
+            <span class="sgc-sat-cap-pregunta-card__count">{{ pregunta.total_respuestas || 0 }} resp.</span>
+          </header>
+          <div class="sgc-sat-cap-opciones">
+            <div class="sgc-sat-cap-opcion" *ngFor="let opt of pregunta.options">
+              <div class="sgc-sat-cap-opcion__row">
+                <span class="sgc-sat-cap-opcion__label">{{ opt.label }}</span>
+                <span class="sgc-sat-cap-opcion__val">{{ opt.count || 0 }} · {{ opt.percent || 0 }}%</span>
+              </div>
+              <div class="sgc-sat-cap-opcion__bar">
+                <span [style.width.%]="opt.percent || 0" [style.background]="colorOpcionSatCliente(opt.label)"></span>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+      <div class="sgc-dash-empty sgc-dash-empty--modal" *ngIf="preguntasChoiceSatisfaccion.length === 0">
+        <i class="fas fa-chart-bar fa-2x mb-2"></i>
+        <p class="mb-0" *ngIf="filtroMesSatCliente != null || filtroEmpresaSatCliente || filtroNegativosSatCliente">
+          No hay respuestas con los filtros seleccionados.
+        </p>
+        <p class="mb-0" *ngIf="filtroMesSatCliente == null && !filtroEmpresaSatCliente && !filtroNegativosSatCliente">
+          No hay preguntas con respuestas para mostrar.
+        </p>
+      </div>
+    </div>
+    <div class="sgc-modal__foot">
+      <button type="button" class="sgc-btn-primary" (click)="cerrarPreguntasSatisfaccion()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-modal-overlay" *ngIf="mostrarHistogramaAud" (click)="cerrarHistogramaAud()">
+  <div class="sgc-modal sgc-modal--histograma-aud" (click)="$event.stopPropagation()">
+    <header class="sgc-modal__hero">
+      <div class="sgc-modal__hero-bg" aria-hidden="true"></div>
+      <div class="sgc-modal__hero-content">
+        <div class="sgc-modal__badge sgc-modal__badge--sat-cliente"><i class="fas fa-chart-bar"></i><span>SGC-F-10</span></div>
+        <div class="sgc-modal__hero-text">
+          <h2 class="sgc-modal__title">Histograma de NC</h2>
+          <p class="sgc-modal__subtitle">
+            NC menor y mayor por auditoría · {{ anioSeleccionado }}
+            · {{ auditorias.length }} auditoría{{ auditorias.length !== 1 ? 's' : '' }}
+          </p>
+        </div>
+        <button type="button" class="sgc-modal__close" (click)="cerrarHistogramaAud()" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+      </div>
+    </header>
+    <div class="sgc-modal__body sgc-modal__body--histograma">
+      <div class="sgc-histograma-legend" aria-hidden="true">
+        <span class="sgc-histograma-legend__item sgc-histograma-legend__item--menor"><i></i> NC menor</span>
+        <span class="sgc-histograma-legend__item sgc-histograma-legend__item--mayor"><i></i> NC mayor</span>
+      </div>
+      <div class="sgc-histograma-panel" *ngIf="auditorias.length > 0 && chartsReady">
+        <div class="sgc-chart-canvas-wrap sgc-chart-canvas-wrap--histograma">
+        <apx-chart
+          [series]="audNcHistogramaChart.series"
+          [chart]="audNcHistogramaChart.chart"
+          [xaxis]="audNcHistogramaChart.xaxis"
+          [yaxis]="audNcHistogramaChart.yaxis"
+          [colors]="audNcHistogramaChart.colors"
+          [plotOptions]="audNcHistogramaChart.plotOptions"
+          [dataLabels]="audNcHistogramaChart.dataLabels"
+          [stroke]="audNcHistogramaChart.stroke"
+          [fill]="audNcHistogramaChart.fill"
+          [grid]="audNcHistogramaChart.grid"
+          [legend]="audNcHistogramaChart.legend"
+          [tooltip]="audNcHistogramaChart.tooltip"
+        ></apx-chart>
+        </div>
+      </div>
+      <div class="sgc-dash-empty sgc-dash-empty--modal" *ngIf="auditorias.length === 0">
+        <i class="fas fa-chart-bar fa-2x mb-2"></i>
+        <p class="mb-0">No hay auditorías para graficar.</p>
+      </div>
+    </div>
+    <div class="sgc-modal__foot">
+      <button type="button" class="sgc-btn-primary" (click)="cerrarHistogramaAud()">Cerrar</button>
+    </div>
+  </div>
+</div>

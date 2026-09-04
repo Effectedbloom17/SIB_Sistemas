@@ -1,0 +1,1135 @@
+<!-- Header Estándar -->
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-folder-open"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">
+            Información General
+          </h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Contenedor Principal -->
+<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+
+      <!-- Barra del curso -->
+      <div class="course-bar">
+        <button class="btn-back" (click)="volverACursos()">
+          <i class="fas fa-arrow-left"></i>
+        </button>
+        <div class="course-bar-info">
+          <span class="course-bar-name">{{ cursoNombre || 'Información del Curso' }}</span>
+          <span class="course-bar-meta" *ngIf="vistaActual === 'documentos'">Gestión de documentos requeridos y carga de evidencias</span>
+          <span class="course-bar-meta" *ngIf="vistaActual !== 'documentos'">Consulta histórica de evidencias y entregables del curso</span>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════ -->
+      <!-- VISTA: Documentos                    -->
+      <!-- ═══════════════════════════════════ -->
+      <div *ngIf="vistaActual === 'documentos'" class="documents-view">
+
+        <div class="card main-card">
+
+          <div class="doc-header">
+            <div class="doc-header-left">
+              <h6 class="section-title">Gestión documental</h6>
+              <span class="doc-count">{{ documentos.length }} documento(s) requerido(s)</span>
+            </div>
+            <div class="doc-header-actions">
+              <button
+                class="btn-add btn-add-ghost"
+                (click)="agregarBasicosDelCurso()"
+                [disabled]="loading || documentosBasicosFaltantes.length === 0"
+                [title]="documentosBasicosFaltantes.length === 0 ? 'Basicos ya configurados' : 'Agregar basicos del curso'">
+                <i class="fas fa-bolt"></i> Agregar básicos del curso
+              </button>
+              <button class="btn-add btn-add-ghost" (click)="agregarBasicosATodosLosCursos()" [disabled]="loading">
+                <i class="fas fa-layer-group"></i> Agregar básicos a todos
+              </button>
+              <button class="btn-add" (click)="abrirModalNuevoDocumento()" [disabled]="loading">
+                <i class="fas fa-plus"></i> Asignar documento
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="loading && documentos.length === 0" class="empty-state">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Cargando documentos...</p>
+          </div>
+
+          <div *ngIf="!loading && documentos.length === 0" class="empty-state empty-state-docs">
+            <i class="fas fa-file-alt"></i>
+            <p>No hay documentos requeridos para este curso</p>
+            <span class="empty-state-caption">Asigna primero Evaluación Diagnóstico y Evaluación Final como base del expediente.</span>
+          </div>
+
+          <div class="empty-state empty-state-docs" *ngIf="!loading && documentos.length > 0 && documentosPrincipales.length === 0">
+            <i class="fas fa-exclamation-circle"></i>
+            <p>No hay documentos principales configurados</p>
+            <span class="empty-state-caption">Asigna Evaluación Diagnóstico y Evaluación Final desde el botón "Asignar documento".</span>
+          </div>
+
+          <div class="docs-section" *ngIf="documentosPrincipales.length > 0">
+            <div class="docs-section-head docs-section-head-basicos">
+              <h6 class="docs-section-title">Documentos principales</h6>
+              <span class="docs-section-subtitle">Max. 2 (diagnostico y final) con control automatico</span>
+            </div>
+
+            <div class="doc-grid doc-grid-compact doc-grid-basicos">
+            <article *ngFor="let doc of documentosPrincipales" class="doc-card doc-card-basico" [class.is-uploaded]="doc.estado === 'Subido'" [class.is-pending]="doc.estado !== 'Subido'">
+              <div class="doc-card-top">
+                <div class="doc-icon" [style.background]="getColorTipo(doc.tipo_aceptado?.split(',')[0] || 'PDF')">
+                  <i [class]="'fas ' + getIconoTipo(doc.tipo_aceptado?.split(',')[0] || 'PDF')"></i>
+                </div>
+
+                <span class="status-badge" [class.uploaded]="doc.estado === 'Subido'" [class.pending]="doc.estado !== 'Subido'">
+                  <i [class]="doc.estado === 'Subido' ? 'fas fa-check-circle' : 'fas fa-clock'"></i>
+                  {{ doc.estado }}
+                </span>
+              </div>
+
+              <div class="doc-card-body">
+                <h4 class="doc-card-title">{{ doc.documento_nombre || doc.nombre }}</h4>
+
+                <div class="doc-card-tags">
+                  <span *ngFor="let tipo of doc.tipo_aceptado?.split(',').slice(0,4)" class="format-tag">{{ tipo }}</span>
+                  <span *ngIf="doc.tipo_aceptado?.split(',').length > 4" class="format-tag format-more">
+                    +{{ doc.tipo_aceptado.split(',').length - 4 }}
+                  </span>
+                </div>
+
+                <div class="doc-card-summary">
+                  <div class="doc-summary-row" *ngIf="doc.fecha_subida">
+                    <span class="doc-summary-label">Última carga</span>
+                    <span class="doc-summary-value">{{ doc.fecha_subida | date: 'dd/MM/yyyy' }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="doc-card-actions">
+                <ng-container *ngIf="doc.estado !== 'Subido'">
+                  <button class="action-btn action-upload" (click)="subirArchivo(doc)" [disabled]="loading">
+                    <i class="fas fa-cloud-upload-alt"></i> Subir archivo
+                  </button>
+                  <button class="action-btn action-menu" (click)="toggleMenu(doc, $event)">
+                    <i class="fas fa-ellipsis-v"></i>
+                  </button>
+                </ng-container>
+
+                <ng-container *ngIf="doc.estado === 'Subido'">
+                  <ng-container *ngIf="esDocumentoWordSubido(doc); else accionesPrincipalesSubidoNoWord">
+                    <button class="action-btn action-edit" (click)="abrirEditorIntegradoDocumento(doc)" title="Editar en integrado">
+                      <i class="fas fa-pen"></i> Editar
+                    </button>
+                    <button class="action-btn action-change" (click)="cambiarArchivo(doc)" title="Cambiar archivo por seguridad">
+                      <i class="fas fa-shield-alt"></i> Cambiar archivo
+                    </button>
+                    <button class="action-btn action-replace" (click)="reemplazarArchivo(doc)" title="Reemplazar archivo">
+                      <i class="fas fa-sync-alt"></i> Reemplazar
+                    </button>
+                    <button class="action-btn action-drive" (click)="verEnDrive(doc)" title="Abrir en Drive">
+                      <i class="fas fa-external-link-alt"></i> Abrir en Drive
+                    </button>
+                  </ng-container>
+                  <ng-template #accionesPrincipalesSubidoNoWord>
+                    <button class="action-btn action-preview" (click)="previsualizarDocumento(doc)" title="Vista previa">
+                      <i class="fas fa-eye"></i> Ver
+                    </button>
+                    <button class="action-btn action-download" (click)="descargarDocumento(doc)" title="Descargar">
+                      <i class="fas fa-download"></i> Descargar
+                    </button>
+                    <button class="action-btn action-change" (click)="cambiarArchivo(doc)" title="Cambiar archivo por seguridad">
+                      <i class="fas fa-shield-alt"></i> Cambiar archivo
+                    </button>
+                    <button class="action-btn action-replace" (click)="reemplazarArchivo(doc)" title="Reemplazar archivo">
+                      <i class="fas fa-sync-alt"></i> Reemplazar
+                    </button>
+                  </ng-template>
+                  <button class="action-btn action-menu" (click)="toggleMenu(doc, $event)">
+                    <i class="fas fa-ellipsis-v"></i>
+                  </button>
+                </ng-container>
+              </div>
+            </article>
+            </div>
+          </div>
+
+          <div class="docs-section" *ngIf="documentosComplementarios.length > 0">
+            <div class="docs-section-head">
+              <h6 class="docs-section-title">Documentos complementarios</h6>
+              <span class="docs-section-subtitle">Requisitos adicionales del curso</span>
+            </div>
+
+            <div class="doc-grid doc-grid-compact">
+            <article *ngFor="let doc of documentosComplementarios" class="doc-card" [class.is-uploaded]="doc.estado === 'Subido'" [class.is-pending]="doc.estado !== 'Subido'">
+              <div class="doc-card-top">
+                <div class="doc-icon" [style.background]="getColorTipo(doc.tipo_aceptado?.split(',')[0] || 'PDF')">
+                  <i [class]="'fas ' + getIconoTipo(doc.tipo_aceptado?.split(',')[0] || 'PDF')"></i>
+                </div>
+
+                <span class="status-badge" [class.uploaded]="doc.estado === 'Subido'" [class.pending]="doc.estado !== 'Subido'">
+                  <i [class]="doc.estado === 'Subido' ? 'fas fa-check-circle' : 'fas fa-clock'"></i>
+                  {{ doc.estado }}
+                </span>
+              </div>
+
+              <div class="doc-card-body">
+                <h4 class="doc-card-title">{{ doc.documento_nombre || doc.nombre }}</h4>
+                <p class="doc-card-description">
+                  {{ doc.descripcion || 'Documento requerido para completar el expediente operativo del curso.' }}
+                </p>
+
+                <div class="doc-card-tags">
+                  <span *ngFor="let tipo of doc.tipo_aceptado?.split(',').slice(0,4)" class="format-tag">{{ tipo }}</span>
+                  <span *ngIf="doc.tipo_aceptado?.split(',').length > 4" class="format-tag format-more">
+                    +{{ doc.tipo_aceptado.split(',').length - 4 }}
+                  </span>
+                </div>
+
+                <div class="doc-card-summary">
+                  <div class="doc-summary-row" *ngIf="doc.fecha_subida">
+                    <span class="doc-summary-label">Última carga</span>
+                    <span class="doc-summary-value">{{ doc.fecha_subida | date: 'dd/MM/yyyy' }}</span>
+                  </div>
+                  <div class="doc-summary-row" *ngIf="doc.estado !== 'Subido'">
+                    <span class="doc-summary-label">Siguiente paso</span>
+                    <span class="doc-summary-value">Sube el archivo final para completar este requisito</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="doc-card-actions">
+                <ng-container *ngIf="doc.estado !== 'Subido'">
+                  <button class="action-btn action-upload" (click)="subirArchivo(doc)" [disabled]="loading">
+                    <i class="fas fa-cloud-upload-alt"></i> Subir archivo
+                  </button>
+                  <button class="action-btn action-menu" (click)="toggleMenu(doc, $event)">
+                    <i class="fas fa-ellipsis-v"></i>
+                  </button>
+                </ng-container>
+
+                <ng-container *ngIf="doc.estado === 'Subido'">
+                  <ng-container *ngIf="esDocumentoWordSubido(doc); else accionesComplementariosSubidoNoWord">
+                    <button class="action-btn action-edit" (click)="abrirEditorIntegradoDocumento(doc)" title="Editar en integrado">
+                      <i class="fas fa-pen"></i> Editar
+                    </button>
+                    <button class="action-btn action-change" (click)="cambiarArchivo(doc)" title="Cambiar archivo por seguridad">
+                      <i class="fas fa-shield-alt"></i> Cambiar archivo
+                    </button>
+                    <button class="action-btn action-replace" (click)="reemplazarArchivo(doc)" title="Reemplazar archivo">
+                      <i class="fas fa-sync-alt"></i> Reemplazar
+                    </button>
+                    <button class="action-btn action-drive" (click)="verEnDrive(doc)" title="Abrir en Drive">
+                      <i class="fas fa-external-link-alt"></i> Abrir en Drive
+                    </button>
+                  </ng-container>
+                  <ng-template #accionesComplementariosSubidoNoWord>
+                    <button class="action-btn action-preview" (click)="previsualizarDocumento(doc)" title="Vista previa">
+                      <i class="fas fa-eye"></i> Ver
+                    </button>
+                    <button class="action-btn action-download" (click)="descargarDocumento(doc)" title="Descargar">
+                      <i class="fas fa-download"></i> Descargar
+                    </button>
+                    <button class="action-btn action-change" (click)="cambiarArchivo(doc)" title="Cambiar archivo por seguridad">
+                      <i class="fas fa-shield-alt"></i> Cambiar archivo
+                    </button>
+                    <button class="action-btn action-replace" (click)="reemplazarArchivo(doc)" title="Reemplazar archivo">
+                      <i class="fas fa-sync-alt"></i> Reemplazar
+                    </button>
+                  </ng-template>
+                  <button class="action-btn action-menu" (click)="toggleMenu(doc, $event)">
+                    <i class="fas fa-ellipsis-v"></i>
+                  </button>
+                </ng-container>
+              </div>
+            </article>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════ -->
+      <!-- VISTA: Historial                     -->
+      <!-- ═══════════════════════════════════ -->
+      <div *ngIf="vistaActual === 'historial'" class="card main-card">
+
+        <!-- Barra de búsqueda -->
+        <div class="search-bar">
+          <div class="search-input-wrap">
+            <i class="fas fa-search search-icon"></i>
+            <input class="search-input" type="text" placeholder="Buscar por empresa o lugar..."
+                   [(ngModel)]="filtroNombreHistorial" (input)="filtrarPorNombre()">
+          </div>
+          <select class="filter-select" [(ngModel)]="anoSeleccionado" (change)="filtrarPorAno()">
+            <option [value]="0">Todos los años</option>
+            <option *ngFor="let ano of anosFiltro" [value]="ano">{{ ano }}</option>
+          </select>
+        </div>
+
+        <!-- Cargando -->
+        <div *ngIf="loadingHistorial" class="empty-state">
+          <i class="fas fa-spinner fa-spin"></i>
+          <p>Cargando historial de cursos completados...</p>
+        </div>
+
+        <!-- Lista de historial -->
+        <div class="historial-list" *ngIf="!loadingHistorial && historialFiltrado.length > 0">
+          <div *ngFor="let curso of historialFiltrado" class="historial-entry">
+            <div class="historial-item" (click)="abrirDetalleCurso(curso)">
+              <div class="historial-col-main">
+                <span class="avatar-circle">
+                  <i class="fas fa-building"></i>
+                </span>
+                <div class="historial-info">
+                  <span class="historial-name">{{ curso.empresa }}</span>
+                  <span class="historial-sub">{{ curso.participantes }} participantes · {{ curso.instructor }}</span>
+                </div>
+              </div>
+              <div class="historial-meta-grid">
+                <span class="historial-date">
+                  <i class="fas fa-calendar-alt"></i>
+                  {{ curso.fechaCurso | fechaCurso:'cursoEs' }}
+                </span>
+                <span class="historial-lugar">
+                  <i class="fas fa-map-marker-alt"></i>
+                  {{ curso.lugar }}
+                </span>
+              </div>
+              <div class="historial-footer">
+                <div class="historial-status">
+                  <span class="status-dot" [style.background]="'#059669'"></span>
+                  <span class="status-label">Completado</span>
+                </div>
+                <div class="historial-expand">
+                  Ver detalle <i class="fas fa-chevron-right"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Vacío -->
+        <div *ngIf="!loadingHistorial && historialFiltrado.length === 0" class="empty-state">
+          <i class="fas fa-calendar-times"></i>
+          <p>No hay cursos completados {{ anoSeleccionado ? 'para el año ' + anoSeleccionado : '' }}</p>
+        </div>
+
+      </div>
+
+      <!-- ═══════════════════════════════════ -->
+      <!-- VISTA: Detalle de Curso (Dashboard)  -->
+      <!-- ═══════════════════════════════════ -->
+      <div *ngIf="vistaActual === 'historial-detalle' && cursoSeleccionado" class="detalle-dashboard">
+
+        <!-- Header del detalle -->
+        <div class="card main-card detalle-curso-card" style="margin-bottom: 0.75rem;">
+          <div class="detalle-header">
+            <div class="detalle-header-info">
+              <h5 class="detalle-empresa">{{ cursoSeleccionado.empresa }}</h5>
+              <span class="detalle-curso-nombre">{{ cursoNombre }}</span>
+            </div>
+            <div class="detalle-header-actions">
+              <div class="detalle-badge">
+                <span class="status-dot" [style.background]="'#059669'"></span>
+                <span>Completado</span>
+              </div>
+              <button
+                type="button"
+                class="btn-reabrir-capacitacion"
+                *ngIf="esPerfilAdmin"
+                [disabled]="reabrirCapacitacionEnProceso"
+                (click)="reabrirCapacitacion(); $event.stopPropagation()"
+                aria-label="Reabrir capacitación">
+                <i
+                  class="fas btn-reabrir-capacitacion__icon"
+                  [ngClass]="reabrirCapacitacionEnProceso ? 'fa-spinner fa-spin' : 'fa-redo-alt'"></i>
+                <span class="btn-reabrir-capacitacion__label">Reabrir Capacitación</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Resumen del curso -->
+          <div class="detalle-resumen">
+            <div class="resumen-item">
+              <i class="fas fa-calendar-alt"></i>
+              <div>
+                <span class="resumen-label">Fecha</span>
+                <span class="resumen-value">{{ cursoSeleccionado.fechaCurso | fechaCurso }}</span>
+              </div>
+            </div>
+            <div class="resumen-item">
+              <i class="fas fa-chalkboard-teacher"></i>
+              <div>
+                <span class="resumen-label">Instructor</span>
+                <span class="resumen-value">{{ cursoSeleccionado.instructor }}</span>
+              </div>
+            </div>
+            <div class="resumen-item">
+              <i class="fas fa-users"></i>
+              <div>
+                <span class="resumen-label">Participantes</span>
+                <span class="resumen-value">{{ cursoSeleccionado.participantes }}</span>
+              </div>
+            </div>
+            <div class="resumen-item">
+              <i class="fas fa-map-marker-alt"></i>
+              <div>
+                <span class="resumen-label">Ubicación</span>
+                <span class="resumen-value">{{ cursoSeleccionado.lugar }}</span>
+              </div>
+            </div>
+            <div class="resumen-item">
+              <i class="fas fa-laptop"></i>
+              <div>
+                <span class="resumen-label">Modalidad</span>
+                <span class="resumen-value">{{ cursoSeleccionado.modalidad }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cargando Drive -->
+        <div *ngIf="cursoSeleccionado.cargandoDrive" class="card main-card" style="margin-bottom: 0.75rem;">
+          <div class="docs-loading">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Cargando documentos de Drive...</span>
+          </div>
+        </div>
+
+        <!-- Sin documentos -->
+        <div *ngIf="!cursoSeleccionado.cargandoDrive && cursoSeleccionado.seccionesHistorial && cursoSeleccionado.seccionesHistorial.length === 0" class="card main-card">
+          <div class="docs-empty">
+            <i class="fas fa-folder-open"></i>
+            <span>No se encontraron documentos en la carpeta de Drive</span>
+          </div>
+        </div>
+
+        <div *ngIf="!cursoSeleccionado.cargandoDrive && cursoSeleccionado.seccionesHistorial && cursoSeleccionado.seccionesHistorial.length > 0" class="history-detail-stack">
+          <div class="card main-card history-search-card">
+            <div class="history-search-head">
+              <div class="history-search-title-wrap">
+                <h6 class="history-search-title">Buscador de documentos</h6>
+                <span class="history-search-subtitle">Consulta rápida por nombre, tipo o fecha</span>
+              </div>
+              <span class="history-search-total">
+                {{ getTotalArchivosFiltradosHistorial(cursoSeleccionado) }} / {{ getTotalArchivosHistorial(cursoSeleccionado) }}
+              </span>
+            </div>
+
+            <div class="history-search-controls">
+              <div class="history-search-input-wrap">
+                <i class="fas fa-search history-search-icon"></i>
+                <input
+                  type="text"
+                  class="history-search-input"
+                  [(ngModel)]="filtroDocumentoHistorial"
+                  (input)="onBusquedaDocumentosHistorialChange()"
+                  placeholder="Buscar archivo (ej. examen, constancia, pdf, 2026)"
+                >
+              </div>
+
+              <select class="history-search-select" [(ngModel)]="seccionFiltroHistorial" (change)="onFiltroSeccionHistorialChange()">
+                <option value="todos">Todos los apartados</option>
+                <option *ngFor="let seccion of getSeccionesDisponiblesHistorial(cursoSeleccionado)" [value]="seccion.key">
+                  {{ seccion.nombre }}
+                </option>
+              </select>
+
+              <button type="button" class="history-search-clear" (click)="limpiarBusquedaDocumentosHistorial()">
+                <i class="fas fa-times"></i> Limpiar
+              </button>
+            </div>
+          </div>
+
+          <div class="card main-card history-explorer-card" *ngIf="getSeccionesFiltradasHistorial(cursoSeleccionado).length > 0">
+            <div class="history-explorer-layout">
+              <aside class="history-sections-sidebar">
+                <div class="history-sidebar-list">
+                  <button
+                    type="button"
+                    *ngFor="let seccion of getSeccionesFiltradasHistorial(cursoSeleccionado)"
+                    class="history-sidebar-item"
+                    [class.active]="getSeccionActivaHistorial(cursoSeleccionado)?.key === seccion.key"
+                    (click)="setSeccionActivaHistorial(seccion.key)"
+                  >
+                    <span class="history-sidebar-item-left">
+                      <span class="history-sidebar-icon" [style.background]="seccion.color">
+                        <i class="fas" [ngClass]="seccion.icono"></i>
+                      </span>
+                      <span class="history-sidebar-title">{{ seccion.nombre }}</span>
+                    </span>
+                    <span class="history-sidebar-count">{{ getTotalArchivosFiltradosSeccion(seccion) }}</span>
+                  </button>
+                </div>
+              </aside>
+
+              <section class="history-active-panel" *ngIf="getSeccionActivaHistorial(cursoSeleccionado) as seccionActiva">
+                <div class="history-active-header">
+                  <h6 class="history-active-title">{{ seccionActiva.nombre }}</h6>
+                  <span class="history-active-meta">{{ getArchivosSeccionActivaHistorial(cursoSeleccionado).length }} archivo(s)</span>
+                </div>
+
+                <div class="history-section-files">
+                  <ng-container *ngFor="let grupo of getGruposArchivosSeccionActivaHistorial(cursoSeleccionado); let i = index">
+                    <div class="history-group-separator" [class.history-group-separator-first]="i === 0">
+                      <span class="history-group-title">{{ grupo.titulo }}</span>
+                      <span class="history-group-count">{{ grupo.archivos.length }} archivo(s)</span>
+                    </div>
+
+                    <div class="history-files-table-head">
+                      <span class="col-file">Archivo</span>
+                      <span class="col-date">Fecha</span>
+                      <span class="col-size">Tamaño</span>
+                      <span class="col-actions">Acciones</span>
+                    </div>
+
+                    <div *ngFor="let archivo of grupo.archivos" class="history-file-row history-file-row-compact" (click)="abrirArchivoHistorial(archivo)">
+                      <div class="history-file-main">
+                        <div class="drive-file-icon drive-file-icon-sm" [style.background]="getColorArchivoDrive(archivo.mimeType)">
+                          <i [class]="'fas ' + getIconoArchivoDrive(archivo.mimeType)"></i>
+                        </div>
+                        <span class="history-file-name" title="{{ archivo.nombre }}" [innerHTML]="getNombreArchivoResaltado(archivo.nombre)"></span>
+                      </div>
+                      <div class="history-file-date">{{ archivo.fechaModificacion | date: 'dd/MM/yy' }}</div>
+                      <div class="history-file-size">{{ archivo.size ? formatearTamanoDrive(archivo.size) : '—' }}</div>
+                      <div class="history-file-actions">
+                        <button class="action-btn action-preview" (click)="abrirArchivoHistorial(archivo, $event)" title="Ver">
+                          <i class="fas fa-eye"></i>
+                        </button>
+                        <button
+                          *ngIf="esExcelEditableHistorial(archivo)"
+                          class="action-btn action-edit"
+                          (click)="abrirEditorExcelHistorial(archivo, $event)"
+                          [title]="archivo.descripcion === 'informe_final_oficial' ? 'Abrir editor del informe' : 'Abrir editor del Excel'">
+                          <i class="fas fa-pen"></i>
+                        </button>
+                        <button
+                          class="action-btn action-download"
+                          (click)="descargarArchivoHistorial(archivo, $event)"
+                          [title]="esExcelEditableHistorial(archivo) ? 'Descargar .xlsx' : 'Descargar'">
+                          <i class="fas fa-download"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </ng-container>
+                </div>
+
+                <div *ngIf="debeMostrarToggleConstancias(cursoSeleccionado)" class="history-individuales-actions history-individuales-actions--constancias">
+                  <button type="button" class="history-constancias-toggle history-toggle-ver" (click)="toggleConstanciasIndividuales()">
+                    <i class="fas" [ngClass]="mostrarConstanciasIndividuales ? 'fa-eye-slash' : 'fa-eye'"></i>
+                    {{ mostrarConstanciasIndividuales ? 'Ocultar' : 'Ver' }} individuales ({{ getTotalConstanciasIndividuales(cursoSeleccionado) }})
+                  </button>
+                  <div class="history-zip-actions">
+                    <button
+                      type="button"
+                      class="history-zip-icon-btn history-zip-btn--constancias"
+                      [disabled]="descargandoZipIndividuales"
+                      (click)="descargarZipIndividuales('constancias')">
+                      <i class="fas fa-file-archive"></i>
+                      <span class="history-zip-label">Descargar Constancias Individuales</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="history-zip-icon-btn history-zip-btn--ambos"
+                      [disabled]="descargandoZipIndividuales"
+                      (click)="descargarZipIndividuales('ambos')">
+                      <i class="fas fa-folder-plus"></i>
+                      <span class="history-zip-label">Descargar DC-3 y Constancias</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div *ngIf="debeMostrarToggleDc3(cursoSeleccionado)" class="history-individuales-actions history-individuales-actions--dc3">
+                  <button type="button" class="history-constancias-toggle history-toggle-ver" (click)="toggleDc3Individuales()">
+                    <i class="fas" [ngClass]="mostrarDc3Individuales ? 'fa-eye-slash' : 'fa-eye'"></i>
+                    {{ mostrarDc3Individuales ? 'Ocultar' : 'Ver' }} individuales ({{ getTotalDc3Individuales(cursoSeleccionado) }})
+                  </button>
+                  <div class="history-zip-actions">
+                    <button
+                      type="button"
+                      class="history-zip-icon-btn history-zip-btn--dc3"
+                      [disabled]="descargandoZipIndividuales"
+                      (click)="descargarZipIndividuales('dc3')">
+                      <i class="fas fa-file-archive"></i>
+                      <span class="history-zip-label">Descargar DC-3 Individuales</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="history-zip-icon-btn history-zip-btn--ambos"
+                      [disabled]="descargandoZipIndividuales"
+                      (click)="descargarZipIndividuales('ambos')">
+                      <i class="fas fa-folder-plus"></i>
+                      <span class="history-zip-label">Descargar DC-3 y Constancias</span>
+                    </button>
+                  </div>
+                </div>
+
+                <button *ngIf="seccionActiva.key !== 'constancias' && seccionActiva.key !== 'dc3' && getArchivosSeccionActivaHistorial(cursoSeleccionado).length > 8" type="button" class="history-more-btn" (click)="toggleCarpeta(seccionActiva.key)">
+                  {{ esCarpetaExpandida(seccionActiva.key) ? 'Mostrar menos' : 'Ver ' + getArchivosOcultosSeccionActivaHistorial(cursoSeleccionado) + ' archivo(s) más' }}
+                </button>
+              </section>
+            </div>
+          </div>
+
+          <div class="card main-card" *ngIf="getSeccionesFiltradasHistorial(cursoSeleccionado).length === 0">
+            <div class="empty-state history-hint-state">
+              <i class="fas fa-search"></i>
+              <p>No se encontraron documentos con ese criterio</p>
+            </div>
+          </div>
+
+          <!-- Panel de Entrega de Documentos (SP-F-03) en Anexos -->
+          <div class="card main-card entrega-doc-historial-card" *ngIf="!esPerfilEmpresa">
+            <div class="entrega-doc-historial-header">
+              <div class="entrega-doc-historial-icon" [ngClass]="tieneEntregaDocumentos(cursoSeleccionado) ? 'entrega-doc-historial-icon--ok' : 'entrega-doc-historial-icon--alerta'">
+                <i class="fas" [ngClass]="tieneEntregaDocumentos(cursoSeleccionado) ? 'fa-file-signature' : 'fa-exclamation-triangle'"></i>
+              </div>
+              <div class="entrega-doc-historial-title-wrap">
+                <span class="entrega-doc-historial-title">Entrega de Documentos (SP-F-03)</span>
+                <span class="entrega-doc-historial-subtitle">Documento firmado por la empresa · Se guarda en <strong>Anexos</strong></span>
+              </div>
+              <span *ngIf="!tieneEntregaDocumentos(cursoSeleccionado)" class="badge badge-pill badge-danger entrega-doc-historial-badge">
+                <i class="fas fa-exclamation-triangle mr-1"></i>PENDIENTE
+              </span>
+              <span *ngIf="tieneEntregaDocumentos(cursoSeleccionado)" class="badge badge-pill badge-success entrega-doc-historial-badge">
+                <i class="fas fa-check mr-1"></i>SUBIDO
+              </span>
+            </div>
+
+            <div class="entrega-doc-historial-body">
+              <input #fileInputAgregarEntregaDocHistorial type="file" accept="application/pdf,image/jpeg,image/png" style="display:none"
+                [disabled]="entregaDocHistorialSubiendo" (change)="onAgregarEntregaDocHistorialSeleccionado($event)">
+
+              <!-- Ya subido: lista de anexos -->
+              <div *ngIf="tieneEntregaDocumentos(cursoSeleccionado)" class="entrega-doc-historial-ok">
+                <div class="entrega-doc-historial-ok__intro">
+                  <i class="fas fa-check-circle" style="color: #2dce89; font-size: 1.4rem;"></i>
+                  <span>
+                    {{ getEntregaDocumentosHistorial(cursoSeleccionado).length }} anexo(s) SP-F-03 registrado(s).
+                    Puedes verlos en la sección <strong>Anexos</strong> del explorador.
+                  </span>
+                </div>
+
+                <ul class="entrega-doc-historial-files">
+                  <li class="entrega-doc-historial-files__item" *ngFor="let doc of getEntregaDocumentosHistorial(cursoSeleccionado)">
+                    <div class="entrega-doc-historial-files__info">
+                      <i class="fas fa-file-alt" style="color: #38512F;"></i>
+                      <span class="entrega-doc-historial-files__name" [title]="doc.nombre_archivo">{{ doc.nombre_archivo }}</span>
+                      <small *ngIf="doc.fecha_subida" class="text-muted">{{ doc.fecha_subida | date:'dd/MM/yy HH:mm' }}</small>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger entrega-doc-historial-delete-btn"
+                      (click)="eliminarEntregaDocHistorial(doc)"
+                      [disabled]="entregaDocHistorialSubiendo || entregaDocHistorialEliminandoId === doc.documento_prog_id"
+                      title="Eliminar de Drive y base de datos">
+                      <i class="fas" [ngClass]="entregaDocHistorialEliminandoId === doc.documento_prog_id ? 'fa-spinner fa-spin' : 'fa-trash-alt'"></i>
+                      Eliminar
+                    </button>
+                  </li>
+                </ul>
+
+                <div class="entrega-doc-historial-ok__actions">
+                  <button type="button" class="btn btn-sm entrega-doc-historial-change-btn" (click)="fileInputAgregarEntregaDocHistorial.click()"
+                    [disabled]="entregaDocHistorialSubiendo">
+                    <i class="fas fa-plus mr-1"></i>Agregar archivo
+                  </button>
+                </div>
+              </div>
+
+              <!-- Pendiente: zona de carga -->
+              <ng-container *ngIf="!tieneEntregaDocumentos(cursoSeleccionado)">
+                <div class="entrega-doc-historial-alerta">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  <span>Falta subir el documento firmado de Entrega de Documentos (SP-F-03). Sube el archivo aquí para mantener el expediente completo.</span>
+                </div>
+
+                <p class="small text-muted mb-3 mt-3">
+                  <i class="fas fa-info-circle mr-1" style="color: #768d6b;"></i>
+                  Formatos aceptados: <strong>PDF, JPG o PNG</strong> (máx. 10 MB).
+                </p>
+
+                <!-- Archivo ya seleccionado -->
+                <div *ngIf="entregaDocHistorialArchivo" class="entrega-doc-historial-pending">
+                  <div class="entrega-doc-historial-pending__info">
+                    <i class="fas fa-file-alt" style="color: #38512F; font-size: 1.2rem;"></i>
+                    <span class="entrega-doc-historial-pending__name" [title]="entregaDocHistorialArchivo.name">{{ entregaDocHistorialArchivo.name }}</span>
+                    <small class="text-muted">{{ formatearTamanoEntregaDoc(entregaDocHistorialArchivo.size) }}</small>
+                  </div>
+                  <div class="entrega-doc-historial-pending__actions">
+                    <button class="btn btn-sm btn-success shadow" (click)="iniciarSubidaEntregaDocHistorial()"
+                      [disabled]="entregaDocHistorialSubiendo"
+                      style="background: linear-gradient(135deg, #38512F 0%, #5a7456 100%); border: none;">
+                      <i class="fas" [ngClass]="entregaDocHistorialSubiendo ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'"></i>
+                      {{ entregaDocHistorialSubiendo ? ' Subiendo...' : ' Subir a Drive' }}
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" (click)="cancelarEntregaDocHistorial()"
+                      [disabled]="entregaDocHistorialSubiendo">
+                      <i class="fas fa-times mr-1"></i>Cancelar
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Drop zone -->
+                <div *ngIf="!entregaDocHistorialArchivo" class="drop-zone entrega-doc-historial-dropzone"
+                  [class.dragging]="entregaDocHistorialArrastrando"
+                  [class.is-disabled]="entregaDocHistorialSubiendo"
+                  (dragover)="onDragOverEntregaDocHistorial($event)"
+                  (dragleave)="onDragLeaveEntregaDocHistorial($event)"
+                  (drop)="onDropEntregaDocHistorial($event)"
+                  (click)="!entregaDocHistorialSubiendo && fileInputEntregaDocHistorial.click()">
+                  <input #fileInputEntregaDocHistorial type="file" accept="application/pdf,image/jpeg,image/png" style="display:none"
+                    [disabled]="entregaDocHistorialSubiendo" (change)="onEntregaDocHistorialSeleccionado($event)">
+                  <i class="fas fa-cloud-upload-alt fa-2x mb-2 lista-fisica-drop-zone__icon"></i>
+                  <p class="mb-1 font-weight-600 small">Arrastra el archivo aquí o haz clic</p>
+                  <small class="text-muted">PDF, JPG o PNG</small>
+                </div>
+              </ng-container>
+            </div>
+          </div>
+
+          <div class="card main-card dash-card dash-card-encuesta" *ngIf="!esPerfilEmpresa">
+            <div class="dash-card-header">
+              <div class="dash-card-icon" style="background: rgba(94,114,228,0.1); color: #5e72e4;">
+                <i class="fas fa-poll"></i>
+              </div>
+              <div class="dash-card-title-wrap">
+                <span class="dash-card-title">Resultados de Encuesta</span>
+                <span class="dash-card-count" *ngIf="detalleEncuestaStats">{{ detalleEncuestaStats.total_respuestas || 0 }} respuestas</span>
+              </div>
+            </div>
+
+            <!-- Cargando -->
+            <div *ngIf="loadingDetalleEncuesta" class="dash-encuesta-loading">
+              <i class="fas fa-spinner fa-spin"></i> Cargando encuesta...
+            </div>
+
+            <!-- Sin encuesta -->
+            <div *ngIf="!loadingDetalleEncuesta && !detalleEncuestaStats" class="dash-encuesta-empty">
+              <i class="fas fa-poll"></i>
+              <span>No hay encuesta disponible para este curso</span>
+            </div>
+
+            <!-- Resultados con gráficas -->
+            <div *ngIf="!loadingDetalleEncuesta && detalleEncuestaStats" class="dash-encuesta-content">
+              <div *ngIf="detalleEncuestaStats.total_respuestas === 0" class="dash-encuesta-empty">
+                <i class="fas fa-inbox"></i>
+                <span>Sin respuestas registradas</span>
+              </div>
+
+              <div *ngIf="detalleEncuestaStats.total_respuestas > 0" class="dash-encuesta-questions">
+                <div *ngFor="let pregunta of detalleEncuestaStats.preguntas; let i = index" class="dash-encuesta-q">
+
+                  <!-- Choice: pie chart inline -->
+                  <div *ngIf="pregunta.type === 'choice'" class="dash-encuesta-choice">
+                    <span class="dash-encuesta-q-title">{{ pregunta.title }}</span>
+                    <div class="dash-encuesta-chart-row">
+                      <div class="dash-encuesta-pie-wrap">
+                        <apx-chart *ngIf="detalleEncuestaPieOptions[i]"
+                                   [series]="detalleEncuestaPieOptions[i].series"
+                                   [chart]="detalleEncuestaPieOptions[i].chart"
+                                   [labels]="detalleEncuestaPieOptions[i].labels"
+                                   [colors]="detalleEncuestaPieOptions[i].colors"
+                                   [legend]="detalleEncuestaPieOptions[i].legend"
+                                   [dataLabels]="detalleEncuestaPieOptions[i].dataLabels"
+                                   [stroke]="detalleEncuestaPieOptions[i].stroke"
+                                   [tooltip]="detalleEncuestaPieOptions[i].tooltip"></apx-chart>
+                      </div>
+                      <div class="dash-encuesta-legend">
+                        <div *ngFor="let opt of pregunta.options; let j = index" class="encuesta-legend-item">
+                          <span class="encuesta-legend-dot" [style.background]="getEncuestaColor(j)"></span>
+                          <span class="encuesta-legend-label">{{ opt.label }}</span>
+                          <span class="encuesta-legend-count">{{ opt.count }} ({{ opt.percent }}%)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Text: muestras -->
+                  <div *ngIf="pregunta.type === 'text'" class="dash-encuesta-text">
+                    <span class="dash-encuesta-q-title">{{ pregunta.title }}</span>
+                    <div class="dash-encuesta-text-list">
+                      <div *ngFor="let m of pregunta.muestras_texto" class="encuesta-text-item">
+                        <i class="fas fa-quote-left"></i>
+                        <span>{{ m }}</span>
+                      </div>
+                      <div *ngIf="!pregunta.muestras_texto?.length" class="encuesta-text-empty">Sin respuestas</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Dropdown flotante (fuera del scroll) -->
+      <div class="dropdown-fixed" *ngIf="menuDocActual"
+           [style.top.px]="menuPosition.top"
+           [style.left.px]="menuPosition.left"
+           (click)="$event.stopPropagation()">
+        <div class="dropdown-fixed-header">
+          <span class="dropdown-fixed-name">{{ menuDocActual.documento_nombre || menuDocActual.nombre }}</span>
+        </div>
+        <button class="dropdown-item dropdown-danger" *ngIf="menuDocActual.estado === 'Subido'" (click)="eliminarSoloArchivo(menuDocActual); cerrarMenus()">
+          <i class="fas fa-times-circle"></i> Eliminar archivo
+        </button>
+        <div class="dropdown-sep" *ngIf="menuDocActual.estado === 'Subido'"></div>
+        <button class="dropdown-item dropdown-danger" (click)="eliminarDocumento(menuDocActual); cerrarMenus()">
+          <i class="fas fa-trash-alt"></i> Eliminar documento
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- Modal Editor Integrado para Word            -->
+<!-- ═══════════════════════════════════════════ -->
+<div *ngIf="mostrarEditorDocumentoWord"
+     class="modal fade show d-block history-viewer-modal"
+     tabindex="-1"
+     style="background-color: rgba(0, 0, 0, 0.82); z-index: 9999; position: fixed; top: 0; left: 0; width: 100%; height: 100%;">
+  <div class="modal-dialog modal-dialog-centered modal-xl history-viewer-dialog">
+    <div class="modal-content shadow-lg border-0 history-viewer-content">
+
+      <div class="modal-header history-viewer-header">
+        <h5 class="modal-title text-white font-weight-bold text-truncate history-viewer-title">
+          <i class="fas fa-file-word mr-2"></i>{{ nombreEditorDocumentoWord }}
+        </h5>
+        <div class="d-flex align-items-center history-viewer-actions">
+          <button type="button" class="btn btn-sm btn-light mr-2" (click)="abrirEditorDocumentoWordEnNuevaPestana()">
+            <i class="fas fa-external-link-alt mr-1"></i>Abrir en pestaña nueva
+          </button>
+          <button type="button" class="close text-white ml-2" (click)="cerrarEditorDocumentoWord()" style="opacity: 1; text-shadow: none; font-size: 2rem;">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-body p-0 position-relative history-viewer-body">
+        <div *ngIf="cargandoEditorDocumentoWord"
+             class="position-absolute w-100 h-100 d-flex align-items-center justify-content-center history-viewer-loading"
+             style="z-index: 10; background: rgba(255,255,255,0.92);">
+          <div class="text-center">
+            <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+            <p class="text-muted mt-2 mb-0">Cargando editor integrado...</p>
+          </div>
+        </div>
+
+        <iframe *ngIf="urlEditorDocumentoWord"
+                [src]="urlEditorDocumentoWord | safe"
+                (load)="onEditorDocumentoWordLoad()"
+                style="width: 100%; height: 100%; border: none;"
+                title="Editor Integrado Word">
+        </iframe>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- Modal Editor Integrado Excel (Google Sheets) -->
+<!-- ═══════════════════════════════════════════ -->
+<div *ngIf="mostrarEditorExcelHistorial"
+     class="timeline-editor-fullscreen"
+     role="dialog"
+     aria-modal="true"
+     aria-label="Editor integrado en pantalla completa">
+  <div class="timeline-editor-fullscreen__backdrop" (click)="cerrarEditorExcelHistorial()"></div>
+  <div class="timeline-editor-fullscreen__panel">
+    <div class="timeline-editor-fullscreen__head">
+      <div class="timeline-editor-fullscreen__title-wrap">
+        <span class="timeline-editor-fullscreen__icon">
+          <i class="fas fa-file-excel"></i>
+        </span>
+        <div>
+          <strong class="timeline-editor-fullscreen__title">{{ tituloEditorExcelHistorial }}</strong>
+          <small class="timeline-editor-fullscreen__subtitle">{{ subtituloEditorExcelHistorial || nombreEditorExcelHistorial }}</small>
+        </div>
+      </div>
+      <div class="timeline-editor-fullscreen__actions">
+        <button type="button" class="btn btn-sm btn-outline-light" (click)="abrirEditorExcelHistorialEnNuevaPestana()">
+          <i class="fas fa-external-link-alt mr-1"></i>Abrir en pestaña nueva
+        </button>
+        <button type="button" class="btn btn-sm btn-light" (click)="cerrarEditorExcelHistorial()">
+          <i class="fas fa-times mr-1"></i>Volver al formulario
+        </button>
+      </div>
+    </div>
+    <div class="timeline-editor-fullscreen__body">
+      <div *ngIf="cargandoEditorExcelHistorial"
+           class="position-absolute w-100 h-100 d-flex align-items-center justify-content-center"
+           style="z-index: 10; background: rgba(255,255,255,0.92);">
+        <div class="text-center">
+          <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+          <p class="text-muted mt-2 mb-0">Cargando editor integrado...</p>
+        </div>
+      </div>
+      <iframe *ngIf="urlEditorExcelHistorial"
+              class="timeline-editor-fullscreen__iframe"
+              [src]="urlEditorExcelHistorial | safe"
+              (load)="onEditorExcelHistorialLoad()"
+              allow="clipboard-read; clipboard-write"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-popups-to-escape-sandbox"
+              title="Editor integrado (Google Sheets)"
+              loading="lazy">
+      </iframe>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- Modal para Crear Documento Requerido        -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="modal fade" [class.show]="mostrarModalDocumento" [style.display]="mostrarModalDocumento ? 'block' : 'none'"
+     tabindex="-1" role="dialog" style="background-color: rgba(0,0,0,0.5);">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content modal-card">
+
+      <div class="modal-header modal-header-custom" style="border: none;">
+        <h5 class="modal-title text-white font-weight-bold">
+          <i class="fas fa-file-medical mr-2"></i>Nuevo Documento
+        </h5>
+        <button type="button" class="close text-white" (click)="cerrarModalDocumento()" style="opacity: 1;">
+          <span>&times;</span>
+        </button>
+      </div>
+
+      <div class="modal-body" style="padding: 1.5rem;">
+        <form>
+          <div class="modal-field">
+            <label class="modal-label">Nombre</label>
+            <input type="text" class="modal-input" [(ngModel)]="documentoForm.nombre"
+                   name="nombre" placeholder="Ej: Evaluación Diagnóstico / Evaluación Final / Lista de asistencia...">
+          </div>
+
+          <div class="modal-field">
+            <label class="modal-label">Descripción <span class="label-optional">(opcional)</span></label>
+            <textarea class="modal-input" rows="2" [(ngModel)]="documentoForm.descripcion"
+                      name="descripcion" placeholder="Breve descripción del documento"></textarea>
+          </div>
+
+          <div class="modal-field">
+            <label class="modal-label">Formatos aceptados</label>
+            <div class="format-grid">
+              <div *ngFor="let cat of categoriasArchivo"
+                   class="format-card"
+                   [class.selected]="cat.checked"
+                   (click)="cat.checked = !cat.checked">
+                <div class="format-card-icon" [style.color]="cat.checked ? cat.color : '#9ca3af'">
+                  <i [class]="'fas ' + cat.icono"></i>
+                </div>
+                <span class="format-card-name">{{ cat.nombre }}</span>
+                <span class="format-card-exts">{{ cat.formatos.join(', ') }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="toggle-row" [class.active]="aplicarATodosLosCursos"
+               (click)="aplicarATodosLosCursos = !aplicarATodosLosCursos">
+            <div class="toggle-row-icon">
+              <i class="fas fa-layer-group"></i>
+            </div>
+            <div class="toggle-row-text">
+              <span class="toggle-row-title">Aplicar a todos los cursos</span>
+              <span class="toggle-row-desc">Si se activa, este documento se asignará globalmente al catálogo de cursos</span>
+            </div>
+            <div class="toggle-switch" [class.on]="aplicarATodosLosCursos">
+              <div class="toggle-knob"></div>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer border-0" style="padding: 0 1.5rem 1.5rem;">
+        <button type="button" class="btn-cancel" (click)="cerrarModalDocumento()">Cancelar</button>
+        <button type="button" class="btn-add" (click)="guardarDocumentoRequerido()" [disabled]="loading">
+          <i class="fas fa-check"></i> {{ loading ? 'Guardando...' : 'Crear documento' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- Modal para Vincular Entrega Documentos      -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="modal fade" [class.show]="mostrarModalEntregaDocHistorial" [style.display]="mostrarModalEntregaDocHistorial ? 'block' : 'none'"
+     tabindex="-1" role="dialog" style="background-color: rgba(0,0,0,0.5);">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+    <div class="modal-content modal-card">
+
+      <div class="modal-header modal-header-custom" style="border: none;">
+        <h5 class="modal-title text-white font-weight-bold">
+          <i class="fas fa-link mr-2"></i>Vincular anexo a mas cursos
+        </h5>
+        <button type="button" class="close text-white" (click)="cerrarModalEntregaDocHistorial()" style="opacity: 1;">
+          <span>&times;</span>
+        </button>
+      </div>
+
+      <div class="modal-body" style="padding: 1.5rem;">
+        <p class="entrega-doc-relacion-helper">
+          Selecciona los cursos impartidos de <strong>{{ cursoSeleccionado?.empresa }}</strong> a los que aplica este anexo.
+        </p>
+
+        <div class="entrega-doc-relacion-actions">
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="seleccionarTodosCursosEntregaDocHistorial()"
+                  [disabled]="!entregaDocHistorialCursosRelacionados.length">
+            Seleccionar todos
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="limpiarSeleccionCursosEntregaDocHistorial()"
+                  [disabled]="!getEntregaDocHistorialSeleccionadosCount()">
+            Limpiar
+          </button>
+          <span class="entrega-doc-relacion-count">
+            {{ getEntregaDocHistorialSeleccionadosCount() }} seleccionados
+          </span>
+        </div>
+
+        <div class="entrega-doc-relacion-list" *ngIf="entregaDocHistorialCursosRelacionados.length > 0; else sinCursosRelacionados">
+          <label class="entrega-doc-relacion-item" *ngFor="let curso of entregaDocHistorialCursosRelacionados"
+                 [class.is-disabled]="tieneEntregaDocumentos(curso)">
+            <input type="checkbox"
+                   [checked]="entregaDocHistorialSeleccionados[curso.programado_id]"
+                   (change)="toggleCursoEntregaDocHistorial(curso, $event)"
+                   [disabled]="tieneEntregaDocumentos(curso)">
+            <div class="entrega-doc-relacion-info">
+              <span class="entrega-doc-relacion-name">{{ curso.nombreCurso }}</span>
+              <span class="entrega-doc-relacion-meta">{{ curso.fechaCurso | fechaCurso }} · {{ curso.lugar }} · {{ curso.participantes }} participantes · {{ curso.instructor }}</span>
+            </div>
+            <span *ngIf="tieneEntregaDocumentos(curso)" class="badge badge-pill badge-success entrega-doc-relacion-badge">
+              Ya tiene anexo
+            </span>
+          </label>
+        </div>
+
+        <ng-template #sinCursosRelacionados>
+          <div class="empty-state">
+            <i class="fas fa-check-circle"></i>
+            <p>No hay cursos adicionales pendientes para esta empresa.</p>
+          </div>
+        </ng-template>
+      </div>
+
+      <div class="modal-footer border-0" style="padding: 0 1.5rem 1.5rem;">
+        <button type="button" class="btn-cancel" (click)="cerrarModalEntregaDocHistorial()">Cancelar</button>
+        <button type="button" class="btn btn-outline-secondary" (click)="subirEntregaDocHistorial([])"
+                [disabled]="entregaDocHistorialSubiendo">
+          Subir solo este curso
+        </button>
+        <button type="button" class="btn-add" (click)="confirmarSubidaEntregaDocHistorial()"
+                [disabled]="entregaDocHistorialSubiendo || getEntregaDocHistorialSeleccionadosCount() === 0">
+          <i class="fas fa-cloud-upload-alt"></i> Subir y vincular
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- Modal de Vista Previa de Documento          -->
+<!-- ═══════════════════════════════════════════ -->
+<div *ngIf="mostrarVisorHistorial"
+     class="modal fade show d-block history-viewer-modal"
+     tabindex="-1"
+     style="background-color: rgba(0, 0, 0, 0.82); z-index: 9999; position: fixed; top: 0; left: 0; width: 100%; height: 100%;">
+  <div class="modal-dialog modal-dialog-centered modal-xl history-viewer-dialog">
+    <div class="modal-content shadow-lg border-0 history-viewer-content">
+
+      <div class="modal-header history-viewer-header">
+        <h5 class="modal-title text-white font-weight-bold text-truncate history-viewer-title">
+          <i class="fas fa-file-alt mr-2"></i>{{ nombreVisorHistorial }}
+        </h5>
+        <div class="d-flex align-items-center history-viewer-actions">
+          <div class="history-viewer-zoom" role="toolbar" aria-label="Zoom del documento" *ngIf="!visorHistorialModoPdf">
+            <button type="button" class="history-viewer-zoom__btn"
+                    (click)="ajustarZoomVisorHistorial(-zoomVisorPaso)"
+                    [disabled]="zoomVisorHistorial <= zoomVisorMin"
+                    title="Reducir zoom">
+              <i class="fas fa-search-minus"></i>
+            </button>
+            <button type="button" class="history-viewer-zoom__btn history-viewer-zoom__btn--pct"
+                    (click)="resetZoomVisorHistorial()"
+                    title="Restablecer zoom (ajustar a pantalla)">
+              {{ zoomVisorHistorial }}%
+            </button>
+            <button type="button" class="history-viewer-zoom__btn"
+                    (click)="ajustarZoomVisorHistorial(zoomVisorPaso)"
+                    [disabled]="zoomVisorHistorial >= zoomVisorMax"
+                    title="Aumentar zoom">
+              <i class="fas fa-search-plus"></i>
+            </button>
+          </div>
+          <button type="button" class="btn btn-sm btn-light mr-2" (click)="descargarArchivoHistorial()">
+            <i class="fas fa-download mr-1"></i>Descargar
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-light mr-2" (click)="abrirEnDriveHistorial()">
+            <i class="fas fa-external-link-alt mr-1"></i>Abrir en Drive
+          </button>
+          <button type="button" class="close text-white ml-2" (click)="cerrarVisorHistorial()" style="opacity: 1; text-shadow: none; font-size: 2rem;">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-body p-0 position-relative history-viewer-body"
+           [class.history-viewer-body--pdf]="visorHistorialModoPdf"
+           (wheel)="onWheelZoomVisorHistorial($event)">
+        <div *ngIf="cargandoVisorHistorial && esImagenVisorHistorial"
+             class="position-absolute w-100 h-100 d-flex align-items-center justify-content-center history-viewer-loading"
+             style="z-index: 10; background: rgba(255,255,255,0.92);">
+          <div class="text-center">
+            <i class="fas fa-spinner fa-spin fa-2x history-viewer-loading__icon"></i>
+            <p class="history-viewer-loading__text mt-2 mb-0">Cargando vista previa...</p>
+          </div>
+        </div>
+
+        <app-pdf-canvas-viewer
+          *ngIf="visorHistorialModoPdf && !visorHistorialError"
+          [blob]="previewBlobHistorial"
+          [preparando]="cargandoVisorHistorial && !previewBlobHistorial"
+          [progresoServidor]="visorHistorialProgreso"
+          [etiquetaServidor]="visorHistorialEtiqueta"
+          [lento]="visorHistorialLento"
+          tema="oliva">
+        </app-pdf-canvas-viewer>
+
+        <div *ngIf="visorHistorialModoPdf && visorHistorialError"
+             class="history-viewer-fallback">
+          <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+          <p class="mb-2">{{ visorHistorialError }}</p>
+          <button type="button" class="btn btn-sm btn-light" (click)="descargarArchivoHistorial()">
+            <i class="fas fa-download mr-1"></i>Descargar archivo
+          </button>
+        </div>
+
+        <div *ngIf="urlVisorHistorial && esImagenVisorHistorial"
+             class="history-viewer-stage history-viewer-stage--image"
+             [style.zoom]="zoomVisorHistorial / 100">
+          <img [src]="urlVisorHistorial | safe"
+               [alt]="nombreVisorHistorial"
+               class="history-viewer-image"
+               (load)="onVisorHistorialLoad()"
+               (error)="onVisorHistorialLoad()">
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+

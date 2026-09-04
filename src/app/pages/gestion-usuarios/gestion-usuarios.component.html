@@ -1,0 +1,293 @@
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+            style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="ni ni-single-02"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">Gestión de
+            Usuarios</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Dropdown flotante de áreas (fuera del card para evitar overflow: hidden) -->
+<div class="areas-dropdown-fixed" *ngIf="areasDropdownAbierto !== null" [class.dropdown-arriba]="areasDropdownArriba"
+  [style.top.px]="areasDropdownPosition.top" [style.left.px]="areasDropdownPosition.left">
+  <div class="areas-dropdown-header">
+    <i class="fas fa-graduation-cap"></i>
+    <span>Áreas de Especialidad</span>
+  </div>
+  <ul class="areas-list">
+    <ng-container *ngFor="let usuario of usuariosInternosFiltrados; trackBy: trackByUsuarioId">
+      <ng-container *ngIf="areasDropdownAbierto === usuario.id">
+        <li *ngFor="let area of getAreasArray(usuario.areas)">
+          <i class="fas fa-check-circle"></i>
+          <span>{{ area }}</span>
+        </li>
+      </ng-container>
+    </ng-container>
+  </ul>
+</div>
+
+<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+
+      <!-- ============================================ -->
+      <!-- SECCIÓN 1: ADMINISTRADORES E INSTRUCTORES    -->
+      <!-- ============================================ -->
+      <div class="card shadow-lg border-0" style="border-radius: 15px; overflow: visible; background-color: #fff;"
+        *ngIf="seccionActiva === 'internos'">
+        <div class="card-header border-0 gu-card-header gu-card-header--internos">
+          <div class="gu-header-top">
+            <div class="gu-header-title-wrap">
+              <h2 class="gu-header-title mb-0">
+                <span class="gu-title-icon gu-title-icon--internos"><i class="fas fa-user-shield"></i></span>
+                <span>Administradores e Instructores</span>
+              </h2>
+            </div>
+
+            <div class="gu-header-actions">
+              <label class="gu-search-field mb-0" for="buscar-usuarios-internos">
+                <i class="fas fa-search"></i>
+                <input id="buscar-usuarios-internos" class="gu-search-input" placeholder="Buscar usuario..." type="text"
+                  [(ngModel)]="textoBusqueda" (input)="filtrarUsuarios()">
+              </label>
+
+              <button *ngIf="esRoot || esAdministrador" class="btn gu-btn-header" (click)="abrirFormularioNuevo()">
+                <i class="fas fa-plus mr-2"></i>Nuevo Usuario
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabs de navegación integrados -->
+        <div class="px-4 py-4 bg-light border-bottom">
+          <div class="section-tabs-inline">
+            <button class="section-tab-inline" [class.active]="seccionActiva === 'internos'"
+              (click)="cambiarSeccion('internos')">
+              <i class="fas fa-user-shield"></i>
+              <span>Administradores e Instructores</span>
+            </button>
+            <button class="section-tab-inline" [class.active]="seccionActiva === 'empresas'"
+              (click)="cambiarSeccion('empresas')">
+              <i class="fas fa-building"></i>
+              <span>Empresas</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabla de administradores e instructores -->
+        <div class="table-responsive">
+          <table class="table align-items-center table-flush table-hover">
+            <thead class="thead-light">
+              <tr>
+                <th class="interno-col-usuario">Usuario</th>
+                <th class="interno-col-nombre">Nombre</th>
+                <th class="interno-col-email">Email</th>
+                <th class="interno-col-rol">Rol</th>
+                <th class="text-center interno-col-acciones">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngIf="cargando">
+                <td colspan="5" class="text-center py-5">
+                  <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                  <p class="text-muted mt-2 mb-0">Cargando usuarios...</p>
+                </td>
+              </tr>
+              <tr *ngIf="!cargando && usuariosInternos.length === 0">
+                <td colspan="5" class="text-center py-5">
+                  <i class="fas fa-users fa-2x text-muted"></i>
+                  <p class="text-muted mt-2 mb-0">No hay administradores ni instructores registrados</p>
+                </td>
+              </tr>
+              <tr *ngIf="!cargando && usuariosInternos.length > 0 && usuariosInternosFiltrados.length === 0">
+                <td colspan="5" class="text-center py-5">
+                  <i class="fas fa-search fa-2x text-muted"></i>
+                  <p class="text-muted mt-2 mb-0">No se encontraron usuarios que coincidan con "{{ textoBusqueda }}"</p>
+                </td>
+              </tr>
+              <tr *ngFor="let usuario of usuariosInternosFiltrados; trackBy: trackByUsuarioId">
+                <td class="interno-col-usuario">
+                  <div class="d-flex align-items-center interno-usuario-wrap" style="max-width: 100%; word-break: break-word;">
+                    <ng-container *ngIf="getFotoUsuarioUrl(usuario) as fotoUrl; else usuarioIniciales">
+                      <div class="gu-avatar gu-avatar--logo mr-2">
+                        <img [src]="fotoUrl" [alt]="usuario.nombre" (error)="onFotoUsuarioError(usuario)">
+                      </div>
+                    </ng-container>
+                    <ng-template #usuarioIniciales>
+                      <div class="gu-avatar mr-2 text-white" [ngClass]="getRolClass(usuario.rol)">
+                        {{ usuario.nombre ? usuario.nombre.charAt(0).toUpperCase() : 'U' }}{{ usuario.apellido ? usuario.apellido.charAt(0).toUpperCase() : '' }}
+                      </div>
+                    </ng-template>
+                    <span class="interno-username" style="overflow-wrap: break-word; word-break: break-word;">{{ usuario.username }}</span>
+                  </div>
+                </td>
+                <td class="interno-col-nombre interno-nombre" style="word-break: break-word;">
+                  {{ usuario.nombre }} {{ usuario.apellido || '' }}
+                  <div *ngIf="usuario.organigrama" style="font-size:0.68rem;color:#768D6B;font-weight:600;margin-top:0.12rem;">
+                    <i class="fas fa-sitemap" style="margin-right:0.25rem;font-size:0.62rem;"></i>{{ usuario.organigrama }}
+                  </div>
+                </td>
+                <td class="interno-col-email interno-email" style="word-break: break-word;">{{ usuario.email || '-' }}</td>
+                <td class="roles-cell interno-col-rol">
+                  <ng-container *ngIf="getTodosLosRoles(usuario) as rolesUsuario">
+                    <details class="roles-dropdown">
+                      <summary>
+                        <span class="roles-label">Ver roles</span>
+                        <i class="fas fa-chevron-down roles-arrow"></i>
+                      </summary>
+                      <div class="roles-dropdown-menu">
+                        <span *ngFor="let rol of rolesUsuario" class="badge" [ngClass]="getRolClass(rol)">
+                          {{ getRolDisplayName(rol) }}
+                        </span>
+                      </div>
+                    </details>
+                  </ng-container>
+                </td>
+                <td class="text-center interno-acciones interno-col-acciones" style="white-space: nowrap;">
+                  <button *ngIf="puedeEditar(usuario)" class="btn btn-sm btn-info" style="padding: 0.2rem 0.4rem; margin-right: 2px;"
+                    (click)="editarUsuario(usuario)" title="Editar">
+                    <i class="fas fa-edit" style="font-size: 0.7rem;"></i>
+                  </button>
+                  <button *ngIf="esRoot && usuario.rol?.toLowerCase() !== 'root'" class="btn btn-sm btn-danger"
+                    style="padding: 0.2rem 0.4rem;" (click)="eliminarUsuario(usuario)" title="Eliminar (Solo Root)">
+                    <i class="fas fa-trash" style="font-size: 0.7rem;"></i>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ============================================ -->
+      <!-- SECCIÓN 2: USUARIOS DE EMPRESAS              -->
+      <!-- ============================================ -->
+      <div class="card shadow-lg border-0" style="border-radius: 15px; overflow: visible; background-color: #fff;"
+        *ngIf="seccionActiva === 'empresas'">
+        <div class="card-header border-0 gu-card-header gu-card-header--empresas">
+          <div class="gu-header-top">
+            <div class="gu-header-title-wrap">
+              <h2 class="gu-header-title mb-0">
+                <span class="gu-title-icon gu-title-icon--empresas"><i class="fas fa-building"></i></span>
+                <span>Empresas</span>
+              </h2>
+            </div>
+
+            <div class="gu-header-actions gu-header-actions--single">
+              <label class="gu-search-field mb-0" for="buscar-usuarios-empresas">
+                <i class="fas fa-search"></i>
+                <input id="buscar-usuarios-empresas" class="gu-search-input"
+                  placeholder="Buscar por empresa, usuario o nombre..." type="text" [(ngModel)]="textoBusquedaEmpresas"
+                  (input)="filtrarUsuariosEmpresas()">
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabs de navegación integrados -->
+        <div class="px-4 py-4 bg-light border-bottom">
+          <div class="section-tabs-inline">
+            <button class="section-tab-inline" [class.active]="seccionActiva === 'internos'"
+              (click)="cambiarSeccion('internos')">
+              <i class="fas fa-user-shield"></i>
+              <span>Administradores e Instructores</span>
+            </button>
+            <button class="section-tab-inline" [class.active]="seccionActiva === 'empresas'"
+              (click)="cambiarSeccion('empresas')">
+              <i class="fas fa-building"></i>
+              <span>Empresas</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabla de usuarios de empresas -->
+        <div class="table-responsive-empresas">
+          <table class="table align-items-center table-flush table-hover table-empresas">
+            <thead class="thead-light">
+              <tr>
+                <th class="empresa-col-empresa">Empresa</th>
+                <th class="empresa-col-usuario">Usuario</th>
+                <th class="empresa-col-nombre">Nombre</th>
+                <th class="empresa-col-email">Email</th>
+                <th class="text-center empresa-col-acciones">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngIf="cargando">
+                <td colspan="5" class="text-center py-5">
+                  <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                  <p class="text-muted mt-2 mb-0">Cargando usuarios de empresas...</p>
+                </td>
+              </tr>
+              <tr *ngIf="!cargando && usuariosEmpresas.length === 0">
+                <td colspan="5" class="text-center py-5">
+                  <i class="fas fa-building fa-2x text-muted"></i>
+                  <p class="text-muted mt-2 mb-0">No hay usuarios de empresas registrados</p>
+                </td>
+              </tr>
+              <tr *ngIf="!cargando && usuariosEmpresas.length > 0 && usuariosEmpresasFiltrados.length === 0">
+                <td colspan="5" class="text-center py-5">
+                  <i class="fas fa-search fa-2x text-muted"></i>
+                  <p class="text-muted mt-2 mb-0">No se encontraron empresas que coincidan con "{{ textoBusquedaEmpresas
+                    }}"</p>
+                </td>
+              </tr>
+              <tr *ngFor="let usuario of usuariosEmpresasFiltrados; trackBy: trackByUsuarioId">
+                <td class="empresa-cell">
+                  <div class="d-flex align-items-center">
+                    <ng-container *ngIf="getLogoEmpresaPreviewUrl(usuario.empresa_logo) as logoUrl; else empIniciales">
+                      <div class="gu-avatar gu-avatar--logo mr-2">
+                        <img [src]="logoUrl" [alt]="usuario.nombre_empresa" (error)="usuario.empresa_logo = null">
+                      </div>
+                    </ng-container>
+                    <ng-template #empIniciales>
+                      <div class="gu-avatar mr-2 text-white" style="background: #38512F;">
+                        {{ (usuario.nombre_empresa || 'E').charAt(0).toUpperCase() }}
+                      </div>
+                    </ng-template>
+                    <span class="font-weight-bold empresa-nombre" style="color: #38512F;"
+                      [title]="usuario.nombre_empresa || 'Sin empresa'">{{ usuario.nombre_empresa || 'Sin empresa' }}</span>
+                    <span *ngIf="usuario.es_empresa_colaboradora_sin_usuario" class="badge badge-colaboradora ml-2"
+                      title="Acceso compartido con la empresa principal">Colaboradora</span>
+                  </div>
+                </td>
+                <td class="usuario-cell"
+                  [title]="usuario.es_empresa_colaboradora_sin_usuario ? usuario.acceso_compartido_label : usuario.username">
+                  <ng-container *ngIf="usuario.es_empresa_colaboradora_sin_usuario; else usuarioEmpresaNormal">
+                    <span class="acceso-compartido-label">{{ usuario.acceso_compartido_label }}</span>
+                  </ng-container>
+                  <ng-template #usuarioEmpresaNormal>{{ usuario.username }}</ng-template>
+                </td>
+                <td class="nombre-cell" [title]="(usuario.nombre || '') + ' ' + (usuario.apellido || '')">{{
+                  usuario.nombre }} {{ usuario.apellido || '' }}</td>
+                <td class="email-cell"
+                  [title]="usuario.email || usuario.empresa_contacto_email || usuario.empresa_email || '-'">{{
+                  usuario.email || usuario.empresa_contacto_email || usuario.empresa_email || '-' }}</td>
+                <td class="text-center empresa-acciones">
+                  <button *ngIf="puedeEditar(usuario)" class="btn btn-sm btn-info mr-1" style="padding: 0.25rem 0.5rem;"
+                    (click)="editarUsuario(usuario)" title="Editar">
+                    <i class="fas fa-edit" style="font-size: 0.75rem;"></i>
+                  </button>
+                  <button *ngIf="esRoot" class="btn btn-sm btn-danger" style="padding: 0.25rem 0.5rem;"
+                    (click)="eliminarUsuario(usuario)" title="Eliminar (Solo Root)">
+                    <i class="fas fa-trash" style="font-size: 0.75rem;"></i>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

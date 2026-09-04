@@ -1,0 +1,204 @@
+<div class="mt-embed" [class.mt-embed--standalone]="!embebido">
+  <div
+    *ngIf="!embebido"
+    class="header header-bg-image mt-hero mt-hero--f02 pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden"
+  >
+    <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+      <div class="row w-100 text-center">
+        <div class="col-12">
+          <div class="d-flex flex-column align-items-center justify-content-center">
+            <div class="mt-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+              <i class="fas fa-book" aria-hidden="true"></i>
+            </div>
+            <h1 class="text-white mb-0 mt-hero-title">Bitácora de mantenimiento</h1>
+            <p class="text-white mt-hero-tagline mb-0">Mantenimiento · {{ meta.codigo }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div [class.container-fluid]="!embebido" [class.mt-main-wrap]="!embebido" [class.mt--5]="!embebido">
+    <div [class.row]="!embebido" [class.justify-content-center]="!embebido">
+      <div [class.col-xl-11]="!embebido">
+
+        <div class="card mt-shell border-0" [class.shadow-sm]="!embebido" [class.shadow-none]="embebido">
+          <div class="mt-shell-accent" aria-hidden="true"></div>
+          <div class="card-body mt-shell-body">
+
+            <header class="mt-doc-head">
+              <div class="mt-doc-head__brand">
+                <img src="./assets/img/logo_biznaga.png" alt="Biznaga" class="mt-doc-head__logo" />
+                <div class="mt-doc-head__brand-text">
+                  <span class="mt-doc-head__brand-name">BIZNAGA</span>
+                  <span class="mt-doc-head__brand-sub">Seguridad e Higiene Industrial &amp; Ambiental</span>
+                </div>
+              </div>
+              <div class="mt-doc-head__titles">
+                <p class="mt-doc-head__sgc">Sistema de Gestión de Calidad [{{ meta.clausula }}]</p>
+                <h2 class="mt-doc-head__title mt-doc-head__title--bitacora">Bitácora de mantenimiento</h2>
+              </div>
+              <div class="mt-doc-head__meta">
+                <div class="mt-doc-meta-row"><span>Código</span><strong>{{ meta.codigo }}</strong></div>
+                <div class="mt-doc-meta-row"><span>Revisión</span><strong>{{ meta.revision }}</strong></div>
+                <div class="mt-doc-meta-row"><span>Fecha de Rev.</span><strong>{{ meta.fechaRev }}</strong></div>
+              </div>
+            </header>
+
+            <div class="mt-toolbar mt-toolbar--drive">
+              <div class="mt-toolbar__fields">
+                <p class="mt-bitacora-hint mb-0">
+                  Se llena desde Google Forms (EIN-F-02). Solo puedes editar
+                  <strong>Interno/Externo</strong> (clic para alternar) y <strong>Observaciones</strong>.
+                </p>
+              </div>
+
+              <div class="mt-drive-toolbar">
+                <span class="mt-status" *ngIf="mensajeEstado" role="status">{{ mensajeEstado }}</span>
+                <button type="button" class="btn btn-sm mt-btn-save-info"
+                  (click)="guardarInformacionDrive()" [disabled]="guardandoDrive || sincronizandoForms">
+                  <i class="fas mr-1" [ngClass]="guardandoDrive ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                  Guardar información
+                </button>
+                <button type="button" class="btn btn-sm mt-btn-drive"
+                  (click)="abrirEditorIntegrado()" [disabled]="guardandoDrive">
+                  <i class="fas fa-pen mr-1"></i>
+                  Abrir editor integrado
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-grid-wrap mt-grid-wrap--bitacora" role="region" aria-label="Bitácora de mantenimiento" tabindex="0">
+              <table class="mt-grid mt-grid--bitacora">
+                <thead>
+                  <tr>
+                    <th class="mt-bcol mt-bcol--no">No.</th>
+                    <th class="mt-bcol mt-bcol--infra">Tipo de infraestructura</th>
+                    <th class="mt-bcol mt-bcol--id">ID o No. de serie</th>
+                    <th class="mt-bcol mt-bcol--tipo">Tipo de mantenimiento</th>
+                    <th class="mt-bcol mt-bcol--ie">Interno o Externo</th>
+                    <th class="mt-bcol mt-bcol--act">Actividades de mantenimiento</th>
+                    <th class="mt-bcol mt-bcol--resp">Responsable del mantenimiento</th>
+                    <th class="mt-bcol mt-bcol--fecha">Fecha en que se realizó</th>
+                    <th class="mt-bcol mt-bcol--obs">Observaciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let fila of filasBitacora; let i = index; trackBy: trackByFila">
+                    <td class="mt-bcol mt-bcol--no">{{ i + 1 }}</td>
+                    <td class="mt-bcol mt-bcol--infra">
+                      <div class="mt-cell-readonly">{{ fila.tipoInfraestructura || '—' }}</div>
+                    </td>
+                    <td class="mt-bcol mt-bcol--id">
+                      <div class="mt-cell-readonly mt-cell-readonly--id">{{ fila.idSerie || '—' }}</div>
+                    </td>
+                    <td class="mt-bcol mt-bcol--tipo">
+                      <span
+                        class="mt-tipo-label"
+                        [class.mt-tipo-label--prev]="fila.tipoMantenimiento === 'Preventivo'"
+                        [class.mt-tipo-label--corr]="fila.tipoMantenimiento === 'Correctivo'"
+                      >{{ etiquetaTipoMantenimiento(fila) }}</span>
+                    </td>
+                    <td class="mt-bcol mt-bcol--ie">
+                      <button
+                        type="button"
+                        class="mt-chip mt-chip--ie-toggle"
+                        [class.mt-chip--int]="esInterno(fila)"
+                        [class.mt-chip--ext]="!esInterno(fila)"
+                        [class.is-on]="true"
+                        (click)="alternarInternoExterno(fila)"
+                        [attr.aria-label]="'Interno o externo: ' + etiquetaInternoExterno(fila)"
+                        [attr.title]="'Clic para cambiar a ' + (esInterno(fila) ? 'Externo' : 'Interno')"
+                      >{{ etiquetaInternoExterno(fila) }}</button>
+                    </td>
+                    <td class="mt-bcol mt-bcol--act">
+                      <div class="mt-cell-readonly">{{ fila.descripcionProblema || '—' }}</div>
+                    </td>
+                    <td class="mt-bcol mt-bcol--resp">
+                      <div class="mt-cell-readonly">{{ fila.responsableMantenimiento || 'Desde F-04…' }}</div>
+                    </td>
+                    <td class="mt-bcol mt-bcol--fecha">
+                      <div class="mt-cell-readonly">{{ formatearFecha(fila.fechaRealizado) }}</div>
+                    </td>
+                    <td class="mt-bcol mt-bcol--obs">
+                      <textarea
+                        #obsTextarea
+                        class="mt-cell-textarea mt-cell-textarea--auto"
+                        rows="1"
+                        [(ngModel)]="fila.observacionesBitacora"
+                        (input)="onObservacionesInput(fila, obsTextarea)"
+                        aria-label="Observaciones"
+                        placeholder="Manual…"
+                      ></textarea>
+                    </td>
+                  </tr>
+                  <tr *ngIf="!filasBitacora.length">
+                    <td colspan="9" class="mt-bitacora-empty">
+                      Sin registros. Usa <strong>Desde Forms</strong> para sincronizar las respuestas del formulario.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <p class="mt-hint mt-hint--below">
+              <span class="mt-hint__legenda">
+                Clic en <span class="mt-chip mt-chip--int is-on">Int</span>/<span class="mt-chip mt-chip--ext is-on">Ext</span> para alternar Interno ↔ Externo
+              </span>
+              · ID formato EINF03-MMDDAA-NN (desde Forms) · Solo Interno/Externo y Observaciones son manuales
+            </p>
+
+            <footer class="mt-foot">
+              <p>
+                Formato <strong>{{ meta.codigo }}</strong> · Rev. {{ meta.revision }} · {{ meta.fechaRev }}
+                · Cláusula ISO {{ meta.clausula }} (Infraestructura)
+                <span *ngIf="guardadoLocal"> · Guardado local</span>
+              </p>
+            </footer>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div #editorPortal class="mt-drive-editor-fullscreen" *ngIf="editorDriveAbierto"
+  role="dialog" aria-modal="true" aria-label="Editor integrado EIN-F-03">
+  <div class="mt-drive-editor-fullscreen__backdrop" (click)="cerrarEditorIntegrado()"></div>
+  <div class="mt-drive-editor-fullscreen__panel">
+    <div class="mt-drive-editor-fullscreen__head">
+      <div class="mt-drive-editor-fullscreen__title-wrap">
+        <span class="mt-drive-editor-fullscreen__icon">
+          <i class="fas fa-book" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="mt-drive-editor-fullscreen__title">Editor integrado del formato</strong>
+          <small class="mt-drive-editor-fullscreen__subtitle">
+            EIN-F-03 · Bitácora de mantenimiento · Excel = historial visual · Corrige solo si hay errores de registro
+          </small>
+        </div>
+      </div>
+      <div class="mt-drive-editor-fullscreen__head-actions">
+        <button class="btn btn-sm btn-light" type="button" (click)="cerrarEditorIntegrado()">
+          <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+        </button>
+      </div>
+    </div>
+    <div class="mt-drive-editor-fullscreen__body">
+      <div class="mt-drive-editor-fullscreen__loading" *ngIf="editorDriveCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando plantilla en Drive…</span>
+      </div>
+      <iframe *ngIf="editorDriveUrlSafe"
+        class="mt-drive-editor-fullscreen__iframe"
+        [src]="editorDriveUrlSafe"
+        title="EIN-F-03 en Google Drive"
+        (load)="onEditorIframeLoad()"
+        allow="clipboard-read; clipboard-write"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-popups-to-escape-sandbox">
+      </iframe>
+    </div>
+  </div>
+</div>

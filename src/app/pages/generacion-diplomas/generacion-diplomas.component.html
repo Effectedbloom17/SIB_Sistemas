@@ -1,0 +1,246 @@
+<!-- Header global (reutiliza .header-bg-image de styles.scss) -->
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-certificate"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">Generaci&oacute;n de Constancias</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Contenedor Principal -->
+<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+
+      <!-- ════════════════════════════════════════════ -->
+      <!-- VISTA 1: Selección de curso                  -->
+      <!-- ════════════════════════════════════════════ -->
+      <div *ngIf="!cursoSeleccionado" class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+        <!-- Barra de búsqueda -->
+        <div class="search-bar">
+          <div class="search-input-wrap">
+            <i class="fas fa-search search-icon"></i>
+            <input class="search-input" type="text" placeholder="Buscar curso o empresa..."
+                   [(ngModel)]="filtroBusqueda" (ngModelChange)="filtrarCursos()">
+          </div>
+          <div class="filter-pills">
+            <select class="filter-select" [(ngModel)]="filtroEmpresa" (ngModelChange)="filtrarCursos()">
+              <option value="">Todas las empresas</option>
+              <option *ngFor="let emp of empresas" [value]="emp.empresa_id">{{ emp.nombre_empresa }}</option>
+            </select>
+            <select class="filter-select" [(ngModel)]="filtroEstatus" (ngModelChange)="filtrarCursos()">
+              <option value="">Todos los estatus</option>
+              <option value="completado">Completado</option>
+              <option value="en_curso">En curso</option>
+              <option value="programado">Programado</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Cargando -->
+        <div *ngIf="cargandoCursos" class="empty-state">
+          <i class="fas fa-spinner fa-spin fa-2x"></i>
+          <p>Cargando cursos...</p>
+        </div>
+
+        <!-- Vacío -->
+        <div *ngIf="!cargandoCursos && cursosFiltrados.length === 0" class="empty-state">
+          <i class="fas fa-folder-open fa-2x"></i>
+          <p>No se encontraron cursos</p>
+        </div>
+
+        <!-- Lista de cursos -->
+        <div *ngIf="!cargandoCursos && cursosFiltrados.length > 0">
+          <!-- Headers de columna ordenables -->
+          <div class="sort-header">
+            <span class="sort-col sort-col-main" (click)="ordenarPor('nombre_curso')">
+              Curso
+              <i class="fas" *ngIf="ordenCampo === 'nombre_curso'"
+                 [ngClass]="ordenAsc ? 'fa-caret-up' : 'fa-caret-down'"></i>
+            </span>
+            <span class="sort-col sort-col-empresa" (click)="ordenarPor('nombre_empresa')">
+              Empresa
+              <i class="fas" *ngIf="ordenCampo === 'nombre_empresa'"
+                 [ngClass]="ordenAsc ? 'fa-caret-up' : 'fa-caret-down'"></i>
+            </span>
+            <span class="sort-col sort-col-date" (click)="ordenarPor('fecha_inicio')">
+              Fecha
+              <i class="fas" *ngIf="ordenCampo === 'fecha_inicio'"
+                 [ngClass]="ordenAsc ? 'fa-caret-up' : 'fa-caret-down'"></i>
+            </span>
+          </div>
+
+          <!-- Filas -->
+          <div class="course-list">
+            <div *ngFor="let curso of cursosFiltrados" class="course-item" (click)="seleccionarCurso(curso)">
+              <div class="course-col-main">
+                <span class="course-item-name">{{ curso.nombre_curso }}</span>
+                <span class="course-item-meta">{{ curso.horas }} hrs · {{ curso.modalidad }}</span>
+              </div>
+              <span class="course-col-empresa">{{ curso.nombre_empresa }}</span>
+              <div class="course-col-date">
+                <span class="course-item-date">{{ curso.fecha_inicio | fechaCurso:'cursoEs' }}</span>
+                <span class="status-dot" [style.background]="getEstatusColor(curso.estatus)"
+                      [title]="curso.estatus === 'en_curso' ? 'En curso' : (curso.estatus | titlecase)"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════ -->
+      <!-- VISTA 2: Participantes + Generar             -->
+      <!-- ════════════════════════════════════════════ -->
+      <div *ngIf="cursoSeleccionado">
+
+        <!-- Barra del curso seleccionado -->
+        <div class="course-bar">
+          <button class="btn-back" (click)="deseleccionarCurso()">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <div class="course-bar-info">
+            <span class="course-bar-name">{{ cursoSeleccionado.nombre_curso }}</span>
+            <span class="course-bar-meta">
+              {{ cursoSeleccionado.nombre_empresa }} · {{ cursoSeleccionado.fecha_inicio | fechaCurso }} - {{ cursoSeleccionado.fecha_fin | fechaCurso }} · {{ cursoSeleccionado.horas }} hrs
+            </span>
+          </div>
+        </div>
+
+        <!-- Layout de dos columnas -->
+        <div class="gen-layout">
+
+          <!-- Columna izquierda: Participantes -->
+          <div class="gen-main">
+            <div class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden;">
+              <!-- Header de la tabla -->
+              <div class="table-header">
+                <div class="table-header-left">
+                  <h6 class="section-title">Participantes</h6>
+                  <span class="table-count">{{ participantesSeleccionados.length }} de {{ participantes.length }} seleccionados</span>
+                </div>
+                <div class="table-header-right">
+                  <button class="btn-text" (click)="seleccionarTodos()">Todos</button>
+                  <span class="separator">·</span>
+                  <button class="btn-text" (click)="deseleccionarTodos()">Ninguno</button>
+                </div>
+              </div>
+
+              <!-- Cargando participantes -->
+              <div *ngIf="cargandoParticipantes" class="empty-state">
+                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                <p>Cargando participantes...</p>
+              </div>
+
+              <!-- Sin participantes -->
+              <div *ngIf="!cargandoParticipantes && participantes.length === 0" class="empty-state">
+                <i class="fas fa-user-slash fa-2x"></i>
+                <p>No hay participantes con asistencia registrada</p>
+              </div>
+
+              <!-- Tabla participantes -->
+              <div *ngIf="!cargandoParticipantes && participantes.length > 0" class="table-responsive participants-table">
+                <table class="table table-sm table-flush table-hover mb-0">
+                  <thead>
+                    <tr>
+                      <th class="th-check">
+                        <input type="checkbox" [checked]="todosSeleccionados" (change)="toggleTodos($event)">
+                      </th>
+                      <th>Nombre</th>
+                      <th>CURP</th>
+                      <th class="text-center">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let p of participantes; let i = index" [class.row-selected]="p.seleccionado">
+                      <td class="td-check">
+                        <input type="checkbox" [(ngModel)]="p.seleccionado">
+                      </td>
+                      <td>
+                        <div class="participant-cell">
+                          <span class="avatar-circle" [style.background]="getColorAvatar(i)">
+                            {{ getIniciales(p.nombre_completo) }}
+                          </span>
+                          <span class="participant-name">{{ p.nombre_completo }}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span class="curp-text">{{ p.curp || '—' }}</span>
+                      </td>
+                      <td class="text-center">
+                        <span *ngIf="p.certificado_generado" class="badge-gen">
+                          <i class="fas fa-check"></i> Generada
+                        </span>
+                        <span *ngIf="!p.certificado_generado" class="badge-pending">Pendiente</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Columna derecha: Configuración + Generar -->
+          <div class="gen-sidebar">
+            <div class="card main-card sidebar-card">
+
+              <!-- Tipo de documento -->
+              <div class="sidebar-section">
+                <label class="sidebar-label">Tipo de documento</label>
+                <select class="sidebar-select" [(ngModel)]="tipoDocumento">
+                  <option value="constancia">Constancia</option>
+                  <option value="dc3">DC-3 (STPS)</option>
+                  <option value="ambos">Constancia + DC-3</option>
+                </select>
+              </div>
+
+              <div class="sidebar-divider"></div>
+
+              <!-- Firmas -->
+              <div class="sidebar-section">
+                <label class="sidebar-label">Firma 1</label>
+                <input class="sidebar-input" placeholder="Nombre" [(ngModel)]="firma1Nombre">
+                <input class="sidebar-input mt-1" placeholder="Cargo" [(ngModel)]="firma1Cargo">
+              </div>
+
+              <div class="sidebar-section">
+                <label class="sidebar-label">Firma 2</label>
+                <input class="sidebar-input" placeholder="Nombre" [(ngModel)]="firma2Nombre">
+                <input class="sidebar-input mt-1" placeholder="Cargo" [(ngModel)]="firma2Cargo">
+              </div>
+
+              <div class="sidebar-divider"></div>
+
+              <!-- Botón generar -->
+              <button class="btn-generate"
+                      [disabled]="participantesSeleccionados.length === 0 || generando"
+                      (click)="generarDocumentos()">
+                <span *ngIf="!generando">
+                  <i class="fas fa-certificate mr-2"></i>
+                  Generar {{ participantesSeleccionados.length }} {{ tipoDocumento === 'ambos' ? 'pares' : (tipoDocumento === 'dc3' ? 'DC-3' : 'constancias') }}
+                </span>
+                <span *ngIf="generando">
+                  <i class="fas fa-spinner fa-spin mr-2"></i>{{ progresoTexto }}
+                </span>
+              </button>
+
+              <span *ngIf="(!firma1Nombre || !firma2Nombre) && participantesSeleccionados.length > 0" class="firma-warning">
+                <i class="fas fa-info-circle mr-1"></i>Faltan firmas por completar
+              </span>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

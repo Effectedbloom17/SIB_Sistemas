@@ -1,0 +1,258 @@
+<div class="amb-arch" [class.amb-arch--compact]="compact">
+  <div class="amb-arch__hint amb-arch__hint--warn" *ngIf="tramiteId && !oficio?.trim()">
+    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+    Indica el oficio arriba para poder subir a Drive.
+  </div>
+
+  <div class="amb-arch__uploads"
+       *ngIf="!soloResumen || (!archivosRaiz.length && !pendientesRaiz.length)"
+       [class.is-dragover]="dragOver"
+       [class.is-disabled]="tramiteId && !puedeSubir"
+       (dragover)="onDragOver($event)"
+       (dragleave)="onDragLeave($event)"
+       (drop)="onDrop($event, '')">
+    <label class="amb-arch__drop-main">
+      <input type="file" multiple hidden
+             accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+             (change)="onArchivos($event, '')"
+             [disabled]="tramiteId && !puedeSubir">
+      <span class="amb-arch__upload-symbol"><i class="fas fa-cloud-upload-alt" aria-hidden="true"></i></span>
+      <strong>Arrastra tus archivos aquí o haz clic</strong>
+      <small>PDF, JPG, PNG o Word</small>
+    </label>
+  </div>
+
+  <div class="amb-arch__pending" *ngIf="hayPendientes && !soloResumen">
+    <div class="amb-arch__pending-title">
+      <i class="fas fa-clock" aria-hidden="true"></i>
+      {{ pendientes.length }} archivo{{ pendientes.length === 1 ? '' : 's' }} pendiente{{ pendientes.length === 1 ? '' : 's' }}
+    </div>
+    <div class="amb-arch__pending-row" *ngFor="let pendiente of pendientes; let i = index">
+      <span [title]="pendiente.etiqueta">{{ pendiente.etiqueta }}</span>
+      <button type="button" (click)="quitarPendiente(i)" title="Quitar archivo" aria-label="Quitar archivo">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="amb-arch__pending-preview" *ngIf="soloResumen && pendientesRaiz.length && !tramiteId">
+    <div class="amb-arch__summary-row">
+      <div class="amb-arch__summary">
+        <i class="fas fa-clock" aria-hidden="true"></i>
+        <strong>{{ pendientesRaiz.length }}</strong>
+        pendiente{{ pendientesRaiz.length === 1 ? '' : 's' }}
+      </div>
+      <label class="amb-arch__add-more">
+        <input type="file" multiple hidden
+               accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+               (change)="onArchivos($event, '')">
+        <i class="fas fa-plus"></i> Agregar más
+      </label>
+    </div>
+    <div class="amb-arch-preview-grid" [class.is-single]="pendientesRaiz.length === 1">
+      <button type="button" class="amb-arch-preview-card is-pending"
+              *ngFor="let pendiente of pendientesRaiz"
+              (click)="abrirPreviewPendiente(pendiente, $event)">
+        <span class="amb-arch-preview-card__file-icon">
+          <i class="fas" [ngClass]="iconoTipo(pendiente.file.type, pendiente.file.name)" aria-hidden="true"></i>
+        </span>
+        <span class="amb-arch-preview-card__meta">
+          <strong [title]="pendiente.file.name">{{ pendiente.file.name }}</strong>
+          <small>Pendiente · {{ formatearTamano(pendiente.file.size) }}</small>
+        </span>
+        <span class="amb-arch-preview-card__remove" (click)="$event.stopPropagation(); quitarPendienteItem(pendiente)" title="Quitar">
+          <i class="fas fa-times"></i>
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <ng-container *ngIf="tramiteId">
+    <div *ngIf="error" class="amb-arch__error">{{ error }}</div>
+    <div *ngIf="cargando" class="amb-arch__loading"><i class="fas fa-spinner fa-spin"></i> Cargando…</div>
+    <div *ngIf="subiendo" class="amb-arch__loading"><i class="fas fa-spinner fa-spin"></i> Subiendo…</div>
+
+    <div *ngIf="!cargando && !hayContenido" class="amb-arch__empty">
+      Sin archivos en {{ tituloAmbito | lowercase }}.
+    </div>
+
+    <div class="amb-arch__browser" *ngIf="!cargando && hayContenido">
+      <div class="amb-arch__summary-row">
+        <div class="amb-arch__summary">
+          <i class="fas fa-copy" aria-hidden="true"></i>
+          <strong>{{ archivos.length + pendientes.length }}</strong>
+          documento{{ archivos.length + pendientes.length === 1 ? '' : 's' }}
+        </div>
+        <label class="amb-arch__add-more" *ngIf="soloResumen">
+          <input type="file" multiple hidden
+                 accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                 (change)="onArchivos($event, '')"
+                 [disabled]="!puedeSubir">
+          <i class="fas fa-plus"></i> Agregar más
+        </label>
+      </div>
+
+      <div class="amb-arch__folder" *ngFor="let carpeta of carpetasRaiz; trackBy: trackByRuta">
+        <button type="button" class="amb-arch__folder-row"
+                [class.is-open]="estaExpandida(carpeta.ruta)"
+                (click)="toggleCarpeta(carpeta.ruta)">
+          <i class="fas" [ngClass]="estaExpandida(carpeta.ruta) ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+          <i class="fas fa-folder amb-arch__folder-ico"></i>
+          <span class="amb-arch__folder-name">{{ carpeta.nombre }}</span>
+          <span class="amb-arch__folder-count">{{ carpeta.cantidad }}</span>
+        </button>
+        <div class="amb-arch__folder-panel" *ngIf="estaExpandida(carpeta.ruta)">
+          <ng-container *ngTemplateOutlet="panelContenido; context: { $implicit: carpeta.ruta }"></ng-container>
+        </div>
+      </div>
+
+      <div class="amb-arch__folder" *ngIf="archivosRaiz.length && !soloResumen">
+        <button type="button" class="amb-arch__folder-row"
+                [class.is-summary]="soloResumen"
+                [class.is-open]="estaExpandida(claveRaiz)"
+                (click)="!soloResumen && toggleCarpeta(claveRaiz)">
+          <i class="fas" *ngIf="!soloResumen" [ngClass]="estaExpandida(claveRaiz) ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+          <i class="fas fa-file-alt amb-arch__folder-ico amb-arch__folder-ico--extra"></i>
+          <span class="amb-arch__folder-name amb-arch__folder-name--stacked">
+            Documentación extra
+            <small>Archivos sueltos (fuera de carpetas)</small>
+          </span>
+          <span class="amb-arch__folder-count">{{ archivosRaiz.length }}</span>
+        </button>
+        <div class="amb-arch__folder-panel" *ngIf="!soloResumen && estaExpandida(claveRaiz)">
+          <div class="amb-arch__list">
+            <ng-container *ngFor="let doc of archivosRaiz; trackBy: trackById">
+              <ng-container *ngTemplateOutlet="fila; context: { $implicit: doc }"></ng-container>
+            </ng-container>
+          </div>
+        </div>
+      </div>
+
+      <div class="amb-arch-preview-grid"
+           [class.is-single]="archivosRaiz.length + pendientesRaiz.length === 1"
+           *ngIf="soloResumen && (archivosRaiz.length || pendientesRaiz.length)">
+        <button type="button" class="amb-arch-preview-card is-pending"
+                *ngFor="let pendiente of pendientesRaiz"
+                (click)="abrirPreviewPendiente(pendiente, $event)">
+          <span class="amb-arch-preview-card__file-icon">
+            <i class="fas" [ngClass]="iconoTipo(pendiente.file.type, pendiente.file.name)" aria-hidden="true"></i>
+          </span>
+          <span class="amb-arch-preview-card__meta">
+            <strong [title]="pendiente.file.name">{{ pendiente.file.name }}</strong>
+            <small>Pendiente · {{ formatearTamano(pendiente.file.size) }}</small>
+          </span>
+          <span class="amb-arch-preview-card__remove" (click)="$event.stopPropagation(); quitarPendienteItem(pendiente)" title="Quitar">
+            <i class="fas fa-times"></i>
+          </span>
+        </button>
+        <button type="button" class="amb-arch-preview-card"
+                *ngFor="let doc of archivosRaiz; trackBy: trackById"
+                (click)="abrirPreview(doc, $event)">
+          <span class="amb-arch-preview-card__file-icon">
+            <i class="fas" [ngClass]="iconoTipo(doc.mimeType, doc.nombreArchivo)" aria-hidden="true"></i>
+          </span>
+          <span class="amb-arch-preview-card__meta">
+            <strong [title]="doc.nombreArchivo">{{ doc.nombreArchivo }}</strong>
+            <small>{{ etiquetaTipo(doc.mimeType, doc.nombreArchivo) }} · {{ formatearTamano(doc.tamanoBytes) }}<ng-container *ngIf="doc.fechaSubida"> · {{ doc.fechaSubida | date:'dd/MM/yyyy' }}</ng-container></small>
+          </span>
+          <span class="amb-arch-preview-card__remove" (click)="$event.stopPropagation(); eliminar(doc, $event)" title="Eliminar documento">
+            <i class="fas fa-trash-alt"></i>
+          </span>
+        </button>
+      </div>
+    </div>
+  </ng-container>
+</div>
+
+<ng-template #panelContenido let-rutaPadre>
+  <div class="amb-arch__mini-uploads" *ngIf="!soloResumen" [class.is-disabled]="!puedeSubir">
+    <label class="amb-arch__mini-btn">
+      <input type="file" multiple hidden accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+             (change)="onArchivos($event, rutaPadre)" [disabled]="!puedeSubir">
+      <i class="fas fa-file-upload"></i> Archivos
+    </label>
+    <label class="amb-arch__mini-btn">
+      <input type="file" webkitdirectory directory multiple hidden
+             (change)="onCarpeta($event, rutaPadre)" [disabled]="!puedeSubir">
+      <i class="fas fa-folder-plus"></i> Subcarpeta
+    </label>
+  </div>
+
+  <div class="amb-arch__folder amb-arch__folder--nested"
+       *ngFor="let sub of carpetasHijas(rutaPadre); trackBy: trackByRuta">
+    <button type="button" class="amb-arch__folder-row"
+            [class.is-open]="estaExpandida(sub.ruta)"
+            (click)="toggleCarpeta(sub.ruta)">
+      <i class="fas" [ngClass]="estaExpandida(sub.ruta) ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+      <i class="fas fa-folder amb-arch__folder-ico"></i>
+      <span class="amb-arch__folder-name">{{ sub.nombre }}</span>
+      <span class="amb-arch__folder-count">{{ sub.cantidad }}</span>
+    </button>
+    <div class="amb-arch__folder-panel" *ngIf="estaExpandida(sub.ruta)">
+      <ng-container *ngTemplateOutlet="panelContenido; context: { $implicit: sub.ruta }"></ng-container>
+    </div>
+  </div>
+
+  <div class="amb-arch__list" *ngIf="archivosEn(rutaPadre).length">
+    <ng-container *ngFor="let doc of archivosEn(rutaPadre); trackBy: trackById">
+      <ng-container *ngTemplateOutlet="fila; context: { $implicit: doc }"></ng-container>
+    </ng-container>
+  </div>
+</ng-template>
+
+<div class="amb-arch-viewer" *ngIf="previewAbierto" role="dialog" aria-modal="true"
+     [attr.aria-label]="'Vista de ' + previewNombre">
+  <div class="amb-arch-viewer__backdrop" (click)="cerrarPreview()"></div>
+  <section class="amb-arch-viewer__panel">
+    <header class="amb-arch-viewer__head">
+      <span class="amb-arch-viewer__icon"><i class="fas fa-file-alt"></i></span>
+      <div class="amb-arch-viewer__titles">
+        <strong>Visor integrado de documento</strong>
+        <small [title]="previewNombre">{{ previewNombre }}</small>
+      </div>
+      <button type="button" class="amb-arch-viewer__download" (click)="descargarDesdePreview()"
+              *ngIf="previewDocumento || previewObjectUrl">
+        <i class="fas fa-download"></i> <span>Descargar</span>
+      </button>
+      <button type="button" class="amb-arch-viewer__close" (click)="cerrarPreview()">
+        <i class="fas fa-times"></i> <span>Volver al formulario</span>
+      </button>
+    </header>
+    <div class="amb-arch-viewer__body">
+      <div class="amb-arch-viewer__state" *ngIf="previewCargando">
+        <i class="fas fa-spinner fa-spin"></i><span>Cargando documento…</span>
+      </div>
+      <img *ngIf="!previewCargando && previewUrl && previewEsImagen"
+           [src]="previewUrl | safe" [alt]="previewNombre">
+      <iframe *ngIf="!previewCargando && previewUrl && !previewEsImagen"
+              [src]="previewUrl | safe" [title]="previewNombre"></iframe>
+      <div class="amb-arch-viewer__state" *ngIf="!previewCargando && !previewUrl">
+        <i class="fas fa-file-alt"></i>
+        <strong>Vista previa no disponible</strong>
+        <span>Puedes descargar el archivo para revisarlo.</span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<ng-template #fila let-doc>
+  <div class="amb-arch-row" [attr.title]="doc.nombreArchivo">
+    <i class="fas amb-arch-row__ico" [ngClass]="iconoTipo(doc.mimeType, doc.nombreArchivo)" aria-hidden="true"></i>
+    <div class="amb-arch-row__main">
+      <strong class="amb-arch-row__name">{{ doc.nombreArchivo }}</strong>
+      <span class="amb-arch-row__meta">
+        <span class="amb-arch-row__tipo">{{ etiquetaTipo(doc.mimeType, doc.nombreArchivo) }}</span>
+        <span class="amb-arch-row__peso">{{ formatearTamano(doc.tamanoBytes) }}</span>
+        <span class="amb-arch-row__folder" [title]="etiquetaCarpeta(doc)">
+          <i class="fas fa-folder" aria-hidden="true"></i>
+          {{ etiquetaCarpeta(doc) }}
+        </span>
+      </span>
+    </div>
+    <div class="amb-arch-row__actions">
+      <button type="button" title="Ver" (click)="ver(doc, $event)"><i class="fas fa-eye"></i></button>
+      <button type="button" title="Descargar" (click)="descargar(doc, $event)"><i class="fas fa-download"></i></button>
+      <button type="button" class="is-danger" title="Eliminar" (click)="eliminar(doc, $event)"><i class="fas fa-trash-alt"></i></button>
+    </div>
+  </div>
+</ng-template>

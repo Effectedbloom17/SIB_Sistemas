@@ -1,0 +1,513 @@
+<div class="header header-bg-image sgc-hero sgc-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="sgc-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i class="fas fa-file-download" aria-hidden="true"></i>
+          </div>
+          <p class="text-white mb-1 sgc-hero-tagline">SGC · Calidad</p>
+          <h1 class="text-white mb-0 sgc-hero-title">Formatos</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid sgc-main-wrap mt--5">
+  <div class="row justify-content-center">
+    <div class="col-12 sgc-content-col">
+      <section class="sgc-cap-panel sgc-fmt-panel" aria-labelledby="sgc-fmt-heading">
+        <header class="sgc-cap-panel__header">
+          <div class="sgc-cap-panel__intro">
+            <span class="sgc-cap-panel__eyebrow">ISO 9001:2015 · Capítulos 4–10</span>
+            <h2 id="sgc-fmt-heading" class="sgc-cap-panel__title">Formatos oficiales</h2>
+            <p class="sgc-cap-panel__lead mb-0">
+              {{ totalDocumentos }} plantillas listas para consultar y descargar.
+              Elige un capítulo, visualiza el formato y descárgalo sin editarlo aquí.
+            </p>
+          </div>
+
+          <div class="sgc-fmt-panel__tools">
+            <button *ngIf="puedeSubirFormatos"
+                    type="button"
+                    class="sgc-fmt-upload-btn"
+                    (click)="abrirModalSubir()"
+                    title="Subir un formato nuevo al catálogo">
+              <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+              Subir formato
+            </button>
+
+            <div class="sgc-fmt-tipo-filter" role="group" aria-label="Filtrar por tipo de archivo">
+              <button type="button"
+                      class="sgc-fmt-tipo-filter__btn"
+                      [class.sgc-fmt-tipo-filter__btn--active]="filtroTipo === 'todos'"
+                      (click)="setFiltroTipo('todos')">
+                Todos
+              </button>
+              <button type="button"
+                      class="sgc-fmt-tipo-filter__btn sgc-fmt-tipo-filter__btn--word"
+                      [class.sgc-fmt-tipo-filter__btn--active]="filtroTipo === 'word'"
+                      (click)="setFiltroTipo('word')">
+                <i class="fas fa-file-word" aria-hidden="true"></i>
+                Word
+              </button>
+              <button type="button"
+                      class="sgc-fmt-tipo-filter__btn sgc-fmt-tipo-filter__btn--excel"
+                      [class.sgc-fmt-tipo-filter__btn--active]="filtroTipo === 'excel'"
+                      (click)="setFiltroTipo('excel')">
+                <i class="fas fa-file-excel" aria-hidden="true"></i>
+                Excel
+              </button>
+            </div>
+
+            <div class="sgc-cap-panel__search">
+              <i class="fas fa-search" aria-hidden="true"></i>
+              <input type="search"
+                     class="form-control form-control-sm"
+                     placeholder="Buscar por código, nombre o capítulo…"
+                     [(ngModel)]="busqueda"
+                     (ngModelChange)="aplicarFiltro()"
+                     aria-label="Buscar formatos"
+                     [attr.aria-expanded]="buscando">
+              <button *ngIf="buscando"
+                      type="button"
+                      class="sgc-cap-panel__search-clear"
+                      (click)="limpiarBusqueda()"
+                      aria-label="Limpiar búsqueda">
+                <i class="fas fa-times" aria-hidden="true"></i>
+              </button>
+              <span class="sgc-cap-panel__search-count" *ngIf="buscando">
+                {{ documentosFiltrados.length }}
+              </span>
+            </div>
+          </div>
+        </header>
+
+        <div class="sgc-cap-workspace" [class.sgc-cap-workspace--searching]="buscando">
+          <aside class="sgc-cap-nav" aria-label="Capítulos de formatos">
+            <div class="sgc-cap-nav__head">
+              <span class="sgc-cap-nav__label">Capítulos</span>
+              <span class="sgc-cap-nav__count">{{ categorias.length }}</span>
+            </div>
+            <nav class="sgc-cap-nav__list" role="tablist" aria-orientation="vertical">
+              <button *ngFor="let cat of categorias; trackBy: trackByCategoria"
+                      type="button"
+                      class="sgc-cap-nav__item"
+                      role="tab"
+                      [class.sgc-cap-nav__item--active]="esCategoriaActiva(cat)"
+                      [attr.aria-selected]="esCategoriaActiva(cat)"
+                      (click)="seleccionarCategoria(cat)">
+                <span class="sgc-cap-nav__rail" aria-hidden="true"></span>
+                <span class="sgc-cap-nav__icon" aria-hidden="true">
+                  <i [class]="cat.iconClass"></i>
+                </span>
+                <span class="sgc-cap-nav__text">
+                  <span class="sgc-cap-nav__num">Cap. {{ cat.numero }}</span>
+                  <span class="sgc-cap-nav__title">{{ cat.titulo }}</span>
+                  <span class="sgc-cap-nav__meta">
+                    {{ contarPorCategoria(cat.id) === 0
+                      ? 'Sin plantillas'
+                      : contarPorCategoria(cat.id) + ' formato' + (contarPorCategoria(cat.id) !== 1 ? 's' : '') }}
+                  </span>
+                </span>
+              </button>
+            </nav>
+          </aside>
+
+          <div class="sgc-cap-content" aria-live="polite">
+            <div *ngIf="buscando" class="sgc-cap-content__banner sgc-cap-content__banner--search">
+              <span class="sgc-cap-content__badge">Búsqueda</span>
+              <h3 class="sgc-cap-content__title">Resultados</h3>
+              <p class="sgc-cap-content__desc mb-0">Coincidencias para «{{ busqueda.trim() }}».</p>
+            </div>
+
+            <div *ngIf="!buscando" class="sgc-cap-content__banner">
+              <div class="sgc-cap-content__deco sgc-cap-content__deco--banner" aria-hidden="true"></div>
+              <div class="sgc-cap-content__banner-top">
+                <span class="sgc-cap-content__badge">Capítulo {{ categoriaSeleccionada.numero }}</span>
+                <span class="sgc-cap-content__icon" aria-hidden="true">
+                  <i [class]="categoriaSeleccionada.iconClass"></i>
+                </span>
+              </div>
+              <h3 class="sgc-cap-content__title">{{ categoriaSeleccionada.titulo }}</h3>
+              <p class="sgc-cap-content__desc mb-0">{{ categoriaSeleccionada.descripcion }}</p>
+            </div>
+
+            <div class="sgc-cap-docs" [class.sgc-cap-docs--search]="buscando">
+              <div class="sgc-cap-docs__deco" aria-hidden="true"></div>
+              <div class="sgc-cap-docs__head">
+                <div>
+                  <h4 class="sgc-cap-docs__title">
+                    {{ buscando ? 'Formatos encontrados' : 'Documentos del capítulo' }}
+                  </h4>
+                  <p class="sgc-cap-docs__hint mb-0">
+                    Selecciona un formato para abrirlo a pantalla completa.
+                    <span *ngIf="mostrarPaginacionDocs"> · Sección {{ paginaDocs }} de {{ totalPaginasDocs }}</span>
+                  </p>
+                </div>
+                <span class="sgc-cap-docs__count">{{ documentosFiltrados.length }}</span>
+              </div>
+
+              <div *ngIf="documentosFiltrados.length === 0" class="sgc-cap-empty" role="status">
+                <i class="fas fa-folder-open" aria-hidden="true"></i>
+                <p class="mb-0" *ngIf="buscando">Sin resultados. Prueba con un código (p. ej. DG-F-04) o el nombre.</p>
+                <p class="mb-0" *ngIf="!buscando">Este capítulo aún no tiene plantillas de descarga.</p>
+              </div>
+
+              <ul *ngIf="documentosFiltrados.length > 0" class="sgc-cap-doc-list list-unstyled mb-0" role="list">
+                <li *ngFor="let doc of documentosPaginados; trackBy: trackById">
+                  <button type="button"
+                          class="sgc-cap-doc sgc-fmt-doc"
+                          [class.sgc-cap-doc--excel]="doc.tipo === 'excel'"
+                          [class.sgc-cap-doc--word]="doc.tipo === 'word'"
+                          [class.sgc-cap-doc--pdf]="doc.tipo === 'pptx' || doc.tipo === 'pdf'"
+                          [class.sgc-fmt-doc--busy]="descargandoId === doc.id"
+                          (click)="abrirVisor(doc)"
+                          [attr.aria-label]="'Ver ' + doc.codigo + ' ' + doc.titulo">
+                    <span class="sgc-cap-doc__deco" aria-hidden="true"></span>
+                    <span class="sgc-cap-doc__accent" aria-hidden="true"></span>
+                    <span class="sgc-cap-doc__icon" aria-hidden="true">
+                      <i [class]="iconoTipo(doc.tipo)"></i>
+                    </span>
+                    <span class="sgc-cap-doc__body">
+                      <span class="sgc-cap-doc__meta">
+                        <span class="sgc-cap-doc__code">{{ doc.codigo }}</span>
+                        <span class="sgc-cap-doc__tag">{{ etiquetaTipo(doc.tipo) }}</span>
+                        <span class="sgc-cap-doc__tag sgc-cap-doc__tag--mode">Descarga</span>
+                        <span *ngIf="(doc.versionActual || 1) > 1" class="sgc-cap-doc__tag sgc-fmt-doc__ver"
+                              [title]="'Actualizado por ' + (doc.actualizadoPorNombre || '—') + (doc.fechaUltimaActualizacion ? ' · ' + doc.fechaUltimaActualizacion : '')">
+                          v{{ doc.versionActual }}
+                        </span>
+                        <span *ngIf="buscando" class="sgc-cap-doc__tag">{{ nombreCategoria(doc.categoriaId) }}</span>
+                      </span>
+                      <span class="sgc-cap-doc__name">{{ doc.titulo }}</span>
+                      <span class="sgc-cap-doc__desc">· Plantilla para descargar ·</span>
+                    </span>
+                    <span class="sgc-fmt-doc__actions">
+                      <span *ngIf="puedeDesactivarFormatos"
+                            class="sgc-fmt-doc__dl sgc-fmt-doc__dl--deactivate"
+                            role="button"
+                            tabindex="0"
+                            title="Desactivar formato"
+                            (click)="desactivarFormato(doc, $event)"
+                            (keyup.enter)="desactivarFormato(doc, $event)">
+                        <i class="fas"
+                           [ngClass]="desactivandoId === doc.id ? 'fa-spinner fa-spin' : 'fa-eye-slash'"
+                           aria-hidden="true"></i>
+                      </span>
+                      <span *ngIf="puedeEliminarFormato(doc)"
+                            class="sgc-fmt-doc__dl sgc-fmt-doc__dl--delete"
+                            role="button"
+                            tabindex="0"
+                            title="Eliminar definitivamente"
+                            (click)="eliminarFormato(doc, $event)"
+                            (keyup.enter)="eliminarFormato(doc, $event)">
+                        <i class="fas"
+                           [ngClass]="eliminandoId === doc.id ? 'fa-spinner fa-spin' : 'fa-trash-alt'"
+                           aria-hidden="true"></i>
+                      </span>
+                      <span *ngIf="puedeReemplazarFormatos"
+                            class="sgc-fmt-doc__dl sgc-fmt-doc__dl--replace"
+                            role="button"
+                            tabindex="0"
+                            title="Reemplazar con versión nueva"
+                            (click)="solicitarReemplazo(doc, $event)"
+                            (keyup.enter)="solicitarReemplazo(doc, $event)">
+                        <i class="fas"
+                           [ngClass]="reemplazandoId === doc.id ? 'fa-spinner fa-spin' : 'fa-sync-alt'"
+                           aria-hidden="true"></i>
+                      </span>
+                      <span class="sgc-fmt-doc__dl"
+                            role="button"
+                            tabindex="0"
+                            title="Descargar"
+                            (click)="descargar(doc, $event)"
+                            (keyup.enter)="descargar(doc, $event)">
+                        <i class="fas"
+                           [ngClass]="descargandoId === doc.id ? 'fa-spinner fa-spin' : 'fa-download'"
+                           aria-hidden="true"></i>
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              </ul>
+
+              <input #inputReemplazo type="file" class="d-none"
+                     accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/pdf"
+                     (change)="onArchivoReemplazoSeleccionado($event)">
+
+              <div class="sgc-cap-docs__pager" *ngIf="mostrarPaginacionDocs">
+                <button type="button"
+                        class="sgc-cap-docs__pager-btn"
+                        [disabled]="paginaDocs <= 1"
+                        (click)="irPaginaDocs(paginaDocs - 1)"
+                        aria-label="Sección anterior">
+                  <i class="fas fa-chevron-left" aria-hidden="true"></i>
+                </button>
+                <span class="sgc-cap-docs__pager-label">{{ rangoDocsEtiqueta }}</span>
+                <div class="sgc-cap-docs__pager-dots" role="tablist" aria-label="Secciones de documentos">
+                  <button type="button"
+                          class="sgc-cap-docs__pager-dot"
+                          *ngFor="let pag of paginasDocs"
+                          [class.is-active]="paginaDocs === pag"
+                          [attr.aria-label]="'Sección ' + pag"
+                          [attr.aria-selected]="paginaDocs === pag"
+                          (click)="irPaginaDocs(pag)">
+                  </button>
+                </div>
+                <button type="button"
+                        class="sgc-cap-docs__pager-btn"
+                        [disabled]="paginaDocs >= totalPaginasDocs"
+                        (click)="irPaginaDocs(paginaDocs + 1)"
+                        aria-label="Sección siguiente">
+                  <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- Modal subir formato (solo administradores) -->
+<div class="sgc-fmt-upload-modal"
+     *ngIf="mostrarModalSubir"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="sgc-fmt-upload-title">
+  <div class="sgc-fmt-upload-modal__backdrop" (click)="cerrarModalSubir()"></div>
+  <div class="sgc-fmt-upload-modal__panel">
+    <header class="sgc-fmt-upload-modal__head">
+      <div class="sgc-fmt-upload-modal__head-main">
+        <span class="sgc-fmt-upload-modal__icon-wrap">
+          <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+        </span>
+        <div>
+          <span class="sgc-fmt-upload-modal__eyebrow">Administración · SGC</span>
+          <h3 id="sgc-fmt-upload-title" class="sgc-fmt-upload-modal__title">Subir formato oficial</h3>
+          <p class="sgc-fmt-upload-modal__lead mb-0">
+            Carga el archivo primero. El sistema detectará código y nombre; puedes ajustarlos antes de subir.
+          </p>
+        </div>
+      </div>
+      <button type="button"
+              class="sgc-fmt-upload-modal__close"
+              (click)="cerrarModalSubir()"
+              [disabled]="subiendoFormato"
+              aria-label="Cerrar">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </header>
+
+    <div class="sgc-fmt-upload-modal__body">
+      <!-- Paso 1: archivo -->
+      <section class="sgc-fmt-upload-step">
+        <div class="sgc-fmt-upload-step__label">
+          <span class="sgc-fmt-upload-step__num">1</span>
+          <span>Selecciona el archivo</span>
+        </div>
+
+        <input #inputSubirFormato
+               type="file"
+               class="d-none"
+               accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/pdf"
+               (change)="onArchivoSubidaSeleccionado($event)"
+               [disabled]="subiendoFormato">
+
+        <div *ngIf="!subirArchivo"
+             class="sgc-fmt-upload-zone"
+             [class.sgc-fmt-upload-zone--drag]="subirArrastrando"
+             (dragover)="onDragOverSubida($event)"
+             (dragleave)="onDragLeaveSubida($event)"
+             (drop)="onDropSubida($event)"
+             (click)="inputSubirFormato.click()"
+             role="button"
+             tabindex="0"
+             (keyup.enter)="inputSubirFormato.click()">
+          <span class="sgc-fmt-upload-zone__icon">
+            <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+          </span>
+          <strong>Arrastra tu archivo aquí</strong>
+          <span>o haz clic para seleccionarlo</span>
+          <small>Word, Excel, PowerPoint o PDF · Máx. 40 MB</small>
+        </div>
+
+        <div *ngIf="subirArchivo" class="sgc-fmt-upload-preview">
+          <span class="sgc-fmt-upload-preview__icon" aria-hidden="true">
+            <i [class]="iconoArchivoSubido"></i>
+          </span>
+          <div class="sgc-fmt-upload-preview__body">
+            <span class="sgc-fmt-upload-preview__badge">{{ tipoArchivoSubido }}</span>
+            <strong class="sgc-fmt-upload-preview__name" [title]="nombreDocumentoSubido">
+              {{ nombreDocumentoSubido }}
+            </strong>
+            <span class="sgc-fmt-upload-preview__meta">{{ tamanoArchivoSubido }}</span>
+          </div>
+          <button type="button"
+                  class="sgc-fmt-upload-preview__change"
+                  (click)="inputSubirFormato.click()"
+                  [disabled]="subiendoFormato">
+            Cambiar
+          </button>
+          <button type="button"
+                  class="sgc-fmt-upload-preview__remove"
+                  (click)="quitarArchivoSubida(inputSubirFormato)"
+                  [disabled]="subiendoFormato"
+                  aria-label="Quitar archivo">
+            <i class="fas fa-times" aria-hidden="true"></i>
+          </button>
+        </div>
+      </section>
+
+      <!-- Paso 2: datos manuales (visible tras cargar archivo) -->
+      <section class="sgc-fmt-upload-step sgc-fmt-upload-step--details"
+               [class.sgc-fmt-upload-step--disabled]="!subirArchivo">
+        <div class="sgc-fmt-upload-step__label">
+          <span class="sgc-fmt-upload-step__num">2</span>
+          <span>Completa los datos</span>
+        </div>
+
+        <div class="sgc-fmt-upload-grid sgc-fmt-upload-grid--stack">
+          <label class="sgc-fmt-upload-field sgc-fmt-upload-field--wide">
+            <span class="sgc-fmt-upload-field__label">
+              <i class="fas fa-file-alt" aria-hidden="true"></i>
+              Nombre del documento
+            </span>
+            <input type="text"
+                   class="sgc-fmt-upload-input"
+                   placeholder="Nombre detectado del archivo"
+                   [(ngModel)]="subirNombre"
+                   [disabled]="subiendoFormato || !subirArchivo"
+                   autocomplete="off">
+          </label>
+
+          <label class="sgc-fmt-upload-field">
+            <span class="sgc-fmt-upload-field__label">
+              <i class="fas fa-barcode" aria-hidden="true"></i>
+              Código del formato
+            </span>
+            <input type="text"
+                   class="sgc-fmt-upload-input"
+                   placeholder="Ej. EIN-F-04"
+                   [(ngModel)]="subirCodigo"
+                   (ngModelChange)="subirError = ''"
+                   [disabled]="subiendoFormato || !subirArchivo"
+                   autocomplete="off">
+          </label>
+
+          <label class="sgc-fmt-upload-field">
+            <span class="sgc-fmt-upload-field__label">
+              <i class="fas fa-book-open" aria-hidden="true"></i>
+              Capítulo ISO
+            </span>
+            <div class="sgc-fmt-upload-select-wrap">
+              <select class="sgc-fmt-upload-input sgc-fmt-upload-input--select"
+                      [(ngModel)]="subirCategoriaId"
+                      [disabled]="subiendoFormato || !subirArchivo">
+                <option *ngFor="let cat of categorias" [ngValue]="cat.id">
+                  Cap. {{ cat.numero }} — {{ cat.titulo }}
+                </option>
+              </select>
+              <i class="fas fa-chevron-down sgc-fmt-upload-select-wrap__chev" aria-hidden="true"></i>
+            </div>
+          </label>
+        </div>
+      </section>
+
+      <p class="sgc-fmt-upload-error" *ngIf="subirError">
+        <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+        {{ subirError }}
+      </p>
+    </div>
+
+    <footer class="sgc-fmt-upload-modal__foot">
+      <p class="sgc-fmt-upload-modal__hint mb-0">
+        <i class="fas fa-info-circle" aria-hidden="true"></i>
+        Archivo obligatorio · Código y nombre se sugieren del archivo, pero puedes editarlos
+      </p>
+      <div class="sgc-fmt-upload-modal__actions">
+        <button type="button"
+                class="sgc-fmt-upload-modal__btn sgc-fmt-upload-modal__btn--ghost"
+                (click)="cerrarModalSubir()"
+                [disabled]="subiendoFormato">
+          Cancelar
+        </button>
+        <button type="button"
+                class="sgc-fmt-upload-modal__btn sgc-fmt-upload-modal__btn--primary"
+                (click)="confirmarSubidaFormato()"
+                [disabled]="!puedeConfirmarSubida">
+          <i class="fas" [ngClass]="subiendoFormato ? 'fa-spinner fa-spin' : 'fa-upload'" aria-hidden="true"></i>
+          {{ subiendoFormato ? 'Subiendo…' : 'Subir formato' }}
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<!-- Visor de solo lectura -->
+<div class="sgc-fmt-visor"
+     *ngIf="mostrarVisor && documentoActivo"
+     role="dialog"
+     aria-modal="true"
+     [attr.aria-label]="'Vista previa de ' + documentoActivo.codigo">
+  <div class="sgc-fmt-visor__backdrop" (click)="cerrarVisor()"></div>
+  <div class="sgc-fmt-visor__panel">
+    <header class="sgc-fmt-visor__head">
+      <div class="sgc-fmt-visor__title-wrap">
+        <span class="sgc-fmt-visor__icon">
+          <i [class]="iconoTipo(documentoActivo.tipo)" aria-hidden="true"></i>
+        </span>
+        <div class="sgc-fmt-visor__title">
+          <span class="sgc-fmt-visor__code">{{ documentoActivo.codigo }}</span>
+          <strong>{{ documentoActivo.titulo }}</strong>
+          <small>Vista previa de solo lectura · Cap. {{ numeroCategoria(documentoActivo.categoriaId) }}</small>
+        </div>
+      </div>
+      <div class="sgc-fmt-visor__actions">
+        <button *ngIf="puedeDescargarPdfVisor"
+                type="button"
+                class="sgc-fmt-visor__download"
+                (click)="descargarPdfVisor()"
+                [disabled]="!previewBlob">
+          <i class="fas fa-file-download" aria-hidden="true"></i>
+          Descargar en PDF
+        </button>
+        <button type="button"
+                class="sgc-fmt-visor__close"
+                (click)="cerrarVisor()"
+                aria-label="Cerrar vista previa">
+          <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+      </div>
+    </header>
+
+    <div class="sgc-fmt-visor__body">
+      <app-pdf-canvas-viewer
+        *ngIf="!visorError"
+        [blob]="previewBlob"
+        [preparando]="visorCargando && !previewBlob"
+        [progresoServidor]="visorProgreso"
+        [etiquetaServidor]="visorEtiqueta"
+        [lento]="visorLento"
+        tema="claro"
+        (fallo)="onErrorVisor($event)">
+      </app-pdf-canvas-viewer>
+      <div class="sgc-fmt-visor__error" *ngIf="visorError">
+        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+        <strong>Vista previa no disponible</strong>
+        <small>{{ visorError }}</small>
+        <button *ngIf="puedeDescargarPdfVisor"
+                type="button"
+                class="sgc-fmt-visor__download"
+                (click)="descargar(documentoActivo, $event)"
+                [disabled]="!!descargandoId">
+          <i class="fas fa-download" aria-hidden="true"></i>
+          Descargar formato
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,498 @@
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-history"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">
+            Historial PC
+          </h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+
+      <ng-container *ngIf="vista === 'lista'">
+        <div class="card shadow-lg border-0 history-main-card" [class.compact-mode]="modoVisual === 'compacto'" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+          <div class="card-header border-0 history-header" style="padding: 1.5rem 2rem;">
+            <div class="history-title-wrap">
+              <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">Panel principal</h6>
+              <h2 class="mb-0" style="color: #c0581e; font-weight: 700; font-size: 1.5rem;">{{ tituloPrincipal }}</h2>
+            </div>
+            <div class="history-actions">
+              <div class="density-toggle" role="group" aria-label="Modo de visualizacion">
+                <button type="button" class="density-btn" [class.active]="modoVisual === 'normal'" (click)="cambiarModoVisual('normal')">Normal</button>
+                <button type="button" class="density-btn" [class.active]="modoVisual === 'compacto'" (click)="cambiarModoVisual('compacto')">Compacto</button>
+              </div>
+              <span class="history-badge-count">{{ empresasFiltradas.length }} empresa(s)</span>
+            </div>
+          </div>
+
+          <div class="card-body" style="padding: 1.5rem;">
+            <div class="history-filters">
+              <div class="search-input-wrap">
+                <i class="fas fa-search search-icon"></i>
+                <input class="search-input" type="text" placeholder="Buscar por nombre o RFC..."
+                  [(ngModel)]="textoBusquedaEmpresa" (ngModelChange)="filtrarEmpresas()" autocomplete="off">
+              </div>
+              <select class="filter-select" [(ngModel)]="estadoSeleccionado" (ngModelChange)="onEstadoChange()">
+                <option value="">Todos los estados</option>
+                <option *ngFor="let estado of estados" [value]="estado">{{ estado }}</option>
+              </select>
+              <select class="filter-select" [(ngModel)]="municipioSeleccionado" (ngModelChange)="filtrarEmpresas()">
+                <option value="">Todos los municipios</option>
+                <option *ngFor="let municipio of municipios" [value]="municipio">{{ municipio }}</option>
+              </select>
+            </div>
+
+            <div class="history-intro-banner" *ngIf="!cargando">
+              <span class="history-intro-item">
+                <i class="fas fa-building"></i>
+                Selecciona una empresa para consultar sus trámites PIPC finalizados
+              </span>
+              <span class="history-intro-item">
+                <i class="fas fa-filter"></i>
+                Usa año y mes para ubicar el ciclo
+              </span>
+            </div>
+
+            <div *ngIf="cargando" class="text-center py-5">
+              <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+              <p class="text-muted mt-2 mb-0">Cargando historial de Protección Civil...</p>
+            </div>
+
+            <div *ngIf="!cargando && empresasFiltradas.length === 0" class="text-center py-5">
+              <i class="fas fa-building fa-2x text-muted"></i>
+              <p class="text-muted mt-2 mb-0">No hay empresas con trámites PIPC finalizados</p>
+            </div>
+
+            <ng-container *ngIf="!cargando && empresasFiltradas.length > 0">
+              <div class="history-layout">
+                <aside class="companies-pane">
+                  <div class="pane-header-row">
+                    <span><i class="fas fa-building"></i> Empresas</span>
+                    <span>{{ empresasVisibles.length }} de {{ empresasFiltradas.length }}</span>
+                  </div>
+                  <div class="companies-list">
+                    <button *ngFor="let empresa of empresasVisibles; trackBy: trackByEmpresaId"
+                      type="button" class="company-card"
+                      [class.active]="empresaSeleccionada?.empresa_id === empresa.empresa_id"
+                      (click)="seleccionarEmpresa(empresa)">
+                      <div class="company-head">
+                        <div class="company-logo" *ngIf="getLogoEmpresaUrl(empresa) as logoUrl; else initialsLogo">
+                          <img [src]="logoUrl" [alt]="empresa.nombre_empresa" (error)="onLogoError(empresa)">
+                        </div>
+                        <ng-template #initialsLogo>
+                          <div class="company-initials">{{ getInicialesEmpresa(empresa.nombre_empresa) }}</div>
+                        </ng-template>
+                        <div class="company-meta">
+                          <h6 class="company-name">{{ empresa.nombre_empresa }}</h6>
+                          <span class="company-rfc" *ngIf="empresa.rfc">RFC: {{ empresa.rfc }}</span>
+                          <span class="company-location">
+                            <i class="fas fa-map-marker-alt"></i>
+                            {{ empresa.ciudad || '—' }}<span *ngIf="empresa.estado">, {{ empresa.estado }}</span>
+                          </span>
+                        </div>
+                      </div>
+                      <div class="company-foot">
+                        <span class="company-foot-label">Trámites finalizados</span>
+                        <span class="company-foot-value">{{ empresa.total_ciclos }}</span>
+                      </div>
+                    </button>
+                  </div>
+                  <div class="pagination-wrap" *ngIf="totalEmpresasPages > 1">
+                    <button type="button" class="page-btn page-btn-nav" [disabled]="empresasCurrentPage === 1" (click)="irPaginaEmpresas(empresasCurrentPage - 1)">
+                      <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button type="button" class="page-btn" *ngFor="let page of empresasPageNumbers"
+                      [class.active]="page === empresasCurrentPage" (click)="irPaginaEmpresas(page)">{{ page }}</button>
+                    <button type="button" class="page-btn page-btn-nav" [disabled]="empresasCurrentPage === totalEmpresasPages" (click)="irPaginaEmpresas(empresasCurrentPage + 1)">
+                      <i class="fas fa-chevron-right"></i>
+                    </button>
+                  </div>
+                </aside>
+
+                <section class="courses-pane" *ngIf="empresaSeleccionada; else emptySelection">
+                  <div class="courses-pane-header">
+                    <div>
+                      <h5 class="courses-pane-title">{{ empresaSeleccionada.nombre_empresa }}</h5>
+                      <span class="courses-pane-subtitle">Selecciona año y mes para consultar historial</span>
+                    </div>
+                    <button type="button" class="btn-reset-company" (click)="limpiarSeleccionEmpresa()">
+                      <i class="fas fa-times"></i> Quitar selección
+                    </button>
+                  </div>
+
+                  <div class="courses-filters">
+                    <select class="filter-select" [(ngModel)]="anoSeleccionado" (change)="filtrarCiclos()">
+                      <option [ngValue]="0">Todos los años</option>
+                      <option *ngFor="let ano of anosDisponibles" [ngValue]="ano">{{ ano }}</option>
+                    </select>
+                    <select class="filter-select" [(ngModel)]="mesSeleccionado" (change)="filtrarCiclos()">
+                      <option [ngValue]="0">Todos los meses</option>
+                      <option *ngFor="let mes of meses" [ngValue]="mes.value">{{ mes.label }}</option>
+                    </select>
+                  </div>
+
+                  <div *ngIf="cargandoCiclos" class="text-center py-5">
+                    <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                  </div>
+
+                  <div class="pane-header-row pane-header-row-courses" *ngIf="!cargandoCiclos && ciclosFiltrados.length > 0">
+                    <span><i class="fas fa-shield-alt"></i> Trámites encontrados</span>
+                    <span>{{ ciclosVisibles.length }} de {{ ciclosFiltrados.length }}</span>
+                  </div>
+
+                  <div *ngIf="!cargandoCiclos && ciclosFiltrados.length === 0" class="text-center py-5">
+                    <i class="fas fa-calendar-times fa-2x text-muted"></i>
+                    <p class="text-muted mt-2 mb-0">No hay trámites para el año/mes seleccionado</p>
+                  </div>
+
+                  <div class="courses-list" *ngIf="!cargandoCiclos && ciclosFiltrados.length > 0">
+                    <article class="course-item" *ngFor="let ciclo of ciclosVisibles; trackBy: trackByCicloId"
+                      role="button" tabindex="0"
+                      (click)="abrirDetalleCiclo(ciclo)"
+                      (keydown.enter)="abrirDetalleCiclo(ciclo)">
+                      <div class="course-main">
+                        <h6 class="course-name">{{ tituloCiclo(ciclo) }}</h6>
+                        <div class="course-meta-grid">
+                          <span><i class="fas fa-calendar-alt"></i> Cierre: {{ formatFecha(ciclo.fecha_cierre || ciclo.fecha_inicio) }}</span>
+                          <span><i class="fas fa-folder"></i> {{ ciclo.resumen?.total || 0 }} archivo(s)</span>
+                          <span><i class="fas fa-file-signature"></i> Oficios: {{ ciclo.resumen?.oficios || 0 }}</span>
+                          <span><i class="fas fa-stamp"></i> Resolutivos: {{ ciclo.resumen?.resolutivos || 0 }}</span>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div class="pagination-wrap" *ngIf="totalCiclosPages > 1">
+                    <button type="button" class="page-btn page-btn-nav" [disabled]="ciclosCurrentPage === 1" (click)="irPaginaCiclos(ciclosCurrentPage - 1)">
+                      <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button type="button" class="page-btn" *ngFor="let page of ciclosPageNumbers"
+                      [class.active]="page === ciclosCurrentPage" (click)="irPaginaCiclos(page)">{{ page }}</button>
+                    <button type="button" class="page-btn page-btn-nav" [disabled]="ciclosCurrentPage === totalCiclosPages" (click)="irPaginaCiclos(ciclosCurrentPage + 1)">
+                      <i class="fas fa-chevron-right"></i>
+                    </button>
+                  </div>
+                </section>
+
+                <ng-template #emptySelection>
+                  <section class="courses-pane-empty">
+                    <div class="empty-selection-wrap">
+                      <div class="empty-selection-icon"><i class="fas fa-hand-pointer"></i></div>
+                      <h5 class="empty-selection-title">Selecciona una empresa</h5>
+                      <p class="empty-selection-text">Al elegir una empresa verás los trámites PIPC ya finalizados y podrás abrir su expediente por apartados.</p>
+                      <div class="empty-selection-stats">
+                        <div class="empty-stat-card">
+                          <span class="empty-stat-label">Empresas</span>
+                          <span class="empty-stat-value">{{ empresasFiltradas.length }}</span>
+                        </div>
+                        <div class="empty-stat-card">
+                          <span class="empty-stat-label">Trámites</span>
+                          <span class="empty-stat-value">{{ totalCiclosEnLista }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                </ng-template>
+              </div>
+            </ng-container>
+          </div>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="vista === 'detalle' && cicloSeleccionado && empresaSeleccionada">
+        <div class="detalle-dashboard">
+          <div class="card main-card detalle-curso-card">
+            <div class="detalle-header">
+              <button class="btn-back-detalle" type="button" (click)="volverALista()" title="Volver">
+                <i class="fas fa-arrow-left"></i>
+              </button>
+              <div class="detalle-header-info">
+                <h5 class="detalle-empresa">{{ empresaSeleccionada.nombre_empresa }}</h5>
+                <span class="detalle-curso-nombre">{{ tituloCiclo(cicloSeleccionado) }}</span>
+              </div>
+              <div class="detalle-header-actions">
+                <div class="detalle-badge">
+                  <span class="status-dot"></span>
+                  Completado
+                </div>
+              </div>
+            </div>
+            <div class="detalle-resumen">
+              <div class="resumen-item">
+                <i class="fas fa-calendar-check"></i>
+                <div>
+                  <span class="resumen-label">Cierre</span>
+                  <span class="resumen-value">{{ formatFecha(cicloSeleccionado.fecha_cierre) }}</span>
+                </div>
+              </div>
+              <div class="resumen-item">
+                <i class="fas fa-sign-in-alt"></i>
+                <div>
+                  <span class="resumen-label">Ingreso</span>
+                  <span class="resumen-value">{{ formatFecha(cicloSeleccionado.fecha_ingreso_tramite || cicloSeleccionado.fecha_inicio) }}</span>
+                </div>
+              </div>
+              <div class="resumen-item">
+                <i class="fas fa-folder-open"></i>
+                <div>
+                  <span class="resumen-label">Documentos</span>
+                  <span class="resumen-value">{{ cicloSeleccionado.resumen?.total || totalArchivos }}</span>
+                </div>
+              </div>
+              <div class="resumen-item">
+                <i class="fas fa-map-marker-alt"></i>
+                <div>
+                  <span class="resumen-label">Ubicación</span>
+                  <span class="resumen-value">{{ empresaSeleccionada.ciudad || '—' }}<span *ngIf="empresaSeleccionada.estado">, {{ empresaSeleccionada.estado }}</span></span>
+                </div>
+              </div>
+              <div class="resumen-item">
+                <i class="fas fa-shield-alt"></i>
+                <div>
+                  <span class="resumen-label">Estatus</span>
+                  <span class="resumen-value">Finalizado</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="history-detail-stack">
+            <div class="card main-card history-search-card">
+              <div class="history-search-head">
+                <div class="history-search-title-wrap">
+                  <h6 class="history-search-title">Buscador de documentos</h6>
+                  <span class="history-search-subtitle">Consulta rápida por nombre, tipo o fecha</span>
+                </div>
+                <span class="history-search-total">{{ itemsFiltrados.length }} / {{ totalArchivos }}</span>
+              </div>
+              <div class="history-search-controls">
+                <div class="history-search-input-wrap">
+                  <i class="fas fa-search history-search-icon"></i>
+                  <input
+                    class="history-search-input"
+                    type="text"
+                    [(ngModel)]="filtroTexto"
+                    placeholder="Buscar archivo (ej. oficio, resolutivo, pdf, 2026)"
+                  >
+                </div>
+                <select class="history-search-select" [(ngModel)]="seccionFiltro" (change)="onFiltroSeccionChange()">
+                  <option value="todos">Todos los apartados</option>
+                  <option *ngFor="let seccion of secciones" [value]="seccion.key">{{ seccion.nombre }}</option>
+                </select>
+                <button type="button" class="history-search-clear" (click)="limpiarBusqueda()">
+                  <i class="fas fa-times"></i> Limpiar
+                </button>
+              </div>
+            </div>
+
+            <div *ngIf="cargandoDetalle" class="card main-card">
+              <div class="docs-empty">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Cargando documentos del trámite...</span>
+              </div>
+            </div>
+
+            <div class="card main-card history-explorer-card" *ngIf="!cargandoDetalle && seccionesConDatos.length > 0">
+              <div class="history-explorer-layout">
+                <aside class="history-sections-sidebar">
+                  <div class="history-sidebar-list">
+                    <button
+                      type="button"
+                      *ngFor="let seccion of seccionesConDatos"
+                      class="history-sidebar-item"
+                      [class.active]="seccionActiva === seccion.key"
+                      (click)="setSeccionActiva(seccion.key)"
+                    >
+                      <span class="history-sidebar-item-left">
+                        <span class="history-sidebar-icon" [style.background]="seccion.color">
+                          <i class="fas" [ngClass]="seccion.icono"></i>
+                        </span>
+                        <span class="history-sidebar-title">{{ seccion.nombre }}</span>
+                      </span>
+                      <span class="history-sidebar-count">{{ contarApartado(seccion.key, true) }}</span>
+                    </button>
+                  </div>
+                </aside>
+
+                <section class="history-active-panel" *ngIf="seccionActivaObj as seccionActivaView">
+                  <div class="history-active-header">
+                    <h6 class="history-active-title">{{ seccionActivaView.nombre }}</h6>
+                    <span class="history-active-meta">{{ itemsSeccionActiva.length }} archivo(s)</span>
+                  </div>
+
+                  <div class="history-section-files">
+                    <ng-container *ngFor="let grupo of gruposSeccionActiva; let i = index">
+                      <div class="history-group-separator" [class.history-group-separator-first]="i === 0">
+                        <span class="history-group-title">{{ grupo.titulo }}</span>
+                        <span class="history-group-count">{{ grupo.archivos.length }} archivo(s)</span>
+                      </div>
+
+                      <div class="history-files-table-head">
+                        <span class="col-file">Archivo</span>
+                        <span class="col-date">Fecha</span>
+                        <span class="col-size">Tamaño</span>
+                        <span class="col-actions">Acciones</span>
+                      </div>
+
+                      <div
+                        *ngFor="let archivo of grupo.archivos"
+                        class="history-file-row history-file-row-compact"
+                        (click)="abrirItem(archivo)"
+                      >
+                        <div class="history-file-main">
+                          <div
+                            class="drive-file-icon drive-file-icon-sm"
+                            [style.background]="colorArchivo(archivo.mime_type, archivo.nombre_archivo)"
+                          >
+                            <i class="fas" [ngClass]="iconoArchivo(archivo)"></i>
+                          </div>
+                          <span
+                            class="history-file-name"
+                            [title]="archivo.nombre_archivo || archivo.nombre_documento"
+                            [innerHTML]="getNombreArchivoResaltado(archivo.nombre_archivo || archivo.nombre_documento)"
+                          ></span>
+                        </div>
+                        <div class="history-file-date">{{ formatFechaCorta(archivo.fecha_referencia) }}</div>
+                        <div class="history-file-size">{{ archivo.tipo_item === 'texto' ? 'Texto' : formatearTamano(archivo.tamano_bytes) }}</div>
+                        <div class="history-file-actions">
+                          <button type="button" class="action-btn action-preview" (click)="abrirItem(archivo, $event)" title="Ver">
+                            <i class="fas fa-eye"></i>
+                          </button>
+                          <button
+                            type="button"
+                            class="action-btn action-download"
+                            *ngIf="archivo.drive_file_id"
+                            (click)="descargarItem(archivo, $event)"
+                            title="Descargar"
+                          >
+                            <i class="fas fa-download"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </ng-container>
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            <div class="card main-card" *ngIf="!cargandoDetalle && seccionesConDatos.length === 0">
+              <div class="docs-empty">
+                <i class="fas fa-search"></i>
+                <span>No se encontraron documentos con ese criterio</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="mostrarVisor"
+     class="timeline-editor-fullscreen"
+     role="dialog"
+     aria-modal="true"
+     aria-label="Visualizador de documento">
+  <div class="timeline-editor-fullscreen__backdrop" (click)="cerrarVisor()"></div>
+  <div class="timeline-editor-fullscreen__panel">
+    <div class="timeline-editor-fullscreen__head">
+      <div class="timeline-editor-fullscreen__title-wrap">
+        <span class="timeline-editor-fullscreen__icon">
+          <i class="fas" [ngClass]="visorIcono"></i>
+        </span>
+        <div>
+          <strong class="timeline-editor-fullscreen__title">{{ visorEsTexto ? 'Texto capturado' : 'Vista previa' }}</strong>
+          <small class="timeline-editor-fullscreen__subtitle">{{ visorNombre }}</small>
+        </div>
+      </div>
+      <div class="timeline-editor-fullscreen__actions">
+        <div class="history-viewer-zoom" role="toolbar" aria-label="Zoom del documento" *ngIf="visorUsaZoom">
+          <button type="button" class="history-viewer-zoom__btn"
+                  (click)="ajustarZoomVisor(-zoomVisorPaso)"
+                  [disabled]="zoomVisor <= zoomVisorMin"
+                  title="Reducir zoom">
+            <i class="fas fa-search-minus"></i>
+          </button>
+          <button type="button" class="history-viewer-zoom__btn history-viewer-zoom__btn--pct"
+                  (click)="resetZoomVisor()"
+                  title="Restablecer zoom (ajustar a pantalla)">
+            {{ zoomVisor }}%
+          </button>
+          <button type="button" class="history-viewer-zoom__btn"
+                  (click)="ajustarZoomVisor(zoomVisorPaso)"
+                  [disabled]="zoomVisor >= zoomVisorMax"
+                  title="Aumentar zoom">
+            <i class="fas fa-search-plus"></i>
+          </button>
+        </div>
+        <button type="button" class="btn btn-sm btn-light" *ngIf="visorDriveId" (click)="descargarVisor()">
+          <i class="fas fa-download mr-1"></i>Descargar
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-light"
+          *ngIf="visorDriveId"
+          (click)="abrirVisorEnNuevaPestana()"
+        >
+          <i class="fas fa-external-link-alt mr-1"></i>Abrir en Drive
+        </button>
+        <button type="button" class="btn btn-sm btn-light" (click)="cerrarVisor()">
+          <i class="fas fa-times mr-1"></i>Volver al formulario
+        </button>
+      </div>
+    </div>
+    <div class="timeline-editor-fullscreen__body history-viewer-body"
+         [class.history-viewer-body--pdf]="visorModoPdf"
+         (wheel)="onWheelZoomVisor($event)">
+      <div *ngIf="visorCargando && visorEsImagen"
+           class="position-absolute w-100 h-100 d-flex align-items-center justify-content-center pc-viewer-loading"
+           style="z-index: 10; background: rgba(255,255,255,0.92);">
+        <div class="text-center">
+          <i class="fas fa-spinner fa-spin fa-2x pc-viewer-loading__icon"></i>
+          <p class="pc-viewer-loading__text mt-2 mb-0">Cargando vista previa...</p>
+        </div>
+      </div>
+      <div class="pc-texto-box" *ngIf="visorEsTexto">{{ visorTexto }}</div>
+
+      <app-pdf-canvas-viewer
+        *ngIf="visorModoPdf && !visorEsTexto && !visorError"
+        [blob]="previewBlobVisor"
+        [preparando]="visorCargando && !previewBlobVisor"
+        [progresoServidor]="visorProgreso"
+        [etiquetaServidor]="visorEtiqueta"
+        [lento]="visorLento"
+        tema="naranja">
+      </app-pdf-canvas-viewer>
+
+      <div *ngIf="visorModoPdf && visorError"
+           class="pc-viewer-fallback">
+        <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+        <p class="mb-2">{{ visorError }}</p>
+        <button type="button" class="btn btn-sm btn-light" *ngIf="visorDriveId" (click)="descargarVisor()">
+          <i class="fas fa-download mr-1"></i>Descargar archivo
+        </button>
+      </div>
+
+      <div *ngIf="visorUrl && visorEsImagen"
+           class="history-viewer-stage history-viewer-stage--image"
+           [style.zoom]="zoomVisor / 100">
+        <img [src]="visorUrl | safe"
+             [alt]="visorNombre"
+             class="history-viewer-image"
+             (load)="onVisorLoad()"
+             (error)="onVisorLoad()">
+      </div>
+    </div>
+  </div>
+</div>

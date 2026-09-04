@@ -1,0 +1,622 @@
+<div class="header header-bg-image sgc-hero sgc-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="sgc-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i class="fas fa-folder-open" aria-hidden="true"></i>
+          </div>
+          <p class="text-white mb-1 sgc-hero-chapter-label">Diseño e Innovación</p>
+          <h1 class="text-white mb-0 sgc-hero-title">Repositorio</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid sgc-main-wrap mt--5">
+  <div class="row justify-content-center">
+    <div class="col-12 sgc-content-col">
+      <div class="card sgc-shell border-0 shadow-sm">
+        <div class="sgc-shell-accent" aria-hidden="true"></div>
+        <div class="card-body sgc-shell-body">
+          <nav class="sgc-crumb" aria-label="Navegación">
+            <ol class="sgc-crumb__trail list-unstyled mb-0">
+              <li class="sgc-crumb__step">
+                <a routerLink="/diseno-innovacion" class="sgc-crumb__link">
+                  <i class="fas fa-drafting-compass sgc-crumb__icon" aria-hidden="true"></i>
+                  Proyectos Señalización
+                </a>
+              </li>
+              <li class="sgc-crumb__sep" aria-hidden="true">
+                <i class="fas fa-chevron-right"></i>
+              </li>
+              <li class="sgc-crumb__step" [class.sgc-crumb__step--current]="!carpetaActual && !busqueda">
+                <button *ngIf="carpetaActual || busqueda; else crumbRepoActual"
+                        type="button"
+                        class="sgc-crumb__link sgc-crumb__btn"
+                        (click)="irARaiz()">
+                  Repositorio
+                </button>
+                <ng-template #crumbRepoActual>
+                  <span class="sgc-crumb__current" aria-current="page">Repositorio</span>
+                </ng-template>
+              </li>
+              <ng-container *ngFor="let miga of migasCarpeta; let last = last">
+                <li class="sgc-crumb__sep" aria-hidden="true">
+                  <i class="fas fa-chevron-right"></i>
+                </li>
+                <li class="sgc-crumb__step" [class.sgc-crumb__step--current]="last && !busqueda">
+                  <button *ngIf="!last || busqueda; else crumbMigaActual"
+                          type="button"
+                          class="sgc-crumb__link sgc-crumb__btn"
+                          (click)="irAMiga(miga.ruta)">
+                    {{ miga.etiqueta }}
+                  </button>
+                  <ng-template #crumbMigaActual>
+                    <span class="sgc-crumb__current" aria-current="page">{{ miga.etiqueta }}</span>
+                  </ng-template>
+                </li>
+              </ng-container>
+            </ol>
+          </nav>
+
+          <header class="sgc-page-header sgc-extra-header">
+            <div>
+              <p class="sgc-intro-role text-uppercase mb-2">{{ etiquetaRolUsuario }}</p>
+              <h2 class="sgc-intro-title mb-1">
+                {{ carpetaActual ? etiquetaCarpetaActual : 'Repositorio' }}
+              </h2>
+              <p class="sgc-intro-lead mb-0">
+                Archivos de apoyo fuera de los capítulos ISO (PDF, CSV, Excel, Word e imágenes).
+                Organiza documentos en carpetas; al subir dentro de una carpeta se guardan ahí.
+              </p>
+            </div>
+          </header>
+
+          <div class="repo-fm">
+            <!-- Panel lateral: almacenamiento + categorías -->
+            <aside class="repo-fm__side" aria-label="Almacenamiento y filtros">
+              <div class="repo-side-card">
+                <div class="repo-storage">
+                  <div class="repo-storage__head">
+                    <span class="repo-storage__label">Almacenamiento</span>
+                    <span class="repo-storage__used">{{ formatearTamano(totalBytesUsados) }}</span>
+                  </div>
+                  <div class="repo-storage__bar" aria-hidden="true">
+                    <div class="repo-storage__fill" [style.width.%]="porcentajeUsoVisual"></div>
+                  </div>
+                  <p class="repo-storage__hint mb-0">
+                    {{ totalDocumentos }} documento{{ totalDocumentos !== 1 ? 's' : '' }}
+                    · {{ totalCarpetasRegistradas }} carpeta{{ totalCarpetasRegistradas !== 1 ? 's' : '' }}
+                  </p>
+                </div>
+
+                <div class="repo-side-nav" aria-label="Resumen de archivos">
+                  <p class="repo-side-nav__title">Mi repositorio</p>
+                  <div class="repo-side-nav__item">
+                    <i class="fas fa-folder-open" aria-hidden="true"></i>
+                    <span>Todo</span>
+                    <em>{{ totalDocumentos }}</em>
+                  </div>
+                  <div class="repo-side-nav__item">
+                    <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                    <span>PDF</span>
+                    <em>{{ conteoPdf }}</em>
+                  </div>
+                  <div class="repo-side-nav__item">
+                    <i class="fas fa-file-alt" aria-hidden="true"></i>
+                    <span>Documentos</span>
+                    <em>{{ conteoDocumentos }}</em>
+                  </div>
+                  <div class="repo-side-nav__item">
+                    <i class="fas fa-image" aria-hidden="true"></i>
+                    <span>Imágenes</span>
+                    <em>{{ conteoImagenes }}</em>
+                  </div>
+                </div>
+
+                <button type="button"
+                        class="repo-side-cta"
+                        (click)="abrirPanelSubida()">
+                  <i class="fas fa-cloud-upload-alt mr-1" aria-hidden="true"></i>
+                  Subir documento
+                </button>
+              </div>
+            </aside>
+
+            <!-- Área principal -->
+            <section class="repo-fm__main">
+              <div class="repo-toolbar">
+                <nav class="repo-toolbar__crumbs" aria-label="Ruta actual">
+                  <button type="button" class="repo-toolbar__crumb" (click)="irARaiz()">
+                    Mi repositorio
+                  </button>
+                  <ng-container *ngFor="let miga of migasCarpeta; let last = last">
+                    <span class="repo-toolbar__sep" aria-hidden="true">›</span>
+                    <button *ngIf="!last"
+                            type="button"
+                            class="repo-toolbar__crumb"
+                            (click)="irAMiga(miga.ruta)">
+                      {{ miga.etiqueta }}
+                    </button>
+                    <span *ngIf="last" class="repo-toolbar__crumb repo-toolbar__crumb--current">
+                      {{ miga.etiqueta }}
+                    </span>
+                  </ng-container>
+                  <ng-container *ngIf="!migasCarpeta.length">
+                    <span class="repo-toolbar__sep" aria-hidden="true">›</span>
+                    <span class="repo-toolbar__crumb repo-toolbar__crumb--current">
+                      {{ busqueda.trim() ? 'Búsqueda' : 'Raíz' }}
+                    </span>
+                  </ng-container>
+                </nav>
+
+                <div class="repo-toolbar__actions">
+                  <div class="repo-toolbar__search-row">
+                    <div class="repo-search">
+                      <i class="fas fa-search" aria-hidden="true"></i>
+                      <input type="search"
+                             placeholder="Buscar archivos…"
+                             [(ngModel)]="busqueda"
+                             (ngModelChange)="aplicarFiltro()"
+                             aria-label="Buscar documentos">
+                    </div>
+                    <button type="button" class="btn btn-sm sgc-extra-btn-upload" (click)="abrirPanelSubida()">
+                      <i class="fas fa-arrow-up mr-1" aria-hidden="true"></i>
+                      Subir
+                    </button>
+                  </div>
+
+                  <div class="repo-toolbar__right">
+                    <div class="repo-view-toggle" role="group" aria-label="Vista de archivos">
+                      <button type="button"
+                              class="repo-view-toggle__btn"
+                              [class.repo-view-toggle__btn--active]="vistaArchivos === 'grid'"
+                              (click)="setVistaArchivos('grid')"
+                              title="Vista en cuadrícula"
+                              [attr.aria-pressed]="vistaArchivos === 'grid'">
+                        <i class="fas fa-th-large" aria-hidden="true"></i>
+                      </button>
+                      <button type="button"
+                              class="repo-view-toggle__btn"
+                              [class.repo-view-toggle__btn--active]="vistaArchivos === 'lista'"
+                              (click)="setVistaArchivos('lista')"
+                              title="Vista en lista"
+                              [attr.aria-pressed]="vistaArchivos === 'lista'">
+                        <i class="fas fa-list" aria-hidden="true"></i>
+                      </button>
+                    </div>
+
+                    <button type="button"
+                            class="btn btn-sm sgc-extra-btn-folder"
+                            (click)="crearCarpeta()"
+                            [disabled]="!!busqueda.trim()">
+                      <i class="fas fa-folder-plus mr-1" aria-hidden="true"></i>
+                      Nueva carpeta
+                    </button>
+
+                    <button *ngIf="carpetaActual && !busqueda.trim()"
+                            type="button"
+                            class="btn btn-sm sgc-extra-btn-danger"
+                            (click)="eliminarCarpetaActual()">
+                      <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="repo-dropzone"
+                   [class.repo-dropzone--active]="dropzoneActiva"
+                   (dragover)="onDropzoneDragOver($event)"
+                   (dragleave)="onDropzoneDragLeave($event)"
+                   (drop)="onDropzoneDrop($event)">
+                <div class="repo-dropzone__icon">
+                  <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+                </div>
+                <p class="repo-dropzone__text mb-0">
+                  Arrastra y suelta los archivos aquí, o haz clic en
+                  <button type="button" class="repo-dropzone__link" (click)="abrirPanelSubida()">Subir</button>
+                  arriba.
+                </p>
+                <p class="repo-dropzone__hint mb-0">PDF, CSV, Excel, Word e imágenes · sin límite de tamaño</p>
+              </div>
+
+              <div *ngIf="carpetaActual && !busqueda.trim()"
+                   class="sgc-extra-nav-bar"
+                   [class.sgc-extra-nav-bar--drop]="dropTargetRuta === rutaPadreActual"
+                   (dragover)="onDragOverRaiz($event)"
+                   (drop)="onDropEnRaiz($event)">
+                <button type="button"
+                        class="btn btn-sm sgc-extra-nav-bar__back-btn"
+                        [class.sgc-extra-nav-bar__back-btn--drop]="dropTargetRuta === rutaPadreActual && dragDocId != null"
+                        (click)="subirNivel()"
+                        title="Regresar · suelta un archivo aquí para moverlo a la carpeta anterior">
+                  <i class="fas fa-arrow-left mr-1" aria-hidden="true"></i>
+                  Regresar
+                </button>
+                <span class="sgc-extra-nav-bar__path" [title]="carpetaActual">
+                  <i class="fas fa-folder-open mr-1" aria-hidden="true"></i>
+                  {{ etiquetaCarpetaActual }}
+                </span>
+                <span class="sgc-extra-nav-bar__hint" *ngIf="dragDocId != null">
+                  Suelta en <strong>Regresar</strong> para mover a la carpeta anterior
+                </span>
+              </div>
+
+              <div *ngIf="cargandoLista" class="sgc-extra-state" role="status">
+                <i class="fas fa-spinner fa-spin fa-lg text-muted" aria-hidden="true"></i>
+                <p class="mb-0 mt-2 text-muted">Cargando documentación…</p>
+              </div>
+
+              <div *ngIf="!cargandoLista && errorLista" class="alert alert-warning sgc-extra-alert" role="alert">
+                {{ errorLista }}
+                <button type="button" class="btn btn-sm btn-outline-warning ml-2" (click)="cargarLista()">Reintentar</button>
+              </div>
+
+              <div *ngIf="!cargandoLista && !errorLista && carpetasVista.length === 0 && documentosVista.length === 0"
+                   class="sgc-extra-state" role="status">
+                <div class="sgc-extra-state__icon">
+                  <i class="fas" [ngClass]="carpetaActual ? 'fa-folder-open' : 'fa-inbox'" aria-hidden="true"></i>
+                </div>
+                <h3 class="sgc-extra-state__title">
+                  {{ carpetaActual ? 'Carpeta vacía' : (busqueda.trim() ? 'Sin resultados' : 'Sin documentos aún') }}
+                </h3>
+                <p class="sgc-extra-state__text mb-3">
+                  <ng-container *ngIf="busqueda.trim(); else emptySinBusqueda">
+                    Prueba con otro término o limpia la búsqueda.
+                  </ng-container>
+                  <ng-template #emptySinBusqueda>
+                    <ng-container *ngIf="carpetaActual; else emptyRaiz">
+                      Sube documentos aquí o crea subcarpetas para organizar el contenido.
+                    </ng-container>
+                    <ng-template #emptyRaiz>
+                      Crea carpetas y sube o arrastra documentos para organizarlos.
+                    </ng-template>
+                  </ng-template>
+                </p>
+                <div class="sgc-extra-state__actions" *ngIf="!busqueda.trim()">
+                  <button type="button" class="btn btn-sm sgc-extra-btn-folder mr-2" (click)="crearCarpeta()">
+                    <i class="fas fa-folder-plus mr-1" aria-hidden="true"></i> Nueva carpeta
+                  </button>
+                  <button type="button" class="btn btn-sm sgc-extra-btn-upload" (click)="abrirPanelSubida()">
+                    <i class="fas fa-plus mr-1" aria-hidden="true"></i> Subir documento
+                  </button>
+                </div>
+              </div>
+
+              <!-- Carpetas -->
+              <div *ngIf="!cargandoLista && !errorLista && carpetasVista.length > 0 && !busqueda.trim()"
+                   class="repo-section">
+                <h3 class="repo-section__title">Carpetas</h3>
+                <div class="repo-folders" role="list" aria-label="Carpetas">
+                  <button *ngFor="let carpeta of carpetasVista; trackBy: trackByRuta"
+                          type="button"
+                          class="repo-folder-card"
+                          [class.repo-folder-card--drop]="dropTargetRuta === carpeta.ruta"
+                          role="listitem"
+                          (click)="entrarCarpeta(carpeta.ruta)"
+                          (dragover)="onDragOverCarpeta($event, carpeta.ruta)"
+                          (dragleave)="onDragLeaveCarpeta($event, carpeta.ruta)"
+                          (drop)="onDropEnCarpeta($event, carpeta.ruta)"
+                          [attr.aria-label]="'Abrir carpeta ' + carpeta.nombre"
+                          [title]="'Abrir «' + carpeta.nombre + '»'">
+                    <span class="repo-folder-card__icon">
+                      <i class="fas fa-folder" aria-hidden="true"></i>
+                    </span>
+                    <span class="repo-folder-card__body">
+                      <span class="repo-folder-card__name">{{ carpeta.nombre }}</span>
+                      <span class="repo-folder-card__meta">
+                        {{ carpeta.cantidad }} archivo{{ carpeta.cantidad !== 1 ? 's' : '' }}
+                        · {{ formatearTamano(tamanoCarpeta(carpeta)) }}
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Archivos: grid -->
+              <div *ngIf="!cargandoLista && !errorLista && documentosVista.length > 0 && vistaArchivos === 'grid'"
+                   class="repo-section">
+                <div class="repo-section__head">
+                  <h3 class="repo-section__title mb-0">
+                    {{ busqueda.trim() ? 'Resultados' : 'Archivos' }}
+                  </h3>
+                  <span class="repo-section__count">
+                    {{ documentosVista.length }} archivo{{ documentosVista.length !== 1 ? 's' : '' }}
+                  </span>
+                </div>
+                <div class="sgc-extra-grid" role="list">
+                  <article *ngFor="let doc of documentosVista; trackBy: trackById"
+                           class="sgc-extra-tile"
+                           [ngClass]="claseTile(doc.mimeType, doc.nombreArchivo)"
+                           [class.sgc-extra-tile--dragging]="dragDocId === doc.id"
+                           role="listitem"
+                           tabindex="0"
+                           draggable="true"
+                           (dragstart)="onDragStartDoc($event, doc)"
+                           (dragend)="onDragEndDoc()"
+                           (click)="abrirDocumento(doc)"
+                           (keyup.enter)="abrirDocumento(doc)"
+                           [attr.aria-label]="'Abrir ' + doc.nombreArchivo">
+                    <div class="sgc-extra-tile__preview">
+                      <div class="sgc-extra-tile__loader" *ngIf="miniatura(doc).cargando" aria-hidden="true">
+                        <i class="fas fa-spinner fa-spin"></i>
+                      </div>
+                      <img *ngIf="miniatura(doc).modo === 'imagen' && miniatura(doc).urlStr && !miniatura(doc).cargando"
+                           class="sgc-extra-tile__thumb"
+                           [src]="miniatura(doc).urlStr | safe:'url'"
+                           [alt]="doc.nombreArchivo"
+                           loading="lazy"
+                           (error)="onErrorMiniatura(doc, $event)">
+                      <div *ngIf="(miniatura(doc).modo === 'icono' || miniatura(doc).error || (!miniatura(doc).urlStr && !miniatura(doc).cargando)) && !miniatura(doc).cargando"
+                           class="sgc-extra-tile__placeholder">
+                        <i class="fas" [ngClass]="iconoTipo(doc.mimeType, doc.nombreArchivo)" aria-hidden="true"></i>
+                        <span>{{ etiquetaTipo(doc.mimeType, doc.nombreArchivo) }}</span>
+                      </div>
+                      <span class="sgc-extra-tile__badge">{{ etiquetaTipo(doc.mimeType, doc.nombreArchivo) }}</span>
+                      <div class="sgc-extra-tile__hover" (click)="$event.stopPropagation()">
+                        <button type="button" class="sgc-extra-tile__btn" title="Ver" (click)="abrirDocumento(doc)">
+                          <i class="fas fa-expand" aria-hidden="true"></i>
+                        </button>
+                        <button type="button" class="sgc-extra-tile__btn" title="Descargar" (click)="descargarDocumento(doc, $event)">
+                          <i class="fas fa-download" aria-hidden="true"></i>
+                        </button>
+                        <button type="button" class="sgc-extra-tile__btn sgc-extra-tile__btn--danger" title="Eliminar" (click)="eliminarDocumento(doc, $event)">
+                          <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="sgc-extra-tile__info">
+                      <h4 class="sgc-extra-tile__name" [title]="doc.nombreArchivo">{{ doc.nombreArchivo }}</h4>
+                      <p class="sgc-extra-tile__meta mb-0">
+                        <span *ngIf="busqueda.trim() && doc.carpetaRelativa" class="sgc-extra-tile__path">
+                          {{ doc.carpetaRelativa }}
+                        </span>
+                        <span *ngIf="busqueda.trim() && doc.carpetaRelativa" class="sgc-extra-tile__dot" aria-hidden="true">·</span>
+                        <span>{{ formatearFecha(doc.fechaSubida) }}</span>
+                        <span class="sgc-extra-tile__dot" aria-hidden="true">·</span>
+                        <span>{{ formatearTamano(doc.tamanoBytes) }}</span>
+                      </p>
+                    </div>
+                  </article>
+                </div>
+              </div>
+
+              <!-- Archivos: lista -->
+              <div *ngIf="!cargandoLista && !errorLista && documentosVista.length > 0 && vistaArchivos === 'lista'"
+                   class="repo-section">
+                <div class="repo-section__head">
+                  <h3 class="repo-section__title mb-0">
+                    {{ busqueda.trim() ? 'Resultados' : 'Archivos' }}
+                  </h3>
+                  <span class="repo-section__count">
+                    {{ documentosVista.length }} archivo{{ documentosVista.length !== 1 ? 's' : '' }}
+                  </span>
+                </div>
+                <div class="repo-table-wrap">
+                  <table class="repo-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Nombre</th>
+                        <th scope="col">Tamaño</th>
+                        <th scope="col">Modificado</th>
+                        <th scope="col" class="repo-table__actions-col">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr *ngFor="let doc of documentosVista; trackBy: trackById"
+                          [class.repo-table__row--dragging]="dragDocId === doc.id"
+                          draggable="true"
+                          (dragstart)="onDragStartDoc($event, doc)"
+                          (dragend)="onDragEndDoc()"
+                          (click)="abrirDocumento(doc)"
+                          [attr.aria-label]="'Abrir ' + doc.nombreArchivo">
+                        <td>
+                          <div class="repo-table__name-cell">
+                            <span class="repo-table__type-icon" [ngClass]="claseTile(doc.mimeType, doc.nombreArchivo)">
+                              <i class="fas" [ngClass]="iconoTipo(doc.mimeType, doc.nombreArchivo)" aria-hidden="true"></i>
+                            </span>
+                            <span class="repo-table__name-text">
+                              <strong [title]="doc.nombreArchivo">{{ doc.nombreArchivo }}</strong>
+                              <small *ngIf="busqueda.trim() && doc.carpetaRelativa">{{ doc.carpetaRelativa }}</small>
+                            </span>
+                          </div>
+                        </td>
+                        <td>{{ formatearTamano(doc.tamanoBytes) }}</td>
+                        <td>{{ formatearFecha(doc.fechaSubida) }}</td>
+                        <td class="repo-table__actions" (click)="$event.stopPropagation()">
+                          <button type="button" class="repo-table__btn" title="Ver" (click)="abrirDocumento(doc)">
+                            <i class="fas fa-expand" aria-hidden="true"></i>
+                          </button>
+                          <button type="button" class="repo-table__btn" title="Descargar" (click)="descargarDocumento(doc, $event)">
+                            <i class="fas fa-download" aria-hidden="true"></i>
+                          </button>
+                          <button type="button" class="repo-table__btn repo-table__btn--danger" title="Eliminar" (click)="eliminarDocumento(doc, $event)">
+                            <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Panel subida -->
+<div class="sgc-extra-modal" *ngIf="mostrarSubida" role="dialog" aria-modal="true" aria-labelledby="sgc-extra-upload-title">
+  <div class="sgc-extra-modal__backdrop" (click)="cerrarPanelSubida()"></div>
+  <div class="sgc-extra-modal__panel">
+    <header class="sgc-extra-modal__head">
+      <h3 id="sgc-extra-upload-title" class="sgc-extra-modal__title mb-0">
+        <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+        Subir documento
+      </h3>
+      <button type="button" class="btn btn-sm btn-light" (click)="cerrarPanelSubida()" [disabled]="subiendo">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </header>
+    <div class="sgc-extra-modal__body">
+      <p class="text-muted small mb-2">
+        Se guardará con el mismo nombre del archivo. Puedes subir archivos sueltos o una carpeta completa;
+        el sistema cargará todos los archivos que contenga. Sin límite de tamaño.
+      </p>
+      <p class="sgc-extra-upload-destino small mb-3" *ngIf="carpetaActual; else destinoRaiz">
+        <i class="fas fa-folder mr-1" aria-hidden="true"></i>
+        Destino: <strong>{{ carpetaActual }}</strong>
+      </p>
+      <ng-template #destinoRaiz>
+        <p class="sgc-extra-upload-destino small mb-3">
+          <i class="fas fa-home mr-1" aria-hidden="true"></i>
+          Destino: <strong>Raíz del repositorio</strong>
+        </p>
+      </ng-template>
+
+      <div class="sgc-extra-upload-actions">
+        <label class="sgc-extra-upload-zone">
+          <input type="file"
+                 class="sgc-extra-upload-zone__input"
+                 multiple
+                 (change)="onArchivoElegido($event)"
+                 [disabled]="subiendo">
+          <span class="sgc-extra-upload-zone__icon">
+            <i class="fas fa-file-upload" aria-hidden="true"></i>
+          </span>
+          <span class="sgc-extra-upload-zone__label">Seleccionar archivos</span>
+          <span class="sgc-extra-upload-zone__hint">Uno o varios documentos</span>
+        </label>
+
+        <label class="sgc-extra-upload-zone">
+          <input type="file"
+                 class="sgc-extra-upload-zone__input"
+                 webkitdirectory
+                 directory
+                 multiple
+                 (change)="onCarpetaElegida($event)"
+                 [disabled]="subiendo">
+          <span class="sgc-extra-upload-zone__icon">
+            <i class="fas fa-folder-open" aria-hidden="true"></i>
+          </span>
+          <span class="sgc-extra-upload-zone__label">Seleccionar carpeta</span>
+          <span class="sgc-extra-upload-zone__hint">Sube todo su contenido</span>
+        </label>
+      </div>
+
+      <div *ngIf="archivosSeleccionados.length" class="sgc-extra-upload-list">
+        <div class="sgc-extra-upload-list__head">
+          <span>{{ archivosSeleccionados.length }} archivo{{ archivosSeleccionados.length !== 1 ? 's' : '' }} por subir</span>
+          <button type="button" class="btn btn-link btn-sm p-0 sgc-extra-upload-list__clear"
+                  (click)="limpiarSeleccion()" [disabled]="subiendo">
+            Quitar todos
+          </button>
+        </div>
+        <ul class="sgc-extra-upload-list__items">
+          <li *ngFor="let f of archivosSeleccionados; let i = index" class="sgc-extra-upload-list__item">
+            <i class="fas fa-file sgc-extra-upload-list__file-icon" aria-hidden="true"></i>
+            <span class="sgc-extra-upload-list__name" [title]="f.name">{{ f.name }}</span>
+            <span class="sgc-extra-upload-list__size">{{ formatearTamano(f.size) }}</span>
+            <button type="button" class="sgc-extra-upload-list__remove"
+                    (click)="quitarArchivo(i)" [disabled]="subiendo" title="Quitar">
+              <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div *ngIf="subiendo && progresoTotal > 0" class="sgc-extra-upload-progress mt-3">
+        <div class="d-flex justify-content-between small text-muted mb-1">
+          <span>Subiendo {{ progresoActual }} de {{ progresoTotal }}…</span>
+          <span class="sgc-extra-upload-progress__name" [title]="progresoNombre">{{ progresoNombre }}</span>
+        </div>
+        <div class="sgc-extra-upload-progress__bar">
+          <div class="sgc-extra-upload-progress__fill"
+               [style.width.%]="progresoTotal ? (progresoActual / progresoTotal) * 100 : 0"></div>
+        </div>
+      </div>
+
+      <div *ngIf="errorSubida" class="alert alert-danger mt-3 mb-0 py-2 small">{{ errorSubida }}</div>
+    </div>
+    <footer class="sgc-extra-modal__foot">
+      <button type="button" class="btn btn-secondary btn-sm" (click)="cerrarPanelSubida()" [disabled]="subiendo">
+        Cancelar
+      </button>
+      <button type="button"
+              class="btn btn-sm sgc-extra-btn-upload"
+              [disabled]="!archivosSeleccionados.length || subiendo"
+              (click)="enviarDocumento()">
+        <i class="fas" [ngClass]="subiendo ? 'fa-spinner fa-spin' : 'fa-upload'" aria-hidden="true"></i>
+        {{ subiendo ? 'Subiendo…' : (archivosSeleccionados.length > 1 ? 'Subir ' + archivosSeleccionados.length + ' archivos' : 'Subir') }}
+      </button>
+    </footer>
+  </div>
+</div>
+
+<!-- Visor pantalla completa (estilo editor DG-F-04) -->
+<div class="sgc-drive-editor-fullscreen" *ngIf="mostrarVisor && documentoActivo"
+     role="dialog" aria-modal="true" [attr.aria-label]="'Vista de ' + documentoActivo.nombreArchivo">
+  <div class="sgc-drive-editor-fullscreen__backdrop" (click)="cerrarVisor()"></div>
+  <div class="sgc-drive-editor-fullscreen__panel">
+    <div class="sgc-drive-editor-fullscreen__head">
+      <div class="sgc-drive-editor-fullscreen__title-wrap">
+        <span class="sgc-drive-editor-fullscreen__icon">
+          <i class="fas" [ngClass]="iconoTipo(documentoActivo.mimeType, documentoActivo.nombreArchivo)" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="sgc-drive-editor-fullscreen__title">Visor integrado de documento</strong>
+          <small class="sgc-drive-editor-fullscreen__subtitle">
+            {{ documentoActivo.nombreArchivo }}
+          </small>
+        </div>
+      </div>
+      <div class="d-flex align-items-center">
+        <button type="button" class="btn btn-sm btn-outline-light mr-2" (click)="descargarActivo()">
+          <i class="fas fa-download mr-1" aria-hidden="true"></i> Descargar
+        </button>
+        <button class="btn btn-sm btn-light" type="button" (click)="cerrarVisor()">
+          <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al listado
+        </button>
+      </div>
+    </div>
+    <div class="sgc-drive-editor-fullscreen__body">
+      <div class="sgc-drive-editor-fullscreen__loading" *ngIf="visorCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando documento…</span>
+      </div>
+      <object *ngIf="!visorCargando && previewModo === 'pdf' && previewObjectUrl && !visorError"
+              class="sgc-drive-editor-fullscreen__iframe"
+              [data]="previewUrlSafe"
+              type="application/pdf"
+              [attr.title]="documentoActivo.nombreArchivo">
+        <iframe class="sgc-drive-editor-fullscreen__iframe"
+                [src]="previewUrlSafe"
+                [title]="documentoActivo.nombreArchivo"></iframe>
+      </object>
+      <img *ngIf="!visorCargando && previewModo === 'imagen' && previewUrlSafe && !visorError"
+           class="sgc-extra-visor-imagen"
+           [src]="previewUrlSafe"
+           [alt]="documentoActivo.nombreArchivo">
+      <div *ngIf="!visorCargando && previewModo === 'icono' && !visorError"
+           class="sgc-extra-visor-fallback">
+        <i class="fas fa-file-alt fa-3x mb-3 text-muted" aria-hidden="true"></i>
+        <p class="mb-2">Este tipo de archivo no tiene vista previa integrada.</p>
+        <p class="text-muted small mb-3">{{ documentoActivo.nombreArchivo }}</p>
+        <button type="button" class="btn btn-primary btn-sm" (click)="descargarActivo()">
+          <i class="fas fa-download mr-1" aria-hidden="true"></i> Descargar archivo
+        </button>
+      </div>
+      <div *ngIf="visorError" class="sgc-extra-visor-fallback">
+        <i class="fas fa-exclamation-triangle fa-2x mb-2 text-warning" aria-hidden="true"></i>
+        <p class="mb-2">{{ visorError }}</p>
+        <button type="button" class="btn btn-outline-secondary btn-sm" (click)="descargarActivo()">
+          Intentar descarga
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

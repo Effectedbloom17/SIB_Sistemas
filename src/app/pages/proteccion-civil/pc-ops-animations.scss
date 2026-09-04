@@ -1,0 +1,99 @@
+// Animaciones del centro de operaciones y vistas de carga PC
+@keyframes pcFadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pcFadeSlideRight {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pcScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pcStepPop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.pc-animate-in {
+  animation: pcFadeSlideUp 0.45s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.pc-animate-step {
+  animation: pcStepPop 0.42s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.pc-animate-panel {
+  animation: pcFadeSlideUp 0.5s cubic-bezier(0.23, 1, 0.32, 1) 0.1s both;
+}
+
+.pc-animate-section {
+  animation: pcFadeSlideUp 0.44s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.pc-animate-section--delay-1 {
+  animation-delay: 0.08s;
+}
+
+.pc-animate-section--delay-2 {
+  animation-delay: 0.14s;
+}
+
+.pc-animate-workspace {
+  animation: pcFadeSlideUp 0.48s cubic-bezier(0.23, 1, 0.32, 1) 0.08s both;
+}
+
+.pc-animate-checklist {
+  animation: pcFadeSlideRight 0.45s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.pc-animate-detail {
+  animation: pcFadeSlideUp 0.48s cubic-bezier(0.23, 1, 0.32, 1) 0.06s both;
+}
+
+.pc-ops-stepper-step.is-active .pc-ops-stepper-circle {
+  animation: pcScaleIn 0.35s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-animate-in,
+  .pc-animate-step,
+  .pc-animate-panel,
+  .pc-animate-section,
+  .pc-animate-section--delay-1,
+  .pc-animate-section--delay-2,
+  .pc-animate-workspace,
+  .pc-animate-checklist,
+  .pc-animate-detail,
+  .pc-ops-stepper-step.is-active .pc-ops-stepper-circle {
+    animation: none;
+  }
+}

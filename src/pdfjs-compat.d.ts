@@ -1,0 +1,1 @@
+interface OffscreenCanvasRenderingContext2D extends CanvasRenderingContext2D {}

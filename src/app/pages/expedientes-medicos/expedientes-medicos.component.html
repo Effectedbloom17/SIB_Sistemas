@@ -1,0 +1,2786 @@
+<div class="header header-bg-image pb-4 pt-3 pt-md-4 d-flex align-items-center position-relative overflow-hidden no-print">
+  
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-file-medical"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">Expedientes Médicos</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--3" style="position: relative; z-index: 10; margin-bottom: 2rem;">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+
+      <!-- =====================================================
+           VISTA SELECTOR DE EMPRESAS
+           ===================================================== -->
+      <div *ngIf="vistaActual === 'empresas'" class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+        
+        <!-- Header -->
+        <div class="card-header border-0" style="padding: 1.5rem 2rem;">
+          <div class="row align-items-center mb-3">
+            <div class="col-lg-8 col-md-6">
+              <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">Gestión</h6>
+              <h2 class="mb-0" style="color: #38512F; font-weight: 700; font-size: 1.5rem;">Seleccionar Empresa ({{ empresasFiltradas.length }})</h2>
+            </div>
+            <div class="col-lg-5 col-md-7 col-sm-10 ml-auto">
+              <div class="top-nav-med d-flex align-items-center">
+                <div class="input-group input-group-alternative flex-grow-1 top-search-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text border-0 top-search-icon"><i class="fas fa-search"></i></span>
+                  </div>
+                  <input class="form-control border-0 top-search-input" placeholder="Buscar por nombre o RFC..." type="text"
+                         [(ngModel)]="textoBusquedaEmpresa" (input)="filtrarEmpresas()">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lista de Empresas -->
+        <div class="card-body p-0">
+          
+          <!-- Loading -->
+          <div *ngIf="cargandoEmpresas" class="text-center py-5">
+            <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+            <p class="text-muted mt-2 mb-0">Cargando empresas...</p>
+          </div>
+
+          <!-- Sin resultados -->
+          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length === 0" class="text-center py-5">
+            <i class="fas fa-building fa-2x text-muted"></i>
+            <p class="text-muted mt-2 mb-0">No hay empresas registradas</p>
+          </div>
+
+          <!-- Grid de Empresas -->
+          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length > 0" class="row px-4 py-3">
+            <div *ngFor="let empresa of empresasFiltradas; let i = index" class="col-lg-4 col-md-6 mb-4">
+              <div class="card h-100 shadow-sm border-0 empresa-card" 
+                   style="border-radius: 12px; cursor: pointer; transition: all 0.3s ease;"
+                   (click)="seleccionarEmpresa(empresa)">
+                <div class="card-body">
+                  <div class="d-flex align-items-center mb-3">
+                    <span *ngIf="!getLogoEmpresaUrl(empresa)"
+                        class="avatar rounded-circle mr-3 shadow-sm text-white d-flex align-items-center justify-content-center"
+                        style="width: 50px; height: 50px; min-width: 50px; min-height: 50px; flex-shrink: 0; font-size: 1.1rem; background: linear-gradient(135deg, #38512F 0%, #5a7456 100%);">
+                      {{ getInicialesEmpresa(empresa.nombre_empresa) }}
+                    </span>
+                    <img *ngIf="getLogoEmpresaUrl(empresa)"
+                         [src]="getLogoEmpresaUrl(empresa)"
+                         [alt]="empresa.nombre_empresa"
+                         class="mr-3 shadow-sm bg-white"
+                         style="width: 50px; height: 50px; min-width: 50px; min-height: 50px; flex-shrink: 0; object-fit: contain; border-radius: 50%; padding: 0.35rem;"
+                         (error)="onLogoEmpresaError(empresa)">
+                    <div class="flex-grow-1">
+                      <h5 class="mb-0 font-weight-bold" style="color: #38512F;">{{ empresa.nombre_empresa }}</h5>
+                      <small class="text-muted d-block">RFC: {{ empresa.rfc }}</small>
+                      <small class="text-muted" *ngIf="empresa.ciudad || empresa.estado">
+                        <i class="fas fa-map-marker-alt mr-1"></i>{{ empresa.ciudad || '' }}{{ empresa.ciudad && empresa.estado ? ', ' : '' }}{{ empresa.estado || '' }}
+                      </small>
+                    </div>
+                  </div>
+                  
+                  <!-- Conteo de historias -->
+                  <div class="mb-2">
+                    <div class="d-flex justify-content-between mb-1">
+                      <small class="text-muted">Historias clínicas</small>
+                      <small class="font-weight-bold">{{ empresa.historias_totales || 0 }}</small>
+                    </div>
+                    <div class="progress" style="height: 6px; border-radius: 3px;">
+                      <div class="progress-bar" 
+                           [style.width.%]="empresa.historias_totales > 0 ? 100 : 0"
+                           style="transition: width 0.3s ease; background: linear-gradient(135deg, #38512F 0%, #5a7456 100%);"></div>
+                    </div>
+                  </div>
+
+                  <div class="text-right">
+                    <span class="font-weight-bold" style="font-size: 0.85rem; color: #38512F;">
+                      Ver expedientes <i class="fas fa-arrow-right ml-1"></i>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- =====================================================
+           VISTA PRINCIPAL: Botones de acción (después de seleccionar empresa)
+           ===================================================== -->
+      <div *ngIf="vistaActual === 'menu'" class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+        
+        <!-- Header -->
+        <div class="card-header border-0" style="padding: 1.5rem 2rem;">
+          <div class="row align-items-center">
+            <div class="col">
+              <button class="btn btn-link p-0 text-muted mb-2" (click)="volverAEmpresas()" style="font-size: 0.9rem;">
+                <i class="fas fa-arrow-left mr-1"></i> Volver a empresas
+              </button>
+              <div class="d-flex align-items-center mb-2">
+                <img *ngIf="getLogoEmpresaUrl()"
+                     [src]="getLogoEmpresaUrl()"
+                     [alt]="empresaSeleccionada?.nombre_empresa"
+                     class="mr-3 shadow-sm bg-white"
+                     style="width: 50px; height: 50px; min-width: 50px; min-height: 50px; flex-shrink: 0; object-fit: contain; border-radius: 50%; padding: 0.35rem;"
+                     (error)="onLogoEmpresaError()">
+                <div>
+                  <h2 class="mb-0" style="color: #38512F; font-weight: 700; font-size: 1.5rem;">{{ empresaSeleccionada?.nombre_empresa }}</h2>
+                  <h6 class="text-uppercase text-muted ls-1 mb-0 mt-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">
+                    Historia Clínica
+                  </h6>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contenido: dos botones de acción -->
+        <div class="card-body" style="padding: 1.5rem 2rem;">
+          <div class="row justify-content-center py-2">
+            
+            <!-- Tarjeta Iniciar Formulario -->
+            <div class="col-lg-4 col-md-6 mb-4">
+              <div class="card h-100 shadow-sm border-0 accion-card" 
+                   style="border-radius: 15px; cursor: pointer; transition: all 0.3s ease;"
+                   (click)="abrirFormulario()">
+                <div class="card-body text-center py-4">
+                  <div class="icon icon-shape text-white rounded-circle shadow-lg mb-3 mx-auto"
+                       style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #38512F 0%, #5a7456 100%);">
+                    <i class="fas fa-file-medical-alt" style="font-size: 1.5rem;"></i>
+                  </div>
+                  <h4 class="mb-2" style="color: #38512F; font-weight: 700;">Iniciar Formulario</h4>
+                  <p class="text-muted mb-0" style="font-size: 0.875rem;">Registrar un nuevo examen médico</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tarjeta Historial -->
+            <div class="col-lg-4 col-md-6 mb-4">
+              <div class="card h-100 shadow-sm border-0 accion-card" 
+                   style="border-radius: 15px; cursor: pointer; transition: all 0.3s ease;"
+                   (click)="verHistorial()">
+                <div class="card-body text-center py-4">
+                  <div class="icon icon-shape text-white rounded-circle shadow-lg mb-3 mx-auto"
+                       style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #768D6B 0%, #8fa382 100%);">
+                    <i class="fas fa-history" style="font-size: 1.5rem;"></i>
+                  </div>
+                  <h4 class="mb-2" style="color: #38512F; font-weight: 700;">Historial</h4>
+                  <p class="text-muted mb-0" style="font-size: 0.875rem;">Ver registros médicos anteriores</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- =====================================================
+           VISTA FORMULARIO: Historia Clínica
+           ===================================================== -->
+      <div *ngIf="vistaActual === 'formulario'" class="card hc-form-card shadow-lg border-0">
+        
+        <!-- Header del formulario -->
+        <div class="card-header border-0" style="padding: 1.5rem 2rem 1rem;">
+          <div class="row align-items-center">
+            <div class="col">
+              <button class="btn btn-link p-0 text-muted mb-2" (click)="volverAlMenu()" style="font-size: 0.9rem;">
+                <i class="fas fa-arrow-left mr-1"></i> Volver al menú
+              </button>
+              <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">
+                {{ modoEdicionDesdeHistorial ? 'Editar y guardar como nuevo' : (editandoHistoriaId ? 'Editar registro' : 'Nuevo registro') }}
+              </h6>
+              <h2 class="mb-0" style="color: #38512F; font-weight: 700; font-size: 1.5rem;">Historia Clínica</h2>
+              <small *ngIf="modoEdicionDesdeHistorial" class="text-muted d-block mt-1" style="font-size: 0.8rem;">
+                Basada en {{ folioOrigenEdicion }}. Al finalizar se creará un folio nuevo sin modificar la historia original.
+              </small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Indicador de Pasos (Stepper) -->
+        <div class="stepper-section">
+          <div class="stepper-track">
+            <!-- Línea de conexión -->
+            <div *ngIf="totalPasos > 1" class="stepper-line">
+              <div class="stepper-line-progress" [style.width.%]="progresoPorcentaje"></div>
+            </div>
+            <!-- Pasos -->
+            <div *ngFor="let paso of pasos" class="text-center stepper-step"
+                 [style.cursor]="paso.numero <= maxPasoAlcanzado ? 'pointer' : 'default'"
+                 (click)="irAPaso(paso.numero)">
+              <div class="stepper-circle d-flex align-items-center justify-content-center mx-auto"
+                   [class.active]="pasoActual === paso.numero"
+                   [class.completed]="pasoActual > paso.numero">
+                <i *ngIf="pasoActual > paso.numero" class="fas fa-check"></i>
+                <span *ngIf="pasoActual <= paso.numero">{{ paso.numero }}</span>
+              </div>
+              <span class="stepper-label">{{ paso.titulo }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cuerpo del formulario -->
+        <div class="card-body hc-form-body">
+
+          <div class="hc-form-body__deco" aria-hidden="true"></div>
+
+          <!-- =====================================================
+               PASO 1: Datos Generales
+               ===================================================== -->
+          <div *ngIf="pasoActual === 1" class="wizard-step" style="animation: fadeIn 0.3s ease-out;">
+            <div class="d-flex align-items-center mb-4">
+              <div class="icon icon-shape rounded-circle shadow mr-3"
+                   style="background: linear-gradient(135deg, #055770 0%, #0a7a9e 100%); width: 45px; height: 45px; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-user text-white" style="font-size: 1.1rem;"></i>
+              </div>
+              <div>
+                <h4 class="mb-0" style="color: #000; font-weight: 800;">Datos Generales</h4>
+              </div>
+            </div>
+
+          <!-- Tipo de Historia Clínica y Género -->
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <div class="form-group mb-0">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  Tipo de Historia Clínica
+                </label>
+                <select class="form-control" [(ngModel)]="formulario.tipoHistoria"
+                        [ngClass]="{'is-invalid': errores['tipoHistoria']}"
+                        (change)="validarCampo('tipoHistoria')"
+                        style="border-radius: 8px;">
+                  <option value="">-- Seleccionar --</option>
+                  <option value="ingreso">Ingreso</option>
+                  <option value="periodico">Subsecuente</option>
+                </select>
+                <small *ngIf="errores['tipoHistoria']" class="error-msg">{{ errores['tipoHistoria'] }}</small>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group mb-0">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  Género
+                </label>
+                <select class="form-control" [(ngModel)]="formulario.genero"
+                        [ngClass]="{'is-invalid': errores['genero']}"
+                        (change)="validarCampo('genero')"
+                        style="border-radius: 8px;">
+                  <option value="">-- Seleccionar --</option>
+                  <option value="masculino">Masculino</option>
+                  <option value="femenino">Femenino</option>
+                </select>
+                <small *ngIf="errores['genero']" class="error-msg">{{ errores['genero'] }}</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fecha Elaboración | Matrícula | Área -->
+          <div class="row">
+            <div class="col-lg-4 col-md-4">
+              <div class="form-group">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  Fecha de Elaboración
+                </label>
+                <input type="date" class="form-control" [(ngModel)]="formulario.fechaElaboracion"
+                       [ngClass]="{'is-invalid': errores['fechaElaboracion']}"
+                       (blur)="validarCampo('fechaElaboracion')"
+                       style="border-radius: 8px;">
+                <small *ngIf="errores['fechaElaboracion']" class="error-msg">{{ errores['fechaElaboracion'] }}</small>
+              </div>
+            </div>
+            <div class="col-lg-4 col-md-4">
+              <div class="form-group">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  Matrícula
+                </label>
+                <input type="text" class="form-control" [(ngModel)]="formulario.matricula" placeholder="Matrícula"
+                       [ngClass]="{'is-invalid': errores['matricula']}"
+                       (blur)="validarCampo('matricula')"
+                       style="border-radius: 8px;">
+                <small *ngIf="errores['matricula']" class="error-msg">{{ errores['matricula'] }}</small>
+              </div>
+            </div>
+            <div class="col-lg-4 col-md-4">
+              <div class="form-group">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  Área
+                </label>
+                <input type="text" class="form-control" [(ngModel)]="formulario.area" placeholder="Área de trabajo"
+                       [ngClass]="{'is-invalid': errores['area']}"
+                       (blur)="validarCampo('area')"
+                       (keydown)="soloLetras($event)"
+                       style="border-radius: 8px;">
+                <small *ngIf="errores['area']" class="error-msg">{{ errores['area'] }}</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Nombre | Religión -->
+          <div class="row">
+            <div class="col-lg-8 col-md-8">
+              <div class="form-group">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  Nombre
+                </label>
+                <input type="text" class="form-control" [(ngModel)]="formulario.nombre" placeholder="Nombre completo"
+                       [ngClass]="{'is-invalid': errores['nombre']}"
+                       (blur)="validarCampo('nombre')"
+                       (keydown)="soloLetras($event)"
+                       style="border-radius: 8px;">
+                <small *ngIf="errores['nombre']" class="error-msg">{{ errores['nombre'] }}</small>
+              </div>
+            </div>
+            <div class="col-lg-4 col-md-4">
+              <div class="form-group">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  Religión
+                </label>
+                <input type="text" class="form-control" [(ngModel)]="formulario.religion" placeholder="Religión"
+                       [ngClass]="{'is-invalid': errores['religion']}"
+                       (blur)="validarCampo('religion')"
+                       (keydown)="soloLetras($event)"
+                       style="border-radius: 8px;">
+                <small *ngIf="errores['religion']" class="error-msg">{{ errores['religion'] }}</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Escolaridad | Estado Civil | Edad -->
+          <div class="row">
+            <div class="col-lg-4 col-md-4">
+              <div class="form-group">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  Escolaridad
+                </label>
+                <select class="form-control" [(ngModel)]="formulario.escolaridad"
+                        [ngClass]="{'is-invalid': errores['escolaridad']}"
+                        (change)="validarCampo('escolaridad')"
+                        style="border-radius: 8px;">
+                  <option value="">-- Seleccionar --</option>
+                  <option value="primaria">Primaria</option>
+                  <option value="secundaria">Secundaria</option>
+                  <option value="preparatoria">Preparatoria</option>
+                  <option value="universidad">Universidad</option>
+                  <option value="posgrado">Posgrado</option>
+                  <option value="otro">Otro</option>
+                </select>
+                <small *ngIf="errores['escolaridad']" class="error-msg">{{ errores['escolaridad'] }}</small>
+              </div>
+            </div>
+            <div class="col-lg-4 col-md-4">
+              <div class="form-group">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  Estado Civil
+                </label>
+                <select class="form-control" [(ngModel)]="formulario.estadoCivil"
+                        [ngClass]="{'is-invalid': errores['estadoCivil']}"
+                        (change)="validarCampo('estadoCivil')"
+                        style="border-radius: 8px;">
+                  <option value="">-- Seleccionar --</option>
+                  <option value="soltero">Soltero(a)</option>
+                  <option value="casado">Casado(a)</option>
+                  <option value="divorciado">Divorciado(a)</option>
+                  <option value="viudo">Viudo(a)</option>
+                  <option value="union_libre">Unión Libre</option>
+                </select>
+                <small *ngIf="errores['estadoCivil']" class="error-msg">{{ errores['estadoCivil'] }}</small>
+              </div>
+            </div>
+            <div class="col-lg-4 col-md-4">
+              <div class="form-group">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  Edad
+                </label>
+                <input type="text" class="form-control" [(ngModel)]="formulario.edad" placeholder="Edad" maxlength="2"
+                       [ngClass]="{'is-invalid': errores['edad']}"
+                       (blur)="validarCampo('edad')"
+                       (keydown)="soloNumeros($event)"
+                       style="border-radius: 8px;">
+                <small *ngIf="errores['edad']" class="error-msg">{{ errores['edad'] }}</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lugar de Nacimiento | Teléfono -->
+          <div class="row">
+            <div class="col-lg-8 col-md-8">
+              <div class="form-group">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  Lugar de Nacimiento
+                </label>
+                <input type="text" class="form-control" [(ngModel)]="formulario.lugarNacimiento" placeholder="Ciudad, Estado"
+                       [ngClass]="{'is-invalid': errores['lugarNacimiento']}"
+                       (blur)="validarCampo('lugarNacimiento')"
+                       style="border-radius: 8px;">
+                <small *ngIf="errores['lugarNacimiento']" class="error-msg">{{ errores['lugarNacimiento'] }}</small>
+              </div>
+            </div>
+            <div class="col-lg-4 col-md-4">
+              <div class="form-group">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  Teléfono
+                </label>
+                <input type="tel" class="form-control" [(ngModel)]="formulario.telefono" placeholder="10 dígitos" maxlength="10"
+                       [ngClass]="{'is-invalid': errores['telefono']}"
+                       (blur)="validarCampo('telefono')"
+                       (keydown)="soloNumeros($event)"
+                       style="border-radius: 8px;">
+                <small *ngIf="errores['telefono']" class="error-msg">{{ errores['telefono'] }}</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Domicilio -->
+          <div class="row">
+            <div class="col-12">
+              <div class="form-group">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  Domicilio
+                </label>
+                <input type="text" class="form-control" [(ngModel)]="formulario.domicilio" placeholder="Calle, número, colonia, C.P., ciudad"
+                       [ngClass]="{'is-invalid': errores['domicilio']}"
+                       (blur)="validarCampo('domicilio')"
+                       style="border-radius: 8px;">
+                <small *ngIf="errores['domicilio']" class="error-msg">{{ errores['domicilio'] }}</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Persona y No. de Contacto en Caso de Accidente -->
+          <div class="row">
+            <div class="col-lg-8 col-md-8">
+              <div class="form-group">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  Persona de Contacto en Caso de Accidente
+                </label>
+                <input type="text" class="form-control" [(ngModel)]="formulario.contactoEmergenciaNombre" placeholder="Nombre completo"
+                       [ngClass]="{'is-invalid': errores['contactoEmergenciaNombre']}"
+                       (blur)="validarCampo('contactoEmergenciaNombre')"
+                       (keydown)="soloLetras($event)"
+                       style="border-radius: 8px;">
+                <small *ngIf="errores['contactoEmergenciaNombre']" class="error-msg">{{ errores['contactoEmergenciaNombre'] }}</small>
+              </div>
+            </div>
+            <div class="col-lg-4 col-md-4">
+              <div class="form-group">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  No. de Contacto
+                </label>
+                <input type="tel" class="form-control" [(ngModel)]="formulario.contactoEmergenciaTelefono" placeholder="10 dígitos" maxlength="10"
+                       [ngClass]="{'is-invalid': errores['contactoEmergenciaTelefono']}"
+                       (blur)="validarCampo('contactoEmergenciaTelefono')"
+                       (keydown)="soloNumeros($event)"
+                       style="border-radius: 8px;">
+                <small *ngIf="errores['contactoEmergenciaTelefono']" class="error-msg">{{ errores['contactoEmergenciaTelefono'] }}</small>
+              </div>
+            </div>
+          </div>
+
+          </div> <!-- Cierre paso 1 -->
+
+          <!-- =====================================================
+               PASO 2: Antecedentes Laborales
+               ===================================================== -->
+          <div *ngIf="pasoActual === 2" class="wizard-step" style="animation: fadeIn 0.3s ease-out;">
+            <div class="d-flex align-items-center mb-4">
+              <div class="icon icon-shape rounded-circle shadow mr-3"
+                   style="background: linear-gradient(135deg, #055770 0%, #0a7a9e 100%); width: 45px; height: 45px; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-briefcase text-white" style="font-size: 1.1rem;"></i>
+              </div>
+              <div>
+                <h4 class="mb-0" style="color: #000; font-weight: 800;">Antecedentes Laborales</h4>
+              </div>
+            </div>
+
+            <!-- Tabla dinámica -->
+            <div class="table-responsive" style="border-radius: 8px; border: 1px solid #E2E3DE;">
+              <table class="table table-sm table-bordered mb-0 antecedentes-table">
+                <thead>
+                  <tr style="background: linear-gradient(135deg, #38512F 0%, #5a7456 100%);">
+                    <th class="text-white text-center" style="min-width: 150px;">Empresa</th>
+                    <th class="text-white text-center" style="min-width: 130px;">Puesto</th>
+                    <th class="text-white text-center" style="min-width: 100px;">Tiempo</th>
+                    <th class="text-white text-center" style="width: 60px;">EPP Visual</th>
+                    <th class="text-white text-center" style="width: 60px;">EPP Auditivo</th>
+                    <th class="text-white text-center" style="width: 60px;">EPP Resp.</th>
+                    <th class="text-white text-center" style="width: 70px;">No aplica EPP</th>
+                    <th class="text-white text-center" style="min-width: 140px;">Enfermedad de Trabajo</th>
+                    <th class="text-white text-center" style="min-width: 140px;">Accidente de Trabajo</th>
+                    <th class="text-white text-center" style="width: 45px;"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let fila of antecedentesLaborales; let i = index">
+                    <td>
+                      <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="fila.empresa" placeholder="Empresa" style="border-radius: 6px; font-size: 0.8rem; overflow: hidden; resize: none; min-height: 31px;" rows="1" (input)="autoResize($event)"></textarea>
+                    </td>
+                    <td>
+                      <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="fila.puesto" placeholder="Puesto" style="border-radius: 6px; font-size: 0.8rem; overflow: hidden; resize: none; min-height: 31px;" rows="1" (input)="autoResize($event)"></textarea>
+                    </td>
+                    <td>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="fila.tiempo"
+                             placeholder="Ej: 2 años" style="border-radius: 6px; font-size: 0.8rem;">
+                    </td>
+                    <td class="text-center align-middle">
+                      <input type="checkbox" [(ngModel)]="fila.eppVisual" class="epp-checkbox" (ngModelChange)="onEppLaboralChange(fila, 'visual')">
+                    </td>
+                    <td class="text-center align-middle">
+                      <input type="checkbox" [(ngModel)]="fila.eppAuditivo" class="epp-checkbox" (ngModelChange)="onEppLaboralChange(fila, 'auditivo')">
+                    </td>
+                    <td class="text-center align-middle">
+                      <input type="checkbox" [(ngModel)]="fila.eppRespiratorio" class="epp-checkbox" (ngModelChange)="onEppLaboralChange(fila, 'respiratorio')">
+                    </td>
+                    <td class="text-center align-middle">
+                      <input type="checkbox" [(ngModel)]="fila.eppNoAplica" class="epp-checkbox" (ngModelChange)="onEppLaboralChange(fila, 'noAplica')">
+                    </td>
+                    <td>
+                      <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="fila.enfermedadTrabajo" placeholder="Ninguna" style="border-radius: 6px; font-size: 0.8rem; overflow: hidden; resize: none; min-height: 31px;" rows="1" (input)="autoResize($event)"></textarea>
+                    </td>
+                    <td>
+                      <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="fila.accidenteTrabajo" placeholder="Ninguno" style="border-radius: 6px; font-size: 0.8rem; overflow: hidden; resize: none; min-height: 31px;" rows="1" (input)="autoResize($event)"></textarea>
+                    </td>
+                    <td class="text-center align-middle">
+                      <button *ngIf="antecedentesLaborales.length > 1" class="btn btn-sm btn-link p-0" (click)="eliminarFilaLaboral(i)"
+                              style="color: #f5365c; font-size: 0.9rem;" title="Eliminar fila">
+                        <i class="fas fa-trash-alt"></i>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Botón agregar fila -->
+            <div class="mt-3">
+              <button class="btn btn-sm btn-outline-success btn-agregar-registro" (click)="agregarFilaLaboral()"
+                      style="border-color: #768D6B; color: #38512F; border-radius: 8px; font-weight: 600;">
+                <i class="fas fa-plus mr-1"></i> Agregar registro
+              </button>
+            </div>
+
+            <!-- Observaciones -->
+            <div class="form-group mt-4">
+              <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                Observaciones
+              </label>
+              <textarea class="form-control" [(ngModel)]="observacionesLaborales" (ngModelChange)="actualizarObservacionesDiagnosticoConsolidadas()" rows="3"
+                        placeholder="Observaciones adicionales sobre antecedentes laborales..."
+                        style="border-radius: 8px; font-size: 0.875rem; resize: vertical;"></textarea>
+            </div>
+
+          </div> <!-- Cierre paso 2 -->
+
+          <!-- =====================================================
+               PASO 3: Antecedentes Heredo-Familiares
+               ===================================================== -->
+          <div *ngIf="pasoActual === 3" class="wizard-step" style="animation: fadeIn 0.3s ease-out;">
+            <div class="d-flex align-items-center mb-4">
+              <div class="icon icon-shape rounded-circle shadow mr-3"
+                   style="background: linear-gradient(135deg, #055770 0%, #0a7a9e 100%); width: 45px; height: 45px; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-dna text-white" style="font-size: 1.1rem;"></i>
+              </div>
+              <div>
+                <h4 class="mb-0" style="color: #000; font-weight: 800;">Antecedentes Heredo-Familiares</h4>
+              </div>
+            </div>
+
+            <!-- Grid de checkboxes -->
+            <div class="row">
+              <div class="col-lg col-md-4 col-6 mb-3" *ngFor="let item of [
+                {key: 'diabetes', label: 'Diabetes'},
+                {key: 'hipertension', label: 'Hipertensión'},
+                {key: 'cancer', label: 'Cáncer'},
+                {key: 'cardiacos', label: 'Cardiacos'},
+                {key: 'asma', label: 'Asma'}
+              ]">
+                <div class="heredo-check-card" [class.active]="heredoFamiliares[item.key]" (click)="heredoFamiliares[item.key] = !heredoFamiliares[item.key]">
+                  <input type="checkbox" [(ngModel)]="heredoFamiliares[item.key]" class="epp-checkbox mr-2">
+                  <span style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">{{ item.label }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-lg col-md-4 col-6 mb-3" *ngFor="let item of [
+                {key: 'alergias', label: 'Alergias'},
+                {key: 'renales', label: 'Renales'},
+                {key: 'convulsiones', label: 'Convulsiones'},
+                {key: 'auditivas', label: 'Auditivas'},
+                {key: 'visuales', label: 'Visuales'}
+              ]">
+                <div class="heredo-check-card" [class.active]="heredoFamiliares[item.key]" (click)="heredoFamiliares[item.key] = !heredoFamiliares[item.key]">
+                  <input type="checkbox" [(ngModel)]="heredoFamiliares[item.key]" class="epp-checkbox mr-2">
+                  <span style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">{{ item.label }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Observaciones -->
+            <div class="form-group mt-3">
+              <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                Observaciones
+              </label>
+              <textarea class="form-control" [(ngModel)]="observacionesHeredoFamiliares" (ngModelChange)="actualizarObservacionesDiagnosticoConsolidadas()" rows="3"
+                        placeholder="Observaciones adicionales sobre antecedentes heredo-familiares..."
+                        style="border-radius: 8px; font-size: 0.875rem; resize: vertical;"></textarea>
+            </div>
+
+          </div> <!-- Cierre paso 3 -->
+
+          <!-- =====================================================
+               PASO 4: Antecedentes Personales No Patológicos
+               ===================================================== -->
+          <div *ngIf="pasoActual === 4" class="wizard-step" style="animation: fadeIn 0.3s ease-out;">
+            <div class="d-flex align-items-center mb-4">
+              <div class="icon icon-shape rounded-circle shadow mr-3"
+                   style="background: linear-gradient(135deg, #055770 0%, #0a7a9e 100%); width: 45px; height: 45px; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-smoking-ban text-white" style="font-size: 1.1rem;"></i>
+              </div>
+              <div>
+                <h4 class="mb-0" style="color: #000; font-weight: 800;">Antecedentes Personales No Patológicos</h4>
+              </div>
+            </div>
+
+            <!-- TABAQUISMO -->
+            <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">Tabaquismo</label>
+            <div class="row mb-3 align-items-end">
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="tabaquismo.fumo" (click)="!tabaquismo.negado && (tabaquismo.fumo = !tabaquismo.fumo); actualizarIndiceTabaquicoDesdeFormulario()">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="tabaquismo.fumo" [disabled]="tabaquismo.negado" (ngModelChange)="actualizarIndiceTabaquicoDesdeFormulario()" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Fumó</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="tabaquismo.fuma" (click)="!tabaquismo.negado && (tabaquismo.fuma = !tabaquismo.fuma); actualizarIndiceTabaquicoDesdeFormulario()">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="tabaquismo.fuma" [disabled]="tabaquismo.negado" (ngModelChange)="actualizarIndiceTabaquicoDesdeFormulario()" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Fuma</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="tabaquismo.negado" (click)="tabaquismo.negado = !tabaquismo.negado; onNegadoTabaquismoChange()">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="tabaquismo.negado" (ngModelChange)="onNegadoTabaquismoChange()" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">NEGADO</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Cigarros/día</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="tabaquismo.cigarros" [disabled]="tabaquismo.negado" placeholder="Ej: 20"
+                       (keydown)="soloNumeros($event)" (ngModelChange)="actualizarIndiceTabaquicoDesdeFormulario()" maxlength="3" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-6 col-md mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Exposición/años</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="tabaquismo.intervaloTiempo" [disabled]="tabaquismo.negado" placeholder="Ej: 10"
+                       (keydown)="soloNumeros($event)" (ngModelChange)="actualizarIndiceTabaquicoDesdeFormulario()" maxlength="3" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+            </div>
+            <!-- ALCOHOLISMO -->
+            <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">Alcoholismo</label>
+            <div class="row mb-3 align-items-end">
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="alcoholismo.bebio" (click)="!alcoholismo.negado && (alcoholismo.bebio = !alcoholismo.bebio)">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="alcoholismo.bebio" [disabled]="alcoholismo.negado" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Bebió</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="alcoholismo.bebe" (click)="!alcoholismo.negado && (alcoholismo.bebe = !alcoholismo.bebe)">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="alcoholismo.bebe" [disabled]="alcoholismo.negado" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Bebe</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="alcoholismo.negado" (click)="alcoholismo.negado = !alcoholismo.negado; onNegadoAlcoholismoChange()">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="alcoholismo.negado" (ngModelChange)="onNegadoAlcoholismoChange()" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">NEGADO</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Frecuencia</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="alcoholismo.unaVez" [disabled]="alcoholismo.negado" placeholder="Ej: Cada 15 días" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-6 col-md mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Tiempo</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="alcoholismo.intervaloTiempo" [disabled]="alcoholismo.negado" placeholder="Ej: 5 años" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+            </div>
+
+            <!-- OTRAS DROGAS -->
+            <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">Otras Drogas</label>
+            <div class="row mb-3 align-items-end">
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="otrasDrogas.consumio" (click)="!otrasDrogas.negado && (otrasDrogas.consumio = !otrasDrogas.consumio)">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="otrasDrogas.consumio" [disabled]="otrasDrogas.negado" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Consumió</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="otrasDrogas.consume" (click)="!otrasDrogas.negado && (otrasDrogas.consume = !otrasDrogas.consume)">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="otrasDrogas.consume" [disabled]="otrasDrogas.negado" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Consume</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="otrasDrogas.negado" (click)="otrasDrogas.negado = !otrasDrogas.negado; onNegadoOtrasDrogasChange()">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="otrasDrogas.negado" (ngModelChange)="onNegadoOtrasDrogasChange()" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">NEGADO</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Sustancia</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="otrasDrogas.tipo" [disabled]="otrasDrogas.negado" placeholder="Ej: Marihuana" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-6 col-md mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Tiempo/Frecuencia</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="otrasDrogas.intervaloTiempo" [disabled]="otrasDrogas.negado" placeholder="Ej: 2 años" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+            </div>
+
+            <!-- EJERCICIO -->
+            <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">Ejercicio</label>
+            <div class="row mb-3 align-items-end">
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="ejercicio.realiza" (click)="ejercicio.realiza = !ejercicio.realiza">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="ejercicio.realiza" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Ejercicio</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Tipo</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="ejercicio.tipo" placeholder="Ej: Caminata" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-6 col-md mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Min por semana</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="ejercicio.horasDiaMinutosSemana"
+                       (keydown)="soloNumeros($event)" (ngModelChange)="actualizarRecomendacionEjercicio($event)"
+                       inputmode="numeric" maxlength="4" placeholder="Ej: 240" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-6 col-md mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Alcanza recomendación semanal</label>
+                <input type="text" class="form-control form-control-sm" [value]="ejercicio.alcanzaRecomendacion" readonly
+                       placeholder="Auto" style="border-radius: 8px; font-size: 0.8rem; background-color: #E8E9E4;">
+              </div>
+              <div class="col-6 col-md mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Tiempo Practicarlo</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="ejercicio.tiempoPracticarlo" placeholder="Ej: 8 meses" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+            </div>
+
+            <!-- HORAS DE SUEÑO DIARIAS -->
+            <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">Horas de Sueño Diarias</label>
+            <div class="row mb-3 align-items-end">
+              <div class="col-4 col-md mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Mínimo</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="sueno.minimo" placeholder="Ej: 5"
+                       (keydown)="soloNumeros($event)" (ngModelChange)="calcularPromedioSueno()"
+                       maxlength="2" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-4 col-md mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Máximo</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="sueno.maximo" placeholder="Ej: 8"
+                       (keydown)="soloNumeros($event)" (ngModelChange)="calcularPromedioSueno()"
+                       maxlength="2" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-4 col-md mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Promedio</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="sueno.promedio" readonly
+                       placeholder="Auto" style="border-radius: 8px; font-size: 0.8rem; background-color: #E8E9E4;">
+              </div>
+            </div>
+
+            <!-- ACTIVIDADES EN TIEMPO LIBRE Y TIPO SANGUÍNEO -->
+            <div class="row mb-3">
+              <div class="col-md-12 mb-2">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">Actividades fuera de la empresa</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="actividadesTiempoLibre" placeholder="Ej: Leer, deporte" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+            </div>
+
+            <!-- TIPO SANGUÍNEO -->
+            <div class="row mb-3">
+              <div class="col-md-4 mb-2">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">Tipo Sanguíneo</label>
+                <select class="form-control form-control-sm" [(ngModel)]="tipoSanguineo" (ngModelChange)="onTipoSanguineoChange($event)" style="border-radius: 8px; font-size: 0.8rem; height: 38px;">
+                  <option value="">Seleccionar...</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                  <option value="Desconoce">Desconoce</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- VACUNAS -->
+            <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">Vacunas</label>
+            <div class="row mb-3 align-items-end">
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="vacunas.sarampion" (click)="vacunas.sarampion = !vacunas.sarampion; onVacunasChange()">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="vacunas.sarampion" (ngModelChange)="onVacunasChange()" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Sarampión</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="vacunas.rubeola" (click)="vacunas.rubeola = !vacunas.rubeola; onVacunasChange()">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="vacunas.rubeola" (ngModelChange)="onVacunasChange()" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Rubéola</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="vacunas.influenza" (click)="vacunas.influenza = !vacunas.influenza; onVacunasChange()">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="vacunas.influenza" (ngModelChange)="onVacunasChange()" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Influenza</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="vacunas.toxoideTetanico" (click)="vacunas.toxoideTetanico = !vacunas.toxoideTetanico; onVacunasChange()">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="vacunas.toxoideTetanico" (ngModelChange)="onVacunasChange()" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase;">Toxoide Tet.</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="vacunas.covid" (click)="vacunas.covid = !vacunas.covid; onVacunasChange()">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="vacunas.covid" (ngModelChange)="onVacunasChange()" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase;">COVID</span>
+                </div>
+              </div>
+              <div class="col-12 col-md mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Otras</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="vacunas.otras" (ngModelChange)="onVacunasChange()" placeholder="Otras vacunas" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+            </div>
+
+            <!-- HÁBITOS DE HIGIENE -->
+            <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">Hábitos de Higiene</label>
+            <div class="row mb-3 align-items-end">
+              <div class="col-6 col-md-3 mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Baño Diario</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="habitosHigiene.banoDiario" placeholder="Ej: Diario" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-6 col-md-3 mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Aseo Bucal (veces/día)</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="habitosHigiene.aseoBucal" placeholder="Ej: 2" 
+                       maxlength="2" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-6 col-md-3 mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Comidas al Día</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="habitosHigiene.comidasAlDia" placeholder="Ej: 3"
+                       (keydown)="soloNumeros($event)" maxlength="2"
+                       style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-6 col-md-3 mb-2">
+                <div class="heredo-check-card" [class.active]="habitosHigiene.desparasitacion" (click)="habitosHigiene.desparasitacion = !habitosHigiene.desparasitacion">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="habitosHigiene.desparasitacion" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.65rem; font-weight: 600; text-transform: uppercase; line-height: 1.2;">Desparasitación en los últimos 6 meses</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- CONDICIONES VIVIENDA -->
+            <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">Condiciones de Vivienda</label>
+            <div class="row mb-3 align-items-end">
+              <div class="col-6 col-md-2 mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Dormitorios</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="habitosHigiene.dormitorios" placeholder="Ej: 2"
+                       (keydown)="soloNumeros($event)" (ngModelChange)="actualizarIndiceHacinamientoVivienda()"
+                       maxlength="2" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-6 col-md-2 mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Habitantes</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="habitosHigiene.habitantes" placeholder="Ej: 3"
+                       (keydown)="soloNumeros($event)" (ngModelChange)="actualizarIndiceHacinamientoVivienda()"
+                       maxlength="2" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-6 col-md-2 mb-2">
+                <div class="heredo-check-card" [class.active]="habitosHigiene.hacinamiento">
+                  <input type="checkbox" class="epp-checkbox mr-2" [checked]="habitosHigiene.hacinamiento" [disabled]="true">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Hacinamiento</span>
+                </div>
+              </div>
+              <div class="col-6 col-md-3 mb-2">
+                <div class="heredo-check-card" [class.active]="habitosHigiene.zoonosis" (click)="habitosHigiene.zoonosis = !habitosHigiene.zoonosis">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="habitosHigiene.zoonosis" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Zoonosis</span>
+                </div>
+              </div>
+              <div class="col-6 col-md-3 mb-2" *ngIf="habitosHigiene.zoonosis">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Animal</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="habitosHigiene.zoonosisAnimal" placeholder="Ej: Perro"
+                       style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+            </div>
+            <div class="row mb-3 align-items-end">
+              <div class="col-6 col-md-2 mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">PS últimos 6 meses</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="habitosHigiene.psUltimos6Meses" placeholder="Ej: 1"
+                       (keydown)="soloNumeros($event)" (ngModelChange)="actualizarPromiscuidadDesdePSUltimos6Meses()"
+                       maxlength="2" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-6 col-md-2 mb-2">
+                <div class="heredo-check-card" [class.active]="habitosHigiene.promiscuidad">
+                  <input type="checkbox" class="epp-checkbox mr-2" [checked]="habitosHigiene.promiscuidad" [disabled]="true">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Promiscuidad</span>
+                </div>
+              </div>
+              <div class="col-6 col-md-8 mb-2">
+                <div class="heredo-check-card" [class.active]="habitosHigiene.perforaciones" (click)="habitosHigiene.perforaciones = !habitosHigiene.perforaciones">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="habitosHigiene.perforaciones" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Perforaciones</span>
+                </div>
+              </div>
+            </div>
+            <div class="row mb-3 align-items-end" *ngIf="habitosHigiene.perforaciones">
+              <div class="col-12 mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Zonas de perforaciones</label>
+                <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="habitosHigiene.perforacionesZonas" placeholder="Ej: Orejas"
+                       style="border-radius: 8px; font-size: 0.8rem; overflow: hidden; resize: none; min-height: 34px;"
+                       rows="1" (input)="autoResize($event)"></textarea>
+              </div>
+            </div>
+
+            <!-- TATUAJES -->
+            <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">Tatuajes</label>
+            <div class="row mb-3 align-items-end">
+              <div class="col-6 col-md-3 mb-2">
+                <div class="heredo-check-card" [class.active]="tatuajes.tiene" (click)="!tatuajes.negado && (tatuajes.tiene = !tatuajes.tiene); onTieneTatuajesChange()">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="tatuajes.tiene" [disabled]="tatuajes.negado" (ngModelChange)="onTieneTatuajesChange()" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Tatuajes</span>
+                </div>
+              </div>
+              <div class="col-6 col-md-3 mb-2">
+                <div class="heredo-check-card" [class.active]="tatuajes.negado" (click)="tatuajes.negado = !tatuajes.negado; onNegadoTatuajesChange()">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="tatuajes.negado" (ngModelChange)="onNegadoTatuajesChange()" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Negado</span>
+                </div>
+              </div>
+              <div class="col-12 col-md-6 mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Zona(s)</label>
+                <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="tatuajes.zona" [disabled]="tatuajes.negado" placeholder="Ej: Brazo, espalda" style="border-radius: 8px; font-size: 0.8rem; overflow: hidden; resize: none; min-height: 34px;" rows="1" (input)="autoResize($event)"></textarea>
+              </div>
+            </div>
+
+            <!-- Observaciones -->
+            <div class="form-group mt-3">
+              <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                Observaciones
+              </label>
+              <textarea class="form-control" [(ngModel)]="observacionesNoPatologicos" (ngModelChange)="actualizarObservacionesDiagnosticoConsolidadas()" rows="3"
+                        placeholder="Observaciones adicionales..."
+                        style="border-radius: 8px; font-size: 0.875rem; resize: vertical;"></textarea>
+            </div>
+
+          </div> <!-- Cierre paso 4 -->
+
+          <!-- =====================================================
+               PASO 5: Antecedentes Personales Patológicos
+               ===================================================== -->
+          <div *ngIf="pasoActual === 5" class="wizard-step" style="animation: fadeIn 0.3s ease-out;">
+            <div class="d-flex align-items-center mb-4">
+              <div class="icon icon-shape rounded-circle shadow mr-3"
+                   style="background: linear-gradient(135deg, #055770 0%, #0a7a9e 100%); width: 45px; height: 45px; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-notes-medical text-white" style="font-size: 1.1rem;"></i>
+              </div>
+              <div>
+                <h4 class="mb-0" style="color: #000; font-weight: 800;">Antecedentes Personales Patológicos</h4>
+              </div>
+            </div>
+
+            <!-- ENFERMEDADES INFECCIOSAS -->
+            <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">Enfermedades Infecciosas</label>
+            <div class="row mb-3">
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="enfermedadesInfantiles.sarampion" (click)="enfermedadesInfantiles.sarampion = !enfermedadesInfantiles.sarampion">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="enfermedadesInfantiles.sarampion" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Sarampión</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="enfermedadesInfantiles.rubeola" (click)="enfermedadesInfantiles.rubeola = !enfermedadesInfantiles.rubeola">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="enfermedadesInfantiles.rubeola" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Rubéola</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="enfermedadesInfantiles.varicela" (click)="enfermedadesInfantiles.varicela = !enfermedadesInfantiles.varicela">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="enfermedadesInfantiles.varicela" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Varicela</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="enfermedadesInfantiles.parotiditis" (click)="enfermedadesInfantiles.parotiditis = !enfermedadesInfantiles.parotiditis">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="enfermedadesInfantiles.parotiditis" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Parotiditis</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="enfermedadesInfantiles.hepatitis" (click)="enfermedadesInfantiles.hepatitis = !enfermedadesInfantiles.hepatitis">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="enfermedadesInfantiles.hepatitis" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Hepatitis</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="enfermedadesInfantiles.covid" (click)="enfermedadesInfantiles.covid = !enfermedadesInfantiles.covid">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="enfermedadesInfantiles.covid" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">COVID</span>
+                </div>
+              </div>
+              <div class="col-6 col-md mb-2">
+                <div class="heredo-check-card" [class.active]="enfermedadesInfantiles.influenza" (click)="enfermedadesInfantiles.influenza = !enfermedadesInfantiles.influenza">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="enfermedadesInfantiles.influenza" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Influenza</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="row mb-3 align-items-end">
+              <div class="col-12 col-md-6 mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">Otra</label>
+                <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="enfermedadesInfantiles.otra" placeholder="Especificar otra enfermedad infecciosa" style="border-radius: 8px; font-size: 0.8rem; overflow: hidden; resize: none; min-height: 34px;" rows="1" (input)="autoResize($event)"></textarea>
+              </div>
+            </div>
+
+            <!-- PROBLEMAS DE LA VISTA -->
+            <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">Problemas de la Vista</label>
+            <div class="row mb-3 align-items-end">
+              <div class="col-6 col-md-3 mb-2">
+                <div class="heredo-check-card" [class.active]="problemasVista.tiene" (click)="!problemasVista.negado && (problemasVista.tiene = !problemasVista.tiene)">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="problemasVista.tiene" [disabled]="problemasVista.negado" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Tiene</span>
+                </div>
+              </div>
+              <div class="col-6 col-md-3 mb-2">
+                <div class="heredo-check-card" [class.active]="problemasVista.usoLentes" (click)="!problemasVista.negado && (problemasVista.usoLentes = !problemasVista.usoLentes)">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="problemasVista.usoLentes" [disabled]="problemasVista.negado" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Uso de Lentes</span>
+                </div>
+              </div>
+              <div class="col-6 col-md-2 mb-2">
+                <div class="heredo-check-card" [class.active]="problemasVista.negado" (click)="problemasVista.negado = !problemasVista.negado; onNegadoProblemasVistaChange()">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="problemasVista.negado" (ngModelChange)="onNegadoProblemasVistaChange()" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Negado</span>
+                </div>
+              </div>
+              <div class="col-12 col-md-4 mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">¿Cuál?</label>
+                <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="problemasVista.cual" [disabled]="problemasVista.negado" placeholder="Especificar problema" style="border-radius: 8px; font-size: 0.8rem; overflow: hidden; resize: none; min-height: 34px;" rows="1" (input)="autoResize($event)"></textarea>
+              </div>
+            </div>
+
+            <!-- PROBLEMAS AUDITIVOS -->
+            <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">Problemas Auditivos</label>
+            <div class="row mb-3 align-items-end">
+              <div class="col-6 col-md-3 mb-2">
+                <div class="heredo-check-card" [class.active]="problemasAuditivos.tiene" (click)="!problemasAuditivos.negado && (problemasAuditivos.tiene = !problemasAuditivos.tiene)">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="problemasAuditivos.tiene" [disabled]="problemasAuditivos.negado" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Tiene</span>
+                </div>
+              </div>
+              <div class="col-6 col-md-3 mb-2">
+                <div class="heredo-check-card" [class.active]="problemasAuditivos.usoAudifonos" (click)="!problemasAuditivos.negado && (problemasAuditivos.usoAudifonos = !problemasAuditivos.usoAudifonos)">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="problemasAuditivos.usoAudifonos" [disabled]="problemasAuditivos.negado" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase;">Uso de Audífonos</span>
+                </div>
+              </div>
+              <div class="col-6 col-md-2 mb-2">
+                <div class="heredo-check-card" [class.active]="problemasAuditivos.negado" (click)="problemasAuditivos.negado = !problemasAuditivos.negado; onNegadoProblemasAuditivosChange()">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="problemasAuditivos.negado" (ngModelChange)="onNegadoProblemasAuditivosChange()" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Negado</span>
+                </div>
+              </div>
+              <div class="col-12 col-md-4 mb-2">
+                <label class="small text-muted mb-1" style="font-size: 0.65rem;">¿Cuál?</label>
+                <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="problemasAuditivos.cual" [disabled]="problemasAuditivos.negado" placeholder="Especificar problema" style="border-radius: 8px; font-size: 0.8rem; overflow: hidden; resize: none; min-height: 34px;" rows="1" (input)="autoResize($event)"></textarea>
+              </div>
+            </div>
+
+            <!-- Observaciones (primera parte) -->
+            <div class="form-group mb-4">
+              <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                Observaciones
+              </label>
+              <textarea class="form-control" [(ngModel)]="observacionesPatologicos" (ngModelChange)="actualizarObservacionesDiagnosticoConsolidadas()" rows="2"
+                        placeholder="Observaciones sobre enfermedades infecciosas, vista y audición..."
+                        style="border-radius: 8px; font-size: 0.875rem; resize: vertical;"></textarea>
+            </div>
+
+            <!-- ENFERMEDADES Y DEFORMIDADES -->
+            <div class="d-flex align-items-center mb-3 mt-4">
+              <div class="icon icon-shape rounded-circle shadow mr-3"
+                   style="background: linear-gradient(135deg, #055770 0%, #0a7a9e 100%); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-heartbeat text-white" style="font-size: 1rem;"></i>
+              </div>
+              <div>
+                <h5 class="mb-0 font-weight-bold" style="color: #38512F;">Enfermedades</h5>
+              </div>
+            </div>
+
+            <!-- Lista de enfermedades -->
+            <div class="row mb-2" *ngFor="let enf of [
+              {key: 'congenitas', label: 'Congénitas'},
+              {key: 'dentales', label: 'Dentales'},
+              {key: 'endocrinas', label: 'Endocrinas'},
+              {key: 'pulmonares', label: 'Pulmonares'},
+              {key: 'cardiovasculares', label: 'Cardiovasculares'},
+              {key: 'digestivas', label: 'Digestivas'},
+              {key: 'urinarias', label: 'Urinarias'},
+              {key: 'musculoEsqueleticas', label: 'Músculo-Esqueléticas'},
+              {key: 'dermatologicas', label: 'Dermatológicas'},
+              {key: 'infectoContagiosas', label: 'Infecto-Contagiosas'},
+              {key: 'psiquiatricas', label: 'Psiquiátricas'},
+              {key: 'alergias', label: 'Alergias'},
+              {key: 'otrasEnfermedades', label: 'Otras Enfermedades'}
+            ]">
+              <div class="col-md-4 col-6 mb-2">
+                <div class="heredo-check-card" [class.active]="enfermedades[enf.key]?.tiene" (click)="enfermedades[enf.key].tiene = !enfermedades[enf.key].tiene">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="enfermedades[enf.key].tiene" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">{{ enf.label }}</span>
+                </div>
+              </div>
+              <div class="col-md-8 col-6 mb-2">
+                <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="enfermedades[enf.key].cual" 
+                       placeholder="¿Cuál(es)?" style="border-radius: 8px; font-size: 0.8rem; overflow: hidden; resize: none; min-height: 38px;"
+                       rows="1" (input)="autoResize($event)"
+                       [disabled]="!enfermedades[enf.key]?.tiene"></textarea>
+              </div>
+            </div>
+
+            <!-- CIRUGÍAS -->
+            <div class="form-group mt-4">
+              <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #055770;">Cirugías (Tipo, Fecha, Indicación)</label>
+              <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="cirugias"
+                     placeholder="Ej: Apendicectomía, 2020, urgencia" style="border-radius: 8px; font-size: 0.8rem; overflow: hidden; resize: none; min-height: 34px;"
+                     rows="1" (input)="autoResize($event)"></textarea>
+            </div>
+
+            <!-- TRANSFUSIONES -->
+            <div class="form-group mt-4">
+              <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #055770;">Transfusiones (Fecha, Indicación)</label>
+              <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="transfusiones"
+                     placeholder="Ej: 2019, cirugía" style="border-radius: 8px; font-size: 0.8rem; overflow: hidden; resize: none; min-height: 34px;"
+                     rows="1" (input)="autoResize($event)"></textarea>
+            </div>
+
+            <!-- TRAUMÁTICOS -->
+            <div class="form-group mt-4">
+              <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #055770;">Traumáticos (Esguince, Luxación, Fractura)</label>
+              <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="traumaticos"
+                     placeholder="Ej: Fractura de brazo, 2018" style="border-radius: 8px; font-size: 0.8rem; overflow: hidden; resize: none; min-height: 34px;"
+                     rows="1" (input)="autoResize($event)"></textarea>
+            </div>
+
+            <!-- INGRESOS HOSPITALARIOS -->
+            <div class="form-group mt-4">
+              <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #055770;">Ingresos Hospitalarios (Motivo)</label>
+              <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="ingresosHospitalarios"
+                     placeholder="Ej: Neumonía, 2021" style="border-radius: 8px; font-size: 0.8rem; overflow: hidden; resize: none; min-height: 34px;"
+                     rows="1" (input)="autoResize($event)"></textarea>
+            </div>
+
+          </div> <!-- Cierre paso 5 -->
+
+          <!-- =====================================================
+               PASO 6: ANTECEDENTES GINECO-OBSTÉTRICOS
+               ===================================================== -->
+          <div *ngIf="pasoActual === pasoGineco && formulario.genero === 'femenino'" class="animate__animated animate__fadeIn">
+            
+            <!-- Título de sección -->
+            <div class="d-flex align-items-center mb-4">
+              <div class="rounded-circle d-flex align-items-center justify-content-center mr-3" 
+                   style="width: 40px; height: 40px; background: linear-gradient(135deg, #055770 0%, #0a7a9e 100%);">
+                <i class="fas fa-female text-white" style="font-size: 1rem;"></i>
+              </div>
+              <div>
+                <h5 class="mb-0" style="color: #38512F; font-weight: 600;">Antecedentes Gineco-Obstétricos</h5>
+                <small class="text-muted">Historial ginecológico y obstétrico</small>
+              </div>
+            </div>
+
+            <!-- Fila 1: Menarca, Ciclo, F.U.M, Dismenorrea -->
+            <div class="row mb-3">
+              <div class="col-md-3">
+                <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">Menarca</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="ginecoObstetricos.menarca" 
+                       placeholder="Edad" (keydown)="soloNumeros($event)" maxlength="2"
+                       style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-md-3">
+                <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">Ciclo</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="ginecoObstetricos.ciclo" 
+                       placeholder="Ej: 28 días, regular" maxlength="50"
+                       style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-md-3">
+                <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">F.U.M</label>
+                <input type="date" class="form-control form-control-sm" [(ngModel)]="ginecoObstetricos.fum" 
+                       style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-md-3">
+                <label class="form-control-label d-block" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">Dismenorrea</label>
+                <div class="heredo-check-card mt-1" [class.active]="ginecoObstetricos.dismenorreaSi" (click)="ginecoObstetricos.dismenorreaSi = !ginecoObstetricos.dismenorreaSi; actualizarObservacionesGinecoObstetricos()">
+                  <input type="checkbox" class="epp-checkbox mr-2" [(ngModel)]="ginecoObstetricos.dismenorreaSi" (ngModelChange)="actualizarObservacionesGinecoObstetricos()" (click)="$event.stopPropagation()">
+                  <span style="font-size: 0.75rem; font-weight: 600;">SI</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Fila 2: IVSA, P. Sexuales, Gesta, Para, Cesárea, Abortos -->
+            <div class="row mb-3">
+              <div class="col-md-2">
+                <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">IVSA</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="ginecoObstetricos.ivsa" 
+                       placeholder="Edad" (keydown)="soloNumeros($event)" maxlength="2"
+                       style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-md-2">
+                <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">P. Sexuales</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="ginecoObstetricos.pSexuales" 
+                       placeholder="Número" (keydown)="soloNumeros($event)" maxlength="3"
+                       style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-md-2">
+                <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">Gesta</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="ginecoObstetricos.gesta" 
+                       placeholder="Número" (keydown)="soloNumeros($event)" maxlength="2"
+                       style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-md-2">
+                <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">Para</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="ginecoObstetricos.para" 
+                       placeholder="Número" (keydown)="soloNumeros($event)" maxlength="2"
+                       style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-md-2">
+                <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">Cesárea</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="ginecoObstetricos.cesarea" 
+                       placeholder="Número" (keydown)="soloNumeros($event)" maxlength="2"
+                       style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-md-2">
+                <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">Abortos</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="ginecoObstetricos.abortos" 
+                       placeholder="Número" (keydown)="soloNumeros($event)" maxlength="2"
+                       style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+            </div>
+
+            <!-- Fila 3: M.P.F, Fecha PAP, Resultado -->
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">M.P.F</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="ginecoObstetricos.mpf" 
+                       placeholder="Método de planificación familiar" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-md-4">
+                <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">Fecha PAP</label>
+                <input type="date" class="form-control form-control-sm" [(ngModel)]="ginecoObstetricos.fechaPap" 
+                       (ngModelChange)="actualizarObservacionesGinecoObstetricos()"
+                       style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+              <div class="col-md-4">
+                <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">Resultado</label>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="ginecoObstetricos.resultado" 
+                       placeholder="Resultado PAP" style="border-radius: 8px; font-size: 0.8rem;">
+              </div>
+            </div>
+
+            <!-- Fila 4: Observaciones -->
+            <div class="row mb-3">
+              <div class="col-12">
+                <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">Observaciones</label>
+                <textarea class="form-control form-control-sm" [(ngModel)]="ginecoObstetricos.observaciones" (ngModelChange)="onGinecoObservacionesChange($event)"
+                          rows="3" placeholder="Observaciones adicionales" style="border-radius: 8px; font-size: 0.8rem;"></textarea>
+              </div>
+            </div>
+
+          </div> <!-- Cierre paso 6 -->
+
+          <!-- =====================================================
+               PASO 7: EXPLORACIÓN FÍSICA
+               ===================================================== -->
+          <div *ngIf="pasoActual === pasoExploracion" class="animate__animated animate__fadeIn">
+            
+            <!-- Título de sección -->
+            <div class="d-flex align-items-center mb-4">
+              <div class="rounded-circle d-flex align-items-center justify-content-center mr-3" 
+                   style="width: 40px; height: 40px; background: linear-gradient(135deg, #055770 0%, #0a7a9e 100%);">
+                <i class="fas fa-stethoscope text-white" style="font-size: 1rem;"></i>
+              </div>
+              <div>
+                <h4 class="mb-0" style="color: #000; font-weight: 800;">Exploración Física</h4>
+              </div>
+            </div>
+
+            <!-- Signos Vitales -->
+            <div class="mb-4 p-3" style="background-color: #f8f9f7; border-radius: 10px; border-left: 4px solid #38512F;">
+              <h6 class="mb-3" style="color: #38512F; font-weight: 600;"><i class="fas fa-heartbeat mr-2"></i>Signos Vitales</h6>
+              
+              <!-- Fila 1: Peso, Talla, IMC, FC, FR -->
+              <div class="row mb-3">
+                <div class="col-md-2">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">PESO <small class="text-muted">(Kg)</small></label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="exploracionFisica.peso" 
+                         (ngModelChange)="calcularIMC()" (keydown)="soloNumerosDecimal($event)"
+                         placeholder="Ej: 70.5" maxlength="6" style="border-radius: 8px; font-size: 0.8rem;">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">TALLA <small class="text-muted">(cm)</small></label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="exploracionFisica.talla" 
+                         (ngModelChange)="calcularIMC()" (keydown)="soloNumerosDecimal($event)"
+                         placeholder="Ej: 170" maxlength="6" style="border-radius: 8px; font-size: 0.8rem;">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">IMC</label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="exploracionFisica.imc" 
+                         readonly placeholder="Auto" style="border-radius: 8px; font-size: 0.8rem; background-color: #E8E9E4;">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">FC <small class="text-muted">(x min)</small></label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="exploracionFisica.fc" 
+                         placeholder="x min" (keydown)="soloNumeros($event)" maxlength="3"
+                         style="border-radius: 8px; font-size: 0.8rem;">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">FR <small class="text-muted">(x min)</small></label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="exploracionFisica.fr" 
+                         placeholder="x min" (keydown)="soloNumeros($event)" maxlength="3"
+                         style="border-radius: 8px; font-size: 0.8rem;">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">GLUCOSA <small class="text-muted">(mg/dL)</small></label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="exploracionFisica.glucosa"
+                         placeholder="Ej: 95" (keydown)="soloNumerosDecimal($event)" maxlength="6"
+                         style="border-radius: 8px; font-size: 0.8rem;">
+                </div>
+              </div>
+
+              <!-- Fila 2: TA (sistólica/diastólica), Temp, Lateralidad, SatO2 -->
+              <div class="row align-items-end">
+                <div class="col-md-4 mb-2 mb-md-0">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 700;">Tensión Arterial <small class="text-muted">(mmHg)</small></label>
+                  <div class="row">
+                    <div class="col-6 pr-md-1">
+                      <label class="form-control-label" style="font-size: 0.68rem; color: #607a57; font-weight: 600;">Sistólica</label>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="exploracionFisica.taSistolica"
+                             (ngModelChange)="onPresionArterialChange()" (keydown)="soloNumeros($event)" inputmode="numeric"
+                             placeholder="Ej: 120" maxlength="3" style="border-radius: 8px; font-size: 0.8rem;">
+                    </div>
+                    <div class="col-6 pl-md-1">
+                      <label class="form-control-label" style="font-size: 0.68rem; color: #607a57; font-weight: 600;">Diastólica</label>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="exploracionFisica.taDiastolica"
+                             (ngModelChange)="onPresionArterialChange()" (keydown)="soloNumeros($event)" inputmode="numeric"
+                             placeholder="Ej: 80" maxlength="3" style="border-radius: 8px; font-size: 0.8rem;">
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">TEMP <small class="text-muted">(°C)</small></label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="exploracionFisica.temp" 
+                         placeholder="°C" (keydown)="soloNumerosDecimal($event)" maxlength="4"
+                         style="border-radius: 8px; font-size: 0.8rem;">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">LATERALIDAD</label>
+                  <select class="form-control form-control-sm" [(ngModel)]="exploracionFisica.lateralidad" 
+                          style="border-radius: 8px; font-size: 0.8rem;">
+                    <option value="">Seleccionar...</option>
+                    <option value="Diestro">Diestro</option>
+                    <option value="Zurdo">Zurdo</option>
+                    <option value="Ambidiestro">Ambidiestro</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">SatO2 <small class="text-muted">(%)</small></label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="exploracionFisica.satO2" 
+                         placeholder="Ej: 96%" maxlength="5" style="border-radius: 8px; font-size: 0.8rem;">
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Composición Corporal -->
+            <div class="mb-4 p-3" style="background-color: #f8f9f7; border-radius: 10px; border-left: 4px solid #38512F;">
+              <h6 class="mb-3" style="color: #38512F; font-weight: 600;"><i class="fas fa-weight mr-2"></i>Composición Corporal</h6>
+              <div class="row">
+                <div class="col-md-2">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">Grasa Corporal <small class="text-muted">(%)</small></label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="exploracionFisica.grasaCorporal" 
+                         placeholder="Ej: 50%" maxlength="5" style="border-radius: 8px; font-size: 0.8rem;">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">Músculo <small class="text-muted">(%)</small></label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="exploracionFisica.musculo" 
+                         placeholder="Ej: 22%" maxlength="5" style="border-radius: 8px; font-size: 0.8rem;">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">Grasa Visceral <small class="text-muted">(%)</small></label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="exploracionFisica.grasaVisceral" 
+                         placeholder="Ej: 11%" maxlength="5" style="border-radius: 8px; font-size: 0.8rem;">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">Edad Metabólica <small class="text-muted">(años)</small></label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="exploracionFisica.edadMetabolica" 
+                         placeholder="Ej: 69" maxlength="3" style="border-radius: 8px; font-size: 0.8rem;">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">Metabolismo Basal <small class="text-muted">(kcal)</small></label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="exploracionFisica.metabolismoBasal" 
+                         placeholder="Ej: 1580" maxlength="5" style="border-radius: 8px; font-size: 0.8rem;">
+                </div>
+              </div>
+            </div>
+
+            <!-- Observaciones -->
+            <div class="form-group mt-3">
+              <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                Observaciones
+              </label>
+              <textarea class="form-control" [(ngModel)]="exploracionFisica.observaciones" (ngModelChange)="actualizarObservacionesDiagnosticoConsolidadas()" rows="3"
+                        placeholder="Observaciones adicionales..."
+                        style="border-radius: 8px; font-size: 0.875rem; resize: vertical;"></textarea>
+            </div>
+
+            <!-- Tabla Órgano/Sistema -->
+            <div class="table-responsive">
+              <table class="table table-bordered" style="font-size: 0.8rem;">
+                <thead style="background-color: #0f3661; color: white;">
+                  <tr>
+                    <th style="width: 25%; padding: 0.5rem;">ÓRGANO/SISTEMA</th>
+                    <th style="width: 15%; padding: 0.5rem;">RESULTADO</th>
+                    <th style="padding: 0.5rem;">HALLAZGOS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- CABEZA Y CUELLO -->
+                  <tr>
+                    <td style="background-color: #f8f9f7; font-weight: 600; color: #38512F;">CABEZA Y CUELLO</td>
+                    <td>
+                      <select class="form-control form-control-sm" [(ngModel)]="organosSistemas[0].resultado" (ngModelChange)="onResultadoOrganoChange(0)" style="border-radius: 6px;">
+                        <option value="">--</option>
+                        <option value="Normal">Normal</option>
+                        <option value="Anormal">Anormal</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="organosSistemas[0].hallazgos"
+                             placeholder="Hallazgos" style="border-radius: 6px;">
+                    </td>
+                  </tr>
+
+                  <!-- OJOS -->
+                  <tr>
+                    <td style="background-color: #f8f9f7;">
+                      <span style="font-weight: 600; color: #38512F;">OJOS</span><br>
+                      <small class="text-warning">(CONJUNTIVAS, CÓRNEAS, MOTILIDAD)</small>
+                    </td>
+                    <td>
+                      <select class="form-control form-control-sm" [(ngModel)]="organosSistemas[1].resultado" (ngModelChange)="onResultadoOrganoChange(1)" style="border-radius: 6px;">
+                        <option value="">--</option>
+                        <option value="Normal">Normal</option>
+                        <option value="Anormal">Anormal</option>
+                      </select>
+                    </td>
+                    <td>
+                      <div class="d-flex align-items-center mb-1">
+                        <span class="mr-2" style="font-size: 0.75rem; font-weight: 600; min-width: 80px;">AL</span>
+                        <span class="mr-1" style="font-size: 0.75rem;">O.D.</span>
+                        <input type="text" class="form-control form-control-sm mr-2" [(ngModel)]="organosSistemas[1].agudVisualOD" 
+                               style="border-radius: 6px; width: 60px;">
+                        <span class="mr-1" style="font-size: 0.75rem;">O.I.</span>
+                        <input type="text" class="form-control form-control-sm" [(ngModel)]="organosSistemas[1].agudVisualOI" 
+                               style="border-radius: 6px; width: 60px;">
+                        <label class="d-flex align-items-center ml-2 mb-0" style="font-size: 0.7rem; cursor: pointer;">
+                          <input type="checkbox" class="epp-checkbox mr-1" [(ngModel)]="organosSistemas[1].agudVisualConCorreccion">
+                          Con corrección (anteojos)
+                        </label>
+                      </div>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="organosSistemas[1].hallazgos" 
+                             placeholder="Otros hallazgos" style="border-radius: 6px;">
+                    </td>
+                  </tr>
+
+                  <!-- OÍDOS -->
+                  <tr>
+                    <td style="background-color: #f8f9f7;">
+                      <span style="font-weight: 600; color: #38512F;">OÍDOS</span><br>
+                      <small class="text-warning">(PABELLÓN, CONDUCTO AUDITIVO, TÍMPANO)</small>
+                    </td>
+                    <td>
+                      <select class="form-control form-control-sm" [(ngModel)]="organosSistemas[2].resultado" (ngModelChange)="onResultadoOrganoChange(2)" style="border-radius: 6px;">
+                        <option value="">--</option>
+                        <option value="Normal">Normal</option>
+                        <option value="Anormal">Anormal</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="organosSistemas[2].hallazgos" 
+                             placeholder="Hallazgos" style="border-radius: 6px;">
+                    </td>
+                  </tr>
+
+                  <!-- NARIZ -->
+                  <tr>
+                    <td style="background-color: #f8f9f7;">
+                      <span style="font-weight: 600; color: #38512F;">NARIZ</span><br>
+                      <small class="text-warning">(CORNETES, TABIQUE, SENOS PARANASALES)</small>
+                    </td>
+                    <td>
+                      <select class="form-control form-control-sm" [(ngModel)]="organosSistemas[3].resultado" (ngModelChange)="onResultadoOrganoChange(3)" style="border-radius: 6px;">
+                        <option value="">--</option>
+                        <option value="Normal">Normal</option>
+                        <option value="Anormal">Anormal</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="organosSistemas[3].hallazgos" 
+                             placeholder="Hallazgos" style="border-radius: 6px;">
+                    </td>
+                  </tr>
+
+                  <!-- OROFARINGE -->
+                  <tr>
+                    <td style="background-color: #f8f9f7;">
+                      <span style="font-weight: 600; color: #38512F;">OROFARINGE</span><br>
+                      <small class="text-warning">(AMÍGDALAS, MUCOSA, ÚVULA)</small>
+                    </td>
+                    <td>
+                      <select class="form-control form-control-sm" [(ngModel)]="organosSistemas[4].resultado" (ngModelChange)="onResultadoOrganoChange(4)" style="border-radius: 6px;">
+                        <option value="">--</option>
+                        <option value="Normal">Normal</option>
+                        <option value="Anormal">Anormal</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="organosSistemas[4].hallazgos" 
+                             placeholder="Hallazgos" style="border-radius: 6px;">
+                    </td>
+                  </tr>
+
+                  <!-- TÓRAX -->
+                  <tr>
+                    <td style="background-color: #f8f9f7;">
+                      <span style="font-weight: 600; color: #38512F;">TÓRAX</span><br>
+                      <small class="text-warning">(RUIDOS CARDÍACOS, VENTILACIÓN PULMONAR)</small>
+                    </td>
+                    <td>
+                      <select class="form-control form-control-sm" [(ngModel)]="organosSistemas[5].resultado" (ngModelChange)="onResultadoOrganoChange(5)" style="border-radius: 6px;">
+                        <option value="">--</option>
+                        <option value="Normal">Normal</option>
+                        <option value="Anormal">Anormal</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="organosSistemas[5].hallazgos" 
+                             placeholder="Hallazgos" style="border-radius: 6px;">
+                    </td>
+                  </tr>
+
+                  <!-- ABDOMEN -->
+                  <tr>
+                    <td style="background-color: #f8f9f7;">
+                      <span style="font-weight: 600; color: #38512F;">ABDOMEN</span><br>
+                      <small class="text-warning">(PARED ABDOMINAL, VÍSCERAS, GIORDANO)</small>
+                    </td>
+                    <td>
+                      <select class="form-control form-control-sm" [(ngModel)]="organosSistemas[6].resultado" (ngModelChange)="onResultadoOrganoChange(6)" style="border-radius: 6px;">
+                        <option value="">--</option>
+                        <option value="Normal">Normal</option>
+                        <option value="Anormal">Anormal</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="organosSistemas[6].hallazgos" 
+                             placeholder="Hallazgos" style="border-radius: 6px;">
+                    </td>
+                  </tr>
+
+                  <!-- EXTREMIDADES -->
+                  <tr>
+                    <td style="background-color: #f8f9f7;">
+                      <span style="font-weight: 600; color: #38512F;">EXTREMIDADES</span><br>
+                      <small class="text-warning">(FUERZA, EDEMA VASCULAR)</small>
+                    </td>
+                    <td>
+                      <select class="form-control form-control-sm" [(ngModel)]="organosSistemas[7].resultado" (ngModelChange)="onResultadoOrganoChange(7)" style="border-radius: 6px;">
+                        <option value="">--</option>
+                        <option value="Normal">Normal</option>
+                        <option value="Anormal">Anormal</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="organosSistemas[7].hallazgos" 
+                             placeholder="Hallazgos" style="border-radius: 6px;">
+                    </td>
+                  </tr>
+
+                  <!-- NEUROLÓGICO -->
+                  <tr>
+                    <td style="background-color: #f8f9f7;">
+                      <span style="font-weight: 600; color: #38512F;">NEUROLÓGICO</span><br>
+                      <small class="text-warning">(COLUMNA, MARCHA, PARESTESIAS)</small>
+                    </td>
+                    <td>
+                      <select class="form-control form-control-sm" [(ngModel)]="organosSistemas[8].resultado" (ngModelChange)="onResultadoOrganoChange(8)" style="border-radius: 6px;">
+                        <option value="">--</option>
+                        <option value="Normal">Normal</option>
+                        <option value="Anormal">Anormal</option>
+                      </select>
+                    </td>
+                    <td>
+                      <div class="d-flex align-items-center mb-1">
+                        <span class="mr-2" style="font-size: 0.75rem; font-weight: 600; min-width: 80px;">ROMBERG</span>
+                        <select class="form-control form-control-sm" [(ngModel)]="organosSistemas[8].romberg" style="border-radius: 6px; width: 120px;">
+                          <option value="">--</option>
+                          <option value="Positivo">Positivo</option>
+                          <option value="Negativo">Negativo</option>
+                        </select>
+                      </div>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="organosSistemas[8].hallazgos" 
+                             placeholder="Otros hallazgos" style="border-radius: 6px;">
+                    </td>
+                  </tr>
+
+                  <!-- PIEL -->
+                  <tr>
+                    <td style="background-color: #f8f9f7;">
+                      <span style="font-weight: 600; color: #38512F;">PIEL</span><br>
+                      <small class="text-warning">(CICATRICES, TATUAJES, DERMATITIS)</small>
+                    </td>
+                    <td>
+                      <select class="form-control form-control-sm" [(ngModel)]="organosSistemas[9].resultado" (ngModelChange)="onResultadoOrganoChange(9)" style="border-radius: 6px;">
+                        <option value="">--</option>
+                        <option value="Normal">Normal</option>
+                        <option value="Anormal">Anormal</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="organosSistemas[9].hallazgos" 
+                             placeholder="Hallazgos" style="border-radius: 6px;">
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div> <!-- Cierre paso 7 -->
+
+          <!-- =====================================================
+               PASO 8: PARACLÍNICOS
+               ===================================================== -->
+          <div *ngIf="pasoActual === pasoParaclinicos" class="animate__animated animate__fadeIn">
+            
+            <!-- Título de sección -->
+            <div class="d-flex align-items-center mb-4">
+              <div class="rounded-circle d-flex align-items-center justify-content-center mr-3" 
+                   style="width: 40px; height: 40px; background: linear-gradient(135deg, #055770 0%, #0a7a9e 100%);">
+                <i class="fas fa-vials text-white" style="font-size: 1rem;"></i>
+              </div>
+              <div>
+                <h4 class="mb-0" style="color: #000; font-weight: 800;">Paraclínicos</h4>
+              </div>
+            </div>
+
+            <!-- Tabla de Paraclínicos -->
+            <div class="table-responsive">
+              <table class="table table-bordered" style="font-size: 0.85rem;">
+                <thead style="background-color: #0f3661; color: white;">
+                  <tr>
+                    <th style="padding: 0.6rem; text-align: center;">TELE-TORAX</th>
+                    <th style="padding: 0.6rem; text-align: center;">COLUMNA</th>
+                    <th style="padding: 0.6rem; text-align: center;">BIOMETRIA</th>
+                    <th style="padding: 0.6rem; text-align: center;">CLINICA SANGUINEA</th>
+                    <th style="padding: 0.6rem; text-align: center;">AUDIOMETRÍA</th>
+                    <th style="padding: 0.6rem; text-align: center;">ESPIROMETRÍA</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style="padding: 0.5rem;">
+                      <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="paraclinicos.teleTorax" placeholder="Resultado" style="border-radius: 6px; overflow: hidden; resize: none; min-height: 34px;" rows="1" (input)="autoResize($event)"></textarea>
+                    </td>
+                    <td style="padding: 0.5rem;">
+                      <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="paraclinicos.columna" placeholder="Resultado" style="border-radius: 6px; overflow: hidden; resize: none; min-height: 34px;" rows="1" (input)="autoResize($event)"></textarea>
+                    </td>
+                    <td style="padding: 0.5rem;">
+                      <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="paraclinicos.biometria" placeholder="Resultado" style="border-radius: 6px; overflow: hidden; resize: none; min-height: 34px;" rows="1" (input)="autoResize($event)"></textarea>
+                    </td>
+                    <td style="padding: 0.5rem;">
+                      <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="paraclinicos.clinicaSanguinea" placeholder="Resultado" style="border-radius: 6px; overflow: hidden; resize: none; min-height: 34px;" rows="1" (input)="autoResize($event)"></textarea>
+                    </td>
+                    <td style="padding: 0.5rem;">
+                      <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="paraclinicos.audiometria" placeholder="Resultado" style="border-radius: 6px; overflow: hidden; resize: none; min-height: 34px;" rows="1" (input)="autoResize($event)"></textarea>
+                    </td>
+                    <td style="padding: 0.5rem;">
+                      <textarea class="form-control form-control-sm auto-resize" [(ngModel)]="paraclinicos.espirometria" placeholder="Resultado" style="border-radius: 6px; overflow: hidden; resize: none; min-height: 34px;" rows="1" (input)="autoResize($event)"></textarea>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Observaciones -->
+            <div class="form-group mt-3">
+              <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                Observaciones
+              </label>
+              <textarea class="form-control" [(ngModel)]="paraclinicos.resultado" (ngModelChange)="actualizarObservacionesDiagnosticoConsolidadas()" rows="3"
+                        placeholder="Observaciones adicionales..."
+                        style="border-radius: 8px; font-size: 0.875rem; resize: vertical;"></textarea>
+            </div>
+
+          </div> <!-- Cierre paso 8 -->
+
+          <!-- =====================================================
+               PASO 9: DIAGNÓSTICO Y TRATAMIENTO
+               ===================================================== -->
+          <div *ngIf="pasoActual === pasoDiagnostico" class="animate__animated animate__fadeIn">
+            
+            <!-- Título de sección -->
+            <div class="d-flex align-items-center mb-4">
+              <div class="rounded-circle d-flex align-items-center justify-content-center mr-3" 
+                   style="width: 40px; height: 40px; background: linear-gradient(135deg, #055770 0%, #0a7a9e 100%);">
+                <i class="fas fa-clipboard-check text-white" style="font-size: 1rem;"></i>
+              </div>
+              <div>
+                <h4 class="mb-0" style="color: #000; font-weight: 800;">Diagnóstico y Tratamiento</h4>
+              </div>
+            </div>
+
+            <!-- Tabla de Diagnósticos -->
+            <div class="table-responsive">
+              <table class="table table-bordered" style="font-size: 0.85rem;">
+                <thead style="background-color: #0f3661; color: white;">
+                  <tr>
+                    <th style="width: 5%; padding: 0.6rem; text-align: center;">#</th>
+                    <th style="padding: 0.6rem; text-align: center;">DIAGNÓSTICO</th>
+                    <th style="padding: 0.6rem; text-align: center;">RECOMENDACIÓN MÉDICA</th>
+                    <th style="width: 5%; padding: 0.6rem; text-align: center;"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let item of diagnosticos; let i = index">
+                    <td style="background-color: #f8f9f7; font-weight: 600; color: #38512F; text-align: center; vertical-align: middle;">{{ i + 1 }}</td>
+                    <td style="padding: 0.5rem;">
+                       <textarea class="form-control form-control-sm auto-resize diagnostico-textarea" [(ngModel)]="item.diagnostico" 
+                             placeholder="Diagnóstico" style="border-radius: 6px; overflow: hidden; resize: none; min-height: 34px;"
+                             rows="1" (input)="autoResize($event)"></textarea>
+                    </td>
+                    <td style="padding: 0.5rem;">
+                       <textarea class="form-control form-control-sm auto-resize diagnostico-textarea" [(ngModel)]="item.recomendacion" 
+                             placeholder="Recomendación" style="border-radius: 6px; overflow: hidden; resize: none; min-height: 34px;"
+                             rows="1" (input)="autoResize($event)"></textarea>
+                    </td>
+                    <td style="text-align: center; vertical-align: middle; padding: 0.5rem;">
+                      <button type="button" class="btn btn-sm btn-link text-danger p-0" (click)="eliminarDiagnostico(i)"
+                              *ngIf="diagnosticos.length > 1" title="Eliminar">
+                        <i class="fas fa-trash-alt"></i>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Botón agregar diagnóstico -->
+            <div class="mt-2 mb-3">
+              <button type="button" class="btn btn-sm" (click)="agregarDiagnostico()"
+                      style="background-color: #0f3661; color: white; border-radius: 8px; font-size: 0.8rem; font-weight: 600;">
+                <i class="fas fa-plus mr-1"></i> Agregar Diagnóstico
+              </button>
+            </div>
+
+            <!-- Observaciones -->
+            <div class="row mt-3">
+              <div class="col-12">
+                <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">OBSERVACIONES</label>
+                <textarea class="form-control form-control-sm observaciones-diagnostico-consolidado" [(ngModel)]="observacionesDiagnostico"
+                          rows="6" readonly placeholder="Se genera automáticamente con las observaciones capturadas en cada sección"
+                          style="border-radius: 8px; font-size: 0.8rem; background-color: #E8E9E4; overflow: hidden; resize: none; min-height: 140px;"></textarea>
+              </div>
+            </div>
+
+            <!-- Personal que elaboró la historia clínica -->
+            <div class="row mt-4">
+              <div class="col-12">
+                <div class="p-3" style="background-color: #f8f9f7; border-radius: 10px; border-left: 4px solid #38512F;">
+                  <label class="form-control-label" style="font-size: 0.75rem; color: #38512F; font-weight: 600;">
+                    <i class="fas fa-user-md mr-2"></i>PERSONAL QUE ELABORÓ LA HISTORIA CLÍNICA
+                  </label>
+                  <div class="row mt-2">
+                    <div class="col-md-4">
+                      <label class="form-control-label" style="font-size: 0.7rem; color: #525f7f;">Nombre del médico</label>
+                      <div class="input-group input-group-sm" style="height: 50px;">
+                        <div class="input-group-prepend">
+                          <span class="input-group-text" style="border-radius: 8px 0 0 8px; font-size: 0.8rem; height: 50px;">Dr.</span>
+                        </div>
+                        <input type="text" class="form-control form-control-sm" [(ngModel)]="personalElaboroHistoria" 
+                               placeholder="Nombre completo" readonly
+                               style="border-radius: 0 8px 8px 0; font-size: 0.8rem; height: 50px; background-color: #f5f5f5; cursor: not-allowed;">
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-control-label" style="font-size: 0.7rem; color: #525f7f;">Cédula Profesional</label>
+                      <input type="text" class="form-control form-control-sm" [(ngModel)]="cedulaProfesional" 
+                             placeholder="Cédula profesional" readonly
+                             style="border-radius: 8px; font-size: 0.8rem; height: 50px; background-color: #f5f5f5; cursor: not-allowed;">
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-control-label mb-1" style="font-size: 0.7rem; color: #525f7f;">Firma</label>
+                      <div *ngIf="firmaUrlDoctor" style="border: 1px solid #C2D1B2; border-radius: 8px; height: 50px; display: flex; align-items: center; justify-content: center; background: #fff; padding: 4px;">
+                        <img [src]="firmaUrlDoctor" alt="Firma del doctor" style="max-height: 42px; max-width: 100%; object-fit: contain;">
+                      </div>
+                      <div *ngIf="!firmaUrlDoctor" style="border: 1px dashed #ccc; border-radius: 8px; height: 50px; display: flex; align-items: center; justify-content: center;">
+                        <small class="text-muted" style="font-size: 0.7rem;">Firma al imprimir</small>
+                      </div>
+                      <div *ngIf="firmaUrlDoctor" class="mt-1 text-right">
+                        <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                                style="font-size: 0.65rem; border-radius: 6px; line-height: 1.4;"
+                                (click)="firmaUrlDoctor = null" title="Quitar firma (firmar a mano)">
+                          <i class="fas fa-times mr-1"></i>Quitar firma
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div> <!-- Cierre paso 9 -->
+
+          <!-- Botones de navegación -->
+          <div class="row mt-4">
+            <div class="col-6">
+              <button *ngIf="pasoActual === 1" class="btn btn-outline-secondary"
+                      style="padding: 0.6rem 1.5rem; border-radius: 8px;"
+                      (click)="volverAlMenu()">
+                <i class="fas fa-times mr-2"></i>Cancelar
+              </button>
+              <button *ngIf="pasoActual > 1" class="btn btn-outline-secondary"
+                      style="padding: 0.6rem 1.5rem; border-radius: 8px;"
+                      (click)="pasoAnterior()">
+                <i class="fas fa-arrow-left mr-2"></i>Anterior
+              </button>
+            </div>
+            <div class="col-6 text-right">
+              <button *ngIf="!esUltimoPaso" class="btn btn-success shadow"
+                      style="background: linear-gradient(135deg, #38512F 0%, #5a7456 100%); border: none; padding: 0.6rem 1.5rem; font-weight: 600;"
+                      (click)="siguientePaso()">
+                Siguiente<i class="fas fa-arrow-right ml-2"></i>
+              </button>
+              <button *ngIf="esUltimoPaso" class="btn btn-success shadow"
+                      style="background: linear-gradient(135deg, #38512F 0%, #5a7456 100%); border: none; padding: 0.6rem 1.8rem; font-weight: 600; font-size: 1rem;"
+                      (click)="finalizarHistoriaClinica()" [disabled]="guardando">
+                <i class="fas fa-check-circle mr-2"></i>{{ guardando ? 'Guardando...' : 'Finalizar' }}
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- =====================================================
+           VISTA PREVIA: Formato Historia Clínica (tipo Excel)
+           ===================================================== -->
+      <div *ngIf="vistaActual === 'preview'" class="preview-wrapper">
+        
+        <!-- Controles superiores (no se imprimen) -->
+        <div class="preview-controls no-print">
+          <button type="button"
+                  class="preview-btn preview-btn-back"
+                  (click)="volverAlMenuDesdePreview()"
+                  [title]="origenPreview === 'historial' ? 'Volver al Historial' : 'Salir al menú'"
+                  [attr.aria-label]="origenPreview === 'historial' ? 'Volver al Historial' : 'Salir al menú'">
+            <i class="fas" [ngClass]="origenPreview === 'historial' ? 'fa-arrow-left' : 'fa-home'"></i>
+            <span class="preview-btn-back-text">{{ origenPreview === 'historial' ? 'Historial' : 'Menú' }}</span>
+          </button>
+
+          <div class="preview-actions-group">
+            <button *ngIf="!historiaSoloLecturaDesdeHistorial"
+                    type="button"
+                    class="preview-btn preview-btn-icon preview-btn-finalizar"
+                    (click)="finalizarYSubirDriveYBD()"
+                    title="Finalizar"
+                    aria-label="Finalizar">
+              <i class="fas fa-check"></i>
+            </button>
+
+            <button *ngIf="origenPreview === 'historial' && historiaActualId"
+                    type="button"
+                    class="preview-btn preview-btn-icon preview-btn-edit"
+                    (click)="editarHistoria(historiaActualId)"
+                    title="Editar Historia Clínica"
+                    aria-label="Editar Historia Clínica">
+              <i class="fas fa-edit"></i>
+            </button>
+
+            <button type="button"
+                    class="preview-btn preview-btn-icon preview-btn-download"
+                    (click)="descargarPDF()"
+                    title="Descargar PDF"
+                    aria-label="Descargar PDF">
+              <i class="fas fa-download"></i>
+            </button>
+
+            <button type="button"
+                    class="preview-btn preview-btn-icon preview-btn-print"
+                    (click)="imprimirHistoria()"
+                    title="Imprimir"
+                    aria-label="Imprimir">
+              <i class="fas fa-print"></i>
+            </button>
+
+            <button *ngIf="origenPreview === 'historial' && historiaActualId && esAdmin"
+                    type="button"
+                    class="preview-btn preview-btn-icon preview-btn-delete"
+                    (click)="eliminarHistoria(historiaActualId)"
+                    title="Eliminar Historia Clínica"
+                    aria-label="Eliminar Historia Clínica">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- ============ DOCUMENTO ============ -->
+        <div class="hc-document" id="historia-clinica-print">
+
+          <!-- ENCABEZADO CON LOGO -->
+          <table class="hc-table hc-no-break">
+            <colgroup>
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.37%">
+            </colgroup>
+            <tr>
+              <td colspan="3" class="hc-logo-cell">
+                <img src="assets/img/logo_biznaga.png" alt="Biznaga Risk & Tech" class="hc-logo-img">
+              </td>
+              <td colspan="9" class="hc-title-cell">
+                H I S T O R I A &nbsp;&nbsp; C L Í N I C A
+              </td>
+            </tr>
+          </table>
+
+          <!-- DATOS GENERALES -->
+          <table class="hc-table hc-no-break">
+            <colgroup>
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.37%">
+            </colgroup>
+            <tr>
+              <td colspan="12" class="hc-cell"><strong>TIPO DE HISTORIA CLÍNICA:</strong> {{ getTipoHistoriaLabel(formulario.tipoHistoria) | uppercase }}</td>
+            </tr>
+            <tr>
+              <td colspan="3" class="hc-cell"><strong>FECHA ELABORACIÓN:</strong> {{ formulario.fechaElaboracion }}</td>
+              <td colspan="3" class="hc-cell"><strong>MATRÍCULA:</strong> {{ formulario.matricula }}</td>
+              <td colspan="3" class="hc-cell"><strong>ÁREA:</strong> {{ formulario.area }}</td>
+              <td colspan="3" class="hc-cell"><strong>SEXO:</strong> {{ formulario.genero | uppercase }}</td>
+            </tr>
+            <tr>
+              <td colspan="8" class="hc-cell"><strong>NOMBRE:</strong> {{ formulario.nombre }}</td>
+              <td colspan="4" class="hc-cell"><strong>RELIGIÓN:</strong> {{ formulario.religion }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>ESCOLARIDAD:</strong> {{ formulario.escolaridad | uppercase }}</td>
+              <td colspan="4" class="hc-cell"><strong>ESTADO CIVIL:</strong> {{ formulario.estadoCivil | uppercase }}</td>
+              <td colspan="4" class="hc-cell"><strong>EDAD:</strong> {{ formulario.edad }}</td>
+            </tr>
+            <tr>
+              <td colspan="8" class="hc-cell"><strong>LUGAR DE NACIMIENTO:</strong> {{ formulario.lugarNacimiento }}</td>
+              <td colspan="4" class="hc-cell"><strong>TELÉFONO:</strong> {{ formulario.telefono }}</td>
+            </tr>
+            <tr>
+              <td colspan="12" class="hc-cell"><strong>DOMICILIO:</strong> {{ formulario.domicilio }}</td>
+            </tr>
+            <tr>
+              <td colspan="12" class="hc-cell"><strong>PERSONA Y NO. DE CONTACTO EN CASO DE ACCIDENTE:</strong> {{ formulario.contactoEmergenciaNombre }} — {{ formulario.contactoEmergenciaTelefono }}</td>
+            </tr>
+          </table>
+
+          <!-- 1. ANTECEDENTES LABORALES -->
+          <table class="hc-table">
+            <colgroup>
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.37%">
+            </colgroup>
+            <tr>
+              <td colspan="12" class="hc-section-header">1. ANTECEDENTES LABORALES</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="hc-col-header">EMPRESA</td>
+              <td colspan="2" class="hc-col-header">PUESTO</td>
+              <td colspan="1" class="hc-col-header">TIEMPO</td>
+              <td colspan="1" class="hc-col-header">EPP VIS.</td>
+              <td colspan="1" class="hc-col-header">EPP AUD.</td>
+              <td colspan="1" class="hc-col-header">EPP RESP.</td>
+              <td colspan="1" class="hc-col-header">N/A EPP</td>
+              <td colspan="2" class="hc-col-header">ENF. TRABAJO</td>
+              <td colspan="2" class="hc-col-header">ACC. TRABAJO</td>
+            </tr>
+            <tr *ngFor="let fila of antecedentesLaborales">
+              <td colspan="2" class="hc-cell">{{ fila.empresa }}</td>
+              <td colspan="2" class="hc-cell">{{ fila.puesto }}</td>
+              <td colspan="1" class="hc-cell">{{ fila.tiempo }}</td>
+              <td colspan="1" class="hc-cell hc-center"><span class="hc-check">{{ getCheckMark(fila.eppVisual) }}</span></td>
+              <td colspan="1" class="hc-cell hc-center"><span class="hc-check">{{ getCheckMark(fila.eppAuditivo) }}</span></td>
+              <td colspan="1" class="hc-cell hc-center"><span class="hc-check">{{ getCheckMark(fila.eppRespiratorio) }}</span></td>
+              <td colspan="1" class="hc-cell hc-center"><span class="hc-check">{{ getCheckMark(fila.eppNoAplica) }}</span></td>
+              <td colspan="2" class="hc-cell">{{ fila.enfermedadTrabajo }}</td>
+              <td colspan="2" class="hc-cell">{{ fila.accidenteTrabajo }}</td>
+            </tr>
+            <tr>
+              <td colspan="12" class="hc-cell"><strong>OBSERVACIONES:</strong> {{ observacionesLaborales }}</td>
+            </tr>
+          </table>
+
+          <!-- 2. ANTECEDENTES HEREDO-FAMILIARES -->
+          <table class="hc-table hc-no-break">
+            <colgroup>
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.37%">
+            </colgroup>
+            <tr>
+              <td colspan="12" class="hc-section-header">2. ANTECEDENTES HEREDO-FAMILIARES</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="hc-cell"><strong>DIABETES</strong> <span class="hc-check">{{ getCheckMark(heredoFamiliares['diabetes']) }}</span></td>
+              <td colspan="3" class="hc-cell"><strong>HIPERTENSIÓN</strong> <span class="hc-check">{{ getCheckMark(heredoFamiliares['hipertension']) }}</span></td>
+              <td colspan="2" class="hc-cell"><strong>CÁNCER</strong> <span class="hc-check">{{ getCheckMark(heredoFamiliares['cancer']) }}</span></td>
+              <td colspan="3" class="hc-cell"><strong>CARDIACOS</strong> <span class="hc-check">{{ getCheckMark(heredoFamiliares['cardiacos']) }}</span></td>
+              <td colspan="2" class="hc-cell"><strong>ASMA</strong> <span class="hc-check">{{ getCheckMark(heredoFamiliares['asma']) }}</span></td>
+            </tr>
+            <tr>
+              <td colspan="2" class="hc-cell"><strong>ALERGIAS</strong> <span class="hc-check">{{ getCheckMark(heredoFamiliares['alergias']) }}</span></td>
+              <td colspan="3" class="hc-cell"><strong>RENALES</strong> <span class="hc-check">{{ getCheckMark(heredoFamiliares['renales']) }}</span></td>
+              <td colspan="2" class="hc-cell"><strong>CONVULSIONES</strong> <span class="hc-check">{{ getCheckMark(heredoFamiliares['convulsiones']) }}</span></td>
+              <td colspan="3" class="hc-cell"><strong>AUDITIVAS</strong> <span class="hc-check">{{ getCheckMark(heredoFamiliares['auditivas']) }}</span></td>
+              <td colspan="2" class="hc-cell"><strong>VISUALES</strong> <span class="hc-check">{{ getCheckMark(heredoFamiliares['visuales']) }}</span></td>
+            </tr>
+            <tr>
+              <td colspan="12" class="hc-cell"><strong>OBSERVACIONES:</strong> {{ getObservacionesHeredoFamiliares() }}</td>
+            </tr>
+          </table>
+
+          <!-- 3. ANTECEDENTES PERSONALES NO PATOLÓGICOS -->
+          <table class="hc-table">
+            <colgroup>
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.37%">
+            </colgroup>
+            <tr>
+              <td colspan="12" class="hc-section-header">3. ANTECEDENTES PERSONALES NO PATOLÓGICOS</td>
+            </tr>
+            <tr><td colspan="12" class="hc-subsection">TABAQUISMO</td></tr>
+            <tr>
+              <td colspan="2" class="hc-col-header">FUMÓ</td>
+              <td colspan="2" class="hc-col-header">FUMA</td>
+              <td colspan="2" class="hc-col-header">NEGADO</td>
+              <td colspan="3" class="hc-col-header">CIGARROS/DÍA</td>
+              <td colspan="3" class="hc-col-header">EXPOSICIÓN/AÑOS</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="hc-cell hc-center"><span class="hc-check">{{ getCheckMark(tabaquismo.fumo) }}</span></td>
+              <td colspan="2" class="hc-cell hc-center"><span class="hc-check">{{ getCheckMark(tabaquismo.fuma) }}</span></td>
+              <td colspan="2" class="hc-cell hc-center"><span class="hc-check">{{ getCheckMark(tabaquismo.negado) }}</span></td>
+              <td colspan="3" class="hc-cell">{{ tabaquismo.cigarros }}</td>
+              <td colspan="3" class="hc-cell">{{ tabaquismo.intervaloTiempo }}</td>
+            </tr>
+            <tr><td colspan="12" class="hc-subsection">ALCOHOLISMO</td></tr>
+            <tr>
+              <td colspan="2" class="hc-col-header">BEBIÓ</td>
+              <td colspan="2" class="hc-col-header">BEBE</td>
+              <td colspan="2" class="hc-col-header">NEGADO</td>
+              <td colspan="3" class="hc-col-header">FRECUENCIA</td>
+              <td colspan="3" class="hc-col-header">INTERVALO TIEMPO</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="hc-cell hc-center"><span class="hc-check">{{ getCheckMark(alcoholismo.bebio) }}</span></td>
+              <td colspan="2" class="hc-cell hc-center"><span class="hc-check">{{ getCheckMark(alcoholismo.bebe) }}</span></td>
+              <td colspan="2" class="hc-cell hc-center"><span class="hc-check">{{ getCheckMark(alcoholismo.negado) }}</span></td>
+              <td colspan="3" class="hc-cell">{{ alcoholismo.unaVez }}</td>
+              <td colspan="3" class="hc-cell">{{ alcoholismo.intervaloTiempo }}</td>
+            </tr>
+            <tr><td colspan="12" class="hc-subsection">OTRAS DROGAS</td></tr>
+            <tr>
+              <td colspan="2" class="hc-col-header">CONSUMIÓ</td>
+              <td colspan="2" class="hc-col-header">CONSUME</td>
+              <td colspan="2" class="hc-col-header">NEGADO</td>
+              <td colspan="3" class="hc-col-header">SUSTANCIA</td>
+              <td colspan="3" class="hc-col-header">INTERVALO TIEMPO</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="hc-cell hc-center"><span class="hc-check">{{ getCheckMark(otrasDrogas.consumio) }}</span></td>
+              <td colspan="2" class="hc-cell hc-center"><span class="hc-check">{{ getCheckMark(otrasDrogas.consume) }}</span></td>
+              <td colspan="2" class="hc-cell hc-center"><span class="hc-check">{{ getCheckMark(otrasDrogas.negado) }}</span></td>
+              <td colspan="3" class="hc-cell">{{ otrasDrogas.tipo }}</td>
+              <td colspan="3" class="hc-cell">{{ otrasDrogas.intervaloTiempo }}</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="hc-col-header">EJERCICIO</td>
+              <td colspan="2" class="hc-col-header">TIPO</td>
+              <td colspan="2" class="hc-col-header">MIN POR SEMANA</td>
+              <td colspan="3" class="hc-col-header">ALCANZA RECOMENDACIÓN SEMANAL</td>
+              <td colspan="3" class="hc-col-header">TIEMPO PRACTICARLO (AÑOS)</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="hc-cell hc-center"><span class="hc-check">{{ getCheckMark(ejercicio.realiza) }}</span></td>
+              <td colspan="2" class="hc-cell">{{ ejercicio.tipo }}</td>
+              <td colspan="2" class="hc-cell">{{ ejercicio.horasDiaMinutosSemana }}</td>
+              <td colspan="3" class="hc-cell">{{ ejercicio.alcanzaRecomendacion }}</td>
+              <td colspan="3" class="hc-cell">{{ ejercicio.tiempoPracticarlo }}</td>
+            </tr>
+            <tr>
+              <td colspan="3" class="hc-col-header">HORAS DE SUEÑO DIARIAS</td>
+              <td colspan="1" class="hc-col-header">MÍNIMO</td>
+              <td colspan="2" class="hc-cell">{{ sueno.minimo }}</td>
+              <td colspan="1" class="hc-col-header">MÁXIMO</td>
+              <td colspan="2" class="hc-cell">{{ sueno.maximo }}</td>
+              <td colspan="1" class="hc-col-header">PROMEDIO</td>
+              <td colspan="2" class="hc-cell">{{ sueno.promedio }}</td>
+            </tr>
+            <tr>
+              <td colspan="8" class="hc-cell"><strong>ACTIVIDADES FUERA DE LA EMPRESA:</strong> {{ actividadesTiempoLibre }}</td>
+              <td colspan="4" class="hc-cell"><strong>TIPO SANGUÍNEO:</strong> {{ tipoSanguineo }}</td>
+            </tr>
+            <tr><td colspan="12" class="hc-subsection">VACUNAS</td></tr>
+            <tr>
+              <td colspan="2" class="hc-cell"><strong>SARAMPIÓN</strong> <span class="hc-check">{{ getCheckMark(vacunas.sarampion) }}</span></td>
+              <td colspan="2" class="hc-cell"><strong>RUBÉOLA</strong> <span class="hc-check">{{ getCheckMark(vacunas.rubeola) }}</span></td>
+              <td colspan="2" class="hc-cell"><strong>INFLUENZA</strong> <span class="hc-check">{{ getCheckMark(vacunas.influenza) }}</span></td>
+              <td colspan="2" class="hc-cell"><strong>TOXOIDE TET.</strong> <span class="hc-check">{{ getCheckMark(vacunas.toxoideTetanico) }}</span></td>
+              <td colspan="2" class="hc-cell"><strong>COVID</strong> <span class="hc-check">{{ getCheckMark(vacunas.covid) }}</span></td>
+              <td colspan="2" class="hc-cell"><strong>OTRAS:</strong> {{ vacunas.otras }}</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="hc-cell"><strong>DORMITORIOS:</strong> {{ habitosHigiene.dormitorios }}</td>
+              <td colspan="2" class="hc-cell"><strong>HABITANTES:</strong> {{ habitosHigiene.habitantes }}</td>
+              <td colspan="3" class="hc-cell"><strong>HACINAMIENTO:</strong> {{ habitosHigiene.hacinamiento ? 'POSITIVO' : 'NEGATIVO' }}</td>
+              <td colspan="2" class="hc-cell"><strong>ZOONOSIS:</strong> {{ habitosHigiene.zoonosis ? 'SI' : 'NO' }}</td>
+              <td colspan="3" class="hc-cell">{{ habitosHigiene.zoonosisAnimal }}</td>
+            </tr>
+            <tr>
+              <td colspan="6" class="hc-cell"><strong>PS EN ÚLTIMOS 6 MESES:</strong> {{ habitosHigiene.psUltimos6Meses }}</td>
+              <td colspan="6" class="hc-cell"><strong>PROMISCUIDAD:</strong> {{ habitosHigiene.promiscuidad ? 'POSITIVO' : 'NEGATIVO' }}</td>
+            </tr>
+            <tr>
+              <td colspan="3" class="hc-cell"><strong>TATUAJES:</strong>&nbsp;<span [class.hc-check]="!tatuajes.negado">{{ tatuajes.negado ? 'NEGADO' : getCheckMark(tatuajes.tiene) }}</span></td>
+              <td colspan="3" class="hc-cell"><strong>ZONA(S):</strong> {{ tatuajes.negado ? '' : tatuajes.zona }}</td>
+              <td colspan="3" class="hc-cell"><strong>PERFORACIONES</strong> <span class="hc-check">{{ getCheckMark(habitosHigiene.perforaciones) }}</span></td>
+              <td colspan="3" class="hc-cell"><strong>ZONA(S):</strong> {{ habitosHigiene.perforacionesZonas }}</td>
+            </tr>
+            <tr>
+              <td colspan="3" class="hc-cell"><strong>BAÑO DIARIO:</strong> {{ habitosHigiene.banoDiario }}</td>
+              <td colspan="3" class="hc-cell"><strong>ASEO BUCAL:</strong> {{ habitosHigiene.aseoBucal }}</td>
+              <td colspan="3" class="hc-cell"><strong>COMIDAS AL DÍA:</strong> {{ habitosHigiene.comidasAlDia }}</td>
+              <td colspan="3" class="hc-cell"><strong>DESPARASITACIÓN (últimos 6 meses):</strong> {{ habitosHigiene.desparasitacion ? 'SI' : 'NO' }}</td>
+            </tr>
+            <tr>
+              <td colspan="12" class="hc-cell"><strong>OBSERVACIONES:</strong> {{ observacionesNoPatologicos }}</td>
+            </tr>
+          </table>
+
+          <!-- 4. ANTECEDENTES PERSONALES PATOLÓGICOS -->
+          <table class="hc-table">
+            <colgroup>
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.37%">
+            </colgroup>
+            <tr>
+              <td colspan="12" class="hc-section-header">4. ANTECEDENTES PERSONALES PATOLÓGICOS</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="hc-cell"><strong>SARAMPIÓN</strong> <span class="hc-check">{{ getCheckMark(enfermedadesInfantiles.sarampion) }}</span></td>
+              <td colspan="2" class="hc-cell"><strong>RUBÉOLA</strong> <span class="hc-check">{{ getCheckMark(enfermedadesInfantiles.rubeola) }}</span></td>
+              <td colspan="2" class="hc-cell"><strong>PAROTIDITIS</strong> <span class="hc-check">{{ getCheckMark(enfermedadesInfantiles.parotiditis) }}</span></td>
+              <td colspan="2" class="hc-cell"><strong>VARICELA</strong> <span class="hc-check">{{ getCheckMark(enfermedadesInfantiles.varicela) }}</span></td>
+              <td colspan="2" class="hc-cell"><strong>HEPATITIS</strong> <span class="hc-check">{{ getCheckMark(enfermedadesInfantiles.hepatitis) }}</span></td>
+              <td colspan="2" class="hc-cell"><strong>COVID</strong> <span class="hc-check">{{ getCheckMark(enfermedadesInfantiles.covid) }}</span></td>
+            </tr>
+            <tr>
+              <td colspan="3" class="hc-cell"><strong>INFLUENZA</strong> <span class="hc-check">{{ getCheckMark(enfermedadesInfantiles.influenza) }}</span></td>
+              <td colspan="9" class="hc-cell"><strong>OTRA:</strong> {{ enfermedadesInfantiles.otra }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>PROBLEMAS DE LA VISTA:</strong>&nbsp;<span [class.hc-check]="!problemasVista.negado">{{ problemasVista.negado ? 'NEGADO' : getCheckMark(problemasVista.tiene) }}</span></td>
+              <td colspan="4" class="hc-cell"><strong>CUÁL:</strong> {{ problemasVista.negado ? '' : problemasVista.cual }}</td>
+              <td colspan="4" class="hc-cell"><strong>USO DE LENTES</strong> <span class="hc-check">{{ problemasVista.negado ? '' : getCheckMark(problemasVista.usoLentes) }}</span></td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>PROBLEMAS AUDITIVOS:</strong>&nbsp;<span [class.hc-check]="!problemasAuditivos.negado">{{ problemasAuditivos.negado ? 'NEGADO' : getCheckMark(problemasAuditivos.tiene) }}</span></td>
+              <td colspan="4" class="hc-cell"><strong>CUÁL:</strong> {{ problemasAuditivos.negado ? '' : problemasAuditivos.cual }}</td>
+              <td colspan="4" class="hc-cell"><strong>USO DE AUDÍFONOS</strong> <span class="hc-check">{{ problemasAuditivos.negado ? '' : getCheckMark(problemasAuditivos.usoAudifonos) }}</span></td>
+            </tr>
+            <tr>
+              <td colspan="12" class="hc-cell"><strong>OBSERVACIONES:</strong> {{ observacionesPatologicos }}</td>
+            </tr>
+          </table>
+
+          <!-- ENFERMEDADES -->
+          <div class="hc-forced-page-break hc-page-break-before-enfermedades"></div>
+          <table class="hc-table">
+            <colgroup>
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.37%">
+            </colgroup>
+            <tr>
+              <td colspan="12" class="hc-subsection">ENFERMEDADES Y DEFORMIDADES</td>
+            </tr>
+            <tr *ngFor="let enf of [
+              {key: 'congenitas', label: 'CONGÉNITAS'},
+              {key: 'dentales', label: 'DENTALES'},
+              {key: 'endocrinas', label: 'ENDOCRINAS'},
+              {key: 'pulmonares', label: 'PULMONARES'},
+              {key: 'cardiovasculares', label: 'CARDIOVASCULARES'},
+              {key: 'digestivas', label: 'DIGESTIVAS'},
+              {key: 'urinarias', label: 'URINARIAS'},
+              {key: 'musculoEsqueleticas', label: 'MÚSCULO-ESQUELÉTICAS'},
+              {key: 'dermatologicas', label: 'DERMATOLÓGICAS'},
+              {key: 'infectoContagiosas', label: 'INFECTO-CONTAGIOSAS'},
+              {key: 'psiquiatricas', label: 'PSIQUIÁTRICAS'},
+              {key: 'alergias', label: 'ALERGIAS'},
+              {key: 'otrasEnfermedades', label: 'OTRAS ENFERMEDADES'}
+            ]">
+              <td colspan="4" class="hc-cell"><strong>{{ enf.label }}</strong> <span class="hc-check" *ngIf="enfermedades[enf.key]?.tiene">{{ getCheckMark(true) }}</span></td>
+              <td colspan="8" class="hc-cell"><strong>CUÁL(ES):</strong> {{ enfermedades[enf.key]?.tiene ? enfermedades[enf.key]?.cual : 'Interrogados y Negados' }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>CIRUGÍAS</strong> <small>(TIPO, FECHA, INDICACIÓN)</small> <span class="hc-check" *ngIf="tieneCirugias">{{ getCheckMark(true) }}</span></td>
+              <td colspan="8" class="hc-cell">{{ tieneCirugias ? cirugias : 'Interrogado y Negado' }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>TRANSFUSIONES</strong> <small>(FECHA, INDICACIÓN)</small> <span class="hc-check" *ngIf="tieneTransfusiones">{{ getCheckMark(true) }}</span></td>
+              <td colspan="8" class="hc-cell">{{ tieneTransfusiones ? transfusiones : 'Interrogado y Negado' }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>TRAUMÁTICOS</strong> <small>(ESGUINCE, LUX., FRACT.)</small> <span class="hc-check" *ngIf="tieneTraumaticos">{{ getCheckMark(true) }}</span></td>
+              <td colspan="8" class="hc-cell">{{ tieneTraumaticos ? traumaticos : 'Interrogado y Negado' }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>INGRESOS HOSPITALARIOS</strong> <span class="hc-check" *ngIf="tieneIngresosHospitalarios">{{ getCheckMark(true) }}</span></td>
+              <td colspan="8" class="hc-cell">{{ tieneIngresosHospitalarios ? ingresosHospitalarios : 'Interrogado y Negado' }}</td>
+            </tr>
+          </table>
+
+          <!-- 5. ANTECEDENTES GINECO-OBSTÉTRICOS -->
+          <table class="hc-table hc-no-break" *ngIf="esGeneroFemenino">
+            <colgroup>
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.37%">
+            </colgroup>
+            <tr>
+              <td colspan="12" class="hc-section-header">5. ANTECEDENTES GINECO-OBSTÉTRICOS</td>
+            </tr>
+            <tr>
+              <td colspan="3" class="hc-col-header">MENARCA</td>
+              <td colspan="3" class="hc-col-header">CICLO</td>
+              <td colspan="3" class="hc-col-header">F.U.M</td>
+              <td colspan="3" class="hc-col-header">DISMENORREA</td>
+            </tr>
+            <tr>
+              <td colspan="3" class="hc-cell">{{ ginecoObstetricos.menarca }}</td>
+              <td colspan="3" class="hc-cell">{{ ginecoObstetricos.ciclo }}</td>
+              <td colspan="3" class="hc-cell">{{ ginecoObstetricos.fum }}</td>
+              <td colspan="3" class="hc-cell">{{ ginecoObstetricos.dismenorreaSi ? 'SI' : 'NO' }}</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="hc-col-header">IVSA</td>
+              <td colspan="2" class="hc-col-header">P. SEXUALES</td>
+              <td colspan="2" class="hc-col-header">GESTA</td>
+              <td colspan="2" class="hc-col-header">PARA</td>
+              <td colspan="2" class="hc-col-header">CESÁREA</td>
+              <td colspan="2" class="hc-col-header">ABORTOS</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="hc-cell">{{ ginecoObstetricos.ivsa }}</td>
+              <td colspan="2" class="hc-cell">{{ ginecoObstetricos.pSexuales }}</td>
+              <td colspan="2" class="hc-cell">{{ ginecoObstetricos.gesta }}</td>
+              <td colspan="2" class="hc-cell">{{ ginecoObstetricos.para }}</td>
+              <td colspan="2" class="hc-cell">{{ ginecoObstetricos.cesarea }}</td>
+              <td colspan="2" class="hc-cell">{{ ginecoObstetricos.abortos }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-col-header">M.P.F</td>
+              <td colspan="4" class="hc-col-header">FECHA PAP</td>
+              <td colspan="4" class="hc-col-header">RESULTADO</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell">{{ ginecoObstetricos.mpf }}</td>
+              <td colspan="4" class="hc-cell">{{ ginecoObstetricos.fechaPap }}</td>
+              <td colspan="4" class="hc-cell">{{ ginecoObstetricos.resultado }}</td>
+            </tr>
+            <tr>
+              <td colspan="12" class="hc-cell"><strong>OBSERVACIONES:</strong> {{ ginecoObstetricos.observaciones }}</td>
+            </tr>
+          </table>
+
+          <!-- 6. EXPLORACIÓN FÍSICA -->
+          <table class="hc-table hc-no-break">
+            <colgroup>
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.37%">
+            </colgroup>
+            <tr>
+              <td colspan="12" class="hc-section-header">{{ seccionExploracionNumero }}. EXPLORACIÓN FÍSICA</td>
+            </tr>
+            <tr>
+              <td colspan="1" class="hc-col-header">PESO</td>
+              <td colspan="1" class="hc-cell">{{ exploracionFisica.peso }} Kg</td>
+              <td colspan="1" class="hc-col-header">TALLA</td>
+              <td colspan="1" class="hc-cell">{{ exploracionFisica.talla }} cm</td>
+              <td colspan="1" class="hc-col-header">IMC</td>
+              <td colspan="1" class="hc-cell">{{ exploracionFisica.imc }}</td>
+              <td colspan="1" class="hc-col-header">FC:</td>
+              <td colspan="1" class="hc-cell">{{ exploracionFisica.fc }} lat. x min.</td>
+              <td colspan="1" class="hc-col-header">FR:</td>
+              <td colspan="1" class="hc-cell">{{ exploracionFisica.fr }} resp. x min.</td>
+              <td colspan="1" class="hc-col-header">GLUCOSA</td>
+              <td colspan="1" class="hc-cell">{{ exploracionFisica.glucosa }} mg/dL</td>
+            </tr>
+            <tr>
+              <td colspan="1" class="hc-col-header">TA</td>
+              <td colspan="2" class="hc-cell">{{ obtenerLecturaTensionArterialTexto() }} mm/Hg</td>
+              <td colspan="1" class="hc-col-header">TEMP</td>
+              <td colspan="1" class="hc-cell">{{ exploracionFisica.temp }} °C</td>
+              <td colspan="1" class="hc-col-header">LATERALIDAD</td>
+              <td colspan="2" class="hc-cell">{{ exploracionFisica.lateralidad }}</td>
+              <td colspan="1" class="hc-col-header">SatO2</td>
+              <td colspan="1" class="hc-cell">{{ exploracionFisica.satO2 }}%</td>
+              <td colspan="1" class="hc-col-header">EDAD METABÓLICA</td>
+              <td colspan="1" class="hc-cell">{{ exploracionFisica.edadMetabolica }} años</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="hc-col-header">GRASA CORPORAL</td>
+              <td colspan="1" class="hc-cell">{{ exploracionFisica.grasaCorporal }}%</td>
+              <td colspan="2" class="hc-col-header">MÚSCULO</td>
+              <td colspan="1" class="hc-cell">{{ exploracionFisica.musculo }}%</td>
+              <td colspan="2" class="hc-col-header">GRASA VISCERAL</td>
+              <td colspan="1" class="hc-cell">{{ exploracionFisica.grasaVisceral }}%</td>
+              <td colspan="2" class="hc-col-header">METABOLISMO BASAL</td>
+              <td colspan="1" class="hc-cell">{{ exploracionFisica.metabolismoBasal }} kcal</td>
+            </tr>
+            <tr>
+              <td colspan="12" class="hc-cell"><strong>OBSERVACIONES:</strong> {{ exploracionFisica.observaciones || 'Sin observaciones' }}</td>
+            </tr>
+          </table>
+
+          <!-- Tabla órgano/sistema -->
+          <table class="hc-table">
+            <colgroup>
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.37%">
+            </colgroup>
+            <tr>
+              <td colspan="4" class="hc-col-header">ÓRGANO/SISTEMA</td>
+              <td colspan="2" class="hc-col-header">RESULTADO</td>
+              <td colspan="6" class="hc-col-header">HALLAZGOS</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>CABEZA Y CUELLO</strong></td>
+              <td colspan="2" class="hc-cell hc-center">{{ organosSistemas[0].resultado }}</td>
+              <td colspan="6" class="hc-cell">{{ organosSistemas[0].hallazgos }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>OJOS</strong> <small>(CONJUNT., CÓRNEAS)</small></td>
+              <td colspan="2" class="hc-cell hc-center">{{ organosSistemas[1].resultado }}</td>
+              <td colspan="2" class="hc-cell"><strong>AGUD. VIS.</strong></td>
+              <td colspan="2" class="hc-cell"><strong>O.D.</strong> {{ organosSistemas[1].agudVisualOD }}</td>
+              <td colspan="2" class="hc-cell"><strong>O.I.</strong> {{ organosSistemas[1].agudVisualOI }}</td>
+            </tr>
+            <tr *ngIf="organosSistemas[1].agudVisualConCorreccion">
+              <td colspan="4" class="hc-cell"></td>
+              <td colspan="2" class="hc-cell hc-center"></td>
+              <td colspan="6" class="hc-cell"><strong>Con corrección (anteojos):</strong> SI</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>OÍDOS</strong> <small>(PABELLÓN, C. AUD.)</small></td>
+              <td colspan="2" class="hc-cell hc-center">{{ organosSistemas[2].resultado }}</td>
+              <td colspan="6" class="hc-cell">{{ organosSistemas[2].hallazgos }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>NARIZ</strong> <small>(CORNETES, TABIQUE)</small></td>
+              <td colspan="2" class="hc-cell hc-center">{{ organosSistemas[3].resultado }}</td>
+              <td colspan="6" class="hc-cell">{{ organosSistemas[3].hallazgos }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>OROFARINGE</strong> <small>(AMÍGD., MUCOSA)</small></td>
+              <td colspan="2" class="hc-cell hc-center">{{ organosSistemas[4].resultado }}</td>
+              <td colspan="6" class="hc-cell">{{ organosSistemas[4].hallazgos }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>TÓRAX</strong> <small>(R. CARDÍACOS, VENT.)</small></td>
+              <td colspan="2" class="hc-cell hc-center">{{ organosSistemas[5].resultado }}</td>
+              <td colspan="6" class="hc-cell">{{ organosSistemas[5].hallazgos }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>ABDOMEN</strong> <small>(PARED ABD., VÍSC.)</small></td>
+              <td colspan="2" class="hc-cell hc-center">{{ organosSistemas[6].resultado }}</td>
+              <td colspan="6" class="hc-cell">{{ organosSistemas[6].hallazgos }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>EXTREMIDADES</strong> <small>(FUERZA, EDEMA)</small></td>
+              <td colspan="2" class="hc-cell hc-center">{{ organosSistemas[7].resultado }}</td>
+              <td colspan="6" class="hc-cell">{{ organosSistemas[7].hallazgos }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>NEUROLÓGICO</strong> <small>(COL., MARCHA)</small></td>
+              <td colspan="2" class="hc-cell hc-center">{{ organosSistemas[8].resultado }}</td>
+              <td colspan="3" class="hc-cell"><strong>ROMBERG:</strong> {{ organosSistemas[8].romberg }}</td>
+              <td colspan="3" class="hc-cell">{{ organosSistemas[8].hallazgos }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>PIEL</strong> <small>(CICATR., TATUAJES)</small></td>
+              <td colspan="2" class="hc-cell hc-center">{{ organosSistemas[9].resultado }}</td>
+              <td colspan="6" class="hc-cell">{{ organosSistemas[9].hallazgos }}</td>
+            </tr>
+          </table>
+
+          <!-- 7. PARACLÍNICOS -->
+          <div *ngIf="esGeneroFemenino" class="hc-forced-page-break hc-page-break-before-paraclinicos"></div>
+          <table class="hc-table hc-no-break">
+            <colgroup>
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.37%">
+            </colgroup>
+            <tr>
+              <td colspan="12" class="hc-section-header">{{ seccionParaclinicosNumero }}. PARACLÍNICOS</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-col-header hc-font-normal">TELE-TÓRAX</td>
+              <td colspan="8" class="hc-cell">{{ paraclinicos.teleTorax || 'Sin resultado' }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-col-header hc-font-normal">COLUMNA</td>
+              <td colspan="8" class="hc-cell">{{ paraclinicos.columna || 'Sin resultado' }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-col-header hc-font-normal">BIOMETRÍA</td>
+              <td colspan="8" class="hc-cell">{{ paraclinicos.biometria || 'Sin resultado' }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-col-header hc-font-normal">CLINICA SANGUINEA</td>
+              <td colspan="8" class="hc-cell">{{ paraclinicos.clinicaSanguinea || 'Sin resultado' }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-col-header hc-font-normal">AUDIOMETRÍA</td>
+              <td colspan="8" class="hc-cell">{{ paraclinicos.audiometria || 'Sin resultado' }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-col-header hc-font-normal">ESPIROMETRÍA</td>
+              <td colspan="8" class="hc-cell">{{ paraclinicos.espirometria || 'Sin resultado' }}</td>
+            </tr>
+            <tr>
+              <td colspan="12" class="hc-cell"><strong>OBSERVACIONES:</strong> {{ paraclinicos.resultado || 'Sin observaciones' }}</td>
+            </tr>
+          </table>
+
+          <!-- 8. DIAGNÓSTICO Y TRATAMIENTO -->
+          <div *ngIf="esGeneroMasculino" class="hc-forced-page-break hc-page-break-before-diagnostico"></div>
+          <table class="hc-table hc-no-break">
+            <colgroup>
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.37%">
+            </colgroup>
+            <tr>
+              <td colspan="12" class="hc-section-header">{{ seccionDiagnosticoNumero }}. DIAGNÓSTICO Y TRATAMIENTO</td>
+            </tr>
+            <tr>
+              <td colspan="1" class="hc-col-header">#</td>
+              <td colspan="5" class="hc-col-header">DIAGNÓSTICO</td>
+              <td colspan="6" class="hc-col-header">RECOMENDACIÓN MÉDICA</td>
+            </tr>
+            <tr *ngFor="let item of diagnosticos; let i = index">
+              <td colspan="1" class="hc-cell hc-center"><strong>{{ i + 1 }}</strong></td>
+              <td colspan="5" class="hc-cell">{{ item.diagnostico }}</td>
+              <td colspan="6" class="hc-cell">{{ item.recomendacion }}</td>
+            </tr>
+            <tr>
+              <td colspan="12" class="hc-cell">
+                <strong>OBSERVACIONES:</strong><br>
+                <span style="white-space: pre-line;">{{ observacionesDiagnostico }}</span>
+              </td>
+            </tr>
+          </table>
+
+          <!-- PERSONAL QUE ELABORÓ -->
+          <table class="hc-table hc-no-break">
+            <colgroup>
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%">
+              <col style="width:8.33%"><col style="width:8.33%"><col style="width:8.33%"><col style="width:8.37%">
+            </colgroup>
+            <tr>
+              <td colspan="12" class="hc-cell" style="padding: 8px 6px 0;">
+                <strong>PERSONAL QUE ELABORÓ LA HISTORIA CLÍNICA:</strong>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="5" class="hc-cell" style="padding: 4px 6px 8px; vertical-align: bottom;">
+                <div style="min-height: 80px; display: flex; align-items: flex-end; padding-bottom: 4px;">
+                  <strong>Dr.</strong> {{ personalElaboroHistoria }}
+                </div>
+              </td>
+              <td colspan="3" class="hc-cell" style="padding: 4px 6px 8px; vertical-align: bottom; text-align: center;">
+                <div style="min-height: 80px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px;">
+                  <strong>CED. PROF.</strong>&nbsp; {{ cedulaProfesional }}
+                </div>
+              </td>
+              <td colspan="4" class="hc-cell" style="padding: 8px 6px; vertical-align: bottom; text-align: center;">
+                <div style="min-height: 80px; display: flex; flex-direction: column; justify-content: flex-end;">
+                  <div *ngIf="firmaUrlDoctor" style="display: flex; justify-content: center; align-items: flex-end; min-height: 65px;">
+                    <img [src]="firmaUrlDoctor" alt="Firma" style="max-height: 75px; max-width: 90%; object-fit: contain;" crossorigin="anonymous">
+                  </div>
+                  <div *ngIf="!firmaUrlDoctor" style="border-bottom: 1px solid #000; width: 80%; margin: 0 auto; min-height: 25px;"></div>
+                  <div style="margin-top: 2px; font-weight: bold; font-size: 0.85em;">FIRMA</div>
+                </div>
+              </td>
+            </tr>
+          </table>
+
+          <div style="text-align: right; margin-top: 8px; font-size: 0.65em; color: #333;">
+            <strong>FOLIO:</strong> {{ folioCompleto }}
+          </div>
+
+        </div><!-- fin hc-document -->
+      </div><!-- fin preview-wrapper -->
+
+      <!-- =====================================================
+           VISTA HISTORIAL — Registros de Historias Clínicas
+           ===================================================== -->
+      <div *ngIf="vistaActual === 'historial'" class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+        
+        <!-- Header consistente (Variant A) -->
+        <div class="card-header border-0" style="padding: 1.5rem 2rem 1rem;">
+          <div class="row align-items-center">
+            <div class="col">
+              <button class="btn btn-link p-0 text-muted mb-2" (click)="volverAlMenuDesdeHistorial()" style="font-size: 0.9rem;">
+                <i class="fas fa-arrow-left mr-1"></i> Volver al menú
+              </button>
+              <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">
+                {{ empresaSeleccionada?.nombre_empresa || 'Control y seguimiento' }}
+              </h6>
+              <h2 class="mb-0" style="color: #0f3661; font-weight: 700; font-size: 1.5rem;">Historial de Historias Clínicas</h2>
+            </div>
+            <div class="col-auto">
+              <button class="btn btn-success shadow-sm" 
+                      style="background: linear-gradient(135deg, #0f3661 0%, #0b6988 100%); border: none; padding: 0.5rem 1.2rem; font-weight: 600; font-size: 0.85rem;"
+                      (click)="abrirFormulario()">
+                <i class="fas fa-plus mr-2"></i>Nueva Historia
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body" style="padding: 0 2rem 2rem;">
+
+          <!-- KPI Bar de estadísticas -->
+          <div class="kpi-bar-hist mb-4">
+            <div class="kpi-cell-hist" [style.animation-delay]="'0s'" [style.--kpi-accent]="'#38512F'">
+              <div class="kpi-cell-hist-icon" style="background: linear-gradient(135deg,#38512F,#5a7456)">
+                <i class="fas fa-file-medical"></i>
+              </div>
+              <div class="kpi-cell-hist-valor">{{ historiasClinicas.length }}</div>
+              <div class="kpi-cell-hist-label">Total registros</div>
+              <div class="kpi-cell-hist-sub"><span class="kpi-cell-hist-dot" style="background:#38512F"></span>En sistema</div>
+            </div>
+
+            <div class="kpi-cell-hist" [style.animation-delay]="'0.06s'" [style.--kpi-accent]="'#2dce89'">
+              <div class="kpi-cell-hist-icon" style="background: linear-gradient(135deg,#2dce89,#26a96f)">
+                <i class="fas fa-sign-in-alt"></i>
+              </div>
+              <div class="kpi-cell-hist-valor">{{ contarPorTipo('ingreso') }}</div>
+              <div class="kpi-cell-hist-label">Ingreso</div>
+              <div class="kpi-cell-hist-sub"><span class="kpi-cell-hist-dot" style="background:#2dce89"></span>Examen de ingreso</div>
+            </div>
+
+            <div class="kpi-cell-hist" [style.animation-delay]="'0.12s'" [style.--kpi-accent]="'#5e72e4'">
+              <div class="kpi-cell-hist-icon" style="background: linear-gradient(135deg,#5e72e4,#4860d0)">
+                <i class="fas fa-sync-alt"></i>
+              </div>
+              <div class="kpi-cell-hist-valor">{{ contarPorTipo('periodico') }}</div>
+              <div class="kpi-cell-hist-label">Subsecuente</div>
+              <div class="kpi-cell-hist-sub"><span class="kpi-cell-hist-dot" style="background:#5e72e4"></span>Examen subsecuente</div>
+            </div>
+
+            <div class="kpi-cell-hist" [style.animation-delay]="'0.18s'" [style.--kpi-accent]="'#fb6340'">
+              <div class="kpi-cell-hist-icon" style="background: linear-gradient(135deg,#fb6340,#ea4c2e)">
+                <i class="fas fa-sign-out-alt"></i>
+              </div>
+              <div class="kpi-cell-hist-valor">{{ contarPorTipo('egreso') + contarPorTipo('especial') }}</div>
+              <div class="kpi-cell-hist-label">Egreso / Especial</div>
+              <div class="kpi-cell-hist-sub"><span class="kpi-cell-hist-dot" style="background:#fb6340"></span>Examen de egreso</div>
+            </div>
+          </div>
+
+          <!-- Barra de filtros y búsqueda -->
+          <div class="filtros-historial mb-4">
+            <div class="row align-items-end">
+              <!-- Búsqueda por texto -->
+              <div class="col-xl-6 col-lg-6 col-md-12 mb-2">
+                <label class="form-control-label text-muted" style="font-size: 0.75rem; font-weight: 600;">
+                  <i class="fas fa-search mr-1"></i>Buscar
+                </label>
+                <div class="input-group input-group-alternative shadow-sm rounded">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text bg-white border-0">
+                      <i class="fas fa-search" style="color: #0f3661;"></i>
+                    </span>
+                  </div>
+                  <input class="form-control border-0" type="text" placeholder="Nombre, matrícula o folio (B-HC-26-125)..."
+                         [(ngModel)]="filtroTexto" (input)="aplicarFiltros()">
+                </div>
+              </div>
+              <!-- Filtro por tipo -->
+              <div class="col-xl-3 col-lg-3 col-md-6 mb-2">
+                <label class="form-control-label text-muted" style="font-size: 0.75rem; font-weight: 600;">
+                  <i class="fas fa-filter mr-1"></i>Tipo
+                </label>
+                <select class="form-control form-control-sm" [(ngModel)]="filtroTipo" (change)="aplicarFiltros()"
+                        style="height: 43px; border-radius: 0.375rem;">
+                  <option value="">Todos</option>
+                  <option value="ingreso">Ingreso</option>
+                  <option value="periodico">Subsecuente</option>
+                </select>
+              </div>
+              <!-- Filtro por fecha -->
+              <div class="col-xl-3 col-lg-3 col-md-6 mb-2">
+                <label class="form-control-label text-muted" style="font-size: 0.75rem; font-weight: 600;">
+                  <i class="fas fa-calendar mr-1"></i>Desde
+                </label>
+                <input class="form-control form-control-sm" type="date" 
+                       [(ngModel)]="filtroFechaDesde" (change)="aplicarFiltros()"
+                       style="height: 43px; border-radius: 0.375rem;">
+              </div>
+            </div>
+            <!-- Filtros activos y botón limpiar -->
+            <div class="d-flex justify-content-between align-items-center mt-2" *ngIf="hayFiltrosActivos()">
+              <div>
+                <span class="badge badge-pill filtro-activo-badge mr-1" *ngIf="filtroTexto" (click)="filtroTexto = ''; aplicarFiltros()">
+                  <i class="fas fa-times mr-1"></i>Búsqueda: "{{ filtroTexto }}"
+                </span>
+                <span class="badge badge-pill filtro-activo-badge mr-1" *ngIf="filtroTipo" (click)="filtroTipo = ''; aplicarFiltros()">
+                  <i class="fas fa-times mr-1"></i>Tipo: {{ getTipoHistoriaLabel(filtroTipo) }}
+                </span>
+                <span class="badge badge-pill filtro-activo-badge mr-1" *ngIf="filtroFechaDesde" (click)="filtroFechaDesde = ''; aplicarFiltros()">
+                  <i class="fas fa-times mr-1"></i>Desde: {{ filtroFechaDesde }}
+                </span>
+              </div>
+              <button class="btn btn-sm btn-outline-secondary" (click)="limpiarFiltros()">
+                <i class="fas fa-eraser mr-1"></i>Limpiar filtros
+              </button>
+            </div>
+          </div>
+
+          <!-- Indicador de resultados -->
+          <div class="d-flex justify-content-between align-items-center mb-3" *ngIf="!cargandoHistorial && historiasClinicas.length > 0">
+            <small class="text-muted">
+              Mostrando <strong>{{ historiasFiltradas.length }}</strong> de <strong>{{ historiasClinicas.length }}</strong> registros
+            </small>
+          </div>
+
+          <!-- Tabla de registros -->
+          <div class="table-responsive">
+            <table class="table align-items-center table-flush table-hover mb-0 historial-table">
+              <thead class="thead-light">
+                <tr>
+                  <th class="historial-th historial-th-num">#</th>
+                  <th class="historial-th historial-th-paciente" (click)="ordenarPor('nombre'); $event.stopPropagation()" style="cursor: pointer;">
+                    Paciente
+                    <i class="fas fa-sort ml-1 text-muted" style="font-size: 0.65rem;"
+                       *ngIf="columnaOrden !== 'nombre'"></i>
+                    <i class="fas" [ngClass]="ordenAsc ? 'fa-sort-up' : 'fa-sort-down'" style="font-size: 0.65rem;"
+                       *ngIf="columnaOrden === 'nombre'"></i>
+                  </th>
+                  <th class="historial-th historial-th-folio">Folio</th>
+                  <th class="historial-th historial-th-matricula">Matrícula</th>
+                  <th class="historial-th historial-th-area">Área</th>
+                  <th class="historial-th historial-th-fecha" (click)="ordenarPor('fecha_elaboracion'); $event.stopPropagation()" style="cursor: pointer;">
+                    Fecha
+                    <i class="fas fa-sort ml-1 text-muted" style="font-size: 0.65rem;"
+                       *ngIf="columnaOrden !== 'fecha_elaboracion'"></i>
+                    <i class="fas" [ngClass]="ordenAsc ? 'fa-sort-up' : 'fa-sort-down'" style="font-size: 0.65rem;"
+                       *ngIf="columnaOrden === 'fecha_elaboracion'"></i>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Loading state (dentro de la tabla) -->
+                <tr *ngIf="cargandoHistorial">
+                  <td colspan="6" class="text-center py-5">
+                    <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                    <p class="text-muted mt-2 mb-0">Cargando historias clínicas...</p>
+                  </td>
+                </tr>
+                <!-- Empty state -->
+                <tr *ngIf="!cargandoHistorial && historiasFiltradas.length === 0 && historiasClinicas.length > 0">
+                  <td colspan="6" class="text-center py-5">
+                    <i class="fas fa-search fa-2x text-muted"></i>
+                    <p class="text-muted mt-2 mb-0">{{ getMensajeSinResultadosHistorial() }}</p>
+                  </td>
+                </tr>
+                <tr *ngIf="!cargandoHistorial && historiasClinicas.length === 0">
+                  <td colspan="6" class="text-center py-5">
+                    <i class="fas fa-folder-open fa-2x text-muted"></i>
+                    <p class="text-muted mt-2 mb-0">No hay historias clínicas registradas.</p>
+                    <button class="btn btn-sm mt-3" style="color: #0f3661; border: 1px solid #0f3661;" (click)="abrirFormulario()">
+                      <i class="fas fa-plus mr-1"></i>Crear primera historia
+                    </button>
+                  </td>
+                </tr>
+                <!-- Filas de datos -->
+                <tr *ngFor="let h of historiasFiltradas; let i = index"
+                    class="historial-row historial-row-clickable"
+                    (click)="verDetalleHistoria(h.id)"
+                    title="Ver historia clínica">
+                  <td class="historial-td historial-td-num">
+                    <span class="text-muted historial-num">{{ i + 1 }}</span>
+                  </td>
+                  <td class="historial-td historial-td-paciente">
+                    <span class="historial-paciente-nombre">{{ h.nombre }}</span>
+                  </td>
+                  <td class="historial-td historial-td-folio">
+                    <span class="historial-folio">{{ getFolioHistoria(h) }}</span>
+                  </td>
+                  <td class="historial-td historial-td-matricula">
+                    <span class="historial-matricula">{{ h.matricula || '—' }}</span>
+                  </td>
+                  <td class="historial-td historial-td-area">
+                    <span class="historial-area">{{ h.area || '—' }}</span>
+                  </td>
+                  <td class="historial-td historial-td-fecha">
+                    <span class="historial-fecha">{{ formatFechaElaboracion(h.fecha_elaboracion) }}</span>
+                    <small class="historial-fecha-relativa">{{ getTimeSince(h.created_at) }}</small>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

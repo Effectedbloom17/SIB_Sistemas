@@ -1,0 +1,617 @@
+<div class="header header-bg-image em-dir-hero pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2 em-dir-hero__icon">
+            <i class="fas fa-building"></i>
+          </div>
+          <p class="text-white mb-1 em-dir-hero__label">Gestión de empresas</p>
+          <h1 class="text-white mb-0 em-dir-hero__title">Directorio de Empresas</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid em-dir-main mt--5">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+      <div class="card em-dir-shell border-0 shadow-sm">
+        <div class="em-dir-shell__accent" aria-hidden="true"></div>
+        <div class="card-body em-dir-shell__body">
+
+          <section class="em-dir-intro" aria-label="Resumen del directorio">
+            <div class="em-dir-intro__copy">
+              <p class="em-dir-intro__eyebrow">Administración</p>
+              <h2 class="em-dir-intro__title">Empresas registradas</h2>
+            </div>
+            <div class="em-dir-stats" *ngIf="!cargandoEmpresas">
+              <div class="em-dir-stat">
+                <strong>{{ totalEmpresas }}</strong>
+                <span>empresas</span>
+              </div>
+              <div class="em-dir-stat">
+                <strong>{{ totalConPc }}</strong>
+                <span>con PC</span>
+              </div>
+              <div class="em-dir-stat">
+                <strong>{{ totalColaboradoras }}</strong>
+                <span>colaboradoras</span>
+              </div>
+            </div>
+          </section>
+
+          <div class="em-dir-toolbar">
+            <div class="em-dir-search">
+              <i class="fas fa-search" aria-hidden="true"></i>
+              <input class="em-dir-search__input" placeholder="Buscar por nombre, RFC o correo…" type="text"
+                     [(ngModel)]="textoBusqueda" (input)="filtrarEmpresas()" aria-label="Buscar empresa">
+            </div>
+            <div class="em-dir-filters" role="group" aria-label="Filtros">
+              <button type="button" class="em-dir-chip" [class.em-dir-chip--on]="filtroActivo === 'todas'" (click)="setFiltro('todas')">Todas</button>
+              <button type="button" class="em-dir-chip" [class.em-dir-chip--on]="filtroActivo === 'pc'" (click)="setFiltro('pc')">Protección Civil</button>
+              <button type="button" class="em-dir-chip" [class.em-dir-chip--on]="filtroActivo === 'colaboradoras'" (click)="setFiltro('colaboradoras')">Colaboradoras</button>
+              <button type="button" class="em-dir-chip" [class.em-dir-chip--on]="filtroActivo === 'documentos'" (click)="setFiltro('documentos')">Con documentos</button>
+            </div>
+            <div class="em-dir-toolbar__right">
+              <button type="button" (click)="abrirModalAgregarEmpresa()" class="em-dir-add">
+                <i class="fas fa-plus"></i> Agregar Empresa
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="cargandoEmpresas" class="em-dir-empty">
+            <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+            <p class="text-muted mt-2 mb-0">Cargando empresas...</p>
+          </div>
+
+          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length === 0" class="em-dir-empty">
+            <i class="fas fa-building fa-2x text-muted"></i>
+            <p class="text-muted mt-2 mb-0">No hay empresas para mostrar</p>
+          </div>
+
+          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length > 0" class="em-dir-list" role="list">
+            <div *ngFor="let empresa of empresasFiltradas; trackBy: trackByEmpresaId"
+                 class="em-dir-row"
+                 role="listitem"
+                 tabindex="0"
+                 (click)="abrirRepositorio(empresa)"
+                 (keyup.enter)="abrirRepositorio(empresa)"
+                 [attr.aria-label]="'Abrir repositorio de ' + empresa.nombre_empresa">
+              <span class="em-dir-avatar em-dir-avatar--sm"
+                    [class.em-dir-avatar--fallback]="!getLogoEmpresaUrl(empresa)">
+                <ng-container *ngIf="getLogoEmpresaUrl(empresa) as logoUrl; else avatarFallback">
+                  <img [src]="logoUrl" alt="" class="em-dir-avatar__img" (error)="onLogoError(empresa)">
+                </ng-container>
+                <ng-template #avatarFallback>
+                  <span>{{ getIniciales(empresa.nombre_empresa) }}</span>
+                </ng-template>
+              </span>
+
+              <span class="em-dir-row__identity">
+                <strong>{{ empresa.nombre_empresa }}</strong>
+                <small>RFC {{ empresa.rfc || '—' }}</small>
+              </span>
+
+              <span class="em-dir-row__contact" title="Email corporativo">
+                <i class="fas fa-envelope" aria-hidden="true"></i>
+                {{ obtenerEmailCorporativo(empresa) }}
+              </span>
+
+              <span class="em-dir-row__contact em-dir-row__contact--phone" title="Teléfono">
+                <i class="fas fa-phone" aria-hidden="true"></i>
+                {{ obtenerTelefonoEmpresa(empresa) }}
+              </span>
+
+              <span class="em-dir-row__meta">
+                <span class="em-dir-tag" *ngIf="empresa.servicio_proteccion_civil">PC</span>
+                <span class="em-dir-tag em-dir-tag--muted" *ngIf="empresa.colaborador">Colab.</span>
+                <span class="em-dir-row__docs">
+                  <i class="fas fa-folder-open" aria-hidden="true"></i>
+                  {{ totalDocumentosEmpresa(empresa) }}
+                </span>
+              </span>
+
+              <span class="em-dir-row__actions">
+                <span class="em-dir-row__cta">Repositorio</span>
+                <button type="button"
+                        class="em-dir-row__delete"
+                        title="Ocultar empresa"
+                        aria-label="Ocultar empresa"
+                        (click)="eliminarEmpresa(empresa); $event.stopPropagation()">
+                  <i class="fas fa-trash-alt"></i>
+                </button>
+              </span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para Agregar Nueva Empresa - Wizard -->
+<div *ngIf="mostrarModalAgregarEmpresa"
+     class="em-reg-overlay"
+     tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered empresa-modal-dialog em-reg-dialog"
+       (click)="$event.stopPropagation()">
+    <div class="modal-content em-reg-modal">
+
+      <!-- Header -->
+      <div class="em-reg-header">
+        <div class="em-reg-header__hero-bg" aria-hidden="true"></div>
+        <div class="em-reg-header__top">
+          <div class="em-reg-header__brand">
+            <span class="em-reg-header__icon"><i class="fas fa-building"></i></span>
+            <div>
+              <h5 class="em-reg-header__title">Registro de Nueva Empresa</h5>
+            </div>
+          </div>
+          <button type="button" class="em-reg-close" (click)="cerrarModalAgregarEmpresa()" aria-label="Cerrar">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <div class="em-reg-stepper">
+          <div class="em-reg-stepper__track">
+            <div class="em-reg-stepper__progress" [style.width]="progresoStepper"></div>
+          </div>
+          <div class="em-reg-stepper__steps" *ngIf="!omitirPasoCredenciales">
+            <div class="em-reg-step" [class.em-reg-step--active]="pasoActual === 1" [class.em-reg-step--done]="pasoActual > 1">
+              <span class="em-reg-step__dot">
+                <i *ngIf="pasoActual > 1" class="fas fa-check"></i>
+                <span *ngIf="pasoActual <= 1">1</span>
+              </span>
+              <span class="em-reg-step__label">Datos de la<br>Empresa</span>
+            </div>
+            <div class="em-reg-step" [class.em-reg-step--active]="pasoActual === 2" [class.em-reg-step--done]="pasoActual > 2">
+              <span class="em-reg-step__dot">
+                <i *ngIf="pasoActual > 2" class="fas fa-check"></i>
+                <span *ngIf="pasoActual <= 2">2</span>
+              </span>
+              <span class="em-reg-step__label">Credenciales</span>
+            </div>
+            <div class="em-reg-step" [class.em-reg-step--active]="pasoActual === 3">
+              <span class="em-reg-step__dot"><span>3</span></span>
+              <span class="em-reg-step__label">Confirmación</span>
+            </div>
+          </div>
+          <div class="em-reg-stepper__steps" *ngIf="omitirPasoCredenciales">
+            <div class="em-reg-step" [class.em-reg-step--active]="pasoActual === 1" [class.em-reg-step--done]="pasoActual > 1">
+              <span class="em-reg-step__dot">
+                <i *ngIf="pasoActual > 1" class="fas fa-check"></i>
+                <span *ngIf="pasoActual <= 1">1</span>
+              </span>
+              <span class="em-reg-step__label">Datos de la<br>Empresa</span>
+            </div>
+            <div class="em-reg-step" [class.em-reg-step--active]="pasoActual === 3">
+              <span class="em-reg-step__dot"><span>2</span></span>
+              <span class="em-reg-step__label">Confirmación</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="em-reg-form">
+        <div class="em-reg-deco" aria-hidden="true"></div>
+
+      <div class="modal-body empresa-modal-body em-reg-body">
+        <form>
+          <!-- PASO 1 -->
+          <div *ngIf="pasoActual === 1" class="wizard-step wizard-step--empresa em-reg-pane em-reg-pane--enter">
+            <div class="em-reg-pane-head">
+              <div class="em-reg-pane-head__icon"><i class="fas fa-id-card"></i></div>
+              <div>
+                <h6 class="em-reg-pane-head__title">Datos de la Empresa</h6>
+                <p class="em-reg-pane-head__desc">Información legal, ubicación y configuración</p>
+              </div>
+              <span class="em-reg-badge">Paso {{ etiquetaPasoActual }} de {{ totalPasosRegistro }}</span>
+            </div>
+
+            <!-- Toggles en grid -->
+            <div class="em-reg-toggles">
+              <div class="em-reg-toggle-card" [class.em-reg-toggle-card--on]="servicioProteccionCivil">
+                <div class="em-reg-toggle-card__icon em-reg-toggle-card__icon--shield"><i class="fas fa-shield-alt"></i></div>
+                <div class="em-reg-toggle-card__body">
+                  <strong>Protección Civil</strong>
+                  <small>Módulo visible para la empresa</small>
+                </div>
+                <label class="em-reg-switch" title="Servicio de Protección Civil">
+                  <input type="checkbox" id="servicio-proteccion-civil"
+                         [(ngModel)]="servicioProteccionCivil" name="servicioProteccionCivil">
+                  <span class="em-reg-switch__slider"></span>
+                </label>
+              </div>
+
+              <div class="em-reg-toggle-card" [class.em-reg-toggle-card--on]="esEmpresaColaboradora">
+                <div class="em-reg-toggle-card__icon em-reg-toggle-card__icon--partner"><i class="fas fa-handshake"></i></div>
+                <div class="em-reg-toggle-card__body">
+                  <strong>Empresa colaboradora</strong>
+                  <small>Depende de otra razón social</small>
+                </div>
+                <label class="em-reg-switch" title="Es empresa colaboradora">
+                  <input type="checkbox" id="es-empresa-colaboradora"
+                         [(ngModel)]="esEmpresaColaboradora"
+                         (ngModelChange)="onEsEmpresaColaboradoraChange()"
+                         name="esEmpresaColaboradora">
+                  <span class="em-reg-switch__slider"></span>
+                </label>
+              </div>
+
+              <div class="em-reg-toggle-card" [class.em-reg-toggle-card--on]="registroEnSistema">
+                <div class="em-reg-toggle-card__icon em-reg-toggle-card__icon--partner"><i class="fas fa-database"></i></div>
+                <div class="em-reg-toggle-card__body">
+                  <strong>Registro en Sistema</strong>
+                  <small>Solo directorio, sin usuario de acceso</small>
+                </div>
+                <label class="em-reg-switch" title="Registro en Sistema">
+                  <input type="checkbox" id="registro-en-sistema"
+                         [(ngModel)]="registroEnSistema"
+                         (ngModelChange)="onRegistroEnSistemaChange()"
+                         name="registroEnSistema">
+                  <span class="em-reg-switch__slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="em-reg-collapsible" [class.em-reg-collapsible--open]="esEmpresaColaboradora">
+              <div class="em-reg-collapsible__inner">
+                <label class="em-reg-label"><i class="fas fa-sitemap"></i> Empresa principal *</label>
+                <div class="em-reg-field">
+                  <i class="em-reg-field__icon fas fa-building"></i>
+                  <select class="em-reg-input em-reg-input--select"
+                          [(ngModel)]="empresaColaboradorPadreId"
+                          name="empresaColaboradorPadreId">
+                    <option [ngValue]="null">Seleccione una empresa</option>
+                    <option *ngFor="let empresa of empresasPrincipales" [ngValue]="empresa.empresa_id">
+                      {{ empresa.nombre_empresa }}
+                    </option>
+                  </select>
+                </div>
+                <p class="em-reg-hint em-reg-hint--warn" *ngIf="empresasPrincipales.length === 0">
+                  <i class="fas fa-info-circle"></i> Registre primero la empresa matriz.
+                </p>
+              </div>
+            </div>
+
+            <div class="em-reg-grid em-reg-grid--2col">
+              <!-- Columna izquierda: identidad + logo -->
+              <div class="em-reg-section em-reg-section--stagger-1">
+                <div class="em-reg-section__head">
+                  <i class="fas fa-building"></i>
+                  <span>Identificación</span>
+                </div>
+                <div class="em-reg-section__body">
+                  <div class="em-reg-field-group">
+                    <label class="em-reg-label">Nombre de la Empresa *</label>
+                    <div class="em-reg-field">
+                      <i class="em-reg-field__icon fas fa-building"></i>
+                      <input class="em-reg-input" type="text"
+                             placeholder="Razón social o nombre comercial"
+                             [(ngModel)]="empresaNueva"
+                             (ngModelChange)="onEmpresaNombreChange($event)"
+                             name="empresaNueva">
+                    </div>
+                  </div>
+                  <div class="em-reg-field-group">
+                    <label class="em-reg-label">RFC *</label>
+                    <div class="em-reg-field">
+                      <i class="em-reg-field__icon fas fa-file-invoice"></i>
+                      <input class="em-reg-input" type="text" placeholder="RFC (12-13 caracteres)"
+                             maxlength="13" [(ngModel)]="rfcNuevo" name="rfcNuevo"
+                             (input)="rfcNuevo = rfcNuevo.toUpperCase()">
+                    </div>
+                  </div>
+
+                  <div class="em-reg-field-group em-reg-field-group--logo">
+                    <label class="em-reg-label">Logo de la Empresa *</label>
+                    <div class="em-reg-upload"
+                         [class.em-reg-upload--filled]="nombreLogoEmpresaArchivo">
+                      <input type="file" accept="image/png,image/jpeg,image/webp"
+                             (change)="onLogoFileSelected($event)">
+                      <div class="em-reg-upload__content">
+                        <div *ngIf="logoEmpresaPreviewSafeUrl" class="em-reg-upload__preview">
+                          <img [src]="logoEmpresaPreviewSafeUrl" alt="Preview logo">
+                        </div>
+                        <div *ngIf="!logoEmpresaPreviewSafeUrl" class="em-reg-upload__placeholder">
+                          <i class="fas fa-cloud-upload-alt"></i>
+                        </div>
+                        <div class="em-reg-upload__text">
+                          <strong>{{ nombreLogoEmpresaArchivo || 'Arrastra o haz clic para subir' }}</strong>
+                          <span>PNG, JPG o WebP</span>
+                        </div>
+                      </div>
+                    </div>
+                    <p class="em-reg-hint em-reg-hint--error" *ngIf="!nombreLogoEmpresaArchivo">
+                      <i class="fas fa-exclamation-circle"></i> El logo es obligatorio.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Columna derecha: ubicación -->
+              <div class="em-reg-section em-reg-section--stagger-2">
+                <div class="em-reg-section__head">
+                  <i class="fas fa-map-marked-alt"></i>
+                  <span>Ubicación</span>
+                </div>
+                <div class="em-reg-section__body">
+                  <div class="em-reg-field-group">
+                    <label class="em-reg-label">Código Postal<span *ngIf="registroEnSistema"> *</span></label>
+                    <div class="em-reg-field">
+                      <i class="em-reg-field__icon fas fa-mail-bulk"></i>
+                      <input class="em-reg-input" type="text" placeholder="00000" maxlength="5"
+                             [(ngModel)]="codigoPostal" name="codigoPostal"
+                             (input)="onCodigoPostalInput($event)"
+                             inputmode="numeric" autocomplete="postal-code">
+                    </div>
+                    <p class="em-reg-hint" *ngIf="cpAutofillEstadoCiudadLoading">
+                      <i class="fas fa-spinner fa-spin"></i> Buscando estado y ciudad...
+                    </p>
+                    <p class="em-reg-hint"
+                       *ngIf="!cpAutofillEstadoCiudadLoading && cpAutofillMensaje"
+                       [class.em-reg-hint--success]="cpAutofillMensajeTipo === 'success'"
+                       [class.em-reg-hint--warn]="cpAutofillMensajeTipo === 'warning'">
+                      <i class="fas" [ngClass]="cpAutofillMensajeTipo === 'success' ? 'fa-check-circle' : (cpAutofillMensajeTipo === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle')"></i>
+                      {{ cpAutofillMensaje }}
+                    </p>
+                  </div>
+                  <div class="em-reg-field-group">
+                    <label class="em-reg-label">Estado</label>
+                    <div class="em-reg-field">
+                      <i class="em-reg-field__icon fas fa-map"></i>
+                      <input class="em-reg-input" type="text"
+                             [(ngModel)]="busquedaEstado"
+                             (ngModelChange)="onEstadoInputChange($event)"
+                             name="busquedaEstado"
+                             placeholder="Seleccione o escriba un estado"
+                             autocomplete="address-level1">
+                    </div>
+                  </div>
+                  <div class="em-reg-field-group">
+                    <label class="em-reg-label">Municipio / Ciudad</label>
+                    <div class="em-reg-field">
+                      <i class="em-reg-field__icon fas fa-city"></i>
+                      <input class="em-reg-input" type="text"
+                             [(ngModel)]="busquedaCiudad"
+                             (ngModelChange)="onCiudadInputChange($event)"
+                             name="busquedaCiudad"
+                             placeholder="Municipio o ciudad"
+                             autocomplete="address-level2">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PASO 2 -->
+          <div *ngIf="mostrarPasoCredenciales" class="wizard-step em-reg-pane em-reg-pane--enter">
+            <div class="em-reg-pane-head">
+              <div class="em-reg-pane-head__icon"><i class="fas fa-user-shield"></i></div>
+              <div>
+                <h6 class="em-reg-pane-head__title">Credenciales de Acceso</h6>
+                <p class="em-reg-pane-head__desc">Usuario y datos del contacto responsable</p>
+              </div>
+              <span class="em-reg-badge">Paso 2 de 3</span>
+            </div>
+
+            <div class="em-reg-section em-reg-section--stagger-1">
+              <div class="em-reg-section__head">
+                <i class="fas fa-key"></i>
+                <span>Acceso al sistema</span>
+              </div>
+              <div class="em-reg-section__body">
+                <div class="row">
+                  <div class="col-md-6 mb-3 mb-md-0">
+                    <label class="em-reg-label">Usuario de Acceso</label>
+                    <div class="em-reg-field em-reg-field--with-btn">
+                      <i class="em-reg-field__icon fas fa-user"></i>
+                      <input class="em-reg-input" type="text"
+                             [(ngModel)]="usuarioAcceso" name="usuarioAcceso"
+                             [disabled]="!usuarioAccesoEditando"
+                             [class.em-reg-input--disabled]="!usuarioAccesoEditando">
+                      <button *ngIf="!usuarioAccesoEditando" type="button"
+                              class="em-reg-inline-btn" (click)="habilitarEdicionUsuarioAcceso()">
+                        <i class="fas fa-pen"></i> Editar
+                      </button>
+                      <button *ngIf="usuarioAccesoEditando" type="button"
+                              class="em-reg-inline-btn em-reg-inline-btn--primary"
+                              (click)="guardarUsuarioAcceso()">
+                        <i class="fas fa-check"></i> Guardar
+                      </button>
+                    </div>
+                    <p class="em-reg-hint">5 letras de la empresa + número aleatorio</p>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="em-reg-label">Rol del Sistema</label>
+                    <div class="em-reg-field">
+                      <i class="em-reg-field__icon fas fa-shield-alt"></i>
+                      <input class="em-reg-input em-reg-input--disabled" type="text"
+                             value="Usuario Empresa" disabled>
+                    </div>
+                    <p class="em-reg-hint">Asignado automáticamente</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="em-reg-section em-reg-section--stagger-2">
+              <div class="em-reg-section__head">
+                <i class="fas fa-address-card"></i>
+                <span>Datos del contacto</span>
+              </div>
+              <div class="em-reg-section__body">
+                <div class="row">
+                  <div class="col-md-4 mb-3">
+                    <label class="em-reg-label">Nombre *</label>
+                    <div class="em-reg-field">
+                      <i class="em-reg-field__icon fas fa-user"></i>
+                      <input class="em-reg-input" type="text" placeholder="Nombre del contacto"
+                             [(ngModel)]="contactoNombre" name="contactoNombre">
+                    </div>
+                  </div>
+                  <div class="col-md-4 mb-3">
+                    <label class="em-reg-label">Apellido</label>
+                    <div class="em-reg-field">
+                      <i class="em-reg-field__icon fas fa-user"></i>
+                      <input class="em-reg-input" type="text" placeholder="Apellido"
+                             [(ngModel)]="contactoApellido" name="contactoApellido">
+                    </div>
+                  </div>
+                  <div class="col-md-4 mb-3">
+                    <label class="em-reg-label">Puesto *</label>
+                    <div class="em-reg-field">
+                      <i class="em-reg-field__icon fas fa-briefcase"></i>
+                      <input class="em-reg-input" type="text" placeholder="Ej. Recursos Humanos"
+                             [(ngModel)]="contactoPuesto" name="contactoPuesto">
+                    </div>
+                  </div>
+                  <div class="col-md-6 mb-3 mb-md-0">
+                    <label class="em-reg-label">Email Corporativo *</label>
+                    <div class="em-reg-field">
+                      <i class="em-reg-field__icon fas fa-envelope"></i>
+                      <input class="em-reg-input" type="email" placeholder="correo@empresa.com"
+                             [(ngModel)]="emailEmpresa" name="emailEmpresa">
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="em-reg-label">Teléfono</label>
+                    <div class="em-reg-field">
+                      <i class="em-reg-field__icon fas fa-phone"></i>
+                      <input class="em-reg-input" type="tel" placeholder="(000) 000-0000"
+                             [(ngModel)]="telefonoEmpresa" name="telefonoEmpresa">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PASO 3 -->
+          <div *ngIf="mostrarPasoResumen" class="wizard-step em-reg-pane em-reg-pane--enter">
+            <div class="em-reg-pane-head">
+              <div class="em-reg-pane-head__icon"><i class="fas fa-clipboard-check"></i></div>
+              <div>
+                <h6 class="em-reg-pane-head__title">Resumen y Confirmación</h6>
+                <p class="em-reg-pane-head__desc" *ngIf="!omitirPasoCredenciales">Verifique la información antes de registrar</p>
+                <p class="em-reg-pane-head__desc" *ngIf="esEmpresaColaboradora">Sin credenciales nuevas: usará el acceso de {{ nombreEmpresaColaboradorPadre || 'la empresa principal' }}</p>
+                <p class="em-reg-pane-head__desc" *ngIf="registroEnSistema && !esEmpresaColaboradora">Registro en directorio sin usuario de acceso al sistema</p>
+              </div>
+              <span class="em-reg-badge">Paso {{ etiquetaPasoActual }} de {{ totalPasosRegistro }}</span>
+            </div>
+
+            <div class="em-reg-summary-grid" [class.em-reg-summary-grid--single]="omitirPasoCredenciales">
+              <div class="em-reg-summary-card em-reg-summary-card--stagger-1">
+                <div class="em-reg-summary-card__head">
+                  <i class="fas fa-building"></i>
+                  <span>Empresa</span>
+                </div>
+                <div class="em-reg-summary-card__body">
+                  <p class="em-reg-summary-card__highlight">{{ empresaNueva || '-' }}</p>
+                  <dl class="em-reg-dl">
+                    <dt>RFC</dt><dd>{{ rfcNuevo || '-' }}</dd>
+                    <ng-container *ngIf="codigoPostal">
+                      <dt>Código Postal</dt><dd>{{ codigoPostal }}</dd>
+                    </ng-container>
+                    <ng-container *ngIf="emailEmpresaResumen">
+                      <dt>Email</dt><dd>{{ emailEmpresaResumen }}</dd>
+                    </ng-container>
+                    <ng-container *ngIf="telefonoEmpresaResumen">
+                      <dt>Teléfono</dt><dd>{{ telefonoEmpresaResumen }}</dd>
+                    </ng-container>
+                    <ng-container *ngIf="esEmpresaColaboradora">
+                      <dt>Empresa principal</dt>
+                      <dd>{{ nombreEmpresaColaboradorPadre || 'Sin seleccionar' }}</dd>
+                    </ng-container>
+                  </dl>
+                </div>
+              </div>
+
+              <div class="em-reg-summary-card em-reg-summary-card--stagger-2" *ngIf="!omitirPasoCredenciales">
+                <div class="em-reg-summary-card__head">
+                  <i class="fas fa-user-lock"></i>
+                  <span>Acceso</span>
+                </div>
+                <div class="em-reg-summary-card__body">
+                  <dl class="em-reg-dl">
+                    <dt>Usuario</dt><dd><code>{{ usuarioAcceso || '-' }}</code></dd>
+                    <dt>Contacto</dt><dd>{{ contactoNombre || '-' }} {{ contactoApellido || '' }}</dd>
+                    <dt>Puesto</dt><dd>{{ contactoPuesto || '-' }}</dd>
+                    <dt>Rol</dt><dd><span class="em-reg-tag">Usuario Empresa</span></dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+
+            <div class="em-reg-section em-reg-section--stagger-3 em-reg-section--email" *ngIf="!omitirPasoCredenciales">
+              <div class="em-reg-section__head">
+                <i class="fas fa-envelope-open-text"></i>
+                <span>Envío de credenciales</span>
+                <button type="button" class="em-reg-pill-btn"
+                        [class.em-reg-pill-btn--on]="enviarCorreoProvisional"
+                        (click)="toggleEnvioCorreoProvisional()">
+                  <i class="fas" [ngClass]="enviarCorreoProvisional ? 'fa-toggle-on' : 'fa-toggle-off'"></i>
+                  {{ enviarCorreoProvisional ? 'Copia activada' : 'Activar copia' }}
+                </button>
+              </div>
+              <div class="em-reg-section__body">
+                <label class="em-reg-label">Correos adicionales</label>
+                <textarea class="em-reg-textarea" rows="2"
+                          [(ngModel)]="correosAdicionalesCredenciales"
+                          name="correosAdicionalesCredenciales"
+                          placeholder="correo1@empresa.com, correo2@empresa.com"></textarea>
+              </div>
+            </div>
+
+            <div class="em-reg-info-banner" *ngIf="esEmpresaColaboradora">
+              <i class="fas fa-info-circle"></i>
+              <div>
+                <strong>Sin usuario nuevo</strong>
+                <p>Esta razón social quedará vinculada a <strong>{{ nombreEmpresaColaboradorPadre || 'la empresa principal' }}</strong>. Los cursos asignados a esta empresa se verán en Cursos Activos con el mismo acceso.</p>
+              </div>
+            </div>
+
+            <div class="em-reg-info-banner" *ngIf="registroEnSistema && !esEmpresaColaboradora">
+              <i class="fas fa-info-circle"></i>
+              <div>
+                <strong>Solo registro en directorio</strong>
+                <p>La empresa quedará registrada con nombre, RFC, código postal y logo. No se creará usuario de acceso ni se enviarán credenciales.</p>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer em-reg-footer">
+        <div>
+          <button *ngIf="pasoActual === 1" type="button" class="em-reg-btn em-reg-btn--ghost"
+                  (click)="cerrarModalAgregarEmpresa()">
+            <i class="fas fa-times"></i> Cancelar
+          </button>
+          <button *ngIf="pasoActual > 1" type="button" class="em-reg-btn em-reg-btn--ghost"
+                  (click)="pasoAnterior()">
+            <i class="fas fa-arrow-left"></i> Regresar
+          </button>
+        </div>
+        <div>
+          <button *ngIf="mostrarBotonSiguiente" type="button" class="em-reg-btn em-reg-btn--primary"
+                  (click)="siguientePaso()">
+            Siguiente <i class="fas fa-arrow-right"></i>
+          </button>
+          <button *ngIf="mostrarBotonRegistrar" type="button" class="em-reg-btn em-reg-btn--primary em-reg-btn--submit"
+                  (click)="guardarNuevaEmpresa()">
+            <i class="fas fa-check-circle"></i> Registrar Empresa
+          </button>
+        </div>
+      </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+

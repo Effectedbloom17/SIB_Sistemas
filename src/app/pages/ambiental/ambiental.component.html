@@ -1,0 +1,1217 @@
+<div class="ambiental-page"
+     [class.ambiental-page--oficios]="modo === 'oficios'"
+     [class.ambiental-page--control-tramites]="modo === 'control-tramites'">
+  <!-- Header estándar -->
+  <div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+    <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+      <div class="row w-100 text-center">
+        <div class="col-12">
+          <div class="d-flex flex-column align-items-center justify-content-center">
+            <div class="ambiental-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+              <i class="fas" [ngClass]="headerIcono" aria-hidden="true"></i>
+            </div>
+            <h1 class="text-white mb-0 ambiental-hero-title">{{ headerTitulo }}</h1>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid ambiental-main mt--5">
+    <div class="row justify-content-center">
+      <div class="col-xl-12">
+
+        <!-- ===================== Dashboard SP-F-28 ===================== -->
+        <section *ngIf="modo === 'tramites'"
+                 class="ambiental-dashboard ambiental-dashboard-enter"
+                 [class.ambiental-dashboard--search-open]="empresaPanelBusquedaAbierto"
+                 aria-label="Resumen de estatus de trámites">
+          <div class="ambiental-spf28-topbar">
+            <div class="ambiental-spf28-topbar__main">
+              <span class="ambiental-spf28-topbar__code">SP-F-28 · Rev. 00</span>
+              <h2 class="ambiental-spf28-topbar__title">Control de estatus de trámites</h2>
+            </div>
+          </div>
+
+          <header class="ambiental-dashboard__head">
+            <div class="ambiental-dashboard__head-toolbar ambiental-dashboard__head-toolbar--full">
+              <nav class="ambiental-empresa-nav ambiental-empresa-nav--dashboard" aria-label="Selector de empresa registrada">
+                <div class="ambiental-empresa-nav__search-wrap">
+                  <label class="ambiental-empresa-nav__search">
+                    <i class="fas fa-search ambiental-empresa-nav__search-icon" aria-hidden="true"></i>
+                    <input class="ambiental-empresa-nav__search-input" type="search"
+                           name="empresaBusquedaDash"
+                           [(ngModel)]="empresaBusqueda"
+                           (focus)="abrirBusquedaEmpresa()"
+                           (input)="abrirBusquedaEmpresa()"
+                           (keydown)="onBusquedaEmpresaKeydown($event)"
+                           [disabled]="!puedeEditar || cargandoEmpresas"
+                           placeholder="Buscar empresa registrada por nombre…"
+                           autocomplete="off"
+                           aria-label="Buscar empresa"
+                           aria-autocomplete="list"
+                           [attr.aria-expanded]="empresaPanelBusquedaAbierto">
+                  </label>
+                  <p class="ambiental-empresa-nav__hint" *ngIf="empresaPanelBusquedaAbierto && !empresaBusqueda.trim()" role="status">
+                    {{ filtroEmpresasConDocumentos
+                        ? (empresasFiltradas.length + ' empresas con registros. Escribe para filtrar.')
+                        : (empresasRegistradas.length + ' empresas registradas. Escribe para filtrar o elige «Todos».') }}
+                  </p>
+                  <div class="ambiental-empresa-nav__results-panel"
+                       *ngIf="empresaPanelBusquedaAbierto && (empresaBusqueda.trim() || mostrarOpcionTodos || filtroEmpresasConDocumentos)">
+                    <ul class="ambiental-empresa-nav__results" role="listbox"
+                        *ngIf="mostrarOpcionTodos || empresasFiltradas.length > 0">
+                      <li class="ambiental-empresa-nav__results-item" *ngIf="mostrarOpcionTodos" role="option"
+                          [attr.aria-selected]="esVistaTodasEmpresas">
+                        <button type="button" class="ambiental-empresa-nav__result ambiental-empresa-nav__result--todos"
+                                [class.ambiental-empresa-nav__result--active]="esVistaTodasEmpresas"
+                                (mousedown)="$event.preventDefault()"
+                                (click)="seleccionarTodasEmpresas()">
+                          <span class="ambiental-empresa-nav__result-icon ambiental-empresa-nav__result-icon--todos" aria-hidden="true">
+                            <i class="fas fa-layer-group"></i>
+                          </span>
+                          <span class="ambiental-empresa-nav__result-body">
+                            <span class="ambiental-empresa-nav__result-label">Todos</span>
+                            <span class="ambiental-empresa-nav__result-meta">Ver trámites de todas las empresas</span>
+                          </span>
+                          <span class="ambiental-empresa-nav__result-badge" *ngIf="esVistaTodasEmpresas">Actual</span>
+                          <i class="fas fa-chevron-right ambiental-empresa-nav__result-arrow" aria-hidden="true"></i>
+                        </button>
+                      </li>
+                      <li *ngIf="empresasFiltradas.length > 0 && (empresaBusqueda.trim() || filtroEmpresasConDocumentos)" class="ambiental-empresa-nav__results-sep" aria-hidden="true">
+                        <span>{{ filtroEmpresasConDocumentos ? 'Con registros' : 'Empresas' }}</span>
+                      </li>
+                      <li *ngFor="let emp of empresasFiltradas; trackBy: trackByEmpresaId"
+                          class="ambiental-empresa-nav__results-item"
+                          role="option"
+                          [attr.aria-selected]="emp.empresa_id === empresaSeleccionadaId">
+                        <button type="button" class="ambiental-empresa-nav__result"
+                                [class.ambiental-empresa-nav__result--active]="emp.empresa_id === empresaSeleccionadaId"
+                                (mousedown)="$event.preventDefault()"
+                                (click)="seleccionarEmpresa(emp)">
+                          <span class="ambiental-empresa-nav__result-icon" aria-hidden="true">
+                            <i class="fas fa-building"></i>
+                          </span>
+                          <span class="ambiental-empresa-nav__result-body">
+                            <span class="ambiental-empresa-nav__result-label">{{ emp.nombre_empresa }}</span>
+                            <span class="ambiental-empresa-nav__result-meta" *ngIf="emp.rfc">{{ emp.rfc }}</span>
+                          </span>
+                          <span class="ambiental-empresa-nav__result-badge"
+                                *ngIf="emp.empresa_id === empresaSeleccionadaId">Actual</span>
+                          <i class="fas fa-chevron-right ambiental-empresa-nav__result-arrow" aria-hidden="true"></i>
+                        </button>
+                      </li>
+                    </ul>
+                    <div class="ambiental-empresa-nav__empty"
+                         *ngIf="empresaBusqueda.trim() && empresasFiltradas.length === 0 && !mostrarOpcionTodos"
+                         role="status">
+                      <span class="ambiental-empresa-nav__empty-icon" aria-hidden="true">
+                        <i class="fas fa-search"></i>
+                      </span>
+                      <strong class="ambiental-empresa-nav__empty-title">Sin coincidencias</strong>
+                      <p class="ambiental-empresa-nav__empty-text">
+                        No hay empresas que coincidan con «{{ empresaBusqueda.trim() }}».
+                        <span *ngIf="filtroEmpresasConDocumentos"> Prueba desactivar «Empresas con documentos».</span>
+                      </p>
+                    </div>
+                    <div class="ambiental-empresa-nav__empty"
+                         *ngIf="!empresaBusqueda.trim() && filtroEmpresasConDocumentos && empresasFiltradas.length === 0 && !mostrarOpcionTodos"
+                         role="status">
+                      <span class="ambiental-empresa-nav__empty-icon" aria-hidden="true">
+                        <i class="fas fa-folder-open"></i>
+                      </span>
+                      <strong class="ambiental-empresa-nav__empty-title">Sin empresas con registros</strong>
+                      <p class="ambiental-empresa-nav__empty-text">
+                        Aún no hay empresas con trámites SP-F-28. Desactiva el filtro para ver todas.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <button type="button"
+                        class="ambiental-empresa-doc-filter"
+                        [class.ambiental-empresa-doc-filter--active]="filtroEmpresasConDocumentos"
+                        [disabled]="!puedeEditar || cargandoEmpresas"
+                        (click)="toggleFiltroEmpresasConDocumentos()"
+                        [attr.aria-pressed]="filtroEmpresasConDocumentos"
+                        title="Mostrar solo empresas que ya tienen trámites registrados">
+                  <i class="fas fa-filter" aria-hidden="true"></i>
+                  <span>Empresas con documentos</span>
+                </button>
+              </nav>
+              <div class="ambiental-dashboard__completion"
+                   *ngIf="hayEmpresaActiva && !cargandoTramites">
+                <span class="ambiental-dashboard__completion-value">{{ dashPorcentajeCerrados }}%</span>
+                <span class="ambiental-dashboard__completion-label">Completado</span>
+              </div>
+            </div>
+          </header>
+
+          <div class="ambiental-dashboard__body">
+            <ng-container *ngIf="hayEmpresaActiva; else dashBodySinEmpresa">
+              <div class="ambiental-dash-dual">
+                <div class="ambiental-dash-panel ambiental-dash-panel--prioridad">
+                  <div class="ambiental-dash-panel__header">
+                    <span class="ambiental-dash-panel__icon ambiental-dash-panel__icon--prioridad">
+                      <i class="fas fa-flag"></i>
+                    </span>
+                    <div class="ambiental-dash-panel__head-text">
+                      <span class="ambiental-dash-panel__title">Prioridad de entrega</span>
+                      <span class="ambiental-dash-panel__sub">
+                        {{ dashTotalPrioridad }} trámite{{ dashTotalPrioridad !== 1 ? 's' : '' }} abierto{{ dashTotalPrioridad !== 1 ? 's' : '' }} con fecha
+                      </span>
+                    </div>
+                    <span class="ambiental-dash-panel__badge"
+                          *ngIf="dashPrioridadDominante as dom"
+                          [style.--prio-color]="dom.color">
+                      {{ dom.label }}
+                    </span>
+                  </div>
+
+                  <ng-container *ngIf="!cargandoTramites && dashTotalPrioridad > 0; else dashPrioridadEmpty">
+                    <div class="ambiental-dash-prioridad-stack">
+                      <div class="ambiental-dash-prioridad-chart-wrap">
+                        <apx-chart *ngIf="prioridadChartReady"
+                          [series]="prioridadChart.series"
+                          [chart]="prioridadChart.chart"
+                          [colors]="prioridadChart.colors"
+                          [plotOptions]="prioridadChart.plotOptions"
+                          [dataLabels]="prioridadChart.dataLabels"
+                          [xaxis]="prioridadChart.xaxis"
+                          [yaxis]="prioridadChart.yaxis"
+                          [grid]="prioridadChart.grid"
+                          [legend]="prioridadChart.legend"
+                          [tooltip]="prioridadChart.tooltip"
+                          [fill]="prioridadChart.fill"
+                          [stroke]="prioridadChart.stroke">
+                        </apx-chart>
+                      </div>
+                      <div class="ambiental-dash-prioridad-legend" aria-label="Niveles de prioridad">
+                        <button type="button"
+                                class="ambiental-prio-chip"
+                                *ngFor="let item of dashResumenPrioridad; trackBy: trackByPrioridadKey"
+                                [class.ambiental-prio-chip--empty]="item.cantidad === 0"
+                                [class.ambiental-prio-chip--open]="prioridadChipActivo === item.key"
+                                [style.--prio-color]="item.color"
+                                [attr.aria-expanded]="prioridadChipActivo === item.key"
+                                [attr.aria-label]="item.label + ', ' + item.rango + ', ' + item.cantidad"
+                                (click)="togglePrioridadChip(item.key, $event)">
+                          <span class="ambiental-prio-chip__dot" aria-hidden="true"></span>
+                          <span class="ambiental-prio-chip__label">{{ item.labelCorto }}</span>
+                          <span class="ambiental-prio-chip__count">{{ item.cantidad }}</span>
+                          <span class="ambiental-prio-chip__tip" role="tooltip">
+                            <strong>{{ item.label }}</strong> · {{ item.rango }}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  </ng-container>
+
+                  <ng-template #dashPrioridadEmpty>
+                    <div class="ambiental-dash-empty">
+                      <i class="fas fa-flag" aria-hidden="true"></i>
+                      <span *ngIf="cargandoTramites">Cargando prioridades…</span>
+                      <span *ngIf="!cargandoTramites">Sin trámites abiertos con fecha límite</span>
+                      <p class="ambiental-dash-prioridad-hint"
+                         *ngIf="!cargandoTramites && dashSinFechaPrioridad > 0">
+                        Hay {{ dashSinFechaPrioridad }} trámite{{ dashSinFechaPrioridad !== 1 ? 's' : '' }}
+                        abierto{{ dashSinFechaPrioridad !== 1 ? 's' : '' }} sin fecha asignada.
+                      </p>
+                    </div>
+                  </ng-template>
+                </div>
+
+                <div class="ambiental-dash-panel ambiental-dash-panel--donut">
+                  <div class="ambiental-dash-panel__header">
+                    <span class="ambiental-dash-panel__icon ambiental-dash-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
+                    <div>
+                      <span class="ambiental-dash-panel__title">Distribución por estatus</span>
+                      <span class="ambiental-dash-panel__sub">{{ dashTotalTramites }} trámites registrados</span>
+                    </div>
+                    <button type="button" class="ambiental-dash-panel__reset"
+                            *ngIf="filtroDashboardActivo !== 'todos'"
+                            (click)="aplicarFiltroDashboard('todos')">
+                      Ver todos
+                    </button>
+                  </div>
+
+                  <ng-container *ngIf="!cargandoTramites && dashTotalTramites > 0; else dashStatusEmpty">
+                    <div class="ambiental-dash-donut-stack">
+                      <div class="ambiental-dash-donut-zone">
+                        <div class="ambiental-dash-donut-chart-wrap">
+                          <apx-chart *ngIf="chartsReady"
+                            [series]="estatusChart.series" [chart]="estatusChart.chart"
+                            [labels]="estatusChart.labels" [colors]="estatusChart.colors"
+                            [plotOptions]="estatusChart.plotOptions" [fill]="estatusChart.fill"
+                            [dataLabels]="estatusChart.dataLabels" [stroke]="estatusChart.stroke"
+                            [legend]="estatusChart.legend" [tooltip]="estatusChart.tooltip"
+                            [responsive]="estatusChart.responsive">
+                          </apx-chart>
+                          <div class="ambiental-donut-center" aria-live="polite">
+                            <span class="ambiental-donut-center__val">{{ donutCentroValor }}</span>
+                            <span class="ambiental-donut-center__lbl">{{ donutCentroEtiqueta }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="ambiental-dash-stats-legend">
+                        <button type="button"
+                                *ngFor="let item of dashResumenEstatus"
+                                class="ambiental-dash-stat-card"
+                                [class.ambiental-dash-stat-card--cerrado]="item.clase === 'cerrado'"
+                                [class.ambiental-dash-stat-card--abierto]="item.clase === 'abierto'"
+                                [class.ambiental-dash-stat-card--vencido]="item.clase === 'vencido'"
+                                [class.ambiental-dash-stat-card--active]="filtroDashboardActivo === item.filtro"
+                                (click)="aplicarFiltroDashboard(item.filtro)">
+                          <span class="ambiental-dash-stat-card__dot"></span>
+                          <span class="ambiental-dash-stat-card__label">{{ item.label }}</span>
+                          <span class="ambiental-dash-stat-card__count">{{ item.cantidad }}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </ng-container>
+
+                  <ng-template #dashStatusEmpty>
+                    <div class="ambiental-dash-empty">
+                      <i class="fas fa-chart-pie" aria-hidden="true"></i>
+                      <span>{{ cargandoTramites ? 'Cargando datos…' : 'Sin trámites registrados' }}</span>
+                    </div>
+                  </ng-template>
+                </div>
+              </div>
+            </ng-container>
+
+            <ng-template #dashBodySinEmpresa>
+              <div class="ambiental-dash-empty ambiental-dash-empty--panel">
+                <i class="fas fa-building" aria-hidden="true"></i>
+                <span>Selecciona una empresa para visualizar el panel</span>
+              </div>
+            </ng-template>
+          </div>
+        </section>
+
+        <!-- ===================== SP-F-15 ===================== -->
+        <ng-container *ngIf="modo === 'oficios'">
+          <div class="card border-0 shadow-sm ambiental-panel ambiental-panel-enter">
+            <div class="ambiental-panel__toolbar ambiental-panel__toolbar--split">
+              <div class="ambiental-panel__toolbar-left">
+                <span class="ambiental-panel__code">SP-F-15</span>
+                <span class="ambiental-panel__count">{{ oficiosFiltrados.length }} registros</span>
+                <span class="ambiental-sync-hint" *ngIf="spF15UltimaSync">
+                  Sync: {{ formatearUltimaSync(spF15UltimaSync) }}
+                </span>
+              </div>
+              <div class="ambiental-panel__actions ambiental-toolbar-actions ambiental-toolbar-actions--right">
+                <button type="button" class="ambiental-btn ambiental-btn--save ambiental-btn--enter ambiental-btn--enter-1"
+                        [disabled]="driveSyncGuardando || cargandoOficios"
+                        (click)="guardarInformacionSpF15()">
+                  <i class="fas mr-1" [ngClass]="driveSyncGuardando ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                  Guardar información
+                </button>
+                <button type="button" class="ambiental-btn ambiental-btn--drive ambiental-btn--enter ambiental-btn--enter-2"
+                        [disabled]="!spF15DriveFileId || cargandoOficios"
+                        (click)="toggleEditorSpF15()">
+                  <i class="fas fa-pen mr-1"></i> Abrir editor integrado
+                </button>
+                <button *ngIf="puedeCrearOficio" type="button"
+                        class="ambiental-btn ambiental-btn--primary ambiental-btn--enter ambiental-btn--enter-3"
+                        (click)="abrirModalOficio()">
+                  <i class="fas fa-plus mr-1"></i> Nuevo
+                </button>
+              </div>
+            </div>
+
+            <div class="ambiental-split-wrap">
+              <div class="ambiental-split ambiental-split--oficios">
+                <aside class="ambiental-split__table">
+                  <div class="ambiental-search">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Buscar oficio, empresa o motivo..."
+                           [(ngModel)]="busquedaOficios" (ngModelChange)="filtrarOficios()" autocomplete="off">
+                  </div>
+
+                  <div *ngIf="cargandoOficios" class="ambiental-state ambiental-state--loading">
+                    <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                    <p class="text-muted mt-2 mb-0">Cargando oficios…</p>
+                  </div>
+                  <div *ngIf="!cargandoOficios && oficiosFiltrados.length === 0" class="ambiental-state">
+                    <i class="fas fa-inbox fa-2x text-muted"></i>
+                    <p class="text-muted mt-2 mb-0">Sin registros</p>
+                  </div>
+
+                  <div class="ambiental-table-scroll" *ngIf="!cargandoOficios && oficiosFiltrados.length > 0">
+                    <table class="ambiental-data-table">
+                      <thead>
+                        <tr>
+                          <th class="col-num">Nº</th>
+                          <th>Empresa</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr *ngFor="let o of oficiosPaginados; trackBy: trackByOficioId"
+                            [class.is-selected]="oficioSeleccionado?.oficio_id === o.oficio_id"
+                            (click)="seleccionarOficio(o)">
+                          <td class="col-num"><span class="ambiental-num">{{ o.numero_oficio }}</span></td>
+                          <td class="cell-empresa-stack">
+                            <span class="cell-empresa-name">{{ o.empresa || '—' }}</span>
+                            <span class="cell-empresa-motivo">{{ o.motivo || '—' }}</span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div class="ambiental-pagination" *ngIf="!cargandoOficios && oficiosFiltrados.length > pageSize">
+                    <button type="button" class="ambiental-pagination__btn" [disabled]="paginaOficios <= 1"
+                            (click)="irPaginaOficios(paginaOficios - 1)">
+                      <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <span class="ambiental-pagination__label">
+                      {{ paginaOficios }} / {{ totalPaginasOficios }}
+                      <small>({{ pageSize }} por página)</small>
+                    </span>
+                    <button type="button" class="ambiental-pagination__btn"
+                            [disabled]="paginaOficios >= totalPaginasOficios"
+                            (click)="irPaginaOficios(paginaOficios + 1)">
+                      <i class="fas fa-chevron-right"></i>
+                    </button>
+                  </div>
+                </aside>
+
+                <main class="ambiental-split__viewer">
+                  <div class="ambiental-viewer__head">
+                    <p class="ambiental-viewer__caption" *ngIf="oficioSeleccionado; else sinOficioHead">
+                      <span class="ambiental-viewer__label">Vista previa</span>
+                      Oficio #{{ oficioSeleccionado.numero_oficio }} — {{ oficioSeleccionado.empresa || 'Sin empresa' }}
+                    </p>
+                    <ng-template #sinOficioHead>
+                      <p class="ambiental-viewer__caption ambiental-viewer__caption--empty">Seleccione un oficio</p>
+                    </ng-template>
+                    <div class="ambiental-viewer__actions">
+                      <button *ngIf="puedeCrearOficio && oficioSeleccionado" type="button"
+                              class="ambiental-btn ambiental-btn--outline ambiental-btn--xs"
+                              (click)="editarOficioSeleccionado()" title="Editar oficio">
+                        <i class="fas fa-pen mr-1"></i> Editar
+                      </button>
+                      <button *ngIf="puedeCrearOficio && oficioSeleccionado" type="button"
+                              class="ambiental-btn ambiental-btn--outline ambiental-btn--xs ambiental-btn--danger-outline"
+                              (click)="confirmarEliminarOficio(oficioSeleccionado)" title="Eliminar oficio">
+                        <i class="fas fa-trash mr-1"></i> Eliminar
+                      </button>
+                      <button *ngIf="documentoPreviewUrl" type="button"
+                              class="ambiental-btn ambiental-btn--ghost ambiental-btn--xs"
+                              (click)="toggleVisorExpandido()" title="Pantalla completa">
+                        <i class="fas fa-expand"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="ambiental-viewer__frame">
+                    <ng-container *ngIf="oficioSeleccionado; else seleccioneRegistro">
+                      <ng-container *ngIf="documentoPreviewUrl; else docNoEncontrado">
+                        <img *ngIf="esImagenPreview" class="ambiental-viewer__img"
+                             [src]="documentoPreviewUrl | safe" [alt]="documentoPreviewNombre">
+                        <iframe *ngIf="!esImagenPreview && puedeEmbeberPreviewOficio"
+                                class="ambiental-viewer__embed"
+                                [src]="documentoPreviewUrl | safe" [title]="documentoPreviewNombre"></iframe>
+                        <div *ngIf="!esImagenPreview && !puedeEmbeberPreviewOficio" class="ambiental-doc-placeholder">
+                          <p>Vista previa no disponible para este tipo de archivo.</p>
+                          <a *ngIf="oficioSeleccionado?.documento_url || oficioSeleccionado?.documento_drive_id"
+                             class="ambiental-doc-link"
+                             [href]="oficioSeleccionado.documento_url || ('https://drive.google.com/file/d/' + oficioSeleccionado.documento_drive_id + '/view')"
+                             target="_blank" rel="noopener noreferrer">
+                            <i class="fas fa-external-link-alt mr-1"></i> Abrir en Drive
+                          </a>
+                        </div>
+                      </ng-container>
+                      <ng-template #docNoEncontrado>
+                        <p class="ambiental-doc-placeholder">Documento no encontrado</p>
+                      </ng-template>
+                    </ng-container>
+                    <ng-template #seleccioneRegistro>
+                      <p class="ambiental-doc-placeholder ambiental-doc-placeholder--soft">Seleccione un oficio de la tabla</p>
+                    </ng-template>
+                  </div>
+                </main>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- ===================== Control de Trámites (visor) ===================== -->
+        <ng-container *ngIf="modo === 'control-tramites'">
+          <app-ambiental-control-tramites
+            class="ambiental-control-tramites-host ambiental-panel-enter"
+            [puedeEditar]="puedeEditar"
+            [tramiteInicialId]="tramiteControlInicialId"
+            [ambitoInicial]="tramiteControlAmbitoInicial"
+            (editarTramite)="abrirModalTramite($any($event))">
+          </app-ambiental-control-tramites>
+        </ng-container>
+
+        <!-- ===================== SP-F-28 ===================== -->
+        <ng-container *ngIf="modo === 'tramites'">
+          <div class="card border-0 shadow-sm ambiental-panel ambiental-panel--format ambiental-panel-enter">
+            <!-- Estado vacío: aún no se elige empresa -->
+            <div class="ambiental-empresa-empty" *ngIf="!hayEmpresaActiva">
+              <span class="ambiental-empresa-empty__icon" aria-hidden="true">
+                <i class="fas fa-folder-tree"></i>
+              </span>
+              <h3 class="ambiental-empresa-empty__title">Selecciona una empresa</h3>
+              <p class="ambiental-empresa-empty__text">
+                Usa el selector de empresa en el panel superior para abrir su hoja de trámites SP-F-28,
+                o elige «Todos» para ver el consolidado.
+              </p>
+            </div>
+
+            <!-- Espacio de trabajo de la empresa seleccionada -->
+            <ng-container *ngIf="hayEmpresaActiva">
+              <div class="ambiental-empresa-workspace">
+                <div class="ambiental-empresa-banner">
+                  <span class="ambiental-empresa-banner__icon" aria-hidden="true">
+                    <i class="fas" [ngClass]="esVistaTodasEmpresas ? 'fa-layer-group' : 'fa-building'"></i>
+                  </span>
+                  <div class="ambiental-empresa-banner__info">
+                    <span class="ambiental-empresa-banner__tag">
+                      {{ esVistaTodasEmpresas ? 'Vista consolidada' : 'Nombre de la empresa' }}
+                    </span>
+                    <strong class="ambiental-empresa-banner__name">
+                      {{ esVistaTodasEmpresas ? 'Todas las empresas' : (metaSpF28.nombre_empresa || '—') }}
+                    </strong>
+                    <span class="ambiental-empresa-banner__rfc" *ngIf="!esVistaTodasEmpresas && empresaSeleccionada?.rfc">
+                      RFC {{ empresaSeleccionada?.rfc }}
+                    </span>
+                    <span class="ambiental-empresa-banner__rfc" *ngIf="esVistaTodasEmpresas">
+                      {{ empresasRegistradas.length }} empresas · {{ dashTotalTramites }} trámites
+                    </span>
+                  </div>
+                  <div class="ambiental-empresa-banner__actions">
+                    <span class="ambiental-banner-chip ambiental-banner-chip--warn"
+                          *ngIf="cambiosPendientesSpF28 && !esVistaTodasEmpresas">
+                      <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+                      Cambios sin guardar
+                    </span>
+                    <span class="ambiental-banner-chip"
+                          *ngIf="spF28UltimaSync && !cambiosPendientesSpF28 && !esVistaTodasEmpresas">
+                      <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                      Sync: {{ formatearUltimaSync(spF28UltimaSync) }}
+                    </span>
+                    <span class="ambiental-banner-chip" *ngIf="esVistaTodasEmpresas">
+                      <i class="fas fa-layer-group" aria-hidden="true"></i>
+                      Vista consolidada
+                    </span>
+                    <button type="button" class="ambiental-banner-btn ambiental-banner-btn--ghost"
+                            [disabled]="driveSyncGuardando || cargandoTramites || esVistaTodasEmpresas"
+                            [title]="esVistaTodasEmpresas ? 'Selecciona una empresa para guardar' : ''"
+                            (click)="guardarInformacionSpF28()">
+                      <i class="fas" [ngClass]="driveSyncGuardando ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                      Guardar información
+                    </button>
+                    <button type="button" class="ambiental-banner-btn ambiental-banner-btn--solid"
+                            [disabled]="!spF28DriveFileId || cargandoTramites || esVistaTodasEmpresas"
+                            [title]="esVistaTodasEmpresas ? 'Selecciona una empresa para abrir el editor' : ''"
+                            (click)="toggleEditorSpF28()">
+                      <i class="fas fa-pen"></i>
+                      Abrir editor integrado
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="ambiental-format__toolbar">
+                <div class="ambiental-format__filters">
+                  <div class="ambiental-search ambiental-search--inline">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Buscar oficio, acción u observaciones..."
+                           [(ngModel)]="busquedaTramites" (ngModelChange)="filtrarTramites()" autocomplete="off">
+                  </div>
+
+                  <div class="ambiental-combo ambiental-combo--sm ambiental-combo--estatus"
+                       [class.ambiental-combo--open]="comboAbierto === 'filtroEstatus'">
+                    <button type="button" class="ambiental-combo__trigger"
+                            (click)="toggleCombo('filtroEstatus', $event)"
+                            [attr.aria-expanded]="comboAbierto === 'filtroEstatus'">
+                      <i class="fas fa-tasks ambiental-combo__lead" aria-hidden="true"></i>
+                      <span class="ambiental-combo__label">{{ etiquetaFiltroEstatus }}</span>
+                      <i class="fas fa-chevron-down ambiental-combo__caret" aria-hidden="true"></i>
+                    </button>
+                    <ul class="ambiental-combo__menu" *ngIf="comboAbierto === 'filtroEstatus'" role="listbox">
+                      <li role="option"
+                          [class.ambiental-combo__item--active]="filtroEstatus === ''"
+                          (mousedown)="seleccionarFiltroEstatus('')">Todos los estatus</li>
+                      <li role="option"
+                          [class.ambiental-combo__item--active]="filtroEstatus === 'abierto'"
+                          (mousedown)="seleccionarFiltroEstatus('abierto')">Abierto</li>
+                      <li role="option"
+                          [class.ambiental-combo__item--active]="filtroEstatus === 'cerrado'"
+                          (mousedown)="seleccionarFiltroEstatus('cerrado')">Cerrado</li>
+                    </ul>
+                  </div>
+
+                  <div class="ambiental-combo ambiental-combo--sm ambiental-combo--responsable"
+                       [class.ambiental-combo--open]="comboAbierto === 'filtroResponsable'">
+                    <button type="button" class="ambiental-combo__trigger"
+                            (click)="toggleCombo('filtroResponsable', $event)"
+                            [attr.aria-expanded]="comboAbierto === 'filtroResponsable'">
+                      <i class="fas fa-user-check ambiental-combo__lead" aria-hidden="true"></i>
+                      <span class="ambiental-combo__label">{{ etiquetaFiltroResponsable }}</span>
+                      <i class="fas fa-chevron-down ambiental-combo__caret" aria-hidden="true"></i>
+                    </button>
+                    <ul class="ambiental-combo__menu" *ngIf="comboAbierto === 'filtroResponsable'" role="listbox">
+                      <li role="option"
+                          [class.ambiental-combo__item--active]="filtroResponsable === ''"
+                          (mousedown)="seleccionarFiltroResponsable('')">Todos los responsables</li>
+                      <li role="option"
+                          [class.ambiental-combo__item--active]="filtroResponsable === 'Biznaga'"
+                          (mousedown)="seleccionarFiltroResponsable('Biznaga')">Biznaga</li>
+                      <li role="option"
+                          [class.ambiental-combo__item--active]="filtroResponsable === 'Cliente'"
+                          (mousedown)="seleccionarFiltroResponsable('Cliente')">Cliente</li>
+                    </ul>
+                  </div>
+
+                  <div class="ambiental-combo ambiental-combo--sm ambiental-combo--consultor"
+                       *ngIf="!esVistaTodasEmpresas"
+                       [class.ambiental-combo--open]="comboAbierto === 'consultor'"
+                       [class.ambiental-combo--disabled]="!puedeEditar">
+                    <button type="button" class="ambiental-combo__trigger"
+                            [disabled]="!puedeEditar"
+                            (click)="toggleCombo('consultor', $event)"
+                            [attr.aria-expanded]="comboAbierto === 'consultor'">
+                      <i class="fas fa-user-tie ambiental-combo__lead" aria-hidden="true"></i>
+                      <span class="ambiental-combo__label">{{ etiquetaConsultor }}</span>
+                      <i class="fas fa-chevron-down ambiental-combo__caret" aria-hidden="true"></i>
+                    </button>
+                    <ul class="ambiental-combo__menu ambiental-combo__menu--scroll" *ngIf="comboAbierto === 'consultor'" role="listbox">
+                      <li role="option"
+                          [class.ambiental-combo__item--active]="!metaSpF28.nombre_consultor"
+                          (mousedown)="seleccionarConsultor('')">Sin asignar</li>
+                      <li *ngIf="metaSpF28.nombre_consultor && !consultores.includes(metaSpF28.nombre_consultor)"
+                          role="option"
+                          class="ambiental-combo__item--active"
+                          (mousedown)="seleccionarConsultor(metaSpF28.nombre_consultor)">
+                        {{ metaSpF28.nombre_consultor }}
+                      </li>
+                      <li *ngFor="let c of consultores" role="option"
+                          [class.ambiental-combo__item--active]="metaSpF28.nombre_consultor === c"
+                          (mousedown)="seleccionarConsultor(c)">{{ c }}</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+            <div class="ambiental-format__body">
+              <div *ngIf="cargandoTramites" class="ambiental-state ambiental-state--loading py-5">
+                <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                <p class="text-muted mt-2 mb-0">Cargando trámites…</p>
+              </div>
+
+              <div *ngIf="!cargandoTramites && tramitesEdit.length === 0" class="ambiental-state py-5">
+                <i class="fas fa-inbox fa-2x text-muted"></i>
+                <p class="text-muted mt-2 mb-2">
+                  {{ esVistaTodasEmpresas ? 'No hay trámites registrados en ninguna empresa.' : 'No hay trámites registrados para esta empresa.' }}
+                </p>
+                <button *ngIf="puedeEditar && !esVistaTodasEmpresas" type="button" class="ambiental-add-row__btn ambiental-add-row__btn--standalone"
+                        (click)="abrirModalTramite()">
+                  <i class="fas fa-plus" aria-hidden="true"></i> Agregar trámite
+                </button>
+              </div>
+
+              <div class="ambiental-format-table-wrap" *ngIf="!cargandoTramites && tramitesEdit.length > 0">
+                <table class="ambiental-format-table"
+                       [class.ambiental-format-table--todas]="esVistaTodasEmpresas">
+                  <thead>
+                    <tr>
+                      <th class="col-item">Ítem</th>
+                      <th class="col-oficio">Oficio / Asunto / Requisito</th>
+                      <th class="col-empresa" *ngIf="esVistaTodasEmpresas">Empresa</th>
+                      <th class="col-accion">Actividades realizadas</th>
+                      <th class="col-resp">Responsable(s)</th>
+                      <th class="col-fecha">Fecha límite</th>
+                      <th class="col-estatus">Estatus</th>
+                      <th class="col-obs">Observaciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let t of tramitesPaginados; trackBy: trackByTramiteId"
+                        class="ambiental-format-row"
+                        [class.ambiental-format-row--clickable]="puedeEditar"
+                        [class.is-vencido]="esVencido(t)"
+                        [class.is-selected]="tramiteSeleccionado?.tramite_id === t.tramite_id"
+                        [attr.title]="puedeEditar ? 'Clic para editar' : null"
+                        (click)="seleccionarTramite(t)">
+                      <td class="col-item"><span class="ambiental-num">{{ t.item }}</span></td>
+                      <td class="col-oficio">
+                        <span class="ambiental-cell-text ambiental-cell-text--oficio">{{ t.oficio || '—' }}</span>
+                      </td>
+                      <td class="col-empresa" *ngIf="esVistaTodasEmpresas" [title]="nombreEmpresaTramite(t)">
+                        <span class="ambiental-empresa-cell">{{ nombreEmpresaTramite(t) }}</span>
+                      </td>
+                      <td class="col-accion">
+                        <span class="ambiental-cell-text">{{ t.accion_realizar || '—' }}</span>
+                      </td>
+                      <td class="col-resp">
+                        <span class="ambiental-resp-badge"
+                              [class.ambiental-resp-badge--biznaga]="t.responsable === 'Biznaga'"
+                              [class.ambiental-resp-badge--cliente]="t.responsable === 'Cliente'">
+                          {{ t.responsable }}
+                        </span>
+                      </td>
+                      <td class="col-fecha" [class.text-danger]="esVencido(t)">
+                        {{ formatearFecha(t.fecha_vencimiento) }}
+                      </td>
+                      <td class="col-estatus">
+                        <span class="ambiental-status"
+                              [class.ambiental-status--abierto]="t.estatus === 'abierto'"
+                              [class.ambiental-status--cerrado]="t.estatus === 'cerrado'">
+                          {{ t.estatus === 'abierto' ? 'Abierto' : 'Cerrado' }}
+                        </span>
+                      </td>
+                      <td class="col-obs">
+                        <span class="ambiental-cell-text">{{ t.observaciones || '—' }}</span>
+                      </td>
+                    </tr>
+                    <tr *ngIf="puedeEditar && !esVistaTodasEmpresas" class="ambiental-add-row">
+                      <td [attr.colspan]="esVistaTodasEmpresas ? 8 : 7">
+                        <button type="button" class="ambiental-add-row__btn" (click)="abrirModalTramite()">
+                          <i class="fas fa-plus" aria-hidden="true"></i> Agregar trámite
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="ambiental-pagination ambiental-pagination--table" *ngIf="!cargandoTramites && tramitesEdit.length > pageSize">
+                <button type="button" class="ambiental-pagination__btn" [disabled]="paginaTramites <= 1"
+                        (click)="irPaginaTramites(paginaTramites - 1)">
+                  <i class="fas fa-chevron-left"></i>
+                </button>
+                <span class="ambiental-pagination__label">
+                  Página {{ paginaTramites }} / {{ totalPaginasTramites }}
+                  <small>({{ pageSize }} por página · {{ tramitesEdit.length }} registros)</small>
+                </span>
+                <button type="button" class="ambiental-pagination__btn"
+                        [disabled]="paginaTramites >= totalPaginasTramites"
+                        (click)="irPaginaTramites(paginaTramites + 1)">
+                  <i class="fas fa-chevron-right"></i>
+                </button>
+              </div>
+            </div>
+            </ng-container>
+          </div>
+        </ng-container>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Visor expandido -->
+<div class="ambiental-visor-backdrop" *ngIf="visorExpandido" (click)="toggleVisorExpandido()"></div>
+<div class="ambiental-visor-full" *ngIf="visorExpandido && documentoPreviewUrl">
+  <div class="ambiental-visor-full__header">
+    <strong>{{ documentoPreviewNombre }}</strong>
+    <button type="button" class="ambiental-visor-full__close" (click)="toggleVisorExpandido()">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+  <img *ngIf="esImagenPreview" class="ambiental-visor-full__img" [src]="documentoPreviewUrl | safe" [alt]="documentoPreviewNombre">
+  <iframe *ngIf="!esImagenPreview" class="ambiental-visor-full__embed" [src]="documentoPreviewUrl | safe" [title]="documentoPreviewNombre"></iframe>
+</div>
+
+<!-- Editor integrado SP-F-15 -->
+<div class="ambiental-drive-editor ambiental-drive-editor--fullscreen ambiental-drive-editor--oficios" *ngIf="mostrarEditorSpF15" role="dialog" aria-modal="true" aria-label="Editor integrado SP-F-15">
+  <div class="ambiental-drive-editor__backdrop" (click)="cerrarEditorSpF15()"></div>
+  <div class="ambiental-drive-editor__panel">
+    <div class="ambiental-drive-editor__head">
+      <div class="ambiental-drive-editor__title-wrap">
+        <span class="ambiental-drive-editor__icon"><i class="fas fa-th"></i></span>
+        <div>
+          <strong class="ambiental-drive-editor__title">Editor integrado del formato</strong>
+          <small class="ambiental-drive-editor__subtitle">SP-F-15 · Control de oficios · Usa «Guardar información» para sincronizar</small>
+        </div>
+      </div>
+      <div class="ambiental-drive-editor__head-actions">
+        <button class="ambiental-btn ambiental-btn--save ambiental-btn--xs" type="button"
+                [disabled]="driveSyncGuardando" (click)="guardarInformacionSpF15()">
+          <i class="fas mr-1" [ngClass]="driveSyncGuardando ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+          Guardar información
+        </button>
+        <button class="ambiental-btn ambiental-btn--ghost-on-dark ambiental-btn--xs" type="button" (click)="cerrarEditorSpF15()">
+          <i class="fas fa-times mr-1"></i> Volver al formato
+        </button>
+      </div>
+    </div>
+    <div class="ambiental-drive-editor__ribbon" role="toolbar" aria-label="Herramientas del editor SP-F-15">
+      <div class="ambiental-drive-editor__ribbon-group">
+        <span class="ambiental-drive-editor__ribbon-label">Archivo</span>
+        <button type="button" class="ambiental-drive-editor__ribbon-btn"
+                [disabled]="driveSyncGuardando" (click)="guardarInformacionSpF15()" title="Guardar en BD y Drive">
+          <i class="fas fa-save"></i><span>Guardar</span>
+        </button>
+        <button type="button" class="ambiental-drive-editor__ribbon-btn"
+                (click)="abrirEditorSpF15EnPestana()" title="Abrir en Google Sheets">
+          <i class="fas fa-external-link-alt"></i><span>Abrir en Sheets</span>
+        </button>
+      </div>
+      <div class="ambiental-drive-editor__ribbon-group">
+        <span class="ambiental-drive-editor__ribbon-label">Edición</span>
+        <button type="button" class="ambiental-drive-editor__ribbon-btn"
+                [disabled]="driveSyncGuardando" (click)="guardarInformacionSpF15()" title="Importar cambios desde la hoja">
+          <i class="fas fa-sync-alt"></i><span>Sincronizar</span>
+        </button>
+      </div>
+      <div class="ambiental-drive-editor__ribbon-group">
+        <span class="ambiental-drive-editor__ribbon-label">Vista</span>
+        <button type="button" class="ambiental-drive-editor__ribbon-btn" (click)="ajustarZoomEditorSpF15(-10)" title="Reducir zoom">
+          <i class="fas fa-search-minus"></i>
+        </button>
+        <button type="button" class="ambiental-drive-editor__ribbon-btn ambiental-drive-editor__ribbon-btn--zoom"
+                (click)="resetZoomEditorSpF15()" title="Restablecer zoom">
+          {{ editorSpF15Zoom }}%
+        </button>
+        <button type="button" class="ambiental-drive-editor__ribbon-btn" (click)="ajustarZoomEditorSpF15(10)" title="Aumentar zoom">
+          <i class="fas fa-search-plus"></i>
+        </button>
+      </div>
+    </div>
+    <div class="ambiental-drive-editor__body">
+      <div class="ambiental-drive-editor__loading" *ngIf="editorSpF15Cargando">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>Cargando plantilla en Drive…</span>
+      </div>
+      <div class="ambiental-drive-editor__iframe-scaler" [style.zoom]="editorSpF15Zoom / 100">
+        <iframe *ngIf="spF15EditorEmbedSafe" class="ambiental-drive-editor__iframe"
+                [src]="spF15EditorEmbedSafe" title="SP-F-15 en Google Drive"
+                (load)="onEditorSpF15Load()"
+                allow="clipboard-read; clipboard-write"
+                sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-popups-to-escape-sandbox">
+        </iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Editor integrado SP-F-28 -->
+<div class="ambiental-drive-editor ambiental-drive-editor--fullscreen" *ngIf="mostrarEditorSpF28" role="dialog" aria-modal="true" aria-label="Editor integrado SP-F-28">
+  <div class="ambiental-drive-editor__backdrop" (click)="cerrarEditorSpF28()"></div>
+  <div class="ambiental-drive-editor__panel">
+    <div class="ambiental-drive-editor__head">
+      <div class="ambiental-drive-editor__title-wrap">
+        <span class="ambiental-drive-editor__icon"><i class="fas fa-th"></i></span>
+        <div>
+          <strong class="ambiental-drive-editor__title">Editor integrado del formato</strong>
+          <small class="ambiental-drive-editor__subtitle">SP-F-28 · Estatus de trámites</small>
+        </div>
+      </div>
+      <div class="ambiental-drive-editor__head-actions">
+        <button class="ambiental-btn ambiental-btn--save ambiental-btn--xs" type="button"
+                [disabled]="driveSyncGuardando" (click)="guardarInformacionSpF28()">
+          <i class="fas mr-1" [ngClass]="driveSyncGuardando ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+          Guardar información
+        </button>
+        <button class="ambiental-btn ambiental-btn--ghost-on-dark ambiental-btn--xs" type="button" (click)="cerrarEditorSpF28()">
+          <i class="fas fa-times mr-1"></i> Volver al formato
+        </button>
+      </div>
+    </div>
+    <div class="ambiental-drive-editor__body">
+      <div class="ambiental-drive-editor__loading" *ngIf="editorSpF28Cargando">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>Cargando plantilla en Drive…</span>
+      </div>
+      <div class="ambiental-drive-editor__iframe-scaler" [style.zoom]="editorSpF28Zoom / 100">
+        <iframe *ngIf="spF28EditorEmbedSafe" class="ambiental-drive-editor__iframe"
+                [src]="spF28EditorEmbedSafe" title="SP-F-28 en Google Drive"
+                (load)="onEditorSpF28Load()"
+                allow="clipboard-read; clipboard-write"
+                sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-popups-to-escape-sandbox">
+        </iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Oficio -->
+<div class="ambiental-oficio-backdrop" *ngIf="modalOficioAbierto" (click)="cerrarModalOficio()" aria-hidden="true"></div>
+<div class="ambiental-oficio-modal" *ngIf="modalOficioAbierto" role="dialog" aria-modal="true" aria-labelledby="modal-oficio-title">
+  <header class="ambiental-oficio-modal__hero">
+    <div class="ambiental-oficio-modal__hero-bg" aria-hidden="true"></div>
+    <div class="ambiental-oficio-modal__hero-content">
+      <div class="ambiental-oficio-modal__badge">
+        <i class="fas fa-file-alt"></i>
+        <span>SP-F-15 · REV 01</span>
+      </div>
+      <div class="ambiental-oficio-modal__hero-text">
+        <h2 id="modal-oficio-title" class="ambiental-oficio-modal__title">
+          {{ editandoOficio ? 'Editar oficio' : 'Nuevo oficio' }}
+        </h2>
+        <p class="ambiental-oficio-modal__subtitle">Control de oficios · Sistema de Gestión de Calidad</p>
+      </div>
+      <button type="button" class="ambiental-oficio-modal__close" (click)="cerrarModalOficio()" aria-label="Cerrar">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  </header>
+
+  <div class="ambiental-oficio-modal__form">
+    <div class="ambiental-oficio-modal__deco" aria-hidden="true"></div>
+
+    <div class="ambiental-oficio-modal__body">
+      <div class="ambiental-oficio-modal__inner">
+        <section class="ambiental-oficio-card">
+          <header class="ambiental-oficio-card__head">
+            <div>
+              <p class="ambiental-oficio-card__eyebrow">Registro documental</p>
+              <h3 class="ambiental-oficio-card__title">Datos del oficio</h3>
+            </div>
+            <div class="ambiental-oficio-card__hero">
+              <i class="fas fa-folder-open"></i>
+            </div>
+          </header>
+
+          <div class="ambiental-oficio-layout">
+            <div class="ambiental-oficio-folio-chip">
+              <span class="ambiental-oficio-folio-chip__label">
+                <i class="fas fa-hashtag"></i>
+                Número de oficio
+              </span>
+              <input type="number" class="ambiental-oficio-folio-chip__input" min="1"
+                     [(ngModel)]="formOficio.numero_oficio" placeholder="Ej. 134">
+            </div>
+
+            <label class="ambiental-oficio-field ambiental-oficio-field--wide">
+              <span class="ambiental-oficio-field__label"><i class="fas fa-building"></i> Empresa</span>
+              <div class="ambiental-oficio-field__control">
+                <input type="text" [(ngModel)]="formOficio.empresa" maxlength="255" placeholder="Nombre de la empresa" autocomplete="off">
+              </div>
+            </label>
+
+            <label class="ambiental-oficio-field ambiental-oficio-field--wide">
+              <span class="ambiental-oficio-field__label"><i class="fas fa-align-left"></i> Motivo</span>
+              <div class="ambiental-oficio-field__control ambiental-oficio-field__control--textarea">
+                <textarea [(ngModel)]="formOficio.motivo" maxlength="500" rows="3"
+                          placeholder="Descripción o motivo del oficio"></textarea>
+              </div>
+            </label>
+
+            <div class="ambiental-oficio-field ambiental-oficio-field--wide">
+              <span class="ambiental-oficio-field__label">
+                <i class="fas fa-paperclip"></i> Anexo <small>(opcional)</small>
+              </span>
+              <div class="ambiental-oficio-file">
+                <label class="ambiental-oficio-file__btn">
+                  <i class="fas fa-upload"></i>
+                  <span>{{ anexoOficioSeleccionado || anexoOficioNombreActual ? 'Cambiar archivo' : 'Seleccionar archivo' }}</span>
+                  <input #inputAnexoOficio type="file" class="ambiental-oficio-file__input" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                         (change)="onAnexoOficioSeleccionado($event)">
+                </label>
+                <p class="ambiental-oficio-file__hint" *ngIf="anexoOficioNombreActual">
+                  <i class="fas fa-file-alt"></i> {{ anexoOficioNombreActual }}
+                  <button type="button" class="ambiental-oficio-file__clear" *ngIf="anexoOficioSeleccionado"
+                          (click)="quitarAnexoOficioSeleccionado(inputAnexoOficio)" title="Quitar selección">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </p>
+                <p class="ambiental-oficio-file__note">PDF, imagen o Word. Se guardará en Drive con el nombre Empresa_Nº_Fecha.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <footer class="ambiental-oficio-modal__actions">
+      <p class="ambiental-oficio-modal__footnote">
+        <i class="fas fa-info-circle"></i>
+        Los campos de empresa y motivo son recomendados para el registro
+      </p>
+      <div class="ambiental-oficio-modal__buttons">
+        <button type="button" class="ambiental-oficio-btn ambiental-oficio-btn--ghost" (click)="cerrarModalOficio()">
+          <i class="fas fa-times"></i> Cancelar
+        </button>
+        <button type="button" class="ambiental-oficio-btn ambiental-oficio-btn--primary"
+                [disabled]="guardando" (click)="guardarOficio()">
+          <i class="fas" [ngClass]="guardando ? 'fa-spinner fa-spin' : 'fa-save'"></i> Guardar
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<!-- Modal editar trámite SP-F-28 -->
+<div class="amb-tram-edit-overlay" *ngIf="modalTramiteAbierto"
+     (click)="cerrarModalTramite()" role="dialog" aria-modal="true"
+     [attr.aria-label]="editandoTramite ? 'Editar trámite ambiental' : 'Nuevo trámite ambiental'">
+  <div class="amb-tram-edit-modal"
+       [class.is-document-viewer-open]="visorDocumentoTramiteAbierto"
+       (click)="$event.stopPropagation()">
+    <div class="amb-tram-edit-header">
+      <div class="amb-tram-edit-header__bg" aria-hidden="true"></div>
+      <div class="amb-tram-edit-header__content">
+        <div class="amb-tram-edit-header__badge">
+          <i class="fas fa-edit"></i>
+          <span>SP-F-28</span>
+        </div>
+        <div>
+          <h5 class="amb-tram-edit-header__title" id="modal-tramite-title">
+            {{ editandoTramite ? 'Editar registro de trámite' : 'Nuevo trámite' }}
+          </h5>
+          <p class="amb-tram-edit-header__sub">Control de estatus de trámites · actualiza oficio, actividades y fechas</p>
+        </div>
+      </div>
+      <button type="button" class="amb-tram-edit-close" (click)="cerrarModalTramite()"
+              [disabled]="guardando || eliminandoTramite" aria-label="Cerrar">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="amb-tram-edit-form">
+      <div class="amb-tram-edit-deco" aria-hidden="true"></div>
+      <div class="amb-tram-edit-body">
+        <div class="amb-tram-edit-summary">
+          <div class="amb-tram-edit-summary__left">
+            <span class="amb-tram-edit-summary__label">Registro SP-F-28</span>
+            <span class="amb-tram-edit-summary__item" *ngIf="formTramite.item">
+              Ítem {{ formTramite.item }}
+            </span>
+            <span class="amb-tram-edit-summary__empresa"
+                  *ngIf="editandoTramite && (esVistaTodasEmpresas || editandoTramite.empresa_nombre)"
+                  [title]="nombreEmpresaTramite(editandoTramite)">
+              <i class="fas fa-building" aria-hidden="true"></i>
+              {{ nombreEmpresaTramite(editandoTramite) }}
+            </span>
+          </div>
+          <span class="ambiental-status amb-tram-edit-status"
+                [class.ambiental-status--abierto]="formTramite.estatus === 'abierto'"
+                [class.ambiental-status--cerrado]="formTramite.estatus === 'cerrado'">
+            {{ etiquetaEstatusTramite(formTramite.estatus) }}
+          </span>
+        </div>
+
+        <div class="amb-tram-form-layout">
+          <section class="amb-tram-form-section" aria-labelledby="tramite-datos-title">
+            <header class="amb-tram-form-section__head">
+              <span class="amb-tram-form-section__icon"><i class="fas fa-folder-open" aria-hidden="true"></i></span>
+              <div>
+                <h4 id="tramite-datos-title">Datos del trámite</h4>
+                <p>Identifica el asunto, responsable y plazo de atención.</p>
+              </div>
+            </header>
+
+            <div class="amb-tram-edit-grid amb-tram-edit-grid--details">
+              <label class="amb-tram-edit-field amb-tram-edit-field--oficio">
+                <span class="amb-tram-edit-field__label"><i class="fas fa-file-alt"></i> Oficio / Asunto / Requisito</span>
+                <div class="amb-tram-field-box amb-tram-field-box--area amb-tram-field-box--oficio">
+                  <textarea name="tramite_oficio" rows="3" class="amb-tram-field-box__textarea"
+                            [(ngModel)]="formTramite.oficio"
+                            placeholder="Nombre del oficio, asunto o requisito. Pulsa Enter para un salto de línea."></textarea>
+                </div>
+              </label>
+
+              <div class="amb-tram-edit-field amb-tram-edit-field--responsable">
+                <span class="amb-tram-edit-field__label"><i class="fas fa-user-tie"></i> Responsable</span>
+                <div class="ambiental-combo ambiental-combo--form"
+                     [class.ambiental-combo--open]="comboAbierto === 'tramiteResponsable'">
+                  <button type="button" class="ambiental-combo__trigger"
+                          (click)="toggleCombo('tramiteResponsable', $event)"
+                          [attr.aria-expanded]="comboAbierto === 'tramiteResponsable'">
+                    <i class="fas fa-user-tie ambiental-combo__lead" aria-hidden="true"></i>
+                    <span class="ambiental-combo__label">{{ formTramite.responsable }}</span>
+                    <i class="fas fa-chevron-down ambiental-combo__caret" aria-hidden="true"></i>
+                  </button>
+                  <ul class="ambiental-combo__menu" *ngIf="comboAbierto === 'tramiteResponsable'" role="listbox">
+                    <li *ngFor="let r of responsables" role="option"
+                        [class.ambiental-combo__item--active]="formTramite.responsable === r"
+                        (mousedown)="seleccionarTramiteResponsable(r)">{{ r }}</li>
+                  </ul>
+                </div>
+              </div>
+
+              <label class="amb-tram-edit-field amb-tram-edit-field--fecha">
+                <span class="amb-tram-edit-field__label">
+                  <i class="fas fa-calendar-alt"></i> Fecha límite <em>(opcional)</em>
+                </span>
+                <div class="amb-tram-field-box amb-tram-field-box--date">
+                  <i class="fas fa-calendar-alt amb-tram-field-box__lead" aria-hidden="true"></i>
+                  <input type="date" name="tramite_fecha" class="amb-tram-field-box__input"
+                         [(ngModel)]="formTramite.fecha_vencimiento">
+                </div>
+              </label>
+
+              <div class="amb-tram-edit-field amb-tram-edit-field--clasificacion">
+                <span class="amb-tram-edit-field__label">
+                  <i class="fas fa-tags"></i> Clasificación <em>(opcional)</em>
+                </span>
+                <div class="ambiental-combo ambiental-combo--form"
+                     [class.ambiental-combo--open]="comboAbierto === 'tramiteClasificacion'">
+                  <button type="button" class="ambiental-combo__trigger"
+                          (click)="toggleCombo('tramiteClasificacion', $event)"
+                          [attr.aria-expanded]="comboAbierto === 'tramiteClasificacion'">
+                    <i class="fas fa-tags ambiental-combo__lead" aria-hidden="true"></i>
+                    <span class="ambiental-combo__label">{{ etiquetaClasificacionTramite(formTramite.clasificacion) }}</span>
+                    <i class="fas fa-chevron-down ambiental-combo__caret" aria-hidden="true"></i>
+                  </button>
+                  <ul class="ambiental-combo__menu" *ngIf="comboAbierto === 'tramiteClasificacion'" role="listbox">
+                    <li role="option"
+                        [class.ambiental-combo__item--active]="!formTramite.clasificacion"
+                        (mousedown)="seleccionarTramiteClasificacion('')">Sin clasificación</li>
+                    <li *ngFor="let c of clasificacionesTramite" role="option"
+                        [class.ambiental-combo__item--active]="formTramite.clasificacion === c"
+                        (mousedown)="seleccionarTramiteClasificacion(c)">{{ c }}</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="amb-tram-edit-field amb-tram-edit-field--estatus">
+                <span class="amb-tram-edit-field__label"><i class="fas fa-flag"></i> Estatus</span>
+                <div class="ambiental-combo ambiental-combo--form"
+                     [class.ambiental-combo--open]="comboAbierto === 'tramiteEstatus'">
+                  <button type="button" class="ambiental-combo__trigger"
+                          (click)="toggleCombo('tramiteEstatus', $event)"
+                          [attr.aria-expanded]="comboAbierto === 'tramiteEstatus'">
+                    <i class="fas fa-flag ambiental-combo__lead" aria-hidden="true"></i>
+                    <span class="ambiental-combo__label">{{ etiquetaEstatusTramite(formTramite.estatus) }}</span>
+                    <i class="fas fa-chevron-down ambiental-combo__caret" aria-hidden="true"></i>
+                  </button>
+                  <ul class="ambiental-combo__menu" *ngIf="comboAbierto === 'tramiteEstatus'" role="listbox">
+                    <li role="option"
+                        [class.ambiental-combo__item--active]="formTramite.estatus === 'abierto'"
+                        (mousedown)="seleccionarTramiteEstatus('abierto')">Abierto</li>
+                    <li role="option"
+                        [class.ambiental-combo__item--active]="formTramite.estatus === 'cerrado'"
+                        (mousedown)="seleccionarTramiteEstatus('cerrado')">Cerrado</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="amb-tram-form-section amb-tram-form-section--notes" aria-labelledby="tramite-seguimiento-title">
+            <header class="amb-tram-form-section__head">
+              <span class="amb-tram-form-section__icon amb-tram-form-section__icon--notes"><i class="fas fa-clipboard-check" aria-hidden="true"></i></span>
+              <div>
+                <h4 id="tramite-seguimiento-title">Seguimiento</h4>
+                <p>Registra la acción realizada y cualquier contexto útil.</p>
+              </div>
+            </header>
+
+            <div class="amb-tram-edit-grid amb-tram-edit-grid--notes">
+              <label class="amb-tram-edit-field amb-tram-edit-field--accion">
+                <span class="amb-tram-edit-field__label"><i class="fas fa-clipboard-list"></i> Actividades realizadas</span>
+                <div class="amb-tram-field-box amb-tram-field-box--area">
+                  <textarea name="tramite_accion" rows="5" class="amb-tram-field-box__textarea"
+                            [(ngModel)]="formTramite.accion_realizar"
+                            placeholder="Describe las actividades realizadas o la acción pendiente"></textarea>
+                </div>
+              </label>
+
+              <label class="amb-tram-edit-field amb-tram-edit-field--obs">
+                <span class="amb-tram-edit-field__label"><i class="fas fa-comment-alt"></i> Observaciones <em>(opcional)</em></span>
+                <div class="amb-tram-field-box amb-tram-field-box--area">
+                  <textarea name="tramite_obs" rows="5" class="amb-tram-field-box__textarea"
+                            [(ngModel)]="formTramite.observaciones"
+                            placeholder="Agrega notas, acuerdos o información relevante"></textarea>
+                </div>
+              </label>
+            </div>
+          </section>
+          <section class="amb-tram-form-section amb-tram-form-section--documents" aria-labelledby="tramite-documentos-title">
+            <header class="amb-tram-form-section__head">
+              <span class="amb-tram-form-section__icon amb-tram-form-section__icon--documents"><i class="fas fa-paperclip" aria-hidden="true"></i></span>
+              <div>
+                <h4 id="tramite-documentos-title">Documental</h4>
+                <p>Agrega anexos individuales; se cargarán al guardar el trámite.</p>
+              </div>
+              <button type="button" class="amb-tram-control-link"
+                      *ngIf="tramiteActualTieneDocumentacion"
+                      (click)="irAControlTramite()"
+                      aria-label="Mostrar en Control de Trámites">
+                <i class="fas fa-eye" aria-hidden="true"></i>
+                <span>Mostrar en Control de Trámites</span>
+              </button>
+            </header>
+
+            <div class="amb-tram-docs">
+              <article class="amb-tram-docs__card" id="tramite-documento-panel">
+                <header class="amb-tram-docs__head">
+                  <span class="amb-tram-docs__icon" aria-hidden="true"><i class="fas fa-file-alt"></i></span>
+                  <div class="amb-tram-docs__titles">
+                    <h4>Documento</h4>
+                    <p>Oficio, anexos y documentación soporte.</p>
+                  </div>
+                  <details class="amb-tram-docs__help">
+                    <summary aria-label="Información para cargar documentos">
+                      <i class="fas fa-info" aria-hidden="true"></i>
+                    </summary>
+                    <span role="tooltip">Selecciona uno o varios documentos. Se cargarán automáticamente al guardar el trámite.</span>
+                  </details>
+                </header>
+                <div class="amb-tram-docs__body">
+                  <app-ambiental-tramite-archivos-panel
+                    [tramiteId]="editandoTramite?.tramite_id || null"
+                    ambito="documento"
+                    [oficio]="formTramite.oficio"
+                    [compact]="true"
+                    [soloResumen]="true"
+                    (visorAbiertoChange)="visorDocumentoTramiteAbierto = $event"
+                    (archivosCambiaron)="onArchivosTramiteCambiaron()">
+                  </app-ambiental-tramite-archivos-panel>
+                </div>
+              </article>
+
+              <article class="amb-tram-docs__card" id="tramite-contestacion-panel">
+                <header class="amb-tram-docs__head">
+                  <span class="amb-tram-docs__icon amb-tram-docs__icon--reply" aria-hidden="true"><i class="fas fa-reply"></i></span>
+                  <div class="amb-tram-docs__titles">
+                    <h4>Contestación</h4>
+                    <p>Respuesta, acuse o evidencia de seguimiento.</p>
+                  </div>
+                  <details class="amb-tram-docs__help">
+                    <summary aria-label="Información para cargar contestaciones">
+                      <i class="fas fa-info" aria-hidden="true"></i>
+                    </summary>
+                    <span role="tooltip">Selecciona uno o varios documentos. Se cargarán automáticamente al guardar el trámite.</span>
+                  </details>
+                </header>
+                <div class="amb-tram-docs__body">
+                  <app-ambiental-tramite-archivos-panel
+                    [tramiteId]="editandoTramite?.tramite_id || null"
+                    ambito="contestacion"
+                    [oficio]="formTramite.oficio"
+                    [compact]="true"
+                    [soloResumen]="true"
+                    (visorAbiertoChange)="visorDocumentoTramiteAbierto = $event"
+                    (archivosCambiaron)="onArchivosTramiteCambiaron()">
+                  </app-ambiental-tramite-archivos-panel>
+                </div>
+              </article>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div class="amb-tram-edit-footer">
+      <button type="button" class="amb-tram-edit-delete"
+              *ngIf="editandoTramite"
+              (click)="desactivarTramiteModal()"
+              [disabled]="guardando || eliminandoTramite"
+              [attr.title]="eliminandoTramite ? 'Eliminando...' : 'Eliminar trámite'"
+              aria-label="Eliminar trámite">
+        <i class="fas" [ngClass]="eliminandoTramite ? 'fa-spinner fa-spin' : 'fa-trash-alt'"></i>
+        <span class="amb-tram-edit-delete__label">{{ eliminandoTramite ? 'Eliminando...' : 'Eliminar trámite' }}</span>
+      </button>
+      <div class="amb-tram-edit-actions">
+        <button type="button" class="amb-tram-edit-btn amb-tram-edit-btn--ghost amb-tram-edit-btn--sm"
+                (click)="cerrarModalTramite()" [disabled]="guardando || eliminandoTramite">
+          <i class="fas fa-times"></i> Cancelar
+        </button>
+        <button type="button" class="amb-tram-edit-btn amb-tram-edit-btn--primary amb-tram-edit-btn--sm"
+                (click)="guardarTramite()" [disabled]="guardando || eliminandoTramite">
+          <i class="fas" [ngClass]="guardando ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+          {{ guardando ? 'Guardando...' : 'Guardar' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

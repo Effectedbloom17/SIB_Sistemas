@@ -1,0 +1,455 @@
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2 pc-header-icon">
+            <i class="fas fa-file-contract"></i>
+          </div>
+          <h1 class="text-white mb-0 pc-header-title">Control de Resolutivos PIPC</h1>
+          <small class="text-white-50 mt-1">Formato SP-F-29</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5 control-resolutivos-page" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+  <div class="row justify-content-center">
+    <div class="col-xl-12">
+
+      <!-- Documento oficial -->
+      <div class="card border-0 pc-control-card mb-4">
+        <div class="card-header border-0 pc-control-card__header">
+          <div class="d-flex align-items-center justify-content-between flex-wrap">
+            <div>
+              <span class="pc-section-label">
+                <i class="fas fa-file-excel mr-1"></i> Documento oficial
+              </span>
+              <h2 class="pc-section-title mb-0">Control de Resolutivos PIPC</h2>
+              <small class="text-muted">Formato SP-F-29 · resolutivos y fechas de centro de operaciones</small>
+            </div>
+            <div class="pc-control-actions-wrap mt-2 mt-md-0">
+              <div class="pc-control-actions-row">
+                <button
+                  class="btn btn-sm text-white pc-control-btn pc-control-btn--pdf"
+                  [disabled]="descargandoControl"
+                  (click)="descargarControlPdf()">
+                  <i class="fas" [ngClass]="descargandoControl ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
+                  {{ descargandoControl ? ' Generando...' : ' Descargar control PDF' }}
+                </button>
+                <button
+                  class="btn btn-sm pc-control-btn pc-control-btn--excel"
+                  [disabled]="descargandoControlExcel"
+                  (click)="guardarControlExcelEnDrive()">
+                  <i class="fas" [ngClass]="descargandoControlExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'"></i>
+                  {{
+                    descargandoControlExcel
+                      ? (controlGenerado ? ' Actualizando...' : ' Generando...')
+                      : (controlGenerado ? ' Actualizar control de Resolutivos PIPC' : ' Generar control de Resolutivos PIPC')
+                  }}
+                </button>
+                <button
+                  class="btn btn-sm pc-control-btn pc-control-btn--editor"
+                  type="button"
+                  [disabled]="!controlFileId"
+                  (click)="toggleControlEditor()">
+                  <i class="fas fa-pen mr-1"></i>
+                  Abrir editor del control
+                </button>
+              </div>
+              <div class="pc-control-actions-meta">
+                <span *ngIf="controlUltimaActualizacion; else sinActualizacion">
+                  Última actualización: {{ controlUltimaActualizacion | date:'dd/MM/yyyy HH:mm':'':'es' }}
+                </span>
+                <ng-template #sinActualizacion>
+                  Última actualización: sin generación previa
+                </ng-template>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div *ngIf="!controlFileId && !loadingRegistros" class="pc-control-empty py-4 text-center">
+            <i class="fas fa-file-excel fa-2x mb-2" style="color: #d97248; opacity: 0.4;"></i>
+            <p class="mb-1 text-muted" style="font-weight: 600;">Sin archivo generado</p>
+            <small class="text-muted">Usa el botón "Generar control de Resolutivos PIPC" para crear el documento en Drive.</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla -->
+      <div class="card shadow-lg border-0 control-table-card">
+        <div class="card-header border-0 control-table-card__header">
+          <div class="row align-items-center">
+            <div class="col">
+              <h6 class="text-uppercase text-muted ls-1 mb-1 control-table-kicker">Registro SP-F-29</h6>
+              <h2 class="mb-0 control-table-title">
+                <i class="fas fa-list-alt mr-2"></i>Resolutivos PIPC
+              </h2>
+              <small class="text-muted control-table-hint">
+                <i class="fas fa-info-circle mr-1"></i>
+                Misma información del control oficial; usa los filtros para localizar trámites.
+              </small>
+            </div>
+            <div class="col-auto">
+              <span class="badge badge-count">{{ registrosFiltrados.length }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="search-bar">
+          <div class="search-input-wrap">
+            <i class="fas fa-search search-icon"></i>
+            <input class="search-input" type="text" placeholder="Buscar empresa o responsable..."
+                   [(ngModel)]="textoBusqueda" (ngModelChange)="filtrarRegistros()"
+                   autocomplete="off" name="busqueda-control-resolutivos">
+          </div>
+          <div class="filter-pills">
+            <select class="filter-select"
+                    [(ngModel)]="filtroTipoTramite" (ngModelChange)="filtrarRegistros()">
+              <option *ngFor="let op of opcionesTipoTramite" [value]="op.value">{{ op.label }}</option>
+              <option *ngFor="let tipo of tiposTramiteUnicos" [value]="tipo"
+                      [hidden]="tipo === 'PIPC' || tipo === 'OTMS' || tipo === 'Factibilidad'">
+                {{ tipo }}
+              </option>
+            </select>
+            <label class="filter-date-wrap mb-0">
+              <span class="filter-date-label">Fecha del ingreso</span>
+              <input class="filter-select filter-date" type="date"
+                     [(ngModel)]="filtroFechaIngreso" (ngModelChange)="filtrarRegistros()"
+                     title="Fecha del ingreso">
+            </label>
+            <select class="filter-select"
+                    [(ngModel)]="filtroEstatus" (ngModelChange)="filtrarRegistros()">
+              <option *ngFor="let op of opcionesEstatus" [value]="op.value">{{ op.label }}</option>
+            </select>
+            <label class="filter-date-wrap mb-0">
+              <span class="filter-date-label">Fecha de aprobación</span>
+              <input class="filter-select filter-date" type="date"
+                     [(ngModel)]="filtroFechaAprobacion" (ngModelChange)="filtrarRegistros()"
+                     title="Fecha de aprobación">
+            </label>
+            <button *ngIf="hayFiltrosActivos" class="btn btn-sm btn-limpiar"
+                    (click)="limpiarFiltros()" title="Limpiar filtros">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="card-body p-0">
+          <div *ngIf="loadingRegistros" class="text-center py-5">
+            <div class="spinner-border text-warning" role="status" style="width: 3rem; height: 3rem; color: #d97248 !important;">
+              <span class="sr-only">Cargando...</span>
+            </div>
+            <p class="text-muted mt-3">Cargando control de resolutivos...</p>
+          </div>
+
+          <div *ngIf="!loadingRegistros && !hayRegistrosBase" class="text-center py-5">
+            <i class="fas fa-folder-open text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-3 mb-0">No hay resolutivos registrados en el control.</p>
+          </div>
+
+          <div *ngIf="!loadingRegistros && hayRegistrosBase && !hayRegistrosFiltrados" class="text-center py-5">
+            <i class="fas fa-search text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-3 mb-1">No se encontraron registros con los filtros aplicados.</p>
+            <button class="btn btn-sm btn-link btn-link-pc" (click)="limpiarFiltros()">Limpiar filtros</button>
+          </div>
+
+          <div *ngIf="!loadingRegistros && hayRegistrosFiltrados" class="control-table-wrap">
+            <table class="table table-sm table-hover control-table mb-0">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Nombre de la empresa</th>
+                  <th>Tipo de trámite PIPC / OTMS / Factibilidad</th>
+                  <th>Responsable</th>
+                  <th class="sortable-th" (click)="ordenarPorFecha('fecha_ingreso_tramite'); $event.stopPropagation()"
+                      [class.sortable-th--active]="ordenCampoFecha === 'fecha_ingreso_tramite'"
+                      title="Ordenar por fecha de ingreso">
+                    Fecha de ingreso de trámite
+                    <i class="fas ml-1 sort-icon" [ngClass]="iconoOrdenFecha('fecha_ingreso_tramite')"></i>
+                  </th>
+                  <th class="sortable-th" (click)="ordenarPorFecha('fecha_oficio_observaciones'); $event.stopPropagation()"
+                      [class.sortable-th--active]="ordenCampoFecha === 'fecha_oficio_observaciones'"
+                      title="Ordenar por fecha de oficio">
+                    Fecha de Ingreso de oficio con observaciones
+                    <i class="fas ml-1 sort-icon" [ngClass]="iconoOrdenFecha('fecha_oficio_observaciones')"></i>
+                  </th>
+                  <th>Estatus</th>
+                  <th class="sortable-th" (click)="ordenarPorFecha('fecha_aprobacion'); $event.stopPropagation()"
+                      [class.sortable-th--active]="ordenCampoFecha === 'fecha_aprobacion'"
+                      title="Ordenar por fecha de aprobación">
+                    Fecha de aprobación
+                    <i class="fas ml-1 sort-icon" [ngClass]="iconoOrdenFecha('fecha_aprobacion')"></i>
+                  </th>
+                  <th class="sortable-th" (click)="ordenarPorFecha('fecha_vencimiento'); $event.stopPropagation()"
+                      [class.sortable-th--active]="ordenCampoFecha === 'fecha_vencimiento'"
+                      title="Ordenar por fecha de vencimiento">
+                    Fecha de vencimiento
+                    <i class="fas ml-1 sort-icon" [ngClass]="iconoOrdenFecha('fecha_vencimiento')"></i>
+                  </th>
+                  <th class="sortable-th" (click)="ordenarPorFecha('fecha_contacto_empresa'); $event.stopPropagation()"
+                      [class.sortable-th--active]="ordenCampoFecha === 'fecha_contacto_empresa'"
+                      title="Ordenar por fecha de contacto">
+                    Fecha para contacto empresa
+                    <i class="fas ml-1 sort-icon" [ngClass]="iconoOrdenFecha('fecha_contacto_empresa')"></i>
+                  </th>
+                  <th>Municipio (Lugar)</th>
+                  <th>Estado (Lugar)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of registrosFiltrados"
+                    class="control-row-clickable"
+                    (click)="abrirEditarRegistro(row)"
+                    title="Clic para editar">
+                  <td class="text-center col-item">{{ row.item }}</td>
+                  <td class="col-empresa"><strong>{{ row.nombre_empresa }}</strong></td>
+                  <td class="text-center">{{ row.tipo_tramite }}</td>
+                  <td class="col-responsable">{{ row.responsable }}</td>
+                  <td class="text-center">{{ row.fecha_ingreso_tramite }}</td>
+                  <td class="text-center">{{ row.fecha_oficio_observaciones }}</td>
+                  <td class="text-center">
+                    <span class="estatus-badge" [ngClass]="claseEstatus(row.estatus)">{{ row.estatus }}</span>
+                  </td>
+                  <td class="text-center">{{ row.fecha_aprobacion }}</td>
+                  <td class="text-center">{{ row.fecha_vencimiento }}</td>
+                  <td class="text-center">{{ row.fecha_contacto_empresa }}</td>
+                  <td class="text-center">{{ row.municipio }}</td>
+                  <td class="text-center">{{ row.estado }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Editor integrado -->
+<div class="pc-control-editor-fullscreen" *ngIf="mostrarControlEditor"
+  role="dialog" aria-modal="true" aria-label="Editor integrado del Control de Resolutivos PIPC">
+  <div class="pc-control-editor-fullscreen__backdrop" (click)="toggleControlEditor()"></div>
+  <div class="pc-control-editor-fullscreen__panel">
+    <div class="pc-control-editor-fullscreen__head">
+      <div class="pc-control-editor-fullscreen__title-wrap">
+        <span class="pc-control-editor-fullscreen__icon">
+          <i class="fas fa-table"></i>
+        </span>
+        <div>
+          <strong class="pc-control-editor-fullscreen__title">Editor integrado del Control</strong>
+          <small class="pc-control-editor-fullscreen__subtitle">Control de Resolutivos PIPC (SP-F-29)</small>
+        </div>
+      </div>
+      <div class="pc-control-editor-fullscreen__actions">
+        <button class="btn btn-sm pc-control-editor-fullscreen__back-btn" type="button" (click)="toggleControlEditor()">
+          <i class="fas fa-times mr-1"></i>Volver al control
+        </button>
+      </div>
+    </div>
+    <div class="pc-control-editor-fullscreen__body">
+      <div class="pc-control-loading" *ngIf="controlVisorCargando">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>Cargando control de resolutivos...</span>
+      </div>
+      <iframe class="pc-control-editor-fullscreen__iframe"
+        [src]="controlEmbedUrl | safe"
+        title="Control de Resolutivos PIPC"
+        loading="lazy"
+        (load)="onControlIframeLoad()"
+        allow="clipboard-read; clipboard-write"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-popups-to-escape-sandbox">
+      </iframe>
+    </div>
+  </div>
+</div>
+
+<!-- Modal editar registro SP-F-29 -->
+<div class="pc-res-edit-overlay" *ngIf="mostrarModalEditar && formEditar"
+     (click)="cerrarModalEditar()" role="dialog" aria-modal="true"
+     aria-label="Editar registro de resolutivo">
+  <div class="pc-res-edit-modal" (click)="$event.stopPropagation()">
+    <div class="pc-res-edit-header">
+      <div class="pc-res-edit-header__bg" aria-hidden="true"></div>
+      <div class="pc-res-edit-header__content">
+        <div class="pc-res-edit-header__badge">
+          <i class="fas fa-edit"></i>
+          <span>SP-F-29</span>
+        </div>
+        <div>
+          <h5 class="pc-res-edit-header__title">Editar registro de resolutivo</h5>
+          <p class="pc-res-edit-header__sub">Actualiza empresa, trámite, fechas y ubicación</p>
+        </div>
+      </div>
+      <button type="button" class="pc-res-edit-close" (click)="cerrarModalEditar()"
+              [disabled]="guardandoEdicion || eliminandoRegistro" aria-label="Cerrar">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="pc-res-edit-form">
+      <div class="pc-res-edit-deco" aria-hidden="true"></div>
+      <div class="pc-res-edit-body">
+        <div class="pc-res-edit-summary">
+          <span class="pc-res-edit-summary__label">Registro SP-F-29</span>
+          <span class="estatus-badge" [ngClass]="claseEstatus(formEditar.estatus)">
+            {{ formEditar.estatus || 'En tramite' }}
+          </span>
+        </div>
+
+        <div class="pc-res-edit-grid">
+          <label class="pc-res-edit-field pc-res-edit-field--empresa">
+            <span class="pc-res-edit-field__label"><i class="fas fa-building"></i> Empresa</span>
+            <div class="pc-combo" [class.pc-combo--open]="comboAbierto === 'empresa'">
+              <div class="pc-res-edit-field__control pc-combo__control">
+                <input type="text"
+                       [ngModel]="filtroComboEmpresa"
+                       (ngModelChange)="onEmpresaInput($event)"
+                       (focus)="abrirCombo('empresa')"
+                       (blur)="cerrarComboDelayed()"
+                       name="edit_nombre_empresa" autocomplete="off"
+                       placeholder="Buscar o escribir empresa...">
+                <i class="fas fa-chevron-down pc-combo__caret"></i>
+              </div>
+              <ul class="pc-combo__list" *ngIf="comboAbierto === 'empresa'">
+                <li *ngFor="let op of empresasFiltradas"
+                    (mousedown)="seleccionarEmpresa(op)"
+                    [class.pc-combo__item--active]="formEditar.empresa_id === op.id">
+                  {{ op.nombre }}
+                </li>
+                <li *ngIf="!empresasFiltradas.length" class="pc-combo__empty">Sin coincidencias</li>
+              </ul>
+            </div>
+          </label>
+
+          <label class="pc-res-edit-field pc-res-edit-field--tipo">
+            <span class="pc-res-edit-field__label"><i class="fas fa-tag"></i> Tipo de trámite</span>
+            <div class="pc-combo" [class.pc-combo--open]="comboAbierto === 'tipo'">
+              <div class="pc-res-edit-field__control pc-combo__control">
+                <input type="text"
+                       [ngModel]="filtroComboTipo"
+                       (ngModelChange)="onTipoInput($event)"
+                       (focus)="abrirCombo('tipo')"
+                       (blur)="cerrarComboDelayed()"
+                       name="edit_tipo_tramite" autocomplete="off"
+                       placeholder="Buscar tipo...">
+                <i class="fas fa-chevron-down pc-combo__caret"></i>
+              </div>
+              <ul class="pc-combo__list" *ngIf="comboAbierto === 'tipo'">
+                <li *ngFor="let op of tiposFiltrados"
+                    (mousedown)="seleccionarTipo(op.value)"
+                    [class.pc-combo__item--active]="formEditar.tipo_tramite === op.value">
+                  {{ op.label }}
+                </li>
+                <li *ngIf="!tiposFiltrados.length" class="pc-combo__empty">Sin coincidencias</li>
+              </ul>
+            </div>
+          </label>
+
+          <label class="pc-res-edit-field pc-res-edit-field--responsable">
+            <span class="pc-res-edit-field__label"><i class="fas fa-user-tie"></i> Responsable</span>
+            <div class="pc-combo" [class.pc-combo--open]="comboAbierto === 'responsable'">
+              <div class="pc-res-edit-field__control pc-combo__control">
+                <input type="text"
+                       [ngModel]="filtroComboResponsable"
+                       (ngModelChange)="onResponsableInput($event)"
+                       (focus)="abrirCombo('responsable')"
+                       (blur)="cerrarComboDelayed()"
+                       name="edit_responsable" autocomplete="off"
+                       placeholder="Buscar responsable...">
+                <i class="fas fa-chevron-down pc-combo__caret"></i>
+              </div>
+              <ul class="pc-combo__list" *ngIf="comboAbierto === 'responsable'">
+                <li *ngFor="let op of responsablesFiltrados"
+                    (mousedown)="seleccionarResponsable(op)"
+                    [class.pc-combo__item--active]="formEditar.responsable_usuario_id === op.id">
+                  {{ op.nombre }}
+                </li>
+                <li *ngIf="!responsablesFiltrados.length" class="pc-combo__empty">Sin coincidencias</li>
+              </ul>
+            </div>
+          </label>
+
+          <label class="pc-res-edit-field pc-res-edit-field--ingreso">
+            <span class="pc-res-edit-field__label"><i class="fas fa-calendar-plus"></i> Ingreso trámite</span>
+            <div class="pc-res-edit-field__control">
+              <input type="date" [(ngModel)]="formEditar.fecha_ingreso_tramite" name="edit_fecha_ingreso">
+            </div>
+          </label>
+
+          <label class="pc-res-edit-field pc-res-edit-field--oficio">
+            <span class="pc-res-edit-field__label"><i class="fas fa-file-alt"></i> Oficio obs. <em>(opcional)</em></span>
+            <div class="pc-res-edit-field__control">
+              <input type="date" [(ngModel)]="formEditar.fecha_oficio_observaciones" name="edit_fecha_oficio">
+            </div>
+          </label>
+
+          <label class="pc-res-edit-field">
+            <span class="pc-res-edit-field__label"><i class="fas fa-calendar-check"></i> Aprobación</span>
+            <div class="pc-res-edit-field__control">
+              <input type="date" [(ngModel)]="formEditar.fecha_aprobacion" name="edit_fecha_aprobacion">
+            </div>
+          </label>
+
+          <label class="pc-res-edit-field">
+            <span class="pc-res-edit-field__label"><i class="fas fa-hourglass-end"></i> Vencimiento</span>
+            <div class="pc-res-edit-field__control">
+              <input type="date" [(ngModel)]="formEditar.fecha_vencimiento"
+                     (ngModelChange)="onFechaVencimientoChange()"
+                     name="edit_fecha_vencimiento">
+            </div>
+          </label>
+
+          <label class="pc-res-edit-field">
+            <span class="pc-res-edit-field__label"><i class="fas fa-phone"></i> Contacto <em>(auto)</em></span>
+            <div class="pc-res-edit-field__control pc-res-edit-field__control--readonly">
+              <input type="date" [ngModel]="formEditar.fecha_contacto_empresa"
+                     name="edit_fecha_contacto" readonly tabindex="-1">
+            </div>
+          </label>
+
+          <label class="pc-res-edit-field pc-res-edit-field--municipio">
+            <span class="pc-res-edit-field__label"><i class="fas fa-map-marker-alt"></i> Municipio</span>
+            <div class="pc-res-edit-field__control">
+              <input type="text" [(ngModel)]="formEditar.municipio"
+                     name="edit_municipio" autocomplete="off" placeholder="Municipio">
+            </div>
+          </label>
+
+          <label class="pc-res-edit-field pc-res-edit-field--estado">
+            <span class="pc-res-edit-field__label"><i class="fas fa-map"></i> Estado</span>
+            <div class="pc-res-edit-field__control">
+              <input type="text" [(ngModel)]="formEditar.estado"
+                     name="edit_estado" autocomplete="off" placeholder="Estado">
+            </div>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="pc-res-edit-footer">
+      <button type="button" class="pc-res-edit-delete"
+              (click)="desactivarRegistro()"
+              [disabled]="guardandoEdicion || eliminandoRegistro"
+              [attr.title]="eliminandoRegistro ? 'Eliminando...' : 'Borrar registro'"
+              aria-label="Borrar registro">
+        <i class="fas" [ngClass]="eliminandoRegistro ? 'fa-spinner fa-spin' : 'fa-trash-alt'"></i>
+        <span class="pc-res-edit-delete__label">{{ eliminandoRegistro ? 'Eliminando...' : 'Borrar registro' }}</span>
+      </button>
+      <div class="pc-res-edit-actions">
+        <button type="button" class="pc-res-edit-btn pc-res-edit-btn--ghost"
+                (click)="cerrarModalEditar()" [disabled]="guardandoEdicion || eliminandoRegistro">
+          <i class="fas fa-times"></i> Cancelar
+        </button>
+        <button type="button" class="pc-res-edit-btn pc-res-edit-btn--primary"
+                (click)="guardarEdicionRegistro()" [disabled]="guardandoEdicion || eliminandoRegistro">
+          <i class="fas" [ngClass]="guardandoEdicion ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+          {{ guardandoEdicion ? 'Guardando...' : 'Guardar' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

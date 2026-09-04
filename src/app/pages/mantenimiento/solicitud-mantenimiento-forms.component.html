@@ -1,0 +1,460 @@
+<div class="header header-bg-image mt-hero mt-hero--forms pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+
+    <div class="row w-100 text-center">
+
+      <div class="col-12">
+
+        <div class="d-flex flex-column align-items-center justify-content-center">
+
+          <div class="mt-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+
+            <i class="fas fa-file-signature" aria-hidden="true"></i>
+
+          </div>
+
+          <h1 class="text-white mb-0 mt-hero-title">Solicitud de mantenimiento</h1>
+
+          <p class="text-white mt-hero-tagline mb-0">Mantenimiento · {{ codigo }}</p>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+<div class="container-fluid mt-main-wrap mt--5">
+
+  <div class="row justify-content-center">
+
+    <div class="col-xl-11">
+
+      <div class="mt-forms-layout">
+
+
+
+        <aside class="mt-forms-side card border-0 shadow-sm">
+
+          <div class="mt-forms-side__head">
+
+            <span class="mt-section-label">Solicitudes</span>
+
+            <h2 class="mt-forms-side__title">{{ codigo }}</h2>
+
+          </div>
+
+          <p class="mt-forms-side__hint">
+
+            Reporta daños, averías o problemas de infraestructura con el formulario oficial de Google Forms.
+
+          </p>
+
+          <ul class="mt-forms-side__meta">
+
+            <li><span>Código</span><strong>{{ codigo }}</strong></li>
+
+            <li><span>Revisión</span><strong>{{ revision }}</strong></li>
+
+            <li><span>Fecha de rev.</span><strong>{{ fechaRev }}</strong></li>
+
+          </ul>
+
+        </aside>
+
+
+
+        <div class="mt-forms-main card border-0 shadow-sm">
+
+          <div class="mt-shell-accent" aria-hidden="true"></div>
+
+          <div class="card-body mt-forms-main__body">
+
+            <header class="mt-forms-main__head">
+
+              <div>
+
+                <h2 class="mt-forms-main__title">Solicitud de mantenimiento correctivo</h2>
+
+                <p class="mt-forms-main__sub">
+
+                  Escanea el QR, copia el enlace para compartirlo o ábrelo en una pestaña nueva.
+
+                </p>
+
+              </div>
+
+            </header>
+
+
+
+            <div class="mt-forms-qr-panel">
+
+              <div class="mt-forms-qr" *ngIf="qrDataUrl; else qrError">
+
+                <img [src]="qrDataUrl" alt="Código QR solicitud de mantenimiento correctivo" />
+
+              </div>
+
+              <ng-template #qrError>
+
+                <div class="mt-forms-qr mt-forms-qr--empty">
+
+                  <i class="fas fa-qrcode"></i>
+
+                  <p>{{ errorQr || 'Generando QR…' }}</p>
+
+                </div>
+
+              </ng-template>
+
+
+
+              <div class="mt-forms-actions">
+
+                <button type="button" class="mt-forms-btn mt-forms-btn--primary" (click)="abrirFormulario()">
+
+                  <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+
+                  Abrir formulario
+
+                </button>
+
+                <button type="button" class="mt-forms-btn" (click)="copiarLink()">
+
+                  <i class="fas" [class.fa-check]="copiado" [class.fa-copy]="!copiado" aria-hidden="true"></i>
+
+                  {{ copiado ? 'Enlace copiado' : 'Copiar enlace' }}
+
+                </button>
+
+                <a class="mt-forms-link" [href]="formUrl" target="_blank" rel="noopener">
+
+                  {{ formUrl }}
+
+                </a>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+
+      </div>
+
+
+
+      <section class="mt-forms-stats card border-0 shadow-sm mt-3">
+
+        <div class="card-body">
+
+          <div class="mt-forms-stats__head">
+
+            <div>
+
+              <span class="mt-section-label">Estadísticas</span>
+
+              <h3 class="mt-forms-stats__title">Respuestas del formulario</h3>
+
+              <p class="mt-forms-stats__sub" *ngIf="mensaje">{{ mensaje }}</p>
+
+              <p class="mt-forms-stats__sub mt-forms-stats__sub--ok" *ngIf="mensajeSync">{{ mensajeSync }}</p>
+
+            </div>
+
+            <div class="mt-forms-stats__actions">
+
+              <button type="button" class="mt-forms-btn" (click)="sincronizarAhora()" [disabled]="sincronizando || cargandoStats">
+
+                <i class="fas" [class.fa-spinner]="sincronizando" [class.fa-spin]="sincronizando" [class.fa-cloud-download-alt]="!sincronizando"></i>
+
+                {{ sincronizando ? 'Sincronizando…' : 'Sincronizar a bitácora' }}
+
+              </button>
+
+              <button type="button" class="mt-forms-btn mt-forms-btn--primary" (click)="cargarEstadisticas(true)" [disabled]="cargandoStats">
+
+                <i class="fas" [class.fa-spinner]="cargandoStats" [class.fa-spin]="cargandoStats" [class.fa-sync-alt]="!cargandoStats"></i>
+
+                {{ cargandoStats ? 'Actualizando…' : 'Actualizar' }}
+
+              </button>
+
+            </div>
+
+          </div>
+
+
+
+          <div class="mt-forms-stats__kpis mt-forms-stats__kpis--modern">
+
+            <div class="mt-forms-kpi-card mt-forms-kpi-card--total">
+
+              <div class="mt-forms-kpi-card__icon"><i class="fas fa-inbox"></i></div>
+
+              <div>
+
+                <span>Total respuestas</span>
+
+                <strong>{{ total }}</strong>
+
+              </div>
+
+            </div>
+
+            <div class="mt-forms-kpi-card mt-forms-kpi-card--mes">
+
+              <div class="mt-forms-kpi-card__icon"><i class="fas fa-calendar-day"></i></div>
+
+              <div>
+
+                <span>Este mes</span>
+
+                <strong>{{ esteMes }}</strong>
+
+              </div>
+
+            </div>
+
+            <div class="mt-forms-kpi-card mt-forms-kpi-card--infra">
+
+              <div class="mt-forms-kpi-card__icon"><i class="fas fa-building"></i></div>
+
+              <div>
+
+                <span>Tipos de infraestructura</span>
+
+                <strong>{{ tiposInfra }}</strong>
+
+              </div>
+
+            </div>
+
+          </div>
+
+
+
+          <ng-container *ngIf="total > 0; else sinStats">
+
+            <div class="mt-forms-analytics" *ngIf="porInfraestructura.length || porPrioridad.length || porUbicacion.length">
+
+              <div class="mt-forms-analytics__layout">
+
+                <section class="mt-chart-panel" *ngIf="porInfraestructura.length" aria-label="Por tipo de infraestructura">
+                  <div class="mt-chart-panel__head">
+                    <div class="mt-chart-panel__heading">
+                      <span class="mt-chart-panel__icon" aria-hidden="true"><i class="fas fa-industry"></i></span>
+                      <div>
+                        <h3 class="mt-chart-panel__title">Por tipo de infraestructura</h3>
+                        <p class="mt-chart-panel__hint">Ordenado por frecuencia de reportes</p>
+                      </div>
+                    </div>
+                    <span class="mt-chart-panel__badge">
+                      <strong>{{ porInfraestructura.length }}</strong> categorías · {{ total }} respuestas
+                    </span>
+                  </div>
+                  <div class="mt-chart-panel__canvas">
+                    <apx-chart *ngIf="infraChartReady"
+                      [series]="infraChart.series"
+                      [chart]="infraChart.chart"
+                      [colors]="infraChart.colors"
+                      [plotOptions]="infraChart.plotOptions"
+                      [dataLabels]="infraChart.dataLabels"
+                      [xaxis]="infraChart.xaxis"
+                      [yaxis]="infraChart.yaxis"
+                      [grid]="infraChart.grid"
+                      [legend]="infraChart.legend"
+                      [tooltip]="infraChart.tooltip"
+                      [fill]="infraChart.fill"
+                      [stroke]="infraChart.stroke">
+                    </apx-chart>
+                  </div>
+                </section>
+                <section class="mt-chart-panel mt-chart-panel--prio" *ngIf="porPrioridad.length" aria-label="Por prioridad">
+                  <div class="mt-chart-panel__head">
+                    <div class="mt-chart-panel__heading">
+                      <span class="mt-chart-panel__icon mt-chart-panel__icon--prio" aria-hidden="true"><i class="fas fa-flag"></i></span>
+                      <div>
+                        <h3 class="mt-chart-panel__title">Por prioridad</h3>
+                        <p class="mt-chart-panel__hint">Urgencia reportada · {{ total }} respuestas</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="mt-share-bar" aria-hidden="true">
+                    <span *ngFor="let item of porPrioridad; trackBy: trackByStat"
+                      [style.flex-grow]="item.cantidad"
+                      [style.background]="colorPrioridad(item.etiqueta)"
+                      [title]="item.etiqueta + ': ' + item.cantidad">
+                    </span>
+                  </div>
+                  <div class="mt-prio-body">
+                    <div class="mt-donut-wrap">
+                      <apx-chart *ngIf="prioChartReady"
+                        [series]="prioChart.series"
+                        [chart]="prioChart.chart"
+                        [labels]="prioChart.labels"
+                        [colors]="prioChart.colors"
+                        [plotOptions]="prioChart.plotOptions"
+                        [dataLabels]="prioChart.dataLabels"
+                        [legend]="prioChart.legend"
+                        [tooltip]="prioChart.tooltip"
+                        [stroke]="prioChart.stroke"
+                        [fill]="prioChart.fill">
+                      </apx-chart>
+                      <div class="mt-donut-center" aria-hidden="true">
+                        <strong>{{ donutCentroValor }}</strong>
+                        <span>{{ donutCentroEtiqueta }}</span>
+                      </div>
+                    </div>
+                    <ul class="mt-prio-legend">
+                      <li *ngFor="let item of porPrioridad; trackBy: trackByStat"
+                        [attr.data-level]="clasePrioridad(item.etiqueta)">
+                        <span class="mt-prio-legend__icon" aria-hidden="true">
+                          <i class="fas" [ngClass]="iconoPrioridad(item.etiqueta)"></i>
+                        </span>
+                        <div class="mt-prio-legend__text">
+                          <strong>{{ item.etiqueta }}</strong>
+                          <span>{{ item.porcentaje }}% del total</span>
+                        </div>
+                        <em>{{ item.cantidad }}</em>
+                      </li>
+                    </ul>
+                  </div>
+                </section>
+
+              </div>
+
+              <section class="mt-chart-panel mt-chart-panel--ubic" *ngIf="porUbicacion.length" aria-label="Por ubicación">
+                <div class="mt-chart-panel__head">
+                  <div class="mt-chart-panel__heading">
+                    <span class="mt-chart-panel__icon mt-chart-panel__icon--ubic" aria-hidden="true"><i class="fas fa-map-marker-alt"></i></span>
+                    <div>
+                      <h3 class="mt-chart-panel__title">Por ubicación</h3>
+                      <p class="mt-chart-panel__hint">Lugares con más reportes primero</p>
+                    </div>
+                  </div>
+                  <span class="mt-chart-panel__badge">
+                    <strong>{{ porUbicacion.length }}</strong> lugar(es)
+                  </span>
+                </div>
+                <div class="mt-chart-panel__canvas">
+                  <apx-chart *ngIf="ubicChartReady"
+                    [series]="ubicChart.series"
+                    [chart]="ubicChart.chart"
+                    [colors]="ubicChart.colors"
+                    [plotOptions]="ubicChart.plotOptions"
+                    [dataLabels]="ubicChart.dataLabels"
+                    [xaxis]="ubicChart.xaxis"
+                    [yaxis]="ubicChart.yaxis"
+                    [grid]="ubicChart.grid"
+                    [legend]="ubicChart.legend"
+                    [tooltip]="ubicChart.tooltip"
+                    [fill]="ubicChart.fill"
+                    [stroke]="ubicChart.stroke">
+                  </apx-chart>
+                </div>
+              </section>
+
+            </div>
+
+
+
+            <div class="mt-forms-table-wrap" *ngIf="recientes.length">
+
+              <div class="mt-forms-table-wrap__head">
+
+                <h4 class="mt-forms-table-title">Últimas respuestas</h4>
+
+                <span class="mt-forms-table-wrap__count">{{ recientes.length }} registro(s)</span>
+
+              </div>
+
+              <div class="table-responsive">
+
+                <table class="mt-forms-table mt-forms-table--modern">
+
+                  <thead>
+
+                    <tr>
+
+                      <th>Fecha</th>
+
+                      <th>Nombre</th>
+
+                      <th>Infraestructura</th>
+
+                      <th>Prioridad</th>
+
+                      <th>Ubicación</th>
+
+                      <th>Descripción</th>
+
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+
+                    <tr *ngFor="let r of recientes">
+
+                      <td>{{ formatearFecha(r.fecha) }}</td>
+
+                      <td><strong>{{ r.nombre || '—' }}</strong></td>
+
+                      <td>{{ r.infraestructura || '—' }}</td>
+
+                      <td><span class="mt-forms-priority" [attr.data-level]="(r.prioridad || '').toLowerCase()">{{ r.prioridad || '—' }}</span></td>
+
+                      <td>{{ r.ubicacion || '—' }}</td>
+
+                      <td class="mt-forms-table__desc">{{ r.descripcion || '—' }}</td>
+
+                    </tr>
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            </div>
+
+          </ng-container>
+
+
+
+          <ng-template #sinStats>
+
+            <div class="mt-forms-stats__empty" *ngIf="!cargandoStats">
+
+              <i class="fas fa-chart-pie"></i>
+
+              <p>Aún no hay respuestas para mostrar, o el destino de respuestas no está vinculado.</p>
+
+            </div>
+
+          </ng-template>
+
+        </div>
+
+      </section>
+
+
+
+    </div>
+
+  </div>
+
+</div>
+
+

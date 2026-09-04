@@ -1,0 +1,329 @@
+﻿.mt-hero--f04 .mt-hero-icon {
+  background: rgba(30, 41, 59, 0.22);
+}
+
+.mt-archivero__title {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.mt-archivero__intro-icon--word,
+.mt-book__icon--word {
+  background: rgba(30, 41, 59, 0.1) !important;
+  border-color: rgba(30, 41, 59, 0.18) !important;
+  color: #1e293b !important;
+}
+
+.mt-book__editor-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+  width: 100%;
+  border: 1px solid rgba(30, 41, 59, 0.22);
+  background: #fff;
+  color: #1e293b;
+  border-radius: 999px;
+  padding: 0.32rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(30, 41, 59, 0.06);
+  }
+}
+
+.mt-tipo-toggle {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.mt-tipo-toggle__btn {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+
+  &.is-active {
+    background: #1e293b;
+    border-color: #1e293b;
+    color: #fff;
+  }
+}
+
+.mt-firmado {
+  margin-top: 1.25rem;
+  padding: 1.25rem 1.35rem;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+
+  &__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    margin-bottom: 0.95rem;
+  }
+
+  &__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.35rem;
+    height: 2.35rem;
+    border-radius: 10px;
+    background: rgba(15, 118, 110, 0.1);
+    color: #0f766e;
+    flex-shrink: 0;
+  }
+
+  &__title {
+    margin: 0 0 0.2rem;
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: #0f172a;
+  }
+
+  &__desc {
+    font-size: 0.78rem;
+    color: #64748b;
+    line-height: 1.45;
+  }
+
+  &__dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 1.35rem 1rem;
+    border: 1.5px dashed rgba(15, 118, 110, 0.4);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.75);
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.18s ease, background 0.18s ease;
+
+    &:hover {
+      border-color: rgba(15, 118, 110, 0.65);
+      background: rgba(15, 118, 110, 0.04);
+    }
+
+    &--busy {
+      pointer-events: none;
+      opacity: 0.75;
+    }
+  }
+
+  &__drop-icon {
+    color: #0f766e;
+    font-size: 1.55rem;
+  }
+
+  &__drop-title {
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  &__drop-hint {
+    font-size: 0.72rem;
+    color: #64748b;
+  }
+
+  &__file {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+  }
+
+  &__file-icon {
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 118, 110, 0.1);
+    color: #0f766e;
+  }
+
+  &__file-info {
+    flex: 1 1 160px;
+    min-width: 0;
+
+    strong {
+      display: block;
+      font-size: 0.84rem;
+      color: #0f172a;
+    }
+
+    small {
+      color: #64748b;
+      font-size: 0.72rem;
+    }
+  }
+
+  &__file-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+}
+
+/* Referencia visual — problema reportado en Forms (solo lectura) */
+.mt-problema-ref {
+  position: relative;
+  max-width: 46rem;
+  margin: 0 auto 1.15rem;
+  padding: 1rem 1.15rem 1.05rem;
+  border-radius: 14px;
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 48%, #f1f5f9 100%);
+  box-shadow: 0 4px 18px rgba(30, 64, 175, 0.07);
+  overflow: hidden;
+
+  &__ribbon {
+    position: absolute;
+    top: 0.65rem;
+    right: 0.65rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.22rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(30, 41, 59, 0.08);
+    color: #475569;
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+
+    i {
+      font-size: 0.62rem;
+      opacity: 0.85;
+    }
+  }
+
+  &__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    margin-bottom: 0.75rem;
+    padding-right: 5.5rem;
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(145deg, #1e293b 0%, #334155 100%);
+    color: #fff;
+    font-size: 1.05rem;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+  }
+
+  &__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+    padding: 0.18rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(37, 99, 235, 0.1);
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    color: #1d4ed8;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+
+  &__title {
+    margin: 0 0 0.25rem;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.25;
+  }
+
+  &__hint {
+    margin: 0;
+    font-size: 0.76rem;
+    line-height: 1.45;
+    color: #64748b;
+  }
+
+  &__quote {
+    position: relative;
+    margin: 0;
+    padding: 0.85rem 1rem 0.85rem 1.35rem;
+    border-radius: 10px;
+    border: 1px dashed rgba(100, 116, 139, 0.35);
+    background: rgba(255, 255, 255, 0.82);
+    border-left: 4px solid #3b82f6;
+
+    p {
+      margin: 0;
+      font-size: 0.9rem;
+      line-height: 1.55;
+      color: #1e293b;
+      font-style: normal;
+    }
+
+    &--empty p {
+      color: #94a3b8;
+      font-style: italic;
+    }
+  }
+
+  &__quote-mark {
+    position: absolute;
+    left: 0.45rem;
+    top: 0.15rem;
+    font-size: 1.65rem;
+    line-height: 1;
+    color: rgba(59, 130, 246, 0.35);
+    font-family: Georgia, 'Times New Roman', serif;
+    pointer-events: none;
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem 1rem;
+    margin-top: 0.7rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.35);
+    font-size: 0.74rem;
+    color: #64748b;
+
+    span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    i {
+      color: #94a3b8;
+      font-size: 0.7rem;
+    }
+  }
+}

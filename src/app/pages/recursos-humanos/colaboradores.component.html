@@ -1,0 +1,594 @@
+<div class="header header-bg-image rrhh-hero rrhh-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <h1 class="text-white mb-0 rrhh-hero-title">Colaboradores</h1>
+          <p class="text-white-50 rrhh-hero-sub mb-0">
+            {{ vistaExpediente ? 'Recursos Humanos · Expediente documental' : 'Organigrama operativo · ATH-F-01' }}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid rrhh-main mt--4">
+  <div class="row justify-content-center">
+    <div class="col-12">
+      <div class="card rrhh-shell border-0 shadow-sm" [class.rrhh-shell--org]="!vistaExpediente">
+        <div class="rrhh-shell-accent" aria-hidden="true"></div>
+        <div class="card-body rrhh-shell-body colab-shell">
+
+          <section class="colab-intro" aria-label="Resumen del módulo" *ngIf="vistaExpediente">
+            <div class="colab-intro__icon" aria-hidden="true">
+              <i class="fas fa-folder-open"></i>
+            </div>
+            <div class="colab-intro__text">
+              <h2>Expediente documental</h2>
+              <p *ngIf="seleccionado">
+                Documentación de <strong>{{ seleccionado.nombre }}</strong>
+                <ng-container *ngIf="puestoDe(seleccionado)"> · {{ puestoDe(seleccionado) }}</ng-container>.
+              </p>
+            </div>
+          </section>
+
+          <div class="rrhh-toolbar" *ngIf="vistaExpediente">
+            <div class="rrhh-toolbar__filters">
+              <button type="button" class="rrhh-btn rrhh-btn--ghost" (click)="volverAlOrganigrama()">
+                <i class="fas fa-arrow-left"></i>
+                Volver al organigrama
+              </button>
+            </div>
+            <div class="rrhh-toolbar__actions">
+              <button type="button" class="rrhh-btn rrhh-btn--ghost" (click)="recargarContenido()" [disabled]="cargandoContenido">
+                <i class="fas" [ngClass]="cargandoContenido ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                Actualizar
+              </button>
+            </div>
+          </div>
+
+          <div class="rrhh-alert rrhh-alert--progress" *ngIf="estadoOperacion">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>{{ estadoOperacion }}</span>
+          </div>
+          <div class="rrhh-alert rrhh-alert--error" *ngIf="errorCarga">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>{{ errorCarga }}</span>
+          </div>
+          <div class="rrhh-alert rrhh-alert--ok" *ngIf="mensajeOk && !errorCarga && !estadoOperacion">
+            <i class="fas fa-check-circle"></i>
+            <span>{{ mensajeOk }}</span>
+          </div>
+
+          <div class="colab-workspace" [class.is-expediente]="vistaExpediente">
+            <section class="colab-org" aria-label="Organigrama Biznaga" *ngIf="!vistaExpediente">
+              <header class="org-stage__top">
+                <div class="org-stage__brand">
+                  <span class="org-stage__kicker">Recursos Humanos</span>
+                  <h2>Organigrama Biznaga</h2>
+                </div>
+                <div class="org-stage__metrics" *ngIf="!cargando">
+                  <div>
+                    <strong>{{ personasEnOrganigrama }}</strong>
+                    <span>en puesto</span>
+                  </div>
+                  <div>
+                    <strong>{{ ocupadosOrganigrama }}/{{ ocupadosOrganigrama + vacantesOrganigrama }}</strong>
+                    <span>cargos cubiertos</span>
+                  </div>
+                  <div>
+                    <strong>{{ vacantesOrganigrama }}</strong>
+                    <span>vacantes</span>
+                  </div>
+                </div>
+                <div class="org-stage__tools">
+                  <label class="rrhh-search org-stage__search">
+                    <i class="fas fa-search" aria-hidden="true"></i>
+                    <input type="search" [(ngModel)]="busqueda" placeholder="Buscar puesto o persona…" autocomplete="off">
+                  </label>
+                  <button type="button" class="rrhh-btn rrhh-btn--ghost org-stage__btn" (click)="cargar(true)" [disabled]="cargando">
+                    <i class="fas" [ngClass]="cargando ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                  </button>
+                  <button *ngIf="carpetaUrl" type="button" class="rrhh-btn rrhh-btn--primary org-stage__btn org-stage__btn--drive" (click)="abrirEnDrive(carpetaUrl)">
+                    <i class="fab fa-google-drive"></i>
+                    Drive
+                  </button>
+                </div>
+              </header>
+
+              <div class="rrhh-state colab-org__state" *ngIf="cargando && !colaboradores.length">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Cargando organigrama…</span>
+              </div>
+
+              <div class="rrhh-state colab-org__state" *ngIf="!cargando && buscando && !colaboradoresFiltrados.length">
+                <i class="fas fa-user-slash"></i>
+                <span>Sin coincidencias.</span>
+              </div>
+
+              <div class="org-chart" *ngIf="(!cargando || colaboradores.length) && (colaboradoresFiltrados.length || !buscando)">
+                <div class="org-chart__tree">
+                  <span class="org-chart__deco" aria-hidden="true">
+                    <span class="org-chart__deco-shape"></span>
+                  </span>
+                  <div class="org-tier org-tier--top">
+                    <ng-container *ngTemplateOutlet="nodoOrg; context: { $implicit: orgDireccion.puesto }"></ng-container>
+                  </div>
+                  <div class="org-spine" aria-hidden="true"></div>
+                  <div class="org-bar" aria-hidden="true"></div>
+                  <div class="org-body">
+                    <ng-container *ngFor="let col of orgColumnas">
+                      <div class="org-col" *ngIf="columnaVisible(col)">
+                        <div class="org-col__line" aria-hidden="true"></div>
+                        <ng-container *ngFor="let nodo of col.nodos">
+                          <ng-container *ngTemplateOutlet="nodoOrg; context: { $implicit: nodo.puesto }"></ng-container>
+                        </ng-container>
+                      </div>
+                    </ng-container>
+                  </div>
+                </div>
+
+                <div class="org-extra" *ngIf="personasFueraDeLayout.length">
+                  <h3>Sin puesto en el organigrama</h3>
+                  <p>Asigna el cargo en Gestión de usuarios → Organigrama Biznaga para colocarlos en su nivel.</p>
+                  <div class="org-extra__grid">
+                    <ng-container *ngFor="let c of personasFueraDeLayout; trackBy: trackByColaborador">
+                      <ng-container *ngTemplateOutlet="tarjetaOrg; context: { $implicit: c }"></ng-container>
+                    </ng-container>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="colab-repo"
+                     *ngIf="vistaExpediente"
+                     [attr.aria-label]="seleccionado ? 'Expediente de ' + seleccionado.nombre : 'Expediente'">
+              <div class="colab-empty" *ngIf="!seleccionado && !cargando">
+                <div class="colab-empty__mark" aria-hidden="true"><i class="fas fa-user-slash"></i></div>
+                <h2>No se encontró el colaborador</h2>
+                <p>Vuelve al organigrama e intenta de nuevo.</p>
+                <button type="button" class="rrhh-btn rrhh-btn--primary" (click)="volverAlOrganigrama()">Volver</button>
+              </div>
+
+              <ng-container *ngIf="seleccionado">
+                <header class="colab-repo__head">
+                  <div class="colab-repo__who">
+                    <button type="button" class="rrhh-btn rrhh-btn--ghost colab-repo__back" (click)="volverAlOrganigrama()" title="Volver al organigrama">
+                      <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <span class="colab-avatar colab-avatar--lg">
+                      <img *ngIf="fotoSrc(seleccionado)"
+                           [src]="fotoSrc(seleccionado) | safe:'url'"
+                           [alt]="puestoDe(seleccionado) || seleccionado.nombre">
+                      <span *ngIf="!fotoSrc(seleccionado)">{{ seleccionado.iniciales }}</span>
+                    </span>
+                    <div>
+                      <span class="colab-chip">{{ puestoDe(seleccionado) || 'Colaborador' }}</span>
+                      <h2>{{ seleccionado.nombre }}</h2>
+                      <nav class="colab-crumbs" aria-label="Ruta del expediente" *ngIf="tieneExpedienteDrive(seleccionado)">
+                        <button type="button" (click)="irARaizExpediente()">Expediente</button>
+                        <ng-container *ngFor="let m of migas; let last = last">
+                          <span *ngIf="m.id !== seleccionado.id"> / </span>
+                          <button *ngIf="m.id !== seleccionado.id"
+                                  type="button"
+                                  [class.is-current]="last"
+                                  (click)="irAMiga(m)">{{ m.nombre }}</button>
+                        </ng-container>
+                      </nav>
+                    </div>
+                  </div>
+                  <div class="colab-repo__actions" *ngIf="tieneExpedienteDrive(seleccionado)">
+                    <button type="button" class="rrhh-btn rrhh-btn--ghost" (click)="recargarContenido()" [disabled]="cargandoContenido">
+                      <i class="fas" [ngClass]="cargandoContenido ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                    </button>
+                    <button *ngIf="puedeReescribirDocumentos"
+                            type="button"
+                            class="rrhh-btn rrhh-btn--rewrite"
+                            (click)="abrirReescribirDocumentos()"
+                            [disabled]="cargandoContenido || reescribiendo">
+                      <i class="fas fa-pen-nib"></i>
+                      Reescribir documentos
+                    </button>
+                    <button type="button" class="rrhh-btn rrhh-btn--ghost" (click)="abrirDialogoNuevaCarpeta()">
+                      <i class="fas fa-folder-plus"></i>
+                      Nueva carpeta
+                    </button>
+                    <button type="button" class="rrhh-btn rrhh-btn--primary" (click)="dispararSubida()" [disabled]="subiendo">
+                      <i class="fas" [ngClass]="subiendo ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'"></i>
+                      Subir
+                    </button>
+                    <button type="button" class="rrhh-btn rrhh-btn--ghost" (click)="abrirEnDrive()">
+                      <i class="fab fa-google-drive"></i>
+                    </button>
+                  </div>
+                </header>
+
+                <div class="colab-empty colab-empty--soft" *ngIf="!tieneExpedienteDrive(seleccionado)">
+                  <i class="fas fa-folder-open"></i>
+                  <strong>Sin carpeta de expediente</strong>
+                  <p>Este perfil está en el organigrama, pero aún no tiene carpeta documental en Drive.</p>
+                </div>
+
+                <ng-container *ngIf="tieneExpedienteDrive(seleccionado)">
+                <div class="colab-repo__toolbar">
+                  <label class="rrhh-search colab-doc-search">
+                    <i class="fas fa-filter" aria-hidden="true"></i>
+                    <input type="search" [(ngModel)]="busquedaDoc" placeholder="Filtrar en esta carpeta…" autocomplete="off">
+                  </label>
+                  <span class="colab-stat">
+                    {{ carpetasFiltradas.length }} carpetas
+                    <em>·</em>
+                    {{ archivosFiltrados.length }} archivos
+                  </span>
+                </div>
+
+                <div class="colab-newfolder" *ngIf="mostrarNuevaCarpeta">
+                  <input type="text"
+                         [(ngModel)]="nombreNuevaCarpeta"
+                         placeholder="Nombre de la carpeta (ej. Acreditaciones)"
+                         (keyup.enter)="crearCarpeta()">
+                  <button type="button" class="rrhh-btn rrhh-btn--primary" (click)="crearCarpeta()" [disabled]="creandoCarpeta">
+                    Crear
+                  </button>
+                  <button type="button" class="rrhh-btn rrhh-btn--ghost" (click)="mostrarNuevaCarpeta = false">Cancelar</button>
+                </div>
+
+                <div class="colab-rewrite" *ngIf="mostrarReescribir && puedeReescribirDocumentos">
+                  <header class="colab-rewrite__head">
+                    <div class="colab-rewrite__brand">
+                      <span class="colab-rewrite__icon" aria-hidden="true"><i class="fas fa-pen-nib"></i></span>
+                      <div>
+                        <strong>Reescribir documentos</strong>
+                        <p>Edita los nombres aquí. Se guardan en este navegador hasta que pulses <b>Guardar en Drive</b>. La extensión no se pierde.</p>
+                      </div>
+                    </div>
+                    <div class="colab-rewrite__actions">
+                      <button type="button" class="rrhh-btn rrhh-btn--primary" (click)="guardarReescrituraDocumentos()" [disabled]="reescribiendo">
+                        <i class="fas" [ngClass]="reescribiendo ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                        Guardar en Drive
+                      </button>
+                      <button type="button" class="rrhh-btn rrhh-btn--ghost" (click)="cerrarPanelReescritura()" [disabled]="reescribiendo">
+                        Cerrar
+                      </button>
+                    </div>
+                  </header>
+                  <div class="colab-rewrite__list">
+                    <label class="colab-rewrite__row"
+                           *ngFor="let fila of filasReescribir; trackBy: trackByFilaReescribir"
+                           [class.is-dirty]="filaEstaModificada(fila)">
+                      <span [title]="fila.original">{{ fila.original }}</span>
+                      <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                      <input type="text"
+                             [(ngModel)]="fila.nombre"
+                             (ngModelChange)="persistirBorradorReescritura()"
+                             [attr.aria-label]="'Nuevo nombre de ' + fila.original">
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Barra Regresar (estilo Repositorio): zona fácil para soltar archivos al padre -->
+                <div *ngIf="!esRaizExpediente"
+                     class="colab-nav-bar"
+                     [class.is-drop-target]="dropOverRegresar"
+                     (dragover)="onDragOverRegresar($event)"
+                     (dragleave)="onDragLeaveRegresar($event)"
+                     (drop)="onDropRegresar($event)">
+                  <button type="button"
+                          class="colab-nav-bar__back"
+                          (click)="regresarNivel()"
+                          title="Regresar a «{{ carpetaPadreNombre }}»">
+                    <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                    Regresar
+                  </button>
+                  <span class="colab-nav-bar__path" [title]="carpetaActualNombre">
+                    <i class="fas fa-folder-open" aria-hidden="true"></i>
+                    {{ carpetaActualNombre }}
+                  </span>
+                  <span class="colab-nav-bar__hint" *ngIf="dragFileId; else hintDefault">
+                    Suelta aquí para mover a <strong>{{ carpetaPadreNombre }}</strong>
+                  </span>
+                  <ng-template #hintDefault>
+                    <span class="colab-nav-bar__hint">
+                      Arrastra un archivo aquí para subirlo a la carpeta anterior
+                    </span>
+                  </ng-template>
+                </div>
+
+                <div class="colab-repo__body"
+                     [class.is-drop-target]="dropOverBody && !dropOverCarpetaId"
+                     (dragover)="onDragOver($event)"
+                     (dragleave)="onDragLeave($event)"
+                     (drop)="onDrop($event)">
+                  <div class="rrhh-state" *ngIf="cargandoContenido">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Cargando carpeta…</span>
+                  </div>
+
+                  <div class="colab-empty colab-empty--soft" *ngIf="vacioExpediente">
+                    <i class="fas fa-folder"></i>
+                    <strong>Carpeta vacía</strong>
+                    <p>Arrastra archivos aquí, súbelos o crea la estructura sugerida.</p>
+                    <div class="colab-empty__actions">
+                      <button type="button" class="rrhh-btn rrhh-btn--primary" (click)="crearCarpetasSugeridas()" [disabled]="creandoCarpeta">
+                        <i class="fas fa-magic"></i>
+                        Carpetas sugeridas
+                      </button>
+                      <button type="button" class="rrhh-btn rrhh-btn--ghost" (click)="dispararSubida()">
+                        <i class="fas fa-upload"></i>
+                        Subir archivo
+                      </button>
+                    </div>
+                  </div>
+
+                  <section class="colab-section" *ngIf="!cargandoContenido && carpetasFiltradas.length">
+                    <h3>Carpetas <span class="colab-hint">suelta aquí para mover o subir dentro</span></h3>
+                    <div class="colab-folder-grid">
+                      <div class="colab-folder"
+                           *ngFor="let f of carpetasFiltradas"
+                           [class.is-drop-target]="dropOverCarpetaId === f.id"
+                           (dragover)="onDragOver($event, f.id)"
+                           (dragleave)="onDragLeave($event, f.id)"
+                           (drop)="onDrop($event, f.id)">
+                        <button type="button" class="colab-folder__main" (click)="entrarCarpeta(f)">
+                          <span class="colab-folder__icon"><i class="fas fa-folder"></i></span>
+                          <span class="colab-folder__body">
+                            <strong [title]="f.nombre">{{ f.nombre }}</strong>
+                            <small>{{ f.archivos || 0 }} archivo{{ (f.archivos || 0) === 1 ? '' : 's' }}</small>
+                          </span>
+                        </button>
+                        <button type="button"
+                                class="colab-folder__menu"
+                                (click)="eliminarItem('carpeta', f.id, f.nombre, $event)"
+                                title="Eliminar carpeta">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section class="colab-section" *ngIf="!cargandoContenido && archivosFiltrados.length">
+                    <h3>Archivos <span class="colab-hint">arrastra a una carpeta o usa «Mover»</span></h3>
+                    <div class="colab-file-grid">
+                      <div class="colab-filecard"
+                           *ngFor="let doc of archivosFiltrados"
+                           [class.is-active]="documentoActivo?.id === doc.id"
+                           [class.is-dragging]="dragFileId === doc.id"
+                           draggable="true"
+                           (dragstart)="onFileDragStart($event, doc)"
+                           (dragend)="onFileDragEnd()"
+                           (click)="abrirDocumento(doc)">
+                        <span class="colab-filecard__thumb" [class.is-pdf]="doc.tipo === 'pdf'" [class.has-thumb]="!!miniaturas[doc.id]">
+                          <img *ngIf="miniaturas[doc.id]"
+                               [src]="miniaturas[doc.id] | safe:'url'"
+                               [alt]="doc.nombre">
+                          <i *ngIf="!miniaturas[doc.id] && !miniaturasCargando[doc.id]"
+                             class="fas"
+                             [ngClass]="iconoArchivo(doc)"></i>
+                          <i *ngIf="!miniaturas[doc.id] && miniaturasCargando[doc.id]"
+                             class="fas fa-spinner fa-spin colab-filecard__thumb-spin"
+                             aria-hidden="true"></i>
+                        </span>
+                        <span class="colab-filecard__meta">
+                          <strong [title]="doc.nombre">{{ doc.nombre }}</strong>
+                          <small>{{ doc.tamanoLabel || fechaCorta(doc.modificado) }}</small>
+                        </span>
+                        <span class="colab-filecard__actions" (click)="$event.stopPropagation()">
+                          <button type="button"
+                                  class="colab-filecard__move"
+                                  *ngIf="carpetas.length"
+                                  (click)="abrirMoverA(doc, $event)"
+                                  title="Mover a carpeta">
+                            <i class="fas fa-folder-open"></i>
+                          </button>
+                          <button type="button"
+                                  class="colab-filecard__del"
+                                  (click)="eliminarItem('archivo', doc.id, doc.nombre, $event)"
+                                  title="Eliminar">
+                            <i class="fas fa-trash"></i>
+                          </button>
+                        </span>
+                      </div>
+                    </div>
+                  </section>
+
+                  <div class="colab-drop-hint" *ngIf="!cargandoContenido && !vacioExpediente">
+                    Arrastra archivos a esta área o sobre una carpeta · usa <strong>Subir</strong> si prefieres
+                  </div>
+                </div>
+                </ng-container>
+              </ng-container>
+            </section>
+          </div>
+
+          <ng-template #nodoOrg let-puesto>
+            <ng-container *ngIf="personasEn(puesto) as personas">
+              <div class="org-node" *ngIf="personas.length || mostrarVacante(puesto)">
+                <button *ngIf="personas.length > 1"
+                        type="button"
+                        class="org-person org-person--folder"
+                        [class.org-person--lead]="esPuestoDireccion(puesto)"
+                        (click)="abrirCarpetaPuesto(puesto, $event)"
+                        [attr.aria-label]="'Ver ' + personas.length + ' colaboradores en ' + puesto">
+                  <span class="org-person__avatar" aria-hidden="true">
+                    <span class="org-person__halo"></span>
+                    <span class="org-person__ring"></span>
+                    <span class="org-person__face">
+                      <span class="org-folder-grid">
+                        <span class="org-folder-tile" *ngFor="let c of previewsCarpeta(personas)">
+                          <img *ngIf="fotoSrc(c)" [src]="fotoSrc(c) | safe:'url'" [alt]="c.nombre">
+                          <span *ngIf="!fotoSrc(c)">{{ c.iniciales }}</span>
+                        </span>
+                      </span>
+                    </span>
+                    <span class="org-person__pointer"></span>
+                    <span class="org-folder-badge">{{ personas.length }}</span>
+                  </span>
+                  <span class="org-person__role">{{ puesto }}</span>
+                  <span class="org-person__name">{{ personas.length }} personas</span>
+                </button>
+                <ng-container *ngIf="personas.length === 1">
+                  <ng-container *ngTemplateOutlet="tarjetaOrg; context: { $implicit: personas[0], puesto: puesto }"></ng-container>
+                </ng-container>
+                <div class="org-person org-person--vacante" *ngIf="mostrarVacante(puesto)" [class.org-person--lead]="esPuestoDireccion(puesto)">
+                  <span class="org-person__avatar" aria-hidden="true">
+                    <span class="org-person__halo"></span>
+                    <span class="org-person__ring"></span>
+                    <span class="org-person__face">
+                      <span class="org-person__fallback"><i class="fas fa-user"></i></span>
+                    </span>
+                    <span class="org-person__pointer"></span>
+                  </span>
+                  <span class="org-person__role">{{ puesto }}</span>
+                  <span class="org-person__name">Vacante</span>
+                </div>
+              </div>
+            </ng-container>
+          </ng-template>
+
+          <ng-template #tarjetaOrg let-c let-puesto="puesto">
+            <button type="button"
+                    class="org-person"
+                    [class.org-person--lead]="esPuestoDireccion(puestoDe(c) || puesto)"
+                    [class.is-hover]="hoverColaborador?.id === c.id"
+                    (click)="seleccionar(c)"
+                    (mouseenter)="mostrarFicha(c, $event)"
+                    (mouseleave)="ocultarFicha()"
+                    (focus)="mostrarFicha(c, $event)"
+                    (blur)="ocultarFicha()"
+                    [attr.aria-label]="'Abrir expediente de ' + c.nombre">
+              <span class="org-person__avatar">
+                <span class="org-person__halo" aria-hidden="true"></span>
+                <span class="org-person__ring" aria-hidden="true"></span>
+                <span class="org-person__face">
+                  <img *ngIf="fotoSrc(c)" [src]="fotoSrc(c) | safe:'url'" [alt]="c.nombre">
+                  <span class="org-person__fallback" *ngIf="!fotoSrc(c)">{{ c.iniciales }}</span>
+                </span>
+                <span class="org-person__pointer" aria-hidden="true"></span>
+              </span>
+              <span class="org-person__role">{{ puestoDe(c) || puesto || 'Sin puesto' }}</span>
+              <span class="org-person__name">{{ c.nombre }}</span>
+            </button>
+          </ng-template>
+
+          <input #fileInput type="file" hidden multiple accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*"
+                 (change)="onArchivosSeleccionados($event)">
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Panel Mover: fijo al viewport (visible aunque el listado esté scrolleado) -->
+<div class="colab-move-panel" *ngIf="archivoParaMover" role="dialog" aria-modal="true">
+  <div class="colab-move-panel__backdrop" (click)="cancelarMoverA()"></div>
+  <div class="colab-move-panel__card">
+    <header>
+      <strong>Mover «{{ archivoParaMover.nombre }}»</strong>
+      <button type="button" class="rrhh-btn rrhh-btn--ghost" (click)="cancelarMoverA()" title="Cerrar">
+        <i class="fas fa-times"></i>
+      </button>
+    </header>
+    <p>Elige la carpeta destino en este nivel:</p>
+    <div class="colab-move-panel__list">
+      <button type="button"
+              *ngFor="let f of carpetas"
+              (click)="confirmarMoverA(f.id)">
+        <i class="fas fa-folder"></i>
+        {{ f.nombre }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="org-folder-overlay"
+     *ngIf="carpetaPuestoAbierta && !vistaExpediente"
+     (click)="cerrarCarpetaPuesto()"
+     role="presentation">
+  <div class="org-folder-sheet"
+       role="dialog"
+       aria-modal="true"
+       [attr.aria-label]="carpetaPuestoAbierta"
+       (click)="$event.stopPropagation()">
+    <header class="org-folder-sheet__head">
+      <div>
+        <p>Organigrama</p>
+        <h3>{{ carpetaPuestoAbierta }}</h3>
+      </div>
+      <button type="button" class="org-folder-sheet__close" (click)="cerrarCarpetaPuesto()" title="Cerrar">
+        <i class="fas fa-times"></i>
+      </button>
+    </header>
+    <div class="org-folder-sheet__grid">
+      <button type="button"
+              class="org-person org-folder-member"
+              *ngFor="let c of personasCarpetaAbierta; trackBy: trackByColaborador"
+              [class.is-hover]="hoverColaborador?.id === c.id"
+              (click)="seleccionar(c)"
+              (mouseenter)="mostrarFicha(c, $event)"
+              (mouseleave)="ocultarFicha()"
+              (focus)="mostrarFicha(c, $event)"
+              (blur)="ocultarFicha()">
+        <span class="org-person__avatar">
+          <span class="org-person__halo" aria-hidden="true"></span>
+          <span class="org-person__ring" aria-hidden="true"></span>
+          <span class="org-person__face">
+            <img *ngIf="fotoSrc(c)" [src]="fotoSrc(c) | safe:'url'" [alt]="c.nombre">
+            <span class="org-person__fallback" *ngIf="!fotoSrc(c)">{{ c.iniciales }}</span>
+          </span>
+          <span class="org-person__pointer" aria-hidden="true"></span>
+        </span>
+        <span class="org-person__role">{{ puestoDe(c) || carpetaPuestoAbierta }}</span>
+        <span class="org-person__name">{{ c.nombre }}</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<aside class="org-hovercard"
+       *ngIf="hoverColaborador && !vistaExpediente"
+       [style.left.px]="hoverLeft"
+       [style.top.px]="hoverTop"
+       aria-hidden="true">
+  <header class="org-hovercard__head">
+    <span class="org-hovercard__photo">
+      <img *ngIf="fotoSrc(hoverColaborador)" [src]="fotoSrc(hoverColaborador) | safe:'url'" [alt]="hoverColaborador.nombre">
+      <span *ngIf="!fotoSrc(hoverColaborador)">{{ hoverColaborador.iniciales }}</span>
+    </span>
+    <div class="org-hovercard__who">
+      <strong>{{ hoverColaborador.nombre }}</strong>
+      <small>Ficha de contacto</small>
+    </div>
+  </header>
+  <div class="org-hovercard__body">
+    <div class="org-hovercard__row">
+      <span class="org-hovercard__icon"><i class="fas fa-sitemap"></i></span>
+      <span>
+        <span class="org-hovercard__label">Área</span>
+        <span class="org-hovercard__value">{{ areaDe(hoverColaborador) || 'Sin área asignada' }}</span>
+      </span>
+    </div>
+    <div class="org-hovercard__row" *ngIf="contactoDe(hoverColaborador).email">
+      <span class="org-hovercard__icon"><i class="fas fa-envelope"></i></span>
+      <span>
+        <span class="org-hovercard__label">Correo</span>
+        <span class="org-hovercard__value">{{ contactoDe(hoverColaborador).email }}</span>
+      </span>
+    </div>
+    <div class="org-hovercard__row" *ngIf="contactoDe(hoverColaborador).telefono">
+      <span class="org-hovercard__icon"><i class="fas fa-phone-alt"></i></span>
+      <span>
+        <span class="org-hovercard__label">Teléfono</span>
+        <span class="org-hovercard__value">{{ contactoDe(hoverColaborador).telefono }}</span>
+      </span>
+    </div>
+    <div class="org-hovercard__row" *ngIf="!contactoDe(hoverColaborador).email && !contactoDe(hoverColaborador).telefono">
+      <span class="org-hovercard__icon"><i class="fas fa-address-card"></i></span>
+      <span>
+        <span class="org-hovercard__label">Contacto</span>
+        <span class="org-hovercard__value">Sin contacto registrado</span>
+      </span>
+    </div>
+  </div>
+</aside>

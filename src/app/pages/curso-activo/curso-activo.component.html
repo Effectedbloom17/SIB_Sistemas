@@ -1,0 +1,952 @@
+<!-- Header global (reutiliza .header-bg-image de styles.scss) -->
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-chalkboard-teacher"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">Cursos Activos</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+      <div class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+
+        <!-- Card header con t&iacute;tulo -->
+        <div class="card-header border-0" style="padding: 1.5rem 2rem;">
+          <div class="row align-items-center">
+            <div class="col">
+              <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">Panel de Capacitaci&oacute;n</h6>
+              <h2 class="mb-0" style="color: #38512F; font-weight: 700; font-size: 1.5rem;">
+                <i class="fas fa-list-alt mr-2" style="font-size: 1.2rem;"></i>Cursos Programados
+              </h2>
+              <small class="text-muted" style="font-size: 0.75rem;" *ngIf="!esInstructorYAdministrador">
+                <i class="fas fa-info-circle mr-1"></i>
+                <span *ngIf="!esEmpresa && !esInstructor">
+                  Se muestran cursos programados y en curso.
+                </span>
+                <span *ngIf="esEmpresa">
+                  Tus cursos asignados: programados y en curso.
+                </span>
+                <span *ngIf="esInstructor">
+                  Tus cursos asignados como instructor.
+                </span>
+              </small>
+            </div>
+            <div class="col-auto d-flex align-items-center flex-wrap justify-content-end" style="gap: 0.4rem;">
+              <ng-container *ngIf="esInstructorYAdministrador; else contadorSimple">
+                <span class="badge badge-count">Propias: {{ cursosProgramadosPropiosFiltrados.length }}</span>
+                <span class="badge badge-count">Globales: {{ cursosProgramadosFiltrados.length }}</span>
+              </ng-container>
+              <ng-template #contadorSimple>
+                <span class="badge badge-count mr-2">
+                  {{ cursosProgramadosFiltrados.length }}
+                  <span *ngIf="esEmpresa || esInstructor">curso<span *ngIf="cursosProgramadosFiltrados.length !== 1">s</span></span>
+                </span>
+              </ng-template>
+              <span class="badge badge-pill badge-light" *ngIf="esEmpresa" style="font-size: 0.75rem;">
+                <i class="fas fa-building mr-1"></i> Mis Cursos
+              </span>
+              <span class="badge badge-pill badge-light" *ngIf="!esInstructorYAdministrador && esInstructor" style="font-size: 0.75rem;">
+                <i class="fas fa-user-tie mr-1"></i> Mis Cursos
+              </span>
+              <span class="badge badge-pill badge-light" *ngIf="esInstructorYAdministrador" style="font-size: 0.75rem;">
+                <i class="fas fa-layer-group mr-1"></i> Doble vista
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Barra de filtros -->
+        <div class="search-bar">
+          <div class="search-input-wrap">
+            <i class="fas fa-search search-icon"></i>
+            <input class="search-input" type="text" placeholder="Buscar curso, empresa o instructor..."
+                   [(ngModel)]="textoBusqueda" (ngModelChange)="filtrarCursos()"
+                   autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="busqueda-cursos-noac">
+          </div>
+          <div class="filter-pills">
+            <select *ngIf="!esEmpresa" class="filter-select"
+                    [(ngModel)]="filtroEmpresa" (ngModelChange)="filtrarCursos()">
+              <option value="">Todas las empresas</option>
+              <option *ngFor="let emp of empresasUnicas" [value]="emp.id">{{ emp.nombre }}</option>
+            </select>
+            <select class="filter-select"
+                    [(ngModel)]="filtroEstatus" (ngModelChange)="filtrarCursos()">
+              <option value="">Todos los estatus</option>
+              <option value="programado">Programado</option>
+              <option value="con_inscritos">Participantes Registrados</option>
+            </select>
+            <button *ngIf="hayFiltrosActivos" class="btn btn-sm btn-limpiar"
+                    (click)="limpiarFiltros()" title="Limpiar filtros">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Body -->
+        <div class="card-body p-0">
+
+          <!-- Loading -->
+          <div *ngIf="loadingBD" class="text-center py-5">
+            <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;">
+              <span class="sr-only">Cargando...</span>
+            </div>
+            <p class="text-muted mt-3">Cargando cursos programados...</p>
+          </div>
+
+          <!-- Sin cursos -->
+          <div *ngIf="!loadingBD && !hayCursosBase" class="text-center py-5">
+            <i class="fas fa-calendar-times text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-3 mb-0" *ngIf="esEmpresa">No tienes cursos programados actualmente.</p>
+            <p class="text-muted mt-3 mb-0" *ngIf="esInstructorYAdministrador">No hay capacitaciones propias ni globales disponibles.</p>
+            <p class="text-muted mt-3 mb-0" *ngIf="!esEmpresa && !esInstructorYAdministrador">No hay cursos programados en la base de datos.</p>
+          </div>
+
+          <!-- Sin resultados de b&uacute;squeda -->
+          <div *ngIf="!loadingBD && hayCursosBase && !hayCursosFiltrados" class="text-center py-5">
+            <i class="fas fa-search text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-3 mb-1">No se encontraron cursos con los filtros aplicados.</p>
+            <button class="btn btn-sm btn-link" style="color: #38512F;" (click)="limpiarFiltros()">Limpiar filtros</button>
+          </div>
+
+          <!-- Tabla de cursos -->
+          <div *ngIf="!loadingBD && hayCursosFiltrados">
+            <ng-container *ngIf="esInstructorYAdministrador; else tablaUnicaWrapper">
+              <!-- Tabla separada: Capacitaciones propias -->
+              <div class="table-responsive dual-table-responsive">
+                <table class="table table-hover table-flush align-items-center mb-0 dual-cursos-table"
+                       [ngClass]="'cols-admin'">
+                  <thead class="thead-light">
+                    <ng-container *ngTemplateOutlet="tableHeadTemplate"></ng-container>
+                  </thead>
+                  <tbody>
+                    <tr class="table-section-row">
+                      <td [attr.colspan]="6">
+                        <div class="section-heading">
+                          <div class="section-heading-main">
+                            <span class="section-dot section-dot-propias"></span>
+                            <span class="section-title">Capacitaciones Propias</span>
+                            <small class="text-muted section-count">({{ cursosProgramadosPropiosFiltrados.length }})</small>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr *ngIf="cursosPropiosPaginados.length === 0" class="table-empty-row">
+                      <td [attr.colspan]="6" class="text-muted text-center py-3">
+                        No hay capacitaciones propias con los filtros actuales.
+                      </td>
+                    </tr>
+                    <ng-container *ngFor="let curso of cursosPropiosPaginados">
+                      <ng-container *ngTemplateOutlet="cursoRowTemplate; context: { $implicit: curso, contexto: 'propio' }"></ng-container>
+                    </ng-container>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Tabla: Capacitaciones globales -->
+              <div class="table-responsive dual-table-responsive dual-table-globales">
+                <table class="table table-hover table-flush align-items-center mb-0 dual-cursos-table"
+                       [ngClass]="'cols-admin'">
+                  <thead class="thead-light" *ngIf="mostrarCapacitacionesGlobales">
+                    <ng-container *ngTemplateOutlet="tableHeadTemplate"></ng-container>
+                  </thead>
+                  <tbody>
+                    <tr class="table-section-row table-section-row-globales table-section-row-collapsible"
+                        (click)="toggleCapacitacionesGlobales()"
+                        [attr.aria-expanded]="mostrarCapacitacionesGlobales"
+                        title="Mostrar/ocultar capacitaciones globales">
+                      <td [attr.colspan]="6">
+                        <div class="section-heading section-heading-collapsible">
+                          <div class="section-heading-main">
+                            <span class="section-dot section-dot-globales"></span>
+                            <span class="section-title">Capacitaciones Globales</span>
+                            <small class="text-muted section-count">({{ cursosProgramadosFiltrados.length }})</small>
+                          </div>
+                          <i class="fas section-toggle-icon" [ngClass]="mostrarCapacitacionesGlobales ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                        </div>
+                      </td>
+                    </tr>
+
+                    <tr *ngIf="!mostrarCapacitacionesGlobales" class="table-collapsed-hint-row">
+                      <td [attr.colspan]="6" class="text-muted text-center py-2">
+                        Sección contraída. Haz clic en "Capacitaciones Globales" para expandir.
+                      </td>
+                    </tr>
+
+                    <tr *ngIf="mostrarCapacitacionesGlobales && cursosPaginados.length === 0" class="table-empty-row">
+                      <td [attr.colspan]="6" class="text-muted text-center py-3">
+                        No hay capacitaciones globales con los filtros actuales.
+                      </td>
+                    </tr>
+
+                    <ng-container *ngIf="mostrarCapacitacionesGlobales">
+                      <ng-container *ngFor="let curso of cursosPaginados">
+                        <ng-container *ngTemplateOutlet="cursoRowTemplate; context: { $implicit: curso, contexto: 'global' }"></ng-container>
+                      </ng-container>
+                    </ng-container>
+                  </tbody>
+                </table>
+              </div>
+            </ng-container>
+
+            <ng-template #tablaUnicaWrapper>
+              <div class="table-responsive">
+                <table class="table table-hover table-flush align-items-center mb-0 dual-cursos-table"
+                       [ngClass]="'cols-admin'">
+                  <thead class="thead-light">
+                    <ng-container *ngTemplateOutlet="tableHeadTemplate"></ng-container>
+                  </thead>
+                  <tbody>
+                    <ng-container *ngFor="let curso of cursosPaginados">
+                      <ng-container *ngTemplateOutlet="cursoRowTemplate; context: { $implicit: curso, contexto: 'unico' }"></ng-container>
+                    </ng-container>
+                  </tbody>
+                </table>
+              </div>
+            </ng-template>
+
+            <ng-template #tableHeadTemplate>
+              <tr>
+                <th class="sortable-th" (click)="ordenarPor('nombre_empresa')">
+                  Empresa
+                  <i class="fas fa-sort ml-1 sort-icon" *ngIf="ordenCampo !== 'nombre_empresa'"></i>
+                  <i class="fas fa-caret-up ml-1" *ngIf="ordenCampo === 'nombre_empresa' && ordenAsc"></i>
+                  <i class="fas fa-caret-down ml-1" *ngIf="ordenCampo === 'nombre_empresa' && !ordenAsc"></i>
+                </th>
+                <th class="sortable-th" (click)="ordenarPor('nombre_curso')">
+                  Curso
+                  <i class="fas fa-sort ml-1 sort-icon" *ngIf="ordenCampo !== 'nombre_curso'"></i>
+                  <i class="fas fa-caret-up ml-1" *ngIf="ordenCampo === 'nombre_curso' && ordenAsc"></i>
+                  <i class="fas fa-caret-down ml-1" *ngIf="ordenCampo === 'nombre_curso' && !ordenAsc"></i>
+                </th>
+                <th>Instructor</th>
+                <th class="sortable-th" (click)="ordenarPor('fecha_inicio')">
+                  Fecha / Horario
+                  <i class="fas fa-sort ml-1 sort-icon" *ngIf="ordenCampo !== 'fecha_inicio'"></i>
+                  <i class="fas fa-caret-up ml-1" *ngIf="ordenCampo === 'fecha_inicio' && ordenAsc"></i>
+                  <i class="fas fa-caret-down ml-1" *ngIf="ordenCampo === 'fecha_inicio' && !ordenAsc"></i>
+                </th>
+                <th>Participantes</th>
+                <th class="text-center">Acci&oacute;n</th>
+              </tr>
+            </ng-template>
+
+            <ng-template #cursoRowTemplate let-curso let-contexto="contexto">
+              <tr class="curso-data-row"
+                  [class.curso-data-row-selected]="isTimelinePreviewCursoSeleccionado(curso, contexto)"
+                  (click)="toggleTimelinePreviewCurso(curso, contexto)">
+                <!-- Empresa -->
+                <td>
+                  <div class="d-flex align-items-center">
+                    <img *ngIf="getLogoEmpresaUrl(curso)"
+                         [src]="getLogoEmpresaUrl(curso)"
+                         [alt]="curso.nombre_empresa || 'Empresa'"
+                         class="rounded-circle shadow-sm mr-2 bg-white"
+                         style="width: 32px; height: 32px; min-width: 32px; object-fit: contain; padding: 0.2rem;"
+                         (error)="onLogoEmpresaError(curso)">
+                    <div *ngIf="!getLogoEmpresaUrl(curso)"
+                         class="icon icon-shape text-white rounded-circle shadow mr-2 d-flex align-items-center justify-content-center"
+                         style="width: 32px; height: 32px; min-width: 32px; background: linear-gradient(135deg, #38512F 0%, #5a7456 100%); font-size: 11px; font-weight: 700;">
+                      {{ getInicialesEmpresa(curso.nombre_empresa || '') }}
+                    </div>
+                    <span class="font-weight-bold empresa-nombre-completo" [title]="curso.nombre_empresa">
+                      {{ curso.nombre_empresa || 'Sin empresa' }}
+                    </span>
+                  </div>
+                </td>
+
+                <!-- Curso -->
+                <td style="white-space: normal;">
+                  <span class="font-weight-bold text-dark d-block mb-1" style="line-height: 1.15; font-size: 0.8rem;">
+                    {{ curso.nombre_curso || 'Sin nombre' }}
+                  </span>
+                  <small class="text-muted d-block">
+                    <span *ngIf="curso.curso_horas" class="mr-2">
+                      <i class="far fa-clock mr-1"></i>{{ curso.curso_horas }} hrs
+                    </span>
+                    <span *ngIf="curso.modalidad" class="badge badge-dot">
+                      <i [class]="curso.modalidad === 'presencial' ? 'bg-success' : 'bg-info'"></i>
+                      <span class="text-capitalize">{{ curso.modalidad }}</span>
+                    </span>
+                  </small>
+                </td>
+
+                <!-- Instructor -->
+                <td style="white-space: normal;">
+                  <div class="d-flex align-items-center">
+                    <i class="fas fa-user-circle text-muted mr-1" style="font-size: 0.9rem;"></i>
+                    <span *ngIf="curso.instructor_nombre" class="font-weight-600 text-muted" style="font-size: 0.85rem; line-height: 1.1;">
+                      {{ curso.instructor_nombre }}
+                    </span>
+                    <span *ngIf="!curso.instructor_nombre" class="text-muted small">Sin asignar</span>
+                  </div>
+                </td>
+
+                <!-- Fecha / Horario -->
+                <td style="white-space: normal;">
+                  <div class="mb-1 text-dark" style="line-height: 1.1; font-size: 0.85rem;">
+                    <i class="far fa-calendar-alt text-primary mr-1" style="font-size: 0.8rem;"></i>
+                    <span class="font-weight-600">{{ formatDate(curso.fecha_inicio) }}</span>
+                    <span *ngIf="curso.fecha_fin && curso.fecha_fin !== curso.fecha_inicio" class="font-weight-600">
+                      - {{ formatDate(curso.fecha_fin) }}
+                    </span>
+                  </div>
+                  <div class="text-muted" style="font-size: 0.75rem;">
+                    <i class="far fa-clock mr-1"></i>
+                    {{ formatTime(curso.hora_inicio) }} - {{ formatTime(curso.hora_fin) }}
+                  </div>
+                </td>
+
+                <!-- Participantes -->
+                <td>
+                  <div class="d-flex align-items-center mb-1">
+                    <i class="fas fa-users text-success mr-1"></i>
+                    <span class="font-weight-bold">{{ curso.inscritos || 0 }}</span>
+                    <small class="text-muted ml-1">/ {{ curso.cupo || 25 }}</small>
+                  </div>
+                  <div class="progress" style="height: 6px; border-radius: 3px;">
+                    <div class="progress-bar"
+                         [class.bg-danger]="!esCursoListo(curso)"
+                         [class.bg-success]="esCursoListo(curso)"
+                         [style.width.%]="getPorcentajeOcupacion(curso)"
+                         role="progressbar">
+                    </div>
+                  </div>
+                  <small class="text-muted" style="font-size: 0.7rem;">
+                    {{ getPorcentajeOcupacion(curso) | number:'1.0-0' }}% ocupado
+                    <span *ngIf="!esCursoListo(curso)" class="text-danger ml-1">
+                      &#8212; mín. {{ getMinimoRequerido(curso) }} inscrito<span *ngIf="getMinimoRequerido(curso) !== 1">s</span>
+                    </span>
+                  </small>
+                </td>
+
+                <!-- Estatus / Acciones -->
+                <td class="text-center" (click)="$event.stopPropagation()">
+                  <!-- USUARIO EMPRESA -->
+                  <ng-container *ngIf="esEmpresa">
+                    <div class="acciones-cell">
+                      <button *ngIf="puedeEmpresaGestionarParticipantes(curso)"
+                              class="btn-accion btn-accion-registrar"
+                              (click)="abrirModalRegistroEmpleados(curso)"
+                              title="Gestionar participantes">
+                        <i class="fas fa-user-plus"></i>
+                      </button>
+                      <button *ngIf="curso.estatus === 'programado' || curso.estatus === 'en_curso' || curso.estatus === 'completado'"
+                              class="btn-accion btn-accion-ver"
+                              (click)="abrirGestionCurso(curso, contexto)"
+                              title="Ver el estado del curso">
+                        <i class="fas fa-eye"></i>
+                      </button>
+                      <span *ngIf="curso.estatus !== 'programado' && curso.estatus !== 'en_curso' && curso.estatus !== 'completado'"
+                            class="btn-accion btn-accion-pendiente"
+                            [title]="getEstatusTooltip(curso.estatus)">
+                        <i class="fas fa-clock"></i>
+                      </span>
+                    </div>
+                  </ng-container>
+
+                  <!-- USUARIO ADMIN/INSTRUCTOR -->
+                  <ng-container *ngIf="!esEmpresa">
+                    <div class="acciones-cell">
+                      <button *ngIf="puedeAdministradorGestionarParticipantes(curso)"
+                              class="btn-accion btn-accion-registrar"
+                              (click)="abrirModalRegistroEmpleados(curso)"
+                              title="Registrar/gestionar participantes (administrador/superadmin)">
+                        <i class="fas fa-user-plus"></i>
+                      </button>
+                      <button *ngIf="curso.estatus === 'programado' || curso.estatus === 'en_curso'"
+                              class="btn-accion btn-accion-gestionar"
+                              [disabled]="!puedeGestionarCurso(curso, contexto)"
+                              (click)="abrirGestionCurso(curso, contexto)"
+                              [title]="getTooltipGestionCurso(curso, contexto)">
+                        <i class="fas fa-cog"></i>
+                      </button>
+                      <span *ngIf="curso.estatus === 'completado'"
+                            class="btn-accion btn-accion-completado"
+                            [title]="getEstatusTooltip(curso.estatus)">
+                        <i class="fas fa-check-circle"></i>
+                      </span>
+                      <span *ngIf="curso.estatus !== 'programado' && curso.estatus !== 'en_curso' && curso.estatus !== 'completado'"
+                            class="btn-accion"
+                            [ngClass]="{
+                              'btn-accion-pendiente': curso.estatus === 'pospuesto',
+                              'btn-accion-cancelado': curso.estatus === 'cancelado'
+                            }"
+                            [title]="getEstatusTooltip(curso.estatus)">
+                        <i class="fas" [ngClass]="{
+                          'fa-clock': curso.estatus === 'pospuesto',
+                          'fa-times-circle': curso.estatus === 'cancelado'
+                        }"></i>
+                      </span>
+                      <!-- Botón eliminar (administrador o superior) -->
+                      <button *ngIf="esAdministradorOSuperior"
+                              class="btn-accion btn-accion-eliminar"
+                              (click)="eliminarCursoProgramado(curso)"
+                              title="Eliminar curso programado (administrador)">
+                        <i class="fas fa-trash-alt"></i>
+                      </button>
+                    </div>
+                  </ng-container>
+                </td>
+              </tr>
+
+              <tr *ngIf="isTimelinePreviewCursoSeleccionado(curso, contexto)" class="timeline-preview-row">
+                <td [attr.colspan]="6" class="timeline-preview-cell">
+                  <div class="timeline-preview-wrapper">
+                    <ng-container *ngTemplateOutlet="timelinePreviewTemplate; context: { curso: curso, contexto: contexto }"></ng-container>
+                  </div>
+                </td>
+              </tr>
+            </ng-template>
+
+            <ng-template #timelinePreviewTemplate let-curso="curso" let-contexto="contexto">
+              <div class="timeline-preview-card">
+                <div class="timeline-preview-bar">
+                  <div class="timeline-preview-stepper" role="presentation" aria-label="Progreso del curso">
+                    <div class="timeline-preview-track-rail">
+                      <div class="timeline-preview-track-fill"
+                           [style.width.%]="getPorcentajeTimelineSeleccionado(curso)"></div>
+                    </div>
+                    <div class="timeline-preview-steps">
+                      <div class="timeline-preview-step"
+                           *ngFor="let paso of pasosTimelineCurso; let i = index"
+                           [class.completed]="isPasoTimelineCompletado(curso, paso.numero)"
+                           [class.doc]="paso.seccion === 'documentacion'"
+                           [class.active]="isPasoTimelineActual(curso, paso.numero)">
+                        <div class="timeline-preview-node">
+                          <span class="timeline-preview-dot">
+                            <i *ngIf="isPasoTimelineCompletado(curso, paso.numero)" class="fas fa-check"></i>
+                            <i *ngIf="!isPasoTimelineCompletado(curso, paso.numero) && isPasoTimelineActual(curso, paso.numero)"
+                               class="fas {{ paso.icono }}"></i>
+                            <span *ngIf="!isPasoTimelineCompletado(curso, paso.numero) && !isPasoTimelineActual(curso, paso.numero)"
+                                  class="timeline-preview-index">{{ i + 1 }}</span>
+                          </span>
+                        </div>
+                        <span class="timeline-preview-label">{{ paso.nombre }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="timeline-preview-actions">
+                    <button type="button"
+                            class="timeline-preview-open-btn"
+                            (click)="abrirTimelineCapacitacion(curso, contexto); $event.stopPropagation()"
+                            title="Abrir timeline del curso para gestionar la capacitación">
+                      <span class="timeline-preview-open-btn-text">Abrir capacitación</span>
+                      <i class="fas fa-arrow-right"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-template>
+          </div>
+
+          <!-- Paginaci&oacute;n: Capacitaciones propias -->
+          <div class="pagination-bar" *ngIf="!loadingBD && esInstructorYAdministrador && totalPaginasPropios > 1">
+            <div class="d-flex align-items-center justify-content-between flex-wrap">
+              <small class="text-muted">
+                Propias: mostrando {{ ((paginaActualPropios - 1) * itemsPorPaginaPropios) + 1 }}&#8211;{{ paginaActualPropios * itemsPorPaginaPropios > cursosProgramadosPropiosFiltrados.length ? cursosProgramadosPropiosFiltrados.length : paginaActualPropios * itemsPorPaginaPropios }}
+                de {{ cursosProgramadosPropiosFiltrados.length }}
+              </small>
+              <nav>
+                <ul class="pagination pagination-sm mb-0">
+                  <li class="page-item" [class.disabled]="paginaActualPropios === 1">
+                    <a class="page-link" (click)="cambiarPaginaPropios(1)" title="Primera">
+                      <i class="fas fa-angle-double-left"></i>
+                    </a>
+                  </li>
+                  <li class="page-item" [class.disabled]="paginaActualPropios === 1">
+                    <a class="page-link" (click)="cambiarPaginaPropios(paginaActualPropios - 1)">
+                      <i class="fas fa-angle-left"></i>
+                    </a>
+                  </li>
+                  <li class="page-item" *ngFor="let p of paginasVisiblesPropios"
+                      [class.active]="p === paginaActualPropios">
+                    <a class="page-link" (click)="cambiarPaginaPropios(p)">{{ p }}</a>
+                  </li>
+                  <li class="page-item" [class.disabled]="paginaActualPropios === totalPaginasPropios">
+                    <a class="page-link" (click)="cambiarPaginaPropios(paginaActualPropios + 1)">
+                      <i class="fas fa-angle-right"></i>
+                    </a>
+                  </li>
+                  <li class="page-item" [class.disabled]="paginaActualPropios === totalPaginasPropios">
+                    <a class="page-link" (click)="cambiarPaginaPropios(totalPaginasPropios)" title="&Uacute;ltima">
+                      <i class="fas fa-angle-double-right"></i>
+                    </a>
+                  </li>
+                </ul>
+              </nav>
+            </div>
+          </div>
+
+          <!-- Paginaci&oacute;n -->
+          <div class="pagination-bar" *ngIf="!loadingBD && totalPaginas > 1 && (!esInstructorYAdministrador || mostrarCapacitacionesGlobales)">
+            <div class="d-flex align-items-center justify-content-between flex-wrap">
+              <small class="text-muted">
+                Mostrando {{ ((paginaActual - 1) * itemsPorPagina) + 1 }}&#8211;{{ paginaActual * itemsPorPagina > cursosProgramadosFiltrados.length ? cursosProgramadosFiltrados.length : paginaActual * itemsPorPagina }}
+                de {{ cursosProgramadosFiltrados.length }}
+                <span *ngIf="esInstructorYAdministrador"> (globales)</span>
+              </small>
+              <nav>
+                <ul class="pagination pagination-sm mb-0">
+                  <li class="page-item" [class.disabled]="paginaActual === 1">
+                    <a class="page-link" (click)="cambiarPagina(1)" title="Primera">
+                      <i class="fas fa-angle-double-left"></i>
+                    </a>
+                  </li>
+                  <li class="page-item" [class.disabled]="paginaActual === 1">
+                    <a class="page-link" (click)="cambiarPagina(paginaActual - 1)">
+                      <i class="fas fa-angle-left"></i>
+                    </a>
+                  </li>
+                  <li class="page-item" *ngFor="let p of paginasVisibles"
+                      [class.active]="p === paginaActual">
+                    <a class="page-link" (click)="cambiarPagina(p)">{{ p }}</a>
+                  </li>
+                  <li class="page-item" [class.disabled]="paginaActual === totalPaginas">
+                    <a class="page-link" (click)="cambiarPagina(paginaActual + 1)">
+                      <i class="fas fa-angle-right"></i>
+                    </a>
+                  </li>
+                  <li class="page-item" [class.disabled]="paginaActual === totalPaginas">
+                    <a class="page-link" (click)="cambiarPagina(totalPaginas)" title="&Uacute;ltima">
+                      <i class="fas fa-angle-double-right"></i>
+                    </a>
+                  </li>
+                </ul>
+              </nav>
+            </div>
+          </div>
+
+        </div>
+        <!-- Fin card-body -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MODAL DE REGISTRO DE EMPLEADOS ========== -->
+<div class="modal-empleados" *ngIf="mostrarModalEmpleados && cursoParaRegistro">
+  <div class="modal-empleados-content">
+    <div class="modal-empleados-header">
+      <div class="header-info">
+        <i class="fas fa-user-plus header-icon"></i>
+        <div>
+          <h4 class="mb-0">Registrar Empleados</h4>
+          <small class="text-muted">{{ cursoParaRegistro?.nombre_curso }}</small>
+          <small class="d-block mt-1 paso-indicator" *ngIf="pasoRegistroEmpleados === 1">
+            Paso 1 de 2 — Datos básicos
+          </small>
+          <small class="d-block mt-1 paso-indicator" *ngIf="pasoRegistroEmpleados === 2">
+            Paso 2 de 2 — Escolaridad y antigüedad
+          </small>
+        </div>
+      </div>
+      <button type="button" class="close-btn" (click)="cerrarModalEmpleados()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="modal-empleados-body">
+      <!-- Acciones principales: importar, cupo disponible y selección guardada -->
+      <div class="excel-import-top mb-3" *ngIf="pasoRegistroEmpleados === 1">
+        <div class="excel-import-main">
+          <button type="button"
+                  class="btn btn-primary btn-importar-excel"
+                  (click)="abrirSelectorExcel(inputExcelEmpleados)"
+                  [disabled]="excelCargando">
+            <i class="fas" [ngClass]="{ 'fa-file-excel': !excelCargando, 'fa-spinner fa-spin': excelCargando }"></i>
+            {{ excelCargando ? ' Cargando Excel...' : ' Importar Excel' }}
+          </button>
+
+          <div class="excel-import-cupo">
+            <span class="cupo-label">Cupo disponible</span>
+            <strong class="cupo-value">{{ (cursoParaRegistro?.cupo || 25) - (cursoParaRegistro?.inscritos || 0) }} lugares</strong>
+          </div>
+
+          <button type="button"
+              *ngIf="puedeUsarSelectorMisEmpleados && puedeUsarMisEmpleados"
+                  class="btn btn-seleccionar-empleados"
+                  (click)="abrirModalSeleccionEmpleadosGuardados()">
+            <i class="fas fa-users mr-1"></i>
+            {{ esEmpresa ? 'Mis empleados' : 'Empleados de la empresa' }}
+          </button>
+          <input #inputExcelEmpleados
+                 type="file"
+                 accept=".xlsx,.xls,.csv"
+                 style="display: none;"
+                 (change)="onArchivoExcelSeleccionado($event)">
+        </div>
+      </div>
+
+      <div *ngIf="resultadoImportacionExcel && pasoRegistroEmpleados === 1" class="excel-import-summary mb-3">
+        <div class="summary-head">
+          <span><strong>{{ resultadoImportacionExcel.importadas }}</strong> importadas</span>
+          <span>{{ resultadoImportacionExcel.validas }} válidas</span>
+          <span *ngIf="resultadoImportacionExcel.invalidas > 0">{{ resultadoImportacionExcel.invalidas }} inválidas</span>
+          <span *ngIf="resultadoImportacionExcel.duplicadas > 0">{{ resultadoImportacionExcel.duplicadas }} duplicadas</span>
+          <span *ngIf="resultadoImportacionExcel.curpsCorregidos > 0">{{ resultadoImportacionExcel.curpsCorregidos }} CURP normalizados</span>
+        </div>
+        <small class="summary-meta">
+          Columnas: {{ resultadoImportacionExcel.columnasDetectadas.join(', ') }}
+        </small>
+        <ul *ngIf="resultadoImportacionExcel.filasDescartadas?.length" class="excel-discard-list mt-2 mb-0">
+          <li *ngFor="let fila of resultadoImportacionExcel.filasDescartadas | slice:0:6">
+            Fila {{ fila.numeroFila }}: {{ fila.motivo }}<span *ngIf="fila.detalle"> ({{ fila.detalle }})</span>
+          </li>
+          <li *ngIf="resultadoImportacionExcel.filasDescartadas.length > 6" class="text-muted">
+            …y {{ resultadoImportacionExcel.filasDescartadas.length - 6 }} fila(s) más.
+          </li>
+        </ul>
+      </div>
+
+      <!-- Mensaje de error -->
+      <div *ngIf="errorRegistro" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-triangle mr-2"></i>{{ errorRegistro }}
+        <button type="button" class="close" (click)="errorRegistro = ''">
+          <span>&times;</span>
+        </button>
+      </div>
+
+      <!-- Paso 1: Lista de empleados (formato compacto) -->
+      <div *ngIf="pasoRegistroEmpleados === 1" class="empleados-list-container">
+        <div class="empleados-header">
+          <div class="col-num">#</div>
+          <div class="col-nombre">Nombre <span class="text-danger">*</span></div>
+          <div class="col-curp">CURP <span class="text-danger">*</span></div>
+          <div class="col-puesto">Puesto <small class="text-muted">(opcional)</small></div>
+          <div class="col-acciones"></div>
+        </div>
+        <div class="empleados-body">
+          <div class="empleado-row" *ngFor="let empleado of empleadosARegistrar; let i = index"
+               [ngClass]="{'row-valido': empleado.nombre.trim() && validarCURP(empleado.curp), 'row-inscrito': empleado.estaInscrito}">
+            <div class="col-num">
+              {{ i + 1 }}
+              <i *ngIf="empleado.estaInscrito"
+                 class="fas fa-check-circle text-success ml-1"
+                 title="Ya inscrito en el curso"
+                 style="font-size:0.75rem;"></i>
+            </div>
+            <div class="col-nombre">
+              <input type="text"
+                     class="form-control form-control-sm"
+                     [ngModel]="empleado.nombre"
+                     (ngModelChange)="actualizarNombreEmpleado(empleado, $event)"
+                     (blur)="autoAcentuarNombreEmpleado(empleado)"
+                     placeholder="Nombre completo"
+                     style="text-transform: uppercase"
+                     [readonly]="empleado.estaInscrito">
+            </div>
+            <div class="col-curp">
+              <input type="text"
+                     class="form-control form-control-sm text-uppercase"
+                     [ngModel]="empleado.curp"
+                     (ngModelChange)="empleado.curp = $event.toUpperCase()"
+                     placeholder="CURP"
+                     maxlength="18"
+                     [readonly]="empleado.estaInscrito"
+                     [ngClass]="{'input-valido': validarCURP(empleado.curp), 'input-invalido': empleado.curp.length > 0 && !validarCURP(empleado.curp)}">
+            </div>
+            <div class="col-puesto">
+              <input type="text"
+                     class="form-control form-control-sm"
+                     [ngModel]="empleado.puesto"
+                     (ngModelChange)="actualizarPuestoEmpleado(empleado, $event)"
+                     (blur)="autoAcentuarPuestoEmpleado(empleado)"
+                     placeholder="Puesto/Depto (opcional)"
+                     style="text-transform: uppercase"
+                     [readonly]="empleado.estaInscrito">
+            </div>
+            <div class="col-acciones">
+              <!-- Trabajador ya inscrito en BD: botón de desinscripción con confirmación -->
+              <button *ngIf="empleado.estaInscrito"
+                      type="button"
+                      class="btn btn-sm btn-danger btn-icon-only"
+                      (click)="desinscribirEmpleado(i)"
+                      title="Eliminar del curso (desinscribir)">
+                <i class="fas fa-user-minus"></i>
+              </button>
+              <!-- Fila nueva (no inscrita aún): eliminar solo de la lista local -->
+              <button *ngIf="!empleado.estaInscrito"
+                      type="button"
+                      class="btn btn-sm btn-outline-danger btn-icon-only"
+                      (click)="eliminarEmpleado(i)"
+                      title="Eliminar fila">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paso 2: Escolaridad y antigüedad por empleado -->
+      <div *ngIf="pasoRegistroEmpleados === 2" class="empleados-list-container datos-adicionales-container">
+        <div class="datos-adicionales-intro mb-3">
+          <i class="fas fa-graduation-cap mr-2 text-success"></i>
+          La escolaridad y antigüedad son <strong>opcionales</strong>. Si las proporciona, el instructor podrá adaptar mejor la capacitación a su equipo.
+        </div>
+
+        <div *ngIf="contarEmpleadosConDatosAdicionalesPrevios() > 0" class="datos-adicionales-resumen mb-3">
+          <i class="fas fa-check-circle mr-2"></i>
+          {{ contarEmpleadosConDatosAdicionalesPrevios() }} empleado(s) ya tienen escolaridad y antigüedad registradas; no es necesario volver a capturarlas.
+        </div>
+
+        <ng-container *ngIf="contarEmpleadosPendientesDatosAdicionales() > 0; else confirmacionRegistroDirecto">
+          <div class="empleados-header datos-adicionales-header">
+            <div class="col-nombre-adicional">Trabajador</div>
+            <div class="col-educacion">Escolaridad <small class="text-muted">(opcional)</small></div>
+            <div class="col-antiguedad">Antigüedad <small class="text-muted">(opcional)</small></div>
+          </div>
+          <div class="empleados-body">
+            <div class="empleado-row datos-adicionales-row"
+                 *ngFor="let empleado of obtenerEmpleadosPendientesDatosAdicionales(); let i = index"
+                 [ngClass]="{'row-valido': empleado.educacion && empleado.antiguedad}">
+              <div class="col-nombre-adicional">
+                <strong class="nombre-trabajador">{{ empleado.nombre }}</strong>
+                <small class="d-block text-muted curp-preview">{{ empleado.curp }}</small>
+              </div>
+              <div class="col-educacion">
+                <div class="select-adicional-wrap">
+                  <select class="form-control select-adicional"
+                          [(ngModel)]="empleado.educacion"
+                          [name]="'educacion-' + i"
+                          [class.select-adicional-valido]="empleado.educacion">
+                    <option value="">Seleccionar escolaridad...</option>
+                    <option *ngFor="let opcion of opcionesEducacion" [value]="opcion">{{ opcion }}</option>
+                  </select>
+                  <i class="fas fa-chevron-down select-adicional-icon"></i>
+                </div>
+              </div>
+              <div class="col-antiguedad">
+                <div class="select-adicional-wrap">
+                  <select class="form-control select-adicional"
+                          [(ngModel)]="empleado.antiguedad"
+                          [name]="'antiguedad-' + i"
+                          [class.select-adicional-valido]="empleado.antiguedad">
+                    <option value="">Seleccionar antigüedad...</option>
+                    <option *ngFor="let opcion of opcionesAntiguedad" [value]="opcion">{{ opcion }}</option>
+                  </select>
+                  <i class="fas fa-chevron-down select-adicional-icon"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+
+        <ng-template #confirmacionRegistroDirecto>
+          <div class="datos-adicionales-confirmacion">
+            <p class="mb-2">Todos los trabajadores ya tienen escolaridad y antigüedad registradas. Pulse <strong>Registrar</strong> para confirmar la inscripción al curso.</p>
+            <ul class="lista-confirmacion-registro mb-0">
+              <li *ngFor="let empleado of obtenerEmpleadosNuevosParaRegistro()">{{ empleado.nombre }}</li>
+            </ul>
+          </div>
+        </ng-template>
+      </div>
+
+      <!-- Leyenda de estado de filas (paso 1) -->
+      <div *ngIf="pasoRegistroEmpleados === 1" class="d-flex align-items-center mt-2 mb-1" style="gap:1rem; font-size:0.78rem; color:#6c757d;">
+        <span><i class="fas fa-check-circle text-success mr-1"></i>Ya inscrito</span>
+        <span><i class="fas fa-user-minus text-danger mr-1"></i>Clic para desinscribir del curso</span>
+        <span><i class="fas fa-times text-secondary mr-1"></i>Eliminar fila nueva</span>
+      </div>
+
+      <!-- Advertencia de CURPs duplicados (paso 1) -->
+      <div *ngIf="pasoRegistroEmpleados === 1 && detectarCURPsDuplicados().length > 0" class="alert alert-warning mt-3" role="alert">
+        <i class="fas fa-exclamation-triangle mr-2"></i>
+        <strong>CURPs duplicados detectados:</strong> {{ detectarCURPsDuplicados().join(', ') }}
+        <br><small>Cada empleado debe tener un CURP &uacute;nico.</small>
+      </div>
+
+      <!-- Botones de acci&oacute;n y contador (paso 1) -->
+      <div *ngIf="pasoRegistroEmpleados === 1" class="d-flex justify-content-between align-items-center mt-3">
+        <div class="d-flex align-items-center" style="gap: 0.5rem;">
+          <button type="button"
+                  class="btn btn-outline-success btn-sm"
+                  (click)="agregarEmpleado()">
+            <i class="fas fa-plus mr-1"></i> Agregar fila
+          </button>
+        </div>
+
+        <div class="text-muted">
+          <small>
+            <i class="fas fa-user-check text-success mr-1"></i>
+            <strong>{{ contarEmpleadosNuevosValidos() }}</strong> empleado(s) listo(s) para continuar
+          </small>
+        </div>
+      </div>
+
+      <div *ngIf="pasoRegistroEmpleados === 2" class="text-muted text-right mt-3">
+        <small>
+          <i class="fas fa-user-check text-success mr-1"></i>
+          <strong>{{ contarEmpleadosNuevosValidos() }}</strong> empleado(s) por registrar
+        </small>
+      </div>
+    </div>
+
+    <div class="modal-empleados-footer">
+      <ng-container *ngIf="pasoRegistroEmpleados === 1">
+        <button type="button" class="btn btn-secondary" (click)="cerrarModalEmpleados()">
+          <i class="fas fa-times mr-1"></i> Cancelar
+        </button>
+        <button type="button"
+                class="btn btn-success"
+                (click)="avanzarPasoDatosAdicionales()"
+                [disabled]="!empleadosValidos() || detectarCURPsDuplicados().length > 0 || contarEmpleadosNuevosValidos() === 0 || enriqueciendoDatosAdicionales || registrandoEmpleados">
+          <i class="fas" [ngClass]="{
+            'fa-spinner fa-spin': enriqueciendoDatosAdicionales || registrandoEmpleados,
+            'fa-arrow-right mr-1': !enriqueciendoDatosAdicionales && !registrandoEmpleados
+          }"></i>
+          {{ registrandoEmpleados ? ' Registrando...' : (enriqueciendoDatosAdicionales ? ' Verificando datos...' : ' Continuar (' + contarEmpleadosNuevosValidos() + ') Empleados') }}
+        </button>
+      </ng-container>
+
+      <ng-container *ngIf="pasoRegistroEmpleados === 2">
+        <button type="button" class="btn btn-secondary" (click)="volverPasoDatosBasicos()">
+          <i class="fas fa-arrow-left mr-1"></i> Volver
+        </button>
+        <button type="button"
+                class="btn btn-success"
+                (click)="registrarEmpleados()"
+                [disabled]="contarEmpleadosNuevosValidos() === 0 || registrandoEmpleados">
+          <i class="fas" [ngClass]="{'fa-spinner fa-spin': registrandoEmpleados, 'fa-check': !registrandoEmpleados}"></i>
+          {{ registrandoEmpleados ? ' Registrando...' : ' Registrar (' + contarEmpleadosNuevosValidos() + ') Empleados' }}
+        </button>
+      </ng-container>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MODAL SECUNDARIO: SELECTOR DE EMPLEADOS GUARDADOS ========== -->
+<div class="modal-selector-empleados-overlay"
+  *ngIf="puedeUsarSelectorMisEmpleados && mostrarPanelEmpleadosGuardados"
+     (click)="cerrarModalSeleccionEmpleadosGuardados()">
+  <div class="modal-selector-empleados" (click)="$event.stopPropagation()">
+    <div class="modal-selector-header">
+      <div>
+        <h5 class="mb-1">{{ esEmpresa ? 'Seleccionar desde Mis Empleados' : 'Seleccionar empleados de la empresa' }}</h5>
+        <small>Busca por nombre o CURP y selecciona los empleados que quieras cargar en el registro.</small>
+        <small *ngIf="!esEmpresa && cursoParaRegistro?.nombre_empresa" class="d-block mt-1">
+          Empresa del curso: {{ cursoParaRegistro?.nombre_empresa }}
+        </small>
+      </div>
+      <button type="button" class="modal-selector-close" (click)="cerrarModalSeleccionEmpleadosGuardados()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="modal-selector-body">
+      <div class="empleados-guardados-head mb-2">
+        <div>
+          <h6 class="mb-1">Empleados disponibles</h6>
+          <small>Selecciona en columnas para aprovechar mejor el espacio.</small>
+        </div>
+        <span class="badge badge-success">{{ totalEmpleadosGuardadosSeleccionados }} seleccionados</span>
+      </div>
+
+      <div *ngIf="cargandoEmpleadosGuardados" class="empleados-guardados-loading">
+        <i class="fas fa-spinner fa-spin mr-1"></i> Cargando empleados guardados...
+      </div>
+
+      <ng-container *ngIf="!cargandoEmpleadosGuardados">
+        <div *ngIf="empleadosGuardadosEmpresa.length === 0" class="empleados-guardados-empty">
+          {{ esEmpresa
+            ? 'No hay empleados disponibles en Mis empleados para esta empresa.'
+            : 'No hay empleados disponibles para la empresa de este curso.' }}
+        </div>
+
+        <ng-container *ngIf="empleadosGuardadosEmpresa.length > 0">
+          <div class="empleados-guardados-tools">
+            <div class="search-input-wrap empleados-guardados-search-wrap">
+              <i class="fas fa-search search-icon"></i>
+              <input class="search-input"
+                     type="text"
+                     [(ngModel)]="textoBusquedaEmpleadosGuardados"
+                     (ngModelChange)="filtrarEmpleadosGuardados()"
+                     placeholder="Buscar empleado (nombre o CURP)"
+                     autocomplete="off"
+                     autocorrect="off"
+                     autocapitalize="off"
+                     spellcheck="false"
+                     name="busqueda-empleados-guardados-modal">
+            </div>
+
+            <div class="empleados-guardados-actions">
+              <button type="button"
+                      class="btn btn-sm btn-outline-primary"
+                      (click)="seleccionarTodosEmpleadosGuardadosFiltrados()"
+                      [disabled]="empleadosGuardadosFiltrados.length === 0">
+                Seleccionar visibles
+              </button>
+              <button type="button"
+                      class="btn btn-sm btn-outline-secondary"
+                      (click)="limpiarSeleccionEmpleadosGuardados()"
+                      [disabled]="totalEmpleadosGuardadosSeleccionados === 0">
+                Limpiar selección
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="errorSelectorEmpleados" class="alert alert-danger alert-dismissible fade show mt-2 mb-2" role="alert" style="font-size: 0.85rem;">
+            <i class="fas fa-exclamation-triangle mr-1"></i>{{ errorSelectorEmpleados }}
+            <button type="button" class="close" (click)="errorSelectorEmpleados = ''" style="font-size: 1rem;">
+              <span>&times;</span>
+            </button>
+          </div>
+
+          <div class="empleados-guardados-grid" *ngIf="empleadosGuardadosFiltrados.length > 0; else sinResultadosEmpleadosGuardados">
+            <label class="empleado-guardado-item"
+                   *ngFor="let empleadoGuardado of empleadosGuardadosFiltrados; trackBy: trackByEmpleadoGuardado"
+                   [class.seleccionado]="empleadoGuardado.seleccionado"
+                   [class.ya-en-tabla]="esCurpYaEnTablaRegistro(empleadoGuardado.curp)">
+              <input type="checkbox"
+                     [(ngModel)]="empleadoGuardado.seleccionado"
+                     [ngModelOptions]="{ standalone: true }"
+                     [disabled]="esCurpYaEnTablaRegistro(empleadoGuardado.curp)">
+              <div class="empleado-guardado-main">
+                <span class="empleado-guardado-nombre">{{ empleadoGuardado.nombre }}</span>
+                <small class="empleado-guardado-curp" *ngIf="empleadoGuardado.curp">CURP: {{ empleadoGuardado.curp }}</small>
+              </div>
+              <span *ngIf="esCurpYaEnTablaRegistro(empleadoGuardado.curp)" class="badge badge-pill badge-secondary" style="font-size: 0.65rem; padding: 0.2rem 0.5rem;">Ya agregado</span>
+              <i class="fas fa-check-circle empleado-guardado-check" *ngIf="empleadoGuardado.seleccionado && !esCurpYaEnTablaRegistro(empleadoGuardado.curp)"></i>
+            </label>
+          </div>
+
+          <ng-template #sinResultadosEmpleadosGuardados>
+            <div class="empleados-guardados-empty mt-2">
+              No se encontraron empleados con ese criterio. La búsqueda también funciona con CURP.
+            </div>
+          </ng-template>
+        </ng-container>
+      </ng-container>
+    </div>
+
+    <div class="modal-selector-footer" *ngIf="!cargandoEmpleadosGuardados && empleadosGuardadosEmpresa.length > 0">
+      <small class="text-muted">
+        Mostrando {{ empleadosGuardadosFiltrados.length }} de {{ empleadosGuardadosEmpresa.length }} empleados.
+      </small>
+      <div class="selector-footer-actions">
+        <button type="button" class="btn btn-outline-secondary btn-sm" (click)="cerrarModalSeleccionEmpleadosGuardados()">
+          Cancelar
+        </button>
+        <button type="button"
+                class="btn btn-sm btn-cargar-guardados"
+                (click)="agregarEmpleadosGuardadosSeleccionados(true)"
+                [disabled]="totalEmpleadosGuardadosSeleccionados === 0">
+          <i class="fas fa-arrow-down mr-1"></i> Cargar seleccionados al registro
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Overlay del modal de empleados -->
+<div class="modal-overlay-empleados" *ngIf="mostrarModalEmpleados" (click)="cerrarModalEmpleados()"></div>

@@ -1,0 +1,238 @@
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-graduation-cap"></i>
+          </div>
+          <h6 class="text-white text-uppercase mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px; opacity: 0.95;">Administración</h6>
+          <h2 class="text-white mb-0">Gestionar Curso</h2>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+  <!-- Loading -->
+  <div *ngIf="loading" class="row justify-content-center" style="margin-top: 2rem;">
+    <div class="col-xl-11">
+      <div class="card shadow-lg border-0" style="border-radius: 15px;">
+        <div class="card-body text-center py-5">
+          <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+          <p class="text-muted mt-2 mb-0">Cargando cursos...</p>
+          <p class="text-muted mt-3 mb-0">Cargando información del curso...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="!loading && error" class="row justify-content-center" style="margin-top: 2rem;">
+    <div class="col-xl-11">
+      <div class="card shadow-lg border-0" style="border-radius: 15px;">
+        <div class="card-body text-center py-5">
+          <i class="fas fa-exclamation-triangle fa-2x text-muted"></i>
+          <p class="text-muted mt-2 mb-0">Error al cargar los cursos</p>
+          <h4 class="text-muted">{{ error }}</h4>
+          <button class="btn btn-primary mt-3" (click)="volver()">
+            <i class="fas fa-arrow-left mr-2"></i>Volver
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenido principal -->
+  <div *ngIf="!loading && !error && curso" class="row justify-content-center" style="margin-top: 2rem;">
+    <div class="col-xl-11">
+
+      <!-- Encabezado compacto -->
+      <div class="card shadow-lg border-0 mb-3" style="border-radius: 15px;">
+        <div class="card-header border-0" style="padding: 1.25rem 2rem; background: linear-gradient(135deg, #38512F 0%, #768D6B 100%);">
+          <div class="row align-items-center">
+            <div class="col">
+              <h6 class="text-white text-uppercase mb-1" style="font-size: 0.7rem; font-weight: 600; letter-spacing: 1px; opacity: 0.9;">Curso Asignado</h6>
+              <h2 class="mb-0 text-white" style="font-size: 1.35rem; font-weight: 700; line-height: 1.3;">
+                {{ nombreCurso }}
+              </h2>
+              <p class="text-white mb-0" style="opacity: 0.9; font-size: 0.9rem;">
+                <i class="fas fa-building mr-2"></i>{{ empresaNombre }} • {{ pasosCompletados.length }} de {{ pasosCurso.length }} pasos - {{ getPorcentajeProgreso().toFixed(0) }}% completado
+              </p>
+            </div>
+            <div class="col-auto d-flex align-items-center">
+              <button class="btn btn-outline-secondary bg-white text-dark"
+                      (click)="volver()"
+                      style="padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 600; border: none;">
+                <i class="fas fa-arrow-left mr-2"></i>Volver
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Información del curso y Acciones -->
+      <div class="row mb-3">
+        <!-- Acciones rápidas (SOLO PARA ADMIN/INSTRUCTOR) -->
+        <div *ngIf="!isEmpresa" class="col-lg-4 mb-3">
+          <div class="card shadow-sm border-0" style="border-radius: 12px; height: 100%;">
+            <div class="card-body" style="padding: 1.5rem;">
+              <h6 class="text-uppercase mb-1" style="font-size: 0.7rem; font-weight: 600; letter-spacing: 1px; color: #A8A9A2;">Acciones</h6>
+              <h2 class="mb-3" style="color: #38512F;">
+                <i class="fas fa-bolt mr-2"></i>Acciones Rápidas
+              </h2>
+
+              <div class="d-flex flex-column gap-2">
+                <button class="btn btn-sm btn-block text-left d-flex align-items-center justify-content-between shadow-sm"
+                        style="background-color: #f8f9fe; border: 1px solid #e3e6f0; padding: 0.7rem 1rem; border-radius: 8px; transition: all 0.2s;"
+                        (click)="verParticipantes()"
+                        onmouseover="this.style.backgroundColor='#fff'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.1)'"
+                        onmouseout="this.style.backgroundColor='#f8f9fe'; this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.12)'">
+                  <span><i class="fas fa-users mr-2" style="color: #38512F;"></i>Ver Participantes</span>
+                  <i class="fas fa-chevron-right" style="font-size: 0.75rem; color: #6c757d;"></i>
+                </button>
+
+                <button class="btn btn-sm btn-block text-left d-flex align-items-center justify-content-between shadow-sm"
+                        style="background-color: #f8f9fe; border: 1px solid #e3e6f0; padding: 0.7rem 1rem; border-radius: 8px; transition: all 0.2s;"
+                        (click)="editarCurso()"
+                        onmouseover="this.style.backgroundColor='#fff'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.1)'"
+                        onmouseout="this.style.backgroundColor='#f8f9fe'; this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.12)'">
+                  <span><i class="fas fa-edit mr-2" style="color: #17a2b8;"></i>Editar Información</span>
+                  <i class="fas fa-chevron-right" style="font-size: 0.75rem; color: #6c757d;"></i>
+                </button>
+
+                <button *ngIf="estatus === 'programado'" 
+                        class="btn btn-sm btn-block text-left d-flex align-items-center justify-content-between shadow-sm"
+                        style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 0.7rem 1rem; border-radius: 8px; transition: all 0.2s;"
+                        (click)="iniciarCurso()"
+                        onmouseover="this.style.backgroundColor='#c3e6cb'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.1)'"
+                        onmouseout="this.style.backgroundColor='#d4edda'; this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.12)'">
+                  <span><i class="fas fa-play mr-2" style="color: #28a745;"></i>Iniciar Curso</span>
+                  <i class="fas fa-chevron-right" style="font-size: 0.75rem; color: #6c757d;"></i>
+                </button>
+
+                <button *ngIf="estatus === 'en_curso' && pasosCompletados.length >= pasosCurso.length" 
+                        class="btn btn-sm btn-block text-left d-flex align-items-center justify-content-between shadow-sm"
+                        style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 0.7rem 1rem; border-radius: 8px; transition: all 0.2s;"
+                        (click)="finalizarCurso()"
+                        onmouseover="this.style.backgroundColor='#c3e6cb'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.1)'"
+                        onmouseout="this.style.backgroundColor='#d4edda'; this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.12)'">
+                  <span><i class="fas fa-check-circle mr-2" style="color: #28a745;"></i>Finalizar Curso</span>
+                  <i class="fas fa-chevron-right" style="font-size: 0.75rem; color: #6c757d;"></i>
+                </button>
+
+                <button *ngIf="esAdmin && estatus !== 'completado' && estatus !== 'cancelado'" 
+                        class="btn btn-sm btn-block text-left d-flex align-items-center justify-content-between shadow-sm"
+                        style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 0.7rem 1rem; border-radius: 8px; transition: all 0.2s;"
+                        (click)="cancelarCurso()"
+                        onmouseover="this.style.backgroundColor='#f5c6cb'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.1)'"
+                        onmouseout="this.style.backgroundColor='#f8d7da'; this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.12)'">
+                  <span><i class="fas fa-times-circle mr-2" style="color: #dc3545;"></i>Cancelar Curso</span>
+                  <i class="fas fa-chevron-right" style="font-size: 0.75rem; color: #6c757d;"></i>
+                </button>
+
+                <!-- Badge de estatus -->
+                <div class="mt-2 pt-2 border-top">
+                  <small class="text-muted text-uppercase d-block mb-2" style="font-size: 0.7rem; letter-spacing: 0.5px;">Estado Actual</small>
+                  <span class="badge badge-lg badge-pill px-3 py-2" 
+                        [ngClass]="{
+                          'badge-warning': estatus === 'programado',
+                          'badge-info': estatus === 'en_curso',
+                          'badge-success': estatus === 'completado',
+                          'badge-danger': estatus === 'cancelado'
+                        }"
+                        style="font-size: 0.85rem; font-weight: 600;">
+                    {{ estatus | titlecase }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Información del curso -->
+        <div [class.col-lg-8]="!isEmpresa" [class.col-lg-12]="isEmpresa" class="mb-3">
+          <div class="card shadow-sm border-0" style="border-radius: 12px; height: 100%;">
+            <div class="card-body" style="padding: 1.5rem;">
+              <h6 class="text-uppercase mb-1" style="font-size: 0.7rem; font-weight: 600; letter-spacing: 1px; color: #A8A9A2;">Información</h6>
+              <h2 class="mb-3" style="color: #38512F;">
+                <i class="fas fa-info-circle mr-2"></i>Detalles del Curso
+              </h2>
+              
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <div class="d-flex align-items-start">
+                    <div class="icon-wrapper mr-3">
+                      <i class="fas fa-chalkboard-teacher" style="color: #38512F; font-size: 1.3rem;"></i>
+                    </div>
+                    <div>
+                      <small class="text-muted text-uppercase d-block" style="font-size: 0.7rem; letter-spacing: 0.5px;">Instructor</small>
+                      <span class="font-weight-600" style="font-size: 0.95rem;">{{ instructorNombre || 'Sin asignar' }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                  <div class="d-flex align-items-start">
+                    <div class="icon-wrapper mr-3">
+                      <i class="far fa-calendar-alt" style="color: #38512F; font-size: 1.3rem;"></i>
+                    </div>
+                    <div>
+                      <small class="text-muted text-uppercase d-block" style="font-size: 0.7rem; letter-spacing: 0.5px;">Fechas</small>
+                      <span class="font-weight-600" style="font-size: 0.95rem;">
+                        {{ formatDate(fechaInicio) }}
+                        <span *ngIf="fechaFin && fechaFin !== fechaInicio" class="text-muted"> → {{ formatDate(fechaFin) }}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                  <div class="d-flex align-items-start">
+                    <div class="icon-wrapper mr-3">
+                      <i class="far fa-clock" style="color: #38512F; font-size: 1.3rem;"></i>
+                    </div>
+                    <div>
+                      <small class="text-muted text-uppercase d-block" style="font-size: 0.7rem; letter-spacing: 0.5px;">Horario</small>
+                      <span class="font-weight-600" style="font-size: 0.95rem;">{{ horaInicio }} - {{ horaFin }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                  <div class="d-flex align-items-start">
+                    <div class="icon-wrapper mr-3">
+                      <i class="fas fa-desktop" style="color: #38512F; font-size: 1.3rem;"></i>
+                    </div>
+                    <div>
+                      <small class="text-muted text-uppercase d-block" style="font-size: 0.7rem; letter-spacing: 0.5px;">Modalidad</small>
+                      <span class="font-weight-600" style="font-size: 0.95rem;">{{ modalidad | titlecase }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                  <div class="d-flex align-items-start">
+                    <div class="icon-wrapper mr-3">
+                      <i class="fas fa-users" style="color: #38512F; font-size: 1.3rem;"></i>
+                    </div>
+                    <div>
+                      <small class="text-muted text-uppercase d-block" style="font-size: 0.7rem; letter-spacing: 0.5px;">Participantes</small>
+                      <span class="font-weight-700" style="font-size: 0.95rem;">
+                        <span style="color: #38512F;">{{ participantes }}</span> / {{ cupo }}
+                        <small class="text-muted ml-1">({{ cupo > 0 ? ((participantes / cupo) * 100).toFixed(0) : 0 }}%)</small>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

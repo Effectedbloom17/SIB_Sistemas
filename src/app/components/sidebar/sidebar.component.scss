@@ -1,0 +1,1277 @@
+// Sidebar con diseño limpio y animaciones elegantes
+.sidebar-custom {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 250px;
+  z-index: 1050;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+  box-shadow: 2px 0 20px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+
+  &.sidebar-hidden {
+    transform: translateX(-100%);
+    box-shadow: none;
+  }
+
+  &.sidebar-visible {
+    transform: translateX(0);
+    animation: slideInSidebar 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  // Esconder scrollbar pero mantener funcionalidad
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(56, 81, 47, 0.2);
+    border-radius: 4px;
+    transition: background 0.3s ease;
+    
+    &:hover {
+      background: rgba(56, 81, 47, 0.4);
+    }
+  }
+}
+
+@keyframes slideInSidebar {
+  from {
+    transform: translateX(-100%);
+    opacity: 0.5;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+// Header del sidebar
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 1.25rem 1.5rem;
+  flex-shrink: 0;
+  background: white;
+  border-bottom: none;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  transition: transform 0.3s ease;
+  min-width: 0;
+  overflow: hidden;
+  flex: 1 1 auto;
+  
+  &:hover {
+    text-decoration: none;
+    transform: scale(1.02);
+  }
+}
+
+.sidebar-brand-img {
+  max-height: 3rem;
+  max-width: 100%;
+  width: auto;
+  display: block;
+  transition: filter 0.3s ease, transform 0.3s ease;
+  
+  &:hover {
+    filter: brightness(1.05);
+  }
+}
+
+// Botón cerrar en móvil
+.sidebar-close-btn {
+  background: #f5f5f5;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: #525f7f;
+  
+  &:hover {
+    background: #38512F;
+    color: white;
+    transform: rotate(90deg);
+    box-shadow: 0 4px 12px rgba(56, 81, 47, 0.3);
+  }
+  
+  &:active {
+    transform: rotate(90deg) scale(0.9);
+  }
+  
+  i {
+    font-size: 1rem;
+    transition: transform 0.3s ease;
+  }
+}
+
+// Navegación
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  
+  .nav {
+    padding: 0 0.75rem;
+  }
+
+  // Bloque de sección (encabezado opcional + items)
+  .sidebar-section {
+    & + .sidebar-section {
+      margin-top: 0.35rem;
+    }
+  }
+
+  // Encabezado de grupo (botón colapsable)
+  .sidebar-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: calc(100% - 1.5rem);
+    margin: 0 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: transparent;
+    border: none;
+    border-radius: 0.6rem;
+    cursor: pointer;
+    text-align: left;
+    opacity: 0;
+    animation: fadeSlideIn 0.4s ease forwards;
+    transition: background-color 0.25s ease;
+
+    &:hover,
+    &:focus-visible {
+      background-color: rgba(56, 81, 47, 0.07);
+      outline: none;
+
+      .sidebar-section-title {
+        color: #38512F;
+      }
+
+      .sidebar-section-chevron {
+        color: #38512F;
+      }
+    }
+  }
+
+  // Texto del encabezado de grupo
+  .sidebar-section-title {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9aa3a0;
+    transition: color 0.25s ease;
+  }
+
+  // Flecha indicadora de expansión
+  .sidebar-section-chevron {
+    font-size: 0.65rem;
+    color: #b9c0bd;
+    transform: rotate(-90deg); // colapsado: apunta a la derecha
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), color 0.25s ease;
+  }
+
+  // Contenedor de items: colapsado por defecto en grupos con encabezado
+  .sidebar-section.has-title .sidebar-section-items {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
+    transition:
+      max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 0.3s ease,
+      transform 0.3s ease;
+  }
+
+  // Abierto: solo al hacer clic (fijado por el usuario) o por ruta activa
+  .sidebar-section.has-title.is-open .sidebar-section-items {
+    max-height: 600px;
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .sidebar-section.has-title.is-open .sidebar-section-chevron {
+    transform: rotate(0deg); // abierto: apunta hacia abajo
+    color: #38512F;
+  }
+
+  .nav-item {
+    margin-bottom: 0.35rem;
+    opacity: 0;
+    animation: fadeSlideIn 0.4s ease forwards;
+    
+    // Animación escalonada para cada item
+    @for $i from 1 through 10 {
+      &:nth-child(#{$i}) {
+        animation-delay: #{$i * 0.06}s;
+      }
+    }
+  }
+  
+  .nav-link {
+    display: flex;
+    align-items: center;
+    padding: 0.85rem 1rem;
+    color: #4a5568;
+    border-radius: 0.75rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-weight: 500;
+    font-size: 0.95rem;
+    position: relative;
+    background: transparent;
+    text-decoration: none;
+    overflow: hidden;
+    
+    // Efecto de onda al hacer click
+    &::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      background: rgba(56, 81, 47, 0.1);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      transition: width 0.6s ease, height 0.6s ease;
+    }
+    
+    &:active::before {
+      width: 300px;
+      height: 300px;
+    }
+    
+    i {
+      font-size: 1.1rem;
+      margin-right: 0.85rem;
+      width: 24px;
+      text-align: center;
+      color: #4a5568;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .nav-link-text {
+      color: #4a5568;
+      transition: all 0.3s ease;
+    }
+
+    .badge-beta {
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      margin-left: 0.5rem;
+      background: #f6ad55;
+      color: #744210;
+      line-height: 1.4;
+      flex-shrink: 0;
+    }
+
+    .badge-historial-pendiente {
+      margin-left: 0.35rem;
+      align-self: center;
+      min-width: 1.35rem;
+      height: 1.35rem;
+      padding: 0 0.4rem;
+      border-radius: 999px;
+      background: linear-gradient(145deg, #c5dab8 0%, #a8c99a 100%);
+      color: #2d4a24;
+      font-size: 0.65rem;
+      font-weight: 800;
+      line-height: 1.35rem;
+      text-align: center;
+      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(56, 81, 47, 0.25);
+      animation: historialBadgePop 0.35s cubic-bezier(0.34, 1.4, 0.64, 1);
+
+      &--pulse {
+        animation: historialBadgePulse 0.55s ease-in-out 2;
+      }
+    }
+
+    &.historial-cursos-link {
+      .nav-link-text {
+        white-space: nowrap;
+        font-size: 0.875rem;
+        letter-spacing: -0.01em;
+      }
+    }
+    
+    // HOVER - Con animación suave
+    &:hover:not(.active) {
+      background-color: rgba(194, 209, 178, 0.5);
+      color: #38512F;
+      transform: translateX(5px);
+      box-shadow: 0 2px 8px rgba(56, 81, 47, 0.1);
+      
+      i {
+        color: #38512F;
+        transform: scale(1.15);
+      }
+      
+      .nav-link-text {
+        color: #38512F;
+      }
+    }
+    
+    // ACTIVO - Fondo verde claro con efectos
+    &.active {
+      background: linear-gradient(135deg, #d4e5c9 0%, #c5dab8 100%);
+      color: #38512F;
+      box-shadow: 0 4px 15px rgba(56, 81, 47, 0.2);
+      
+      &::after {
+        content: '';
+        position: absolute;
+        right: 1rem;
+        width: 8px;
+        height: 8px;
+        background: #38512F;
+        border-radius: 50%;
+        animation: pulse 2s infinite ease-in-out;
+        box-shadow: 0 0 0 0 rgba(56, 81, 47, 0.4);
+      }
+      
+      i {
+        color: #38512F;
+        animation: bounceIn 0.5s ease;
+      }
+      
+      .nav-link-text {
+        color: #38512F;
+        font-weight: 600;
+      }
+      
+      &:hover {
+        background: linear-gradient(135deg, #c5dab8 0%, #b8d0a8 100%);
+        transform: translateX(3px);
+      }
+    }
+  }
+}
+
+// PROTECCIÓN CIVIL - Naranja suave #c0581e
+.nav-link.proteccion-civil-link {
+  // Hover cuando NO está activo
+  &:hover:not(.active) {
+    background: linear-gradient(135deg, rgba(192, 88, 30, 0.10) 0%, rgba(217, 114, 72, 0.16) 100%) !important;
+    color: #c0581e !important;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(192, 88, 30, 0.16) !important;
+    
+    i {
+      color: #c0581e !important;
+      transform: scale(1.15);
+    }
+    
+    .nav-link-text {
+      color: #c0581e !important;
+    }
+  }
+  
+  // Cuando está activo
+  &.active {
+    background: linear-gradient(135deg, #b5501a 0%, #d06838 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(192, 88, 30, 0.35) !important;
+    
+    &::after {
+      background: #fff !important;
+      box-shadow: 0 0 0 0 rgba(192, 88, 30, 0.35) !important;
+    }
+    
+    i {
+      color: #fff !important;
+    }
+    
+    .nav-link-text {
+      color: #fff !important;
+      font-weight: 600;
+    }
+    
+    &:hover {
+      background: linear-gradient(135deg, #c0581e 0%, #d97248 100%) !important;
+      transform: translateX(3px);
+    }
+  }
+}
+
+// CONTROL DE RESOLUTIVOS (PC) — mismo tema naranja que Protección Civil
+.nav-link.control-resolutivos-link {
+  &:hover:not(.active) {
+    background: linear-gradient(135deg, rgba(192, 88, 30, 0.10) 0%, rgba(217, 114, 72, 0.16) 100%) !important;
+    color: #c0581e !important;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(192, 88, 30, 0.16) !important;
+
+    i, .nav-link-text {
+      color: #c0581e !important;
+    }
+
+    i {
+      transform: scale(1.15);
+    }
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #b5501a 0%, #d06838 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(192, 88, 30, 0.35) !important;
+
+    &::after {
+      background: #fff !important;
+    }
+
+    i, .nav-link-text {
+      color: #fff !important;
+    }
+
+    .nav-link-text {
+      font-weight: 600;
+    }
+
+    &:hover {
+      background: linear-gradient(135deg, #c0581e 0%, #d97248 100%) !important;
+      transform: translateX(3px);
+    }
+  }
+}
+
+// EXPEDIENTES MÉDICOS / ESTADÍSTICAS — Color azul especial cuando está activo
+.nav-link.expedientes-medicos-link,
+.nav-link.estadisticas-medicas-link {
+  // Hover cuando NO está activo
+  &:hover:not(.active) {
+    background: linear-gradient(135deg, #BEE1F9 0%, #d4ecfc 100%) !important;
+    color: #2d2d2d !important;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(190, 225, 249, 0.4) !important;
+    
+    i {
+      color: #2d2d2d !important;
+      transform: scale(1.15);
+    }
+    
+    .nav-link-text {
+      color: #2d2d2d !important;
+    }
+  }
+  
+  // Cuando está activo
+  &.active {
+    background: linear-gradient(135deg, #41A8EC 0%, #5cb8f0 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 15px rgba(65, 168, 236, 0.4) !important;
+    
+    &::after {
+      background: #ffffff !important;
+      box-shadow: 0 0 0 0 rgba(65, 168, 236, 0.4) !important;
+    }
+    
+    i {
+      color: #ffffff !important;
+    }
+    
+    .nav-link-text {
+      color: #ffffff !important;
+      font-weight: 600;
+    }
+    
+    &:hover {
+      background: linear-gradient(135deg, #5cb8f0 0%, #70c4f3 100%) !important;
+      transform: translateX(3px);
+    }
+  }
+}
+
+// SISTEMA DE GESTIÓN DE CALIDAD — tonos teal / esmeralda
+.nav-link.sistema-gestion-calidad-link,
+.nav-link.sgc-capitulos-link,
+.nav-link.sgc-procedimientos-link,
+.nav-link.sgc-instructivos-link,
+.nav-link.sgc-formatos-link,
+.nav-link.sgc-normativas-link {
+  &:hover:not(.active) {
+    background: linear-gradient(135deg, rgba(15, 118, 110, 0.12) 0%, rgba(20, 184, 166, 0.18) 100%) !important;
+    color: #0f766e !important;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(15, 118, 110, 0.15) !important;
+
+    i {
+      color: #0f766e !important;
+      transform: scale(1.15);
+    }
+
+    .nav-link-text {
+      color: #0f766e !important;
+    }
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(15, 118, 110, 0.35) !important;
+
+    &::after {
+      background: #fff !important;
+      box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.35) !important;
+    }
+
+    i {
+      color: #fff !important;
+    }
+
+    .nav-link-text {
+      color: #fff !important;
+      font-weight: 600;
+    }
+
+    &:hover {
+      background: linear-gradient(135deg, #0f766e 0%, #2dd4bf 100%) !important;
+      transform: translateX(3px);
+    }
+  }
+}
+
+// SOLICITUD DE DOCUMENTOS SGC — teal SGC #12ad9d (distinto tono del resto SGC)
+.nav-link.sgc-solicitud-documentos-link {
+  &:hover:not(.active) {
+    background: linear-gradient(135deg, rgba(18, 173, 157, 0.12) 0%, rgba(27, 196, 179, 0.18) 100%) !important;
+    color: #12ad9d !important;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(18, 173, 157, 0.15) !important;
+
+    i {
+      color: #12ad9d !important;
+      transform: scale(1.15);
+    }
+
+    .nav-link-text {
+      color: #12ad9d !important;
+    }
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #0a8a7f 0%, #12ad9d 55%, #1bc4b3 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(18, 173, 157, 0.35) !important;
+
+    &::after {
+      background: #fff !important;
+      box-shadow: 0 0 0 0 rgba(18, 173, 157, 0.35) !important;
+    }
+
+    i {
+      color: #fff !important;
+    }
+
+    .nav-link-text {
+      color: #fff !important;
+      font-weight: 600;
+    }
+
+    &:hover {
+      background: linear-gradient(135deg, #0e9a8d 0%, #14b8a6 100%) !important;
+      transform: translateX(3px);
+    }
+  }
+}
+
+// SEGURIDAD — tonos carmesí / rojo
+.nav-link.seguridad-normativas-link {
+  &:hover:not(.active) {
+    background: linear-gradient(135deg, rgba(127, 29, 29, 0.12) 0%, rgba(185, 28, 28, 0.18) 100%) !important;
+    color: #991b1b !important;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(127, 29, 29, 0.15) !important;
+
+    i {
+      color: #991b1b !important;
+      transform: scale(1.15);
+    }
+
+    .nav-link-text {
+      color: #991b1b !important;
+    }
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #7f1d1d 0%, #b91c1c 55%, #dc2626 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(127, 29, 29, 0.35) !important;
+
+    &::after {
+      background: #fff !important;
+      box-shadow: 0 0 0 0 rgba(185, 28, 28, 0.35) !important;
+    }
+
+    i {
+      color: #fff !important;
+    }
+
+    .nav-link-text {
+      color: #fff !important;
+      font-weight: 600;
+    }
+
+    &:hover {
+      background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%) !important;
+      transform: translateX(3px);
+    }
+  }
+}
+
+// RECURSOS HUMANOS — rosa claro
+.nav-link.recursos-humanos-link {
+  &:hover:not(.active) {
+    background: linear-gradient(135deg, rgba(244, 114, 182, 0.14) 0%, rgba(236, 72, 153, 0.2) 100%) !important;
+    color: #9d174d !important;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(236, 72, 153, 0.15) !important;
+
+    i {
+      color: #db2777 !important;
+      transform: scale(1.15);
+    }
+
+    .nav-link-text {
+      color: #9d174d !important;
+    }
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #9d174d 0%, #db2777 55%, #f472b6 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(190, 24, 93, 0.35) !important;
+
+    &::after {
+      background: #fff !important;
+      box-shadow: 0 0 0 0 rgba(244, 114, 182, 0.35) !important;
+    }
+
+    i {
+      color: #fff !important;
+    }
+
+    .nav-link-text {
+      color: #fff !important;
+      font-weight: 600;
+    }
+
+    &:hover {
+      background: linear-gradient(135deg, #be185d 0%, #ec4899 100%) !important;
+      transform: translateX(3px);
+    }
+  }
+}
+
+// CORREO EMPRESA — azul corporativo (distinto del correo personal verde)
+.nav-link.correo-empresa-link {
+  &:hover:not(.active) {
+    background: linear-gradient(135deg, rgba(26, 74, 122, 0.12) 0%, rgba(42, 106, 171, 0.18) 100%) !important;
+    color: #1a4a7a !important;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(26, 74, 122, 0.15) !important;
+
+    i {
+      color: #1a4a7a !important;
+      transform: scale(1.15);
+    }
+
+    .nav-link-text {
+      color: #1a4a7a !important;
+    }
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #123456 0%, #1a4a7a 55%, #2a6aab 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(26, 74, 122, 0.35) !important;
+
+    &::after {
+      background: #fff !important;
+      box-shadow: 0 0 0 0 rgba(26, 74, 122, 0.35) !important;
+    }
+
+    i {
+      color: #fff !important;
+    }
+
+    .nav-link-text {
+      color: #fff !important;
+    }
+  }
+}
+
+// CONTROL DE PROYECTOS — tonos slate / azul (mismo patrón SGC · PC · Ambiental)
+.nav-link.control-proyectos-link,
+.nav-link.control-oficios-link {
+  &:hover:not(.active) {
+    background: linear-gradient(135deg, rgba(30, 58, 138, 0.12) 0%, rgba(37, 99, 235, 0.18) 100%) !important;
+    color: #1d4ed8 !important;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(30, 58, 138, 0.15) !important;
+
+    i {
+      color: #1d4ed8 !important;
+      transform: scale(1.15);
+    }
+
+    .nav-link-text {
+      color: #1d4ed8 !important;
+    }
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #1d4ed8 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(30, 58, 138, 0.35) !important;
+
+    &::after {
+      background: #fff !important;
+      box-shadow: 0 0 0 0 rgba(30, 58, 138, 0.35) !important;
+    }
+
+    i {
+      color: #fff !important;
+    }
+
+    .nav-link-text {
+      color: #fff !important;
+      font-weight: 600;
+    }
+
+    &:hover {
+      background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%) !important;
+      transform: translateX(3px);
+    }
+  }
+}
+
+// SENSORIZACIÓN — misma paleta azul petróleo / cian del monitor IoT
+.nav-link.sensorizacion-link {
+  &:hover:not(.active) {
+    background: linear-gradient(135deg, rgba(7, 19, 31, 0.10) 0%, rgba(46, 196, 182, 0.18) 100%) !important;
+    color: #0f766e !important;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(13, 33, 54, 0.18) !important;
+
+    i,
+    .nav-link-text {
+      color: #0f766e !important;
+    }
+
+    i {
+      transform: scale(1.15);
+    }
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #087b9b 0%, #12a8c7 58%, #198ed0 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(18, 138, 177, 0.32) !important;
+
+    &::after {
+      background: #fff !important;
+      box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4) !important;
+    }
+
+    i {
+      color: #fff !important;
+    }
+
+    .nav-link-text {
+      color: #fff !important;
+      font-weight: 600;
+    }
+
+    &:hover {
+      background: linear-gradient(135deg, #066985 0%, #0e94b2 60%, #147db7 100%) !important;
+      transform: translateX(3px);
+    }
+  }
+}
+
+// AMBIENTAL — tonos verde bosque / pino
+.nav-link.ambiental-link {
+  &:hover:not(.active) {
+    background: linear-gradient(135deg, rgba(21, 128, 61, 0.12) 0%, rgba(34, 197, 94, 0.18) 100%) !important;
+    color: #15803d !important;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(21, 128, 61, 0.15) !important;
+
+    i {
+      color: #15803d !important;
+      transform: scale(1.15);
+    }
+
+    .nav-link-text {
+      color: #15803d !important;
+    }
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #14532d 0%, #22c55e 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(21, 128, 61, 0.35) !important;
+
+    &::after {
+      background: #fff !important;
+      box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.35) !important;
+    }
+
+    i {
+      color: #fff !important;
+    }
+
+    .nav-link-text {
+      color: #fff !important;
+      font-weight: 600;
+    }
+
+    &:hover {
+      background: linear-gradient(135deg, #052e16 0%, #4ade80 100%) !important;
+      transform: translateX(3px);
+    }
+  }
+}
+
+// DISEÑO E INNOVACIÓN — tonos slate / zinc (Catálogo de señalización)
+.nav-link.diseno-innovacion-link,
+.nav-link.repositorio-link,
+.nav-link.inventario-link {
+  &:hover:not(.active) {
+    background: linear-gradient(135deg, rgba(24, 24, 27, 0.08) 0%, rgba(63, 63, 70, 0.14) 100%) !important;
+    color: #27272a !important;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(24, 24, 27, 0.12) !important;
+
+    i {
+      color: #27272a !important;
+      transform: scale(1.15);
+    }
+
+    .nav-link-text {
+      color: #27272a !important;
+    }
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #334155 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(15, 23, 42, 0.35) !important;
+
+    &::after {
+      background: #fff !important;
+      box-shadow: 0 0 0 0 rgba(15, 23, 42, 0.35) !important;
+    }
+
+    i {
+      color: #fff !important;
+    }
+
+    .nav-link-text {
+      color: #fff !important;
+      font-weight: 600;
+    }
+
+    &:hover {
+      background: linear-gradient(135deg, #1e293b 0%, #334155 55%, #475569 100%) !important;
+      transform: translateX(3px);
+    }
+  }
+}
+
+// MANTENIMIENTO — Gris pizarra / industria (EIN-F-01)
+.nav-link.mantenimiento-link {
+  &:hover:not(.active) {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.08) 0%, rgba(71, 85, 105, 0.14) 100%) !important;
+    color: #1e293b !important;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12) !important;
+
+    i {
+      color: #1e293b !important;
+      transform: scale(1.15);
+    }
+
+    .nav-link-text {
+      color: #1e293b !important;
+    }
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 45%, #475569 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(15, 23, 42, 0.35) !important;
+
+    &::after {
+      background: #fff !important;
+      box-shadow: 0 0 0 0 rgba(15, 23, 42, 0.35) !important;
+    }
+
+    i {
+      color: #fff !important;
+    }
+
+    .nav-link-text {
+      color: #fff !important;
+      font-weight: 600;
+    }
+
+    &:hover {
+      background: linear-gradient(135deg, #1e293b 0%, #334155 55%, #64748b 100%) !important;
+      transform: translateX(3px);
+    }
+  }
+}
+
+// Animaciones
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(56, 81, 47, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(56, 81, 47, 0);
+    transform: scale(1.1);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(56, 81, 47, 0);
+    transform: scale(1);
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+// Overlay oscuro para móvil
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1040;
+  animation: fadeIn 0.3s ease-in-out;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  backdrop-filter: blur(4px);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(4px);
+  }
+}
+
+// Responsive móvil
+@media (max-width: 767px) {
+  .sidebar-custom {
+    width: 280px;
+    max-width: 85vw;
+    
+    &.sidebar-visible {
+      box-shadow: 4px 0 25px rgba(0, 0, 0, 0.2);
+    }
+  }
+  
+  .sidebar-nav .nav-link {
+    padding: 1rem 1rem;
+    font-size: 1rem;
+    
+    i {
+      font-size: 1.15rem;
+      margin-right: 0.85rem;
+    }
+  }
+  
+  .sidebar-header {
+    padding: 1rem 1rem 0.75rem;
+  }
+}
+
+// Mejor accesibilidad para touch
+@media (hover: none) and (pointer: coarse) {
+  .sidebar-nav .nav-link {
+    min-height: 48px;
+    
+    &:active:not(.active) {
+      background: #f7fafc;
+    }
+    
+    &.active:active {
+      background-color: #c5dab8;
+    }
+  }
+}
+
+// Sección inferior del sidebar — fija al fondo, fuera del área scrollable
+.sidebar-bottom-section {
+  flex-shrink: 0;
+  padding-bottom: 1.22rem;
+  padding-top: 0.7rem;
+
+  .nav {
+    padding: 0 0.75rem;
+    margin-bottom: 0;
+  }
+
+  .nav-item {
+    margin-bottom: 0.35rem;
+  }
+
+  .nav-link {
+    display: flex;
+    align-items: center;
+    padding: 0.85rem 1rem;
+    border-radius: 0.75rem;
+    font-weight: 500;
+    font-size: 0.95rem;
+    text-decoration: none;
+    position: relative;
+    overflow: hidden;
+
+    i {
+      font-size: 1.1rem;
+      margin-right: 0.85rem;
+      width: 24px;
+      text-align: center;
+    }
+  }
+}
+
+.sidebar-divider {
+  height: 1px;
+  background: rgba(56, 81, 47, 0.12);
+  margin: 0.75rem 1.25rem;
+}
+
+.nav-link-admin {
+  opacity: 1;
+  transition: all 0.25s ease;
+
+  i {
+    color: #A8A9A2 !important;
+    transition: color 0.25s ease, transform 0.25s ease;
+  }
+
+  .nav-link-text {
+    color: #4a5568 !important;
+    font-weight: 500;
+  }
+
+  &:hover:not(.active) {
+    opacity: 1;
+    background: rgba(168, 169, 162, 0.15) !important;
+    transform: translateX(4px);
+    box-shadow: none !important;
+
+    i {
+      color: #38512F !important;
+      transform: scale(1.12);
+    }
+
+    .nav-link-text {
+      color: #38512F !important;
+    }
+  }
+
+  // Estado activo: fondo oscuro de paleta que contrasta con el verde del resto del menú
+  &.active {
+    background: #1A1A1A !important;
+    box-shadow: 0 4px 12px rgba(26, 26, 26, 0.25) !important;
+
+    // Quitar el punto verde animado del estado activo base
+    &::after {
+      display: none !important;
+    }
+
+    i {
+      color: #C2D1B2 !important;
+      animation: none !important;
+    }
+
+    .nav-link-text {
+      color: #E2E3DE !important;
+      font-weight: 600;
+    }
+  }
+}
+
+.sidebar-version {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: center;
+  padding: 0.5rem 0.75rem 0.35rem;
+  font-size: 0.7rem;
+  color: #a0a0a0;
+  letter-spacing: 0.5px;
+}
+
+.sidebar-version-label {
+  display: block;
+  font-size: 0.7rem;
+  color: #a0a0a0;
+  letter-spacing: 0.5px;
+}
+
+.sidebar-version-update {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid rgba(246, 173, 85, 0.45);
+  border-radius: 8px;
+  background: rgba(246, 173, 85, 0.12);
+  color: #b7791f;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.2px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+
+  i {
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+    font-size: 0.75rem;
+    color: #dd6b20;
+  }
+
+  span {
+    flex: 1;
+  }
+
+  &:hover {
+    background: rgba(246, 173, 85, 0.22);
+    border-color: rgba(221, 107, 32, 0.55);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #dd6b20;
+    outline-offset: 2px;
+  }
+}
+
+@keyframes historialBadgePop {
+  0% { transform: scale(0.4); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.sidebar-nav .nav-link:has(.badge-historial-pendiente).active::after {
+  display: none;
+}
+
+.historial-badge-wrap {
+  position: relative;
+  margin-left: auto;
+  flex-shrink: 0;
+  min-width: 1.35rem;
+  min-height: 1.35rem;
+}
+
+.historial-badge-pop {
+  position: absolute;
+  top: -0.55rem;
+  right: -0.35rem;
+  padding: 0.08rem 0.35rem;
+  border-radius: 999px;
+  background: #38512F;
+  color: #fff;
+  font-size: 0.58rem;
+  font-weight: 800;
+  line-height: 1.1;
+  box-shadow: 0 4px 10px rgba(56, 81, 47, 0.35);
+  animation: historialPlusOne 1.6s ease forwards;
+  pointer-events: none;
+  z-index: 2;
+}
+
+@keyframes historialBadgePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+
+@keyframes historialPlusOne {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.7);
+  }
+  18% {
+    opacity: 1;
+    transform: translateY(0) scale(1.08);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-8px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.85);
+  }
+}

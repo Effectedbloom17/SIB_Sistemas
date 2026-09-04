@@ -1,0 +1,15 @@
+<!-- Sidenav -->
+<app-sidebar *ngIf="!esDoctor"></app-sidebar>
+<div class="main-content" [class.sidebar-hidden]="!sidebarVisible || esDoctor" [class.doctor-theme]="esDoctor" [class.theme-pc]="esProteccionCivil" [class.theme-sgc]="esSistemaGestionCalidad" [class.theme-control-proyectos]="esControlProyectos" [class.theme-sensores]="esSensores" [class.theme-rrhh]="esRecursosHumanos" [class.theme-diseno-innovacion]="esDisenoInnovacion" [class.theme-mantenimiento]="esMantenimiento">
+  <!-- Top navbar -->
+  <app-navbar></app-navbar>
+  <!-- Pages -->
+  <div class="page-content">
+    <router-outlet></router-outlet>
+  </div>
+  <!-- Footer siempre al fondo (oculto en correo para no tapar la redacción) -->
+  <app-footer *ngIf="!ocultarFooter"></app-footer>
+</div>
+
+<!-- Modal global de previsualización de documentos -->
+<app-document-preview></app-document-preview>

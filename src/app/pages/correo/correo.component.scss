@@ -1,0 +1,2075 @@
+$correo-green: #38512F;
+$correo-green-light: #C2D1B2;
+$correo-green-soft: rgba(56, 81, 47, 0.08);
+$correo-border: #E2E3DE;
+$correo-muted: #6E7C67;
+$correo-text: #1A1A1A;
+$correo-bg: #f4f7f2;
+$correo-white: #ffffff;
+
+.correo-header-icon {
+  background: rgba(255, 255, 255, 0.15);
+  font-size: 1.8rem;
+}
+
+.correo-header-title {
+  font-weight: 700;
+  font-size: 2.2rem;
+  letter-spacing: -0.5px;
+}
+
+.correo-header-title-row {
+  gap: 0.5rem;
+}
+
+.correo-header-subtitle {
+  opacity: 0.88;
+  font-size: 0.95rem;
+  margin-top: 0.35rem;
+}
+
+.correo-page {
+  position: relative;
+  z-index: 10;
+  margin-bottom: 3rem;
+}
+
+.correo-card {
+  border-radius: 18px;
+  overflow: hidden;
+  background-color: $correo-white;
+}
+
+.correo-card-body {
+  padding: 1.25rem;
+}
+
+.correo-alert {
+  border-radius: 12px;
+  border: 1px solid $correo-border;
+}
+
+.correo-shell {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 0;
+  align-items: stretch;
+  min-height: 680px;
+  border: 1px solid $correo-border;
+  border-radius: 16px;
+  overflow: hidden;
+  background: $correo-white;
+}
+
+.correo-sidebar {
+  background: linear-gradient(180deg, #fafcf8 0%, $correo-bg 100%);
+  border-right: 1px solid $correo-border;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 0.85rem;
+}
+
+.correo-compose-btn {
+  align-items: center;
+  background: linear-gradient(135deg, $correo-green 0%, #4a6740 100%);
+  border: none;
+  border-radius: 999px;
+  box-shadow: 0 10px 24px rgba(56, 81, 47, 0.24);
+  color: $correo-white;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.92rem;
+  font-weight: 700;
+  gap: 0.55rem;
+  justify-content: center;
+  padding: 0.85rem 1.1rem;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.correo-compose-btn:hover {
+  box-shadow: 0 12px 28px rgba(56, 81, 47, 0.3);
+  transform: translateY(-1px);
+}
+
+.correo-nav {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.correo-nav-item {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 0 999px 999px 0;
+  cursor: pointer;
+  display: flex;
+  gap: 0.75rem;
+  margin-right: -0.85rem;
+  padding: 0.7rem 0.85rem;
+  text-align: left;
+  transition: all 0.2s ease;
+  width: calc(100% + 0.85rem);
+}
+
+.correo-nav-item:hover {
+  background: rgba(56, 81, 47, 0.06);
+}
+
+.correo-nav-item.is-active {
+  background: rgba(56, 81, 47, 0.12);
+  color: $correo-green;
+}
+
+.correo-nav-item.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.correo-nav-item.is-disabled:hover {
+  background: transparent;
+}
+
+.correo-nav-icon {
+  align-items: center;
+  color: $correo-green;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.95rem;
+  justify-content: center;
+  width: 22px;
+}
+
+.correo-nav-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+
+  strong {
+    color: $correo-text;
+    font-size: 0.84rem;
+  }
+
+  small {
+    color: $correo-muted;
+    font-size: 0.7rem;
+  }
+}
+
+.correo-nav-badge {
+  align-items: center;
+  background: $correo-green;
+  border-radius: 999px;
+  color: $correo-white;
+  display: inline-flex;
+  font-size: 0.65rem;
+  font-weight: 700;
+  height: 20px;
+  justify-content: center;
+  min-width: 20px;
+  padding: 0 0.35rem;
+}
+
+.correo-sidebar-account {
+  border-top: 1px solid $correo-border;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: auto;
+  padding-top: 0.75rem;
+}
+
+.correo-sidebar-account-label {
+  color: $correo-muted;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.55px;
+  text-transform: uppercase;
+}
+
+.correo-sidebar-account-value {
+  color: $correo-green;
+  font-size: 0.78rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.correo-sidebar-footer {
+  color: $correo-muted;
+  padding-top: 0.35rem;
+
+  small {
+    font-size: 0.68rem;
+  }
+}
+
+.correo-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 680px;
+  min-width: 0;
+}
+
+.correo-main-toolbar {
+  align-items: center;
+  border-bottom: 1px solid $correo-border;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.9rem 1.15rem;
+}
+
+.correo-main-toolbar-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.correo-main-title {
+  color: $correo-green;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.correo-btn {
+  align-items: center;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 700;
+  gap: 0.45rem;
+  padding: 0.55rem 0.95rem;
+  transition: all 0.2s ease;
+}
+
+.correo-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.correo-btn-primary {
+  background: linear-gradient(135deg, $correo-green 0%, #4a6740 100%);
+  box-shadow: 0 8px 18px rgba(56, 81, 47, 0.22);
+  color: $correo-white;
+}
+
+.correo-btn-ghost {
+  background: $correo-white;
+  border: 1px solid $correo-border;
+  color: $correo-green;
+}
+
+.correo-btn-ghost:hover:not(:disabled) {
+  background: $correo-green-soft;
+}
+
+.correo-btn-danger {
+  background: #fff5f5;
+  border: 1px solid #f1caca;
+  color: #a94442;
+}
+
+.correo-search {
+  align-items: center;
+  background: $correo-bg;
+  border-bottom: 1px solid $correo-border;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.75rem 1.15rem;
+}
+
+.correo-search-box {
+  align-items: center;
+  background: $correo-white;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  display: flex;
+  flex: 1 1 auto;
+  max-width: 680px;
+  min-width: 0;
+  padding: 0 0.35rem;
+  position: relative;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &:focus-within {
+    border-color: $correo-green-light;
+    box-shadow: 0 0 0 3px rgba(56, 81, 47, 0.08);
+  }
+}
+
+.correo-search-submit,
+.correo-search-clear {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+
+  i {
+    color: $correo-green;
+  }
+}
+
+.correo-search-clear i {
+  color: $correo-muted;
+}
+
+.correo-search-input {
+  background: transparent;
+  border: none;
+  color: $correo-text;
+  font-size: 0.9rem;
+  outline: none;
+  padding: 0.55rem 0.2rem;
+  width: 100%;
+}
+
+.correo-search-history {
+  background: $correo-white;
+  border: 1px solid $correo-border;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(26, 26, 26, 0.14);
+  left: 0;
+  overflow: hidden;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.4rem);
+  z-index: 30;
+}
+
+.correo-search-history-header {
+  align-items: center;
+  border-bottom: 1px solid $correo-border;
+  color: $correo-muted;
+  display: flex;
+  font-size: 0.72rem;
+  font-weight: 700;
+  justify-content: space-between;
+  padding: 0.65rem 0.8rem;
+  text-transform: uppercase;
+
+  button {
+    background: transparent;
+    border: none;
+    color: $correo-green;
+    cursor: pointer;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: none;
+  }
+}
+
+.correo-search-history-list {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.correo-search-history-item {
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: $correo-text;
+  cursor: pointer;
+  display: flex;
+  gap: 0.65rem;
+  padding: 0.65rem 0.8rem;
+  text-align: left;
+  width: 100%;
+
+  > i:first-child {
+    color: $correo-muted;
+    font-size: 0.78rem;
+  }
+
+  span {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &:hover {
+    background: $correo-green-soft;
+  }
+}
+
+.correo-search-history-remove {
+  color: $correo-muted;
+  flex: 0 0 auto;
+  padding: 0.25rem;
+}
+
+.correo-pagination {
+  align-items: center;
+  color: $correo-muted;
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  gap: 0.35rem;
+  white-space: nowrap;
+
+  button {
+    align-items: center;
+    background: $correo-white;
+    border: 1px solid $correo-border;
+    border-radius: 7px;
+    color: $correo-green;
+    cursor: pointer;
+    display: inline-flex;
+    height: 32px;
+    justify-content: center;
+    width: 32px;
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.4;
+    }
+  }
+}
+
+.correo-pagination-page {
+  color: $correo-text;
+  min-width: 38px;
+  text-align: center;
+}
+
+.correo-list {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.correo-row {
+  align-items: center;
+  background: $correo-white;
+  border: none;
+  border-bottom: 1px solid rgba(226, 227, 222, 0.8);
+  cursor: pointer;
+  display: grid;
+  gap: 0.65rem 0.85rem;
+  grid-template-columns: 8px minmax(120px, 190px) minmax(0, 1fr) auto;
+  padding: 0.85rem 1.15rem;
+  text-align: left;
+  transition: background 0.15s ease;
+  width: 100%;
+}
+
+.correo-row:hover {
+  background: rgba(56, 81, 47, 0.04);
+  box-shadow: inset 2px 0 0 $correo-green-light;
+}
+
+.correo-row.is-unread {
+  background: rgba(56, 81, 47, 0.03);
+}
+
+.correo-row.is-unread .correo-row-from,
+.correo-row.is-unread .correo-row-subject strong {
+  font-weight: 700;
+}
+
+.correo-row-status {
+  background: transparent;
+  border-radius: 999px;
+  height: 8px;
+  width: 8px;
+}
+
+.correo-row-status.is-unread {
+  background: $correo-green;
+}
+
+.correo-row-from {
+  color: $correo-text;
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.correo-row-subject {
+  color: $correo-text;
+  font-size: 0.86rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  strong {
+    font-weight: 600;
+  }
+}
+
+.correo-row-snippet {
+  color: $correo-muted;
+  font-weight: 400;
+}
+
+.correo-row-meta {
+  align-items: center;
+  color: #A8A9A2;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.45rem;
+  justify-self: end;
+}
+
+.correo-row-date {
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.correo-reading-toolbar {
+  align-items: center;
+  border-bottom: 1px solid $correo-border;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-start;
+  padding: 0.55rem 0.85rem;
+}
+
+.correo-toolbar-icons {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+}
+
+.correo-toolbar-divider {
+  background: $correo-border;
+  display: inline-block;
+  height: 24px;
+  margin: 0 0.35rem;
+  width: 1px;
+}
+
+.correo-icon-btn {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: $correo-muted;
+  cursor: pointer;
+  display: inline-flex;
+  height: 36px;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+  width: 36px;
+
+  i {
+    font-size: 0.95rem;
+  }
+}
+
+.correo-icon-btn-sm {
+  height: 32px;
+  width: 32px;
+
+  i {
+    font-size: 0.88rem;
+  }
+}
+
+.correo-icon-btn:hover:not(:disabled) {
+  background: rgba(56, 81, 47, 0.08);
+  color: $correo-text;
+}
+
+.correo-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.correo-icon-btn.is-active {
+  color: #f4b400;
+}
+
+.correo-icon-btn.is-active i {
+  font-weight: 900;
+}
+
+.correo-icon-btn-danger:hover:not(:disabled) {
+  background: rgba(220, 53, 69, 0.08);
+  color: #dc3545;
+}
+
+.correo-back-btn {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  color: $correo-green;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.86rem;
+  font-weight: 700;
+  gap: 0.45rem;
+  padding: 0.45rem 0.65rem;
+  transition: background 0.15s ease;
+}
+
+.correo-back-btn:hover {
+  background: $correo-green-soft;
+}
+
+.correo-reading-header {
+  border-bottom: 1px solid $correo-border;
+  padding: 1rem 1.15rem 1.1rem;
+}
+
+.correo-reading-subject {
+  color: $correo-text;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 0 0 0.85rem;
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.65rem;
+}
+
+.correo-reading-badge-contestacion {
+  background: rgba(56, 81, 47, 0.1);
+  border: 1px solid rgba(56, 81, 47, 0.22);
+  border-radius: 999px;
+  color: $correo-green;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.18rem 0.55rem;
+  text-transform: uppercase;
+}
+
+.correo-reading-conversacion {
+  flex-shrink: 0;
+  padding: 0.55rem 1.15rem 0.15rem;
+}
+
+.correo-reading-conversacion-dots {
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: $correo-muted;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 0.35rem;
+  padding: 0.25rem 0.15rem;
+  border-radius: 6px;
+
+  span {
+    background: #9aa0a6;
+    border-radius: 50%;
+    display: inline-block;
+    height: 5px;
+    width: 5px;
+  }
+
+  em {
+    font-size: 0.75rem;
+    font-style: normal;
+    font-weight: 600;
+  }
+}
+
+.correo-reading-conversacion-dots:hover {
+  background: rgba(56, 81, 47, 0.06);
+  color: $correo-green;
+}
+
+.correo-reading-conversacion-dots--active {
+  margin-bottom: 0.35rem;
+}
+
+.correo-reading-conversacion-bloque {
+  color: #5f6368;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.correo-reading-conversacion-contenido {
+  border-left: 2px solid #dadce0;
+  max-height: 280px;
+  overflow: auto;
+  padding: 0.2rem 0 0.45rem 0.75rem;
+  word-break: break-word;
+
+  ::ng-deep {
+    img {
+      max-width: 100%;
+      height: auto;
+    }
+
+    img[alt="Firma digital"],
+    img[data-firma-biznaga="1"] {
+      max-width: 320px !important;
+      width: 100% !important;
+      height: auto !important;
+      display: block;
+    }
+
+    blockquote,
+    pre {
+      margin: 0.35rem 0;
+      white-space: pre-wrap;
+    }
+  }
+}
+
+.correo-gmail-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.correo-gmail-header-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.correo-gmail-sender {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.correo-gmail-sender-name {
+  color: $correo-text;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.correo-gmail-sender-email {
+  color: $correo-muted;
+  font-size: 0.82rem;
+  font-weight: 400;
+}
+
+.correo-gmail-recipient-wrap {
+  position: relative;
+}
+
+.correo-gmail-details-toggle {
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: $correo-muted;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.78rem;
+  gap: 0.25rem;
+  padding: 0.1rem 0;
+
+  i {
+    font-size: 0.72rem;
+    transition: transform 0.2s ease;
+  }
+
+  i.is-open {
+    transform: rotate(180deg);
+  }
+}
+
+.correo-gmail-details-toggle:hover {
+  color: $correo-green;
+}
+
+.correo-gmail-details-panel {
+  background: $correo-white;
+  border: 1px solid $correo-border;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(26, 26, 26, 0.12);
+  left: 0;
+  margin-top: 0.45rem;
+  min-width: min(520px, calc(100vw - 420px));
+  padding: 0.85rem 1rem;
+  position: absolute;
+  top: 100%;
+  z-index: 20;
+}
+
+.correo-gmail-details-list {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.correo-gmail-details-row {
+  align-items: start;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 92px minmax(0, 1fr);
+}
+
+.correo-gmail-details-row dt {
+  color: $correo-muted;
+  font-size: 0.78rem;
+  font-weight: 500;
+  margin: 0;
+  text-transform: lowercase;
+}
+
+.correo-gmail-details-row dd {
+  color: $correo-text;
+  font-size: 0.82rem;
+  font-weight: 500;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.correo-gmail-security {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
+
+  i {
+    color: #1a73e8;
+    font-size: 0.75rem;
+  }
+}
+
+.correo-gmail-date {
+  color: $correo-muted;
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.correo-gmail-header-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.15rem;
+}
+
+.correo-menu-wrap {
+  position: relative;
+}
+
+.correo-menu-panel {
+  background: $correo-white;
+  border: 1px solid $correo-border;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(26, 26, 26, 0.12);
+  display: grid;
+  gap: 0.1rem;
+  min-width: 220px;
+  padding: 0.45rem 0;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 25;
+}
+
+.correo-menu-item {
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: $correo-text;
+  cursor: pointer;
+  display: flex;
+  font-size: 0.84rem;
+  gap: 0.75rem;
+  padding: 0.55rem 1rem;
+  text-align: left;
+  transition: background 0.15s ease;
+  width: 100%;
+
+  i {
+    color: $correo-muted;
+    font-size: 0.82rem;
+    width: 16px;
+  }
+}
+
+.correo-menu-item:hover {
+  background: rgba(56, 81, 47, 0.06);
+}
+
+.correo-reading-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.correo-body-iframe {
+  border: none;
+  display: block;
+  flex: 0 0 auto;
+  min-height: 80px;
+  width: 100%;
+  background: #fff;
+}
+
+.correo-body-iframe-hidden {
+  display: none;
+}
+
+.correo-body-texto {
+  color: #1d2230;
+  font-family: 'Century Gothic', CenturyGothic, AppleGothic, 'URW Gothic L', sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.65;
+  margin: 0;
+  padding: 1.65rem 2.25rem 1.25rem 1.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.correo-adjuntos {
+  border-top: 1px dashed $correo-green-light;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 0.65rem;
+  padding: 1rem 1.15rem 1.15rem;
+}
+
+.correo-adjuntos-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.correo-adjuntos-title {
+  align-items: center;
+  color: $correo-green;
+  display: inline-flex;
+  font-size: 0.85rem;
+  font-weight: 700;
+  gap: 0.4rem;
+}
+
+.correo-adjuntos-count {
+  color: #A8A9A2;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.correo-adjuntos-loading,
+.correo-adjuntos-error,
+.correo-adjuntos-empty {
+  align-items: center;
+  color: $correo-muted;
+  display: flex;
+  font-size: 0.8rem;
+  gap: 0.5rem;
+}
+
+.correo-adjuntos-error {
+  color: #8B5A2B;
+}
+
+.correo-adjuntos-list {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.correo-adjunto-item {
+  align-items: stretch;
+  background: $correo-bg;
+  border: 1px solid $correo-border;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-height: 110px;
+  padding: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.correo-adjunto-item:hover:not(:disabled) {
+  border-color: $correo-green-light;
+  box-shadow: 0 8px 16px rgba(118, 141, 107, 0.12);
+}
+
+.correo-adjunto-item:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.correo-adjunto-preview {
+  align-items: center;
+  background: $correo-white;
+  border: 1px solid $correo-border;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.55rem;
+}
+
+.correo-adjunto-preview-icon {
+  align-items: center;
+  background: $correo-green-soft;
+  border-radius: 10px;
+  color: $correo-green;
+  display: inline-flex;
+  font-size: 0.95rem;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.correo-adjunto-doc {
+  color: #A8A9A2;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.correo-adjunto-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.correo-adjunto-size {
+  color: $correo-muted;
+  font-size: 0.72rem;
+}
+
+.correo-compose-inline {
+  background: #f8f9fa;
+  border: 1px solid #dadce0;
+  border-radius: 12px;
+  margin: 1rem 0 0.5rem;
+  padding: 0.65rem 0.85rem 0.75rem;
+  position: relative;
+
+  &.is-dragover {
+    border-color: $correo-green;
+    box-shadow: 0 0 0 2px rgba(56, 81, 47, 0.18);
+  }
+}
+
+.correo-compose-inline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.correo-compose-inline-para {
+  align-items: center;
+  border-bottom: 1px solid #e8eaed;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+  min-height: 40px;
+  padding: 0.15rem 0 0.35rem;
+}
+
+.correo-compose-inline-para--secundario {
+  padding-left: 2.1rem;
+}
+
+.correo-compose-inline-para-left {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.correo-compose-inline-para-right {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.15rem;
+}
+
+.correo-compose-inline-action-icon {
+  align-items: center;
+  color: #5f6368;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+  height: 28px;
+  justify-content: center;
+  width: 22px;
+}
+
+.correo-compose-inline-label {
+  color: #5f6368;
+  flex: 0 0 auto;
+  font-size: 0.86rem;
+  font-weight: 500;
+  min-width: 2rem;
+}
+
+.correo-compose-para-chips--inline {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.correo-compose-scroll--inline {
+  max-height: 320px;
+  min-height: 88px;
+  padding-top: 0.15rem;
+}
+
+.correo-compose-inline .correo-compose-editor {
+  min-height: 88px;
+  padding: 0.25rem 0.1rem 0.4rem;
+  white-space: normal;
+}
+
+.correo-compose-cita-wrap {
+  margin-top: 0.15rem;
+  padding: 0 0.1rem 0.35rem;
+}
+
+.correo-compose-cita-dots {
+  align-items: center;
+  background: #f1f3f4;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 3px;
+  height: 20px;
+  justify-content: center;
+  padding: 0 10px;
+  transition: background 0.15s ease;
+
+  span {
+    background: #5f6368;
+    border-radius: 50%;
+    display: block;
+    height: 3px;
+    width: 3px;
+  }
+
+  &:hover {
+    background: #e8eaed;
+  }
+}
+
+.correo-compose-cita-dots--active {
+  margin-bottom: 0.45rem;
+}
+
+.correo-compose-cita-bloque {
+  color: #5f6368;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.correo-compose-cita-contenido {
+  border-left: 2px solid #dadce0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 0.15rem 0 0.25rem 0.65rem;
+  white-space: normal;
+  word-break: break-word;
+
+  ::ng-deep {
+    img {
+      max-width: 100%;
+      height: auto;
+    }
+
+    img[alt="Firma digital"],
+    img[data-firma-biznaga="1"] {
+      max-width: 320px !important;
+      width: 100% !important;
+      height: auto !important;
+      display: block;
+    }
+
+    blockquote,
+    pre {
+      margin: 0.35rem 0;
+      white-space: pre-wrap;
+    }
+  }
+}
+
+.correo-compose-error--inline {
+  margin-bottom: 0.45rem;
+}
+
+.correo-compose-inline .correo-compose-footer {
+  border-top: 0;
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+}
+
+.correo-compose-inline .correo-compose-link-btn {
+  color: #5f6368;
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 0.2rem 0.4rem;
+}
+
+.correo-compose-inline .correo-compose-link-btn:hover {
+  color: #1f6b4a;
+}
+
+.correo-compose-float {
+  background: $correo-white;
+  border: 1px solid $correo-border;
+  // Flotante completa (no pegada al borde inferior del SO / barra de tareas)
+  border-radius: 12px;
+  bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 12px 40px rgba(26, 26, 26, 0.2);
+  display: flex;
+  flex-direction: column;
+  max-height: min(620px, calc(100vh - 5.5rem));
+  max-height: min(620px, calc(100dvh - 5.5rem));
+  overflow: hidden;
+  position: fixed;
+  right: 1.75rem;
+  transition: right 0.35s ease, width 0.25s ease, box-shadow 0.25s ease;
+  width: min(560px, calc(100vw - 2rem));
+  z-index: 1200;
+
+  &.is-entering {
+    animation: correoComposeSlideIn 0.4s ease;
+  }
+
+  &.is-dragover {
+    border-color: $correo-green;
+    box-shadow: 0 12px 40px rgba(26, 26, 26, 0.2), 0 0 0 2px rgba(56, 81, 47, 0.28);
+  }
+}
+
+.correo-compose-drop-overlay {
+  align-items: center;
+  background: rgba(56, 81, 47, 0.92);
+  border-radius: inherit;
+  color: $correo-white;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.95rem;
+  font-weight: 600;
+  gap: 0.55rem;
+  inset: 0;
+  justify-content: center;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  position: absolute;
+  z-index: 30;
+
+  i {
+    font-size: 1.65rem;
+  }
+}
+
+@keyframes correoComposeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(48px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.correo-compose-float.is-minimized {
+  max-height: none;
+}
+
+.correo-compose-float.is-expanded {
+  max-height: min(780px, calc(100vh - 4rem));
+  max-height: min(780px, calc(100dvh - 4rem));
+  width: min(720px, calc(100vw - 2rem));
+}
+
+.correo-compose-float-header {
+  align-items: center;
+  background: $correo-green;
+  color: $correo-white;
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.75rem;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0.55rem 0.75rem 0.55rem 1rem;
+}
+
+.correo-compose-float-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.correo-compose-float-controls {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.15rem;
+}
+
+.correo-compose-control-btn {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: $correo-white;
+  cursor: pointer;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  opacity: 0.92;
+  transition: background 0.15s ease;
+  width: 28px;
+
+  i {
+    font-size: 0.82rem;
+  }
+}
+
+.correo-compose-control-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.correo-compose-float-body.is-hidden {
+  display: none;
+}
+
+.correo-compose-float-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.correo-compose-error {
+  align-items: center;
+  background: rgba(255, 193, 7, 0.12);
+  color: #856404;
+  display: flex;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  gap: 0.45rem;
+  padding: 0.55rem 0.85rem;
+}
+
+.correo-compose-float-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+.correo-compose-row {
+  align-items: center;
+  border-bottom: 1px solid $correo-border;
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.65rem;
+  min-height: 42px;
+  padding: 0.35rem 0.85rem;
+}
+
+.correo-compose-row--para {
+  align-items: flex-start;
+  overflow: visible;
+  padding-bottom: 0.45rem;
+  padding-top: 0.45rem;
+  position: relative;
+  z-index: 2;
+
+  &.is-dropdown-activo {
+    z-index: 4;
+  }
+}
+
+.correo-compose-dropdowns-portal {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 10000;
+}
+
+.correo-compose-para-wrapper {
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+}
+
+.correo-compose-para-chips {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.correo-compose-para-chip {
+  align-items: center;
+  background: $correo-bg;
+  border: 1px solid $correo-border;
+  border-radius: 999px;
+  color: $correo-green;
+  display: inline-flex;
+  font-size: 0.72rem;
+  gap: 0.3rem;
+  max-width: 100%;
+  padding: 0.15rem 0.35rem 0.15rem 0.5rem;
+
+  i.fa-envelope {
+    color: $correo-muted;
+    flex-shrink: 0;
+    font-size: 0.62rem;
+  }
+}
+
+.correo-compose-para-chip-text {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.correo-compose-para-chip-remove {
+  align-items: center;
+  background: rgba(56, 81, 47, 0.08);
+  border: none;
+  border-radius: 50%;
+  color: $correo-muted;
+  cursor: pointer;
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 16px;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+  width: 16px;
+
+  i {
+    font-size: 0.55rem;
+  }
+
+  &:hover {
+    background: rgba(56, 81, 47, 0.18);
+    color: $correo-green;
+  }
+}
+
+.correo-compose-para-input {
+  flex: 1 1 120px;
+  min-width: 120px;
+}
+
+.correo-compose-sugerencias-dropdown {
+  animation: correoDropdownSlide 0.18s ease;
+  background: $correo-white;
+  border: 1px solid rgba(194, 209, 178, 0.55);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(56, 81, 47, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow-y: auto;
+
+  &--overlay {
+    pointer-events: auto;
+  }
+
+  &::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $correo-green-light;
+    border-radius: 3px;
+  }
+}
+
+@keyframes correoDropdownSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.correo-compose-sugerencia-item {
+  align-items: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  gap: 0.65rem;
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  transition: background 0.15s ease;
+  width: 100%;
+
+  &:hover {
+    background: $correo-green-soft;
+
+    .correo-compose-sugerencia-avatar {
+      background: linear-gradient(135deg, $correo-green 0%, #5a7456 100%);
+      color: $correo-white;
+    }
+  }
+}
+
+.correo-compose-sugerencia-avatar {
+  align-items: center;
+  background: rgba(194, 209, 178, 0.6);
+  border: 2px solid $correo-green-light;
+  border-radius: 50%;
+  color: $correo-green;
+  display: flex;
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  height: 30px;
+  justify-content: center;
+  letter-spacing: 0.4px;
+  overflow: hidden;
+  text-transform: uppercase;
+  transition: background 0.2s ease, color 0.2s ease;
+  width: 30px;
+
+  &--photo {
+    background: transparent;
+    padding: 0;
+  }
+
+  img {
+    border-radius: 50%;
+    height: 100%;
+    object-fit: cover;
+    width: 100%;
+  }
+}
+
+.correo-compose-sugerencia-content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.correo-compose-sugerencia-nombre {
+  color: $correo-text;
+  font-size: 0.8rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.correo-compose-sugerencia-email {
+  color: $correo-muted;
+  font-size: 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.correo-compose-row-links {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.45rem;
+}
+
+.correo-compose-link-btn {
+  background: transparent;
+  border: none;
+  color: $correo-muted;
+  cursor: pointer;
+  font-size: 0.78rem;
+  padding: 0;
+}
+
+.correo-compose-link-btn:hover {
+  color: $correo-green;
+}
+
+.correo-compose-inline-input {
+  background: transparent;
+  border: none;
+  color: $correo-text;
+  flex: 1 1 auto;
+  font-size: 0.86rem;
+  min-width: 0;
+  outline: none;
+  padding: 0.35rem 0;
+}
+
+.correo-compose-inline-input::placeholder {
+  color: $correo-muted;
+}
+
+// Solo el editor hace scroll; la firma queda fija debajo y nunca se solapa con el texto
+.correo-compose-scroll {
+  background: $correo-white;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  position: relative;
+  z-index: 0;
+}
+
+.correo-compose-editor {
+  flex: 1 0 auto;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  min-height: 180px;
+  outline: none;
+  overflow: visible;
+  padding: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.correo-compose-editor:empty::before {
+  color: $correo-muted;
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+
+.correo-compose-editor img {
+  max-width: 100%;
+  height: auto;
+}
+
+.correo-compose-editor img[alt="Firma digital"],
+.correo-compose-editor img[data-firma-biznaga="1"] {
+  max-width: 520px !important;
+  width: 100% !important;
+  height: auto !important;
+  display: block;
+}
+
+.correo-compose-firma {
+  background: $correo-white;
+  border-top: 1px dashed $correo-border;
+  flex-shrink: 0;
+  isolation: isolate;
+  padding: 0.35rem 0.85rem 0.45rem;
+  position: relative;
+  z-index: 1;
+}
+
+.correo-compose-firma--loading {
+  align-items: center;
+  color: $correo-muted;
+  display: flex;
+  font-size: 0.78rem;
+  gap: 0.45rem;
+  padding: 0.55rem 0.85rem;
+}
+
+.correo-compose-firma-label {
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: $correo-muted;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.72rem;
+  gap: 0.35rem;
+  padding: 0.2rem 0;
+  transition: color 0.15s ease;
+  width: 100%;
+
+  &:hover {
+    color: $correo-green;
+  }
+}
+
+.correo-compose-firma-chevron {
+  font-size: 0.62rem;
+  margin-left: auto;
+  transition: transform 0.2s ease;
+}
+
+.correo-compose-firma.is-expanded .correo-compose-firma-chevron {
+  transform: rotate(180deg);
+}
+
+.correo-compose-firma-preview {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: relative;
+  transition: max-height 0.28s ease, opacity 0.2s ease, margin-top 0.2s ease;
+}
+
+.correo-compose-firma.is-expanded .correo-compose-firma-preview {
+  margin-top: 0.35rem;
+  max-height: 120px;
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .correo-compose-firma:hover .correo-compose-firma-preview {
+    margin-top: 0.35rem;
+    max-height: 120px;
+    opacity: 1;
+  }
+
+  .correo-compose-firma:hover .correo-compose-firma-chevron {
+    transform: rotate(180deg);
+  }
+}
+
+.correo-compose-firma-preview ::ng-deep > div {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+.correo-compose-firma-preview img,
+.correo-compose-firma-preview ::ng-deep img {
+  display: block;
+  height: auto;
+  max-height: 120px;
+  max-width: 320px;
+  object-fit: contain;
+  object-position: left top;
+  width: 100%;
+}
+
+.correo-compose-adjuntos {
+  background: $correo-white;
+  border-top: 1px dashed $correo-border;
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  max-height: 88px;
+  overflow-y: auto;
+  padding: 0.55rem 0.85rem;
+  position: relative;
+  z-index: 1;
+}
+
+.correo-compose-adjunto-chip {
+  align-items: center;
+  background: $correo-bg;
+  border: 1px solid $correo-border;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.74rem;
+  gap: 0.35rem;
+  max-width: 100%;
+  padding: 0.25rem 0.45rem 0.25rem 0.55rem;
+}
+
+.correo-compose-adjunto-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.correo-compose-adjunto-size {
+  color: $correo-muted;
+}
+
+.correo-compose-adjunto-remove {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: $correo-muted;
+  cursor: pointer;
+  display: inline-flex;
+  height: 20px;
+  justify-content: center;
+  width: 20px;
+}
+
+.correo-compose-format-bar {
+  align-items: center;
+  border-top: 1px solid $correo-border;
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  padding: 0.35rem 0.75rem;
+}
+
+.correo-compose-footer {
+  align-items: center;
+  background: $correo-white;
+  border-top: 1px solid $correo-border;
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.45rem;
+  padding: 0.55rem 0.75rem;
+  position: relative;
+  z-index: 2;
+}
+
+.correo-compose-send-btn {
+  background: $correo-green;
+  border: none;
+  border-radius: 999px;
+  color: $correo-white;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 700;
+  min-width: 88px;
+  padding: 0.5rem 1.15rem;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.correo-compose-send-btn:hover:not(:disabled) {
+  background: #4a6740;
+}
+
+.correo-compose-send-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.correo-compose-footer-tools {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 0.1rem;
+}
+
+.correo-compose-tool-btn {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: $correo-muted;
+  cursor: pointer;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+  width: 34px;
+
+  i {
+    font-size: 0.92rem;
+  }
+}
+
+.correo-compose-tool-btn:hover {
+  background: rgba(56, 81, 47, 0.08);
+  color: $correo-text;
+}
+
+.correo-compose-tool-btn.is-active {
+  background: rgba(56, 81, 47, 0.12);
+  color: $correo-green;
+}
+
+.correo-compose-discard-btn {
+  margin-left: auto;
+}
+
+.correo-compose-discard-btn:hover {
+  background: rgba(220, 53, 69, 0.08);
+  color: #dc3545;
+}
+
+.correo-empty-inline {
+  align-items: center;
+  color: $correo-muted;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  justify-content: center;
+  min-height: 280px;
+  padding: 2rem 1rem;
+  text-align: center;
+
+  p {
+    margin: 0;
+  }
+}
+
+.correo-nav-item + .correo-nav-item {
+  margin-top: 0.1rem;
+}
+
+.correo-empty {
+  align-items: center;
+  color: $correo-muted;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.45rem;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+  text-align: center;
+
+  p {
+    margin: 0;
+  }
+}
+
+@media (max-width: 991.98px) {
+  .correo-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .correo-sidebar {
+    border-bottom: 1px solid $correo-border;
+    border-right: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .correo-compose-btn {
+    width: auto;
+    flex: 1 1 auto;
+  }
+
+  .correo-nav {
+    flex: 1 1 100%;
+  }
+
+  .correo-sidebar-account,
+  .correo-sidebar-footer {
+    display: none;
+  }
+
+  .correo-row {
+    grid-template-columns: 8px minmax(0, 1fr);
+    grid-template-areas:
+      'status from'
+      'status subject'
+      'status meta';
+  }
+
+  .correo-row-status { grid-area: status; }
+  .correo-row-from { grid-area: from; }
+  .correo-row-subject { grid-area: subject; white-space: normal; }
+  .correo-row-meta { grid-area: meta; justify-self: start; }
+
+  .correo-adjuntos-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .correo-card-body {
+    padding: 0.85rem;
+  }
+
+  .correo-search {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .correo-search-box {
+    max-width: none;
+  }
+
+  .correo-pagination {
+    justify-content: flex-end;
+  }
+
+  .correo-reading-subject {
+    font-size: 1.1rem;
+  }
+
+  .correo-gmail-header {
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .correo-gmail-header-actions {
+    align-self: flex-end;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .correo-gmail-details-panel {
+    min-width: min(100%, calc(100vw - 3rem));
+  }
+
+  .correo-gmail-details-row {
+    grid-template-columns: 78px minmax(0, 1fr);
+  }
+
+  .correo-compose-float {
+    bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+    max-height: min(620px, calc(100vh - 4.5rem));
+    max-height: min(620px, calc(100dvh - 4.5rem));
+    right: 0.75rem !important;
+    width: calc(100vw - 1.5rem);
+  }
+
+  .correo-compose-float.is-expanded {
+    max-height: min(780px, calc(100vh - 3.5rem));
+    max-height: min(780px, calc(100dvh - 3.5rem));
+    width: calc(100vw - 1.5rem);
+  }
+
+  // En móvil, el segundo compose se apila encima (no caben dos lado a lado)
+  .correo-compose-float + .correo-compose-float {
+    bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+    right: 0.75rem !important;
+    z-index: 1201;
+  }
+
+  .correo-compose-editor {
+    min-height: 140px;
+  }
+
+  .correo-compose-footer {
+    flex-wrap: wrap;
+  }
+}

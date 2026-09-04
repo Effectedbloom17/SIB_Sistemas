@@ -1,0 +1,268 @@
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-table"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">
+            Control de Capacitación Empresarial
+          </h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5 control-page" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+  <div class="row justify-content-center">
+    <div class="col-xl-12">
+
+      <!-- Documento oficial (movido desde dashboard) -->
+      <div class="card border-0 dash-card mb-4">
+        <div class="card-header border-0 dash-card-header">
+          <div class="d-flex align-items-center justify-content-between flex-wrap">
+            <div>
+              <span class="section-label">
+                <i class="fas fa-file-excel mr-1"></i> Documento oficial
+              </span>
+              <h2 class="section-title mb-0">Control de Capacitación Empresarial</h2>
+            </div>
+            <div class="control-actions-wrap mt-2 mt-md-0">
+              <div class="control-actions-row">
+                <button
+                  class="btn btn-sm text-white control-btn control-btn--pdf"
+                  [disabled]="descargandoControl"
+                  (click)="descargarControlCapacitacionPdf()">
+                  <i class="fas" [ngClass]="descargandoControl ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
+                  {{ descargandoControl ? ' Generando...' : ' Descargar control PDF' }}
+                </button>
+                <button
+                  class="btn btn-sm control-btn control-btn--excel"
+                  [disabled]="descargandoControlExcel"
+                  *ngIf="esRootUser"
+                  (click)="descargarControlCapacitacionExcel()">
+                  <i class="fas" [ngClass]="descargandoControlExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'"></i>
+                  {{
+                    descargandoControlExcel
+                      ? (controlExcelGenerado ? ' Actualizando...' : ' Generando...')
+                      : (controlExcelGenerado ? ' Actualizar control de Capacitación Empresarial' : ' Generar control de Capacitación Empresarial')
+                  }}
+                </button>
+                <button
+                  class="btn btn-sm control-btn control-btn--editor"
+                  type="button"
+                  [disabled]="!controlExcelFileId"
+                  (click)="toggleControlEditorPantallaCompleta()">
+                  <i class="fas fa-pen mr-1"></i>
+                  Abrir editor del control
+                </button>
+              </div>
+              <div class="control-actions-meta">
+                <span *ngIf="controlExcelUltimaActualizacion; else sinActualizacion">
+                  Última actualización: {{ controlExcelUltimaActualizacion | date:'dd/MM/yyyy HH:mm':'':'es' }}
+                </span>
+                <ng-template #sinActualizacion>
+                  Última actualización: sin generación previa
+                </ng-template>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div *ngIf="!controlExcelFileId && !loadingRegistros" class="dash-empty py-4 text-center">
+            <i class="fas fa-file-excel fa-2x mb-2" style="color: #38512F; opacity: 0.4;"></i>
+            <p class="mb-1 text-muted" style="font-weight: 600;">Sin archivo generado</p>
+            <small class="text-muted">Usa el botón "Generar control de Capacitación Empresarial" para crear el documento en Drive.</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla con filtros -->
+      <div class="card shadow-lg border-0 control-table-card">
+        <div class="card-header border-0" style="padding: 1.5rem 2rem;">
+          <div class="row align-items-center">
+            <div class="col">
+              <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">
+                Registro {{ anioActual }}
+              </h6>
+              <h2 class="mb-0" style="color: #38512F; font-weight: 700; font-size: 1.35rem;">
+                <i class="fas fa-list-alt mr-2" style="font-size: 1.1rem;"></i>Capacitaciones empresariales
+              </h2>
+              <small class="text-muted" style="font-size: 0.75rem;">
+                <i class="fas fa-info-circle mr-1"></i>
+                Misma información del control oficial; usa los filtros para localizar cursos.
+              </small>
+              <small class="text-muted d-block" style="font-size: 0.72rem;">
+                <i class="fas fa-mouse-pointer mr-1"></i>
+                Haz clic en cualquier fila para ver el Historial de Descargas.
+              </small>
+            </div>
+            <div class="col-auto">
+              <span class="badge badge-count">{{ registrosFiltrados.length }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="search-bar">
+          <div class="search-input-wrap">
+            <i class="fas fa-search search-icon"></i>
+            <input class="search-input" type="text" placeholder="Buscar curso, empresa o instructor..."
+                   [(ngModel)]="textoBusqueda" (ngModelChange)="filtrarRegistros()"
+                   autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                   name="busqueda-control-capacitacion">
+          </div>
+          <div class="filter-pills">
+            <select class="filter-select"
+                    [(ngModel)]="filtroEmpresa" (ngModelChange)="filtrarRegistros()">
+              <option value="">Seleccionar Empresa</option>
+              <option *ngFor="let emp of empresasUnicas" [value]="emp.id">{{ emp.nombre }}</option>
+            </select>
+            <label class="filter-date-wrap mb-0">
+              <input class="filter-select filter-date"
+                     type="month"
+                     [(ngModel)]="filtroMes" (ngModelChange)="filtrarRegistros()"
+                     [attr.max]="anioActual + '-12'"
+                     [attr.min]="anioActual + '-01'"
+                     title="Mes del curso">
+            </label>
+            <select class="filter-select"
+                    [(ngModel)]="filtroEstatus" (ngModelChange)="filtrarRegistros()">
+              <option *ngFor="let op of opcionesEstatus" [value]="op.value">{{ op.label }}</option>
+            </select>
+            <select class="filter-select"
+                    [(ngModel)]="filtroDescarga" (ngModelChange)="filtrarRegistros()">
+              <option *ngFor="let op of opcionesDescarga" [value]="op.value">{{ op.label }}</option>
+            </select>
+            <button *ngIf="hayFiltrosActivos" class="btn btn-sm btn-limpiar"
+                    (click)="limpiarFiltros()" title="Limpiar filtros">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="card-body p-0">
+          <div *ngIf="loadingRegistros" class="text-center py-5">
+            <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;">
+              <span class="sr-only">Cargando...</span>
+            </div>
+            <p class="text-muted mt-3">Cargando control de capacitación...</p>
+          </div>
+
+          <div *ngIf="!loadingRegistros && !hayRegistrosBase" class="text-center py-5">
+            <i class="fas fa-calendar-times text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-3 mb-0">No hay cursos registrados para el control de {{ anioActual }}.</p>
+          </div>
+
+          <div *ngIf="!loadingRegistros && hayRegistrosBase && !hayRegistrosFiltrados" class="text-center py-5">
+            <i class="fas fa-search text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-3 mb-1">No se encontraron registros con los filtros aplicados.</p>
+            <button class="btn btn-sm btn-link" style="color: #38512F;" (click)="limpiarFiltros()">Limpiar filtros</button>
+          </div>
+
+          <div *ngIf="!loadingRegistros && hayRegistrosFiltrados" class="control-table-wrap">
+            <table class="table table-sm table-hover control-table mb-0">
+              <thead>
+                <tr>
+                  <th class="col-no">No.</th>
+                  <th class="col-empresa">Empresa</th>
+                  <th class="col-curso">Curso</th>
+                  <th class="col-dia">Día</th>
+                  <th class="col-fecha">Fecha</th>
+                  <th class="col-instructor">Instructor</th>
+                  <th class="col-estatus">Estatus</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  *ngFor="let row of registrosFiltrados; trackBy: trackByRegistro"
+                  class="control-row-clickable"
+                  (click)="abrirHistorialDescargas(row)">
+                  <td class="text-center col-no">{{ row.no }}</td>
+                  <td class="col-empresa"><span class="cell-wrap">{{ row.empresa }}</span></td>
+                  <td class="col-curso"><span class="cell-wrap cell-wrap--curso">{{ row.nombre_curso }}</span></td>
+                  <td class="text-center col-dia">{{ row.dia }}</td>
+                  <td class="text-center col-fecha">{{ row.fecha }}</td>
+                  <td class="col-instructor"><span class="cell-wrap">{{ row.instructor }}</span></td>
+                  <td class="text-center col-estatus">
+                    <span class="estatus-badge" [ngClass]="claseEstatus(row.estatus_acreditaciones)">
+                      {{ row.estatus_acreditaciones }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="control-download-history-modal" *ngIf="historialDescargasSeleccionado" role="dialog" aria-modal="true" aria-label="Historial de Descargas">
+  <div class="control-download-history-modal__backdrop" (click)="cerrarHistorialDescargas()"></div>
+  <div class="control-download-history-modal__panel">
+    <div class="control-download-history-modal__head">
+      <h3 class="control-download-history-modal__title">Historial de Descargas</h3>
+      <button type="button" class="control-download-history-modal__close" (click)="cerrarHistorialDescargas()" aria-label="Cerrar historial de descargas">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="control-download-history-modal__body">
+      <div class="control-download-history-modal__row">
+        <span class="control-download-history-modal__label">Curso</span>
+        <strong class="control-download-history-modal__value control-download-history-modal__value--curso">{{ historialDescargasSeleccionado?.nombre_curso || 'Sin curso' }}</strong>
+      </div>
+      <div class="control-download-history-modal__row">
+        <span class="control-download-history-modal__label">Última descarga por</span>
+        <span class="control-download-history-modal__value">{{ historialDescargasSeleccionado?.ultima_descarga_constancias_por || 'Sin registro' }}</span>
+      </div>
+      <div class="control-download-history-modal__row">
+        <span class="control-download-history-modal__label">Fecha y hora (México)</span>
+        <span class="control-download-history-modal__value">{{ formatearFechaDescarga(historialDescargasSeleccionado?.ultima_descarga_constancias_fecha) }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Editor integrado -->
+<div class="dashboard-control-editor-fullscreen" *ngIf="mostrarControlEditorPantallaCompleta"
+  role="dialog" aria-modal="true" aria-label="Editor integrado del Control de Capacitación Empresarial">
+  <div class="dashboard-control-editor-fullscreen__backdrop" (click)="toggleControlEditorPantallaCompleta()"></div>
+  <div class="dashboard-control-editor-fullscreen__panel">
+    <div class="dashboard-control-editor-fullscreen__head">
+      <div class="dashboard-control-editor-fullscreen__title-wrap">
+        <span class="dashboard-control-editor-fullscreen__icon">
+          <i class="fas fa-table"></i>
+        </span>
+        <div>
+          <strong class="dashboard-control-editor-fullscreen__title">Editor integrado del Control</strong>
+          <small class="dashboard-control-editor-fullscreen__subtitle">Control de Capacitación Empresarial</small>
+        </div>
+      </div>
+      <div class="dashboard-control-editor-fullscreen__actions">
+        <button class="btn btn-sm btn-light" type="button" (click)="toggleControlEditorPantallaCompleta()">
+          <i class="fas fa-times mr-1"></i>Volver al control
+        </button>
+      </div>
+    </div>
+    <div class="dashboard-control-editor-fullscreen__body">
+      <div class="control-loading" *ngIf="controlVisorCargando">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>Cargando control de capacitación...</span>
+      </div>
+      <iframe class="dashboard-control-editor-fullscreen__iframe"
+        [src]="controlExcelEmbedUrl | safe"
+        title="Control de Capacitación Empresarial"
+        loading="lazy"
+        (load)="onControlIframeLoad()"
+        allow="clipboard-read; clipboard-write"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-popups-to-escape-sandbox">
+      </iframe>
+    </div>
+  </div>
+</div>

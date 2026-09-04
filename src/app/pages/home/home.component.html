@@ -1,0 +1,497 @@
+﻿<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-th-large"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">Gestión de Capacitación Corporativa</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+      <div class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+        <div class="card-header border-0" style="padding: 1.5rem 2rem;">
+          <div class="row align-items-center mb-3">
+            <div class="col">
+              <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">Catálogo de Capacitación</h6>
+              <h2 class="mb-0" style="color: #38512F; font-weight: 700; font-size: 1.5rem;">Categorías de Cursos</h2>
+            </div>
+            <div class="col-auto">
+              <button (click)="abrirModalGestionCursos()" 
+                      class="btn btn-success shadow" 
+                      style="background: linear-gradient(135deg, #38512F 0%, #5a7456 100%); border: none; padding: 0.6rem 1.5rem; font-weight: 600;">
+                <i class="fas fa-cog mr-2"></i>Gestionar Cursos
+              </button>
+            </div>
+          </div>
+
+          <!-- Buscador de cursos -->
+          <div class="row">
+            <div class="col-12">
+              <div class="input-group shadow-sm" style="border-radius: 10px; overflow: hidden;">
+                <div class="input-group-prepend">
+                  <span class="input-group-text bg-white border-right-0" style="border-radius: 10px 0 0 10px; border-color: #dee2e6;">
+                    <i class="fas fa-search" style="color: #38512F;"></i>
+                  </span>
+                </div>
+                <input type="text"
+                       class="form-control border-left-0 border-right-0"
+                    placeholder="Buscar curso por nombre, área, objetivo o descripción..."
+                       [(ngModel)]="terminoBusquedaHome"
+                       autocomplete="off"
+                       style="font-size: 0.95rem; border-color: #dee2e6; padding: 0.65rem 1rem;">
+                <div class="input-group-append">
+                  <button *ngIf="terminoBusquedaHome"
+                          class="btn btn-outline-secondary border-left-0"
+                          type="button"
+                          (click)="limpiarBusquedaHome()"
+                          style="border-color: #dee2e6; border-radius: 0 10px 10px 0;">
+                    <i class="fas fa-times text-muted"></i>
+                  </button>
+                  <span *ngIf="!terminoBusquedaHome"
+                        class="input-group-text bg-white"
+                        style="border-color: #dee2e6; border-radius: 0 10px 10px 0; border-left: none; color: #adb5bd; font-size: 0.8rem;">
+                    {{ cursosParaBusqueda.length }} cursos
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card-body" style="padding: 2rem 1.5rem;">
+
+          <!-- Resultados de búsqueda -->
+          <div *ngIf="terminoBusquedaHome.trim()">
+
+            <!-- Buscando... -->
+            <div *ngIf="cargandoBusqueda" class="text-center py-5">
+              <div class="spinner-border text-success" role="status" style="width: 2.5rem; height: 2.5rem;">
+                <span class="sr-only">Cargando...</span>
+              </div>
+            </div>
+
+            <!-- Sin resultados -->
+            <div *ngIf="!cargandoBusqueda && resultadosBusquedaHome.length === 0" class="text-center py-5">
+              <i class="fas fa-search text-muted" style="font-size: 2.5rem; opacity: 0.4;"></i>
+              <p class="text-muted mt-3 mb-0">No se encontraron cursos para <strong>"{{ terminoBusquedaHome }}"</strong></p>
+            </div>
+
+            <!-- Lista de resultados -->
+            <div *ngIf="!cargandoBusqueda && resultadosBusquedaHome.length > 0">
+              <p class="text-muted mb-3" style="font-size: 0.85rem;">
+                <i class="fas fa-check-circle text-success mr-1"></i>
+                {{ resultadosBusquedaHome.length }} resultado(s) para <strong>"{{ terminoBusquedaHome }}"</strong>
+              </p>
+              <div class="row">
+                <div *ngFor="let curso of resultadosBusquedaHome; trackBy: trackByCursoId" class="col-xl-4 col-lg-4 col-md-6 mb-4">
+                  <div class="card home-curso-card shadow-sm border-0"
+                       (click)="irACurso(curso.curso_id, curso.nombre_curso, curso.area_slug)"
+                       role="button"
+                       tabindex="0">
+                    <!-- Imagen -->
+                    <div class="home-curso-card-img-wrap" *ngIf="obtenerImagenCurso(curso)">
+                      <img [src]="obtenerImagenCurso(curso)" [alt]="curso.nombre_curso" class="home-curso-card-img" loading="lazy">
+                      <div class="home-curso-card-overlay"></div>
+                    </div>
+                    <!-- Fallback sin imagen -->
+                    <div class="home-curso-card-header" *ngIf="!obtenerImagenCurso(curso)"
+                         style="background: linear-gradient(135deg, #38512F 0%, #6a9160 100%);">
+                      <i class="fas fa-graduation-cap text-white" style="font-size: 2.5rem;"></i>
+                    </div>
+                    <!-- Cuerpo -->
+                    <div class="home-curso-card-body">
+                      <h5 class="home-curso-card-title">{{ curso.nombre_curso }}</h5>
+                      <p class="home-curso-card-desc">
+                        {{ curso.descripcion || 'Sin descripción disponible' }}
+                      </p>
+                      <div class="home-curso-card-footer">
+                        <button class="btn btn-sm home-btn-ver"
+                                (click)="$event.stopPropagation(); irACurso(curso.curso_id, curso.nombre_curso, curso.area_slug)">
+                          <i class="fas fa-play mr-1" style="font-size: 0.65rem;"></i>Ver Curso
+                        </button>
+                        <span class="home-curso-horas">
+                          <i class="far fa-clock"></i>{{ curso.horas }}h
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Vista normal: categorías (se oculta al buscar) -->
+          <div *ngIf="!terminoBusquedaHome.trim()">
+          <div *ngIf="cargandoCategorias" class="text-center py-5">
+            <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;">
+              <span class="sr-only">Cargando...</span>
+            </div>
+            <p class="text-muted mt-3">Cargando categorías...</p>
+          </div>
+
+          <!-- Sin categorías -->
+          <div *ngIf="!cargandoCategorias && categorias.length === 0" class="text-center py-5">
+            <i class="fas fa-folder-open text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-3">No hay categorías disponibles</p>
+          </div>
+
+          <!-- Categorías dinámicas desde BD -->
+          <div *ngIf="!cargandoCategorias && categorias.length > 0" class="row g-2" style="row-gap: 1.5rem;">
+            <div *ngFor="let area of categorias" class="col-xl-3 col-lg-4 col-md-6 col-sm-12">
+              <div class="card h-100 shadow-md cursor-pointer border-0 transition-all" 
+                   (click)="navegarACategoria(area.slug)"
+                   [style.border-radius]="'10px'"
+                   [style.background-image]="'url(' + area.imagen + ')'"
+                   style="transform: translateY(0); transition: all 0.3s ease; position: relative; overflow: hidden; background-size: cover; background-position: center;">
+                <!-- Overlay con color del área (sutil) -->
+                <div [style.background]="'linear-gradient(135deg, ' + area.color + '85 0%, ' + area.color + '70 100%)'"
+                     style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1;"></div>
+                <div class="card-body" style="padding: 1.5rem; position: relative; z-index: 2;">
+                  <div class="mb-2">
+                    <div class="icon icon-shape text-white rounded-circle shadow mb-2" 
+                         style="background: linear-gradient(135deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1)); width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+                      <i class="fas" [ngClass]="area.icono"></i>
+                    </div>
+                  </div>
+                  <h5 class="card-title text-uppercase text-white mb-1" style="font-size: 0.7rem; font-weight: 600; text-shadow: 1px 1px 3px rgba(0,0,0,0.5);">Categoría</h5>
+                  <p class="h6 font-weight-bold text-white mb-2" style="margin-bottom: 0.5rem; font-size: 0.95rem; line-height: 1.3; text-shadow: 1px 1px 3px rgba(0,0,0,0.5);">{{ area.nombre_area }}</p>
+                  <p class="text-white mb-0" style="font-size: 0.8rem; line-height: 1.4; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">
+                    {{ area.descripcion || area.total_cursos + (area.total_cursos === 1 ? ' curso disponible' : ' cursos disponibles') }}
+                  </p>
+                  <div class="mt-3" style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button class="btn text-white btn-sm" 
+                            style="background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.4); border-radius: 5px; padding: 0.4rem 0.8rem; font-size: 0.75rem; transition: all 0.3s ease;">
+                      Ver <i class="fas fa-arrow-right ml-1" style="font-size: 0.7rem;"></i>
+                    </button>
+                    <span class="badge text-white ml-auto" 
+                          style="background: rgba(255,255,255,0.2); font-size: 0.7rem; padding: 0.3rem 0.6rem; border-radius: 10px;">
+                      {{ area.total_cursos }} {{ area.total_cursos === 1 ? 'curso' : 'cursos' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div><!-- /vista categorías -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Centro de Administración de Cursos -->
+<div *ngIf="mostrarModalGestion"
+     class="cac-overlay"
+     (click)="cerrarModalGestion()"
+     role="presentation">
+  <div class="cac-panel"
+       (click)="$event.stopPropagation()"
+       role="dialog"
+       aria-modal="true"
+       aria-labelledby="cac-title">
+
+    <header class="cac-hero">
+      <div class="cac-hero__glow" aria-hidden="true"></div>
+      <div class="cac-hero__icon" aria-hidden="true">
+        <i class="fas fa-layer-group"></i>
+      </div>
+      <div class="cac-hero__text">
+        <p class="cac-hero__eyebrow">Catálogo de capacitación</p>
+        <h2 id="cac-title">Centro de Administración de Cursos</h2>
+        <p class="cac-hero__sub" *ngIf="puedeDesactivarCursos">Alta, edición e imagen oficial. Desactivar oculta el curso (activo = 0) sin borrar historial ni relaciones.</p>
+        <p class="cac-hero__sub" *ngIf="!puedeDesactivarCursos">Alta, edición e imagen oficial del catálogo de capacitación.</p>
+      </div>
+      <button type="button" class="cac-close" (click)="cerrarModalGestion()" aria-label="Cerrar">
+        <i class="fas fa-times"></i>
+      </button>
+    </header>
+
+    <div class="cac-toolbar">
+      <div class="cac-stats">
+        <button type="button"
+                class="cac-stat"
+                [class.is-active]="filtroEstado === 'activos'"
+                (click)="cambiarFiltroEstado('activos')">
+          <strong>{{ totalActivos }}</strong>
+          <span>Activos</span>
+        </button>
+        <button *ngIf="puedeVerOcultos"
+                type="button"
+                class="cac-stat cac-stat--muted"
+                [class.is-active]="filtroEstado === 'ocultos'"
+                (click)="cambiarFiltroEstado('ocultos')">
+          <strong>{{ totalInactivos }}</strong>
+          <span>Ocultos</span>
+        </button>
+      </div>
+
+      <label class="cac-search">
+        <i class="fas fa-search" aria-hidden="true"></i>
+        <input type="text"
+               [(ngModel)]="terminoBusqueda"
+               placeholder="Buscar por nombre, área u objetivo..."
+               autocomplete="off">
+        <button *ngIf="terminoBusqueda"
+                type="button"
+                class="cac-search__clear"
+                (click)="terminoBusqueda = ''"
+                aria-label="Limpiar búsqueda">
+          <i class="fas fa-times"></i>
+        </button>
+      </label>
+
+      <button type="button"
+              class="cac-btn-primary"
+              (click)="abrirFormularioNuevo()">
+        <i class="fas fa-plus"></i>
+        Nuevo curso
+      </button>
+    </div>
+
+    <div class="cac-body">
+      <ng-template #cacCursoFormulario>
+        <section class="cac-form" [class.cac-form--edit]="modoEdicion" [attr.aria-label]="modoEdicion ? 'Edición de curso' : 'Alta de curso'">
+          <aside class="cac-form__media">
+            <div class="cac-form__media-bg" aria-hidden="true"></div>
+            <div class="cac-form__media-copy">
+              <p class="cac-form__eyebrow cac-form__eyebrow--light">Portada oficial</p>
+              <h3>Imagen del curso</h3>
+              <p>Esta foto se muestra en el catálogo. JPG, PNG o WebP · máximo 6MB.</p>
+            </div>
+
+            <div class="cac-dropzone" [class.has-image]="!!imagenPreviewTemporal">
+              <img *ngIf="imagenPreviewTemporal"
+                   [src]="imagenPreviewTemporal"
+                   loading="lazy"
+                   alt="Vista previa de la imagen del curso"
+                   (error)="imagenPreviewTemporal = ''">
+              <div *ngIf="!imagenPreviewTemporal" class="cac-dropzone__empty">
+                <i class="fas fa-image"></i>
+                <span>Sin imagen seleccionada</span>
+              </div>
+            </div>
+
+            <div class="cac-form__media-actions">
+              <input #inputImagenCurso
+                     type="file"
+                     accept="image/png,image/jpeg,image/webp"
+                     class="d-none"
+                     (change)="onImagenCursoSeleccionada($event)">
+              <button type="button" class="cac-btn-light" (click)="inputImagenCurso.click()">
+                <i class="fas" [ngClass]="imagenPreviewTemporal ? 'fa-exchange-alt' : 'fa-upload'"></i>
+                {{ imagenPreviewTemporal ? 'Cambiar imagen' : 'Seleccionar imagen' }}
+              </button>
+              <button *ngIf="imagenCursoFile"
+                      type="button"
+                      class="cac-btn-light cac-btn-light--ghost"
+                      (click)="limpiarSeleccionImagen()">
+                Quitar
+              </button>
+              <small *ngIf="imagenCursoFile">{{ imagenCursoFile.name }}</small>
+            </div>
+          </aside>
+
+          <form class="cac-form__content" (submit)="$event.preventDefault()">
+            <div class="cac-form__head">
+              <div>
+                <p class="cac-form__eyebrow">{{ modoEdicion ? 'Edición' : 'Registro' }}</p>
+                <h3>{{ modoEdicion ? 'Editar curso' : 'Nuevo curso' }}</h3>
+              </div>
+              <div class="cac-form__head-actions">
+                <span class="cac-chip" [class.cac-chip--ok]="!modoEdicion" [class.cac-chip--off]="modoEdicion">
+                  {{ modoEdicion ? 'Actualizar catálogo' : 'Se publicará activo' }}
+                </span>
+                <button *ngIf="modoEdicion"
+                        type="button"
+                        class="cac-close cac-close--dark"
+                        (click)="cerrarModalEdicionCurso()"
+                        aria-label="Cerrar edición">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="cac-form__fields">
+              <div class="cac-field cac-field--full">
+                <label>Nombre del curso</label>
+                <input type="text"
+                       [(ngModel)]="cursoForm.nombre_curso"
+                       name="nombre_curso"
+                       autocomplete="off"
+                       placeholder="Ej: Prevención de Incendios">
+              </div>
+
+              <div class="cac-field">
+                <label>Área temática</label>
+                <select [(ngModel)]="cursoForm.area_id" name="area_id">
+                  <option [value]="null">Seleccionar categoría...</option>
+                  <option *ngFor="let area of areas" [value]="area.area_id">
+                    {{ area.nombre_area }}
+                  </option>
+                </select>
+              </div>
+
+              <div class="cac-field">
+                <label>Fecha de registro</label>
+                <input type="date"
+                       [(ngModel)]="cursoForm.created_at"
+                       name="created_at">
+              </div>
+
+              <div class="cac-field cac-field--hours">
+                <label>Duración</label>
+                <div class="cac-hours">
+                  <input type="number"
+                         [(ngModel)]="cursoForm.horas"
+                         name="horas"
+                         min="1"
+                         placeholder="8">
+                  <span>horas</span>
+                </div>
+              </div>
+
+              <div class="cac-field cac-field--full">
+                <div class="cac-repeat__head">
+                  <label>Objetivo general</label>
+                  <button type="button" class="cac-repeat__add" (click)="agregarObjetivoEspecifico()">
+                    <i class="fas fa-plus"></i> Agregar objetivo
+                  </button>
+                </div>
+                <textarea rows="3"
+                          [(ngModel)]="cursoForm.objetivo"
+                          name="objetivo"
+                          autocomplete="off"
+                          placeholder="Objetivo general que alimenta el informe final (objetivos alcanzados)."></textarea>
+              </div>
+
+              <div class="cac-field cac-field--full" *ngIf="objetivosEspecificos.length > 0">
+                <label>Objetivos específicos</label>
+                <div class="cac-repeat">
+                  <div class="cac-repeat__item" *ngFor="let item of objetivosEspecificos; let i = index; trackBy: trackByIndex">
+                    <textarea rows="2"
+                              [(ngModel)]="item.texto"
+                              [name]="'objetivo_especifico_' + i"
+                              placeholder="Objetivo específico del curso"></textarea>
+                    <button type="button"
+                            class="cac-repeat__remove"
+                            (click)="quitarObjetivoEspecifico(i)"
+                            title="Quitar objetivo">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="cac-form__actions">
+              <div class="cac-form__btns">
+                <button type="button" class="cac-btn-ghost" (click)="cancelarFormulario()">Cancelar</button>
+                <button type="button" class="cac-btn-primary" (click)="guardarCurso()">
+                  <i class="fas fa-save"></i>
+                  {{ modoEdicion ? 'Actualizar' : 'Guardar curso' }}
+                </button>
+              </div>
+            </div>
+          </form>
+        </section>
+      </ng-template>
+
+      <ng-container *ngIf="mostrarFormulario">
+        <ng-container *ngTemplateOutlet="cacCursoFormulario"></ng-container>
+      </ng-container>
+
+      <div *ngIf="cargandoCursos" class="cac-empty">
+        <i class="fas fa-spinner fa-spin"></i>
+        <p>Cargando catálogo...</p>
+      </div>
+
+      <div *ngIf="!cargandoCursos && cursosFiltrados.length === 0" class="cac-empty">
+        <i class="fas" [ngClass]="filtroEstado === 'ocultos' ? 'fa-eye-slash' : 'fa-search'"></i>
+        <p *ngIf="terminoBusqueda">No hay coincidencias para “{{ terminoBusqueda }}”.</p>
+        <p *ngIf="!terminoBusqueda && filtroEstado === 'ocultos'">No hay cursos desactivados. El catálogo está completo.</p>
+        <p *ngIf="!terminoBusqueda && filtroEstado === 'activos'">No hay cursos activos en el catálogo.</p>
+      </div>
+
+      <div class="cac-list" *ngIf="!cargandoCursos && cursosFiltrados.length > 0">
+        <article *ngFor="let curso of cursosFiltrados; let i = index; trackBy: trackByCursoId"
+                 class="cac-row"
+                 [class.is-inactive]="!cursoEstaActivo(curso)"
+                 [style.animation-delay]="(i * 28) + 'ms'">
+          <div class="cac-row__media">
+            <img *ngIf="obtenerImagenCurso(curso); else cacNoImg"
+                 [src]="obtenerImagenCurso(curso)"
+                 [alt]="curso.nombre_curso"
+                 loading="lazy">
+            <ng-template #cacNoImg>
+              <div class="cac-row__placeholder">
+                <i class="fas fa-image"></i>
+              </div>
+            </ng-template>
+          </div>
+
+          <div class="cac-row__body">
+            <div class="cac-row__title-row">
+              <h3>{{ curso.nombre_curso }}</h3>
+              <span class="cac-chip" [class.cac-chip--ok]="cursoEstaActivo(curso)" [class.cac-chip--off]="!cursoEstaActivo(curso)">
+                {{ cursoEstaActivo(curso) ? 'Activo' : 'Oculto' }}
+              </span>
+            </div>
+            <p class="cac-row__objetivo">{{ curso.objetivo || curso.descripcion || 'Sin objetivo' }}</p>
+            <div class="cac-row__meta">
+              <span class="cac-pill">{{ curso.area_tematica || curso.nombre_area || 'Sin área' }}</span>
+              <span><i class="far fa-calendar-alt"></i>{{ formatearFechaVisual(curso.created_at) }}</span>
+              <span><i class="far fa-clock"></i>{{ curso.horas || 0 }}h</span>
+            </div>
+          </div>
+
+          <div class="cac-row__actions">
+            <button *ngIf="cursoEstaActivo(curso)"
+                    type="button"
+                    class="cac-icon-btn"
+                    (click)="editarCurso(curso)"
+                    title="Editar">
+              <i class="fas fa-pen"></i>
+            </button>
+            <button *ngIf="cursoEstaActivo(curso) && puedeDesactivarCursos"
+                    type="button"
+                    class="cac-icon-btn cac-icon-btn--warn"
+                    (click)="eliminarCurso(curso)"
+                    title="Desactivar (activo = 0)">
+              <i class="fas fa-eye-slash"></i>
+            </button>
+            <button *ngIf="!cursoEstaActivo(curso) && puedeVerOcultos"
+                    type="button"
+                    class="cac-icon-btn cac-icon-btn--ok"
+                    (click)="reactivarCurso(curso)"
+                    title="Reactivar (activo = 1)">
+              <i class="fas fa-undo"></i>
+            </button>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <footer class="cac-footer">
+      <p *ngIf="puedeDesactivarCursos">
+        <i class="fas fa-shield-alt"></i>
+        Desactivar no borra el registro: historial, DC-3 y asignaciones previas se conservan.
+      </p>
+      <p *ngIf="!puedeDesactivarCursos">
+        <i class="fas fa-info-circle"></i>
+        Solo un administrador puede desactivar un curso del catálogo.
+      </p>
+      <button type="button" class="cac-btn-ghost" (click)="cerrarModalGestion()">Cerrar</button>
+    </footer>
+  </div>
+</div>

@@ -1,0 +1,310 @@
+<div class="sensores-page">
+  <header class="sensores-hero">
+    <div class="hero-copy">
+      <p class="eyebrow">Monitoreo IoT</p>
+      <h1>{{ estado.deviceName }}</h1>
+      <p class="hero-sub">Lectura en vivo vía Blynk · actualización automática cada {{ intervaloTexto }}</p>
+    </div>
+
+    <div class="hero-actions">
+      <div class="meta-chip">
+        <span class="meta-label">Última consulta</span>
+        <strong>{{ ultimaActualizacionTexto }}</strong>
+      </div>
+      <button
+        type="button"
+        class="btn-refresh"
+        (click)="actualizarManual()"
+        [disabled]="actualizando || cargandoInicial"
+        [attr.aria-busy]="actualizando"
+      >
+        <i class="fas fa-sync-alt" [class.spin]="actualizando"></i>
+        Actualizar
+      </button>
+    </div>
+  </header>
+
+  <div class="sensores-body" *ngIf="cargandoInicial; else contenido">
+    <div class="state-panel loading">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Conectando con el sensor…</p>
+    </div>
+  </div>
+
+  <ng-template #contenido>
+    <div class="state-panel error" *ngIf="errorMensaje && !estado.configured">
+      <div class="error-icon" aria-hidden="true"><i class="fas fa-exclamation-triangle"></i></div>
+      <h2>No disponible</h2>
+      <p>{{ errorMensaje }}</p>
+      <p class="error-code" *ngIf="errorCode">Código: {{ errorCode }}</p>
+      <button type="button" class="btn-refresh" (click)="reintentar()">
+        <i class="fas fa-redo"></i>
+        Reintentar
+      </button>
+    </div>
+
+    <ng-container *ngIf="estado.configured || !errorMensaje">
+      <div class="banner-warn" *ngIf="errorMensaje">
+        <i class="fas fa-exclamation-circle"></i>
+        <span>{{ errorMensaje }}</span>
+        <button type="button" class="link-retry" (click)="reintentar()">Reintentar</button>
+      </div>
+
+      <section class="monitor-grid" aria-label="Estado del sensor">
+        <article class="panel status-panel">
+          <div class="panel-head">
+            <span class="panel-kicker">Dispositivo</span>
+            <h2>{{ estado.deviceName }}</h2>
+          </div>
+          <div class="status-row" [ngClass]="conexionClass">
+            <span class="status-dot" aria-hidden="true"></span>
+            <div>
+              <div class="status-label">{{ conexionLabel }}</div>
+              <div class="status-hint">
+                <span *ngIf="estado.connected === true">Hardware conectado a Blynk</span>
+                <span *ngIf="estado.connected === false">Sin conexión con el hardware</span>
+                <span *ngIf="estado.connected === null">Estado de conexión no disponible</span>
+              </div>
+            </div>
+          </div>
+          <ul class="pin-list">
+            <li>
+              <span>Pin volumen</span>
+              <code>{{ estado.pins?.volume || 'v0' }}</code>
+            </li>
+            <li>
+              <span>Pin altura</span>
+              <code>{{ estado.pins?.altura || estado.pins?.range || 'v1' }}</code>
+            </li>
+            <li>
+              <span>Token</span>
+              <code>{{ estado.diagnostics?.tokenHint || '—' }}</code>
+            </li>
+            <li>
+              <span>Firmware Blynk</span>
+              <code>{{ estado.diagnostics?.blynkVersion || '—' }}</code>
+            </li>
+          </ul>
+        </article>
+
+        <article class="panel gauge-panel">
+          <div class="panel-head">
+            <span class="panel-kicker">Volumen</span>
+            <h2>Nivel del tanque</h2>
+          </div>
+          <div class="gauge-wrap">
+            <svg class="gauge" viewBox="0 0 140 140" aria-hidden="true">
+              <circle class="gauge-track" cx="70" cy="70" r="54"></circle>
+              <circle
+                class="gauge-value"
+                cx="70"
+                cy="70"
+                r="54"
+                [attr.stroke-dasharray]="339.292"
+                [attr.stroke-dashoffset]="gaugeStrokeDashoffset"
+              ></circle>
+            </svg>
+            <div class="gauge-center">
+              <span class="gauge-value-text">{{ volumenTexto }}</span>
+              <span class="gauge-unit" *ngIf="volumenTexto !== '--'">%</span>
+            </div>
+          </div>
+          <div class="gauge-scale">
+            <span>0</span>
+            <span>50</span>
+            <span>100</span>
+          </div>
+        </article>
+
+        <article class="panel range-panel">
+          <div class="panel-head">
+            <span class="panel-kicker">Altura</span>
+            <h2>Nivel de altura</h2>
+          </div>
+          <div class="range-readout">
+            <i class="fas fa-arrows-alt-v" aria-hidden="true"></i>
+            <div>
+              <span class="range-value">{{ alturaTexto }}</span>
+              <span class="range-unit" *ngIf="alturaTexto !== '--'">%</span>
+            </div>
+          </div>
+          <div class="range-bar" aria-hidden="true">
+            <span class="range-bar-fill" [style.width.%]="alturaClamp"></span>
+          </div>
+          <p class="range-hint">Altura del sensor en la cisterna (pin {{ estado.pins?.altura || estado.pins?.range || 'v1' }}).</p>
+        </article>
+
+        <article class="panel reception-panel">
+          <div class="panel-head">
+            <span class="panel-kicker">Recepción</span>
+            <h2>Cómo llega la información</h2>
+          </div>
+          <div class="reception-banner" [ngClass]="recepcionClass">
+            <i class="fas" [ngClass]="{
+              'fa-broadcast-tower': estado.diagnostics?.reception?.mode === 'live',
+              'fa-database': estado.diagnostics?.reception?.mode === 'cached',
+              'fa-unlink': estado.diagnostics?.reception?.mode !== 'live' && estado.diagnostics?.reception?.mode !== 'cached'
+            }" aria-hidden="true"></i>
+            <div>
+              <strong>{{ cloudLabel }}</strong>
+              <p>{{ estado.diagnostics?.reception?.label }}</p>
+            </div>
+          </div>
+          <dl class="diag-grid">
+            <div>
+              <dt>Último reporte</dt>
+              <dd>{{ fechaDiag(estado.diagnostics?.lastReportedAt) }}</dd>
+            </div>
+            <div>
+              <dt>Antigüedad</dt>
+              <dd>{{ antiguedadReporteTexto }}</dd>
+            </div>
+            <div>
+              <dt>Última conexión</dt>
+              <dd>{{ fechaDiag(estado.diagnostics?.lastConnectedAt) }}</dd>
+            </div>
+            <div>
+              <dt>Última desconexión</dt>
+              <dd>{{ fechaDiag(estado.diagnostics?.lastDisconnectedAt) }}</dd>
+            </div>
+            <div>
+              <dt>Duración de sesión</dt>
+              <dd>{{ sesionTexto }}</dd>
+            </div>
+            <div>
+              <dt>Heartbeat</dt>
+              <dd>{{ heartbeatTexto }}</dd>
+            </div>
+            <div>
+              <dt>Latencia API</dt>
+              <dd>{{ latenciaTexto }}</dd>
+            </div>
+            <div>
+              <dt>IP / país</dt>
+              <dd>{{ estado.diagnostics?.ip || '—' }}<span *ngIf="estado.diagnostics?.country"> · {{ estado.diagnostics.country }}</span></dd>
+            </div>
+          </dl>
+        </article>
+
+        <article class="panel streams-panel">
+          <div class="panel-head">
+            <span class="panel-kicker">Datastreams</span>
+            <h2>Valores en Blynk Cloud</h2>
+          </div>
+          <p class="streams-hint">
+            Estos valores viven en la nube. Si el sensor está offline, se muestra la última cifra reportada.
+          </p>
+          <table class="streams-table" *ngIf="estado.datastreams?.length; else sinStreams">
+            <thead>
+              <tr>
+                <th>Pin</th>
+                <th>Valor</th>
+                <th>Uso</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let stream of estado.datastreams">
+                <td><code>{{ stream.pin }}</code></td>
+                <td>{{ valorStream(stream.value) }}</td>
+                <td>{{ usoStream(stream) }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <ng-template #sinStreams>
+            <p class="empty-hint">Aún no hay datastreams en la respuesta.</p>
+          </ng-template>
+          <ul class="pin-list extra-meta">
+            <li>
+              <span>Build firmware</span>
+              <code>{{ estado.diagnostics?.firmwareBuild || '—' }}</code>
+            </li>
+            <li>
+              <span>Activado</span>
+              <code>{{ fechaDiag(estado.diagnostics?.activatedAt) }}</code>
+            </li>
+            <li>
+              <span>Servidor</span>
+              <code>{{ estado.diagnostics?.server || '—' }}</code>
+            </li>
+          </ul>
+        </article>
+
+        <article class="panel log-panel">
+          <div class="panel-head">
+            <span class="panel-kicker">Sondeo local</span>
+            <h2>Bitácora de recepción</h2>
+          </div>
+          <p class="streams-hint">Cada {{ intervaloTexto }} el sistema consulta Blynk. Aquí se ve si la respuesta llegó y con qué valores.</p>
+          <table class="streams-table" *ngIf="samples.length; else sinSamples">
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>Estado</th>
+                <th>Volumen</th>
+                <th>Altura</th>
+                <th>Latencia</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let sample of samples">
+                <td>{{ fechaDiag(sample.at) }}</td>
+                <td>
+                  <span class="pill" [class.is-ok]="sample.ok && sample.connected === true" [class.is-cached]="sample.ok && sample.connected === false" [class.is-bad]="!sample.ok">
+                    {{ sampleEstado(sample) }}
+                  </span>
+                </td>
+                <td>{{ formatearMuestra(sample.volume, 1) }}</td>
+                <td>{{ formatearMuestra(sample.altura, 1) }}</td>
+                <td>{{ sample.latencyMs != null ? (sample.latencyMs + ' ms') : '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <ng-template #sinSamples>
+            <p class="empty-hint">Todavía no hay sondeos en esta sesión.</p>
+          </ng-template>
+          <p class="partial-errors" *ngIf="partialErrors | keyvalue as errs">
+            <span *ngIf="errs.length">Avisos: <ng-container *ngFor="let e of errs; let last = last">{{ e.value }}<span *ngIf="!last"> · </span></ng-container></span>
+          </p>
+        </article>
+
+        <article class="panel log-panel">
+          <div class="panel-head">
+            <span class="panel-kicker">Historial</span>
+            <h2>Registros cada {{ historialIntervaloMin }} min</h2>
+          </div>
+          <p class="streams-hint">
+            Se guarda en la base <code>sensores</code> el nivel de agua, la altura, la hora y si la toma fue correcta. Servirá para estadísticas.
+          </p>
+          <p class="empty-hint" *ngIf="historialError">{{ historialError }}</p>
+          <table class="streams-table" *ngIf="historial.length; else sinHistorial">
+            <thead>
+              <tr>
+                <th>Hora del registro</th>
+                <th>Nivel</th>
+                <th>Altura</th>
+                <th>Estado</th>
+                <th>Conexión</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of historial">
+                <td>{{ fechaDiag(row.tomado_en) }}</td>
+                <td>{{ formatearMuestra(row.volumen, 1) }}</td>
+                <td>{{ formatearMuestra(row.altura, 1) }}</td>
+                <td>
+                  <span class="pill" [class.is-ok]="row.lectura_ok" [class.is-bad]="!row.lectura_ok">
+                    {{ historialEstado(row) }}
+                  </span>
+                </td>
+                <td>{{ row.conectado === 1 || row.conectado === true ? 'Online' : (row.conectado === 0 || row.conectado === false ? 'Offline' : '—') }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <ng-template #sinHistorial>
+            <p class="empty-hint">Aún no hay registros guardados. El servidor toma la primera muestra al arrancar y luego cada {{ historialIntervaloMin }} minutos.</p>
+          </ng-template>
+        </article>
+      </section>
+    </ng-container>
+  </ng-template>
+</div>

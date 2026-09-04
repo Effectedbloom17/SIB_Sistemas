@@ -1,0 +1,58 @@
+<div class="pdf-cv"
+     [class.pdf-cv--claro]="tema === 'claro'"
+     [class.pdf-cv--oliva]="tema === 'oliva'"
+     [class.pdf-cv--naranja]="tema === 'naranja'">
+  <div class="pdf-cv__toolbar" *ngIf="paginas.length">
+    <span class="pdf-cv__toolbar-label">
+      <i class="fas fa-bars" aria-hidden="true"></i>
+      CONTROL DE DOCUMENTOS
+    </span>
+    <span class="pdf-cv__pages-ind">{{ paginaActual }} / {{ totalPaginas }}</span>
+    <div class="pdf-cv__toolbar-actions">
+      <div class="pdf-cv__rotate" role="group" aria-label="Rotar documento">
+        <button type="button" (click)="rotarIzquierda()" [disabled]="renderizando || operandoVista" aria-label="Rotar a la izquierda" title="Rotar a la izquierda">
+          <i class="fas fa-undo" aria-hidden="true"></i>
+        </button>
+        <span class="pdf-cv__rotate-pct" title="Rotación actual">{{ rotacion }}°</span>
+        <button type="button" (click)="rotarDerecha()" [disabled]="renderizando || operandoVista" aria-label="Rotar a la derecha" title="Rotar a la derecha">
+          <i class="fas fa-redo" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div class="pdf-cv__zoom" role="group" aria-label="Zoom del documento">
+        <button type="button" (click)="zoomOut()" [disabled]="zoom <= 0.55 || renderizando || operandoVista" aria-label="Alejar" title="Alejar">
+          <i class="fas fa-minus" aria-hidden="true"></i>
+        </button>
+        <span>{{ zoomPct }}%</span>
+        <button type="button" (click)="zoomIn()" [disabled]="zoom >= 2.4 || renderizando || operandoVista" aria-label="Acercar" title="Acercar">
+          <i class="fas fa-plus" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="pdf-cv__loading" *ngIf="mostrandoCarga">
+    <div class="pdf-cv__spinner">
+      <i class="fas fa-file-pdf" aria-hidden="true"></i>
+    </div>
+    <strong>Preparando vista previa…</strong>
+    <small>{{ etiquetaVisible }}</small>
+    <div class="pdf-cv__bar" [class.pdf-cv__bar--lento]="lento && !blob">
+      <span [style.width.%]="progresoVisible"></span>
+    </div>
+    <em class="pdf-cv__pct">{{ progresoVisible }}%</em>
+    <small class="pdf-cv__hint" *ngIf="lento && !blob">
+      Si se queda detenido mucho tiempo, cierra e intenta de nuevo.
+    </small>
+  </div>
+
+  <div class="pdf-cv__error" *ngIf="errorInterno">
+    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+    <p>{{ errorInterno }}</p>
+  </div>
+
+  <div class="pdf-cv__scroll"
+       #scrollHost
+       (scroll)="onScroll()"
+       [class.pdf-cv__scroll--ready]="paginas.length && !renderizando">
+  </div>
+</div>

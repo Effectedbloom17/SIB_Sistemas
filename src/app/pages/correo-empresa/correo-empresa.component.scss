@@ -1,0 +1,222 @@
+$empresa-blue: #1a4a7a;
+$empresa-blue-dark: #123456;
+$empresa-blue-light: #2a6aab;
+$empresa-blue-accent: #5b8fc7;
+$empresa-blue-soft: rgba(26, 74, 122, 0.1);
+$empresa-blue-hover: rgba(26, 74, 122, 0.06);
+$empresa-muted: #5a7085;
+$empresa-bg: #eef3f9;
+$empresa-border: rgba(26, 74, 122, 0.14);
+
+.correo-header--empresa {
+  background-image: url('/assets/img/header_img.jpeg') !important;
+  background-size: cover !important;
+  background-position: center !important;
+
+  &::before {
+    background: linear-gradient(
+      135deg,
+      rgba(18, 52, 86, 0.92) 0%,
+      rgba(26, 74, 122, 0.88) 55%,
+      rgba(42, 106, 171, 0.85) 100%
+    ) !important;
+  }
+}
+
+.correo-header-icon--empresa {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.correo-page--empresa {
+  .correo-card {
+    box-shadow: 0 18px 40px rgba(26, 74, 122, 0.14) !important;
+  }
+}
+
+.correo-shell--empresa {
+  border-color: $empresa-border;
+
+  .correo-sidebar {
+    background: linear-gradient(180deg, #f7faff 0%, $empresa-bg 100%);
+    border-right-color: $empresa-border;
+  }
+
+  .correo-compose-btn {
+    background: linear-gradient(135deg, $empresa-blue-dark 0%, $empresa-blue 55%, $empresa-blue-light 100%);
+    box-shadow: 0 10px 24px rgba(26, 74, 122, 0.28);
+
+    &:hover {
+      background: linear-gradient(135deg, #0f2d4a 0%, $empresa-blue-dark 100%);
+      box-shadow: 0 12px 28px rgba(26, 74, 122, 0.32);
+    }
+  }
+
+  .correo-nav-item:hover {
+    background: $empresa-blue-hover;
+  }
+
+  .correo-nav-item.is-active {
+    background: $empresa-blue-soft;
+    color: $empresa-blue-dark;
+
+    .correo-nav-icon {
+      color: $empresa-blue;
+    }
+  }
+
+  .correo-nav-icon {
+    color: $empresa-blue;
+  }
+
+  .correo-nav-badge {
+    background: $empresa-blue;
+  }
+
+  .correo-nav-text small {
+    color: $empresa-muted;
+  }
+
+  .correo-sidebar-account--empresa {
+    background: rgba(26, 74, 122, 0.06);
+    border: 1px dashed rgba(26, 74, 122, 0.22);
+    border-radius: 10px;
+    padding: 0.55rem 0.65rem;
+
+    .correo-sidebar-account-label {
+      color: $empresa-blue;
+      font-weight: 700;
+    }
+
+    .correo-sidebar-account-value {
+      color: $empresa-blue-dark;
+      font-weight: 600;
+    }
+  }
+
+  .correo-sidebar-footer {
+    color: $empresa-muted;
+  }
+
+  .correo-main-title {
+    color: $empresa-blue;
+  }
+
+  .correo-btn-primary {
+    background: linear-gradient(135deg, $empresa-blue-dark 0%, $empresa-blue 100%);
+    box-shadow: 0 8px 18px rgba(26, 74, 122, 0.22);
+
+    &:hover:not(:disabled) {
+      background: linear-gradient(135deg, #0f2d4a 0%, $empresa-blue-dark 100%);
+    }
+  }
+
+  .correo-btn-ghost {
+    color: $empresa-blue;
+
+    &:hover:not(:disabled) {
+      background: $empresa-blue-soft;
+    }
+  }
+
+  .correo-search {
+    background: $empresa-bg;
+
+    i {
+      color: $empresa-blue;
+    }
+  }
+
+  .correo-row:hover {
+    background: $empresa-blue-hover;
+    box-shadow: inset 2px 0 0 rgba(42, 106, 171, 0.55);
+  }
+
+  .correo-row.is-unread {
+    background: rgba(26, 74, 122, 0.04);
+  }
+
+  .correo-row-status.is-unread {
+    background: $empresa-blue;
+  }
+
+  .correo-icon-btn:hover:not(:disabled) {
+    background: $empresa-blue-soft;
+  }
+
+  .correo-back-btn {
+    color: $empresa-blue;
+
+    &:hover {
+      background: $empresa-blue-soft;
+    }
+  }
+
+  .correo-gmail-details-toggle:hover {
+    color: $empresa-blue;
+  }
+
+  .correo-adjuntos-title {
+    color: $empresa-blue;
+  }
+
+  .correo-adjunto-item:hover:not(:disabled) {
+    border-color: rgba(42, 106, 171, 0.45);
+  }
+
+  .correo-adjunto-preview-icon {
+    background: $empresa-blue-soft;
+    color: $empresa-blue;
+  }
+
+  .correo-compose-para-chip {
+    background: $empresa-blue-soft;
+    color: $empresa-blue-dark;
+  }
+
+  .correo-compose-link-btn:hover {
+    color: $empresa-blue;
+  }
+
+  .correo-compose-sugerencia-item:hover,
+  .correo-compose-sugerencia-item.is-active {
+    background: $empresa-blue-soft;
+  }
+
+  .correo-compose-sugerencia-avatar {
+    background: linear-gradient(135deg, $empresa-blue-dark 0%, $empresa-blue-light 100%);
+    border-color: rgba(42, 106, 171, 0.35);
+    color: #fff;
+  }
+}
+
+.correo-compose-float--empresa {
+  border-color: rgba(26, 74, 122, 0.22);
+  box-shadow: 0 12px 40px rgba(26, 74, 122, 0.22);
+
+  .correo-compose-float-header {
+    background: linear-gradient(135deg, $empresa-blue-dark 0%, $empresa-blue 100%);
+  }
+
+  .correo-compose-send-btn {
+    background: $empresa-blue;
+
+    &:hover:not(:disabled) {
+      background: $empresa-blue-dark;
+    }
+  }
+
+  .correo-compose-tool-btn.is-active {
+    background: $empresa-blue-soft;
+    color: $empresa-blue-dark;
+  }
+
+  .correo-compose-para-chip {
+    background: $empresa-blue-soft;
+    color: $empresa-blue-dark;
+  }
+
+  .correo-compose-link-btn:hover {
+    color: $empresa-blue;
+  }
+}

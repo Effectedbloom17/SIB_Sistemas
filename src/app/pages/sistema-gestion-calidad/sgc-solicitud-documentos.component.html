@@ -1,0 +1,585 @@
+<div class="header header-bg-image sgc-hero sgc-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid position-relative">
+    <div class="sgc-hero__content text-center">
+      <span class="sgc-hero__icon icon icon-shape text-white rounded-circle shadow mb-2">
+        <i class="fas fa-file-signature"></i>
+      </span>
+      <p class="text-white mb-1 sgc-hero-tagline">SGC · Calidad</p>
+      <h1 class="text-white mb-0 sgc-hero-title">Solicitud de Documentos</h1>
+    </div>
+  </div>
+</div>
+
+<main class="container-fluid sgc-main-wrap mt--5">
+  <div class="sgc-shell">
+    <div class="sgc-shell__accent"></div>
+    <div class="sgc-shell__body">
+      <section class="sgc-stats" aria-label="Resumen de solicitudes">
+        <article class="sgc-stat">
+          <span class="sgc-stat__icon"><i class="fas fa-layer-group"></i></span>
+          <div><strong>{{ totalSolicitudes }}</strong><span>Total solicitudes</span></div>
+        </article>
+        <article class="sgc-stat sgc-stat--warning">
+          <span class="sgc-stat__icon"><i class="fas fa-user-check"></i></span>
+          <div><strong>{{ porAutorizar }}</strong><span>Por autorizar</span></div>
+        </article>
+        <article class="sgc-stat sgc-stat--progress">
+          <span class="sgc-stat__icon"><i class="fas fa-tasks"></i></span>
+          <div><strong>{{ enGestion }}</strong><span>En gestión</span></div>
+        </article>
+        <article class="sgc-stat sgc-stat--success">
+          <span class="sgc-stat__icon"><i class="fas fa-check-double"></i></span>
+          <div><strong>{{ completadas }}</strong><span>Completadas</span></div>
+        </article>
+      </section>
+
+      <div class="sgc-feedback sgc-feedback--loading" *ngIf="cargando">
+        <span class="sgc-spinner"></span> Cargando solicitudes…
+      </div>
+      <div class="sgc-feedback sgc-feedback--error" *ngIf="error">
+        <i class="fas fa-exclamation-triangle"></i> {{ error }}
+        <button type="button" (click)="cargar()">Reintentar</button>
+      </div>
+
+      <section class="sgc-inbox" *ngIf="!cargando && !error">
+        <header class="sgc-inbox__header">
+          <div>
+            <span class="sgc-eyebrow">Bandeja de gestión</span>
+            <h2>Solicitudes de documentos</h2>
+          </div>
+          <label class="sgc-search">
+            <i class="fas fa-search"></i>
+            <input type="search" [(ngModel)]="busqueda" (ngModelChange)="onBusquedaChange()"
+              placeholder="Buscar documento, código, solicitante o #id…" />
+          </label>
+        </header>
+
+        <div class="sgc-filters" role="tablist" aria-label="Filtrar solicitudes">
+          <button type="button" *ngFor="let filtro of filtros"
+            [class.is-active]="filtroEstado === filtro.valor"
+            (click)="cambiarFiltroEstado(filtro.valor)">
+            {{ filtro.label }}
+          </button>
+        </div>
+
+        <div class="sgc-empty" *ngIf="!solicitudesFiltradas.length">
+          <span><i class="fas" [ngClass]="solicitudes.length ? 'fa-search' : 'fa-inbox'"></i></span>
+          <h3>{{ solicitudes.length ? 'Sin coincidencias' : 'Aún no hay solicitudes' }}</h3>
+          <p>{{ solicitudes.length ? 'Ajusta la búsqueda o selecciona otro filtro.' :
+            'Las nuevas solicitudes aparecerán aquí para iniciar su gestión.' }}</p>
+        </div>
+
+        <div class="sgc-feed" *ngIf="solicitudesFiltradas.length">
+          <ng-container *ngFor="let grupo of solicitudesAgrupadas; trackBy: trackByGrupo">
+            <h3 class="sgc-feed__date">{{ grupo.etiqueta }}</h3>
+            <article class="sgc-request" *ngFor="let solicitud of grupo.solicitudes; trackBy: trackBySolicitudId"
+              [class.is-open]="expandidoId === solicitud.solicitud_id"
+              [attr.data-estado]="solicitud.estado">
+              <button type="button" class="sgc-request__summary"
+                (click)="seleccionarSolicitud(solicitud)"
+                [attr.aria-expanded]="expandidoId === solicitud.solicitud_id">
+                <span class="sgc-request__file"><i class="fas fa-file-alt"></i></span>
+                <span class="sgc-request__text">
+                  <strong>{{ tituloLista(solicitud) }}</strong>
+                  <span class="sgc-request__people">
+                    <span class="sgc-request__person">
+                      <i class="fas fa-user"></i>
+                      <em>{{ autorLabel(solicitud) }}</em>
+                      <span class="sgc-request__puesto" *ngIf="puestoLabel(solicitud)">
+                        <i class="fas fa-sitemap"></i>{{ puestoLabel(solicitud) }}
+                      </span>
+                    </span>
+                  </span>
+                </span>
+                <span class="sgc-request__meta">
+                  <span class="sgc-status" [attr.data-estado]="solicitud.estado">
+                    {{ estadoLabel(solicitud.estado) }}
+                  </span>
+                  <small>{{ fechaUi(solicitud.fecha_solicitud || solicitud.created_at) }}</small>
+                </span>
+                <i class="fas fa-chevron-down sgc-request__chevron"></i>
+              </button>
+
+              <div class="sgc-request__panel" *ngIf="expandidoId === solicitud.solicitud_id"
+                (click)="$event.stopPropagation()">
+                <div class="sgc-context-loading" *ngIf="cargandoContextoId === solicitud.solicitud_id">
+                  <span class="sgc-spinner"></span>
+                  <span>Preparando información de la solicitud…</span>
+                </div>
+
+                <ng-container *ngIf="contexto && contexto.solicitud.solicitud_id === solicitud.solicitud_id">
+                  <div class="sgc-expanded-layout sgc-expanded-layout--full">
+                    <div class="sgc-wizard-column">
+                  <div class="sgc-stepper" aria-label="Progreso de la gestión">
+                    <div class="sgc-step" *ngFor="let paso of pasos; let ultimo = last"
+                      [class.is-active]="pasoActivo(contexto.solicitud, paso.numero)"
+                      [class.is-completed]="pasoCompletado(contexto.solicitud, paso.numero)"
+                      [class.is-locked]="pasoBloqueado(contexto.solicitud, paso.numero)">
+                      <span class="sgc-step__number">
+                        <i class="fas fa-check" *ngIf="pasoCompletado(contexto.solicitud, paso.numero)"></i>
+                        <ng-container *ngIf="!pasoCompletado(contexto.solicitud, paso.numero)">
+                          {{ paso.numero }}
+                        </ng-container>
+                      </span>
+                      <span class="sgc-step__label">
+                        <small>Paso {{ paso.numero }}</small>
+                        <strong>{{ paso.corto }}</strong>
+                      </span>
+                      <span class="sgc-step__line" *ngIf="!ultimo"></span>
+                    </div>
+                  </div>
+
+                  <div class="sgc-inline-alert sgc-inline-alert--error" *ngIf="errorGestion">
+                    <i class="fas fa-exclamation-circle"></i><span>{{ errorGestion }}</span>
+                  </div>
+
+                  <section class="sgc-wizard-card sgc-wizard-card--review sgc-animate"
+                    *ngIf="contexto.solicitud.paso_flujo === 'revision'">
+                    <header class="sgc-wizard-card__header">
+                      <span class="sgc-wizard-card__icon"><i class="fas fa-clipboard-check"></i></span>
+                      <div>
+                        <span>Paso 1</span>
+                        <h3>Revisión y autorización</h3>
+                      </div>
+                    </header>
+
+                    <div class="sgc-wizard-card__body">
+                      <div class="sgc-wizard-card__deco" aria-hidden="true"></div>
+                      <div class="sgc-review sgc-review--split">
+                        <aside class="sgc-review__doc">
+                          <article class="sgc-proc-card" [class.is-disabled]="!driveFileIdActivo"
+                            (click)="abrirVisorDocumento()" (keyup.enter)="abrirVisorDocumento()"
+                            [attr.tabindex]="driveFileIdActivo ? 0 : -1"
+                            [attr.aria-label]="'Ver documento ' + (contexto.solicitud.codigo || '')">
+                            <div class="sgc-proc-card__preview">
+                              <div class="sgc-proc-card__frame">
+                                <img *ngIf="miniaturaDocumentoUrl && !miniaturaError"
+                                  class="sgc-proc-card__thumb" [src]="miniaturaDocumentoUrl"
+                                  [alt]="'Vista previa de ' + contexto.solicitud.nombre_documento"
+                                  loading="lazy" (error)="onErrorMiniatura()" />
+                                <div *ngIf="!miniaturaDocumentoUrl || miniaturaError"
+                                  class="sgc-proc-card__placeholder">
+                                  <i class="fas" [ngClass]="iconoArchivoActivo"></i>
+                                </div>
+                                <div class="sgc-proc-card__shine" aria-hidden="true"></div>
+                              </div>
+                              <span class="sgc-proc-card__type" [attr.data-type]="tipoArchivoActivo">
+                                {{ tipoArchivoActivo }}
+                              </span>
+                              <div class="sgc-proc-card__overlay" *ngIf="driveFileIdActivo">
+                                <span class="sgc-proc-card__open">
+                                  <i class="fas fa-expand"></i> Ver documento
+                                </span>
+                              </div>
+                            </div>
+                            <div class="sgc-proc-card__body">
+                              <div class="sgc-proc-card__meta">
+                                <span class="sgc-proc-card__code">
+                                  {{ contexto.formatoDescarga?.codigo || contexto.solicitud.codigo || 'Sin código' }}
+                                </span>
+                                <span class="sgc-proc-card__origin">{{ origenDocumentoLabel }}</span>
+                              </div>
+                              <h3 class="sgc-proc-card__name">
+                                {{ contexto.formatoDescarga?.titulo || contexto.solicitud.nombre_documento || 'Documento SGC' }}
+                              </h3>
+                              <div class="sgc-proc-card__footer">
+                                <span *ngIf="!driveFileIdActivo">Pendiente de asociar en Drive</span>
+                                <div class="sgc-proc-card__action" *ngIf="driveFileIdActivo">
+                                  <i class="fas fa-arrow-right"></i>
+                                </div>
+                              </div>
+                            </div>
+                          </article>
+                        </aside>
+
+                        <div class="sgc-review__info">
+                          <dl class="sgc-facts sgc-facts--review">
+                            <div class="sgc-fact sgc-fact--date">
+                              <dt><i class="fas fa-calendar-alt"></i> Fecha del ticket</dt>
+                              <dd>{{ fechaUi(contexto.solicitud.fecha_solicitud || contexto.solicitud.created_at) }}</dd>
+                            </div>
+                            <div class="sgc-fact">
+                              <dt><i class="fas fa-hashtag"></i> Código</dt>
+                              <dd>{{ contexto.solicitud.codigo || '—' }}</dd>
+                            </div>
+                            <div class="sgc-fact">
+                              <dt><i class="fas fa-code-branch"></i> Versión</dt>
+                              <dd>{{ contexto.solicitud.version_actual || '—' }}</dd>
+                            </div>
+                            <div class="sgc-fact sgc-fact--wide">
+                              <dt><i class="fas fa-file-alt"></i> Nombre del documento</dt>
+                              <dd>{{ contexto.solicitud.nombre_documento || contexto.formatoDescarga?.titulo || '—' }}</dd>
+                            </div>
+                            <div class="sgc-fact">
+                              <dt><i class="fas fa-folder-open"></i> Tipo de documento</dt>
+                              <dd>{{ contexto.solicitud.tipo_documento || origenDocumentoLabel || '—' }}</dd>
+                            </div>
+                            <div class="sgc-fact">
+                              <dt><i class="fas fa-exchange-alt"></i> Tipo de solicitud</dt>
+                              <dd>
+                                <span class="sgc-pill" [attr.data-tipo]="contexto.solicitud.tipo_solicitud">
+                                  {{ tipoSolicitudLabel(contexto.solicitud.tipo_solicitud) }}
+                                </span>
+                              </dd>
+                            </div>
+                            <div class="sgc-fact sgc-fact--motivo">
+                              <dt><i class="fas fa-comment-dots"></i> Motivo</dt>
+                              <dd>{{ contexto.solicitud.motivo || 'Sin motivo registrado.' }}</dd>
+                            </div>
+                          </dl>
+                        </div>
+                      </div>
+                    </div>
+                    <footer class="sgc-wizard-card__footer sgc-wizard-card__footer--end">
+                      <button type="button" class="sgc-btn sgc-btn--primary" (click)="autorizarCambio()"
+                        [disabled]="estaProcesando()">
+                        <i class="fas" [ngClass]="estaProcesando('autorizar') ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                        {{ estaProcesando('autorizar') ? 'Autorizando…' : 'Autorizar cambio' }}
+                      </button>
+                    </footer>
+                  </section>
+
+                  <section class="sgc-wizard-card sgc-wizard-card--format sgc-animate"
+                    *ngIf="contexto.solicitud.paso_flujo === 'formato'">
+                    <header class="sgc-wizard-card__header">
+                      <span class="sgc-wizard-card__icon"><i class="fas fa-file-export"></i></span>
+                      <div>
+                        <span>Paso 1 · Autorizado</span>
+                        <h3>Cambio de formato</h3>
+                        <p>Elige el método que corresponda al alcance de la modificación.</p>
+                      </div>
+                    </header>
+
+                    <div class="sgc-wizard-card__body">
+                      <div class="sgc-wizard-card__deco" aria-hidden="true"></div>
+                      <div class="sgc-format-options">
+                        <article class="sgc-format-option">
+                          <span class="sgc-format-option__tag">Opción A</span>
+                          <i class="fas fa-cloud-upload-alt"></i>
+                          <h4>Reemplazar con versión nueva</h4>
+                          <p>Para cambios grandes, carga el archivo final. La versión anterior se enviará al historial.</p>
+                          <label class="sgc-file-input">
+                            <input type="file" (change)="seleccionarArchivo($event)"
+                              accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.pdf" />
+                            <i class="fas fa-paperclip"></i>
+                            <span>{{ archivoNuevo?.name || 'Seleccionar archivo' }}</span>
+                          </label>
+                          <button type="button" class="sgc-btn sgc-btn--primary sgc-btn--block"
+                            (click)="reemplazarFormato()" [disabled]="!archivoNuevo || estaProcesando()">
+                            <i class="fas" [ngClass]="estaProcesando('reemplazar') ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                            {{ estaProcesando('reemplazar') ? 'Reemplazando…' : 'Reemplazar formato' }}
+                          </button>
+                        </article>
+
+                        <article class="sgc-format-option">
+                          <span class="sgc-format-option__tag">Opción B</span>
+                          <i class="fab fa-google-drive"></i>
+                          <h4>Modificación menor</h4>
+                          <p>Edita textos o ajustes puntuales directamente en el archivo asociado de Google Drive.</p>
+                          <div class="sgc-drive-warning" *ngIf="!driveFileIdActivo">
+                            <i class="fas fa-info-circle"></i>
+                            No hay un archivo de Drive asociado. Usa la opción de reemplazo o registra el formato.
+                          </div>
+                          <button type="button" class="sgc-btn sgc-btn--secondary sgc-btn--block"
+                            (click)="abrirEditorIntegrado()" [disabled]="!driveFileIdActivo || estaProcesando()">
+                            <i class="fas fa-external-link-alt"></i> Abrir editor integrado
+                          </button>
+                        </article>
+                      </div>
+                    </div>
+                    <footer class="sgc-wizard-card__footer">
+                      <button type="button" class="sgc-btn sgc-btn--ghost" (click)="regresarPaso()"
+                        [disabled]="estaProcesando()">
+                        <i class="fas" [ngClass]="estaProcesando('regresar') ? 'fa-spinner fa-spin' : 'fa-arrow-left'"></i>
+                        {{ estaProcesando('regresar') ? 'Regresando…' : 'Regresar' }}
+                      </button>
+                      <span>Vuelve a revisión si necesitas corregir la autorización.</span>
+                    </footer>
+                  </section>
+
+                  <section class="sgc-wizard-card sgc-wizard-card--master sgc-animate"
+                    *ngIf="contexto.solicitud.paso_flujo === 'lista_maestra'">
+                    <header class="sgc-wizard-card__header">
+                      <span class="sgc-wizard-card__icon"><i class="fas fa-list-alt"></i></span>
+                      <div>
+                        <span>Paso 2 · Lista Maestra</span>
+                        <h3>Editar documento controlado</h3>
+                      </div>
+                    </header>
+
+                    <div class="sgc-wizard-card__body">
+                      <div class="sgc-wizard-card__deco" aria-hidden="true"></div>
+                      <form class="sgc-master-form" #listaForm="ngForm" (ngSubmit)="guardarListaMaestra()">
+                        <label>
+                          <span>Código <b>*</b></span>
+                          <input name="codigo" [(ngModel)]="listaMaestraForm.codigo" required />
+                        </label>
+                        <label>
+                          <span>Área <b>*</b></span>
+                          <input name="area" [(ngModel)]="listaMaestraForm.area" required />
+                        </label>
+                        <label>
+                          <span>Tipo <b>*</b></span>
+                          <input name="tipo" [(ngModel)]="listaMaestraForm.tipo" required />
+                        </label>
+                        <label>
+                          <span>Especie <b>*</b></span>
+                          <input name="especie" [(ngModel)]="listaMaestraForm.especie"
+                            placeholder="Formato, Procedimiento, Instructivo…" required />
+                        </label>
+                        <label class="sgc-version-field">
+                          <span>Versión vigente <b>*</b></span>
+                          <div>
+                            <input name="versionVigente" [(ngModel)]="listaMaestraForm.versionVigente" required />
+                            <span class="sgc-version-badge">
+                              {{ contexto.propuesta.versionAnterior || contexto.solicitud.version_actual || '—' }}
+                              <i class="fas fa-arrow-right"></i>
+                              {{ listaMaestraForm.versionVigente || '+1' }}
+                            </span>
+                          </div>
+                        </label>
+                        <label>
+                          <span>Fecha de revisión <b>*</b></span>
+                          <input type="date" name="fechaRevision" [(ngModel)]="listaMaestraForm.fechaRevision" required />
+                          <small><i class="fas fa-map-marker-alt"></i> México: {{ fechaUi(listaMaestraForm.fechaRevision) }}</small>
+                        </label>
+                        <label class="sgc-field-wide">
+                          <span>Nombre del documento <b>*</b></span>
+                          <input name="nombreDocumento" [(ngModel)]="listaMaestraForm.nombreDocumento" required />
+                        </label>
+                        <label class="sgc-field-wide sgc-field-responsable">
+                          <span>Responsable <b>*</b></span>
+                          <input name="responsable" [(ngModel)]="listaMaestraForm.responsable" required />
+                          <small><i class="fas fa-user-check"></i> Por defecto: quien aplica las modificaciones SGC</small>
+                        </label>
+                      </form>
+                    </div>
+                    <footer class="sgc-wizard-card__footer">
+                      <button type="button" class="sgc-btn sgc-btn--ghost" (click)="regresarPaso()"
+                        [disabled]="estaProcesando()">
+                        <i class="fas" [ngClass]="estaProcesando('regresar') ? 'fa-spinner fa-spin' : 'fa-arrow-left'"></i>
+                        {{ estaProcesando('regresar') ? 'Regresando…' : 'Regresar' }}
+                      </button>
+                      <span>Los cambios se aplicarán a la Lista Maestra vigente.</span>
+                      <button type="button" class="sgc-btn sgc-btn--primary"
+                        (click)="guardarListaMaestra()"
+                        [disabled]="!formularioListaValido || estaProcesando()">
+                        <i class="fas" [ngClass]="estaProcesando('lista') ? 'fa-spinner fa-spin' : 'fa-lock'"></i>
+                        {{ estaProcesando('lista') ? 'Guardando…' : 'Guardar en lista maestra' }}
+                      </button>
+                    </footer>
+                  </section>
+
+                  <section class="sgc-wizard-card sgc-animate" *ngIf="contexto.solicitud.paso_flujo === 'notificar'">
+                    <header class="sgc-wizard-card__header">
+                      <span class="sgc-wizard-card__icon"><i class="fas fa-bell"></i></span>
+                      <div>
+                        <span>Paso 3</span>
+                        <h3>Notificar a Sistemas</h3>
+                        <p>Si hubo modificaciones grandes al formato, notifica al encargado de Sistemas.</p>
+                      </div>
+                    </header>
+
+                    <div class="sgc-decision">
+                      <p>¿Los cambios requieren una actualización técnica en el sistema?</p>
+                      <div class="sgc-decision__buttons">
+                        <button type="button" [class.is-selected]="notificarSeleccion === true"
+                          (click)="seleccionarNotificacion(true)">
+                          <i class="fas fa-bell"></i><span><strong>Sí, notificar</strong><small>Crear ticket urgente</small></span>
+                        </button>
+                        <button type="button" [class.is-selected]="notificarSeleccion === false"
+                          (click)="seleccionarNotificacion(false)">
+                          <i class="fas fa-check"></i><span><strong>No es necesario</strong><small>Cerrar solicitud</small></span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="sgc-ticket sgc-animate" *ngIf="notificarSeleccion === true">
+                      <header><i class="fas fa-ticket-alt"></i><div><strong>Ticket para Sistemas</strong>
+                        <span>Se enviará al cerrar la solicitud</span></div></header>
+                      <div class="sgc-ticket__meta">
+                        <span>Área <strong>SGC</strong></span>
+                        <span>Prioridad <strong class="is-urgent">Urgente</strong></span>
+                        <span>Tipo <strong>Actualización</strong></span>
+                      </div>
+                      <label>
+                        <span>Describe el cambio que debe realizar Sistemas <b>*</b></span>
+                        <textarea rows="4" [(ngModel)]="descripcionSistemas"
+                          placeholder="Explica qué cambió en el formato y qué debe actualizarse en el sistema…"></textarea>
+                      </label>
+                      <button type="button" class="sgc-btn sgc-btn--primary"
+                        (click)="cerrarSolicitud(true)"
+                        [disabled]="!descripcionSistemas.trim() || estaProcesando()">
+                        <i class="fas" [ngClass]="estaProcesando('cerrar') ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+                        {{ estaProcesando('cerrar') ? 'Enviando…' : 'Crear ticket y completar' }}
+                      </button>
+                    </div>
+
+                    <div class="sgc-close-simple sgc-animate" *ngIf="notificarSeleccion === false">
+                      <i class="fas fa-check-circle"></i>
+                      <div><strong>Todo listo para cerrar</strong><span>No se generará ningún ticket para Sistemas.</span></div>
+                      <button type="button" class="sgc-btn sgc-btn--primary"
+                        (click)="cerrarSolicitud(false)" [disabled]="estaProcesando()">
+                        <i class="fas" [ngClass]="estaProcesando('cerrar') ? 'fa-spinner fa-spin' : 'fa-flag-checkered'"></i>
+                        {{ estaProcesando('cerrar') ? 'Completando…' : 'Completar solicitud' }}
+                      </button>
+                    </div>
+                    <footer class="sgc-wizard-card__footer">
+                      <button type="button" class="sgc-btn sgc-btn--ghost" (click)="regresarPaso()"
+                        [disabled]="estaProcesando()">
+                        <i class="fas" [ngClass]="estaProcesando('regresar') ? 'fa-spinner fa-spin' : 'fa-arrow-left'"></i>
+                        {{ estaProcesando('regresar') ? 'Regresando…' : 'Regresar' }}
+                      </button>
+                      <span>Regresa a la Lista Maestra para hacer ajustes.</span>
+                    </footer>
+                  </section>
+
+                  <section class="sgc-completed-wrap sgc-animate" *ngIf="contexto.solicitud.paso_flujo === 'cerrado'">
+                    <header class="sgc-completed-wrap__header">
+                      <span class="sgc-wizard-card__icon"><i class="fas fa-check"></i></span>
+                      <div>
+                        <span>Flujo completado</span>
+                        <h3>Resumen de la modificación</h3>
+                      </div>
+                    </header>
+
+                    <div class="sgc-wizard-card__body">
+                      <div class="sgc-wizard-card__deco" aria-hidden="true"></div>
+                      <div class="sgc-result-table-wrap">
+                        <table class="sgc-result-table">
+                          <thead>
+                            <tr>
+                              <th>No.</th>
+                              <th>Nombre del documento</th>
+                              <th>Código</th>
+                              <th>Ver.</th>
+                              <th>Tipo de documento</th>
+                              <th>Tipo de solicitud</th>
+                              <th>Motivo</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>
+                                <span class="sgc-result-table__no">1</span>
+                              </td>
+                              <td>
+                                <span class="sgc-result-table__cell">
+                                  <i class="fas fa-file-alt"></i>
+                                  {{ resumenCierre.nombre }}
+                                </span>
+                              </td>
+                              <td>
+                                <span class="sgc-result-table__cell sgc-result-table__cell--code">
+                                  {{ resumenCierre.codigo }}
+                                </span>
+                              </td>
+                              <td>
+                                <span class="sgc-result-table__ver">{{ resumenCierre.version }}</span>
+                              </td>
+                              <td>
+                                <span class="sgc-result-table__cell">{{ resumenCierre.tipoDocumento }}</span>
+                              </td>
+                              <td>
+                                <span class="sgc-pill" [attr.data-tipo]="contexto.solicitud.tipo_solicitud">
+                                  {{ resumenCierre.tipoSolicitud }}
+                                </span>
+                              </td>
+                              <td>
+                                <span class="sgc-result-table__motivo">{{ resumenCierre.motivo }}</span>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <p class="sgc-completed-wrap__note" *ngIf="contexto.solicitud.notificar_sistemas">
+                        <i class="fas fa-ticket-alt"></i>
+                        Se notificó a Sistemas
+                        <ng-container *ngIf="contexto.solicitud.ticket_sistemas_id">
+                          con el ticket #{{ contexto.solicitud.ticket_sistemas_id }}
+                        </ng-container>.
+                      </p>
+                    </div>
+                  </section>
+                    </div>
+                  </div>
+                </ng-container>
+              </div>
+            </article>
+          </ng-container>
+        </div>
+
+        <nav class="sgc-pagination" *ngIf="totalPaginas > 1" aria-label="Paginación">
+          <span>{{ rangoPagina.desde }}–{{ rangoPagina.hasta }} de {{ solicitudesFiltradas.length }}</span>
+          <div>
+            <button type="button" (click)="cambiarPagina(paginaActual - 1)" [disabled]="paginaActual === 1">
+              <i class="fas fa-chevron-left"></i>
+            </button>
+            <button type="button" *ngFor="let pagina of paginasDisponibles"
+              [class.is-active]="pagina === paginaActual" (click)="cambiarPagina(pagina)">
+              {{ pagina }}
+            </button>
+            <button type="button" (click)="cambiarPagina(paginaActual + 1)"
+              [disabled]="paginaActual === totalPaginas"><i class="fas fa-chevron-right"></i></button>
+          </div>
+        </nav>
+      </section>
+    </div>
+  </div>
+</main>
+
+<div class="sgc-document-viewer" *ngIf="visorDocumentoAbierto" role="dialog" aria-modal="true"
+  aria-label="Visor del documento">
+  <div class="sgc-stage-panel">
+    <header class="sgc-editor-header sgc-document-viewer__header">
+      <div>
+        <span class="sgc-editor-header__icon"><i class="fab fa-google-drive"></i></span>
+        <div>
+          <h2>{{ solicitudActiva?.codigo || contexto?.formatoDescarga?.codigo || 'Documento' }}
+            · {{ solicitudActiva?.nombre_documento || contexto?.formatoDescarga?.titulo || 'Documento SGC' }}</h2>
+          <p>Vista previa del documento controlado · Google Drive</p>
+        </div>
+      </div>
+      <div class="sgc-editor-header__actions sgc-document-viewer__actions">
+        <a class="sgc-btn sgc-btn--viewer" [href]="driveDownloadUrl" target="_blank" rel="noopener">
+          <i class="fas fa-download"></i> Descargar
+        </a>
+        <button type="button" class="sgc-btn sgc-btn--ghost" (click)="cerrarVisorDocumento()">
+          <i class="fas fa-times"></i> Cerrar
+        </button>
+      </div>
+    </header>
+    <div class="sgc-document-viewer__body">
+      <iframe *ngIf="visorDocumentoUrl" [src]="visorDocumentoUrl"
+        title="Vista previa del documento en Google Drive"
+        referrerpolicy="strict-origin-when-cross-origin"></iframe>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-editor-overlay" *ngIf="editorAbierto" role="dialog" aria-modal="true"
+  aria-label="Editor integrado del formato">
+  <div class="sgc-stage-panel">
+    <header class="sgc-editor-header">
+      <div>
+        <span class="sgc-editor-header__icon"><i class="fab fa-google-drive"></i></span>
+        <div><h2>Editor integrado del formato</h2>
+          <p>{{ solicitudActiva?.codigo || 'Documento' }} · {{ solicitudActiva?.nombre_documento || 'Formato SGC' }}</p></div>
+      </div>
+      <div class="sgc-editor-header__actions">
+        <button type="button" class="sgc-btn sgc-btn--ghost" (click)="cerrarEditor()"
+          [disabled]="estaProcesando('formato')"><i class="fas fa-times"></i> Cerrar editor</button>
+        <button type="button" class="sgc-btn sgc-btn--primary" (click)="continuarDesdeEditor()"
+          [disabled]="estaProcesando()">
+          <i class="fas" [ngClass]="estaProcesando('formato') ? 'fa-spinner fa-spin' : 'fa-arrow-right'"></i>
+          {{ estaProcesando('formato') ? 'Confirmando…' : 'Continuar con el siguiente paso' }}
+        </button>
+      </div>
+    </header>
+    <div class="sgc-editor-error" *ngIf="errorGestion">
+      <i class="fas fa-exclamation-circle"></i> {{ errorGestion }}
+    </div>
+    <iframe *ngIf="editorUrl" [src]="editorUrl" title="Editor de documento en Google Drive"
+      allow="clipboard-read; clipboard-write" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  </div>
+</div>

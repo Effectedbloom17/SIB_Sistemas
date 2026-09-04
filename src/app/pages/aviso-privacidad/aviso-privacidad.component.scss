@@ -1,0 +1,91 @@
+:host {
+  display: block;
+}
+
+.aviso-wrap {
+  position: relative;
+  z-index: 10;
+  margin-bottom: 3rem;
+}
+
+.aviso-icon {
+  background: rgba(255, 255, 255, 0.15);
+  font-size: 1.8rem;
+}
+
+.aviso-title {
+  font-weight: 700;
+  font-size: 2.1rem;
+  letter-spacing: -0.4px;
+}
+
+.aviso-card {
+  border-radius: 15px;
+  overflow: hidden;
+  background-color: #fff;
+}
+
+.aviso-card-header {
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid #d9e5d8;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.aviso-card-title {
+  color: #38512f;
+  font-weight: 700;
+  font-size: 1.35rem;
+}
+
+.aviso-card-body {
+  padding: 1rem;
+}
+
+.aviso-viewer-shell {
+  position: relative;
+  border-radius: 12px;
+  border: 1px solid #dbe4ec;
+  overflow: hidden;
+  min-height: 72vh;
+  background: #f8fafc;
+}
+
+.aviso-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  background: rgba(255, 255, 255, 0.93);
+  color: #4b5563;
+  font-weight: 600;
+}
+
+.aviso-iframe {
+  width: 100%;
+  min-height: 72vh;
+  border: 0;
+  display: block;
+  background: #fff;
+}
+
+@media (max-width: 768px) {
+  .aviso-card-header {
+    padding: 1rem 1.1rem;
+  }
+
+  .aviso-card-body {
+    padding: 0.75rem;
+  }
+
+  .aviso-title {
+    font-size: 1.6rem;
+  }
+
+  .aviso-viewer-shell,
+  .aviso-iframe {
+    min-height: 64vh;
+  }
+}

@@ -1,0 +1,394 @@
+<!-- ============================================================ -->
+<!-- HEADER -->
+<!-- ============================================================ -->
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+            style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-chart-line"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">
+            Panel de Control
+          </h1>
+          <p class="text-white mt-1 mb-0" style="opacity: 0.7; font-size: 0.9rem;" *ngIf="!cargando">
+            Última actualización: ahora
+            &nbsp;·&nbsp; {{ dashboardFiltros.anio }}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 3rem; overflow-x: hidden;">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+
+      <!-- ============================================================ -->
+      <!-- KPI BAR — métricas operativas del año -->
+      <!-- ============================================================ -->
+      <div class="kpi-bar mb-4">
+        <ng-container *ngIf="cargando">
+          <div class="kpi-cell" *ngFor="let i of [1,2,3,4,5,6]">
+            <div class="loading-shimmer" style="width:32px;height:32px;border-radius:10px;margin:0 auto 8px;"></div>
+            <div class="loading-shimmer" style="height:22px;width:40%;border-radius:4px;margin:0 auto 6px;"></div>
+            <div class="loading-shimmer" style="height:10px;width:70%;border-radius:4px;margin:0 auto 4px;"></div>
+            <div class="loading-shimmer" style="height:8px;width:55%;border-radius:4px;margin:0 auto;"></div>
+          </div>
+        </ng-container>
+
+        <ng-container *ngIf="!cargando">
+          <div class="kpi-cell"
+            *ngFor="let card of kpiCards; let i = index"
+            [style.animation-delay]="(i * 0.06) + 's'"
+            [style.--kpi-accent]="card.color">
+            <div class="kpi-cell-icon" [style.background]="card.gradiente">
+              <i class="fas {{ card.icono }}"></i>
+            </div>
+            <div class="kpi-cell-valor">{{ card.valor }}</div>
+            <div class="kpi-cell-label">{{ card.titulo }}</div>
+            <div class="kpi-cell-sub">
+              <span class="kpi-cell-dot" [style.background]="card.color"></span>
+              {{ card.subtitulo }}
+            </div>
+          </div>
+        </ng-container>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- FILTROS GLOBALES -->
+      <!-- ============================================================ -->
+      <div class="card border-0 dash-card dash-filter-card mb-3">
+        <div class="card-body py-3 px-3 px-md-4">
+          <div class="dash-filter-grid">
+            <div class="dash-filter-head">
+              <span class="section-label mb-1">Vista Analítica</span>
+              <h3 class="dash-filter-title mb-0">Filtros globales del dashboard</h3>
+              <p class="dash-filter-subtitle mb-0">Selecciona el año y la empresa para actualizar toda la vista.</p>
+            </div>
+
+            <div class="dash-filter-fields">
+              <div class="dash-filter-control">
+                <label class="dash-filter-label">Año</label>
+                <select class="form-control form-control-sm dash-filter-select"
+                        [(ngModel)]="dashboardFiltros.anio"
+                        (change)="onFiltrosChange()">
+                  <option *ngFor="let anio of filtrosCatalogo.anios" [ngValue]="anio">{{ anio }}</option>
+                </select>
+              </div>
+
+              <div class="dash-filter-control">
+                <label class="dash-filter-label">Empresa</label>
+                <select class="form-control form-control-sm dash-filter-select"
+                        [(ngModel)]="dashboardFiltros.empresaId"
+                        (change)="onFiltrosChange()">
+                  <option [ngValue]="null">Todas</option>
+                  <option *ngFor="let empresa of filtrosCatalogo.empresas" [ngValue]="empresa.empresa_id">
+                    {{ empresa.nombre_empresa }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <div class="dash-filter-actions">
+              <button class="btn btn-sm dash-filter-reset" (click)="limpiarFiltros()">
+                <i class="fas fa-undo-alt mr-1"></i>
+                <span>Limpiar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- PANEL ANALÍTICO MODERNO -->
+      <!-- ============================================================ -->
+      <div class="analytics-panel mb-4">
+
+        <!-- Gráfico principal: panorama mensual -->
+        <div class="analytics-card analytics-card--hero">
+          <div class="analytics-card-head">
+            <div>
+              <span class="section-label">Panorama {{ dashboardFiltros.anio }}</span>
+              <h2 class="section-title mb-0">Evolución de Capacitación</h2>
+              <p class="analytics-card-desc mb-0">Cursos por estatus en curso_programado (programado, en_curso, completado)</p>
+            </div>
+          </div>
+
+          <div class="chart-kpi-row"
+               [class.chart-kpi-row--intro]="indicadoresIntro"
+               *ngIf="!cargando && hayDatosOperativos">
+            <div class="chart-kpi"
+                 *ngFor="let item of panoramaResumen; let i = index"
+                 [style.--c-accent]="item.color"
+                 [style.--kpi-delay]="(i * 0.07) + 's'">
+              <div class="chart-kpi-icon" [style.background]="item.gradiente">
+                <i class="fas {{ item.icono }}"></i>
+              </div>
+              <div class="chart-kpi-body">
+                <span class="chart-kpi-label">{{ item.label }}</span>
+                <span class="chart-kpi-sub">{{ item.subtitulo }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="analytics-card-body analytics-card-body--panorama">
+            <div *ngIf="cargando" class="loading-shimmer chart-skeleton chart-skeleton--hero"></div>
+            <apx-chart *ngIf="!cargando && chartsReady && hayDatosOperativos"
+              [series]="panoramaChartOptions.series"
+              [chart]="panoramaChartOptions.chart"
+              [xaxis]="panoramaChartOptions.xaxis"
+              [yaxis]="panoramaChartOptions.yaxis"
+              [dataLabels]="panoramaChartOptions.dataLabels"
+              [fill]="panoramaChartOptions.fill"
+              [stroke]="panoramaChartOptions.stroke"
+              [tooltip]="panoramaChartOptions.tooltip"
+              [grid]="panoramaChartOptions.grid"
+              [colors]="panoramaChartOptions.colors"
+              [legend]="panoramaChartOptions.legend"
+              [markers]="panoramaChartOptions.markers"
+            ></apx-chart>
+            <div *ngIf="!cargando && !hayDatosOperativos" class="dash-empty">
+              <i class="fas fa-chart-area fa-2x mb-2"></i>
+              <p>Sin cursos programados para {{ dashboardFiltros.anio }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fila inferior: constancias + curso de hoy -->
+        <div class="analytics-grid">
+          <div class="analytics-card analytics-card--constancias">
+            <div class="analytics-card-head">
+              <div>
+                <span class="section-label">Seguimiento documental</span>
+                <h2 class="section-title mb-0">Constancias por Mes</h2>
+                <p class="analytics-card-desc mb-0">Tendencia mensual de entrega, pendientes y descargas</p>
+              </div>
+            </div>
+
+            <div class="chart-kpi-row"
+                 [class.chart-kpi-row--intro]="indicadoresIntro"
+                 *ngIf="!cargando && hayDatosOperativos">
+              <div class="chart-kpi"
+                   *ngFor="let item of constanciasResumen; let i = index"
+                   [style.--c-accent]="item.color"
+                   [style.--kpi-delay]="(i * 0.07) + 's'">
+                <div class="chart-kpi-icon" [style.background]="item.gradiente">
+                  <i class="fas {{ item.icono }}"></i>
+                </div>
+                <div class="chart-kpi-body">
+                  <span class="chart-kpi-label">{{ item.label }}</span>
+                  <span class="chart-kpi-sub">{{ item.subtitulo }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="analytics-card-body analytics-card-body--constancias">
+              <div *ngIf="cargando" class="loading-shimmer chart-skeleton chart-skeleton--constancias"></div>
+              <apx-chart *ngIf="!cargando && chartsReady && hayDatosOperativos"
+                [series]="constanciasChartOptions.series"
+                [chart]="constanciasChartOptions.chart"
+                [xaxis]="constanciasChartOptions.xaxis"
+                [yaxis]="constanciasChartOptions.yaxis"
+                [dataLabels]="constanciasChartOptions.dataLabels"
+                [fill]="constanciasChartOptions.fill"
+                [stroke]="constanciasChartOptions.stroke"
+                [tooltip]="constanciasChartOptions.tooltip"
+                [grid]="constanciasChartOptions.grid"
+                [colors]="constanciasChartOptions.colors"
+                [legend]="constanciasChartOptions.legend"
+                [plotOptions]="constanciasChartOptions.plotOptions"
+              ></apx-chart>
+              <div *ngIf="!cargando && !hayDatosOperativos" class="dash-empty dash-empty--small">
+                <i class="fas fa-file-alt fa-2x mb-2"></i>
+                <p class="mb-0">Sin datos de constancias</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="analytics-card analytics-card--agenda">
+            <div class="analytics-card-head">
+              <div>
+                <span class="section-label">Agenda del día</span>
+                <h2 class="section-title mb-0">
+                  {{ cursosHoy.length > 1 ? 'Cursos de Hoy' : 'Curso de Hoy' }}
+                  <span *ngIf="cursosHoy.length > 1" class="agenda-today-badge">{{ cursosHoy.length }}</span>
+                </h2>
+                <p class="analytics-card-desc mb-0">
+                  {{ cursosHoy.length > 1 ? 'Cursos activos durante el día actual' : 'Curso activo durante el día actual' }}
+                </p>
+              </div>
+            </div>
+            <div class="analytics-card-body px-3 pb-3">
+              <div *ngIf="cargando" class="loading-shimmer chart-skeleton chart-skeleton--agenda"></div>
+
+              <div *ngIf="!cargando && cursosHoy.length > 0; else sinCursoHoy" class="agenda-today-list">
+                <div *ngFor="let curso of cursosHoy" class="agenda-today-card agenda-today-card--compact">
+                  <div class="agenda-today-card__top">
+                    <h4 class="agenda-today-title mb-0">{{ curso.nombre_curso }}</h4>
+                    <span class="agenda-time-pill">
+                      <i class="fas fa-clock mr-1"></i>
+                      {{ formatearRangoHorario(curso.hora_inicio, curso.hora_fin) }}
+                    </span>
+                  </div>
+
+                  <div class="agenda-today-card__info">
+                    <span class="agenda-info-item" [title]="curso.nombre_empresa">
+                      <i class="fas fa-building"></i>
+                      {{ curso.nombre_empresa }}
+                    </span>
+                    <span class="agenda-info-item" [title]="curso.instructor">
+                      <i class="fas fa-user-tie"></i>
+                      {{ curso.instructor }}
+                    </span>
+                    <span class="agenda-info-item agenda-info-item--participants">
+                      <i class="fas fa-users"></i>
+                      {{ curso.participantes_cargados }}/{{ curso.cupo }}
+                    </span>
+                  </div>
+
+                  <div class="progress agenda-participants__bar agenda-participants__bar--compact">
+                    <div class="progress-bar bg-success"
+                         [style.width.%]="getPorcentajeOcupacion(curso)"
+                         role="progressbar">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <ng-template #sinCursoHoy>
+                <div *ngIf="!cargando" class="dash-empty dash-empty--small">
+                  <i class="fas fa-calendar-check fa-2x mb-2"></i>
+                  <p class="mb-0">No hay cursos en ejecución el día de hoy</p>
+                </div>
+              </ng-template>
+            </div>
+          </div>
+        </div>
+
+        <div class="analytics-card analytics-card--table">
+          <div class="analytics-card-head analytics-card-head--agenda-table">
+            <div>
+              <span class="section-label">Agenda programada</span>
+              <h2 class="section-title mb-0">Próximos Cursos Programados</h2>
+              <p class="analytics-card-desc mb-0">Visión operativa de los siguientes cursos en los próximos 30 días</p>
+            </div>
+          </div>
+
+          <div class="analytics-card-body px-0 pb-0">
+            <div *ngIf="cargando" class="px-3 pb-3">
+              <div class="loading-shimmer chart-skeleton chart-skeleton--table"></div>
+            </div>
+
+            <div *ngIf="!cargando && proximosCursosProgramados.length > 0" class="agenda-table-wrap">
+              <table class="table agenda-table mb-0">
+                <thead>
+                  <tr>
+                    <th>Empresa</th>
+                    <th>Curso</th>
+                    <th>Instructor</th>
+                    <th>Fecha / Horario</th>
+                    <th>Participantes</th>
+                    <th class="text-center">Días faltantes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let curso of proximosCursosProgramados" class="agenda-row">
+                    <td class="agenda-cell-empresa">
+                      <div class="agenda-empresa">
+                        <img *ngIf="getLogoEmpresaUrl(curso)"
+                             [src]="getLogoEmpresaUrl(curso)"
+                             [alt]="curso.nombre_empresa"
+                             class="agenda-empresa__logo"
+                             (error)="onLogoEmpresaError(curso)">
+                        <div *ngIf="!getLogoEmpresaUrl(curso)" class="agenda-empresa__avatar">
+                          {{ getInicialesEmpresa(curso.nombre_empresa) }}
+                        </div>
+                        <span class="agenda-empresa__name" [title]="curso.nombre_empresa">
+                          {{ partirTextoEnLineas(curso.nombre_empresa, 28) }}
+                        </span>
+                      </div>
+                    </td>
+                    <td class="agenda-cell-curso">
+                      <span class="agenda-course-title">{{ partirTextoEnLineas(curso.nombre_curso, 28) }}</span>
+                    </td>
+                    <td class="agenda-cell-instructor">
+                      <div class="agenda-instructor">
+                        <i class="fas fa-user-circle agenda-instructor__icon"></i>
+                        <span>{{ partirTextoEnLineas(curso.instructor, 16) }}</span>
+                      </div>
+                    </td>
+                    <td class="agenda-cell-schedule">
+                      <div class="agenda-schedule__date">
+                        <i class="far fa-calendar-alt"></i>
+                        <span>{{ formatearFechaCurso(curso.fecha_inicio) }}</span>
+                        <span *ngIf="curso.fecha_fin && curso.fecha_fin !== curso.fecha_inicio">
+                          – {{ formatearFechaCurso(curso.fecha_fin) }}
+                        </span>
+                      </div>
+                      <div class="agenda-schedule__time">
+                        <i class="far fa-clock"></i>
+                        {{ formatearHoraCurso(curso.hora_inicio) }}
+                        <span *ngIf="curso.hora_fin"> – {{ formatearHoraCurso(curso.hora_fin) }}</span>
+                      </div>
+                    </td>
+                    <td class="agenda-cell-participants">
+                      <div class="agenda-participants">
+                        <div class="agenda-participants__head">
+                          <i class="fas fa-users agenda-participants__icon"></i>
+                          <span class="agenda-participants__count">{{ curso.participantes_cargados }}</span>
+                          <small class="agenda-participants__cupo">/ {{ curso.cupo }}</small>
+                        </div>
+                        <div class="progress agenda-participants__bar">
+                          <div class="progress-bar"
+                               [class.bg-danger]="!esCursoListo(curso)"
+                               [class.bg-success]="esCursoListo(curso)"
+                               [style.width.%]="getPorcentajeOcupacion(curso)"
+                               role="progressbar">
+                          </div>
+                        </div>
+                        <small class="agenda-participants__pct">
+                          {{ getPorcentajeOcupacion(curso) | number:'1.0-0' }}% ocupado
+                        </small>
+                      </div>
+                    </td>
+                    <td class="text-center agenda-cell-days">
+                      <span class="agenda-days-badge"
+                            [class.agenda-days-badge--today]="curso.dias_faltantes <= 0"
+                            [class.agenda-days-badge--soon]="curso.dias_faltantes > 0 && curso.dias_faltantes <= 3">
+                        <i class="far fa-calendar-check"></i>
+                        {{ etiquetaDiasFaltantes(curso.dias_faltantes) }}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div *ngIf="!cargando && proximosCursosProgramados.length === 0" class="dash-empty dash-empty--table">
+              <i class="fas fa-calendar-plus fa-2x mb-2"></i>
+              <p class="mb-0">No hay próximos cursos programados con los filtros actuales</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ERROR STATE -->
+      <div class="row" *ngIf="error && !cargando">
+        <div class="col-12 text-center py-5">
+          <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+          <h3 class="text-muted mb-1">Error al cargar el dashboard</h3>
+          <p class="text-muted mb-3">No se pudo conectar con el servidor</p>
+          <button class="btn btn-sm text-white px-4" style="background: #38512F; border-radius: 20px;"
+            (click)="cargarDashboard()">
+            <i class="fas fa-sync-alt mr-2"></i>Reintentar
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

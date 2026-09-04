@@ -1,0 +1,139 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "newProjectRoot": "projects",
+  "projects": {
+    "argon-dashboard-angular": {
+      "root": "",
+      "sourceRoot": "src",
+      "projectType": "application",
+      "prefix": "app",
+      "schematics": {
+        "@schematics/angular:component": {
+          "style": "scss"
+        }
+      },
+      "architect": {
+        "build": {
+          "builder": "@angular-builders/custom-webpack:browser",
+          "options": {
+            "customWebpackConfig": {
+              "path": "./webpack.config.js"
+            },
+            "outputPath": "dist",
+            "index": "src/index.html",
+            "main": "src/main.ts",
+            "polyfills": "src/polyfills.ts",
+            "tsConfig": "src/tsconfig.app.json",
+            "allowedCommonJsDependencies": [
+              "chart.js",
+              "canvg",
+              "core-js",
+              "raf",
+              "rgbcolor",
+              "sweetalert2",
+              "html2canvas",
+              "qrcode",
+              "apexcharts",
+              "jszip",
+              "pdfjs-dist",
+              "debug"
+            ],
+            "assets": [
+              "src/favicon.ico",
+              "src/assets",
+              {
+                "glob": "pdf.worker.min.js",
+                "input": "node_modules/pdfjs-dist/build",
+                "output": "assets/pdfjs"
+              },
+              "src/.htaccess"
+            ],
+            "styles": [
+              "src/styles.scss",
+              "src/assets/scss/argon.scss"
+            ],
+            "scripts": [
+              "node_modules/chart.js/dist/Chart.min.js",
+              "node_modules/clipboard/dist/clipboard.min.js"
+            ]
+          },
+          "configurations": {
+            "production": {
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": false,
+                  "inlineCritical": false
+                },
+                "fonts": false
+              },
+              "outputHashing": "all",
+              "sourceMap": false,
+              "namedChunks": false,
+              "extractLicenses": true,
+              "vendorChunk": false,
+              "buildOptimizer": true,
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.prod.ts"
+                }
+              ]
+            },
+            "development": {
+              "vendorChunk": true,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "namedChunks": true,
+              "buildOptimizer": false,
+              "optimization": {
+                "scripts": false,
+                "styles": {
+                  "minify": false,
+                  "inlineCritical": false
+                },
+                "fonts": false
+              },
+              "outputHashing": "none"
+            }
+          }
+        },
+        "serve": {
+          "builder": "@angular-builders/custom-webpack:dev-server",
+          "options": {
+            "browserTarget": "argon-dashboard-angular:build",
+            "open": false,
+            "host": "localhost",
+            "port": 4200
+          },
+          "configurations": {
+            "production": {
+              "browserTarget": "argon-dashboard-angular:build:production"
+            },
+            "development": {
+              "browserTarget": "argon-dashboard-angular:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "extract-i18n": {
+          "builder": "@angular-devkit/build-angular:extract-i18n",
+          "options": {
+            "browserTarget": "argon-dashboard-angular:build"
+          }
+        },
+
+      }
+    }
+  },
+  "defaultProject": "argon-dashboard-angular",
+  "schematics": {
+    "@schematics/angular:component": {
+      "style": "scss"
+    }
+  },
+  "cli": {
+    "analytics": false
+  }
+}

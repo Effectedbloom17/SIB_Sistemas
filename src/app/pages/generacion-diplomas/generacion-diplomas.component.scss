@@ -1,0 +1,571 @@
+// ═══════════════════════════════════════
+// Variables
+// ═══════════════════════════════════════
+$primary: #38512F;
+$primary-light: #5a7456;
+$accent: #C2D1B2;
+$bg: #f5f6f8;
+$border: #e5e7eb;
+$text: #1f2937;
+$text-secondary: #6b7280;
+$radius: 10px;
+
+:host {
+  display: block;
+}
+
+// Header y main-container ahora usan clases globales (.header-bg-image, .mt--5)
+// No se necesitan estilos custom para header ni contenedor
+
+// ═══════════════════════════════════════
+// VISTA 1: Search bar + Course list
+// ═══════════════════════════════════════
+.search-bar {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid $border;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.search-input-wrap {
+  flex: 1;
+  min-width: 200px;
+  position: relative;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: $text-secondary;
+  font-size: 0.8rem;
+}
+
+.search-input {
+  width: 100%;
+  border: 1px solid $border;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem 0.5rem 2rem;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s;
+
+  &:focus {
+    border-color: $accent;
+  }
+
+  &::placeholder {
+    color: #9ca3af;
+  }
+}
+
+.filter-pills {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.filter-select {
+  border: 1px solid $border;
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.78rem;
+  color: $text-secondary;
+  background: white;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+
+  &:focus {
+    border-color: $accent;
+  }
+}
+
+// Sort header
+.sort-header {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1.5rem;
+  background: #fafbfc;
+  border-bottom: 1px solid $border;
+}
+
+.sort-col {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: $text-secondary;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+
+  &:hover {
+    color: $primary;
+  }
+
+  i {
+    margin-left: 0.25rem;
+    font-size: 0.65rem;
+  }
+}
+
+.sort-col-main {
+  flex: 1;
+}
+
+.sort-col-empresa {
+  width: 180px;
+  text-align: left;
+}
+
+.sort-col-date {
+  width: 120px;
+  text-align: right;
+  margin-right: 24px; // space for status dot
+}
+
+// Course list
+.course-list {
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+.course-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f3f4f6;
+  transition: background 0.15s;
+
+  &:hover {
+    background: #f9fafb;
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.course-col-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.course-col-empresa {
+  width: 180px;
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: $text-secondary;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.course-col-date {
+  width: 120px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.course-item-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: $text;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.course-item-meta {
+  font-size: 0.7rem;
+  color: $text-secondary;
+}
+
+.course-item-date {
+  font-size: 0.78rem;
+  color: $text-secondary;
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+// ═══════════════════════════════════════
+// VISTA 2: Course bar
+// ═══════════════════════════════════════
+.course-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: white;
+  border-radius: $radius;
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.btn-back {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid $border;
+  background: white;
+  color: $text-secondary;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+
+  &:hover {
+    background: $bg;
+    color: $primary;
+  }
+}
+
+.course-bar-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.course-bar-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: $primary;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.course-bar-meta {
+  font-size: 0.72rem;
+  color: $text-secondary;
+}
+
+// ═══════════════════════════════════════
+// Two-column layout
+// ═══════════════════════════════════════
+.gen-layout {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.gen-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.gen-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+}
+
+// ═══════════════════════════════════════
+// Table header
+// ═══════════════════════════════════════
+.table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid $border;
+}
+
+.table-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.section-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: $text;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.table-count {
+  font-size: 0.72rem;
+  color: $text-secondary;
+}
+
+.table-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  color: $primary;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+  border-radius: 4px;
+  transition: background 0.15s;
+
+  &:hover {
+    background: rgba($primary, 0.06);
+  }
+}
+
+.separator {
+  color: #d1d5db;
+  font-size: 0.75rem;
+}
+
+// ═══════════════════════════════════════
+// Participants table
+// ═══════════════════════════════════════
+.participants-table {
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+thead th {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: $text-secondary;
+  background: #fafbfc;
+  border-bottom: 1px solid $border;
+  padding: 0.6rem 0.75rem;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.th-check,
+.td-check {
+  width: 36px;
+  padding-left: 1rem !important;
+}
+
+tbody tr {
+  transition: background 0.1s;
+
+  td {
+    padding: 0.5rem 0.75rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  &:hover {
+    background: #fafbfc;
+  }
+}
+
+.row-selected {
+  background: rgba($primary, 0.03) !important;
+}
+
+.participant-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.avatar-circle {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 0.55rem;
+  font-weight: 700;
+}
+
+.participant-name {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: $text;
+}
+
+.curp-text {
+  font-size: 0.72rem;
+  font-family: 'SF Mono', 'Consolas', monospace;
+  color: $text-secondary;
+}
+
+.badge-gen {
+  font-size: 0.65rem;
+  color: #059669;
+  font-weight: 600;
+
+  i {
+    font-size: 0.55rem;
+  }
+}
+
+.badge-pending {
+  font-size: 0.68rem;
+  color: #9ca3af;
+}
+
+input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: $primary;
+}
+
+// ═══════════════════════════════════════
+// Sidebar
+// ═══════════════════════════════════════
+.sidebar-card {
+  padding: 1.25rem;
+}
+
+.sidebar-section {
+  margin-bottom: 0.75rem;
+}
+
+.sidebar-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: $text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 0.4rem;
+}
+
+.sidebar-select,
+.sidebar-input {
+  width: 100%;
+  border: 1px solid $border;
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  color: $text;
+  outline: none;
+  background: white;
+  transition: border-color 0.2s;
+
+  &:focus {
+    border-color: $accent;
+  }
+
+  &::placeholder {
+    color: #9ca3af;
+  }
+}
+
+.sidebar-divider {
+  height: 1px;
+  background: $border;
+  margin: 0.75rem 0;
+}
+
+.btn-generate {
+  width: 100%;
+  background: $primary;
+  color: white;
+  border: none;
+  padding: 0.7rem 1rem;
+  font-weight: 700;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) {
+    background: $primary-light;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.firma-warning {
+  display: block;
+  font-size: 0.68rem;
+  color: #d97706;
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+// ═══════════════════════════════════════
+// Empty state
+// ═══════════════════════════════════════
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #9ca3af;
+
+  i {
+    font-size: 1.5rem;
+  }
+
+  p {
+    margin: 0.75rem 0 0;
+    font-size: 0.85rem;
+  }
+}
+
+// ═══════════════════════════════════════
+// Scrollbar
+// ═══════════════════════════════════════
+.course-list,
+.participants-table {
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 2px;
+  }
+}
+
+// ═══════════════════════════════════════
+// Responsive
+// ═══════════════════════════════════════
+@media (max-width: 768px) {
+  .gen-layout {
+    flex-direction: column;
+  }
+
+  .gen-sidebar {
+    width: 100%;
+  }
+
+  .filter-pills {
+    width: 100%;
+  }
+
+  .filter-select {
+    flex: 1;
+  }
+}

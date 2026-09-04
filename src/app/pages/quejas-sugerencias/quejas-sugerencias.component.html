@@ -1,0 +1,290 @@
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2 op-header-icon">
+            <i class="fas fa-comment-dots"></i>
+          </div>
+          <h1 class="text-white mb-0 op-header-title">Opiniones y Sugerencias</h1>
+          <p class="text-white mb-0 mt-1 op-header-subtitle">
+            {{ esEmpresa
+              ? 'Tu opinión nos ayuda a mejorar.'
+              : 'Registro y seguimiento de opiniones y sugerencias' }}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Perfil empresa: solo envía el mensaje -->
+<div class="container-fluid mt--5 op-page-wrap" *ngIf="esEmpresa" style="position: relative; z-index: 10;">
+  <div class="row justify-content-center mx-0">
+    <div class="col-12 col-xl-10 col-lg-11">
+
+      <div class="card shadow-lg border-0 qys-card" *ngIf="folioGenerado; else formularioEmpresa">
+        <div class="qys-success">
+          <div class="qys-success__hero">
+            <div class="qys-success__icon">
+              <i class="fas fa-check" aria-hidden="true"></i>
+            </div>
+            <h3 class="qys-success__title">¡Gracias por compartir su opinión!</h3>
+            <p class="qys-success__text">
+              Hemos tomado en cuenta su comentario. Nuestro equipo le dará seguimiento
+              y trabajará para dar una solución adecuada.
+            </p>
+          </div>
+
+          <div class="qys-success__folio-box">
+            <span class="qys-success__folio-label">Número de folio de su registro</span>
+            <span class="qys-success__folio">{{ folioGenerado }}</span>
+            <span class="qys-success__folio-hint">Conserve este folio para cualquier consulta posterior</span>
+          </div>
+
+          <p class="qys-success__hint">
+            En Biznaga Risk &amp; Tech agradecemos su confianza. Nuestro equipo dará seguimiento
+            a su aporte hasta resolver la situación.
+          </p>
+          <button type="button" class="btn qys-btn-primary qys-btn-primary--lg" (click)="registrarOtra()">
+            <i class="fas fa-plus mr-1" aria-hidden="true"></i> Registrar otra opinión
+          </button>
+        </div>
+      </div>
+
+      <ng-template #formularioEmpresa>
+        <div class="card shadow-lg border-0 qys-card">
+          <div class="qys-banner">
+            <div class="qys-banner__icon">
+              <i class="fas fa-hands-helping" aria-hidden="true"></i>
+            </div>
+            <div class="qys-banner__texto">
+              <h2 class="qys-banner__titulo">Cuéntanos qué pasó</h2>
+              <p class="qys-banner__sub">
+                Describe tu opinión o sugerencia; el folio, la fecha y el estatus se registran automáticamente.
+              </p>
+            </div>
+          </div>
+
+          <div class="qys-secciones">
+            <section class="qys-seccion" [class.qys-seccion--ok]="descripcionOk">
+              <header class="qys-seccion__head">
+                <span class="qys-seccion__num">
+                  <ng-container *ngIf="!descripcionOk"><i class="fas fa-pen" aria-hidden="true"></i></ng-container>
+                  <i class="fas fa-check" *ngIf="descripcionOk" aria-hidden="true"></i>
+                </span>
+                <div>
+                  <h3 class="qys-seccion__titulo">Describe tu opinión o sugerencia</h3>
+                  <p class="qys-seccion__ayuda">Explica qué sucedió con el mayor detalle posible: qué se detectó, dónde y cómo afecta.</p>
+                </div>
+              </header>
+              <textarea class="qys-input qys-input--textarea" rows="7" maxlength="2000"
+                placeholder="Escribe aquí los detalles…"
+                [(ngModel)]="descripcion" name="qysDescripcion"></textarea>
+              <div class="qys-contador">{{ descripcion.length }}/2000</div>
+            </section>
+          </div>
+
+          <div class="qys-error" *ngIf="errorEnvio">
+            <i class="fas fa-exclamation-circle mr-1" aria-hidden="true"></i> {{ errorEnvio }}
+          </div>
+
+          <div class="qys-foot">
+            <span class="qys-foot__nota" *ngIf="!formularioValido">
+              <i class="fas fa-info-circle mr-1" aria-hidden="true"></i>
+              Escribe la descripción para enviar tu registro.
+            </span>
+            <button type="button" class="btn qys-btn-primary qys-btn-primary--lg"
+              (click)="enviar()" [disabled]="!formularioValido || enviando">
+              <i class="fas mr-1" [ngClass]="enviando ? 'fa-spinner fa-spin' : 'fa-paper-plane'" aria-hidden="true"></i>
+              {{ enviando ? 'Registrando…' : 'Enviar opinión' }}
+            </button>
+          </div>
+        </div>
+      </ng-template>
+
+    </div>
+  </div>
+</div>
+
+<!-- Administradores: consulta y seguimiento de todas las empresas -->
+<div class="container-fluid mt--5 op-page-wrap" *ngIf="puedeConsultar">
+  <div class="row justify-content-center">
+    <div class="col-12">
+      <div class="card shadow-lg border-0 op-shell">
+        <div class="card-body op-shell-body">
+
+          <div class="op-stats">
+            <div class="op-stat">
+              <span class="op-stat-value">{{ total }}</span>
+              <span class="op-stat-label">En vista</span>
+            </div>
+            <div class="op-stat op-stat--warn">
+              <span class="op-stat-value">{{ noRealizados }}</span>
+              <span class="op-stat-label">No realizados</span>
+            </div>
+            <div class="op-stat op-stat--info">
+              <span class="op-stat-value">{{ enDesarrollo }}</span>
+              <span class="op-stat-label">En desarrollo</span>
+            </div>
+            <div class="op-stat op-stat--ok">
+              <span class="op-stat-value">{{ realizados }}</span>
+              <span class="op-stat-label">Realizados</span>
+            </div>
+          </div>
+
+          <div class="op-loading" *ngIf="cargando">
+            <div class="op-spinner"></div>
+            <span>Cargando registros…</span>
+          </div>
+
+          <div class="op-error" *ngIf="error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>{{ error }}</span>
+          </div>
+
+          <section class="op-inbox" *ngIf="!cargando && !error">
+            <header class="op-inbox-head">
+              <div class="op-inbox-title">
+                <h2>Opiniones</h2>
+                <span class="op-inbox-badge" *ngIf="noRealizados">{{ noRealizados }} pendientes</span>
+              </div>
+              <label class="op-search" *ngIf="opiniones.length">
+                <i class="fas fa-search"></i>
+                <input type="search" [(ngModel)]="busqueda"
+                  (ngModelChange)="onBusquedaChange()"
+                  placeholder="Buscar por folio, empresa, descripción o autor…" />
+              </label>
+            </header>
+
+            <div class="op-inbox-tabs" role="tablist" aria-label="Estatus">
+              <button type="button" class="op-chip" [class.is-active]="filtroEstado === ''" (click)="cambiarFiltroEstado('')">Todos</button>
+              <button type="button" class="op-chip" [class.is-active]="filtroEstado === 'abierto'" (click)="cambiarFiltroEstado('abierto')">No realizados</button>
+              <button type="button" class="op-chip" [class.is-active]="filtroEstado === 'en_progreso'" (click)="cambiarFiltroEstado('en_progreso')">En desarrollo</button>
+              <button type="button" class="op-chip" [class.is-active]="filtroEstado === 'cerrado'" (click)="cambiarFiltroEstado('cerrado')">Realizados</button>
+            </div>
+
+            <div class="op-empty" *ngIf="!opiniones.length">
+              <div class="op-empty-icon"><i class="fas fa-inbox"></i></div>
+              <h2>Sin registros en este filtro</h2>
+              <p>Cuando una empresa envíe una opinión o sugerencia, aparecerá aquí para su seguimiento.</p>
+            </div>
+
+            <div class="op-empty" *ngIf="opiniones.length && !opinionesFiltradas.length">
+              <div class="op-empty-icon"><i class="fas fa-search"></i></div>
+              <h2>Sin coincidencias</h2>
+              <p>Prueba con otro término de búsqueda.</p>
+            </div>
+
+            <div class="op-feed" *ngIf="opinionesFiltradas.length" aria-label="Listado de opiniones">
+              <ng-container *ngFor="let grupo of opinionesAgrupadas; trackBy: trackByGrupo">
+                <h3 class="op-feed-label">{{ grupo.etiqueta }}</h3>
+
+                <article class="op-row" *ngFor="let opinion of grupo.opiniones; trackBy: trackByOpinionId"
+                  [attr.data-estado]="opinion.estado"
+                  [attr.data-tipo]="opinion.tipo || 'opinion'"
+                  [class.is-open]="expandidoId === opinion.opinion_id">
+
+                  <button type="button" class="op-row-hit"
+                    (click)="seleccionarOpinion(opinion)"
+                    [attr.aria-expanded]="expandidoId === opinion.opinion_id">
+                    <span class="op-row-icon" aria-hidden="true">
+                      <i class="fas" [class.fa-comment-dots]="opinion.tipo !== 'sugerencia'"
+                        [class.fa-lightbulb]="opinion.tipo === 'sugerencia'"></i>
+                    </span>
+
+                    <span class="op-row-body">
+                      <strong>{{ tituloLista(opinion) }}</strong>
+                      <small>{{ opinion.folio }} · {{ snippetOpinion(opinion) }}</small>
+                    </span>
+
+                    <span class="op-row-aside">
+                      <span class="op-status-label" [attr.data-estado]="opinion.estado">
+                        {{ estadoLabel(opinion.estado) }}
+                      </span>
+                      <i class="op-row-dot" *ngIf="opinion.estado === 'abierto'" aria-hidden="true"></i>
+                      <i class="fas fa-chevron-down op-row-chevron" aria-hidden="true"></i>
+                      <time>{{ tiempoRelativo(opinion.created_at) }}</time>
+                    </span>
+                  </button>
+
+                  <div class="op-row-panel" [hidden]="expandidoId !== opinion.opinion_id" (click)="$event.stopPropagation()">
+                    <section class="op-panel-block">
+                      <span class="op-section-label">Descripción</span>
+                      <p>{{ opinion.descripcion || 'Este registro no incluye una descripción.' }}</p>
+                    </section>
+
+                    <dl class="op-facts">
+                      <div>
+                        <dt>Folio</dt>
+                        <dd><i class="fas fa-hashtag"></i>{{ opinion.folio }}</dd>
+                      </div>
+                      <div>
+                        <dt>Empresa</dt>
+                        <dd><i class="fas fa-building"></i>{{ opinion.cliente || '—' }}</dd>
+                      </div>
+                      <div>
+                        <dt>Solicitado</dt>
+                        <dd><i class="fas fa-calendar-alt"></i>{{ fechaHoraUi(opinion.created_at) }}</dd>
+                      </div>
+                      <div>
+                        <dt>Autor</dt>
+                        <dd><i class="fas fa-user"></i>{{ autorLabel(opinion) }}</dd>
+                      </div>
+                    </dl>
+
+                    <section class="op-management">
+                      <span class="op-management-updated">
+                        <ng-container *ngIf="opinion.updated_at">Actualizado el {{ fechaHoraUi(opinion.updated_at) }}</ng-container>
+                      </span>
+                      <div class="op-management-actions">
+                        <label [attr.for]="'opinion-status-' + opinion.opinion_id">Gestionar estado</label>
+                        <select
+                          id="opinion-status-{{ opinion.opinion_id }}"
+                          class="op-estatus-select op-estatus-select--detail"
+                          [attr.data-estado]="opinion.estado"
+                          [disabled]="actualizandoId != null"
+                          (mousedown)="$event.stopPropagation()"
+                          (change)="onEstatusChange(opinion, $event)">
+                          <option *ngFor="let op of opcionesEstatus" [value]="op.valor"
+                            [selected]="opinion.estado === op.valor">{{ op.label }}</option>
+                        </select>
+                      </div>
+                      <small *ngIf="actualizandoId === opinion.opinion_id">
+                        <i class="fas fa-spinner fa-spin"></i> Guardando cambio…
+                      </small>
+                      <small class="op-management-error" *ngIf="errorEstado && expandidoId === opinion.opinion_id">{{ errorEstado }}</small>
+                    </section>
+                  </div>
+                </article>
+              </ng-container>
+            </div>
+
+            <nav class="op-pagination" *ngIf="totalPaginas > 1" aria-label="Paginación de opiniones">
+              <span class="op-pagination__summary">
+                {{ rangoPagina.desde }}–{{ rangoPagina.hasta }} de {{ opinionesFiltradas.length }}
+              </span>
+              <div class="op-pagination__controls">
+                <button type="button" (click)="cambiarPagina(paginaActual - 1)"
+                  [disabled]="paginaActual === 1" aria-label="Página anterior">
+                  <i class="fas fa-chevron-left"></i>
+                </button>
+                <button type="button" *ngFor="let pagina of paginasDisponibles"
+                  [class.is-active]="pagina === paginaActual"
+                  [attr.aria-current]="pagina === paginaActual ? 'page' : null"
+                  (click)="cambiarPagina(pagina)">
+                  {{ pagina }}
+                </button>
+                <button type="button" (click)="cambiarPagina(paginaActual + 1)"
+                  [disabled]="paginaActual === totalPaginas" aria-label="Página siguiente">
+                  <i class="fas fa-chevron-right"></i>
+                </button>
+              </div>
+            </nav>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

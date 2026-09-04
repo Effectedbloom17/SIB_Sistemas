@@ -1,0 +1,431 @@
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-tasks"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">Asignación de Cursos</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+  <!-- Formulario de programacion -->
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+      <div class="card shadow-lg border-0 card-programacion-form">
+        <div class="card-header border-0" style="padding: 1.5rem 2rem;">
+          <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap: 0.75rem;">
+            <div>
+              <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">Programación</h6>
+              <h2 class="mb-0" style="color: #38512F; font-weight: 700; font-size: 1.5rem;">Programar Nuevo Curso</h2>
+              <small class="text-info" *ngIf="esInstructorSolo" style="font-size: 0.75rem;">
+                <i class="fas fa-info-circle mr-1"></i>
+                Solo puedes asignar cursos de las áreas temáticas que tienes autorizadas
+              </small>
+            </div>
+            <!-- Estado Google Calendar -->
+            <div class="google-calendar-status">
+              <span class="calendar-badge calendar-badge-ok">
+                <i class="fab fa-google mr-1"></i> Calendar corporativo (risktechbiznaga@gmail.com)
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="card-body" style="padding: 2rem;">
+
+          <!-- ═══ Información del Curso ══════════════════════════════ -->
+          <div class="d-flex align-items-center mb-3">
+            <i class="fas fa-graduation-cap mr-2" style="color: #768D6B; font-size: 0.9rem;"></i>
+            <span class="text-uppercase font-weight-bold text-muted" style="font-size: 0.72rem; letter-spacing: 0.8px;">Información del Curso</span>
+            <div class="flex-grow-1 ml-3" style="height: 1px; background: linear-gradient(to right, #C2D1B2, transparent);"></div>
+          </div>
+
+          <div class="row mb-1">
+            <!-- CURSO -->
+            <div class="col-md-4">
+              <div class="form-group mb-3">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  <i class="fas fa-book-open" style="color: #38512F;"></i> Curso *
+                  <span class="badge badge-info badge-sm ml-2" *ngIf="esInstructorSolo" style="font-size: 0.65rem;">
+                    <i class="fas fa-filter"></i> Filtrado por tus áreas
+                  </span>
+                </label>
+                <div class="position-relative dropdown-container">
+                  <input 
+                    type="text" 
+                    class="form-control" 
+                    [(ngModel)]="busquedaCurso"
+                    (input)="filtrarCursos()"
+                    (focus)="mostrarCursos()"
+                    (blur)="ocultarDropdownCurso()"
+                    placeholder="Buscar curso..."
+                    autocomplete="off">
+                  <div class="custom-dropdown" *ngIf="mostrarDropdownCurso && cursosFiltrados.length > 0">
+                    <button type="button"
+                            class="dropdown-item-custom"
+                            *ngFor="let curso of cursosFiltrados"
+                            (mousedown)="seleccionarCurso(curso)">
+                      <div class="item-content">
+                        <span class="item-title">{{ curso.nombre_curso }}</span>
+                      </div>
+                    </button>
+                  </div>
+                  <small class="text-muted" *ngIf="mostrarDropdownCurso && cursosFiltrados.length === 0">
+                    <span *ngIf="!esInstructorSolo">No se encontraron cursos</span>
+                    <span *ngIf="esInstructorSolo">No tienes cursos asignados en tus áreas</span>
+                  </small>
+                </div>
+              </div>
+            </div>
+            
+            <!-- EMPRESA -->
+            <div class="col-md-4">
+              <div class="form-group mb-3">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  <i class="fas fa-building" style="color: #38512F;"></i> Empresa *
+                </label>
+                <div class="position-relative dropdown-container">
+                  <input 
+                    type="text" 
+                    class="form-control" 
+                    [(ngModel)]="busquedaEmpresa"
+                    (input)="filtrarEmpresas()"
+                    (focus)="mostrarEmpresas()"
+                    (blur)="ocultarDropdownEmpresa()"
+                    placeholder="Buscar empresa..."
+                    autocomplete="off">
+                  <div class="custom-dropdown" *ngIf="mostrarDropdownEmpresa && empresasFiltradas.length > 0">
+                    <button type="button"
+                            class="dropdown-item-custom empresa-item"
+                            *ngFor="let empresa of empresasFiltradas"
+                            (mousedown)="seleccionarEmpresa(empresa)">
+                      <ng-container *ngIf="getLogoEmpresaUrl(empresa) as logoUrl; else empIniciales">
+                        <div class="emp-avatar emp-avatar--logo">
+                          <img [src]="logoUrl" [alt]="empresa.nombre_empresa" (error)="onLogoError(empresa)">
+                        </div>
+                      </ng-container>
+                      <ng-template #empIniciales>
+                        <div class="emp-avatar">{{ empresa.nombre_empresa?.charAt(0) }}</div>
+                      </ng-template>
+                      <div class="item-content">
+                        <span class="item-title">{{ empresa.nombre_empresa }}</span>
+                        <span class="item-role" *ngIf="empresa.ciudad || empresa.estado">
+                          <i class="fas fa-map-marker-alt"></i>
+                          {{ empresa.ciudad }}<ng-container *ngIf="empresa.ciudad && empresa.estado">, </ng-container>{{ empresa.estado }}
+                        </span>
+                      </div>
+                      <i class="fas fa-chevron-right inst-arrow"></i>
+                    </button>
+                  </div>
+                  <small class="text-muted" *ngIf="mostrarDropdownEmpresa && empresasFiltradas.length === 0">
+                    No se encontraron empresas
+                  </small>
+                </div>
+              </div>
+            </div>
+            
+            <!-- INSTRUCTOR -->
+            <div class="col-md-4">
+              <div class="form-group mb-3">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  <i class="fas fa-user-tie" style="color: #38512F;"></i> Instructor
+                  <span class="instructor-hint" *ngIf="cursoSeleccionado && !esInstructorSolo">
+                    <i class="fas fa-filter"></i> Filtrado por área
+                  </span>
+                  <span class="badge badge-success badge-sm ml-2" *ngIf="esInstructorSolo" style="font-size: 0.65rem;">
+                    <i class="fas fa-lock"></i> Auto-asignado
+                  </span>
+                </label>
+                <!-- Display elegante cuando el instructor está auto-asignado -->
+                <div *ngIf="esInstructorSolo" class="instructor-autoasig-display">
+                  <i class="fas fa-user-check mr-2" style="color: #768D6B;"></i>
+                  <span>{{ busquedaInstructor || 'Tú mismo' }}</span>
+                  <i class="fas fa-lock ml-auto" style="font-size: 0.7rem; color: #A8A9A2;"></i>
+                </div>
+                <div *ngIf="!esInstructorSolo" class="position-relative dropdown-container">
+                  <input 
+                    type="text" 
+                    class="form-control" 
+                    [(ngModel)]="busquedaInstructor"
+                    (input)="filtrarInstructores()"
+                    (focus)="mostrarInstructores()"
+                    (blur)="ocultarDropdownInstructor()"
+                    placeholder="Buscar instructor..."
+                    autocomplete="off">
+                  <div class="custom-dropdown instructor-dropdown" *ngIf="mostrarDropdownInstructor && instructoresFiltrados.length > 0 && !esInstructorSolo">
+                    <button type="button"
+                            class="dropdown-item-custom instructor-item"
+                            *ngFor="let inst of instructoresFiltrados"
+                            (mousedown)="seleccionarInstructor(inst)">
+                      <div class="inst-avatar" [class.inst-avatar--photo]="inst.foto_drive_id">
+                          <img *ngIf="getFotoInstructorUrl(inst)"
+                            [src]="getFotoInstructorUrl(inst)"
+                             [alt]="inst.nombre"
+                             (error)="inst.foto_drive_id = null">
+                        <span *ngIf="!inst.foto_drive_id">{{ inst.nombre?.charAt(0) }}{{ inst.apellido_paterno?.charAt(0) }}</span>
+                      </div>
+                      <div class="item-content">
+                        <span class="item-title">{{ inst.nombre }} {{ inst.apellido_paterno }}</span>
+                        <span class="item-role"><i class="fas fa-chalkboard-teacher"></i> Instructor</span>
+                      </div>
+                      <i class="fas fa-chevron-right inst-arrow"></i>
+                    </button>
+                  </div>
+                  <div class="no-instructors-msg" *ngIf="mostrarDropdownInstructor && instructoresFiltrados.length === 0 && !esInstructorSolo">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span *ngIf="cursoSeleccionado">No hay instructores para esta área</span>
+                    <span *ngIf="!cursoSeleccionado">No se encontraron instructores</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ═══ Fecha y Horario ════════════════════════════════════ -->
+          <div class="d-flex align-items-center mb-3 mt-2">
+            <i class="fas fa-calendar-alt mr-2" style="color: #768D6B; font-size: 0.9rem;"></i>
+            <span class="text-uppercase font-weight-bold text-muted" style="font-size: 0.72rem; letter-spacing: 0.8px;">Fecha y Horario</span>
+            <div class="flex-grow-1 ml-3" style="height: 1px; background: linear-gradient(to right, #C2D1B2, transparent);"></div>
+          </div>
+
+          <div class="row mb-1">
+            <div class="col-md-4">
+              <div class="form-group mb-3">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  <i class="fas fa-calendar-day" style="color: #38512F;"></i> Fecha *
+                </label>
+                <input type="date" class="form-control" [(ngModel)]="programacionForm.fecha_inicio">
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="form-group mb-3">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  <i class="fas fa-clock" style="color: #38512F;"></i> Hora Inicio
+                </label>
+                <input type="time" class="form-control" [(ngModel)]="programacionForm.hora_inicio">
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="form-group mb-3">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  <i class="fas fa-hourglass-end" style="color: #38512F;"></i> Hora Fin
+                </label>
+                <input type="time" class="form-control" [(ngModel)]="programacionForm.hora_fin">
+              </div>
+            </div>
+          </div>
+          
+          <!-- ═══ Logística y Ubicación ══════════════════════════════ -->
+          <div class="d-flex align-items-center mb-3 mt-2">
+            <i class="fas fa-map-marker-alt mr-2" style="color: #768D6B; font-size: 0.9rem;"></i>
+            <span class="text-uppercase font-weight-bold text-muted" style="font-size: 0.72rem; letter-spacing: 0.8px;">Logística y Ubicación</span>
+            <div class="flex-grow-1 ml-3" style="height: 1px; background: linear-gradient(to right, #C2D1B2, transparent);"></div>
+          </div>
+
+          <div class="row mb-1">
+            <div class="col-md-3">
+              <div class="form-group mb-3">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  <i class="fas fa-chalkboard" style="color: #38512F;"></i> Modalidad
+                </label>
+                <select class="form-control" [(ngModel)]="programacionForm.modalidad">
+                  <option value="presencial">Presencial</option>
+                  <option value="virtual">Virtual</option>
+                  <option value="mixta">Mixta</option>
+                </select>
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="form-group mb-3">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  <i class="fas fa-users" style="color: #38512F;"></i> Cupo
+                </label>
+                <input type="number" class="form-control" [(ngModel)]="programacionForm.cupo" min="1">
+              </div>
+            </div>
+            <div class="col-md-7">
+              <div class="form-group mb-3">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  <i class="fas fa-map-pin" style="color: #38512F;"></i> Lugar específico de la capacitación
+                </label>
+                <input type="text" class="form-control" [(ngModel)]="programacionForm.lugar_capacitacion" placeholder="Ej. Sala A, Planta 2, Aula Magna">
+              </div>
+            </div>
+          </div>
+          
+          <!-- ═══ Notas y Notificaciones ════════════════════════════ -->
+          <div class="d-flex align-items-center mb-3 mt-2">
+            <i class="fas fa-sticky-note mr-2" style="color: #768D6B; font-size: 0.9rem;"></i>
+            <span class="text-uppercase font-weight-bold text-muted" style="font-size: 0.72rem; letter-spacing: 0.8px;">Notas y Notificaciones</span>
+            <div class="flex-grow-1 ml-3" style="height: 1px; background: linear-gradient(to right, #C2D1B2, transparent);"></div>
+          </div>
+
+          <!-- Notas del curso -->
+          <div class="row">
+            <div class="col-12">
+              <div class="form-group mb-3">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  <i class="fas fa-clipboard-list" style="color: #38512F;"></i> Notas / Observaciones
+                </label>
+                <textarea 
+                  class="form-control" 
+                  [(ngModel)]="programacionForm.notas" 
+                  rows="3" 
+                  placeholder="Agregar notas o instrucciones especiales para este curso programado..."
+                  style="resize: vertical; min-height: 80px;"></textarea>
+                <small class="text-muted" style="font-size: 0.72rem;">Opcional: Información adicional sobre el curso</small>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Correos para invitaciones -->
+          <div class="row" *ngIf="!esFechaProgramadaAntesDeHoy(); else notificacionDeshabilitadaFechaPasada">
+            <div class="col-12">
+              <div class="email-section">
+                <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
+                  <i class="fas fa-envelope" style="color: #38512F;"></i>
+                  Notificación por correo
+                </label>
+
+                <!-- Destinatarios -->
+                <div class="email-destinatarios-panel mt-2" *ngIf="programacionForm.instructor_id || programacionForm.empresa_id">
+                  <small class="text-muted d-block mb-2" style="font-size: 0.78rem;">
+                    Al programar el curso se enviará una notificación a:
+                  </small>
+                  <div class="destinatario-chips">
+                    <!-- Instructor -->
+                    <span class="chip-email" *ngIf="getInstructorEmail()">
+                      <i class="fas fa-user-tie"></i>
+                      <span>
+                        <em style="font-size: 0.65rem; opacity: 0.8; display: block; line-height: 1;">Instructor</em>
+                        {{ getInstructorEmail() }}
+                      </span>
+                    </span>
+                    <span class="chip-email chip-warning" *ngIf="programacionForm.instructor_id && !getInstructorEmail()">
+                      <i class="fas fa-user-tie"></i>
+                      <span>
+                        <em style="font-size: 0.65rem; opacity: 0.8; display: block; line-height: 1;">Instructor</em>
+                        Sin correo registrado
+                      </span>
+                    </span>
+                    <!-- Empresa -->
+                    <span class="chip-email chip-empresa" *ngIf="getEmpresaEmail()">
+                      <i class="fas fa-building"></i>
+                      <span>
+                        <em style="font-size: 0.65rem; opacity: 0.8; display: block; line-height: 1;">Empresa</em>
+                        {{ getEmpresaEmail() }}
+                      </span>
+                    </span>
+                    <span class="chip-email chip-warning" *ngIf="programacionForm.empresa_id && !getEmpresaEmail()">
+                      <i class="fas fa-building"></i>
+                      <span>
+                        <em style="font-size: 0.65rem; opacity: 0.8; display: block; line-height: 1;">Empresa</em>
+                        Sin correo registrado
+                      </span>
+                    </span>
+                    <!-- Adicionales -->
+                    <span class="chip-email chip-adicional" *ngFor="let correo of getCorreosAdicionalesArray()">
+                      <i class="fas fa-envelope"></i> {{ correo }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Campo de correos adicionales -->
+                <div class="form-group mb-0 mt-3">
+                  <label class="form-control-label text-muted text-uppercase" style="font-size: 0.7rem; font-weight: 600; letter-spacing: 0.5px;">
+                    Correos adicionales
+                  </label>
+                  <div class="correo-input-wrapper position-relative">
+                    <div class="correo-chip-input">
+                      <span class="chip-email chip-adicional chip-editable" *ngFor="let correo of correosAdicionalesSeleccionados">
+                        <i class="fas fa-envelope"></i>
+                        {{ correo }}
+                        <button type="button" class="chip-remove" (click)="$event.stopPropagation(); eliminarCorreoAdicional(correo)" aria-label="Quitar correo">
+                          <i class="fas fa-times"></i>
+                        </button>
+                      </span>
+                      <input
+                        #correoAdicionalInputRef
+                        type="text"
+                        class="correo-input"
+                        [ngModel]="correoAdicionalInput"
+                        (ngModelChange)="onCorreoAdicionalInput($event)"
+                        (keydown)="onCorreoAdicionalKeydown($event)"
+                        (blur)="onCorreoAdicionalBlur()"
+                        placeholder="ejemplo1@correo.com, ejemplo2@correo.com">
+                    </div>
+
+                    <div class="custom-dropdown correo-dropdown correo-dropdown--fixed"
+                         *ngIf="mostrarDropdownCorreo && correosSugeridosFiltrados.length > 0"
+                         [ngStyle]="correoDropdownStyle">
+                      <button type="button"
+                              class="dropdown-item-custom correo-item"
+                              *ngFor="let sugerencia of correosSugeridosFiltrados"
+                              (mousedown)="seleccionarCorreoSugerido(sugerencia)">
+                        <div class="correo-avatar" [class.correo-avatar--photo]="getCorreoAvatarUrl(sugerencia)">
+                          <img *ngIf="getCorreoAvatarUrl(sugerencia)"
+                               [src]="getCorreoAvatarUrl(sugerencia)"
+                               [alt]="sugerencia.nombre || sugerencia.email"
+                               (error)="onCorreoAvatarError(sugerencia)">
+                          <span *ngIf="!getCorreoAvatarUrl(sugerencia)">{{ getCorreoIniciales(sugerencia) }}</span>
+                        </div>
+                        <div class="item-content">
+                          <span class="item-title">{{ sugerencia.nombre || sugerencia.email }}</span>
+                          <span class="item-role" *ngIf="sugerencia.nombre">{{ sugerencia.email }}</span>
+                          <span class="item-role" *ngIf="!sugerencia.nombre && sugerencia.origen === 'personal'">Correo personal</span>
+                        </div>
+                        <i class="fas fa-chevron-right inst-arrow"></i>
+                      </button>
+                    </div>
+
+                    <div class="no-correos-msg" *ngIf="mostrarDropdownCorreo && correosSugeridosFiltrados.length === 0 && correoAdicionalInput">
+                      <i class="fas fa-info-circle"></i>
+                      <span>Presiona Enter para agregar "{{ correoAdicionalInput }}"</span>
+                    </div>
+                  </div>
+                  <small class="text-muted" style="font-size: 0.72rem;">
+                    Opcional — Correos separados por comas para incluir en la notificación.
+                  </small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <ng-template #notificacionDeshabilitadaFechaPasada>
+            <div class="row">
+              <div class="col-12">
+                <div class="alert alert-warning py-2 px-3 mb-0" style="font-size: 0.8rem; border-left: 4px solid #D6A43A;">
+                  <i class="fas fa-info-circle mr-1"></i>
+                  La notificación por correo se desactiva automáticamente cuando la fecha del curso es anterior al día actual.
+                </div>
+              </div>
+            </div>
+          </ng-template>
+          
+          <div class="text-right mt-4">
+            <button class="btn btn-outline-secondary mr-2" 
+                    style="padding: 0.6rem 1.5rem; border-radius: 8px;" 
+                    (click)="limpiarFormulario()"
+                    [disabled]="guardandoCurso">
+              <i class="fas fa-times mr-2"></i>Limpiar
+            </button>
+            <button class="btn btn-success shadow" 
+                    style="background: linear-gradient(135deg, #38512F 0%, #5a7456 100%); border: none; padding: 0.6rem 1.5rem; font-weight: 600;" 
+                    (click)="programarCurso()"
+                    [disabled]="guardandoCurso">
+              <i class="fas mr-2" [ngClass]="guardandoCurso ? 'fa-spinner fa-spin' : 'fa-calendar-plus'"></i>
+              {{ guardandoCurso ? 'Guardando...' : 'Programar Curso' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

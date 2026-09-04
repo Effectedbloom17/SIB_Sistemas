@@ -1,0 +1,418 @@
+<!-- Header Estándar -->
+<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+               style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+            <i class="fas fa-history"></i>
+          </div>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">
+            Historial de Cursos Finalizados
+          </h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+      <div class="card shadow-lg border-0 history-main-card" [class.compact-mode]="modoVisual === 'compacto'" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+
+        <div class="card-header border-0 history-header" style="padding: 1.5rem 2rem;">
+          <div class="history-title-wrap">
+            <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">Panel principal</h6>
+            <h2 class="mb-0" style="color: #38512F; font-weight: 700; font-size: 1.5rem;">{{ tituloPrincipal }}</h2>
+          </div>
+          <div class="history-actions">
+            <div class="density-toggle" role="group" aria-label="Modo de visualizacion">
+              <button
+                type="button"
+                class="density-btn"
+                [class.active]="modoVisual === 'normal'"
+                (click)="cambiarModoVisual('normal')"
+              >
+                Normal
+              </button>
+              <button
+                type="button"
+                class="density-btn"
+                [class.active]="modoVisual === 'compacto'"
+                (click)="cambiarModoVisual('compacto')"
+              >
+                Compacto
+              </button>
+            </div>
+
+            <div class="history-alerts-wrap" *ngIf="mostrarBotonAlertasPendientes" (click)="$event.stopPropagation()">
+              <button
+                type="button"
+                class="history-alerts-btn"
+                [class.is-open]="alertasPendientesAbiertas"
+                (click)="toggleAlertasPendientes($event)"
+                aria-label="Capacitaciones finalizadas sin gestionar"
+                [attr.aria-expanded]="alertasPendientesAbiertas"
+              >
+                <i class="fas fa-bell"></i>
+                <span class="history-alerts-label">Alertas</span>
+                <span class="history-alerts-badge" *ngIf="totalAlertasPendientes > 0">
+                  {{ totalAlertasPendientes > 99 ? '99+' : totalAlertasPendientes }}
+                </span>
+              </button>
+
+              <div class="history-alerts-dropdown" *ngIf="alertasPendientesAbiertas">
+                <div class="history-alerts-dropdown-header">
+                  <span><i class="fas fa-flag-checkered"></i> Capacitaciones finalizadas</span>
+                  <small>Pendientes de gestión · {{ totalAlertasPendientes }} curso(s)</small>
+                </div>
+
+                <div class="history-alerts-search" (click)="$event.stopPropagation()">
+                  <i class="fas fa-search"></i>
+                  <input
+                    type="search"
+                    [(ngModel)]="filtroAlertasBusqueda"
+                    placeholder="Buscar curso, empresa o fecha…"
+                    autocomplete="off"
+                  />
+                </div>
+
+                <div class="history-alerts-empty" *ngIf="totalAlertasPendientes === 0">
+                  <i class="fas fa-check-circle"></i>
+                  <p>No hay cursos pendientes de revisar</p>
+                </div>
+
+                <div class="history-alerts-empty" *ngIf="totalAlertasPendientes > 0 && cursosPendientesFiltrados.length === 0">
+                  <i class="fas fa-search"></i>
+                  <p>No hay resultados para tu búsqueda</p>
+                </div>
+
+                <button
+                  type="button"
+                  class="history-alert-item"
+                  *ngFor="let item of cursosPendientesFiltrados; trackBy: trackByPendienteId"
+                  (click)="abrirAlertaPendiente(item, $event)"
+                >
+                  <div class="history-alert-item-icon">
+                    <i class="fas fa-graduation-cap"></i>
+                  </div>
+                  <div class="history-alert-item-body">
+                    <span class="history-alert-tag">Finalizado</span>
+                    <p class="history-alert-curso">{{ item.nombre_curso }}</p>
+                    <p class="history-alert-empresa">
+                      <i class="fas fa-building"></i> {{ item.nombre_empresa }}
+                    </p>
+                    <p class="history-alert-fecha">
+                      <i class="fas fa-calendar-check"></i>
+                      <span>{{ formatearFechaFinalizacion(item) }}</span>
+                    </p>
+                  </div>
+                  <i class="fas fa-arrow-right history-alert-arrow"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body" style="padding: 1.5rem;">
+          <div class="history-filters" *ngIf="mostrarSelectorEmpresas">
+            <div class="search-input-wrap">
+              <i class="fas fa-search search-icon"></i>
+              <input
+                class="search-input"
+                type="text"
+                placeholder="Buscar por nombre o RFC..."
+                [(ngModel)]="textoBusquedaEmpresa"
+                (ngModelChange)="filtrarEmpresas()"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
+                name="busqueda-historial-empresa-noac"
+              >
+            </div>
+
+            <select class="filter-select" [(ngModel)]="estadoSeleccionado" (ngModelChange)="onEstadoChange()">
+              <option value="">Todos los estados</option>
+              <option *ngFor="let estado of estados" [value]="estado">{{ estado }}</option>
+            </select>
+
+            <select class="filter-select" [(ngModel)]="municipioSeleccionado" (ngModelChange)="filtrarEmpresas()">
+              <option value="">Todos los municipios</option>
+              <option *ngFor="let municipio of municipios" [value]="municipio">{{ municipio }}</option>
+            </select>
+
+            <select class="filter-select" [(ngModel)]="filtroAnexoSubido" (ngModelChange)="filtrarEmpresas()">
+              <option value="">Estatus de Anexo</option>
+              <option value="con_anexo">Con anexo subido</option>
+              <option value="sin_anexo">Sin anexo subido</option>
+            </select>
+          </div>
+
+          <div class="history-intro-banner" *ngIf="!cargando">
+            <span class="history-intro-item">
+              <i class="fas" [ngClass]="mostrarSelectorEmpresas ? 'fa-building' : 'fa-briefcase'"></i>
+              {{ mostrarSelectorEmpresas ? 'Selecciona una empresa para consultar su historial' : 'Visualizando el historial de tu empresa' }}
+            </span>
+            <span class="history-intro-item">
+              <i class="fas fa-filter"></i>
+              Usa año y mes para ubicar rápidamente el curso
+            </span>
+          </div>
+
+          <div *ngIf="cargando" class="text-center py-5">
+            <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+            <p class="text-muted mt-2 mb-0">Cargando historial de cursos...</p>
+          </div>
+
+          <div *ngIf="!cargando && (mostrarSelectorEmpresas ? empresasFiltradas.length === 0 : totalCursosImpartidos === 0)" class="text-center py-5">
+            <i class="fas fa-building fa-2x text-muted"></i>
+            <p class="text-muted mt-2 mb-0">
+              {{ mostrarSelectorEmpresas ? 'No hay empresas con cursos finalizados para ese filtro' : 'No hay cursos finalizados para tu empresa' }}
+            </p>
+          </div>
+
+          <ng-container *ngIf="!cargando && (mostrarSelectorEmpresas ? empresasFiltradas.length > 0 : totalCursosImpartidos > 0)">
+            <div class="history-layout" [class.single-pane-mode]="!mostrarSelectorEmpresas">
+              <aside class="companies-pane" *ngIf="mostrarSelectorEmpresas">
+                <div class="pane-header-row">
+                  <span><i class="fas fa-building"></i> Empresas</span>
+                  <span>{{ empresasVisibles.length }} de {{ empresasFiltradas.length }}</span>
+                </div>
+                <div class="companies-list">
+                  <button
+                    *ngFor="let empresa of empresasVisibles; trackBy: trackByEmpresaId"
+                    type="button"
+                    class="company-card"
+                    [class.active]="empresaSeleccionada?.empresa_id === empresa.empresa_id"
+                    (click)="seleccionarEmpresa(empresa)"
+                  >
+                    <div class="company-head">
+                      <div class="company-logo" *ngIf="getLogoEmpresaUrl(empresa) as logoUrl; else initialsLogo">
+                        <img [src]="logoUrl" [alt]="empresa.nombre_empresa" (error)="onLogoError(empresa)">
+                      </div>
+                      <ng-template #initialsLogo>
+                        <div class="company-initials">{{ getInicialesEmpresa(empresa.nombre_empresa) }}</div>
+                      </ng-template>
+
+                      <div class="company-meta">
+                        <h6 class="company-name">{{ empresa.nombre_empresa }}</h6>
+                        <span class="company-rfc" *ngIf="empresa.rfc">RFC: {{ empresa.rfc }}</span>
+                        <span class="company-location">
+                          <i class="fas fa-map-marker-alt"></i>
+                          {{ empresa.ciudad || '—' }}<span *ngIf="empresa.estado">, {{ empresa.estado }}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div class="company-foot">
+                      <span class="company-foot-label">Cursos finalizados</span>
+                      <span class="company-foot-value">{{ empresa.total_cursos_filtrados ?? empresa.total_cursos }}</span>
+                    </div>
+                  </button>
+                </div>
+
+                <div class="pagination-wrap" *ngIf="totalEmpresasPages > 1">
+                  <button type="button" class="page-btn page-btn-nav" [disabled]="empresasCurrentPage === 1" (click)="irPaginaEmpresas(empresasCurrentPage - 1)">
+                    <i class="fas fa-chevron-left"></i>
+                  </button>
+                  <button
+                    type="button"
+                    class="page-btn"
+                    *ngFor="let page of empresasPageNumbers"
+                    [class.active]="page === empresasCurrentPage"
+                    (click)="irPaginaEmpresas(page)"
+                  >
+                    {{ page }}
+                  </button>
+                  <button type="button" class="page-btn page-btn-nav" [disabled]="empresasCurrentPage === totalEmpresasPages" (click)="irPaginaEmpresas(empresasCurrentPage + 1)">
+                    <i class="fas fa-chevron-right"></i>
+                  </button>
+                </div>
+
+                <button type="button" class="btn-load-more" *ngIf="hayMasEmpresas" (click)="cargarMasEmpresas()">
+                  Mostrar más empresas <i class="fas fa-chevron-down"></i>
+                </button>
+              </aside>
+
+              <section class="courses-pane" *ngIf="empresaSeleccionada || !mostrarSelectorEmpresas; else emptySelection">
+                <div class="courses-pane-header">
+                  <div>
+                    <h5 class="courses-pane-title">{{ empresaSeleccionada?.nombre_empresa || 'Mi empresa' }}</h5>
+                    <span class="courses-pane-subtitle">Selecciona año y mes para consultar historial</span>
+                  </div>
+                  <button type="button" class="btn-reset-company" *ngIf="mostrarSelectorEmpresas" (click)="limpiarSeleccionEmpresa()">
+                    <i class="fas fa-times"></i> Quitar selección
+                  </button>
+                </div>
+
+                <div class="courses-filters">
+                  <select class="filter-select" [(ngModel)]="anoSeleccionado" (change)="filtrarCursosEmpresa()">
+                    <option [ngValue]="0">Todos los años</option>
+                    <option *ngFor="let ano of anosDisponibles" [ngValue]="ano">{{ ano }}</option>
+                  </select>
+
+                  <select class="filter-select" [(ngModel)]="mesSeleccionado" (change)="filtrarCursosEmpresa()">
+                    <option [ngValue]="0">Todos los meses</option>
+                    <option *ngFor="let mes of meses" [ngValue]="mes.value">{{ mes.label }}</option>
+                  </select>
+                </div>
+
+                <div class="pane-header-row pane-header-row-courses" *ngIf="cursosEmpresaFiltrados.length > 0">
+                  <span><i class="fas fa-book-open"></i> Cursos encontrados</span>
+                  <span>{{ cursosVisibles.length }} de {{ cursosEmpresaFiltrados.length }}</span>
+                </div>
+
+                <div *ngIf="cursosEmpresaFiltrados.length === 0" class="text-center py-5">
+                  <i class="fas fa-calendar-times fa-2x text-muted"></i>
+                  <p class="text-muted mt-2 mb-0">No hay cursos para el año/mes seleccionado</p>
+                </div>
+
+                <div class="courses-list" *ngIf="cursosEmpresaFiltrados.length > 0">
+                  <article
+                    class="course-item"
+                    *ngFor="let curso of cursosVisibles; trackBy: trackByCursoProgramado"
+                    role="button"
+                    tabindex="0"
+                    (click)="abrirDetalleCurso(curso)"
+                    (keydown.enter)="abrirDetalleCurso(curso)"
+                    (keydown.space)="onCursoCardSpace($event, curso)">
+                    <div class="course-main">
+                      <h6 class="course-name">{{ curso.nombre_curso }}</h6>
+                      <div class="course-meta-grid">
+                        <span>
+                          <i class="fas fa-calendar-alt"></i>
+                          {{ formatFechaCurso(curso.fecha_inicio) }}
+                        </span>
+                        <span>
+                          <i class="fas fa-chalkboard-teacher"></i>
+                          {{ curso.instructor_nombre || '-' }}
+                        </span>
+                        <span>
+                          <i class="fas fa-users"></i>
+                          {{ curso.total_participantes || 0 }} participantes
+                        </span>
+                        <span>
+                          <i class="fas fa-map-marker-alt"></i>
+                          {{ curso.lugar || 'Sin ubicación' }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div class="course-actions">
+                      <button
+                        type="button"
+                        class="btn-download-docs"
+                        [attr.aria-label]="
+                          descargandoZipProgramadoId === curso.programado_id
+                            ? 'Descargando constancias y DC-3'
+                            : imprimiendoProgramadoId === curso.programado_id
+                              ? 'Preparando impresión de constancias y DC-3'
+                              : 'Constancias y DC-3'
+                        "
+                        [attr.title]="
+                          descargandoZipProgramadoId === curso.programado_id
+                            ? 'Descargando constancias y DC-3'
+                            : imprimiendoProgramadoId === curso.programado_id
+                              ? 'Preparando impresión...'
+                              : 'Constancias y DC-3'
+                        "
+                        [disabled]="descargandoZipProgramadoId === curso.programado_id || imprimiendoProgramadoId === curso.programado_id || limpiandoConstanciasProgramadoId === curso.programado_id"
+                        (click)="onDescargarZipDesdeTarjeta($event, curso)">
+                        <span class="btn-download-docs__label">
+                          {{
+                            descargandoZipProgramadoId === curso.programado_id
+                              ? 'Descargando...'
+                              : imprimiendoProgramadoId === curso.programado_id
+                                ? 'Imprimiendo...'
+                                : 'Constancias y DC-3'
+                          }}
+                        </span>
+                        <span class="btn-download-docs__icon" aria-hidden="true">
+                          <i
+                            class="fas"
+                            [ngClass]="
+                              descargandoZipProgramadoId === curso.programado_id || imprimiendoProgramadoId === curso.programado_id
+                                ? 'fa-spinner fa-spin'
+                                : 'fa-file-archive'
+                            "></i>
+                        </span>
+                      </button>
+                      <button
+                        *ngIf="esPerfilAdminLimpieza"
+                        type="button"
+                        class="btn-clean-docs"
+                        [attr.aria-label]="limpiandoConstanciasProgramadoId === curso.programado_id ? 'Limpiando constancias y DC-3' : 'Limpiar constancias y DC-3 de un curso'"
+                        [attr.title]="limpiandoConstanciasProgramadoId === curso.programado_id ? 'Limpiando constancias y DC-3' : 'Limpiar constancias y DC-3 de un curso'"
+                        [disabled]="limpiandoConstanciasProgramadoId === curso.programado_id || descargandoZipProgramadoId === curso.programado_id || imprimiendoProgramadoId === curso.programado_id"
+                        (click)="onLimpiarConstanciasDc3DesdeTarjeta($event, curso)">
+                        <span class="btn-clean-docs__label">
+                          {{ limpiandoConstanciasProgramadoId === curso.programado_id ? 'Limpiando...' : 'Limpiar curso' }}
+                        </span>
+                        <span class="btn-clean-docs__icon" aria-hidden="true">
+                          <i class="fas" [ngClass]="limpiandoConstanciasProgramadoId === curso.programado_id ? 'fa-spinner fa-spin' : 'fa-broom'"></i>
+                        </span>
+                      </button>
+                    </div>
+                  </article>
+                </div>
+
+                <div class="pagination-wrap" *ngIf="totalCursosPages > 1">
+                  <button type="button" class="page-btn page-btn-nav" [disabled]="cursosCurrentPage === 1" (click)="irPaginaCursos(cursosCurrentPage - 1)">
+                    <i class="fas fa-chevron-left"></i>
+                  </button>
+                  <button
+                    type="button"
+                    class="page-btn"
+                    *ngFor="let page of cursosPageNumbers"
+                    [class.active]="page === cursosCurrentPage"
+                    (click)="irPaginaCursos(page)"
+                  >
+                    {{ page }}
+                  </button>
+                  <button type="button" class="page-btn page-btn-nav" [disabled]="cursosCurrentPage === totalCursosPages" (click)="irPaginaCursos(cursosCurrentPage + 1)">
+                    <i class="fas fa-chevron-right"></i>
+                  </button>
+                </div>
+
+                <button type="button" class="btn-load-more" *ngIf="hayMasCursos" (click)="cargarMasCursos()">
+                  Mostrar más cursos <i class="fas fa-chevron-down"></i>
+                </button>
+              </section>
+
+              <ng-template #emptySelection>
+                <section class="courses-pane courses-pane-empty">
+                  <div class="empty-selection-wrap">
+                    <div class="empty-selection-icon">
+                      <i class="fas fa-hand-pointer"></i>
+                    </div>
+                    <h5 class="empty-selection-title">Selecciona una empresa para comenzar</h5>
+                    <p class="empty-selection-text">Aquí podrás consultar el historial completo de cursos y acceder al detalle documental de cada uno.</p>
+
+                    <div class="empty-selection-stats">
+                      <div class="empty-stat-card">
+                        <span class="empty-stat-label">Empresas disponibles</span>
+                        <strong class="empty-stat-value">{{ empresasFiltradas.length }}</strong>
+                      </div>
+                      <div class="empty-stat-card">
+                        <span class="empty-stat-label">Cursos en historial</span>
+                        <strong class="empty-stat-value">{{ totalCursosImpartidos }}</strong>
+                      </div>
+                    </div>
+
+                    <span class="empty-selection-hint">
+                      <i class="fas fa-info-circle"></i>
+                      Usa los filtros de estado y municipio para acotar resultados más rápido.
+                    </span>
+                  </div>
+                </section>
+              </ng-template>
+            </div>
+          </ng-container>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

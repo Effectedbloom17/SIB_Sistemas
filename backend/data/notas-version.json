@@ -1,0 +1,50 @@
+{
+  "activo": true,
+  "borrador": [],
+  "historial": [
+    {
+      "version": "3.99.3",
+      "fecha": "2026-07-25",
+      "notas": [
+        {
+          "id": "ticket-2",
+          "titulo": "(Médicos) Ticket 25/07/2026",
+          "descripcion": "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since 1966, when designers at Letraset and James Mosley, the librarian at St Bride Printing Library in London, took a 1914 Cicero translation and scrambled it to make dummy text for Letraset's Body Type sheets. It has survived not only many decades, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised thanks to these sheets and more recently with desktop publishing software like Aldus PageMaker and Microsoft Word including versions of Lorem Ipsum. Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since 1966, when designers at Letraset and James Mosley, the librarian at St Bride Printing Library in London, took a 1914 Cicero translation and scrambled it to make dummy text for Letraset's Body Type sheets. It has survived not only many decades, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised thanks to these sheets and more recently with desktop publishing software like Aldus PageMaker and Microsoft Word including versions of Lorem Ipsum. Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since 1966, when designers at Letraset and James Mosley, the librarian at St Bride Printing Library in London, took a 1914 Cicero translation and scrambled it to make dummy text for Letraset's Body Type sheets. It has survived not only many decades, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised thanks to these sheets and more recently with desktop publishing software like Aldus PageMaker and Microsoft Word including versions of Lorem Ipsum.",
+          "icono": "fa-ticket-alt",
+          "area": "Médicos",
+          "fecha": "2026-07-25",
+          "fechaModificacion": "2026-07-25",
+          "fechaPedido": "2026-07-25"
+        }
+      ]
+    },
+    {
+      "version": "3.98.0",
+      "fecha": "2026-07-24",
+      "notas": [
+        {
+          "id": "nv-20260724-004",
+          "titulo": "Respaldo de bases más completo",
+          "descripcion": "Antes de cada deploy se respaldan todas las bases (principal, SGC, médicos y Protección Civil). Además, el día 1 de cada mes se guarda una copia mensual automática.",
+          "icono": "fa-database"
+        }
+      ]
+    },
+    {
+      "version": "3.97.0",
+      "fecha": "2026-07-25",
+      "notas": [
+        {
+          "id": "ticket-1",
+          "titulo": "(General) Ticket 25/07/2026",
+          "descripcion": "Prueba",
+          "icono": "fa-ticket-alt",
+          "area": "General",
+          "fecha": "2026-07-25",
+          "fechaModificacion": "2026-07-25",
+          "fechaPedido": "2026-07-25"
+        }
+      ]
+    }
+  ]
+}
