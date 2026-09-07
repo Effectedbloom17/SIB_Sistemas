@@ -1227,14 +1227,43 @@ function probarPuertoTcp(host, port, timeoutMs = 5000) {
     });
 }
 
+/**
+ * Verifica que el MySQL acepte usuario/contraseña del .env.
+ * Evita quedarse en un MySQL ajeno en localhost:3306 (puerto abierto pero Access denied).
+ */
+async function probarMysqlAuth(host, port, timeoutMs = 5000) {
+    if (!host || !Number.isFinite(port) || port <= 0) return false;
+    const tcpOk = await probarPuertoTcp(host, port, Math.min(timeoutMs, 3000));
+    if (!tcpOk) return false;
+
+    let conn = null;
+    try {
+        conn = await mysql.createConnection({
+            host,
+            port,
+            user: dbConfig.user,
+            password: dbConfig.password,
+            connectTimeout: timeoutMs
+        });
+        await conn.query('SELECT 1');
+        return true;
+    } catch (_err) {
+        return false;
+    } finally {
+        if (conn) {
+            try { await conn.end(); } catch (_e) { /* ignore */ }
+        }
+    }
+}
+
 let localNetworkProbe = null;
 /** 'local' | 'lan' | 'remote' — resultado de las dos variables DB_HOST_LOCAL / DB_HOST_LAN */
 let mysqlDestinoTipo = 'remote';
 
 /**
  * Detecta MySQL una sola vez y reutiliza el resultado en todos los pools.
- * 1) DB_HOST_LOCAL (esta PC / Docker local)
- * 2) DB_HOST_LAN (contenedor en otra PC de la misma red)
+ * 1) DB_HOST_LOCAL (esta PC / Docker local) con login válido
+ * 2) DB_HOST_LAN (contenedor en otra PC de la misma red) con login válido
  * Si ambas fallan, el arranque usa DB_HOST_REMOTE.
  */
 async function isLocalNetwork() {
@@ -1248,7 +1277,7 @@ async function isLocalNetwork() {
             ].filter(Boolean))];
 
             for (const host of candidatos) {
-                const ok = await probarPuertoTcp(host, port, 5000);
+                const ok = await probarMysqlAuth(host, port, 5000);
                 if (ok) {
                     if (host !== dbConfig.local.host) {
                         dbConfig.local.host = host;
@@ -1261,7 +1290,7 @@ async function isLocalNetwork() {
             const lanHost = dbConfig.lan.host && String(dbConfig.lan.host).trim();
             const lanPort = Number(dbConfig.lan.port || port);
             if (lanHost) {
-                const okLan = await probarPuertoTcp(lanHost, lanPort, 5000);
+                const okLan = await probarMysqlAuth(lanHost, lanPort, 5000);
                 if (okLan) {
                     dbConfig.local.host = lanHost;
                     dbConfig.local.port = lanPort;
@@ -1269,14 +1298,15 @@ async function isLocalNetwork() {
                     return true;
                 }
                 console.warn(
-                    `  MySQL del contenedor LAN no respondió en ${lanHost}:${lanPort}.`
+                    `  MySQL del contenedor LAN no aceptó login en ${lanHost}:${lanPort} ` +
+                    `(usuario ${dbConfig.user}).`
                 );
             }
 
             console.warn(
-                `  MySQL local no respondió en ${candidatos.join(' / ')}:${port}` +
+                `  MySQL local no aceptó login en ${candidatos.join(' / ')}:${port}` +
                 (lanHost ? ` ni en LAN ${lanHost}:${lanPort}` : '') +
-                `. Se usará el host remoto.`
+                ` con ${dbConfig.user}. Se usará el host remoto.`
             );
             mysqlDestinoTipo = 'remote';
             return false;

@@ -21,8 +21,8 @@ const JWT_PLACEHOLDERS = new Set([
 ]);
 
 /** IP actual de la PC que corre Docker (host de MariaDB en LAN). */
-const DB_HOST_LAN_DEFAULT = '192.168.1.174';
-const DB_HOST_LAN_OBSOLETOS = new Set(['192.168.1.78']);
+const DB_HOST_LAN_DEFAULT = '192.168.1.167';
+const DB_HOST_LAN_OBSOLETOS = new Set(['192.168.1.78', '192.168.1.174']);
 
 function leerValor(content, key) {
   const m = content.match(new RegExp(`^${key}=(.*)$`, 'm'));
