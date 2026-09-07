@@ -7,7 +7,13 @@ import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
 import { CorreoSugerido, CorreoSugerenciasService } from 'src/app/services/correo-sugerencias.service';
-
+import {
+  partesFechaMexico,
+  traducirFechaCorreoMexico,
+  traducirFechaDetalleCorreoMexico,
+  traducirFechaDetalleLargoMexico,
+  traducirFechaListaCorreoMexico
+} from 'src/app/utils/fecha.util';
 interface CorreoAdjunto {
   indice: number;
   nombre: string;
@@ -35,6 +41,8 @@ interface CorreoDetalle {
   cc?: string;
   cco?: string;
   fecha: string;
+  /** Instantáneo ISO (UTC) para traducir siempre a hora México. */
+  fechaIso?: string | null;
   asunto: string;
   messageId?: string;
   inReplyTo?: string;
@@ -309,10 +317,13 @@ export class CorreoComponent implements OnInit, OnDestroy {
   }
 
   get fechaEncabezadoVisible(): string {
-    return this.detalleCorreo?.fecha
+    const instante = this.detalleCorreo?.fechaIso
+      || this.mensajeSeleccionado?.fechaOriginal
+      || this.detalleCorreo?.fecha
       || this.mensajeSeleccionado?.fechaDetalle
       || this.mensajeSeleccionado?.fecha
       || '';
+    return instante ? traducirFechaDetalleCorreoMexico(instante) : '';
   }
 
   get etiquetaDestinatarioVisible(): string {
@@ -2122,7 +2133,7 @@ export class CorreoComponent implements OnInit, OnDestroy {
         }
 
         this.cargandoContenido = false;
-        this.detalleCorreo = response?.detalle || null;
+        this.detalleCorreo = this.traducirDetalleCorreo(response?.detalle || null);
 
         const html = String(response?.html || '').trim();
         if (html) {
@@ -2605,9 +2616,28 @@ export class CorreoComponent implements OnInit, OnDestroy {
     });
   }
 
+  private traducirDetalleCorreo(detalle: CorreoDetalle | null): CorreoDetalle | null {
+    if (!detalle) {
+      return null;
+    }
+
+    const instante = detalle.fechaIso
+      || this.mensajeSeleccionado?.fechaOriginal
+      || detalle.fecha
+      || null;
+
+    return {
+      ...detalle,
+      fecha: instante
+        ? traducirFechaDetalleLargoMexico(instante)
+        : (detalle.fecha || ''),
+      fechaIso: detalle.fechaIso || this.mensajeSeleccionado?.fechaOriginal || null
+    };
+  }
+
   private formatearFecha(date: Date): string {
-    const pad = (value: number) => String(value).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    const p = partesFechaMexico(date);
+    return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
   }
 
   private limpiarAlertas(): void {
@@ -2797,116 +2827,14 @@ export class CorreoComponent implements OnInit, OnDestroy {
   }
 
   private formatearFechaCorreo(fecha: string | null | undefined): string {
-    if (!fecha) return 'Sin fecha';
-
-    const date = new Date(fecha);
-    if (Number.isNaN(date.getTime())) {
-      return String(fecha);
-    }
-
-    return date.toLocaleString('es-MX', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return traducirFechaCorreoMexico(fecha);
   }
 
   private formatearFechaDetalle(fecha: string | null | undefined): string {
-    if (!fecha) return 'Sin fecha';
-
-    const date = new Date(fecha);
-    if (Number.isNaN(date.getTime())) {
-      return String(fecha);
-    }
-
-    const now = new Date();
-    const esMismoDia =
-      date.getFullYear() === now.getFullYear() &&
-      date.getMonth() === now.getMonth() &&
-      date.getDate() === now.getDate();
-
-    if (esMismoDia) {
-      const diffMs = Math.max(0, now.getTime() - date.getTime());
-      const diffMinutes = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMinutes / 60);
-      const relativo = diffHours >= 1
-        ? `hace ${diffHours} ${diffHours === 1 ? 'hora' : 'horas'}`
-        : `hace ${Math.max(1, diffMinutes)} min`;
-
-      return `${this.formatearHoraCorta(date)} (${relativo})`;
-    }
-
-    const formatter = new Intl.DateTimeFormat('es-MX', {
-      weekday: 'short',
-      day: '2-digit',
-      month: 'short'
-    });
-    const parts = formatter.formatToParts(date);
-    const weekday = this.limpiarAbreviatura(parts.find(part => part.type === 'weekday')?.value || '');
-    const day = parts.find(part => part.type === 'day')?.value || '';
-    const month = this.limpiarAbreviatura(parts.find(part => part.type === 'month')?.value || '');
-
-    return `${weekday}, ${day} ${month}, ${this.formatearHoraCorta(date, true)}`;
+    return traducirFechaDetalleCorreoMexico(fecha);
   }
 
   private formatearFechaLista(fecha: string | null | undefined): string {
-    if (!fecha) return 'Sin fecha';
-
-    const date = new Date(fecha);
-    if (Number.isNaN(date.getTime())) {
-      return String(fecha);
-    }
-
-    const now = new Date();
-    const diffMs = Math.max(0, now.getTime() - date.getTime());
-    const diffHours = diffMs / 3600000;
-    const diffDays = diffMs / 86400000;
-
-    if (diffHours < 24) {
-      return this.formatearHoraMeridiana(date);
-    }
-
-    if (diffDays < 7) {
-      const formatter = new Intl.DateTimeFormat('es-MX', { weekday: 'short' });
-      const weekdayRaw = formatter.format(date);
-      const weekday = this.capitalizarPrimera(this.limpiarAbreviatura(weekdayRaw));
-      return `${weekday} ${this.formatearHoraMeridiana(date)}`;
-    }
-
-    return this.formatearFechaIsoCorta(date);
-  }
-
-  private formatearHoraCorta(date: Date, formato24 = false): string {
-    const pad = (value: number) => String(value).padStart(2, '0');
-    if (formato24) {
-      return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-    }
-    const hours = date.getHours() % 12 || 12;
-    return `${hours}:${pad(date.getMinutes())}`;
-  }
-
-  private formatearHoraMeridiana(date: Date): string {
-    const pad = (value: number) => String(value).padStart(2, '0');
-    const hours = date.getHours();
-    const hours12 = hours % 12 || 12;
-    const suffix = hours >= 12 ? 'PM' : 'AM';
-    return `${hours12}:${pad(date.getMinutes())} ${suffix}`;
-  }
-
-  private formatearFechaIsoCorta(date: Date): string {
-    const pad = (value: number) => String(value).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-  }
-
-  private capitalizarPrimera(texto: string): string {
-    const limpio = String(texto || '').trim();
-    if (!limpio) return '';
-    return limpio.charAt(0).toUpperCase() + limpio.slice(1);
-  }
-
-  private limpiarAbreviatura(texto: string): string {
-    return String(texto || '').replace(/\./g, '').trim();
+    return traducirFechaListaCorreoMexico(fecha);
   }
 }

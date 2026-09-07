@@ -2571,11 +2571,6 @@ function authMiddleware(req, res, next) {
 // =====================================================
 // VALIDACIÓN DE CONFIGURACIÓN CRÍTICA
 // =====================================================
-if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-    console.error('[FATAL] JWT_SECRET no configurado o demasiado corto (mínimo 32 caracteres)');
-    console.error('  Configura JWT_SECRET en el archivo .env');
-    process.exit(1);
-}
 // SEGURIDAD: rechazar valores placeholder de ejemplo. Un secreto por defecto permitiría
 // que cualquiera firme tokens válidos (suplantación total). Solo se dispara con valores
 // de plantilla conocidos, nunca con un secreto real ya configurado.
@@ -2584,10 +2579,49 @@ const JWT_SECRET_PLACEHOLDERS = new Set([
     'CAMBIA_ESTO_POR_UN_VALOR_ALEATORIO_LARGO',
     'un_string_aleatorio_de_minimo_32_caracteres'
 ]);
-if (JWT_SECRET_PLACEHOLDERS.has(process.env.JWT_SECRET)) {
-    console.error('[FATAL] JWT_SECRET tiene un valor placeholder de ejemplo. Genera uno real con:');
-    console.error('  node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'hex\'))"');
-    process.exit(1);
+
+function jwtSecretInvalido(secret) {
+    return !secret || secret.length < 32 || JWT_SECRET_PLACEHOLDERS.has(secret);
+}
+
+function repararJwtSecretDesarrollo() {
+    if (String(process.env.NODE_ENV || '').toLowerCase() === 'production') {
+        return false;
+    }
+    const crypto = require('crypto');
+    const fs = require('fs');
+    const path = require('path');
+    const nuevo = crypto.randomBytes(48).toString('hex');
+    process.env.JWT_SECRET = nuevo;
+
+    try {
+        const envFile = process.env.ENV_FILE || '.env';
+        const envPath = path.join(__dirname, envFile);
+        if (!fs.existsSync(envPath)) {
+            console.warn('[WARN] JWT_SECRET inválido: se generó uno temporal (solo esta sesión).');
+            return true;
+        }
+        let content = fs.readFileSync(envPath, 'utf8');
+        if (/^JWT_SECRET=.*$/m.test(content)) {
+            content = content.replace(/^JWT_SECRET=.*$/m, `JWT_SECRET=${nuevo}`);
+        } else {
+            content = `${content.trimEnd()}\nJWT_SECRET=${nuevo}\n`;
+        }
+        fs.writeFileSync(envPath, content, 'utf8');
+        console.warn('[WARN] JWT_SECRET inválido o placeholder: se generó uno nuevo en', envFile);
+        return true;
+    } catch (err) {
+        console.warn('[WARN] JWT_SECRET generado en memoria; no se pudo guardar en .env:', err.message);
+        return true;
+    }
+}
+
+if (jwtSecretInvalido(process.env.JWT_SECRET)) {
+    if (!repararJwtSecretDesarrollo()) {
+        console.error('[FATAL] JWT_SECRET no configurado o demasiado corto (mínimo 32 caracteres)');
+        console.error('  Configura JWT_SECRET en el archivo .env');
+        process.exit(1);
+    }
 }
 
 // =====================================================
@@ -25592,6 +25626,7 @@ const sgcF05Service = require('./sgcF05Service');
 const sgcAthF08Service = require('./sgcAthF08Service');
 const sgcAthF02Service = require('./sgcAthF02Service');
 const sgcAthF09Service = require('./sgcAthF09Service');
+const sgcAthF11Service = require('./sgcAthF11Service');
 const sgcControlProyectosService = require('./sgcControlProyectosService');
 const sgcSgcF06Service = require('./sgcSgcF06Service');
 const sgcSgcF18Service = require('./sgcSgcF18Service');
@@ -27046,6 +27081,60 @@ app.post('/api/sgc/formatos/ath-f-09/subir-pdf-firmado', requireAdminOrSgc, asyn
         });
     } catch (error) {
         handleError(res, error, 'No se pudo subir el PDF firmado ATH-F-09');
+    }
+});
+
+app.get('/api/sgc/formatos/ath-f-11', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAthF11Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, message: 'Formato ATH-F-11 cargado.', ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato ATH-F-11');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-11/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAthF11Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: 'Formato ATH-F-11 guardado y sincronizado con Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato ATH-F-11');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-11/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAthF11Service.sincronizarDesdeDrive(poolBiznagaSgc, req.body || {});
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: 'ATH-F-11 sincronizado desde Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo sincronizar ATH-F-11 desde Drive');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-11/actualizar-plantilla', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAthF11Service.actualizarPlantillaDesdeSistema(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Plantilla ATH-F-11 verificada.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo actualizar la plantilla ATH-F-11');
     }
 });
 

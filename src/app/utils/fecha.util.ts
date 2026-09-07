@@ -257,3 +257,233 @@ export function obtenerFechaHoyLocal(): string {
   const day = String(hoy.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+
+/** Zona horaria oficial del sistema (UTC México). */
+export const ZONA_HORARIA_MEXICO = 'America/Mexico_City';
+
+const MESES_ES_A_NUM: Record<string, number> = {
+  ene: 0, enero: 0,
+  feb: 1, febrero: 1,
+  mar: 2, marzo: 2,
+  abr: 3, abril: 3,
+  may: 4, mayo: 4,
+  jun: 5, junio: 5,
+  jul: 6, julio: 6,
+  ago: 7, agosto: 7,
+  sep: 8, sept: 8, septiembre: 8,
+  oct: 9, octubre: 9,
+  nov: 10, noviembre: 10,
+  dic: 11, diciembre: 11
+};
+
+export type PartesFechaMexico = {
+  year: string;
+  month: string;
+  day: string;
+  hour: string;
+  minute: string;
+  weekday: string;
+};
+
+/**
+ * Traductor de instantes de correo a zona México.
+ * Acepta ISO (UTC), Date, o texto ya formateado en es-MX (p. ej. "4 sep 2026, 18:02"
+ * de backends antiguos en UTC) y lo reconstruye como instante para mostrarlo en México.
+ */
+export function parsearInstanteCorreo(valor: string | Date | null | undefined): Date | null {
+  if (!valor) {
+    return null;
+  }
+
+  if (valor instanceof Date) {
+    return Number.isNaN(valor.getTime()) ? null : valor;
+  }
+
+  const texto = String(valor).trim();
+  if (!texto) {
+    return null;
+  }
+
+  const iso = new Date(texto);
+  if (!Number.isNaN(iso.getTime()) && /(?:Z|[+-]\d{2}:?\d{2})$/i.test(texto.replace(/\s/g, ''))) {
+    return iso;
+  }
+  if (!Number.isNaN(iso.getTime()) && /^\d{4}-\d{2}-\d{2}T/.test(texto)) {
+    return iso;
+  }
+
+  // "4 sep 2026, 18:02" / "4 de sep de 2026, 18:02" (formato legacy del detalle IMAP)
+  const legacy = texto.match(
+    /^(\d{1,2})\s*(?:de\s+)?([A-Za-záéíóúñ.]+)\s*(?:de\s+)?(\d{4})\s*,?\s*(\d{1,2}):(\d{2})(?:\s*(a\.\s*m\.|p\.\s*m\.|am|pm))?$/i
+  );
+  if (legacy) {
+    const dia = Number(legacy[1]);
+    const mesKey = legacy[2].replace(/\./g, '').toLowerCase();
+    const anio = Number(legacy[3]);
+    let hora = Number(legacy[4]);
+    const min = Number(legacy[5]);
+    const meridiano = (legacy[6] || '').toLowerCase().replace(/\./g, '').replace(/\s/g, '');
+    const mes = MESES_ES_A_NUM[mesKey];
+    if (mes != null && !Number.isNaN(dia) && !Number.isNaN(anio)) {
+      if (meridiano === 'pm' && hora < 12) hora += 12;
+      if (meridiano === 'am' && hora === 12) hora = 0;
+      // Esas cadenas legacy se generaron con toLocaleString en servidor UTC:
+      // se interpretan como reloj UTC y luego se traducen a México al formatear.
+      return new Date(Date.UTC(anio, mes, dia, hora, min, 0));
+    }
+  }
+
+  if (!Number.isNaN(iso.getTime())) {
+    return iso;
+  }
+
+  return null;
+}
+
+export function partesFechaMexico(date: Date): PartesFechaMexico {
+  const parts = new Intl.DateTimeFormat('es-MX', {
+    timeZone: ZONA_HORARIA_MEXICO,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    weekday: 'short'
+  }).formatToParts(date);
+
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value || '';
+
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+    hour: get('hour'),
+    minute: get('minute'),
+    weekday: get('weekday')
+  };
+}
+
+export function esMismoDiaMexico(a: Date, b: Date): boolean {
+  const pa = partesFechaMexico(a);
+  const pb = partesFechaMexico(b);
+  return pa.year === pb.year && pa.month === pb.month && pa.day === pb.day;
+}
+
+/** Traduce cualquier instante de correo a texto corto DD/MM/YYYY HH:mm (México). */
+export function traducirFechaCorreoMexico(valor: string | Date | null | undefined): string {
+  const date = parsearInstanteCorreo(valor);
+  if (!date) {
+    return valor ? String(valor) : 'Sin fecha';
+  }
+
+  return date.toLocaleString('es-MX', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: ZONA_HORARIA_MEXICO
+  });
+}
+
+/** Traduce al formato de encabezado/detalle de correo (México). */
+export function traducirFechaDetalleCorreoMexico(valor: string | Date | null | undefined): string {
+  const date = parsearInstanteCorreo(valor);
+  if (!date) {
+    return valor ? String(valor) : 'Sin fecha';
+  }
+
+  const now = new Date();
+  if (esMismoDiaMexico(date, now)) {
+    const diffMs = Math.max(0, now.getTime() - date.getTime());
+    const diffMinutes = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMinutes / 60);
+    const relativo = diffHours >= 1
+      ? `hace ${diffHours} ${diffHours === 1 ? 'hora' : 'horas'}`
+      : `hace ${Math.max(1, diffMinutes)} min`;
+    return `${traducirHoraCortaMexico(date)} (${relativo})`;
+  }
+
+  const formatter = new Intl.DateTimeFormat('es-MX', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    timeZone: ZONA_HORARIA_MEXICO
+  });
+  const parts = formatter.formatToParts(date);
+  const weekday = (parts.find((p) => p.type === 'weekday')?.value || '').replace(/\./g, '').trim();
+  const day = parts.find((p) => p.type === 'day')?.value || '';
+  const month = (parts.find((p) => p.type === 'month')?.value || '').replace(/\./g, '').trim();
+  return `${weekday}, ${day} ${month}, ${traducirHoraCortaMexico(date, true)}`;
+}
+
+/** Traduce a formato de lista (hoy → hora; semana → día+hora; resto → YYYY-MM-DD). */
+export function traducirFechaListaCorreoMexico(valor: string | Date | null | undefined): string {
+  const date = parsearInstanteCorreo(valor);
+  if (!date) {
+    return valor ? String(valor) : 'Sin fecha';
+  }
+
+  const now = new Date();
+  const diffMs = Math.max(0, now.getTime() - date.getTime());
+  const diffHours = diffMs / 3600000;
+  const diffDays = diffMs / 86400000;
+
+  if (diffHours < 24) {
+    return traducirHoraMeridianaMexico(date);
+  }
+
+  if (diffDays < 7) {
+    const weekdayRaw = new Intl.DateTimeFormat('es-MX', {
+      weekday: 'short',
+      timeZone: ZONA_HORARIA_MEXICO
+    }).format(date);
+    const weekday = weekdayRaw.replace(/\./g, '').trim();
+    const capitalizado = weekday ? weekday.charAt(0).toUpperCase() + weekday.slice(1) : '';
+    return `${capitalizado} ${traducirHoraMeridianaMexico(date)}`;
+  }
+
+  const p = partesFechaMexico(date);
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+export function traducirHoraCortaMexico(date: Date, formato24 = false): string {
+  const p = partesFechaMexico(date);
+  const hours24 = Number(p.hour);
+  if (formato24) {
+    return `${p.hour}:${p.minute}`;
+  }
+  const hours = hours24 % 12 || 12;
+  return `${hours}:${p.minute}`;
+}
+
+export function traducirHoraMeridianaMexico(date: Date): string {
+  const p = partesFechaMexico(date);
+  const hours = Number(p.hour);
+  const hours12 = hours % 12 || 12;
+  const suffix = hours >= 12 ? 'PM' : 'AM';
+  return `${hours12}:${p.minute} ${suffix}`;
+}
+
+/**
+ * Formato largo de detalle IMAP en hora México
+ * (equivalente backend a toLocaleString con America/Mexico_City).
+ */
+export function traducirFechaDetalleLargoMexico(valor: string | Date | null | undefined): string {
+  const date = parsearInstanteCorreo(valor);
+  if (!date) {
+    return valor ? String(valor) : '';
+  }
+
+  return date.toLocaleString('es-MX', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: ZONA_HORARIA_MEXICO
+  });
+}
