@@ -1,6 +1,7 @@
 <ng-container *ngIf="config && plantilla as tpl">
-  <div class="sgc-preview-page" [class.sgc-preview-page--dg-f-01]="plantillaSlug === 'dg-f-01'" [class.sgc-preview-page--dg-f-02]="plantillaSlug === 'dg-f-02' || plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'dg-f-03'" [class.sgc-preview-page--dg-f-03]="plantillaSlug === 'dg-f-03'" [class.sgc-preview-page--dg-f-05]="plantillaSlug === 'dg-f-05' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06'" [class.sgc-preview-page--dg-f-04]="plantillaSlug === 'dg-f-04'" [class.sgc-preview-page--dg-f-07]="plantillaSlug === 'dg-f-07'" [class.sgc-preview-page--metodologia-amef]="plantillaSlug === 'metodologia-amef'"
-       [class.sgc-preview-page--ath-f-09-editor]="plantillaSlug === 'ath-f-09' && athF09Vista === 'editor'">
+  <div class="sgc-preview-page" [class.sgc-preview-page--dg-f-01]="plantillaSlug === 'dg-f-01'" [class.sgc-preview-page--dg-f-02]="plantillaSlug === 'dg-f-02' || plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'dg-f-03'" [class.sgc-preview-page--dg-f-03]="plantillaSlug === 'dg-f-03'" [class.sgc-preview-page--dg-f-05]="plantillaSlug === 'dg-f-05' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06'" [class.sgc-preview-page--dg-f-04]="plantillaSlug === 'dg-f-04'" [class.sgc-preview-page--dg-f-07]="plantillaSlug === 'dg-f-07'" [class.sgc-preview-page--metodologia-amef]="plantillaSlug === 'metodologia-amef'"
+       [class.sgc-preview-page--ath-f-09-editor]="plantillaSlug === 'ath-f-09' && athF09Vista === 'editor'"
+       [class.sgc-preview-page--ath-f-11-editor]="plantillaSlug === 'ath-f-11' && athF11Vista === 'editor'">
   <div class="header header-bg-image sgc-hero sgc-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
     <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
       <div class="row w-100 text-center">
@@ -249,7 +250,7 @@
                 </div>
               </ng-container>
               <ng-template #toolbarDriveSyncRest>
-              <ng-container *ngIf="plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06'; else enlaceDriveExterno">
+              <ng-container *ngIf="plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06'; else enlaceDriveExterno">
                 <div class="sgc-preview-toolbar__actions">
                   <span class="sgc-preview-sync sgc-preview-sync--hint" *ngIf="driveSyncCambiosPendientes && !driveSyncGuardando && plantillaSlug !== 'sgc-f-05'">
                     Cambios sin guardar
@@ -270,7 +271,7 @@
                     Actualizar versiones
                   </button>
                   <button
-                    *ngIf="puedeGestionarPlantillasSgc && plantillaSlug !== 'sgc-f-05' && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04')"
+                    *ngIf="puedeGestionarPlantillasSgc && plantillaSlug !== 'sgc-f-05' && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04')"
                     type="button"
                     class="btn btn-sm sgc-btn-save-info"
                     [disabled]="driveSyncCargando || driveSyncGuardando || (plantillaSlug === 'sgc-f-10' && sgcF10GuardandoHistorico)"
@@ -1267,6 +1268,361 @@
                         </div>
                       </div>
                     </aside>
+                  </article>
+                </div>
+              </form>
+            </ng-container>
+            <ng-container *ngSwitchCase="'ath-f-11'">
+              <form class="dg-f05-form ath-f-11-form" (ngSubmit)="$event.preventDefault()"
+                    (input)="onAthF11Editado()" (change)="onAthF11Editado()">
+                <div class="dg-f05-doc-wrap" [class.dg-f05-doc-wrap--loading]="athF11Cargando">
+                  <div class="dg-f05-loading" *ngIf="athF11Cargando" role="status">
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    <span>Cargando evaluaciones…</span>
+                  </div>
+
+                  <article class="dg-f05-doc sgc-f-04-doc ath-f-11-doc ath-f-11-doc--archivero" *ngIf="athF11Vista === 'archivero'">
+                    <span class="sgc-f-04-doc__deco sgc-f-04-doc__deco--tr" aria-hidden="true"></span>
+                    <span class="sgc-f-04-doc__deco sgc-f-04-doc__deco--br" aria-hidden="true"></span>
+                    <header class="dg-f05-doc__header sgc-f-04-doc__header ath-f-11-doc__header">
+                      <div class="sgc-f-04-doc__header-main">
+                        <span class="dg-f05-doc__code">ATH-F-11</span>
+                        <h3 class="dg-f05-doc__title">Evaluación de desempeño</h3>
+                      </div>
+                      <div class="sgc-f-04-doc__header-meta">
+                        <label class="sgc-f-04-doc__meta-item">
+                          <span class="sgc-f-04-doc__meta-label">Revisión</span>
+                          <input class="sgc-f-04-doc__meta-input" type="text" name="athF11_revision_arch"
+                            [(ngModel)]="athF11Form.revision" autocomplete="off" readonly>
+                        </label>
+                        <label class="sgc-f-04-doc__meta-item">
+                          <span class="sgc-f-04-doc__meta-label">Fecha de revisión</span>
+                          <span class="sgc-f-04-doc__meta-input ath-f-11-doc__fecha-rev">
+                            {{ formatearFechaRevAthF11(athF11Form.fechaRevision) }}
+                          </span>
+                        </label>
+                      </div>
+                    </header>
+
+                    <div class="sgc-f-04-archivero ath-f-11-archivero">
+                      <div class="sgc-f-04-archivero__intro">
+                        <div class="sgc-f-04-archivero__intro-main">
+                          <div class="sgc-f-04-archivero__intro-icon">
+                            <i class="fas fa-user-check" aria-hidden="true"></i>
+                          </div>
+                          <div class="sgc-f-04-archivero__intro-text">
+                            <h4 class="sgc-f-04-archivero__title">Archivero de evaluaciones</h4>
+                            <p class="sgc-f-04-archivero__hint">
+                              Consulta, abre o crea evaluaciones con folio <strong>ED-YY-NNN</strong>.
+                              Cada registro genera su documento en Drive al guardar.
+                            </p>
+                          </div>
+                        </div>
+                        <div class="sgc-f-04-archivero__toolbar">
+                          <label class="sgc-f-04-archivero__search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input class="dg-f05-field" type="search" [(ngModel)]="athF11Busqueda" name="athF11_busqueda"
+                              placeholder="Buscar folio o colaborador…" autocomplete="off">
+                          </label>
+                          <button type="button" class="sgc-f-04-archivero__btn-nuevo" (click)="nuevoEvaluacionAthF11()">
+                            <i class="fas fa-plus" aria-hidden="true"></i> Nueva evaluación
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="sgc-f-04-archivero__stats">
+                        <span class="sgc-f-04-archivero__stat">
+                          {{ athF11Form.evaluaciones.length }}
+                          {{ athF11Form.evaluaciones.length === 1 ? 'evaluación' : 'evaluaciones' }}
+                        </span>
+                        <span class="sgc-f-04-archivero__stat sgc-f-04-archivero__stat--muted">
+                          Siguiente folio sugerido: <strong>{{ athF11SiguienteFolio }}</strong>
+                        </span>
+                        <span class="sgc-f-04-archivero__stat sgc-f-04-archivero__stat--muted"
+                          *ngIf="athF11Busqueda.trim() && athF11EvaluacionesVista.length !== athF11Form.evaluaciones.length">
+                          · {{ athF11EvaluacionesVista.length }} en vista
+                        </span>
+                      </div>
+
+                      <ul class="sgc-f-04-archivero__grid" *ngIf="athF11EvaluacionesVista.length; else athF11ArchiveroVacio">
+                        <li class="sgc-f-04-book ath-f-11-book"
+                          *ngFor="let ev of athF11EvaluacionesVista; trackBy: trackByIdx">
+                          <button type="button" class="sgc-f-04-book__tap" (click)="abrirEvaluacionAthF11(ev)">
+                            <span class="sgc-f-04-book__binding" aria-hidden="true">
+                              <span class="sgc-f-04-book__ring" *ngFor="let _ of [0,1,2,3,4,5]"></span>
+                            </span>
+                            <span class="sgc-f-04-book__page">
+                              <span class="sgc-f-04-book__corner" aria-hidden="true"></span>
+                              <span class="sgc-f-04-book__head">
+                                <span class="sgc-f-04-book__icon">
+                                  <i class="fas fa-file-word" aria-hidden="true"></i>
+                                </span>
+                                <span class="sgc-f-04-book__estado"
+                                  [class.sgc-f-04-book__estado--cerrado]="!!ev.driveFileId">
+                                  {{ ev.borrador && !ev.driveFileId ? 'Borrador' : 'Registrada' }}
+                                </span>
+                              </span>
+                              <span class="sgc-f-04-book__origen">{{ ev.nombreCompleto?.trim() || 'Sin colaborador' }}</span>
+                              <span class="sgc-f-04-book__folio">{{ ev.folio || 'Sin folio' }}</span>
+                              <span class="sgc-f-04-book__lines" aria-hidden="true">
+                                <span></span><span></span><span></span>
+                              </span>
+                              <span class="sgc-f-04-book__foot">
+                                <span class="sgc-f-04-book__fecha" *ngIf="ev.fechaCreacion">
+                                  {{ formatearFechaCortaSgcF04(ev.fechaCreacion) }}
+                                </span>
+                                <span class="sgc-f-04-book__fuente" *ngIf="ev.promedioGeneral != null">
+                                  Prom. {{ formatearPromedioAthF11(ev.promedioGeneral) }}
+                                </span>
+                              </span>
+                            </span>
+                          </button>
+                          <button type="button" class="sgc-f-04-book__del"
+                            title="Eliminar evaluación" aria-label="Eliminar evaluación"
+                            (click)="eliminarEvaluacionAthF11(ev, $event)">
+                            <i class="fas fa-times" aria-hidden="true"></i>
+                          </button>
+                        </li>
+                      </ul>
+                      <ng-template #athF11ArchiveroVacio>
+                        <div class="sgc-f-04-archivero__empty">
+                          <div class="sgc-empty-state">
+                            <div class="sgc-empty-state__icon"><i class="fas fa-folder-open" aria-hidden="true"></i></div>
+                            <h4 class="sgc-empty-state__title">Sin evaluaciones registradas</h4>
+                            <p class="sgc-empty-state__text mb-0">Crea la primera evaluación para generar el documento en Drive con folio {{ athF11SiguienteFolio }}.</p>
+                          </div>
+                        </div>
+                      </ng-template>
+                    </div>
+                  </article>
+
+                  <article class="dg-f05-doc sgc-f-04-doc ath-f-11-doc ath-f-11-doc--editor" *ngIf="athF11Vista === 'editor' && athF11EvaluacionActiva as ev">
+                    <div class="sgc-f-04-editor-bar">
+                      <button type="button" class="sgc-f-04-editor-bar__back" (click)="volverArchiveroAthF11()">
+                        <i class="fas fa-arrow-left mr-1" aria-hidden="true"></i>
+                        Volver al archivero
+                      </button>
+                      <span class="sgc-f-04-editor-bar__folio">{{ ev.folio }}</span>
+                    </div>
+
+                    <div class="ath-f-11-wrap">
+                      <article class="ath-f-11-page" aria-label="Evaluación de desempeño ATH-F-11">
+                        <div class="ath-f-11-page__pattern" aria-hidden="true"></div>
+                        <div class="ath-f-11-page__inner">
+                          <header class="ath-f-11-page__doc-head">
+                            <div class="ath-f-11-page__brand">
+                              <img class="ath-f-11-page__logo" src="assets/img/logo_biznaga.png" alt="Biznaga Risk and Tech">
+                            </div>
+                            <table class="ath-f-11-page__meta-table" aria-label="Metadatos del formato">
+                              <tbody>
+                                <tr>
+                                  <th scope="row">Código</th>
+                                  <td>ATH-F-11</td>
+                                  <th scope="row">Revisión</th>
+                                  <td>{{ athF11Form.revision }}</td>
+                                </tr>
+                                <tr>
+                                  <th scope="row">Título</th>
+                                  <td colspan="3">Evaluación de desempeño</td>
+                                </tr>
+                                <tr>
+                                  <th scope="row">Fecha Rev.</th>
+                                  <td colspan="3">{{ formatearFechaRevAthF11(athF11Form.fechaRevision) }}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </header>
+
+                          <div class="ath-f-11-page__toolbar" aria-label="Identificación de la evaluación">
+                            <label class="ath-f-11-page__mini-field">
+                              <span>Folio</span>
+                              <input type="text" name="athF11_folio" [(ngModel)]="ev.folio"
+                                placeholder="ED-26-001" autocomplete="off">
+                              <small class="ath-f-11-page__folio-regla">
+                                Formato <strong>ED-YY-NNN</strong> (año + consecutivo).
+                              </small>
+                            </label>
+                          </div>
+
+                          <section class="ath-f-11-page__intro" aria-label="Marco de la evaluación">
+                            <article class="ath-f-11-page__intro-card" *ngFor="let sec of athF11SeccionesIntro; trackBy: trackByIdx">
+                              <h3 class="ath-f-11-page__intro-title">
+                                <span>{{ sec.num }}.</span> {{ sec.titulo }}
+                              </h3>
+                              <p class="ath-f-11-page__intro-text">{{ sec.texto }}</p>
+                            </article>
+                          </section>
+
+                          <section class="ath-f-11-page__section">
+                            <h3 class="ath-f-11-page__section-title">Datos generales del colaborador</h3>
+                            <div class="ath-f-11-page__datos">
+                              <label class="ath-f-11-page__field ath-f-11-page__field--full">
+                                <span>Nombre completo</span>
+                                <input type="text" name="athF11_nombre" [(ngModel)]="ev.nombreCompleto"
+                                  placeholder="Nombre del colaborador" autocomplete="off">
+                              </label>
+                              <label class="ath-f-11-page__field">
+                                <span>Puesto</span>
+                                <input type="text" name="athF11_puesto" [(ngModel)]="ev.puesto" autocomplete="off">
+                              </label>
+                              <label class="ath-f-11-page__field">
+                                <span>Área / Departamento</span>
+                                <input type="text" name="athF11_area" [(ngModel)]="ev.areaDepartamento" autocomplete="off">
+                              </label>
+                              <label class="ath-f-11-page__field">
+                                <span>No. de empleado</span>
+                                <input type="text" name="athF11_noEmp" [(ngModel)]="ev.noEmpleado" autocomplete="off">
+                              </label>
+                              <label class="ath-f-11-page__field">
+                                <span>Fecha de ingreso</span>
+                                <input type="date" name="athF11_fechaIngreso" [(ngModel)]="ev.fechaIngreso">
+                              </label>
+                              <label class="ath-f-11-page__field ath-f-11-page__field--full">
+                                <span>Periodo evaluado</span>
+                                <input type="text" name="athF11_periodo" [(ngModel)]="ev.periodoEvaluado"
+                                  placeholder="Ej. Enero – Diciembre 2026" autocomplete="off">
+                              </label>
+                            </div>
+                          </section>
+
+                          <section class="ath-f-11-page__section">
+                            <p class="ath-f-11-page__instrucciones">
+                              <strong>Instrucciones:</strong> Evalúe cada competencia de acuerdo con la siguiente escala:
+                            </p>
+                            <div class="ath-f-11-page__escala-wrap">
+                              <table class="ath-f-11-page__escala" aria-label="Escala de calificación">
+                                <thead>
+                                  <tr>
+                                    <th scope="row">Desempeño</th>
+                                    <th *ngFor="let e of athF11Escala; trackBy: trackByIdx">{{ e.etiqueta }}</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr>
+                                    <th scope="row">Calificación</th>
+                                    <td *ngFor="let e of athF11Escala; trackBy: trackByIdx">{{ e.valor }}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+
+                            <div class="ath-f-11-page__comp-table-wrap">
+                              <table class="ath-f-11-page__comp-table" aria-label="Criterios de evaluación">
+                                <thead>
+                                  <tr>
+                                    <th class="ath-f-11-page__comp-criterio">Criterio</th>
+                                    <th class="ath-f-11-page__comp-score" *ngFor="let e of athF11Escala; trackBy: trackByIdx">{{ e.valor }}</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <ng-container *ngFor="let grupo of athF11GruposOrden">
+                                    <tr class="ath-f-11-page__comp-group">
+                                      <td [attr.colspan]="1 + athF11Escala.length">{{ athF11GruposLabel[grupo] }}</td>
+                                    </tr>
+                                    <tr *ngFor="let comp of competenciasPorGrupoAthF11(grupo); trackBy: trackByIdx">
+                                      <td class="ath-f-11-page__comp-criterio">
+                                        <strong>{{ comp.titulo }}.</strong>
+                                        <span>{{ comp.descripcion }}</span>
+                                      </td>
+                                      <td class="ath-f-11-page__comp-score" *ngFor="let e of athF11Escala; trackBy: trackByIdx">
+                                        <label class="ath-f-11-page__radio">
+                                          <input type="radio"
+                                            [name]="'athF11_comp_' + comp.id"
+                                            [checked]="comp.calificacion === e.valor"
+                                            (change)="setCalificacionAthF11(comp.id, e.valor)">
+                                          <span class="ath-f-11-page__radio-mark" aria-hidden="true"></span>
+                                          <span class="sr-only">{{ e.valor }} — {{ e.etiqueta }}</span>
+                                        </label>
+                                      </td>
+                                    </tr>
+                                  </ng-container>
+                                </tbody>
+                              </table>
+                            </div>
+                          </section>
+
+                          <section class="ath-f-11-page__section">
+                            <h3 class="ath-f-11-page__block-title">Observaciones</h3>
+                            <textarea class="ath-f-11-page__textarea" rows="4" name="athF11_obs"
+                              [(ngModel)]="ev.observaciones" placeholder="Observaciones generales…"></textarea>
+                          </section>
+
+                          <section class="ath-f-11-page__section">
+                            <h3 class="ath-f-11-page__block-title">Resultados de la evaluación</h3>
+                            <div class="ath-f-11-page__resultados">
+                              <div class="ath-f-11-page__resultado-row">
+                                <span class="ath-f-11-page__resultado-label">Promedio general de desempeño</span>
+                                <strong class="ath-f-11-page__promedio">{{ formatearPromedioAthF11(ev.promedioGeneral) }}</strong>
+                              </div>
+                              <label class="ath-f-11-page__resultado-row ath-f-11-page__resultado-row--stack">
+                                <span class="ath-f-11-page__resultado-label">Fortalezas del colaborador</span>
+                                <textarea class="ath-f-11-page__textarea" rows="3" name="athF11_fortalezas"
+                                  [(ngModel)]="ev.fortalezas"></textarea>
+                              </label>
+                              <label class="ath-f-11-page__resultado-row ath-f-11-page__resultado-row--stack">
+                                <span class="ath-f-11-page__resultado-label">Áreas de oportunidad</span>
+                                <textarea class="ath-f-11-page__textarea" rows="3" name="athF11_oportunidad"
+                                  [(ngModel)]="ev.areasOportunidad"></textarea>
+                              </label>
+                              <label class="ath-f-11-page__resultado-row ath-f-11-page__resultado-row--stack">
+                                <span class="ath-f-11-page__resultado-label">Plan de mejora y desarrollo</span>
+                                <textarea class="ath-f-11-page__textarea" rows="3" name="athF11_plan"
+                                  [(ngModel)]="ev.planMejora"></textarea>
+                              </label>
+                              <label class="ath-f-11-page__resultado-row ath-f-11-page__resultado-row--stack">
+                                <span class="ath-f-11-page__resultado-label">Comentarios generales del evaluador</span>
+                                <textarea class="ath-f-11-page__textarea" rows="3" name="athF11_comentarios"
+                                  [(ngModel)]="ev.comentariosEvaluador"></textarea>
+                              </label>
+                            </div>
+                          </section>
+
+                          <section class="ath-f-11-page__section ath-f-11-page__firmas">
+                            <h3 class="ath-f-11-page__section-title ath-f-11-page__section-title--center">Firmas</h3>
+                            <div class="ath-f-11-page__firmas-grid">
+                              <div class="ath-f-11-page__firma-box">
+                                <span class="ath-f-11-page__firma-caption">Firma del colaborador</span>
+                                <label class="ath-f-11-page__field">
+                                  <span>Nombre</span>
+                                  <input type="text" name="athF11_firma_col_nom" [(ngModel)]="ev.firmaColaboradorNombre" autocomplete="off">
+                                </label>
+                                <label class="ath-f-11-page__field">
+                                  <span>Puesto</span>
+                                  <input type="text" name="athF11_firma_col_pto" [(ngModel)]="ev.firmaColaboradorPuesto" autocomplete="off">
+                                </label>
+                              </div>
+                              <div class="ath-f-11-page__firma-box">
+                                <span class="ath-f-11-page__firma-caption">Firma del evaluador</span>
+                                <label class="ath-f-11-page__field">
+                                  <span>Nombre</span>
+                                  <input type="text" name="athF11_firma_ev_nom" [(ngModel)]="ev.firmaEvaluadorNombre" autocomplete="off">
+                                </label>
+                                <label class="ath-f-11-page__field">
+                                  <span>Puesto</span>
+                                  <input type="text" name="athF11_firma_ev_pto" [(ngModel)]="ev.firmaEvaluadorPuesto" autocomplete="off">
+                                </label>
+                              </div>
+                            </div>
+                            <label class="ath-f-11-page__field ath-f-11-page__field--fecha-eval">
+                              <span>Fecha de la evaluación</span>
+                              <input type="date" name="athF11_fechaEval" [(ngModel)]="ev.fechaEvaluacion">
+                            </label>
+                          </section>
+
+                          <p class="ath-f-11-page__drive-hint" *ngIf="!ev.driveFileId">
+                            <i class="fas fa-info-circle mr-1" aria-hidden="true"></i>
+                            Usa <strong>Guardar información</strong> para crear el documento desde la plantilla y publicarlo en Drive.
+                          </p>
+                          <p class="ath-f-11-page__drive-hint ath-f-11-page__drive-hint--ok" *ngIf="ev.driveFileId">
+                            <i class="fas fa-file-word mr-1" aria-hidden="true"></i>
+                            Documento en Drive: <strong>{{ ev.nombreArchivo || ev.folio }}</strong>
+                            <button type="button" class="ath-f-11-page__drive-link" (click)="toggleAthF11Editor()">
+                              Abrir editor integrado
+                            </button>
+                          </p>
+                        </div>
+                      </article>
+                    </div>
                   </article>
                 </div>
               </form>
@@ -9663,6 +10019,43 @@
         [src]="athF09EditorEmbedUrlSafe"
         title="ATH-F-09 en Google Drive"
         (load)="onAthF09IframeLoad()"
+        allow="clipboard-read; clipboard-write"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-popups-to-escape-sandbox">
+      </iframe>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-drive-editor-fullscreen" *ngIf="mostrarAthF11Editor"
+  role="dialog" aria-modal="true" aria-label="Editor integrado ATH-F-11">
+  <div class="sgc-drive-editor-fullscreen__backdrop" (click)="toggleAthF11Editor()"></div>
+  <div class="sgc-drive-editor-fullscreen__panel">
+    <div class="sgc-drive-editor-fullscreen__head">
+      <div class="sgc-drive-editor-fullscreen__title-wrap">
+        <span class="sgc-drive-editor-fullscreen__icon">
+          <i class="fas fa-user-check" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ tituloEditorIntegrado }}</strong>
+          <small class="sgc-drive-editor-fullscreen__subtitle">ATH-F-11 · Evaluación de desempeño · Google Docs</small>
+        </div>
+      </div>
+      <div class="sgc-drive-editor-fullscreen__head-actions">
+        <button class="btn btn-sm btn-light" type="button" (click)="toggleAthF11Editor()">
+          <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+        </button>
+      </div>
+    </div>
+    <div class="sgc-drive-editor-fullscreen__body">
+      <div class="sgc-drive-editor-fullscreen__loading" *ngIf="athF11EditorCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando documento en Drive…</span>
+      </div>
+      <iframe *ngIf="athF11EditorEmbedUrlSafe"
+        class="sgc-drive-editor-fullscreen__iframe"
+        [src]="athF11EditorEmbedUrlSafe"
+        title="ATH-F-11 en Google Drive"
+        (load)="onAthF11IframeLoad()"
         allow="clipboard-read; clipboard-write"
         sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-popups-to-escape-sandbox">
       </iframe>

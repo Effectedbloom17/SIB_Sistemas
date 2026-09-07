@@ -547,7 +547,8 @@ function formatearFechaDetalleCorreo(fecha) {
         year: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
-        hour12: false
+        hour12: false,
+        timeZone: 'America/Mexico_City'
     });
 }
 
@@ -563,6 +564,7 @@ function extraerDetalleMensaje(parsed, correoPerfil = '') {
     const para = formatearListaCorreo(parsed?.to) || correoPerfil;
     const cc = formatearListaCorreo(parsed?.cc);
     const cco = formatearListaCorreo(parsed?.bcc);
+    const fechaIso = parsed?.date ? new Date(parsed.date).toISOString() : null;
     const fecha = formatearFechaDetalleCorreo(parsed?.date);
     const asunto = parsed?.subject || '(Sin asunto)';
     const messageId = String(parsed?.messageId || '').trim();
@@ -584,6 +586,7 @@ function extraerDetalleMensaje(parsed, correoPerfil = '') {
         cc,
         cco,
         fecha,
+        fechaIso,
         asunto,
         messageId,
         inReplyTo,

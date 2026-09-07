@@ -2819,6 +2819,28 @@ export class BackendServices {
         });
     }
 
+    cargarAthF11Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-11`);
+    }
+
+    guardarAthF11Formato(datos: unknown, editorActivo = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-11/guardar`, {
+            datos,
+            origen: 'sistema',
+            editorActivo
+        });
+    }
+
+    sincronizarAthF11DesdeDrive(evaluacionActivaId?: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-11/sincronizar-drive`, {
+            evaluacionActivaId: evaluacionActivaId || null
+        });
+    }
+
+    actualizarPlantillaAthF11(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-11/actualizar-plantilla`, {});
+    }
+
     // ============================================
     // SGC — Dashboard de Calidad (indicadores)
     // ============================================

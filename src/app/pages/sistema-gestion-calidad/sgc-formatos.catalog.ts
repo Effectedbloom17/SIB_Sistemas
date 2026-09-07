@@ -242,6 +242,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
     heroIconClass: 'fas fa-chart-line',
     plantillas: [
       {
+        codigo: 'ATH-F-11',
+        titulo: 'Evaluación de desempeño',
+        nombre: 'ATH-F-11 Evaluación de desempeño (sistema)',
+        driveFileId: '10fvVzAiuTVoCva9QAYufIJmGbK1gMdZF3uBvW6Ohxyk',
+        previewSlug: 'ath-f-11',
+        previewMode: 'form'
+      },
+      {
         codigo: 'SGC-F-06',
         titulo: 'Lista y calificación de auditores',
         nombre: 'SGC-F-06 Lista y calificación de auditores.xlsx',

@@ -158,6 +158,49 @@ interface AthF09FormData {
   cotizacionActivaId: string | null;
 }
 
+interface AthF11Competencia {
+  id: string;
+  grupo: 'tecnicas' | 'organizacionales' | 'interpersonales' | 'personales';
+  titulo: string;
+  descripcion: string;
+  calificacion: number | null;
+}
+
+interface AthF11Evaluacion {
+  id: string;
+  folio: string;
+  nombreCompleto: string;
+  puesto: string;
+  areaDepartamento: string;
+  noEmpleado: string;
+  fechaIngreso: string;
+  periodoEvaluado: string;
+  competencias: AthF11Competencia[];
+  observaciones: string;
+  promedioGeneral: number | null;
+  fortalezas: string;
+  areasOportunidad: string;
+  planMejora: string;
+  comentariosEvaluador: string;
+  firmaColaboradorNombre: string;
+  firmaColaboradorPuesto: string;
+  firmaEvaluadorNombre: string;
+  firmaEvaluadorPuesto: string;
+  fechaEvaluacion: string;
+  driveFileId: string | null;
+  nombreArchivo: string | null;
+  fechaCreacion: string;
+  borrador?: boolean;
+}
+
+interface AthF11FormData {
+  revision: string;
+  fechaRevision: string;
+  fechaElaboracion: string;
+  evaluaciones: AthF11Evaluacion[];
+  evaluacionActivaId: string | null;
+}
+
 interface DgF05Fila {
   parteInteresada: string;
   tipo: '' | 'Interno' | 'Externo';
@@ -1068,7 +1111,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-28'
       || this.plantillaSlug === 'sp-f-02'
       || this.plantillaSlug === 'sgc-f-05' || this.plantillaSlug === 'ath-f-02' || this.plantillaSlug === 'ath-f-08'
-      || this.plantillaSlug === 'ath-f-09';
+      || this.plantillaSlug === 'ath-f-09'
+      || this.plantillaSlug === 'ath-f-11';
   }
 
   @HostBinding('class.sgc-preview--ath-f-02')
@@ -1079,6 +1123,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   @HostBinding('class.sgc-preview--ath-f-09')
   get esAthF09(): boolean {
     return this.plantillaSlug === 'ath-f-09';
+  }
+
+  @HostBinding('class.sgc-preview--ath-f-11')
+  get esAthF11(): boolean {
+    return this.plantillaSlug === 'ath-f-11';
   }
 
   @HostBinding('class.sgc-preview--dg-f-04')
@@ -1207,6 +1256,53 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF09SiguienteFolio = 'SC-26-001';
   private athF09EditorIframeListo = false;
   private athF09PdfPendiente: { base64: string; nombre: string } | null = null;
+
+  athF11Form: AthF11FormData = this.crearAthF11FormVacio();
+  athF11Vista: 'archivero' | 'editor' = 'archivero';
+  athF11Busqueda = '';
+  athF11EvaluacionActiva: AthF11Evaluacion | null = null;
+  athF11Cargando = false;
+  athF11Guardando = false;
+  athF11Listo = false;
+  athF11CambiosPendientes = false;
+  athF11IgnorarAutoSave = false;
+  athF11UltimaSync: string | null = null;
+  athF11DriveFileId: string | null = null;
+  athF11EditorUrl: string | null = null;
+  athF11EditorEmbedUrlSafe: SafeResourceUrl | null = null;
+  mostrarAthF11Editor = false;
+  athF11ContenidoModificado = false;
+  athF11EditorCargando = false;
+  athF11ActualizandoPlantilla = false;
+  athF11SiguienteFolio = 'ED-26-001';
+  private athF11EditorIframeListo = false;
+
+  athF11SeccionesIntro = [
+    { num: 1, titulo: 'Objetivo de la evaluación', texto: 'Medir de manera objetiva el rendimiento de los colaboradores, fortalecer el desarrollo del talento humano, mejorar la productividad y asegurar la alineación del desempeño individual con los objetivos estratégicos de la empresa.' },
+    { num: 2, titulo: 'Alcance', texto: 'La evaluación de desempeño aplica para personal de nuevo ingreso, personal operativo y administrativo y mandos medios. El proceso de evaluación se realizará de forma anual, a partir de la última evaluación.' },
+    { num: 3, titulo: 'Modelo de evaluación propuesto', texto: 'Se propone un modelo de evaluación por competencias, el cual permite evaluar no solo los resultados obtenidos, sino también las habilidades, actitudes y comportamientos que los colaboradores demuestran en el desempeño de sus funciones.' },
+    { num: 4, titulo: 'Competencias a evaluar', texto: 'Competencias técnicas (dominio del puesto y calidad), organizacionales (cultura y objetivos de Biznaga), interpersonales (relación con compañeros y áreas) y personales (actitudes clave para el crecimiento organizacional).' },
+    { num: 5, titulo: 'Resultados de la evaluación', texto: 'La evaluación permitirá identificar fortalezas individuales, áreas de oportunidad, necesidades de capacitación y oportunidades de desarrollo. Se obtendrá un resultado cuantitativo acompañado de observaciones cualitativas.' },
+    { num: 6, titulo: 'Retroalimentación y seguimiento', texto: 'Una vez concluida la evaluación, el jefe inmediato brindará retroalimentación al colaborador, se establecerán planes de mejora y compromisos. Recursos Humanos dará seguimiento a los acuerdos establecidos.' },
+    { num: 7, titulo: 'Beneficios para Biznaga', texto: 'Evaluaciones objetivas y estandarizadas, mejora continua del desempeño, fortalecimiento del talento interno, mejor toma de decisiones en capacitación y promoción, y mejora del clima organizacional.' },
+    { num: 8, titulo: 'Conclusión', texto: 'La implementación de esta evaluación del desempeño por competencias permitirá a Biznaga contar con una herramienta estratégica que impulse el desarrollo del talento humano y contribuya al cumplimiento de los objetivos organizacionales.' }
+  ];
+  athF11Escala = [
+    { etiqueta: 'Malo', valor: 6 },
+    { etiqueta: 'Bajo', valor: 7 },
+    { etiqueta: 'Regular', valor: 8 },
+    { etiqueta: 'Bueno', valor: 9 },
+    { etiqueta: 'Excelente', valor: 10 }
+  ];
+  athF11GruposLabel: Record<AthF11Competencia['grupo'], string> = {
+    tecnicas: 'COMPETENCIAS TÉCNICAS',
+    organizacionales: 'COMPETENCIAS ORGANIZACIONALES',
+    interpersonales: 'COMPETENCIAS INTERPERSONALES',
+    personales: 'COMPETENCIAS PERSONALES'
+  };
+  athF11GruposOrden: AthF11Competencia['grupo'][] = [
+    'tecnicas', 'organizacionales', 'interpersonales', 'personales'
+  ];
 
   dgF02Form = this.crearDgF02Vacio();
   dgF04Form = this.crearDgF04Vacio();
@@ -2686,6 +2782,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (codigo === 'ath-f-09') {
         this.cargarAthF09DesdeServidor();
       }
+      if (codigo === 'ath-f-11') {
+        this.cargarAthF11DesdeServidor();
+      }
       if (codigo === 'sgc-f-05') {
         this.cargarSgcF05DesdeServidor();
       }
@@ -2828,6 +2927,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'ath-f-02'
       || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-09'
+      || this.plantillaSlug === 'ath-f-11'
       || this.plantillaSlug === 'dg-f-06';
   }
 
@@ -2854,6 +2954,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05Guardando;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08Guardando;
     if (this.plantillaSlug === 'ath-f-09') return this.athF09Guardando;
+    if (this.plantillaSlug === 'ath-f-11') return this.athF11Guardando;
     return false;
   }
 
@@ -2880,6 +2981,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05UltimaSync;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08UltimaSync;
     if (this.plantillaSlug === 'ath-f-09') return this.athF09UltimaSync;
+    if (this.plantillaSlug === 'ath-f-11') return this.athF11UltimaSync;
     return null;
   }
 
@@ -2906,6 +3008,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05Cargando;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08Cargando;
     if (this.plantillaSlug === 'ath-f-09') return this.athF09Cargando;
+    if (this.plantillaSlug === 'ath-f-11') return this.athF11Cargando;
     return false;
   }
 
@@ -2932,6 +3035,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05ActualizandoPlantilla;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08ActualizandoPlantilla;
     if (this.plantillaSlug === 'ath-f-09') return this.athF09ActualizandoPlantilla;
+    if (this.plantillaSlug === 'ath-f-11') return this.athF11ActualizandoPlantilla;
     return false;
   }
 
@@ -2959,6 +3063,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05DriveFileId;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08DriveFileId;
     if (this.plantillaSlug === 'ath-f-09') return this.athF09DriveFileId;
+    if (this.plantillaSlug === 'ath-f-11') return this.athF11DriveFileId;
     if (this.plantillaSlug === 'dg-f-06') return this.dgF06DriveFileId;
     return null;
   }
@@ -2986,6 +3091,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05CambiosPendientes;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08CambiosPendientes;
     if (this.plantillaSlug === 'ath-f-09') return this.athF09CambiosPendientes;
+    if (this.plantillaSlug === 'ath-f-11') return this.athF11CambiosPendientes;
     return false;
   }
 
@@ -3025,6 +3131,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-05') return this.mostrarSgcF05Editor;
     if (this.plantillaSlug === 'ath-f-08') return this.mostrarAthF08Editor;
     if (this.plantillaSlug === 'ath-f-09') return this.mostrarAthF09Editor;
+    if (this.plantillaSlug === 'ath-f-11') return this.mostrarAthF11Editor;
     if (this.plantillaSlug === 'dg-f-06') return this.mostrarDgF06Editor;
     return false;
   }
@@ -3314,6 +3421,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         false
       );
     }
+    if (slug === 'ath-f-11') {
+      return this.backendService.guardarAthF11Formato(
+        { ...this.athF11Form, evaluacionActivaId: this.athF11EvaluacionActiva?.id || this.athF11Form.evaluacionActivaId },
+        false
+      );
+    }
     if (slug === 'sgc-f-05') {
       return this.backendService.guardarSgcF05Formato(this.sgcF05Form, false);
     }
@@ -3426,6 +3539,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'ath-f-09') {
       this.persistirAthF09();
+      return;
+    }
+    if (this.plantillaSlug === 'ath-f-11') {
+      this.persistirAthF11();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-05') {
@@ -3751,6 +3868,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'ath-f-09') {
       return this.athF09IntroLead;
+    }
+    if (this.plantillaSlug === 'ath-f-11') {
+      return this.athF11IntroLead;
     }
     if (this.plantillaSlug === 'sgc-f-05') {
       return this.sgcF05IntroLead;
@@ -12939,6 +13059,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleAthF09Editor();
       return;
     }
+    if (this.plantillaSlug === 'ath-f-11') {
+      this.toggleAthF11Editor();
+      return;
+    }
     if (this.plantillaSlug === 'sgc-f-05') {
       this.toggleSgcF05Editor();
       return;
@@ -13030,6 +13154,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'ath-f-09') {
       this.actualizarPlantillaAthF09();
+      return;
+    }
+    if (this.plantillaSlug === 'ath-f-11') {
+      this.actualizarPlantillaAthF11();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-05') {
@@ -15028,6 +15156,470 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.athF09Listo = true;
     if (!conservarEdicion) {
       this.athF09Cargando = false;
+    }
+  }
+
+  private crearCompetenciasAthF11Defecto(): AthF11Competencia[] {
+    return [
+      { id: 'conocimiento_puesto', grupo: 'tecnicas', titulo: 'Conocimiento del puesto', descripcion: 'Aplica los conocimientos y habilidades requeridas para su función.', calificacion: null },
+      { id: 'calidad_precision', grupo: 'tecnicas', titulo: 'Calidad y precisión del trabajo', descripcion: 'Cumple con estándares, reduce errores y mantiene orden.', calificacion: null },
+      { id: 'responsabilidad_compromiso', grupo: 'organizacionales', titulo: 'Responsabilidad y compromiso', descripcion: 'Cumple normas, políticas internas y responsabilidades asignadas.', calificacion: null },
+      { id: 'orientacion_resultados', grupo: 'organizacionales', titulo: 'Orientación a resultados', descripcion: 'Enfoca sus actividades al logro de objetivos y metas del área.', calificacion: null },
+      { id: 'trabajo_equipo', grupo: 'interpersonales', titulo: 'Trabajo en equipo', descripcion: 'Colabora de manera efectiva y mantiene relaciones laborales positivas.', calificacion: null },
+      { id: 'comunicacion_efectiva', grupo: 'interpersonales', titulo: 'Comunicación efectiva', descripcion: 'Expresa ideas con claridad y escucha activamente.', calificacion: null },
+      { id: 'iniciativa_proactividad', grupo: 'personales', titulo: 'Iniciativa y proactividad', descripcion: 'Propone mejoras y actúa sin supervisión constante.', calificacion: null },
+      { id: 'adaptabilidad_cambio', grupo: 'personales', titulo: 'Adaptabilidad al cambio', descripcion: 'Se ajusta positivamente a nuevos procesos o situaciones.', calificacion: null }
+    ];
+  }
+
+  private crearAthF11FormVacio(): AthF11FormData {
+    const hoy = new Date().toISOString().slice(0, 10);
+    return {
+      revision: '00',
+      fechaRevision: '2026-03-04',
+      fechaElaboracion: hoy,
+      evaluaciones: [],
+      evaluacionActivaId: null
+    };
+  }
+
+  private nuevoIdAthF11(): string {
+    return `ath11-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  private fechaHoyIsoAthF11(): string {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  private normalizarFolioAthF11(folio: string): string {
+    const limpio = String(folio || '').trim().toUpperCase().replace(/\s+/g, '');
+    const m = limpio.match(/^ED-\d{2}-\d{3}$/);
+    return m ? m[0] : limpio;
+  }
+
+  private generarFolioSugeridoAthF11(evaluaciones: AthF11Evaluacion[] = []): string {
+    const yy = String(new Date().getFullYear()).slice(-2);
+    let max = 0;
+    for (const ev of evaluaciones) {
+      const m = String(ev.folio || '').toUpperCase().match(/^ED-(\d{2})-(\d{3})$/);
+      if (m && m[1] === yy) {
+        max = Math.max(max, Number(m[2]));
+      }
+    }
+    return `ED-${yy}-${String(max + 1).padStart(3, '0')}`;
+  }
+
+  private normalizarSaltosAthF11(texto: unknown): string {
+    return String(texto || '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  private sanitizarCalificacionAthF11(raw: unknown): number | null {
+    if (raw === '' || raw == null) return null;
+    const n = Number(raw);
+    if (![6, 7, 8, 9, 10].includes(n)) return null;
+    return n;
+  }
+
+  private normalizarCompetenciasAthF11(raw: unknown): AthF11Competencia[] {
+    const mapa = new Map<string, any>();
+    if (Array.isArray(raw)) {
+      for (const item of raw) {
+        const id = String(item?.id || '').trim();
+        if (id) mapa.set(id, item);
+      }
+    }
+    return this.crearCompetenciasAthF11Defecto().map((def) => {
+      const found = mapa.get(def.id) || {};
+      return {
+        ...def,
+        calificacion: this.sanitizarCalificacionAthF11(found.calificacion ?? found.score)
+      };
+    });
+  }
+
+  calcularPromedioAthF11(competencias: AthF11Competencia[] | null | undefined): number | null {
+    const vals = (competencias || [])
+      .map((c) => c.calificacion)
+      .filter((n): n is number => n != null && !Number.isNaN(n));
+    if (!vals.length) return null;
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    return Math.round(avg * 100) / 100;
+  }
+
+  formatearPromedioAthF11(valor: number | null | undefined): string {
+    if (valor == null || Number.isNaN(Number(valor))) return '—';
+    return Number(valor).toFixed(2);
+  }
+
+  setCalificacionAthF11(compId: string, valor: number | null): void {
+    if (!this.athF11EvaluacionActiva) return;
+    const id = String(compId || '').trim();
+    const comp = (this.athF11EvaluacionActiva.competencias || []).find((c) => c.id === id);
+    if (!comp) return;
+    comp.calificacion = this.sanitizarCalificacionAthF11(valor);
+    this.athF11EvaluacionActiva.promedioGeneral = this.calcularPromedioAthF11(this.athF11EvaluacionActiva.competencias);
+    this.onAthF11Editado();
+  }
+
+  competenciasPorGrupoAthF11(grupo: AthF11Competencia['grupo']): AthF11Competencia[] {
+    const lista = this.athF11EvaluacionActiva?.competencias || [];
+    return lista.filter((c) => c.grupo === grupo);
+  }
+
+  formatearFechaRevAthF11(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return String(iso);
+    return `${m[3]}-${m[2]}-${m[1].slice(-2)}`;
+  }
+
+  private normalizarAthF11Evaluacion(raw: Partial<AthF11Evaluacion> | null | undefined): AthF11Evaluacion {
+    const base = this.crearAthF11EvaluacionVacia();
+    if (!raw || typeof raw !== 'object') {
+      return base;
+    }
+    const competencias = this.normalizarCompetenciasAthF11(raw.competencias);
+    const promedioManual = (raw as any).promedioGeneral ?? (raw as any).promedio_general;
+    const promedioCalc = this.calcularPromedioAthF11(competencias);
+    const promedioGeneral = promedioManual === '' || promedioManual == null
+      ? promedioCalc
+      : (Number.isNaN(Number(promedioManual)) ? promedioCalc : Number(promedioManual));
+    const fechaIso = (v: unknown, fallback = '') => {
+      const s = String(v || '').trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      return fallback;
+    };
+    return {
+      id: String(raw.id || '').trim() || this.nuevoIdAthF11(),
+      folio: this.normalizarFolioAthF11(String(raw.folio || '')),
+      nombreCompleto: String(raw.nombreCompleto || (raw as any).nombre_completo || '').trim(),
+      puesto: String(raw.puesto || '').trim(),
+      areaDepartamento: String(raw.areaDepartamento || (raw as any).area_departamento || '').trim(),
+      noEmpleado: String(raw.noEmpleado || (raw as any).no_empleado || '').trim(),
+      fechaIngreso: fechaIso(raw.fechaIngreso || (raw as any).fecha_ingreso),
+      periodoEvaluado: String(raw.periodoEvaluado || (raw as any).periodo_evaluado || '').trim(),
+      competencias,
+      observaciones: this.normalizarSaltosAthF11(raw.observaciones),
+      promedioGeneral,
+      fortalezas: this.normalizarSaltosAthF11(raw.fortalezas),
+      areasOportunidad: this.normalizarSaltosAthF11(raw.areasOportunidad || (raw as any).areas_oportunidad),
+      planMejora: this.normalizarSaltosAthF11(raw.planMejora || (raw as any).plan_mejora),
+      comentariosEvaluador: this.normalizarSaltosAthF11(raw.comentariosEvaluador || (raw as any).comentarios_evaluador),
+      firmaColaboradorNombre: String(raw.firmaColaboradorNombre || (raw as any).firma_colaborador_nombre || '').trim(),
+      firmaColaboradorPuesto: String(raw.firmaColaboradorPuesto || (raw as any).firma_colaborador_puesto || '').trim(),
+      firmaEvaluadorNombre: String(raw.firmaEvaluadorNombre || (raw as any).firma_evaluador_nombre || '').trim(),
+      firmaEvaluadorPuesto: String(raw.firmaEvaluadorPuesto || (raw as any).firma_evaluador_puesto || '').trim(),
+      fechaEvaluacion: fechaIso(raw.fechaEvaluacion || (raw as any).fecha_evaluacion, this.fechaHoyIsoAthF11()),
+      driveFileId: String(raw.driveFileId || (raw as any).drive_file_id || '').trim() || null,
+      nombreArchivo: String(raw.nombreArchivo || (raw as any).nombre_archivo || '').trim() || null,
+      fechaCreacion: fechaIso(raw.fechaCreacion || (raw as any).fecha_creacion, this.fechaHoyIsoAthF11()),
+      borrador: (raw as any).borrador !== false && !(raw.driveFileId || (raw as any).drive_file_id)
+    };
+  }
+
+  private crearAthF11EvaluacionVacia(folioSugerido?: string): AthF11Evaluacion {
+    const hoy = this.fechaHoyIsoAthF11();
+    const folio = folioSugerido || this.generarFolioSugeridoAthF11(this.athF11Form?.evaluaciones || []);
+    return {
+      id: this.nuevoIdAthF11(),
+      folio,
+      nombreCompleto: '',
+      puesto: '',
+      areaDepartamento: '',
+      noEmpleado: '',
+      fechaIngreso: '',
+      periodoEvaluado: '',
+      competencias: this.crearCompetenciasAthF11Defecto(),
+      observaciones: '',
+      promedioGeneral: null,
+      fortalezas: '',
+      areasOportunidad: '',
+      planMejora: '',
+      comentariosEvaluador: '',
+      firmaColaboradorNombre: '',
+      firmaColaboradorPuesto: '',
+      firmaEvaluadorNombre: '',
+      firmaEvaluadorPuesto: '',
+      fechaEvaluacion: hoy,
+      driveFileId: null,
+      nombreArchivo: null,
+      fechaCreacion: hoy,
+      borrador: true
+    };
+  }
+
+  private normalizarAthF11Form(datos: Partial<AthF11FormData> | any | null | undefined): AthF11FormData {
+    const base = this.crearAthF11FormVacio();
+    if (!datos || typeof datos !== 'object') {
+      return base;
+    }
+    const evaluaciones = (Array.isArray(datos.evaluaciones) ? datos.evaluaciones : [])
+      .map((e: any) => this.normalizarAthF11Evaluacion(e));
+    const activoId = datos.evaluacionActivaId || datos.evaluacion_activa_id
+      ? String(datos.evaluacionActivaId || datos.evaluacion_activa_id)
+      : (evaluaciones[0]?.id || null);
+    return {
+      revision: String(datos.revision || base.revision).trim() || base.revision,
+      fechaRevision: String(datos.fechaRevision || base.fechaRevision).trim() || base.fechaRevision,
+      fechaElaboracion: String(datos.fechaElaboracion || base.fechaElaboracion).trim() || base.fechaElaboracion,
+      evaluaciones,
+      evaluacionActivaId: activoId && evaluaciones.some((e) => e.id === activoId)
+        ? activoId
+        : (evaluaciones[0]?.id || null)
+    };
+  }
+
+  get athF11IntroLead(): string {
+    if (this.plantillaSlug !== 'ath-f-11') return '';
+    return 'Archivero de evaluaciones de desempeño. Crea un registro desde la plantilla, asigna folio ED-YY-NNN y sincroniza el Word en Drive.';
+  }
+
+  get athF11EvaluacionesVista(): AthF11Evaluacion[] {
+    const q = this.athF11Busqueda.trim().toLowerCase();
+    const lista = [...(this.athF11Form.evaluaciones || [])].sort((a, b) => {
+      const fa = String(a.folio || '');
+      const fb = String(b.folio || '');
+      return fb.localeCompare(fa, 'es');
+    });
+    if (!q) return lista;
+    return lista.filter((e) =>
+      [e.folio, e.nombreCompleto, e.puesto, e.areaDepartamento, e.noEmpleado, e.nombreArchivo]
+        .some((v) => String(v || '').toLowerCase().includes(q))
+    );
+  }
+
+  nuevoEvaluacionAthF11(): void {
+    const ev = this.crearAthF11EvaluacionVacia(this.athF11SiguienteFolio || undefined);
+    this.athF11Form.evaluaciones = [ev, ...(this.athF11Form.evaluaciones || [])];
+    this.athF11Form.evaluacionActivaId = ev.id;
+    this.athF11EvaluacionActiva = ev;
+    this.athF11Vista = 'editor';
+    this.onAthF11Editado();
+  }
+
+  abrirEvaluacionAthF11(ev: AthF11Evaluacion): void {
+    this.athF11Form.evaluacionActivaId = ev.id;
+    this.athF11EvaluacionActiva = ev;
+    this.athF11Vista = 'editor';
+    this.actualizarDriveActivoAthF11(ev);
+  }
+
+  volverArchiveroAthF11(): void {
+    this.athF11Vista = 'archivero';
+    this.athF11EvaluacionActiva = null;
+    this.athF11Form.evaluacionActivaId = null;
+    if (this.mostrarAthF11Editor) {
+      this.toggleAthF11Editor();
+    }
+  }
+
+  eliminarEvaluacionAthF11(ev: AthF11Evaluacion, event?: Event): void {
+    event?.stopPropagation();
+    const etiqueta = ev.folio || ev.nombreCompleto || 'sin folio';
+    if (!confirm(`¿Eliminar la evaluación «${etiqueta}» del archivero?`)) return;
+    this.athF11Form.evaluaciones = (this.athF11Form.evaluaciones || []).filter((e) => e.id !== ev.id);
+    if (this.athF11EvaluacionActiva?.id === ev.id) {
+      this.volverArchiveroAthF11();
+    }
+    this.onAthF11Editado();
+  }
+
+  private sincronizarEvaluacionActivaEnFormAthF11(): void {
+    if (!this.athF11EvaluacionActiva) return;
+    const idx = (this.athF11Form.evaluaciones || []).findIndex((e) => e.id === this.athF11EvaluacionActiva?.id);
+    if (idx >= 0) {
+      this.athF11Form.evaluaciones[idx] = { ...this.athF11EvaluacionActiva };
+    }
+    this.athF11Form.evaluacionActivaId = this.athF11EvaluacionActiva.id;
+  }
+
+  private actualizarDriveActivoAthF11(ev?: AthF11Evaluacion | null): void {
+    const activa = ev || this.athF11EvaluacionActiva;
+    this.athF11DriveFileId = activa?.driveFileId || null;
+    const editorUrl = activa?.driveFileId
+      ? `https://docs.google.com/document/d/${activa.driveFileId}/edit?usp=sharing`
+      : null;
+    this.fijarEditorEmbedUrlAthF11(editorUrl, true);
+  }
+
+  onAthF11Editado(): void {
+    if (this.athF11IgnorarAutoSave || !this.athF11Listo) return;
+    if (this.athF11EvaluacionActiva) {
+      this.sincronizarEvaluacionActivaEnFormAthF11();
+    }
+    this.athF11CambiosPendientes = true;
+  }
+
+  private fijarEditorEmbedUrlAthF11(editorUrl: string | null, forzar = false): void {
+    if (!forzar && this.mostrarAthF11Editor && this.athF11EditorEmbedUrlSafe && this.athF11EditorUrl === editorUrl) {
+      return;
+    }
+    if (!editorUrl) {
+      this.athF11EditorUrl = null;
+      this.athF11EditorEmbedUrlSafe = null;
+      return;
+    }
+    const url = this.resolverUrlEditorDrive(editorUrl, this.athF11DriveFileId);
+    this.athF11EditorUrl = url || editorUrl;
+    const embedUrl = this.urlIframeDriveSegunPermiso(this.athF11EditorUrl);
+    this.athF11EditorEmbedUrlSafe = embedUrl
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
+      : null;
+  }
+
+  toggleAthF11Editor(): void {
+    if (this.mostrarAthF11Editor) {
+      this.mostrarAthF11Editor = false;
+      this.athF11EditorCargando = false;
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      return;
+    }
+    if (!this.athF11EvaluacionActiva?.driveFileId) {
+      void Swal.fire({
+        icon: 'info',
+        title: 'Documento pendiente',
+        text: 'Guarda la evaluación primero para generar el Word en Drive y poder abrir el editor.',
+        confirmButtonColor: '#15a596'
+      });
+      return;
+    }
+    const url = this.resolverUrlEditorDrive(this.athF11EditorUrl, this.athF11DriveFileId);
+    this.fijarEditorEmbedUrlAthF11(url, true);
+    this.mostrarAthF11Editor = true;
+    this.athF11EditorCargando = true;
+    this.athF11EditorIframeListo = false;
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+
+  onAthF11IframeLoad(): void {
+    this.athF11EditorIframeListo = true;
+    this.athF11EditorCargando = false;
+  }
+
+  actualizarPlantillaAthF11(): void {
+    if (this.athF11ActualizandoPlantilla) return;
+    this.athF11ActualizandoPlantilla = true;
+    this.backendService.actualizarPlantillaAthF11()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.athF11ActualizandoPlantilla = false;
+          void Swal.fire({
+            icon: 'success',
+            title: 'Plantilla verificada',
+            text: 'La plantilla maestra ATH-F-11 está disponible para nuevas evaluaciones.',
+            confirmButtonColor: '#15a596'
+          });
+        },
+        error: () => {
+          this.athF11ActualizandoPlantilla = false;
+        }
+      });
+  }
+
+  private cargarAthF11DesdeServidor(): void {
+    this.athF11Cargando = true;
+    this.backendService.cargarAthF11Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoAthF11(res),
+        error: () => {
+          this.athF11Cargando = false;
+          this.athF11Vista = 'archivero';
+          this.athF11EvaluacionActiva = null;
+          this.athF11Listo = true;
+        }
+      });
+  }
+
+  private sincronizarAthF11DesdeDrive(): void {
+    this.backendService.sincronizarAthF11DesdeDrive(this.athF11EvaluacionActiva?.id || undefined)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoAthF11(res, false, true, true)
+      });
+  }
+
+  private persistirAthF11(): void {
+    if (this.athF11Guardando || !this.athF11Listo) return;
+    this.athF11Guardando = true;
+    this.sincronizarEvaluacionActivaEnFormAthF11();
+    if (this.athF11EvaluacionActiva) {
+      this.athF11EvaluacionActiva.borrador = false;
+    }
+    this.backendService.guardarAthF11Formato(
+      { ...this.athF11Form, evaluacionActivaId: this.athF11EvaluacionActiva?.id || this.athF11Form.evaluacionActivaId },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.aplicarEstadoAthF11(res, true, false, true);
+          this.athF11CambiosPendientes = false;
+          this.athF11Guardando = false;
+        },
+        error: () => {
+          this.athF11Guardando = false;
+        }
+      });
+  }
+
+  private aplicarEstadoAthF11(
+    res: any,
+    conservarEdicion = false,
+    desdeDrive = false,
+    forzarActualizacionDrive = false
+  ): void {
+    if (!res) {
+      if (!desdeDrive) this.athF11Cargando = false;
+      this.athF11Listo = true;
+      return;
+    }
+
+    const editorAbierto = this.mostrarAthF11Editor && !forzarActualizacionDrive;
+    const activoId = this.athF11EvaluacionActiva?.id || this.athF11Form.evaluacionActivaId || null;
+
+    if (res.datos) {
+      this.athF11IgnorarAutoSave = true;
+      this.athF11Form = this.normalizarAthF11Form(res.datos);
+      if (activoId && this.athF11Form.evaluaciones.some((e) => e.id === activoId)) {
+        this.athF11Form.evaluacionActivaId = activoId;
+      } else {
+        this.athF11Form.evaluacionActivaId = null;
+      }
+      this.athF11EvaluacionActiva = activoId
+        ? this.athF11Form.evaluaciones.find((e) => e.id === activoId) || null
+        : null;
+      if (!this.athF11EvaluacionActiva && this.athF11Vista === 'editor') {
+        this.athF11Vista = 'archivero';
+      }
+      setTimeout(() => {
+        this.athF11IgnorarAutoSave = false;
+      }, 0);
+      this.sincronizarEvaluacionActivaEnFormAthF11();
+    }
+
+    if (res.siguienteFolioSugerido) {
+      this.athF11SiguienteFolio = res.siguienteFolioSugerido;
+    } else {
+      this.athF11SiguienteFolio = this.generarFolioSugeridoAthF11(this.athF11Form.evaluaciones);
+    }
+
+    this.athF11UltimaSync = res.ultimaSyncDrive || null;
+    this.athF11ContenidoModificado = !!res.contenidoModificado;
+    this.actualizarDriveActivoAthF11(this.athF11EvaluacionActiva);
+    if (res.editorUrl && (forzarActualizacionDrive || !editorAbierto)) {
+      this.fijarEditorEmbedUrlAthF11(res.editorUrl, forzarActualizacionDrive);
+    }
+
+    this.athF11Listo = true;
+    if (!conservarEdicion) {
+      this.athF11Cargando = false;
     }
   }
 
