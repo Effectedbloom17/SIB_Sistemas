@@ -132,8 +132,10 @@
                 </td>
                 <td class="interno-col-nombre interno-nombre" style="word-break: break-word;">
                   {{ usuario.nombre }} {{ usuario.apellido || '' }}
-                  <div *ngIf="usuario.organigrama" style="font-size:0.68rem;color:#768D6B;font-weight:600;margin-top:0.12rem;">
-                    <i class="fas fa-sitemap" style="margin-right:0.25rem;font-size:0.62rem;"></i>{{ usuario.organigrama }}
+                  <div *ngIf="usuario.organigrama || usuario.area_departamento" style="font-size:0.68rem;color:#768D6B;font-weight:600;margin-top:0.12rem;">
+                    <span *ngIf="usuario.organigrama"><i class="fas fa-sitemap" style="margin-right:0.25rem;font-size:0.62rem;"></i>{{ usuario.organigrama }}</span>
+                    <span *ngIf="usuario.organigrama && usuario.area_departamento"> · </span>
+                    <span *ngIf="usuario.area_departamento"><i class="fas fa-building" style="margin-right:0.25rem;font-size:0.62rem;"></i>{{ usuario.area_departamento }}</span>
                   </div>
                 </td>
                 <td class="interno-col-email interno-email" style="word-break: break-word;">{{ usuario.email || '-' }}</td>

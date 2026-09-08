@@ -5336,10 +5336,12 @@ app.get('/api/usuarios', async (req, res) => {
         await asegurarColumnaPuestoEmpresa(pool);
         await asegurarColumnaColaboradorEmpresa(pool);
         await asegurarColumnaOrganigramaUsuario(pool);
+        await asegurarColumnaAreaDepartamentoUsuario(pool);
         puestoEmpresaExpr = await obtenerExpresionPuestoEmpresa(pool, 'e');
         const [rows] = await pool.query(
             `SELECT u.id, u.username, u.nombre, u.apellido, u.email, u.telefono,
                     u.organigrama,
+                    u.area_departamento,
                     u.activo, u.bloqueado, u.ultimo_acceso, r.nombre_rol as rol, r.rol_id,
                     COALESCE(u.empresa_id, e.empresa_id) AS empresa_id, e.nombre_empresa, e.logo AS empresa_logo,
                     COALESCE(e.servicio_proteccion_civil, 1) AS empresa_servicio_proteccion_civil,
@@ -5369,7 +5371,7 @@ app.get('/api/usuarios', async (req, res) => {
              LEFT JOIN area_tematica at ON ia.area_id = at.area_id AND at.activo = 1
              WHERE r.nombre_rol != 'root' AND u.activo = 1
              GROUP BY u.id, u.username, u.nombre, u.apellido, u.email, u.telefono,
-                      u.organigrama,
+                      u.organigrama, u.area_departamento,
                       u.activo, u.bloqueado, u.ultimo_acceso, r.nombre_rol, r.rol_id,
                       COALESCE(u.empresa_id, e.empresa_id), e.nombre_empresa, e.logo, i.instructor_id, i.firma_url, i.firma_drive_id,
                       e.servicio_proteccion_civil, e.colaborador,
@@ -5462,9 +5464,10 @@ app.put('/api/usuarios/:id', uploadFirmaDoctor.fields([{ name: 'firma', maxCount
     try {
         await conn.beginTransaction();
         await asegurarColumnaOrganigramaUsuario(conn);
+        await asegurarColumnaAreaDepartamentoUsuario(conn);
 
         const { id } = req.params;
-        const { nombre, apellidos, correo, email, telefono, empresa_id, rol_id, roles_adicionales, organigrama, servicio_proteccion_civil, empresa_puesto, empresa_colaborador, credenciales_correos_extra, nueva_password } = req.body;
+        const { nombre, apellidos, correo, email, telefono, empresa_id, rol_id, roles_adicionales, organigrama, area_departamento, servicio_proteccion_civil, empresa_puesto, empresa_colaborador, credenciales_correos_extra, nueva_password } = req.body;
         const servicioProteccionCivil = parseBoolDb(servicio_proteccion_civil, undefined);
         const puestoEmpresa = empresa_puesto !== undefined ? String(empresa_puesto || '').trim() : undefined;
         const colaboradorEmpresa = empresa_colaborador !== undefined
@@ -5583,6 +5586,17 @@ app.put('/api/usuarios/:id', uploadFirmaDoctor.fields([{ name: 'firma', maxCount
         if (organigrama !== undefined) {
             const organigramaValor = String(organigrama || '').trim();
             updatePayload.organigrama = organigramaValor || null;
+        }
+        if (area_departamento !== undefined) {
+            const areaValor = String(area_departamento || '').trim();
+            if (areaValor && !normalizarAreaDepartamentoUsuario(areaValor)) {
+                conn.release();
+                return res.status(400).json({
+                    success: false,
+                    message: 'Área/Departamento inválida. Opciones: Seguridad, Innovación, Administración'
+                });
+            }
+            updatePayload.area_departamento = normalizarAreaDepartamentoUsuario(areaValor);
         }
 
         if (hayCambioPassword) {
@@ -6007,9 +6021,19 @@ app.post('/api/usuarios', requireAdmin, uploadFirmaDoctor.fields([{ name: 'firma
         await conn.beginTransaction();
         await asegurarEmailNoUnicoUsuario(conn);
 
-        const { username, email, clave, nombre, apellido, telefono, rol_id, organigrama } = req.body;
+        const { username, email, clave, nombre, apellido, telefono, rol_id, organigrama, area_departamento } = req.body;
         await asegurarColumnaOrganigramaUsuario(conn);
+        await asegurarColumnaAreaDepartamentoUsuario(conn);
         const organigramaValor = String(organigrama || '').trim() || null;
+        const areaDepartamentoRaw = String(area_departamento || '').trim();
+        if (areaDepartamentoRaw && !normalizarAreaDepartamentoUsuario(areaDepartamentoRaw)) {
+            conn.release();
+            return res.status(400).json({
+                success: false,
+                message: 'Área/Departamento inválida. Opciones: Seguridad, Innovación, Administración'
+            });
+        }
+        const areaDepartamentoValor = normalizarAreaDepartamentoUsuario(areaDepartamentoRaw);
 
         // SEGURIDAD: validar roles_adicionales para evitar escalada a root/super_admin.
         const rolesAdicionalesCheck = sanitizarRolesAdicionales(req.body.roles_adicionales);
@@ -6070,9 +6094,9 @@ app.post('/api/usuarios', requireAdmin, uploadFirmaDoctor.fields([{ name: 'firma
         const hashedPassword = await bcrypt.hash(clave, SALT_ROUNDS);
 
         const [result] = await conn.query(
-            `INSERT INTO usuario (username, email, clave, nombre, apellido, telefono, rol_id, roles_adicionales, organigrama)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [username, email, hashedPassword, nombre, apellido, telefono, rol_id, roles_adicionales || null, organigramaValor]
+            `INSERT INTO usuario (username, email, clave, nombre, apellido, telefono, rol_id, roles_adicionales, organigrama, area_departamento)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [username, email, hashedPassword, nombre, apellido, telefono, rol_id, roles_adicionales || null, organigramaValor, areaDepartamentoValor]
         );
 
         const userId = result.insertId;
@@ -9596,6 +9620,30 @@ async function asegurarColumnaOrganigramaUsuario(db) {
         }
     }
     usuarioOrganigramaColumnChecked = true;
+}
+
+const AREAS_DEPARTAMENTO_USUARIO = Object.freeze(['Seguridad', 'Innovación', 'Administración']);
+let usuarioAreaDepartamentoColumnChecked = false;
+function normalizarAreaDepartamentoUsuario(valor) {
+    const raw = String(valor || '').trim();
+    if (!raw) return null;
+    const match = AREAS_DEPARTAMENTO_USUARIO.find(
+        (area) => area.toLowerCase() === raw.toLowerCase()
+            || area.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+                === raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    );
+    return match || null;
+}
+async function asegurarColumnaAreaDepartamentoUsuario(db) {
+    if (usuarioAreaDepartamentoColumnChecked) return;
+    try {
+        await db.query('ALTER TABLE usuario ADD COLUMN area_departamento VARCHAR(80) NULL DEFAULT NULL');
+    } catch (error) {
+        if (error.code !== 'ER_DUP_FIELDNAME') {
+            throw error;
+        }
+    }
+    usuarioAreaDepartamentoColumnChecked = true;
 }
 
 async function asegurarColumnaLogoEmpresa(db) {
@@ -25078,6 +25126,14 @@ chatSocketIo = initChatSocket(server, {
         console.warn('  [WARN] Migración organigrama:', e.message);
     }
 
+    // Migración: área/departamento del usuario
+    try {
+        await asegurarColumnaAreaDepartamentoUsuario(pool);
+        logDebug('  Migración: columna area_departamento en usuario');
+    } catch (e) {
+        console.warn('  [WARN] Migración area_departamento:', e.message);
+    }
+
     // Migración: ampliar CURP para aceptar valores enviados por empresas (ej. 19 caracteres)
     for (const alterCurpQ of [
         `ALTER TABLE empleado MODIFY COLUMN curp VARCHAR(30) DEFAULT NULL`,
@@ -27165,6 +27221,40 @@ app.post('/api/sgc/formatos/ath-f-11/actualizar-plantilla', requireRole('root'),
         });
     } catch (error) {
         handleError(res, error, 'No se pudo actualizar la plantilla ATH-F-11');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-11/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAthF11Service.subirPdfFirmado(poolBiznagaSgc, req.body || {});
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: 'PDF firmado ATH-F-11 subido a Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo subir el PDF firmado ATH-F-11');
+    }
+});
+
+app.get('/api/sgc/formatos/ath-f-11/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const evaluacionId = String(req.query?.evaluacionId || req.query?.id || '').trim();
+        const { pdfBuffer, nombreArchivo } = await sgcAthF11Service.descargarPdfEvaluacion(
+            poolBiznagaSgc,
+            evaluacionId
+        );
+        const safeName = String(nombreArchivo || 'ATH-F-11 Evaluacion.pdf')
+            .replace(/[\r\n"]+/g, '')
+            .trim();
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de la evaluación ATH-F-11');
     }
 });
 

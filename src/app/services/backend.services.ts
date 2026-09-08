@@ -392,6 +392,14 @@ export class BackendServices {
         );
     }
 
+    /** Asegura Google Sheet/Docs nativo y URL de editor embebible en repositorio empresarial. */
+    asegurarEditorEmpresaRepositorio(empresaId: number, id: number): Observable<any> {
+        return this.httpClient.post(
+            `${this.baseUrl}/empresas/${empresaId}/repositorio/${id}/asegurar-editor`,
+            {}
+        );
+    }
+
     actualizarConstancia(rfc: string, formData: FormData){
         return this.httpClient.put(`${this.baseUrl}/empresas/${rfc}/constancia`, formData);
     }
@@ -2839,6 +2847,27 @@ export class BackendServices {
 
     actualizarPlantillaAthF11(): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-11/actualizar-plantilla`, {});
+    }
+
+    descargarPdfAthF11(evaluacionId: string): Observable<Blob> {
+        const params = evaluacionId
+            ? `?evaluacionId=${encodeURIComponent(evaluacionId)}`
+            : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-11/descargar-pdf${params}`, {
+            responseType: 'blob'
+        });
+    }
+
+    subirPdfFirmadoAthF11(
+        pdfBase64: string,
+        nombreArchivo: string,
+        evaluacionId: string
+    ): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-11/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombre_archivo: nombreArchivo,
+            evaluacionId
+        });
     }
 
     // ============================================

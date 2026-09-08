@@ -13,7 +13,12 @@ const excelHistorial = require('./sgcExcelHistorialService');
 
 const CODIGO_FORMATO = 'ATH-F-11';
 const TEMPLATE_DRIVE_ID = '10fvVzAiuTVoCva9QAYufIJmGbK1gMdZF3uBvW6Ohxyk';
-const CARPETA_DRIVE_ID = '1-eucTSlFkUuBBvMwOx8401N5zIR4B9W8';
+/** Carpeta raíz ATH-F-11 (Historial > ATH-F-11) */
+const CARPETA_RAIZ_DRIVE_ID = '1ZGJPr41Pa7sJ3SdzgLTyd8rGN5xkLAe1';
+/** Word / Docs de cada evaluación */
+const CARPETA_DRIVE_ID = '1qVOkXyoTR4071iNH-CmwT02usAy4LgVq';
+/** PDFs firmados */
+const CARPETA_PDF_FIRMADOS_ID = '1CdR7uikvU0zpBOgcxfciFb4E1NWcF-rL';
 const GOOGLE_DOC_MIME = 'application/vnd.google-apps.document';
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const OFFICE_DOC_MIMES = new Set([
@@ -179,6 +184,19 @@ function calcularPromedio(competencias) {
     return Math.round(avg * 100) / 100;
 }
 
+function sanitizarPdfFirmado(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const driveFileId = String(raw.driveFileId || raw.drive_file_id || '').trim();
+    if (!driveFileId) return null;
+    return {
+        driveFileId,
+        nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'Evaluación firmada.pdf').trim(),
+        webViewLink: String(raw.webViewLink || raw.web_view_link || '').trim() || null,
+        previewUrl: `https://drive.google.com/file/d/${driveFileId}/preview`,
+        fechaSubida: formatearFechaIso(raw.fechaSubida || raw.fecha_subida) || fechaHoyIso()
+    };
+}
+
 function sanitizarEvaluacion(raw) {
     const base = raw && typeof raw === 'object' ? raw : {};
     const competencias = sanitizarCompetencias(base.competencias);
@@ -193,6 +211,8 @@ function sanitizarEvaluacion(raw) {
         noEmpleado: String(base.noEmpleado || base.no_empleado || '').trim(),
         fechaIngreso: formatearFechaIso(base.fechaIngreso || base.fecha_ingreso) || '',
         periodoEvaluado: String(base.periodoEvaluado || base.periodo_evaluado || '').trim(),
+        evaluador: String(base.evaluador || '').trim(),
+        usuarioId: String(base.usuarioId || base.usuario_id || '').trim() || null,
         competencias,
         observaciones: normalizarSaltos(base.observaciones || ''),
         promedioGeneral: promedioManual === '' || promedioManual == null
@@ -202,13 +222,10 @@ function sanitizarEvaluacion(raw) {
         areasOportunidad: normalizarSaltos(base.areasOportunidad || base.areas_oportunidad || ''),
         planMejora: normalizarSaltos(base.planMejora || base.plan_mejora || ''),
         comentariosEvaluador: normalizarSaltos(base.comentariosEvaluador || base.comentarios_evaluador || ''),
-        firmaColaboradorNombre: String(base.firmaColaboradorNombre || base.firma_colaborador_nombre || '').trim(),
-        firmaColaboradorPuesto: String(base.firmaColaboradorPuesto || base.firma_colaborador_puesto || '').trim(),
-        firmaEvaluadorNombre: String(base.firmaEvaluadorNombre || base.firma_evaluador_nombre || '').trim(),
-        firmaEvaluadorPuesto: String(base.firmaEvaluadorPuesto || base.firma_evaluador_puesto || '').trim(),
         fechaEvaluacion: formatearFechaIso(base.fechaEvaluacion || base.fecha_evaluacion) || fechaHoyIso(),
         driveFileId: String(base.driveFileId || base.drive_file_id || '').trim() || null,
         nombreArchivo: String(base.nombreArchivo || base.nombre_archivo || '').trim() || null,
+        pdfFirmado: sanitizarPdfFirmado(base.pdfFirmado || base.pdf_firmado),
         fechaCreacion: formatearFechaIso(base.fechaCreacion || base.fecha_creacion) || fechaHoyIso(),
         borrador: base.borrador !== false && !base.driveFileId && !base.drive_file_id
     };
@@ -218,7 +235,7 @@ function sanitizarDatos(raw) {
     const base = raw && typeof raw === 'object' ? raw : {};
     const evaluaciones = (Array.isArray(base.evaluaciones) ? base.evaluaciones : [])
         .map(sanitizarEvaluacion)
-        .filter((e) => e.folio || e.nombreCompleto || e.driveFileId);
+        .filter((e) => e.folio || e.nombreCompleto || e.evaluador || e.driveFileId || e.pdfFirmado?.driveFileId);
     const activoId = String(base.evaluacionActivaId || base.evaluacion_activa_id || '').trim();
     return {
         revision: String(base.revision || DATOS_DEFECTO.revision).trim() || DATOS_DEFECTO.revision,
@@ -239,6 +256,11 @@ function resolverEvaluacionActiva(datos) {
 function nombreArchivoDrive(folio) {
     const f = normalizarFolio(folio);
     return f || 'ATH-F-11 Evaluación de desempeño';
+}
+
+function nombrePdfFirmado(folio) {
+    const f = normalizarFolio(folio) || 'sin-folio';
+    return `${f} firmado.pdf`;
 }
 
 function clienteGoogle() {
@@ -595,16 +617,140 @@ function crearEvaluacionVacia(evaluaciones = []) {
     });
 }
 
+async function publicarPdfEnDrive(pdfBuffer, folio) {
+    return driveService.subirArchivoNuevo(
+        pdfBuffer,
+        nombrePdfFirmado(folio),
+        'application/pdf',
+        CARPETA_PDF_FIRMADOS_ID
+    );
+}
+
+async function subirPdfFirmado(pool, body) {
+    const pdfBase64 = String(body?.pdf_base64 || body?.pdfBase64 || '').trim();
+    if (!pdfBase64) throw new Error('No se recibió el PDF (pdf_base64 requerido).');
+    const evaluacionId = String(body?.evaluacionId || body?.evaluacion_id || '').trim();
+    if (!evaluacionId) throw new Error('Se requiere evaluacionId para asociar el PDF firmado.');
+
+    const pdfBuffer = Buffer.from(pdfBase64.replace(/^data:[^;]+;base64,/, ''), 'base64');
+    if (!pdfBuffer.length) throw new Error('El archivo PDF está vacío.');
+
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registroPrevio = await obtenerRegistroDb(pool);
+    const datosPrevios = (await leerDatosRegistro(registroPrevio)) || sanitizarDatos(DATOS_DEFECTO);
+    const evaluaciones = [...datosPrevios.evaluaciones];
+    const idx = evaluaciones.findIndex((e) => e.id === evaluacionId);
+    if (idx < 0) {
+        throw new Error('No se encontró la evaluación indicada en el archivero.');
+    }
+
+    const actual = { ...evaluaciones[idx] };
+    const driveResult = await publicarPdfEnDrive(pdfBuffer, actual.folio);
+    actual.pdfFirmado = sanitizarPdfFirmado({
+        driveFileId: driveResult.id,
+        nombreArchivo: driveResult.name || nombrePdfFirmado(actual.folio),
+        webViewLink: driveResult.webViewLink || null,
+        fechaSubida: fechaHoyIso()
+    });
+
+    evaluaciones[idx] = actual;
+    const datosGuardar = sanitizarDatos({
+        ...datosPrevios,
+        evaluaciones,
+        evaluacionActivaId: evaluacionId
+    });
+
+    await guardarRegistroDb(pool, {
+        driveFileId: null,
+        datos: datosGuardar,
+        fechaElaboracionOriginal: formatearFechaIso(registroPrevio?.fecha_elaboracion_original) || fechaHoyIso(),
+        fechaModificacionContenido: excelHistorial.fechaAhoraMexicoIso(),
+        contenidoModificado: true,
+        ultimaSyncDrive: excelHistorial.fechaAhoraMexicoIso()
+    });
+
+    const registro = await obtenerRegistroDb(pool);
+    const respuesta = construirRespuesta(registro, datosGuardar);
+    return {
+        ...respuesta,
+        pdfFirmado: actual.pdfFirmado
+    };
+}
+
+/**
+ * Exporta a PDF el Google Doc de UNA evaluación (Word/Doc por folio).
+ * Si aún no hay archivo en Drive, lo materializa antes de exportar.
+ */
+async function descargarPdfEvaluacion(pool, evaluacionId) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const datosPrevios = (await leerDatosRegistro(registro)) || { ...DATOS_DEFECTO, evaluaciones: [] };
+    const id = String(evaluacionId || '').trim();
+    let actual = id
+        ? (datosPrevios.evaluaciones || []).find((e) => e.id === id)
+        : resolverEvaluacionActiva(datosPrevios);
+    if (!actual) {
+        throw new Error('No hay evaluación seleccionada para descargar el PDF.');
+    }
+
+    const doc = await asegurarDocumentoEvaluacion(actual, true);
+    actual = sanitizarEvaluacion({
+        ...actual,
+        driveFileId: doc.driveFileId,
+        nombreArchivo: doc.nombreArchivo,
+        borrador: false
+    });
+
+    const evaluaciones = (datosPrevios.evaluaciones || []).map((e) =>
+        e.id === actual.id ? actual : e
+    );
+    const datosGuardar = sanitizarDatos({
+        ...datosPrevios,
+        evaluaciones,
+        evaluacionActivaId: actual.id
+    });
+    await guardarRegistroDb(pool, {
+        driveFileId: null,
+        datos: datosGuardar,
+        fechaElaboracionOriginal: formatearFechaIso(registro?.fecha_elaboracion_original) || fechaHoyIso(),
+        fechaModificacionContenido: excelHistorial.fechaAhoraMexicoIso(),
+        contenidoModificado: true,
+        ultimaSyncDrive: excelHistorial.fechaAhoraMexicoIso()
+    });
+
+    const pdfBuffer = await driveService.exportarArchivoPDF(doc.driveFileId);
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de la evaluación quedó vacía.');
+    }
+
+    const etiqueta = String(actual.nombreCompleto || actual.folio || 'evaluacion')
+        .replace(/[\\/:*?"<>|]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80) || 'evaluacion';
+    return {
+        pdfBuffer: Buffer.from(pdfBuffer),
+        nombreArchivo: `ATH-F-11 ${etiqueta}.pdf`,
+        folio: actual.folio,
+        evaluacionId: actual.id,
+        driveFileId: doc.driveFileId
+    };
+}
+
 module.exports = {
     CODIGO_FORMATO,
     TEMPLATE_DRIVE_ID,
+    CARPETA_RAIZ_DRIVE_ID,
     CARPETA_DRIVE_ID,
+    CARPETA_PDF_FIRMADOS_ID,
     COMPETENCIAS_DEFECTO,
     DATOS_DEFECTO,
     cargarFormato,
     guardarFormato,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
+    subirPdfFirmado,
+    descargarPdfEvaluacion,
     sanitizarDatos,
     sanitizarEvaluacion,
     crearEvaluacionVacia,

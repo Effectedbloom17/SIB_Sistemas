@@ -321,6 +321,17 @@
                     <i class="fas" [ngClass]="sgcF16DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF16DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
                   </button>
+                  <button
+                    *ngIf="plantillaSlug === 'ath-f-11' && athF11Vista === 'editor'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="athF11Cargando || athF11Guardando || athF11DescargandoPdf || !athF11EvaluacionActiva"
+                    (click)="descargarPdfAthF11()"
+                    title="Descargar PDF de esta evaluación"
+                    aria-label="Descargar PDF de esta evaluación">
+                    <i class="fas" [ngClass]="athF11DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ athF11DescargandoPdf ? 'Descargando…' : 'Descargar PDF' }}</span>
+                  </button>
                   <a *ngIf="plantillaSlug === 'sgc-f-01' && driveSyncDriveFileId"
                     class="btn btn-sm sgc-btn-drive"
                     [href]="'https://docs.google.com/spreadsheets/d/' + driveSyncDriveFileId + '/edit?usp=sharing'"
@@ -1209,10 +1220,6 @@
                             </button>
                           </section>
 
-                          <p class="ath-f-09-page__drive-hint" *ngIf="!cot.driveFileId">
-                            <i class="fas fa-info-circle mr-1" aria-hidden="true"></i>
-                            Usa <strong>Guardar información</strong> para crear el Word desde la plantilla y publicarlo en Drive.
-                          </p>
                           <p class="ath-f-09-page__drive-hint ath-f-09-page__drive-hint--ok" *ngIf="cot.driveFileId">
                             <i class="fas fa-file-word mr-1" aria-hidden="true"></i>
                             Documento en Drive: <strong>{{ cot.nombreArchivo || cot.folio }}</strong>
@@ -1313,8 +1320,7 @@
                           <div class="sgc-f-04-archivero__intro-text">
                             <h4 class="sgc-f-04-archivero__title">Archivero de evaluaciones</h4>
                             <p class="sgc-f-04-archivero__hint">
-                              Consulta, abre o crea evaluaciones con folio <strong>ED-YY-NNN</strong>.
-                              Cada registro genera su documento en Drive al guardar.
+                              Consulta, abre o crea evaluaciones de desempeño. Cada registro genera su documento en Drive al guardar.
                             </p>
                           </div>
                         </div>
@@ -1322,7 +1328,7 @@
                           <label class="sgc-f-04-archivero__search">
                             <i class="fas fa-search" aria-hidden="true"></i>
                             <input class="dg-f05-field" type="search" [(ngModel)]="athF11Busqueda" name="athF11_busqueda"
-                              placeholder="Buscar folio o colaborador…" autocomplete="off">
+                              placeholder="Buscar colaborador o evaluador…" autocomplete="off">
                           </label>
                           <button type="button" class="sgc-f-04-archivero__btn-nuevo" (click)="nuevoEvaluacionAthF11()">
                             <i class="fas fa-plus" aria-hidden="true"></i> Nueva evaluación
@@ -1335,9 +1341,6 @@
                           {{ athF11Form.evaluaciones.length }}
                           {{ athF11Form.evaluaciones.length === 1 ? 'evaluación' : 'evaluaciones' }}
                         </span>
-                        <span class="sgc-f-04-archivero__stat sgc-f-04-archivero__stat--muted">
-                          Siguiente folio sugerido: <strong>{{ athF11SiguienteFolio }}</strong>
-                        </span>
                         <span class="sgc-f-04-archivero__stat sgc-f-04-archivero__stat--muted"
                           *ngIf="athF11Busqueda.trim() && athF11EvaluacionesVista.length !== athF11Form.evaluaciones.length">
                           · {{ athF11EvaluacionesVista.length }} en vista
@@ -1346,7 +1349,8 @@
 
                       <ul class="sgc-f-04-archivero__grid" *ngIf="athF11EvaluacionesVista.length; else athF11ArchiveroVacio">
                         <li class="sgc-f-04-book ath-f-11-book"
-                          *ngFor="let ev of athF11EvaluacionesVista; trackBy: trackByIdx">
+                          *ngFor="let ev of athF11EvaluacionesVista; trackBy: trackByIdx"
+                          [class.sgc-f-04-book--pdf]="!!ev.pdfFirmado?.driveFileId">
                           <button type="button" class="sgc-f-04-book__tap" (click)="abrirEvaluacionAthF11(ev)">
                             <span class="sgc-f-04-book__binding" aria-hidden="true">
                               <span class="sgc-f-04-book__ring" *ngFor="let _ of [0,1,2,3,4,5]"></span>
@@ -1354,16 +1358,17 @@
                             <span class="sgc-f-04-book__page">
                               <span class="sgc-f-04-book__corner" aria-hidden="true"></span>
                               <span class="sgc-f-04-book__head">
-                                <span class="sgc-f-04-book__icon">
-                                  <i class="fas fa-file-word" aria-hidden="true"></i>
+                                <span class="sgc-f-04-book__icon"
+                                  [class.sgc-f-04-book__icon--pdf]="!!ev.pdfFirmado?.driveFileId">
+                                  <i class="fas" [ngClass]="ev.pdfFirmado?.driveFileId ? 'fa-file-pdf' : 'fa-file-word'" aria-hidden="true"></i>
                                 </span>
                                 <span class="sgc-f-04-book__estado"
-                                  [class.sgc-f-04-book__estado--cerrado]="!!ev.driveFileId">
-                                  {{ ev.borrador && !ev.driveFileId ? 'Borrador' : 'Registrada' }}
+                                  [class.sgc-f-04-book__estado--cerrado]="!!ev.pdfFirmado?.driveFileId || !!ev.driveFileId">
+                                  {{ ev.pdfFirmado?.driveFileId ? 'Firmada' : (ev.borrador && !ev.driveFileId ? 'Borrador' : 'Registrada') }}
                                 </span>
                               </span>
                               <span class="sgc-f-04-book__origen">{{ ev.nombreCompleto?.trim() || 'Sin colaborador' }}</span>
-                              <span class="sgc-f-04-book__folio">{{ ev.folio || 'Sin folio' }}</span>
+                              <span class="sgc-f-04-book__folio">{{ ev.evaluador?.trim() || 'Sin evaluador' }}</span>
                               <span class="sgc-f-04-book__lines" aria-hidden="true">
                                 <span></span><span></span><span></span>
                               </span>
@@ -1371,7 +1376,8 @@
                                 <span class="sgc-f-04-book__fecha" *ngIf="ev.fechaCreacion">
                                   {{ formatearFechaCortaSgcF04(ev.fechaCreacion) }}
                                 </span>
-                                <span class="sgc-f-04-book__fuente" *ngIf="ev.promedioGeneral != null">
+                                <span class="sgc-f-04-book__fuente" *ngIf="ev.pdfFirmado?.driveFileId">PDF firmado</span>
+                                <span class="sgc-f-04-book__fuente" *ngIf="!ev.pdfFirmado?.driveFileId && ev.promedioGeneral != null">
                                   Prom. {{ formatearPromedioAthF11(ev.promedioGeneral) }}
                                 </span>
                               </span>
@@ -1389,7 +1395,7 @@
                           <div class="sgc-empty-state">
                             <div class="sgc-empty-state__icon"><i class="fas fa-folder-open" aria-hidden="true"></i></div>
                             <h4 class="sgc-empty-state__title">Sin evaluaciones registradas</h4>
-                            <p class="sgc-empty-state__text mb-0">Crea la primera evaluación para generar el documento en Drive con folio {{ athF11SiguienteFolio }}.</p>
+                            <p class="sgc-empty-state__text mb-0">Crea la primera evaluación para generar el documento en Drive.</p>
                           </div>
                         </div>
                       </ng-template>
@@ -1402,7 +1408,7 @@
                         <i class="fas fa-arrow-left mr-1" aria-hidden="true"></i>
                         Volver al archivero
                       </button>
-                      <span class="sgc-f-04-editor-bar__folio">{{ ev.folio }}</span>
+                      <span class="sgc-f-04-editor-bar__folio">{{ ev.evaluador || ev.nombreCompleto || 'Evaluación' }}</span>
                     </div>
 
                     <div class="ath-f-11-wrap">
@@ -1433,14 +1439,81 @@
                             </table>
                           </header>
 
-                          <div class="ath-f-11-page__toolbar" aria-label="Identificación de la evaluación">
-                            <label class="ath-f-11-page__mini-field">
-                              <span>Folio</span>
-                              <input type="text" name="athF11_folio" [(ngModel)]="ev.folio"
-                                placeholder="ED-26-001" autocomplete="off">
-                              <small class="ath-f-11-page__folio-regla">
-                                Formato <strong>ED-YY-NNN</strong> (año + consecutivo).
-                              </small>
+                          <!-- Folio ED-YY-NNN se genera/guarda internamente; en pantalla solo Evaluador -->
+                          <div class="ath-f-11-page__toolbar" aria-label="Evaluador">
+                            <label class="ath-f-11-page__mini-field ath-f-11-page__mini-field--grow">
+                              <span>Evaluador</span>
+                              <div class="ath-f-08-combo"
+                                [class.ath-f-08-combo--open]="athF11EvaluadorComboAbierto"
+                                (mousedown)="$event.stopPropagation()">
+                                <div class="ath-f-08-combo__control">
+                                  <span class="ath-f-08-combo__icon" aria-hidden="true">
+                                    <i class="fas fa-user-tie"></i>
+                                  </span>
+                                  <input class="ath-f-08-combo__input"
+                                    type="text"
+                                    name="athF11_evaluador"
+                                    [ngModel]="textoComboEvaluadorAthF11()"
+                                    (ngModelChange)="onEvaluadorComboInputAthF11($event)"
+                                    (focus)="abrirComboEvaluadorAthF11()"
+                                    (click)="abrirComboEvaluadorAthF11()"
+                                    placeholder="Buscar evaluador…"
+                                    autocomplete="off"
+                                    [attr.aria-expanded]="athF11EvaluadorComboAbierto">
+                                  <button *ngIf="ev.evaluador || (athF11EvaluadorComboAbierto && athF11EvaluadorComboQuery)"
+                                    type="button"
+                                    class="ath-f-08-combo__clear"
+                                    (click)="limpiarEvaluadorAthF11(); $event.stopPropagation()"
+                                    title="Limpiar evaluador" aria-label="Limpiar evaluador">
+                                    <i class="fas fa-times" aria-hidden="true"></i>
+                                  </button>
+                                  <span class="ath-f-08-combo__chevron" aria-hidden="true">
+                                    <i class="fas"
+                                      [ngClass]="athF11EvaluadorComboAbierto ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                                  </span>
+                                </div>
+                                <div class="ath-f-08-combo__dropdown"
+                                  *ngIf="athF11EvaluadorComboAbierto"
+                                  role="listbox">
+                                  <div class="ath-f-08-combo__dropdown-head"
+                                    *ngIf="evaluadoresFiltradosAthF11.length || textoLibreEvaluadorAthF11">
+                                    <span class="ath-f-08-combo__dropdown-title">Evaluadores</span>
+                                    <span class="ath-f-08-combo__dropdown-count">{{ evaluadoresFiltradosAthF11.length }}</span>
+                                  </div>
+                                  <button *ngIf="textoLibreEvaluadorAthF11" type="button"
+                                    class="ath-f-08-combo__option ath-f-08-combo__option--create"
+                                    (click)="seleccionarEvaluadorLibreAthF11(textoLibreEvaluadorAthF11)">
+                                    <span class="ath-f-08-combo__option-icon" aria-hidden="true">
+                                      <i class="fas fa-plus"></i>
+                                    </span>
+                                    <span class="ath-f-08-combo__option-text">Usar «{{ textoLibreEvaluadorAthF11 }}»</span>
+                                  </button>
+                                  <div class="ath-f-08-combo__state"
+                                    *ngIf="!evaluadoresFiltradosAthF11.length && !textoLibreEvaluadorAthF11">
+                                    <span class="ath-f-08-combo__state-icon" aria-hidden="true">
+                                      <i class="fas fa-search"></i>
+                                    </span>
+                                    Sin coincidencias
+                                  </div>
+                                  <div class="ath-f-08-combo__options"
+                                    *ngIf="evaluadoresFiltradosAthF11.length">
+                                    <button *ngFor="let emp of evaluadoresFiltradosAthF11; trackBy: trackByIdx"
+                                      type="button"
+                                      class="ath-f-08-combo__option"
+                                      [class.ath-f-08-combo__option--selected]="emp.nombreCompleto === ev.evaluador"
+                                      (click)="seleccionarEvaluadorAthF11(emp)">
+                                      <span class="ath-f-08-combo__option-icon" aria-hidden="true">
+                                        <i class="fas fa-user"></i>
+                                      </span>
+                                      <span class="ath-f-08-combo__option-text">{{ emp.nombreCompleto }}</span>
+                                      <span class="ath-f-08-combo__option-check"
+                                        *ngIf="emp.nombreCompleto === ev.evaluador" aria-hidden="true">
+                                        <i class="fas fa-check"></i>
+                                      </span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
                             </label>
                           </div>
 
@@ -1456,18 +1529,94 @@
                           <section class="ath-f-11-page__section">
                             <h3 class="ath-f-11-page__section-title">Datos generales del colaborador</h3>
                             <div class="ath-f-11-page__datos">
-                              <label class="ath-f-11-page__field ath-f-11-page__field--full">
+                              <div class="ath-f-11-page__field ath-f-11-page__field--full">
                                 <span>Nombre completo</span>
-                                <input type="text" name="athF11_nombre" [(ngModel)]="ev.nombreCompleto"
-                                  placeholder="Nombre del colaborador" autocomplete="off">
-                              </label>
+                                <div class="ath-f-08-combo"
+                                  [class.ath-f-08-combo--open]="athF11NombreComboAbierto"
+                                  (mousedown)="$event.stopPropagation()">
+                                  <div class="ath-f-08-combo__control">
+                                    <span class="ath-f-08-combo__icon" aria-hidden="true">
+                                      <i class="fas fa-search"></i>
+                                    </span>
+                                    <input class="ath-f-08-combo__input"
+                                      type="text"
+                                      name="athF11_nombre"
+                                      [ngModel]="textoComboNombreAthF11()"
+                                      (ngModelChange)="onNombreComboInputAthF11($event)"
+                                      (focus)="abrirComboNombreAthF11()"
+                                      (click)="abrirComboNombreAthF11()"
+                                      placeholder="Buscar colaborador…"
+                                      autocomplete="off"
+                                      [attr.aria-expanded]="athF11NombreComboAbierto">
+                                    <button *ngIf="ev.nombreCompleto || (athF11NombreComboAbierto && athF11NombreComboQuery)"
+                                      type="button"
+                                      class="ath-f-08-combo__clear"
+                                      (click)="limpiarNombreAthF11(); $event.stopPropagation()"
+                                      title="Limpiar nombre" aria-label="Limpiar nombre">
+                                      <i class="fas fa-times" aria-hidden="true"></i>
+                                    </button>
+                                    <span class="ath-f-08-combo__chevron" aria-hidden="true">
+                                      <i class="fas"
+                                        [ngClass]="athF11NombreComboAbierto ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                                    </span>
+                                  </div>
+                                  <div class="ath-f-08-combo__dropdown"
+                                    *ngIf="athF11NombreComboAbierto"
+                                    role="listbox">
+                                    <div class="ath-f-08-combo__dropdown-head"
+                                      *ngIf="empleadosFiltradosAthF11.length || textoLibreNombreAthF11">
+                                      <span class="ath-f-08-combo__dropdown-title">Colaboradores</span>
+                                      <span class="ath-f-08-combo__dropdown-count">{{ empleadosFiltradosAthF11.length }}</span>
+                                    </div>
+                                    <button *ngIf="textoLibreNombreAthF11" type="button"
+                                      class="ath-f-08-combo__option ath-f-08-combo__option--create"
+                                      (click)="seleccionarNombreLibreAthF11(textoLibreNombreAthF11)">
+                                      <span class="ath-f-08-combo__option-icon" aria-hidden="true">
+                                        <i class="fas fa-plus"></i>
+                                      </span>
+                                      <span class="ath-f-08-combo__option-text">
+                                        Usar «{{ textoLibreNombreAthF11 }}» (editable)
+                                      </span>
+                                    </button>
+                                    <div class="ath-f-08-combo__state"
+                                      *ngIf="!empleadosFiltradosAthF11.length && !textoLibreNombreAthF11">
+                                      <span class="ath-f-08-combo__state-icon" aria-hidden="true">
+                                        <i class="fas fa-search"></i>
+                                      </span>
+                                      Sin coincidencias · escribe para registrar un nombre libre
+                                    </div>
+                                    <div class="ath-f-08-combo__options"
+                                      *ngIf="empleadosFiltradosAthF11.length">
+                                      <button *ngFor="let emp of empleadosFiltradosAthF11; trackBy: trackByIdx"
+                                        type="button"
+                                        class="ath-f-08-combo__option"
+                                        [class.ath-f-08-combo__option--selected]="emp.nombreCompleto === ev.nombreCompleto"
+                                        (click)="seleccionarEmpleadoAthF11(emp)">
+                                        <span class="ath-f-08-combo__option-icon" aria-hidden="true">
+                                          <i class="fas fa-user"></i>
+                                        </span>
+                                        <span class="ath-f-08-combo__option-text">
+                                          {{ emp.nombreCompleto }}
+                                          <small *ngIf="emp.puesto" class="ath-f-11-combo-meta"> · {{ emp.puesto }}</small>
+                                        </span>
+                                        <span class="ath-f-08-combo__option-check"
+                                          *ngIf="emp.nombreCompleto === ev.nombreCompleto" aria-hidden="true">
+                                          <i class="fas fa-check"></i>
+                                        </span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
                               <label class="ath-f-11-page__field">
                                 <span>Puesto</span>
-                                <input type="text" name="athF11_puesto" [(ngModel)]="ev.puesto" autocomplete="off">
+                                <input type="text" name="athF11_puesto" [(ngModel)]="ev.puesto"
+                                  placeholder="Se completa al elegir colaborador" autocomplete="off">
                               </label>
                               <label class="ath-f-11-page__field">
                                 <span>Área / Departamento</span>
-                                <input type="text" name="athF11_area" [(ngModel)]="ev.areaDepartamento" autocomplete="off">
+                                <input type="text" name="athF11_area" [(ngModel)]="ev.areaDepartamento"
+                                  placeholder="Se completa al elegir colaborador" autocomplete="off">
                               </label>
                               <label class="ath-f-11-page__field">
                                 <span>No. de empleado</span>
@@ -1477,10 +1626,14 @@
                                 <span>Fecha de ingreso</span>
                                 <input type="date" name="athF11_fechaIngreso" [(ngModel)]="ev.fechaIngreso">
                               </label>
-                              <label class="ath-f-11-page__field ath-f-11-page__field--full">
+                              <label class="ath-f-11-page__field">
                                 <span>Periodo evaluado</span>
                                 <input type="text" name="athF11_periodo" [(ngModel)]="ev.periodoEvaluado"
                                   placeholder="Ej. Enero – Diciembre 2026" autocomplete="off">
+                              </label>
+                              <label class="ath-f-11-page__field">
+                                <span>Fecha de la evaluación</span>
+                                <input type="date" name="athF11_fechaEval" [(ngModel)]="ev.fechaEvaluacion">
                               </label>
                             </div>
                           </section>
@@ -1542,80 +1695,67 @@
                           </section>
 
                           <section class="ath-f-11-page__section">
+                            <div class="ath-f-11-page__promedio-table-wrap">
+                              <table class="ath-f-11-page__promedio-table" aria-label="Promedio general de desempeño">
+                                <thead>
+                                  <tr>
+                                    <th class="ath-f-11-page__promedio-label-col">Resultado</th>
+                                    <th class="ath-f-11-page__promedio-value-col">Calificación</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr>
+                                    <td class="ath-f-11-page__promedio-label-col">
+                                      <strong>Promedio general de desempeño</strong>
+                                    </td>
+                                    <td class="ath-f-11-page__promedio-value-col">
+                                      <span class="ath-f-11-page__promedio">{{ formatearPromedioAthF11(ev.promedioGeneral) }}</span>
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          </section>
+
+                          <section class="ath-f-11-page__section">
+                            <h3 class="ath-f-11-page__block-title">Resultados de la evaluación</h3>
+                            <div class="ath-f-11-foda" aria-label="Cuadrantes de resultados">
+                              <label class="ath-f-11-foda__card ath-f-11-foda__card--fortalezas">
+                                <span class="ath-f-11-foda__title">Fortalezas del colaborador</span>
+                                <textarea class="ath-f-11-foda__textarea" rows="5" name="athF11_fortalezas"
+                                  [(ngModel)]="ev.fortalezas" placeholder="Escribe aquí"></textarea>
+                                <i class="fas fa-dumbbell ath-f-11-foda__icon" aria-hidden="true"></i>
+                              </label>
+                              <label class="ath-f-11-foda__card ath-f-11-foda__card--oportunidad">
+                                <span class="ath-f-11-foda__title">Áreas de oportunidad</span>
+                                <textarea class="ath-f-11-foda__textarea" rows="5" name="athF11_oportunidad"
+                                  [(ngModel)]="ev.areasOportunidad" placeholder="Escribe aquí"></textarea>
+                                <i class="fas fa-link ath-f-11-foda__icon" aria-hidden="true"></i>
+                              </label>
+                              <label class="ath-f-11-foda__card ath-f-11-foda__card--plan">
+                                <span class="ath-f-11-foda__title">Plan de mejora y desarrollo</span>
+                                <textarea class="ath-f-11-foda__textarea" rows="5" name="athF11_plan"
+                                  [(ngModel)]="ev.planMejora" placeholder="Escribe aquí"></textarea>
+                                <i class="fas fa-key ath-f-11-foda__icon" aria-hidden="true"></i>
+                              </label>
+                              <label class="ath-f-11-foda__card ath-f-11-foda__card--comentarios">
+                                <span class="ath-f-11-foda__title">Comentarios generales del evaluador</span>
+                                <textarea class="ath-f-11-foda__textarea" rows="5" name="athF11_comentarios"
+                                  [(ngModel)]="ev.comentariosEvaluador" placeholder="Escribe aquí"></textarea>
+                                <i class="fas fa-comment-dots ath-f-11-foda__icon" aria-hidden="true"></i>
+                              </label>
+                            </div>
+                          </section>
+
+                          <section class="ath-f-11-page__section">
                             <h3 class="ath-f-11-page__block-title">Observaciones</h3>
                             <textarea class="ath-f-11-page__textarea" rows="4" name="athF11_obs"
                               [(ngModel)]="ev.observaciones" placeholder="Observaciones generales…"></textarea>
                           </section>
 
-                          <section class="ath-f-11-page__section">
-                            <h3 class="ath-f-11-page__block-title">Resultados de la evaluación</h3>
-                            <div class="ath-f-11-page__resultados">
-                              <div class="ath-f-11-page__resultado-row">
-                                <span class="ath-f-11-page__resultado-label">Promedio general de desempeño</span>
-                                <strong class="ath-f-11-page__promedio">{{ formatearPromedioAthF11(ev.promedioGeneral) }}</strong>
-                              </div>
-                              <label class="ath-f-11-page__resultado-row ath-f-11-page__resultado-row--stack">
-                                <span class="ath-f-11-page__resultado-label">Fortalezas del colaborador</span>
-                                <textarea class="ath-f-11-page__textarea" rows="3" name="athF11_fortalezas"
-                                  [(ngModel)]="ev.fortalezas"></textarea>
-                              </label>
-                              <label class="ath-f-11-page__resultado-row ath-f-11-page__resultado-row--stack">
-                                <span class="ath-f-11-page__resultado-label">Áreas de oportunidad</span>
-                                <textarea class="ath-f-11-page__textarea" rows="3" name="athF11_oportunidad"
-                                  [(ngModel)]="ev.areasOportunidad"></textarea>
-                              </label>
-                              <label class="ath-f-11-page__resultado-row ath-f-11-page__resultado-row--stack">
-                                <span class="ath-f-11-page__resultado-label">Plan de mejora y desarrollo</span>
-                                <textarea class="ath-f-11-page__textarea" rows="3" name="athF11_plan"
-                                  [(ngModel)]="ev.planMejora"></textarea>
-                              </label>
-                              <label class="ath-f-11-page__resultado-row ath-f-11-page__resultado-row--stack">
-                                <span class="ath-f-11-page__resultado-label">Comentarios generales del evaluador</span>
-                                <textarea class="ath-f-11-page__textarea" rows="3" name="athF11_comentarios"
-                                  [(ngModel)]="ev.comentariosEvaluador"></textarea>
-                              </label>
-                            </div>
-                          </section>
-
-                          <section class="ath-f-11-page__section ath-f-11-page__firmas">
-                            <h3 class="ath-f-11-page__section-title ath-f-11-page__section-title--center">Firmas</h3>
-                            <div class="ath-f-11-page__firmas-grid">
-                              <div class="ath-f-11-page__firma-box">
-                                <span class="ath-f-11-page__firma-caption">Firma del colaborador</span>
-                                <label class="ath-f-11-page__field">
-                                  <span>Nombre</span>
-                                  <input type="text" name="athF11_firma_col_nom" [(ngModel)]="ev.firmaColaboradorNombre" autocomplete="off">
-                                </label>
-                                <label class="ath-f-11-page__field">
-                                  <span>Puesto</span>
-                                  <input type="text" name="athF11_firma_col_pto" [(ngModel)]="ev.firmaColaboradorPuesto" autocomplete="off">
-                                </label>
-                              </div>
-                              <div class="ath-f-11-page__firma-box">
-                                <span class="ath-f-11-page__firma-caption">Firma del evaluador</span>
-                                <label class="ath-f-11-page__field">
-                                  <span>Nombre</span>
-                                  <input type="text" name="athF11_firma_ev_nom" [(ngModel)]="ev.firmaEvaluadorNombre" autocomplete="off">
-                                </label>
-                                <label class="ath-f-11-page__field">
-                                  <span>Puesto</span>
-                                  <input type="text" name="athF11_firma_ev_pto" [(ngModel)]="ev.firmaEvaluadorPuesto" autocomplete="off">
-                                </label>
-                              </div>
-                            </div>
-                            <label class="ath-f-11-page__field ath-f-11-page__field--fecha-eval">
-                              <span>Fecha de la evaluación</span>
-                              <input type="date" name="athF11_fechaEval" [(ngModel)]="ev.fechaEvaluacion">
-                            </label>
-                          </section>
-
-                          <p class="ath-f-11-page__drive-hint" *ngIf="!ev.driveFileId">
-                            <i class="fas fa-info-circle mr-1" aria-hidden="true"></i>
-                            Usa <strong>Guardar información</strong> para crear el documento desde la plantilla y publicarlo en Drive.
-                          </p>
                           <p class="ath-f-11-page__drive-hint ath-f-11-page__drive-hint--ok" *ngIf="ev.driveFileId">
                             <i class="fas fa-file-word mr-1" aria-hidden="true"></i>
-                            Documento en Drive: <strong>{{ ev.nombreArchivo || ev.folio }}</strong>
+                            Documento en Drive: <strong>{{ ev.nombreArchivo || ev.nombreCompleto || 'Evaluación' }}</strong>
                             <button type="button" class="ath-f-11-page__drive-link" (click)="toggleAthF11Editor()">
                               Abrir editor integrado
                             </button>
@@ -1623,6 +1763,51 @@
                         </div>
                       </article>
                     </div>
+
+                    <aside class="dg-f02-attach sgc-f-04-attach ath-f-11-attach" aria-label="Versión firmada">
+                      <div class="dg-f02-attach__head">
+                        <div class="dg-f02-attach__icon-wrap">
+                          <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                        </div>
+                        <div>
+                          <h3 class="dg-f02-attach__title">Versión firmada</h3>
+                          <p class="dg-f02-attach__desc mb-0">
+                            Sube el PDF firmado de esta evaluación. Se guarda en Documentos Firmados de ATH-F-11.
+                          </p>
+                        </div>
+                      </div>
+                      <label class="dg-f02-attach__dropzone" *ngIf="!ev.pdfFirmado?.driveFileId"
+                        [class.dg-f02-attach__dropzone--busy]="athF11SubiendoPdf">
+                        <input type="file" class="dg-f02-attach__input" accept="application/pdf"
+                          (change)="onSeleccionarPdfAthF11($event)" [disabled]="athF11SubiendoPdf">
+                        <span class="dg-f02-attach__dropzone-icon">
+                          <i class="fas" [ngClass]="athF11SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                        </span>
+                        <span class="dg-f02-attach__dropzone-title">
+                          {{ athF11SubiendoPdf ? 'Subiendo PDF…' : 'Arrastra o selecciona el PDF firmado' }}
+                        </span>
+                        <span class="dg-f02-attach__dropzone-hint">Formato PDF · máximo {{ etiquetaMaxPdfSgc }}</span>
+                      </label>
+                      <input #athF11InputActualizarPdf type="file" class="dg-f02-attach__input" accept="application/pdf"
+                        (change)="onSeleccionarPdfAthF11($event)" [disabled]="athF11SubiendoPdf">
+                      <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="ev.pdfFirmado as pdf">
+                        <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
+                        <div class="dg-f02-attach__file-info">
+                          <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo }}</strong>
+                          <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                            Subido el {{ formatearFechaCortaSgcF04(pdf.fechaSubida) }}
+                          </small>
+                        </div>
+                        <div class="dg-f02-attach__file-actions" *ngIf="ev.pdfFirmado?.driveFileId">
+                          <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
+                            [disabled]="athF11SubiendoPdf"
+                            (click)="athF11InputActualizarPdf.click()">
+                            <i class="fas mr-1" [ngClass]="athF11SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-sync-alt'" aria-hidden="true"></i>
+                            {{ athF11SubiendoPdf ? 'Subiendo…' : 'Actualizar PDF' }}
+                          </button>
+                        </div>
+                      </div>
+                    </aside>
                   </article>
                 </div>
               </form>

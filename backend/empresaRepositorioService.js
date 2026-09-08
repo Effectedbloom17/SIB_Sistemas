@@ -802,36 +802,24 @@ async function eliminarDocumento(pool, empresaId, id) {
     return { eliminado: true, id: doc.id };
 }
 
-function tipoOfficeDocumento(doc) {
-    const nombre = String(doc?.nombreArchivo || '').toLowerCase();
-    const mime = String(doc?.mimeType || '').toLowerCase();
-    if (mime.includes('word') || /\.docx?$/.test(nombre)) {
-        return 'word';
-    }
-    if (mime.includes('sheet') || mime.includes('excel') || /\.xlsx?$/.test(nombre)) {
-        return 'excel';
-    }
-    if (mime.includes('presentation') || mime.includes('powerpoint') || /\.pptx?$/.test(nombre)) {
-        return 'ppt';
-    }
-    return null;
-}
-
 function resolverUrlsVistaDocumento(doc) {
     const id = String(doc?.driveFileId || '').trim();
     if (!id) {
         return { previewUrl: null, editorUrl: null, thumbnailUrl: null };
     }
-    const tipo = tipoOfficeDocumento(doc);
+    const mime = String(doc?.mimeType || '').toLowerCase();
+    // XLSX/DOCX/PPTX binarios NO son Google Sheets/Docs nativos.
+    // docs.google.com/spreadsheets|document|presentation/.../preview falla
+    // con "Se ha producido un error". El visor de Drive sí renderiza Office.
     let previewUrl = `https://drive.google.com/file/d/${id}/preview`;
     let editorUrl = `https://drive.google.com/file/d/${id}/view`;
-    if (tipo === 'word') {
+    if (mime === 'application/vnd.google-apps.document') {
         previewUrl = `https://docs.google.com/document/d/${id}/preview`;
         editorUrl = `https://docs.google.com/document/d/${id}/edit?usp=sharing`;
-    } else if (tipo === 'excel') {
+    } else if (mime === 'application/vnd.google-apps.spreadsheet') {
         previewUrl = `https://docs.google.com/spreadsheets/d/${id}/preview`;
         editorUrl = `https://docs.google.com/spreadsheets/d/${id}/edit?usp=sharing`;
-    } else if (tipo === 'ppt') {
+    } else if (mime === 'application/vnd.google-apps.presentation') {
         previewUrl = `https://docs.google.com/presentation/d/${id}/preview`;
         editorUrl = `https://docs.google.com/presentation/d/${id}/edit?usp=sharing`;
     }
@@ -853,6 +841,96 @@ async function prepararVistaDocumento(pool, empresaId, id) {
     return doc;
 }
 
+function esExcelOfficeMime(mime) {
+    const m = String(mime || '').toLowerCase();
+    return m === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        || m === 'application/vnd.ms-excel'
+        || (typeof driveService.esMimeTypeOfficeExcel === 'function' && driveService.esMimeTypeOfficeExcel(m));
+}
+
+function esNativoGoogleMime(mime) {
+    const m = String(mime || '').toLowerCase();
+    return m === 'application/vnd.google-apps.spreadsheet'
+        || m === 'application/vnd.google-apps.document'
+        || m === 'application/vnd.google-apps.presentation';
+}
+
+/**
+ * Prepara editor integrado embebible (Google nativo).
+ * Si el archivo es Excel Office (XLSX/XLS), lo convierte a Google Sheet y actualiza el índice.
+ */
+async function asegurarEditorIntegradoDocumento(pool, empresaId, id) {
+    let doc = await obtenerDocumento(pool, empresaId, id);
+    if (!doc) {
+        const error = new Error('Documento no encontrado.');
+        error.status = 404;
+        throw error;
+    }
+    if (!doc.driveFileId) {
+        const error = new Error('El documento no tiene archivo en Drive.');
+        error.status = 400;
+        throw error;
+    }
+
+    let convertido = false;
+    const mimeActual = String(doc.mimeType || '').toLowerCase();
+
+    if (esExcelOfficeMime(mimeActual)) {
+        const nombreBase = String(doc.nombreArchivoDrive || doc.nombreArchivo || doc.titulo || 'Hoja')
+            .replace(/\.(xlsx|xls)$/i, '')
+            .trim() || 'Hoja de cálculo';
+        const archivo = await driveService.convertirOfficeExcelAGoogleSheet(doc.driveFileId, {
+            nombre: nombreBase,
+            carpetaId: doc.carpetaDriveId || undefined,
+            eliminarOriginal: true
+        });
+        const nuevoId = String(archivo?.id || '').trim();
+        if (!nuevoId) {
+            throw new Error('Drive no devolvió el Google Sheet convertido.');
+        }
+        const nuevoMime = String(archivo?.mimeType || 'application/vnd.google-apps.spreadsheet');
+        const webViewLink = archivo?.webViewLink
+            || `https://docs.google.com/spreadsheets/d/${nuevoId}/edit`;
+        const nombreDrive = archivo?.name || nombreBase;
+
+        await pool.query(
+            `UPDATE empresa_repositorio
+             SET drive_file_id = ?,
+                 mime_type = ?,
+                 web_view_link = ?,
+                 nombre_archivo_drive = ?,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = ? AND empresa_id = ?`,
+            [nuevoId, nuevoMime, webViewLink, nombreDrive, doc.id, empresaId]
+        );
+        convertido = nuevoId !== String(doc.driveFileId);
+        doc = await obtenerDocumento(pool, empresaId, id);
+    }
+
+    if (!doc || !esNativoGoogleMime(doc.mimeType)) {
+        const error = new Error(
+            'El editor integrado solo está disponible para Google Sheets/Docs/Slides o Excel convertible.'
+        );
+        error.status = 400;
+        throw error;
+    }
+
+    try {
+        await driveService.asignarPermisoLecturaPublica(doc.driveFileId);
+    } catch (permErr) {
+        console.warn('[WARN] Permiso lectura editor repositorio:', permErr.message);
+    }
+
+    const urls = resolverUrlsVistaDocumento(doc);
+    return {
+        documento: doc,
+        convertido,
+        previewUrl: urls.previewUrl,
+        editorUrl: urls.editorUrl,
+        thumbnailUrl: urls.thumbnailUrl
+    };
+}
+
 module.exports = {
     asegurarTablas,
     listarDocumentos,
@@ -867,6 +945,7 @@ module.exports = {
     bufferADataUrlMiniatura,
     eliminarDocumento,
     prepararVistaDocumento,
+    asegurarEditorIntegradoDocumento,
     resolverUrlsVistaDocumento,
     sanitizarCarpetaRelativa,
     MIME_PERMITIDOS
