@@ -3599,6 +3599,93 @@ async function aplicarFormatoFilasSgcF05(spreadsheetId, sheetTitle, filaInicio, 
  * SGC-F-04 · Reporte de no conformidad: alineación de celdas con datos del sistema
  * (Rev 02). Se aplica después de escribir valores vía API.
  */
+/**
+ * SGC-F-22 · tipografía Century Gothic 10 y alineación izquierda en campos de captura.
+ * Celdas: fecha (E5), identificación (C8:E10), descripción (A13:E17), acciones (A20:E24).
+ */
+async function aplicarFormatoVisualSgcF22(spreadsheetId, sheetTitle) {
+    if (!spreadsheetId || !sheetTitle) {
+        return null;
+    }
+
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const meta = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties(sheetId,title)'
+    });
+    const sheet = (meta.data.sheets || []).find(
+        (s) => (s.properties?.title || '').trim() === String(sheetTitle).trim()
+    );
+    const sheetId = sheet?.properties?.sheetId;
+    if (sheetId === undefined || sheetId === null) {
+        return null;
+    }
+
+    const textFormat = {
+        fontFamily: 'Century Gothic',
+        fontSize: 10,
+        foregroundColor: { red: 0, green: 0, blue: 0 }
+    };
+
+    const aplicar = (rowStart, rowEnd, colStart, colEnd, horizontal, vertical = 'MIDDLE') => ({
+        repeatCell: {
+            range: {
+                sheetId,
+                startRowIndex: rowStart - 1,
+                endRowIndex: rowEnd,
+                startColumnIndex: colStart - 1,
+                endColumnIndex: colEnd
+            },
+            cell: {
+                userEnteredFormat: {
+                    horizontalAlignment: horizontal,
+                    verticalAlignment: vertical,
+                    wrapStrategy: 'WRAP',
+                    textFormat
+                }
+            },
+            fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)'
+        }
+    });
+
+    const requests = [
+        // Fecha del suceso (E5:E6) — centrada (forzar explícito)
+        {
+            repeatCell: {
+                range: {
+                    sheetId,
+                    startRowIndex: 4,
+                    endRowIndex: 6,
+                    startColumnIndex: 4,
+                    endColumnIndex: 5
+                },
+                cell: {
+                    userEnteredFormat: {
+                        horizontalAlignment: 'CENTER',
+                        verticalAlignment: 'MIDDLE',
+                        wrapStrategy: 'WRAP',
+                        textFormat
+                    }
+                },
+                fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)'
+            }
+        },
+        // Identificación: valores C8:E10
+        aplicar(8, 10, 3, 5, 'LEFT', 'MIDDLE'),
+        // Descripción del suceso A13:E17 — centrado horizontal y vertical
+        aplicar(13, 17, 1, 5, 'CENTER', 'MIDDLE'),
+        // Acciones por parte de Biznaga A20:E24 — centrado horizontal y vertical
+        aplicar(20, 24, 1, 5, 'CENTER', 'MIDDLE'),
+        // Revisión / Fech. Rev. (E2:E3)
+        aplicar(2, 3, 5, 5, 'LEFT', 'MIDDLE')
+    ];
+
+    return sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests }
+    });
+}
+
 async function aplicarFormatoVisualSgcF04(spreadsheetId, sheetTitle) {
     if (!spreadsheetId || !sheetTitle) {
         return null;
@@ -10260,6 +10347,7 @@ module.exports = {
     aplicarFormatoFilasDgF05,
     aplicarFormatoFilasSgcF05,
     aplicarFormatoVisualSgcF04,
+    aplicarFormatoVisualSgcF22,
     aplicarFormatoVisualSgcF16,
     aplicarFormatoVisualSpF02,
     aplicarFormatoFilasSgcF14,

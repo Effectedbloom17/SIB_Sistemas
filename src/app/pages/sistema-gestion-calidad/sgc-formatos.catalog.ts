@@ -209,6 +209,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         previewMode: 'form'
       },
       {
+        codigo: 'SGC-F-22',
+        titulo: 'Reporte de daño o perdida de propiedad del cliente o proveedor',
+        nombre: 'SGC-F-22 Reporte de daño o perdida de propiedad del cliente o proveedor.xlsx',
+        driveFileId: '1asICBqzuBkhpvD4tXdfB1VIkFNPyhiOGNv6SxaEcYMw',
+        previewSlug: 'sgc-f-22',
+        previewMode: 'form'
+      },
+      {
         codigo: 'SGC-F-28',
         titulo: 'Comparativa de proveedores',
         nombre: 'SGC-F-28 Comparativa de proveedores.xlsx',
