@@ -201,7 +201,6 @@ function sanitizarEvaluacion(raw) {
     const base = raw && typeof raw === 'object' ? raw : {};
     const competencias = sanitizarCompetencias(base.competencias);
     const promedioManual = base.promedioGeneral ?? base.promedio_general;
-    const promedioCalc = calcularPromedio(competencias);
     return {
         id: String(base.id || '').trim() || nuevoId(),
         folio: normalizarFolio(base.folio) || '',
@@ -215,9 +214,13 @@ function sanitizarEvaluacion(raw) {
         usuarioId: String(base.usuarioId || base.usuario_id || '').trim() || null,
         competencias,
         observaciones: normalizarSaltos(base.observaciones || ''),
-        promedioGeneral: promedioManual === '' || promedioManual == null
-            ? promedioCalc
-            : (Number.isNaN(Number(promedioManual)) ? promedioCalc : Number(promedioManual)),
+        promedioGeneral: (() => {
+            const calc = calcularPromedio(competencias);
+            if (calc != null) return calc;
+            if (promedioManual === '' || promedioManual == null) return null;
+            const n = Number(promedioManual);
+            return Number.isNaN(n) ? null : n;
+        })(),
         fortalezas: normalizarSaltos(base.fortalezas || ''),
         areasOportunidad: normalizarSaltos(base.areasOportunidad || base.areas_oportunidad || ''),
         planMejora: normalizarSaltos(base.planMejora || base.plan_mejora || ''),
@@ -353,17 +356,26 @@ async function aplicarContenidoEnDocumento(docId, evaluacion) {
             `Puesto: ${item.puesto || '__________________________'} Área / Departamento: ${item.areaDepartamento || '_______________________________'}`
         ));
     }
-    if (item.noEmpleado || item.fechaIngreso) {
+    if (item.periodoEvaluado || item.fechaIngreso) {
+        const periodo = item.periodoEvaluado || '_____________________________________________________________________';
+        const ingreso = formatearFechaSlash(item.fechaIngreso) || '____/_____/______';
         requests.push(crearReplaceRequest(
-            'No. de empleado: __________________________________ Fecha de ingreso: ____/_____/______',
-            `No. de empleado: ${item.noEmpleado || '__________________________________'} Fecha de ingreso: ${formatearFechaSlash(item.fechaIngreso) || '____/_____/______'}`
+            'Periodo evaluado: _____________________________________________________________________ Fecha de ingreso: ____/_____/______',
+            `Periodo evaluado: ${periodo} Fecha de ingreso: ${ingreso}`
         ));
-    }
-    if (item.periodoEvaluado) {
-        requests.push(crearReplaceRequest(
-            'Periodo evaluado: _____________________________________________________________________',
-            `Periodo evaluado: ${item.periodoEvaluado}`
-        ));
+        // Plantillas previas con líneas separadas
+        if (item.periodoEvaluado) {
+            requests.push(crearReplaceRequest(
+                'Periodo evaluado: _____________________________________________________________________',
+                `Periodo evaluado: ${item.periodoEvaluado}`
+            ));
+        }
+        if (item.fechaIngreso) {
+            requests.push(crearReplaceRequest(
+                'Fecha de ingreso: ____/_____/______',
+                `Fecha de ingreso: ${ingreso}`
+            ));
+        }
     }
     if (item.promedioGeneral != null) {
         requests.push(crearReplaceRequest(
@@ -505,6 +517,7 @@ async function cargarFormato(pool) {
 
 async function procesarEvaluacionesEnGuardado(datosEntrada, datosPrevios) {
     const prevMap = new Map((datosPrevios?.evaluaciones || []).map((e) => [e.id, e]));
+    const activaId = String(datosEntrada?.evaluacionActivaId || '').trim();
     const salida = [];
 
     for (const raw of datosEntrada.evaluaciones) {
@@ -518,7 +531,12 @@ async function procesarEvaluacionesEnGuardado(datosEntrada, datosPrevios) {
             ]);
         }
 
-        const debeMaterializar = !item.borrador || !!item.driveFileId || !!prev?.driveFileId;
+        // La evaluación activa (o cualquiera ya no borrador / con Doc) se materializa en Drive.
+        const debeMaterializar =
+            item.id === activaId
+            || !item.borrador
+            || !!item.driveFileId
+            || !!prev?.driveFileId;
         if (debeMaterializar && item.folio) {
             const doc = await asegurarDocumentoEvaluacion({
                 ...item,

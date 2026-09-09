@@ -6718,6 +6718,7 @@ thead .cp-activities-table__sticky {
 
 .cp-gestion-act-table__row.is-readonly {
   .cp-gestion-act-table__input,
+  .cp-gestion-act-table__input--actividad,
   .cp-gestion-act-table__field textarea {
     color: #334155;
     cursor: default;
@@ -7379,6 +7380,7 @@ thead .cp-activities-table__sticky {
   color: #0f172a;
   background: transparent;
   transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  font-family: inherit;
 
   &:hover {
     border-color: #e2e8f0;
@@ -7396,6 +7398,19 @@ thead .cp-activities-table__sticky {
     font-size: 0.74rem;
     font-weight: 600;
     max-width: 140px;
+  }
+
+  &--actividad {
+    min-height: 2.6rem;
+    max-height: 9rem;
+    resize: vertical;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    field-sizing: content;
+    font-weight: 400;
+    color: #475569;
   }
 
   &::placeholder {

@@ -35,6 +35,21 @@ $mt-slate-soft: rgba(30, 41, 59, 0.08);
   margin-left: auto;
 }
 
+.mt-btn-add-infra {
+  background: #fff;
+  color: #008542 !important;
+  border: 1px solid rgba(0, 133, 66, 0.45);
+  border-radius: 999px;
+  font-weight: 700;
+  padding: 0.42rem 1rem;
+  font-size: 0.82rem;
+
+  &:hover:not(:disabled) {
+    background: rgba(0, 133, 66, 0.08);
+    color: #006b35 !important;
+  }
+}
+
 .mt-btn-save-info {
   background: #fff;
   color: $mt-slate-dark !important;

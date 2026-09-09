@@ -15296,6 +15296,28 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.onAthF11Editado();
   }
 
+  esCalificacionAthF11(comp: AthF11Competencia | null | undefined, valor: number): boolean {
+    if (!comp) return false;
+    const actual = this.sanitizarCalificacionAthF11(comp.calificacion);
+    return actual != null && actual === Number(valor);
+  }
+
+  nivelPromedioAthF11(valor: number | null | undefined): 'feliz' | 'preocupada' | 'triste' | null {
+    if (valor == null || valor === undefined || Number.isNaN(Number(valor))) return null;
+    const n = Number(valor);
+    if (n >= 8.5) return 'feliz';
+    if (n >= 8) return 'preocupada';
+    return 'triste';
+  }
+
+  ariaPromedioAthF11(valor: number | null | undefined): string {
+    const mood = this.nivelPromedioAthF11(valor);
+    if (mood === 'feliz') return 'Desempeño destacado';
+    if (mood === 'preocupada') return 'Desempeño aceptable con área de atención';
+    if (mood === 'triste') return 'Desempeño por debajo del umbral';
+    return '';
+  }
+
   competenciasPorGrupoAthF11(grupo: AthF11Competencia['grupo']): AthF11Competencia[] {
     const lista = this.athF11EvaluacionActiva?.competencias || [];
     return lista.filter((c) => c.grupo === grupo);
@@ -15316,9 +15338,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const competencias = this.normalizarCompetenciasAthF11(raw.competencias);
     const promedioManual = (raw as any).promedioGeneral ?? (raw as any).promedio_general;
     const promedioCalc = this.calcularPromedioAthF11(competencias);
-    const promedioGeneral = promedioManual === '' || promedioManual == null
+    // Si hay calificaciones, el promedio siempre se recalcula desde ellas (evita nodos vacíos con promedio viejo).
+    const promedioGeneral = promedioCalc != null
       ? promedioCalc
-      : (Number.isNaN(Number(promedioManual)) ? promedioCalc : Number(promedioManual));
+      : (promedioManual === '' || promedioManual == null
+        ? null
+        : (Number.isNaN(Number(promedioManual)) ? null : Number(promedioManual)));
     const fechaIso = (v: unknown, fallback = '') => {
       const s = String(v || '').trim();
       if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
@@ -15573,9 +15598,6 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.athF11EvaluacionActiva.usuarioId = emp.id || null;
     this.athF11EvaluacionActiva.puesto = emp.puesto || this.athF11EvaluacionActiva.puesto;
     this.athF11EvaluacionActiva.areaDepartamento = emp.areaDepartamento || this.athF11EvaluacionActiva.areaDepartamento;
-    if (emp.noEmpleado && !this.athF11EvaluacionActiva.noEmpleado) {
-      this.athF11EvaluacionActiva.noEmpleado = emp.noEmpleado;
-    }
     this.athF11NombreComboQuery = emp.nombreCompleto;
     this.athF11NombreComboAbierto = false;
     this.onAthF11Editado();
@@ -15813,22 +15835,57 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       document.body.style.overflow = '';
       return;
     }
-    if (!this.athF11EvaluacionActiva?.driveFileId) {
-      void Swal.fire({
-        icon: 'info',
-        title: 'Documento pendiente',
-        text: 'Guarda la evaluación primero para generar el Word en Drive y poder abrir el editor.',
-        confirmButtonColor: '#15a596'
-      });
+
+    const abrirEditor = () => {
+      const driveId = this.athF11EvaluacionActiva?.driveFileId || this.athF11DriveFileId;
+      if (!driveId) {
+        void Swal.fire({
+          icon: 'warning',
+          title: 'Sin documento en Drive',
+          text: 'No se pudo generar el Word de esta evaluación. Intenta guardar de nuevo.',
+          confirmButtonColor: '#15a596'
+        });
+        return;
+      }
+      this.athF11DriveFileId = driveId;
+      const url = this.resolverUrlEditorDrive(this.athF11EditorUrl, driveId);
+      this.fijarEditorEmbedUrlAthF11(url, true);
+      this.mostrarAthF11Editor = true;
+      this.athF11EditorCargando = true;
+      this.athF11EditorIframeListo = false;
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+    };
+
+    if (this.athF11EvaluacionActiva?.driveFileId) {
+      abrirEditor();
       return;
     }
-    const url = this.resolverUrlEditorDrive(this.athF11EditorUrl, this.athF11DriveFileId);
-    this.fijarEditorEmbedUrlAthF11(url, true);
-    this.mostrarAthF11Editor = true;
-    this.athF11EditorCargando = true;
-    this.athF11EditorIframeListo = false;
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.overflow = 'hidden';
+
+    if (!this.athF11EvaluacionActiva || this.athF11Guardando) {
+      return;
+    }
+
+    // Aún no hay Doc: guardar para materializarlo y luego abrir.
+    this.athF11EvaluacionActiva.borrador = false;
+    this.sincronizarEvaluacionActivaEnFormAthF11();
+    this.athF11Guardando = true;
+    this.backendService.guardarAthF11Formato(
+      { ...this.athF11Form, evaluacionActivaId: this.athF11EvaluacionActiva.id },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.aplicarEstadoAthF11(res, true, false, true);
+          this.athF11CambiosPendientes = false;
+          this.athF11Guardando = false;
+          abrirEditor();
+        },
+        error: () => {
+          this.athF11Guardando = false;
+        }
+      });
   }
 
   onAthF11IframeLoad(): void {
@@ -15883,10 +15940,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private persistirAthF11(): void {
     if (this.athF11Guardando || !this.athF11Listo) return;
     this.athF11Guardando = true;
-    this.sincronizarEvaluacionActivaEnFormAthF11();
     if (this.athF11EvaluacionActiva) {
       this.athF11EvaluacionActiva.borrador = false;
     }
+    this.sincronizarEvaluacionActivaEnFormAthF11();
     this.backendService.guardarAthF11Formato(
       { ...this.athF11Form, evaluacionActivaId: this.athF11EvaluacionActiva?.id || this.athF11Form.evaluacionActivaId },
       false

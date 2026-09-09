@@ -890,16 +890,17 @@
                             >
                               <td class="cp-gestion-act-table__num">{{ numeroActividadGestion(grupo, item) }}</td>
                               <td>
-                                <input
-                                  class="cp-gestion-act-table__input"
-                                  type="text"
+                                <textarea
+                                  class="cp-gestion-act-table__input cp-gestion-act-table__input--actividad"
+                                  rows="2"
                                   [(ngModel)]="item.proyecto.actividadesAccion"
                                   [name]="'gestion_act_' + item.indice"
                                   (ngModelChange)="marcarGestionCambios()"
                                   [readonly]="!puedeEditarActividadGestion(item.proyecto, grupo)"
                                   placeholder="Nombre de la actividad"
                                   aria-label="Nombre de la actividad"
-                                >
+                                  wrap="soft"
+                                ></textarea>
                               </td>
                               <td>
                                 <div class="cp-gestion-vence">
