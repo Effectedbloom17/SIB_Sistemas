@@ -494,6 +494,34 @@ interface SgcF04FormData {
   reportes: SgcF04Reporte[];
 }
 
+interface SgcF22PdfFirmado {
+  driveFileId: string;
+  nombreArchivo: string;
+  webViewLink?: string;
+  previewUrl?: string;
+  fechaSubida?: string | null;
+}
+
+interface SgcF22Reporte {
+  id: string;
+  folio: string;
+  fechaSuceso: string;
+  empresaAfectada: string;
+  nombreClienteProveedor: string;
+  nombreBien: string;
+  descripcionSuceso: string;
+  accionesBiznaga: string;
+  nombreFirma: string;
+  pdfFirmado: SgcF22PdfFirmado | null;
+}
+
+interface SgcF22FormData {
+  revision: string;
+  fechaRevision: string;
+  reportes: SgcF22Reporte[];
+  reporteActivoId?: string | null;
+}
+
 interface DgF03Form {
   empresa: string;
   fechaElaboracion: string;
@@ -1262,6 +1290,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return this.plantillaSlug === 'sgc-f-04';
   }
 
+  @HostBinding('class.sgc-preview--sgc-f-22')
+  get esSgcF22(): boolean {
+    return this.plantillaSlug === 'sgc-f-22';
+  }
+
   @HostBinding('class.sgc-preview--sgc-f-28')
   get esSgcF28(): boolean {
     return this.plantillaSlug === 'sgc-f-28';
@@ -1462,6 +1495,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   mostrarSgcF04PdfViewer = false;
   sgcF04PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   sgcF04PdfCargando = false;
+  sgcF22Form: SgcF22FormData = this.crearSgcF22Vacio();
+  sgcF22ReporteActivo: SgcF22Reporte | null = null;
+  sgcF22Busqueda = '';
+  sgcF22Vista: 'archivero' | 'editor' = 'archivero';
+  private sgcF22FolioPendiente: string | null = null;
+  sgcF22SubiendoPdf = false;
+  mostrarSgcF22PdfViewer = false;
+  sgcF22PdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  sgcF22PdfCargando = false;
   readonly sgcF04Fuentes: string[] = [
     'AUDITORÍA',
     'PROCESO',
@@ -2737,6 +2779,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF04EditorCargando = false;
   sgcF04ActualizandoPlantilla = false;
 
+  sgcF22Cargando = false;
+  sgcF22Guardando = false;
+  sgcF22DriveFileId: string | null = null;
+  sgcF22EditorUrl: string | null = null;
+  sgcF22EditorEmbedUrlSafe: SafeResourceUrl | null = null;
+  sgcF22UltimaSync: string | null = null;
+  sgcF22ContenidoModificado = false;
+  sgcF22CambiosPendientes = false;
+  mostrarSgcF22Editor = false;
+  sgcF22EditorCargando = false;
+  sgcF22ActualizandoPlantilla = false;
+
   dgF03Cargando = false;
   dgF03Guardando = false;
   dgF03SubiendoPdf = false;
@@ -2814,6 +2868,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private sgcF04IgnorarAutoSave = false;
   private sgcF04Listo = false;
   private sgcF04EditorIframeListo = false;
+  private sgcF22IgnorarAutoSave = false;
+  private sgcF22Listo = false;
+  private sgcF22EditorIframeListo = false;
   private dgF03IgnorarAutoSave = false;
   private dgF03Listo = false;
   private sgcPo01IgnorarAutoSave = false;
@@ -2979,6 +3036,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         this.cargarCatalogosSgcF04();
         this.cargarSgcF04DesdeServidor();
       }
+      if (codigo === 'sgc-f-22') {
+        this.cargarSgcF22DesdeServidor();
+      }
       if (codigo === 'dg-f-03') {
         this.cargarDgF03DesdeServidor();
       }
@@ -2990,8 +3050,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe((qm) => {
       const folio = (qm.get('folio') || '').trim();
       this.sgcF04FolioPendiente = folio || null;
+      this.sgcF22FolioPendiente = folio || null;
       if (this.plantillaSlug === 'sgc-f-04' && this.sgcF04Listo && folio) {
         this.intentarAbrirReporteSgcF04PorFolio(folio);
+      }
+      if (this.plantillaSlug === 'sgc-f-22' && this.sgcF22Listo && folio) {
+        this.intentarAbrirReporteSgcF22PorFolio(folio);
       }
     });
   }
@@ -3041,6 +3105,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-11' || this.plantillaSlug === 'sgc-f-12' || this.plantillaSlug === 'sgc-f-01'
       || this.plantillaSlug === 'sgc-f-02'
       || this.plantillaSlug === 'sgc-f-04'
+      || this.plantillaSlug === 'sgc-f-22'
       || this.plantillaSlug === 'sgc-f-06' || this.plantillaSlug === 'sgc-f-07'
       || this.plantillaSlug === 'sgc-f-08' || this.plantillaSlug === 'sgc-f-09'
       || this.plantillaSlug === 'sgc-f-10' || this.plantillaSlug === 'sgc-f-15'
@@ -3079,6 +3144,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-11' || this.plantillaSlug === 'sgc-f-12' || this.plantillaSlug === 'sgc-f-01'
       || this.plantillaSlug === 'sgc-f-02'
       || this.plantillaSlug === 'sgc-f-04'
+      || this.plantillaSlug === 'sgc-f-22'
       || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sgc-f-05'
       || this.plantillaSlug === 'ath-f-02'
       || this.plantillaSlug === 'ath-f-08'
@@ -3101,6 +3167,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-01') return this.sgcF01Guardando;
     if (this.plantillaSlug === 'sgc-f-02') return this.sgcF02Guardando;
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04Guardando;
+    if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22Guardando;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14Guardando;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16Guardando;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Guardando;
@@ -3129,6 +3196,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-01') return this.sgcF01UltimaSync;
     if (this.plantillaSlug === 'sgc-f-02') return this.sgcF02UltimaSync;
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04UltimaSync;
+    if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22UltimaSync;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14UltimaSync;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16UltimaSync;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24UltimaSync;
@@ -3157,6 +3225,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-01') return this.sgcF01Cargando;
     if (this.plantillaSlug === 'sgc-f-02') return this.sgcF02Cargando;
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04Cargando;
+    if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22Cargando;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14Cargando;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16Cargando;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Cargando;
@@ -3185,6 +3254,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-01') return this.sgcF01ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-02') return this.sgcF02ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04ActualizandoPlantilla;
+    if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24ActualizandoPlantilla;
@@ -3214,6 +3284,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-01') return this.sgcF01DriveFileId;
     if (this.plantillaSlug === 'sgc-f-02') return this.sgcF02DriveFileId;
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04DriveFileId;
+    if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22DriveFileId;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14DriveFileId;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16DriveFileId;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24DriveFileId;
@@ -3243,6 +3314,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-01') return this.sgcF01CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-02') return this.sgcF02CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04CambiosPendientes;
+    if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24CambiosPendientes;
@@ -3283,6 +3355,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-12') return this.mostrarSgcF12Editor;
     if (this.plantillaSlug === 'sgc-f-02') return this.mostrarSgcF02Editor;
     if (this.plantillaSlug === 'sgc-f-04') return this.mostrarSgcF04Editor;
+    if (this.plantillaSlug === 'sgc-f-22') return this.mostrarSgcF22Editor;
     if (this.plantillaSlug === 'sgc-f-14') return this.mostrarSgcF14Editor;
     if (this.plantillaSlug === 'sgc-f-16') return this.mostrarSgcF16Editor;
     if (this.plantillaSlug === 'sgc-f-24') return this.mostrarSgcF24Editor;
@@ -3629,6 +3702,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (slug === 'sgc-f-04') {
       return this.backendService.guardarSgcF04Formato(this.sgcF04Form, false);
     }
+    if (slug === 'sgc-f-22') {
+      return this.backendService.guardarSgcF22Formato(this.sgcF22Form, false);
+    }
     if (slug === 'dg-f-01') {
       return this.backendService.guardarDgF01Formato(this.dgF01Form);
     }
@@ -3754,6 +3830,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-04') {
       this.persistirSgcF04();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-22') {
+      this.persistirSgcF22();
     }
   }
 
@@ -3899,6 +3979,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return 'Archivero de reportes de no conformidad (Rev 02). Crea, busca y edita cada NC con folio NC-DDMMAA-NN. Al cerrar, sube la versión firmada en PDF. Usa «Guardar información» para conservar el archivero y el historial en Excel.';
   }
 
+  get sgcF22IntroLead(): string {
+    if (this.plantillaSlug !== 'sgc-f-22') {
+      return '';
+    }
+    return 'Archivero de reportes de daño o pérdida de propiedad del cliente o proveedor. Crea, busca y edita cada reporte con folio DP-DDMMAA-NN. Al cerrar, sube la versión firmada en PDF. Usa «Guardar información» para conservar el archivero y el historial en Excel.';
+  }
+
   get sgcF06IntroLead(): string {
     if (this.plantillaSlug !== 'sgc-f-06') {
       return '';
@@ -4027,6 +4114,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-04') {
       return this.sgcF04IntroLead;
+    }
+    if (this.plantillaSlug === 'sgc-f-22') {
+      return this.sgcF22IntroLead;
     }
     if (this.plantillaSlug === 'sgc-f-06') {
       return this.sgcF06IntroLead;
@@ -14714,6 +14804,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-04') {
       this.toggleSgcF04Editor();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-22') {
+      this.toggleSgcF22Editor();
     }
   }
 
@@ -14815,6 +14909,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-04') {
       this.actualizarPlantillaSgcF04();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-22') {
+      this.actualizarPlantillaSgcF22();
     }
   }
 
@@ -22247,6 +22345,542 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }
       if (this.sgcF04FolioPendiente) {
         this.intentarAbrirReporteSgcF04PorFolio(this.sgcF04FolioPendiente);
+      }
+    }, editorAbierto ? 0 : 350);
+  }
+
+  private nuevoIdSgcF22(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return `dp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  private crearReporteSgcF22Vacio(): SgcF22Reporte {
+    return {
+      id: this.nuevoIdSgcF22(),
+      folio: '',
+      fechaSuceso: '',
+      empresaAfectada: '',
+      nombreClienteProveedor: '',
+      nombreBien: '',
+      descripcionSuceso: '',
+      accionesBiznaga: '',
+      nombreFirma: '',
+      pdfFirmado: null
+    };
+  }
+
+  private crearSgcF22Vacio(): SgcF22FormData {
+    return {
+      revision: '00',
+      fechaRevision: '2025-01-20',
+      reportes: [],
+      reporteActivoId: null
+    };
+  }
+
+  private sanitizarPdfSgcF22(raw: any): SgcF22PdfFirmado | null {
+    if (!raw || typeof raw !== 'object') {
+      return null;
+    }
+    const driveFileId = String(raw.driveFileId || raw.drive_file_id || '').trim();
+    if (!driveFileId) {
+      return null;
+    }
+    return {
+      driveFileId,
+      nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'SGC-F-22 Reporte firmado.pdf').trim(),
+      webViewLink: raw.webViewLink || raw.web_view_link || undefined,
+      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      fechaSubida: raw.fechaSubida || raw.fecha_subida || null
+    };
+  }
+
+  private normalizarReporteSgcF22(datos: Partial<SgcF22Reporte> | null | undefined): SgcF22Reporte {
+    const base = this.crearReporteSgcF22Vacio();
+    if (!datos || typeof datos !== 'object') {
+      return base;
+    }
+    return {
+      ...base,
+      ...datos,
+      id: String(datos.id || base.id),
+      folio: String(datos.folio || '').trim().toUpperCase(),
+      fechaSuceso: String(datos.fechaSuceso || ''),
+      empresaAfectada: String(datos.empresaAfectada || ''),
+      nombreClienteProveedor: String(datos.nombreClienteProveedor || ''),
+      nombreBien: String(datos.nombreBien || ''),
+      descripcionSuceso: String(datos.descripcionSuceso || ''),
+      accionesBiznaga: String(datos.accionesBiznaga || ''),
+      nombreFirma: String(datos.nombreFirma || ''),
+      pdfFirmado: this.sanitizarPdfSgcF22(datos.pdfFirmado)
+    };
+  }
+
+  private normalizarSgcF22Form(datos: any): SgcF22FormData {
+    const base = this.crearSgcF22Vacio();
+    if (!datos || typeof datos !== 'object') {
+      return base;
+    }
+    let reportesRaw: any[] = [];
+    if (Array.isArray(datos.reportes)) {
+      reportesRaw = datos.reportes;
+    } else if (
+      datos.folio
+      || datos.fechaSuceso
+      || datos.empresaAfectada
+      || datos.descripcionSuceso
+      || datos.nombreBien
+    ) {
+      reportesRaw = [datos];
+    }
+    return {
+      revision: String(datos.revision || base.revision),
+      fechaRevision: String(datos.fechaRevision || base.fechaRevision),
+      reportes: reportesRaw.map((r) => this.normalizarReporteSgcF22(r)),
+      reporteActivoId: datos.reporteActivoId ? String(datos.reporteActivoId) : null
+    };
+  }
+
+  get sgcF22ReportesVista(): SgcF22Reporte[] {
+    const q = this.sgcF22Busqueda.trim().toLowerCase();
+    const lista = [...this.sgcF22Form.reportes].sort((a, b) => {
+      const fa = String(a.fechaSuceso || '');
+      const fb = String(b.fechaSuceso || '');
+      return fb.localeCompare(fa) || String(b.folio || '').localeCompare(String(a.folio || ''));
+    });
+    if (!q) {
+      return lista;
+    }
+    return lista.filter((r) =>
+      [r.folio, r.empresaAfectada, r.nombreClienteProveedor, r.nombreBien]
+        .some((v) => String(v || '').toLowerCase().includes(q))
+    );
+  }
+
+  get sgcF22ReportesFirmadosCount(): number {
+    return (this.sgcF22Form.reportes || []).filter((r) => !!r?.pdfFirmado?.driveFileId).length;
+  }
+
+  /** Genera folio DP-DDMMAA-NN contra todos los reportes del archivero. */
+  generarFolioSgcF22(): void {
+    if (!this.sgcF22ReporteActivo) {
+      return;
+    }
+    const baseFecha = this.sgcF22ReporteActivo.fechaSuceso || new Date().toISOString().slice(0, 10);
+    const d = new Date(`${baseFecha}T12:00:00`);
+    const fecha = Number.isNaN(d.getTime()) ? new Date() : d;
+    const dd = String(fecha.getDate()).padStart(2, '0');
+    const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+    const aa = String(fecha.getFullYear()).slice(-2);
+    const fechaTag = `${dd}${mm}${aa}`;
+    if (!this.sgcF22ReporteActivo.fechaSuceso) {
+      this.sgcF22ReporteActivo.fechaSuceso = `${fecha.getFullYear()}-${mm}-${dd}`;
+    }
+    let maximo = 0;
+    this.sgcF22Form.reportes.forEach((r) => {
+      if (r.id === this.sgcF22ReporteActivo?.id) {
+        return;
+      }
+      const match = String(r.folio || '').match(/^DP-(\d{6})-(\d{1,})$/i);
+      if (match && match[1] === fechaTag) {
+        const n = parseInt(match[2], 10);
+        if (Number.isFinite(n) && n > maximo) {
+          maximo = n;
+        }
+      }
+    });
+    this.sgcF22ReporteActivo.folio = `DP-${fechaTag}-${String(maximo + 1).padStart(2, '0')}`;
+    this.onSgcF22Editado();
+  }
+
+  nuevoReporteSgcF22(): void {
+    const reporte = this.crearReporteSgcF22Vacio();
+    const hoy = new Date();
+    reporte.fechaSuceso = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(hoy);
+    this.sgcF22Form.reportes = [reporte, ...this.sgcF22Form.reportes];
+    this.sgcF22Form.reporteActivoId = reporte.id;
+    this.sgcF22ReporteActivo = reporte;
+    this.sgcF22Vista = 'editor';
+    this.generarFolioSgcF22();
+    this.onSgcF22Editado();
+  }
+
+  abrirReporteSgcF22(reporte: SgcF22Reporte): void {
+    this.sgcF22ReporteActivo = reporte;
+    this.sgcF22Form.reporteActivoId = reporte.id;
+    this.sgcF22Vista = 'editor';
+  }
+
+  private intentarAbrirReporteSgcF22PorFolio(folio: string): void {
+    const folioNorm = String(folio || '').trim().toUpperCase();
+    if (!folioNorm || !this.sgcF22Listo) {
+      return;
+    }
+    const reporte = this.sgcF22Form.reportes.find(
+      (r) => String(r.folio || '').trim().toUpperCase() === folioNorm
+    );
+    if (!reporte) {
+      return;
+    }
+    this.abrirReporteSgcF22(reporte);
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { folio: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
+    this.sgcF22FolioPendiente = null;
+  }
+
+  volverArchiveroSgcF22(): void {
+    this.sgcF22Vista = 'archivero';
+    this.sgcF22ReporteActivo = null;
+    this.sgcF22Form.reporteActivoId = null;
+    if (this.mostrarSgcF22PdfViewer) {
+      this.toggleSgcF22PdfViewer();
+    }
+  }
+
+  eliminarReporteSgcF22(reporte: SgcF22Reporte, event?: Event): void {
+    event?.stopPropagation();
+    if (!confirm(`¿Eliminar el reporte ${reporte.folio || 'sin folio'}?`)) {
+      return;
+    }
+    this.sgcF22Form.reportes = this.sgcF22Form.reportes.filter((r) => r.id !== reporte.id);
+    if (this.sgcF22ReporteActivo?.id === reporte.id) {
+      this.volverArchiveroSgcF22();
+    }
+    this.onSgcF22Editado();
+  }
+
+  onSgcF22Editado(): void {
+    if (!this.sgcF22Listo || this.sgcF22IgnorarAutoSave) {
+      return;
+    }
+    this.sgcF22CambiosPendientes = true;
+  }
+
+  onSeleccionarPdfSgcF22(event: Event): void {
+    if (!this.sgcF22ReporteActivo) {
+      return;
+    }
+    const folio = this.sgcF22ReporteActivo.folio || 'sin-folio';
+    this.procesarPdfDocumento(
+      event,
+      `SGC-F-22 ${folio}.pdf`,
+      (base64, nombre) => this.subirPdfFirmadoSgcF22(base64, nombre)
+    );
+  }
+
+  private subirPdfFirmadoSgcF22(pdfBase64: string, nombreArchivo: string): void {
+    if (this.sgcF22SubiendoPdf || !this.sgcF22ReporteActivo) {
+      return;
+    }
+    this.sgcF22SubiendoPdf = true;
+    const reporteId = this.sgcF22ReporteActivo.id;
+    const folio = this.sgcF22ReporteActivo.folio || '';
+    const snapshot = { ...this.sgcF22ReporteActivo };
+
+    // Asegura que el reporte exista en BD antes de asociar el PDF.
+    this.sgcF22Form.reporteActivoId = reporteId;
+    this.backendService.guardarSgcF22Formato(
+      { ...this.sgcF22Form, reporteActivoId: reporteId },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (resGuardar) => {
+          this.aplicarEstadoSgcF22(resGuardar, true, true);
+          const activo = this.sgcF22ReporteActivo
+            || this.sgcF22Form.reportes.find((r) => r.id === reporteId)
+            || this.sgcF22Form.reportes.find((r) => String(r.folio || '').toUpperCase() === folio.toUpperCase())
+            || snapshot;
+          this.sgcF22ReporteActivo = this.normalizarReporteSgcF22(activo);
+          this.backendService.subirPdfFirmadoSgcF22(
+            pdfBase64,
+            nombreArchivo,
+            this.sgcF22ReporteActivo.id,
+            { folio: this.sgcF22ReporteActivo.folio || folio, reporte: this.sgcF22ReporteActivo }
+          )
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+              next: (res) => {
+                this.sgcF22SubiendoPdf = false;
+                this.aplicarEstadoSgcF22(res);
+                if (this.sgcF22ReporteActivo && res?.pdfFirmado) {
+                  this.sgcF22ReporteActivo.pdfFirmado = this.sanitizarPdfSgcF22(res.pdfFirmado);
+                }
+                this.finalizarSubidaPdfSgc(!!res?.success, nombreArchivo);
+              },
+              error: () => {
+                this.sgcF22SubiendoPdf = false;
+                this.finalizarSubidaPdfSgc(false);
+              }
+            });
+        },
+        error: () => {
+          // Si el guardado falla, igual intentamos subir con snapshot (upsert en backend).
+          this.backendService.subirPdfFirmadoSgcF22(pdfBase64, nombreArchivo, reporteId, {
+            folio,
+            reporte: snapshot
+          })
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+              next: (res) => {
+                this.sgcF22SubiendoPdf = false;
+                this.aplicarEstadoSgcF22(res);
+                if (this.sgcF22ReporteActivo && res?.pdfFirmado) {
+                  this.sgcF22ReporteActivo.pdfFirmado = this.sanitizarPdfSgcF22(res.pdfFirmado);
+                }
+                this.finalizarSubidaPdfSgc(!!res?.success, nombreArchivo);
+              },
+              error: () => {
+                this.sgcF22SubiendoPdf = false;
+                this.finalizarSubidaPdfSgc(false);
+              }
+            });
+        }
+      });
+  }
+
+  toggleSgcF22PdfViewer(): void {
+    const id = this.sgcF22ReporteActivo?.pdfFirmado?.driveFileId;
+    if (!id) {
+      return;
+    }
+    const abrir = !this.mostrarSgcF22PdfViewer;
+    this.mostrarSgcF22PdfViewer = abrir;
+    if (abrir) {
+      this.sgcF22PdfCargando = true;
+      const url = this.sgcF22ReporteActivo?.pdfFirmado?.previewUrl
+        || `https://drive.google.com/file/d/${id}/preview`;
+      this.sgcF22PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    this.sgcF22PdfEmbedUrlSafe = null;
+    this.sgcF22PdfCargando = false;
+  }
+
+  onSgcF22PdfIframeLoad(): void {
+    this.sgcF22PdfCargando = false;
+  }
+
+  formatearFechaCortaSgcF22(iso: string | null | undefined): string {
+    if (!iso) {
+      return '—';
+    }
+    const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) {
+      return `${m[3]}/${m[2]}/${m[1]}`;
+    }
+    return String(iso);
+  }
+
+  resumenDescSgcF22(texto: string, max = 90): string {
+    const t = String(texto || '').replace(/\s+/g, ' ').trim();
+    if (!t) {
+      return 'Sin descripción';
+    }
+    return t.length > max ? `${t.slice(0, max)}…` : t;
+  }
+
+  toggleSgcF22Editor(): void {
+    if (!this.sgcF22DriveFileId) {
+      return;
+    }
+    const abrir = !this.mostrarSgcF22Editor;
+    if (abrir) {
+      if (this.sgcF22Guardando) {
+        return;
+      }
+      this.mostrarSgcF22Editor = true;
+      this.sgcF22EditorIframeListo = false;
+      this.sgcF22EditorCargando = true;
+      this.fijarSgcF22EditorEmbedUrl(this.resolverUrlEditorDrive(this.sgcF22EditorUrl, this.sgcF22DriveFileId), true);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    this.mostrarSgcF22Editor = false;
+  }
+
+  onSgcF22IframeLoad(): void {
+    if (this.sgcF22EditorIframeListo) {
+      return;
+    }
+    this.sgcF22EditorIframeListo = true;
+    this.sgcF22EditorCargando = false;
+  }
+
+  actualizarPlantillaSgcF22(): void {
+    if (this.sgcF22ActualizandoPlantilla) {
+      return;
+    }
+    if (this.mostrarSgcF22Editor) {
+      this.mostrarSgcF22Editor = false;
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.sgcF22EditorCargando = false;
+    }
+    this.sgcF22ActualizandoPlantilla = true;
+    this.backendService.actualizarPlantillaSgcF22()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF22ActualizandoPlantilla = false;
+          this.aplicarEstadoSgcF22(res, false, false, true);
+        },
+        error: () => {
+          this.sgcF22ActualizandoPlantilla = false;
+        }
+      });
+  }
+
+  private cargarSgcF22DesdeServidor(): void {
+    this.sgcF22Cargando = true;
+    this.sgcF22Listo = false;
+    this.sgcF22Vista = 'archivero';
+    this.sgcF22ReporteActivo = null;
+    this.backendService.cargarSgcF22Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoSgcF22(res),
+        error: () => {
+          this.sgcF22Cargando = false;
+          this.sgcF22Listo = true;
+        }
+      });
+  }
+
+  private sincronizarSgcF22DesdeDrive(): void {
+    if (this.sgcF22Guardando) {
+      return;
+    }
+    this.sgcF22Guardando = true;
+    this.backendService.sincronizarSgcF22DesdeDrive()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF22Guardando = false;
+          this.sgcF22CambiosPendientes = false;
+          this.aplicarEstadoSgcF22(res, false, false);
+        },
+        error: () => {
+          this.sgcF22Guardando = false;
+        }
+      });
+  }
+
+  private persistirSgcF22(): void {
+    if (!this.puedeGestionarPlantillasSgc) {
+      return;
+    }
+    if (!this.sgcF22Listo || this.sgcF22Guardando) {
+      return;
+    }
+    this.sgcF22Guardando = true;
+    const editorAbierto = this.mostrarSgcF22Editor;
+    const reporteActivoId = this.sgcF22ReporteActivo?.id || null;
+    this.sgcF22Form.reporteActivoId = reporteActivoId;
+    this.backendService.guardarSgcF22Formato(
+      { ...this.sgcF22Form, reporteActivoId },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF22Guardando = false;
+          this.sgcF22CambiosPendientes = false;
+          this.aplicarEstadoSgcF22(res, editorAbierto, true);
+        },
+        error: () => {
+          this.sgcF22Guardando = false;
+        }
+      });
+  }
+
+  private fijarSgcF22EditorEmbedUrl(url: string | null, forzar = false): void {
+    if (!url) {
+      this.sgcF22EditorUrl = null;
+      this.sgcF22EditorEmbedUrlSafe = null;
+      return;
+    }
+    if (!forzar && this.sgcF22EditorUrl === url && this.sgcF22EditorEmbedUrlSafe) {
+      return;
+    }
+    this.sgcF22EditorUrl = url;
+    const embedUrl = this.urlIframeDriveSegunPermiso(url);
+    this.sgcF22EditorEmbedUrlSafe = embedUrl
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
+      : null;
+  }
+
+  private aplicarEstadoSgcF22(
+    res: any,
+    conservarEdicion = false,
+    sincronizacionSilenciosa = false,
+    forzarActualizacionDrive = false
+  ): void {
+    if (!res?.success) {
+      if (!sincronizacionSilenciosa) {
+        this.sgcF22Cargando = false;
+      }
+      this.sgcF22Listo = true;
+      return;
+    }
+
+    const editorAbierto = this.mostrarSgcF22Editor && !forzarActualizacionDrive;
+    const bloquearFormulario = editorAbierto || conservarEdicion;
+    const activoIdActual = this.sgcF22ReporteActivo?.id || null;
+
+    if (!bloquearFormulario && res.datos) {
+      this.sgcF22IgnorarAutoSave = true;
+      this.sgcF22Listo = false;
+      this.sgcF22Form = this.normalizarSgcF22Form(res.datos);
+      const activoId = activoIdActual || this.sgcF22Form.reporteActivoId || null;
+      if (activoId) {
+        this.sgcF22ReporteActivo = this.sgcF22Form.reportes.find((r) => r.id === activoId) || null;
+        this.sgcF22Form.reporteActivoId = this.sgcF22ReporteActivo?.id || null;
+        if (!this.sgcF22ReporteActivo && this.sgcF22Vista === 'editor') {
+          this.sgcF22Vista = 'archivero';
+        } else if (this.sgcF22ReporteActivo && activoIdActual) {
+          this.sgcF22Vista = 'editor';
+        }
+      }
+    } else if (!editorAbierto && !conservarEdicion) {
+      this.sgcF22IgnorarAutoSave = true;
+      this.sgcF22Listo = false;
+    }
+
+    const nuevoDriveId = res.driveFileId || null;
+    if (forzarActualizacionDrive || !editorAbierto) {
+      if (nuevoDriveId) {
+        this.sgcF22DriveFileId = nuevoDriveId;
+      }
+      if (res.editorUrl && (forzarActualizacionDrive || !this.mostrarSgcF22Editor)) {
+        this.fijarSgcF22EditorEmbedUrl(res.editorUrl, forzarActualizacionDrive);
+      }
+    }
+
+    this.sgcF22UltimaSync = res.ultimaSyncDrive || null;
+    this.sgcF22ContenidoModificado = !!res.contenidoModificado;
+
+    window.setTimeout(() => {
+      this.sgcF22IgnorarAutoSave = false;
+      this.sgcF22Listo = true;
+      if (!sincronizacionSilenciosa) {
+        this.sgcF22Cargando = false;
+      }
+      if (this.sgcF22FolioPendiente) {
+        this.intentarAbrirReporteSgcF22PorFolio(this.sgcF22FolioPendiente);
       }
     }, editorAbierto ? 0 : 350);
   }

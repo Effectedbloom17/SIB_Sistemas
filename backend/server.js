@@ -25723,6 +25723,7 @@ const sgcDgF08Service = require('./sgcDgF08Service');
 const sgcSgcF11Service = require('./sgcSgcF11Service');
 const sgcSgcF12Service = require('./sgcSgcF12Service');
 const sgcSgcF04Service = require('./sgcSgcF04Service');
+const sgcF22Service = require('./sgcF22Service');
 const sgcSgcF02Service = require('./sgcSgcF02Service');
 const sgcSgcF01Service = require('./sgcSgcF01Service');
 const sgcDgF03Service = require('./sgcDgF03Service');
@@ -27702,6 +27703,73 @@ app.post('/api/sgc/formatos/sgc-f-04/subir-pdf-firmado', requireAdminOrSgc, asyn
         });
     } catch (error) {
         handleError(res, error, 'No se pudo subir el PDF firmado de SGC-F-04');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-22', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
+        const payload = await sgcF22Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato SGC-F-22');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-22/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF22Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'Formato SGC-F-22 guardado y sincronizado con Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato SGC-F-22');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-22/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF22Service.sincronizarDesdeDrive(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Formato SGC-F-22 sincronizado desde Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo sincronizar SGC-F-22 desde Drive');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-22/actualizar-plantilla', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF22Service.actualizarPlantillaDesdeSistema(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Plantilla SGC-F-22 regenerada en Google Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo actualizar la plantilla SGC-F-22 en Drive');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-22/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF22Service.subirPdfFirmado(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'PDF firmado del reporte SGC-F-22 subido a Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo subir el PDF firmado de SGC-F-22');
     }
 });
 

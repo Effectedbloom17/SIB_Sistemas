@@ -3519,6 +3519,41 @@ export class BackendServices {
         });
     }
 
+    cargarSgcF22Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-22`);
+    }
+
+    guardarSgcF22Formato(datos: unknown, editorActivo = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-22/guardar`, {
+            datos,
+            origen: 'sistema',
+            editorActivo
+        });
+    }
+
+    sincronizarSgcF22DesdeDrive(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-22/sincronizar-drive`, {});
+    }
+
+    actualizarPlantillaSgcF22(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-22/actualizar-plantilla`, {});
+    }
+
+    subirPdfFirmadoSgcF22(
+        pdfBase64: string,
+        nombreArchivo: string,
+        reporteId: string,
+        extras: { folio?: string; reporte?: unknown } = {}
+    ): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-22/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombre_archivo: nombreArchivo,
+            reporteId,
+            folio: extras.folio || '',
+            reporte: extras.reporte || null
+        });
+    }
+
     cargarDgF03Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/dg-f-03`);
     }
