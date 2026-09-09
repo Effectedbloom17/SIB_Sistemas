@@ -222,6 +222,25 @@ function createEmpresaRepositorioRouter({
         }
     });
 
+    /** Convierte Excel Office a Google Sheet (si aplica) y devuelve URL de editor embebible. */
+    router.post('/:id/asegurar-editor', requireAdmin, async (req, res) => {
+        try {
+            const empresaId = parseEmpresaId(req);
+            const id = parseDocId(req);
+            const resultado = await empresaRepositorioService.asegurarEditorIntegradoDocumento(
+                poolOrThrow(),
+                empresaId,
+                id
+            );
+            return res.json({
+                success: true,
+                ...resultado
+            });
+        } catch (error) {
+            return responderError(res, error, 'No se pudo preparar el editor integrado');
+        }
+    });
+
     router.get('/:id', denyEmpresa, async (req, res) => {
         try {
             const empresaId = parseEmpresaId(req);

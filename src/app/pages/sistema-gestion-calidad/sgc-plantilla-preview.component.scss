@@ -633,7 +633,7 @@ $sgc-muted: #6c757d;
   text-align: center;
 }
 
-// ═══ DG-F-05 — diseño limpio tipo hoja de registro ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ DG-F-05 Ã¢ÂÂ diseÃÂ±o limpio tipo hoja de registro Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 $dg-f05-border: #e8edf2;
 $dg-f05-text: #1e293b;
 $dg-f05-muted: #64748b;
@@ -833,7 +833,7 @@ $dg-f05-font-section: 0.75rem;
   }
 }
 
-// ═══ DG-F-02 — vista documento (estilo PDF) ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ DG-F-02 Ã¢ÂÂ vista documento (estilo PDF) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 $dg-f02-doc-text: #1e293b;
 $dg-f02-doc-muted: #64748b;
 $dg-f02-doc-border: rgba(148, 163, 184, 0.28);
@@ -1028,7 +1028,7 @@ $dg-f02-doc-border: rgba(148, 163, 184, 0.28);
     max-width: 52rem;
   }
 
-  // Hoja carta / A4 — documentos breves (p. ej. SGC-PO-01)
+  // Hoja carta / A4 Ã¢ÂÂ documentos breves (p. ej. SGC-PO-01)
   &--carta {
     aspect-ratio: 210 / 297;
     width: 100%;
@@ -1075,7 +1075,7 @@ $dg-f02-doc-border: rgba(148, 163, 184, 0.28);
   }
 }
 
-// ═══ DG-F-01 — mapa de procesos ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ DG-F-01 Ã¢ÂÂ mapa de procesos Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 .dg-f01-form {
   width: 100%;
 }
@@ -1650,7 +1650,7 @@ $dg-f02-doc-border: rgba(148, 163, 184, 0.28);
   }
 }
 
-// ═══ SGC-F-07 — programa de auditoría en dos bloques ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ SGC-F-07 Ã¢ÂÂ programa de auditorÃÂ­a en dos bloques Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 .sgc-f-07-matriz {
   padding: 0 !important;
   background: transparent !important;
@@ -1907,7 +1907,7 @@ $dg-f02-doc-border: rgba(148, 163, 184, 0.28);
   }
 }
 
-// ═══ DG-F-04 — cuatro tablas FODA (color por cuadrante) ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ DG-F-04 Ã¢ÂÂ cuatro tablas FODA (color por cuadrante) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 $dg-f04-fortalezas-bg: #e8f7f4;
 $dg-f04-fortalezas-border: #9fd9cf;
 $dg-f04-fortalezas-accent: #0d9488;
@@ -2326,7 +2326,7 @@ $dg-f04-amenazas-head: #fae0e0;
   }
 }
 
-// ═══ DG-F-04 — modal de criterios / ayuda ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ DG-F-04 Ã¢ÂÂ modal de criterios / ayuda Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 .dg-f04-ayuda-backdrop {
   position: fixed;
   inset: 0;
@@ -2926,7 +2926,7 @@ $dg-f04-amenazas-head: #fae0e0;
   border-top: 1px solid $dg-f05-border;
 }
 
-// ═══ Utilidades capítulo 10 ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Utilidades capÃÂ­tulo 10 Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 .sgc-status-badge {
   display: inline-flex;
   align-items: center;
@@ -7266,7 +7266,7 @@ $dg-f04-amenazas-head: #fae0e0;
     border-right: 0;
   }
 
-  // Compromiso | Medición | Análisis (fila 2)
+  // Compromiso | MediciÃÂ³n | AnÃÂ¡lisis (fila 2)
   &:nth-child(3),
   &:nth-child(4),
   &:nth-child(5) {
@@ -7817,7 +7817,7 @@ $dg-f04-amenazas-head: #fae0e0;
   }
 }
 
-// ═══ DG-F-07 — caracterización de procesos (nav + hoja por proceso) ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ DG-F-07 Ã¢ÂÂ caracterizaciÃÂ³n de procesos (nav + hoja por proceso) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 .dg-f07-doc-wrap {
   max-width: 100%;
   position: relative;
@@ -8227,7 +8227,7 @@ $dg-f04-amenazas-head: #fae0e0;
   resize: vertical;
 }
 
-// ═══ Documento ATH-F-02 (paleta SGC, sin verde corporativo del informe final) ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Documento ATH-F-02 (paleta SGC, sin verde corporativo del informe final) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 .if-doc-wrapper {
   max-width: 100%;
   margin: 0 auto;
@@ -8449,7 +8449,7 @@ $dg-f04-amenazas-head: #fae0e0;
   padding: 0.85rem 1rem 1rem;
 }
 
-// Panel moderno — perfil, edad, escolaridad
+// Panel moderno Ã¢ÂÂ perfil, edad, escolaridad
 .ath-modern-panel {
   border: 1px solid rgba(21, 165, 150, 0.22);
   border-radius: 12px;
@@ -8592,7 +8592,7 @@ $dg-f04-amenazas-head: #fae0e0;
   margin: 0;
 }
 
-// Relaciones — tarjetas por fila
+// Relaciones Ã¢ÂÂ tarjetas por fila
 .ath-rel-body {
   display: flex;
   flex-direction: column;
@@ -8702,7 +8702,7 @@ $dg-f04-amenazas-head: #fae0e0;
   font-size: 0.8rem;
 }
 
-// Requerimientos — ítems con detalle siempre visible a la derecha
+// Requerimientos Ã¢ÂÂ ÃÂ­tems con detalle siempre visible a la derecha
 .ath-f02-req-list {
   display: flex;
   flex-direction: column;
@@ -8788,7 +8788,7 @@ $dg-f04-amenazas-head: #fae0e0;
   }
 }
 
-// ═══ DG-F-01 / DG-F-02 / DG-F-05 / DG-F-04 / DG-F-07 — vista compacta sin hero ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ DG-F-01 / DG-F-02 / DG-F-05 / DG-F-04 / DG-F-07 Ã¢ÂÂ vista compacta sin hero Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 :host.sgc-preview--dg-f-01,
 :host.sgc-preview--dg-f-02,
 :host.sgc-preview--sgc-po-01,
@@ -9053,7 +9053,7 @@ $dg-f02-layout-max: 46.5rem;
   }
 }
 
-// Pantallas pequeñas o mucho zoom: scroll vertical en textareas largos
+// Pantallas pequeÃÂ±as o mucho zoom: scroll vertical en textareas largos
 @media (max-width: 1199.98px), (max-height: 699px) {
   .sgc-preview-page--dg-f-01,
   .sgc-preview-page--dg-f-02,
@@ -9073,7 +9073,7 @@ $dg-f02-layout-max: 46.5rem;
 }
 
 // DG-F-05 (Listado de partes interesadas): los textareas deben crecer a todo
-// su contenido (cuadro rectangular completo) sin recortar la información.
+// su contenido (cuadro rectangular completo) sin recortar la informaciÃÂ³n.
 @media (max-width: 1199.98px), (max-height: 699px) {
   .dg-f05-field--textarea[name^="dgF05_"] {
     max-height: none;
@@ -9822,7 +9822,7 @@ $dg-f02-layout-max: 46.5rem;
 }
 
 // ============================================================
-// SGC-F-05 · Bitácora de no conformidades
+// SGC-F-05 ÃÂ· BitÃÂ¡cora de no conformidades
 // ============================================================
 
 .sgc-f05-toolbar {
@@ -10751,7 +10751,7 @@ $dg-f02-layout-max: 46.5rem;
   }
 }
 
-// ═══ SGC-F-11 AMEF — matriz en dos bloques ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ SGC-F-11 AMEF Ã¢ÂÂ matriz en dos bloques Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 .sgc-f-11-doc {
   .dg-f05-doc__meta--grid .dg-f05-field {
     font-family: inherit;
@@ -11034,7 +11034,7 @@ $dg-f02-layout-max: 46.5rem;
   }
 }
 
-// ═══ SGC-F-12 — formulario en filas (etiqueta | valor) ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ SGC-F-12 Ã¢ÂÂ formulario en filas (etiqueta | valor) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 .sgc-f-12-doc__header {
   flex-wrap: wrap;
   justify-content: space-between;
@@ -11289,7 +11289,7 @@ $dg-f02-layout-max: 46.5rem;
   }
 }
 
-// ═══ SGC-F-02 · Solicitud de cambios a documentos ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ SGC-F-02 ÃÂ· Solicitud de cambios a documentos Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 .sgc-f-02-doc {
   padding-bottom: 0.35rem;
   overflow: visible;
@@ -12982,7 +12982,7 @@ $dg-f02-layout-max: 46.5rem;
   }
 }
 
-// ═══ SGC-F-04 · Reporte de no conformidad ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ SGC-F-04 ÃÂ· Reporte de no conformidad Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 @keyframes sgcF04FadeSlideUp {
   from {
     opacity: 0;
@@ -13026,8 +13026,8 @@ $dg-f02-layout-max: 46.5rem;
     z-index: 1;
   }
 
-  // La sección con combo abierto debe pintar encima de las siguientes
-  // (p. ej. Descripción), para que el menú no quede detrás.
+  // La secciÃÂ³n con combo abierto debe pintar encima de las siguientes
+  // (p. ej. DescripciÃÂ³n), para que el menÃÂº no quede detrÃÂ¡s.
   > .sgc-f-04-section:has(.sgc-f-04-combo--open) {
     z-index: 80;
   }
@@ -13836,7 +13836,7 @@ $dg-f02-layout-max: 46.5rem;
   -webkit-backdrop-filter: blur(4px);
 }
 
-// Combo de ayuda (Nombre / Puesto / Empresa / Verificó)
+// Combo de ayuda (Nombre / Puesto / Empresa / VerificÃÂ³)
 .sgc-f-04-combo {
   position: relative;
   width: 100%;
@@ -14674,7 +14674,7 @@ $dg-f02-layout-max: 46.5rem;
   }
 }
 
-// ═══ DG-F-03 objetivos (lista numerada con sangría como plantilla Word) ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ DG-F-03 objetivos (lista numerada con sangrÃÂ­a como plantilla Word) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 .sgc-preview-page--dg-f-03 {
   .sgc-preview-col--doc {
     max-width: 54rem;
@@ -14777,7 +14777,7 @@ $dg-f02-layout-max: 46.5rem;
   }
 }
 
-// ═══ Metodología AMEF slide deck ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ MetodologÃÂ­a AMEF slide deck Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 $amef-teal: #0f766e;
 $amef-teal-dark: #115e59;
 $amef-slide-ratio: math.div(16, 9);
@@ -15387,7 +15387,7 @@ $amef-slide-ratio: math.div(16, 9);
   }
 }
 
-// ═══ ATH-F-08 · Eficacia de la capacitación ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ ATH-F-08 ÃÂ· Eficacia de la capacitaciÃÂ³n Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 .ath-f-08-doc {
   overflow: visible;
 
@@ -15828,7 +15828,7 @@ $amef-slide-ratio: math.div(16, 9);
     z-index: 20;
   }
 
-  // Anchos fijos mínimos: la tabla crece y el wrap hace scroll (no aplasta Tot/Apr/Efic).
+  // Anchos fijos mÃÂ­nimos: la tabla crece y el wrap hace scroll (no aplasta Tot/Apr/Efic).
   &__zone--nombre {
     width: 15.5rem;
     min-width: 15.5rem;
@@ -16121,7 +16121,7 @@ $amef-slide-ratio: math.div(16, 9);
 }
 
 
-// ═══ SGC-F-29 · Evaluación de proveedores ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ SGC-F-29 ÃÂ· EvaluaciÃÂ³n de proveedores Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 .sgc-f-29-doc__header {
   display: flex;
   flex-wrap: wrap;
@@ -17183,7 +17183,7 @@ $amef-slide-ratio: math.div(16, 9);
   }
 }
 
-/* ── SGC-F-01 Lista maestra ── */
+/* Ã¢ÂÂÃ¢ÂÂ SGC-F-01 Lista maestra Ã¢ÂÂÃ¢ÂÂ */
 .sgc-f-01-masthead {
   display: flex;
   flex-direction: row;
@@ -17640,7 +17640,7 @@ $amef-slide-ratio: math.div(16, 9);
   }
 }
 
-/* Modal edición F-01 · estilo Registro de Señalización (paleta SGC teal) */
+/* Modal ediciÃÂ³n F-01 ÃÂ· estilo Registro de SeÃÂ±alizaciÃÂ³n (paleta SGC teal) */
 @keyframes sgc-f01-ed-backdrop-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -19718,7 +19718,7 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
   }
 }
 
-// ═══ ATH-F-02 · Descripción y perfil de puesto (archivero + editor moderno) ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ ATH-F-02 ÃÂ· DescripciÃÂ³n y perfil de puesto (archivero + editor moderno) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 :host.sgc-preview--ath-f-02 {
   .ath-f-02-doc {
     border-radius: 14px;
@@ -20242,7 +20242,7 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
   }
 }
 
-// ═══ ATH-F-09 · Cotización (archivero + Google Docs) ═══
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ ATH-F-09 ÃÂ· CotizaciÃÂ³n (archivero + Google Docs) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 :host.sgc-preview--ath-f-09 {
   .ath-f-09-doc {
     animation: ath-f02-doc-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1);
@@ -20828,7 +20828,7 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
   }
 }
 
-// --- ATH-F-11 � Evaluaci�n de desempe�o (archivero + Google Docs) ---
+// --- ATH-F-11 Â· EvaluaciÃ³n de desempeÃ±o (archivero + Google Docs) ---
 :host.sgc-preview--ath-f-11 {
   .ath-f-11-doc {
     animation: ath-f02-doc-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1);
@@ -20849,6 +20849,24 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
 
   .ath-f-11-archivero {
     margin-top: 0.5rem;
+
+    .sgc-f-04-archivero__grid {
+      grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+      gap: 1.05rem 1.1rem;
+    }
+  }
+
+  .ath-f-11-book {
+    max-width: 24rem;
+  }
+
+  .ath-f-11-book__evaluador {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.35;
+    word-break: break-word;
   }
 
   .ath-f-11-wrap {
@@ -20938,7 +20956,7 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
 
     &__toolbar {
       display: grid;
-      grid-template-columns: minmax(9rem, 0.95fr);
+      grid-template-columns: minmax(0, 1fr);
       gap: 0.75rem;
       padding: 0.7rem 0.8rem;
       margin-bottom: 1.15rem;
@@ -20947,24 +20965,14 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
       border: 1px solid rgba(15, 118, 110, 0.1);
     }
 
-    &__folio-regla {
-      display: block;
-      margin-top: 0.25rem;
-      font-size: 0.64rem;
-      line-height: 1.35;
-      font-weight: 500;
-      color: #64748b;
-
-      strong {
-        color: #0f766e;
-        font-weight: 700;
-      }
-    }
-
     &__mini-field {
       display: flex;
       flex-direction: column;
       gap: 0.2rem;
+
+      &--grow {
+        min-width: 0;
+      }
 
       > span {
         font-size: 0.58rem;
@@ -21049,6 +21057,17 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
     &__datos {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.65rem 0.85rem;
+
+      @media (max-width: 767px) {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    &__datos-fechas {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
       gap: 0.65rem 0.85rem;
 
       @media (max-width: 767px) {
@@ -21189,11 +21208,22 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
       justify-content: center;
       cursor: pointer;
       margin: 0;
+      position: relative;
 
       input {
         position: absolute;
         opacity: 0;
-        pointer-events: none;
+        width: 1rem;
+        height: 1rem;
+        margin: 0;
+        cursor: pointer;
+      }
+
+      &--on .ath-f-11-page__radio-mark,
+      input:checked + .ath-f-11-page__radio-mark {
+        border-color: #0f766e;
+        background: radial-gradient(circle at center, #15a596 0 38%, #fff 42%);
+        box-shadow: 0 0 0 2px rgba(21, 165, 150, 0.18);
       }
     }
 
@@ -21204,13 +21234,7 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
       border: 2px solid rgba(15, 118, 110, 0.35);
       background: #fff;
       transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-    }
-
-    &__radio input:checked + &__radio-mark,
-    &__radio:has(input:checked) &__radio-mark {
-      border-color: #0f766e;
-      background: radial-gradient(circle at center, #15a596 0 38%, #fff 42%);
-      box-shadow: 0 0 0 2px rgba(21, 165, 150, 0.18);
+      pointer-events: none;
     }
 
     &__textarea {
@@ -21232,44 +21256,55 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
       }
     }
 
-    &__resultados {
+    &__promedio-table-wrap {
+      overflow-x: auto;
       border: 1px solid rgba(15, 118, 110, 0.16);
-      border-top: none;
-      border-radius: 0 0 10px 10px;
-      overflow: hidden;
+      border-radius: 10px;
     }
 
-    &__resultado-row {
-      display: grid;
-      grid-template-columns: minmax(10rem, 0.9fr) minmax(0, 1.4fr);
-      gap: 0.5rem 0.75rem;
-      align-items: center;
-      padding: 0.55rem 0.7rem;
-      border-bottom: 1px solid rgba(15, 118, 110, 0.1);
-      margin: 0;
+    &__promedio-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.76rem;
 
-      &:last-child {
+      th, td {
+        border-bottom: 1px solid rgba(15, 118, 110, 0.1);
+        padding: 0.55rem 0.7rem;
+        vertical-align: middle;
+      }
+
+      thead th {
+        background: #f8fafc;
+        font-size: 0.62rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #64748b;
+      }
+
+      tbody tr:last-child td {
         border-bottom: none;
       }
+    }
 
-      &--stack {
-        grid-template-columns: 1fr;
-        align-items: stretch;
+    &__promedio-label-col {
+      text-align: left;
 
-        .ath-f-11-page__textarea {
-          border-radius: 8px;
-        }
-      }
-
-      @media (max-width: 767px) {
-        grid-template-columns: 1fr;
+      strong {
+        color: #0f766e;
       }
     }
 
-    &__resultado-label {
-      font-size: 0.74rem;
-      font-weight: 700;
-      color: #0f766e;
+    &__promedio-value-col {
+      width: 9.5rem;
+      text-align: center;
+    }
+
+    &__promedio-wrap {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
     }
 
     &__promedio {
@@ -21279,35 +21314,43 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
       font-variant-numeric: tabular-nums;
     }
 
-    &__firmas-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0.85rem;
+    &__promedio-emoji {
+      font-size: 1.3rem;
+      line-height: 1;
+      user-select: none;
+    }
 
-      @media (max-width: 767px) {
-        grid-template-columns: 1fr;
+    &__mood {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      width: 1.45rem;
+      height: 1.45rem;
+      line-height: 0;
+
+      &[data-mood='feliz'] {
+        color: #15a596;
+      }
+
+      &[data-mood='preocupada'] {
+        color: #0f766e;
+      }
+
+      &[data-mood='triste'] {
+        color: #134e4a;
       }
     }
 
-    &__firma-box {
-      display: flex;
-      flex-direction: column;
-      gap: 0.45rem;
-      padding: 0.85rem;
-      border: 1px dashed rgba(15, 118, 110, 0.28);
-      border-radius: 10px;
-      background: rgba(248, 250, 252, 0.7);
-      min-height: 8rem;
+    &__mood-svg {
+      width: 100%;
+      height: 100%;
+      display: block;
     }
 
-    &__firma-caption {
-      font-size: 0.68rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: #64748b;
-      text-align: center;
-      margin-bottom: 0.25rem;
+    &__fecha-wrap {
+      display: flex;
+      justify-content: center;
     }
 
     &__drive-hint {
@@ -21339,6 +21382,92 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
       padding: 0;
     }
   }
+
+  .ath-f-11-foda {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    padding: 0.85rem;
+    border: 1px solid rgba(15, 118, 110, 0.28);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    background: linear-gradient(180deg, rgba(15, 118, 110, 0.06), transparent 40%);
+
+    @media (max-width: 767px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .ath-f-11-foda__card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-height: 9.5rem;
+    padding: 0.75rem 0.8rem 1.1rem;
+    margin: 0;
+    border: 1.5px solid rgba(15, 118, 110, 0.32);
+    border-radius: 6px;
+    background: rgba(21, 165, 150, 0.08);
+    box-shadow: 0 1px 0 rgba(15, 118, 110, 0.06);
+    overflow: hidden;
+    cursor: text;
+  }
+
+  .ath-f-11-foda__title {
+    position: relative;
+    z-index: 1;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #0f4c5c;
+  }
+
+  .ath-f-11-foda__textarea {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    width: 100%;
+    min-height: 5.5rem;
+    border: none;
+    background: transparent;
+    resize: vertical;
+    font: inherit;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: #1e293b;
+    padding: 0;
+
+    &::placeholder {
+      color: rgba(15, 76, 92, 0.45);
+    }
+
+    &:focus {
+      outline: none;
+    }
+  }
+
+  .ath-f-11-foda__icon {
+    position: absolute;
+    right: 0.55rem;
+    bottom: 0.35rem;
+    font-size: 3.1rem;
+    color: rgba(15, 118, 110, 0.12);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .ath-f-11-attach {
+    margin: 0 1rem 1rem;
+  }
+
+  .ath-f-11-combo-meta {
+    display: inline;
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: #64748b;
+  }
 }
 
 :host.sgc-preview--ath-f-11 .sgc-preview-page--ath-f-11-editor {
@@ -21352,5 +21481,10 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
 
   .ath-f-11-page {
     max-width: none;
+  }
+
+  .ath-f-11-attach {
+    margin-left: 0;
+    margin-right: 0;
   }
 }

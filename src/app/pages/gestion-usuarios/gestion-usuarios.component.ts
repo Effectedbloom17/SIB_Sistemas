@@ -821,9 +821,15 @@ export class GestionUsuariosComponent implements OnInit {
               <span>Organigrama Biznaga</span>
             </div>
             <div class="eu-section-body">
-              <div class="eu-field">
-                <label><i class="fas fa-id-badge"></i> Puesto en el organigrama</label>
-                ${this.buildOrganigramaComboboxHtml('')}
+              <div class="eu-row">
+                <div class="eu-field">
+                  <label><i class="fas fa-id-badge"></i> Puesto en el organigrama</label>
+                  ${this.buildOrganigramaComboboxHtml('')}
+                </div>
+                <div class="eu-field">
+                  <label><i class="fas fa-building"></i> Área/Departamento</label>
+                  ${this.buildAreaDepartamentoComboboxHtml('')}
+                </div>
               </div>
             </div>
           </div>
@@ -1282,6 +1288,7 @@ export class GestionUsuariosComponent implements OnInit {
         };
 
         this.bindOrganigramaCombobox();
+        this.bindAreaDepartamentoCombobox();
         this.bindRolTags('roles-checkboxes', null, () => toggleByRoles());
         toggleByRoles();
 
@@ -1462,6 +1469,7 @@ export class GestionUsuariosComponent implements OnInit {
         const firmaFile = firmaFileInput?.files?.[0] || null;
         const fotoFile = fotoFileInput?.files?.[0] || null;
         const organigrama = String((document.getElementById('swal-organigrama') as HTMLInputElement)?.value || '').trim();
+        const area_departamento = String((document.getElementById('swal-area-departamento') as HTMLInputElement)?.value || '').trim();
 
         if (this.requiereFirmaObligatoria(todosLosRoles) && !firmaFile) {
           Swal.showValidationMessage('La firma digital es obligatoria para Instructor y Doctor');
@@ -1507,6 +1515,7 @@ export class GestionUsuariosComponent implements OnInit {
           rol_id: parseInt(rol_id),
           roles_adicionales: rolesAdicionales.join(','),
           organigrama,
+          area_departamento,
           credenciales_correos_extra: correosExtrasCredenciales,
           clave: password,
           areas: areas_ids,
@@ -1538,6 +1547,9 @@ export class GestionUsuariosComponent implements OnInit {
       formData.append('clave', datos.clave);
       if (datos.organigrama !== undefined) {
         formData.append('organigrama', datos.organigrama || '');
+      }
+      if (datos.area_departamento !== undefined) {
+        formData.append('area_departamento', datos.area_departamento || '');
       }
       if (datos.roles_adicionales) {
         formData.append('roles_adicionales', datos.roles_adicionales);
@@ -1874,10 +1886,146 @@ export class GestionUsuariosComponent implements OnInit {
   }
 
   private readonly organigramaBiznagaGrupos = ORGANIGRAMA_BIZNAGA_GRUPOS;
+  private readonly areasDepartamentoUsuario = ['Seguridad', 'Innovación', 'Administración'] as const;
 
   private requiereFirmaObligatoria(roles: string[]): boolean {
     const set = new Set((roles || []).map(r => String(r || '').toLowerCase().trim()));
     return set.has('instructor') || set.has('doctor');
+  }
+
+  private buildAreaDepartamentoComboboxHtml(selected = ''): string {
+    const valor = String(selected || '').trim();
+    const opciones = this.areasDepartamentoUsuario.map(area => {
+      const activo = area === valor ? ' is-selected' : '';
+      return `<button type="button" class="eu-combo-option${activo}" data-value="${area.replace(/"/g, '&quot;')}" role="option">
+          <span class="eu-combo-option-icon"><i class="fas fa-building"></i></span>
+          <span class="eu-combo-option-body">
+            <span class="eu-combo-option-title">${area}</span>
+          </span>
+          <i class="fas fa-check eu-combo-check"${activo ? '' : ' style="display:none;"'}></i>
+        </button>`;
+    }).join('');
+
+    return `
+      <div class="eu-combo" id="area-departamento-combo">
+        <div class="eu-combo-control" id="area-departamento-combo-control">
+          <span class="eu-combo-icon"><i class="fas fa-search"></i></span>
+          <input id="swal-area-departamento-search" type="text" placeholder="Buscar área o departamento..."
+                 value="${valor.replace(/"/g, '&quot;')}" autocomplete="off" spellcheck="false">
+          <button type="button" class="eu-combo-clear" id="area-departamento-combo-clear" ${valor ? '' : 'style="display:none;"'} aria-label="Limpiar área">
+            <i class="fas fa-times"></i>
+          </button>
+          <span class="eu-combo-chevron"><i class="fas fa-chevron-down"></i></span>
+        </div>
+        <input type="hidden" id="swal-area-departamento" value="${valor.replace(/"/g, '&quot;')}">
+        <div class="eu-combo-dropdown" id="area-departamento-dropdown" role="listbox">
+          <button type="button" class="eu-combo-option" data-value="" role="option">
+            <span class="eu-combo-option-icon"><i class="fas fa-ban"></i></span>
+            <span class="eu-combo-option-body">
+              <span class="eu-combo-option-title">Sin área asignada</span>
+              <span class="eu-combo-option-meta">No pertenece a un área/departamento</span>
+            </span>
+          </button>
+          ${opciones}
+          <div class="eu-combo-empty" id="area-departamento-empty" style="display:none;">
+            <i class="fas fa-search"></i>
+            <span>No hay áreas que coincidan</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private bindAreaDepartamentoCombobox(): void {
+    const combo = document.getElementById('area-departamento-combo');
+    const control = document.getElementById('area-departamento-combo-control');
+    const input = document.getElementById('swal-area-departamento-search') as HTMLInputElement | null;
+    const hidden = document.getElementById('swal-area-departamento') as HTMLInputElement | null;
+    const dropdown = document.getElementById('area-departamento-dropdown');
+    const clearBtn = document.getElementById('area-departamento-combo-clear');
+    const emptyState = document.getElementById('area-departamento-empty');
+    if (!combo || !control || !input || !hidden || !dropdown) return;
+
+    const syncChecks = (valor: string) => {
+      dropdown.querySelectorAll('.eu-combo-option').forEach((btn) => {
+        const option = btn as HTMLElement;
+        const match = (option.getAttribute('data-value') || '') === valor;
+        option.classList.toggle('is-selected', match);
+        const check = option.querySelector('.eu-combo-check') as HTMLElement | null;
+        if (check) check.style.display = match ? '' : 'none';
+      });
+    };
+
+    const setValor = (valor: string) => {
+      hidden.value = valor;
+      input.value = valor;
+      if (clearBtn) clearBtn.style.display = valor ? '' : 'none';
+      syncChecks(valor);
+      combo.classList.remove('is-open');
+    };
+
+    const filtrar = () => {
+      const q = input.value.trim().toLowerCase();
+      let visibles = 0;
+      dropdown.querySelectorAll('.eu-combo-option').forEach((btn) => {
+        const option = btn as HTMLElement;
+        const texto = (option.getAttribute('data-value') || '').toLowerCase();
+        const esVacio = !texto;
+        const match = esVacio
+          ? (!q || 'sin área asignada'.includes(q) || 'sin area asignada'.includes(q))
+          : (!q || texto.includes(q));
+        option.style.display = match ? '' : 'none';
+        if (match) visibles++;
+      });
+      if (emptyState) emptyState.style.display = visibles === 0 ? 'flex' : 'none';
+    };
+
+    const abrir = () => {
+      const yaAbierto = combo.classList.contains('is-open');
+      combo.classList.add('is-open');
+      if (!yaAbierto) {
+        dropdown.querySelectorAll('.eu-combo-option').forEach((opt, i) => {
+          const el = opt as HTMLElement;
+          el.style.animation = 'none';
+          void el.offsetWidth;
+          el.style.animation = '';
+          el.style.animationDelay = `${Math.min(i, 16) * 0.03}s`;
+        });
+      }
+      filtrar();
+    };
+
+    control.addEventListener('click', (ev) => {
+      if ((ev.target as HTMLElement).closest('#area-departamento-combo-clear')) return;
+      abrir();
+      input.focus();
+    });
+    input.addEventListener('focus', abrir);
+    input.addEventListener('input', () => {
+      hidden.value = '';
+      if (clearBtn) clearBtn.style.display = input.value ? '' : 'none';
+      abrir();
+    });
+    clearBtn?.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      setValor('');
+      input.focus();
+      abrir();
+    });
+    dropdown.addEventListener('click', (ev) => {
+      const option = (ev.target as HTMLElement).closest('.eu-combo-option') as HTMLElement | null;
+      if (!option) return;
+      setValor(option.getAttribute('data-value') || '');
+    });
+    document.addEventListener('click', (ev) => {
+      if (!combo.contains(ev.target as Node)) {
+        combo.classList.remove('is-open');
+        if (!hidden.value) input.value = '';
+        else input.value = hidden.value;
+      }
+    });
+    syncChecks(hidden.value);
   }
 
   private buildOrganigramaComboboxHtml(selected = ''): string {
@@ -2043,7 +2191,7 @@ export class GestionUsuariosComponent implements OnInit {
           flex-direction: column !important;
           max-height: 92vh !important;
           height: min(92vh, 900px) !important;
-          width: min(720px, calc(100vw - 1.5rem)) !important;
+          width: min(820px, calc(100vw - 1.5rem)) !important;
           border: 1px solid rgba(255,255,255,0.65) !important;
           box-shadow: 0 0 0 1px rgba(15,23,42,0.04), 0 28px 80px rgba(15,23,42,0.28), 0 8px 24px rgba(56,81,47,0.14) !important;
         }
@@ -2862,9 +3010,15 @@ export class GestionUsuariosComponent implements OnInit {
               </div>
               <div class="eu-card-hero"><i class="fas fa-sitemap"></i></div>
             </header>
-            <div class="eu-field">
-              <span class="eu-field-label"><i class="fas fa-id-badge"></i> Puesto en el organigrama</span>
-              ${this.buildOrganigramaComboboxHtml(usuario.organigrama || '')}
+            <div class="eu-row">
+              <div class="eu-field">
+                <span class="eu-field-label"><i class="fas fa-id-badge"></i> Puesto en el organigrama</span>
+                ${this.buildOrganigramaComboboxHtml(usuario.organigrama || '')}
+              </div>
+              <div class="eu-field">
+                <span class="eu-field-label"><i class="fas fa-building"></i> Área/Departamento</span>
+                ${this.buildAreaDepartamentoComboboxHtml(usuario.area_departamento || '')}
+              </div>
             </div>
           </section>
           ` : ''}
@@ -3102,6 +3256,7 @@ export class GestionUsuariosComponent implements OnInit {
         document.getElementById('eu-edit-close')?.addEventListener('click', () => Swal.close());
         if (!esUsuarioEmpresa) {
           this.bindOrganigramaCombobox();
+          this.bindAreaDepartamentoCombobox();
         }
 
         // ── Configurar checkboxes de roles ──
@@ -3515,6 +3670,9 @@ export class GestionUsuariosComponent implements OnInit {
         const organigrama = !esUsuarioEmpresa
           ? String((document.getElementById('swal-organigrama') as HTMLInputElement)?.value || '').trim()
           : undefined;
+        const area_departamento = !esUsuarioEmpresa
+          ? String((document.getElementById('swal-area-departamento') as HTMLInputElement)?.value || '').trim()
+          : undefined;
 
         // Validaciones
         if (!nombre || nombre.trim() === '') {
@@ -3609,6 +3767,9 @@ export class GestionUsuariosComponent implements OnInit {
         };
         if (!esUsuarioEmpresa && organigrama !== undefined) {
           datos.organigrama = organigrama;
+        }
+        if (!esUsuarioEmpresa && area_departamento !== undefined) {
+          datos.area_departamento = area_departamento;
         }
         if (esUsuarioEmpresa && servicioProteccionCivil !== undefined) {
           datos.servicio_proteccion_civil = servicioProteccionCivil ? 1 : 0;
@@ -3710,6 +3871,9 @@ export class GestionUsuariosComponent implements OnInit {
       formData.append('rol_id', String(datosSinPassword.rol_id || ''));
       if (datosSinPassword.organigrama !== undefined) {
         formData.append('organigrama', datosSinPassword.organigrama || '');
+      }
+      if (datosSinPassword.area_departamento !== undefined) {
+        formData.append('area_departamento', datosSinPassword.area_departamento || '');
       }
       if (datosSinPassword.roles_adicionales !== undefined) {
         formData.append('roles_adicionales', datosSinPassword.roles_adicionales);

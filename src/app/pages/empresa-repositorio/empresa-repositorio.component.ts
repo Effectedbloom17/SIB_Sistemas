@@ -1089,15 +1089,91 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
     if (!doc || !this.puedeEditorIntegrado || this.previewModo !== 'office') {
       return;
     }
-    const url = this.normalizarUrlEmbedEditor(this.editorUrlCruda || this.resolverUrlEditor(doc));
-    if (!url) {
-      Swal.fire('Sin editor', 'No se pudo abrir el editor integrado para este archivo.', 'info');
+
+    const mime = String(doc.mimeType || '').toLowerCase();
+    const esNativoGoogle = mime === 'application/vnd.google-apps.document'
+      || mime === 'application/vnd.google-apps.spreadsheet'
+      || mime === 'application/vnd.google-apps.presentation';
+    const esExcelOffice = mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      || mime === 'application/vnd.ms-excel'
+      || /\.xlsx?$/i.test(String(doc.nombreArchivo || ''));
+
+    // Word/PPT binarios: Drive (nueva pestaña). Excel se convierte a Sheet nativo.
+    if (!esNativoGoogle && !esExcelOffice) {
+      const url = this.normalizarUrlEmbedEditor(this.editorUrlCruda || this.resolverUrlEditor(doc));
+      if (!url) {
+        Swal.fire('Sin editor', 'No se pudo abrir el editor integrado para este archivo.', 'info');
+        return;
+      }
+      window.open(url, '_blank', 'noopener,noreferrer');
       return;
     }
-    this.editorIntegradoUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+
+    this.editorIntegradoUrlSafe = null;
     this.editorIntegradoCargando = true;
     this.mostrarEditorIntegrado = true;
     this.setEditorBodyState(true);
+
+    if (esNativoGoogle) {
+      const url = this.normalizarUrlEmbedEditor(this.editorUrlCruda || this.resolverUrlEditor(doc));
+      if (!url) {
+        this.cerrarEditorIntegrado();
+        Swal.fire('Sin editor', 'No se pudo abrir el editor integrado para este archivo.', 'info');
+        return;
+      }
+      this.editorUrlCruda = url;
+      this.editorIntegradoUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      return;
+    }
+
+    this.backend
+      .asegurarEditorEmpresaRepositorio(this.empresaId, doc.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          const actualizado = res?.documento as EmpresaRepoItem | undefined;
+          if (actualizado?.id) {
+            this.aplicarDocumentoActualizadoTrasEditor(actualizado);
+          }
+          const url = this.normalizarUrlEmbedEditor(
+            res?.editorUrl
+            || this.editorUrlCruda
+            || (this.documentoActivo ? this.resolverUrlEditor(this.documentoActivo) : null)
+          );
+          if (!url) {
+            this.cerrarEditorIntegrado();
+            Swal.fire('Sin editor', 'No se pudo preparar el Google Sheet para edición.', 'info');
+            return;
+          }
+          this.editorUrlCruda = url;
+          // Tras convertir XLSX → Sheet, refrescar también la vista previa (el binario original ya no existe).
+          const previewUrl = res?.previewUrl
+            || (this.documentoActivo ? this.resolverUrlPreview(this.documentoActivo) : null);
+          if (previewUrl) {
+            this.previewUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(previewUrl);
+          }
+          this.editorIntegradoUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+        },
+        error: (err) => {
+          this.cerrarEditorIntegrado();
+          const mensaje = err?.error?.message || 'No se pudo abrir el editor integrado.';
+          Swal.fire('Error', mensaje, 'error');
+        }
+      });
+  }
+
+  private aplicarDocumentoActualizadoTrasEditor(doc: EmpresaRepoItem): void {
+    const idx = this.documentos.findIndex((d) => d.id === doc.id);
+    if (idx >= 0) {
+      this.documentos[idx] = { ...this.documentos[idx], ...doc };
+    }
+    if (this.documentoActivo?.id === doc.id) {
+      this.documentoActivo = { ...this.documentoActivo, ...doc };
+    }
+    const idxVista = this.documentosVista.findIndex((d) => d.id === doc.id);
+    if (idxVista >= 0) {
+      this.documentosVista[idxVista] = { ...this.documentosVista[idxVista], ...doc };
+    }
   }
 
   cerrarEditorIntegrado(): void {
@@ -1116,7 +1192,41 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
   }
 
   get tituloEditorIntegrado(): string {
-    return 'Editor integrado del documento';
+    return 'Editor integrado del formato';
+  }
+
+  get subtituloEditorIntegrado(): string {
+    const doc = this.documentoActivo;
+    if (!doc) {
+      return '';
+    }
+    const nombre = String(doc.titulo || doc.nombreArchivo || 'Documento').trim();
+    const mime = String(doc.mimeType || '').toLowerCase();
+    if (mime.includes('spreadsheet') || /\.xlsx?$/i.test(doc.nombreArchivo || '')) {
+      return `${nombre} · Excel = historial visual · Corrige solo si hay errores de registro`;
+    }
+    if (mime.includes('document') || /\.docx?$/i.test(doc.nombreArchivo || '')) {
+      return `${nombre} · Documento en Google Drive`;
+    }
+    if (mime.includes('presentation') || /\.pptx?$/i.test(doc.nombreArchivo || '')) {
+      return `${nombre} · Presentación en Google Drive`;
+    }
+    return nombre;
+  }
+
+  get syncEditorIntegrado(): string | null {
+    const raw = this.documentoActivo?.fechaActualizacion || this.documentoActivo?.fechaSubida || null;
+    if (!raw) {
+      return null;
+    }
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) {
+      return null;
+    }
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
   }
 
   get tituloVisorDocumento(): string {
@@ -1131,23 +1241,8 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
       this.puedeEditorIntegrado
       && this.documentoActivo
       && this.previewModo === 'office'
-      && (this.editorUrlCruda || this.resolverUrlEditor(this.documentoActivo))
+      && (this.editorUrlCruda || this.resolverUrlEditor(this.documentoActivo) || this.documentoActivo.driveFileId)
     );
-  }
-
-  private tipoOfficeDeDocumento(doc: EmpresaRepoItem): 'word' | 'excel' | 'ppt' | null {
-    const m = (doc.mimeType || '').toLowerCase();
-    const n = (doc.nombreArchivo || '').toLowerCase();
-    if (m.includes('word') || /\.docx?$/.test(n)) {
-      return 'word';
-    }
-    if (m.includes('sheet') || m.includes('excel') || /\.xlsx?$/.test(n)) {
-      return 'excel';
-    }
-    if (m.includes('presentation') || m.includes('powerpoint') || /\.pptx?$/.test(n)) {
-      return 'ppt';
-    }
-    return null;
   }
 
   private resolverUrlPreview(doc: EmpresaRepoItem): string | null {
@@ -1155,16 +1250,7 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
     if (!id) {
       return null;
     }
-    const tipo = this.tipoOfficeDeDocumento(doc);
-    if (tipo === 'word') {
-      return `https://docs.google.com/document/d/${encodeURIComponent(id)}/preview`;
-    }
-    if (tipo === 'excel') {
-      return `https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/preview`;
-    }
-    if (tipo === 'ppt') {
-      return `https://docs.google.com/presentation/d/${encodeURIComponent(id)}/preview`;
-    }
+    // Office binario: siempre Drive preview (Sheets/Docs /preview falla en iframe).
     return `https://drive.google.com/file/d/${encodeURIComponent(id)}/preview`;
   }
 
@@ -1173,16 +1259,17 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
     if (!id) {
       return null;
     }
-    const tipo = this.tipoOfficeDeDocumento(doc);
-    if (tipo === 'word') {
+    const mime = String(doc.mimeType || '').toLowerCase();
+    if (mime === 'application/vnd.google-apps.document') {
       return `https://docs.google.com/document/d/${encodeURIComponent(id)}/edit?usp=sharing`;
     }
-    if (tipo === 'excel') {
+    if (mime === 'application/vnd.google-apps.spreadsheet') {
       return `https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/edit?usp=sharing`;
     }
-    if (tipo === 'ppt') {
+    if (mime === 'application/vnd.google-apps.presentation') {
       return `https://docs.google.com/presentation/d/${encodeURIComponent(id)}/edit?usp=sharing`;
     }
+    // XLSX/DOCX/PPTX: Drive view (no forzar editor nativo de Google sobre binarios).
     return `https://drive.google.com/file/d/${encodeURIComponent(id)}/view`;
   }
 

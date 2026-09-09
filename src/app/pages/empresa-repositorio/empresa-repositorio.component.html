@@ -694,33 +694,36 @@
   </div>
 </div>
 
-<!-- Editor integrado (solo administradores) -->
+<!-- Editor integrado (solo administradores) — estilo DG-F-04, colores verdes del repositorio -->
 <div class="sgc-drive-editor-fullscreen" *ngIf="mostrarEditorIntegrado && documentoActivo"
-     role="dialog" aria-modal="true" aria-label="Editor integrado del documento">
+     role="dialog" aria-modal="true" aria-label="Editor integrado del formato">
   <div class="sgc-drive-editor-fullscreen__backdrop" (click)="cerrarEditorIntegrado()"></div>
   <div class="sgc-drive-editor-fullscreen__panel">
     <div class="sgc-drive-editor-fullscreen__head">
       <div class="sgc-drive-editor-fullscreen__title-wrap">
         <span class="sgc-drive-editor-fullscreen__icon">
-          <i class="fas" [ngClass]="iconoTipo(documentoActivo.mimeType, documentoActivo.nombreArchivo)" aria-hidden="true"></i>
+          <i class="fas fa-th" aria-hidden="true"></i>
         </span>
         <div>
           <strong class="sgc-drive-editor-fullscreen__title">{{ tituloEditorIntegrado }}</strong>
           <small class="sgc-drive-editor-fullscreen__subtitle">
-            {{ documentoActivo.nombreArchivo }}
+            {{ subtituloEditorIntegrado }}
           </small>
         </div>
       </div>
-      <div class="d-flex align-items-center">
+      <div class="sgc-drive-editor-fullscreen__head-actions">
+        <span class="sgc-preview-sync sgc-preview-sync--on-dark" *ngIf="syncEditorIntegrado">
+          Sync: {{ syncEditorIntegrado }}
+        </span>
         <button class="btn btn-sm btn-light" type="button" (click)="cerrarEditorIntegrado()">
-          <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver a la vista previa
+          <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
         </button>
       </div>
     </div>
     <div class="sgc-drive-editor-fullscreen__body">
       <div class="sgc-drive-editor-fullscreen__loading" *ngIf="editorIntegradoCargando">
         <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-        <span>Cargando editor integrado…</span>
+        <span>Preparando editor integrado en Drive…</span>
       </div>
       <iframe *ngIf="editorIntegradoUrlSafe"
               class="sgc-drive-editor-fullscreen__iframe"

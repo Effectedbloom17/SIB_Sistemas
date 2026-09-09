@@ -258,12 +258,13 @@
             </table>
           </div>
 
-          <p class="mt-hint mt-hint--below">
-            Clic en una celda semanal: 1.º verde sin <strong>P</strong>, 2.º verde con <strong>P</strong>, 3.º blanco (sin marcar).
-            <span class="mt-hint__legenda">
-              Clic en <span class="mt-chip mt-chip--int is-on">Int</span>/<span class="mt-chip mt-chip--ext is-on">Ext</span> para alternar tipo
-            </span>
-          </p>
+          <div class="mt-grid-actions">
+            <button type="button" class="btn btn-sm mt-btn-add-infra"
+              (click)="agregarFila()" title="Agregar infraestructura">
+              <i class="fas fa-plus mr-1"></i>
+              Agregar infraestructura
+            </button>
+          </div>
 
           <footer class="mt-foot">
             <p>

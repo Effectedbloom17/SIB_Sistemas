@@ -733,12 +733,21 @@
 }
 
 .mt-grid-wrap {
-  overflow: auto;
-  max-height: min(68vh, 720px);
+  overflow-x: auto;
+  overflow-y: visible;
+  max-height: none;
   border: 1px solid var(--mt-border);
   border-radius: 12px;
   background: #fff;
   -webkit-overflow-scrolling: touch;
+}
+
+.mt-grid-actions {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin-top: 0.85rem;
+  padding-top: 0.65rem;
 }
 
 .mt-grid {

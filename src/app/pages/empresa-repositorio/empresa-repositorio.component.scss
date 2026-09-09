@@ -1731,7 +1731,37 @@ $di-btn-gradient: linear-gradient(135deg, #38512F 0%, #5a7456 55%, #768D6B 100%)
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: min(52vw, 28rem);
+  max-width: min(52vw, 36rem);
+}
+
+.sgc-drive-editor-fullscreen__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.sgc-preview-sync--on-dark {
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sgc-drive-editor-fullscreen__head .btn-light {
+  background: #d2e2d0;
+  border-color: rgba(194, 209, 178, 0.85);
+  color: #2a3d28;
+  font-weight: 600;
+
+  &:hover {
+    background: #c2d1b2;
+    color: #1f2e1e;
+  }
 }
 
 .sgc-drive-editor-fullscreen__body {
