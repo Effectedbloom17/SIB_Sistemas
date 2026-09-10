@@ -2589,6 +2589,30 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-14/actualizar-plantilla`, {});
     }
 
+    cargarSgcF25Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-25`);
+    }
+
+    guardarSgcF25Formato(datos: unknown, editorActivo = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-25/guardar`, {
+            datos,
+            origen: 'sistema',
+            editorActivo
+        });
+    }
+
+    sincronizarSgcF25DesdeDrive(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-25/sincronizar-drive`, {});
+    }
+
+    actualizarPlantillaSgcF25(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-25/actualizar-plantilla`, {});
+    }
+
+    asegurarAccesoSgcF25(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-25/asegurar-acceso`, {});
+    }
+
     cargarSgcF16Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-16`);
     }
@@ -2619,6 +2643,40 @@ export class BackendServices {
 
     descargarPdfSgcF16(): Observable<Blob> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-16/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
+    cargarSgcF24Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-24`);
+    }
+
+    guardarSgcF24Formato(datos: unknown, editorActivo = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-24/guardar`, {
+            datos,
+            origen: 'sistema',
+            editorActivo
+        });
+    }
+
+    sincronizarSgcF24DesdeDrive(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-24/sincronizar-drive`, {});
+    }
+
+    actualizarPlantillaSgcF24(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-24/actualizar-plantilla`, {});
+    }
+
+    subirPdfFirmadoSgcF24(pdfBase64: string, nombreArchivo: string, cambioId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-24/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombre_archivo: nombreArchivo,
+            cambioId
+        });
+    }
+
+    descargarPdfSgcF24(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-24/descargar-pdf`, {
             responseType: 'blob'
         });
     }
@@ -2681,6 +2739,23 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/evidencias/subir-lote`, payload);
     }
 
+    subirEvidenciasLoteSgcF29Eventos(payload: {
+        evaluacion_id: string;
+        proveedor?: string;
+        referencia?: string;
+        archivos: Array<{
+            nombre_archivo: string;
+            mime_type?: string;
+            archivo_base64: string;
+        }>;
+    }): Observable<HttpEvent<any>> {
+        return this.httpClient.post(
+            `${this.baseUrl}/sgc/formatos/sgc-f-29/evidencias/subir-lote`,
+            payload,
+            { observe: 'events', reportProgress: true }
+        );
+    }
+
     eliminarEvidenciaSgcF29(id: number): Observable<any> {
         return this.httpClient.delete(
             `${this.baseUrl}/sgc/formatos/sgc-f-29/evidencias/documento/${id}`
@@ -2689,6 +2764,71 @@ export class BackendServices {
 
     urlArchivoEvidenciaSgcF29(id: number): string {
         return `${this.baseUrl}/sgc/formatos/sgc-f-29/evidencias/documento/${id}/archivo`;
+    }
+
+    descargarArchivoEvidenciaSgcF29(id: number): Observable<Blob> {
+        return this.httpClient.get(
+            `${this.baseUrl}/sgc/formatos/sgc-f-29/evidencias/documento/${id}/archivo`,
+            { responseType: 'blob' }
+        );
+    }
+
+    descargarArchivoEvidenciaSgcF29Eventos(id: number): Observable<HttpEvent<Blob>> {
+        return this.httpClient.get(
+            `${this.baseUrl}/sgc/formatos/sgc-f-29/evidencias/documento/${id}/archivo`,
+            { responseType: 'blob', observe: 'events', reportProgress: true }
+        );
+    }
+
+    listarEvidenciasSgcF14(proyectoId: string): Observable<any> {
+        return this.httpClient.get(
+            `${this.baseUrl}/sgc/formatos/sgc-f-14/evidencias/${encodeURIComponent(proyectoId)}`
+        );
+    }
+
+    contarEvidenciasSgcF14(ids: string[]): Observable<any> {
+        const q = (ids || []).filter(Boolean).join(',');
+        return this.httpClient.get(
+            `${this.baseUrl}/sgc/formatos/sgc-f-14/evidencias/conteos`,
+            { params: { ids: q } }
+        );
+    }
+
+    subirEvidenciasLoteSgcF14Eventos(payload: {
+        proyecto_id: string;
+        folio?: string;
+        nombre_proyecto?: string;
+        archivos: Array<{
+            nombre_archivo: string;
+            mime_type?: string;
+            archivo_base64: string;
+        }>;
+    }): Observable<HttpEvent<any>> {
+        return this.httpClient.post(
+            `${this.baseUrl}/sgc/formatos/sgc-f-14/evidencias/subir-lote`,
+            payload,
+            { observe: 'events', reportProgress: true }
+        );
+    }
+
+    eliminarEvidenciaSgcF14(id: number): Observable<any> {
+        return this.httpClient.delete(
+            `${this.baseUrl}/sgc/formatos/sgc-f-14/evidencias/documento/${id}`
+        );
+    }
+
+    descargarArchivoEvidenciaSgcF14(id: number): Observable<Blob> {
+        return this.httpClient.get(
+            `${this.baseUrl}/sgc/formatos/sgc-f-14/evidencias/documento/${id}/archivo`,
+            { responseType: 'blob' }
+        );
+    }
+
+    descargarArchivoEvidenciaSgcF14Eventos(id: number): Observable<HttpEvent<Blob>> {
+        return this.httpClient.get(
+            `${this.baseUrl}/sgc/formatos/sgc-f-14/evidencias/documento/${id}/archivo`,
+            { responseType: 'blob', observe: 'events', reportProgress: true }
+        );
     }
 
     cargarSgcF28Formato(): Observable<any> {
@@ -3424,6 +3564,41 @@ export class BackendServices {
             pdf_base64: pdfBase64,
             nombre_archivo: nombreArchivo,
             reporteId
+        });
+    }
+
+    cargarSgcF22Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-22`);
+    }
+
+    guardarSgcF22Formato(datos: unknown, editorActivo = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-22/guardar`, {
+            datos,
+            origen: 'sistema',
+            editorActivo
+        });
+    }
+
+    sincronizarSgcF22DesdeDrive(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-22/sincronizar-drive`, {});
+    }
+
+    actualizarPlantillaSgcF22(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-22/actualizar-plantilla`, {});
+    }
+
+    subirPdfFirmadoSgcF22(
+        pdfBase64: string,
+        nombreArchivo: string,
+        reporteId: string,
+        extras: { folio?: string; reporte?: unknown } = {}
+    ): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-22/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombre_archivo: nombreArchivo,
+            reporteId,
+            folio: extras.folio || '',
+            reporte: extras.reporte || null
         });
     }
 

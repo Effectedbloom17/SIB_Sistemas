@@ -1,11 +1,11 @@
 /**
- * Rutas REST evidencias SGC-F-29.
- * Montaje: app.use('/api/sgc/formatos/sgc-f-29/evidencias', createSgcF29EvidenciaRouter(deps))
+ * Rutas REST evidencias SGC-F-14.
+ * Montaje: app.use('/api/sgc/formatos/sgc-f-14/evidencias', createSgcF14EvidenciaRouter(deps))
  */
 const express = require('express');
-const sgcF29EvidenciaService = require('./sgcF29EvidenciaService');
+const sgcF14EvidenciaService = require('./sgcF14EvidenciaService');
 
-function createSgcF29EvidenciaRouter({
+function createSgcF14EvidenciaRouter({
     getPoolSgc,
     requireAdminOrSgc,
     handleError,
@@ -57,21 +57,21 @@ function createSgcF29EvidenciaRouter({
             const ids = raw
                 ? raw.split(',').map((s) => s.trim()).filter(Boolean)
                 : (Array.isArray(req.body?.ids) ? req.body.ids : []);
-            const conteos = await sgcF29EvidenciaService.contarEvidencias(poolOrThrow(), ids);
+            const conteos = await sgcF14EvidenciaService.contarEvidencias(poolOrThrow(), ids);
             return res.json({ success: true, conteos });
         } catch (error) {
             return responderError(res, error, 'No se pudieron obtener los conteos de evidencias');
         }
     });
 
-    // Rutas estáticas ANTES de /:evaluacionId para no capturar "documento".
+    // Rutas estáticas ANTES de /:proyectoId para no capturar "documento".
     router.get('/documento/:id/archivo', async (req, res) => {
         try {
             const id = parseInt(req.params.id, 10);
             if (!Number.isFinite(id) || id <= 0) {
                 return res.status(400).json({ success: false, message: 'ID inválido.' });
             }
-            const { documento, buffer } = await sgcF29EvidenciaService.obtenerBufferEvidencia(
+            const { documento, buffer } = await sgcF14EvidenciaService.obtenerBufferEvidencia(
                 poolOrThrow(),
                 id
             );
@@ -92,18 +92,18 @@ function createSgcF29EvidenciaRouter({
             if (!Number.isFinite(id) || id <= 0) {
                 return res.status(400).json({ success: false, message: 'ID inválido.' });
             }
-            const resultado = await sgcF29EvidenciaService.eliminarEvidencia(poolOrThrow(), id);
+            const resultado = await sgcF14EvidenciaService.eliminarEvidencia(poolOrThrow(), id);
             return res.json({ success: true, message: 'Evidencia eliminada.', ...resultado });
         } catch (error) {
             return responderError(res, error, 'No se pudo eliminar la evidencia');
         }
     });
 
-    router.get('/:evaluacionId', async (req, res) => {
+    router.get('/:proyectoId', async (req, res) => {
         try {
-            const resultado = await sgcF29EvidenciaService.listarEvidencias(
+            const resultado = await sgcF14EvidenciaService.listarEvidencias(
                 poolOrThrow(),
-                req.params.evaluacionId
+                req.params.proyectoId
             );
             return res.json({ success: true, ...resultado });
         } catch (error) {
@@ -113,7 +113,7 @@ function createSgcF29EvidenciaRouter({
 
     router.post('/subir', async (req, res) => {
         try {
-            const documento = await sgcF29EvidenciaService.subirEvidencia(
+            const documento = await sgcF14EvidenciaService.subirEvidencia(
                 poolOrThrow(),
                 req.body || {},
                 usuarioAccion(req)
@@ -126,7 +126,7 @@ function createSgcF29EvidenciaRouter({
 
     router.post('/subir-lote', async (req, res) => {
         try {
-            const resultado = await sgcF29EvidenciaService.subirEvidenciasLote(
+            const resultado = await sgcF14EvidenciaService.subirEvidenciasLote(
                 poolOrThrow(),
                 req.body || {},
                 usuarioAccion(req)
@@ -144,4 +144,4 @@ function createSgcF29EvidenciaRouter({
     return router;
 }
 
-module.exports = createSgcF29EvidenciaRouter;
+module.exports = createSgcF14EvidenciaRouter;

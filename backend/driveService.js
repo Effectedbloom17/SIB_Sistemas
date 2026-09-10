@@ -626,6 +626,35 @@ async function asignarPermisoLecturaPublica(fileId) {
 }
 
 /**
+ * Permite edición por enlace (anyone/writer) para que el editor integrado
+ * de Google Sheets abra sin exigir acceso a la cuenta de servicio.
+ */
+async function asignarPermisoEscrituraEnlace(fileId) {
+    const id = String(fileId || '').trim();
+    if (!id) return false;
+
+    try {
+        await drive.permissions.create({
+            fileId: id,
+            supportsAllDrives: true,
+            requestBody: {
+                role: 'writer',
+                type: 'anyone',
+                allowFileDiscovery: false
+            }
+        });
+        return true;
+    } catch (error) {
+        const msg = String(error?.message || '').toLowerCase();
+        if (msg.includes('already') || msg.includes('duplicate') || error?.code === 409) {
+            return true;
+        }
+        console.warn(`[WARN] No se pudo asignar permiso de escritura por enlace a ${id}: ${error.message}`);
+        return false;
+    }
+}
+
+/**
  * True si fileId está dentro de folderId (padres hasta maxDepth).
  * Usado por /api/drive-preview para evidencias de mantenimiento sin BD.
  */
@@ -3596,9 +3625,225 @@ async function aplicarFormatoFilasSgcF05(spreadsheetId, sheetTitle, filaInicio, 
 }
 
 /**
+ * SGC-F-25 · Actividades posteriores a la entrega: Century Gothic 11,
+ * alineación por columna y cuadrícula completa (bordes en todas las celdas con datos).
+ */
+async function aplicarFormatoFilasSgcF25(spreadsheetId, sheetTitle, filaInicio, numFilas, filaMax) {
+    if (!spreadsheetId || !sheetTitle) {
+        return null;
+    }
+
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const meta = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties(sheetId,title)'
+    });
+    const sheet = (meta.data.sheets || []).find((s) => (s.properties?.title || '').trim() === String(sheetTitle).trim());
+    const sheetId = sheet?.properties?.sheetId;
+    if (sheetId === undefined || sheetId === null) {
+        return null;
+    }
+
+    // Columnas (0-based, fin exclusivo): A..K (0..11)
+    const TABLA_COL_INICIO = 0;
+    const TABLA_COL_FIN = 11;
+
+    const filas = Math.max(0, Number(numFilas) || 0);
+    const startRow = filaInicio - 1;
+    const dataEndRow = startRow + filas;
+    const blockEndRow = Number.isFinite(filaMax) && filaMax >= filaInicio
+        ? Number(filaMax)
+        : dataEndRow;
+
+    const bordeNegro = { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } };
+    const sinBorde = { style: 'NONE' };
+    const textFormat = { fontFamily: 'Century Gothic', fontSize: 11 };
+
+    const formatoColumna = (startCol, endCol, horizontal) => ({
+        repeatCell: {
+            range: {
+                sheetId,
+                startRowIndex: startRow,
+                endRowIndex: dataEndRow,
+                startColumnIndex: startCol,
+                endColumnIndex: endCol
+            },
+            cell: {
+                userEnteredFormat: {
+                    horizontalAlignment: horizontal,
+                    verticalAlignment: 'MIDDLE',
+                    wrapStrategy: 'WRAP',
+                    textFormat
+                }
+            },
+            fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)'
+        }
+    });
+
+    const requests = [];
+
+    if (filas > 0) {
+        requests.push(formatoColumna(0, 1, 'CENTER'));  // A No. contrato
+        requests.push(formatoColumna(1, 4, 'LEFT'));    // B-D cliente/actividad/descripción
+        requests.push(formatoColumna(4, 5, 'CENTER'));  // E fecha
+        requests.push(formatoColumna(5, 6, 'LEFT'));    // F responsables
+        requests.push(formatoColumna(6, 11, 'CENTER')); // G-K categorías
+        // Cuadrícula completa para que filas nuevas conserven el formato de tabla.
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: startRow,
+                    endRowIndex: dataEndRow,
+                    startColumnIndex: TABLA_COL_INICIO,
+                    endColumnIndex: TABLA_COL_FIN
+                },
+                top: bordeNegro,
+                bottom: bordeNegro,
+                left: bordeNegro,
+                right: bordeNegro,
+                innerHorizontal: bordeNegro,
+                innerVertical: bordeNegro
+            }
+        });
+        // Refuerza el borde inferior del último renglón con datos (cierre de tabla).
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: dataEndRow - 1,
+                    endRowIndex: dataEndRow,
+                    startColumnIndex: TABLA_COL_INICIO,
+                    endColumnIndex: TABLA_COL_FIN
+                },
+                bottom: bordeNegro
+            }
+        });
+    }
+
+    // Limpiar bordes de filas vacías debajo SIN tocar "top":
+    // el top de la primera fila vacía es el bottom del último renglón con datos.
+    if (blockEndRow > dataEndRow) {
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: dataEndRow,
+                    endRowIndex: blockEndRow,
+                    startColumnIndex: TABLA_COL_INICIO,
+                    endColumnIndex: TABLA_COL_FIN
+                },
+                bottom: sinBorde,
+                left: sinBorde,
+                right: sinBorde,
+                innerHorizontal: sinBorde,
+                innerVertical: sinBorde
+            }
+        });
+    }
+
+    if (!requests.length) {
+        return true;
+    }
+
+    await sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests }
+    });
+    return true;
+}
+
+/**
  * SGC-F-04 · Reporte de no conformidad: alineación de celdas con datos del sistema
  * (Rev 02). Se aplica después de escribir valores vía API.
  */
+/**
+ * SGC-F-22 · tipografía Century Gothic 10 y alineación izquierda en campos de captura.
+ * Celdas: fecha (E5), identificación (C8:E10), descripción (A13:E17), acciones (A20:E24).
+ */
+async function aplicarFormatoVisualSgcF22(spreadsheetId, sheetTitle) {
+    if (!spreadsheetId || !sheetTitle) {
+        return null;
+    }
+
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const meta = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties(sheetId,title)'
+    });
+    const sheet = (meta.data.sheets || []).find(
+        (s) => (s.properties?.title || '').trim() === String(sheetTitle).trim()
+    );
+    const sheetId = sheet?.properties?.sheetId;
+    if (sheetId === undefined || sheetId === null) {
+        return null;
+    }
+
+    const textFormat = {
+        fontFamily: 'Century Gothic',
+        fontSize: 10,
+        foregroundColor: { red: 0, green: 0, blue: 0 }
+    };
+
+    const aplicar = (rowStart, rowEnd, colStart, colEnd, horizontal, vertical = 'MIDDLE') => ({
+        repeatCell: {
+            range: {
+                sheetId,
+                startRowIndex: rowStart - 1,
+                endRowIndex: rowEnd,
+                startColumnIndex: colStart - 1,
+                endColumnIndex: colEnd
+            },
+            cell: {
+                userEnteredFormat: {
+                    horizontalAlignment: horizontal,
+                    verticalAlignment: vertical,
+                    wrapStrategy: 'WRAP',
+                    textFormat
+                }
+            },
+            fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)'
+        }
+    });
+
+    const requests = [
+        // Fecha del suceso (E5:E6) — centrada (forzar explícito)
+        {
+            repeatCell: {
+                range: {
+                    sheetId,
+                    startRowIndex: 4,
+                    endRowIndex: 6,
+                    startColumnIndex: 4,
+                    endColumnIndex: 5
+                },
+                cell: {
+                    userEnteredFormat: {
+                        horizontalAlignment: 'CENTER',
+                        verticalAlignment: 'MIDDLE',
+                        wrapStrategy: 'WRAP',
+                        textFormat
+                    }
+                },
+                fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)'
+            }
+        },
+        // Identificación: valores C8:E10
+        aplicar(8, 10, 3, 5, 'LEFT', 'MIDDLE'),
+        // Descripción del suceso A13:E17 — centrado horizontal y vertical
+        aplicar(13, 17, 1, 5, 'CENTER', 'MIDDLE'),
+        // Acciones por parte de Biznaga A20:E24 — centrado horizontal y vertical
+        aplicar(20, 24, 1, 5, 'CENTER', 'MIDDLE'),
+        // Revisión / Fech. Rev. (E2:E3)
+        aplicar(2, 3, 5, 5, 'LEFT', 'MIDDLE')
+    ];
+
+    return sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests }
+    });
+}
+
 async function aplicarFormatoVisualSgcF04(spreadsheetId, sheetTitle) {
     if (!spreadsheetId || !sheetTitle) {
         return null;
@@ -10216,6 +10461,7 @@ module.exports = {
     // Upload rápido
     uploadFileFast,
     asignarPermisoLecturaPublica,
+    asignarPermisoEscrituraEnlace,
     subirImagenTemporal,
     perteneceACarpetaAncestral,
 
@@ -10260,9 +10506,11 @@ module.exports = {
     aplicarFormatoFilasDgF05,
     aplicarFormatoFilasSgcF05,
     aplicarFormatoVisualSgcF04,
+    aplicarFormatoVisualSgcF22,
     aplicarFormatoVisualSgcF16,
     aplicarFormatoVisualSpF02,
     aplicarFormatoFilasSgcF14,
+    aplicarFormatoFilasSgcF25,
     aplicarFormatoFilasSgcF02,
     aplicarFormatoFilasSgcF29,
     aplicarFormatoFilasAthF08,

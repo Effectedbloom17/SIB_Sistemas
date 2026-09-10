@@ -172,10 +172,10 @@ export const SGC_FORMATOS_DESCARGA_CATALOG: SgcFormatoDescarga[] = [
   // ── Cap. 8 Operación ──
   fmt('ATH-F-09', 'Cotización Rev 2', '1TIBbSYCxnwFo3YJOb2HcPpkvvYJH2Mmd', 'capitulo-8', 'ATH-F-09 Cotización Rev 2.docx'),
   fmt('ATH-F-09', 'Cotización', '1KmEUSe8Nx0swgs0MpPn7cCOq6PfKMggR', 'capitulo-8', 'ATH-F-09 Cotización.docx'),
-  fmt('SGC-F-22', 'Reporte de daño o perdida de propiedad del cliente o proveedor', '1tuhtRFUcDkHcQ_0ljj6IdRvd2EvIhKdL', 'capitulo-8', 'SGC-F-22 Reporte de daño o perdida de propiedad del cliente o proveedor.xlsx'),
+  fmt('SGC-F-22', 'Reporte de daño o perdida de propiedad del cliente o proveedor', '1asICBqzuBkhpvD4tXdfB1VIkFNPyhiOGNv6SxaEcYMw', 'capitulo-8', 'SGC-F-22 Reporte de daño o perdida de propiedad del cliente o proveedor.xlsx'),
   fmt('SGC-F-23', 'Aviso de privacidad de datos personales (Biznaga)', '1eLXnioCus439yYn_idYI_ZGMu8A1egKY', 'capitulo-8', 'SGC-F-23 Aviso de privacidad de datos personales (Biznaga).docx'),
   fmt('SGC-F-24', 'Control de cambios', '19n0BZV3eRuD80BFnULD8MXTZt0QGSd98', 'capitulo-8', 'SGC-F-24 Control de cambios.xlsx'),
-  fmt('SGC-F-25', 'Actividades posteriores a la entrega', '1Z9274MtL2PAifIi9_lAF2TrfihhJ7Ncg', 'capitulo-8', 'SGC-F-25 Actividades posteriores a la entrega.xlsx'),
+  fmt('SGC-F-25', 'Actividades posteriores a la entrega', '1tXQx1lxhdHas40sS2tF97HoBOypwGP8Qjfrv5aM41Mk', 'capitulo-8', 'SGC-F-25 Actividades posteriores a la entrega.xlsx'),
   fmt('SGC-F-27', 'Orden de compra', '1fwlGktID5LGN7AqsP-AXFGmnZ-hIThOa', 'capitulo-8', 'SGC-F-27 Orden de compra.xlsx'),
   fmt('SGC-F-28', 'Comparativa de proveedores', '1iwv4OBckp-4m6gjlYA5tRRj_PQgjuvgh', 'capitulo-8', 'SGC-F-28 Comparativa de proveedores.xlsx'),
   fmt('SGC-F-29', 'Evaluación de Proveedores', '12t9GUYEMj8p_shhD1aG6iNDul3TpThDY', 'capitulo-8', 'SGC-F-29 Evaluación de Proveedores.xlsx'),
