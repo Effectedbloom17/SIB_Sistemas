@@ -144,7 +144,7 @@ export class PdfPreviewLoaderService {
     if (recorte.startsWith('{') || recorte.startsWith('<')) {
       throw new Error(await this.extraerMensajeJson(blob, 'No se pudo generar la vista previa.'));
     }
-    if (!cabeza.startsWith('%PDF') && blob.type && !blob.type.includes('pdf') && !blob.type.includes('octet-stream')) {
+    if (!cabeza.startsWith('%PDF')) {
       throw new Error('La respuesta del servidor no es un PDF válido.');
     }
     return blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' });

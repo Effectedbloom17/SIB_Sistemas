@@ -217,6 +217,15 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         previewMode: 'form'
       },
       {
+{
+        codigo: 'SGC-F-24',
+        titulo: 'Control de cambios',
+        nombre: 'SGC-F-24 Control de cambios.xlsx',
+        driveFileId: '1ynjots5lpgG9misbTjnw5g6aJy9pB7mkD0tyTMVNfqY',
+        previewSlug: 'sgc-f-24',
+        previewMode: 'form'
+      },
+      {
         codigo: 'SGC-F-25',
         titulo: 'Actividades posteriores a la entrega',
         nombre: 'SGC-F-25 Actividades posteriores a la entrega.xlsx',

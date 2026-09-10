@@ -1051,7 +1051,7 @@
                             <ul class="sgc-prov-item__detail-list">
                               <li *ngFor="let ev of p.evaluaciones">
                                 <span class="sgc-prov-item__detail-ref">
-                                  {{ ev.referencia || ('Eval. #' + ev.no) }}
+                                  {{ ev.referencia || ('Motivo #' + ev.no) }}
                                   <em *ngIf="ev.fecha"> · {{ ev.fecha }}</em>
                                   <em *ngIf="ev.evidencias"> · {{ ev.evidencias }} evid.</em>
                                 </span>

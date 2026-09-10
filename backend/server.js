@@ -42,6 +42,7 @@ const createEmpresaRepositorioRouter = require('./empresaRepositorioRoutes');
 const empresaRepositorioService = require('./empresaRepositorioService');
 const createSgcF29EvidenciaRouter = require('./sgcF29EvidenciaRoutes');
 const sgcF29EvidenciaService = require('./sgcF29EvidenciaService');
+const createSgcF14EvidenciaRouter = require('./sgcF14EvidenciaRoutes');
 const { initChatSocket } = require('./chatSocket');
 const http = require('http');
 const rrhhResidentesService = require('./rrhhResidentesService');
@@ -25706,6 +25707,7 @@ const sgcF10Service = require('./sgcF10Service');
 const sgcF14Service = require('./sgcF14Service');
 const sgcF25Service = require('./sgcF25Service');
 const sgcF16Service = require('./sgcF16Service');
+const sgcF24Service = require('./sgcF24Service');
 const sgcF29Service = require('./sgcF29Service');
 const sgcF28Service = require('./sgcF28Service');
 const sgcSpF02Service = require('./sgcSpF02Service');
@@ -26649,6 +26651,20 @@ app.post('/api/sgc/formatos/sgc-f-14/actualizar-plantilla', requireRole('root'),
     }
 });
 
+app.use('/api/sgc/formatos/sgc-f-14/evidencias', async (req, res, next) => {
+    try {
+        await poolBiznagaSgcReady;
+        next();
+    } catch (error) {
+        handleError(res, error, 'Base de datos SGC no disponible');
+    }
+}, createSgcF14EvidenciaRouter({
+    getPoolSgc: () => poolBiznagaSgc,
+    requireAdminOrSgc,
+    handleError,
+    obtenerNombreUsuarioAccion
+}));
+
 app.get('/api/sgc/formatos/sgc-f-25', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
@@ -26797,6 +26813,89 @@ app.get('/api/sgc/formatos/sgc-f-16/descargar-pdf', requireAdminOrSgc, async (re
         return res.send(pdfBuffer);
     } catch (error) {
         handleError(res, error, 'No se pudo descargar el PDF de SGC-F-16');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-24', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
+        const payload = await sgcF24Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato SGC-F-24');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-24/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF24Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: 'Formato SGC-F-24 guardado correctamente.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato SGC-F-24');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-24/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF24Service.sincronizarDesdeDrive(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'SGC-F-24 sincronizado desde Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo sincronizar SGC-F-24');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-24/actualizar-plantilla', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF24Service.actualizarPlantillaDesdeSistema(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Plantilla SGC-F-24 actualizada.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo actualizar la plantilla SGC-F-24');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-24/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF24Service.subirPdfFirmado(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'PDF firmado del control de cambios SGC-F-24 subido a Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo subir el PDF firmado de SGC-F-24');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-24/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcF24Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="SGC-F-24 Control de cambios.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-24');
     }
 });
 

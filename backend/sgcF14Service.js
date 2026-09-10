@@ -127,7 +127,9 @@ function normalizarOpcion(valor, opciones) {
 }
 
 function sanitizarProyecto(item) {
+    const id = String(item?.id || '').trim().slice(0, 64);
     return {
+        ...(id ? { id } : {}),
         folio: String(item?.folio || '').trim(),
         nombreProyecto: String(item?.nombreProyecto || '').trim(),
         responsable: String(item?.responsable || '').trim(),
