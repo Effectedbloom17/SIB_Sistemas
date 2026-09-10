@@ -3194,6 +3194,30 @@ export class BackendServices {
         });
     }
 
+    cargarSgcF23Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-23`);
+    }
+
+    guardarSgcF23Formato(datos: unknown): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-23/guardar`, {
+            datos,
+            origen: 'sistema'
+        });
+    }
+
+    subirPdfFirmadoSgcF23(pdfBase64: string, nombreArchivo: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-23/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombre_archivo: nombreArchivo
+        });
+    }
+
+    descargarPlantillaSgcF23Pdf(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-23/descargar-plantilla-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarSgcF11Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-11`);
     }

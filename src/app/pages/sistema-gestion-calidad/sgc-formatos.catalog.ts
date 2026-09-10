@@ -209,6 +209,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         previewMode: 'form'
       },
       {
+        codigo: 'SGC-F-23',
+        titulo: 'Aviso de privacidad de datos personales (Biznaga)',
+        nombre: 'SGC-F-23 Aviso de privacidad de datos personales (Biznaga).docx',
+        driveFileId: '1eU3QvmhqRhh0hQh3v3rzihE3nFyYRVZN9pKxb0gGZ8Q',
+        previewSlug: 'sgc-f-23',
+        previewMode: 'form'
+      },
+      {
         codigo: 'SGC-F-28',
         titulo: 'Comparativa de proveedores',
         nombre: 'SGC-F-28 Comparativa de proveedores.xlsx',

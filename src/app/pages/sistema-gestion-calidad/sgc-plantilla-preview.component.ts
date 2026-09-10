@@ -514,6 +514,27 @@ interface DgF08Form {
   pdfFirmado: DgF02PdfFirmado | null;
 }
 
+interface SgcF23Form {
+  empresa: string;
+  fechaElaboracion: string;
+  revision: string;
+  intro: string;
+  objeto: string;
+  datosPersonales: string;
+  notaSensibles: string;
+  finalidadesPrimarias: string;
+  notaMercadotecnia: string;
+  transferencias: string;
+  transferenciasAdicional: string;
+  derechosArco: string;
+  correoArco: string;
+  limitacionDivulgacion: string;
+  modificaciones: string;
+  firmante: string;
+  cargoFirmante: string;
+  pdfFirmado: DgF02PdfFirmado | null;
+}
+
 interface DgF07ProcesoForm {
   nombreProceso: string;
   responsable: string;
@@ -1174,6 +1195,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return this.plantillaSlug === 'dg-f-08';
   }
 
+  @HostBinding('class.sgc-preview--sgc-f-23')
+  get esSgcF23(): boolean {
+    return this.plantillaSlug === 'sgc-f-23';
+  }
+
   @HostBinding('class.sgc-preview--sgc-f-06')
   get esSgcF06(): boolean {
     return this.plantillaSlug === 'sgc-f-06';
@@ -1336,6 +1362,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF18Form = this.crearSgcF18Vacio();
   sgcPo01Form = this.crearSgcPo01Vacio();
   dgF08Form = this.crearDgF08Vacio();
+  sgcF23Form = this.crearSgcF23Vacio();
   sgcF11Form = this.crearSgcF11Vacio();
   sgcF12Form = this.crearSgcF12Vacio();
   sgcF01Form: SgcF01FormData = this.crearSgcF01Vacio();
@@ -2651,6 +2678,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   dgF02CambiosPendientes = false;
   sgcPo01CambiosPendientes = false;
   dgF08CambiosPendientes = false;
+  sgcF23Cargando = false;
+  sgcF23Guardando = false;
+  sgcF23SubiendoPdf = false;
+  sgcF23UltimaSync: string | null = null;
+  sgcF23ContenidoModificado = false;
+  mostrarSgcF23PdfViewer = false;
+  sgcF23PdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  sgcF23PdfCargando = false;
+  sgcF23CambiosPendientes = false;
+  private sgcF23IgnorarAutoSave = false;
+  private sgcF23Listo = false;
   dgF03CambiosPendientes = false;
 
   private readonly inactivitySaveMs = 30 * 60 * 1000;
@@ -2835,6 +2873,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (codigo === 'dg-f-08') {
         this.cargarDgF08DesdeServidor();
       }
+      if (codigo === 'sgc-f-23') {
+        this.cargarSgcF23DesdeServidor();
+      }
       if (codigo === 'sgc-f-11') {
         this.cargarSgcF11DesdeServidor();
       }
@@ -2933,6 +2974,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   get esFormatoVistaDocumento(): boolean {
     return this.plantillaSlug === 'dg-f-01' || this.plantillaSlug === 'dg-f-02'
       || this.plantillaSlug === 'sgc-po-01' || this.plantillaSlug === 'dg-f-08'
+      || this.plantillaSlug === 'sgc-f-23'
       || this.plantillaSlug === 'dg-f-03';
   }
 
@@ -3131,6 +3173,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'dg-f-02') return this.dgF02CambiosPendientes;
     if (this.plantillaSlug === 'sgc-po-01') return this.sgcPo01CambiosPendientes;
     if (this.plantillaSlug === 'dg-f-08') return this.dgF08CambiosPendientes;
+    if (this.plantillaSlug === 'sgc-f-23') return this.sgcF23CambiosPendientes;
     if (this.plantillaSlug === 'dg-f-03') return this.dgF03CambiosPendientes;
     return false;
   }
@@ -3239,7 +3282,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     if (this.plantillaSlug === 'dg-f-02' || this.plantillaSlug === 'sgc-po-01'
-      || this.plantillaSlug === 'dg-f-08' || this.plantillaSlug === 'dg-f-03') {
+      || this.plantillaSlug === 'dg-f-08' || this.plantillaSlug === 'sgc-f-23'
+      || this.plantillaSlug === 'dg-f-03') {
       this.guardarInformacionDocumentoWord();
     }
   }
@@ -3344,6 +3388,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleDgF08PdfViewer();
       return;
     }
+    if (this.mostrarSgcF23PdfViewer) {
+      event.preventDefault();
+      this.toggleSgcF23PdfViewer();
+      return;
+    }
     if (this.mostrarDgF03PdfViewer) {
       event.preventDefault();
       this.toggleDgF03PdfViewer();
@@ -3371,7 +3420,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }
       if (!this.hayCambiosPendientesSgc || this.driveSyncGuardando
         || this.dgF01Guardando || this.dgF02Guardando || this.sgcPo01Guardando
-        || this.dgF08Guardando || this.dgF03Guardando) {
+        || this.dgF08Guardando || this.sgcF23Guardando || this.dgF03Guardando) {
         this.reiniciarTemporizadorInactividadSgc();
         return;
       }
@@ -3497,6 +3546,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (slug === 'dg-f-08') {
       return this.backendService.guardarDgF08Formato(this.dgF08Form);
+    }
+    if (slug === 'sgc-f-23') {
+      return this.backendService.guardarSgcF23Formato(this.sgcF23Form);
     }
     if (slug === 'dg-f-03') {
       return this.backendService.guardarDgF03Formato(this.dgF03Form);
@@ -3657,6 +3709,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return '';
     }
     return 'Edita misión, visión, valores y código de trabajo en equipo. Usa «Guardar información» para conservar cambios (también tras 30 min sin actividad o al salir). Al final puedes subir la versión firmada en PDF.';
+  }
+
+  get sgcF23IntroLead(): string {
+    if (this.plantillaSlug !== 'sgc-f-23') {
+      return '';
+    }
+    return 'Edita el aviso de privacidad por secciones. Usa «Guardar información» para conservar cambios (también tras 30 min sin actividad o al salir). Al final puedes subir la versión firmada en PDF.';
   }
 
   get sgcF18IntroLead(): string {
@@ -3930,6 +3989,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'dg-f-08') {
       return this.dgF08IntroLead;
+    }
+    if (this.plantillaSlug === 'sgc-f-23') {
+      return this.sgcF23IntroLead;
     }
     if (this.plantillaSlug === 'dg-f-03') {
       return this.dgF03IntroLead;
@@ -11858,9 +11920,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   filasTextoDgF02(texto: string): number {
     if (!texto?.trim()) {
-      return 6;
+      return 3;
     }
-    return Math.max(6, texto.split('\n').length + 1);
+    // Estima también el wrap visual (~88 chars/línea) para que no quede scroll interno.
+    const lineas = texto.split('\n').reduce((acc, linea) => {
+      const len = Math.max(1, linea.length);
+      return acc + Math.ceil(len / 88);
+    }, 0);
+    return Math.max(3, lineas + 1);
   }
 
   onSeleccionarPdfDgF02(event: Event): void {
@@ -11974,6 +12041,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'dg-f-08') {
       this.persistirDgF08();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-23') {
+      this.persistirSgcF23();
       return;
     }
     if (this.plantillaSlug === 'dg-f-03') {
@@ -16390,6 +16461,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.dgF08CambiosPendientes = true;
   }
 
+  onSgcF23Editado(): void {
+    if (!this.sgcF23Listo || this.sgcF23IgnorarAutoSave) {
+      return;
+    }
+    this.sgcF23CambiosPendientes = true;
+  }
+
   onSeleccionarPdfSgcPo01(event: Event): void {
     this.procesarPdfDocumento(
       event,
@@ -16403,6 +16481,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       event,
       'DG-F-08 Filosofía Biznaga Risk and Tech.pdf',
       (base64, nombre) => this.subirPdfDgF08(base64, nombre)
+    );
+  }
+
+  onSeleccionarPdfSgcF23(event: Event): void {
+    this.procesarPdfDocumento(
+      event,
+      'SGC-F-23 Aviso de privacidad de datos personales (Biznaga).pdf',
+      (base64, nombre) => this.subirPdfSgcF23(base64, nombre)
     );
   }
 
@@ -16445,9 +16531,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
     const esPo01 = this.plantillaSlug === 'sgc-po-01';
     const esDgF08 = this.plantillaSlug === 'dg-f-08';
+    const esSgcF23 = this.plantillaSlug === 'sgc-f-23';
     const esDgF02 = this.plantillaSlug === 'dg-f-02';
     const esDgF03 = this.plantillaSlug === 'dg-f-03';
-    if (!esPo01 && !esDgF08 && !esDgF02 && !esDgF03) {
+    if (!esPo01 && !esDgF08 && !esSgcF23 && !esDgF02 && !esDgF03) {
       return;
     }
 
@@ -16455,16 +16542,20 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       ? this.backendService.descargarPlantillaSgcPo01Pdf()
       : esDgF08
         ? this.backendService.descargarPlantillaDgF08Pdf()
-        : esDgF03
-          ? this.backendService.descargarPlantillaDgF03Pdf()
-          : this.backendService.descargarPlantillaDgF02Pdf();
+        : esSgcF23
+          ? this.backendService.descargarPlantillaSgcF23Pdf()
+          : esDgF03
+            ? this.backendService.descargarPlantillaDgF03Pdf()
+            : this.backendService.descargarPlantillaDgF02Pdf();
     const nombreArchivo = esPo01
       ? 'SGC-PO-01 Politica de calidad_Biznaga.pdf'
       : esDgF08
         ? 'DG-F-08 Filosofía Biznaga Risk and Tech.pdf'
-        : esDgF03
-          ? 'DG-F-03 Objetivos de calidad.pdf'
-          : 'DG-F-02 Alcance.pdf';
+        : esSgcF23
+          ? 'SGC-F-23 Aviso de privacidad de datos personales (Biznaga).pdf'
+          : esDgF03
+            ? 'DG-F-03 Objetivos de calidad.pdf'
+            : 'DG-F-02 Alcance.pdf';
 
     this.descargandoPlantillaPdf = true;
     descarga$
@@ -16511,6 +16602,34 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   onDgF08PdfIframeLoad(): void {
     this.dgF08PdfCargando = false;
+  }
+
+  toggleSgcF23PdfViewer(): void {
+    const id = this.sgcF23Form.pdfFirmado?.driveFileId;
+    if (!id) {
+      return;
+    }
+
+    const abrir = !this.mostrarSgcF23PdfViewer;
+    this.mostrarSgcF23PdfViewer = abrir;
+
+    if (abrir) {
+      this.sgcF23PdfCargando = true;
+      const url = `https://drive.google.com/file/d/${id}/preview`;
+      this.sgcF23PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    this.sgcF23PdfEmbedUrlSafe = null;
+    this.sgcF23PdfCargando = false;
+  }
+
+  onSgcF23PdfIframeLoad(): void {
+    this.sgcF23PdfCargando = false;
   }
 
   calcularRpnAmef(ocurrencia: string, severidad: string, deteccion: string): string {
@@ -17951,6 +18070,26 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
+  private subirPdfSgcF23(base64: string, nombre: string): void {
+    if (this.sgcF23SubiendoPdf) {
+      return;
+    }
+    this.sgcF23SubiendoPdf = true;
+    this.backendService.subirPdfFirmadoSgcF23(base64, nombre)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF23SubiendoPdf = false;
+          this.aplicarEstadoSgcF23(res);
+          this.finalizarSubidaPdfSgc(!!res?.success, nombre);
+        },
+        error: () => {
+          this.sgcF23SubiendoPdf = false;
+          this.finalizarSubidaPdfSgc(false);
+        }
+      });
+  }
+
   private subirPdfDgF03(base64: string, nombre: string): void {
     if (this.dgF03SubiendoPdf) {
       return;
@@ -19318,6 +19457,82 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }, 350);
   }
 
+  private cargarSgcF23DesdeServidor(): void {
+    this.sgcF23Cargando = true;
+    this.sgcF23Listo = false;
+    this.backendService.cargarSgcF23Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoSgcF23(res),
+        error: () => {
+          this.sgcF23Cargando = false;
+          this.sgcF23Listo = true;
+        }
+      });
+  }
+
+  private persistirSgcF23(): void {
+    if (!this.puedeGestionarPlantillasSgc) {
+      return;
+    }
+    if (!this.sgcF23Listo || this.sgcF23Guardando) {
+      return;
+    }
+    this.sgcF23Guardando = true;
+    this.backendService.guardarSgcF23Formato(this.sgcF23Form)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF23Guardando = false;
+          this.sgcF23CambiosPendientes = false;
+          this.aplicarEstadoSgcF23(res);
+        },
+        error: () => {
+          this.sgcF23Guardando = false;
+        }
+      });
+  }
+
+  private aplicarEstadoSgcF23(res: any): void {
+    if (!res?.success) {
+      this.sgcF23Cargando = false;
+      this.sgcF23Listo = true;
+      return;
+    }
+    if (res.datos) {
+      this.sgcF23IgnorarAutoSave = true;
+      this.sgcF23Listo = false;
+      const d = res.datos;
+      this.sgcF23Form = {
+        empresa: d.empresa ?? this.sgcF23Form.empresa,
+        fechaElaboracion: d.fechaElaboracion ?? this.sgcF23Form.fechaElaboracion,
+        revision: d.revision ?? this.sgcF23Form.revision,
+        intro: d.intro ?? this.sgcF23Form.intro,
+        objeto: d.objeto ?? this.sgcF23Form.objeto,
+        datosPersonales: d.datosPersonales ?? this.sgcF23Form.datosPersonales,
+        notaSensibles: d.notaSensibles ?? this.sgcF23Form.notaSensibles,
+        finalidadesPrimarias: d.finalidadesPrimarias ?? this.sgcF23Form.finalidadesPrimarias,
+        notaMercadotecnia: d.notaMercadotecnia ?? this.sgcF23Form.notaMercadotecnia,
+        transferencias: d.transferencias ?? this.sgcF23Form.transferencias,
+        transferenciasAdicional: d.transferenciasAdicional ?? this.sgcF23Form.transferenciasAdicional,
+        derechosArco: d.derechosArco ?? this.sgcF23Form.derechosArco,
+        correoArco: d.correoArco ?? this.sgcF23Form.correoArco,
+        limitacionDivulgacion: d.limitacionDivulgacion ?? this.sgcF23Form.limitacionDivulgacion,
+        modificaciones: d.modificaciones ?? this.sgcF23Form.modificaciones,
+        firmante: d.firmante ?? this.sgcF23Form.firmante,
+        cargoFirmante: d.cargoFirmante ?? this.sgcF23Form.cargoFirmante,
+        pdfFirmado: d.pdfFirmado ?? res.pdfFirmado ?? this.sgcF23Form.pdfFirmado
+      };
+    }
+    this.sgcF23UltimaSync = res.ultimaSyncDrive || null;
+    this.sgcF23ContenidoModificado = !!res.contenidoModificado;
+    window.setTimeout(() => {
+      this.sgcF23IgnorarAutoSave = false;
+      this.sgcF23Listo = true;
+      this.sgcF23Cargando = false;
+    }, 350);
+  }
+
   private crearFilaSgcF18Vacia(): SgcF18Fila {
     return {
       nombre: '',
@@ -19376,6 +19591,40 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         'CONFIANZA: Soy confiable, cuando actúo de una manera adecuada ante una situación, creando un ambiente de seguridad en mi entorno.\n\nHONESTIDAD: Soy honesto cuando soy congruente entre lo que se pienso y lo que hago, anteponiendo la verdad en mis acciones.\n\nRESPONSABILIDAD: Soy responsable cuando, reconozco y acepto las consecuencias de mis actos, entendiendo que estos no deben afectar de forma negativa a nadie, incluyéndose él mismo.\n\nPERSISTENTE: Soy persistente cuando tengo la firmeza y el carácter suficiente para lograr el propósito de la organización.\n\nCOMPROMISO: Soy comprometido cuando transformo una promesa en realidad, logrando los objetivos de la organización.\n\nDISCIPLINA: Soy disciplinado cuando tengo una actuación ordenada y perseverante, con la finalidad de llegar a un bien común para la empresa.',
       codigoTrabajoEquipo:
         'El trabajo en equipo es el resultado de un grupo de personas con sentido de pertenencia a la empresa, que trabaja para un fin común, compartiendo los mismos valores institucionales, lo cual incluye:\n\n• Colaborar con cada uno de los integrantes en el tiempo y espacio que me corresponde.\n• Tener apertura y respeto por las nuevas ideas sin importar quien las aporte.\n• Con mis actos busco el bien común del equipo.\n• Comparto información relevante para la mejora del grupo.\n• Contagio el sentido de pertenencia.',
+      firmante: 'Marisol Azucena Santillán Melo',
+      cargoFirmante: 'DIRECTORA GENERAL',
+      pdfFirmado: null
+    };
+  }
+
+  private crearSgcF23Vacio(): SgcF23Form {
+    return {
+      empresa: 'BIZNAGA RISK AND TECH',
+      fechaElaboracion: '2025-01-20',
+      revision: '00',
+      intro:
+        'BIZNAGA RISK AND TECH S.DE R.L. DE C.V, con domicilio ubicado en (Calle Laguna no. 7 La Loma, Pachuca Hidalgo 42088, le informa que es responsable del tratamiento de los datos personales de nuestros proveedores y/o proveedores prospecto de bienes y/o servicios, mismos que son tratados de forma estrictamente privada y confidencial, por lo que la obtención, tratamiento, transferencia y ejercicio de los derechos derivados de dichos datos personales, se hace mediante un uso adecuado, legítimo y lícito, salvaguardando permanentemente los principios de licitud, consentimiento, calidad, información, proporcionalidad, responsabilidad, lealtad y finalidad.',
+      objeto:
+        'En consecuencia, el presente Aviso de Privacidad tiene por objeto informarle acerca de las prácticas en materia de protección de datos personales por parte de la Empresa, describir el tipo de información personal que obtenemos de nuestros clientes, cómo podríamos usar esa información y con quién podemos compartirla en función de la relación jurídica establecida con los mismos. Asimismo, este Aviso de Privacidad describe las medidas que seguimos para proteger la seguridad y confidencialidad de la información que recibimos.',
+      datosPersonales:
+        'Para lograr las finalidades establecidas en este Aviso de Privacidad, a continuación, señalamos las categorías de datos personales que podremos recabar de usted: datos de identificación, datos de contacto, y datos patrimoniales y/o financieros.',
+      notaSensibles:
+        'Le informamos que BIZNAGA RISK AND TECH S.DE R.L. DE C.V no solicitará datos personales sensibles de conformidad con la Ley y su Reglamento, para la consecución de las finalidades que se indican más adelante.',
+      finalidadesPrimarias:
+        'Se dará un tratamiento de conformidad con las finalidades que dieron origen y son necesarias para la existencia, mantenimiento y cumplimiento de la relación establecida con nuestros clientes, en los casos aplicables y que se indican a continuación: (i) Identificación y contacto; (ii) Para el proceso de contratación o alta como cliente; (iii) Llevar a cabo procedimientos internos que requieran su información en virtud de la relación contractual establecida con usted; (iv) Determinar los términos y condiciones de contratación; (v) Emitir la factura correspondiente por los servicios brindados, en su caso; (vi) Registrarlo en nuestras bases de datos físicas y/o electrónicas como cliente; (vii) Para el cumplimiento de la relación jurídica/contractual celebrada con usted, en su caso.',
+      notaMercadotecnia:
+        'Le informamos que los datos obtenidos no serán utilizados para fines de mercadotecnia, publicidad o prospección comercial.',
+      transferencias:
+        'Le informamos que no compartiremos sus datos personales con terceras personas, salvo cuando sea necesario en los casos previstos en la Ley y su Reglamento.',
+      transferenciasAdicional:
+        'Adicionalmente, la Empresa le informa que en términos de lo dispuesto por el artículo 37 de la Ley Federal de Protección de Datos Personales en Posesión de los Particulares, podrá transferir sus datos personales a terceros sin su consentimiento, en los casos previstos en dicho ordenamiento.',
+      derechosArco:
+        'Como titular de datos personales, usted podrá ejercer los Derechos ARCO (Acceso, Rectificación, Cancelación y Oposición al tratamiento de sus datos personales), o bien, revocar el consentimiento que usted haya otorgado a BIZNAGA RISK AND TECH S.DE R.L. DE C.V, para el tratamiento de sus datos personales, enviando su solicitud, a través de la cuenta de correo electrónico: (contacto@gmail.com). Dicha solicitud deberá contener por lo menos: (a) nombre y domicilio u otro medio para comunicarle la respuesta a su solicitud; (b) los documentos que acrediten su identidad o, en su caso, la representación legal; (c) la descripción clara y precisa de los datos personales respecto de los que se solicita ejercer alguno de los Derechos ARCO, (d) la manifestación expresa para revocar su consentimiento al tratamiento de sus datos personales y por tanto, para que no se usen; y (e) cualquier otro elemento que facilite la localización de los datos personales.',
+      correoArco: 'contacto@gmail.com',
+      limitacionDivulgacion:
+        'Le informamos que, toda vez que sus datos personales se utilizarán solamente para los fines expresamente establecidos en el presente aviso de privacidad y que constituyen aquellas finalidades necesarias para el establecimiento, mantenimiento o cumplimiento de la relación jurídica con nuestros clientes, sin que exista la posibilidad de que sus datos personales sean utilizados para fines diversos, tales como mercadotecnia, publicidad y prospección comercial, BIZNAGA RISK AND TECH S.DE R.L. DE C.V no dispone de un medio para que usted pueda limitar el uso o divulgación de sus datos personales en el caso que nos ocupa, puesto que de ser así se impediría establecer, mantener y dar cumplimiento a la relación jurídica con usted como cliente de BIZNAGA RISK AND TECH S.DE R.L. DE C.V.',
+      modificaciones:
+        'BIZNAGA RISK AND TECH S.DE R.L. DE C.V., se reserva el derecho, bajo su exclusiva discreción, de cambiar, modificar, agregar o eliminar partes del presente Aviso de Privacidad en cualquier momento. En tal caso, BIZNAGA RISK AND TECH S.DE R.L. DE C.V., le informará de los cambios por el mismo medio que ha puesto a su disposición este Aviso de Privacidad.',
       firmante: 'Marisol Azucena Santillán Melo',
       cargoFirmante: 'DIRECTORA GENERAL',
       pdfFirmado: null

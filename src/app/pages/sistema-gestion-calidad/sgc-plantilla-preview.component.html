@@ -1,5 +1,5 @@
 <ng-container *ngIf="config && plantilla as tpl">
-  <div class="sgc-preview-page" [class.sgc-preview-page--dg-f-01]="plantillaSlug === 'dg-f-01'" [class.sgc-preview-page--dg-f-02]="plantillaSlug === 'dg-f-02' || plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'dg-f-03'" [class.sgc-preview-page--dg-f-03]="plantillaSlug === 'dg-f-03'" [class.sgc-preview-page--dg-f-05]="plantillaSlug === 'dg-f-05' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06'" [class.sgc-preview-page--dg-f-04]="plantillaSlug === 'dg-f-04'" [class.sgc-preview-page--dg-f-07]="plantillaSlug === 'dg-f-07'" [class.sgc-preview-page--metodologia-amef]="plantillaSlug === 'metodologia-amef'"
+  <div class="sgc-preview-page" [class.sgc-preview-page--dg-f-01]="plantillaSlug === 'dg-f-01'" [class.sgc-preview-page--dg-f-02]="plantillaSlug === 'dg-f-02' || plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'sgc-f-23' || plantillaSlug === 'dg-f-03'" [class.sgc-preview-page--dg-f-03]="plantillaSlug === 'dg-f-03'" [class.sgc-preview-page--dg-f-05]="plantillaSlug === 'dg-f-05' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06'" [class.sgc-preview-page--dg-f-04]="plantillaSlug === 'dg-f-04'" [class.sgc-preview-page--dg-f-07]="plantillaSlug === 'dg-f-07'" [class.sgc-preview-page--metodologia-amef]="plantillaSlug === 'metodologia-amef'"
        [class.sgc-preview-page--ath-f-09-editor]="plantillaSlug === 'ath-f-09' && athF09Vista === 'editor'"
        [class.sgc-preview-page--ath-f-11-editor]="plantillaSlug === 'ath-f-11' && athF11Vista === 'editor'">
   <div class="header header-bg-image sgc-hero sgc-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
@@ -143,16 +143,17 @@
                   </span>
                 </div>
               </ng-container>
-              <ng-container *ngIf="plantillaSlug === 'dg-f-02' || plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'dg-f-03'">
+              <ng-container *ngIf="plantillaSlug === 'dg-f-02' || plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'sgc-f-23' || plantillaSlug === 'dg-f-03'">
                 <div class="sgc-preview-toolbar__actions">
                   <span class="sgc-preview-sync sgc-preview-sync--hint"
                     *ngIf="(plantillaSlug === 'dg-f-02' && dgF02CambiosPendientes && !dgF02Guardando)
                       || (plantillaSlug === 'sgc-po-01' && sgcPo01CambiosPendientes && !sgcPo01Guardando)
                       || (plantillaSlug === 'dg-f-08' && dgF08CambiosPendientes && !dgF08Guardando)
+                      || (plantillaSlug === 'sgc-f-23' && sgcF23CambiosPendientes && !sgcF23Guardando)
                       || (plantillaSlug === 'dg-f-03' && dgF03CambiosPendientes && !dgF03Guardando)">
                     Cambios sin guardar
                   </span>
-                  <span class="sgc-preview-sync" *ngIf="(plantillaSlug === 'dg-f-02' && dgF02Guardando) || (plantillaSlug === 'sgc-po-01' && sgcPo01Guardando) || (plantillaSlug === 'dg-f-08' && dgF08Guardando) || (plantillaSlug === 'dg-f-03' && dgF03Guardando)">
+                  <span class="sgc-preview-sync" *ngIf="(plantillaSlug === 'dg-f-02' && dgF02Guardando) || (plantillaSlug === 'sgc-po-01' && sgcPo01Guardando) || (plantillaSlug === 'dg-f-08' && dgF08Guardando) || (plantillaSlug === 'sgc-f-23' && sgcF23Guardando) || (plantillaSlug === 'dg-f-03' && dgF03Guardando)">
                     <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i> Guardando…
                   </span>
                   <span class="sgc-preview-sync" *ngIf="plantillaSlug === 'dg-f-02' && !dgF02Guardando && dgF02UltimaSync">
@@ -163,6 +164,9 @@
                   </span>
                   <span class="sgc-preview-sync" *ngIf="plantillaSlug === 'dg-f-08' && !dgF08Guardando && dgF08UltimaSync">
                     Guardado: {{ formatearUltimaSync(dgF08UltimaSync) }}
+                  </span>
+                  <span class="sgc-preview-sync" *ngIf="plantillaSlug === 'sgc-f-23' && !sgcF23Guardando && sgcF23UltimaSync">
+                    Guardado: {{ formatearUltimaSync(sgcF23UltimaSync) }}
                   </span>
                   <span class="sgc-preview-sync" *ngIf="plantillaSlug === 'dg-f-03' && !dgF03Guardando && dgF03UltimaSync">
                     Guardado: {{ formatearUltimaSync(dgF03UltimaSync) }}
@@ -215,7 +219,7 @@
                 </div>
               </ng-container>
               <ng-template #toolbarDriveSync>
-              <ng-container *ngIf="plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'dg-f-02' || plantillaSlug === 'dg-f-03'; else toolbarDriveSyncRest">
+              <ng-container *ngIf="plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'sgc-f-23' || plantillaSlug === 'dg-f-02' || plantillaSlug === 'dg-f-03'; else toolbarDriveSyncRest">
                 <div class="sgc-preview-toolbar__actions">
                   <button
                     *ngIf="puedeGestionarPlantillasSgc"
@@ -223,12 +227,14 @@
                     class="btn btn-sm sgc-btn-save-info"
                     [disabled]="(plantillaSlug === 'sgc-po-01' && (sgcPo01Cargando || sgcPo01Guardando))
                       || (plantillaSlug === 'dg-f-08' && (dgF08Cargando || dgF08Guardando))
+                      || (plantillaSlug === 'sgc-f-23' && (sgcF23Cargando || sgcF23Guardando))
                       || (plantillaSlug === 'dg-f-02' && (dgF02Cargando || dgF02Guardando))
                       || (plantillaSlug === 'dg-f-03' && (dgF03Cargando || dgF03Guardando))"
                     (click)="guardarInformacionDocumentoWord()">
                     <i class="fas mr-1"
                       [ngClass]="(plantillaSlug === 'sgc-po-01' && sgcPo01Guardando)
                         || (plantillaSlug === 'dg-f-08' && dgF08Guardando)
+                        || (plantillaSlug === 'sgc-f-23' && sgcF23Guardando)
                         || (plantillaSlug === 'dg-f-02' && dgF02Guardando)
                         || (plantillaSlug === 'dg-f-03' && dgF03Guardando)
                         ? 'fa-spinner fa-spin' : 'fa-save'"
@@ -241,6 +247,7 @@
                     [disabled]="descargandoPlantillaPdf
                       || (plantillaSlug === 'sgc-po-01' && (sgcPo01Cargando || sgcPo01Guardando))
                       || (plantillaSlug === 'dg-f-08' && (dgF08Cargando || dgF08Guardando))
+                      || (plantillaSlug === 'sgc-f-23' && (sgcF23Cargando || sgcF23Guardando))
                       || (plantillaSlug === 'dg-f-02' && (dgF02Cargando || dgF02Guardando))
                       || (plantillaSlug === 'dg-f-03' && (dgF03Cargando || dgF03Guardando))"
                     (click)="descargarPlantillaPdfFormato()">
@@ -2729,6 +2736,168 @@
                       </div>
                     </div>
                   </aside>
+                </div>
+              </form>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'sgc-f-23'">
+              <form class="dg-f02-form" (ngSubmit)="$event.preventDefault()"
+                    (input)="onSgcF23Editado()" (change)="onSgcF23Editado()">
+                <div class="dg-f02-wrap" [class.dg-f02-wrap--loading]="sgcF23Cargando">
+                  <div class="dg-f02-loading" *ngIf="sgcF23Cargando" role="status">
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    Cargando formato…
+                  </div>
+
+                  <article class="dg-f02-page sgc-f-23-page" aria-label="SGC-F-23 Aviso de privacidad">
+                    <div class="dg-f02-page__pattern" aria-hidden="true"></div>
+                    <div class="dg-f02-page__inner">
+                      <header class="dg-f02-page__brand">
+                        <img class="dg-f02-page__logo" src="assets/img/logo_biznaga.png" alt="Biznaga Risk and Tech">
+                      </header>
+
+                      <div class="dg-f02-page__meta">
+                        <label class="dg-f02-page__meta-item dg-f02-page__meta-item--empresa">
+                          <span class="dg-f02-page__meta-label">Empresa</span>
+                          <input class="dg-f02-page__meta-input" type="text"
+                            name="sgcF23_empresa" [(ngModel)]="sgcF23Form.empresa" autocomplete="off">
+                        </label>
+                        <div class="dg-f02-page__meta-item dg-f02-page__meta-item--fecha">
+                          <span class="dg-f02-page__meta-label">Fecha de rev.</span>
+                          <span class="dg-f02-page__meta-value"
+                            [title]="sgcF23ContenidoModificado ? 'Actualizada tras la última modificación' : 'Fecha original del formato'">
+                            {{ formatearFechaDgF02(sgcF23Form.fechaElaboracion) }}
+                          </span>
+                        </div>
+                        <div class="dg-f02-page__meta-item">
+                          <span class="dg-f02-page__meta-label">Revisión</span>
+                          <span class="dg-f02-page__meta-value"
+                            [title]="sgcF23ContenidoModificado ? 'Incrementada tras la última modificación' : 'Revisión vigente'">
+                            {{ sgcF23Form.revision }}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div class="sgc-f-23-code">SGC-F-23</div>
+                      <h1 class="dg-f02-block__heading text-center sgc-f-23-title">AVISO DE PRIVACIDAD DE DATOS PERSONALES</h1>
+
+                      <section class="dg-f02-block sgc-f-23-prose">
+                        <div class="dg-f02-block__editor">
+                          <textarea class="dg-f02-block__textarea" name="sgcF23_intro" [(ngModel)]="sgcF23Form.intro"
+                            [attr.rows]="filasTextoDgF02(sgcF23Form.intro)" aria-label="Identidad del responsable"></textarea>
+                        </div>
+                      </section>
+
+                      <section class="dg-f02-block sgc-f-23-prose">
+                        <div class="dg-f02-block__editor">
+                          <textarea class="dg-f02-block__textarea" name="sgcF23_objeto" [(ngModel)]="sgcF23Form.objeto"
+                            [attr.rows]="filasTextoDgF02(sgcF23Form.objeto)" aria-label="Objeto del aviso"></textarea>
+                        </div>
+                      </section>
+
+                      <section class="sgc-f-23-section">
+                        <div class="sgc-f-23-section__head">
+                          <span class="sgc-f-23-section__num">1</span>
+                          <h2 class="sgc-f-23-section__title">Datos personales recabados</h2>
+                        </div>
+                        <div class="dg-f02-block__editor">
+                          <textarea class="dg-f02-block__textarea" name="sgcF23_datos" [(ngModel)]="sgcF23Form.datosPersonales"
+                            [attr.rows]="filasTextoDgF02(sgcF23Form.datosPersonales)" aria-label="Datos personales recabados"></textarea>
+                        </div>
+                        <div class="dg-f02-block__editor sgc-f-23-section__note">
+                          <textarea class="dg-f02-block__textarea" name="sgcF23_sensibles" [(ngModel)]="sgcF23Form.notaSensibles"
+                            [attr.rows]="filasTextoDgF02(sgcF23Form.notaSensibles)" aria-label="Nota de datos sensibles"></textarea>
+                        </div>
+                      </section>
+
+                      <section class="sgc-f-23-section">
+                        <div class="sgc-f-23-section__head">
+                          <span class="sgc-f-23-section__num">2</span>
+                          <h2 class="sgc-f-23-section__title">Finalidades primarias</h2>
+                        </div>
+                        <div class="dg-f02-block__editor">
+                          <textarea class="dg-f02-block__textarea" name="sgcF23_finalidades" [(ngModel)]="sgcF23Form.finalidadesPrimarias"
+                            [attr.rows]="filasTextoDgF02(sgcF23Form.finalidadesPrimarias)" aria-label="Finalidades primarias"></textarea>
+                        </div>
+                        <div class="dg-f02-block__editor sgc-f-23-section__note">
+                          <textarea class="dg-f02-block__textarea" name="sgcF23_mercadotecnia" [(ngModel)]="sgcF23Form.notaMercadotecnia"
+                            [attr.rows]="filasTextoDgF02(sgcF23Form.notaMercadotecnia)" aria-label="Nota de mercadotecnia"></textarea>
+                        </div>
+                      </section>
+
+                      <section class="sgc-f-23-section">
+                        <div class="sgc-f-23-section__head">
+                          <span class="sgc-f-23-section__num">3</span>
+                          <h2 class="sgc-f-23-section__title">Transferencias</h2>
+                        </div>
+                        <div class="dg-f02-block__editor">
+                          <textarea class="dg-f02-block__textarea" name="sgcF23_transferencias" [(ngModel)]="sgcF23Form.transferencias"
+                            [attr.rows]="filasTextoDgF02(sgcF23Form.transferencias)" aria-label="Transferencias"></textarea>
+                        </div>
+                        <div class="dg-f02-block__editor sgc-f-23-section__note">
+                          <textarea class="dg-f02-block__textarea" name="sgcF23_transferencias_adicional" [(ngModel)]="sgcF23Form.transferenciasAdicional"
+                            [attr.rows]="filasTextoDgF02(sgcF23Form.transferenciasAdicional)" aria-label="Transferencias adicionales"></textarea>
+                        </div>
+                      </section>
+
+                      <section class="sgc-f-23-section">
+                        <div class="sgc-f-23-section__head">
+                          <span class="sgc-f-23-section__num">4</span>
+                          <h2 class="sgc-f-23-section__title">Derechos ARCO y revocación del consentimiento</h2>
+                        </div>
+                        <label class="sgc-f-23-contact">
+                          <span class="sgc-f-23-contact__label">Correo para ejercer derechos ARCO</span>
+                          <input class="sgc-f-23-contact__input" type="email"
+                            name="sgcF23_correo" [(ngModel)]="sgcF23Form.correoArco" autocomplete="off">
+                        </label>
+                        <div class="dg-f02-block__editor">
+                          <textarea class="dg-f02-block__textarea" name="sgcF23_arco" [(ngModel)]="sgcF23Form.derechosArco"
+                            [attr.rows]="filasTextoDgF02(sgcF23Form.derechosArco)" aria-label="Derechos ARCO"></textarea>
+                        </div>
+                      </section>
+
+                      <section class="sgc-f-23-section">
+                        <div class="sgc-f-23-section__head">
+                          <span class="sgc-f-23-section__num">5</span>
+                          <h2 class="sgc-f-23-section__title">Limitación y/o divulgación de sus datos personales</h2>
+                        </div>
+                        <div class="dg-f02-block__editor">
+                          <textarea class="dg-f02-block__textarea" name="sgcF23_limitacion" [(ngModel)]="sgcF23Form.limitacionDivulgacion"
+                            [attr.rows]="filasTextoDgF02(sgcF23Form.limitacionDivulgacion)" aria-label="Limitación de datos personales"></textarea>
+                        </div>
+                      </section>
+
+                      <section class="sgc-f-23-section">
+                        <div class="sgc-f-23-section__head">
+                          <span class="sgc-f-23-section__num">6</span>
+                          <h2 class="sgc-f-23-section__title">Modificaciones y cambios al aviso de privacidad</h2>
+                        </div>
+                        <div class="dg-f02-block__editor">
+                          <textarea class="dg-f02-block__textarea" name="sgcF23_modificaciones" [(ngModel)]="sgcF23Form.modificaciones"
+                            [attr.rows]="filasTextoDgF02(sgcF23Form.modificaciones)" aria-label="Modificaciones al aviso"></textarea>
+                        </div>
+                      </section>
+
+                      <footer class="dg-f02-page__signatures">
+                        <label class="dg-f02-page__meta-item">
+                          <span class="dg-f02-page__meta-label">Firmante</span>
+                          <input class="dg-f02-page__meta-input" type="text"
+                            name="sgcF23_firmante" [(ngModel)]="sgcF23Form.firmante" autocomplete="off">
+                        </label>
+                        <label class="dg-f02-page__meta-item">
+                          <span class="dg-f02-page__meta-label">Cargo</span>
+                          <input class="dg-f02-page__meta-input" type="text"
+                            name="sgcF23_cargo" [(ngModel)]="sgcF23Form.cargoFirmante" autocomplete="off">
+                        </label>
+                      </footer>
+
+                      <footer class="dg-f02-page__footer">
+                        <span>www.biznaga.com.mx</span>
+                        <span class="dg-f02-page__footer-sep">·</span>
+                        <span>contacto@biznaga.mx</span>
+                      </footer>
+                    </div>
+                  </article>
                 </div>
               </form>
             </ng-container>

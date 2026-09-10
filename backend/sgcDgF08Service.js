@@ -7,6 +7,9 @@ const { asegurarTablaSgcFormatoDatos, persistirRegistroSgc, obtenerRegistroSgcPe
 
 const CODIGO_FORMATO = 'DG-F-08';
 const CARPETA_DRIVE_ID = '1DhhFFFEdAWwJtisyv4A1YUe2b2Xvj5uT';
+/** Plantilla original limpia (catálogo descarga). Nunca se sobrescribe. */
+const TEMPLATE_ORIGINAL_DRIVE_ID = '1fEfPhLuNVXd2rmuzSWtyTvNmqxqeTcqe';
+/** Copia de trabajo del sistema (PDF / editor). Se regenera en cada sync. */
 const TEMPLATE_DRIVE_ID = '1I_w2I7K2cm4HSsqnF1xk7Zz1OsXGldLq';
 const NOMBRE_PLANTILLA_DOCX = 'DG-F-08 Filosofía Biznaga Risk and Tech.docx';
 const NOMBRE_PDF_ARCHIVO = 'DG-F-08 Filosofía Biznaga Risk and Tech.pdf';
@@ -35,6 +38,39 @@ function normalizarSaltosLinea(texto) {
         .replace(/\r\n/g, '\n')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
+}
+
+/** Respeta cadenas vacías (borrados del usuario); solo usa defecto si falta el campo. */
+function textoEditable(valor, defecto = '') {
+    if (valor === undefined || valor === null) {
+        return normalizarSaltosLinea(defecto);
+    }
+    return normalizarSaltosLinea(valor);
+}
+
+/** Quita basura de sync previo: misión pegada a un valor sin espacio/salto. */
+function depurarValoresCorruptos(valores, mision) {
+    let texto = normalizarSaltosLinea(valores);
+    const misionLimpia = normalizarSaltosLinea(mision);
+    if (!texto || !misionLimpia) return texto;
+
+    if (texto.includes(misionLimpia)) {
+        texto = texto.split(misionLimpia).join('');
+    }
+    // Casos "organizaciónSomos" / "empresaSomos"
+    const inicioMision = escaparRegex(misionLimpia.slice(0, Math.min(24, misionLimpia.length)));
+    if (inicioMision) {
+        texto = texto.replace(new RegExp(`([A-Za-zÁÉÍÓÚáéíóúñÑ.])${inicioMision}`, 'g'), '$1');
+        // Si quedó un fragmento de misión a medias, cortar desde "Somos una organización líder"
+        texto = texto.replace(/Somos una organización líder[\s\S]*$/gm, '');
+    }
+    return normalizarSaltosLinea(
+        texto
+            .split(/\n\n+/)
+            .map((p) => p.trim())
+            .filter(Boolean)
+            .join('\n\n')
+    );
 }
 
 function formatearFechaIso(fecha) {
@@ -101,8 +137,9 @@ function formatearFechaPlantillaDoc(fechaIso) {
 }
 
 function textoParrafoDoc(texto) {
-    const limpio = normalizarSaltosLinea(texto);
-    return limpio ? `${limpio}\n` : '';
+    // Solo el texto plano: NO agregar \n. En replaceAllText el salto final
+    // rompe límites de párrafo y pega bloques (p. ej. valor + misión).
+    return normalizarSaltosLinea(texto);
 }
 
 function lineasValores(texto) {
@@ -141,14 +178,14 @@ function snapshotPlantillaDesdeDatos(datos) {
 }
 
 function crearReplaceRequest(textoAnterior, textoNuevo) {
-    const anterior = String(textoAnterior ?? '');
-    const nuevo = String(textoNuevo ?? '');
-    if (!anterior.trim() || anterior === nuevo) {
+    const anterior = String(textoAnterior ?? '').trim();
+    const nuevo = String(textoNuevo ?? '').trim();
+    if (!anterior || anterior === nuevo) {
         return null;
     }
     return {
         replaceAllText: {
-            containsText: { text: anterior, matchCase: false },
+            containsText: { text: anterior, matchCase: true },
             replaceText: nuevo
         }
     };
@@ -170,40 +207,40 @@ function construirRequestsPlantilla(snapshot, destino) {
         )
     ];
 
+    // Un valor = un párrafo. Reemplazo exacto, sin saltos artificiales.
     const valoresAnt = lineasValores(snapshot.valores);
     const valoresNue = lineasValores(destino.valores);
     const maxValores = Math.max(valoresAnt.length, valoresNue.length);
     for (let i = 0; i < maxValores; i += 1) {
         const ant = valoresAnt[i];
-        const nue = valoresNue[i];
-        if (!ant || !nue) continue;
-        requests.push(crearReplaceRequest(textoParrafoDoc(ant), textoParrafoDoc(nue)));
+        const nue = valoresNue[i] || '';
+        if (!ant) continue;
+        requests.push(crearReplaceRequest(ant, nue));
     }
 
     const codigoAnt = partesCodigoTrabajoEquipo(snapshot.codigoTrabajoEquipo);
     const codigoNue = partesCodigoTrabajoEquipo(destino.codigoTrabajoEquipo);
-    requests.push(
-        crearReplaceRequest(textoParrafoDoc(codigoAnt.intro), textoParrafoDoc(codigoNue.intro))
-    );
+    requests.push(crearReplaceRequest(codigoAnt.intro, codigoNue.intro));
     const maxBullets = Math.max(codigoAnt.bullets.length, codigoNue.bullets.length);
     for (let i = 0; i < maxBullets; i += 1) {
         const ant = codigoAnt.bullets[i];
-        const nue = codigoNue.bullets[i];
-        if (!ant || !nue) continue;
-        requests.push(crearReplaceRequest(textoParrafoDoc(ant), textoParrafoDoc(nue)));
+        const nue = codigoNue.bullets[i] || '';
+        if (!ant) continue;
+        requests.push(crearReplaceRequest(ant, nue));
     }
 
     return requests.filter(Boolean);
 }
 
-async function copiarPlantillaComoGoogleDoc() {
+async function copiarPlantillaComoGoogleDoc(sourceFileId = TEMPLATE_ORIGINAL_DRIVE_ID) {
     const auth = driveService.getAuthClient();
     if (!auth) {
         throw new Error('Google Drive no está autenticado.');
     }
     const drive = google.drive({ version: 'v3', auth });
     const copyResp = await drive.files.copy({
-        fileId: TEMPLATE_DRIVE_ID,
+        fileId: sourceFileId,
+        supportsAllDrives: true,
         requestBody: {
             name: `_temp_dg_f08_sync_${Date.now()}`,
             mimeType: GOOGLE_DOC_MIME
@@ -221,10 +258,14 @@ async function copiarPlantillaComoGoogleDoc() {
     };
 }
 
-async function sincronizarPlantillaGoogleDoc(datos, snapshotAnterior) {
-    const snapshot = snapshotPlantillaDesdeDatos(snapshotAnterior || DATOS_DEFECTO);
+/**
+ * Regenera la plantilla de trabajo desde la ORIGINAL limpia.
+ * Siempre parte de DATOS_DEFECTO → datos actuales (nunca de un snapshot corrupto).
+ */
+async function sincronizarPlantillaGoogleDoc(datos) {
+    const snapshot = snapshotPlantillaDesdeDatos(DATOS_DEFECTO);
     const destino = snapshotPlantillaDesdeDatos(datos);
-    const { drive, docsApi, docId } = await copiarPlantillaComoGoogleDoc();
+    const { drive, docsApi, docId } = await copiarPlantillaComoGoogleDoc(TEMPLATE_ORIGINAL_DRIVE_ID);
 
     try {
         const requests = construirRequestsPlantilla(snapshot, destino);
@@ -235,12 +276,15 @@ async function sincronizarPlantillaGoogleDoc(datos, snapshotAnterior) {
             });
         }
 
+        await adelgazarLineaFirma(docsApi, docId, destino.firmante);
+
         const docxResp = await drive.files.export(
             { fileId: docId, mimeType: DOCX_MIME },
             { responseType: 'arraybuffer' }
         );
         const docxBuffer = Buffer.from(docxResp.data);
 
+        // Solo se actualiza la copia de trabajo; la original permanece intacta.
         await driveService.reemplazarArchivoEnDrive(
             TEMPLATE_DRIVE_ID,
             docxBuffer,
@@ -250,15 +294,122 @@ async function sincronizarPlantillaGoogleDoc(datos, snapshotAnterior) {
 
         return {
             actualizado: requests.length > 0,
-            plantillaSync: destino
+            plantillaSync: destino,
+            tempDocId: docId,
+            drive,
+            docsApi
         };
-    } finally {
+    } catch (err) {
         try {
-            await drive.files.delete({ fileId: docId });
-        } catch (err) {
-            console.warn('[DG-F-08] No se pudo eliminar copia temporal de plantilla:', err.message);
+            await drive.files.delete({ fileId: docId, supportsAllDrives: true });
+        } catch (_) { /* ignore */ }
+        throw err;
+    }
+}
+
+/**
+ * La firma usa un dibujo posicionado ancho/alto. Se elimina y se deja una
+ * línea delgada de guiones bajos centrada, del ancho aproximado del nombre.
+ */
+async function adelgazarLineaFirma(docsApi, docId, nombreFirmante = DATOS_DEFECTO.firmante) {
+    const doc = await docsApi.documents.get({ documentId: docId });
+    const positioned = doc.data.positionedObjects || {};
+    const content = doc.data.body?.content || [];
+    const nombre = String(nombreFirmante || DATOS_DEFECTO.firmante).trim() || DATOS_DEFECTO.firmante;
+    // Guiones bajos ≈ ancho visual del nombre (Century Gothic ~10pt).
+    const linea = '_'.repeat(Math.max(16, Math.round(nombre.length * 0.92)));
+
+    for (const el of content) {
+        const p = el.paragraph;
+        if (!p?.positionedObjectIds?.length) continue;
+
+        for (const objectId of p.positionedObjectIds) {
+            const embedded = positioned[objectId]?.positionedObjectProperties?.embeddedObject;
+            const height = Number(embedded?.size?.height?.magnitude || 0);
+            const width = Number(embedded?.size?.width?.magnitude || 0);
+            if (width < 80 || height < 2 || height > 30) continue;
+
+            const requests = [
+                { deletePositionedObject: { objectId } }
+            ];
+
+            // El párrafo suele ser solo "\n": insertar la línea corta justo antes del salto.
+            const insertAt = Math.max(1, (el.endIndex || el.startIndex + 1) - 1);
+            requests.push({
+                insertText: {
+                    location: { index: insertAt },
+                    text: `${linea}`
+                }
+            });
+            requests.push({
+                updateParagraphStyle: {
+                    range: {
+                        startIndex: el.startIndex,
+                        endIndex: el.endIndex + linea.length
+                    },
+                    paragraphStyle: {
+                        alignment: 'CENTER',
+                        spaceAbove: { magnitude: 0, unit: 'PT' },
+                        spaceBelow: { magnitude: 2, unit: 'PT' }
+                    },
+                    fields: 'alignment,spaceAbove,spaceBelow'
+                }
+            });
+            requests.push({
+                updateTextStyle: {
+                    range: {
+                        startIndex: insertAt,
+                        endIndex: insertAt + linea.length
+                    },
+                    textStyle: {
+                        fontSize: { magnitude: 10, unit: 'PT' },
+                        weightedFontFamily: { fontFamily: 'Century Gothic', weight: 400 },
+                        foregroundColor: {
+                            color: { rgbColor: { red: 0, green: 0, blue: 0 } }
+                        }
+                    },
+                    fields: 'fontSize,weightedFontFamily,foregroundColor'
+                }
+            });
+
+            await docsApi.documents.batchUpdate({
+                documentId: docId,
+                requestBody: { requests }
+            });
+            return;
         }
     }
+}
+
+async function exportarPdfDesdeSync(datos) {
+    const syncResult = await sincronizarPlantillaGoogleDoc(datos);
+    try {
+        if (syncResult.tempDocId && syncResult.drive) {
+            const pdfResp = await syncResult.drive.files.export(
+                { fileId: syncResult.tempDocId, mimeType: 'application/pdf' },
+                { responseType: 'arraybuffer' }
+            );
+            return {
+                plantillaSync: syncResult.plantillaSync,
+                pdfBuffer: Buffer.from(pdfResp.data)
+            };
+        }
+    } finally {
+        if (syncResult.tempDocId && syncResult.drive) {
+            try {
+                await syncResult.drive.files.delete({
+                    fileId: syncResult.tempDocId,
+                    supportsAllDrives: true
+                });
+            } catch (err) {
+                console.warn('[DG-F-08] No se pudo eliminar copia temporal de plantilla:', err.message);
+            }
+        }
+    }
+    return {
+        plantillaSync: syncResult.plantillaSync,
+        pdfBuffer: await driveService.exportarArchivoPDF(TEMPLATE_DRIVE_ID)
+    };
 }
 
 function sanitizarPdfFirmado(raw) {
@@ -282,12 +433,15 @@ function sanitizarDatos(raw) {
         empresa: String(base.empresa || DATOS_DEFECTO.empresa).trim() || DATOS_DEFECTO.empresa,
         fechaElaboracion: formatearFechaIso(base.fechaElaboracion) || DATOS_DEFECTO.fechaElaboracion,
         revision: String(base.revision || DATOS_DEFECTO.revision).trim() || DATOS_DEFECTO.revision,
-        mision: normalizarSaltosLinea(base.mision || DATOS_DEFECTO.mision),
-        vision: normalizarSaltosLinea(base.vision || DATOS_DEFECTO.vision),
-        valores: normalizarSaltosLinea(base.valores || DATOS_DEFECTO.valores),
-        codigoTrabajoEquipo: normalizarSaltosLinea(base.codigoTrabajoEquipo || DATOS_DEFECTO.codigoTrabajoEquipo),
-        firmante: String(base.firmante || DATOS_DEFECTO.firmante).trim(),
-        cargoFirmante: String(base.cargoFirmante || DATOS_DEFECTO.cargoFirmante).trim(),
+        mision: textoEditable(base.mision, DATOS_DEFECTO.mision),
+        vision: textoEditable(base.vision, DATOS_DEFECTO.vision),
+        valores: depurarValoresCorruptos(
+            textoEditable(base.valores, DATOS_DEFECTO.valores),
+            textoEditable(base.mision, DATOS_DEFECTO.mision)
+        ),
+        codigoTrabajoEquipo: textoEditable(base.codigoTrabajoEquipo, DATOS_DEFECTO.codigoTrabajoEquipo),
+        firmante: textoEditable(base.firmante, DATOS_DEFECTO.firmante),
+        cargoFirmante: textoEditable(base.cargoFirmante, DATOS_DEFECTO.cargoFirmante),
         pdfFirmado: sanitizarPdfFirmado(base.pdfFirmado || base.pdf_firmado),
         plantillaSync
     };
@@ -491,11 +645,18 @@ async function guardarFormato(pool, body) {
 
     if (huboCambioContenido && origen !== 'consulta') {
         try {
-            const syncResult = await sincronizarPlantillaGoogleDoc(
-                datosGuardar,
-                datosPrevios || DATOS_DEFECTO
-            );
+            const syncResult = await sincronizarPlantillaGoogleDoc(datosGuardar);
             datosGuardar.plantillaSync = syncResult.plantillaSync;
+            if (syncResult.tempDocId && syncResult.drive) {
+                try {
+                    await syncResult.drive.files.delete({
+                        fileId: syncResult.tempDocId,
+                        supportsAllDrives: true
+                    });
+                } catch (delErr) {
+                    console.warn('[DG-F-08] No se pudo eliminar copia temporal de plantilla:', delErr.message);
+                }
+            }
         } catch (err) {
             console.error('[DG-F-08] Error sincronizando plantilla Word en Drive:', err.message);
         }
@@ -558,16 +719,15 @@ async function subirPdfFirmado(pool, body) {
 async function descargarPlantillaPdf(pool) {
     const respuesta = await cargarFormato(pool);
     const datos = respuesta.datos;
-    const snapshot = datos.plantillaSync || snapshotPlantillaDesdeDatos(datos);
 
     try {
-        const syncResult = await sincronizarPlantillaGoogleDoc(datos, snapshot);
-        if (syncResult.plantillaSync) {
+        const { plantillaSync, pdfBuffer } = await exportarPdfDesdeSync(datos);
+        if (plantillaSync) {
             const registro = await obtenerRegistroDb(pool);
             const datosActuales = (await leerDatosRegistro(registro)) || datos;
             const datosActualizados = {
                 ...datosActuales,
-                plantillaSync: syncResult.plantillaSync
+                plantillaSync
             };
             await guardarRegistroDb(pool, {
                 pdfDriveFileId: datosActualizados.pdfFirmado?.driveFileId || null,
@@ -577,11 +737,11 @@ async function descargarPlantillaPdf(pool) {
                 contenidoModificado: !!registro?.contenido_modificado
             });
         }
+        return pdfBuffer;
     } catch (err) {
-        console.warn('[DG-F-08] Descarga PDF: sync parcial, exportando plantilla actual:', err.message);
+        console.warn('[DG-F-08] Descarga PDF: sync parcial, exportando plantilla de trabajo:', err.message);
+        return driveService.exportarArchivoPDF(TEMPLATE_DRIVE_ID);
     }
-
-    return driveService.exportarArchivoPDF(TEMPLATE_DRIVE_ID);
 }
 
 module.exports = {
@@ -589,6 +749,7 @@ module.exports = {
     DATOS_DEFECTO,
     NOMBRE_PDF_ARCHIVO,
     TEMPLATE_DRIVE_ID,
+    TEMPLATE_ORIGINAL_DRIVE_ID,
     cargarFormato,
     guardarFormato,
     subirPdfFirmado,

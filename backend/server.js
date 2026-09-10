@@ -25718,6 +25718,7 @@ const sgcSgcF06Service = require('./sgcSgcF06Service');
 const sgcSgcF18Service = require('./sgcSgcF18Service');
 const sgcPo01Service = require('./sgcPo01Service');
 const sgcDgF08Service = require('./sgcDgF08Service');
+const sgcSgcF23Service = require('./sgcSgcF23Service');
 const sgcSgcF11Service = require('./sgcSgcF11Service');
 const sgcSgcF12Service = require('./sgcSgcF12Service');
 const sgcSgcF04Service = require('./sgcSgcF04Service');
@@ -27483,6 +27484,60 @@ app.get('/api/sgc/formatos/dg-f-08/descargar-plantilla-pdf', requireAdminOrSgc, 
         return res.send(pdfBuffer);
     } catch (error) {
         handleError(res, error, 'No se pudo descargar la plantilla PDF del formato DG-F-08');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-23', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
+        const payload = await sgcSgcF23Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, message: 'Formato SGC-F-23 cargado.', ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato SGC-F-23');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-23/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcSgcF23Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'Formato SGC-F-23 guardado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato SGC-F-23');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-23/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcSgcF23Service.subirPdfFirmado(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'PDF firmado SGC-F-23 subido a Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo subir el PDF firmado SGC-F-23');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-23/descargar-plantilla-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcSgcF23Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="SGC-F-23 Aviso de privacidad de datos personales (Biznaga).pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar la plantilla PDF del formato SGC-F-23');
     }
 });
 
