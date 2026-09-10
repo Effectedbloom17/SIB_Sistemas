@@ -626,6 +626,35 @@ async function asignarPermisoLecturaPublica(fileId) {
 }
 
 /**
+ * Permite edición por enlace (anyone/writer) para que el editor integrado
+ * de Google Sheets abra sin exigir acceso a la cuenta de servicio.
+ */
+async function asignarPermisoEscrituraEnlace(fileId) {
+    const id = String(fileId || '').trim();
+    if (!id) return false;
+
+    try {
+        await drive.permissions.create({
+            fileId: id,
+            supportsAllDrives: true,
+            requestBody: {
+                role: 'writer',
+                type: 'anyone',
+                allowFileDiscovery: false
+            }
+        });
+        return true;
+    } catch (error) {
+        const msg = String(error?.message || '').toLowerCase();
+        if (msg.includes('already') || msg.includes('duplicate') || error?.code === 409) {
+            return true;
+        }
+        console.warn(`[WARN] No se pudo asignar permiso de escritura por enlace a ${id}: ${error.message}`);
+        return false;
+    }
+}
+
+/**
  * True si fileId está dentro de folderId (padres hasta maxDepth).
  * Usado por /api/drive-preview para evidencias de mantenimiento sin BD.
  */
@@ -3580,6 +3609,135 @@ async function aplicarFormatoFilasSgcF05(spreadsheetId, sheetTitle, filaInicio, 
                 },
                 bottom: sinBorde,
                 innerHorizontal: sinBorde
+            }
+        });
+    }
+
+    if (!requests.length) {
+        return true;
+    }
+
+    await sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests }
+    });
+    return true;
+}
+
+/**
+ * SGC-F-25 · Actividades posteriores a la entrega: Century Gothic 11,
+ * alineación por columna y cuadrícula completa (bordes en todas las celdas con datos).
+ */
+async function aplicarFormatoFilasSgcF25(spreadsheetId, sheetTitle, filaInicio, numFilas, filaMax) {
+    if (!spreadsheetId || !sheetTitle) {
+        return null;
+    }
+
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const meta = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties(sheetId,title)'
+    });
+    const sheet = (meta.data.sheets || []).find((s) => (s.properties?.title || '').trim() === String(sheetTitle).trim());
+    const sheetId = sheet?.properties?.sheetId;
+    if (sheetId === undefined || sheetId === null) {
+        return null;
+    }
+
+    // Columnas (0-based, fin exclusivo): A..K (0..11)
+    const TABLA_COL_INICIO = 0;
+    const TABLA_COL_FIN = 11;
+
+    const filas = Math.max(0, Number(numFilas) || 0);
+    const startRow = filaInicio - 1;
+    const dataEndRow = startRow + filas;
+    const blockEndRow = Number.isFinite(filaMax) && filaMax >= filaInicio
+        ? Number(filaMax)
+        : dataEndRow;
+
+    const bordeNegro = { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } };
+    const sinBorde = { style: 'NONE' };
+    const textFormat = { fontFamily: 'Century Gothic', fontSize: 11 };
+
+    const formatoColumna = (startCol, endCol, horizontal) => ({
+        repeatCell: {
+            range: {
+                sheetId,
+                startRowIndex: startRow,
+                endRowIndex: dataEndRow,
+                startColumnIndex: startCol,
+                endColumnIndex: endCol
+            },
+            cell: {
+                userEnteredFormat: {
+                    horizontalAlignment: horizontal,
+                    verticalAlignment: 'MIDDLE',
+                    wrapStrategy: 'WRAP',
+                    textFormat
+                }
+            },
+            fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)'
+        }
+    });
+
+    const requests = [];
+
+    if (filas > 0) {
+        requests.push(formatoColumna(0, 1, 'CENTER'));  // A No. contrato
+        requests.push(formatoColumna(1, 4, 'LEFT'));    // B-D cliente/actividad/descripción
+        requests.push(formatoColumna(4, 5, 'CENTER'));  // E fecha
+        requests.push(formatoColumna(5, 6, 'LEFT'));    // F responsables
+        requests.push(formatoColumna(6, 11, 'CENTER')); // G-K categorías
+        // Cuadrícula completa para que filas nuevas conserven el formato de tabla.
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: startRow,
+                    endRowIndex: dataEndRow,
+                    startColumnIndex: TABLA_COL_INICIO,
+                    endColumnIndex: TABLA_COL_FIN
+                },
+                top: bordeNegro,
+                bottom: bordeNegro,
+                left: bordeNegro,
+                right: bordeNegro,
+                innerHorizontal: bordeNegro,
+                innerVertical: bordeNegro
+            }
+        });
+        // Refuerza el borde inferior del último renglón con datos (cierre de tabla).
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: dataEndRow - 1,
+                    endRowIndex: dataEndRow,
+                    startColumnIndex: TABLA_COL_INICIO,
+                    endColumnIndex: TABLA_COL_FIN
+                },
+                bottom: bordeNegro
+            }
+        });
+    }
+
+    // Limpiar bordes de filas vacías debajo SIN tocar "top":
+    // el top de la primera fila vacía es el bottom del último renglón con datos.
+    if (blockEndRow > dataEndRow) {
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: dataEndRow,
+                    endRowIndex: blockEndRow,
+                    startColumnIndex: TABLA_COL_INICIO,
+                    endColumnIndex: TABLA_COL_FIN
+                },
+                bottom: sinBorde,
+                left: sinBorde,
+                right: sinBorde,
+                innerHorizontal: sinBorde,
+                innerVertical: sinBorde
             }
         });
     }
@@ -10303,6 +10461,7 @@ module.exports = {
     // Upload rápido
     uploadFileFast,
     asignarPermisoLecturaPublica,
+    asignarPermisoEscrituraEnlace,
     subirImagenTemporal,
     perteneceACarpetaAncestral,
 
@@ -10351,6 +10510,7 @@ module.exports = {
     aplicarFormatoVisualSgcF16,
     aplicarFormatoVisualSpF02,
     aplicarFormatoFilasSgcF14,
+    aplicarFormatoFilasSgcF25,
     aplicarFormatoFilasSgcF02,
     aplicarFormatoFilasSgcF29,
     aplicarFormatoFilasAthF08,

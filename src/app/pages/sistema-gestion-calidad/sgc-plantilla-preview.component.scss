@@ -9080,6 +9080,11 @@ $dg-f02-layout-max: 46.5rem;
     max-height: none;
     overflow-y: hidden;
   }
+
+  .sgc-f-25-table__text.dg-f05-field--textarea {
+    max-height: none;
+    overflow-y: hidden;
+  }
 }
 
 @media (max-width: 767.98px) {
@@ -9819,6 +9824,278 @@ $dg-f02-layout-max: 46.5rem;
     padding: 0.18rem 0.25rem;
     font-size: $dg-f05-font-body;
     font-weight: 600;
+  }
+}
+
+// ============================================================
+// SGC-F-25 · Actividades posteriores a la entrega
+// ============================================================
+
+.sgc-f-25-table-wrap {
+  overflow-x: hidden;
+  max-width: 100%;
+  width: 100%;
+}
+
+.sgc-f-25-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.85rem;
+  align-items: baseline;
+  padding: 0.65rem 0.85rem;
+  margin: 0 0 0.65rem;
+  background: #f8fafc;
+  border: 1px solid #e8edf2;
+  border-radius: 10px;
+
+  &__title {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #0f766e;
+  }
+
+  &__item {
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.35;
+
+    strong {
+      color: #0f766e;
+      margin-right: 0.2rem;
+    }
+  }
+}
+
+.sgc-f-25-table {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+
+  th {
+    font-size: 0.62rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    vertical-align: bottom;
+    padding: 0.45rem 0.28rem;
+    line-height: 1.25;
+  }
+
+  &__cell {
+    vertical-align: top;
+    padding: 0.28rem 0.22rem;
+    min-width: 0;
+    max-width: 0; // fuerza que table-layout:fixed respete % y haga wrap
+  }
+
+  &__col--contrato {
+    width: 11%;
+  }
+
+  &__col--cliente {
+    width: 13%;
+  }
+
+  &__col--actividad {
+    width: 15%;
+  }
+
+  &__col--desc {
+    width: 18%;
+  }
+
+  &__col--fecha {
+    width: 10%;
+  }
+
+  &__col--resp {
+    width: 13%;
+  }
+
+  &__col--cat {
+    width: 4%;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  &__text {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 2.1rem;
+    resize: vertical;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    word-wrap: break-word;
+    hyphens: auto;
+    line-height: 1.35;
+    font-size: $dg-f05-font-body;
+    box-sizing: border-box;
+  }
+
+  &__select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  &__date {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 2.1rem;
+    font-size: 0.72rem;
+  }
+
+  &__cell--fecha {
+    max-width: none;
+  }
+
+  &__cell--cat {
+    text-align: center;
+    vertical-align: middle;
+    max-width: none;
+  }
+
+  &__empty {
+    text-align: center;
+    padding: 1.25rem 0.5rem;
+    color: #64748b;
+    font-style: italic;
+    font-size: $dg-f05-font-body;
+    max-width: none;
+  }
+}
+
+.sgc-f-25-cat {
+  width: 1.7rem;
+  height: 1.7rem;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(21, 165, 150, 0.38);
+  border-radius: 6px;
+  background: #fff;
+  color: #94a3b8;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+
+  &:hover {
+    border-color: #0f766e;
+    color: #0f766e;
+    transform: translateY(-1px);
+  }
+
+  &--on {
+    background: rgba(21, 165, 150, 0.12);
+    border-color: #15a596;
+    color: #0f766e;
+    animation: sgcF25CatPulse 0.35s ease;
+  }
+}
+
+.sgc-f-25-pick {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+
+  &__input {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 1.6rem;
+    border: 1px solid rgba(21, 165, 150, 0.28);
+    border-radius: 8px;
+    background: #fff;
+    min-height: 2.1rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+    &:focus {
+      outline: none;
+      border-color: #0d9488;
+      box-shadow: 0 0 0 3px rgba(21, 165, 150, 0.18);
+    }
+  }
+
+  &__icon {
+    position: absolute;
+    right: 0.55rem;
+    pointer-events: none;
+    color: #94a3b8;
+    font-size: 0.65rem;
+  }
+}
+
+.sgc-f-25-doc--enter {
+  animation: sgcF25FadeUp 0.45s ease both;
+}
+
+.sgc-f-25-intro {
+  animation: sgcF25FadeUp 0.5s ease both;
+}
+
+.sgc-f-25-leyenda__item {
+  animation: sgcF25FadeUp 0.4s ease both;
+}
+
+.sgc-f-25-table__row {
+  animation: sgcF25RowIn 0.35s ease both;
+}
+
+.sgc-f-25-add {
+  transition: transform 0.18s ease, color 0.18s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes sgcF25FadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sgcF25RowIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sgcF25CatPulse {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sgc-f-25-doc--enter,
+  .sgc-f-25-intro,
+  .sgc-f-25-leyenda__item,
+  .sgc-f-25-table__row,
+  .sgc-f-25-cat--on {
+    animation: none !important;
   }
 }
 

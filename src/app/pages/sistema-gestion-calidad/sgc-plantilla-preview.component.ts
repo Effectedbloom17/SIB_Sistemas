@@ -721,6 +721,23 @@ interface SgcF14FormData {
   proyectos: SgcF14ProyectoItem[];
 }
 
+interface SgcF25ActividadItem {
+  noContrato: string;
+  cliente: string;
+  actividad: string;
+  descripcion: string;
+  fechaCompromiso: string;
+  responsables: string;
+  categorias: boolean[];
+}
+
+interface SgcF25FormData {
+  fechaElaboracion: string;
+  revision: string;
+  fechaRevision: string;
+  actividades: SgcF25ActividadItem[];
+}
+
 interface SgcF29ProveedorItem {
   id: string;
   proveedor: string;
@@ -1153,7 +1170,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   @HostBinding('class.sgc-preview--dg-f-05')
   get esDgF05(): boolean {
     return this.plantillaSlug === 'dg-f-05' || this.plantillaSlug === 'sgc-f-07'
-      || this.plantillaSlug === 'sgc-f-08' || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-16'
+      || this.plantillaSlug === 'sgc-f-08' || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16'
       || this.plantillaSlug === 'sgc-f-29'
       || this.plantillaSlug === 'sgc-f-28'
       || this.plantillaSlug === 'sp-f-02'
@@ -1666,6 +1683,37 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF14EditorCargando = false;
   sgcF14ActualizandoPlantilla = false;
   private sgcF14EditorIframeListo = false;
+
+  readonly sgcF25Categorias: { id: number; label: string }[] = [
+    { id: 1, label: 'Requisito legal o reglamentario' },
+    { id: 2, label: 'Consecuencia potencial no deseada asociada a los productos o servicios' },
+    { id: 3, label: 'Naturaleza, uso y vida útil de los productos y servicios' },
+    { id: 4, label: 'Requisito del cliente' },
+    { id: 5, label: 'Retroalimentación del cliente' }
+  ];
+  readonly sgcF25Actividades: string[] = [
+    'Garantía',
+    'Obligaciones contractuales',
+    'Servicio de mantenimiento',
+    'Reciclaje',
+    'Disposición final',
+    'Otra'
+  ];
+  sgcF25Form: SgcF25FormData = this.crearSgcF25FormVacio();
+  sgcF25Cargando = false;
+  sgcF25Guardando = false;
+  sgcF25Listo = false;
+  sgcF25CambiosPendientes = false;
+  sgcF25IgnorarAutoSave = false;
+  sgcF25UltimaSync: string | null = null;
+  sgcF25DriveFileId: string | null = null;
+  sgcF25EditorUrl: string | null = null;
+  sgcF25EditorEmbedUrlSafe: SafeResourceUrl | null = null;
+  mostrarSgcF25Editor = false;
+  sgcF25ContenidoModificado = false;
+  sgcF25EditorCargando = false;
+  sgcF25ActualizandoPlantilla = false;
+  private sgcF25EditorIframeListo = false;
   readonly sgcF16Estatus: string[] = ['Pendiente', 'En proceso', 'Cumplido'];
   sgcF16Form: SgcF16FormData = this.crearSgcF16FormVacio();
   sgcF16Cargando = false;
@@ -2846,6 +2894,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         this.cargarResponsablesSgcF14();
         this.cargarSgcF14DesdeServidor();
       }
+      if (codigo === 'sgc-f-25') {
+        this.cargarSgcF25DesdeServidor();
+      }
       if (codigo === 'sgc-f-16') {
         this.cargarCatalogoPersonasSgcF16();
         this.cargarSgcF16DesdeServidor();
@@ -2981,7 +3032,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-08' || this.plantillaSlug === 'sgc-f-09'
       || this.plantillaSlug === 'sgc-f-10' || this.plantillaSlug === 'sgc-f-15'
       || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'dg-f-06'
-      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sgc-f-05'
+      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sgc-f-05'
       || this.plantillaSlug === 'ath-f-08';
   }
 
@@ -3016,7 +3067,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-02'
       || this.plantillaSlug === 'sgc-f-04'
       || this.plantillaSlug === 'sgc-f-22'
-      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sgc-f-05'
+      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sgc-f-05'
       || this.plantillaSlug === 'ath-f-02'
       || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-09'
@@ -3040,6 +3091,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04Guardando;
     if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22Guardando;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14Guardando;
+    if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25Guardando;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16Guardando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Guardando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Guardando;
@@ -3068,6 +3120,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04UltimaSync;
     if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22UltimaSync;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14UltimaSync;
+    if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25UltimaSync;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16UltimaSync;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29UltimaSync;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28UltimaSync;
@@ -3096,6 +3149,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04Cargando;
     if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22Cargando;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14Cargando;
+    if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25Cargando;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16Cargando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Cargando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Cargando;
@@ -3124,6 +3178,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14ActualizandoPlantilla;
+    if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28ActualizandoPlantilla;
@@ -3153,6 +3208,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04DriveFileId;
     if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22DriveFileId;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14DriveFileId;
+    if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25DriveFileId;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16DriveFileId;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29DriveFileId;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28DriveFileId;
@@ -3182,6 +3238,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14CambiosPendientes;
+    if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28CambiosPendientes;
@@ -3222,6 +3279,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-04') return this.mostrarSgcF04Editor;
     if (this.plantillaSlug === 'sgc-f-22') return this.mostrarSgcF22Editor;
     if (this.plantillaSlug === 'sgc-f-14') return this.mostrarSgcF14Editor;
+    if (this.plantillaSlug === 'sgc-f-25') return this.mostrarSgcF25Editor;
     if (this.plantillaSlug === 'sgc-f-16') return this.mostrarSgcF16Editor;
     if (this.plantillaSlug === 'sgc-f-10') return this.mostrarSgcF10Editor;
     if (this.plantillaSlug === 'sgc-f-29') return this.mostrarSgcF29Editor;
@@ -3502,6 +3560,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (slug === 'sgc-f-14') {
       return this.backendService.guardarSgcF14Formato(this.sgcF14Form, false);
     }
+    if (slug === 'sgc-f-25') {
+      if (!this.sgcF25Listo || this.sgcF25Cargando) {
+        return null;
+      }
+      return this.backendService.guardarSgcF25Formato(this.sgcF25Form, false);
+    }
     if (slug === 'sgc-f-16') {
       return this.backendService.guardarSgcF16Formato(this.sgcF16Form, false);
     }
@@ -3623,6 +3687,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-14') {
       this.persistirSgcF14();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-25') {
+      this.persistirSgcF25();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-16') {
@@ -3975,6 +4043,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-14') {
       return this.sgcF14IntroLead;
+    }
+    if (this.plantillaSlug === 'sgc-f-25') {
+      return this.sgcF25IntroLead;
     }
     if (this.plantillaSlug === 'sgc-f-29') {
       return this.sgcF29IntroLead;
@@ -6664,6 +6735,298 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return '';
     }
     return 'Registra los proyectos de mejora con su folio (PM-DDMMAA-NN), responsable, prioridad, estatus y avance. Usa «Guardar información» para conservar los cambios y reflejarlos en el Excel de Drive.';
+  }
+
+  // ===================== SGC-F-25 · Actividades posteriores a la entrega =====================
+
+  private crearSgcF25FormVacio(): SgcF25FormData {
+    return {
+      fechaElaboracion: '',
+      revision: '00',
+      fechaRevision: '',
+      actividades: []
+    };
+  }
+
+  private crearFilaActividadSgcF25Vacia(): SgcF25ActividadItem {
+    return {
+      noContrato: '',
+      cliente: '',
+      actividad: '',
+      descripcion: '',
+      fechaCompromiso: '',
+      responsables: '',
+      categorias: [false, false, false, false, false]
+    };
+  }
+
+  private normalizarCategoriasSgcF25(raw: unknown): boolean[] {
+    const base = Array.isArray(raw) ? raw : [];
+    return [0, 1, 2, 3, 4].map((i) => !!base[i]);
+  }
+
+  private normalizarActividadesSgcF25(items: SgcF25ActividadItem[] | undefined): SgcF25ActividadItem[] {
+    const normalizarClave = (valor: string): string => String(valor || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    return (Array.isArray(items) ? items : []).map((item) => {
+      const actividadCruda = String(item?.actividad || '').trim();
+      const clave = normalizarClave(actividadCruda);
+      const actividad = this.sgcF25Actividades.find(
+        (op) => normalizarClave(op) === clave
+      ) || '';
+      return {
+        noContrato: String(item?.noContrato || '').trim(),
+        cliente: String(item?.cliente || '').trim(),
+        actividad,
+        descripcion: String(item?.descripcion || '').trim(),
+        fechaCompromiso: String(item?.fechaCompromiso || '').trim().slice(0, 10),
+        responsables: String(item?.responsables || '').trim(),
+        categorias: this.normalizarCategoriasSgcF25(item?.categorias)
+      };
+    });
+  }
+
+  private normalizarSgcF25Form(datos: Partial<SgcF25FormData> | null | undefined): SgcF25FormData {
+    const base = datos || {};
+    return {
+      fechaElaboracion: String(base.fechaElaboracion || '').trim(),
+      revision: String(base.revision || '00').trim().padStart(2, '0'),
+      fechaRevision: String(base.fechaRevision || '').trim(),
+      actividades: this.normalizarActividadesSgcF25(base.actividades)
+    };
+  }
+
+  private cargarSgcF25DesdeServidor(): void {
+    this.sgcF25Cargando = true;
+    this.sgcF25Listo = false;
+    this.backendService.cargarSgcF25Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoSgcF25(res),
+        error: () => {
+          this.sgcF25Cargando = false;
+          this.sgcF25Listo = true;
+        }
+      });
+  }
+
+  onSgcF25Editado(): void {
+    if (!this.sgcF25Listo || this.sgcF25IgnorarAutoSave) {
+      return;
+    }
+    this.sgcF25CambiosPendientes = true;
+  }
+
+  toggleCategoriaSgcF25(index: number, catIndex: number): void {
+    const fila = this.sgcF25Form.actividades[index];
+    if (!fila) {
+      return;
+    }
+    const cats = this.normalizarCategoriasSgcF25(fila.categorias);
+    cats[catIndex] = !cats[catIndex];
+    fila.categorias = cats;
+    this.onSgcF25Editado();
+  }
+
+  agregarFilaActividadSgcF25(): void {
+    this.sgcF25Form.actividades.push(this.crearFilaActividadSgcF25Vacia());
+    this.onSgcF25Editado();
+  }
+
+  quitarFilaActividadSgcF25(index: number): void {
+    if (this.sgcF25Form.actividades.length <= 1) {
+      this.sgcF25Form.actividades.splice(0, 1, this.crearFilaActividadSgcF25Vacia());
+    } else {
+      this.sgcF25Form.actividades.splice(index, 1);
+    }
+    this.onSgcF25Editado();
+  }
+
+  private sincronizarSgcF25DesdeDrive(): void {
+    if (this.sgcF25Guardando) {
+      return;
+    }
+    this.sgcF25Guardando = true;
+    this.backendService.sincronizarSgcF25DesdeDrive()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF25Guardando = false;
+          this.aplicarEstadoSgcF25(res, false, false);
+        },
+        error: () => {
+          this.sgcF25Guardando = false;
+        }
+      });
+  }
+
+  private persistirSgcF25(): void {
+    if (!this.puedeGestionarPlantillasSgc) {
+      return;
+    }
+    if (!this.sgcF25Listo || this.sgcF25Guardando) {
+      return;
+    }
+    this.sgcF25Guardando = true;
+    const editorAbierto = this.mostrarSgcF25Editor;
+    this.backendService.guardarSgcF25Formato(this.sgcF25Form, false)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF25Guardando = false;
+          this.aplicarEstadoSgcF25(res, editorAbierto, false, false);
+        },
+        error: () => {
+          this.sgcF25Guardando = false;
+        }
+      });
+  }
+
+  toggleSgcF25Editor(): void {
+    if (!this.sgcF25DriveFileId) {
+      return;
+    }
+
+    const abrir = !this.mostrarSgcF25Editor;
+    this.mostrarSgcF25Editor = abrir;
+
+    if (abrir) {
+      this.sgcF25EditorIframeListo = false;
+      this.sgcF25EditorCargando = true;
+      this.fijarEditorEmbedUrlSgcF25(
+        this.resolverUrlEditorDrive(this.sgcF25EditorUrl, this.sgcF25DriveFileId),
+        true
+      );
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      // Permiso por enlace en segundo plano; no recargar el iframe (evita el modal de Google).
+      this.backendService.asegurarAccesoSgcF25()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            if (res?.driveFileId) {
+              this.sgcF25DriveFileId = res.driveFileId;
+            }
+            if (res?.editorUrl && !this.sgcF25EditorUrl) {
+              this.sgcF25EditorUrl = res.editorUrl;
+            }
+          },
+          error: () => { /* ignore */ }
+        });
+      return;
+    }
+
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+  }
+
+  onSgcF25IframeLoad(): void {
+    if (this.sgcF25EditorIframeListo) {
+      return;
+    }
+    this.sgcF25EditorIframeListo = true;
+    this.sgcF25EditorCargando = false;
+  }
+
+  actualizarPlantillaSgcF25(): void {
+    if (!this.puedeGestionarPlantillasSgc) {
+      return;
+    }
+    if (this.sgcF25ActualizandoPlantilla) {
+      return;
+    }
+    this.sgcF25ActualizandoPlantilla = true;
+    this.backendService.actualizarPlantillaSgcF25()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF25ActualizandoPlantilla = false;
+          this.aplicarEstadoSgcF25(res, false, false, true);
+        },
+        error: () => {
+          this.sgcF25ActualizandoPlantilla = false;
+        }
+      });
+  }
+
+  private fijarEditorEmbedUrlSgcF25(url: string | null, forzar = false): void {
+    if (!forzar && this.mostrarSgcF25Editor && this.sgcF25EditorEmbedUrlSafe && this.sgcF25EditorUrl === url) {
+      return;
+    }
+    if (!url) {
+      this.sgcF25EditorUrl = null;
+      this.sgcF25EditorEmbedUrlSafe = null;
+      return;
+    }
+    if (!forzar && this.sgcF25EditorUrl === url && this.sgcF25EditorEmbedUrlSafe) {
+      return;
+    }
+    this.sgcF25EditorUrl = url;
+    const embedUrl = this.urlIframeDriveSegunPermiso(url);
+    this.sgcF25EditorEmbedUrlSafe = embedUrl
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
+      : null;
+  }
+
+  private aplicarEstadoSgcF25(
+    res: any,
+    conservarEdicion = false,
+    sincronizacionSilenciosa = false,
+    forzarActualizacionDrive = false
+  ): void {
+    if (!res?.success) {
+      if (!sincronizacionSilenciosa) {
+        this.sgcF25Cargando = false;
+      }
+      this.sgcF25Listo = true;
+      return;
+    }
+
+    const editorAbierto = this.mostrarSgcF25Editor && !forzarActualizacionDrive;
+    const bloquearFormulario = editorAbierto || conservarEdicion;
+
+    if (!bloquearFormulario && res.datos) {
+      this.sgcF25IgnorarAutoSave = true;
+      this.sgcF25Listo = false;
+      this.sgcF25Form = this.normalizarSgcF25Form(res.datos);
+    } else if (!editorAbierto && !conservarEdicion) {
+      this.sgcF25IgnorarAutoSave = true;
+      this.sgcF25Listo = false;
+    }
+
+    const nuevoDriveId = res.driveFileId || null;
+    if (forzarActualizacionDrive || !editorAbierto) {
+      if (nuevoDriveId) {
+        this.sgcF25DriveFileId = nuevoDriveId;
+      }
+      if (res.editorUrl && (forzarActualizacionDrive || !this.mostrarSgcF25Editor)) {
+        this.fijarEditorEmbedUrlSgcF25(res.editorUrl, forzarActualizacionDrive);
+      }
+    }
+
+    this.sgcF25UltimaSync = res.ultimaSyncDrive || null;
+    this.sgcF25ContenidoModificado = !!res.contenidoModificado;
+
+    window.setTimeout(() => {
+      this.sgcF25IgnorarAutoSave = false;
+      this.sgcF25Listo = true;
+      if (!bloquearFormulario) {
+        this.sgcF25CambiosPendientes = false;
+      }
+      if (!sincronizacionSilenciosa) {
+        this.sgcF25Cargando = false;
+      }
+    }, editorAbierto ? 0 : 350);
+  }
+
+  get sgcF25IntroLead(): string {
+    if (this.plantillaSlug !== 'sgc-f-25') {
+      return '';
+    }
+    return 'Registra las actividades posteriores a la entrega y marca las categorías aplicables (1–5). Usa «Guardar información» para sincronizar con el Excel de Drive.';
   }
 
   // ===================== SGC-F-16 · Minuta =====================
@@ -13157,6 +13520,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleSgcF14Editor();
       return;
     }
+    if (this.plantillaSlug === 'sgc-f-25') {
+      this.toggleSgcF25Editor();
+      return;
+    }
     if (this.plantillaSlug === 'sgc-f-16') {
       this.toggleSgcF16Editor();
       return;
@@ -13256,6 +13623,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-14') {
       this.actualizarPlantillaSgcF14();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-25') {
+      this.actualizarPlantillaSgcF25();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-16') {

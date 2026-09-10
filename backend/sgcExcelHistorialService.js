@@ -15,7 +15,8 @@ const ALIAS_POR_CODIGO = {
     'SGC-F-12': 'Notif',
     'SGC-F-07': 'Audit',
     'SGC-F-08': 'SGCF08',
-    'SGC-F-14': 'SGCF14'
+    'SGC-F-14': 'SGCF14',
+    'SGC-F-25': 'SGCF25'
 };
 
 function fechaAhoraMexicoIso() {
