@@ -217,11 +217,27 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         previewMode: 'form'
       },
       {
+        codigo: 'SGC-F-23',
+        titulo: 'Aviso de privacidad de datos personales (Biznaga)',
+        nombre: 'SGC-F-23 Aviso de privacidad de datos personales (Biznaga).docx',
+        driveFileId: '1eU3QvmhqRhh0hQh3v3rzihE3nFyYRVZN9pKxb0gGZ8Q',
+        previewSlug: 'sgc-f-23',
+        previewMode: 'form'
+      },
+      {
         codigo: 'SGC-F-24',
         titulo: 'Control de cambios',
         nombre: 'SGC-F-24 Control de cambios.xlsx',
         driveFileId: '1ynjots5lpgG9misbTjnw5g6aJy9pB7mkD0tyTMVNfqY',
         previewSlug: 'sgc-f-24',
+        previewMode: 'form'
+      },
+      {
+        codigo: 'SGC-F-25',
+        titulo: 'Actividades posteriores a la entrega',
+        nombre: 'SGC-F-25 Actividades posteriores a la entrega.xlsx',
+        driveFileId: '1tXQx1lxhdHas40sS2tF97HoBOypwGP8Qjfrv5aM41Mk',
+        previewSlug: 'sgc-f-25',
         previewMode: 'form'
       },
       {

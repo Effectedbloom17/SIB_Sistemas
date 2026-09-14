@@ -545,6 +545,27 @@ interface DgF08Form {
   pdfFirmado: DgF02PdfFirmado | null;
 }
 
+interface SgcF23Form {
+  empresa: string;
+  fechaElaboracion: string;
+  revision: string;
+  intro: string;
+  objeto: string;
+  datosPersonales: string;
+  notaSensibles: string;
+  finalidadesPrimarias: string;
+  notaMercadotecnia: string;
+  transferencias: string;
+  transferenciasAdicional: string;
+  derechosArco: string;
+  correoArco: string;
+  limitacionDivulgacion: string;
+  modificaciones: string;
+  firmante: string;
+  cargoFirmante: string;
+  pdfFirmado: DgF02PdfFirmado | null;
+}
+
 interface DgF07ProcesoForm {
   nombreProceso: string;
   responsable: string;
@@ -723,6 +744,23 @@ interface SgcF14ProyectoItem {
 interface SgcF14FormData {
   fechaElaboracion: string;
   proyectos: SgcF14ProyectoItem[];
+}
+
+interface SgcF25ActividadItem {
+  noContrato: string;
+  cliente: string;
+  actividad: string;
+  descripcion: string;
+  fechaCompromiso: string;
+  responsables: string;
+  categorias: boolean[];
+}
+
+interface SgcF25FormData {
+  fechaElaboracion: string;
+  revision: string;
+  fechaRevision: string;
+  actividades: SgcF25ActividadItem[];
 }
 
 interface SgcF14EvidenciaDoc {
@@ -1210,7 +1248,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   @HostBinding('class.sgc-preview--dg-f-05')
   get esDgF05(): boolean {
     return this.plantillaSlug === 'dg-f-05' || this.plantillaSlug === 'sgc-f-07'
-      || this.plantillaSlug === 'sgc-f-08' || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-16'
+      || this.plantillaSlug === 'sgc-f-08' || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16'
       || this.plantillaSlug === 'sgc-f-24'
       || this.plantillaSlug === 'sgc-f-29'
       || this.plantillaSlug === 'sgc-f-28'
@@ -1258,6 +1296,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   @HostBinding('class.sgc-preview--dg-f-08')
   get esDgF08(): boolean {
     return this.plantillaSlug === 'dg-f-08';
+  }
+
+  @HostBinding('class.sgc-preview--sgc-f-23')
+  get esSgcF23(): boolean {
+    return this.plantillaSlug === 'sgc-f-23';
   }
 
   @HostBinding('class.sgc-preview--sgc-f-06')
@@ -1427,6 +1470,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF18Form = this.crearSgcF18Vacio();
   sgcPo01Form = this.crearSgcPo01Vacio();
   dgF08Form = this.crearDgF08Vacio();
+  sgcF23Form = this.crearSgcF23Vacio();
   sgcF11Form = this.crearSgcF11Vacio();
   sgcF12Form = this.crearSgcF12Vacio();
   sgcF01Form: SgcF01FormData = this.crearSgcF01Vacio();
@@ -1741,6 +1785,37 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF14EvidenciasThumbs: Record<number, string> = {};
   private sgcF14EvidenciasThumbsCargando = new Set<number>();
   private sgcF14EvidenciasThumbsDriveFail = new Set<number>();
+
+  readonly sgcF25Categorias: { id: number; label: string }[] = [
+    { id: 1, label: 'Requisito legal o reglamentario' },
+    { id: 2, label: 'Consecuencia potencial no deseada asociada a los productos o servicios' },
+    { id: 3, label: 'Naturaleza, uso y vida útil de los productos y servicios' },
+    { id: 4, label: 'Requisito del cliente' },
+    { id: 5, label: 'Retroalimentación del cliente' }
+  ];
+  readonly sgcF25Actividades: string[] = [
+    'Garantía',
+    'Obligaciones contractuales',
+    'Servicio de mantenimiento',
+    'Reciclaje',
+    'Disposición final',
+    'Otra'
+  ];
+  sgcF25Form: SgcF25FormData = this.crearSgcF25FormVacio();
+  sgcF25Cargando = false;
+  sgcF25Guardando = false;
+  sgcF25Listo = false;
+  sgcF25CambiosPendientes = false;
+  sgcF25IgnorarAutoSave = false;
+  sgcF25UltimaSync: string | null = null;
+  sgcF25DriveFileId: string | null = null;
+  sgcF25EditorUrl: string | null = null;
+  sgcF25EditorEmbedUrlSafe: SafeResourceUrl | null = null;
+  mostrarSgcF25Editor = false;
+  sgcF25ContenidoModificado = false;
+  sgcF25EditorCargando = false;
+  sgcF25ActualizandoPlantilla = false;
+  private sgcF25EditorIframeListo = false;
   readonly sgcF16Estatus: string[] = ['Pendiente', 'En proceso', 'Cumplido'];
   sgcF16Form: SgcF16FormData = this.crearSgcF16FormVacio();
   sgcF16Cargando = false;
@@ -2833,6 +2908,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   dgF02CambiosPendientes = false;
   sgcPo01CambiosPendientes = false;
   dgF08CambiosPendientes = false;
+  sgcF23Cargando = false;
+  sgcF23Guardando = false;
+  sgcF23SubiendoPdf = false;
+  sgcF23UltimaSync: string | null = null;
+  sgcF23ContenidoModificado = false;
+  mostrarSgcF23PdfViewer = false;
+  sgcF23PdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  sgcF23PdfCargando = false;
+  sgcF23CambiosPendientes = false;
+  private sgcF23IgnorarAutoSave = false;
+  private sgcF23Listo = false;
   dgF03CambiosPendientes = false;
 
   private readonly inactivitySaveMs = 30 * 60 * 1000;
@@ -2977,6 +3063,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         this.cargarResponsablesSgcF14();
         this.cargarSgcF14DesdeServidor();
       }
+      if (codigo === 'sgc-f-25') {
+        this.cargarSgcF25DesdeServidor();
+      }
       if (codigo === 'sgc-f-16') {
         this.cargarCatalogoPersonasSgcF16();
         this.cargarSgcF16DesdeServidor();
@@ -3025,6 +3114,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }
       if (codigo === 'dg-f-08') {
         this.cargarDgF08DesdeServidor();
+      }
+      if (codigo === 'sgc-f-23') {
+        this.cargarSgcF23DesdeServidor();
       }
       if (codigo === 'sgc-f-11') {
         this.cargarSgcF11DesdeServidor();
@@ -3117,7 +3209,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-08' || this.plantillaSlug === 'sgc-f-09'
       || this.plantillaSlug === 'sgc-f-10' || this.plantillaSlug === 'sgc-f-15'
       || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'dg-f-06'
-      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sgc-f-05'
+      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sgc-f-05'
       || this.plantillaSlug === 'ath-f-08';
   }
 
@@ -3134,6 +3226,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   get esFormatoVistaDocumento(): boolean {
     return this.plantillaSlug === 'dg-f-01' || this.plantillaSlug === 'dg-f-02'
       || this.plantillaSlug === 'sgc-po-01' || this.plantillaSlug === 'dg-f-08'
+      || this.plantillaSlug === 'sgc-f-23'
       || this.plantillaSlug === 'dg-f-03';
   }
 
@@ -3152,7 +3245,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-02'
       || this.plantillaSlug === 'sgc-f-04'
       || this.plantillaSlug === 'sgc-f-22'
-      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sgc-f-05'
+      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sgc-f-05'
       || this.plantillaSlug === 'ath-f-02'
       || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-09'
@@ -3176,6 +3269,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04Guardando;
     if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22Guardando;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14Guardando;
+    if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25Guardando;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16Guardando;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Guardando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Guardando;
@@ -3205,6 +3299,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04UltimaSync;
     if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22UltimaSync;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14UltimaSync;
+    if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25UltimaSync;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16UltimaSync;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24UltimaSync;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29UltimaSync;
@@ -3234,6 +3329,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04Cargando;
     if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22Cargando;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14Cargando;
+    if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25Cargando;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16Cargando;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Cargando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Cargando;
@@ -3263,6 +3359,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14ActualizandoPlantilla;
+    if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29ActualizandoPlantilla;
@@ -3293,6 +3390,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04DriveFileId;
     if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22DriveFileId;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14DriveFileId;
+    if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25DriveFileId;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16DriveFileId;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24DriveFileId;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29DriveFileId;
@@ -3323,6 +3421,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-04') return this.sgcF04CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-22') return this.sgcF22CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-14') return this.sgcF14CambiosPendientes;
+    if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29CambiosPendientes;
@@ -3345,6 +3444,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'dg-f-02') return this.dgF02CambiosPendientes;
     if (this.plantillaSlug === 'sgc-po-01') return this.sgcPo01CambiosPendientes;
     if (this.plantillaSlug === 'dg-f-08') return this.dgF08CambiosPendientes;
+    if (this.plantillaSlug === 'sgc-f-23') return this.sgcF23CambiosPendientes;
     if (this.plantillaSlug === 'dg-f-03') return this.dgF03CambiosPendientes;
     return false;
   }
@@ -3364,6 +3464,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-04') return this.mostrarSgcF04Editor;
     if (this.plantillaSlug === 'sgc-f-22') return this.mostrarSgcF22Editor;
     if (this.plantillaSlug === 'sgc-f-14') return this.mostrarSgcF14Editor;
+    if (this.plantillaSlug === 'sgc-f-25') return this.mostrarSgcF25Editor;
     if (this.plantillaSlug === 'sgc-f-16') return this.mostrarSgcF16Editor;
     if (this.plantillaSlug === 'sgc-f-24') return this.mostrarSgcF24Editor;
     if (this.plantillaSlug === 'sgc-f-10') return this.mostrarSgcF10Editor;
@@ -3455,7 +3556,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     if (this.plantillaSlug === 'dg-f-02' || this.plantillaSlug === 'sgc-po-01'
-      || this.plantillaSlug === 'dg-f-08' || this.plantillaSlug === 'dg-f-03') {
+      || this.plantillaSlug === 'dg-f-08' || this.plantillaSlug === 'sgc-f-23'
+      || this.plantillaSlug === 'dg-f-03') {
       this.guardarInformacionDocumentoWord();
     }
   }
@@ -3560,6 +3662,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleDgF08PdfViewer();
       return;
     }
+    if (this.mostrarSgcF23PdfViewer) {
+      event.preventDefault();
+      this.toggleSgcF23PdfViewer();
+      return;
+    }
     if (this.mostrarDgF03PdfViewer) {
       event.preventDefault();
       this.toggleDgF03PdfViewer();
@@ -3587,7 +3694,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }
       if (!this.hayCambiosPendientesSgc || this.driveSyncGuardando
         || this.dgF01Guardando || this.dgF02Guardando || this.sgcPo01Guardando
-        || this.dgF08Guardando || this.dgF03Guardando) {
+        || this.dgF08Guardando || this.sgcF23Guardando || this.dgF03Guardando) {
         this.reiniciarTemporizadorInactividadSgc();
         return;
       }
@@ -3644,6 +3751,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (slug === 'sgc-f-14') {
       return this.backendService.guardarSgcF14Formato(this.sgcF14Form, false);
+    }
+    if (slug === 'sgc-f-25') {
+      if (!this.sgcF25Listo || this.sgcF25Cargando) {
+        return null;
+      }
+      return this.backendService.guardarSgcF25Formato(this.sgcF25Form, false);
     }
     if (slug === 'sgc-f-16') {
       return this.backendService.guardarSgcF16Formato(this.sgcF16Form, false);
@@ -3724,6 +3837,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (slug === 'dg-f-08') {
       return this.backendService.guardarDgF08Formato(this.dgF08Form);
     }
+    if (slug === 'sgc-f-23') {
+      return this.backendService.guardarSgcF23Formato(this.sgcF23Form);
+    }
     if (slug === 'dg-f-03') {
       return this.backendService.guardarDgF03Formato(this.dgF03Form);
     }
@@ -3773,6 +3889,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-14') {
       this.persistirSgcF14();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-25') {
+      this.persistirSgcF25();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-16') {
@@ -3891,6 +4011,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return '';
     }
     return 'Edita misión, visión, valores y código de trabajo en equipo. Usa «Guardar información» para conservar cambios (también tras 30 min sin actividad o al salir). Al final puedes subir la versión firmada en PDF.';
+  }
+
+  get sgcF23IntroLead(): string {
+    if (this.plantillaSlug !== 'sgc-f-23') {
+      return '';
+    }
+    return 'Edita el aviso de privacidad por secciones. Usa «Guardar información» para conservar cambios (también tras 30 min sin actividad o al salir). Al final puedes subir la versión firmada en PDF.';
   }
 
   get sgcF18IntroLead(): string {
@@ -4137,6 +4264,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-14') {
       return this.sgcF14IntroLead;
     }
+    if (this.plantillaSlug === 'sgc-f-25') {
+      return this.sgcF25IntroLead;
+    }
     if (this.plantillaSlug === 'sgc-f-29') {
       return this.sgcF29IntroLead;
     }
@@ -4184,6 +4314,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'dg-f-08') {
       return this.dgF08IntroLead;
+    }
+    if (this.plantillaSlug === 'sgc-f-23') {
+      return this.sgcF23IntroLead;
     }
     if (this.plantillaSlug === 'dg-f-03') {
       return this.dgF03IntroLead;
@@ -7351,6 +7484,298 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return '';
     }
     return 'Registra los proyectos de mejora con su folio (PM-DDMMAA-NN), responsable, prioridad, estatus y avance. Usa «Guardar información» para conservar los cambios y reflejarlos en el Excel de Drive.';
+  }
+
+  // ===================== SGC-F-25 · Actividades posteriores a la entrega =====================
+
+  private crearSgcF25FormVacio(): SgcF25FormData {
+    return {
+      fechaElaboracion: '',
+      revision: '00',
+      fechaRevision: '',
+      actividades: []
+    };
+  }
+
+  private crearFilaActividadSgcF25Vacia(): SgcF25ActividadItem {
+    return {
+      noContrato: '',
+      cliente: '',
+      actividad: '',
+      descripcion: '',
+      fechaCompromiso: '',
+      responsables: '',
+      categorias: [false, false, false, false, false]
+    };
+  }
+
+  private normalizarCategoriasSgcF25(raw: unknown): boolean[] {
+    const base = Array.isArray(raw) ? raw : [];
+    return [0, 1, 2, 3, 4].map((i) => !!base[i]);
+  }
+
+  private normalizarActividadesSgcF25(items: SgcF25ActividadItem[] | undefined): SgcF25ActividadItem[] {
+    const normalizarClave = (valor: string): string => String(valor || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    return (Array.isArray(items) ? items : []).map((item) => {
+      const actividadCruda = String(item?.actividad || '').trim();
+      const clave = normalizarClave(actividadCruda);
+      const actividad = this.sgcF25Actividades.find(
+        (op) => normalizarClave(op) === clave
+      ) || '';
+      return {
+        noContrato: String(item?.noContrato || '').trim(),
+        cliente: String(item?.cliente || '').trim(),
+        actividad,
+        descripcion: String(item?.descripcion || '').trim(),
+        fechaCompromiso: String(item?.fechaCompromiso || '').trim().slice(0, 10),
+        responsables: String(item?.responsables || '').trim(),
+        categorias: this.normalizarCategoriasSgcF25(item?.categorias)
+      };
+    });
+  }
+
+  private normalizarSgcF25Form(datos: Partial<SgcF25FormData> | null | undefined): SgcF25FormData {
+    const base = datos || {};
+    return {
+      fechaElaboracion: String(base.fechaElaboracion || '').trim(),
+      revision: String(base.revision || '00').trim().padStart(2, '0'),
+      fechaRevision: String(base.fechaRevision || '').trim(),
+      actividades: this.normalizarActividadesSgcF25(base.actividades)
+    };
+  }
+
+  private cargarSgcF25DesdeServidor(): void {
+    this.sgcF25Cargando = true;
+    this.sgcF25Listo = false;
+    this.backendService.cargarSgcF25Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoSgcF25(res),
+        error: () => {
+          this.sgcF25Cargando = false;
+          this.sgcF25Listo = true;
+        }
+      });
+  }
+
+  onSgcF25Editado(): void {
+    if (!this.sgcF25Listo || this.sgcF25IgnorarAutoSave) {
+      return;
+    }
+    this.sgcF25CambiosPendientes = true;
+  }
+
+  toggleCategoriaSgcF25(index: number, catIndex: number): void {
+    const fila = this.sgcF25Form.actividades[index];
+    if (!fila) {
+      return;
+    }
+    const cats = this.normalizarCategoriasSgcF25(fila.categorias);
+    cats[catIndex] = !cats[catIndex];
+    fila.categorias = cats;
+    this.onSgcF25Editado();
+  }
+
+  agregarFilaActividadSgcF25(): void {
+    this.sgcF25Form.actividades.push(this.crearFilaActividadSgcF25Vacia());
+    this.onSgcF25Editado();
+  }
+
+  quitarFilaActividadSgcF25(index: number): void {
+    if (this.sgcF25Form.actividades.length <= 1) {
+      this.sgcF25Form.actividades.splice(0, 1, this.crearFilaActividadSgcF25Vacia());
+    } else {
+      this.sgcF25Form.actividades.splice(index, 1);
+    }
+    this.onSgcF25Editado();
+  }
+
+  private sincronizarSgcF25DesdeDrive(): void {
+    if (this.sgcF25Guardando) {
+      return;
+    }
+    this.sgcF25Guardando = true;
+    this.backendService.sincronizarSgcF25DesdeDrive()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF25Guardando = false;
+          this.aplicarEstadoSgcF25(res, false, false);
+        },
+        error: () => {
+          this.sgcF25Guardando = false;
+        }
+      });
+  }
+
+  private persistirSgcF25(): void {
+    if (!this.puedeGestionarPlantillasSgc) {
+      return;
+    }
+    if (!this.sgcF25Listo || this.sgcF25Guardando) {
+      return;
+    }
+    this.sgcF25Guardando = true;
+    const editorAbierto = this.mostrarSgcF25Editor;
+    this.backendService.guardarSgcF25Formato(this.sgcF25Form, false)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF25Guardando = false;
+          this.aplicarEstadoSgcF25(res, editorAbierto, false, false);
+        },
+        error: () => {
+          this.sgcF25Guardando = false;
+        }
+      });
+  }
+
+  toggleSgcF25Editor(): void {
+    if (!this.sgcF25DriveFileId) {
+      return;
+    }
+
+    const abrir = !this.mostrarSgcF25Editor;
+    this.mostrarSgcF25Editor = abrir;
+
+    if (abrir) {
+      this.sgcF25EditorIframeListo = false;
+      this.sgcF25EditorCargando = true;
+      this.fijarEditorEmbedUrlSgcF25(
+        this.resolverUrlEditorDrive(this.sgcF25EditorUrl, this.sgcF25DriveFileId),
+        true
+      );
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      // Permiso por enlace en segundo plano; no recargar el iframe (evita el modal de Google).
+      this.backendService.asegurarAccesoSgcF25()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            if (res?.driveFileId) {
+              this.sgcF25DriveFileId = res.driveFileId;
+            }
+            if (res?.editorUrl && !this.sgcF25EditorUrl) {
+              this.sgcF25EditorUrl = res.editorUrl;
+            }
+          },
+          error: () => { /* ignore */ }
+        });
+      return;
+    }
+
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+  }
+
+  onSgcF25IframeLoad(): void {
+    if (this.sgcF25EditorIframeListo) {
+      return;
+    }
+    this.sgcF25EditorIframeListo = true;
+    this.sgcF25EditorCargando = false;
+  }
+
+  actualizarPlantillaSgcF25(): void {
+    if (!this.puedeGestionarPlantillasSgc) {
+      return;
+    }
+    if (this.sgcF25ActualizandoPlantilla) {
+      return;
+    }
+    this.sgcF25ActualizandoPlantilla = true;
+    this.backendService.actualizarPlantillaSgcF25()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF25ActualizandoPlantilla = false;
+          this.aplicarEstadoSgcF25(res, false, false, true);
+        },
+        error: () => {
+          this.sgcF25ActualizandoPlantilla = false;
+        }
+      });
+  }
+
+  private fijarEditorEmbedUrlSgcF25(url: string | null, forzar = false): void {
+    if (!forzar && this.mostrarSgcF25Editor && this.sgcF25EditorEmbedUrlSafe && this.sgcF25EditorUrl === url) {
+      return;
+    }
+    if (!url) {
+      this.sgcF25EditorUrl = null;
+      this.sgcF25EditorEmbedUrlSafe = null;
+      return;
+    }
+    if (!forzar && this.sgcF25EditorUrl === url && this.sgcF25EditorEmbedUrlSafe) {
+      return;
+    }
+    this.sgcF25EditorUrl = url;
+    const embedUrl = this.urlIframeDriveSegunPermiso(url);
+    this.sgcF25EditorEmbedUrlSafe = embedUrl
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
+      : null;
+  }
+
+  private aplicarEstadoSgcF25(
+    res: any,
+    conservarEdicion = false,
+    sincronizacionSilenciosa = false,
+    forzarActualizacionDrive = false
+  ): void {
+    if (!res?.success) {
+      if (!sincronizacionSilenciosa) {
+        this.sgcF25Cargando = false;
+      }
+      this.sgcF25Listo = true;
+      return;
+    }
+
+    const editorAbierto = this.mostrarSgcF25Editor && !forzarActualizacionDrive;
+    const bloquearFormulario = editorAbierto || conservarEdicion;
+
+    if (!bloquearFormulario && res.datos) {
+      this.sgcF25IgnorarAutoSave = true;
+      this.sgcF25Listo = false;
+      this.sgcF25Form = this.normalizarSgcF25Form(res.datos);
+    } else if (!editorAbierto && !conservarEdicion) {
+      this.sgcF25IgnorarAutoSave = true;
+      this.sgcF25Listo = false;
+    }
+
+    const nuevoDriveId = res.driveFileId || null;
+    if (forzarActualizacionDrive || !editorAbierto) {
+      if (nuevoDriveId) {
+        this.sgcF25DriveFileId = nuevoDriveId;
+      }
+      if (res.editorUrl && (forzarActualizacionDrive || !this.mostrarSgcF25Editor)) {
+        this.fijarEditorEmbedUrlSgcF25(res.editorUrl, forzarActualizacionDrive);
+      }
+    }
+
+    this.sgcF25UltimaSync = res.ultimaSyncDrive || null;
+    this.sgcF25ContenidoModificado = !!res.contenidoModificado;
+
+    window.setTimeout(() => {
+      this.sgcF25IgnorarAutoSave = false;
+      this.sgcF25Listo = true;
+      if (!bloquearFormulario) {
+        this.sgcF25CambiosPendientes = false;
+      }
+      if (!sincronizacionSilenciosa) {
+        this.sgcF25Cargando = false;
+      }
+    }, editorAbierto ? 0 : 350);
+  }
+
+  get sgcF25IntroLead(): string {
+    if (this.plantillaSlug !== 'sgc-f-25') {
+      return '';
+    }
+    return 'Registra las actividades posteriores a la entrega y marca las categorías aplicables (1–5). Usa «Guardar información» para sincronizar con el Excel de Drive.';
   }
 
   // ===================== SGC-F-16 · Minuta =====================
@@ -13717,9 +14142,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   filasTextoDgF02(texto: string): number {
     if (!texto?.trim()) {
-      return 6;
+      return 3;
     }
-    return Math.max(6, texto.split('\n').length + 1);
+    // Estima también el wrap visual (~88 chars/línea) para que no quede scroll interno.
+    const lineas = texto.split('\n').reduce((acc, linea) => {
+      const len = Math.max(1, linea.length);
+      return acc + Math.ceil(len / 88);
+    }, 0);
+    return Math.max(3, lineas + 1);
   }
 
   onSeleccionarPdfDgF02(event: Event): void {
@@ -13833,6 +14263,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'dg-f-08') {
       this.persistirDgF08();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-23') {
+      this.persistirSgcF23();
       return;
     }
     if (this.plantillaSlug === 'dg-f-03') {
@@ -14926,6 +15360,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleSgcF14Editor();
       return;
     }
+    if (this.plantillaSlug === 'sgc-f-25') {
+      this.toggleSgcF25Editor();
+      return;
+    }
     if (this.plantillaSlug === 'sgc-f-16') {
       this.toggleSgcF16Editor();
       return;
@@ -15029,6 +15467,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-14') {
       this.actualizarPlantillaSgcF14();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-25') {
+      this.actualizarPlantillaSgcF25();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-16') {
@@ -18265,6 +18707,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.dgF08CambiosPendientes = true;
   }
 
+  onSgcF23Editado(): void {
+    if (!this.sgcF23Listo || this.sgcF23IgnorarAutoSave) {
+      return;
+    }
+    this.sgcF23CambiosPendientes = true;
+  }
+
   onSeleccionarPdfSgcPo01(event: Event): void {
     this.procesarPdfDocumento(
       event,
@@ -18278,6 +18727,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       event,
       'DG-F-08 Filosofía Biznaga Risk and Tech.pdf',
       (base64, nombre) => this.subirPdfDgF08(base64, nombre)
+    );
+  }
+
+  onSeleccionarPdfSgcF23(event: Event): void {
+    this.procesarPdfDocumento(
+      event,
+      'SGC-F-23 Aviso de privacidad de datos personales (Biznaga).pdf',
+      (base64, nombre) => this.subirPdfSgcF23(base64, nombre)
     );
   }
 
@@ -18320,9 +18777,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
     const esPo01 = this.plantillaSlug === 'sgc-po-01';
     const esDgF08 = this.plantillaSlug === 'dg-f-08';
+    const esSgcF23 = this.plantillaSlug === 'sgc-f-23';
     const esDgF02 = this.plantillaSlug === 'dg-f-02';
     const esDgF03 = this.plantillaSlug === 'dg-f-03';
-    if (!esPo01 && !esDgF08 && !esDgF02 && !esDgF03) {
+    if (!esPo01 && !esDgF08 && !esSgcF23 && !esDgF02 && !esDgF03) {
       return;
     }
 
@@ -18330,16 +18788,20 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       ? this.backendService.descargarPlantillaSgcPo01Pdf()
       : esDgF08
         ? this.backendService.descargarPlantillaDgF08Pdf()
-        : esDgF03
-          ? this.backendService.descargarPlantillaDgF03Pdf()
-          : this.backendService.descargarPlantillaDgF02Pdf();
+        : esSgcF23
+          ? this.backendService.descargarPlantillaSgcF23Pdf()
+          : esDgF03
+            ? this.backendService.descargarPlantillaDgF03Pdf()
+            : this.backendService.descargarPlantillaDgF02Pdf();
     const nombreArchivo = esPo01
       ? 'SGC-PO-01 Politica de calidad_Biznaga.pdf'
       : esDgF08
         ? 'DG-F-08 Filosofía Biznaga Risk and Tech.pdf'
-        : esDgF03
-          ? 'DG-F-03 Objetivos de calidad.pdf'
-          : 'DG-F-02 Alcance.pdf';
+        : esSgcF23
+          ? 'SGC-F-23 Aviso de privacidad de datos personales (Biznaga).pdf'
+          : esDgF03
+            ? 'DG-F-03 Objetivos de calidad.pdf'
+            : 'DG-F-02 Alcance.pdf';
 
     this.descargandoPlantillaPdf = true;
     descarga$
@@ -18386,6 +18848,34 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   onDgF08PdfIframeLoad(): void {
     this.dgF08PdfCargando = false;
+  }
+
+  toggleSgcF23PdfViewer(): void {
+    const id = this.sgcF23Form.pdfFirmado?.driveFileId;
+    if (!id) {
+      return;
+    }
+
+    const abrir = !this.mostrarSgcF23PdfViewer;
+    this.mostrarSgcF23PdfViewer = abrir;
+
+    if (abrir) {
+      this.sgcF23PdfCargando = true;
+      const url = `https://drive.google.com/file/d/${id}/preview`;
+      this.sgcF23PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    this.sgcF23PdfEmbedUrlSafe = null;
+    this.sgcF23PdfCargando = false;
+  }
+
+  onSgcF23PdfIframeLoad(): void {
+    this.sgcF23PdfCargando = false;
   }
 
   calcularRpnAmef(ocurrencia: string, severidad: string, deteccion: string): string {
@@ -19826,6 +20316,26 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
+  private subirPdfSgcF23(base64: string, nombre: string): void {
+    if (this.sgcF23SubiendoPdf) {
+      return;
+    }
+    this.sgcF23SubiendoPdf = true;
+    this.backendService.subirPdfFirmadoSgcF23(base64, nombre)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF23SubiendoPdf = false;
+          this.aplicarEstadoSgcF23(res);
+          this.finalizarSubidaPdfSgc(!!res?.success, nombre);
+        },
+        error: () => {
+          this.sgcF23SubiendoPdf = false;
+          this.finalizarSubidaPdfSgc(false);
+        }
+      });
+  }
+
   private subirPdfDgF03(base64: string, nombre: string): void {
     if (this.dgF03SubiendoPdf) {
       return;
@@ -21193,6 +21703,82 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }, 350);
   }
 
+  private cargarSgcF23DesdeServidor(): void {
+    this.sgcF23Cargando = true;
+    this.sgcF23Listo = false;
+    this.backendService.cargarSgcF23Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoSgcF23(res),
+        error: () => {
+          this.sgcF23Cargando = false;
+          this.sgcF23Listo = true;
+        }
+      });
+  }
+
+  private persistirSgcF23(): void {
+    if (!this.puedeGestionarPlantillasSgc) {
+      return;
+    }
+    if (!this.sgcF23Listo || this.sgcF23Guardando) {
+      return;
+    }
+    this.sgcF23Guardando = true;
+    this.backendService.guardarSgcF23Formato(this.sgcF23Form)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF23Guardando = false;
+          this.sgcF23CambiosPendientes = false;
+          this.aplicarEstadoSgcF23(res);
+        },
+        error: () => {
+          this.sgcF23Guardando = false;
+        }
+      });
+  }
+
+  private aplicarEstadoSgcF23(res: any): void {
+    if (!res?.success) {
+      this.sgcF23Cargando = false;
+      this.sgcF23Listo = true;
+      return;
+    }
+    if (res.datos) {
+      this.sgcF23IgnorarAutoSave = true;
+      this.sgcF23Listo = false;
+      const d = res.datos;
+      this.sgcF23Form = {
+        empresa: d.empresa ?? this.sgcF23Form.empresa,
+        fechaElaboracion: d.fechaElaboracion ?? this.sgcF23Form.fechaElaboracion,
+        revision: d.revision ?? this.sgcF23Form.revision,
+        intro: d.intro ?? this.sgcF23Form.intro,
+        objeto: d.objeto ?? this.sgcF23Form.objeto,
+        datosPersonales: d.datosPersonales ?? this.sgcF23Form.datosPersonales,
+        notaSensibles: d.notaSensibles ?? this.sgcF23Form.notaSensibles,
+        finalidadesPrimarias: d.finalidadesPrimarias ?? this.sgcF23Form.finalidadesPrimarias,
+        notaMercadotecnia: d.notaMercadotecnia ?? this.sgcF23Form.notaMercadotecnia,
+        transferencias: d.transferencias ?? this.sgcF23Form.transferencias,
+        transferenciasAdicional: d.transferenciasAdicional ?? this.sgcF23Form.transferenciasAdicional,
+        derechosArco: d.derechosArco ?? this.sgcF23Form.derechosArco,
+        correoArco: d.correoArco ?? this.sgcF23Form.correoArco,
+        limitacionDivulgacion: d.limitacionDivulgacion ?? this.sgcF23Form.limitacionDivulgacion,
+        modificaciones: d.modificaciones ?? this.sgcF23Form.modificaciones,
+        firmante: d.firmante ?? this.sgcF23Form.firmante,
+        cargoFirmante: d.cargoFirmante ?? this.sgcF23Form.cargoFirmante,
+        pdfFirmado: d.pdfFirmado ?? res.pdfFirmado ?? this.sgcF23Form.pdfFirmado
+      };
+    }
+    this.sgcF23UltimaSync = res.ultimaSyncDrive || null;
+    this.sgcF23ContenidoModificado = !!res.contenidoModificado;
+    window.setTimeout(() => {
+      this.sgcF23IgnorarAutoSave = false;
+      this.sgcF23Listo = true;
+      this.sgcF23Cargando = false;
+    }, 350);
+  }
+
   private crearFilaSgcF18Vacia(): SgcF18Fila {
     return {
       nombre: '',
@@ -21251,6 +21837,40 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         'CONFIANZA: Soy confiable, cuando actúo de una manera adecuada ante una situación, creando un ambiente de seguridad en mi entorno.\n\nHONESTIDAD: Soy honesto cuando soy congruente entre lo que se pienso y lo que hago, anteponiendo la verdad en mis acciones.\n\nRESPONSABILIDAD: Soy responsable cuando, reconozco y acepto las consecuencias de mis actos, entendiendo que estos no deben afectar de forma negativa a nadie, incluyéndose él mismo.\n\nPERSISTENTE: Soy persistente cuando tengo la firmeza y el carácter suficiente para lograr el propósito de la organización.\n\nCOMPROMISO: Soy comprometido cuando transformo una promesa en realidad, logrando los objetivos de la organización.\n\nDISCIPLINA: Soy disciplinado cuando tengo una actuación ordenada y perseverante, con la finalidad de llegar a un bien común para la empresa.',
       codigoTrabajoEquipo:
         'El trabajo en equipo es el resultado de un grupo de personas con sentido de pertenencia a la empresa, que trabaja para un fin común, compartiendo los mismos valores institucionales, lo cual incluye:\n\n• Colaborar con cada uno de los integrantes en el tiempo y espacio que me corresponde.\n• Tener apertura y respeto por las nuevas ideas sin importar quien las aporte.\n• Con mis actos busco el bien común del equipo.\n• Comparto información relevante para la mejora del grupo.\n• Contagio el sentido de pertenencia.',
+      firmante: 'Marisol Azucena Santillán Melo',
+      cargoFirmante: 'DIRECTORA GENERAL',
+      pdfFirmado: null
+    };
+  }
+
+  private crearSgcF23Vacio(): SgcF23Form {
+    return {
+      empresa: 'BIZNAGA RISK AND TECH',
+      fechaElaboracion: '2025-01-20',
+      revision: '00',
+      intro:
+        'BIZNAGA RISK AND TECH S.DE R.L. DE C.V, con domicilio ubicado en (Calle Laguna no. 7 La Loma, Pachuca Hidalgo 42088, le informa que es responsable del tratamiento de los datos personales de nuestros proveedores y/o proveedores prospecto de bienes y/o servicios, mismos que son tratados de forma estrictamente privada y confidencial, por lo que la obtención, tratamiento, transferencia y ejercicio de los derechos derivados de dichos datos personales, se hace mediante un uso adecuado, legítimo y lícito, salvaguardando permanentemente los principios de licitud, consentimiento, calidad, información, proporcionalidad, responsabilidad, lealtad y finalidad.',
+      objeto:
+        'En consecuencia, el presente Aviso de Privacidad tiene por objeto informarle acerca de las prácticas en materia de protección de datos personales por parte de la Empresa, describir el tipo de información personal que obtenemos de nuestros clientes, cómo podríamos usar esa información y con quién podemos compartirla en función de la relación jurídica establecida con los mismos. Asimismo, este Aviso de Privacidad describe las medidas que seguimos para proteger la seguridad y confidencialidad de la información que recibimos.',
+      datosPersonales:
+        'Para lograr las finalidades establecidas en este Aviso de Privacidad, a continuación, señalamos las categorías de datos personales que podremos recabar de usted: datos de identificación, datos de contacto, y datos patrimoniales y/o financieros.',
+      notaSensibles:
+        'Le informamos que BIZNAGA RISK AND TECH S.DE R.L. DE C.V no solicitará datos personales sensibles de conformidad con la Ley y su Reglamento, para la consecución de las finalidades que se indican más adelante.',
+      finalidadesPrimarias:
+        'Se dará un tratamiento de conformidad con las finalidades que dieron origen y son necesarias para la existencia, mantenimiento y cumplimiento de la relación establecida con nuestros clientes, en los casos aplicables y que se indican a continuación: (i) Identificación y contacto; (ii) Para el proceso de contratación o alta como cliente; (iii) Llevar a cabo procedimientos internos que requieran su información en virtud de la relación contractual establecida con usted; (iv) Determinar los términos y condiciones de contratación; (v) Emitir la factura correspondiente por los servicios brindados, en su caso; (vi) Registrarlo en nuestras bases de datos físicas y/o electrónicas como cliente; (vii) Para el cumplimiento de la relación jurídica/contractual celebrada con usted, en su caso.',
+      notaMercadotecnia:
+        'Le informamos que los datos obtenidos no serán utilizados para fines de mercadotecnia, publicidad o prospección comercial.',
+      transferencias:
+        'Le informamos que no compartiremos sus datos personales con terceras personas, salvo cuando sea necesario en los casos previstos en la Ley y su Reglamento.',
+      transferenciasAdicional:
+        'Adicionalmente, la Empresa le informa que en términos de lo dispuesto por el artículo 37 de la Ley Federal de Protección de Datos Personales en Posesión de los Particulares, podrá transferir sus datos personales a terceros sin su consentimiento, en los casos previstos en dicho ordenamiento.',
+      derechosArco:
+        'Como titular de datos personales, usted podrá ejercer los Derechos ARCO (Acceso, Rectificación, Cancelación y Oposición al tratamiento de sus datos personales), o bien, revocar el consentimiento que usted haya otorgado a BIZNAGA RISK AND TECH S.DE R.L. DE C.V, para el tratamiento de sus datos personales, enviando su solicitud, a través de la cuenta de correo electrónico: (contacto@gmail.com). Dicha solicitud deberá contener por lo menos: (a) nombre y domicilio u otro medio para comunicarle la respuesta a su solicitud; (b) los documentos que acrediten su identidad o, en su caso, la representación legal; (c) la descripción clara y precisa de los datos personales respecto de los que se solicita ejercer alguno de los Derechos ARCO, (d) la manifestación expresa para revocar su consentimiento al tratamiento de sus datos personales y por tanto, para que no se usen; y (e) cualquier otro elemento que facilite la localización de los datos personales.',
+      correoArco: 'contacto@gmail.com',
+      limitacionDivulgacion:
+        'Le informamos que, toda vez que sus datos personales se utilizarán solamente para los fines expresamente establecidos en el presente aviso de privacidad y que constituyen aquellas finalidades necesarias para el establecimiento, mantenimiento o cumplimiento de la relación jurídica con nuestros clientes, sin que exista la posibilidad de que sus datos personales sean utilizados para fines diversos, tales como mercadotecnia, publicidad y prospección comercial, BIZNAGA RISK AND TECH S.DE R.L. DE C.V no dispone de un medio para que usted pueda limitar el uso o divulgación de sus datos personales en el caso que nos ocupa, puesto que de ser así se impediría establecer, mantener y dar cumplimiento a la relación jurídica con usted como cliente de BIZNAGA RISK AND TECH S.DE R.L. DE C.V.',
+      modificaciones:
+        'BIZNAGA RISK AND TECH S.DE R.L. DE C.V., se reserva el derecho, bajo su exclusiva discreción, de cambiar, modificar, agregar o eliminar partes del presente Aviso de Privacidad en cualquier momento. En tal caso, BIZNAGA RISK AND TECH S.DE R.L. DE C.V., le informará de los cambios por el mismo medio que ha puesto a su disposición este Aviso de Privacidad.',
       firmante: 'Marisol Azucena Santillán Melo',
       cargoFirmante: 'DIRECTORA GENERAL',
       pdfFirmado: null
