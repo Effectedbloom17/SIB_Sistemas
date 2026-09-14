@@ -46,6 +46,7 @@ Thumbs.db
 # Snapshots SQL locales (generar con backend/backup-db.js; no versionar dumps)
 /backend/backup-*.sql
 /backend/*.sql.gz
+/docker/dumps/
 
 # Backend uploads
 /backend/uploads

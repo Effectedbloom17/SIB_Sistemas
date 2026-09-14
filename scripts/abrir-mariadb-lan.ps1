@@ -97,11 +97,19 @@ if ($lanIp) {
 } else {
     Write-Host '    DB_HOST_LAN=<IP de esta PC>'
 }
-Write-Host '  El backend prueba primero localhost; si no hay Docker ahi, usa DB_HOST_LAN.'
+Write-Host '  El backend prueba primero localhost (DB_PORT_LOCAL); si no hay Docker ahi, usa DB_HOST_LAN.'
 Write-Host ''
 Write-Host '  Prueba desde otra PC (misma WiFi):'
 if ($lanIp) {
     Write-Host "    phpMyAdmin: http://${lanIp}:8080"
     Write-Host "    mysql -h $lanIp -P 3306 -u root -proot"
 }
+$localPort = '3307'
+$envFile = Join-Path $root 'backend\.env'
+if (Test-Path $envFile) {
+    $line = Get-Content $envFile | Where-Object { $_ -match '^\s*DB_PORT_LOCAL\s*=' } | Select-Object -First 1
+    if ($line) { $localPort = ($line -split '=', 2)[1].Trim() }
+}
+Write-Host ''
+Write-Host "  En ESTA PC (Docker local): 127.0.0.1:$localPort  |  phpMyAdmin http://127.0.0.1:8080"
 Write-Host ''
