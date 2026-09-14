@@ -264,8 +264,18 @@ async function resolverCarpetaDrivePorRuta(pool, empresaRow, rutaRelativa) {
         return raizId;
     }
     let carpetaId = raizId;
+    let acum = '';
     for (const segmento of ruta.split('/')) {
         carpetaId = await driveService.obtenerOCrearCarpeta(segmento, carpetaId);
+        acum = acum ? `${acum}/${segmento}` : segmento;
+        await pool.query(
+            `INSERT INTO empresa_repositorio_carpetas
+                (empresa_id, ruta, nombre, drive_folder_id)
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+                drive_folder_id = COALESCE(VALUES(drive_folder_id), drive_folder_id)`,
+            [empresaRow.empresa_id, acum, segmento, carpetaId]
+        );
     }
     return carpetaId;
 }
@@ -615,37 +625,90 @@ async function moverDocumento(pool, empresaId, id, carpetaRelativaDestino) {
 
 async function eliminarCarpeta(pool, empresaId, rutaRelativa) {
     await asegurarTablas(pool);
+    const empresaRow = await obtenerEmpresaRow(pool, empresaId);
     const ruta = sanitizarCarpetaRelativa(rutaRelativa);
     if (!ruta) {
         throw new Error('Indica la carpeta a eliminar.');
     }
 
     const prefijoLike = `${ruta}/%`;
-    const [docs] = await pool.query(
-        `SELECT id FROM empresa_repositorio
-         WHERE empresa_id = ? AND (carpeta_relativa = ? OR carpeta_relativa LIKE ?)
-         LIMIT 1`,
-        [empresaId, ruta, prefijoLike]
+    const logoDriveId = extraerDriveId(empresaRow.logo);
+    const [docRows] = await pool.query(
+        `SELECT ${COLUMNAS_SELECT}
+         FROM empresa_repositorio
+         WHERE empresa_id = ? AND (carpeta_relativa = ? OR carpeta_relativa LIKE ?)`,
+        [empresaRow.empresa_id, ruta, prefijoLike]
     );
-    if (docs.length) {
-        throw new Error('La carpeta no está vacía. Mueve o elimina sus documentos primero.');
+    const docs = docRows.map(formatearRegistro);
+    if (docs.some((doc) => esArchivoLogo(doc.nombreArchivo, doc.driveFileId, logoDriveId))) {
+        throw new Error('No se puede eliminar la carpeta porque contiene el logo de la empresa.');
     }
 
-    const [subcarpetas] = await pool.query(
-        `SELECT id FROM empresa_repositorio_carpetas
-         WHERE empresa_id = ? AND ruta LIKE ?
-         LIMIT 1`,
-        [empresaId, prefijoLike]
+    const [carpetaRows] = await pool.query(
+        `SELECT id, ruta, drive_folder_id
+         FROM empresa_repositorio_carpetas
+         WHERE empresa_id = ? AND (ruta = ? OR ruta LIKE ?)`,
+        [empresaRow.empresa_id, ruta, prefijoLike]
     );
-    if (subcarpetas.length) {
-        throw new Error('La carpeta tiene subcarpetas. Elimínalas primero.');
+    const carpetaPrincipal = carpetaRows.find((c) => c.ruta === ruta);
+    const driveFolderId = carpetaPrincipal?.drive_folder_id
+        || docs.find((d) => sanitizarCarpetaRelativa(d.carpetaRelativa) === ruta)?.carpetaDriveId
+        || null;
+
+    let driveEliminado = false;
+    if (driveFolderId) {
+        try {
+            driveEliminado = !!(await driveService.eliminarCarpetaYContenido(driveFolderId));
+        } catch (err) {
+            console.warn('[EMP-REPO] No se pudo eliminar carpeta en Drive:', err.message);
+        }
     }
 
+    if (!driveEliminado) {
+        for (const doc of docs) {
+            if (!doc.driveFileId) {
+                continue;
+            }
+            try {
+                await driveService.eliminarArchivo(doc.driveFileId);
+            } catch (err) {
+                console.warn('[EMP-REPO] No se pudo eliminar archivo en Drive:', err.message);
+            }
+        }
+    }
+
+    for (const doc of docs) {
+        try {
+            const cached = rutaCacheDocumento(doc.id, doc.nombreArchivo);
+            if (fs.existsSync(cached)) {
+                fs.unlinkSync(cached);
+            }
+            const thumb = rutaThumbDocumento(doc.id);
+            if (fs.existsSync(thumb)) {
+                fs.unlinkSync(thumb);
+            }
+        } catch {
+            /* ignore */
+        }
+    }
+
+    const [delDocs] = await pool.query(
+        `DELETE FROM empresa_repositorio
+         WHERE empresa_id = ? AND (carpeta_relativa = ? OR carpeta_relativa LIKE ?)`,
+        [empresaRow.empresa_id, ruta, prefijoLike]
+    );
     await pool.query(
-        `DELETE FROM empresa_repositorio_carpetas WHERE empresa_id = ? AND ruta = ?`,
-        [empresaId, ruta]
+        `DELETE FROM empresa_repositorio_carpetas
+         WHERE empresa_id = ? AND (ruta = ? OR ruta LIKE ?)`,
+        [empresaRow.empresa_id, ruta, prefijoLike]
     );
-    return { eliminado: true, ruta };
+
+    return {
+        eliminado: true,
+        ruta,
+        documentosEliminados: Number(delDocs?.affectedRows) || docs.length,
+        driveEliminado
+    };
 }
 
 function asegurarCacheDir() {

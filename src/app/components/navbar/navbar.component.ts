@@ -772,7 +772,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     if (
       (item.ruta === '/sistema-gestion-calidad'
         || item.ruta.startsWith('/sistema-gestion-calidad/')
-        || item.ruta === '/control-proyectos'
         || item.ruta === '/control-oficios')
       && esEmpresa
     ) {

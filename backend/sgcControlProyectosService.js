@@ -39,6 +39,8 @@ const COLUMNAS_EXTRA = [
     { name: 'fecha_inicio', sql: 'DATE NULL' },
     { name: 'fecha_compromiso', sql: 'DATE NULL' },
     { name: 'entregables', sql: 'TEXT' },
+    { name: 'observaciones', sql: 'TEXT' },
+    { name: 'creado_por', sql: 'VARCHAR(255) NULL' },
     { name: 'activo', sql: 'TINYINT(1) NOT NULL DEFAULT 1' },
     { name: 'modificado_por', sql: 'VARCHAR(255) NULL' },
     { name: 'modificado_en', sql: 'DATETIME NULL' },
@@ -244,12 +246,14 @@ function mapRowToActividad(row) {
         fechaInicio: row.fecha_inicio ? formatearFechaIso(row.fecha_inicio) : '',
         fechaCompromiso: row.fecha_compromiso ? formatearFechaIso(row.fecha_compromiso) : '',
         entregables: String(row.entregables || '').trim(),
+        observaciones: String(row.observaciones || '').trim(),
         prioridad: String(row.prioridad || '').trim(),
         estatus: String(row.estatus || '').trim() || estatusDesdeAvance(avance),
         avance,
         activo: row.activo == null ? true : Boolean(Number(row.activo)),
         modificadoPor: row.modificado_por || null,
         modificadoEn: row.modificado_en || null,
+        creadoPor: row.creado_por || null,
         eliminadoPor: row.eliminado_por || null,
         eliminadoEn: row.eliminado_en || null,
         updatedAt: row.updated_at || null,
@@ -279,6 +283,7 @@ function sanitizarActividad(item) {
         fechaInicio: formatearFechaIso(item?.fechaInicio) || null,
         fechaCompromiso: formatearFechaIso(item?.fechaCompromiso) || null,
         entregables: String(item?.entregables || '').trim(),
+        observaciones: String(item?.observaciones || '').trim(),
         prioridad: normalizarPrioridad(item?.prioridad),
         estatus: estatusEntrada || estatusDesdeAvance(avance),
         avance
@@ -328,6 +333,61 @@ async function asegurarColumnasExtra(pool) {
     }
 }
 
+async function asegurarTablaHistorial(pool) {
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS sgc_control_proyectos_historial (
+            historial_id INT AUTO_INCREMENT PRIMARY KEY,
+            control_proyecto_id INT NOT NULL,
+            campo VARCHAR(80) NOT NULL,
+            etiqueta VARCHAR(120) NOT NULL DEFAULT '',
+            valor_anterior TEXT NULL,
+            valor_nuevo TEXT NULL,
+            modificado_por VARCHAR(255) NULL,
+            modificado_en DATETIME NOT NULL,
+            INDEX idx_cp_hist_actividad (control_proyecto_id),
+            INDEX idx_cp_hist_fecha (modificado_en)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+}
+
+const CAMPOS_HISTORIAL = [
+    { key: 'actividadesAccion', col: 'actividades_accion', etiqueta: 'Actividad' },
+    { key: 'referenciaNormativa', col: 'referencia_normativa', etiqueta: 'Referencia' },
+    { key: 'responsable', col: 'responsable', etiqueta: 'Responsable' },
+    { key: 'fechaInicio', col: 'fecha_inicio', etiqueta: 'Fecha de inicio' },
+    { key: 'fechaCompromiso', col: 'fecha_compromiso', etiqueta: 'Vencimiento' },
+    { key: 'entregables', col: 'entregables', etiqueta: 'Entregables' },
+    { key: 'observaciones', col: 'observaciones', etiqueta: 'Observaciones' },
+    { key: 'prioridad', col: 'prioridad', etiqueta: 'Prioridad' },
+    { key: 'estatus', col: 'estatus', etiqueta: 'Estatus' },
+    { key: 'avance', col: 'avance', etiqueta: 'Avance' }
+];
+
+function valorHistorialComparable(valor) {
+    if (valor == null) return '';
+    return String(valor).trim();
+}
+
+async function registrarCambiosHistorial(pool, id, anterior, nuevo, auditoria = {}) {
+    if (!id || !anterior || !nuevo) return;
+    const usuario = normalizarUsuarioAuditoria(auditoria.usuarioNombre);
+    const ahora = auditoria.fechaHora || fechaHoraMexicoMySQL();
+    const filas = [];
+    for (const campo of CAMPOS_HISTORIAL) {
+        const prev = valorHistorialComparable(anterior[campo.key]);
+        const next = valorHistorialComparable(nuevo[campo.key]);
+        if (prev === next) continue;
+        filas.push([id, campo.key, campo.etiqueta, prev || null, next || null, usuario, ahora]);
+    }
+    if (!filas.length) return;
+    await pool.query(
+        `INSERT INTO sgc_control_proyectos_historial
+            (control_proyecto_id, campo, etiqueta, valor_anterior, valor_nuevo, modificado_por, modificado_en)
+         VALUES ${filas.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ')}`,
+        filas.flat()
+    );
+}
+
 async function asegurarTablaControlProyectos(pool) {
     await pool.query(`
         CREATE TABLE IF NOT EXISTS sgc_control_proyectos (
@@ -363,6 +423,7 @@ async function asegurarTablaControlProyectos(pool) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     await asegurarColumnasExtra(pool);
+    await asegurarTablaHistorial(pool);
     try {
         await pool.query('ALTER TABLE sgc_control_proyectos MODIFY COLUMN responsable TEXT NOT NULL');
     } catch (_error) {
@@ -410,6 +471,7 @@ async function obtenerActividades(pool, filtros = {}) {
             fecha_inicio,
             fecha_compromiso,
             entregables,
+            observaciones,
             prioridad,
             estatus,
             avance,
@@ -417,6 +479,7 @@ async function obtenerActividades(pool, filtros = {}) {
             activo,
             modificado_por,
             modificado_en,
+            creado_por,
             eliminado_por,
             eliminado_en,
             created_at,
@@ -437,8 +500,8 @@ async function insertarActividad(pool, actividadRaw, orden, auditoria = {}) {
         `INSERT INTO sgc_control_proyectos
             (empresa_id, empresa_nombre, folio, nombre_proyecto, item, condicion_requerimiento, actividades_accion,
              referencia_normativa, responsable, responsable_usuario_ids, fecha_inicio, fecha_compromiso, entregables,
-             prioridad, estatus, avance, orden, activo, modificado_por, modificado_en)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+             observaciones, prioridad, estatus, avance, orden, activo, creado_por, modificado_por, modificado_en)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
         [
             p.empresaId,
             p.empresaNombre,
@@ -453,10 +516,12 @@ async function insertarActividad(pool, actividadRaw, orden, auditoria = {}) {
             p.fechaInicio,
             p.fechaCompromiso,
             p.entregables || null,
+            p.observaciones || null,
             p.prioridad,
             p.estatus,
             p.avance,
             orden,
+            usuario,
             usuario,
             ahora
         ]
@@ -466,6 +531,7 @@ async function insertarActividad(pool, actividadRaw, orden, auditoria = {}) {
         id: result.insertId,
         responsableUsuarioIds: parseResponsableUsuarioIds(p.responsableUsuarioIds),
         activo: true,
+        creadoPor: usuario,
         modificadoPor: usuario,
         modificadoEn: ahora
     };
@@ -478,6 +544,16 @@ async function actualizarActividad(pool, actividadRaw, orden, auditoria = {}) {
 
     const usuario = normalizarUsuarioAuditoria(auditoria.usuarioNombre);
     const ahora = auditoria.fechaHora || fechaHoraMexicoMySQL();
+
+    const [prevRows] = await pool.query(
+        `SELECT control_proyecto_id, actividades_accion, referencia_normativa, responsable,
+                fecha_inicio, fecha_compromiso, entregables, observaciones, prioridad, estatus, avance
+         FROM sgc_control_proyectos
+         WHERE control_proyecto_id = ?
+         LIMIT 1`,
+        [id]
+    );
+    const anterior = prevRows[0] ? mapRowToActividad(prevRows[0]) : null;
 
     await pool.query(
         `UPDATE sgc_control_proyectos
@@ -494,6 +570,7 @@ async function actualizarActividad(pool, actividadRaw, orden, auditoria = {}) {
              fecha_inicio = ?,
              fecha_compromiso = ?,
              entregables = ?,
+             observaciones = ?,
              prioridad = ?,
              estatus = ?,
              avance = ?,
@@ -518,6 +595,7 @@ async function actualizarActividad(pool, actividadRaw, orden, auditoria = {}) {
             p.fechaInicio,
             p.fechaCompromiso,
             p.entregables || null,
+            p.observaciones || null,
             p.prioridad,
             p.estatus,
             p.avance,
@@ -527,13 +605,70 @@ async function actualizarActividad(pool, actividadRaw, orden, auditoria = {}) {
             id
         ]
     );
+
+    try {
+        await registrarCambiosHistorial(pool, id, anterior, p, { usuarioNombre: usuario, fechaHora: ahora });
+    } catch (histErr) {
+        console.warn('[control-proyectos] No se pudo registrar historial:', histErr.message);
+    }
+
     return {
         ...p,
         id,
         responsableUsuarioIds: parseResponsableUsuarioIds(p.responsableUsuarioIds),
         activo: true,
         modificadoPor: usuario,
-        modificadoEn: ahora
+        modificadoEn: ahora,
+        creadoPor: anterior?.creadoPor || null,
+        createdAt: anterior?.createdAt || null
+    };
+}
+
+async function obtenerDetalleActividad(pool, actividadId) {
+    await asegurarTablaControlProyectos(pool);
+    const id = idActividadValido(actividadId);
+    if (!id) {
+        const err = new Error('Actividad no válida');
+        err.statusCode = 400;
+        throw err;
+    }
+    const [rows] = await pool.query(
+        `SELECT
+            control_proyecto_id, empresa_id, empresa_nombre, folio, nombre_proyecto, item,
+            condicion_requerimiento, actividades_accion, referencia_normativa, responsable,
+            responsable_usuario_ids, fecha_inicio, fecha_compromiso, entregables, observaciones,
+            prioridad, estatus, avance, orden, activo, modificado_por, modificado_en, creado_por,
+            eliminado_por, eliminado_en, created_at, updated_at
+         FROM sgc_control_proyectos
+         WHERE control_proyecto_id = ?
+         LIMIT 1`,
+        [id]
+    );
+    if (!rows[0]) {
+        const err = new Error('Actividad no encontrada');
+        err.statusCode = 404;
+        throw err;
+    }
+    const actividad = mapRowToActividad(rows[0]);
+    const [hist] = await pool.query(
+        `SELECT historial_id, campo, etiqueta, valor_anterior, valor_nuevo, modificado_por, modificado_en
+         FROM sgc_control_proyectos_historial
+         WHERE control_proyecto_id = ?
+         ORDER BY modificado_en DESC, historial_id DESC
+         LIMIT 80`,
+        [id]
+    );
+    return {
+        actividad,
+        historial: (hist || []).map((h) => ({
+            id: h.historial_id,
+            campo: h.campo,
+            etiqueta: h.etiqueta || h.campo,
+            valorAnterior: h.valor_anterior,
+            valorNuevo: h.valor_nuevo,
+            modificadoPor: h.modificado_por,
+            modificadoEn: h.modificado_en
+        }))
     };
 }
 
@@ -694,10 +829,12 @@ function actividadesParaFormato(actividades) {
         fechaInicio: p.fechaInicio,
         fechaCompromiso: p.fechaCompromiso,
         entregables: p.entregables,
+        observaciones: p.observaciones,
         prioridad: p.prioridad,
         estatus: p.estatus,
         avance: parsearAvance(p.avance),
         activo: p.activo !== false,
+        creadoPor: p.creadoPor || null,
         modificadoPor: p.modificadoPor || null,
         modificadoEn: p.modificadoEn || null,
         eliminadoPor: p.eliminadoPor || null,
@@ -1054,5 +1191,6 @@ module.exports = {
     desactivarActividades,
     restaurarActividades,
     restaurarProyecto,
+    obtenerDetalleActividad,
     fechaHoraMexicoMySQL
 };

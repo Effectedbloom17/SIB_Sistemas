@@ -141,6 +141,18 @@ function createSgcF29EvidenciaRouter({
         }
     });
 
+    router.post('/carpeta', async (req, res) => {
+        try {
+            const carpeta = await sgcF29EvidenciaService.crearCarpetaEvidencia(
+                poolOrThrow(),
+                req.body || {}
+            );
+            return res.json({ success: true, message: 'Carpeta creada.', carpeta });
+        } catch (error) {
+            return responderError(res, error, 'No se pudo crear la carpeta');
+        }
+    });
+
     return router;
 }
 

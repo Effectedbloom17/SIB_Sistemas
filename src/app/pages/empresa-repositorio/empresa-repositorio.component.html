@@ -517,7 +517,7 @@
     <div class="sgc-extra-modal__body">
       <p class="text-muted small mb-2">
         Se guardará con el mismo nombre del archivo. Puedes subir archivos sueltos o una carpeta completa;
-        el sistema cargará todos los archivos que contenga. Sin límite de tamaño.
+        si eliges una carpeta, se creará con ese nombre y se cargará todo su contenido. Sin límite de tamaño.
       </p>
       <p class="sgc-extra-upload-destino small mb-3" *ngIf="carpetaActual; else destinoRaiz">
         <i class="fas fa-folder mr-1" aria-hidden="true"></i>
@@ -556,7 +556,7 @@
             <i class="fas fa-folder-open" aria-hidden="true"></i>
           </span>
           <span class="sgc-extra-upload-zone__label">Seleccionar carpeta</span>
-          <span class="sgc-extra-upload-zone__hint">Sube todo su contenido</span>
+          <span class="sgc-extra-upload-zone__hint">Crea la carpeta y sube su contenido</span>
         </label>
       </div>
 
@@ -571,7 +571,7 @@
         <ul class="sgc-extra-upload-list__items">
           <li *ngFor="let f of archivosSeleccionados; let i = index" class="sgc-extra-upload-list__item">
             <i class="fas fa-file sgc-extra-upload-list__file-icon" aria-hidden="true"></i>
-            <span class="sgc-extra-upload-list__name" [title]="f.name">{{ f.name }}</span>
+            <span class="sgc-extra-upload-list__name" [title]="etiquetaArchivoSeleccionado(f)">{{ etiquetaArchivoSeleccionado(f) }}</span>
             <span class="sgc-extra-upload-list__size">{{ formatearTamano(f.size) }}</span>
             <button type="button" class="sgc-extra-upload-list__remove"
                     (click)="quitarArchivo(i)" [disabled]="subiendo" title="Quitar">

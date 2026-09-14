@@ -2934,7 +2934,7 @@ function esPerfilEmpresa(req) {
     return getUserRolesLower(req).includes('empresa');
 }
 
-/** Acceso para cualquier perfil autenticado excepto empresa (Mis empresas, Control de Proyectos, Control de Oficios, etc.) */
+/** Acceso para cualquier perfil autenticado excepto empresa (Mis empresas, Control de Oficios, etc.) */
 function denyEmpresa(req, res, next) {
     if (esPerfilEmpresa(req)) {
         return res.status(403).json({
@@ -2943,6 +2943,18 @@ function denyEmpresa(req, res, next) {
         });
     }
     next();
+}
+
+/** Lectura de Control de Proyectos: la empresa solo consulta su propio empresa_id. */
+function filtroEmpresaIdControlProyectos(req, requested) {
+    if (esPerfilEmpresa(req)) {
+        const id = Number(req.user?.empresa_id || 0);
+        if (!Number.isInteger(id) || id <= 0) {
+            return { error: 'No hay empresa asociada a este usuario' };
+        }
+        return { empresaId: id };
+    }
+    return { empresaId: requested };
 }
 
 function obtenerNombreUsuarioAccion(req) {
@@ -25716,6 +25728,7 @@ const sgcAthF02Service = require('./sgcAthF02Service');
 const sgcAthF09Service = require('./sgcAthF09Service');
 const sgcAthF11Service = require('./sgcAthF11Service');
 const sgcControlProyectosService = require('./sgcControlProyectosService');
+const controlProyectosAdjuntosService = require('./controlProyectosAdjuntosService');
 const sgcSgcF06Service = require('./sgcSgcF06Service');
 const sgcSgcF18Service = require('./sgcSgcF18Service');
 const sgcPo01Service = require('./sgcPo01Service');
@@ -25824,11 +25837,15 @@ app.delete('/api/sgc/auditorias/:id', requireAdminOrSgc, async (req, res) => {
     }
 });
 
-app.get('/api/control-proyectos/dashboard', denyEmpresa, async (req, res) => {
+app.get('/api/control-proyectos/dashboard', async (req, res) => {
     try {
+        const filtro = filtroEmpresaIdControlProyectos(req, req.query.empresaId);
+        if (filtro.error) {
+            return res.status(403).json({ success: false, message: filtro.error });
+        }
         await poolBiznagaSgcReady;
         const payload = await sgcControlProyectosService.obtenerDashboard(poolBiznagaSgc, {
-            empresaId: req.query.empresaId
+            empresaId: filtro.empresaId
         });
         return res.json({ success: true, ...payload });
     } catch (error) {
@@ -25889,11 +25906,15 @@ app.get('/api/sensores/historial', requireRootOrIot, async (req, res) => {
     }
 });
 
-app.get('/api/control-proyectos/proyectos', denyEmpresa, async (req, res) => {
+app.get('/api/control-proyectos/proyectos', async (req, res) => {
     try {
+        const filtro = filtroEmpresaIdControlProyectos(req, req.query.empresaId);
+        if (filtro.error) {
+            return res.status(403).json({ success: false, message: filtro.error });
+        }
         await poolBiznagaSgcReady;
         const payload = await sgcControlProyectosService.cargarFormato(poolBiznagaSgc, {
-            empresaId: req.query.empresaId
+            empresaId: filtro.empresaId
         });
         return res.json({ success: true, proyectos: payload?.datos?.proyectos || [] });
     } catch (error) {
@@ -25951,12 +25972,16 @@ app.post('/api/control-proyectos/proyectos/crear', denyEmpresa, async (req, res)
     }
 });
 
-app.post('/api/control-proyectos/refrescar-bd', denyEmpresa, async (req, res) => {
+app.post('/api/control-proyectos/refrescar-bd', async (req, res) => {
     try {
+        const filtro = filtroEmpresaIdControlProyectos(req, req.body?.empresaId);
+        if (filtro.error) {
+            return res.status(403).json({ success: false, message: filtro.error });
+        }
         await poolBiznagaSgcReady;
         sgcDashboardService.invalidarCacheDashboard();
         const payload = await sgcControlProyectosService.obtenerDashboard(poolBiznagaSgc, {
-            empresaId: req.body?.empresaId
+            empresaId: filtro.empresaId
         });
         return res.json({
             success: true,
@@ -25981,6 +26006,177 @@ app.post('/api/control-proyectos/actualizar-plantilla', denyEmpresa, async (req,
         });
     } catch (error) {
         handleError(res, error, 'No se pudo actualizar la plantilla SP-F-05');
+    }
+});
+
+function metaAdjuntosControlProyectos(req) {
+    const src = { ...(req.query || {}), ...(req.body || {}) };
+    if (esPerfilEmpresa(req)) {
+        const empresaId = Number(req.user?.empresa_id || 0);
+        if (!Number.isInteger(empresaId) || empresaId <= 0) {
+            return { error: 'No hay empresa asociada a este usuario' };
+        }
+        return {
+            folio: src.folio,
+            nombreProyecto: src.nombreProyecto || src.nombre_proyecto,
+            empresaNombre: src.empresaNombre || src.empresa_nombre,
+            empresaId
+        };
+    }
+    return {
+        folio: src.folio,
+        nombreProyecto: src.nombreProyecto || src.nombre_proyecto,
+        empresaNombre: src.empresaNombre || src.empresa_nombre,
+        empresaId: src.empresaId || src.empresa_id
+    };
+}
+
+app.get('/api/control-proyectos/actividades/:id/detalle', async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcControlProyectosService.obtenerDetalleActividad(
+            poolBiznagaSgc,
+            req.params.id
+        );
+        if (esPerfilEmpresa(req)) {
+            const empresaId = Number(req.user?.empresa_id || 0);
+            const actEmpresa = Number(payload?.actividad?.empresaId || 0);
+            if (!empresaId || !actEmpresa || empresaId !== actEmpresa) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'No puedes consultar actividades de otra empresa'
+                });
+            }
+        }
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 404) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo cargar el detalle de la actividad');
+    }
+});
+
+const uploadControlProyectosAdjunto = multer({
+    storage: storageMemory,
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: function (req, file, cb) {
+        const mime = String(file.mimetype || '').toLowerCase();
+        const ext = path.extname(String(file.originalname || '')).toLowerCase();
+        const okExt = [
+            '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+            '.jpg', '.jpeg', '.png', '.webp', '.gif', '.txt', '.csv',
+            '.zip', '.rar', '.7z'
+        ].includes(ext);
+        const okMime = !mime
+            || mime === 'application/octet-stream'
+            || tiposDocumentoPermitidos.includes(mime)
+            || [
+                'text/plain',
+                'text/csv',
+                'image/gif',
+                'application/x-zip-compressed',
+                'application/x-7z-compressed'
+            ].includes(mime);
+        if (okExt || okMime) return cb(null, true);
+        return cb(new Error('Tipo de archivo no permitido. Usa PDF, Office, imagen, texto o ZIP.'));
+    }
+});
+
+app.get('/api/control-proyectos/adjuntos', async (req, res) => {
+    try {
+        const meta = metaAdjuntosControlProyectos(req);
+        if (meta.error) {
+            return res.status(403).json({ success: false, message: meta.error });
+        }
+        if (!String(meta.nombreProyecto || meta.folio || '').trim()) {
+            return res.status(400).json({ success: false, message: 'Indica el proyecto para listar adjuntos' });
+        }
+        const payload = await controlProyectosAdjuntosService.listarAdjuntos(meta);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron listar los archivos adjuntos');
+    }
+});
+
+app.post('/api/control-proyectos/adjuntos/upload', denyEmpresa, (req, res, next) => {
+    uploadControlProyectosAdjunto.single('archivo')(req, res, (err) => {
+        if (err) {
+            const msg = err.code === 'LIMIT_FILE_SIZE'
+                ? 'El archivo supera el límite de 20 MB'
+                : (err.message || 'No se pudo procesar el archivo');
+            return res.status(400).json({ success: false, message: msg });
+        }
+        return next();
+    });
+}, async (req, res) => {
+    try {
+        const meta = metaAdjuntosControlProyectos(req);
+        if (meta.error) {
+            return res.status(403).json({ success: false, message: meta.error });
+        }
+        if (!String(meta.nombreProyecto || meta.folio || '').trim()) {
+            return res.status(400).json({ success: false, message: 'Indica el proyecto para subir adjuntos' });
+        }
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'Selecciona un archivo' });
+        }
+        const payload = await controlProyectosAdjuntosService.subirAdjunto(meta, req.file);
+        return res.json({ success: true, message: 'Archivo adjunto subido correctamente', ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo subir el archivo adjunto');
+    }
+});
+
+app.post('/api/control-proyectos/adjuntos/eliminar', denyEmpresa, async (req, res) => {
+    try {
+        const meta = metaAdjuntosControlProyectos(req);
+        if (meta.error) {
+            return res.status(403).json({ success: false, message: meta.error });
+        }
+        const fileId = req.body?.fileId || req.body?.id;
+        const payload = await controlProyectosAdjuntosService.eliminarAdjunto(meta, fileId);
+        return res.json({ success: true, message: 'Archivo eliminado', ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo eliminar el archivo adjunto');
+    }
+});
+
+app.get('/api/control-proyectos/adjuntos/:fileId/archivo', async (req, res) => {
+    try {
+        const meta = metaAdjuntosControlProyectos(req);
+        if (meta.error) {
+            return res.status(403).json({ success: false, message: meta.error });
+        }
+        const payload = await controlProyectosAdjuntosService.descargarAdjunto(meta, req.params.fileId);
+        const nombre = String(payload.nombre || 'archivo').replace(/[^\w.\- ()áéíóúÁÉÍÓÚñÑ]/gi, '_');
+        res.setHeader('Content-Type', payload.mimeType || 'application/octet-stream');
+        res.setHeader('Content-Disposition', `inline; filename="${nombre}"`);
+        return res.send(payload.buffer);
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 403 || error.statusCode === 404) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo descargar el archivo');
+    }
+});
+
+app.post('/api/control-proyectos/adjuntos/:fileId/preparar-vista', async (req, res) => {
+    try {
+        const meta = {
+            ...metaAdjuntosControlProyectos(req),
+            ...(req.body || {})
+        };
+        if (meta.error) {
+            return res.status(403).json({ success: false, message: meta.error });
+        }
+        const payload = await controlProyectosAdjuntosService.prepararVistaAdjunto(meta, req.params.fileId);
+        return res.json(payload);
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 403 || error.statusCode === 404) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo preparar la vista del documento');
     }
 });
 

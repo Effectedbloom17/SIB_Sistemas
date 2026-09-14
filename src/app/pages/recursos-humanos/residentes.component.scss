@@ -245,6 +245,25 @@ $rrhh-surface: #fff7fb;
     background: rgba(219, 39, 119, 0.1);
     color: $rrhh-pink-dark;
   }
+
+  span {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__action {
+    flex-shrink: 0;
+    margin-left: auto;
+    align-self: center;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+  }
 }
 
 .rrhh-list-sep {
@@ -269,6 +288,21 @@ $rrhh-surface: #fff7fb;
       rgba(219, 39, 119, 0.28),
       transparent
     );
+  }
+
+  &--terminada {
+    margin-top: 1.35rem;
+    color: #8a8f98;
+
+    &::before,
+    &::after {
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(120, 120, 130, 0.35),
+        transparent
+      );
+    }
   }
 }
 
@@ -318,13 +352,50 @@ $rrhh-surface: #fff7fb;
     );
   padding: 0.55rem 0.55rem 0.65rem;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, filter 0.2s ease;
   box-shadow: 0 4px 12px rgba(120, 40, 70, 0.05);
 
   &:hover {
     transform: translateY(-2px);
     border-color: rgba(219, 39, 119, 0.35);
     box-shadow: 0 10px 22px rgba(157, 23, 77, 0.12);
+  }
+
+  &--inactivo {
+    filter: grayscale(1);
+    opacity: 0.72;
+    border-color: rgba(140, 140, 145, 0.45);
+    box-shadow: 0 3px 10px rgba(80, 80, 90, 0.06);
+
+    .rrhh-badge__name {
+      color: #6b7280;
+    }
+
+    .rrhh-badge__role {
+      color: #9ca3af;
+    }
+
+    .rrhh-badge__meta {
+      color: #9ca3af;
+
+      span {
+        color: #6b7280;
+      }
+    }
+
+    .rrhh-badge__photo-fallback {
+      color: #9ca3af;
+      background: linear-gradient(160deg, #e5e7eb, #d1d5db);
+    }
+
+    .rrhh-badge__mark {
+      background: linear-gradient(145deg, #6b7280, #9ca3af);
+    }
+
+    &:hover {
+      border-color: rgba(107, 114, 128, 0.55);
+      box-shadow: 0 8px 18px rgba(80, 80, 90, 0.12);
+    }
   }
 }
 
@@ -1174,6 +1245,12 @@ $rrhh-surface: #fff7fb;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #fff;
+
+  &--muted {
+    background: rgba(107, 114, 128, 0.55);
+    border-color: rgba(209, 213, 219, 0.45);
+    color: #e5e7eb;
+  }
 }
 
 .rrhh-detail-hero__pills {

@@ -66,8 +66,8 @@ export class RoleGuard implements CanActivate {
       return true;
     }
 
-    // Excepción de negocio: Control de Proyectos y Control de Oficios disponibles para todos excepto perfil empresa
-    if (state.url.includes('/control-proyectos') || state.url.includes('/control-oficios')) {
+    // Control de Oficios: todos excepto empresa. Control de Proyectos sí es visible para empresa (consulta).
+    if (state.url.includes('/control-oficios')) {
       const esEmpresa = userRoles.some(r => r.toLowerCase() === 'empresa') || (userRole && userRole.toLowerCase() === 'empresa');
       if (esEmpresa) {
         this.router.navigate(['/curso-activos']);

@@ -60,6 +60,135 @@ function txt(valor, maxLen = 500) {
     return s.slice(0, maxLen);
 }
 
+/** Meses en español (nombre completo y abreviaturas comunes). */
+const MESES_ES = {
+    ene: 1, enero: 1,
+    feb: 2, febrero: 2,
+    mar: 3, marzo: 3,
+    abr: 4, abril: 4,
+    may: 5, mayo: 5,
+    jun: 6, junio: 6,
+    jul: 7, julio: 7,
+    ago: 8, agosto: 8,
+    sep: 9, sept: 9, septiembre: 9, set: 9, setiembre: 9,
+    oct: 10, octubre: 10,
+    nov: 11, noviembre: 11,
+    dic: 12, diciembre: 12
+};
+
+function resolverAnio(raw) {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return null;
+    if (n >= 100) return Math.trunc(n);
+    // Años de 2 dígitos: 00–69 → 2000–2069; 70–99 → 1970–1999
+    return n <= 69 ? 2000 + n : 1900 + n;
+}
+
+function ultimoDiaDelMes(anio, mes) {
+    return new Date(anio, mes, 0).getDate();
+}
+
+function fechaLocal(anio, mes, dia) {
+    return new Date(anio, mes - 1, dia);
+}
+
+/**
+ * Interpreta `fecha_terminacion` (texto libre) y devuelve el último día
+ * en que el residente sigue activo, o null si no se puede parsear.
+ * - Con día concreto → activo hasta ese día (inclusive).
+ * - Solo mes (o rango de meses) + año → activo hasta el último día del mes final.
+ */
+function parsearFinVigencia(fechaTerminacion) {
+    const raw = String(fechaTerminacion == null ? '' : fechaTerminacion).trim();
+    if (!raw) return null;
+    const s = raw
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[.,]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // ISO / numérico: YYYY-MM-DD o DD/MM/YYYY o DD-MM-YYYY
+    let m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (m) {
+        const anio = Number(m[1]);
+        const mes = Number(m[2]);
+        const dia = Number(m[3]);
+        if (mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31) {
+            return fechaLocal(anio, mes, Math.min(dia, ultimoDiaDelMes(anio, mes)));
+        }
+    }
+    m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (m) {
+        const dia = Number(m[1]);
+        const mes = Number(m[2]);
+        const anio = resolverAnio(m[3]);
+        if (anio && mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31) {
+            return fechaLocal(anio, mes, Math.min(dia, ultimoDiaDelMes(anio, mes)));
+        }
+    }
+
+    // "21 de agosto 2026" / "21 DE AGOSTO 2026"
+    m = s.match(/^(\d{1,2})\s*(?:de\s+)?([a-z]+)\s+(\d{2,4})$/);
+    if (m && MESES_ES[m[2]]) {
+        const dia = Number(m[1]);
+        const mes = MESES_ES[m[2]];
+        const anio = resolverAnio(m[3]);
+        if (anio && dia >= 1 && dia <= 31) {
+            return fechaLocal(anio, mes, Math.min(dia, ultimoDiaDelMes(anio, mes)));
+        }
+    }
+
+    // "21-ago-26" / "21-ago-2026"
+    m = s.match(/^(\d{1,2})[\/\-]([a-z]+)[\/\-](\d{2,4})$/);
+    if (m && MESES_ES[m[2]]) {
+        const dia = Number(m[1]);
+        const mes = MESES_ES[m[2]];
+        const anio = resolverAnio(m[3]);
+        if (anio && dia >= 1 && dia <= 31) {
+            return fechaLocal(anio, mes, Math.min(dia, ultimoDiaDelMes(anio, mes)));
+        }
+    }
+
+    // Rango de meses: "noviembre-diciembre 2026" / "nov - dic 2026" / "nov a dic 2026"
+    m = s.match(/^([a-z]+)\s*(?:-|\/|\ba\b)\s*([a-z]+)\s+(\d{2,4})$/);
+    if (m && MESES_ES[m[1]] && MESES_ES[m[2]]) {
+        const mes = MESES_ES[m[2]];
+        const anio = resolverAnio(m[3]);
+        if (anio) {
+            return fechaLocal(anio, mes, ultimoDiaDelMes(anio, mes));
+        }
+    }
+
+    // Solo mes + año: "noviembre 2026" / "ago 2026"
+    m = s.match(/^([a-z]+)\s+(\d{2,4})$/);
+    if (m && MESES_ES[m[1]]) {
+        const mes = MESES_ES[m[1]];
+        const anio = resolverAnio(m[2]);
+        if (anio) {
+            return fechaLocal(anio, mes, ultimoDiaDelMes(anio, mes));
+        }
+    }
+
+    return null;
+}
+
+/**
+ * true si hoy (fecha local) es anterior o igual al fin de vigencia.
+ * Sin fecha parseable → se considera vigente (no se desactiva por duda).
+ */
+function calcularVigente(fechaTerminacion, ahora = new Date()) {
+    const fin = parsearFinVigencia(fechaTerminacion);
+    if (!fin) return true;
+    const hoy = fechaLocal(ahora.getFullYear(), ahora.getMonth() + 1, ahora.getDate());
+    return hoy.getTime() <= fin.getTime();
+}
+
+function vigenteADb(fechaTerminacion) {
+    return calcularVigente(fechaTerminacion) ? 1 : 0;
+}
+
 function normalizarPayload(body = {}) {
     const out = {};
     for (const campo of CAMPOS) {
@@ -120,6 +249,7 @@ function mapResidente(row) {
         drive_sheet_title: row.drive_sheet_title || null,
         drive_sheet_gid: row.drive_sheet_gid != null ? String(row.drive_sheet_gid) : null,
         activo: row.activo == null ? 1 : Number(row.activo),
+        vigente: row.vigente == null ? 1 : Number(row.vigente),
         creado_por: row.creado_por || null,
         actualizado_por: row.actualizado_por || null,
         created_at: row.created_at || null,
@@ -172,13 +302,15 @@ async function asegurarTabla(pool) {
             drive_sheet_title VARCHAR(120) NULL,
             drive_sheet_gid VARCHAR(32) NULL,
             activo TINYINT(1) NOT NULL DEFAULT 1,
+            vigente TINYINT(1) NOT NULL DEFAULT 1,
             creado_por VARCHAR(120) NULL,
             actualizado_por VARCHAR(120) NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX idx_rrhh_residentes_nombre (nombre),
             INDEX idx_rrhh_residentes_anio (anio),
-            INDEX idx_rrhh_residentes_activo (activo)
+            INDEX idx_rrhh_residentes_activo (activo),
+            INDEX idx_rrhh_residentes_vigente (vigente)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
@@ -196,6 +328,43 @@ async function asegurarTabla(pool) {
         }
     } catch (e) {
         console.warn('[RRHH] No se pudo asegurar columna foto_url:', e.message);
+    }
+
+    // Migración suave: bandera de vigencia automática (independiente de soft-delete `activo`)
+    try {
+        const [cols] = await pool.query(
+            `SELECT COLUMN_NAME AS c
+             FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME = 'RRHH_residentes'
+               AND COLUMN_NAME = 'vigente'`
+        );
+        if (!cols?.length) {
+            await pool.query(
+                'ALTER TABLE RRHH_residentes ADD COLUMN vigente TINYINT(1) NOT NULL DEFAULT 1 AFTER activo'
+            );
+            await pool.query(
+                'CREATE INDEX idx_rrhh_residentes_vigente ON RRHH_residentes (vigente)'
+            );
+        }
+    } catch (e) {
+        console.warn('[RRHH] No se pudo asegurar columna vigente:', e.message);
+    }
+}
+
+/**
+ * Recalcula y persiste `vigente` según `fecha_terminacion` para residentes no eliminados.
+ * Se invoca al listar para que el estado quede al día sin acción manual.
+ */
+async function sincronizarVigencias(pool) {
+    const [rows] = await pool.query(
+        'SELECT id, fecha_terminacion, vigente FROM RRHH_residentes WHERE activo = 1'
+    );
+    for (const row of rows || []) {
+        const nuevo = vigenteADb(row.fecha_terminacion);
+        if (Number(row.vigente) !== nuevo) {
+            await pool.query('UPDATE RRHH_residentes SET vigente = ? WHERE id = ?', [nuevo, row.id]);
+        }
     }
 }
 
@@ -455,6 +624,7 @@ async function sincronizarResidenteADrive(pool, residenteId) {
 
 async function listar(pool, { anio, q } = {}) {
     await asegurarTabla(pool);
+    await sincronizarVigencias(pool);
     const where = ['activo = 1'];
     const params = [];
     if (anio != null && anio !== '') {
@@ -470,7 +640,7 @@ async function listar(pool, { anio, q } = {}) {
     const [rows] = await pool.query(
         `SELECT * FROM RRHH_residentes
          WHERE ${where.join(' AND ')}
-         ORDER BY anio DESC, nombre ASC, id DESC`,
+         ORDER BY vigente DESC, anio DESC, nombre ASC, id DESC`,
         params
     );
     return (rows || []).map(mapResidente);
@@ -482,7 +652,14 @@ async function obtener(pool, id) {
         'SELECT * FROM RRHH_residentes WHERE id = ? AND activo = 1 LIMIT 1',
         [Number(id)]
     );
-    return mapResidente(rows?.[0] || null);
+    const row = rows?.[0];
+    if (!row) return null;
+    const nuevo = vigenteADb(row.fecha_terminacion);
+    if (Number(row.vigente) !== nuevo) {
+        await pool.query('UPDATE RRHH_residentes SET vigente = ? WHERE id = ?', [nuevo, row.id]);
+        row.vigente = nuevo;
+    }
+    return mapResidente(row);
 }
 
 async function crear(pool, body, usuario = null) {
@@ -497,8 +674,8 @@ async function crear(pool, body, usuario = null) {
             fecha_ingreso, fecha_terminacion, nombre_proyecto, supervision_a_cargo,
             telefono, correo_personal, correo_institucional, matricula,
             asesor_academico, correo_asesor, tutor_nombre, tutor_telefono,
-            direccion, nss, foto_url, creado_por, actualizado_por
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            direccion, nss, foto_url, vigente, creado_por, actualizado_por
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             datos.anio,
             datos.nombre,
@@ -521,6 +698,7 @@ async function crear(pool, body, usuario = null) {
             datos.direccion || null,
             datos.nss || null,
             fotoUrl,
+            vigenteADb(datos.fecha_terminacion),
             usuario,
             usuario
         ]
@@ -551,7 +729,7 @@ async function actualizar(pool, id, body, usuario = null) {
             supervision_a_cargo = ?, telefono = ?, correo_personal = ?,
             correo_institucional = ?, matricula = ?, asesor_academico = ?,
             correo_asesor = ?, tutor_nombre = ?, tutor_telefono = ?, direccion = ?,
-            nss = ?, foto_url = ?, actualizado_por = ?
+            nss = ?, foto_url = ?, vigente = ?, actualizado_por = ?
          WHERE id = ? AND activo = 1`,
         [
             datos.anio,
@@ -575,6 +753,7 @@ async function actualizar(pool, id, body, usuario = null) {
             datos.direccion || null,
             datos.nss || null,
             fotoUrl,
+            vigenteADb(datos.fecha_terminacion),
             usuario,
             Number(id)
         ]
@@ -629,6 +808,9 @@ module.exports = {
     CAMPOS,
     EJEMPLO_KARLA,
     asegurarTabla,
+    sincronizarVigencias,
+    parsearFinVigencia,
+    calcularVigente,
     listar,
     obtener,
     crear,

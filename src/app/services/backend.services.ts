@@ -2723,12 +2723,24 @@ export class BackendServices {
             nombre_archivo: string;
             mime_type?: string;
             archivo_base64: string;
+            subcarpeta?: string;
         }>;
     }): Observable<HttpEvent<any>> {
         return this.httpClient.post(
             `${this.baseUrl}/sgc/formatos/sgc-f-29/evidencias/subir-lote`,
             payload,
             { observe: 'events', reportProgress: true }
+        );
+    }
+
+    crearCarpetaEvidenciaSgcF29(payload: {
+        evaluacion_id: string;
+        proveedor?: string;
+        nombre: string;
+    }): Observable<any> {
+        return this.httpClient.post(
+            `${this.baseUrl}/sgc/formatos/sgc-f-29/evidencias/carpeta`,
+            payload
         );
     }
 
@@ -2778,12 +2790,24 @@ export class BackendServices {
             nombre_archivo: string;
             mime_type?: string;
             archivo_base64: string;
+            subcarpeta?: string;
         }>;
     }): Observable<HttpEvent<any>> {
         return this.httpClient.post(
             `${this.baseUrl}/sgc/formatos/sgc-f-14/evidencias/subir-lote`,
             payload,
             { observe: 'events', reportProgress: true }
+        );
+    }
+
+    crearCarpetaEvidenciaSgcF14(payload: {
+        proyecto_id: string;
+        folio?: string;
+        nombre: string;
+    }): Observable<any> {
+        return this.httpClient.post(
+            `${this.baseUrl}/sgc/formatos/sgc-f-14/evidencias/carpeta`,
+            payload
         );
     }
 
@@ -3067,6 +3091,7 @@ export class BackendServices {
         fechaInicio?: string;
         fechaCompromiso?: string;
         entregables?: string;
+        observaciones?: string;
         prioridad?: string;
         estatus?: string;
         avance?: number | string;
@@ -3088,6 +3113,7 @@ export class BackendServices {
         fechaInicio?: string;
         fechaCompromiso?: string;
         entregables?: string;
+        observaciones?: string;
         prioridad?: string;
         estatus?: string;
         avance?: number | string;
@@ -3101,6 +3127,93 @@ export class BackendServices {
 
     actualizarPlantillaControlProyectos(): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/control-proyectos/actualizar-plantilla`, {});
+    }
+
+    listarAdjuntosControlProyectos(meta: {
+        folio?: string;
+        nombreProyecto?: string;
+        empresaNombre?: string;
+        empresaId?: number | null;
+    }): Observable<any> {
+        const params = new URLSearchParams();
+        if (meta?.folio) params.set('folio', String(meta.folio));
+        if (meta?.nombreProyecto) params.set('nombreProyecto', String(meta.nombreProyecto));
+        if (meta?.empresaNombre) params.set('empresaNombre', String(meta.empresaNombre));
+        if (meta?.empresaId) params.set('empresaId', String(meta.empresaId));
+        const q = params.toString();
+        return this.httpClient.get(`${this.baseUrl}/control-proyectos/adjuntos${q ? `?${q}` : ''}`);
+    }
+
+    subirAdjuntoControlProyectos(meta: {
+        folio?: string;
+        nombreProyecto?: string;
+        empresaNombre?: string;
+        empresaId?: number | null;
+    }, archivo: File): Observable<any> {
+        const form = new FormData();
+        form.append('archivo', archivo);
+        if (meta?.folio) form.append('folio', String(meta.folio));
+        if (meta?.nombreProyecto) form.append('nombreProyecto', String(meta.nombreProyecto));
+        if (meta?.empresaNombre) form.append('empresaNombre', String(meta.empresaNombre));
+        if (meta?.empresaId != null) {
+            form.append('empresaId', String(meta.empresaId));
+        }
+        const params = new URLSearchParams();
+        if (meta?.folio) params.set('folio', String(meta.folio));
+        if (meta?.nombreProyecto) params.set('nombreProyecto', String(meta.nombreProyecto));
+        if (meta?.empresaNombre) params.set('empresaNombre', String(meta.empresaNombre));
+        if (meta?.empresaId != null) {
+            params.set('empresaId', String(meta.empresaId));
+        }
+        const q = params.toString();
+        return this.httpClient.post(
+            `${this.baseUrl}/control-proyectos/adjuntos/upload${q ? `?${q}` : ''}`,
+            form
+        );
+    }
+
+    eliminarAdjuntoControlProyectos(meta: {
+        folio?: string;
+        nombreProyecto?: string;
+        empresaNombre?: string;
+        empresaId?: number | null;
+        fileId: string;
+    }): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/control-proyectos/adjuntos/eliminar`, meta);
+    }
+
+    descargarAdjuntoControlProyectos(meta: {
+        folio?: string;
+        nombreProyecto?: string;
+        empresaNombre?: string;
+        empresaId?: number | null;
+    }, fileId: string): Observable<Blob> {
+        const params = new URLSearchParams();
+        if (meta?.folio) params.set('folio', String(meta.folio));
+        if (meta?.nombreProyecto) params.set('nombreProyecto', String(meta.nombreProyecto));
+        if (meta?.empresaNombre) params.set('empresaNombre', String(meta.empresaNombre));
+        if (meta?.empresaId != null) params.set('empresaId', String(meta.empresaId));
+        const q = params.toString();
+        return this.httpClient.get(
+            `${this.baseUrl}/control-proyectos/adjuntos/${encodeURIComponent(fileId)}/archivo${q ? `?${q}` : ''}`,
+            { responseType: 'blob' }
+        );
+    }
+
+    prepararVistaAdjuntoControlProyectos(meta: {
+        folio?: string;
+        nombreProyecto?: string;
+        empresaNombre?: string;
+        empresaId?: number | null;
+    }, fileId: string): Observable<any> {
+        return this.httpClient.post(
+            `${this.baseUrl}/control-proyectos/adjuntos/${encodeURIComponent(fileId)}/preparar-vista`,
+            meta || {}
+        );
+    }
+
+    detalleActividadControlProyectos(actividadId: number | string): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/control-proyectos/actividades/${actividadId}/detalle`);
     }
 
     listarControlProyectosEliminados(empresaId?: number | string): Observable<any> {
