@@ -633,13 +633,28 @@
                 <div class="sgc-avance-hero-head__main">
                   <div class="sgc-avance-hero-badge"><i class="fas fa-project-diagram"></i></div>
                   <div>
-                    <h2 class="sgc-section-title mb-0">Avance de proyectos</h2>
-                    <p class="sgc-analytics-desc mb-0">Bitácora de proyectos de mejora (SGC-F-14). El promedio no incluye altas sin porcentaje.</p>
+                    <h2 class="sgc-section-title mb-0">
+                      {{ hayProyectoAvanceSeleccionado ? nombreProyectoDisplay(proyectoAvanceSeleccionado) : 'Avance de proyectos' }}
+                    </h2>
+                    <p class="sgc-analytics-desc mb-0" *ngIf="!hayProyectoAvanceSeleccionado">
+                      Bitácora de proyectos de mejora (SGC-F-14). El promedio no incluye altas sin porcentaje.
+                    </p>
+                    <p class="sgc-analytics-desc mb-0" *ngIf="hayProyectoAvanceSeleccionado">
+                      {{ proyectoAvanceSeleccionado?.folio }}
+                      <ng-container *ngIf="proyectoAvanceSeleccionado?.totalActividades; else sinActividadesAvance">
+                        · {{ proyectoAvanceSeleccionado.totalActividades }}
+                        actividad{{ proyectoAvanceSeleccionado.totalActividades !== 1 ? 'es' : '' }}
+                        de Control de proyectos. El promedio no incluye pendientes sin porcentaje.
+                      </ng-container>
+                      <ng-template #sinActividadesAvance>
+                        · Aún no hay actividades en Control de proyectos para este folio.
+                      </ng-template>
+                    </p>
                   </div>
                 </div>
                 <div class="sgc-avance-hero-kpi" *ngIf="!cargandoDashboard && hayDatosAvance">
-                  <span class="sgc-avance-hero-kpi__val">{{ avanceProyectos?.avancePromedio || 0 }}%</span>
-                  <span class="sgc-avance-hero-kpi__lbl">Avance promedio</span>
+                  <span class="sgc-avance-hero-kpi__val">{{ kpiAvanceVista }}%</span>
+                  <span class="sgc-avance-hero-kpi__lbl">{{ hayProyectoAvanceSeleccionado ? 'Avance del proyecto' : 'Avance promedio' }}</span>
                 </div>
               </div>
 
@@ -649,57 +664,143 @@
                 <div class="sgc-avance-dual" *ngIf="!cargandoDashboard && hayDatosAvance">
                   <div class="sgc-avance-panel sgc-avance-panel--bars">
                     <div class="sgc-avance-panel__header">
-                      <span class="sgc-avance-panel__icon"><i class="fas fa-tasks"></i></span>
-                      <div>
-                        <span class="sgc-avance-panel__title">Avance por proyecto</span>
-                        <span class="sgc-avance-panel__sub">
-                          {{ avanceProyectos?.total || 0 }} registrados
-                          <ng-container *ngIf="(avanceProyectos?.noIniciados || 0) > 0">
-                            · {{ avanceProyectos?.totalEnGrafico || 0 }} con avance
-                          </ng-container>
-                        </span>
+                      <div class="sgc-avance-panel__header-main">
+                        <span class="sgc-avance-panel__icon"><i class="fas fa-tasks"></i></span>
+                        <div>
+                          <span class="sgc-avance-panel__title">
+                            {{ hayProyectoAvanceSeleccionado ? 'Avance por actividad' : 'Avance por proyecto' }}
+                          </span>
+                          <span class="sgc-avance-panel__sub">
+                            {{ avanceResumenActivo?.total || 0 }}
+                            {{ hayProyectoAvanceSeleccionado ? 'registradas' : 'registrados' }}
+                            <ng-container *ngIf="filtroAnioAvance && !hayProyectoAvanceSeleccionado">
+                              · folio {{ filtroAnioAvance }}
+                            </ng-container>
+                            <ng-container *ngIf="(avanceResumenActivo?.noIniciados || 0) > 0">
+                              · {{ avanceResumenActivo?.totalEnGrafico || 0 }} con avance
+                            </ng-container>
+                          </span>
+                        </div>
+                      </div>
+                      <div class="sgc-avance-year-filter"
+                           *ngIf="!hayProyectoAvanceSeleccionado"
+                           role="group"
+                           aria-label="Filtrar lista de proyectos por año del folio">
+                        <span class="sgc-avance-year-filter__label">Año</span>
+                        <button type="button"
+                                class="sgc-avance-year-filter__btn"
+                                *ngFor="let opt of opcionesAnioAvance"
+                                [class.is-active]="filtroAnioAvance === opt.valor"
+                                (click)="seleccionarAnioAvance(opt.valor, $event)"
+                                [attr.aria-pressed]="filtroAnioAvance === opt.valor">
+                          {{ opt.label }}
+                        </button>
                       </div>
                     </div>
-                    <div class="sgc-proyecto-list" *ngIf="avanceProyectos?.proyectos?.length">
-                      <div class="sgc-proyecto-row"
-                           *ngFor="let p of avanceProyectos.proyectos; let i = index"
-                           [class.sgc-proyecto-row--intro]="indicadoresIntro"
-                           [style.--row-accent]="colorAvancePorEstatus(p.estatus, p.avance)"
-                           [style.--row-delay]="(i * 0.07) + 's'">
-                        <div class="sgc-proyecto-row__body">
-                          <div class="sgc-proyecto-row__head">
-                            <span class="sgc-proyecto-row__folio" *ngIf="p.folio">{{ p.folio }}</span>
-                            <div class="sgc-proyecto-row__chips">
-                              <span class="sgc-proyecto-row__prio"
-                                    [ngClass]="clasePrioridadProyecto(p.prioridad)"
-                                    *ngIf="p.prioridad">
-                                <i class="fas fa-flag" aria-hidden="true"></i>{{ p.prioridad }}
-                              </span>
-                              <span class="sgc-proyecto-row__badge" [ngClass]="claseEstatusProyecto(p.estatus, p.avance)">
-                                {{ labelEstatusProyecto(p.estatus, p.avance) }}
+
+                    <div class="sgc-project-filter-chip" *ngIf="hayProyectoAvanceSeleccionado">
+                      <span class="sgc-project-filter-chip__label">
+                        <i class="fas fa-folder-open" aria-hidden="true"></i>
+                        {{ proyectoAvanceSeleccionado?.folio }}
+                      </span>
+                      <button type="button"
+                              class="sgc-project-filter-chip__clear"
+                              (click)="limpiarProyectoAvance($event)"
+                              title="Volver a todos los proyectos">
+                        <i class="fas fa-times" aria-hidden="true"></i>
+                        Ver todos
+                      </button>
+                    </div>
+
+                    <div class="sgc-proyecto-list" *ngIf="filasAvanceVista.length">
+                      <ng-container *ngFor="let p of filasAvanceVista; let i = index">
+                        <button type="button"
+                                class="sgc-proyecto-row"
+                                *ngIf="!p.esActividad; else filaActividadAvance"
+                                [class.sgc-proyecto-row--intro]="indicadoresIntro"
+                                [class.is-selected]="esProyectoAvanceSeleccionado(p)"
+                                [style.--row-accent]="colorAvancePorEstatus(p.estatus, p.avance)"
+                                [style.--row-delay]="(i * 0.07) + 's'"
+                                (click)="seleccionarProyectoAvance(p, $event)"
+                                [attr.aria-pressed]="esProyectoAvanceSeleccionado(p)"
+                                [attr.aria-label]="'Ver indicadores de ' + (nombreProyectoDisplay(p) || p.folio)">
+                          <div class="sgc-proyecto-row__body">
+                            <div class="sgc-proyecto-row__head">
+                              <span class="sgc-proyecto-row__folio" *ngIf="p.folio">{{ p.folio }}</span>
+                              <div class="sgc-proyecto-row__chips">
+                                <span class="sgc-proyecto-row__prio"
+                                      [ngClass]="clasePrioridadProyecto(p.prioridad)"
+                                      *ngIf="p.prioridad">
+                                  <i class="fas fa-flag" aria-hidden="true"></i>{{ p.prioridad }}
+                                </span>
+                                <span class="sgc-proyecto-row__badge" [ngClass]="claseEstatusProyecto(p.estatus, p.avance)">
+                                  {{ labelEstatusProyecto(p.estatus, p.avance) }}
+                                </span>
+                              </div>
+                            </div>
+                            <h4 class="sgc-proyecto-row__name">{{ nombreProyectoDisplay(p) }}</h4>
+                            <div class="sgc-proyecto-row__resp-line">
+                              <i class="fas fa-user" aria-hidden="true"></i>
+                              <span>{{ p.responsable || 'Sin responsable asignado' }}</span>
+                              <span class="sgc-proyecto-row__acts" *ngIf="p.totalActividades">
+                                · {{ p.totalActividades }} actividad{{ p.totalActividades !== 1 ? 'es' : '' }}
                               </span>
                             </div>
                           </div>
-                          <h4 class="sgc-proyecto-row__name">{{ nombreProyectoDisplay(p) }}</h4>
-                          <div class="sgc-proyecto-row__resp-line">
-                            <i class="fas fa-user" aria-hidden="true"></i>
-                            <span>{{ p.responsable || 'Sin responsable asignado' }}</span>
+                          <div class="sgc-proyecto-row__progress">
+                            <div class="sgc-proyecto-row__track">
+                              <div class="sgc-proyecto-row__fill"
+                                   [style.width.%]="p.avance || 0"
+                                   [style.background]="gradienteAvanceProyecto(p.estatus, p.avance)"></div>
+                            </div>
+                            <span class="sgc-proyecto-row__pct-badge"
+                                  [style.--pct-color]="colorAvancePorEstatus(p.estatus, p.avance)">{{ p.avance || 0 }}%</span>
                           </div>
-                        </div>
-                        <div class="sgc-proyecto-row__progress">
-                          <div class="sgc-proyecto-row__track">
-                            <div class="sgc-proyecto-row__fill"
-                                 [style.width.%]="p.avance || 0"
-                                 [style.background]="gradienteAvanceProyecto(p.estatus, p.avance)"></div>
+                        </button>
+                        <ng-template #filaActividadAvance>
+                          <div class="sgc-proyecto-row sgc-proyecto-row--actividad"
+                               [class.sgc-proyecto-row--intro]="indicadoresIntro"
+                               [style.--row-accent]="colorAvancePorEstatus(p.estatus, p.avance)"
+                               [style.--row-delay]="(i * 0.07) + 's'">
+                            <div class="sgc-proyecto-row__body">
+                              <div class="sgc-proyecto-row__head">
+                                <span class="sgc-proyecto-row__folio" *ngIf="p.folio">{{ p.folio }}</span>
+                                <div class="sgc-proyecto-row__chips">
+                                  <span class="sgc-proyecto-row__prio"
+                                        [ngClass]="clasePrioridadProyecto(p.prioridad)"
+                                        *ngIf="p.prioridad">
+                                    <i class="fas fa-flag" aria-hidden="true"></i>{{ p.prioridad }}
+                                  </span>
+                                  <span class="sgc-proyecto-row__badge" [ngClass]="claseEstatusProyecto(p.estatus, p.avance)">
+                                    {{ labelEstatusProyecto(p.estatus, p.avance) }}
+                                  </span>
+                                </div>
+                              </div>
+                              <h4 class="sgc-proyecto-row__name">{{ nombreProyectoDisplay(p) }}</h4>
+                              <div class="sgc-proyecto-row__resp-line">
+                                <i class="fas fa-user" aria-hidden="true"></i>
+                                <span>{{ p.responsable || 'Sin responsable asignado' }}</span>
+                              </div>
+                            </div>
+                            <div class="sgc-proyecto-row__progress">
+                              <div class="sgc-proyecto-row__track">
+                                <div class="sgc-proyecto-row__fill"
+                                     [style.width.%]="p.avance || 0"
+                                     [style.background]="gradienteAvanceProyecto(p.estatus, p.avance)"></div>
+                              </div>
+                              <span class="sgc-proyecto-row__pct-badge"
+                                    [style.--pct-color]="colorAvancePorEstatus(p.estatus, p.avance)">{{ p.avance || 0 }}%</span>
+                            </div>
                           </div>
-                          <span class="sgc-proyecto-row__pct-badge"
-                                [style.--pct-color]="colorAvancePorEstatus(p.estatus, p.avance)">{{ p.avance || 0 }}%</span>
-                        </div>
-                      </div>
+                        </ng-template>
+                      </ng-container>
                     </div>
-                    <div *ngIf="!avanceProyectos?.proyectos?.length" class="sgc-dash-empty sgc-dash-empty--small">
+                    <div *ngIf="!filasAvanceVista.length" class="sgc-dash-empty sgc-dash-empty--small">
                       <i class="fas fa-list-ul fa-lg mb-2"></i>
-                      <p class="mb-0">Sin detalle de proyectos individuales.</p>
+                      <p class="mb-0" *ngIf="filtroAnioAvance">
+                        No hay proyectos con folio de {{ filtroAnioAvance }}.
+                      </p>
+                      <p class="mb-0" *ngIf="filtroAnioAvance == null">Sin detalle de proyectos individuales.</p>
                     </div>
                   </div>
 
@@ -708,7 +809,9 @@
                       <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
                       <div>
                         <span class="sgc-avance-panel__title">Distribución por estatus</span>
-                        <span class="sgc-avance-panel__sub">Solo proyectos con porcentaje de avance</span>
+                        <span class="sgc-avance-panel__sub">
+                          {{ hayProyectoAvanceSeleccionado ? 'Solo actividades con porcentaje de avance' : 'Solo proyectos con porcentaje de avance' }}
+                        </span>
                       </div>
                     </div>
                     <div class="sgc-avance-donut-inner">
@@ -724,7 +827,8 @@
                         <div class="sgc-donut-center" aria-live="polite">
                           <span class="sgc-donut-center__val">{{ donutCentroValor }}</span>
                           <span class="sgc-donut-center__lbl">{{ donutCentroEtiqueta }}</span>
-                          <span class="sgc-donut-center__pct" *ngIf="donutCentroEtiqueta !== 'Proyectos'">{{ donutCentroPct }}%</span>
+                          <span class="sgc-donut-center__pct"
+                                *ngIf="donutCentroEtiqueta !== 'Proyectos' && donutCentroEtiqueta !== 'Actividades'">{{ donutCentroPct }}%</span>
                         </div>
                       </div>
                       <p class="sgc-avance-donut-hint">Pasa el cursor sobre un segmento para ver su detalle.</p>
@@ -744,8 +848,14 @@
                       </div>
                     </div>
                     <a class="sgc-btn-add-text sgc-aud-panel__register"
+                      *ngIf="!hayProyectoAvanceSeleccionado"
                       routerLink="/sistema-gestion-calidad/capitulo-10/plantilla/sgc-f-14">
                       <i class="fas fa-file-alt mr-1"></i> Abrir SGC-F-14
+                    </a>
+                    <a class="sgc-btn-add-text sgc-aud-panel__register"
+                      *ngIf="hayProyectoAvanceSeleccionado"
+                      routerLink="/control-proyectos">
+                      <i class="fas fa-project-diagram mr-1"></i> Abrir Control de proyectos
                     </a>
                   </div>
                 </div>
