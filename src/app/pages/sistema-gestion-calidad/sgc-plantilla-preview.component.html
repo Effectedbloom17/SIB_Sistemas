@@ -346,6 +346,17 @@
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF24DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
                   </button>
                   <button
+                    *ngIf="plantillaSlug === 'sgc-f-28'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF28DescargandoPdf || !sgcF28ComparativaActiva"
+                    (click)="descargarPdfSgcF28()"
+                    title="Descargar PDF (horizontal, carta, ajustar a la hoja)"
+                    aria-label="Descargar PDF de la comparativa">
+                    <i class="fas" [ngClass]="sgcF28DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF28DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
+                  </button>
+                  <button
                     *ngIf="plantillaSlug === 'ath-f-11' && athF11Vista === 'editor'"
                     type="button"
                     class="btn btn-sm sgc-btn-pdf-icon"
@@ -4901,11 +4912,13 @@
                             <tr>
                               <th scope="row" class="sgc-f-28-table__sticky">Proceso / producto / servicio</th>
                               <td *ngFor="let i of sgcF28IndicesVisibles; trackBy: trackByIdx">
-                                <input class="sgc-f-28-input" type="text" [name]="'sgcF28_proc_'+i"
+                                <textarea class="sgc-f-28-input sgc-f-28-input--area sgc-f-28-input--crit-area"
+                                  [name]="'sgcF28_proc_'+i"
+                                  [attr.rows]="filasTextoAjustadas(comp.proveedores[i].procesoProductoServicio, 36, 5)"
                                   [(ngModel)]="comp.proveedores[i].procesoProductoServicio"
                                   [ngModelOptions]="{standalone: true}"
                                   placeholder="Qué cotiza"
-                                  autocomplete="off" (ngModelChange)="onSgcF28Editado()">
+                                  (ngModelChange)="onSgcF28Editado()"></textarea>
                               </td>
                             </tr>
                             <tr>
@@ -5000,21 +5013,23 @@
                                 </div>
                                 <div *ngSwitchCase="'liga_compra'" class="sgc-f-28-link">
                                   <i class="fas fa-link" aria-hidden="true"></i>
-                                  <input class="sgc-f-28-input" type="url"
+                                  <textarea class="sgc-f-28-input sgc-f-28-input--area sgc-f-28-input--crit-area"
                                     [name]="'sgcF28_liga_'+crit.id+'_'+i"
+                                    [attr.rows]="filasTextoAjustadas(crit.valores[i].texto, 40, 4)"
                                     [(ngModel)]="crit.valores[i].texto"
                                     [ngModelOptions]="{standalone: true}"
                                     placeholder="https://tienda.com/producto"
                                     (blur)="onLigaCompraSgcF28(crit.valores[i])"
-                                    (ngModelChange)="onSgcF28Editado()">
+                                    (ngModelChange)="onSgcF28Editado()"></textarea>
                                 </div>
-                                <input *ngSwitchDefault class="sgc-f-28-input" type="text"
+                                <textarea *ngSwitchDefault
+                                  class="sgc-f-28-input sgc-f-28-input--area sgc-f-28-input--crit-area"
                                   [name]="'sgcF28_val_'+crit.id+'_'+i"
+                                  [attr.rows]="filasTextoAjustadas(crit.valores[i].texto, 32, 8)"
                                   [(ngModel)]="crit.valores[i].texto"
                                   [ngModelOptions]="{standalone: true}"
-                                  autocomplete="off"
                                   [placeholder]="placeholderValorSgcF28(crit.tipo)"
-                                  (ngModelChange)="onSgcF28Editado()">
+                                  (ngModelChange)="onSgcF28Editado()"></textarea>
                               </td>
                             </tr>
 
@@ -5051,11 +5066,12 @@
                             <tr>
                               <th scope="row" class="sgc-f-28-table__sticky">Observaciones</th>
                               <td *ngFor="let i of sgcF28IndicesVisibles; trackBy: trackByIdx">
-                                <textarea class="sgc-f-28-input sgc-f-28-input--area" rows="4"
+                                <textarea class="sgc-f-28-input sgc-f-28-input--area" 
+                                  [attr.rows]="filasTextoAjustadas(comp.proveedores[i].observaciones, 36, 10)"
                                   [name]="'sgcF28_obs_'+i"
                                   [(ngModel)]="comp.proveedores[i].observaciones"
                                   [ngModelOptions]="{standalone: true}"
-                                  placeholder="observaciones "
+                                  placeholder="Observaciones…"
                                   (ngModelChange)="onSgcF28Editado()"></textarea>
                               </td>
                             </tr>

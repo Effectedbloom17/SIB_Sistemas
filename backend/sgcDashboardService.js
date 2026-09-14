@@ -9,7 +9,8 @@
  *   4. Evaluación de proveedores — calificaciones manuales (sgc_evaluacion_proveedor).
  *   5. Avance de proyectos — resumen del control de proyectos (SP-F-05).
  *   6. Eficacia del SGC — resultados de auditorías desde SGC-F-10
- *      (sgc_f10_historial + informe vigente).
+ *      (sgc_f10_historial + informe vigente) y estatus Abierta/Cerrada
+ *      de no conformidades desde SGC-F-05.
  */
 const googleFormsService = require('./googleFormsService');
 const driveService = require('./driveService');
@@ -1037,6 +1038,59 @@ function contadoresClasificacionF10(hallazgos) {
     };
 }
 
+function registroNcF05TieneContenido(r) {
+    if (!r || typeof r !== 'object') return false;
+    return !!(
+        String(r.folio || '').trim()
+        || String(r.fuente || '').trim()
+        || String(r.fechaInicio || '').trim()
+        || String(r.area || '').trim()
+        || String(r.cliente || '').trim()
+        || String(r.descripcion || '').trim()
+        || String(r.accion || '').trim()
+        || String(r.estatus || '').trim()
+    );
+}
+
+/**
+ * Contadores Abierta/Cerrada desde la bitácora SGC-F-05.
+ * Alimenta el indicador de eficacia y el histograma de NC.
+ */
+async function contadoresNcDesdeF05(poolSgc) {
+    const vacio = {
+        totalNcBitacora: 0,
+        ncAbiertas: 0,
+        ncCerradas: 0,
+        fuenteBitacora: 'SGC-F-05'
+    };
+    try {
+        const registro = await obtenerRegistroSgcPersistido(poolSgc, 'SGC-F-05');
+        if (!registro?.datos_json) return vacio;
+        const datos = typeof registro.datos_json === 'string'
+            ? JSON.parse(registro.datos_json)
+            : registro.datos_json;
+        const lista = Array.isArray(datos?.registros)
+            ? datos.registros.filter(registroNcF05TieneContenido)
+            : [];
+        let abiertas = 0;
+        let cerradas = 0;
+        for (const r of lista) {
+            const est = String(r.estatus || '').trim().toLowerCase();
+            if (est === 'cerrada') cerradas += 1;
+            else abiertas += 1;
+        }
+        return {
+            totalNcBitacora: lista.length,
+            ncAbiertas: abiertas,
+            ncCerradas: cerradas,
+            fuenteBitacora: 'SGC-F-05'
+        };
+    } catch (err) {
+        console.warn('[SGC-DASH] No se pudo leer SGC-F-05 para eficacia:', err.message);
+        return vacio;
+    }
+}
+
 function mapearAuditoriaDesdeF10({
     id,
     auditoriaNo,
@@ -1209,6 +1263,7 @@ async function obtenerEficacia(poolSgc, anio) {
     };
 
     const delAnio = auditorias.filter((a) => Number(a.anio) === anioNum);
+    const bitacoraNc = await contadoresNcDesdeF05(poolSgc);
 
     return {
         anio: anioNum,
@@ -1230,6 +1285,11 @@ async function obtenerEficacia(poolSgc, anio) {
         auditoriaActualEnCurso: actual ? !!actual.enCurso : false,
         conteoNiveles,
         clasificacionActual,
+        // Bitácora SGC-F-05 · estatus Abierta / Cerrada
+        totalNcBitacora: bitacoraNc.totalNcBitacora,
+        ncAbiertas: bitacoraNc.ncAbiertas,
+        ncCerradas: bitacoraNc.ncCerradas,
+        fuenteBitacora: bitacoraNc.fuenteBitacora,
         auditorias
     };
 }

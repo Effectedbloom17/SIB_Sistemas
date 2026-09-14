@@ -391,16 +391,87 @@ function esHojaComparativaSgcF28(titulo) {
     return true;
 }
 
-function softWrapTextoExcel(texto, cada = 40) {
+/**
+ * Inserta saltos de línea (\n) en textos largos para que quepan en celdas
+ * de ~220 px (columnas C–G) al exportar a Sheets/PDF.
+ * Respeta saltos existentes y parte por palabras cuando es posible.
+ */
+function softWrapTextoExcel(texto, cada = 28) {
+    const ancho = Math.max(8, Number(cada) || 28);
+    const raw = String(texto || '').replace(/\r\n/g, '\n').trim();
+    if (!raw) return '';
+
+    const partirTokenLargo = (token) => {
+        const partes = [];
+        for (let i = 0; i < token.length; i += ancho) {
+            partes.push(token.slice(i, i + ancho));
+        }
+        return partes;
+    };
+
+    const wrapLinea = (linea) => {
+        const limpia = String(linea || '').trimEnd();
+        if (!limpia) return '';
+        if (limpia.length <= ancho) return limpia;
+
+        const tokens = limpia.split(/(\s+)/);
+        const lineas = [];
+        let actual = '';
+
+        for (const token of tokens) {
+            if (!token) continue;
+            if (!actual) {
+                if (token.length > ancho && !/^\s+$/.test(token)) {
+                    const trozos = partirTokenLargo(token);
+                    lineas.push(...trozos.slice(0, -1));
+                    actual = trozos[trozos.length - 1] || '';
+                } else if (!/^\s+$/.test(token)) {
+                    actual = token;
+                }
+                continue;
+            }
+
+            if ((actual + token).length <= ancho) {
+                actual += token;
+                continue;
+            }
+
+            lineas.push(actual.trimEnd());
+            if (/^\s+$/.test(token)) {
+                actual = '';
+            } else if (token.length > ancho) {
+                const trozos = partirTokenLargo(token);
+                lineas.push(...trozos.slice(0, -1));
+                actual = trozos[trozos.length - 1] || '';
+            } else {
+                actual = token;
+            }
+        }
+
+        if (actual.trim()) lineas.push(actual.trimEnd());
+        return lineas.join('\n');
+    };
+
+    return raw
+        .split('\n')
+        .map(wrapLinea)
+        .filter((l, idx, arr) => l || (idx > 0 && idx < arr.length - 1))
+        .join('\n');
+}
+
+function contarLineasTexto(texto) {
     const t = String(texto || '').replace(/\r\n/g, '\n').trim();
-    if (!t || t.includes('\n') || t.length <= cada) {
-        return t;
-    }
-    const partes = [];
-    for (let i = 0; i < t.length; i += cada) {
-        partes.push(t.slice(i, i + cada));
-    }
-    return partes.join('\n');
+    if (!t) return 1;
+    return Math.max(1, t.split('\n').length);
+}
+
+function estimarAltoFilaPx(lineas, opciones = {}) {
+    const n = Math.max(1, Number(lineas) || 1);
+    const porLinea = opciones.porLinea || 16;
+    const pad = opciones.pad != null ? opciones.pad : 14;
+    const min = opciones.min != null ? opciones.min : 36;
+    const max = opciones.max != null ? opciones.max : 240;
+    return Math.min(max, Math.max(min, pad + n * porLinea));
 }
 
 function valorCriterioATexto(criterio, valor) {
@@ -423,9 +494,10 @@ function valorCriterioATexto(criterio, valor) {
         return '';
     }
     if (criterio.tipo === 'liga_compra') {
-        return softWrapTextoExcel(valor.texto || '', 28);
+        return softWrapTextoExcel(valor.texto || '', 24);
     }
-    return softWrapTextoExcel(valor.texto || '', 42);
+    // ~28 chars ≈ ancho útil de columna 220 px (Century Gothic 10)
+    return softWrapTextoExcel(valor.texto || '', 28);
 }
 
 function urlPublicaImagenDrive(driveFileId) {
@@ -479,12 +551,12 @@ function datosAActualizacionesSheet(datos, sheetTitle, layout) {
         const col = PROVEEDOR_COLS[i];
         const p = comp.proveedores[i] || crearProveedorVacio();
         pushUpdate(actualizaciones, 6, col, String(i + 1), sheetTitle);
-        pushUpdate(actualizaciones, 7, col, p.nombre || '', sheetTitle);
-        pushUpdate(actualizaciones, 8, col, p.procesoProductoServicio || '', sheetTitle);
+        pushUpdate(actualizaciones, 7, col, softWrapTextoExcel(p.nombre || '', 28), sheetTitle);
+        pushUpdate(actualizaciones, 8, col, softWrapTextoExcel(p.procesoProductoServicio || '', 28), sheetTitle);
         pushUpdate(actualizaciones, 9, col, formatearFechaDisplay(p.fechaCotizacion), sheetTitle);
         pushUpdate(actualizaciones, resultadoRow, col, p.resultado || '', sheetTitle);
         // Observaciones: conservar saltos; si es un bloque largo sin \n, partirlo.
-        const obs = softWrapTextoExcel(p.observaciones || '', 48);
+        const obs = softWrapTextoExcel(p.observaciones || '', 32);
         pushUpdate(actualizaciones, obsRow, col, obs, sheetTitle);
     }
 
@@ -731,13 +803,74 @@ async function aplicarFormatoCeldasComparativa(spreadsheetId, sheetTitle, layout
             }
         });
 
-        // Criterios por fila (tipografía / alto específicos)
+        // Identificación: alto dinámico según textos largos (nombre / proceso)
+        const proveedores = comparativa?.proveedores || [];
+        let maxLineasNombre = 1;
+        let maxLineasProceso = 1;
+        let maxLineasObs = 1;
+        for (const p of proveedores) {
+            maxLineasNombre = Math.max(
+                maxLineasNombre,
+                contarLineasTexto(softWrapTextoExcel(p?.nombre || '', 28))
+            );
+            maxLineasProceso = Math.max(
+                maxLineasProceso,
+                contarLineasTexto(softWrapTextoExcel(p?.procesoProductoServicio || '', 28))
+            );
+            maxLineasObs = Math.max(
+                maxLineasObs,
+                contarLineasTexto(softWrapTextoExcel(p?.observaciones || '', 32))
+            );
+        }
+        requests.push({
+            updateDimensionProperties: {
+                range: {
+                    sheetId,
+                    dimension: 'ROWS',
+                    startIndex: 6,
+                    endIndex: 7
+                },
+                properties: { pixelSize: estimarAltoFilaPx(maxLineasNombre, { min: 28, max: 120 }) },
+                fields: 'pixelSize'
+            }
+        });
+        requests.push({
+            updateDimensionProperties: {
+                range: {
+                    sheetId,
+                    dimension: 'ROWS',
+                    startIndex: 7,
+                    endIndex: 8
+                },
+                properties: { pixelSize: estimarAltoFilaPx(maxLineasProceso, { min: 28, max: 140 }) },
+                fields: 'pixelSize'
+            }
+        });
+
+        // Criterios por fila (tipografía / alto según líneas con \n)
         const criterios = comparativa?.criterios || [];
         for (let i = 0; i < nCrit; i++) {
-            const tipo = criterios[i]?.tipo;
+            const crit = criterios[i];
+            const tipo = crit?.tipo;
             const rowIndex = CRITERIO_START_ROW - 1 + i;
             const fontSize = tipo === 'liga_compra' ? 9 : 10;
-            const pixelSize = tipo === 'liga_compra' ? 80 : (tipo === 'imagen' ? 120 : 36);
+            let pixelSize;
+            if (tipo === 'imagen') {
+                pixelSize = 120;
+            } else if (tipo === 'precio') {
+                pixelSize = 36;
+            } else {
+                let maxLineas = 1;
+                for (let j = 0; j < MAX_PROVEEDORES; j++) {
+                    const txt = valorCriterioATexto(crit, crit?.valores?.[j]);
+                    maxLineas = Math.max(maxLineas, contarLineasTexto(txt));
+                }
+                pixelSize = estimarAltoFilaPx(maxLineas, {
+                    min: tipo === 'liga_compra' ? 48 : 36,
+                    max: tipo === 'liga_compra' ? 160 : 220,
+                    porLinea: tipo === 'liga_compra' ? 14 : 16
+                });
+            }
             requests.push({
                 repeatCell: {
                     range: {
@@ -772,7 +905,7 @@ async function aplicarFormatoCeldasComparativa(spreadsheetId, sheetTitle, layout
             });
         }
 
-        // Observaciones: Centro + Medio + Ajuste
+        // Observaciones: Centro + Medio + Ajuste; alto según texto con \n
         requests.push({
             repeatCell: {
                 range: {
@@ -793,15 +926,33 @@ async function aplicarFormatoCeldasComparativa(spreadsheetId, sheetTitle, layout
                 fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)'
             }
         });
+        const altoObsPrincipal = estimarAltoFilaPx(maxLineasObs, {
+            min: 48,
+            max: 220,
+            porLinea: 16,
+            pad: 16
+        });
         requests.push({
             updateDimensionProperties: {
                 range: {
                     sheetId,
                     dimension: 'ROWS',
                     startIndex: obsRow - 1,
+                    endIndex: obsRow
+                },
+                properties: { pixelSize: altoObsPrincipal },
+                fields: 'pixelSize'
+            }
+        });
+        requests.push({
+            updateDimensionProperties: {
+                range: {
+                    sheetId,
+                    dimension: 'ROWS',
+                    startIndex: obsRow,
                     endIndex: obsRow + 2
                 },
-                properties: { pixelSize: 40 },
+                properties: { pixelSize: 24 },
                 fields: 'pixelSize'
             }
         });
@@ -1528,6 +1679,66 @@ async function actualizarPlantillaDesdeSistema(pool) {
     });
 }
 
+/**
+ * Exporta la hoja de la comparativa activa (o la indicada) a PDF:
+ * horizontal, papel carta, escala «ajustar a la página».
+ */
+async function descargarPlantillaPdf(pool, opciones = {}) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const driveFileId = await resolverDriveFileId(registro);
+    if (!driveFileId) {
+        throw new Error('No hay Google Sheet SGC-F-28 configurado para exportar a PDF.');
+    }
+
+    const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+    const comparativaId = String(opciones.comparativaId || '').trim();
+    let datosParaHoja = datos;
+    if (comparativaId) {
+        const hit = (datos.comparativas || []).find((c) => c.id === comparativaId);
+        if (hit) {
+            datosParaHoja = datosConComparativaActiva(datos, hit);
+        }
+    }
+
+    const tituloHoja = resolverNombreHojaComparativa(datosParaHoja);
+    if (!tituloHoja || tituloHoja === 'Sin-nombre') {
+        const err = new Error('Abre o selecciona una comparativa con nombre para exportar a PDF.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    let gid = null;
+    try {
+        gid = await driveService.obtenerGidHojaPorNombre(driveFileId, tituloHoja);
+    } catch (err) {
+        console.warn('[SGC-F-28] No se pudo resolver gid de hoja para PDF:', err.message);
+    }
+    if (gid == null) {
+        const err = new Error(
+            `No se encontró la hoja «${tituloHoja}» en Drive. Guarda la información primero para sincronizar la hoja.`
+        );
+        err.statusCode = 404;
+        throw err;
+    }
+
+    const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
+        gid,
+        landscape: true,
+        fitToPage: true,
+        size: 'letter'
+    });
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de SGC-F-28 quedó vacía.');
+    }
+
+    const nombreSeguro = sanitizarNombreHoja(tituloHoja) || 'Comparativa';
+    return {
+        buffer: Buffer.from(pdfBuffer),
+        nombreArchivo: `SGC-F-28 ${nombreSeguro}.pdf`
+    };
+}
+
 module.exports = {
     CODIGO_FORMATO,
     TIPOS_CRITERIO,
@@ -1539,6 +1750,7 @@ module.exports = {
     guardarFormato,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
+    descargarPlantillaPdf,
     sanitizarDatos,
     migrarImagenesACarpetaImagenes
 };

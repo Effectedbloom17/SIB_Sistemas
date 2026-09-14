@@ -27220,6 +27220,26 @@ app.post('/api/sgc/formatos/sgc-f-28/actualizar-plantilla', requireRole('root'),
     }
 });
 
+app.get('/api/sgc/formatos/sgc-f-28/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const resultado = await sgcF28Service.descargarPlantillaPdf(poolBiznagaSgc, {
+            comparativaId: req.query.comparativaId || req.query.id || null
+        });
+        const nombre = String(resultado.nombreArchivo || 'SGC-F-28 Comparativa de proveedores.pdf')
+            .replace(/[^\w.\- áéíóúÁÉÍÓÚñÑ()]/gi, '_')
+            .trim() || 'SGC-F-28 Comparativa de proveedores.pdf';
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${nombre.replace(/"/g, '')}"`
+        );
+        return res.send(resultado.buffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-28');
+    }
+});
+
 app.get('/api/sgc/formatos/sp-f-02', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;

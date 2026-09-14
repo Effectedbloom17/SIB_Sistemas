@@ -2134,6 +2134,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF28NuevoTipo: SgcF28CriterioTipo = 'precio';
   sgcF28NuevaEtiqueta = '';
   sgcF28MostrarAddCriterio = false;
+  sgcF28DescargandoPdf = false;
   /** Por defecto solo 3 columnas; 4–5 se expanden bajo demanda o si ya tienen datos. */
   sgcF28ExpandirProveedores = false;
   sgcF28DragCriterioFrom: number | null = null;
@@ -11413,6 +11414,81 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       next: (res) => this.aplicarEstadoSgcF28(res, false, true, true),
       error: () => { /* silencioso */ }
     });
+  }
+
+  descargarPdfSgcF28(): void {
+    if (this.sgcF28DescargandoPdf || !this.sgcF28ComparativaActiva) {
+      return;
+    }
+    const comparativaId = this.sgcF28ComparativaActiva.id;
+    const nombreCotizacion = String(this.sgcF28ComparativaActiva.nombreCotizacion || '').trim()
+      || 'Comparativa de proveedores';
+    const nombreArchivo = `SGC-F-28 ${nombreCotizacion}.pdf`.replace(/[\\/:*?"<>|]+/g, '_');
+
+    const iniciarDescarga = () => {
+      this.sgcF28DescargandoPdf = true;
+      this.backendService.descargarPdfSgcF28(comparativaId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.sgcF28DescargandoPdf = false;
+            if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+              void Swal.fire({
+                icon: 'error',
+                title: 'No se pudo generar el PDF',
+                text: 'Guarda la información y vuelve a intentar. Si el problema continúa, revisa que la hoja exista en Drive.',
+                confirmButtonText: 'Entendido'
+              });
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = nombreArchivo;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.sgcF28DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo descargar el PDF',
+              text: 'Guarda la información primero para sincronizar la hoja en Drive e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    };
+
+    // Si hay cambios sin guardar, persistir antes para que el PDF refleje lo actual.
+    if (this.sgcF28CambiosPendientes && this.sgcF28Listo && !this.sgcF28Guardando) {
+      this.sgcF28DescargandoPdf = true;
+      this.sgcF28Guardando = true;
+      this.backendService.guardarSgcF28Formato(this.sgcF28Form, false)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.aplicarEstadoSgcF28(res, true, false, true);
+            this.sgcF28CambiosPendientes = false;
+            this.sgcF28Guardando = false;
+            this.sgcF28DescargandoPdf = false;
+            iniciarDescarga();
+          },
+          error: () => {
+            this.sgcF28Guardando = false;
+            this.sgcF28DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'No se guardaron los cambios antes de generar el PDF. Intenta de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+
+    iniciarDescarga();
   }
 
   private persistirSgcF28(): void {

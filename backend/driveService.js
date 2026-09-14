@@ -4988,8 +4988,38 @@ async function solicitarExportSheetPdf(baseUrl, token, params) {
 async function exportarGoogleSheetComoPDF(fileId, options = {}) {
     const token = await obtenerAccessTokenDrive();
     const landscape = !!options.landscape;
+    const fitToPage = !!options.fitToPage;
+    // Carta / Letter (Google Sheets export: letter, a4, legal, …)
+    const sizeRaw = String(options.size || options.paperSize || '').trim().toLowerCase();
+    const size = sizeRaw === 'carta' || sizeRaw === '1' ? 'letter' : sizeRaw;
     const gidRaw = options.gid !== undefined && options.gid !== null ? String(options.gid) : '';
     const gidOpts = gidRaw ? { gid: gidRaw } : {};
+
+    // Márgenes: con «ajustar a la página» usar normales (~0.75"); si no, compactos.
+    const margins = fitToPage
+        ? {
+            top_margin: '0.75',
+            bottom_margin: '0.75',
+            left_margin: '0.70',
+            right_margin: '0.70'
+        }
+        : {
+            top_margin: '0.30',
+            bottom_margin: '0.30',
+            left_margin: '0.30',
+            right_margin: '0.30'
+        };
+
+    const scaleOpts = fitToPage
+        ? {
+            // scale=4 → «Ajustar a la página» en la UI de Sheets
+            scale: '4',
+            fitw: 'true',
+            fith: 'true'
+        }
+        : { fitw: 'true' };
+
+    const sizeOpts = size ? { size } : {};
 
     const baseUrl = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(fileId)}/export`;
     // Si hay gid, TODAS las variantes lo incluyen para no exportar el libro completo.
@@ -4997,31 +5027,28 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
         {
             format: 'pdf',
             portrait: landscape ? 'false' : 'true',
-            fitw: 'true',
             sheetnames: 'false',
             printtitle: 'false',
             pagenumbers: 'false',
             gridlines: 'false',
             fzr: 'false',
-            top_margin: '0.30',
-            bottom_margin: '0.30',
-            left_margin: '0.30',
-            right_margin: '0.30',
+            ...scaleOpts,
+            ...margins,
+            ...sizeOpts,
             ...gidOpts
         },
         {
             format: 'pdf',
             portrait: landscape ? 'false' : 'true',
-            fitw: 'true',
-            top_margin: '0.30',
-            bottom_margin: '0.30',
-            left_margin: '0.30',
-            right_margin: '0.30',
+            ...scaleOpts,
+            ...margins,
+            ...sizeOpts,
             ...gidOpts
         },
         {
             format: 'pdf',
             portrait: landscape ? 'false' : 'true',
+            ...sizeOpts,
             ...gidOpts
         }
     ];

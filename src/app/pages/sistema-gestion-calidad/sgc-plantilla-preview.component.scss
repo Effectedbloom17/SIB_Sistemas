@@ -21539,6 +21539,12 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
     line-height: 1.45;
     white-space: pre-wrap;
   }
+
+  &--crit-area {
+    min-height: 2.6rem;
+    resize: vertical;
+    field-sizing: content;
+  }
 }
 
 .sgc-f-28-crithead__top {

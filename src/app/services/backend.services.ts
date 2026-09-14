@@ -2875,6 +2875,14 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-28/actualizar-plantilla`, {});
     }
 
+    descargarPdfSgcF28(comparativaId?: string): Observable<Blob> {
+        const id = encodeURIComponent(String(comparativaId || '').trim());
+        const qs = id ? `?comparativaId=${id}` : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-28/descargar-pdf${qs}`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarSpF02Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sp-f-02`);
     }

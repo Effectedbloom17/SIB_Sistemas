@@ -554,6 +554,22 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     return !!this.eficacia && (this.eficacia.totalAuditorias || 0) > 0;
   }
 
+  get hayNcBitacora(): boolean {
+    return (Number(this.eficacia?.totalNcBitacora) || 0) > 0;
+  }
+
+  get ncAbiertasDisplay(): number {
+    return Number(this.eficacia?.ncAbiertas) || 0;
+  }
+
+  get ncCerradasDisplay(): number {
+    return Number(this.eficacia?.ncCerradas) || 0;
+  }
+
+  get totalNcBitacoraDisplay(): number {
+    return Number(this.eficacia?.totalNcBitacora) || 0;
+  }
+
   get hayQuejasSugerencias(): boolean {
     return !!this.quejasSugerencias && (this.quejasSugerencias.total || 0) > 0;
   }
@@ -666,8 +682,11 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       (total, capitulo) => total + capitulo.plantillas.length,
       0
     );
-    // Siempre la última tomada del listado F-10 (incluye en curso).
-    const noConformidades = this.ncActualesDisplay;
+    // Bitácora SGC-F-05: prioriza NC abiertas para el semáforo del KPI.
+    const ncAbiertasKpi = Number(auditorias.ncAbiertas) || 0;
+    const ncCerradasKpi = Number(auditorias.ncCerradas) || 0;
+    const totalNcBitacora = Number(auditorias.totalNcBitacora) || 0;
+    const noConformidades = totalNcBitacora > 0 ? ncAbiertasKpi : this.ncActualesDisplay;
     const quejasAbiertas = Number(q.abiertas || 0);
     const estadoAuditorias: SgcKpiCard['estado'] =
       noConformidades <= 2 ? 'verde' : noConformidades <= 4 ? 'amarillo' : 'rojo';
@@ -683,8 +702,10 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       },
       {
         titulo: 'Resultados de auditorías',
-        valor: `${noConformidades} NC`,
-        subtitulo: `No. ${this.auditoriaActualNoDisplay} · ${auditorias.totalAuditorias || 0} informes SGC-F-10`,
+        valor: totalNcBitacora > 0 ? `${ncAbiertasKpi} abiertas` : `${noConformidades} NC`,
+        subtitulo: totalNcBitacora > 0
+          ? `${ncCerradasKpi} cerradas · ${totalNcBitacora} en SGC-F-05`
+          : `No. ${this.auditoriaActualNoDisplay} · ${auditorias.totalAuditorias || 0} informes SGC-F-10`,
         icono: 'fa-clipboard-check',
         color: estadoAuditorias === 'verde'
           ? this.palette.verde
@@ -1411,8 +1432,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
 
     this.audNcHistogramaChart = {
       series: [
-        { name: 'NC menor', type: 'column', data: [] },
-        { name: 'NC mayor', type: 'column', data: [] }
+        { name: 'Cantidad', type: 'column', data: [] }
       ],
       chart: {
         ...this.chartBase(),
@@ -1420,13 +1440,14 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
         height: 380,
         dropShadow: { enabled: true, top: 8, left: 0, blur: 18, opacity: 0.1 }
       },
-      colors: ['#f59e0b', '#e11d48'],
+      colors: ['#f59e0b', '#16a34a'],
       plotOptions: {
         bar: {
           horizontal: false,
           columnWidth: '48%',
           borderRadius: 7,
           borderRadiusApplication: 'end',
+          distributed: true,
           dataLabels: { position: 'top' }
         }
       },
@@ -1449,7 +1470,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
         }
       },
       xaxis: {
-        categories: [],
+        categories: ['Abiertas', 'Cerradas'],
         ...axisLabels,
         labels: {
           style: { colors: '#64748b', fontSize: '11px', fontWeight: 700 },
@@ -1476,17 +1497,11 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
         padding: { top: 22, right: 16, bottom: 8, left: 12 }
       },
       legend: {
-        show: true,
-        position: 'top',
-        horizontalAlign: 'right',
-        fontSize: '12px',
-        fontWeight: 600,
-        markers: { width: 10, height: 10, radius: 3 } as any,
-        itemMargin: { horizontal: 12, vertical: 0 }
+        show: false
       },
       tooltip: {
         theme: 'dark',
-        shared: true,
+        shared: false,
         intersect: false,
         y: {
           formatter: (val: number) => `${Math.round(Number(val) || 0)} NC`
@@ -1916,38 +1931,36 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     return '#e11d48';
   }
 
-  private etiquetaAuditoriaHistograma(aud: AuditoriaSgc): string {
-    const no = String(aud.auditoriaNo || '').trim();
-    if (no) return `No. ${no}`;
-    const titulo = String(aud.titulo || '').trim();
-    if (titulo.length <= 18) return titulo || 'Auditoría';
-    return `${titulo.slice(0, 16)}…`;
-  }
-
   private actualizarAudNcHistogramaChart(): void {
-    const lista = [...this.auditorias].sort((a, b) => {
-      const fa = a.fecha ? new Date(`${a.fecha}T00:00:00`).getTime() : 0;
-      const fb = b.fecha ? new Date(`${b.fecha}T00:00:00`).getTime() : 0;
-      if (fa !== fb) return fa - fb;
-      const na = Number(String(a.auditoriaNo || '').replace(/\D/g, '')) || 0;
-      const nb = Number(String(b.auditoriaNo || '').replace(/\D/g, '')) || 0;
-      return na - nb;
-    });
-
-    const categorias = lista.map((a) => this.etiquetaAuditoriaHistograma(a));
-    const ncMenor = lista.map((a) => Number(a.totalNcMenor) || 0);
-    const ncMayor = lista.map((a) => Number(a.totalNcMayor) || 0);
-    const maxNc = Math.max(...ncMenor, ...ncMayor, 0);
+    const abiertas = this.ncAbiertasDisplay;
+    const cerradas = this.ncCerradasDisplay;
+    const maxNc = Math.max(abiertas, cerradas, 0);
 
     this.audNcHistogramaChart = {
       ...this.audNcHistogramaChart,
       series: [
-        { name: 'NC menor', type: 'column', data: ncMenor.length ? ncMenor : [0] },
-        { name: 'NC mayor', type: 'column', data: ncMayor.length ? ncMayor : [0] }
+        { name: 'Cantidad', type: 'column', data: [abiertas, cerradas] }
       ],
+      colors: ['#f59e0b', '#16a34a'],
+      plotOptions: {
+        ...this.audNcHistogramaChart.plotOptions,
+        bar: {
+          ...(this.audNcHistogramaChart.plotOptions as any)?.bar,
+          horizontal: false,
+          columnWidth: '48%',
+          borderRadius: 7,
+          borderRadiusApplication: 'end',
+          distributed: true,
+          dataLabels: { position: 'top' }
+        }
+      },
+      legend: {
+        ...this.audNcHistogramaChart.legend,
+        show: false
+      },
       xaxis: {
         ...this.audNcHistogramaChart.xaxis,
-        categories: categorias.length ? categorias : ['Sin auditorías']
+        categories: ['Abiertas', 'Cerradas']
       },
       yaxis: {
         ...(Array.isArray(this.audNcHistogramaChart.yaxis)
@@ -1960,17 +1973,13 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       },
       tooltip: {
         theme: 'dark',
-        shared: true,
+        shared: false,
         intersect: false,
         custom: undefined,
         x: {
-          formatter: (_val: number, opts?: { dataPointIndex?: number }) => {
-            const idx = opts?.dataPointIndex ?? -1;
-            const aud = lista[idx];
-            if (!aud) return '';
-            const fecha = aud.fecha ? this.formatFecha(aud.fecha) : '';
-            const titulo = aud.titulo || `Auditoría ${aud.auditoriaNo || ''}`.trim();
-            return fecha ? `${titulo} · ${fecha}` : titulo;
+          formatter: () => {
+            const total = this.totalNcBitacoraDisplay;
+            return `SGC-F-05 · ${total} no conformidad${total !== 1 ? 'es' : ''}`;
           }
         },
         y: {
