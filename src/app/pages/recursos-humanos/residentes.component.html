@@ -65,7 +65,7 @@
             <span>{{ mensajeOk }}</span>
           </div>
 
-          <div class="rrhh-list-sep" aria-hidden="true">Credenciales</div>
+          <div class="rrhh-list-sep" *ngIf="!cargando && residentesVigentes.length" aria-hidden="true">Credenciales</div>
 
           <section class="rrhh-list" aria-label="Credenciales de residentes">
             <div class="rrhh-state" *ngIf="cargando">
@@ -79,10 +79,10 @@
               <button type="button" class="rrhh-btn rrhh-btn--primary" (click)="abrirNuevo()">Registrar el primero</button>
             </div>
 
-            <div class="rrhh-badges" *ngIf="!cargando && residentes.length">
+            <div class="rrhh-badges" *ngIf="!cargando && residentesVigentes.length">
               <button type="button"
                       class="rrhh-badge"
-                      *ngFor="let r of residentes"
+                      *ngFor="let r of residentesVigentes"
                       (click)="abrirDetalle(r)"
                       [attr.aria-label]="'Ver detalle de ' + r.nombre">
                 <div class="rrhh-badge__photo">
@@ -104,6 +104,37 @@
               </button>
             </div>
           </section>
+
+          <ng-container *ngIf="!cargando && residentesTerminados.length">
+            <div class="rrhh-list-sep rrhh-list-sep--terminada" aria-hidden="true">Residencia terminada</div>
+
+            <section class="rrhh-list" aria-label="Residentes con residencia terminada">
+              <div class="rrhh-badges">
+                <button type="button"
+                        class="rrhh-badge rrhh-badge--inactivo"
+                        *ngFor="let r of residentesTerminados"
+                        (click)="abrirDetalle(r)"
+                        [attr.aria-label]="'Ver detalle de ' + r.nombre">
+                  <div class="rrhh-badge__photo">
+                    <img *ngIf="r.foto_url" [src]="r.foto_url" [alt]="r.nombre">
+                    <div class="rrhh-badge__photo-fallback" *ngIf="!r.foto_url" aria-hidden="true">
+                      <i class="fas fa-user"></i>
+                    </div>
+                  </div>
+
+                  <h3 class="rrhh-badge__name">{{ r.nombre }}</h3>
+                  <p class="rrhh-badge__role">Proceso finalizado</p>
+
+                  <div class="rrhh-badge__meta">
+                    <p><span>NSS:</span> {{ valorOGuion(r.nss) }}</p>
+                    <p><span>Vigencia:</span> {{ valorOGuion(r.fecha_terminacion) }}</p>
+                  </div>
+
+                  <div class="rrhh-badge__mark" aria-hidden="true">B</div>
+                </button>
+              </div>
+            </section>
+          </ng-container>
 
         </div>
       </div>
@@ -141,7 +172,10 @@
           </label>
         </div>
         <div class="rrhh-detail-hero__info">
-          <span class="rrhh-detail-hero__chip">{{ editandoDetalle ? 'Editando' : 'Residente' }}</span>
+          <span class="rrhh-detail-hero__chip"
+                [class.rrhh-detail-hero__chip--muted]="!editandoDetalle && !esVigente(residenteDetalle)">
+            {{ editandoDetalle ? 'Editando' : (esVigente(residenteDetalle) ? 'Residente' : 'Proceso finalizado') }}
+          </span>
           <h2 *ngIf="!editandoDetalle">{{ residenteDetalle.nombre }}</h2>
           <input *ngIf="editandoDetalle"
                  class="rrhh-detail-hero__name-input"
@@ -437,6 +471,13 @@
       <div class="rrhh-alert rrhh-alert--error" *ngIf="errorCarga">
         <i class="fas fa-exclamation-triangle"></i>
         <span>{{ errorCarga }}</span>
+      </div>
+      <div class="rrhh-alert rrhh-alert--ok" *ngIf="borradorRestaurado && !editandoId">
+        <i class="fas fa-history"></i>
+        <span>Se restauró el borrador guardado. Puedes continuar donde lo dejaste.</span>
+        <button type="button" class="rrhh-link rrhh-alert__action" (click)="descartarBorradorNuevo()" [disabled]="guardando">
+          Descartar
+        </button>
       </div>
 
       <!-- Paso 1 -->

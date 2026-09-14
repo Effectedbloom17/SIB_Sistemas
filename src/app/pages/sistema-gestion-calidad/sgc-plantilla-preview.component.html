@@ -346,6 +346,17 @@
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF24DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
                   </button>
                   <button
+                    *ngIf="plantillaSlug === 'sgc-f-28'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF28DescargandoPdf || !sgcF28ComparativaActiva"
+                    (click)="descargarPdfSgcF28()"
+                    title="Descargar PDF (horizontal, carta, ajustar a la hoja)"
+                    aria-label="Descargar PDF de la comparativa">
+                    <i class="fas" [ngClass]="sgcF28DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF28DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
+                  </button>
+                  <button
                     *ngIf="plantillaSlug === 'ath-f-11' && athF11Vista === 'editor'"
                     type="button"
                     class="btn btn-sm sgc-btn-pdf-icon"
@@ -4197,7 +4208,7 @@
                         <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-project-diagram" aria-hidden="true"></i></div>
                         <div>
                           <h4 class="sgc-f-11-matriz__title">Proyectos de mejora</h4>
-                          <p class="sgc-f-11-matriz__hint">Clic en la fila abre evidencias. Folio (PM-DDMMAA-NN), responsable, prioridad, estatus y avance. Doble clic en un campo para editarlo.</p>
+                          <p class="sgc-f-11-matriz__hint">Edita los campos directamente. Clic fuera de un cuadro (Docs, márgenes de la fila) abre evidencias.</p>
                         </div>
                       </div>
                       <div class="dg-f05-table-wrap sgc-f-11-table-wrap sgc-f-14-table-wrap">
@@ -4210,17 +4221,15 @@
                               <th class="sgc-f-14-table__col--prio">Prioridad</th>
                               <th class="sgc-f-14-table__col--estatus">Estatus</th>
                               <th class="sgc-f-14-table__col--avance">% Avance</th>
-                              <th class="sgc-f-14-table__col--evid" title="Evidencias">Docs</th>
-                              <th class="dg-f05-table__act" aria-label="Acciones"></th>
+                              <th class="sgc-f-14-table__col--evid" title="Documentos / evidencias">Docs</th>
+                              <th class="dg-f05-table__act sgc-f-14-table__col--act" aria-label="Acciones"></th>
                             </tr>
                           </thead>
                           <tbody>
                             <tr *ngFor="let proyecto of sgcF14Form.proyectos; let i = index; trackBy: trackByIdx"
                               class="sgc-f-14-table__row sgc-f-14-table__row--clickable"
-                              [class.is-editing]="sgcF14FilaEditandoIdx === i"
                               (click)="onClickFilaProyectoSgcF14(i, $event)"
-                              (dblclick)="onDblClickFilaProyectoSgcF14(i, $event)"
-                              title="Clic → evidencias · Doble clic → editar campos">
+                              title="Clic fuera de un campo → evidencias">
                               <td class="sgc-f-14-table__cell sgc-f-14-table__cell--folio">
                                 <div class="sgc-f-14-folio">
                                   <button type="button" class="sgc-f-14-folio__gen"
@@ -4231,19 +4240,26 @@
                                   </button>
                                   <input class="dg-f05-field dg-f05-field--center sgc-f-14-table__text" type="text"
                                     placeholder="PM-DDMMAA-NN"
-                                    [(ngModel)]="proyecto.folio" [name]="'sgcF14_folio' + i" autocomplete="off">
+                                    [(ngModel)]="proyecto.folio" [name]="'sgcF14_folio' + i" autocomplete="off"
+                                    (click)="$event.stopPropagation()">
                                 </div>
                               </td>
                               <td class="sgc-f-14-table__cell">
                                 <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left sgc-f-14-table__text"
                                   [attr.rows]="filasTexto(proyecto.nombreProyecto)"
-                                  [(ngModel)]="proyecto.nombreProyecto" [name]="'sgcF14_nombre' + i"></textarea>
+                                  [(ngModel)]="proyecto.nombreProyecto" [name]="'sgcF14_nombre' + i"
+                                  (click)="$event.stopPropagation()"></textarea>
                               </td>
-                              <td class="sgc-f-14-table__cell">
-                                <div class="sgc-f-14-pick sgc-f-14-pick--responsable">
+                              <td class="sgc-f-14-table__cell sgc-f-14-table__cell--resp">
+                                <div class="sgc-f-14-pick sgc-f-14-pick--responsable"
+                                  [class.is-empty]="!proyecto.responsable"
+                                  (click)="$event.stopPropagation()">
                                   <i class="fas fa-user-tie sgc-f-14-pick__lead" aria-hidden="true"></i>
-                                  <select class="dg-f05-field sgc-f-14-table__select sgc-f-14-pick__input"
-                                    [(ngModel)]="proyecto.responsable" [name]="'sgcF14_resp' + i">
+                                  <span class="sgc-f-14-pick__display"
+                                    [attr.title]="proyecto.responsable || 'Seleccionar responsable'">{{ formatearResponsableSgcF14(proyecto.responsable) }}</span>
+                                  <select class="dg-f05-field sgc-f-14-table__select sgc-f-14-pick__input sgc-f-14-pick__input--overlay"
+                                    [(ngModel)]="proyecto.responsable" [name]="'sgcF14_resp' + i"
+                                    [attr.aria-label]="proyecto.responsable || 'Seleccionar responsable'">
                                     <option value="">Seleccionar responsable</option>
                                     <option *ngIf="proyecto.responsable && !sgcF14Responsables.includes(proyecto.responsable)" [value]="proyecto.responsable">{{ proyecto.responsable }}</option>
                                     <option *ngFor="let r of sgcF14Responsables" [value]="r">{{ r }}</option>
@@ -4252,7 +4268,7 @@
                                 </div>
                               </td>
                               <td class="sgc-f-14-table__cell">
-                                <div class="sgc-f-14-pick sgc-f-14-pick--prioridad">
+                                <div class="sgc-f-14-pick sgc-f-14-pick--prioridad" (click)="$event.stopPropagation()">
                                   <select class="dg-f05-field sgc-f-14-table__select sgc-f-14-pick__input"
                                     [(ngModel)]="proyecto.prioridad" [name]="'sgcF14_prio' + i">
                                     <option value="">—</option>
@@ -4262,7 +4278,7 @@
                                 </div>
                               </td>
                               <td class="sgc-f-14-table__cell">
-                                <div class="sgc-f-14-pick sgc-f-14-pick--estatus">
+                                <div class="sgc-f-14-pick sgc-f-14-pick--estatus" (click)="$event.stopPropagation()">
                                   <select class="dg-f05-field sgc-f-14-table__select sgc-f-14-pick__input"
                                     [(ngModel)]="proyecto.estatus" [name]="'sgcF14_estatus' + i">
                                     <option value="">—</option>
@@ -4272,7 +4288,7 @@
                                 </div>
                               </td>
                               <td class="sgc-f-14-table__cell sgc-f-14-table__cell--avance">
-                                <div class="sgc-f-14-avance">
+                                <div class="sgc-f-14-avance" (click)="$event.stopPropagation()">
                                   <input class="dg-f05-field dg-f05-field--center sgc-f-14-avance__num" type="number"
                                     min="0" max="100" step="1"
                                     [(ngModel)]="proyecto.avance" [name]="'sgcF14_avance' + i">
@@ -4280,12 +4296,13 @@
                               </td>
                               <td class="sgc-f-14-table__cell sgc-f-14-table__cell--evid">
                                 <span class="sgc-f-14-evid-chip"
-                                  [class.is-on]="conteoEvidenciasProyectoSgcF14(proyecto) > 0">
+                                  [class.is-on]="conteoEvidenciasProyectoSgcF14(proyecto) > 0"
+                                  title="Abrir documentos / evidencias">
                                   <i class="fas fa-folder-open" aria-hidden="true"></i>
-                                  {{ conteoEvidenciasProyectoSgcF14(proyecto) }}
+                                  <em>{{ conteoEvidenciasProyectoSgcF14(proyecto) }}</em>
                                 </span>
                               </td>
-                              <td class="dg-f05-table__act">
+                              <td class="dg-f05-table__act sgc-f-14-table__cell--act">
                                 <button type="button" class="dg-f05-row-btn"
                                   (click)="quitarFilaProyectoSgcF14(i); $event.stopPropagation()"
                                   title="Quitar proyecto">
@@ -4308,7 +4325,7 @@
                         </button>
                         <p class="sgc-f-14-evid-hint mb-0">
                           <i class="fas fa-info-circle" aria-hidden="true"></i>
-                          Clic en cualquier parte de la fila abre evidencias. Doble clic en un campo para editarlo.
+                          Edita los campos en la tabla. Clic en Docs o fuera de un campo abre evidencias.
                         </p>
                       </div>
                     </div>
@@ -4319,27 +4336,28 @@
                 <div class="sgc-f29-evid-page" *ngIf="sgcF14EvidenciasModalAbierto" role="region"
                   aria-label="Evidencias del proyecto">
                   <header class="sgc-f29-evid-page__head">
-                    <button type="button" class="sgc-f29-evid-page__back" (click)="cerrarEvidenciasSgcF14()">
+                    <button type="button" class="sgc-f29-evid-page__back"
+                      (click)="cerrarEvidenciasSgcF14()"
+                      title="Volver a proyectos"
+                      aria-label="Volver a proyectos">
                       <span class="sgc-f29-evid-page__back-glow" aria-hidden="true"></span>
                       <i class="fas fa-arrow-left" aria-hidden="true"></i>
-                      <span>Volver a proyectos</span>
+                      <span class="sgc-f29-evid-page__back-label">Volver</span>
                     </button>
                     <div class="sgc-f29-evid-page__titles">
                       <p class="sgc-f29-evid-page__eyebrow">SGC-F-14 · Evidencias</p>
                       <h3 class="sgc-f29-evid-page__title">
                         {{ sgcF14EvidenciasFila?.nombreProyecto || sgcF14EvidenciasFila?.folio || 'Proyecto sin nombre' }}
                       </h3>
-                      <p class="sgc-f29-evid-page__sub mb-0" *ngIf="sgcF14EvidenciasFila as f">
-                        <span *ngIf="f.folio">{{ f.folio }} · </span>
-                        <span *ngIf="f.responsable">{{ f.responsable }} · </span>
-                        <span *ngIf="f.estatus">{{ f.estatus }} · </span>
-                        Avance {{ f.avance ? (f.avance + '%') : '—' }}
-                        · Archivos en Google Drive
-                      </p>
                     </div>
-                    <label class="sgc-f29-evid-page__upload btn" [class.is-busy]="sgcF14EvidenciasSubiendo">
+                    <label class="sgc-f29-evid-icon-btn sgc-f29-evid-icon-btn--light"
+                      [class.is-busy]="sgcF14EvidenciasSubiendo"
+                      title="Subir documento"
+                      aria-label="Subir documento">
                       <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
-                      {{ sgcF14EvidenciasSubiendo ? ('Subiendo ' + sgcF14EvidenciasProgreso + '%') : 'Subir documento' }}
+                      <span class="sgc-f29-evid-icon-btn__label">
+                        {{ sgcF14EvidenciasSubiendo ? (sgcF14EvidenciasProgreso + '%') : 'Subir' }}
+                      </span>
                       <input type="file" hidden multiple
                         accept=".pdf,.csv,.xls,.xlsx,.doc,.docx,.ppt,.pptx,image/*"
                         [disabled]="sgcF14EvidenciasSubiendo"
@@ -4379,9 +4397,14 @@
                           <em>{{ conteoTipoEvidenciaSgcF14('img') }}</em>
                         </button>
                       </nav>
-                      <label class="sgc-f29-evid-upload-btn" [class.is-busy]="sgcF14EvidenciasSubiendo">
+                      <label class="sgc-f29-evid-icon-btn sgc-f29-evid-icon-btn--teal sgc-f29-evid-icon-btn--block"
+                        [class.is-busy]="sgcF14EvidenciasSubiendo"
+                        title="Subir documento"
+                        aria-label="Subir documento">
                         <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
-                        {{ sgcF14EvidenciasSubiendo ? ('Subiendo ' + sgcF14EvidenciasProgreso + '%') : 'Subir documento' }}
+                        <span class="sgc-f29-evid-icon-btn__label">
+                          {{ sgcF14EvidenciasSubiendo ? (sgcF14EvidenciasProgreso + '%') : 'Subir' }}
+                        </span>
                         <input type="file" hidden multiple
                           accept=".pdf,.csv,.xls,.xlsx,.doc,.docx,.ppt,.pptx,image/*"
                           [disabled]="sgcF14EvidenciasSubiendo"
@@ -4390,19 +4413,57 @@
                     </aside>
 
                     <section class="sgc-f29-evid-main">
+                      <div class="sgc-f14-evid-meta" *ngIf="sgcF14EvidenciasFila as f" aria-label="Datos del proyecto">
+                        <span class="sgc-f14-evid-meta__chip sgc-f14-evid-meta__chip--folio" *ngIf="f.folio" [title]="f.folio">
+                          <i class="fas fa-hashtag" aria-hidden="true"></i>
+                          <strong>{{ f.folio }}</strong>
+                        </span>
+                        <span class="sgc-f14-evid-meta__chip sgc-f14-evid-meta__chip--resp" *ngIf="f.responsable" [title]="f.responsable">
+                          <i class="fas fa-user-tie" aria-hidden="true"></i>
+                          <strong class="sgc-f14-evid-meta__resp">{{ f.responsable }}</strong>
+                        </span>
+                        <span class="sgc-f14-evid-meta__chip sgc-f14-evid-meta__chip--estatus" *ngIf="f.estatus"
+                          [attr.data-estatus]="f.estatus">
+                          <i class="fas fa-flag" aria-hidden="true"></i>
+                          <strong>{{ f.estatus }}</strong>
+                        </span>
+                        <span class="sgc-f14-evid-meta__chip sgc-f14-evid-meta__chip--avance">
+                          <i class="fas fa-chart-line" aria-hidden="true"></i>
+                          <strong>Avance {{ f.avance ? (f.avance + '%') : '—' }}</strong>
+                        </span>
+                      </div>
                       <div class="sgc-f29-evid-toolbar">
                         <div class="sgc-f29-evid-search">
                           <i class="fas fa-search" aria-hidden="true"></i>
                           <input type="search" placeholder="Buscar archivos…"
                             [(ngModel)]="sgcF14EvidenciasBusqueda" name="sgcF14EvidBusq">
                         </div>
-                        <label class="sgc-f29-evid-toolbar__btn" [class.is-busy]="sgcF14EvidenciasSubiendo">
-                          <i class="fas fa-upload" aria-hidden="true"></i> Subir
-                          <input type="file" hidden multiple
-                            accept=".pdf,.csv,.xls,.xlsx,.doc,.docx,.ppt,.pptx,image/*"
+                        <div class="sgc-f29-evid-folder" [class.is-open]="sgcF14EvidCarpetasMenu">
+                          <button type="button"
+                            class="sgc-f29-evid-folder__btn"
                             [disabled]="sgcF14EvidenciasSubiendo"
-                            (change)="onEvidenciasInputSgcF14($event)">
-                        </label>
+                            title="Crear o subir carpeta"
+                            aria-label="Crear carpeta"
+                            (click)="toggleMenuCarpetasEvidenciaSgcF14($event)">
+                            <i class="fas fa-folder-plus" aria-hidden="true"></i>
+                            Crear Carpeta
+                          </button>
+                          <div class="sgc-f29-evid-folder__menu" *ngIf="sgcF14EvidCarpetasMenu"
+                            (click)="$event.stopPropagation()">
+                            <button type="button" (click)="abrirSelectorCarpetaEvidenciaSgcF14()">
+                              <i class="fas fa-folder-open" aria-hidden="true"></i>
+                              Subir carpeta
+                            </button>
+                            <button type="button" (click)="crearCarpetaEvidenciaSgcF14()">
+                              <i class="fas fa-plus" aria-hidden="true"></i>
+                              Crear carpeta
+                            </button>
+                          </div>
+                          <input #sgcF14CarpetaInput type="file" hidden multiple
+                            [attr.webkitdirectory]="''"
+                            [attr.directory]="''"
+                            (change)="onEvidenciasCarpetaInputSgcF14($event)">
+                        </div>
                         <div class="sgc-f29-evid-view-toggle" role="group" aria-label="Vista">
                           <button type="button" [class.is-active]="sgcF14EvidenciasVista === 'grid'"
                             (click)="sgcF14EvidenciasVista = 'grid'" title="Cuadrícula">
@@ -4851,11 +4912,13 @@
                             <tr>
                               <th scope="row" class="sgc-f-28-table__sticky">Proceso / producto / servicio</th>
                               <td *ngFor="let i of sgcF28IndicesVisibles; trackBy: trackByIdx">
-                                <input class="sgc-f-28-input" type="text" [name]="'sgcF28_proc_'+i"
+                                <textarea class="sgc-f-28-input sgc-f-28-input--area sgc-f-28-input--crit-area"
+                                  [name]="'sgcF28_proc_'+i"
+                                  [attr.rows]="filasTextoAjustadas(comp.proveedores[i].procesoProductoServicio, 36, 5)"
                                   [(ngModel)]="comp.proveedores[i].procesoProductoServicio"
                                   [ngModelOptions]="{standalone: true}"
                                   placeholder="Qué cotiza"
-                                  autocomplete="off" (ngModelChange)="onSgcF28Editado()">
+                                  (ngModelChange)="onSgcF28Editado()"></textarea>
                               </td>
                             </tr>
                             <tr>
@@ -4950,21 +5013,23 @@
                                 </div>
                                 <div *ngSwitchCase="'liga_compra'" class="sgc-f-28-link">
                                   <i class="fas fa-link" aria-hidden="true"></i>
-                                  <input class="sgc-f-28-input" type="url"
+                                  <textarea class="sgc-f-28-input sgc-f-28-input--area sgc-f-28-input--crit-area"
                                     [name]="'sgcF28_liga_'+crit.id+'_'+i"
+                                    [attr.rows]="filasTextoAjustadas(crit.valores[i].texto, 40, 4)"
                                     [(ngModel)]="crit.valores[i].texto"
                                     [ngModelOptions]="{standalone: true}"
                                     placeholder="https://tienda.com/producto"
                                     (blur)="onLigaCompraSgcF28(crit.valores[i])"
-                                    (ngModelChange)="onSgcF28Editado()">
+                                    (ngModelChange)="onSgcF28Editado()"></textarea>
                                 </div>
-                                <input *ngSwitchDefault class="sgc-f-28-input" type="text"
+                                <textarea *ngSwitchDefault
+                                  class="sgc-f-28-input sgc-f-28-input--area sgc-f-28-input--crit-area"
                                   [name]="'sgcF28_val_'+crit.id+'_'+i"
+                                  [attr.rows]="filasTextoAjustadas(crit.valores[i].texto, 32, 8)"
                                   [(ngModel)]="crit.valores[i].texto"
                                   [ngModelOptions]="{standalone: true}"
-                                  autocomplete="off"
                                   [placeholder]="placeholderValorSgcF28(crit.tipo)"
-                                  (ngModelChange)="onSgcF28Editado()">
+                                  (ngModelChange)="onSgcF28Editado()"></textarea>
                               </td>
                             </tr>
 
@@ -5001,11 +5066,12 @@
                             <tr>
                               <th scope="row" class="sgc-f-28-table__sticky">Observaciones</th>
                               <td *ngFor="let i of sgcF28IndicesVisibles; trackBy: trackByIdx">
-                                <textarea class="sgc-f-28-input sgc-f-28-input--area" rows="4"
+                                <textarea class="sgc-f-28-input sgc-f-28-input--area" 
+                                  [attr.rows]="filasTextoAjustadas(comp.proveedores[i].observaciones, 36, 10)"
                                   [name]="'sgcF28_obs_'+i"
                                   [(ngModel)]="comp.proveedores[i].observaciones"
                                   [ngModelOptions]="{standalone: true}"
-                                  placeholder="observaciones "
+                                  placeholder="Observaciones…"
                                   (ngModelChange)="onSgcF28Editado()"></textarea>
                               </td>
                             </tr>
@@ -5635,10 +5701,13 @@
                 <div class="sgc-f29-evid-page" *ngIf="sgcF29EvidenciasModalAbierto" role="region"
                   aria-label="Evidencias de evaluación">
                   <header class="sgc-f29-evid-page__head">
-                    <button type="button" class="sgc-f29-evid-page__back" (click)="cerrarEvidenciasSgcF29()">
+                    <button type="button" class="sgc-f29-evid-page__back"
+                      (click)="cerrarEvidenciasSgcF29()"
+                      title="Volver a evaluaciones"
+                      aria-label="Volver a evaluaciones">
                       <span class="sgc-f29-evid-page__back-glow" aria-hidden="true"></span>
                       <i class="fas fa-arrow-left" aria-hidden="true"></i>
-                      <span>Volver a evaluaciones</span>
+                      <span class="sgc-f29-evid-page__back-label">Volver</span>
                     </button>
                     <div class="sgc-f29-evid-page__titles">
                       <p class="sgc-f29-evid-page__eyebrow">SGC-F-29 · Evidencias</p>
@@ -5652,9 +5721,14 @@
                         · Archivos en Google Drive
                       </p>
                     </div>
-                    <label class="sgc-f29-evid-page__upload btn" [class.is-busy]="sgcF29EvidenciasSubiendo">
+                    <label class="sgc-f29-evid-icon-btn sgc-f29-evid-icon-btn--light"
+                      [class.is-busy]="sgcF29EvidenciasSubiendo"
+                      title="Subir documento"
+                      aria-label="Subir documento">
                       <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
-                      {{ sgcF29EvidenciasSubiendo ? ('Subiendo ' + sgcF29EvidenciasProgreso + '%') : 'Subir documento' }}
+                      <span class="sgc-f29-evid-icon-btn__label">
+                        {{ sgcF29EvidenciasSubiendo ? (sgcF29EvidenciasProgreso + '%') : 'Subir' }}
+                      </span>
                       <input type="file" hidden multiple
                         accept=".pdf,.csv,.xls,.xlsx,.doc,.docx,.ppt,.pptx,image/*"
                         [disabled]="sgcF29EvidenciasSubiendo"
@@ -5694,9 +5768,14 @@
                           <em>{{ conteoTipoEvidenciaSgcF29('img') }}</em>
                         </button>
                       </nav>
-                      <label class="sgc-f29-evid-upload-btn" [class.is-busy]="sgcF29EvidenciasSubiendo">
+                      <label class="sgc-f29-evid-icon-btn sgc-f29-evid-icon-btn--teal sgc-f29-evid-icon-btn--block"
+                        [class.is-busy]="sgcF29EvidenciasSubiendo"
+                        title="Subir documento"
+                        aria-label="Subir documento">
                         <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
-                        {{ sgcF29EvidenciasSubiendo ? ('Subiendo ' + sgcF29EvidenciasProgreso + '%') : 'Subir documento' }}
+                        <span class="sgc-f29-evid-icon-btn__label">
+                          {{ sgcF29EvidenciasSubiendo ? (sgcF29EvidenciasProgreso + '%') : 'Subir' }}
+                        </span>
                         <input type="file" hidden multiple
                           accept=".pdf,.csv,.xls,.xlsx,.doc,.docx,.ppt,.pptx,image/*"
                           [disabled]="sgcF29EvidenciasSubiendo"
@@ -5711,13 +5790,32 @@
                           <input type="search" placeholder="Buscar archivos…"
                             [(ngModel)]="sgcF29EvidenciasBusqueda" name="sgcF29EvidBusq">
                         </div>
-                        <label class="sgc-f29-evid-toolbar__btn" [class.is-busy]="sgcF29EvidenciasSubiendo">
-                          <i class="fas fa-upload" aria-hidden="true"></i> Subir
-                          <input type="file" hidden multiple
-                            accept=".pdf,.csv,.xls,.xlsx,.doc,.docx,.ppt,.pptx,image/*"
+                        <div class="sgc-f29-evid-folder" [class.is-open]="sgcF29EvidCarpetasMenu">
+                          <button type="button"
+                            class="sgc-f29-evid-folder__btn"
                             [disabled]="sgcF29EvidenciasSubiendo"
-                            (change)="onEvidenciasInputSgcF29($event)">
-                        </label>
+                            title="Crear o subir carpeta"
+                            aria-label="Crear carpeta"
+                            (click)="toggleMenuCarpetasEvidenciaSgcF29($event)">
+                            <i class="fas fa-folder-plus" aria-hidden="true"></i>
+                            Crear Carpeta
+                          </button>
+                          <div class="sgc-f29-evid-folder__menu" *ngIf="sgcF29EvidCarpetasMenu"
+                            (click)="$event.stopPropagation()">
+                            <button type="button" (click)="abrirSelectorCarpetaEvidenciaSgcF29()">
+                              <i class="fas fa-folder-open" aria-hidden="true"></i>
+                              Subir carpeta
+                            </button>
+                            <button type="button" (click)="crearCarpetaEvidenciaSgcF29()">
+                              <i class="fas fa-plus" aria-hidden="true"></i>
+                              Crear carpeta
+                            </button>
+                          </div>
+                          <input #sgcF29CarpetaInput type="file" hidden multiple
+                            [attr.webkitdirectory]="''"
+                            [attr.directory]="''"
+                            (change)="onEvidenciasCarpetaInputSgcF29($event)">
+                        </div>
                         <div class="sgc-f29-evid-view-toggle" role="group" aria-label="Vista">
                           <button type="button" [class.is-active]="sgcF29EvidenciasVista === 'grid'"
                             (click)="sgcF29EvidenciasVista = 'grid'" title="Cuadrícula">

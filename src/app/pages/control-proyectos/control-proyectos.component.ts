@@ -1,9 +1,12 @@
 import { Component, ElementRef, HostBinding, HostListener, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { EChartsOption } from 'echarts';
+import Swal from 'sweetalert2';
 import { BackendServices } from 'src/app/services/backend.services';
 import { AuthService } from 'src/app/services/auth.service';
+import { DocumentPreviewService } from 'src/app/services/document-preview.service';
 
 type VistaControlProyectos = 'dashboard' | 'gestion' | 'tablero' | 'cronograma' | 'actividades' | 'eliminados';
 type ColumnaTableroId = 'por-hacer' | 'en-curso' | 'revision' | 'listo';
@@ -66,12 +69,14 @@ interface ProyectoTableroItem {
   fechaInicio?: string;
   fechaCompromiso?: string;
   entregables?: string;
+  observaciones?: string;
   prioridad: string;
   estatus: string;
   avance: number;
   activo?: boolean;
   modificadoPor?: string | null;
   modificadoEn?: string | null;
+  creadoPor?: string | null;
   eliminadoPor?: string | null;
   eliminadoEn?: string | null;
   createdAt?: string | null;
@@ -151,6 +156,7 @@ interface ColumnaTablero {
 interface EmpresaControlProyecto {
   empresaId: number;
   nombreEmpresa: string;
+  logoUrl?: string | null;
 }
 
 interface PizarronNota {
@@ -188,7 +194,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   @ViewChild('timelineScroll') timelineScroll?: ElementRef<HTMLDivElement>;
 
   @HostBinding('class.cp-modal-open') get modalRegistroAbierto(): boolean {
-    return this.mostrarRegistro;
+    return this.mostrarRegistro || this.panelActividadAbierto;
   }
 
   readonly menuOpciones: MenuOpcion[] = [
@@ -258,7 +264,6 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   busquedaGestion = '';
   busquedaActividadesGestion = '';
   busquedaEliminados = '';
-  filtroPrioridadActividadesGestion = '';
   ordenVencimientoActividadesGestion: '' | 'proxima' | 'lejana' = '';
   busquedaProyectoDashboard = '';
   filtroResponsable = '';
@@ -266,6 +271,42 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   filtroEstatusActividades = '';
   filtroEstatusCronograma = '';
   escalaCronograma: EscalaCronograma = 'meses';
+
+  /** Adjuntos Drive del proyecto abierto en Gestión. */
+  adjuntosProyecto: Array<{
+    id: string;
+    nombre: string;
+    mimeType?: string;
+    size?: number | null;
+    modifiedTime?: string | null;
+    webViewLink?: string;
+  }> = [];
+  adjuntosCarpetaId: string | null = null;
+  cargandoAdjuntos = false;
+  subiendoAdjunto = false;
+  errorAdjuntos = '';
+  exitoAdjuntos = '';
+  nombreAdjuntoEnCurso = '';
+  private adjuntosClaveCargada: string | null = null;
+  private detalleHoverTimer: ReturnType<typeof setTimeout> | null = null;
+  private detalleHoverOpenTimer: ReturnType<typeof setTimeout> | null = null;
+  private exitoAdjuntosTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Panel lateral de metadatos / historial de una actividad. */
+  panelActividadAbierto = false;
+  panelActividadTab: 'detalles' | 'actividad' = 'detalles';
+  panelActividadItem: { proyecto: ProyectoTableroItem; indice: number } | null = null;
+  panelActividadHistorial: Array<{
+    id: number;
+    campo: string;
+    etiqueta: string;
+    valorAnterior: string | null;
+    valorNuevo: string | null;
+    modificadoPor: string | null;
+    modificadoEn: string | null;
+  }> = [];
+  cargandoPanelActividad = false;
+  errorPanelActividad = '';
 
   proyectosEliminados: ProyectoEliminadoGrupo[] = [];
   cargandoEliminados = false;
@@ -295,6 +336,8 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   /** Catálogo de proyectos → detalle de actividades (drill-down). */
   gestionNivelVista: 'proyectos' | 'actividades' = 'proyectos';
   gestionActividadExpandidaIndice: number | null = null;
+  /** Si true, la fila expandida no se cierra al salir el mouse. */
+  gestionActividadFijada = false;
   gestionActPagina = 1;
   readonly gestionActTamanoPagina = 25;
   guardandoActividadGestion = false;
@@ -416,10 +459,19 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   constructor(
     private backend: BackendServices,
-    private auth: AuthService
+    private auth: AuthService,
+    private documentPreview: DocumentPreviewService,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
+    if (this.esConsultaEmpresa) {
+      this.vistaActiva = 'gestion';
+      const empresaId = Number(this.auth.getEmpresaId() || 0);
+      this.empresaSeleccionadaId = Number.isInteger(empresaId) && empresaId > 0 ? empresaId : null;
+      this.cargarDashboard();
+      return;
+    }
     this.cargarEmpresasControl();
     this.cargarUsuariosInternos();
     this.cargarDashboard();
@@ -475,6 +527,12 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   @HostListener('document:keydown.escape', ['$event'])
   onDocumentEscape(event: KeyboardEvent): void {
+    if (this.panelActividadAbierto) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.cerrarPanelActividad();
+      return;
+    }
     if (this.empresaDashboardDropdownAbierto) {
       event.preventDefault();
       event.stopPropagation();
@@ -490,6 +548,18 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.detalleHoverTimer) {
+      clearTimeout(this.detalleHoverTimer);
+      this.detalleHoverTimer = null;
+    }
+    if (this.detalleHoverOpenTimer) {
+      clearTimeout(this.detalleHoverOpenTimer);
+      this.detalleHoverOpenTimer = null;
+    }
+    if (this.exitoAdjuntosTimer) {
+      clearTimeout(this.exitoAdjuntosTimer);
+      this.exitoAdjuntosTimer = null;
+    }
     this.autoGuardarGestionSiPendiente();
     this.gestionComponenteDestruido = true;
     this.detenerCarruselDashboard();
@@ -498,6 +568,9 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   }
 
   seleccionarVista(vista: VistaControlProyectos): void {
+    if (this.esConsultaEmpresa && vista !== 'gestion') {
+      return;
+    }
     if (vista === 'eliminados' && !this.esSuperAdministrador) {
       return;
     }
@@ -544,7 +617,8 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
           this.empresasControl = lista
             .map((e: any) => ({
               empresaId: Number(e?.empresa_id || e?.empresaId || 0),
-              nombreEmpresa: String(e?.nombre_empresa || e?.nombreEmpresa || e?.nombre || '').trim()
+              nombreEmpresa: String(e?.nombre_empresa || e?.nombreEmpresa || e?.nombre || '').trim(),
+              logoUrl: this.backend.resolverUrlDrivePreview(e?.logo || e?.logo_url || e?.logoUrl || null)
             }))
             .filter((e: EmpresaControlProyecto) => e.empresaId > 0 && !!e.nombreEmpresa)
             .sort((a: EmpresaControlProyecto, b: EmpresaControlProyecto) => a.nombreEmpresa.localeCompare(b.nombreEmpresa, 'es'));
@@ -585,11 +659,29 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   }
 
   get proyectosCronogramaVisibles(): ProyectoCronogramaItem[] {
+    return this.filtrarCronograma(this.proyectosCronograma);
+  }
+
+  /** Cronograma acotado al proyecto abierto en Gestión (consulta empresa). */
+  get proyectosCronogramaGestion(): ProyectoCronogramaItem[] {
+    const grupo = this.grupoGestionSeleccionado;
+    if (!grupo) return [];
+    const ids = new Set(
+      grupo.actividades.map((a) => a.proyecto.id).filter((id): id is number => Number(id) > 0)
+    );
+    const delProyecto = this.proyectosCronograma.filter((p, indice) => {
+      if (p.id && ids.has(p.id)) return true;
+      return this.claveGrupoGestion(p, indice) === grupo.clave;
+    });
+    return this.filtrarCronograma(delProyecto);
+  }
+
+  private filtrarCronograma(items: ProyectoCronogramaItem[]): ProyectoCronogramaItem[] {
     const q = this.normalizar(this.busquedaCronograma);
     const responsable = this.normalizar(this.filtroResponsable);
     const estatusFiltro = this.normalizar(this.filtroEstatusCronograma);
 
-    return this.proyectosCronograma.filter((p) => {
+    return items.filter((p) => {
       if (estatusFiltro) {
         const estatus = this.normalizar(p.estatus || 'No iniciado');
         if (estatusFiltro === 'no iniciado' && estatus && estatus !== 'no iniciado') return false;
@@ -684,6 +776,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
             proyecto.referenciaNormativa,
             proyecto.responsable,
             proyecto.entregables,
+            proyecto.observaciones,
             proyecto.prioridad,
             proyecto.estatus
           ].some((campo) => this.normalizar(campo).includes(q))
@@ -691,7 +784,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
     const grupos = new Map<string, GrupoGestionProyecto>();
     for (const { proyecto, indice } of visibles) {
-      const clave = `${proyecto.empresaId || 'sin-empresa'}|${this.normalizar(proyecto.folio || proyecto.nombreProyecto || `idx-${indice}`)}`;
+      const clave = this.claveGrupoGestion(proyecto, indice);
       if (!grupos.has(clave)) {
         grupos.set(clave, {
           clave,
@@ -711,17 +804,27 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.gestionProyectoSeleccionadoClave = clave;
     this.gestionNivelVista = 'actividades';
     this.gestionActividadExpandidaIndice = null;
+    this.gestionActividadFijada = false;
     this.gestionActPagina = 1;
     this.menuAgregarActividadAbierto = false;
     this.cerrarMenuPrioridadGestion();
     this.cerrarMenuEstatusGestion();
     this.limpiarFiltrosActividadesGestion();
+    this.adjuntosClaveCargada = null;
+    this.adjuntosProyecto = [];
+    this.errorAdjuntos = '';
+    this.cargarAdjuntosProyectoActual(true);
+    if (this.esConsultaEmpresa) {
+      setTimeout(() => this.irAHoy(), 80);
+    }
   }
 
   volverAListaProyectosGestion(): void {
+    if (this.esConsultaEmpresa && this.tieneUnSoloProyectoGestion) return;
     this.gestionNivelVista = 'proyectos';
     this.gestionProyectoSeleccionadoClave = null;
     this.gestionActividadExpandidaIndice = null;
+    this.gestionActividadFijada = false;
     this.gestionActPagina = 1;
     this.menuAgregarActividadAbierto = false;
     this.cerrarMenuPrioridadGestion();
@@ -736,7 +839,6 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   limpiarFiltrosActividadesGestion(): void {
     this.busquedaActividadesGestion = '';
-    this.filtroPrioridadActividadesGestion = '';
     this.ordenVencimientoActividadesGestion = '';
     this.gestionActPagina = 1;
   }
@@ -744,7 +846,6 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   get hayFiltrosActividadesGestion(): boolean {
     return !!(
       this.busquedaActividadesGestion
-      || this.filtroPrioridadActividadesGestion
       || this.ordenVencimientoActividadesGestion
     );
   }
@@ -755,14 +856,17 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     if (!grupo?.actividades?.length) return [];
 
     const q = this.normalizar(this.busquedaActividadesGestion);
-    const prioridadFiltro = this.normalizarPrioridad(this.filtroPrioridadActividadesGestion);
 
     let lista = grupo.actividades.filter(({ proyecto }) => {
-      if (q && !this.normalizar(proyecto.actividadesAccion || proyecto.condicionRequerimiento || '').includes(q)) {
-        return false;
-      }
-      if (prioridadFiltro && this.normalizarPrioridad(proyecto.prioridad) !== prioridadFiltro) {
-        return false;
+      if (q) {
+        const haystack = this.normalizar([
+          proyecto.actividadesAccion,
+          proyecto.condicionRequerimiento,
+          proyecto.observaciones,
+          proyecto.referenciaNormativa,
+          proyecto.entregables
+        ].join(' '));
+        if (!haystack.includes(q)) return false;
       }
       return true;
     });
@@ -805,14 +909,377 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   }
 
   toggleExpandirActividadGestion(indice: number): void {
-    this.gestionActividadExpandidaIndice =
-      this.gestionActividadExpandidaIndice === indice ? null : indice;
+    if (this.detalleHoverTimer) {
+      clearTimeout(this.detalleHoverTimer);
+      this.detalleHoverTimer = null;
+    }
+    if (this.detalleHoverOpenTimer) {
+      clearTimeout(this.detalleHoverOpenTimer);
+      this.detalleHoverOpenTimer = null;
+    }
+    if (this.gestionActividadExpandidaIndice === indice) {
+      this.gestionActividadExpandidaIndice = null;
+      this.gestionActividadFijada = false;
+    } else {
+      this.gestionActividadExpandidaIndice = indice;
+      this.gestionActividadFijada = true;
+      this.cargarAdjuntosProyectoActual();
+    }
     this.cerrarMenuPrioridadGestion();
     this.cerrarMenuEstatusGestion();
   }
 
   actividadGestionExpandida(indice: number): boolean {
     return this.gestionActividadExpandidaIndice === indice;
+  }
+
+  abrirDetalleGestionHover(indice: number): void {
+    if (this.detalleHoverTimer) {
+      clearTimeout(this.detalleHoverTimer);
+      this.detalleHoverTimer = null;
+    }
+    if (this.gestionActividadExpandidaIndice === indice) {
+      return;
+    }
+    if (this.detalleHoverOpenTimer) {
+      clearTimeout(this.detalleHoverOpenTimer);
+    }
+    this.detalleHoverOpenTimer = setTimeout(() => {
+      this.gestionActividadExpandidaIndice = indice;
+      this.gestionActividadFijada = true;
+      this.cerrarMenuPrioridadGestion();
+      this.cerrarMenuEstatusGestion();
+      this.cargarAdjuntosProyectoActual();
+      this.detalleHoverOpenTimer = null;
+    }, 140);
+  }
+
+  cerrarDetalleGestionHover(_indice: number): void {
+    // Solo cancela la apertura pendiente; la actividad seleccionada permanece abierta.
+    if (this.detalleHoverOpenTimer) {
+      clearTimeout(this.detalleHoverOpenTimer);
+      this.detalleHoverOpenTimer = null;
+    }
+  }
+
+  abrirPanelActividad(event: Event, item: { proyecto: ProyectoTableroItem; indice: number }): void {
+    event.stopPropagation();
+    this.panelActividadItem = item;
+    this.panelActividadTab = 'detalles';
+    this.panelActividadAbierto = true;
+    this.errorPanelActividad = '';
+    this.panelActividadHistorial = [];
+    const id = Number(item?.proyecto?.id || 0);
+    if (!Number.isInteger(id) || id <= 0) {
+      this.cargandoPanelActividad = false;
+      return;
+    }
+    this.cargandoPanelActividad = true;
+    this.backend.detalleActividadControlProyectos(id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.cargandoPanelActividad = false;
+          if (!res?.success) {
+            this.errorPanelActividad = res?.message || 'No se pudo cargar el detalle.';
+            return;
+          }
+          if (res.actividad) {
+            const actualizado = this.normalizarProyecto(res.actividad);
+            item.proyecto = { ...item.proyecto, ...actualizado };
+            this.panelActividadItem = { ...item, proyecto: item.proyecto };
+            const fila = this.proyectosGestion[item.indice];
+            if (fila) {
+              Object.assign(fila, actualizado);
+            }
+          }
+          this.panelActividadHistorial = Array.isArray(res.historial) ? res.historial : [];
+        },
+        error: (err) => {
+          this.cargandoPanelActividad = false;
+          this.errorPanelActividad = err?.error?.message || 'No se pudo cargar el detalle.';
+        }
+      });
+  }
+
+  cerrarPanelActividad(): void {
+    this.panelActividadAbierto = false;
+    this.panelActividadItem = null;
+    this.panelActividadHistorial = [];
+    this.errorPanelActividad = '';
+    this.cargandoPanelActividad = false;
+  }
+
+  seleccionarTabPanelActividad(tab: 'detalles' | 'actividad'): void {
+    this.panelActividadTab = tab;
+  }
+
+  formatearFechaHoraMexico(valor: string | null | undefined): string {
+    if (!valor) return '—';
+    const fecha = new Date(valor);
+    if (Number.isNaN(fecha.getTime())) {
+      const crudo = String(valor).trim();
+      return crudo || '—';
+    }
+    try {
+      return new Intl.DateTimeFormat('es-MX', {
+        timeZone: 'America/Mexico_City',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }).format(fecha);
+    } catch {
+      return String(valor);
+    }
+  }
+
+  textoValorHistorial(valor: string | null | undefined): string {
+    const t = String(valor ?? '').trim();
+    return t || '(vacío)';
+  }
+
+  autoAjustarTextareaObs(event: Event): void {
+    const el = event?.target as HTMLTextAreaElement | null;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.max(el.scrollHeight, 44)}px`;
+  }
+
+  private metaAdjuntosGrupo(grupo: GrupoGestionProyecto | null = this.grupoGestionSeleccionado): {
+    folio?: string;
+    nombreProyecto?: string;
+    empresaNombre?: string;
+    empresaId?: number | null;
+  } | null {
+    if (!grupo) return null;
+    const base = grupo.actividades?.[0]?.proyecto;
+    return {
+      folio: grupo.folio || base?.folio || '',
+      nombreProyecto: grupo.nombreProyecto || base?.nombreProyecto || '',
+      empresaNombre: grupo.empresaNombre || base?.empresaNombre || '',
+      empresaId: base?.empresaId ?? this.empresaSeleccionadaId
+    };
+  }
+
+  private claveAdjuntosMeta(meta: {
+    folio?: string;
+    nombreProyecto?: string;
+    empresaNombre?: string;
+    empresaId?: number | null;
+  }): string {
+    return [
+      meta.empresaId || 'sin-empresa',
+      this.normalizar(meta.folio || ''),
+      this.normalizar(meta.nombreProyecto || '')
+    ].join('|');
+  }
+
+  cargarAdjuntosProyectoActual(forzar = false): void {
+    const meta = this.metaAdjuntosGrupo();
+    if (!meta?.nombreProyecto && !meta?.folio) return;
+    const clave = this.claveAdjuntosMeta(meta);
+    if (!forzar && this.adjuntosClaveCargada === clave && !this.errorAdjuntos) return;
+    this.cargandoAdjuntos = true;
+    this.errorAdjuntos = '';
+    this.backend.listarAdjuntosControlProyectos(meta)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.cargandoAdjuntos = false;
+          if (!res?.success) {
+            this.errorAdjuntos = res?.message || 'No se pudieron cargar los adjuntos.';
+            this.adjuntosProyecto = [];
+            return;
+          }
+          this.adjuntosClaveCargada = clave;
+          this.adjuntosCarpetaId = res.carpetaId || null;
+          this.adjuntosProyecto = Array.isArray(res.archivos) ? res.archivos : [];
+        },
+        error: (err) => {
+          this.cargandoAdjuntos = false;
+          this.errorAdjuntos = err?.error?.message || 'No se pudieron cargar los adjuntos.';
+          this.adjuntosProyecto = [];
+        }
+      });
+  }
+
+  onSeleccionarArchivoAdjunto(event: Event, indiceFila?: number): void {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (input) input.value = '';
+    if (!file) return;
+    if (this.esConsultaEmpresa) {
+      this.avisarAdjunto('error', 'Sin permiso', 'No puedes adjuntar archivos en modo consulta.');
+      return;
+    }
+    if (this.subiendoAdjunto) {
+      this.avisarAdjunto('info', 'Espera', 'Ya hay una subida en curso.');
+      return;
+    }
+    const meta = this.metaAdjuntosGrupo();
+    if (!meta?.nombreProyecto && !meta?.folio) {
+      this.errorAdjuntos = 'No se identificó el proyecto para adjuntar.';
+      this.avisarAdjunto('error', 'No se pudo adjuntar', this.errorAdjuntos);
+      return;
+    }
+    if (Number.isInteger(indiceFila) && (indiceFila as number) >= 0) {
+      this.gestionActividadExpandidaIndice = indiceFila as number;
+      this.gestionActividadFijada = true;
+    }
+    this.subiendoAdjunto = true;
+    this.errorAdjuntos = '';
+    this.exitoAdjuntos = '';
+    this.nombreAdjuntoEnCurso = file.name;
+    Swal.fire({
+      title: 'Subiendo archivo…',
+      text: file.name,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading()
+    });
+    this.backend.subirAdjuntoControlProyectos(meta, file)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.subiendoAdjunto = false;
+          this.nombreAdjuntoEnCurso = '';
+          Swal.close();
+          if (!res?.success) {
+            this.errorAdjuntos = res?.message || 'No se pudo subir el archivo.';
+            this.avisarAdjunto('error', 'Error al subir', this.errorAdjuntos);
+            return;
+          }
+          if (res.archivo?.id) {
+            this.adjuntosProyecto = [res.archivo, ...this.adjuntosProyecto.filter((a) => a.id !== res.archivo.id)];
+            this.adjuntosCarpetaId = res.carpetaId || this.adjuntosCarpetaId;
+            this.adjuntosClaveCargada = this.claveAdjuntosMeta(meta);
+          } else {
+            this.cargarAdjuntosProyectoActual(true);
+          }
+          const ok = res.message || `Se adjuntó “${res.archivo?.nombre || file.name}”.`;
+          this.marcarExitoAdjuntos(ok);
+          this.avisarAdjunto('success', 'Archivo adjunto', ok);
+        },
+        error: (err) => {
+          this.subiendoAdjunto = false;
+          this.nombreAdjuntoEnCurso = '';
+          Swal.close();
+          this.errorAdjuntos = err?.error?.message
+            || (err?.status === 0 ? 'Sin respuesta del servidor. Revisa que el backend esté activo.' : null)
+            || 'No se pudo subir el archivo.';
+          this.avisarAdjunto('error', 'Error al subir', this.errorAdjuntos);
+        }
+      });
+  }
+
+  private marcarExitoAdjuntos(mensaje: string): void {
+    this.exitoAdjuntos = mensaje;
+    if (this.exitoAdjuntosTimer) {
+      clearTimeout(this.exitoAdjuntosTimer);
+    }
+    this.exitoAdjuntosTimer = setTimeout(() => {
+      this.exitoAdjuntos = '';
+      this.exitoAdjuntosTimer = null;
+    }, 5000);
+  }
+
+  private avisarAdjunto(
+    icon: 'success' | 'error' | 'info' | 'warning',
+    title: string,
+    text?: string
+  ): void {
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon,
+      title,
+      text: text || undefined,
+      showConfirmButton: false,
+      timer: icon === 'error' ? 4800 : 2800,
+      timerProgressBar: true
+    });
+  }
+
+  abrirRepositorioProyecto(grupo: GrupoGestionProyecto | null = this.grupoGestionSeleccionado): void {
+    const meta = this.metaAdjuntosGrupo(grupo);
+    if (!meta?.nombreProyecto && !meta?.folio) {
+      this.avisarAdjunto('error', 'Sin proyecto', 'No se pudo identificar el proyecto.');
+      return;
+    }
+    this.router.navigate(['/control-proyectos/repositorio'], {
+      queryParams: {
+        empresaId: meta.empresaId || undefined,
+        empresaNombre: meta.empresaNombre || undefined,
+        folio: meta.folio || undefined,
+        nombreProyecto: meta.nombreProyecto || undefined
+      }
+    });
+  }
+
+  eliminarArchivoAdjunto(archivo: { id: string; nombre?: string }): void {
+    if (this.esConsultaEmpresa || !archivo?.id) return;
+    const meta = this.metaAdjuntosGrupo();
+    if (!meta) {
+      this.avisarAdjunto('error', 'No se pudo eliminar', 'Falta información del proyecto.');
+      return;
+    }
+    this.errorAdjuntos = '';
+    this.backend.eliminarAdjuntoControlProyectos({ ...meta, fileId: archivo.id })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          if (!res?.success) {
+            this.errorAdjuntos = res?.message || 'No se pudo eliminar el archivo.';
+            this.avisarAdjunto('error', 'Error al eliminar', this.errorAdjuntos);
+            return;
+          }
+          this.adjuntosProyecto = this.adjuntosProyecto.filter((a) => a.id !== archivo.id);
+          this.marcarExitoAdjuntos(`Se eliminó “${archivo.nombre || 'el archivo'}”.`);
+          this.avisarAdjunto('success', 'Archivo eliminado', archivo.nombre || undefined);
+        },
+        error: (err) => {
+          this.errorAdjuntos = err?.error?.message || 'No se pudo eliminar el archivo.';
+          this.avisarAdjunto('error', 'Error al eliminar', this.errorAdjuntos);
+        }
+      });
+  }
+
+  abrirVistaPreviaAdjunto(archivo: { id: string; nombre?: string; mimeType?: string }): void {
+    if (!archivo?.id) return;
+    const nombre = String(archivo.nombre || 'Archivo adjunto');
+    const mime = String(archivo.mimeType || '').toLowerCase();
+    let tipoHint: 'pdf' | 'imagen' | 'office' | 'otro' = 'otro';
+    if (mime.includes('pdf') || /\.pdf$/i.test(nombre)) tipoHint = 'pdf';
+    else if (mime.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(nombre)) tipoHint = 'imagen';
+    else if (
+      mime.includes('sheet') || mime.includes('excel') || mime.includes('word')
+      || mime.includes('presentation') || mime.includes('msword')
+      || /\.(xlsx?|docx?|pptx?)$/i.test(nombre)
+    ) {
+      tipoHint = 'office';
+    }
+    this.documentPreview.abrir({
+      nombre,
+      archivo_nombre: nombre,
+      archivo_url: archivo.id,
+      etiqueta: 'Archivo adjunto · Control de proyectos',
+      tipoHint
+    });
+  }
+
+  iconoMimeAdjunto(archivo: { nombre?: string; mimeType?: string }): string {
+    const nombre = String(archivo?.nombre || '');
+    const mime = String(archivo?.mimeType || '').toLowerCase();
+    if (mime.includes('pdf') || /\.pdf$/i.test(nombre)) return 'fa-file-pdf';
+    if (mime.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(nombre)) return 'fa-file-image';
+    if (mime.includes('sheet') || mime.includes('excel') || /\.xlsx?$/i.test(nombre)) return 'fa-file-excel';
+    if (mime.includes('word') || /\.docx?$/i.test(nombre)) return 'fa-file-word';
+    if (mime.includes('presentation') || /\.pptx?$/i.test(nombre)) return 'fa-file-powerpoint';
+    return 'fa-file';
   }
 
   statsGrupoGestion(grupo: GrupoGestionProyecto): {
@@ -883,6 +1350,53 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       estatus: base?.estatus || 'No iniciado',
       avance: Number(base?.avance || 0)
     };
+  }
+
+  /** Fecha de inicio del proyecto (la más temprana entre actividades / createdAt / folio). */
+  fechaInicioProyectoGestion(grupo: GrupoGestionProyecto | null | undefined): string {
+    const actividades = grupo?.actividades || [];
+    let mejor: Date | null = null;
+    for (const { proyecto } of actividades) {
+      const candidata = this.parsearFechaIso(proyecto.fechaInicio)
+        || this.parsearFechaFolio(proyecto.folio)
+        || this.parsearFechaIso(proyecto.createdAt);
+      if (!candidata) continue;
+      if (!mejor || candidata.getTime() < mejor.getTime()) {
+        mejor = candidata;
+      }
+    }
+    if (!mejor) return '';
+    const y = mejor.getFullYear();
+    const m = String(mejor.getMonth() + 1).padStart(2, '0');
+    const d = String(mejor.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  etiquetaFechaInicioProyectoGestion(grupo: GrupoGestionProyecto | null | undefined): string {
+    const iso = this.fechaInicioProyectoGestion(grupo);
+    return iso ? this.formatearFechaProyecto(iso) : '—';
+  }
+
+  /** Tiempo transcurrido desde el inicio del proyecto hasta hoy. */
+  tiempoGestionadoProyecto(grupo: GrupoGestionProyecto | null | undefined): string {
+    const iso = this.fechaInicioProyectoGestion(grupo);
+    const inicio = this.parsearFechaIso(iso);
+    if (!inicio) return 'Sin inicio';
+    const hoy = this.inicioDia(new Date());
+    const dias = Math.max(0, Math.round((hoy.getTime() - inicio.getTime()) / 86400000));
+    if (dias === 0) return 'Hoy';
+    if (dias === 1) return '1 día';
+    if (dias < 30) return `${dias} días`;
+    const meses = Math.floor(dias / 30);
+    const resto = dias % 30;
+    if (meses < 12) {
+      if (resto === 0) return `${meses} mes${meses === 1 ? '' : 'es'}`;
+      return `${meses} mes${meses === 1 ? '' : 'es'} y ${resto} día${resto === 1 ? '' : 's'}`;
+    }
+    const anios = Math.floor(dias / 365);
+    const mesesRestantes = Math.floor((dias % 365) / 30);
+    if (mesesRestantes === 0) return `${anios} año${anios === 1 ? '' : 's'}`;
+    return `${anios} año${anios === 1 ? '' : 's'} y ${mesesRestantes} mes${mesesRestantes === 1 ? '' : 'es'}`;
   }
 
   iconoPrioridadGestion(prioridad: string): string {
@@ -994,6 +1508,13 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     };
   }
 
+  private claveGrupoGestion(
+    proyecto: Pick<ProyectoTableroItem, 'empresaId' | 'folio' | 'nombreProyecto'>,
+    indice = 0
+  ): string {
+    return `${proyecto.empresaId || 'sin-empresa'}|${this.normalizar(proyecto.folio || proyecto.nombreProyecto || `idx-${indice}`)}`;
+  }
+
   private asegurarSeleccionProyectoGestion(): void {
     if (!this.gestionAgrupadaLista.length) {
       this.gestionProyectoSeleccionadoClave = null;
@@ -1004,6 +1525,14 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     if (!existe) {
       this.gestionProyectoSeleccionadoClave = null;
       this.gestionNivelVista = 'proyectos';
+    }
+    if (this.esConsultaEmpresa && this.tieneUnSoloProyectoGestion && !this.busquedaGestion) {
+      const unico = this.gestionAgrupadaLista[0];
+      if (unico && this.gestionProyectoSeleccionadoClave !== unico.clave) {
+        this.seleccionarProyectoGestion(unico.clave);
+      } else if (unico) {
+        this.gestionNivelVista = 'actividades';
+      }
     }
   }
 
@@ -1170,7 +1699,27 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     return username === 'calidad' || username === 'sergio56' || username === 'marisol12';
   }
 
+  /** Perfil empresa: solo consulta Gestión (actividades + cronograma), sin editar. */
+  get esConsultaEmpresa(): boolean {
+    return this.auth.esUsuarioEmpresa();
+  }
+
+  get totalGruposGestionSinFiltro(): number {
+    const keys = new Set<string>();
+    this.proyectosGestion.forEach((proyecto, indice) => {
+      keys.add(this.claveGrupoGestion(proyecto, indice));
+    });
+    return keys.size;
+  }
+
+  get tieneUnSoloProyectoGestion(): boolean {
+    return this.totalGruposGestionSinFiltro === 1;
+  }
+
   get menuOpcionesVisibles(): MenuOpcion[] {
+    if (this.esConsultaEmpresa) {
+      return this.menuOpciones.filter((op) => op.id === 'gestion');
+    }
     return this.menuOpciones.filter((op) => !op.soloRoot || this.esSuperAdministrador);
   }
 
@@ -1592,6 +2141,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       fechaInicio: p.fechaInicio || undefined,
       fechaCompromiso: p.fechaCompromiso || undefined,
       entregables: String(p.entregables || '').trim(),
+      observaciones: String(p.observaciones || '').trim(),
       prioridad: p.prioridad || undefined,
       estatus: p.estatus || undefined,
       avance: p.avance
@@ -1739,19 +2289,25 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   get empresasDashboardFiltradas(): EmpresaControlProyecto[] {
     const q = this.normalizar(this.empresaDashboardBusqueda);
-    if (!q || q === this.normalizar(this.empresaSeleccionadaNombre)) {
-      return this.empresasControl;
-    }
+    if (!q) return this.empresasControl;
     return this.empresasControl.filter((e) => this.normalizar(e.nombreEmpresa).includes(q));
   }
 
+  get logoEmpresaSeleccionadaUrl(): string | null {
+    if (!this.empresaSeleccionadaId) return null;
+    return this.empresasControl.find((e) => e.empresaId === this.empresaSeleccionadaId)?.logoUrl || null;
+  }
+
   abrirDropdownEmpresaDashboard(): void {
+    if (!this.empresaDashboardDropdownAbierto) {
+      this.empresaDashboardBusqueda = '';
+    }
     this.empresaDashboardDropdownAbierto = true;
   }
 
   cerrarDropdownEmpresaDashboard(): void {
     this.empresaDashboardDropdownAbierto = false;
-    this.sincronizarBusquedaEmpresaDashboard();
+    this.empresaDashboardBusqueda = '';
   }
 
   onBusquedaEmpresaDashboard(): void {
@@ -1760,13 +2316,22 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   seleccionarEmpresaDashboard(empresa: EmpresaControlProyecto | null): void {
     this.empresaDashboardDropdownAbierto = false;
+    this.empresaDashboardBusqueda = '';
     if (!empresa) {
-      this.empresaDashboardBusqueda = 'Todas las empresas';
       this.cambiarEmpresaDashboard(null);
       return;
     }
-    this.empresaDashboardBusqueda = empresa.nombreEmpresa;
     this.cambiarEmpresaDashboard(empresa.empresaId);
+  }
+
+  onLogoEmpresaComboError(empresa: EmpresaControlProyecto): void {
+    if (!empresa) return;
+    empresa.logoUrl = null;
+  }
+
+  onLogoEmpresaSeleccionadaError(): void {
+    const emp = this.empresasControl.find((e) => e.empresaId === this.empresaSeleccionadaId);
+    if (emp) emp.logoUrl = null;
   }
 
   limpiarEmpresaDashboard(event?: Event): void {
@@ -1779,7 +2344,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   }
 
   sincronizarBusquedaEmpresaDashboard(): void {
-    this.empresaDashboardBusqueda = this.empresaSeleccionadaNombre;
+    this.empresaDashboardBusqueda = '';
   }
 
   get empresasRegistroFiltradas(): EmpresaControlProyecto[] {
@@ -2494,6 +3059,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   }
 
   abrirRegistro(): void {
+    if (this.esConsultaEmpresa) return;
     this.registroModo = 'crear';
     this.registroEditarIndice = null;
     this.errorRegistro = '';
@@ -2753,6 +3319,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   }
 
   marcarGestionCambios(): void {
+    if (this.esConsultaEmpresa) return;
     this.gestionCambiosPendientes = true;
     this.errorGestion = '';
   }
@@ -2850,6 +3417,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
         fechaInicio: '',
         fechaCompromiso: '',
         entregables: '',
+        observaciones: '',
         prioridad: 'Media',
         estatus: 'No iniciado',
         avance: 0
@@ -3287,6 +3855,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       fechaInicio: base.fechaInicio || undefined,
       fechaCompromiso: base.fechaCompromiso || undefined,
       entregables: '',
+      observaciones: '',
       prioridad: base.prioridad || 'Media',
       estatus: 'No iniciado',
       avance: 0
@@ -3358,6 +3927,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
           fechaInicio: p.fechaInicio || undefined,
           fechaCompromiso: p.fechaCompromiso || undefined,
           entregables: String(p.entregables || '').trim(),
+          observaciones: String(p.observaciones || '').trim(),
           prioridad: p.prioridad || undefined,
           estatus: p.estatus || undefined,
           avance: p.avance
@@ -3511,6 +4081,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   }
 
   guardarGestion(silencioso = false): void {
+    if (this.esConsultaEmpresa) return;
     const payload = this.proyectosGestion
       .filter((p) => this.puedeEditarActividadAlGuardar(p))
       .map((p) => {
@@ -3530,6 +4101,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
           fechaInicio: p.fechaInicio || undefined,
           fechaCompromiso: p.fechaCompromiso || undefined,
           entregables: String(p.entregables || '').trim(),
+          observaciones: String(p.observaciones || '').trim(),
           prioridad: p.prioridad || undefined,
           estatus: p.estatus || undefined,
           avance: p.avance
@@ -3708,6 +4280,9 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.refrescarChartsDashboard();
     if (this.vistaActiva === 'gestion') {
       this.sincronizarGestionDesdeProyectos();
+      if (this.esConsultaEmpresa && this.gestionNivelVista === 'actividades') {
+        setTimeout(() => this.irAHoy(), 120);
+      }
     }
     this.cargando = false;
     this.errorCarga = false;
@@ -3909,12 +4484,14 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       fechaInicio: this.fechaInputGestion(item?.fechaInicio),
       fechaCompromiso: this.fechaInputGestion(item?.fechaCompromiso),
       entregables: String(item?.entregables || '').trim(),
+      observaciones: String(item?.observaciones || '').trim(),
       prioridad: String(item?.prioridad || '').trim() || 'Ninguna',
       estatus: String(item?.estatus || '').trim() || 'No iniciado',
       avance: this.normalizarAvance(item?.avance),
       activo: item?.activo !== false,
       modificadoPor: item?.modificadoPor || null,
       modificadoEn: item?.modificadoEn || null,
+      creadoPor: item?.creadoPor || null,
       eliminadoPor: item?.eliminadoPor || null,
       eliminadoEn: item?.eliminadoEn || null,
       createdAt: item?.createdAt || null,

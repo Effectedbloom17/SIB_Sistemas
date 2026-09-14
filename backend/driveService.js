@@ -4988,8 +4988,38 @@ async function solicitarExportSheetPdf(baseUrl, token, params) {
 async function exportarGoogleSheetComoPDF(fileId, options = {}) {
     const token = await obtenerAccessTokenDrive();
     const landscape = !!options.landscape;
+    const fitToPage = !!options.fitToPage;
+    // Carta / Letter (Google Sheets export: letter, a4, legal, …)
+    const sizeRaw = String(options.size || options.paperSize || '').trim().toLowerCase();
+    const size = sizeRaw === 'carta' || sizeRaw === '1' ? 'letter' : sizeRaw;
     const gidRaw = options.gid !== undefined && options.gid !== null ? String(options.gid) : '';
     const gidOpts = gidRaw ? { gid: gidRaw } : {};
+
+    // Márgenes: con «ajustar a la página» usar normales (~0.75"); si no, compactos.
+    const margins = fitToPage
+        ? {
+            top_margin: '0.75',
+            bottom_margin: '0.75',
+            left_margin: '0.70',
+            right_margin: '0.70'
+        }
+        : {
+            top_margin: '0.30',
+            bottom_margin: '0.30',
+            left_margin: '0.30',
+            right_margin: '0.30'
+        };
+
+    const scaleOpts = fitToPage
+        ? {
+            // scale=4 → «Ajustar a la página» en la UI de Sheets
+            scale: '4',
+            fitw: 'true',
+            fith: 'true'
+        }
+        : { fitw: 'true' };
+
+    const sizeOpts = size ? { size } : {};
 
     const baseUrl = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(fileId)}/export`;
     // Si hay gid, TODAS las variantes lo incluyen para no exportar el libro completo.
@@ -4997,31 +5027,28 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
         {
             format: 'pdf',
             portrait: landscape ? 'false' : 'true',
-            fitw: 'true',
             sheetnames: 'false',
             printtitle: 'false',
             pagenumbers: 'false',
             gridlines: 'false',
             fzr: 'false',
-            top_margin: '0.30',
-            bottom_margin: '0.30',
-            left_margin: '0.30',
-            right_margin: '0.30',
+            ...scaleOpts,
+            ...margins,
+            ...sizeOpts,
             ...gidOpts
         },
         {
             format: 'pdf',
             portrait: landscape ? 'false' : 'true',
-            fitw: 'true',
-            top_margin: '0.30',
-            bottom_margin: '0.30',
-            left_margin: '0.30',
-            right_margin: '0.30',
+            ...scaleOpts,
+            ...margins,
+            ...sizeOpts,
             ...gidOpts
         },
         {
             format: 'pdf',
             portrait: landscape ? 'false' : 'true',
+            ...sizeOpts,
             ...gidOpts
         }
     ];
@@ -8942,7 +8969,12 @@ async function generarReporteMantenimientoEinF04(params = {}) {
         .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
         .trim()
         .slice(0, 180);
-    const documentIdExistente = String(params.documentId || params.reporteDriveFileId || '').trim();
+    const documentIdExistente = ''; // Siempre copia limpia de la plantilla (evita texto superpuesto al regenerar).
+    // Si se requiere reutilizar un doc existente, pasar params.reutilizarDocumento === true.
+    const reutilizarDocumento = params.reutilizarDocumento === true;
+    const documentIdParaReutilizar = reutilizarDocumento
+        ? String(params.documentId || params.reporteDriveFileId || '').trim()
+        : '';
 
     const GOOGLE_DOC_MIME = 'application/vnd.google-apps.document';
     const OFFICE_DOC_MIMES = new Set([
@@ -9000,7 +9032,7 @@ async function generarReporteMantenimientoEinF04(params = {}) {
 
     const carpetaFolio = await obtenerOCrearCarpeta(folio, carpetaDestinoId);
 
-    let documentId = documentIdExistente;
+    let documentId = documentIdParaReutilizar;
     let copyResp = null;
     let documentoNuevo = false;
 
@@ -9149,8 +9181,11 @@ async function generarReporteMantenimientoEinF04(params = {}) {
         return null;
     };
 
-    const EVIDENCIA_IMG_ANCHO_PT = 220;
-    const EVIDENCIA_IMG_ALTO_PT = 165;
+    // Dos imágenes lado a lado (como el formato físico); una sola también cabe bien.
+    const EVIDENCIA_IMG_ANCHO_PT = 200;
+    const EVIDENCIA_IMG_ALTO_PT = 240;
+    const tipoEsPreventivo = /^preventivo$/i.test(tipo);
+    const tipoEsCorrectivo = /^correctivo$/i.test(tipo) || (!tipoEsPreventivo && !tipo);
 
     // Logo opcional (plantilla ya incluye encabezado con marca)
     if (params.insertarLogo === true) {
@@ -9212,12 +9247,91 @@ async function generarReporteMantenimientoEinF04(params = {}) {
     const docResp = await docsApi.documents.get({ documentId });
     const bodyContent = Array.isArray(docResp?.data?.body?.content) ? docResp.data.body.content : [];
 
+    /**
+     * Plantilla actualizada: fila en tabla
+     * [Tipo de mantenimiento:] [☐] [Preventivo] [☐] [Correctivo]
+     * Solo se escribe "X" en la celda-cuadro correspondiente (no se reescribe la fila).
+     */
+    const marcarTipoEnTablaPlantilla = async (content) => {
+        for (const element of content) {
+            if (!element?.table?.tableRows) continue;
+            for (const row of element.table.tableRows) {
+                const cells = row.tableCells || [];
+                if (cells.length < 3) continue;
+                const textos = cells.map((c) => normalizarTexto(extraerTextoCelda(c)));
+                const idxLabel = textos.findIndex((t) => t.includes('tipo de mantenimiento'));
+                const idxPrev = textos.findIndex((t) => /(^|\s)preventivo(\s|$)/.test(t));
+                const idxCorr = textos.findIndex((t) => /(^|\s)correctivo(\s|$)/.test(t));
+                if (idxLabel < 0 || (idxPrev < 0 && idxCorr < 0)) continue;
+
+                const celdaCheckPrev = idxPrev > 0 ? cells[idxPrev - 1] : null;
+                const celdaCheckCorr = idxCorr > 0 ? cells[idxCorr - 1] : null;
+                const celdaObjetivo = tipoEsPreventivo ? celdaCheckPrev : celdaCheckCorr;
+                if (!celdaObjetivo?.content?.[0]) {
+                    console.warn('[WARN] EIN-F-04: no se encontró celda-cuadro de tipo.');
+                    return false;
+                }
+                const insertIndex = Number(celdaObjetivo.content[0].startIndex);
+                if (!Number.isFinite(insertIndex)) return false;
+
+                await docsApi.documents.batchUpdate({
+                    documentId,
+                    requestBody: {
+                        requests: [
+                            {
+                                insertText: {
+                                    location: { index: insertIndex },
+                                    text: 'X'
+                                }
+                            },
+                            {
+                                updateTextStyle: {
+                                    range: {
+                                        startIndex: insertIndex,
+                                        endIndex: insertIndex + 1
+                                    },
+                                    textStyle: {
+                                        weightedFontFamily: { fontFamily: 'Arial' },
+                                        fontSize: { magnitude: 10, unit: 'PT' },
+                                        bold: true
+                                    },
+                                    fields: 'weightedFontFamily,fontSize,bold'
+                                }
+                            },
+                            {
+                                updateParagraphStyle: {
+                                    range: {
+                                        startIndex: insertIndex,
+                                        endIndex: insertIndex + 1
+                                    },
+                                    paragraphStyle: { alignment: 'CENTER' },
+                                    fields: 'alignment'
+                                }
+                            }
+                        ]
+                    }
+                });
+                return true;
+            }
+        }
+        return false;
+    };
+
+    try {
+        const okTipo = await marcarTipoEnTablaPlantilla(bodyContent);
+        if (!okTipo) {
+            console.warn('[WARN] EIN-F-04: no se pudo marcar tipo en la tabla de la plantilla.');
+        }
+    } catch (tipoErr) {
+        console.warn('[WARN] marcar tipo EIN-F-04:', tipoErr?.message || tipoErr);
+    }
+
+    const docTrasTipo = await docsApi.documents.get({ documentId });
+    const bodyTrasTipo = Array.isArray(docTrasTipo?.data?.body?.content)
+        ? docTrasTipo.data.body.content
+        : [];
+
     const campos = [
-        {
-            key: 'tipo',
-            valor: `Tipo de mantenimiento: ${tipo}`,
-            needles: ['tipo de mantenimiento']
-        },
         {
             key: 'fechaSol',
             valor: `Fecha de la solicitud del mantenimiento: ${fechaSolicitud || 'Pendiente'}`,
@@ -9238,23 +9352,36 @@ async function generarReporteMantenimientoEinF04(params = {}) {
     const remplazos = [];
     const aplicados = new Set();
 
-    for (const element of bodyContent) {
-        if (!element?.paragraph || !Number.isFinite(Number(element.startIndex))) continue;
-        const texto = extraerTextoParrafo(element.paragraph);
+    const intentarCampoEnTexto = (texto, startIndex, endIndex) => {
         const norm = normalizarTexto(texto);
-        if (!norm) continue;
-
+        if (!norm) return;
+        // No tocar de nuevo la línea de tipo (ya se aplicó arriba).
+        if (norm.includes('tipo de mantenimiento')) return;
         const campo = campos.find(
             (c) => !aplicados.has(c.key) && c.needles.some((n) => norm.includes(normalizarTexto(n)))
         );
-        if (!campo) continue;
-
-        const startIndex = Number(element.startIndex);
-        const endIndex = Number(element.endIndex) - 1;
-        if (endIndex <= startIndex) continue;
-
+        if (!campo) return;
+        if (!Number.isFinite(startIndex) || !Number.isFinite(endIndex) || endIndex <= startIndex) return;
         remplazos.push({ startIndex, endIndex, text: campo.valor });
         aplicados.add(campo.key);
+    };
+
+    for (const element of bodyTrasTipo) {
+        if (element?.paragraph && Number.isFinite(Number(element.startIndex))) {
+            intentarCampoEnTexto(
+                extraerTextoParrafo(element.paragraph),
+                Number(element.startIndex),
+                Number(element.endIndex) - 1
+            );
+        }
+        if (!element?.table?.tableRows) continue;
+        for (const row of element.table.tableRows) {
+            for (const cell of row.tableCells || []) {
+                const rango = obtenerRangoEditableCelda(cell);
+                if (!rango) continue;
+                intentarCampoEnTexto(extraerTextoCelda(cell), rango.startIndex, rango.endIndex);
+            }
+        }
     }
 
     const requests = [];
@@ -9283,6 +9410,8 @@ async function generarReporteMantenimientoEinF04(params = {}) {
 
     if (descripcion) {
         const requestsDesc = [];
+        let descStart = null;
+        let descEnd = null;
         if (rangoDesc) {
             requestsDesc.push({
                 deleteContentRange: {
@@ -9292,16 +9421,34 @@ async function generarReporteMantenimientoEinF04(params = {}) {
             requestsDesc.push({
                 insertText: { location: { index: rangoDesc.startIndex }, text: descripcion }
             });
+            descStart = rangoDesc.startIndex;
+            descEnd = rangoDesc.startIndex + descripcion.length;
         } else {
             const idxDesc = buscarIndiceSeccion(body2, [
                 'breve descripcion del mantenimiento realizado',
                 'breve descripción del mantenimiento realizado'
             ]);
             if (idxDesc) {
+                const textoInsert = `${descripcion}\n`;
                 requestsDesc.push({
-                    insertText: { location: { index: idxDesc }, text: `\n${descripcion}\n` }
+                    insertText: { location: { index: idxDesc }, text: textoInsert }
                 });
+                descStart = idxDesc;
+                descEnd = idxDesc + descripcion.length;
             }
+        }
+        if (descStart != null && descEnd != null && descEnd > descStart) {
+            // Espaciado de párrafo 10 pt antes y después (como el formato de referencia).
+            requestsDesc.push({
+                updateParagraphStyle: {
+                    range: { startIndex: descStart, endIndex: descEnd },
+                    paragraphStyle: {
+                        spaceAbove: { magnitude: 10, unit: 'PT' },
+                        spaceBelow: { magnitude: 10, unit: 'PT' }
+                    },
+                    fields: 'spaceAbove,spaceBelow'
+                }
+            });
         }
         if (requestsDesc.length) {
             await docsApi.documents.batchUpdate({ documentId, requestBody: { requests: requestsDesc } });
@@ -9312,24 +9459,50 @@ async function generarReporteMantenimientoEinF04(params = {}) {
     if (evidenciasConUrl.length) {
         const doc3 = await docsApi.documents.get({ documentId });
         const body3 = Array.isArray(doc3?.data?.body?.content) ? doc3.data.body.content : [];
-        let cursor = buscarIndiceSeccion(body3, [
+        const rangoEv = buscarCeldaSeccion(body3, [
             'evidencia fotografica',
             'evidencia fotográfica'
-        ]);
+        ], true);
+        let cursor = rangoEv?.startIndex || null;
+        const endEv = rangoEv?.endIndex || null;
 
         if (!cursor) {
-            const rangoEv = buscarCeldaSeccion(body3, [
+            cursor = buscarIndiceSeccion(body3, [
                 'evidencia fotografica',
                 'evidencia fotográfica'
-            ], true);
-            cursor = rangoEv?.startIndex || null;
+            ]);
         }
 
         if (!cursor) {
             throw new Error('No se encontró la sección «Evidencia fotográfica» en la plantilla EIN-F-04.');
         }
 
-        for (const ev of evidenciasConUrl) {
+        // Limpiar celda (placeholders / imágenes previas) antes de insertar.
+        if (endEv != null && endEv > cursor) {
+            try {
+                await docsApi.documents.batchUpdate({
+                    documentId,
+                    requestBody: {
+                        requests: [
+                            {
+                                deleteContentRange: {
+                                    range: { startIndex: cursor, endIndex: endEv }
+                                }
+                            }
+                        ]
+                    }
+                });
+            } catch (clearErr) {
+                console.warn('[WARN] limpiar evidencias EIN-F-04:', clearErr?.message || clearErr);
+            }
+        }
+
+        const fotos = evidenciasConUrl.slice(0, 2);
+        const anchoImg = fotos.length === 1 ? 280 : EVIDENCIA_IMG_ANCHO_PT;
+        const altoImg = fotos.length === 1 ? 210 : EVIDENCIA_IMG_ALTO_PT;
+
+        for (let i = 0; i < fotos.length; i++) {
+            const ev = fotos[i];
             const driveId = String(ev.driveFileId || '').trim();
             if (driveId) {
                 try {
@@ -9338,31 +9511,37 @@ async function generarReporteMantenimientoEinF04(params = {}) {
             }
             const imageUrl =
                 (driveId ? `https://drive.google.com/uc?id=${driveId}&export=download` : '') ||
-                ev.url ||
+                String(ev.url || '').trim() ||
                 '';
             const link = ev.webViewLink || imageUrl;
             try {
                 if (imageUrl) {
+                    const requestsImg = [
+                        {
+                            insertInlineImage: {
+                                location: { index: cursor },
+                                uri: imageUrl,
+                                objectSize: {
+                                    height: { magnitude: altoImg, unit: 'PT' },
+                                    width: { magnitude: anchoImg, unit: 'PT' }
+                                }
+                            }
+                        }
+                    ];
+                    // Espacio entre imágenes (lado a lado); sin salto de línea.
+                    if (i < fotos.length - 1) {
+                        requestsImg.push({
+                            insertText: { location: { index: cursor + 1 }, text: '  ' }
+                        });
+                    }
                     await docsApi.documents.batchUpdate({
                         documentId,
-                        requestBody: {
-                            requests: [
-                                {
-                                    insertInlineImage: {
-                                        location: { index: cursor },
-                                        uri: imageUrl,
-                                        objectSize: {
-                                            height: { magnitude: EVIDENCIA_IMG_ALTO_PT, unit: 'PT' },
-                                            width: { magnitude: EVIDENCIA_IMG_ANCHO_PT, unit: 'PT' }
-                                        }
-                                    }
-                                },
-                                { insertText: { location: { index: cursor }, text: '\n' } }
-                            ]
-                        }
+                        requestBody: { requests: requestsImg }
                     });
-                    cursor += 2;
+                    // Imagen = 1 índice; si hubo separador, +2 espacios.
+                    cursor += i < fotos.length - 1 ? 3 : 1;
                 } else if (link) {
+                    const textoLink = `[Evidencia] ${link}${i < fotos.length - 1 ? '  ' : ''}`;
                     await docsApi.documents.batchUpdate({
                         documentId,
                         requestBody: {
@@ -9370,18 +9549,19 @@ async function generarReporteMantenimientoEinF04(params = {}) {
                                 {
                                     insertText: {
                                         location: { index: cursor },
-                                        text: `\n[Evidencia] ${link}\n`
+                                        text: textoLink
                                     }
                                 }
                             ]
                         }
                     });
-                    cursor += String(link).length + 14;
+                    cursor += textoLink.length;
                 }
             } catch (imgErr) {
                 console.warn('[WARN] imagen EIN-F-04:', imgErr?.message || imgErr);
                 if (link) {
                     try {
+                        const textoLink = `[Evidencia] ${link}${i < fotos.length - 1 ? '  ' : ''}`;
                         await docsApi.documents.batchUpdate({
                             documentId,
                             requestBody: {
@@ -9389,13 +9569,13 @@ async function generarReporteMantenimientoEinF04(params = {}) {
                                     {
                                         insertText: {
                                             location: { index: cursor },
-                                            text: `\n[Evidencia] ${link}\n`
+                                            text: textoLink
                                         }
                                     }
                                 ]
                             }
                         });
-                        cursor += String(link).length + 14;
+                        cursor += textoLink.length;
                     } catch (_) { /* ignore */ }
                 }
             }

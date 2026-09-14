@@ -176,7 +176,7 @@ export const AdminLayoutRoutes: Routes = [
         data: { roles: ['administrador', 'ambiental'] }
     },
 
-    // Visible y accesible para todos los perfiles excepto empresa (ver RoleGuard)
+    // Visible para todos los perfiles autenticados, incluida empresa (consulta de Gestión)
     {
         path: 'control-proyectos',
         loadChildren: () => import('../../pages/control-proyectos/control-proyectos.module').then(m => m.ControlProyectosModule),

@@ -198,12 +198,33 @@ function esErrorReintentable(err) {
     );
 }
 
-async function resolverCarpetaEvaluacion(folio, proyectoId) {
+async function resolverCarpetaEvaluacion(folio, proyectoId, subcarpeta) {
     const carpetaFolio = await driveService.obtenerOCrearCarpeta(
         sanitizarNombreCarpeta(folio || 'Sin-folio'),
         CARPETA_DRIVE_EVIDENCIAS
     );
-    return driveService.obtenerOCrearCarpeta(proyectoId, carpetaFolio);
+    const carpetaProyecto = await driveService.obtenerOCrearCarpeta(proyectoId, carpetaFolio);
+    const sub = sanitizarNombreCarpeta(subcarpeta || '');
+    if (sub && sub !== 'Sin-nombre') {
+        return driveService.obtenerOCrearCarpeta(sub, carpetaProyecto);
+    }
+    return carpetaProyecto;
+}
+
+async function crearCarpetaEvidencia(pool, body) {
+    const proyectoId = normalizarProyectoId(body?.proyecto_id || body?.proyectoId);
+    const folio = sanitizarTexto(body?.folio, 255);
+    const nombre = sanitizarNombreCarpeta(body?.nombre || body?.nombre_carpeta);
+    if (!nombre || nombre === 'Sin-nombre') {
+        throw Object.assign(new Error('Indica un nombre válido para la carpeta.'), { status: 400 });
+    }
+    const carpetaDriveId = await resolverCarpetaEvaluacion(folio, proyectoId, nombre);
+    return {
+        proyectoId,
+        nombre,
+        carpetaDriveId,
+        webViewLink: `https://drive.google.com/drive/folders/${carpetaDriveId}`
+    };
 }
 
 async function listarEvidencias(pool, proyectoId) {
@@ -320,7 +341,11 @@ async function subirEvidencia(pool, body, usuario) {
         throw Object.assign(new Error('El archivo supera el máximo de 40 MB.'), { status: 400 });
     }
 
-    const carpetaDriveId = await resolverCarpetaEvaluacion(folio, proyectoId);
+    const carpetaDriveId = await resolverCarpetaEvaluacion(
+        folio,
+        proyectoId,
+        body?.subcarpeta || body?.carpeta || body?.folder
+    );
     let driveResult = null;
     let ultimoError = null;
 
@@ -399,7 +424,10 @@ async function subirEvidenciasLote(pool, body, usuario) {
             proyecto_id: proyectoId,
             folio,
             nombre_proyecto: nombreProyecto,
-            ...archivo
+            nombre_archivo: archivo?.nombre_archivo || archivo?.nombreArchivo,
+            mime_type: archivo?.mime_type || archivo?.mimeType,
+            archivo_base64: archivo?.archivo_base64 || archivo?.archivoBase64,
+            subcarpeta: archivo?.subcarpeta || archivo?.carpeta || body?.subcarpeta || body?.carpeta
         }, usuario)
     );
 
@@ -467,6 +495,7 @@ module.exports = {
     asegurarTablas,
     listarEvidencias,
     contarEvidencias,
+    crearCarpetaEvidencia,
     subirEvidencia,
     subirEvidenciasLote,
     eliminarEvidencia,

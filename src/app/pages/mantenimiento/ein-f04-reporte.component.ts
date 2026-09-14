@@ -18,7 +18,7 @@ import {
   sincronizarCasosDesdeForms
 } from './ein-f02-solicitud.catalog';
 
-const MAX_EVIDENCIAS = 20;
+const MAX_EVIDENCIAS = 2;
 
 @Component({
   selector: 'app-ein-f04-reporte',
@@ -520,11 +520,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (target.reporteWebViewLink || target.reporteDriveFileId) {
-      this.mostrarEditorIntegradoF04(target);
-      return;
-    }
-
+    // Siempre regenera para aplicar tipo (X), descripción e imágenes actualizadas.
     this.generandoReporte = true;
     this.backend.generarReporteMantenimientoF04(target.folio, this.payloadReporteF04(target)).subscribe({
       next: (res) => {
@@ -532,13 +528,18 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
         const reporte = res?.reporte;
         if (reporte?.driveFileId) {
           target.reporteDriveFileId = reporte.driveFileId;
-          target.reporteWebViewLink = reporte.webViewLink;
+          target.reporteWebViewLink = reporte.webViewLink || target.reporteWebViewLink;
           this.persistir();
         }
         this.mostrarEditorIntegradoF04(target);
       },
       error: (err) => {
         this.generandoReporte = false;
+        if (target.reporteWebViewLink || target.reporteDriveFileId) {
+          this.flash('No se pudo actualizar el Word; se abre la versión anterior.');
+          this.mostrarEditorIntegradoF04(target);
+          return;
+        }
         this.flash(err?.error?.message || 'No se pudo generar el Word en Drive.');
       }
     });

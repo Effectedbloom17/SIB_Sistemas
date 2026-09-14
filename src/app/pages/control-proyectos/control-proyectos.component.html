@@ -1,4 +1,4 @@
-<div class="header header-bg-image cp-hero pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden" [class.is-dimmed]="mostrarRegistro">
+<div class="header header-bg-image cp-hero pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden" [class.is-dimmed]="mostrarRegistro || panelActividadAbierto">
   <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
     <div class="row w-100 text-center">
       <div class="col-12">
@@ -14,13 +14,13 @@
   </div>
 </div>
 
-<div class="container-fluid cp-main-wrap mt--5" [class.is-dimmed]="mostrarRegistro">
+<div class="container-fluid cp-main-wrap mt--5" [class.is-dimmed]="mostrarRegistro || panelActividadAbierto">
   <div class="row justify-content-center">
     <div class="col-12 cp-content-col">
       <div class="card cp-shell border-0 shadow-sm">
         <div class="cp-shell-accent" aria-hidden="true"></div>
         <div class="card-body cp-shell-body">
-          <nav class="cp-view-nav" aria-label="Vistas de Control de avance de proyectos">
+          <nav class="cp-view-nav" aria-label="Vistas de Control de avance de proyectos" *ngIf="!esConsultaEmpresa">
             <button
               type="button"
               class="cp-view-nav__item"
@@ -38,10 +38,9 @@
             </button>
           </nav>
 
-          <section class="cp-company-filter">
+          <section class="cp-company-filter" *ngIf="!esConsultaEmpresa">
             <div class="cp-company-filter__copy">
-              <span class="cp-company-filter__eyebrow">Empresa</span>
-              <strong>{{ empresaSeleccionadaNombre }}</strong>
+              <span class="cp-company-filter__name">{{ empresaSeleccionadaNombre }}</span>
               <small *ngIf="tienePermisoUniversalGestion">Permiso universal: puedes ver y gestionar proyectos de todas las empresas y perfiles.</small>
               <small *ngIf="!tienePermisoUniversalGestion">Puedes ver y gestionar todos los proyectos. Solo eliminas las actividades de las que eres responsable.</small>
             </div>
@@ -50,41 +49,45 @@
               [class.is-open]="empresaDashboardDropdownAbierto"
               (mousedown)="$event.stopPropagation()"
             >
-              <div class="cp-company-combo__control" (click)="abrirDropdownEmpresaDashboard()">
-                <span class="cp-company-combo__icon" aria-hidden="true"><i class="fas fa-pen"></i></span>
-                <input
-                  type="text"
-                  class="cp-company-combo__input"
-                  name="empresaDashboardBusqueda"
-                  [(ngModel)]="empresaDashboardBusqueda"
-                  (click)="$event.stopPropagation(); abrirDropdownEmpresaDashboard()"
-                  (focus)="abrirDropdownEmpresaDashboard()"
-                  (ngModelChange)="onBusquedaEmpresaDashboard()"
-                  (keydown.escape)="cerrarDropdownEmpresaDashboard(); $event.preventDefault(); $event.stopPropagation()"
-                  placeholder="Buscar empresa por nombre…"
-                  autocomplete="off"
-                  aria-autocomplete="list"
-                  aria-label="Buscar empresa"
-                  [attr.aria-expanded]="empresaDashboardDropdownAbierto"
-                >
-                <button
-                  type="button"
-                  class="cp-company-combo__clear"
-                  *ngIf="empresaSeleccionadaId || empresaDashboardBusqueda"
-                  (mousedown)="$event.preventDefault()"
-                  (click)="limpiarEmpresaDashboard($event)"
-                  aria-label="Limpiar empresa"
-                >
-                  <i class="fas fa-times"></i>
-                </button>
-              </div>
+              <button
+                type="button"
+                class="cp-company-combo__trigger"
+                (click)="abrirDropdownEmpresaDashboard()"
+                [attr.aria-expanded]="empresaDashboardDropdownAbierto"
+                aria-haspopup="listbox"
+              >
+                <span class="cp-company-combo__trigger-logo" [class.has-logo]="!!logoEmpresaSeleccionadaUrl">
+                  <img *ngIf="logoEmpresaSeleccionadaUrl as logoSel" [src]="logoSel" alt="" (error)="onLogoEmpresaSeleccionadaError()">
+                  <i *ngIf="!logoEmpresaSeleccionadaUrl" class="fas" [ngClass]="empresaSeleccionadaId ? 'fa-building' : 'fa-layer-group'"></i>
+                </span>
+                <span class="cp-company-combo__trigger-copy">
+                  <span class="cp-company-combo__trigger-name">{{ empresaSeleccionadaNombre }}</span>
+                </span>
+                <i class="fas cp-company-combo__chevron" [ngClass]="empresaDashboardDropdownAbierto ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+              </button>
               <div class="cp-company-combo__dropdown" *ngIf="empresaDashboardDropdownAbierto" role="listbox">
-                <div class="cp-company-combo__dropdown-head">
-                  <span class="cp-company-combo__dropdown-title">
-                    <i class="fas fa-building" aria-hidden="true"></i>
-                    Empresas
-                  </span>
-                  <span class="cp-company-combo__dropdown-count">{{ empresasDashboardFiltradas.length }}</span>
+                <div class="cp-company-combo__search">
+                  <i class="fas fa-search" aria-hidden="true"></i>
+                  <input
+                    type="text"
+                    name="empresaDashboardBusqueda"
+                    [(ngModel)]="empresaDashboardBusqueda"
+                    (ngModelChange)="onBusquedaEmpresaDashboard()"
+                    (keydown.escape)="cerrarDropdownEmpresaDashboard(); $event.preventDefault(); $event.stopPropagation()"
+                    placeholder="Buscar empresa…"
+                    autocomplete="off"
+                    aria-label="Buscar empresa"
+                  >
+                  <button
+                    type="button"
+                    class="cp-company-combo__clear"
+                    *ngIf="empresaDashboardBusqueda"
+                    (mousedown)="$event.preventDefault()"
+                    (click)="empresaDashboardBusqueda = ''; onBusquedaEmpresaDashboard()"
+                    aria-label="Limpiar búsqueda"
+                  >
+                    <i class="fas fa-times"></i>
+                  </button>
                 </div>
                 <div class="cp-company-combo__options">
                   <button
@@ -98,7 +101,10 @@
                     <span class="cp-company-combo__option-icon cp-company-combo__option-icon--all">
                       <i class="fas fa-layer-group"></i>
                     </span>
-                    <span class="cp-company-combo__option-text">Todas las empresas</span>
+                    <span class="cp-company-combo__option-text">
+                      <strong>Todas las empresas</strong>
+                      <small>Vista consolidada del portafolio</small>
+                    </span>
                     <i class="fas fa-check cp-company-combo__check" *ngIf="!empresaSeleccionadaId"></i>
                   </button>
                   <button
@@ -110,10 +116,19 @@
                     (mousedown)="$event.preventDefault()"
                     (click)="seleccionarEmpresaDashboard(empresa)"
                   >
-                    <span class="cp-company-combo__option-icon">
-                      <i class="fas fa-building"></i>
+                    <span class="cp-company-combo__option-icon" [class.has-logo]="!!empresa.logoUrl">
+                      <img
+                        *ngIf="empresa.logoUrl as logoSrc"
+                        [src]="logoSrc"
+                        [alt]="'Logo de ' + empresa.nombreEmpresa"
+                        (error)="onLogoEmpresaComboError(empresa)"
+                      >
+                      <i *ngIf="!empresa.logoUrl" class="fas fa-building"></i>
                     </span>
-                    <span class="cp-company-combo__option-text">{{ empresa.nombreEmpresa }}</span>
+                    <span class="cp-company-combo__option-text">
+                      <strong>{{ empresa.nombreEmpresa }}</strong>
+                      <small>Empresa registrada</small>
+                    </span>
                     <i class="fas fa-check cp-company-combo__check" *ngIf="empresaSeleccionadaId === empresa.empresaId"></i>
                   </button>
                   <div class="cp-company-combo__state" *ngIf="empresasDashboardFiltradas.length === 0">
@@ -629,7 +644,7 @@
           </ng-container>
 
           <ng-container *ngIf="!cargando && !errorCarga && vistaActiva === 'gestion'">
-            <div class="cp-gestion">
+            <div class="cp-gestion" [class.cp-gestion--consulta]="esConsultaEmpresa">
               <header class="cp-gestion__head">
                 <div class="cp-gestion__head-main">
                   <ng-container *ngIf="gestionNivelVista === 'proyectos'; else headActividades">
@@ -640,19 +655,37 @@
                     </p>
                   </ng-container>
                   <ng-template #headActividades>
-                    <button type="button" class="cp-gestion__back" (click)="volverAListaProyectosGestion()">
+                    <button
+                      type="button"
+                      class="cp-gestion__back"
+                      *ngIf="!esConsultaEmpresa || !tieneUnSoloProyectoGestion"
+                      (click)="volverAListaProyectosGestion()"
+                    >
                       <i class="fas fa-arrow-left"></i>
                       Proyectos
                     </button>
                     <ng-container *ngIf="grupoGestionSeleccionado as gHead">
-                      <h2 class="cp-gestion__title">{{ gHead.nombreProyecto }}</h2>
-                      <p class="cp-gestion__subtitle">
-                        {{ gHead.actividades.length }} actividad{{ gHead.actividades.length === 1 ? '' : 'es' }}
-                      </p>
+                      <div class="cp-gestion-proyecto-hero" *ngIf="esConsultaEmpresa; else tituloInterno">
+                        <p class="cp-gestion-proyecto-hero__eyebrow">
+                          <i class="fas fa-eye"></i>
+                          Consulta de avance
+                        </p>
+                        <div class="cp-gestion-proyecto-hero__title-row">
+                          <i class="fas fa-chevron-right cp-gestion-proyecto-hero__side-icon" aria-hidden="true"></i>
+                          <h2 class="cp-gestion-proyecto-hero__title">{{ gHead.nombreProyecto }}</h2>
+                          <i class="fas fa-chevron-left cp-gestion-proyecto-hero__side-icon" aria-hidden="true"></i>
+                        </div>
+                      </div>
+                      <ng-template #tituloInterno>
+                        <h2 class="cp-gestion__title">{{ gHead.nombreProyecto }}</h2>
+                        <p class="cp-gestion__subtitle">
+                          {{ gHead.actividades.length }} actividad{{ gHead.actividades.length === 1 ? '' : 'es' }}
+                        </p>
+                      </ng-template>
                     </ng-container>
                   </ng-template>
                 </div>
-                <div class="cp-gestion__actions">
+                <div class="cp-gestion__actions" *ngIf="!esConsultaEmpresa">
                   <span class="cp-gestion__dirty" *ngIf="gestionCambiosPendientes">
                     <i class="fas fa-circle"></i> Cambios sin guardar
                   </span>
@@ -686,7 +719,7 @@
                       (ngModelChange)="onBusquedaGestionChange()"
                     >
                   </div>
-                  <button type="button" class="cp-btn cp-btn--primary" (click)="abrirRegistro()">
+                  <button type="button" class="cp-btn cp-btn--primary" (click)="abrirRegistro()" *ngIf="!esConsultaEmpresa">
                     <i class="fas fa-plus"></i> Nuevo proyecto
                   </button>
                 </div>
@@ -743,7 +776,7 @@
                           </span>
                         </div>
                         <span class="cp-gestion-proj__cta">
-                          Gestionar <i class="fas fa-chevron-right"></i>
+                          {{ esConsultaEmpresa ? 'Ver' : 'Gestionar' }} <i class="fas fa-chevron-right"></i>
                         </span>
                       </ng-container>
                     </ng-container>
@@ -755,66 +788,82 @@
               <ng-container *ngIf="gestionNivelVista === 'actividades'">
               <ng-container *ngIf="grupoGestionSeleccionado as grupo">
                 <div class="cp-gestion-detail-panel">
-                  <header class="cp-gestion-detail-panel__head">
-                    <div class="cp-gestion-detail-panel__summary" *ngIf="resumenGrupoGestion(grupo) as r">
-                      <div class="cp-gestion-detail-panel__stat">
-                        <span class="cp-gestion-detail-panel__stat-label">Responsable</span>
-                        <span class="cp-gestion-detail-panel__stat-value">{{ r.responsable }}</span>
+                  <header class="cp-gestion-detail-panel__head" [class.cp-gestion-detail-panel__head--consulta]="esConsultaEmpresa">
+                    <ng-container *ngIf="resumenGrupoGestion(grupo) as r">
+                      <div class="cp-gestion-detail-panel__summary" *ngIf="!esConsultaEmpresa">
+                        <div class="cp-gestion-detail-panel__stat">
+                          <span class="cp-gestion-detail-panel__stat-label">Responsable</span>
+                          <span class="cp-gestion-detail-panel__stat-value">{{ r.responsable }}</span>
+                        </div>
+                        <div class="cp-gestion-detail-panel__stat">
+                          <span class="cp-gestion-detail-panel__stat-label">Vencimiento</span>
+                          <span class="cp-gestion-detail-panel__stat-value">{{ r.fechaCompromiso ? formatearFechaProyecto(r.fechaCompromiso) : '—' }}</span>
+                        </div>
+                        <div class="cp-gestion-detail-panel__stat">
+                          <span class="cp-gestion-detail-panel__stat-label">Estatus</span>
+                          <span class="cp-gestion-detail-panel__stat-value">{{ r.estatus }}</span>
+                        </div>
+                        <div class="cp-gestion-detail-panel__stat" *ngIf="statsGrupoGestion(grupo) as st">
+                          <span class="cp-gestion-detail-panel__stat-label">Avance</span>
+                          <span class="cp-gestion-detail-panel__stat-value">{{ st.avance }}%</span>
+                        </div>
                       </div>
-                      <div class="cp-gestion-detail-panel__stat">
-                        <span class="cp-gestion-detail-panel__stat-label">Vencimiento</span>
-                        <span class="cp-gestion-detail-panel__stat-value">{{ r.fechaCompromiso ? formatearFechaProyecto(r.fechaCompromiso) : '—' }}</span>
+                      <div class="cp-gestion-detail-panel__summary cp-gestion-detail-panel__summary--consulta" *ngIf="esConsultaEmpresa && statsGrupoGestion(grupo) as st">
+                        <div class="cp-gestion-detail-panel__stat">
+                          <span class="cp-gestion-detail-panel__stat-label"><i class="fas fa-user"></i> Responsable</span>
+                          <span class="cp-gestion-detail-panel__stat-value">{{ r.responsable }}</span>
+                        </div>
+                        <div class="cp-gestion-detail-panel__stat">
+                          <span class="cp-gestion-detail-panel__stat-label"><i class="fas fa-flag"></i> Inicio</span>
+                          <span class="cp-gestion-detail-panel__stat-value">{{ etiquetaFechaInicioProyectoGestion(grupo) }}</span>
+                        </div>
+                        <div class="cp-gestion-detail-panel__stat">
+                          <span class="cp-gestion-detail-panel__stat-label"><i class="fas fa-hourglass-half"></i> Tiempo gestionado</span>
+                          <span class="cp-gestion-detail-panel__stat-value">{{ tiempoGestionadoProyecto(grupo) }}</span>
+                        </div>
+                        <div class="cp-gestion-detail-panel__stat">
+                          <span class="cp-gestion-detail-panel__stat-label"><i class="fas fa-tasks"></i> Actividades</span>
+                          <span class="cp-gestion-detail-panel__stat-value">{{ st.total }}</span>
+                        </div>
+                        <div class="cp-gestion-detail-panel__stat cp-gestion-detail-panel__stat--avance">
+                          <span class="cp-gestion-detail-panel__stat-label"><i class="fas fa-chart-line"></i> Avance</span>
+                          <span class="cp-gestion-detail-panel__stat-value">{{ st.avance }}%</span>
+                        </div>
                       </div>
-                      <div class="cp-gestion-detail-panel__stat">
-                        <span class="cp-gestion-detail-panel__stat-label">Estatus</span>
-                        <span class="cp-gestion-detail-panel__stat-value">{{ r.estatus }}</span>
-                      </div>
-                      <div class="cp-gestion-detail-panel__stat" *ngIf="statsGrupoGestion(grupo) as st">
-                        <span class="cp-gestion-detail-panel__stat-label">Avance</span>
-                        <span class="cp-gestion-detail-panel__stat-value">{{ st.avance }}%</span>
-                      </div>
-                    </div>
-                    <div class="cp-gestion-detail-panel__actions">
+                    </ng-container>
+                    <div class="cp-gestion-detail-panel__actions" *ngIf="!esConsultaEmpresa">
                       <button
                         type="button"
-                        class="cp-btn cp-btn--ghost cp-btn--sm cp-btn--ghost-danger"
+                        class="cp-icon-action cp-icon-action--danger"
                         *ngIf="puedeDesactivarProyectoGestion"
                         (click)="desactivarProyectoGestion(grupo)"
                         [disabled]="guardandoGestion || guardandoActividadGestion"
-                        title="Desactivar el proyecto completo (las actividades quedan inactivas en la base de datos)"
+                        aria-label="Desactivar proyecto"
                       >
-                        <i class="fas fa-trash-alt"></i> Desactivar proyecto
+                        <i class="fas fa-trash-alt"></i>
+                        <span class="cp-icon-action__label">Desactivar</span>
                       </button>
                       <button
                         type="button"
-                        class="cp-btn cp-btn--ghost cp-btn--sm"
+                        class="cp-icon-action"
                         *ngIf="grupo.actividades[0] && puedeEditarProyectoGestion(grupo)"
                         (click)="abrirEdicionProyecto(grupo.actividades[0].proyecto, grupo.actividades[0].indice, grupo)"
-                        title="Editar datos generales del proyecto"
+                        aria-label="Editar proyecto"
                       >
-                        <i class="fas fa-pen"></i> Editar proyecto
+                        <i class="fas fa-pen"></i>
+                        <span class="cp-icon-action__label">Editar</span>
                       </button>
-                      <div class="cp-gestion-add-menu" [class.is-open]="menuAgregarActividadAbierto" *ngIf="puedeEditarProyectoGestion(grupo)">
-                        <button
-                          type="button"
-                          class="cp-btn cp-btn--primary cp-btn--sm"
-                          (click)="toggleMenuAgregarActividad($event)"
-                          [disabled]="guardandoActividadGestion"
-                        >
-                          <i class="fas" [ngClass]="guardandoActividadGestion ? 'fa-spinner fa-spin' : 'fa-plus'"></i>
-                          Agregar actividad
-                          <i class="fas fa-caret-down" *ngIf="!guardandoActividadGestion"></i>
-                        </button>
-                        <div class="cp-gestion-add-menu__panel" *ngIf="menuAgregarActividadAbierto" (click)="$event.stopPropagation()">
-                          <button type="button" (click)="agregarActividadAProyectoYGuardar(grupo)">
-                            <i class="fas fa-database"></i>
-                            <span>
-                              <strong>Nueva actividad</strong>
-                              <small>Se guarda en la base de datos al instante</small>
-                            </span>
-                          </button>
-                        </div>
-                      </div>
+                      <button
+                        type="button"
+                        class="cp-icon-action cp-icon-action--primary"
+                        *ngIf="puedeEditarProyectoGestion(grupo)"
+                        (click)="agregarActividadAProyecto(grupo)"
+                        [disabled]="guardandoActividadGestion || guardandoGestion"
+                        aria-label="Agregar actividad"
+                      >
+                        <i class="fas" [ngClass]="guardandoActividadGestion ? 'fa-spinner fa-spin' : 'fa-plus'"></i>
+                        <span class="cp-icon-action__label">Agregar</span>
+                      </button>
                     </div>
                   </header>
 
@@ -842,16 +891,6 @@
                     </div>
                     <select
                       class="cp-gestion-act-filter"
-                      [(ngModel)]="filtroPrioridadActividadesGestion"
-                      name="filtroPrioridadActividadesGestion"
-                      (ngModelChange)="onFiltroActividadesGestionChange()"
-                      aria-label="Filtrar por prioridad"
-                    >
-                      <option value="">Prioridad</option>
-                      <option *ngFor="let pr of prioridadesRegistro" [value]="pr">{{ pr }}</option>
-                    </select>
-                    <select
-                      class="cp-gestion-act-filter"
                       [(ngModel)]="ordenVencimientoActividadesGestion"
                       name="ordenVencimientoActividadesGestion"
                       (ngModelChange)="onFiltroActividadesGestionChange()"
@@ -876,8 +915,8 @@
                             <th class="cp-gestion-act-table__col--date">Vencimiento</th>
                             <th class="cp-gestion-act-table__col--status">Estatus</th>
                             <th class="cp-gestion-act-table__col--assignees">Responsables</th>
-                            <th class="cp-gestion-act-table__col--prio">Prioridad</th>
-                            <th class="cp-gestion-act-table__col--more">Detalle</th>
+                            <th class="cp-gestion-act-table__col--obs">Observaciones</th>
+                            <th class="cp-gestion-act-table__col--more"></th>
                             <th class="cp-gestion-act-table__col--act"></th>
                           </tr>
                         </thead>
@@ -887,8 +926,14 @@
                               class="cp-gestion-act-table__row"
                               [class.is-expanded]="actividadGestionExpandida(item.indice)"
                               [class.is-readonly]="!puedeEditarActividadGestion(item.proyecto, grupo)"
+                              (mouseenter)="abrirDetalleGestionHover(item.indice)"
+                              (mouseleave)="cerrarDetalleGestionHover(item.indice)"
                             >
-                              <td class="cp-gestion-act-table__num">{{ numeroActividadGestion(grupo, item) }}</td>
+                              <td
+                                class="cp-gestion-act-table__num"
+                                (click)="toggleExpandirActividadGestion(item.indice)"
+                                title="Seleccionar actividad"
+                              >{{ numeroActividadGestion(grupo, item) }}</td>
                               <td>
                                 <textarea
                                   class="cp-gestion-act-table__input cp-gestion-act-table__input--actividad"
@@ -1017,52 +1062,28 @@
                                 </div>
                               </td>
                               <td>
-                                <div class="cp-gestion-act-prio" [class.is-open]="menuPrioridadGestionIndice === item.indice">
-                                  <button
-                                    type="button"
-                                    class="cp-gestion-act-prio__btn"
-                                    [ngClass]="prioridadClase(item.proyecto.prioridad)"
-                                    (click)="toggleMenuPrioridadGestion($event, item.indice)"
-                                    [disabled]="!puedeEditarActividadGestion(item.proyecto, grupo)"
-                                    [title]="item.proyecto.prioridad || 'Sin prioridad'"
-                                    [attr.aria-label]="'Prioridad: ' + (item.proyecto.prioridad || 'Sin prioridad')"
-                                    [attr.aria-expanded]="menuPrioridadGestionIndice === item.indice"
-                                  >
-                                    <i
-                                      class="fas"
-                                      [ngClass]="[prioridadIcono(item.proyecto.prioridad), prioridadIconClass(item.proyecto.prioridad)]"
-                                    ></i>
-                                  </button>
-                                  <div
-                                    class="cp-gestion-act-prio__menu"
-                                    *ngIf="menuPrioridadGestionIndice === item.indice"
-                                    [ngStyle]="menuPrioridadGestionStyle"
-                                    (click)="$event.stopPropagation()"
-                                  >
-                                    <p class="cp-gestion-act-prio__menu-title">Prioridad</p>
-                                    <button
-                                      type="button"
-                                      class="cp-gestion-act-prio__option"
-                                      *ngFor="let pr of prioridadesRegistro"
-                                      [class.is-active]="item.proyecto.prioridad === pr"
-                                      (click)="seleccionarPrioridadGestion(item.proyecto, pr)"
-                                    >
-                                      <i class="fas" [ngClass]="[prioridadIcono(pr), prioridadIconClass(pr)]"></i>
-                                      <span>{{ pr }}</span>
-                                    </button>
-                                  </div>
-                                </div>
+                                <textarea
+                                  class="cp-gestion-act-table__input cp-gestion-act-table__input--obs"
+                                  rows="2"
+                                  [(ngModel)]="item.proyecto.observaciones"
+                                  [name]="'gestion_obs_' + item.indice"
+                                  (ngModelChange)="marcarGestionCambios()"
+                                  (input)="autoAjustarTextareaObs($event)"
+                                  [readonly]="!puedeEditarActividadGestion(item.proyecto, grupo)"
+                                  placeholder="Observaciones"
+                                  aria-label="Observaciones"
+                                  wrap="soft"
+                                ></textarea>
                               </td>
-                              <td>
+                              <td class="cp-gestion-act-table__detalle-cell">
                                 <button
                                   type="button"
-                                  class="cp-gestion-act-table__expand"
-                                  (click)="toggleExpandirActividadGestion(item.indice)"
-                                  [attr.aria-expanded]="actividadGestionExpandida(item.indice)"
-                                  [title]="actividadGestionExpandida(item.indice) ? 'Ocultar detalle' : 'Referencia y entregables'"
+                                  class="cp-gestion-row-btn cp-gestion-row-btn--menu"
+                                  (click)="abrirPanelActividad($event, item)"
+                                  [attr.aria-label]="'Detalles de la actividad ' + numeroActividadGestion(grupo, item)"
+                                  title="Detalles e historial"
                                 >
-                                  <i class="fas" [ngClass]="actividadGestionExpandida(item.indice) ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-                                  <span class="cp-gestion-act-table__expand-label">Más</span>
+                                  <i class="fas fa-ellipsis-v"></i>
                                 </button>
                               </td>
                               <td>
@@ -1077,7 +1098,12 @@
                                 </button>
                               </td>
                             </tr>
-                            <tr class="cp-gestion-act-table__detail" *ngIf="actividadGestionExpandida(item.indice)">
+                            <tr
+                              class="cp-gestion-act-table__detail"
+                              *ngIf="actividadGestionExpandida(item.indice)"
+                              (mouseenter)="abrirDetalleGestionHover(item.indice)"
+                              (mouseleave)="cerrarDetalleGestionHover(item.indice)"
+                            >
                               <td colspan="8">
                                 <div class="cp-gestion-act-table__detail-grid">
                                   <label class="cp-gestion-act-table__field">
@@ -1104,6 +1130,31 @@
                                       wrap="soft"
                                     ></textarea>
                                   </label>
+                                  <div class="cp-gestion-act-table__field cp-gestion-adjuntos">
+                                    <span>Archivos adjuntos</span>
+                                    <div class="cp-gestion-docs">
+                                      <div class="cp-gestion-docs__count" [class.is-empty]="!adjuntosProyecto.length">
+                                        <i class="fas fa-folder-open" aria-hidden="true"></i>
+                                        <span class="cp-gestion-docs__num">{{ cargandoAdjuntos ? '…' : adjuntosProyecto.length }}</span>
+                                        <span class="cp-gestion-docs__word">
+                                          documento{{ (!cargandoAdjuntos && adjuntosProyecto.length === 1) ? '' : 's' }}
+                                        </span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        class="cp-gestion-docs__open"
+                                        (click)="abrirRepositorioProyecto(grupo)"
+                                        aria-label="Abrir repositorio de evidencias"
+                                      >
+                                        <span class="cp-gestion-docs__open-label">Repositorio</span>
+                                        <i class="fas fa-folder-open"></i>
+                                      </button>
+                                    </div>
+                                    <p class="cp-gestion-adjuntos__error" *ngIf="errorAdjuntos">{{ errorAdjuntos }}</p>
+                                    <p class="cp-gestion-adjuntos__loading" *ngIf="cargandoAdjuntos">
+                                      <i class="fas fa-spinner fa-spin"></i> Contando documentos…
+                                    </p>
+                                  </div>
                                 </div>
                               </td>
                             </tr>
@@ -1143,19 +1194,33 @@
 
                   <ng-template #sinActividadesDetalle>
                     <div class="cp-gestion-actividades__empty">
-                      Este proyecto aún no tiene actividades. Usa <strong>Agregar actividad</strong> para crear la primera.
+                      Este proyecto aún no tiene actividades.
+                      <ng-container *ngIf="!esConsultaEmpresa"> Usa el icono <strong>+</strong> para crear la primera.</ng-container>
                     </div>
                   </ng-template>
                 </div>
               </ng-container>
               </ng-container>
 
+              <section
+                class="cp-gestion-cronograma"
+                *ngIf="esConsultaEmpresa && gestionNivelVista === 'actividades' && grupoGestionSeleccionado"
+              >
+                <h3 class="cp-gestion-cronograma__title">Cronograma</h3>
+                <ng-container *ngTemplateOutlet="vistaCronograma; context: { $implicit: proyectosCronogramaGestion }"></ng-container>
+              </section>
+
               <ng-template #gestionVacia>
                 <div class="cp-gestion-empty">
-                  No hay proyectos para gestionar. Usa
-                  <button type="button" class="cp-note__link" (click)="abrirRegistro()">Nuevo proyecto</button>
-                  o
-                  <button type="button" class="cp-note__link" (click)="refrescarDesdeBd()">actualizar desde base de datos</button>.
+                  <ng-container *ngIf="esConsultaEmpresa; else gestionVaciaInterno">
+                    No hay proyectos en gestión para tu empresa.
+                  </ng-container>
+                  <ng-template #gestionVaciaInterno>
+                    No hay proyectos para gestionar. Usa
+                    <button type="button" class="cp-note__link" (click)="abrirRegistro()">Nuevo proyecto</button>
+                    o
+                    <button type="button" class="cp-note__link" (click)="refrescarDesdeBd()">actualizar desde base de datos</button>.
+                  </ng-template>
                 </div>
               </ng-template>
 
@@ -1164,10 +1229,14 @@
               </datalist>
             </div>
 
-            <p class="cp-note">
+            <p class="cp-note" *ngIf="!esConsultaEmpresa">
               <i class="fas fa-info-circle"></i>
               Selecciona un proyecto para gestionar sus actividades. Al agregar o eliminar una actividad se guarda al instante; el resto de ediciones se guardan al salir de Gestión o con <strong>Guardar</strong>.
               Eliminar no borra de la base: deja la actividad inactiva y registra quién lo hizo y a qué hora (México).
+            </p>
+            <p class="cp-note" *ngIf="esConsultaEmpresa && gestionNivelVista === 'proyectos'">
+              <i class="fas fa-info-circle"></i>
+              Selecciona un proyecto para consultar sus actividades y el cronograma. Esta vista es de solo lectura.
             </p>
           </ng-container>
 
@@ -1263,7 +1332,7 @@
             </p>
           </ng-container>
 
-          <ng-container *ngIf="!cargando && !errorCarga && vistaActiva === 'cronograma'">
+          <ng-template #vistaCronograma let-items>
             <div class="cp-board-toolbar cp-timeline-toolbar">
               <div class="cp-board-toolbar__search">
                 <i class="fas fa-search"></i>
@@ -1318,7 +1387,7 @@
                   </div>
                   <div
                     class="cp-timeline-sidebar__row"
-                    *ngFor="let p of proyectosCronogramaVisibles"
+                    *ngFor="let p of items"
                     [title]="nombreActividad(p)"
                   >
                     <i class="fas fa-bolt cp-timeline-sidebar__icon"></i>
@@ -1337,7 +1406,7 @@
                       {{ iniciales(p.responsable) }}
                     </span>
                   </div>
-                  <div class="cp-timeline-sidebar__empty" *ngIf="!proyectosCronogramaVisibles.length">
+                  <div class="cp-timeline-sidebar__empty" *ngIf="!items?.length">
                     Sin actividades para mostrar
                   </div>
                 </aside>
@@ -1357,7 +1426,7 @@
                     <div class="cp-timeline-body">
                       <div class="cp-timeline-today" [style.left.px]="posicionHoyPx" aria-hidden="true"></div>
 
-                      <div class="cp-timeline-row" *ngFor="let p of proyectosCronogramaVisibles">
+                      <div class="cp-timeline-row" *ngFor="let p of items">
                         <div class="cp-timeline-gridlines" aria-hidden="true">
                           <span
                             *ngFor="let periodo of periodosTimeline"
@@ -1379,8 +1448,8 @@
                         </div>
                       </div>
 
-                      <div class="cp-timeline-body__empty" *ngIf="!proyectosCronogramaVisibles.length">
-                        Registra proyectos con fechas para visualizar el cronograma
+                      <div class="cp-timeline-body__empty" *ngIf="!items?.length">
+                        {{ esConsultaEmpresa ? 'No hay fechas para visualizar el cronograma de este proyecto.' : 'Registra proyectos con fechas para visualizar el cronograma' }}
                       </div>
                     </div>
                   </div>
@@ -1410,6 +1479,10 @@
               <i class="fas fa-info-circle"></i>
               Las fechas se estiman a partir del inicio, compromiso y avance de cada actividad.
             </p>
+          </ng-template>
+
+          <ng-container *ngIf="!cargando && !errorCarga && vistaActiva === 'cronograma'">
+            <ng-container *ngTemplateOutlet="vistaCronograma; context: { $implicit: proyectosCronogramaVisibles }"></ng-container>
           </ng-container>
 
           <ng-container *ngIf="!cargando && !errorCarga && vistaActiva === 'actividades'">
@@ -2018,3 +2091,166 @@
     </footer>
   </form>
 </div>
+
+<div
+  class="cp-actividad-panel-backdrop"
+  *ngIf="panelActividadAbierto"
+  (click)="cerrarPanelActividad()"
+  aria-hidden="true"
+></div>
+<aside
+  class="cp-actividad-panel"
+  *ngIf="panelActividadAbierto && panelActividadItem as panel"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="cp-actividad-panel-title"
+>
+  <header class="cp-actividad-panel__head">
+    <div class="cp-actividad-panel__head-text">
+      <p class="cp-actividad-panel__eyebrow">Actividad gestionada</p>
+      <h2 id="cp-actividad-panel-title" class="cp-actividad-panel__title">
+        {{ panel.proyecto.actividadesAccion || 'Actividad sin nombre' }}
+      </h2>
+    </div>
+    <button type="button" class="cp-actividad-panel__close" (click)="cerrarPanelActividad()" aria-label="Cerrar panel">
+      <i class="fas fa-times"></i>
+    </button>
+  </header>
+
+  <nav class="cp-actividad-panel__tabs" aria-label="Secciones del detalle">
+    <button
+      type="button"
+      [class.is-active]="panelActividadTab === 'detalles'"
+      (click)="seleccionarTabPanelActividad('detalles')"
+    >
+      Detalles
+    </button>
+    <button
+      type="button"
+      [class.is-active]="panelActividadTab === 'actividad'"
+      (click)="seleccionarTabPanelActividad('actividad')"
+    >
+      Actividad
+    </button>
+  </nav>
+
+  <div class="cp-actividad-panel__body">
+    <p class="cp-actividad-panel__loading" *ngIf="cargandoPanelActividad">
+      <i class="fas fa-spinner fa-spin"></i> Cargando información…
+    </p>
+    <p class="cp-actividad-panel__error" *ngIf="errorPanelActividad">{{ errorPanelActividad }}</p>
+
+    <ng-container *ngIf="!cargandoPanelActividad && panelActividadTab === 'detalles'">
+      <section class="cp-actividad-panel__section">
+        <h3 class="cp-actividad-panel__section-title">
+          <i class="fas fa-user-clock" aria-hidden="true"></i>
+          Auditoría
+        </h3>
+        <div class="cp-actividad-panel__cards">
+          <article class="cp-actividad-panel__card">
+            <span class="cp-actividad-panel__card-icon" aria-hidden="true"><i class="fas fa-user-plus"></i></span>
+            <div>
+              <p class="cp-actividad-panel__card-label">Creada por</p>
+              <p class="cp-actividad-panel__card-value">{{ panel.proyecto.creadoPor || panel.proyecto.modificadoPor || '—' }}</p>
+              <p class="cp-actividad-panel__card-sub">{{ formatearFechaHoraMexico(panel.proyecto.createdAt) }}</p>
+            </div>
+          </article>
+          <article class="cp-actividad-panel__card">
+            <span class="cp-actividad-panel__card-icon is-amber" aria-hidden="true"><i class="fas fa-pen"></i></span>
+            <div>
+              <p class="cp-actividad-panel__card-label">Última modificación</p>
+              <p class="cp-actividad-panel__card-value">{{ panel.proyecto.modificadoPor || '—' }}</p>
+              <p class="cp-actividad-panel__card-sub">{{ formatearFechaHoraMexico(panel.proyecto.modificadoEn || panel.proyecto.updatedAt) }}</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="cp-actividad-panel__section">
+        <h3 class="cp-actividad-panel__section-title">
+          <i class="fas fa-tasks" aria-hidden="true"></i>
+          Estado actual
+        </h3>
+        <div class="cp-actividad-panel__chips">
+          <div class="cp-actividad-panel__chip">
+            <span>Responsable</span>
+            <strong>{{ panel.proyecto.responsable || 'Sin asignar' }}</strong>
+          </div>
+          <div class="cp-actividad-panel__chip">
+            <span>Estatus</span>
+            <strong>{{ etiquetaEstatusActividadGestion(panel.proyecto.estatus) }}</strong>
+          </div>
+          <div class="cp-actividad-panel__chip">
+            <span>Vencimiento</span>
+            <strong>{{ panel.proyecto.fechaCompromiso ? formatearFechaProyecto(panel.proyecto.fechaCompromiso) : '—' }}</strong>
+          </div>
+          <div class="cp-actividad-panel__chip">
+            <span>Avance</span>
+            <strong>{{ panel.proyecto.avance || 0 }}%</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="cp-actividad-panel__section" *ngIf="panel.proyecto.observaciones || panel.proyecto.referenciaNormativa || panel.proyecto.entregables">
+        <h3 class="cp-actividad-panel__section-title">
+          <i class="fas fa-align-left" aria-hidden="true"></i>
+          Contenido
+        </h3>
+        <div class="cp-actividad-panel__block" *ngIf="panel.proyecto.observaciones">
+          <h4>Observaciones</h4>
+          <p>{{ panel.proyecto.observaciones }}</p>
+        </div>
+        <div class="cp-actividad-panel__block" *ngIf="panel.proyecto.referenciaNormativa">
+          <h4>Referencia</h4>
+          <p>{{ panel.proyecto.referenciaNormativa }}</p>
+        </div>
+        <div class="cp-actividad-panel__block" *ngIf="panel.proyecto.entregables">
+          <h4>Entregables</h4>
+          <p>{{ panel.proyecto.entregables }}</p>
+        </div>
+      </section>
+    </ng-container>
+
+    <ng-container *ngIf="!cargandoPanelActividad && panelActividadTab === 'actividad'">
+      <p class="cp-actividad-panel__hint">
+        Registro de cambios. Solo aparecen campos que ya tuvieron un valor distinto.
+      </p>
+      <ul class="cp-actividad-panel__timeline" *ngIf="panelActividadHistorial.length; else sinHistorial">
+        <li *ngFor="let h of panelActividadHistorial">
+          <div class="cp-actividad-panel__timeline-rail" aria-hidden="true">
+            <span class="cp-actividad-panel__timeline-dot"></span>
+          </div>
+          <article class="cp-actividad-panel__timeline-card">
+            <header>
+              <span class="cp-actividad-panel__timeline-badge">{{ h.etiqueta || h.campo }}</span>
+              <time>{{ formatearFechaHoraMexico(h.modificadoEn) }}</time>
+            </header>
+            <p class="cp-actividad-panel__timeline-user">
+              <i class="fas fa-user-edit"></i>
+              <span>{{ h.modificadoPor || 'Usuario' }}</span>
+            </p>
+            <div class="cp-actividad-panel__diff">
+              <div class="cp-actividad-panel__diff-col is-old">
+                <span class="cp-actividad-panel__diff-label">Antes</span>
+                <p>{{ textoValorHistorial(h.valorAnterior) }}</p>
+              </div>
+              <div class="cp-actividad-panel__diff-arrow" aria-hidden="true">
+                <i class="fas fa-long-arrow-alt-right"></i>
+              </div>
+              <div class="cp-actividad-panel__diff-col is-new">
+                <span class="cp-actividad-panel__diff-label">Ahora</span>
+                <p>{{ textoValorHistorial(h.valorNuevo) }}</p>
+              </div>
+            </div>
+          </article>
+        </li>
+      </ul>
+      <ng-template #sinHistorial>
+        <div class="cp-actividad-panel__empty">
+          <i class="fas fa-history"></i>
+          <p>Aún no hay versiones registradas para esta actividad.</p>
+        </div>
+      </ng-template>
+    </ng-container>
+  </div>
+</aside>

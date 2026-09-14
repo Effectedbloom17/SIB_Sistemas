@@ -198,12 +198,33 @@ function esErrorReintentable(err) {
     );
 }
 
-async function resolverCarpetaEvaluacion(proveedor, evaluacionId) {
+async function resolverCarpetaEvaluacion(proveedor, evaluacionId, subcarpeta) {
     const carpetaProv = await driveService.obtenerOCrearCarpeta(
         sanitizarNombreCarpeta(proveedor || 'Sin-nombre'),
         CARPETA_DRIVE_EVIDENCIAS
     );
-    return driveService.obtenerOCrearCarpeta(evaluacionId, carpetaProv);
+    const carpetaEval = await driveService.obtenerOCrearCarpeta(evaluacionId, carpetaProv);
+    const sub = sanitizarNombreCarpeta(subcarpeta || '');
+    if (sub && sub !== 'Sin-nombre') {
+        return driveService.obtenerOCrearCarpeta(sub, carpetaEval);
+    }
+    return carpetaEval;
+}
+
+async function crearCarpetaEvidencia(pool, body) {
+    const evaluacionId = normalizarEvaluacionId(body?.evaluacion_id || body?.evaluacionId);
+    const proveedor = sanitizarTexto(body?.proveedor, 255);
+    const nombre = sanitizarNombreCarpeta(body?.nombre || body?.nombre_carpeta);
+    if (!nombre || nombre === 'Sin-nombre') {
+        throw Object.assign(new Error('Indica un nombre válido para la carpeta.'), { status: 400 });
+    }
+    const carpetaDriveId = await resolverCarpetaEvaluacion(proveedor, evaluacionId, nombre);
+    return {
+        evaluacionId,
+        nombre,
+        carpetaDriveId,
+        webViewLink: `https://drive.google.com/drive/folders/${carpetaDriveId}`
+    };
 }
 
 async function listarEvidencias(pool, evaluacionId) {
@@ -320,7 +341,11 @@ async function subirEvidencia(pool, body, usuario) {
         throw Object.assign(new Error('El archivo supera el máximo de 40 MB.'), { status: 400 });
     }
 
-    const carpetaDriveId = await resolverCarpetaEvaluacion(proveedor, evaluacionId);
+    const carpetaDriveId = await resolverCarpetaEvaluacion(
+        proveedor,
+        evaluacionId,
+        body?.subcarpeta || body?.carpeta || body?.folder
+    );
     let driveResult = null;
     let ultimoError = null;
 
@@ -467,6 +492,7 @@ module.exports = {
     asegurarTablas,
     listarEvidencias,
     contarEvidencias,
+    crearCarpetaEvidencia,
     subirEvidencia,
     subirEvidenciasLote,
     eliminarEvidencia,

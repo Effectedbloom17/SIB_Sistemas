@@ -190,13 +190,13 @@
                     <button type="button" class="mt-doc__check"
                       [class.is-on]="sol.tipoMantenimiento === 'Preventivo'"
                       (click)="sol.tipoMantenimiento = 'Preventivo'; onCampoChange()">
-                      <i class="far" [ngClass]="sol.tipoMantenimiento === 'Preventivo' ? 'fa-check-square' : 'fa-square'"></i>
+                      <span class="mt-doc__xbox" aria-hidden="true">{{ sol.tipoMantenimiento === 'Preventivo' ? 'X' : '' }}</span>
                       Preventivo
                     </button>
                     <button type="button" class="mt-doc__check"
                       [class.is-on]="sol.tipoMantenimiento === 'Correctivo'"
                       (click)="sol.tipoMantenimiento = 'Correctivo'; onCampoChange()">
-                      <i class="far" [ngClass]="sol.tipoMantenimiento === 'Correctivo' ? 'fa-check-square' : 'fa-square'"></i>
+                      <span class="mt-doc__xbox" aria-hidden="true">{{ sol.tipoMantenimiento === 'Correctivo' ? 'X' : '' }}</span>
                       Correctivo
                     </button>
                   </div>
@@ -262,7 +262,7 @@
                     <div class="text-center">
                       <i class="fas fa-cloud-upload-alt fa-2x mb-2 evidencias-drop-zone__icon"></i>
                       <p class="mb-1 font-weight-600 small">
-                        {{ fotosPendientes.length ? (fotosPendientes.length + ' foto(s) listas') : 'Arrastra fotos aquí o haz clic' }}
+                        {{ fotosPendientes.length ? (fotosPendientes.length + ' foto(s) listas') : 'Arrastra hasta 2 fotos o haz clic' }}
                       </p>
                     </div>
                   </div>

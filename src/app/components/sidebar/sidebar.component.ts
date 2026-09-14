@@ -88,7 +88,7 @@ export const ROUTES: RouteInfo[] = [
     { path: '/seguridad/normativas', title: 'Normativas', icon: '', iconFa: 'fa-clipboard-check', class: '' },
     { path: '/recursos-humanos/residentes', title: 'Residentes', icon: '', iconFa: 'fa-user-friends', class: '', roles: ['root', 'administrador', 'rrhh'] },
     { path: '/recursos-humanos/colaboradores', title: 'Colaboradores', icon: '', iconFa: 'fa-id-badge', class: '', roles: ['root', 'administrador', 'rrhh'] },
-    { path: '/control-proyectos', title: 'Control de avance\nde proyectos', icon: '', iconFa: 'fa-project-diagram', class: '' }, // Todos excepto empresa (filtro en filterMenuByRole)
+    { path: '/control-proyectos', title: 'Control de avance\nde proyectos', icon: '', iconFa: 'fa-project-diagram', class: '' }, // Todos los perfiles; empresa en consulta
     { path: '/sensores', title: 'Sensores', icon: '', iconFa: 'fa-tint', class: '', roles: ['root', 'iot'] },
     { path: '/ambiental', title: 'Ambiental', icon: '', iconFa: 'fa-tree', class: '', roles: ['root', 'administrador', 'ambiental'] },
     { path: '/control-tramites', title: 'Control de\nTrámites', icon: '', iconFa: 'fa-clipboard-list', class: '', roles: ['root', 'administrador', 'ambiental'] },
@@ -276,6 +276,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
         '/historial-cursos',
         '/chat-empresas',
         '/proteccion-civil',
+        '/control-proyectos',
         '/quejas-sugerencias'
       ];
       const byPath = new Map(items.map((item) => [item.path, item]));
@@ -508,8 +509,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
         return false;
       }
 
-      // Control de Proyectos y Control de Oficios: todos los perfiles excepto empresa
-      if (item.path === '/control-proyectos' || item.path === '/control-oficios') {
+      // Control de Oficios: todos los perfiles excepto empresa. Control de Proyectos sí es visible.
+      if (item.path === '/control-oficios') {
         const esEmpresa = userRoles.some(role => role.toLowerCase() === 'empresa') || userRole === 'empresa';
         return !esEmpresa;
       }

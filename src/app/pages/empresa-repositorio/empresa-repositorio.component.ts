@@ -597,20 +597,34 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
     if (!this.puedeAdministrar) {
       return;
     }
-    if (carpeta.cantidad > 0) {
-      Swal.fire(
-        'Carpeta con archivos',
-        'Mueve o elimina los documentos de la carpeta antes de borrarla.',
-        'info'
-      );
-      return;
+
+    const docs = this.documentosDeCarpeta(carpeta.ruta);
+    const nombre = this.escapeHtml(carpeta.nombre);
+    let html = `<p class="mb-0">Se eliminará la carpeta <strong>${nombre}</strong>.</p>`;
+    if (docs.length > 0) {
+      const items = docs
+        .map(d => `<li>${this.escapeHtml(this.etiquetaDocumentoEnCarpeta(d, carpeta.ruta))}</li>`)
+        .join('');
+      html = `
+        <p style="text-align:left;margin:0 0 0.75rem;">
+          ¿Está seguro de borrar la carpeta <strong>${nombre}</strong>?
+          Se van a borrar los siguientes documentos:
+        </p>
+        <ul style="text-align:left;max-height:220px;overflow:auto;margin:0 0 0.75rem;padding-left:1.4rem;">
+          ${items}
+        </ul>
+        <p style="text-align:left;margin:0;color:#a94442;font-weight:600;">
+          Esta acción no se puede deshacer.
+        </p>
+      `;
     }
 
     Swal.fire({
-      title: '¿Eliminar carpeta?',
-      html: `<p class="mb-0">Se eliminará la carpeta <strong>${this.escapeHtml(carpeta.nombre)}</strong>.</p>`,
+      title: docs.length > 0 ? '¿Borrar carpeta con documentos?' : '¿Eliminar carpeta?',
+      html,
       icon: 'warning',
       showCancelButton: true,
+      focusCancel: true,
       confirmButtonText: 'Sí, eliminar',
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#dc3545',
@@ -619,6 +633,16 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
       if (!result.isConfirmed) {
         return;
       }
+      Swal.fire({
+        title: 'Eliminando carpeta…',
+        text: docs.length
+          ? 'Borrando los documentos en Drive y en la base de datos.'
+          : 'Eliminando la carpeta.',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => Swal.showLoading()
+      });
       this.backend
         .eliminarEmpresaRepositorioCarpeta(this.empresaId, carpeta.ruta)
         .pipe(takeUntil(this.destroy$))
@@ -642,6 +666,27 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
           }
         });
     });
+  }
+
+  private documentosDeCarpeta(rutaCarpeta: string): EmpresaRepoItem[] {
+    const ruta = this.normalizarRuta(rutaCarpeta);
+    if (!ruta) {
+      return [];
+    }
+    return this.documentos.filter(d => {
+      const r = this.normalizarRuta(d.carpetaRelativa);
+      return r === ruta || r.startsWith(ruta + '/');
+    });
+  }
+
+  private etiquetaDocumentoEnCarpeta(doc: EmpresaRepoItem, rutaCarpeta: string): string {
+    const nombre = String(doc.nombreArchivo || doc.titulo || 'Documento').trim();
+    const rutaDoc = this.normalizarRuta(doc.carpetaRelativa);
+    const ruta = this.normalizarRuta(rutaCarpeta);
+    if (rutaDoc && ruta && rutaDoc !== ruta && rutaDoc.startsWith(ruta + '/')) {
+      return `${rutaDoc.slice(ruta.length + 1)}/${nombre}`;
+    }
+    return nombre;
   }
 
   onDragStartDoc(event: DragEvent, doc: EmpresaRepoItem): void {
@@ -845,15 +890,46 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
     }
     this.errorSubida = null;
     const nuevos = Array.from(lista).filter(f => f.size > 0 || f.name);
-    // Evita duplicados por nombre + tamaño.
     for (const file of nuevos) {
-      const yaExiste = this.archivosSeleccionados.some(
-        f => f.name === file.name && f.size === file.size
-      );
+      const clave = this.claveArchivo(file);
+      const yaExiste = this.archivosSeleccionados.some(f => this.claveArchivo(f) === clave);
       if (!yaExiste) {
         this.archivosSeleccionados.push(file);
       }
     }
+  }
+
+  etiquetaArchivoSeleccionado(file: File): string {
+    return this.rutaWebkitArchivo(file) || file.name;
+  }
+
+  private claveArchivo(file: File): string {
+    return `${this.etiquetaArchivoSeleccionado(file)}|${file.size}|${file.lastModified}`;
+  }
+
+  private rutaWebkitArchivo(file: File): string {
+    return this.normalizarRuta(String(file.webkitRelativePath || ''));
+  }
+
+  /** Carpeta relativa del archivo (incluye el nombre de la carpeta elegida). */
+  private carpetaDesdeArchivo(file: File): string {
+    const rel = this.rutaWebkitArchivo(file);
+    if (!rel || !rel.includes('/')) {
+      return '';
+    }
+    return rel.slice(0, rel.lastIndexOf('/'));
+  }
+
+  private unirRuta(base: string, extra: string): string {
+    const a = this.normalizarRuta(base);
+    const b = this.normalizarRuta(extra);
+    if (!a) {
+      return b;
+    }
+    if (!b) {
+      return a;
+    }
+    return `${a}/${b}`;
   }
 
   quitarArchivo(index: number): void {
@@ -909,6 +985,9 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
           }
         } catch {
           for (const item of lote) {
+            fallidos.push(item.carpeta_relativa
+              ? `${item.carpeta_relativa}/${item.nombre_archivo}`
+              : item.nombre_archivo);
             fallidos.push(item.nombre_archivo);
           }
         }
@@ -946,21 +1025,23 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
       while (indice < archivos.length) {
         const i = indice++;
         const file = archivos[i];
-        onProgreso?.(file.name);
+        const destino = this.unirRuta(carpetaRelativa, this.carpetaDesdeArchivo(file));
+        const etiqueta = this.etiquetaArchivoSeleccionado(file);
+        onProgreso?.(etiqueta);
         try {
           const base64 = await this.archivoABase64(file);
           if (!base64) {
-            fallidos.push(file.name);
+            fallidos.push(etiqueta);
           } else {
             payloads.push({
               nombre_archivo: file.name,
               mime_type: file.type,
               archivo_base64: base64,
-              ...(carpetaRelativa ? { carpeta_relativa: carpetaRelativa } : {})
+              ...(destino ? { carpeta_relativa: destino } : {})
             });
           }
         } catch {
-          fallidos.push(file.name);
+          fallidos.push(etiqueta);
         }
       }
     };
@@ -1005,7 +1086,10 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
     }
 
     // Conserva en la lista solo los que fallaron para poder reintentar.
-    this.archivosSeleccionados = this.archivosSeleccionados.filter(f => fallidos.includes(f.name));
+    this.archivosSeleccionados = this.archivosSeleccionados.filter(f => {
+      const etiqueta = this.etiquetaArchivoSeleccionado(f);
+      return fallidos.includes(etiqueta) || fallidos.includes(f.name);
+    });
     const listaFallidos = fallidos.length > 8
       ? `${fallidos.slice(0, 8).join(', ')} y ${fallidos.length - 8} más`
       : fallidos.join(', ');

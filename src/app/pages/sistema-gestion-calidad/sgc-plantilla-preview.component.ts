@@ -1770,9 +1770,6 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private sgcF14EditorIframeListo = false;
   sgcF14EvidenciasModalAbierto = false;
   sgcF14EvidenciasIdx: number | null = null;
-  /** Fila en modo edición puntual (doble clic); el resto abre evidencias con un clic. */
-  sgcF14FilaEditandoIdx: number | null = null;
-  private sgcF14ClickTimer: ReturnType<typeof setTimeout> | null = null;
   sgcF14EvidenciasCargando = false;
   sgcF14EvidenciasSubiendo = false;
   sgcF14EvidenciasProgreso = 0;
@@ -1782,6 +1779,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF14EvidenciasBusqueda = '';
   sgcF14EvidenciasConteos: Record<string, number> = {};
   sgcF14EvidenciasVista: 'grid' | 'lista' = 'grid';
+  sgcF14EvidCarpetasMenu = false;
+  @ViewChild('sgcF14CarpetaInput') sgcF14CarpetaInput?: ElementRef<HTMLInputElement>;
   sgcF14EvidenciasDragDepth = 0;
   sgcF14EvidenciasThumbs: Record<number, string> = {};
   private sgcF14EvidenciasThumbsCargando = new Set<number>();
@@ -2069,6 +2068,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF29EvidenciasBusqueda = '';
   sgcF29EvidenciasConteos: Record<string, number> = {};
   sgcF29EvidenciasVista: 'grid' | 'lista' = 'grid';
+  sgcF29EvidCarpetasMenu = false;
+  @ViewChild('sgcF29CarpetaInput') sgcF29CarpetaInput?: ElementRef<HTMLInputElement>;
   sgcF29EvidenciasDragDepth = 0;
   sgcF29EvidenciasThumbs: Record<number, string> = {};
   private sgcF29EvidenciasThumbsCargando = new Set<number>();
@@ -2133,6 +2134,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF28NuevoTipo: SgcF28CriterioTipo = 'precio';
   sgcF28NuevaEtiqueta = '';
   sgcF28MostrarAddCriterio = false;
+  sgcF28DescargandoPdf = false;
   /** Por defecto solo 3 columnas; 4–5 se expanden bajo demanda o si ya tienen datos. */
   sgcF28ExpandirProveedores = false;
   sgcF28DragCriterioFrom: number | null = null;
@@ -2771,6 +2773,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   onDocumentClickCerrarEditoresFormato(): void {
     if (this.menuEditoresFormatoAbierto) {
       this.cerrarMenuEditoresFormato();
+    }
+    if (this.sgcF14EvidCarpetasMenu) {
+      this.sgcF14EvidCarpetasMenu = false;
+    }
+    if (this.sgcF29EvidCarpetasMenu) {
+      this.sgcF29EvidCarpetasMenu = false;
     }
   }
 
@@ -6990,51 +6998,32 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return (this.sgcF14EvidenciasDocs || []).reduce((s, d) => s + (d.tamanoBytes || 0), 0);
   }
 
+  /** Inserta un salto de línea en el nombre del responsable para verlo completo en la celda. */
+  formatearResponsableSgcF14(nombre: string | null | undefined): string {
+    const texto = String(nombre || '').trim().replace(/\s+/g, ' ');
+    if (!texto) {
+      return 'Seleccionar responsable';
+    }
+    const partes = texto.split(' ');
+    if (partes.length <= 2) {
+      return texto;
+    }
+    const mitad = Math.ceil(partes.length / 2);
+    return `${partes.slice(0, mitad).join(' ')}\n${partes.slice(mitad).join(' ')}`;
+  }
+
   onClickFilaProyectoSgcF14(index: number, event?: Event): void {
     const t = event?.target as HTMLElement | null;
     if (!t) {
       return;
     }
-    if (t.closest('.dg-f05-row-btn, .sgc-f-14-folio__gen')) {
+    // Campos editables y botones de acción: no abrir evidencias.
+    if (t.closest(
+      'input, select, textarea, option, label, .sgc-f-14-pick, .sgc-f-14-avance, .sgc-f-14-folio__gen, .dg-f05-row-btn'
+    )) {
       return;
     }
-    // En modo edición, el clic en campos no abre evidencias.
-    if (this.sgcF14FilaEditandoIdx === index && t.closest('input, select, textarea, option')) {
-      return;
-    }
-    // Retraso breve para distinguir doble clic (editar) de clic simple (evidencias).
-    if (this.sgcF14ClickTimer) {
-      clearTimeout(this.sgcF14ClickTimer);
-      this.sgcF14ClickTimer = null;
-    }
-    this.sgcF14ClickTimer = setTimeout(() => {
-      this.sgcF14ClickTimer = null;
-      this.sgcF14FilaEditandoIdx = null;
-      this.abrirEvidenciasSgcF14(index, event);
-    }, 220);
-  }
-
-  onDblClickFilaProyectoSgcF14(index: number, event?: Event): void {
-    const t = event?.target as HTMLElement | null;
-    if (t?.closest('.dg-f05-row-btn, .sgc-f-14-folio__gen')) {
-      return;
-    }
-    event?.preventDefault();
-    event?.stopPropagation();
-    if (this.sgcF14ClickTimer) {
-      clearTimeout(this.sgcF14ClickTimer);
-      this.sgcF14ClickTimer = null;
-    }
-    // Doble clic: editar la fila sin abrir evidencias.
-    this.sgcF14FilaEditandoIdx = index;
-    const cell = t?.closest('td');
-    const control = (
-      t?.closest('input, select, textarea')
-      || cell?.querySelector('input, select, textarea')
-    ) as HTMLElement | null;
-    if (control) {
-      setTimeout(() => control.focus(), 0);
-    }
+    this.abrirEvidenciasSgcF14(index, event);
   }
 
   abrirEvidenciasSgcF14(index: number, event?: Event): void {
@@ -7053,7 +7042,6 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.sgcF14EvidenciasIdx = index;
     this.sgcF14EvidenciasModalAbierto = true;
-    this.sgcF14FilaEditandoIdx = null;
     this.sgcF14EvidenciasFiltro = 'todo';
     this.sgcF14EvidenciasBusqueda = '';
     this.cargarEvidenciasSgcF14();
@@ -7136,6 +7124,90 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     void this.subirArchivosEvidenciaSgcF14(files);
   }
 
+  onEvidenciasCarpetaInputSgcF14(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = input?.files ? Array.from(input.files) : [];
+    input.value = '';
+    this.sgcF14EvidCarpetasMenu = false;
+    void this.subirArchivosEvidenciaSgcF14(files, true);
+  }
+
+  toggleMenuCarpetasEvidenciaSgcF14(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.sgcF29EvidCarpetasMenu = false;
+    this.sgcF14EvidCarpetasMenu = !this.sgcF14EvidCarpetasMenu;
+  }
+
+  abrirSelectorCarpetaEvidenciaSgcF14(): void {
+    this.sgcF14EvidCarpetasMenu = false;
+    this.sgcF14CarpetaInput?.nativeElement?.click();
+  }
+
+  async crearCarpetaEvidenciaSgcF14(): Promise<void> {
+    this.sgcF14EvidCarpetasMenu = false;
+    const fila = this.sgcF14EvidenciasFila;
+    if (!fila?.id) {
+      return;
+    }
+    const { value: nombre } = await Swal.fire({
+      title: 'Nueva carpeta',
+      input: 'text',
+      inputLabel: 'Nombre de la carpeta en evidencias del proyecto',
+      inputPlaceholder: 'Ej. Planos, Actas, Fotos…',
+      showCancelButton: true,
+      confirmButtonText: 'Crear',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0f766e',
+      inputValidator: (value) => {
+        const n = String(value || '').trim();
+        if (!n) return 'Escribe un nombre para la carpeta.';
+        if (/[/\\?%*:|"<>]/.test(n)) return 'El nombre no puede contener caracteres especiales.';
+        return null;
+      }
+    });
+    if (!nombre) {
+      return;
+    }
+    this.backendService.crearCarpetaEvidenciaSgcF14({
+      proyecto_id: fila.id,
+      folio: fila.folio,
+      nombre: String(nombre).trim()
+    }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res) => {
+        void Swal.fire({
+          icon: 'success',
+          title: 'Carpeta creada',
+          text: `«${String(nombre).trim()}» quedó lista en Google Drive.`,
+          confirmButtonColor: '#0f766e',
+          showCancelButton: !!res?.carpeta?.webViewLink,
+          cancelButtonText: 'Abrir en Drive',
+          confirmButtonText: 'Listo'
+        }).then((r) => {
+          if (r.dismiss === Swal.DismissReason.cancel && res?.carpeta?.webViewLink) {
+            window.open(res.carpeta.webViewLink, '_blank', 'noopener');
+          }
+        });
+      },
+      error: (err) => {
+        void Swal.fire({
+          icon: 'error',
+          title: 'No se pudo crear',
+          text: err?.error?.message || err?.message || 'Intenta de nuevo.'
+        });
+      }
+    });
+  }
+
+  private subcarpetaDesdeArchivoEvidencia(file: File): string | undefined {
+    const rel = String((file as File & { webkitRelativePath?: string }).webkitRelativePath || '').trim();
+    if (!rel) {
+      return undefined;
+    }
+    const partes = rel.split(/[/\\]/).filter(Boolean);
+    return partes.length > 1 ? partes[0] : undefined;
+  }
+
   onEvidenciasDropSgcF14(event: DragEvent): void {
     event.preventDefault();
     event.stopPropagation();
@@ -7159,19 +7231,36 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF14EvidenciasDragDepth = Math.max(0, this.sgcF14EvidenciasDragDepth - 1);
   }
 
-  private async subirArchivosEvidenciaSgcF14(files: File[]): Promise<void> {
+  private async subirArchivosEvidenciaSgcF14(files: File[], desdeCarpeta = false): Promise<void> {
     const fila = this.sgcF14EvidenciasFila;
     if (!fila?.id || !files.length || this.sgcF14EvidenciasSubiendo) {
       return;
     }
+    if (files.length > 20) {
+      void Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: 'Se subirán los primeros 20 archivos',
+        showConfirmButton: false,
+        timer: 2400
+      });
+    }
     const lote = files.slice(0, 20);
     this.sgcF14EvidenciasSubiendo = true;
     this.sgcF14EvidenciasProgreso = 2;
-    this.sgcF14EvidenciasProgresoEtiqueta = lote.length === 1
-      ? `Preparando ${lote[0].name}…`
-      : `Preparando ${lote.length} archivos…`;
+    this.sgcF14EvidenciasProgresoEtiqueta = desdeCarpeta
+      ? `Preparando carpeta (${lote.length} archivo${lote.length === 1 ? '' : 's'})…`
+      : (lote.length === 1
+        ? `Preparando ${lote[0].name}…`
+        : `Preparando ${lote.length} archivos…`);
     try {
-      const archivos: Array<{ nombre_archivo: string; mime_type?: string; archivo_base64: string }> = [];
+      const archivos: Array<{
+        nombre_archivo: string;
+        mime_type?: string;
+        archivo_base64: string;
+        subcarpeta?: string;
+      }> = [];
       for (let i = 0; i < lote.length; i++) {
         const file = lote[i];
         this.sgcF14EvidenciasProgresoEtiqueta = `Leyendo ${file.name}…`;
@@ -7181,10 +7270,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           this.sgcF14EvidenciasProgreso = Math.max(2, Math.round(base + (pct / 100) * span));
         });
         if (!base64) continue;
+        const subcarpeta = desdeCarpeta ? this.subcarpetaDesdeArchivoEvidencia(file) : undefined;
         archivos.push({
           nombre_archivo: file.name,
           mime_type: file.type || undefined,
-          archivo_base64: base64
+          archivo_base64: base64,
+          ...(subcarpeta ? { subcarpeta } : {})
         });
       }
       if (!archivos.length) {
@@ -9888,6 +9979,81 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     void this.subirArchivosEvidenciaSgcF29(files);
   }
 
+  onEvidenciasCarpetaInputSgcF29(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = input?.files ? Array.from(input.files) : [];
+    input.value = '';
+    this.sgcF29EvidCarpetasMenu = false;
+    void this.subirArchivosEvidenciaSgcF29(files, true);
+  }
+
+  toggleMenuCarpetasEvidenciaSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.sgcF14EvidCarpetasMenu = false;
+    this.sgcF29EvidCarpetasMenu = !this.sgcF29EvidCarpetasMenu;
+  }
+
+  abrirSelectorCarpetaEvidenciaSgcF29(): void {
+    this.sgcF29EvidCarpetasMenu = false;
+    this.sgcF29CarpetaInput?.nativeElement?.click();
+  }
+
+  async crearCarpetaEvidenciaSgcF29(): Promise<void> {
+    this.sgcF29EvidCarpetasMenu = false;
+    const fila = this.sgcF29EvidenciasFila;
+    if (!fila?.id) {
+      return;
+    }
+    const { value: nombre } = await Swal.fire({
+      title: 'Nueva carpeta',
+      input: 'text',
+      inputLabel: 'Nombre de la carpeta en evidencias de la evaluación',
+      inputPlaceholder: 'Ej. Certificados, Facturas…',
+      showCancelButton: true,
+      confirmButtonText: 'Crear',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0f766e',
+      inputValidator: (value) => {
+        const n = String(value || '').trim();
+        if (!n) return 'Escribe un nombre para la carpeta.';
+        if (/[/\\?%*:|"<>]/.test(n)) return 'El nombre no puede contener caracteres especiales.';
+        return null;
+      }
+    });
+    if (!nombre) {
+      return;
+    }
+    this.backendService.crearCarpetaEvidenciaSgcF29({
+      evaluacion_id: fila.id,
+      proveedor: fila.proveedor,
+      nombre: String(nombre).trim()
+    }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res) => {
+        void Swal.fire({
+          icon: 'success',
+          title: 'Carpeta creada',
+          text: `«${String(nombre).trim()}» quedó lista en Google Drive.`,
+          confirmButtonColor: '#0f766e',
+          showCancelButton: !!res?.carpeta?.webViewLink,
+          cancelButtonText: 'Abrir en Drive',
+          confirmButtonText: 'Listo'
+        }).then((r) => {
+          if (r.dismiss === Swal.DismissReason.cancel && res?.carpeta?.webViewLink) {
+            window.open(res.carpeta.webViewLink, '_blank', 'noopener');
+          }
+        });
+      },
+      error: (err) => {
+        void Swal.fire({
+          icon: 'error',
+          title: 'No se pudo crear',
+          text: err?.error?.message || err?.message || 'Intenta de nuevo.'
+        });
+      }
+    });
+  }
+
   onEvidenciasDropSgcF29(event: DragEvent): void {
     event.preventDefault();
     event.stopPropagation();
@@ -9911,19 +10077,36 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF29EvidenciasDragDepth = Math.max(0, this.sgcF29EvidenciasDragDepth - 1);
   }
 
-  private async subirArchivosEvidenciaSgcF29(files: File[]): Promise<void> {
+  private async subirArchivosEvidenciaSgcF29(files: File[], desdeCarpeta = false): Promise<void> {
     const fila = this.sgcF29EvidenciasFila;
     if (!fila?.id || !files.length || this.sgcF29EvidenciasSubiendo) {
       return;
     }
+    if (files.length > 20) {
+      void Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: 'Se subirán los primeros 20 archivos',
+        showConfirmButton: false,
+        timer: 2400
+      });
+    }
     const lote = files.slice(0, 20);
     this.sgcF29EvidenciasSubiendo = true;
     this.sgcF29EvidenciasProgreso = 2;
-    this.sgcF29EvidenciasProgresoEtiqueta = lote.length === 1
-      ? `Preparando ${lote[0].name}…`
-      : `Preparando ${lote.length} archivos…`;
+    this.sgcF29EvidenciasProgresoEtiqueta = desdeCarpeta
+      ? `Preparando carpeta (${lote.length} archivo${lote.length === 1 ? '' : 's'})…`
+      : (lote.length === 1
+        ? `Preparando ${lote[0].name}…`
+        : `Preparando ${lote.length} archivos…`);
     try {
-      const archivos: Array<{ nombre_archivo: string; mime_type?: string; archivo_base64: string }> = [];
+      const archivos: Array<{
+        nombre_archivo: string;
+        mime_type?: string;
+        archivo_base64: string;
+        subcarpeta?: string;
+      }> = [];
       for (let i = 0; i < lote.length; i++) {
         const file = lote[i];
         this.sgcF29EvidenciasProgresoEtiqueta = `Leyendo ${file.name}…`;
@@ -9933,10 +10116,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           this.sgcF29EvidenciasProgreso = Math.max(2, Math.round(base + (pct / 100) * span));
         });
         if (!base64) continue;
+        const subcarpeta = desdeCarpeta ? this.subcarpetaDesdeArchivoEvidencia(file) : undefined;
         archivos.push({
           nombre_archivo: file.name,
           mime_type: file.type || undefined,
-          archivo_base64: base64
+          archivo_base64: base64,
+          ...(subcarpeta ? { subcarpeta } : {})
         });
       }
       if (!archivos.length) {
@@ -11229,6 +11414,81 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       next: (res) => this.aplicarEstadoSgcF28(res, false, true, true),
       error: () => { /* silencioso */ }
     });
+  }
+
+  descargarPdfSgcF28(): void {
+    if (this.sgcF28DescargandoPdf || !this.sgcF28ComparativaActiva) {
+      return;
+    }
+    const comparativaId = this.sgcF28ComparativaActiva.id;
+    const nombreCotizacion = String(this.sgcF28ComparativaActiva.nombreCotizacion || '').trim()
+      || 'Comparativa de proveedores';
+    const nombreArchivo = `SGC-F-28 ${nombreCotizacion}.pdf`.replace(/[\\/:*?"<>|]+/g, '_');
+
+    const iniciarDescarga = () => {
+      this.sgcF28DescargandoPdf = true;
+      this.backendService.descargarPdfSgcF28(comparativaId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.sgcF28DescargandoPdf = false;
+            if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+              void Swal.fire({
+                icon: 'error',
+                title: 'No se pudo generar el PDF',
+                text: 'Guarda la información y vuelve a intentar. Si el problema continúa, revisa que la hoja exista en Drive.',
+                confirmButtonText: 'Entendido'
+              });
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = nombreArchivo;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.sgcF28DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo descargar el PDF',
+              text: 'Guarda la información primero para sincronizar la hoja en Drive e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    };
+
+    // Si hay cambios sin guardar, persistir antes para que el PDF refleje lo actual.
+    if (this.sgcF28CambiosPendientes && this.sgcF28Listo && !this.sgcF28Guardando) {
+      this.sgcF28DescargandoPdf = true;
+      this.sgcF28Guardando = true;
+      this.backendService.guardarSgcF28Formato(this.sgcF28Form, false)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.aplicarEstadoSgcF28(res, true, false, true);
+            this.sgcF28CambiosPendientes = false;
+            this.sgcF28Guardando = false;
+            this.sgcF28DescargandoPdf = false;
+            iniciarDescarga();
+          },
+          error: () => {
+            this.sgcF28Guardando = false;
+            this.sgcF28DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'No se guardaron los cambios antes de generar el PDF. Intenta de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+
+    iniciarDescarga();
   }
 
   private persistirSgcF28(): void {

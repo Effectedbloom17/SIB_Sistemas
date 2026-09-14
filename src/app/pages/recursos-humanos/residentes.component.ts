@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { BackendServices } from 'src/app/services/backend.services';
@@ -27,12 +27,21 @@ export interface ResidenteForm {
     direccion: string;
     nss: string;
     foto_url?: string | null;
+    /** 1 = vigencia vigente; 0 = proceso de estadía finalizado (sigue visible). */
+    vigente?: number | boolean | null;
     editor_url?: string | null;
     embed_url?: string | null;
     preview_url?: string | null;
     drive_file_id?: string | null;
     drive_sheet_title?: string | null;
     drive_sheet_gid?: string | null;
+}
+
+interface BorradorNuevoResidente {
+    form: ResidenteForm;
+    formPaso: 1 | 2 | 3;
+    abierto: boolean;
+    savedAt: number;
 }
 
 @Component({
@@ -42,6 +51,8 @@ export interface ResidenteForm {
 })
 export class ResidentesComponent implements OnInit, OnDestroy {
     private destroy$ = new Subject<void>();
+    private readonly borradorKey = 'rrhh_residente_nuevo_borrador';
+    private borradorTimer: ReturnType<typeof setInterval> | null = null;
 
     cargando = false;
     guardando = false;
@@ -61,6 +72,7 @@ export class ResidentesComponent implements OnInit, OnDestroy {
     formPaso: 1 | 2 | 3 = 1;
     form: ResidenteForm = this.formVacio();
     fotoPreview: string | null = null;
+    borradorRestaurado = false;
 
     readonly supervisoresSugeridos = [
         'Ing. Leonel Pérez',
@@ -73,12 +85,24 @@ export class ResidentesComponent implements OnInit, OnDestroy {
     ) {}
 
     ngOnInit(): void {
+        this.restaurarBorradorAlIniciar();
         this.cargar();
     }
 
     ngOnDestroy(): void {
+        if (this.mostrarFormulario && !this.editandoId && !this.editandoDetalle) {
+            this.persistirBorradorNuevo(true);
+        }
+        this.detenerAutoGuardadoBorrador();
         this.destroy$.next();
         this.destroy$.complete();
+    }
+
+    @HostListener('window:beforeunload')
+    onBeforeUnload(): void {
+        if (this.mostrarFormulario && !this.editandoId && !this.editandoDetalle) {
+            this.persistirBorradorNuevo(true);
+        }
     }
 
     formVacio(): ResidenteForm {
@@ -118,6 +142,122 @@ export class ResidentesComponent implements OnInit, OnDestroy {
         };
     }
 
+    private leerBorradorNuevo(): BorradorNuevoResidente | null {
+        try {
+            const raw = localStorage.getItem(this.borradorKey);
+            if (!raw) return null;
+            const data = JSON.parse(raw) as BorradorNuevoResidente;
+            if (!data?.form || typeof data.form !== 'object') return null;
+            const paso = Number(data.formPaso);
+            return {
+                form: this.clonarResidente(data.form),
+                formPaso: (paso === 2 || paso === 3 ? paso : 1) as 1 | 2 | 3,
+                abierto: !!data.abierto,
+                savedAt: Number(data.savedAt) || Date.now()
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    private borradorTieneContenido(form: ResidenteForm): boolean {
+        const vacio = this.formVacio();
+        const camposTexto: (keyof ResidenteForm)[] = [
+            'nombre', 'estancia', 'escuela_procedencia', 'carrera', 'fecha_ingreso',
+            'fecha_terminacion', 'nombre_proyecto', 'supervision_a_cargo', 'telefono',
+            'correo_personal', 'correo_institucional', 'matricula', 'asesor_academico',
+            'correo_asesor', 'tutor_nombre', 'tutor_telefono', 'direccion', 'nss'
+        ];
+        if (camposTexto.some((c) => String(form[c] || '').trim())) return true;
+        if (form.edad != null && form.edad !== ('' as any)) return true;
+        if (form.foto_url) return true;
+        if (form.anio != null && Number(form.anio) !== vacio.anio) return true;
+        return false;
+    }
+
+    /** Guarda borrador del alta (no edición). Si no hay datos, limpia el storage. */
+    persistirBorradorNuevo(abierto = this.mostrarFormulario): void {
+        if (this.editandoId || this.editandoDetalle) return;
+        try {
+            if (!this.borradorTieneContenido(this.form)) {
+                // Solo limpia si el wizard de alta está abierto y el usuario vació el formulario.
+                // No borrar al abrir un detalle (form en memoria vacío).
+                if (this.mostrarFormulario && !this.editandoId) {
+                    localStorage.removeItem(this.borradorKey);
+                    this.borradorRestaurado = false;
+                }
+                return;
+            }
+            const payload: BorradorNuevoResidente = {
+                form: this.clonarResidente(this.form),
+                formPaso: this.formPaso,
+                abierto: !!abierto,
+                savedAt: Date.now()
+            };
+            try {
+                localStorage.setItem(this.borradorKey, JSON.stringify(payload));
+            } catch {
+                // Cuota (p. ej. foto grande): reintentar sin imagen
+                payload.form.foto_url = null;
+                localStorage.setItem(this.borradorKey, JSON.stringify(payload));
+            }
+        } catch {
+            /* noop */
+        }
+    }
+
+    private limpiarBorradorNuevo(): void {
+        try {
+            localStorage.removeItem(this.borradorKey);
+        } catch {
+            /* noop */
+        }
+        this.borradorRestaurado = false;
+    }
+
+    private aplicarBorrador(data: BorradorNuevoResidente, reabrir: boolean): void {
+        this.editandoId = null;
+        this.editandoDetalle = false;
+        this.form = this.clonarResidente(data.form);
+        this.fotoPreview = this.form.foto_url || null;
+        this.formPaso = data.formPaso;
+        this.mostrarDetalle = false;
+        this.borradorRestaurado = true;
+        if (reabrir) {
+            this.mostrarFormulario = true;
+            this.iniciarAutoGuardadoBorrador();
+        }
+    }
+
+    private restaurarBorradorAlIniciar(): void {
+        const data = this.leerBorradorNuevo();
+        if (!data || !this.borradorTieneContenido(data.form)) return;
+        // Si el wizard estaba abierto al refrescar, lo reabrimos; si no, queda listo para "Nuevo".
+        this.aplicarBorrador(data, !!data.abierto);
+        if (!data.abierto) {
+            this.form = this.clonarResidente(data.form);
+            this.fotoPreview = this.form.foto_url || null;
+            this.formPaso = data.formPaso;
+            this.borradorRestaurado = true;
+        }
+    }
+
+    private iniciarAutoGuardadoBorrador(): void {
+        this.detenerAutoGuardadoBorrador();
+        this.borradorTimer = setInterval(() => {
+            if (this.mostrarFormulario && !this.editandoId && !this.editandoDetalle) {
+                this.persistirBorradorNuevo(true);
+            }
+        }, 1500);
+    }
+
+    private detenerAutoGuardadoBorrador(): void {
+        if (this.borradorTimer) {
+            clearInterval(this.borradorTimer);
+            this.borradorTimer = null;
+        }
+    }
+
     cargar(): void {
         this.cargando = true;
         this.errorCarga = '';
@@ -152,13 +292,21 @@ export class ResidentesComponent implements OnInit, OnDestroy {
     abrirNuevo(): void {
         this.editandoId = null;
         this.editandoDetalle = false;
-        this.form = this.formVacio();
-        this.fotoPreview = null;
-        this.formPaso = 1;
         this.mensajeOk = '';
         this.errorCarga = '';
         this.mostrarDetalle = false;
-        this.mostrarFormulario = true;
+
+        const data = this.leerBorradorNuevo();
+        if (data && this.borradorTieneContenido(data.form)) {
+            this.aplicarBorrador(data, true);
+        } else {
+            this.form = this.formVacio();
+            this.fotoPreview = null;
+            this.formPaso = 1;
+            this.borradorRestaurado = false;
+            this.mostrarFormulario = true;
+            this.iniciarAutoGuardadoBorrador();
+        }
     }
 
     /** @deprecated Se mantiene por compatibilidad; la edición ocurre en el detalle. */
@@ -170,12 +318,25 @@ export class ResidentesComponent implements OnInit, OnDestroy {
 
     cancelarFormulario(): void {
         if (this.guardando) return;
+        this.persistirBorradorNuevo(false);
+        this.detenerAutoGuardadoBorrador();
+        this.mostrarFormulario = false;
+        this.editandoId = null;
+        this.errorCarga = '';
+        // Conserva form/paso/foto en memoria y en localStorage para reabrir el borrador
+    }
+
+    descartarBorradorNuevo(): void {
+        if (this.guardando) return;
+        this.limpiarBorradorNuevo();
+        this.detenerAutoGuardadoBorrador();
         this.mostrarFormulario = false;
         this.editandoId = null;
         this.formPaso = 1;
         this.form = this.formVacio();
         this.fotoPreview = null;
         this.errorCarga = '';
+        this.mensajeOk = 'Borrador descartado.';
     }
 
     get progresoStepper(): string {
@@ -185,6 +346,9 @@ export class ResidentesComponent implements OnInit, OnDestroy {
     }
 
     abrirDetalle(r: ResidenteForm): void {
+        this.persistirBorradorNuevo(false);
+        this.detenerAutoGuardadoBorrador();
+        this.mostrarFormulario = false;
         this.residenteDetalle = r;
         this.editandoDetalle = false;
         this.editandoId = null;
@@ -266,6 +430,7 @@ export class ResidentesComponent implements OnInit, OnDestroy {
         }
         this.errorCarga = '';
         this.formPaso = paso;
+        this.persistirBorradorNuevo(true);
     }
 
     siguientePaso(): void {
@@ -276,6 +441,7 @@ export class ResidentesComponent implements OnInit, OnDestroy {
     anteriorPaso(): void {
         if (this.formPaso === 3) this.formPaso = 2;
         else if (this.formPaso === 2) this.formPaso = 1;
+        this.persistirBorradorNuevo(true);
     }
 
     onFotoSeleccionada(event: Event): void {
@@ -296,6 +462,7 @@ export class ResidentesComponent implements OnInit, OnDestroy {
             this.fotoPreview = result;
             this.form.foto_url = result;
             this.errorCarga = '';
+            this.persistirBorradorNuevo(true);
         };
         reader.onerror = () => {
             this.errorCarga = 'No se pudo leer la imagen.';
@@ -306,6 +473,7 @@ export class ResidentesComponent implements OnInit, OnDestroy {
     quitarFoto(): void {
         this.fotoPreview = null;
         this.form.foto_url = null;
+        this.persistirBorradorNuevo(true);
     }
 
     guardar(): void {
@@ -331,6 +499,8 @@ export class ResidentesComponent implements OnInit, OnDestroy {
                 this.formPaso = 1;
                 this.form = this.formVacio();
                 this.fotoPreview = null;
+                this.detenerAutoGuardadoBorrador();
+                this.limpiarBorradorNuevo();
                 this.cargar();
             },
             error: (err) => {
@@ -427,5 +597,19 @@ export class ResidentesComponent implements OnInit, OnDestroy {
     valorOGuion(v: unknown): string {
         const s = String(v == null ? '' : v).trim();
         return s || '—';
+    }
+
+    /** Vigencia vigente según bandera del backend (proceso de estadía aún activo). */
+    esVigente(r: ResidenteForm | null | undefined): boolean {
+        if (!r) return true;
+        return !(r.vigente === 0 || r.vigente === false);
+    }
+
+    get residentesVigentes(): ResidenteForm[] {
+        return this.residentes.filter((r) => this.esVigente(r));
+    }
+
+    get residentesTerminados(): ResidenteForm[] {
+        return this.residentes.filter((r) => !this.esVigente(r));
     }
 }
