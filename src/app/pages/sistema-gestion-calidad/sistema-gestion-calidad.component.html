@@ -1661,43 +1661,133 @@
     <header class="sgc-modal__hero">
       <div class="sgc-modal__hero-bg" aria-hidden="true"></div>
       <div class="sgc-modal__hero-content">
-        <div class="sgc-modal__badge sgc-modal__badge--sat-cliente"><i class="fas fa-chart-bar"></i><span>SGC-F-05</span></div>
+        <div class="sgc-modal__badge sgc-modal__badge--sat-cliente"><i class="fas fa-chart-bar"></i><span>NC</span></div>
         <div class="sgc-modal__hero-text">
           <h2 class="sgc-modal__title">Histograma de NC</h2>
           <p class="sgc-modal__subtitle">
-            NC abiertas y cerradas · Bitácora SGC-F-05
-            · {{ totalNcBitacoraDisplay }} registro{{ totalNcBitacoraDisplay !== 1 ? 's' : '' }}
+            Auditorías SGC-F-10 · menor / mayor
+            · Seguimiento SGC-F-05 · abiertas / cerradas
           </p>
         </div>
         <button type="button" class="sgc-modal__close" (click)="cerrarHistogramaAud()" aria-label="Cerrar"><i class="fas fa-times"></i></button>
       </div>
     </header>
     <div class="sgc-modal__body sgc-modal__body--histograma">
-      <div class="sgc-histograma-legend" aria-hidden="true">
-        <span class="sgc-histograma-legend__item sgc-histograma-legend__item--abierta"><i></i> NC abierta</span>
-        <span class="sgc-histograma-legend__item sgc-histograma-legend__item--cerrada"><i></i> NC cerrada</span>
+      <div class="sgc-histograma-layout" *ngIf="hayAuditorias || hayNcBitacora">
+        <section class="sgc-histograma-main"
+                 [class.sgc-histograma-main--anim]="histogramaChartKey > 0">
+          <div class="sgc-histograma-panel__head">
+            <div>
+              <span class="sgc-histograma-panel__kicker">SGC-F-10 + F-05</span>
+              <h3 class="sgc-histograma-panel__title">NC por auditoría</h3>
+              <p class="sgc-histograma-panel__sub">
+                {{ auditorias.length }} auditoría{{ auditorias.length !== 1 ? 's' : '' }}
+                · izquierda: menor/mayor · derecha: cerradas
+              </p>
+            </div>
+            <div class="sgc-histograma-legend" aria-hidden="true">
+              <span class="sgc-histograma-legend__item sgc-histograma-legend__item--menor"><i></i> NC menor</span>
+              <span class="sgc-histograma-legend__item sgc-histograma-legend__item--mayor"><i></i> NC mayor</span>
+              <span class="sgc-histograma-legend__item sgc-histograma-legend__item--cerrada"><i></i> NC cerradas</span>
+            </div>
+          </div>
+          <div class="sgc-histograma-panel" *ngIf="hayAuditorias && chartsReady; else sinAuditoriasHist">
+            <div class="sgc-chart-canvas-wrap sgc-chart-canvas-wrap--histograma">
+              <apx-chart
+                *ngIf="histogramaChartKey"
+                [series]="audNcHistogramaChart.series"
+                [chart]="audNcHistogramaChart.chart"
+                [xaxis]="audNcHistogramaChart.xaxis"
+                [yaxis]="audNcHistogramaChart.yaxis"
+                [colors]="audNcHistogramaChart.colors"
+                [plotOptions]="audNcHistogramaChart.plotOptions"
+                [dataLabels]="audNcHistogramaChart.dataLabels"
+                [stroke]="audNcHistogramaChart.stroke"
+                [fill]="audNcHistogramaChart.fill"
+                [grid]="audNcHistogramaChart.grid"
+                [legend]="audNcHistogramaChart.legend"
+                [tooltip]="audNcHistogramaChart.tooltip"
+              ></apx-chart>
+            </div>
+          </div>
+          <ng-template #sinAuditoriasHist>
+            <div class="sgc-dash-empty sgc-dash-empty--modal sgc-dash-empty--hist-side">
+              <i class="fas fa-clipboard-check fa-2x mb-2"></i>
+              <p class="mb-0">Aún no hay auditorías en SGC-F-10.</p>
+            </div>
+          </ng-template>
+        </section>
+
+        <aside class="sgc-histograma-side"
+               [class.sgc-histograma-side--anim]="histogramaChartKey > 0">
+          <div class="sgc-histograma-side__head">
+            <span class="sgc-histograma-panel__kicker">SGC-F-05</span>
+            <h3 class="sgc-histograma-panel__title">Seguimiento</h3>
+            <p class="sgc-histograma-panel__sub">Estatus de la bitácora</p>
+          </div>
+
+          <div class="sgc-histograma-side__donut" *ngIf="hayNcBitacora && chartsReady">
+            <apx-chart
+              *ngIf="histogramaChartKey"
+              [series]="audNcEstatusChart.series"
+              [chart]="audNcEstatusChart.chart"
+              [labels]="audNcEstatusChart.labels"
+              [colors]="audNcEstatusChart.colors"
+              [plotOptions]="audNcEstatusChart.plotOptions"
+              [fill]="audNcEstatusChart.fill"
+              [stroke]="audNcEstatusChart.stroke"
+              [legend]="audNcEstatusChart.legend"
+              [dataLabels]="audNcEstatusChart.dataLabels"
+              [tooltip]="audNcEstatusChart.tooltip"
+            ></apx-chart>
+            <div class="sgc-histograma-side__donut-center">
+              <span class="sgc-histograma-side__donut-val">{{ pctNcCerradasDisplay }}%</span>
+              <span class="sgc-histograma-side__donut-lbl">cerradas</span>
+            </div>
+          </div>
+
+          <div class="sgc-histograma-estatus" *ngIf="hayNcBitacora; else sinBitacoraHist">
+            <div class="sgc-histograma-estatus__row sgc-histograma-estatus__row--abierta">
+              <div class="sgc-histograma-estatus__meta">
+                <span class="sgc-histograma-estatus__dot"></span>
+                <span class="sgc-histograma-estatus__name">Abiertas</span>
+              </div>
+              <span class="sgc-histograma-estatus__num">{{ ncAbiertasDisplay }}</span>
+            </div>
+            <div class="sgc-histograma-estatus__track" aria-hidden="true">
+              <span class="sgc-histograma-estatus__fill sgc-histograma-estatus__fill--abierta"
+                    [style.width.%]="pctNcAbiertasDisplay"></span>
+            </div>
+
+            <div class="sgc-histograma-estatus__row sgc-histograma-estatus__row--cerrada">
+              <div class="sgc-histograma-estatus__meta">
+                <span class="sgc-histograma-estatus__dot"></span>
+                <span class="sgc-histograma-estatus__name">Cerradas</span>
+              </div>
+              <span class="sgc-histograma-estatus__num">{{ ncCerradasDisplay }}</span>
+            </div>
+            <div class="sgc-histograma-estatus__track" aria-hidden="true">
+              <span class="sgc-histograma-estatus__fill sgc-histograma-estatus__fill--cerrada"
+                    [style.width.%]="pctNcCerradasDisplay"></span>
+            </div>
+
+            <div class="sgc-histograma-estatus__total">
+              <span>Total en bitácora</span>
+              <strong>{{ totalNcBitacoraDisplay }} NC</strong>
+            </div>
+          </div>
+          <ng-template #sinBitacoraHist>
+            <div class="sgc-dash-empty sgc-dash-empty--modal sgc-dash-empty--hist-side">
+              <i class="fas fa-book fa-2x mb-2"></i>
+              <p class="mb-0">Sin registros en SGC-F-05.</p>
+            </div>
+          </ng-template>
+        </aside>
       </div>
-      <div class="sgc-histograma-panel" *ngIf="hayNcBitacora && chartsReady">
-        <div class="sgc-chart-canvas-wrap sgc-chart-canvas-wrap--histograma">
-        <apx-chart
-          [series]="audNcHistogramaChart.series"
-          [chart]="audNcHistogramaChart.chart"
-          [xaxis]="audNcHistogramaChart.xaxis"
-          [yaxis]="audNcHistogramaChart.yaxis"
-          [colors]="audNcHistogramaChart.colors"
-          [plotOptions]="audNcHistogramaChart.plotOptions"
-          [dataLabels]="audNcHistogramaChart.dataLabels"
-          [stroke]="audNcHistogramaChart.stroke"
-          [fill]="audNcHistogramaChart.fill"
-          [grid]="audNcHistogramaChart.grid"
-          [legend]="audNcHistogramaChart.legend"
-          [tooltip]="audNcHistogramaChart.tooltip"
-        ></apx-chart>
-        </div>
-      </div>
-      <div class="sgc-dash-empty sgc-dash-empty--modal" *ngIf="!hayNcBitacora">
+
+      <div class="sgc-dash-empty sgc-dash-empty--modal" *ngIf="!hayAuditorias && !hayNcBitacora">
         <i class="fas fa-chart-bar fa-2x mb-2"></i>
-        <p class="mb-0">No hay no conformidades en SGC-F-05 para graficar.</p>
+        <p class="mb-0">No hay auditorías ni NC para graficar.</p>
       </div>
     </div>
     <div class="sgc-modal__foot">

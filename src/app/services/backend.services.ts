@@ -3166,12 +3166,16 @@ export class BackendServices {
         nombreProyecto?: string;
         empresaNombre?: string;
         empresaId?: number | null;
+        actividadId?: number | null;
+        actividadNombre?: string | null;
     }): Observable<any> {
         const params = new URLSearchParams();
         if (meta?.folio) params.set('folio', String(meta.folio));
         if (meta?.nombreProyecto) params.set('nombreProyecto', String(meta.nombreProyecto));
         if (meta?.empresaNombre) params.set('empresaNombre', String(meta.empresaNombre));
         if (meta?.empresaId) params.set('empresaId', String(meta.empresaId));
+        if (meta?.actividadId) params.set('actividadId', String(meta.actividadId));
+        if (meta?.actividadNombre) params.set('actividadNombre', String(meta.actividadNombre));
         const q = params.toString();
         return this.httpClient.get(`${this.baseUrl}/control-proyectos/adjuntos${q ? `?${q}` : ''}`);
     }
@@ -3181,6 +3185,8 @@ export class BackendServices {
         nombreProyecto?: string;
         empresaNombre?: string;
         empresaId?: number | null;
+        actividadId?: number | null;
+        actividadNombre?: string | null;
     }, archivo: File): Observable<any> {
         const form = new FormData();
         form.append('archivo', archivo);
@@ -3190,12 +3196,24 @@ export class BackendServices {
         if (meta?.empresaId != null) {
             form.append('empresaId', String(meta.empresaId));
         }
+        if (meta?.actividadId != null) {
+            form.append('actividadId', String(meta.actividadId));
+        }
+        if (meta?.actividadNombre) {
+            form.append('actividadNombre', String(meta.actividadNombre));
+        }
         const params = new URLSearchParams();
         if (meta?.folio) params.set('folio', String(meta.folio));
         if (meta?.nombreProyecto) params.set('nombreProyecto', String(meta.nombreProyecto));
         if (meta?.empresaNombre) params.set('empresaNombre', String(meta.empresaNombre));
         if (meta?.empresaId != null) {
             params.set('empresaId', String(meta.empresaId));
+        }
+        if (meta?.actividadId != null) {
+            params.set('actividadId', String(meta.actividadId));
+        }
+        if (meta?.actividadNombre) {
+            params.set('actividadNombre', String(meta.actividadNombre));
         }
         const q = params.toString();
         return this.httpClient.post(
@@ -3209,6 +3227,8 @@ export class BackendServices {
         nombreProyecto?: string;
         empresaNombre?: string;
         empresaId?: number | null;
+        actividadId?: number | null;
+        actividadNombre?: string | null;
         fileId: string;
     }): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/control-proyectos/adjuntos/eliminar`, meta);
@@ -3219,12 +3239,16 @@ export class BackendServices {
         nombreProyecto?: string;
         empresaNombre?: string;
         empresaId?: number | null;
+        actividadId?: number | null;
+        actividadNombre?: string | null;
     }, fileId: string): Observable<Blob> {
         const params = new URLSearchParams();
         if (meta?.folio) params.set('folio', String(meta.folio));
         if (meta?.nombreProyecto) params.set('nombreProyecto', String(meta.nombreProyecto));
         if (meta?.empresaNombre) params.set('empresaNombre', String(meta.empresaNombre));
         if (meta?.empresaId != null) params.set('empresaId', String(meta.empresaId));
+        if (meta?.actividadId != null) params.set('actividadId', String(meta.actividadId));
+        if (meta?.actividadNombre) params.set('actividadNombre', String(meta.actividadNombre));
         const q = params.toString();
         return this.httpClient.get(
             `${this.baseUrl}/control-proyectos/adjuntos/${encodeURIComponent(fileId)}/archivo${q ? `?${q}` : ''}`,
@@ -3237,6 +3261,8 @@ export class BackendServices {
         nombreProyecto?: string;
         empresaNombre?: string;
         empresaId?: number | null;
+        actividadId?: number | null;
+        actividadNombre?: string | null;
     }, fileId: string): Observable<any> {
         return this.httpClient.post(
             `${this.baseUrl}/control-proyectos/adjuntos/${encodeURIComponent(fileId)}/preparar-vista`,

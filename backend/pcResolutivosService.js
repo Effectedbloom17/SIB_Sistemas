@@ -1200,6 +1200,72 @@ function obtenerFechaReferenciaResolutivo(row) {
     return null;
 }
 
+/**
+ * Fecha operativa para el histórico mensual según estatus actual:
+ * - Próximo / Vencido → contacto (o vencimiento)
+ * - Vigentes → aprobación
+ * - En trámite → ingreso a trámite (o alta)
+ * Así los indicadores críticos del inventario actual aparecen en el año/mes correctos.
+ */
+function obtenerFechaBucketResolutivo(row, estatus) {
+    const est = normalizarEstatusOperativo(estatus);
+    if (est === 'Próximo a vencer' || est === 'Vencido') {
+        const fc = parseFechaInput(row?.fecha_contacto_empresa);
+        if (fc) return fc;
+        const fv = parseFechaInput(row?.fecha_vencimiento);
+        if (fv) return fv;
+    }
+    if (est === 'Vigentes') {
+        const fa = parseFechaInput(row?.fecha_aprobacion);
+        if (fa) return fa;
+    }
+    if (est === 'En tramite') {
+        const fi = parseFechaInput(row?.fecha_ingreso_tramite);
+        if (fi) return fi;
+        const created = parseFechaInput(row?.created_at);
+        if (created) return created;
+    }
+    return obtenerFechaReferenciaResolutivo(row);
+}
+
+const ESTATUS_ATENCION_RESOLUTIVO = ['En tramite', 'Próximo a vencer', 'Vencido'];
+const ORDEN_ATENCION_RESOLUTIVO = {
+    Vencido: 0,
+    'Próximo a vencer': 1,
+    'En tramite': 2
+};
+
+function calcularDiasHastaContacto(fechaContacto) {
+    const fc = parseFechaInput(fechaContacto);
+    if (!fc) return null;
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    fc.setHours(0, 0, 0, 0);
+    const MS_DIA = 1000 * 60 * 60 * 24;
+    return Math.round((fc.getTime() - hoy.getTime()) / MS_DIA);
+}
+
+function mapearResolutivoAtencion(row, estatus) {
+    const diasHastaContacto = calcularDiasHastaContacto(row.fecha_contacto_empresa);
+    return {
+        resolutivo_id: row.resolutivo_id,
+        item: row.item,
+        empresa_id: row.empresa_id_biznaga,
+        nombre_empresa: row.nombre_empresa || '',
+        nombre_asignacion: row.nombre_asignacion || '',
+        tipo_tramite: row.tipo_tramite || '',
+        responsable: row.responsable || '',
+        estatus,
+        fecha_aprobacion: formatearFechaMx(row.fecha_aprobacion),
+        fecha_vencimiento: formatearFechaMx(row.fecha_vencimiento),
+        fecha_contacto_empresa: formatearFechaMx(row.fecha_contacto_empresa),
+        fecha_contacto_iso: toMysqlDate(row.fecha_contacto_empresa),
+        municipio: row.municipio || '',
+        estado: row.estado || '',
+        dias_hasta_contacto: diasHastaContacto
+    };
+}
+
 async function obtenerEstadisticasResolutivosPipc(poolSgc, poolPC = null, poolBiznaga = null, anio = null) {
     const anioNum = Number(anio) || new Date().getFullYear();
     const registros = await obtenerDatosControlResolutivos(poolSgc, poolPC, poolBiznaga);
@@ -1211,13 +1277,32 @@ async function obtenerEstadisticasResolutivosPipc(poolSgc, poolPC = null, poolBi
         Array.from({ length: 12 }, (_, idx) => [idx + 1, new Map(ESTATUS_RESOLUTIVO_ORDEN.map((e) => [e, 0]))])
     );
 
+    const atencionResolutivos = [];
     let totalAnio = 0;
+    const hoy = new Date();
+    const mesActualCal = hoy.getMonth() + 1;
+    const anioActual = hoy.getFullYear();
 
     for (const row of registros) {
         const estatus = normalizarEstatusOperativo(row.estatus);
         distribucionMap.set(estatus, (distribucionMap.get(estatus) || 0) + 1);
 
-        const fechaRef = obtenerFechaReferenciaResolutivo(row);
+        if (ESTATUS_ATENCION_RESOLUTIVO.includes(estatus)) {
+            atencionResolutivos.push(mapearResolutivoAtencion(row, estatus));
+        }
+
+        let fechaRef = obtenerFechaBucketResolutivo(row, estatus);
+        // Inventario crítico vigente: si su fecha operativa es de otro año,
+        // aún debe verse en el histórico del año en curso (mes actual).
+        if (
+            fechaRef
+            && fechaRef.getFullYear() !== anioNum
+            && anioNum === anioActual
+            && (estatus === 'Próximo a vencer' || estatus === 'Vencido' || estatus === 'En tramite')
+        ) {
+            fechaRef = new Date(anioActual, mesActualCal - 1, 1);
+        }
+
         if (!fechaRef || fechaRef.getFullYear() !== anioNum) continue;
 
         const mes = fechaRef.getMonth() + 1;
@@ -1226,6 +1311,15 @@ async function obtenerEstadisticasResolutivosPipc(poolSgc, poolPC = null, poolBi
         mesMap.set(estatus, (mesMap.get(estatus) || 0) + 1);
         totalAnio++;
     }
+
+    atencionResolutivos.sort((a, b) => {
+        const ordenA = ORDEN_ATENCION_RESOLUTIVO[a.estatus] ?? 9;
+        const ordenB = ORDEN_ATENCION_RESOLUTIVO[b.estatus] ?? 9;
+        if (ordenA !== ordenB) return ordenA - ordenB;
+        const diasA = a.dias_hasta_contacto == null ? 9999 : a.dias_hasta_contacto;
+        const diasB = b.dias_hasta_contacto == null ? 9999 : b.dias_hasta_contacto;
+        return diasA - diasB;
+    });
 
     const mesActual = new Date().getMonth() + 1;
     const mesesVisibles = anioNum === new Date().getFullYear()
@@ -1266,6 +1360,11 @@ async function obtenerEstadisticasResolutivosPipc(poolSgc, poolPC = null, poolBi
     }));
     const totalGeneral = distribucion.reduce((acc, item) => acc + item.total, 0);
 
+    const atencionPorEstatus = ESTATUS_ATENCION_RESOLUTIVO.map((estatus) => ({
+        estatus,
+        total: atencionResolutivos.filter((r) => r.estatus === estatus).length
+    }));
+
     return {
         anio: anioNum,
         total: totalGeneral,
@@ -1274,7 +1373,12 @@ async function obtenerEstadisticasResolutivosPipc(poolSgc, poolPC = null, poolBi
         variacion_mensual: variacionMensual,
         distribucion,
         por_mes: porMes,
-        estatus_orden: ESTATUS_RESOLUTIVO_ORDEN
+        estatus_orden: ESTATUS_RESOLUTIVO_ORDEN,
+        atencion: {
+            total: atencionResolutivos.length,
+            por_estatus: atencionPorEstatus,
+            resolutivos: atencionResolutivos
+        }
     };
 }
 

@@ -41,6 +41,8 @@ export class ControlProyectosRepositorioComponent implements OnInit, OnDestroy {
   empresaNombre = '';
   folio = '';
   nombreProyecto = '';
+  actividadId: number | null = null;
+  actividadNombre = '';
 
   archivos: CpRepoArchivo[] = [];
   cargando = false;
@@ -79,6 +81,9 @@ export class ControlProyectosRepositorioComponent implements OnInit, OnDestroy {
       this.empresaNombre = String(params.get('empresaNombre') || '').trim();
       this.folio = String(params.get('folio') || '').trim();
       this.nombreProyecto = String(params.get('nombreProyecto') || '').trim();
+      const actividadId = Number(params.get('actividadId') || 0);
+      this.actividadId = Number.isInteger(actividadId) && actividadId > 0 ? actividadId : null;
+      this.actividadNombre = String(params.get('actividadNombre') || '').trim();
       if (!this.nombreProyecto && !this.folio) {
         this.errorCarga = 'Falta el proyecto para abrir el repositorio.';
         return;
@@ -99,13 +104,26 @@ export class ControlProyectosRepositorioComponent implements OnInit, OnDestroy {
       empresaId: this.empresaId,
       empresaNombre: this.empresaNombre,
       folio: this.folio,
-      nombreProyecto: this.nombreProyecto
+      nombreProyecto: this.nombreProyecto,
+      actividadId: this.actividadId,
+      actividadNombre: this.actividadNombre || null
     };
   }
 
   get tituloProyecto(): string {
     if (this.folio && this.nombreProyecto) return `${this.folio} · ${this.nombreProyecto}`;
     return this.nombreProyecto || this.folio || 'Proyecto';
+  }
+
+  get tituloActividad(): string {
+    if (this.actividadNombre) return this.actividadNombre;
+    if (this.actividadId) return `Actividad #${this.actividadId}`;
+    return '';
+  }
+
+  get tituloRepositorio(): string {
+    const act = this.tituloActividad;
+    return act ? `${this.tituloProyecto} · ${act}` : this.tituloProyecto;
   }
 
   get archivosFiltrados(): CpRepoArchivo[] {

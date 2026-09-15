@@ -1,6 +1,7 @@
 /**
  * Evidencias / repositorio documental de Control de Proyectos.
- * Drive: {CARPETA_RAIZ} / {Empresa} / {Proyecto} / archivos
+ * Drive: {CARPETA_RAIZ} / {Empresa} / {Proyecto} / [{Actividad}] / archivos
+ * La carpeta de actividad es opcional: si viene actividadId/actividadNombre se usa subcarpeta.
  */
 const driveService = require('./driveService');
 
@@ -30,6 +31,21 @@ function nombreCarpetaProyecto(meta = {}) {
         : nombre;
 }
 
+function nombreCarpetaActividad(meta = {}) {
+    const id = Number(meta.actividadId || meta.actividad_id || 0);
+    const nombreRaw = String(
+        meta.actividadNombre || meta.actividad_nombre || meta.actividadesAccion || ''
+    ).trim();
+    const nombre = sanitizarNombreCarpeta(nombreRaw || 'Actividad').slice(0, 80);
+    if (Number.isInteger(id) && id > 0) {
+        return sanitizarNombreCarpeta(`${id} - ${nombre}`);
+    }
+    if (nombre && nombre !== 'Sin-nombre') {
+        return nombre;
+    }
+    return null;
+}
+
 /** Nombre plano legacy: "Empresa · Folio - Proyecto" (antes de jerarquía). */
 function nombreCarpetaProyectoLegacy(meta = {}) {
     const empresa = nombreCarpetaEmpresa(meta);
@@ -47,14 +63,30 @@ async function resolverCarpetaProyecto(meta = {}) {
         nombreEmpresa,
         CARPETA_PADRE_ADJUNTOS
     );
-    const carpetaId = await driveService.obtenerOCrearCarpeta(nombreProyecto, carpetaEmpresaId);
+    const carpetaProyectoId = await driveService.obtenerOCrearCarpeta(nombreProyecto, carpetaEmpresaId);
+    const nombreActividad = nombreCarpetaActividad(meta);
+    let carpetaId = carpetaProyectoId;
+    let nombreCarpeta = nombreProyecto;
+    let carpetaActividadId = null;
+
+    if (nombreActividad) {
+        carpetaActividadId = await driveService.obtenerOCrearCarpeta(nombreActividad, carpetaProyectoId);
+        carpetaId = carpetaActividadId;
+        nombreCarpeta = nombreActividad;
+    }
+
     return {
         carpetaId,
+        carpetaProyectoId,
+        carpetaActividadId,
         carpetaEmpresaId,
         nombreCarpetaEmpresa: nombreEmpresa,
-        nombreCarpeta: nombreProyecto,
+        nombreCarpetaProyecto: nombreProyecto,
+        nombreCarpetaActividad: nombreActividad,
+        nombreCarpeta,
         carpetaPadreId: CARPETA_PADRE_ADJUNTOS,
         webViewLink: `https://drive.google.com/drive/folders/${carpetaId}`,
+        webViewLinkProyecto: `https://drive.google.com/drive/folders/${carpetaProyectoId}`,
         webViewLinkEmpresa: `https://drive.google.com/drive/folders/${carpetaEmpresaId}`
     };
 }
@@ -83,8 +115,8 @@ async function listarAdjuntos(meta = {}) {
     const carpeta = await resolverCarpetaProyecto(meta);
     let archivos = await listarArchivosEnCarpeta(carpeta.carpetaId);
 
-    // Compatibilidad: si la carpeta nueva está vacía, incluir legacy plano bajo la raíz.
-    if (!archivos.length) {
+    // Compatibilidad: solo para listados a nivel proyecto (sin actividad).
+    if (!archivos.length && !carpeta.carpetaActividadId) {
         try {
             const legacyNombre = nombreCarpetaProyectoLegacy(meta);
             const folderId = await driveService.buscarCarpeta(legacyNombre, CARPETA_PADRE_ADJUNTOS);
@@ -234,5 +266,6 @@ module.exports = {
     prepararVistaAdjunto,
     resolverCarpetaProyecto,
     nombreCarpetaEmpresa,
-    nombreCarpetaProyecto
+    nombreCarpetaProyecto,
+    nombreCarpetaActividad
 };

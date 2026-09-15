@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, NgZone } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import Swal from 'sweetalert2';
@@ -11,7 +11,9 @@ import {
   ApexFill,
   ApexGrid,
   ApexLegend,
+  ApexNonAxisChartSeries,
   ApexPlotOptions,
+  ApexResponsive,
   ApexStroke,
   ApexTooltip,
   ApexXAxis,
@@ -131,6 +133,21 @@ type ResolutivosChartOptions = {
   colors: string[];
   plotOptions: ApexPlotOptions;
   legend: ApexLegend;
+  markers?: any;
+};
+
+type ResolutivosAtencionDonutOptions = {
+  series: ApexNonAxisChartSeries;
+  chart: ApexChart;
+  labels: string[];
+  colors: string[];
+  plotOptions: ApexPlotOptions;
+  fill: ApexFill;
+  dataLabels: ApexDataLabels;
+  stroke: ApexStroke;
+  legend: ApexLegend;
+  tooltip: ApexTooltip;
+  responsive: ApexResponsive[];
 };
 
 interface ResolutivoEstatusCard {
@@ -140,6 +157,29 @@ interface ResolutivoEstatusCard {
   pct: number;
   color: string;
   icono: string;
+}
+
+interface ResolutivoAtencionItem {
+  resolutivo_id: number;
+  item?: number | string;
+  empresa_id?: number;
+  nombre_empresa?: string;
+  nombre_asignacion?: string;
+  tipo_tramite?: string;
+  responsable?: string;
+  estatus: string;
+  fecha_aprobacion?: string;
+  fecha_vencimiento?: string;
+  fecha_contacto_empresa?: string;
+  dias_hasta_contacto?: number | null;
+}
+
+interface ResolutivoAtencionCard {
+  key: string;
+  label: string;
+  count: number;
+  subtitulo: string;
+  color: string;
 }
 
 type PasoCentroOperacionesId = 'asignar' | 'recorrido' | 'documentacion' | 'oficio' | 'observaciones' | 'resolutivo' | 'finalizar';
@@ -377,9 +417,13 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   resolutivosEstatusResumen = { total: 0 };
   resolutivosActividadResumen = {
     totalAnio: 0,
-    promedioMensual: 0,
-    variacionMensual: 0
+    estatusDominante: '—',
+    pctDominante: 0,
+    requierenAtencion: 0
   };
+  resolutivosLeyendaAnio: { key: string; label: string; color: string; total: number }[] = [];
+  /** Magnitud por estatus (columnas) + participación (línea), sin eje mensual */
+  resolutivosChartModo: 'estatus' = 'estatus';
 
   private readonly resolutivosEstatusConfig: Record<string, { label: string; color: string; icono: string }> = {
     Vigentes: { label: 'Vigentes', color: '#2dce89', icono: 'fa-check-circle' },
@@ -388,6 +432,32 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     'En tramite': { label: 'En trámite', color: '#5e72e4', icono: 'fa-hourglass-half' }
   };
   private readonly resolutivosEstatusOrder = ['En tramite', 'Vigentes', 'Próximo a vencer', 'Vencido'];
+  private readonly resolutivosAtencionOrder = ['En tramite', 'Próximo a vencer', 'Vencido'];
+
+  // Carrusel de gráficos resolutivos
+  readonly carruselResolutivosSlides: { id: string; titulo: string }[] = [
+    { id: 'actividad', titulo: 'Resolutivos PIPC por Estatus' },
+    { id: 'atencion', titulo: 'Atención de Resolutivos' }
+  ];
+  private readonly CARRUSEL_RESOLUTIVOS_INTERVALO_MS = 8000;
+  private readonly CARRUSEL_RESOLUTIVOS_TICK_MS = 100;
+  private carruselResolutivosTimer: ReturnType<typeof setInterval> | null = null;
+  private carruselResolutivosElapsedMs = 0;
+  carruselResolutivosActivo = 0;
+  carruselResolutivosHover = false;
+  carruselResolutivosAutoActivo = true;
+  carruselResolutivosProgresoPct = 0;
+  carruselResolutivosSegundosRestantes = 8;
+
+  resolutivosAtencion: ResolutivoAtencionItem[] = [];
+  resolutivosAtencionTotal = 0;
+  filtroAtencionEstatus: string | null = null;
+  resolutivosAtencionChartsReady = false;
+  resolutivosAtencionDonut!: Partial<ResolutivosAtencionDonutOptions>;
+  resumenAtencionCards: ResolutivoAtencionCard[] = [];
+  atencionDonutCentroValor = '0';
+  atencionDonutCentroEtiqueta = 'Atención';
+  atencionDonutCentroPct: number | null = null;
 
   // Actualizar posición del dropdown al hacer scroll
   @HostListener('window:scroll', ['$event'])
@@ -433,9 +503,11 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private router: Router,
     private route: ActivatedRoute,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private ngZone: NgZone
   ) {
     this.initResolutivosCharts();
+    this.initResolutivosAtencionDonut();
   }
 
   ngOnInit(): void {
@@ -489,6 +561,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.detenerCarruselResolutivos();
     this.limpiarMiniaturasPcExtra();
     this.pcExtraDestroy$.next();
     this.pcExtraDestroy$.complete();
@@ -5477,79 +5550,449 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   }
 
   // =====================================================
-  // ESTADÍSTICAS RESOLUTIVOS PIPC (GRÁFICOS)
+  // ESTADÍSTICAS RESOLUTIVOS PIPC (GRÁFICOS + CARRUSEL)
   // =====================================================
 
   private initResolutivosCharts(): void {
     this.resolutivosChartOptions = {
-      series: [],
+      series: [{ name: 'Resolutivos', data: [] }],
       chart: {
         type: 'bar',
-        height: 380,
-        stacked: true,
+        height: 320,
+        stacked: false,
         toolbar: { show: false },
         fontFamily: 'Open Sans, sans-serif',
         redrawOnParentResize: true,
+        zoom: { enabled: false },
         animations: {
           enabled: true,
           easing: 'easeinout',
-          speed: 800,
-          animateGradually: { enabled: true, delay: 120 },
+          speed: 850,
+          animateGradually: { enabled: true, delay: 90 },
           dynamicAnimation: { enabled: true, speed: 350 }
         }
       },
       colors: this.resolutivosEstatusOrder.map((key) => this.resolutivosEstatusConfig[key]?.color || '#8898aa'),
       plotOptions: {
         bar: {
-          columnWidth: '54%',
-          borderRadius: 6,
+          horizontal: false,
+          columnWidth: '42%',
+          borderRadius: 12,
           borderRadiusApplication: 'end',
-          borderRadiusWhenStacked: 'last'
+          distributed: true,
+          dataLabels: { position: 'top' }
         }
       },
-      dataLabels: { enabled: false },
-      fill: { type: 'solid', opacity: 0.95 },
-      stroke: { width: 0, colors: ['transparent'] },
+      dataLabels: {
+        enabled: true,
+        formatter: (val: number) => {
+          const n = Number(val) || 0;
+          return n > 0 ? String(n) : '';
+        },
+        offsetY: -18,
+        style: {
+          fontSize: '13px',
+          fontWeight: 800,
+          colors: ['#32325d']
+        },
+        background: { enabled: false }
+      },
+      fill: {
+        type: 'gradient',
+        gradient: {
+          shade: 'light',
+          type: 'vertical',
+          shadeIntensity: 0.28,
+          opacityFrom: 1,
+          opacityTo: 0.78,
+          stops: [0, 90, 100]
+        }
+      },
+      stroke: {
+        width: 0,
+        colors: ['transparent']
+      },
+      markers: { size: 0 },
       xaxis: {
         categories: [],
-        labels: { style: { colors: '#8898aa', fontSize: '12px', fontWeight: 600 } },
+        labels: {
+          style: { colors: '#525f7f', fontSize: '12px', fontWeight: 700 },
+          rotate: 0,
+          hideOverlappingLabels: false,
+          trim: false
+        },
         axisBorder: { show: false },
-        axisTicks: { show: false }
+        axisTicks: { show: false },
+        tooltip: { enabled: false }
       },
       yaxis: {
+        min: 0,
+        forceNiceScale: true,
+        tickAmount: 4,
         labels: {
-          style: { colors: '#8898aa', fontSize: '11px' },
+          style: { colors: '#adb5bd', fontSize: '11px' },
           formatter: (val: number) => Math.round(val).toString()
         },
-        min: 0,
-        forceNiceScale: true
+        title: {
+          text: 'Resolutivos',
+          style: { color: '#8898aa', fontSize: '11px', fontWeight: 650 }
+        }
       },
       grid: {
-        borderColor: '#f0f0f0',
-        strokeDashArray: 5,
-        padding: { top: -8, right: 8, bottom: 0, left: 4 },
+        borderColor: 'rgba(50, 50, 93, 0.07)',
+        strokeDashArray: 4,
+        padding: { top: 28, right: 16, bottom: 4, left: 10 },
         yaxis: { lines: { show: true } },
         xaxis: { lines: { show: false } }
       },
-      legend: {
-        position: 'bottom',
-        horizontalAlign: 'center',
-        fontSize: '12px',
-        fontWeight: 600,
-        offsetY: 8,
-        itemMargin: { horizontal: 14, vertical: 4 },
-        markers: { width: 10, height: 10, radius: 3 } as any
-      },
+      legend: { show: false },
       tooltip: {
-        shared: true,
-        intersect: false,
         theme: 'light',
         style: { fontSize: '12px' },
         y: {
-          formatter: (val: number) => `${val} resolutivo${val !== 1 ? 's' : ''}`
+          formatter: (val: number) => {
+            const n = Number(val) || 0;
+            return `${n} resolutivo${n !== 1 ? 's' : ''}`;
+          }
         }
       }
     };
+  }
+
+  private initResolutivosAtencionDonut(): void {
+    const self = this;
+    this.resolutivosAtencionDonut = {
+      series: [],
+      chart: {
+        type: 'donut',
+        height: 132,
+        fontFamily: 'Open Sans, sans-serif',
+        toolbar: { show: false },
+        events: {
+          dataPointMouseEnter(_e: unknown, _chart: unknown, config: { dataPointIndex: number }) {
+            self.onAtencionDonutHover(config.dataPointIndex);
+          },
+          dataPointMouseLeave() {
+            self.resetAtencionDonutCentro();
+          },
+          dataPointSelection(_e: unknown, _chart: unknown, config: { dataPointIndex: number }) {
+            const key = self.resolutivosAtencionOrder[config.dataPointIndex];
+            if (key) self.toggleFiltroAtencion(key);
+          }
+        }
+      },
+      labels: this.resolutivosAtencionOrder.map((k) => this.resolutivosEstatusConfig[k]?.label || k),
+      colors: this.resolutivosAtencionOrder.map((k) => this.resolutivosEstatusConfig[k]?.color || '#8898aa'),
+      stroke: { width: 3, colors: ['#fff'] },
+      fill: {
+        type: 'gradient',
+        gradient: {
+          shade: 'light',
+          type: 'vertical',
+          shadeIntensity: 0.35,
+          gradientToColors: ['#8294f5', '#ff8a65', '#ff6b8a'],
+          opacityFrom: 1,
+          opacityTo: 0.9,
+          stops: [0, 95, 100]
+        }
+      },
+      legend: { show: false },
+      dataLabels: { enabled: false },
+      plotOptions: {
+        pie: {
+          expandOnClick: false,
+          donut: {
+            size: '74%',
+            labels: { show: false }
+          }
+        }
+      },
+      tooltip: {
+        theme: 'light',
+        fillSeriesColor: false,
+        y: {
+          formatter: (val: number) => {
+            const total = this.resolutivosAtencionTotal || 0;
+            const pct = total ? Math.round((val / total) * 100) : 0;
+            return `${val} resolutivo${val !== 1 ? 's' : ''} (${pct}%)`;
+          }
+        }
+      },
+      responsive: [{ breakpoint: 480, options: { chart: { height: 120 } } }]
+    };
+  }
+
+  private iniciarCarruselResolutivos(): void {
+    this.detenerCarruselResolutivos();
+    if (!this.puedeVerGraficaActividadResolutivosPipc) return;
+    this.carruselResolutivosElapsedMs = 0;
+    this.actualizarProgresoCarruselResolutivos();
+    this.carruselResolutivosTimer = setInterval(() => {
+      if (this.carruselResolutivosHover || !this.carruselResolutivosAutoActivo) {
+        this.actualizarProgresoCarruselResolutivos();
+        return;
+      }
+      this.carruselResolutivosElapsedMs += this.CARRUSEL_RESOLUTIVOS_TICK_MS;
+      if (this.carruselResolutivosElapsedMs >= this.CARRUSEL_RESOLUTIVOS_INTERVALO_MS) {
+        this.ngZone.run(() => this.carruselResolutivosSiguiente());
+        return;
+      }
+      this.actualizarProgresoCarruselResolutivos();
+    }, this.CARRUSEL_RESOLUTIVOS_TICK_MS);
+  }
+
+  private detenerCarruselResolutivos(): void {
+    if (this.carruselResolutivosTimer) {
+      clearInterval(this.carruselResolutivosTimer);
+      this.carruselResolutivosTimer = null;
+    }
+  }
+
+  private actualizarProgresoCarruselResolutivos(): void {
+    this.carruselResolutivosProgresoPct = Math.min(
+      100,
+      (this.carruselResolutivosElapsedMs / this.CARRUSEL_RESOLUTIVOS_INTERVALO_MS) * 100
+    );
+    this.carruselResolutivosSegundosRestantes = Math.max(
+      0,
+      Math.ceil((this.CARRUSEL_RESOLUTIVOS_INTERVALO_MS - this.carruselResolutivosElapsedMs) / 1000)
+    );
+  }
+
+  private reiniciarProgresoCarruselResolutivos(): void {
+    this.carruselResolutivosElapsedMs = 0;
+    this.actualizarProgresoCarruselResolutivos();
+  }
+
+  carruselResolutivosSiguiente(): void {
+    this.carruselResolutivosActivo =
+      (this.carruselResolutivosActivo + 1) % this.carruselResolutivosSlides.length;
+    this.reiniciarProgresoCarruselResolutivos();
+  }
+
+  carruselResolutivosAnterior(): void {
+    this.carruselResolutivosActivo =
+      (this.carruselResolutivosActivo - 1 + this.carruselResolutivosSlides.length)
+      % this.carruselResolutivosSlides.length;
+    this.reiniciarProgresoCarruselResolutivos();
+  }
+
+  irACarruselResolutivosSlide(index: number): void {
+    if (index < 0 || index >= this.carruselResolutivosSlides.length || index === this.carruselResolutivosActivo) {
+      return;
+    }
+    this.carruselResolutivosActivo = index;
+    this.reiniciarProgresoCarruselResolutivos();
+  }
+
+  onCarruselResolutivosMouseEnter(): void {
+    this.carruselResolutivosHover = true;
+  }
+
+  onCarruselResolutivosMouseLeave(): void {
+    this.carruselResolutivosHover = false;
+  }
+
+  toggleCarruselResolutivosAuto(): void {
+    this.carruselResolutivosAutoActivo = !this.carruselResolutivosAutoActivo;
+    if (this.carruselResolutivosAutoActivo) {
+      this.reiniciarProgresoCarruselResolutivos();
+    }
+  }
+
+  get resolutivosAtencionFiltrados(): ResolutivoAtencionItem[] {
+    if (!this.filtroAtencionEstatus) return this.resolutivosAtencion;
+    return this.resolutivosAtencion.filter((r) => r.estatus === this.filtroAtencionEstatus);
+  }
+
+  /** Chips de filtro: Todos + estatus de atención con conteo */
+  get filtrosAtencionChips(): { key: string | null; label: string; count: number; color: string }[] {
+    const todos = {
+      key: null as string | null,
+      label: 'Todos',
+      count: this.resolutivosAtencionTotal,
+      color: '#d97248'
+    };
+    const porEstatus = this.resolutivosAtencionOrder.map((estatus) => {
+      const card = this.resumenAtencionCards.find((c) => c.key === estatus);
+      const cfg = this.resolutivosEstatusConfig[estatus];
+      return {
+        key: estatus as string | null,
+        label: cfg?.label || estatus,
+        count: card?.count || 0,
+        color: cfg?.color || '#8898aa'
+      };
+    });
+    return [todos, ...porEstatus];
+  }
+
+  seleccionarFiltroAtencion(estatus: string | null, event?: Event): void {
+    event?.stopPropagation();
+    event?.preventDefault();
+    this.filtroAtencionEstatus = estatus;
+    this.reiniciarProgresoCarruselResolutivos();
+  }
+
+  toggleFiltroAtencion(estatus: string, event?: Event): void {
+    event?.stopPropagation();
+    event?.preventDefault();
+    this.filtroAtencionEstatus = this.filtroAtencionEstatus === estatus ? null : estatus;
+    this.reiniciarProgresoCarruselResolutivos();
+  }
+
+  limpiarFiltroAtencion(): void {
+    this.filtroAtencionEstatus = null;
+  }
+
+  colorEstatusAtencion(estatus: string): string {
+    return this.resolutivosEstatusConfig[estatus]?.color || '#8898aa';
+  }
+
+  labelEstatusAtencion(estatus: string): string {
+    return this.resolutivosEstatusConfig[estatus]?.label || estatus;
+  }
+
+  claseBadgeAtencion(estatus: string): string {
+    if (estatus === 'Vencido') return 'pc-resolutivo-row__badge--vencido';
+    if (estatus === 'Próximo a vencer') return 'pc-resolutivo-row__badge--proximo';
+    return 'pc-resolutivo-row__badge--tramite';
+  }
+
+  urgenciaAtencion(r: ResolutivoAtencionItem): number {
+    const ind = this.indicadorTiempoAtencion(r);
+    if (ind.modo === 'vencido') return 100;
+    if (ind.modo === 'tramite' || ind.modo === 'sin_fecha') return 35;
+    if (ind.dias <= 0) return 92;
+    // Ventana crítica = 80 días (40 antes + 40 después del contacto)
+    return Math.max(18, Math.min(95, Math.round(100 - (ind.dias / 80) * 82)));
+  }
+
+  gradienteUrgenciaAtencion(estatus: string): string {
+    const color = this.colorEstatusAtencion(estatus);
+    return `linear-gradient(90deg, ${color} 0%, ${color}cc 100%)`;
+  }
+
+  /**
+   * Indicador de tiempo operativo (contacto + 40 días = vencido):
+   * - restante: días que faltan para vencer
+   * - vencido: días que ya lleva vencido
+   */
+  indicadorTiempoAtencion(r: ResolutivoAtencionItem): {
+    modo: 'restante' | 'vencido' | 'tramite' | 'sin_fecha';
+    dias: number;
+    valor: string;
+    unidad: string;
+    titulo: string;
+    subtitulo: string;
+    clase: string;
+  } {
+    const d = r.dias_hasta_contacto;
+
+    if (r.estatus === 'Vencido') {
+      if (d == null) {
+        return {
+          modo: 'vencido',
+          dias: 0,
+          valor: '—',
+          unidad: '',
+          titulo: 'Vencido',
+          subtitulo: 'Sin fecha de contacto',
+          clase: 'is-vencido'
+        };
+      }
+      const diasVencido = Math.max(0, Math.abs(d) - 40);
+      return {
+        modo: 'vencido',
+        dias: diasVencido,
+        valor: String(diasVencido),
+        unidad: diasVencido === 1 ? 'día' : 'días',
+        titulo: 'Vencido hace',
+        subtitulo: diasVencido === 0 ? 'Acaba de vencer' : `${diasVencido} día${diasVencido !== 1 ? 's' : ''} de atraso`,
+        clase: 'is-vencido'
+      };
+    }
+
+    if (d == null) {
+      if (r.estatus === 'En tramite') {
+        return {
+          modo: 'tramite',
+          dias: 0,
+          valor: '…',
+          unidad: '',
+          titulo: 'En trámite',
+          subtitulo: 'Sin fecha de contacto',
+          clase: 'is-tramite'
+        };
+      }
+      return {
+        modo: 'sin_fecha',
+        dias: 0,
+        valor: '—',
+        unidad: '',
+        titulo: 'Sin fecha',
+        subtitulo: 'No hay contacto programado',
+        clase: 'is-sin-fecha'
+      };
+    }
+
+    // Días hasta vencer = contacto + 40
+    const diasParaVencer = d + 40;
+    if (diasParaVencer <= 0) {
+      const diasVencido = Math.abs(diasParaVencer);
+      return {
+        modo: 'vencido',
+        dias: diasVencido,
+        valor: String(diasVencido),
+        unidad: diasVencido === 1 ? 'día' : 'días',
+        titulo: 'Vencido hace',
+        subtitulo: `${diasVencido} día${diasVencido !== 1 ? 's' : ''} de atraso`,
+        clase: 'is-vencido'
+      };
+    }
+
+    const urgenciaCercana = diasParaVencer <= 15;
+    return {
+      modo: 'restante',
+      dias: diasParaVencer,
+      valor: String(diasParaVencer),
+      unidad: diasParaVencer === 1 ? 'día' : 'días',
+      titulo: diasParaVencer === 1 ? 'Vence mañana' : 'Faltan',
+      subtitulo: diasParaVencer === 1
+        ? 'Para vencer'
+        : `Para vencer${d <= 0 ? ' · contacto vencido' : ''}`,
+      clase: urgenciaCercana ? 'is-critico' : 'is-restante'
+    };
+  }
+
+  etiquetaUrgenciaAtencion(r: ResolutivoAtencionItem): string {
+    const ind = this.indicadorTiempoAtencion(r);
+    if (ind.modo === 'vencido') {
+      return ind.dias > 0 ? `+${ind.dias}d` : 'Vencido';
+    }
+    if (ind.modo === 'tramite') return 'Trámite';
+    if (ind.modo === 'sin_fecha') return '—';
+    if (ind.dias === 1) return '1d';
+    return `${ind.dias}d`;
+  }
+
+  private onAtencionDonutHover(index: number): void {
+    if (index == null || index < 0 || index >= this.resolutivosAtencionOrder.length) {
+      this.resetAtencionDonutCentro();
+      return;
+    }
+    const key = this.resolutivosAtencionOrder[index];
+    const card = this.resumenAtencionCards.find((c) => c.key === key);
+    const total = this.resolutivosAtencionTotal || 0;
+    const count = card?.count || 0;
+    this.atencionDonutCentroValor = String(count);
+    this.atencionDonutCentroEtiqueta = this.labelEstatusAtencion(key);
+    this.atencionDonutCentroPct = total ? Math.round((count * 100) / total) : 0;
+  }
+
+  private resetAtencionDonutCentro(): void {
+    this.atencionDonutCentroValor = String(this.resolutivosAtencionTotal || 0);
+    this.atencionDonutCentroEtiqueta = 'Atención';
+    this.atencionDonutCentroPct = null;
   }
 
   cargarEstadisticasResolutivos(anio: number = this.resolutivosAnio): void {
@@ -5557,10 +6000,12 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
 
     this.cargandoResolutivosEstadisticas = true;
     this.resolutivosChartsReady = false;
+    this.resolutivosAtencionChartsReady = false;
     this.backendService.obtenerEstadisticasResolutivosPipc(anio).subscribe({
       next: (response: any) => {
         if (response?.success && response.estadisticas) {
           this.actualizarGraficosResolutivos(response.estadisticas);
+          this.iniciarCarruselResolutivos();
         } else {
           this.limpiarGraficosResolutivos();
         }
@@ -5576,76 +6021,245 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   private limpiarGraficosResolutivos(): void {
     this.resolutivosEstatusCards = [];
     this.resolutivosEstatusResumen = { total: 0 };
-    this.resolutivosActividadResumen = { totalAnio: 0, promedioMensual: 0, variacionMensual: 0 };
+    this.resolutivosActividadResumen = {
+      totalAnio: 0,
+      estatusDominante: '—',
+      pctDominante: 0,
+      requierenAtencion: 0
+    };
+    this.resolutivosLeyendaAnio = [];
+    this.resolutivosChartModo = 'estatus';
+    this.resolutivosAtencion = [];
+    this.resolutivosAtencionTotal = 0;
+    this.resumenAtencionCards = [];
+    this.filtroAtencionEstatus = null;
+    this.resetAtencionDonutCentro();
     this.resolutivosChartOptions = {
       ...this.resolutivosChartOptions,
-      series: this.resolutivosEstatusOrder.map((estatus) => ({
-        name: this.resolutivosEstatusConfig[estatus]?.label || estatus,
-        data: []
-      })),
+      series: [{ name: 'Resolutivos', data: [] }],
       xaxis: { ...this.resolutivosChartOptions.xaxis, categories: [] }
     };
+    this.resolutivosAtencionDonut = {
+      ...this.resolutivosAtencionDonut,
+      series: [0, 0, 0]
+    };
     this.resolutivosChartsReady = true;
+    this.resolutivosAtencionChartsReady = true;
+    this.detenerCarruselResolutivos();
   }
 
   private actualizarGraficosResolutivos(estadisticas: any): void {
-    const porMes = Array.isArray(estadisticas.por_mes) ? estadisticas.por_mes : [];
-    const labels = porMes.map((item: any) => item.mes_label);
-    const series = this.resolutivosEstatusOrder.map((estatus) => ({
-      name: this.resolutivosEstatusConfig[estatus]?.label || estatus,
-      data: porMes.map((mes: any) => {
-        const match = (mes.por_estatus || []).find((row: any) => row.estatus === estatus);
-        return Number(match?.total || 0);
-      })
-    }));
-
-    this.resolutivosChartOptions = {
-      ...this.resolutivosChartOptions,
-      series,
-      colors: this.resolutivosEstatusOrder.map((key) => this.resolutivosEstatusConfig[key]?.color || '#8898aa'),
-      xaxis: { ...this.resolutivosChartOptions.xaxis, categories: labels }
-    };
-
-    this.resolutivosActividadResumen = {
-      totalAnio: Number(estadisticas.total_anio || 0),
-      promedioMensual: Number(estadisticas.promedio_mensual || 0),
-      variacionMensual: Number(estadisticas.variacion_mensual || 0)
-    };
-
     const distribucion = Array.isArray(estadisticas.distribucion) ? estadisticas.distribucion : [];
     const total = Number(estadisticas.total || 0);
     this.resolutivosEstatusResumen = { total };
 
+    const counts = this.resolutivosEstatusOrder.map((estatus) => {
+      const item = distribucion.find((row: any) => row.estatus === estatus);
+      return Number(item?.total || 0);
+    });
+    const labels = this.resolutivosEstatusOrder.map(
+      (estatus) => this.resolutivosEstatusConfig[estatus]?.label || estatus
+    );
+    const colors = this.resolutivosEstatusOrder.map(
+      (estatus) => this.resolutivosEstatusConfig[estatus]?.color || '#8898aa'
+    );
+    const pcts = counts.map((c) => (total > 0 ? +((c * 100) / total).toFixed(1) : 0));
+
+    this.resolutivosLeyendaAnio = this.resolutivosEstatusOrder.map((estatus, i) => {
+      const cfg = this.resolutivosEstatusConfig[estatus];
+      return {
+        key: estatus,
+        label: cfg.label,
+        color: cfg.color,
+        total: counts[i]
+      };
+    });
+
+    const maxCount = Math.max(0, ...counts);
+    const yMax = Math.max(4, Math.ceil(maxCount * 1.35));
+
+    // Columnas de magnitud por estatus (sin eje mensual) + % en tooltip
+    this.resolutivosChartOptions = {
+      ...this.resolutivosChartOptions,
+      series: [{ name: 'Resolutivos', data: counts }],
+      colors,
+      chart: {
+        type: 'bar',
+        height: 320,
+        stacked: false,
+        toolbar: { show: false },
+        fontFamily: 'Open Sans, sans-serif',
+        redrawOnParentResize: true,
+        zoom: { enabled: false },
+        animations: {
+          enabled: true,
+          easing: 'easeinout',
+          speed: 850,
+          animateGradually: { enabled: true, delay: 90 },
+          dynamicAnimation: { enabled: true, speed: 350 }
+        }
+      } as ApexChart,
+      fill: {
+        type: 'gradient',
+        gradient: {
+          shade: 'light',
+          type: 'vertical',
+          shadeIntensity: 0.28,
+          opacityFrom: 1,
+          opacityTo: 0.78,
+          stops: [0, 90, 100]
+        }
+      },
+      stroke: { width: 0, colors: ['transparent'] },
+      markers: { size: 0 },
+      dataLabels: {
+        enabled: true,
+        formatter: (val: number, opts: any) => {
+          const n = Number(val) || 0;
+          if (n <= 0) return '';
+          const pct = pcts[opts?.dataPointIndex] ?? 0;
+          return `${n}  ·  ${pct}%`;
+        },
+        offsetY: -22,
+        style: {
+          fontSize: '12px',
+          fontWeight: 800,
+          colors: ['#32325d']
+        },
+        background: { enabled: false }
+      },
+      plotOptions: {
+        bar: {
+          horizontal: false,
+          columnWidth: '40%',
+          borderRadius: 12,
+          borderRadiusApplication: 'end',
+          distributed: true,
+          dataLabels: { position: 'top' }
+        }
+      },
+      xaxis: {
+        categories: labels,
+        labels: {
+          style: {
+            colors: colors.map(() => '#525f7f'),
+            fontSize: '12px',
+            fontWeight: 700
+          },
+          rotate: 0,
+          hideOverlappingLabels: false,
+          trim: false
+        },
+        axisBorder: { show: false },
+        axisTicks: { show: false },
+        tooltip: { enabled: false }
+      },
+      yaxis: {
+        min: 0,
+        max: yMax,
+        tickAmount: Math.min(5, yMax),
+        forceNiceScale: true,
+        labels: {
+          style: { colors: '#adb5bd', fontSize: '11px' },
+          formatter: (val: number) => Math.round(val).toString()
+        },
+        title: {
+          text: 'Cantidad',
+          style: { color: '#8898aa', fontSize: '11px', fontWeight: 650 }
+        }
+      },
+      grid: {
+        borderColor: 'rgba(50, 50, 93, 0.07)',
+        strokeDashArray: 4,
+        padding: { top: 32, right: 16, bottom: 4, left: 10 },
+        yaxis: { lines: { show: true } },
+        xaxis: { lines: { show: false } }
+      },
+      legend: { show: false },
+      tooltip: {
+        theme: 'light',
+        style: { fontSize: '12px' },
+        y: {
+          formatter: (val: number, opts: any) => {
+            const n = Number(val) || 0;
+            const pct = pcts[opts?.dataPointIndex] ?? 0;
+            return `${n} resolutivo${n !== 1 ? 's' : ''} (${pct}%)`;
+          }
+        }
+      }
+    };
+
+    let dominanteLabel = '—';
+    let dominantePct = 0;
+    let dominanteCount = -1;
+    counts.forEach((c, i) => {
+      if (c > dominanteCount) {
+        dominanteCount = c;
+        dominanteLabel = labels[i];
+        dominantePct = pcts[i];
+      }
+    });
+
+    const requierenAtencion = this.resolutivosAtencionOrder.reduce((acc, estatus) => {
+      const idx = this.resolutivosEstatusOrder.indexOf(estatus);
+      return acc + (idx >= 0 ? counts[idx] : 0);
+    }, 0);
+
+    this.resolutivosActividadResumen = {
+      totalAnio: total || Number(estadisticas.total_anio || 0),
+      estatusDominante: dominanteCount > 0 ? dominanteLabel : '—',
+      pctDominante: dominanteCount > 0 ? dominantePct : 0,
+      requierenAtencion
+    };
+
     this.resolutivosEstatusCards = this.resolutivosEstatusOrder
-      .map((estatus) => {
-        const item = distribucion.find((row: any) => row.estatus === estatus);
-        const count = Number(item?.total || 0);
+      .map((estatus, i) => {
         const cfg = this.resolutivosEstatusConfig[estatus];
         return {
           key: estatus,
           label: cfg.label,
-          count,
-          pct: total > 0 ? +((count * 100) / total).toFixed(1) : 0,
+          count: counts[i],
+          pct: pcts[i],
           color: cfg.color,
           icono: cfg.icono
         };
       })
       .filter((card) => card.count > 0 || total > 0);
 
+    const atencion = estadisticas.atencion || {};
+    this.resolutivosAtencion = Array.isArray(atencion.resolutivos) ? atencion.resolutivos : [];
+    this.resolutivosAtencionTotal = Number(atencion.total ?? this.resolutivosAtencion.length) || 0;
+
+    const porEstatusAtencion = Array.isArray(atencion.por_estatus) ? atencion.por_estatus : [];
+    this.resumenAtencionCards = this.resolutivosAtencionOrder.map((estatus) => {
+      const item = porEstatusAtencion.find((row: any) => row.estatus === estatus);
+      const count = Number(item?.total ?? this.resolutivosAtencion.filter((r) => r.estatus === estatus).length) || 0;
+      const cfg = this.resolutivosEstatusConfig[estatus];
+      let subtitulo = `${count} resolutivo${count !== 1 ? 's' : ''}`;
+      if (estatus === 'En tramite') subtitulo = `${count} en proceso`;
+      if (estatus === 'Próximo a vencer') subtitulo = `${count} por vencer`;
+      if (estatus === 'Vencido') subtitulo = `${count} vencido${count !== 1 ? 's' : ''}`;
+      return {
+        key: estatus,
+        label: cfg.label,
+        count,
+        subtitulo,
+        color: cfg.color
+      };
+    });
+
+    this.resolutivosAtencionDonut = {
+      ...this.resolutivosAtencionDonut,
+      series: this.resolutivosAtencionOrder.map((estatus) => {
+        const card = this.resumenAtencionCards.find((c) => c.key === estatus);
+        return card?.count || 0;
+      }),
+      colors: this.resolutivosAtencionOrder.map((k) => this.resolutivosEstatusConfig[k]?.color || '#8898aa')
+    };
+    this.resetAtencionDonutCentro();
+
     this.resolutivosChartsReady = true;
-  }
-
-  getResolutivosDeltaClass(valor: number): string {
-    if (valor > 0) return 'pc-resolutivos-delta--up';
-    if (valor < 0) return 'pc-resolutivos-delta--down';
-    return 'pc-resolutivos-delta--neutral';
-  }
-
-  formatResolutivosDelta(valor: number): string {
-    const num = Number(valor || 0);
-    if (num > 0) return `+${num}%`;
-    if (num < 0) return `${num}%`;
-    return '0%';
+    this.resolutivosAtencionChartsReady = true;
   }
 
 }

@@ -26013,22 +26013,24 @@ app.post('/api/control-proyectos/actualizar-plantilla', denyEmpresa, async (req,
 
 function metaAdjuntosControlProyectos(req) {
     const src = { ...(req.query || {}), ...(req.body || {}) };
+    const actividadIdRaw = src.actividadId || src.actividad_id;
+    const actividadId = Number(actividadIdRaw || 0);
+    const base = {
+        folio: src.folio,
+        nombreProyecto: src.nombreProyecto || src.nombre_proyecto,
+        empresaNombre: src.empresaNombre || src.empresa_nombre,
+        actividadId: Number.isInteger(actividadId) && actividadId > 0 ? actividadId : null,
+        actividadNombre: src.actividadNombre || src.actividad_nombre || src.actividadesAccion || null
+    };
     if (esPerfilEmpresa(req)) {
         const empresaId = Number(req.user?.empresa_id || 0);
         if (!Number.isInteger(empresaId) || empresaId <= 0) {
             return { error: 'No hay empresa asociada a este usuario' };
         }
-        return {
-            folio: src.folio,
-            nombreProyecto: src.nombreProyecto || src.nombre_proyecto,
-            empresaNombre: src.empresaNombre || src.empresa_nombre,
-            empresaId
-        };
+        return { ...base, empresaId };
     }
     return {
-        folio: src.folio,
-        nombreProyecto: src.nombreProyecto || src.nombre_proyecto,
-        empresaNombre: src.empresaNombre || src.empresa_nombre,
+        ...base,
         empresaId: src.empresaId || src.empresa_id
     };
 }

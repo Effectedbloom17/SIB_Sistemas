@@ -1052,16 +1052,28 @@ function registroNcF05TieneContenido(r) {
     );
 }
 
+function etiquetaFuenteNc(fuente) {
+    const raw = String(fuente || '').trim();
+    if (!raw) return 'Sin fuente';
+    return raw.length > 28 ? `${raw.slice(0, 26)}…` : raw;
+}
+
 /**
  * Contadores Abierta/Cerrada desde la bitácora SGC-F-05.
- * Alimenta el indicador de eficacia y el histograma de NC.
+ * Alimenta el indicador de eficacia y el histograma apilado de NC.
  */
 async function contadoresNcDesdeF05(poolSgc) {
     const vacio = {
         totalNcBitacora: 0,
         ncAbiertas: 0,
         ncCerradas: 0,
-        fuenteBitacora: 'SGC-F-05'
+        fuenteBitacora: 'SGC-F-05',
+        histograma: {
+            categorias: [],
+            abiertas: [],
+            cerradas: []
+        },
+        registrosCerrados: []
     };
     try {
         const registro = await obtenerRegistroSgcPersistido(poolSgc, 'SGC-F-05');
@@ -1074,21 +1086,89 @@ async function contadoresNcDesdeF05(poolSgc) {
             : [];
         let abiertas = 0;
         let cerradas = 0;
+        const porFuente = new Map();
+        const registrosCerrados = [];
         for (const r of lista) {
             const est = String(r.estatus || '').trim().toLowerCase();
-            if (est === 'cerrada') cerradas += 1;
-            else abiertas += 1;
+            const esCerrada = est === 'cerrada';
+            if (esCerrada) {
+                cerradas += 1;
+                registrosCerrados.push({
+                    folio: String(r.folio || '').trim(),
+                    fuente: String(r.fuente || '').trim(),
+                    fecha: formatearFechaIso(r.fechaCierre || r.fechaInicio) || null
+                });
+            } else {
+                abiertas += 1;
+            }
+
+            const fuente = etiquetaFuenteNc(r.fuente);
+            if (!porFuente.has(fuente)) {
+                porFuente.set(fuente, { abiertas: 0, cerradas: 0 });
+            }
+            const bucket = porFuente.get(fuente);
+            if (esCerrada) bucket.cerradas += 1;
+            else bucket.abiertas += 1;
         }
+
+        const categorias = [...porFuente.keys()].sort((a, b) => {
+            const ta = (porFuente.get(a).abiertas + porFuente.get(a).cerradas);
+            const tb = (porFuente.get(b).abiertas + porFuente.get(b).cerradas);
+            return tb - ta || a.localeCompare(b, 'es');
+        });
+
         return {
             totalNcBitacora: lista.length,
             ncAbiertas: abiertas,
             ncCerradas: cerradas,
-            fuenteBitacora: 'SGC-F-05'
+            fuenteBitacora: 'SGC-F-05',
+            histograma: {
+                categorias,
+                abiertas: categorias.map((c) => porFuente.get(c).abiertas),
+                cerradas: categorias.map((c) => porFuente.get(c).cerradas)
+            },
+            registrosCerrados
         };
     } catch (err) {
         console.warn('[SGC-DASH] No se pudo leer SGC-F-05 para eficacia:', err.message);
         return vacio;
     }
+}
+
+/**
+ * Asigna NC cerradas de SGC-F-05 a cada auditoría (por fecha más cercana).
+ */
+function asignarNcCerradasAAuditorias(auditorias, registrosCerrados) {
+    const lista = Array.isArray(auditorias) ? auditorias : [];
+    const cerrados = Array.isArray(registrosCerrados) ? registrosCerrados : [];
+    const counts = lista.map(() => 0);
+    if (!lista.length) return;
+
+    for (const r of cerrados) {
+        const fechaRef = formatearFechaIso(r?.fecha);
+        let bestIdx = 0;
+        let bestDist = Infinity;
+        lista.forEach((a, i) => {
+            const fechaAud = formatearFechaIso(a?.fecha);
+            if (!fechaRef || !fechaAud) {
+                if (!fechaAud && bestDist === Infinity) bestIdx = i;
+                return;
+            }
+            const dist = Math.abs(
+                new Date(`${fechaAud}T12:00:00`).getTime()
+                - new Date(`${fechaRef}T12:00:00`).getTime()
+            );
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestIdx = i;
+            }
+        });
+        counts[bestIdx] += 1;
+    }
+
+    lista.forEach((a, i) => {
+        a.ncCerradasBitacora = counts[i];
+    });
 }
 
 function mapearAuditoriaDesdeF10({
@@ -1122,6 +1202,7 @@ function mapearAuditoriaDesdeF10({
         totalOp: Number(contadores?.totalOp) || 0,
         totalNcMenor: Number(contadores?.totalNcMenor) || 0,
         totalNcMayor: Number(contadores?.totalNcMayor) || 0,
+        ncCerradasBitacora: 0,
         observaciones: observaciones || '',
         nivel: nivel.nivel,
         nivelEtiqueta: nivel.etiqueta,
@@ -1264,6 +1345,7 @@ async function obtenerEficacia(poolSgc, anio) {
 
     const delAnio = auditorias.filter((a) => Number(a.anio) === anioNum);
     const bitacoraNc = await contadoresNcDesdeF05(poolSgc);
+    asignarNcCerradasAAuditorias(auditorias, bitacoraNc.registrosCerrados);
 
     return {
         anio: anioNum,
@@ -1290,6 +1372,7 @@ async function obtenerEficacia(poolSgc, anio) {
         ncAbiertas: bitacoraNc.ncAbiertas,
         ncCerradas: bitacoraNc.ncCerradas,
         fuenteBitacora: bitacoraNc.fuenteBitacora,
+        histogramaNc: bitacoraNc.histograma,
         auditorias
     };
 }

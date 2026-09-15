@@ -272,7 +272,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   filtroEstatusCronograma = '';
   escalaCronograma: EscalaCronograma = 'meses';
 
-  /** Adjuntos Drive del proyecto abierto en Gestión. */
+  /** Adjuntos Drive por actividad (clave = actividadId o temp). */
   adjuntosProyecto: Array<{
     id: string;
     nombre: string;
@@ -288,6 +288,10 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   exitoAdjuntos = '';
   nombreAdjuntoEnCurso = '';
   private adjuntosClaveCargada: string | null = null;
+  /** Conteos cacheados por clave de actividad. */
+  conteosAdjuntosActividad: Record<string, number> = {};
+  cargandoConteoAdjuntos: Record<string, boolean> = {};
+  erroresConteoAdjuntos: Record<string, string> = {};
   private detalleHoverTimer: ReturnType<typeof setTimeout> | null = null;
   private detalleHoverOpenTimer: ReturnType<typeof setTimeout> | null = null;
   private exitoAdjuntosTimer: ReturnType<typeof setTimeout> | null = null;
@@ -813,7 +817,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.adjuntosClaveCargada = null;
     this.adjuntosProyecto = [];
     this.errorAdjuntos = '';
-    this.cargarAdjuntosProyectoActual(true);
+    setTimeout(() => this.precargarConteosAdjuntosGrupo(), 0);
     if (this.esConsultaEmpresa) {
       setTimeout(() => this.irAHoy(), 80);
     }
@@ -908,7 +912,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.cerrarMenuEstatusGestion();
   }
 
-  toggleExpandirActividadGestion(indice: number): void {
+  toggleExpandirActividadGestion(indice: number, proyecto?: ProyectoTableroItem): void {
     if (this.detalleHoverTimer) {
       clearTimeout(this.detalleHoverTimer);
       this.detalleHoverTimer = null;
@@ -917,13 +921,17 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       clearTimeout(this.detalleHoverOpenTimer);
       this.detalleHoverOpenTimer = null;
     }
-    if (this.gestionActividadExpandidaIndice === indice) {
+    if (this.gestionActividadExpandidaIndice === indice && this.gestionActividadFijada) {
       this.gestionActividadExpandidaIndice = null;
       this.gestionActividadFijada = false;
     } else {
       this.gestionActividadExpandidaIndice = indice;
       this.gestionActividadFijada = true;
-      this.cargarAdjuntosProyectoActual();
+      if (proyecto) {
+        this.cargarAdjuntosActividad(proyecto, false);
+      } else {
+        this.cargarAdjuntosProyectoActual();
+      }
     }
     this.cerrarMenuPrioridadGestion();
     this.cerrarMenuEstatusGestion();
@@ -933,7 +941,11 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     return this.gestionActividadExpandidaIndice === indice;
   }
 
-  abrirDetalleGestionHover(indice: number): void {
+  actividadGestionFijada(indice: number): boolean {
+    return this.gestionActividadFijada && this.gestionActividadExpandidaIndice === indice;
+  }
+
+  abrirDetalleGestionHover(indice: number, proyecto?: ProyectoTableroItem): void {
     if (this.detalleHoverTimer) {
       clearTimeout(this.detalleHoverTimer);
       this.detalleHoverTimer = null;
@@ -941,25 +953,42 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     if (this.gestionActividadExpandidaIndice === indice) {
       return;
     }
+    // Si hay otra fijada, no la reemplaza con hover
+    if (this.gestionActividadFijada && this.gestionActividadExpandidaIndice !== null) {
+      return;
+    }
     if (this.detalleHoverOpenTimer) {
       clearTimeout(this.detalleHoverOpenTimer);
     }
     this.detalleHoverOpenTimer = setTimeout(() => {
       this.gestionActividadExpandidaIndice = indice;
-      this.gestionActividadFijada = true;
+      this.gestionActividadFijada = false;
       this.cerrarMenuPrioridadGestion();
       this.cerrarMenuEstatusGestion();
-      this.cargarAdjuntosProyectoActual();
+      if (proyecto) {
+        this.cargarAdjuntosActividad(proyecto, false);
+      }
       this.detalleHoverOpenTimer = null;
-    }, 140);
+    }, 120);
   }
 
-  cerrarDetalleGestionHover(_indice: number): void {
-    // Solo cancela la apertura pendiente; la actividad seleccionada permanece abierta.
+  cerrarDetalleGestionHover(indice: number): void {
     if (this.detalleHoverOpenTimer) {
       clearTimeout(this.detalleHoverOpenTimer);
       this.detalleHoverOpenTimer = null;
     }
+    if (this.gestionActividadFijada) {
+      return;
+    }
+    if (this.detalleHoverTimer) {
+      clearTimeout(this.detalleHoverTimer);
+    }
+    this.detalleHoverTimer = setTimeout(() => {
+      if (!this.gestionActividadFijada && this.gestionActividadExpandidaIndice === indice) {
+        this.gestionActividadExpandidaIndice = null;
+      }
+      this.detalleHoverTimer = null;
+    }, 160);
   }
 
   abrirPanelActividad(event: Event, item: { proyecto: ProyectoTableroItem; indice: number }): void {
@@ -1053,6 +1082,8 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     nombreProyecto?: string;
     empresaNombre?: string;
     empresaId?: number | null;
+    actividadId?: number | null;
+    actividadNombre?: string | null;
   } | null {
     if (!grupo) return null;
     const base = grupo.actividades?.[0]?.proyecto;
@@ -1064,20 +1095,173 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     };
   }
 
+  private metaAdjuntosActividad(
+    grupo: GrupoGestionProyecto | null,
+    proyecto: ProyectoTableroItem | null | undefined
+  ): {
+    folio?: string;
+    nombreProyecto?: string;
+    empresaNombre?: string;
+    empresaId?: number | null;
+    actividadId?: number | null;
+    actividadNombre?: string | null;
+  } | null {
+    const base = this.metaAdjuntosGrupo(grupo);
+    if (!base || !proyecto) return base;
+    const actividadId = Number(proyecto.id || 0);
+    const actividadNombre = String(
+      proyecto.actividadesAccion || proyecto.condicionRequerimiento || 'Actividad'
+    ).trim();
+    return {
+      ...base,
+      actividadId: Number.isInteger(actividadId) && actividadId > 0 ? actividadId : null,
+      actividadNombre: actividadNombre || 'Actividad'
+    };
+  }
+
   private claveAdjuntosMeta(meta: {
     folio?: string;
     nombreProyecto?: string;
     empresaNombre?: string;
     empresaId?: number | null;
+    actividadId?: number | null;
+    actividadNombre?: string | null;
   }): string {
     return [
       meta.empresaId || 'sin-empresa',
       this.normalizar(meta.folio || ''),
-      this.normalizar(meta.nombreProyecto || '')
+      this.normalizar(meta.nombreProyecto || ''),
+      meta.actividadId || this.normalizar(meta.actividadNombre || '') || 'sin-actividad'
     ].join('|');
   }
 
+  private claveActividadAdjuntos(proyecto: ProyectoTableroItem | null | undefined): string {
+    if (!proyecto) return '';
+    const id = Number(proyecto.id || 0);
+    if (Number.isInteger(id) && id > 0) return `id:${id}`;
+    return `tmp:${this.normalizar(proyecto.actividadesAccion || proyecto.condicionRequerimiento || '')}`;
+  }
+
+  conteoAdjuntosActividad(proyecto: ProyectoTableroItem | null | undefined): number {
+    const clave = this.claveActividadAdjuntos(proyecto);
+    if (!clave) return 0;
+    return Number(this.conteosAdjuntosActividad[clave] || 0);
+  }
+
+  cargandoAdjuntosActividad(proyecto: ProyectoTableroItem | null | undefined): boolean {
+    const clave = this.claveActividadAdjuntos(proyecto);
+    return !!(clave && this.cargandoConteoAdjuntos[clave]);
+  }
+
+  errorAdjuntosActividad(proyecto: ProyectoTableroItem | null | undefined): string {
+    const clave = this.claveActividadAdjuntos(proyecto);
+    return clave ? (this.erroresConteoAdjuntos[clave] || '') : '';
+  }
+
+  puedeAbrirRepositorioActividad(proyecto: ProyectoTableroItem | null | undefined): boolean {
+    const id = Number(proyecto?.id || 0);
+    return Number.isInteger(id) && id > 0;
+  }
+
+  tituloRepositorioActividad(proyecto: ProyectoTableroItem | null | undefined): string {
+    if (!this.puedeAbrirRepositorioActividad(proyecto)) {
+      return 'Guarda la actividad para abrir su repositorio de evidencias';
+    }
+    const n = this.conteoAdjuntosActividad(proyecto);
+    return n === 1 ? '1 evidencia de esta actividad' : `${n} evidencias de esta actividad`;
+  }
+
+  cargarAdjuntosActividad(proyecto: ProyectoTableroItem, forzar = false): void {
+    const grupo = this.grupoGestionSeleccionado;
+    const meta = this.metaAdjuntosActividad(grupo, proyecto);
+    if (!meta?.nombreProyecto && !meta?.folio) return;
+    if (!meta.actividadId) return;
+    const claveAct = this.claveActividadAdjuntos(proyecto);
+    const clave = this.claveAdjuntosMeta(meta);
+    if (!forzar && this.adjuntosClaveCargada === clave && !this.errorAdjuntos) {
+      this.conteosAdjuntosActividad = {
+        ...this.conteosAdjuntosActividad,
+        [claveAct]: this.adjuntosProyecto.length
+      };
+      return;
+    }
+    if (!forzar && claveAct in this.conteosAdjuntosActividad && !this.cargandoConteoAdjuntos[claveAct]) {
+      // Ya hay conteo; si el detalle está abierto, igual refresca listado solo si falta cache de archivos
+      if (this.adjuntosClaveCargada === clave) return;
+    }
+    this.cargandoAdjuntos = true;
+    this.cargandoConteoAdjuntos = { ...this.cargandoConteoAdjuntos, [claveAct]: true };
+    this.errorAdjuntos = '';
+    this.erroresConteoAdjuntos = { ...this.erroresConteoAdjuntos, [claveAct]: '' };
+    this.backend.listarAdjuntosControlProyectos(meta)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.cargandoAdjuntos = false;
+          this.cargandoConteoAdjuntos = { ...this.cargandoConteoAdjuntos, [claveAct]: false };
+          if (!res?.success) {
+            const msg = res?.message || 'No se pudieron cargar los adjuntos.';
+            this.errorAdjuntos = msg;
+            this.erroresConteoAdjuntos = { ...this.erroresConteoAdjuntos, [claveAct]: msg };
+            this.adjuntosProyecto = [];
+            return;
+          }
+          this.adjuntosClaveCargada = clave;
+          this.adjuntosCarpetaId = res.carpetaId || null;
+          this.adjuntosProyecto = Array.isArray(res.archivos) ? res.archivos : [];
+          this.conteosAdjuntosActividad = {
+            ...this.conteosAdjuntosActividad,
+            [claveAct]: this.adjuntosProyecto.length
+          };
+        },
+        error: (err) => {
+          this.cargandoAdjuntos = false;
+          this.cargandoConteoAdjuntos = { ...this.cargandoConteoAdjuntos, [claveAct]: false };
+          const msg = err?.error?.message || 'No se pudieron cargar los adjuntos.';
+          this.errorAdjuntos = msg;
+          this.erroresConteoAdjuntos = { ...this.erroresConteoAdjuntos, [claveAct]: msg };
+          this.adjuntosProyecto = [];
+        }
+      });
+  }
+
+  /** Precarga conteos de evidencias por actividad (badges) al abrir un proyecto. */
+  private precargarConteosAdjuntosGrupo(): void {
+    const grupo = this.grupoGestionSeleccionado;
+    if (!grupo?.actividades?.length) return;
+    const visibles = this.actividadesGestionPaginadas(grupo).slice(0, 12);
+    for (const item of visibles) {
+      const proyecto = item.proyecto;
+      if (!this.puedeAbrirRepositorioActividad(proyecto)) continue;
+      const claveAct = this.claveActividadAdjuntos(proyecto);
+      if (claveAct in this.conteosAdjuntosActividad || this.cargandoConteoAdjuntos[claveAct]) continue;
+      const meta = this.metaAdjuntosActividad(grupo, proyecto);
+      if (!meta?.actividadId) continue;
+      this.cargandoConteoAdjuntos = { ...this.cargandoConteoAdjuntos, [claveAct]: true };
+      this.backend.listarAdjuntosControlProyectos(meta)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.cargandoConteoAdjuntos = { ...this.cargandoConteoAdjuntos, [claveAct]: false };
+            const total = Array.isArray(res?.archivos) ? res.archivos.length : Number(res?.total || 0);
+            this.conteosAdjuntosActividad = {
+              ...this.conteosAdjuntosActividad,
+              [claveAct]: total
+            };
+          },
+          error: () => {
+            this.cargandoConteoAdjuntos = { ...this.cargandoConteoAdjuntos, [claveAct]: false };
+          }
+        });
+    }
+  }
+
   cargarAdjuntosProyectoActual(forzar = false): void {
+    const indice = this.gestionActividadExpandidaIndice;
+    if (indice != null && this.proyectosGestion[indice]) {
+      this.cargarAdjuntosActividad(this.proyectosGestion[indice], forzar);
+      return;
+    }
     const meta = this.metaAdjuntosGrupo();
     if (!meta?.nombreProyecto && !meta?.folio) return;
     const clave = this.claveAdjuntosMeta(meta);
@@ -1119,15 +1303,19 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       this.avisarAdjunto('info', 'Espera', 'Ya hay una subida en curso.');
       return;
     }
-    const meta = this.metaAdjuntosGrupo();
+    if (Number.isInteger(indiceFila) && (indiceFila as number) >= 0) {
+      this.gestionActividadExpandidaIndice = indiceFila as number;
+      this.gestionActividadFijada = true;
+    }
+    const proyectoActivo = this.gestionActividadExpandidaIndice != null
+      ? this.proyectosGestion[this.gestionActividadExpandidaIndice]
+      : null;
+    const meta = this.metaAdjuntosActividad(this.grupoGestionSeleccionado, proyectoActivo)
+      || this.metaAdjuntosGrupo();
     if (!meta?.nombreProyecto && !meta?.folio) {
       this.errorAdjuntos = 'No se identificó el proyecto para adjuntar.';
       this.avisarAdjunto('error', 'No se pudo adjuntar', this.errorAdjuntos);
       return;
-    }
-    if (Number.isInteger(indiceFila) && (indiceFila as number) >= 0) {
-      this.gestionActividadExpandidaIndice = indiceFila as number;
-      this.gestionActividadFijada = true;
     }
     this.subiendoAdjunto = true;
     this.errorAdjuntos = '';
@@ -1157,6 +1345,13 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
             this.adjuntosProyecto = [res.archivo, ...this.adjuntosProyecto.filter((a) => a.id !== res.archivo.id)];
             this.adjuntosCarpetaId = res.carpetaId || this.adjuntosCarpetaId;
             this.adjuntosClaveCargada = this.claveAdjuntosMeta(meta);
+            if (proyectoActivo) {
+              const claveAct = this.claveActividadAdjuntos(proyectoActivo);
+              this.conteosAdjuntosActividad = {
+                ...this.conteosAdjuntosActividad,
+                [claveAct]: this.adjuntosProyecto.length
+              };
+            }
           } else {
             this.cargarAdjuntosProyectoActual(true);
           }
@@ -1220,9 +1415,44 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     });
   }
 
+  abrirRepositorioActividad(
+    event: Event,
+    grupo: GrupoGestionProyecto | null,
+    proyecto: ProyectoTableroItem
+  ): void {
+    event.stopPropagation();
+    if (!this.puedeAbrirRepositorioActividad(proyecto)) {
+      this.avisarAdjunto(
+        'info',
+        'Actividad sin guardar',
+        'Guarda la actividad primero para abrir su repositorio de evidencias.'
+      );
+      return;
+    }
+    const meta = this.metaAdjuntosActividad(grupo || this.grupoGestionSeleccionado, proyecto);
+    if (!meta?.nombreProyecto && !meta?.folio) {
+      this.avisarAdjunto('error', 'Sin proyecto', 'No se pudo identificar el proyecto.');
+      return;
+    }
+    this.router.navigate(['/control-proyectos/repositorio'], {
+      queryParams: {
+        empresaId: meta.empresaId || undefined,
+        empresaNombre: meta.empresaNombre || undefined,
+        folio: meta.folio || undefined,
+        nombreProyecto: meta.nombreProyecto || undefined,
+        actividadId: meta.actividadId || undefined,
+        actividadNombre: meta.actividadNombre || undefined
+      }
+    });
+  }
+
   eliminarArchivoAdjunto(archivo: { id: string; nombre?: string }): void {
     if (this.esConsultaEmpresa || !archivo?.id) return;
-    const meta = this.metaAdjuntosGrupo();
+    const proyectoActivo = this.gestionActividadExpandidaIndice != null
+      ? this.proyectosGestion[this.gestionActividadExpandidaIndice]
+      : null;
+    const meta = this.metaAdjuntosActividad(this.grupoGestionSeleccionado, proyectoActivo)
+      || this.metaAdjuntosGrupo();
     if (!meta) {
       this.avisarAdjunto('error', 'No se pudo eliminar', 'Falta información del proyecto.');
       return;
@@ -1238,6 +1468,13 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
             return;
           }
           this.adjuntosProyecto = this.adjuntosProyecto.filter((a) => a.id !== archivo.id);
+          if (proyectoActivo) {
+            const claveAct = this.claveActividadAdjuntos(proyectoActivo);
+            this.conteosAdjuntosActividad = {
+              ...this.conteosAdjuntosActividad,
+              [claveAct]: this.adjuntosProyecto.length
+            };
+          }
           this.marcarExitoAdjuntos(`Se eliminó “${archivo.nombre || 'el archivo'}”.`);
           this.avisarAdjunto('success', 'Archivo eliminado', archivo.nombre || undefined);
         },

@@ -542,130 +542,399 @@
       </div>
 
       <!-- =====================================================
-           ANALÍTICA DE ESTATUS RESOLUTIVOS PIPC
+           CARRUSEL ANALÍTICA RESOLUTIVOS PIPC
            ===================================================== -->
-      <div class="row mb-4 align-items-stretch pc-resolutivos-analytics"
-           *ngIf="puedeVerGraficaActividadResolutivosPipc && vistaActual === 'empresas'">
-        <div class="col-lg-9 mb-3 mb-lg-0">
-          <div class="card border-0 pc-analytics-card h-100">
-            <div class="card-header border-0 pc-analytics-card__header d-flex align-items-center justify-content-between flex-wrap">
-              <div>
-                <span class="pc-analytics-label">Histórico {{ resolutivosAnio }}</span>
-                <h2 class="pc-analytics-title mb-0">Actividad de Resolutivos PIPC</h2>
-                <small class="pc-analytics-subtitle">Registros por mes según estatus operativo</small>
-              </div>
-              <div class="pc-analytics-insights" *ngIf="!cargandoResolutivosEstadisticas">
-                <div class="pc-analytics-insight-item">
-                  <span class="pc-analytics-insight-key">Acumulado</span>
-                  <span class="pc-analytics-insight-value">{{ resolutivosActividadResumen.totalAnio }} resolutivos</span>
+      <div class="pc-feature-carousel mb-4 pc-resolutivos-analytics"
+           *ngIf="puedeVerGraficaActividadResolutivosPipc && vistaActual === 'empresas'"
+           (mouseenter)="onCarruselResolutivosMouseEnter()"
+           (mouseleave)="onCarruselResolutivosMouseLeave()">
+
+        <div class="pc-feature-carousel__shell">
+          <button type="button"
+                  class="pc-feature-carousel__edge pc-feature-carousel__edge--prev"
+                  (click)="carruselResolutivosAnterior()"
+                  aria-label="Indicador anterior">
+          </button>
+          <button type="button"
+                  class="pc-feature-carousel__edge pc-feature-carousel__edge--next"
+                  (click)="carruselResolutivosSiguiente()"
+                  aria-label="Siguiente indicador">
+          </button>
+
+          <div class="pc-feature-carousel__track"
+               [style.transform]="'translateX(-' + (carruselResolutivosActivo * 100) + '%)'">
+
+            <!-- SLIDE 1: Magnitud por estatus + distribución -->
+            <article class="pc-feature-carousel__slide">
+              <div class="pc-feature-carousel__slide-inner">
+                <div class="row align-items-stretch h-100 no-gutters pc-carousel-slide-grid">
+                  <div class="col-lg-9 mb-3 mb-lg-0 pr-lg-2">
+                    <div class="card border-0 pc-analytics-card pc-analytics-card--historico h-100">
+                      <div class="pc-historico-accent" aria-hidden="true"></div>
+                      <div class="pc-historico-head">
+                        <div class="pc-historico-head__main">
+                          <div class="pc-historico-badge">
+                            <i class="fas fa-chart-bar"></i>
+                          </div>
+                          <div>
+                            <span class="pc-analytics-label">Panorama {{ resolutivosAnio }}</span>
+                            <h2 class="pc-analytics-title mb-0">Resolutivos PIPC por Estatus</h2>
+                            <small class="pc-analytics-subtitle">
+                              Magnitud por apartado · columnas de clasificación
+                            </small>
+                          </div>
+                        </div>
+                        <div class="pc-historico-kpis" *ngIf="!cargandoResolutivosEstadisticas">
+                          <div class="pc-historico-kpi">
+                            <span class="pc-historico-kpi__key">Total</span>
+                            <span class="pc-historico-kpi__val">{{ resolutivosActividadResumen.totalAnio }}</span>
+                            <span class="pc-historico-kpi__hint">resolutivos</span>
+                          </div>
+                          <div class="pc-historico-kpi">
+                            <span class="pc-historico-kpi__key">Dominante</span>
+                            <span class="pc-historico-kpi__val pc-historico-kpi__val--sm">{{ resolutivosActividadResumen.estatusDominante }}</span>
+                            <span class="pc-historico-kpi__hint">{{ resolutivosActividadResumen.pctDominante }}% del total</span>
+                          </div>
+                          <div class="pc-historico-kpi pc-historico-kpi--delta">
+                            <span class="pc-historico-kpi__key">Atención</span>
+                            <span class="pc-historico-kpi__val" [class.pc-resolutivos-delta--down]="resolutivosActividadResumen.requierenAtencion > 0"
+                                 [class.pc-resolutivos-delta--neutral]="resolutivosActividadResumen.requierenAtencion === 0">
+                              {{ resolutivosActividadResumen.requierenAtencion }}
+                            </span>
+                            <span class="pc-historico-kpi__hint">requieren seguimiento</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="pc-historico-chart-body">
+                        <div *ngIf="cargandoResolutivosEstadisticas" class="pc-analytics-skeleton pc-analytics-skeleton--wide"></div>
+                        <div class="pc-historico-chart-wrap"
+                             *ngIf="!cargandoResolutivosEstadisticas && resolutivosChartsReady && resolutivosEstatusResumen.total > 0">
+                          <apx-chart
+                            [series]="resolutivosChartOptions.series"
+                            [chart]="resolutivosChartOptions.chart"
+                            [xaxis]="resolutivosChartOptions.xaxis"
+                            [yaxis]="resolutivosChartOptions.yaxis"
+                            [dataLabels]="resolutivosChartOptions.dataLabels"
+                            [fill]="resolutivosChartOptions.fill"
+                            [stroke]="resolutivosChartOptions.stroke"
+                            [tooltip]="resolutivosChartOptions.tooltip"
+                            [grid]="resolutivosChartOptions.grid"
+                            [colors]="resolutivosChartOptions.colors"
+                            [plotOptions]="resolutivosChartOptions.plotOptions"
+                            [legend]="resolutivosChartOptions.legend"
+                            [markers]="resolutivosChartOptions.markers">
+                          </apx-chart>
+                        </div>
+                        <div *ngIf="!cargandoResolutivosEstadisticas && resolutivosEstatusResumen.total === 0" class="pc-analytics-empty py-5 text-center">
+                          <i class="fas fa-chart-bar fa-2x mb-2" style="color: #d97248; opacity: 0.45;"></i>
+                          <p class="mb-0 text-muted">Sin resolutivos registrados para generar la gráfica</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-lg-3 pl-lg-2">
+                    <div class="card border-0 pc-analytics-card pc-analytics-card--estatus h-100">
+                      <div class="card-header border-0 pc-analytics-card__header">
+                        <span class="pc-analytics-label">Distribución</span>
+                        <h2 class="pc-analytics-title mb-0">Estatus Operativo</h2>
+                        <small class="pc-analytics-subtitle d-block mt-1">Vigentes · Próximo a vencer · Vencido · En trámite</small>
+                      </div>
+                      <div class="card-body pt-0 pc-analytics-status-body">
+                        <div *ngIf="cargandoResolutivosEstadisticas" class="pc-analytics-status-loading">
+                          <div class="pc-analytics-skeleton" style="height: 68px; border-radius: 12px;"></div>
+                          <div class="pc-analytics-skeleton" style="height: 10px; border-radius: 10px;"></div>
+                          <div class="pc-analytics-skeleton" style="height: 44px; border-radius: 10px;"></div>
+                          <div class="pc-analytics-skeleton" style="height: 44px; border-radius: 10px;"></div>
+                        </div>
+
+                        <div *ngIf="!cargandoResolutivosEstadisticas && resolutivosEstatusCards.length > 0" class="pc-status-panel">
+                          <div class="pc-status-overview">
+                            <p class="pc-status-overview-inline mb-0">
+                              <span class="pc-status-overview-mini-icon">
+                                <i class="fas fa-layer-group"></i>
+                              </span>
+                              <span class="pc-status-overview-inline-label">Total resolutivos</span>
+                              <strong class="pc-status-overview-inline-total">{{ resolutivosEstatusResumen.total }}</strong>
+                            </p>
+                          </div>
+
+                          <div class="pc-status-stack-wrap">
+                            <span class="pc-status-stack-caption">Distribución general</span>
+                            <div class="pc-status-stack" aria-label="Distribución de estatus resolutivos">
+                              <span *ngFor="let estado of resolutivosEstatusCards; let i = index"
+                                class="pc-status-stack-segment"
+                                [style.width.%]="estado.pct"
+                                [style.animation-delay]="(i * 0.08) + 's'"
+                                [style.background]="estado.color">
+                              </span>
+                            </div>
+                          </div>
+
+                          <div class="pc-status-list">
+                            <div *ngFor="let estado of resolutivosEstatusCards; let i = index"
+                              class="pc-status-item"
+                              [style.--status-color]="estado.color"
+                              [style.animation-delay]="(0.1 + i * 0.07) + 's'">
+                              <div class="pc-status-item-row">
+                                <div class="pc-status-item-main">
+                                  <span class="pc-status-dot" [style.background]="estado.color"></span>
+                                  <span class="pc-status-icon-wrap"
+                                    [style.border-color]="estado.color"
+                                    [style.color]="estado.color"
+                                    [style.background]="estado.color + '1A'">
+                                    <i class="fas {{ estado.icono }}"></i>
+                                  </span>
+                                  <span class="pc-status-item-label">{{ estado.label }}</span>
+                                </div>
+                                <div class="pc-status-item-metric">
+                                  <strong>{{ estado.count }}</strong>
+                                  <small>{{ estado.pct }}%</small>
+                                </div>
+                              </div>
+                              <div class="pc-status-item-progress">
+                                <span [style.width.%]="estado.pct" [style.background]="estado.color"></span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div *ngIf="!cargandoResolutivosEstadisticas && !resolutivosEstatusCards.length" class="pc-analytics-empty py-4 text-center">
+                          <i class="fas fa-chart-pie fa-2x mb-2" style="color: #d97248; opacity: 0.45;"></i>
+                          <p class="mb-0 text-muted small">Sin datos de estatus</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div class="pc-analytics-insight-item">
-                  <span class="pc-analytics-insight-key">Promedio</span>
-                  <span class="pc-analytics-insight-value">{{ resolutivosActividadResumen.promedioMensual | number:'1.0-1' }} / mes</span>
-                </div>
-                <div class="pc-analytics-insight-item">
-                  <span class="pc-analytics-insight-key">Cambio mensual</span>
-                  <span class="pc-analytics-insight-value" [ngClass]="getResolutivosDeltaClass(resolutivosActividadResumen.variacionMensual)">
-                    {{ formatResolutivosDelta(resolutivosActividadResumen.variacionMensual) }}
-                  </span>
+              </div>
+            </article>
+
+            <!-- SLIDE 2: Atención operativa (próximos / vencidos / trámite) -->
+            <article class="pc-feature-carousel__slide">
+              <div class="pc-feature-carousel__slide-inner">
+                <div class="card border-0 pc-analytics-card pc-analytics-card--atencion h-100">
+                  <div class="pc-avance-hero-head">
+                    <div class="pc-avance-hero-head__main">
+                      <div class="pc-avance-hero-badge"><i class="fas fa-exclamation-triangle"></i></div>
+                      <div>
+                        <h2 class="pc-analytics-title mb-0">Atención de Resolutivos</h2>
+                        <p class="pc-analytics-subtitle mb-0">Tiempo restante / vencido · filtra por estatus</p>
+                      </div>
+                    </div>
+                    <div class="pc-avance-hero-tools" *ngIf="!cargandoResolutivosEstadisticas && resolutivosAtencionTotal > 0">
+                      <div class="pc-avance-filter-bar" role="tablist" aria-label="Filtrar por estatus">
+                        <button type="button"
+                                class="pc-avance-filter-chip"
+                                *ngFor="let chip of filtrosAtencionChips"
+                                [class.is-active]="filtroAtencionEstatus === chip.key"
+                                [style.--chip-color]="chip.color"
+                                [style.border-color]="filtroAtencionEstatus === chip.key ? chip.color : null"
+                                (click)="seleccionarFiltroAtencion(chip.key, $event)"
+                                [attr.aria-pressed]="filtroAtencionEstatus === chip.key"
+                                [attr.aria-label]="'Filtrar ' + chip.label">
+                          <span class="pc-avance-filter-chip__dot" [style.background]="chip.color"></span>
+                          <span class="pc-avance-filter-chip__label">{{ chip.label }}</span>
+                          <span class="pc-avance-filter-chip__count">{{ chip.count }}</span>
+                        </button>
+                      </div>
+                      <div class="pc-avance-hero-kpi">
+                        <span class="pc-avance-hero-kpi__val">{{ resolutivosAtencionTotal }}</span>
+                        <span class="pc-avance-hero-kpi__lbl">Requieren atención</span>
+                      </div>
+                      <a class="pc-avance-open-link pc-avance-open-link--top"
+                         *ngIf="puedeVerControlResolutivosPipc"
+                         routerLink="/proteccion-civil/control-resolutivos">
+                        <i class="fas fa-file-alt mr-1"></i> Abrir Control de Resolutivos
+                      </a>
+                    </div>
+                  </div>
+
+                  <div class="pc-analytics-card-body--avance" *ngIf="cargandoResolutivosEstadisticas">
+                    <div class="pc-analytics-skeleton pc-analytics-skeleton--wide"></div>
+                  </div>
+
+                  <div class="pc-avance-dual" *ngIf="!cargandoResolutivosEstadisticas && resolutivosAtencionTotal > 0">
+                    <div class="pc-avance-panel pc-avance-panel--bars">
+                      <div class="pc-avance-panel__header">
+                        <span class="pc-avance-panel__icon"><i class="fas fa-tasks"></i></span>
+                        <div>
+                          <span class="pc-avance-panel__title">Resolutivos por atender</span>
+                          <span class="pc-avance-panel__sub">
+                            {{ resolutivosAtencionFiltrados.length }} de {{ resolutivosAtencionTotal }}
+                            <ng-container *ngIf="filtroAtencionEstatus"> · {{ labelEstatusAtencion(filtroAtencionEstatus) }}</ng-container>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div class="pc-resolutivo-list" *ngIf="resolutivosAtencionFiltrados.length; else sinAtencionFiltrada">
+                        <ng-container *ngFor="let r of resolutivosAtencionFiltrados; let i = index">
+                          <div class="pc-resolutivo-row"
+                               *ngIf="indicadorTiempoAtencion(r) as ind"
+                               [ngClass]="ind.clase"
+                               [style.--row-accent]="colorEstatusAtencion(r.estatus)"
+                               [style.--row-delay]="(i * 0.05) + 's'">
+                            <div class="pc-resolutivo-row__main">
+                              <div class="pc-resolutivo-row__body">
+                                <div class="pc-resolutivo-row__head">
+                                  <span class="pc-resolutivo-row__folio" *ngIf="r.item">#{{ r.item }}</span>
+                                  <div class="pc-resolutivo-row__chips">
+                                    <span class="pc-resolutivo-row__tipo" *ngIf="r.tipo_tramite">{{ r.tipo_tramite }}</span>
+                                    <span class="pc-resolutivo-row__badge" [ngClass]="claseBadgeAtencion(r.estatus)">
+                                      {{ labelEstatusAtencion(r.estatus) }}
+                                    </span>
+                                  </div>
+                                </div>
+                                <h4 class="pc-resolutivo-row__name">{{ r.nombre_empresa || 'Sin empresa' }}</h4>
+                                <div class="pc-resolutivo-row__meta">
+                                  <span *ngIf="r.nombre_asignacion"><i class="fas fa-file-alt" aria-hidden="true"></i>{{ r.nombre_asignacion }}</span>
+                                  <span><i class="fas fa-user" aria-hidden="true"></i>{{ r.responsable || 'Sin responsable' }}</span>
+                                  <span *ngIf="r.fecha_contacto_empresa"><i class="fas fa-calendar-alt" aria-hidden="true"></i>Contacto {{ r.fecha_contacto_empresa }}</span>
+                                </div>
+                                <div class="pc-resolutivo-row__progress">
+                                  <div class="pc-resolutivo-row__track">
+                                    <div class="pc-resolutivo-row__fill"
+                                         [style.width.%]="urgenciaAtencion(r)"
+                                         [style.background]="gradienteUrgenciaAtencion(r.estatus)"></div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div class="pc-time-meter"
+                                   [ngClass]="ind.clase"
+                                   [attr.title]="ind.subtitulo">
+                                <span class="pc-time-meter__pulse" aria-hidden="true"></span>
+                                <span class="pc-time-meter__eyebrow">{{ ind.titulo }}</span>
+                                <div class="pc-time-meter__value-row">
+                                  <span class="pc-time-meter__value">{{ ind.valor }}</span>
+                                  <span class="pc-time-meter__unit" *ngIf="ind.unidad">{{ ind.unidad }}</span>
+                                </div>
+                                <span class="pc-time-meter__sub">{{ ind.subtitulo }}</span>
+                                <i class="pc-time-meter__icon fas"
+                                   [ngClass]="{
+                                     'fa-hourglass-half': ind.modo === 'restante',
+                                     'fa-exclamation-circle': ind.modo === 'vencido',
+                                     'fa-spinner': ind.modo === 'tramite',
+                                     'fa-calendar-times': ind.modo === 'sin_fecha'
+                                   }"
+                                   aria-hidden="true"></i>
+                              </div>
+                            </div>
+                          </div>
+                        </ng-container>
+                      </div>
+                      <ng-template #sinAtencionFiltrada>
+                        <div class="pc-analytics-empty py-4 text-center">
+                          <i class="fas fa-filter fa-lg mb-2" style="color: #d97248; opacity: 0.5;"></i>
+                          <p class="mb-0 text-muted small">No hay resolutivos con ese estatus.</p>
+                        </div>
+                      </ng-template>
+                    </div>
+
+                    <div class="pc-avance-panel pc-avance-panel--donut">
+                      <div class="pc-avance-panel__header">
+                        <span class="pc-avance-panel__icon pc-avance-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
+                        <div>
+                          <span class="pc-avance-panel__title">Distribución</span>
+                          <span class="pc-avance-panel__sub">Solo atención operativa</span>
+                        </div>
+                      </div>
+                      <div class="pc-avance-donut-inner">
+                        <div class="pc-avance-donut-chart-wrap pc-avance-donut-chart-wrap--sm">
+                          <apx-chart *ngIf="resolutivosAtencionChartsReady"
+                            [series]="resolutivosAtencionDonut.series"
+                            [chart]="resolutivosAtencionDonut.chart"
+                            [labels]="resolutivosAtencionDonut.labels"
+                            [colors]="resolutivosAtencionDonut.colors"
+                            [plotOptions]="resolutivosAtencionDonut.plotOptions"
+                            [fill]="resolutivosAtencionDonut.fill"
+                            [dataLabels]="resolutivosAtencionDonut.dataLabels"
+                            [stroke]="resolutivosAtencionDonut.stroke"
+                            [legend]="resolutivosAtencionDonut.legend"
+                            [tooltip]="resolutivosAtencionDonut.tooltip"
+                            [responsive]="resolutivosAtencionDonut.responsive">
+                          </apx-chart>
+                          <div class="pc-donut-center" aria-live="polite">
+                            <span class="pc-donut-center__val">{{ atencionDonutCentroValor }}</span>
+                            <span class="pc-donut-center__lbl">{{ atencionDonutCentroEtiqueta }}</span>
+                            <span class="pc-donut-center__pct" *ngIf="atencionDonutCentroPct !== null">{{ atencionDonutCentroPct }}%</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="pc-avance-stats-legend" *ngIf="resumenAtencionCards.length">
+                        <button type="button"
+                                class="pc-avance-stat-card"
+                                *ngFor="let item of resumenAtencionCards"
+                                [class.is-active]="filtroAtencionEstatus === item.key"
+                                [class.pc-avance-stat-card--tramite]="item.key === 'En tramite'"
+                                [class.pc-avance-stat-card--proximo]="item.key === 'Próximo a vencer'"
+                                [class.pc-avance-stat-card--vencido]="item.key === 'Vencido'"
+                                (click)="toggleFiltroAtencion(item.key, $event)"
+                                [attr.aria-pressed]="filtroAtencionEstatus === item.key">
+                          <span class="pc-avance-stat-card__dot" [style.background]="item.color"></span>
+                          <div class="pc-avance-stat-card__body">
+                            <span class="pc-avance-stat-card__range">{{ item.label }}</span>
+                            <span class="pc-avance-stat-card__desc">{{ item.subtitulo }}</span>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div *ngIf="!cargandoResolutivosEstadisticas && resolutivosAtencionTotal === 0" class="pc-analytics-empty py-5 text-center">
+                    <i class="fas fa-check-circle fa-2x mb-2" style="color: #2dce89; opacity: 0.7;"></i>
+                    <p class="mb-0 text-muted">No hay resolutivos en trámite, próximos a vencer ni vencidos.</p>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="card-body pt-0 pc-analytics-chart-body">
-              <div *ngIf="cargandoResolutivosEstadisticas" class="pc-analytics-skeleton pc-analytics-skeleton--wide"></div>
-              <apx-chart *ngIf="!cargandoResolutivosEstadisticas && resolutivosChartsReady && resolutivosEstatusResumen.total > 0"
-                [series]="resolutivosChartOptions.series"
-                [chart]="resolutivosChartOptions.chart"
-                [xaxis]="resolutivosChartOptions.xaxis"
-                [yaxis]="resolutivosChartOptions.yaxis"
-                [dataLabels]="resolutivosChartOptions.dataLabels"
-                [fill]="resolutivosChartOptions.fill"
-                [stroke]="resolutivosChartOptions.stroke"
-                [tooltip]="resolutivosChartOptions.tooltip"
-                [grid]="resolutivosChartOptions.grid"
-                [colors]="resolutivosChartOptions.colors"
-                [plotOptions]="resolutivosChartOptions.plotOptions"
-                [legend]="resolutivosChartOptions.legend">
-              </apx-chart>
-              <div *ngIf="!cargandoResolutivosEstadisticas && resolutivosEstatusResumen.total === 0" class="pc-analytics-empty py-5 text-center">
-                <i class="fas fa-chart-bar fa-2x mb-2" style="color: #d97248; opacity: 0.45;"></i>
-                <p class="mb-0 text-muted">Sin resolutivos registrados para generar la gráfica</p>
-              </div>
-            </div>
+            </article>
           </div>
         </div>
 
-        <div class="col-lg-3">
-          <div class="card border-0 pc-analytics-card pc-analytics-card--estatus h-100">
-            <div class="card-header border-0 pc-analytics-card__header">
-              <span class="pc-analytics-label">Distribución</span>
-              <h2 class="pc-analytics-title mb-0">Estatus Operativo</h2>
-              <small class="pc-analytics-subtitle d-block mt-1">Vigentes · Próximo a vencer · Vencido · En trámite</small>
+        <footer class="pc-feature-carousel__footer">
+          <div class="pc-feature-carousel__footer-main">
+            <span class="pc-feature-carousel__timer-text"
+                  *ngIf="carruselResolutivosAutoActivo && !carruselResolutivosHover">
+              Próximo gráfico en {{ carruselResolutivosSegundosRestantes }} s...
+            </span>
+            <span class="pc-feature-carousel__timer-text pc-feature-carousel__timer-text--paused"
+                  *ngIf="carruselResolutivosAutoActivo && carruselResolutivosHover">
+              Avance automático en pausa
+            </span>
+            <span class="pc-feature-carousel__timer-text pc-feature-carousel__timer-text--paused"
+                  *ngIf="!carruselResolutivosAutoActivo">
+              Avance automático desactivado
+            </span>
+            <div class="pc-feature-carousel__timer-bar" *ngIf="carruselResolutivosAutoActivo" aria-hidden="true">
+              <span class="pc-feature-carousel__timer-fill"
+                    [class.is-paused]="carruselResolutivosHover"
+                    [style.width.%]="carruselResolutivosProgresoPct"></span>
             </div>
-            <div class="card-body pt-0 pc-analytics-status-body">
-              <div *ngIf="cargandoResolutivosEstadisticas" class="pc-analytics-status-loading">
-                <div class="pc-analytics-skeleton" style="height: 68px; border-radius: 12px;"></div>
-                <div class="pc-analytics-skeleton" style="height: 10px; border-radius: 10px;"></div>
-                <div class="pc-analytics-skeleton" style="height: 44px; border-radius: 10px;"></div>
-                <div class="pc-analytics-skeleton" style="height: 44px; border-radius: 10px;"></div>
-              </div>
+          </div>
 
-              <div *ngIf="!cargandoResolutivosEstadisticas && resolutivosEstatusCards.length > 0" class="pc-status-panel">
-                <div class="pc-status-overview">
-                  <p class="pc-status-overview-inline mb-0">
-                    <span class="pc-status-overview-mini-icon">
-                      <i class="fas fa-layer-group"></i>
-                    </span>
-                    <span class="pc-status-overview-inline-label">Total resolutivos</span>
-                    <strong class="pc-status-overview-inline-total">{{ resolutivosEstatusResumen.total }}</strong>
-                  </p>
-                </div>
+          <button type="button"
+                  class="pc-feature-carousel__auto-toggle"
+                  [class.is-active]="carruselResolutivosAutoActivo"
+                  (click)="toggleCarruselResolutivosAuto()"
+                  [attr.aria-pressed]="carruselResolutivosAutoActivo"
+                  [attr.aria-label]="carruselResolutivosAutoActivo ? 'Desactivar avance automático' : 'Activar avance automático'"
+                  title="Avance automático">
+            <i class="fas fa-check" *ngIf="carruselResolutivosAutoActivo" aria-hidden="true"></i>
+          </button>
+        </footer>
 
-                <div class="pc-status-stack-wrap">
-                  <span class="pc-status-stack-caption">Distribución general</span>
-                  <div class="pc-status-stack" aria-label="Distribución de estatus resolutivos">
-                    <span *ngFor="let estado of resolutivosEstatusCards; let i = index"
-                      class="pc-status-stack-segment"
-                      [style.width.%]="estado.pct"
-                      [style.animation-delay]="(i * 0.08) + 's'"
-                      [style.background]="estado.color">
-                    </span>
-                  </div>
-                </div>
-
-                <div class="pc-status-list">
-                  <div *ngFor="let estado of resolutivosEstatusCards; let i = index"
-                    class="pc-status-item"
-                    [style.--status-color]="estado.color"
-                    [style.animation-delay]="(0.1 + i * 0.07) + 's'">
-                    <div class="pc-status-item-row">
-                      <div class="pc-status-item-main">
-                        <span class="pc-status-dot" [style.background]="estado.color"></span>
-                        <span class="pc-status-icon-wrap"
-                          [style.border-color]="estado.color"
-                          [style.color]="estado.color"
-                          [style.background]="estado.color + '1A'">
-                          <i class="fas {{ estado.icono }}"></i>
-                        </span>
-                        <span class="pc-status-item-label">{{ estado.label }}</span>
-                      </div>
-                      <div class="pc-status-item-metric">
-                        <strong>{{ estado.count }}</strong>
-                        <small>{{ estado.pct }}%</small>
-                      </div>
-                    </div>
-                    <div class="pc-status-item-progress">
-                      <span [style.width.%]="estado.pct" [style.background]="estado.color"></span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div *ngIf="!cargandoResolutivosEstadisticas && !resolutivosEstatusCards.length" class="pc-analytics-empty py-4 text-center">
-                <i class="fas fa-chart-pie fa-2x mb-2" style="color: #d97248; opacity: 0.45;"></i>
-                <p class="mb-0 text-muted small">Sin datos de estatus</p>
-              </div>
-            </div>
+        <div class="pc-feature-carousel__dots-wrap">
+          <div class="pc-feature-carousel__dots" role="tablist" aria-label="Gráficos de resolutivos">
+            <button type="button"
+                    class="pc-feature-carousel__dot"
+                    *ngFor="let slide of carruselResolutivosSlides; let i = index"
+                    [class.is-active]="carruselResolutivosActivo === i"
+                    [attr.aria-selected]="carruselResolutivosActivo === i"
+                    [attr.aria-label]="slide.titulo"
+                    (click)="irACarruselResolutivosSlide(i)">
+            </button>
           </div>
         </div>
       </div>

@@ -94,6 +94,7 @@ interface AuditoriaSgc {
   totalOp?: number;
   totalNcMenor?: number;
   totalNcMayor?: number;
+  ncCerradasBitacora?: number;
   observaciones: string;
   nivel: 'alto' | 'medio' | 'bajo';
   nivelEtiqueta: string;
@@ -217,6 +218,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   avanceChart: Partial<SgcRadialChartOptions>;
   eficaciaChart: Partial<SgcRadialChartOptions>;
   audNcHistogramaChart: Partial<SgcAreaChartOptions>;
+  audNcEstatusChart: Partial<SgcRadialChartOptions>;
   quejasSugerenciasChart: Partial<SgcRadialChartOptions>;
   proveedoresF29Chart: Partial<SgcRadialChartOptions>;
 
@@ -227,6 +229,8 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   mostrarPreguntasSatCap = false;
   mostrarPreguntasSatisfaccion = false;
   mostrarHistogramaAud = false;
+  /** Fuerza remount del chart al abrir el modal para re-disparar la animación. */
+  histogramaChartKey = 0;
   /** null = año completo */
   filtroMesSatCap: number | null = null;
   filtroMesSatCliente: number | null = null;
@@ -1432,45 +1436,54 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
 
     this.audNcHistogramaChart = {
       series: [
-        { name: 'Cantidad', type: 'column', data: [] }
+        { name: 'NC menor', group: 'detectadas', type: 'column', data: [] } as any,
+        { name: 'NC mayor', group: 'detectadas', type: 'column', data: [] } as any,
+        { name: 'NC cerradas', group: 'cerradas', type: 'column', data: [] } as any
       ],
       chart: {
         ...this.chartBase(),
         type: 'bar',
+        stacked: true,
         height: 380,
-        dropShadow: { enabled: true, top: 8, left: 0, blur: 18, opacity: 0.1 }
+        animations: {
+          enabled: true,
+          easing: 'easeinout',
+          speed: 980,
+          animateGradually: { enabled: true, delay: 140 },
+          dynamicAnimation: { enabled: true, speed: 420 }
+        },
+        dropShadow: { enabled: true, top: 10, left: 0, blur: 16, opacity: 0.12 }
       },
-      colors: ['#f59e0b', '#16a34a'],
+      colors: ['#f59e0b', '#e11d48', '#16a34a'],
       plotOptions: {
         bar: {
           horizontal: false,
-          columnWidth: '48%',
+          columnWidth: '58%',
           borderRadius: 7,
           borderRadiusApplication: 'end',
-          distributed: true,
-          dataLabels: { position: 'top' }
+          borderRadiusWhenStacked: 'last',
+          dataLabels: { total: { enabled: false } }
         }
       },
       dataLabels: {
         enabled: true,
-        offsetY: -16,
-        style: { fontSize: '11px', fontWeight: 700, colors: ['#334155'] },
+        style: { fontSize: '11px', fontWeight: 700, colors: ['#ffffff'] },
         formatter: (val: number) => (Number(val) > 0 ? `${Math.round(Number(val))}` : '')
       },
-      stroke: { show: true, width: 2, colors: ['transparent'] },
+      stroke: { show: true, width: 2, colors: ['#fff'] },
       fill: {
         type: 'gradient',
         gradient: {
           shade: 'light',
           type: 'vertical',
-          shadeIntensity: 0.35,
-          opacityFrom: 0.95,
-          opacityTo: 0.72,
+          shadeIntensity: 0.28,
+          opacityFrom: 0.98,
+          opacityTo: 0.78,
           stops: [0, 100]
         }
       },
       xaxis: {
-        categories: ['Abiertas', 'Cerradas'],
+        categories: [],
         ...axisLabels,
         labels: {
           style: { colors: '#64748b', fontSize: '11px', fontWeight: 700 },
@@ -1494,15 +1507,68 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       grid: {
         ...gridModern,
         borderColor: '#eef2f7',
-        padding: { top: 22, right: 16, bottom: 8, left: 12 }
+        padding: { top: 28, right: 12, bottom: 8, left: 8 }
       },
       legend: {
-        show: false
+        show: true,
+        position: 'top',
+        horizontalAlign: 'left',
+        fontSize: '12px',
+        fontWeight: 600,
+        markers: { width: 10, height: 10, radius: 3 } as any,
+        itemMargin: { horizontal: 12, vertical: 0 }
       },
       tooltip: {
         theme: 'dark',
-        shared: false,
+        shared: true,
         intersect: false,
+        y: {
+          formatter: (val: number) => `${Math.round(Number(val) || 0)} NC`
+        }
+      }
+    };
+
+    this.audNcEstatusChart = {
+      series: [0, 0],
+      chart: {
+        ...this.chartBase(),
+        type: 'donut',
+        height: 210,
+        animations: {
+          enabled: true,
+          easing: 'easeinout',
+          speed: 900,
+          animateGradually: { enabled: true, delay: 120 },
+          dynamicAnimation: { enabled: true, speed: 380 }
+        }
+      },
+      labels: ['Abiertas', 'Cerradas'],
+      colors: ['#f59e0b', '#16a34a'],
+      stroke: { width: 3, colors: ['#fff'] },
+      fill: {
+        type: 'gradient',
+        gradient: {
+          shade: 'light',
+          type: 'vertical',
+          shadeIntensity: 0.35,
+          opacityFrom: 1,
+          opacityTo: 0.82,
+          stops: [0, 100]
+        }
+      },
+      legend: { show: false },
+      dataLabels: { enabled: false },
+      plotOptions: {
+        pie: {
+          expandOnClick: false,
+          donut: {
+            size: '72%',
+            labels: { show: false }
+          }
+        }
+      },
+      tooltip: {
+        theme: 'dark',
         y: {
           formatter: (val: number) => `${Math.round(Number(val) || 0)} NC`
         }
@@ -1735,6 +1801,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
 
     this.actualizarEficaciaChart();
     this.actualizarAudNcHistogramaChart();
+    this.actualizarAudNcEstatusChart();
     this.resetEficaciaDonutCentro();
 
     const qs = this.quejasSugerencias || {};
@@ -1925,42 +1992,85 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     this.resetEficaciaDonutCentro();
   }
 
-  private colorNcPorCantidad(nc: number): string {
-    if (nc <= 2) return '#16a34a';
-    if (nc <= 4) return '#f59e0b';
-    return '#e11d48';
+  get pctNcCerradasDisplay(): number {
+    const total = this.totalNcBitacoraDisplay;
+    if (!total) return 0;
+    return Math.round((this.ncCerradasDisplay / total) * 100);
+  }
+
+  get pctNcAbiertasDisplay(): number {
+    const total = this.totalNcBitacoraDisplay;
+    if (!total) return 0;
+    return Math.round((this.ncAbiertasDisplay / total) * 100);
+  }
+
+  private etiquetaAuditoriaHistograma(aud: AuditoriaSgc): string {
+    const no = String(aud.auditoriaNo || '').trim();
+    if (no) return `No. ${no}`;
+    const titulo = String(aud.titulo || '').trim();
+    if (titulo.length <= 18) return titulo || 'Auditoría';
+    return `${titulo.slice(0, 16)}…`;
   }
 
   private actualizarAudNcHistogramaChart(): void {
-    const abiertas = this.ncAbiertasDisplay;
-    const cerradas = this.ncCerradasDisplay;
-    const maxNc = Math.max(abiertas, cerradas, 0);
+    const lista = [...this.auditorias].sort((a, b) => {
+      const fa = a.fecha ? new Date(`${a.fecha}T00:00:00`).getTime() : 0;
+      const fb = b.fecha ? new Date(`${b.fecha}T00:00:00`).getTime() : 0;
+      if (fa !== fb) return fa - fb;
+      const na = Number(String(a.auditoriaNo || '').replace(/\D/g, '')) || 0;
+      const nb = Number(String(b.auditoriaNo || '').replace(/\D/g, '')) || 0;
+      return na - nb;
+    });
+
+    const categorias = lista.map((a) => this.etiquetaAuditoriaHistograma(a));
+    const ncMenor = lista.map((a) => Number(a.totalNcMenor) || 0);
+    const ncMayor = lista.map((a) => Number(a.totalNcMayor) || 0);
+    const ncCerradas = lista.map((a) => Number(a.ncCerradasBitacora) || 0);
+    const maxNc = Math.max(
+      ...categorias.map((_, i) => (ncMenor[i] || 0) + (ncMayor[i] || 0)),
+      ...ncCerradas,
+      0
+    );
 
     this.audNcHistogramaChart = {
       ...this.audNcHistogramaChart,
       series: [
-        { name: 'Cantidad', type: 'column', data: [abiertas, cerradas] }
+        { name: 'NC menor', group: 'detectadas', type: 'column', data: ncMenor.length ? ncMenor : [0] } as any,
+        { name: 'NC mayor', group: 'detectadas', type: 'column', data: ncMayor.length ? ncMayor : [0] } as any,
+        { name: 'NC cerradas', group: 'cerradas', type: 'column', data: ncCerradas.length ? ncCerradas : [0] } as any
       ],
-      colors: ['#f59e0b', '#16a34a'],
-      plotOptions: {
-        ...this.audNcHistogramaChart.plotOptions,
-        bar: {
-          ...(this.audNcHistogramaChart.plotOptions as any)?.bar,
-          horizontal: false,
-          columnWidth: '48%',
-          borderRadius: 7,
-          borderRadiusApplication: 'end',
-          distributed: true,
-          dataLabels: { position: 'top' }
+      colors: ['#f59e0b', '#e11d48', '#16a34a'],
+      chart: {
+        ...this.audNcHistogramaChart.chart,
+        type: 'bar',
+        stacked: true,
+        height: 380,
+        animations: {
+          enabled: true,
+          easing: 'easeinout',
+          speed: 980,
+          animateGradually: { enabled: true, delay: 140 },
+          dynamicAnimation: { enabled: true, speed: 420 }
         }
       },
-      legend: {
-        ...this.audNcHistogramaChart.legend,
-        show: false
+      plotOptions: {
+        bar: {
+          horizontal: false,
+          columnWidth: lista.length > 4 ? '68%' : '52%',
+          borderRadius: 7,
+          borderRadiusApplication: 'end',
+          borderRadiusWhenStacked: 'last',
+          dataLabels: { total: { enabled: false } }
+        }
+      },
+      dataLabels: {
+        enabled: true,
+        style: { fontSize: '11px', fontWeight: 700, colors: ['#ffffff'] },
+        formatter: (val: number) => (Number(val) > 0 ? `${Math.round(Number(val))}` : '')
       },
       xaxis: {
         ...this.audNcHistogramaChart.xaxis,
-        categories: ['Abiertas', 'Cerradas']
+        categories: categorias.length ? categorias : ['Sin auditorías']
       },
       yaxis: {
         ...(Array.isArray(this.audNcHistogramaChart.yaxis)
@@ -1973,13 +2083,20 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       },
       tooltip: {
         theme: 'dark',
-        shared: false,
+        shared: true,
         intersect: false,
         custom: undefined,
         x: {
-          formatter: () => {
-            const total = this.totalNcBitacoraDisplay;
-            return `SGC-F-05 · ${total} no conformidad${total !== 1 ? 'es' : ''}`;
+          formatter: (_val: number, opts?: { dataPointIndex?: number }) => {
+            const idx = opts?.dataPointIndex ?? -1;
+            const aud = lista[idx];
+            if (!aud) return '';
+            const fecha = aud.fecha ? this.formatFecha(aud.fecha) : '';
+            const titulo = aud.titulo || `Auditoría ${aud.auditoriaNo || ''}`.trim();
+            const detectadas = (Number(aud.totalNcMenor) || 0) + (Number(aud.totalNcMayor) || 0);
+            const cerr = Number(aud.ncCerradasBitacora) || 0;
+            const base = fecha ? `${titulo} · ${fecha}` : titulo;
+            return `${base} · ${detectadas} detectadas · ${cerr} cerradas`;
           }
         },
         y: {
@@ -1989,8 +2106,35 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     };
   }
 
+  private actualizarAudNcEstatusChart(): void {
+    const abiertas = this.ncAbiertasDisplay;
+    const cerradas = this.ncCerradasDisplay;
+    const serie = (abiertas + cerradas) > 0 ? [abiertas, cerradas] : [0, 1];
+
+    this.audNcEstatusChart = {
+      ...this.audNcEstatusChart,
+      series: serie,
+      labels: ['Abiertas', 'Cerradas'],
+      colors: ['#f59e0b', '#16a34a'],
+      chart: {
+        ...this.audNcEstatusChart.chart,
+        type: 'donut',
+        height: 210,
+        animations: {
+          enabled: true,
+          easing: 'easeinout',
+          speed: 900,
+          animateGradually: { enabled: true, delay: 120 },
+          dynamicAnimation: { enabled: true, speed: 380 }
+        }
+      }
+    };
+  }
+
   abrirHistogramaAud(): void {
     this.actualizarAudNcHistogramaChart();
+    this.actualizarAudNcEstatusChart();
+    this.histogramaChartKey += 1;
     this.mostrarHistogramaAud = true;
   }
 

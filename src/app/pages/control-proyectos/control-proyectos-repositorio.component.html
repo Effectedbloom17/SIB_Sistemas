@@ -16,16 +16,26 @@
           <i class="fas fa-arrow-left"></i> Control de proyectos
         </button>
         <span class="cp-repo-crumb__sep">›</span>
-        <span class="cp-repo-crumb__current">{{ tituloProyecto }}</span>
+        <span [class.cp-repo-crumb__current]="!tituloActividad">{{ tituloProyecto }}</span>
+        <ng-container *ngIf="tituloActividad">
+          <span class="cp-repo-crumb__sep">›</span>
+          <span class="cp-repo-crumb__current">{{ tituloActividad }}</span>
+        </ng-container>
       </nav>
 
       <header class="cp-repo-header">
         <div>
           <p class="cp-repo-header__label">{{ empresaNombre || 'Empresa' }}</p>
-          <h2>{{ tituloProyecto }}</h2>
+          <h2>{{ tituloRepositorio }}</h2>
           <p class="cp-repo-header__lead">
-            Documentos del proyecto (PDF, Excel, Word, PowerPoint e imágenes).
-            Se guardan en Drive: Empresa → Proyecto.
+            <ng-container *ngIf="actividadId; else repoProyectoLead">
+              Evidencias de esta actividad (PDF, Excel, Word, PowerPoint e imágenes).
+              Drive: Empresa → Proyecto → Actividad.
+            </ng-container>
+            <ng-template #repoProyectoLead>
+              Documentos del proyecto (PDF, Excel, Word, PowerPoint e imágenes).
+              Se guardan en Drive: Empresa → Proyecto.
+            </ng-template>
             <ng-container *ngIf="!puedeEscribir"> Solo consulta.</ng-container>
           </p>
         </div>

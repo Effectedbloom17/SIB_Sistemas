@@ -911,12 +911,12 @@
                         <thead>
                           <tr>
                             <th class="cp-gestion-act-table__col--num">#</th>
+                            <th class="cp-gestion-act-table__col--tools" aria-label="Acciones"></th>
                             <th class="cp-gestion-act-table__col--name">Actividad</th>
                             <th class="cp-gestion-act-table__col--date">Vencimiento</th>
                             <th class="cp-gestion-act-table__col--status">Estatus</th>
                             <th class="cp-gestion-act-table__col--assignees">Responsables</th>
                             <th class="cp-gestion-act-table__col--obs">Observaciones</th>
-                            <th class="cp-gestion-act-table__col--more"></th>
                             <th class="cp-gestion-act-table__col--act"></th>
                           </tr>
                         </thead>
@@ -925,15 +925,43 @@
                             <tr
                               class="cp-gestion-act-table__row"
                               [class.is-expanded]="actividadGestionExpandida(item.indice)"
+                              [class.is-pinned]="actividadGestionFijada(item.indice)"
                               [class.is-readonly]="!puedeEditarActividadGestion(item.proyecto, grupo)"
-                              (mouseenter)="abrirDetalleGestionHover(item.indice)"
+                              (mouseenter)="abrirDetalleGestionHover(item.indice, item.proyecto)"
                               (mouseleave)="cerrarDetalleGestionHover(item.indice)"
                             >
                               <td
                                 class="cp-gestion-act-table__num"
-                                (click)="toggleExpandirActividadGestion(item.indice)"
-                                title="Seleccionar actividad"
+                                (click)="toggleExpandirActividadGestion(item.indice, item.proyecto)"
+                                title="Fijar detalle de la actividad"
                               >{{ numeroActividadGestion(grupo, item) }}</td>
+                              <td class="cp-gestion-act-table__tools-cell">
+                                <div class="cp-gestion-act-tools">
+                                  <button
+                                    type="button"
+                                    class="cp-gestion-row-btn cp-gestion-row-btn--menu"
+                                    (click)="abrirPanelActividad($event, item)"
+                                    [attr.aria-label]="'Detalles de la actividad ' + numeroActividadGestion(grupo, item)"
+                                    title="Detalles e historial"
+                                  >
+                                    <i class="fas fa-ellipsis-v"></i>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    class="cp-gestion-repo-icon"
+                                    (click)="abrirRepositorioActividad($event, grupo, item.proyecto)"
+                                    [disabled]="!puedeAbrirRepositorioActividad(item.proyecto)"
+                                    [attr.aria-label]="'Evidencias de la actividad (' + conteoAdjuntosActividad(item.proyecto) + ')'"
+                                    [title]="tituloRepositorioActividad(item.proyecto)"
+                                  >
+                                    <i class="fas fa-paperclip" aria-hidden="true"></i>
+                                    <span
+                                      class="cp-gestion-repo-icon__badge"
+                                      *ngIf="conteoAdjuntosActividad(item.proyecto) > 0"
+                                    >{{ conteoAdjuntosActividad(item.proyecto) > 99 ? '99+' : conteoAdjuntosActividad(item.proyecto) }}</span>
+                                  </button>
+                                </div>
+                              </td>
                               <td>
                                 <textarea
                                   class="cp-gestion-act-table__input cp-gestion-act-table__input--actividad"
@@ -1075,17 +1103,6 @@
                                   wrap="soft"
                                 ></textarea>
                               </td>
-                              <td class="cp-gestion-act-table__detalle-cell">
-                                <button
-                                  type="button"
-                                  class="cp-gestion-row-btn cp-gestion-row-btn--menu"
-                                  (click)="abrirPanelActividad($event, item)"
-                                  [attr.aria-label]="'Detalles de la actividad ' + numeroActividadGestion(grupo, item)"
-                                  title="Detalles e historial"
-                                >
-                                  <i class="fas fa-ellipsis-v"></i>
-                                </button>
-                              </td>
                               <td>
                                 <button
                                   *ngIf="puedeEliminarActividadGestion(item.proyecto)"
@@ -1100,12 +1117,16 @@
                             </tr>
                             <tr
                               class="cp-gestion-act-table__detail"
+                              [class.is-pinned]="actividadGestionFijada(item.indice)"
                               *ngIf="actividadGestionExpandida(item.indice)"
-                              (mouseenter)="abrirDetalleGestionHover(item.indice)"
+                              (mouseenter)="abrirDetalleGestionHover(item.indice, item.proyecto)"
                               (mouseleave)="cerrarDetalleGestionHover(item.indice)"
                             >
                               <td colspan="8">
-                                <div class="cp-gestion-act-table__detail-grid">
+                                <div
+                                  class="cp-gestion-act-table__detail-grid"
+                                  [class.is-editable]="actividadGestionFijada(item.indice)"
+                                >
                                   <label class="cp-gestion-act-table__field">
                                     <span>Referencia <small>(opcional)</small></span>
                                     <textarea
@@ -1113,7 +1134,7 @@
                                       [(ngModel)]="item.proyecto.referenciaNormativa"
                                       [name]="'gestion_ref_' + item.indice"
                                       (ngModelChange)="marcarGestionCambios()"
-                                      [readonly]="!puedeEditarActividadGestion(item.proyecto, grupo)"
+                                      [readonly]="!actividadGestionFijada(item.indice) || !puedeEditarActividadGestion(item.proyecto, grupo)"
                                       placeholder="NOM, cláusula…"
                                       wrap="soft"
                                     ></textarea>
@@ -1125,34 +1146,42 @@
                                       [(ngModel)]="item.proyecto.entregables"
                                       [name]="'gestion_ent_' + item.indice"
                                       (ngModelChange)="marcarGestionCambios()"
-                                      [readonly]="!puedeEditarActividadGestion(item.proyecto, grupo)"
+                                      [readonly]="!actividadGestionFijada(item.indice) || !puedeEditarActividadGestion(item.proyecto, grupo)"
                                       placeholder="Documentos o evidencias"
                                       wrap="soft"
                                     ></textarea>
                                   </label>
-                                  <div class="cp-gestion-act-table__field cp-gestion-adjuntos">
+                                  <div class="cp-gestion-act-table__field cp-gestion-adjuntos cp-gestion-adjuntos--mini">
                                     <span>Archivos adjuntos</span>
-                                    <div class="cp-gestion-docs">
-                                      <div class="cp-gestion-docs__count" [class.is-empty]="!adjuntosProyecto.length">
-                                        <i class="fas fa-folder-open" aria-hidden="true"></i>
-                                        <span class="cp-gestion-docs__num">{{ cargandoAdjuntos ? '…' : adjuntosProyecto.length }}</span>
-                                        <span class="cp-gestion-docs__word">
-                                          documento{{ (!cargandoAdjuntos && adjuntosProyecto.length === 1) ? '' : 's' }}
-                                        </span>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        class="cp-gestion-docs__open"
-                                        (click)="abrirRepositorioProyecto(grupo)"
-                                        aria-label="Abrir repositorio de evidencias"
-                                      >
-                                        <span class="cp-gestion-docs__open-label">Repositorio</span>
+                                    <button
+                                      type="button"
+                                      class="cp-gestion-repo-mini"
+                                      (click)="abrirRepositorioActividad($event, grupo, item.proyecto)"
+                                      [disabled]="!puedeAbrirRepositorioActividad(item.proyecto)"
+                                      [title]="tituloRepositorioActividad(item.proyecto)"
+                                    >
+                                      <span class="cp-gestion-repo-mini__icon" aria-hidden="true">
                                         <i class="fas fa-folder-open"></i>
-                                      </button>
-                                    </div>
-                                    <p class="cp-gestion-adjuntos__error" *ngIf="errorAdjuntos">{{ errorAdjuntos }}</p>
-                                    <p class="cp-gestion-adjuntos__loading" *ngIf="cargandoAdjuntos">
-                                      <i class="fas fa-spinner fa-spin"></i> Contando documentos…
+                                        <em
+                                          class="cp-gestion-repo-mini__badge"
+                                          *ngIf="conteoAdjuntosActividad(item.proyecto) > 0"
+                                        >{{ conteoAdjuntosActividad(item.proyecto) > 99 ? '99+' : conteoAdjuntosActividad(item.proyecto) }}</em>
+                                      </span>
+                                      <span class="cp-gestion-repo-mini__text">
+                                        <strong>Evidencias</strong>
+                                        <small *ngIf="cargandoAdjuntosActividad(item.proyecto)">Contando…</small>
+                                        <small *ngIf="!cargandoAdjuntosActividad(item.proyecto)">
+                                          {{ conteoAdjuntosActividad(item.proyecto) }}
+                                          archivo{{ conteoAdjuntosActividad(item.proyecto) === 1 ? '' : 's' }}
+                                        </small>
+                                      </span>
+                                      <i class="fas fa-chevron-right cp-gestion-repo-mini__go" aria-hidden="true"></i>
+                                    </button>
+                                    <p class="cp-gestion-adjuntos__hint" *ngIf="!actividadGestionFijada(item.indice)">
+                                      Clic en # para editar · Clic en el icono para abrir el repositorio
+                                    </p>
+                                    <p class="cp-gestion-adjuntos__error" *ngIf="errorAdjuntosActividad(item.proyecto) as errAdj">
+                                      {{ errAdj }}
                                     </p>
                                   </div>
                                 </div>

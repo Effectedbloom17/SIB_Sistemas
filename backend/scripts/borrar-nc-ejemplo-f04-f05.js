@@ -17,12 +17,13 @@ const { obtenerRegistroSgcPersistido, asegurarTablaSgcFormatoDatos, resetAsegura
 const sgcF04 = require('../sgcSgcF04Service');
 const sgcF05 = require('../sgcF05Service');
 
-const envDevPath = path.join(__dirname, '..', '.env');
-const envProdPath = path.join(__dirname, '..', '.env.produccion');
+const envProdCandidates = [
+  path.join(__dirname, '..', '.env.produccion'),
+  path.join(__dirname, '..', '..', '..', 'SitemaCapacitacion', 'backend', '.env.produccion'),
+];
+const envProdPath = envProdCandidates.find((p) => fs.existsSync(p)) || envDevPath;
 const envDev = dotenv.parse(fs.readFileSync(envDevPath));
-const envProd = dotenv.parse(
-  fs.readFileSync(fs.existsSync(envProdPath) ? envProdPath : envDevPath)
-);
+const envProd = dotenv.parse(fs.readFileSync(envProdPath));
 
 dotenv.config({ path: envDevPath, quiet: true });
 
