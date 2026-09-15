@@ -15,6 +15,7 @@
 const googleFormsService = require('./googleFormsService');
 const driveService = require('./driveService');
 const sgcF14Service = require('./sgcF14Service');
+const sgcControlProyectosService = require('./sgcControlProyectosService');
 const sgcF29Service = require('./sgcF29Service');
 const sgcAthF08Service = require('./sgcAthF08Service');
 const opinionesService = require('./opinionesService');
@@ -1741,27 +1742,97 @@ async function eliminarEvaluacionProveedor(poolSgc, evaluacionId) {
 // 5. Avance de proyectos (SGC-F-14 — Bitácora de proyectos de mejora)
 // ---------------------------------------------------------------------------
 
-async function obtenerAvanceProyectos(poolSgc) {
-    try {
-        return await sgcF14Service.obtenerResumenMejora(poolSgc);
-    } catch (e) {
+function folioAvanceClave(valor) {
+    return String(valor || '').trim().toUpperCase();
+}
+
+function nombreAvanceClave(valor) {
+    return String(valor || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function compactarActividadAvance(actividad = {}) {
+    return {
+        item: String(actividad.item || '').trim(),
+        actividadesAccion: String(actividad.actividadesAccion || '').trim(),
+        condicionRequerimiento: String(actividad.condicionRequerimiento || '').trim(),
+        responsable: String(actividad.responsable || '').trim(),
+        prioridad: String(actividad.prioridad || '').trim(),
+        estatus: String(actividad.estatus || '').trim(),
+        avance: Number(actividad.avance) || 0,
+        fechaCompromiso: actividad.fechaCompromiso || null
+    };
+}
+
+function enriquecerAvanceConControlProyectos(resumen, proyectosControl = []) {
+    const porFolio = new Map();
+    const porNombre = new Map();
+
+    for (const proyecto of Array.isArray(proyectosControl) ? proyectosControl : []) {
+        const actividades = (Array.isArray(proyecto.actividades) ? proyecto.actividades : [])
+            .map(compactarActividadAvance);
+        if (!actividades.length) continue;
+
+        const folio = folioAvanceClave(proyecto.folio);
+        if (folio) {
+            porFolio.set(folio, (porFolio.get(folio) || []).concat(actividades));
+        }
+        const nombre = nombreAvanceClave(proyecto.nombreProyecto);
+        if (nombre) {
+            porNombre.set(nombre, (porNombre.get(nombre) || []).concat(actividades));
+        }
+    }
+
+    const proyectos = (resumen.proyectos || []).map((proyecto) => {
+        const folio = folioAvanceClave(proyecto.folio);
+        const nombre = nombreAvanceClave(proyecto.nombreProyecto);
+        const actividades = (folio && porFolio.get(folio))
+            || (nombre && porNombre.get(nombre))
+            || [];
         return {
-            total: 0,
-            concluidos: 0,
-            enProceso: 0,
-            noIniciados: 0,
-            avancePromedio: 0,
-            totalEnGrafico: 0,
-            concluidosGrafico: 0,
-            enProcesoGrafico: 0,
-            porEstatus: { Concluido: 0, 'En proceso': 0, 'No iniciado': 0 },
-            porPrioridad: {
-                Inmediato: 0,
-                'Mediano plazo': 0,
-                'Largo plazo': 0
-            },
-            proyectos: []
+            ...proyecto,
+            totalActividades: actividades.length,
+            actividades
         };
+    });
+
+    return { ...resumen, proyectos };
+}
+
+async function obtenerAvanceProyectos(poolSgc) {
+    const vacio = {
+        total: 0,
+        concluidos: 0,
+        enProceso: 0,
+        noIniciados: 0,
+        avancePromedio: 0,
+        totalEnGrafico: 0,
+        concluidosGrafico: 0,
+        enProcesoGrafico: 0,
+        porEstatus: { Concluido: 0, 'En proceso': 0, 'No iniciado': 0 },
+        porPrioridad: {
+            Inmediato: 0,
+            'Mediano plazo': 0,
+            'Largo plazo': 0
+        },
+        proyectos: []
+    };
+
+    try {
+        const [resumen, control] = await Promise.all([
+            sgcF14Service.obtenerResumenMejora(poolSgc),
+            sgcControlProyectosService.obtenerDashboard(poolSgc).catch((err) => {
+                console.warn('[SGC dashboard] No se pudieron cruzar actividades de Control de proyectos:', err.message);
+                return null;
+            })
+        ]);
+        return enriquecerAvanceConControlProyectos(resumen, control?.proyectos || []);
+    } catch (e) {
+        return vacio;
     }
 }
 

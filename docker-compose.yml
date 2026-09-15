@@ -12,7 +12,9 @@ services:
       - --bind-address=0.0.0.0
       - --skip-name-resolve
     ports:
-      - "0.0.0.0:3306:3306"
+      # 3307 en el host: MySQL80 de Windows suele ocupar 3306.
+      # Dentro del contenedor sigue siendo 3306 (phpMyAdmin / red Docker).
+      - "0.0.0.0:3307:3306"
     volumes:
       - biznaga_mariadb_data:/var/lib/mysql
       - ./docker/init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql:ro

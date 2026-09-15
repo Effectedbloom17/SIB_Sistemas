@@ -2681,6 +2681,40 @@ export class BackendServices {
         });
     }
 
+    cargarSgcF27Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-27`);
+    }
+
+    guardarSgcF27Formato(datos: unknown, editorActivo = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-27/guardar`, {
+            datos,
+            origen: 'sistema',
+            editorActivo
+        });
+    }
+
+    sincronizarSgcF27DesdeDrive(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-27/sincronizar-drive`, {});
+    }
+
+    actualizarPlantillaSgcF27(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-27/actualizar-plantilla`, {});
+    }
+
+    subirPdfFirmadoSgcF27(pdfBase64: string, nombreArchivo: string, ordenId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-27/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombre_archivo: nombreArchivo,
+            ordenId
+        });
+    }
+
+    descargarPdfSgcF27(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-27/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarSgcF29Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-29`);
     }

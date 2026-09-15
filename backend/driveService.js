@@ -810,6 +810,11 @@ async function aplicarFormatoRangoGoogleSheet(spreadsheetId, options = {}) {
     const horizontalAlignment = String(options.horizontalAlignment || 'CENTER').toUpperCase();
     const verticalAlignment = String(options.verticalAlignment || 'MIDDLE').toUpperCase();
     const wrapStrategy = String(options.wrapStrategy || 'WRAP').toUpperCase();
+    const fontFamily = typeof options.fontFamily === 'string' && options.fontFamily.trim()
+        ? options.fontFamily.trim()
+        : null;
+    const fontSizeRaw = Number(options.fontSize);
+    const fontSize = Number.isFinite(fontSizeRaw) && fontSizeRaw > 0 ? fontSizeRaw : null;
 
     const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
     const meta = await sheetsApi.spreadsheets.get({
@@ -820,6 +825,19 @@ async function aplicarFormatoRangoGoogleSheet(spreadsheetId, options = {}) {
     const sheetId = sheet?.properties?.sheetId;
     if (sheetId === undefined || sheetId === null) {
         return null;
+    }
+
+    const userEnteredFormat = {
+        horizontalAlignment,
+        verticalAlignment,
+        wrapStrategy
+    };
+    const fields = ['horizontalAlignment', 'verticalAlignment', 'wrapStrategy'];
+    if (fontFamily || fontSize) {
+        userEnteredFormat.textFormat = {};
+        if (fontFamily) userEnteredFormat.textFormat.fontFamily = fontFamily;
+        if (fontSize) userEnteredFormat.textFormat.fontSize = fontSize;
+        fields.push('textFormat');
     }
 
     return sheetsApi.spreadsheets.batchUpdate({
@@ -834,14 +852,8 @@ async function aplicarFormatoRangoGoogleSheet(spreadsheetId, options = {}) {
                         startColumnIndex: startColumn - 1,
                         endColumnIndex: endColumn
                     },
-                    cell: {
-                        userEnteredFormat: {
-                            horizontalAlignment,
-                            verticalAlignment,
-                            wrapStrategy
-                        }
-                    },
-                    fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy)'
+                    cell: { userEnteredFormat },
+                    fields: `userEnteredFormat(${fields.join(',')})`
                 }
             }]
         }
@@ -1674,6 +1686,37 @@ async function insertarFilasGoogleSheet(spreadsheetId, sheetId, startIndex, numR
                         endIndex: start + filas
                     },
                     inheritFromBefore: options.inheritFromBefore !== false
+                }
+            }]
+        }
+    });
+}
+
+/**
+ * Elimina filas de una hoja de Google Sheets.
+ * @param {string} spreadsheetId
+ * @param {number} sheetId
+ * @param {number} startIndex - índice 0-based (fila inclusiva)
+ * @param {number} numRows
+ */
+async function eliminarFilasGoogleSheet(spreadsheetId, sheetId, startIndex, numRows) {
+    const filas = Math.max(0, Math.floor(Number(numRows) || 0));
+    if (!spreadsheetId || sheetId == null || filas <= 0) {
+        return null;
+    }
+    const start = Math.max(0, Math.floor(Number(startIndex) || 0));
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    return sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+            requests: [{
+                deleteDimension: {
+                    range: {
+                        sheetId: Number(sheetId),
+                        dimension: 'ROWS',
+                        startIndex: start,
+                        endIndex: start + filas
+                    }
                 }
             }]
         }
@@ -10673,6 +10716,7 @@ module.exports = {
     duplicarHojaGoogleSheet,
     renombrarHojaGoogleSheet,
     insertarFilasGoogleSheet,
+    eliminarFilasGoogleSheet,
     crearHojaGoogleSheet,
     eliminarHojasGoogleSheet,
     copiarGoogleSheetACarpeta,

@@ -12,6 +12,8 @@
     "start:backend": "node scripts/setup-dev-env.js --quiet && node backend/server.js",
     "setup:dev": "node scripts/setup-dev-env.js",
     "db:lan": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/abrir-mariadb-lan.ps1",
+    "db:up": "docker compose up -d db phpmyadmin",
+    "db:sync": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sync-db-lan-a-local.ps1",
     "open:browser": "wait-on -t 420000 http-get://localhost:4200/main.js && powershell -NoProfile -Command Start-Process 'http://localhost:4200/'",
     "open:chrome": "npm run open:browser",
     "start:chrome": "node scripts/setup-dev-env.js --quiet && node ./node_modules/concurrently/dist/bin/concurrently.js \"node backend/server.js\" \"node scripts/ng-serve-dev.js\" && start chrome http://localhost:4200",

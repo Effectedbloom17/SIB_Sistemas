@@ -200,6 +200,10 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   quejasCliente: any = null;
   evaluacionProveedores: any = null;
   avanceProyectos: any = null;
+  proyectoAvanceSeleccionadoFolio: string | null = null;
+  private folioAvanceQueryInicial = '';
+  /** null = todos los años del folio PM-DDMMYY-NN */
+  filtroAnioAvance: number | null = null;
   proveedoresF29: any = null;
   proveedoresF29Expandido: string | null = null;
   criteriosProveedoresF29List: Array<{ label: string; valor: number }> = [];
@@ -317,8 +321,16 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     this.refrescarPermisoEditorSgc();
 
     this.capituloDashSlug = (this.route.snapshot.queryParamMap.get('cap') || '').toLowerCase() || null;
+    this.folioAvanceQueryInicial = (this.route.snapshot.queryParamMap.get('proyecto') || '').trim();
     this.route.queryParamMap.subscribe(qm => {
       this.capituloDashSlug = (qm.get('cap') || '').toLowerCase() || null;
+      const folioRuta = (qm.get('proyecto') || '').trim();
+      if (folioRuta && folioRuta !== this.proyectoAvanceSeleccionadoFolio) {
+        this.proyectoAvanceSeleccionadoFolio = folioRuta;
+        if (this.avanceProyectos) {
+          this.actualizarCharts();
+        }
+      }
     });
 
     this.aniosDisponibles = [this.anioActual, this.anioActual - 1, this.anioActual - 2, this.anioActual - 3];
@@ -361,6 +373,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
         if (
           this.carruselHover ||
           !this.carruselAutoActivo ||
+          this.hayProyectoAvanceSeleccionado ||
           this.mostrarPreguntasSatCap ||
           this.mostrarPreguntasSatisfaccion ||
           this.filtroMesSatCapAbierto ||
@@ -489,6 +502,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     this.quejasCliente = res.quejasCliente || null;
     this.evaluacionProveedores = res.evaluacionProveedores || null;
     this.avanceProyectos = res.avanceProyectos || res.mejoraContinua || null;
+    this.sincronizarSeleccionAvance();
     this.proveedoresF29 = res.proveedoresF29 || null;
     this.actualizarCriteriosProveedoresF29();
     this.eficacia = res.eficacia || null;
@@ -552,6 +566,233 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
 
   get hayDatosAvance(): boolean {
     return !!this.avanceProyectos && (this.avanceProyectos.total || 0) > 0;
+  }
+
+  /**
+   * Año del folio PM-DDMMYY-NN (o SP-DDMMYY-NN).
+   * Ejemplo: PM-010925-01 → día 01, mes 09, año 25 → 2025.
+   */
+  anioDesdeFolioAvance(folio: unknown): number | null {
+    const texto = String(folio || '').trim();
+    const match = texto.match(/^(?:PM|SP)-(\d{2})(\d{2})(\d{2})-\d+$/i);
+    if (!match) return null;
+    const yy = Number(match[3]);
+    if (!Number.isFinite(yy)) return null;
+    return 2000 + yy;
+  }
+
+  get opcionesAnioAvance(): Array<{ valor: number | null; label: string }> {
+    const anioActual = new Date().getFullYear();
+    const anios = new Set<number>([anioActual - 1, anioActual]);
+    for (const proyecto of this.avanceProyectos?.proyectos || []) {
+      const anio = this.anioDesdeFolioAvance(proyecto?.folio);
+      if (anio && anio >= 2000 && anio <= anioActual + 1) {
+        anios.add(anio);
+      }
+    }
+    const ordenados = Array.from(anios).sort((a, b) => a - b);
+    return [
+      { valor: null, label: 'Todos' },
+      ...ordenados.map((anio) => ({ valor: anio, label: String(anio) }))
+    ];
+  }
+
+  get proyectosAvanceFiltrados(): any[] {
+    const todos = Array.isArray(this.avanceProyectos?.proyectos) ? this.avanceProyectos.proyectos : [];
+    if (this.filtroAnioAvance == null) return todos;
+    return todos.filter((p) => this.anioDesdeFolioAvance(p?.folio) === this.filtroAnioAvance);
+  }
+
+  seleccionarAnioAvance(anio: number | null, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (this.filtroAnioAvance === anio) return;
+    this.filtroAnioAvance = anio;
+    const seleccionado = this.proyectoAvanceSeleccionado;
+    if (seleccionado && anio != null && this.anioDesdeFolioAvance(seleccionado.folio) !== anio) {
+      this.proyectoAvanceSeleccionadoFolio = null;
+    }
+    this.actualizarAvanceChart();
+  }
+
+  private actualizarAvanceChart(): void {
+    const self = this;
+    const ap = this.avanceResumenActivo || {};
+    const unidad = this.etiquetaUnidadAvance;
+    this.avanceChart = {
+      ...this.avanceChart,
+      series: [
+        Number(ap.concluidosGrafico ?? ap.concluidos) || 0,
+        Number(ap.enProcesoGrafico ?? ap.enProceso) || 0
+      ],
+      chart: {
+        ...this.avanceChart.chart,
+        height: this.CARRUSEL_DONUT_HEIGHT,
+        events: {
+          dataPointMouseEnter(_e: unknown, _chart: unknown, config: { dataPointIndex: number }) {
+            self.onDonutHover(config.dataPointIndex);
+          },
+          dataPointMouseLeave() {
+            self.resetDonutCentro();
+          }
+        }
+      },
+      tooltip: {
+        ...this.avanceChart.tooltip,
+        y: {
+          formatter: (val: number) => {
+            const total = self.totalAvanceEnGrafico;
+            const pct = total ? Math.round((val / total) * 100) : 0;
+            const plural = val !== 1 ? 'es' : '';
+            const etiqueta = unidad === 'actividad' ? `actividad${plural}` : `proyecto${val !== 1 ? 's' : ''}`;
+            return `${val} ${etiqueta} (${pct}%)`;
+          }
+        }
+      }
+    };
+    this.resetDonutCentro();
+  }
+
+  private claveFolioAvance(valor: unknown): string {
+    return String(valor || '').trim().toUpperCase();
+  }
+
+  get hayProyectoAvanceSeleccionado(): boolean {
+    return !!this.proyectoAvanceSeleccionado;
+  }
+
+  get proyectoAvanceSeleccionado(): any | null {
+    const folio = this.claveFolioAvance(this.proyectoAvanceSeleccionadoFolio);
+    if (!folio) return null;
+    return (this.avanceProyectos?.proyectos || []).find(
+      (p: any) => this.claveFolioAvance(p?.folio) === folio
+    ) || null;
+  }
+
+  get filasAvanceVista(): any[] {
+    const seleccionado = this.proyectoAvanceSeleccionado;
+    if (!seleccionado) {
+      return this.proyectosAvanceFiltrados;
+    }
+    const actividades = Array.isArray(seleccionado.actividades) ? seleccionado.actividades : [];
+    if (!actividades.length) return [seleccionado];
+    return actividades.map((actividad: any) => ({
+      folio: actividad.item || seleccionado.folio,
+      nombreProyecto: this.nombreActividadAvance(actividad),
+      responsable: actividad.responsable || seleccionado.responsable,
+      prioridad: actividad.prioridad || seleccionado.prioridad,
+      estatus: actividad.estatus,
+      avance: Number(actividad.avance) || 0,
+      esActividad: true
+    }));
+  }
+
+  get avanceResumenActivo(): any {
+    if (this.hayProyectoAvanceSeleccionado) {
+      return this.resumirItemsAvance(this.filasAvanceVista);
+    }
+    return this.resumirItemsAvance(this.proyectosAvanceFiltrados);
+  }
+
+  get kpiAvanceVista(): number {
+    const seleccionado = this.proyectoAvanceSeleccionado;
+    if (seleccionado) return Number(seleccionado.avance) || 0;
+    return Number(this.avanceResumenActivo?.avancePromedio) || 0;
+  }
+
+  get etiquetaUnidadAvance(): string {
+    return this.hayProyectoAvanceSeleccionado ? 'actividad' : 'proyecto';
+  }
+
+  seleccionarProyectoAvance(proyecto: any, event?: Event): void {
+    event?.stopPropagation();
+    if (proyecto?.esActividad) return;
+    const folio = String(proyecto?.folio || '').trim();
+    if (!folio) return;
+    if (this.claveFolioAvance(this.proyectoAvanceSeleccionadoFolio) === this.claveFolioAvance(folio)) {
+      this.limpiarProyectoAvance();
+      return;
+    }
+    this.proyectoAvanceSeleccionadoFolio = folio;
+    const idx = this.carruselSlides.findIndex((s) => s.id === 'avance');
+    if (idx >= 0) this.irACarruselSlide(idx);
+    this.actualizarAvanceChart();
+  }
+
+  limpiarProyectoAvance(event?: Event): void {
+    event?.stopPropagation();
+    if (!this.proyectoAvanceSeleccionadoFolio) return;
+    this.proyectoAvanceSeleccionadoFolio = null;
+    this.actualizarAvanceChart();
+  }
+
+  esProyectoAvanceSeleccionado(proyecto: any): boolean {
+    if (!this.proyectoAvanceSeleccionadoFolio || proyecto?.esActividad) return false;
+    return this.claveFolioAvance(proyecto?.folio) === this.claveFolioAvance(this.proyectoAvanceSeleccionadoFolio);
+  }
+
+  nombreActividadAvance(actividad: any): string {
+    return String(
+      actividad?.actividadesAccion
+      || actividad?.condicionRequerimiento
+      || actividad?.item
+      || actividad?.nombreProyecto
+      || 'Actividad sin detalle'
+    ).trim();
+  }
+
+  private sincronizarSeleccionAvance(): void {
+    const veniaDeRuta = !this.proyectoAvanceSeleccionadoFolio && !!this.folioAvanceQueryInicial;
+    if (!this.proyectoAvanceSeleccionadoFolio && this.folioAvanceQueryInicial) {
+      this.proyectoAvanceSeleccionadoFolio = this.folioAvanceQueryInicial;
+    }
+    if (!this.proyectoAvanceSeleccionadoFolio) return;
+    const existe = (this.avanceProyectos?.proyectos || []).some(
+      (p: any) => this.claveFolioAvance(p?.folio) === this.claveFolioAvance(this.proyectoAvanceSeleccionadoFolio)
+    );
+    if (!existe) {
+      this.proyectoAvanceSeleccionadoFolio = null;
+      return;
+    }
+    if (veniaDeRuta) {
+      const idx = this.carruselSlides.findIndex((s) => s.id === 'avance');
+      if (idx >= 0) this.irACarruselSlide(idx);
+    }
+  }
+
+  private cuentaEnGraficoAvance(item: any): boolean {
+    const estatus = this.estatusAvanceBucket(item?.estatus, item?.avance);
+    const avance = Number(item?.avance) || 0;
+    if (estatus === 'No iniciado') return false;
+    return avance > 0 || estatus === 'Concluido';
+  }
+
+  private resumirItemsAvance(items: any[]): any {
+    const lista = Array.isArray(items) ? items : [];
+    const porEstatus = { Concluido: 0, 'En proceso': 0, 'No iniciado': 0 };
+    const enGrafico: any[] = [];
+
+    for (const item of lista) {
+      const estatus = this.estatusAvanceBucket(item?.estatus, item?.avance);
+      porEstatus[estatus] += 1;
+      if (this.cuentaEnGraficoAvance(item)) {
+        enGrafico.push({ ...item, estatus, avance: Number(item?.avance) || 0 });
+      }
+    }
+
+    const sumaAvance = enGrafico.reduce((acc, p) => acc + (Number(p.avance) || 0), 0);
+    const concluidosGrafico = enGrafico.filter((p) => p.estatus === 'Concluido').length;
+
+    return {
+      total: lista.length,
+      totalEnGrafico: enGrafico.length,
+      concluidos: porEstatus.Concluido,
+      enProceso: porEstatus['En proceso'],
+      noIniciados: porEstatus['No iniciado'],
+      concluidosGrafico,
+      enProcesoGrafico: enGrafico.length - concluidosGrafico,
+      avancePromedio: enGrafico.length ? Math.round(sumaAvance / enGrafico.length) : 0
+    };
   }
 
   get hayAuditorias(): boolean {
@@ -1756,27 +1997,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       xaxis: { ...this.proveedoresChart.xaxis, categories: epSerie.map(s => s.mes) }
     };
 
-    const ap = this.avanceProyectos || {};
-    this.avanceChart = {
-      ...this.avanceChart,
-      series: [
-        Number(ap.concluidosGrafico ?? ap.concluidos) || 0,
-        Number(ap.enProcesoGrafico ?? ap.enProceso) || 0
-      ],
-      chart: {
-        ...this.avanceChart.chart,
-        height: this.CARRUSEL_DONUT_HEIGHT,
-        events: {
-          dataPointMouseEnter(_e: unknown, _chart: unknown, config: { dataPointIndex: number }) {
-            self.onDonutHover(config.dataPointIndex);
-          },
-          dataPointMouseLeave() {
-            self.resetDonutCentro();
-          }
-        }
-      }
-    };
-    this.resetDonutCentro();
+    this.actualizarAvanceChart();
 
     const pf = this.proveedoresF29 || {};
     const aprobadosPf = Number(pf.aprobados) || 0;
@@ -2155,7 +2376,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   }
 
   get totalAvanceEnGrafico(): number {
-    const ap = this.avanceProyectos || {};
+    const ap = this.avanceResumenActivo || {};
     const indicado = Number(ap.totalEnGrafico);
     if (Number.isFinite(indicado) && indicado >= 0) return indicado;
     return (Number(ap.concluidos) || 0) + (Number(ap.enProceso) || 0);
@@ -2165,14 +2386,14 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     this.ngZone.run(() => {
       const total = this.totalAvanceEnGrafico;
       this.donutCentroValor = total;
-      this.donutCentroEtiqueta = 'Proyectos';
+      this.donutCentroEtiqueta = this.hayProyectoAvanceSeleccionado ? 'Actividades' : 'Proyectos';
       this.donutCentroPct = 100;
     });
   }
 
   onDonutHover(index: number): void {
     this.ngZone.run(() => {
-      const ap = this.avanceProyectos || {};
+      const ap = this.avanceResumenActivo || {};
       const counts = [
         Number(ap.concluidosGrafico ?? ap.concluidos) || 0,
         Number(ap.enProcesoGrafico ?? ap.enProceso) || 0
@@ -2181,7 +2402,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       const total = this.totalAvanceEnGrafico;
       const count = counts[index] ?? 0;
       this.donutCentroValor = count;
-      this.donutCentroEtiqueta = labels[index] || 'Proyectos';
+      this.donutCentroEtiqueta = labels[index] || (this.hayProyectoAvanceSeleccionado ? 'Actividades' : 'Proyectos');
       this.donutCentroPct = total ? Math.round((count / total) * 100) : 0;
     });
   }
@@ -2324,35 +2545,42 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   }
 
   claseEstatusProyecto(estatus: string, avance?: number): string {
-    const e = (estatus || '').toLowerCase();
-    if (e.includes('conclu') || (Number(avance) || 0) >= 100) return 'sgc-proyecto-badge--concluido';
-    if (e.includes('proceso') || (Number(avance) || 0) > 0) return 'sgc-proyecto-badge--proceso';
+    const bucket = this.estatusAvanceBucket(estatus, avance);
+    if (bucket === 'Concluido') return 'sgc-proyecto-badge--concluido';
+    if (bucket === 'En proceso') return 'sgc-proyecto-badge--proceso';
     return 'sgc-proyecto-badge--pendiente';
   }
 
   labelEstatusProyecto(estatus: string, avance?: number): string {
     if (estatus?.trim()) return estatus;
+    return this.estatusAvanceBucket(estatus, avance);
+  }
+
+  private estatusAvanceBucket(estatus: string, avance?: number): 'Concluido' | 'En proceso' | 'No iniciado' {
+    const e = (estatus || '').toLowerCase();
     const pct = Number(avance) || 0;
-    if (pct >= 100) return 'Concluido';
-    if (pct > 0) return 'En proceso';
+    if (e.includes('conclu') || pct >= 100) return 'Concluido';
+    if (e.includes('revision') || e.includes('revisión') || e.includes('proceso') || pct > 0) return 'En proceso';
     return 'No iniciado';
   }
 
   clasePrioridadProyecto(prioridad: string): string {
     const p = (prioridad || '').toLowerCase();
-    if (p.includes('inmediat') || p.includes('alta') || p.includes('urgent') || p.includes('crít')) return 'sgc-proyecto-prio--alta';
-    if (p.includes('media') || p.includes('medio') || p.includes('normal')) return 'sgc-proyecto-prio--media';
-    if (p.includes('baja') || p.includes('low')) return 'sgc-proyecto-prio--baja';
+    if (
+      p.includes('inmediat') || p.includes('alta') || p.includes('urgent') || p.includes('crít')
+      || p.includes('muy priorit') || p === 'prioritaria'
+    ) return 'sgc-proyecto-prio--alta';
+    if (p.includes('media') || p.includes('medio') || p.includes('normal') || p.includes('mediano')) {
+      return 'sgc-proyecto-prio--media';
+    }
+    if (p.includes('baja') || p.includes('low') || p.includes('largo')) return 'sgc-proyecto-prio--baja';
     return 'sgc-proyecto-prio--nd';
   }
 
   colorAvancePorEstatus(estatus: string, avance?: number): string {
-    const e = (estatus || '').toLowerCase();
-    if (e.includes('conclu')) return this.palette.verde;
-    if (e.includes('proceso')) return this.palette.teal;
-    const pct = Number(avance) || 0;
-    if (pct >= 100) return this.palette.verde;
-    if (pct > 0) return this.palette.teal;
+    const bucket = this.estatusAvanceBucket(estatus, avance);
+    if (bucket === 'Concluido') return this.palette.verde;
+    if (bucket === 'En proceso') return this.palette.teal;
     return this.palette.gris;
   }
 
@@ -3073,8 +3301,9 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   }
 
   get resumenAvance(): ChartKpiBadge[] {
-    const ap = this.avanceProyectos || {};
+    const ap = this.avanceResumenActivo || {};
     const base = this.totalAvanceEnGrafico || 0;
+    const unidad = this.hayProyectoAvanceSeleccionado ? 'activas' : 'activos';
     return [
       {
         label: 'Concluidos',
@@ -3085,7 +3314,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       },
       {
         label: 'En proceso',
-        subtitulo: `${(ap.enProcesoGrafico ?? ap.enProceso) || 0} activos`,
+        subtitulo: `${(ap.enProcesoGrafico ?? ap.enProceso) || 0} ${unidad}`,
         icono: 'fa-spinner',
         color: this.palette.teal,
         gradiente: `linear-gradient(135deg, ${this.palette.tealDark} 0%, ${this.palette.teal} 100%)`

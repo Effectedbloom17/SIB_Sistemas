@@ -1177,6 +1177,70 @@ interface SgcF24FormData {
   cambioActivoId?: string | null;
 }
 
+interface SgcF27PdfFirmado {
+  driveFileId: string;
+  nombreArchivo: string;
+  webViewLink?: string;
+  previewUrl?: string;
+  fechaSubida?: string | null;
+}
+
+interface SgcF27Partida {
+  descripcion: string;
+  cantidad: number;
+  precioUnitario: number;
+}
+
+interface SgcF27Orden {
+  id: string;
+  folio: string;
+  fechaOc: string;
+  solicitante: string;
+  enviadoMediante: string;
+  fechaEntrega: string;
+  terminos: string;
+  paraNombre: string;
+  paraCompania: string;
+  paraDireccion: string;
+  paraCiudad: string;
+  paraTelefono: string;
+  enviarNombre: string;
+  enviarCompania: string;
+  enviarDireccion: string;
+  enviarCiudad: string;
+  enviarTelefono: string;
+  partidas: SgcF27Partida[];
+  descuentoPct: number;
+  impuestoPct: number;
+  observaciones: string;
+  solicitoNombre: string;
+  autorizoNombre: string;
+  pdfFirmado: SgcF27PdfFirmado | null;
+}
+
+interface SgcF27FormData {
+  fechaElaboracion: string;
+  revision: string;
+  fechaRevision: string;
+  empresaNombre: string;
+  empresaDireccion: string;
+  empresaCiudad: string;
+  empresaCp: string;
+  empresaTelefono: string;
+  ordenes: SgcF27Orden[];
+  ordenActivaId?: string | null;
+}
+
+interface SgcF27Totales {
+  subtotal: number;
+  descuentoPct: number;
+  descuentoImporte: number;
+  baseGravable: number;
+  impuestoPct: number;
+  impuesto: number;
+  total: number;
+}
+
 type DgF06DocTipo = 'objetivos' | 'indicadores';
 type DgF06MesKey = 'ENE' | 'FEB' | 'MAR' | 'ABR' | 'MAY' | 'JUN' | 'JUL' | 'AGO' | 'SEP' | 'OCT' | 'NOV' | 'DIC';
 type DgF06ResultadoEstado = '' | 'ok' | 'risk';
@@ -1250,6 +1314,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return this.plantillaSlug === 'dg-f-05' || this.plantillaSlug === 'sgc-f-07'
       || this.plantillaSlug === 'sgc-f-08' || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16'
       || this.plantillaSlug === 'sgc-f-24'
+      || this.plantillaSlug === 'sgc-f-27'
       || this.plantillaSlug === 'sgc-f-29'
       || this.plantillaSlug === 'sgc-f-28'
       || this.plantillaSlug === 'sp-f-02'
@@ -1867,6 +1932,29 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF24PdfCargando = false;
   sgcF24PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   private sgcF24EditorIframeListo = false;
+  sgcF27Form: SgcF27FormData = this.crearSgcF27FormVacio();
+  sgcF27Cargando = false;
+  sgcF27Guardando = false;
+  sgcF27Listo = false;
+  sgcF27CambiosPendientes = false;
+  sgcF27IgnorarAutoSave = false;
+  sgcF27UltimaSync: string | null = null;
+  sgcF27DriveFileId: string | null = null;
+  sgcF27EditorUrl: string | null = null;
+  sgcF27EditorEmbedUrlSafe: SafeResourceUrl | null = null;
+  mostrarSgcF27Editor = false;
+  sgcF27ContenidoModificado = false;
+  sgcF27EditorCargando = false;
+  sgcF27ActualizandoPlantilla = false;
+  sgcF27Vista: 'archivero' | 'editor' = 'archivero';
+  sgcF27OrdenActiva: SgcF27Orden | null = null;
+  sgcF27Busqueda = '';
+  sgcF27DescargandoPdf = false;
+  sgcF27SubiendoPdf = false;
+  mostrarSgcF27PdfViewer = false;
+  sgcF27PdfCargando = false;
+  sgcF27PdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  private sgcF27EditorIframeListo = false;
   /** Escala oficial SGC-F-29 (imagen de criterios). */
   readonly sgcF29Puntajes: Array<{
     valor: string;
@@ -3074,6 +3162,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (codigo === 'sgc-f-24') {
         this.cargarSgcF24DesdeServidor();
       }
+      if (codigo === 'sgc-f-27') {
+        this.cargarSgcF27DesdeServidor();
+      }
       if (codigo === 'sgc-f-29') {
         this.cargarSgcF29DesdeServidor();
       }
@@ -3209,8 +3300,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-06' || this.plantillaSlug === 'sgc-f-07'
       || this.plantillaSlug === 'sgc-f-08' || this.plantillaSlug === 'sgc-f-09'
       || this.plantillaSlug === 'sgc-f-10' || this.plantillaSlug === 'sgc-f-15'
-      || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'dg-f-06'
-      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sgc-f-05'
+      || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'dg-f-06'
+      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sgc-f-05'
       || this.plantillaSlug === 'ath-f-08';
   }
 
@@ -3246,7 +3337,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-02'
       || this.plantillaSlug === 'sgc-f-04'
       || this.plantillaSlug === 'sgc-f-22'
-      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sgc-f-05'
+      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sgc-f-05'
       || this.plantillaSlug === 'ath-f-02'
       || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-09'
@@ -3273,6 +3364,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25Guardando;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16Guardando;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Guardando;
+    if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27Guardando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Guardando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Guardando;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02Guardando;
@@ -3303,6 +3395,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25UltimaSync;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16UltimaSync;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24UltimaSync;
+    if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27UltimaSync;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29UltimaSync;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28UltimaSync;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02UltimaSync;
@@ -3333,6 +3426,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25Cargando;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16Cargando;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Cargando;
+    if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27Cargando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Cargando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Cargando;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02Cargando;
@@ -3363,6 +3457,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24ActualizandoPlantilla;
+    if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28ActualizandoPlantilla;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02ActualizandoPlantilla;
@@ -3394,6 +3489,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25DriveFileId;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16DriveFileId;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24DriveFileId;
+    if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27DriveFileId;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29DriveFileId;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28DriveFileId;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02DriveFileId;
@@ -3425,6 +3521,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24CambiosPendientes;
+    if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28CambiosPendientes;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02CambiosPendientes;
@@ -3468,6 +3565,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-25') return this.mostrarSgcF25Editor;
     if (this.plantillaSlug === 'sgc-f-16') return this.mostrarSgcF16Editor;
     if (this.plantillaSlug === 'sgc-f-24') return this.mostrarSgcF24Editor;
+    if (this.plantillaSlug === 'sgc-f-27') return this.mostrarSgcF27Editor;
     if (this.plantillaSlug === 'sgc-f-10') return this.mostrarSgcF10Editor;
     if (this.plantillaSlug === 'sgc-f-29') return this.mostrarSgcF29Editor;
     if (this.plantillaSlug === 'sgc-f-28') return this.mostrarSgcF28Editor;
@@ -3769,6 +3867,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         false
       );
     }
+    if (slug === 'sgc-f-27') {
+      this.sincronizarOrdenActivaEnFormSgcF27();
+      return this.backendService.guardarSgcF27Formato(
+        { ...this.sgcF27Form, ordenActivaId: this.sgcF27OrdenActiva?.id || this.sgcF27Form.ordenActivaId || null },
+        false
+      );
+    }
     if (slug === 'sgc-f-29') {
       return this.backendService.guardarSgcF29Formato(this.sgcF29Form, false);
     }
@@ -3902,6 +4007,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-24') {
       this.persistirSgcF24();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-27') {
+      this.persistirSgcF27();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-29') {
@@ -4195,6 +4304,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return 'Archivero de control de cambios. Registra proyecto, tipo, descripción, motivo y acciones; usa «Guardar información» para conservarlos en el sistema y en Drive.';
   }
 
+  get sgcF27IntroLead(): string {
+    if (this.plantillaSlug !== 'sgc-f-27') {
+      return '';
+    }
+    return 'Archivero de órdenes de compra. Captura proveedor, partidas y totales; usa «Guardar información» para conservarlos en el sistema y en Drive. El PDF firmado se almacena en el expediente de la orden.';
+  }
+
   get dgF06IntroLead(): string {
     if (this.plantillaSlug !== 'dg-f-06') {
       return '';
@@ -4306,6 +4422,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-24') {
       return this.sgcF24IntroLead;
+    }
+    if (this.plantillaSlug === 'sgc-f-27') {
+      return this.sgcF27IntroLead;
     }
     if (this.plantillaSlug === 'dg-f-06') {
       return this.dgF06IntroLead;
@@ -9227,6 +9346,642 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }
       if (!sincronizacionSilenciosa) {
         this.sgcF24Cargando = false;
+      }
+    }, editorAbierto ? 0 : 350);
+  }
+
+  // ===================== SGC-F-27 · Orden de compra =====================
+
+  private crearSgcF27FormVacio(): SgcF27FormData {
+    return {
+      fechaElaboracion: '',
+      revision: '00',
+      fechaRevision: '',
+      empresaNombre: 'BIZNAGA RISK AND TECH',
+      empresaDireccion: '',
+      empresaCiudad: 'Pachuca de Soto, Hgo.',
+      empresaCp: '',
+      empresaTelefono: '',
+      ordenes: [],
+      ordenActivaId: null
+    };
+  }
+
+  private nuevoIdSgcF27(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return `oc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  private crearPartidaSgcF27Vacia(): SgcF27Partida {
+    return { descripcion: '', cantidad: 0, precioUnitario: 0 };
+  }
+
+  private crearOrdenSgcF27Vacia(): SgcF27Orden {
+    return {
+      id: this.nuevoIdSgcF27(),
+      folio: '',
+      fechaOc: '',
+      solicitante: '',
+      enviadoMediante: '',
+      fechaEntrega: '',
+      terminos: '',
+      paraNombre: '',
+      paraCompania: '',
+      paraDireccion: '',
+      paraCiudad: '',
+      paraTelefono: '',
+      enviarNombre: '',
+      enviarCompania: '',
+      enviarDireccion: '',
+      enviarCiudad: '',
+      enviarTelefono: '',
+      partidas: [this.crearPartidaSgcF27Vacia()],
+      descuentoPct: 0,
+      impuestoPct: 16,
+      observaciones: '',
+      solicitoNombre: '',
+      autorizoNombre: '',
+      pdfFirmado: null
+    };
+  }
+
+  private sanitizarPdfSgcF27(raw: any): SgcF27PdfFirmado | null {
+    if (!raw || typeof raw !== 'object') {
+      return null;
+    }
+    const driveFileId = String(raw.driveFileId || raw.drive_file_id || '').trim();
+    if (!driveFileId) {
+      return null;
+    }
+    return {
+      driveFileId,
+      nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'SGC-F-27 Orden de compra firmada.pdf').trim()
+        || 'SGC-F-27 Orden de compra firmada.pdf',
+      webViewLink: raw.webViewLink || raw.web_view_link || null,
+      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      fechaSubida: raw.fechaSubida || raw.fecha_subida || null
+    };
+  }
+
+  private aNumeroSgcF27(valor: unknown): number {
+    if (typeof valor === 'number' && Number.isFinite(valor)) {
+      return valor;
+    }
+    const t = String(valor ?? '').replace(/[$%\s]/g, '').replace(/,/g, '');
+    if (!t) {
+      return 0;
+    }
+    const n = parseFloat(t);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  importePartidaSgcF27(partida: SgcF27Partida | null | undefined): number {
+    if (!partida) {
+      return 0;
+    }
+    return Math.round((this.aNumeroSgcF27(partida.cantidad) * this.aNumeroSgcF27(partida.precioUnitario)) * 100) / 100;
+  }
+
+  get totalesSgcF27(): SgcF27Totales {
+    const oc = this.sgcF27OrdenActiva;
+    const partidas = oc?.partidas || [];
+    const subtotal = Math.round(partidas.reduce((acc, p) => acc + this.importePartidaSgcF27(p), 0) * 100) / 100;
+    const descuentoPct = Math.max(0, this.aNumeroSgcF27(oc?.descuentoPct));
+    const impuestoPct = Math.max(0, this.aNumeroSgcF27(oc?.impuestoPct));
+    const descuentoImporte = Math.round(subtotal * (descuentoPct / 100) * 100) / 100;
+    const baseGravable = Math.round((subtotal - descuentoImporte) * 100) / 100;
+    const impuesto = Math.round(baseGravable * (impuestoPct / 100) * 100) / 100;
+    const total = Math.round((baseGravable + impuesto) * 100) / 100;
+    return { subtotal, descuentoPct, descuentoImporte, baseGravable, impuestoPct, impuesto, total };
+  }
+
+  formatearMonedaSgcF27(valor: number): string {
+    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(this.aNumeroSgcF27(valor));
+  }
+
+  private normalizarPartidaSgcF27(datos: Partial<SgcF27Partida> | any | null | undefined): SgcF27Partida {
+    const base = this.crearPartidaSgcF27Vacia();
+    if (!datos || typeof datos !== 'object') {
+      return base;
+    }
+    return {
+      descripcion: String(datos.descripcion || '').trim(),
+      cantidad: this.aNumeroSgcF27(datos.cantidad),
+      precioUnitario: this.aNumeroSgcF27(datos.precioUnitario ?? datos.precio_unitario)
+    };
+  }
+
+  private normalizarOrdenSgcF27(datos: Partial<SgcF27Orden> | any | null | undefined): SgcF27Orden {
+    const base = this.crearOrdenSgcF27Vacia();
+    if (!datos || typeof datos !== 'object') {
+      return base;
+    }
+    const partidasRaw = Array.isArray(datos.partidas) ? datos.partidas : [];
+    const partidas = partidasRaw.map((p) => this.normalizarPartidaSgcF27(p));
+    const rawImp = datos.impuestoPct ?? datos.impuesto_pct;
+    return {
+      id: String(datos.id || '').trim() || this.nuevoIdSgcF27(),
+      folio: String(datos.folio || datos.numeroOc || '').trim(),
+      fechaOc: String(datos.fechaOc || datos.fecha_oc || datos.fecha || '').trim(),
+      solicitante: String(datos.solicitante || '').trim(),
+      enviadoMediante: String(datos.enviadoMediante || datos.enviado_mediante || '').trim(),
+      fechaEntrega: String(datos.fechaEntrega || datos.fecha_entrega || '').trim(),
+      terminos: String(datos.terminos || '').trim(),
+      paraNombre: String(datos.paraNombre || datos.para_nombre || '').trim(),
+      paraCompania: String(datos.paraCompania || datos.para_compania || '').trim(),
+      paraDireccion: String(datos.paraDireccion || datos.para_direccion || '').trim(),
+      paraCiudad: String(datos.paraCiudad || datos.para_ciudad || '').trim(),
+      paraTelefono: String(datos.paraTelefono || datos.para_telefono || '').trim(),
+      enviarNombre: String(datos.enviarNombre || datos.enviar_nombre || '').trim(),
+      enviarCompania: String(datos.enviarCompania || datos.enviar_compania || '').trim(),
+      enviarDireccion: String(datos.enviarDireccion || datos.enviar_direccion || '').trim(),
+      enviarCiudad: String(datos.enviarCiudad || datos.enviar_ciudad || '').trim(),
+      enviarTelefono: String(datos.enviarTelefono || datos.enviar_telefono || '').trim(),
+      partidas: partidas.length ? partidas : [this.crearPartidaSgcF27Vacia()],
+      descuentoPct: this.aNumeroSgcF27(datos.descuentoPct ?? datos.descuento_pct),
+      impuestoPct: (rawImp === undefined || rawImp === null || rawImp === '') ? 16 : this.aNumeroSgcF27(rawImp),
+      observaciones: String(datos.observaciones || ''),
+      solicitoNombre: String(datos.solicitoNombre || datos.solicito_nombre || '').trim(),
+      autorizoNombre: String(datos.autorizoNombre || datos.autorizo_nombre || '').trim(),
+      pdfFirmado: this.sanitizarPdfSgcF27(datos.pdfFirmado || datos.pdf_firmado)
+    };
+  }
+
+  private normalizarSgcF27Form(datos: Partial<SgcF27FormData> | any | null | undefined): SgcF27FormData {
+    const base = this.crearSgcF27FormVacio();
+    if (!datos || typeof datos !== 'object') {
+      return base;
+    }
+    let ordenesRaw: any[] = [];
+    if (Array.isArray(datos.ordenes)) {
+      ordenesRaw = datos.ordenes;
+    } else if (datos.folio || datos.paraCompania || datos.partidas) {
+      ordenesRaw = [datos];
+    }
+    const ordenes = ordenesRaw.map((o) => this.normalizarOrdenSgcF27(o));
+    const ordenActivaId = String(datos.ordenActivaId || '').trim() || null;
+    return {
+      fechaElaboracion: String(datos.fechaElaboracion || '').trim(),
+      revision: String(datos.revision || '00').trim() || '00',
+      fechaRevision: String(datos.fechaRevision || '').trim(),
+      empresaNombre: String(datos.empresaNombre || base.empresaNombre).trim() || base.empresaNombre,
+      empresaDireccion: String(datos.empresaDireccion || '').trim(),
+      empresaCiudad: String(datos.empresaCiudad || base.empresaCiudad).trim() || base.empresaCiudad,
+      empresaCp: String(datos.empresaCp || '').trim(),
+      empresaTelefono: String(datos.empresaTelefono || '').trim(),
+      ordenes,
+      ordenActivaId: ordenActivaId && ordenes.some((o) => o.id === ordenActivaId)
+        ? ordenActivaId
+        : (ordenes[0]?.id || null)
+    };
+  }
+
+  private sincronizarOrdenActivaEnFormSgcF27(): void {
+    const activa = this.sgcF27OrdenActiva;
+    if (!activa) {
+      this.sgcF27Form.ordenActivaId = null;
+      return;
+    }
+    const idx = (this.sgcF27Form.ordenes || []).findIndex((o) => o.id === activa.id);
+    if (idx >= 0) {
+      this.sgcF27Form.ordenes[idx] = activa;
+    } else {
+      this.sgcF27Form.ordenes = [activa, ...(this.sgcF27Form.ordenes || [])];
+    }
+    this.sgcF27Form.ordenActivaId = activa.id;
+  }
+
+  get sgcF27OrdenesVista(): SgcF27Orden[] {
+    const q = this.sgcF27Busqueda.trim().toLowerCase();
+    const lista = [...(this.sgcF27Form.ordenes || [])].sort((a, b) => {
+      const fa = String(a.fechaOc || '');
+      const fb = String(b.fechaOc || '');
+      return fb.localeCompare(fa) || String(b.folio || '').localeCompare(String(a.folio || ''));
+    });
+    if (!q) {
+      return lista;
+    }
+    return lista.filter((o) =>
+      [o.folio, o.paraCompania, o.paraNombre, o.solicitante, o.enviarCompania]
+        .some((v) => String(v || '').toLowerCase().includes(q))
+    );
+  }
+
+  ordenFirmadaSgcF27(orden: SgcF27Orden | null | undefined): boolean {
+    return !!orden?.pdfFirmado?.driveFileId;
+  }
+
+  formatearFechaCortaSgcF27(iso: string | null | undefined): string {
+    return this.formatearFechaCortaSgcF16(iso);
+  }
+
+  onSgcF27Editado(): void {
+    if (!this.sgcF27Listo || this.sgcF27IgnorarAutoSave) {
+      return;
+    }
+    this.sgcF27CambiosPendientes = true;
+  }
+
+  generarFolioSgcF27(): void {
+    if (!this.sgcF27OrdenActiva) {
+      return;
+    }
+    let maximo = 0;
+    (this.sgcF27Form.ordenes || []).forEach((o) => {
+      if (o.id === this.sgcF27OrdenActiva?.id) {
+        return;
+      }
+      const match = String(o.folio || '').match(/(\d{1,})$/);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (Number.isFinite(n) && n > maximo) {
+          maximo = n;
+        }
+      }
+    });
+    this.sgcF27OrdenActiva.folio = String(maximo + 1).padStart(5, '0');
+    this.onSgcF27Editado();
+  }
+
+  nuevaOrdenSgcF27(): void {
+    const orden = this.crearOrdenSgcF27Vacia();
+    const hoy = new Date();
+    orden.fechaOc = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(hoy);
+    this.sgcF27Form.ordenes = [orden, ...(this.sgcF27Form.ordenes || [])];
+    this.sgcF27OrdenActiva = orden;
+    this.sgcF27Form.ordenActivaId = orden.id;
+    this.sgcF27Vista = 'editor';
+    this.generarFolioSgcF27();
+    this.onSgcF27Editado();
+  }
+
+  abrirOrdenSgcF27(orden: SgcF27Orden): void {
+    this.sgcF27OrdenActiva = orden;
+    this.sgcF27Form.ordenActivaId = orden?.id || null;
+    this.sgcF27Vista = 'editor';
+  }
+
+  volverArchiveroSgcF27(): void {
+    this.sincronizarOrdenActivaEnFormSgcF27();
+    this.sgcF27Vista = 'archivero';
+    this.sgcF27OrdenActiva = null;
+    this.sgcF27Form.ordenActivaId = null;
+    if (this.mostrarSgcF27PdfViewer) {
+      this.toggleSgcF27PdfViewer();
+    }
+  }
+
+  eliminarOrdenSgcF27(orden: SgcF27Orden, event?: Event): void {
+    event?.stopPropagation();
+    if (!confirm(`¿Eliminar la orden de compra ${orden.folio || 'sin folio'}?`)) {
+      return;
+    }
+    this.sgcF27Form.ordenes = (this.sgcF27Form.ordenes || []).filter((o) => o.id !== orden.id);
+    if (this.sgcF27OrdenActiva?.id === orden.id) {
+      this.volverArchiveroSgcF27();
+    }
+    this.onSgcF27Editado();
+  }
+
+  agregarPartidaSgcF27(): void {
+    if (!this.sgcF27OrdenActiva) {
+      return;
+    }
+    this.sgcF27OrdenActiva.partidas.push(this.crearPartidaSgcF27Vacia());
+    this.onSgcF27Editado();
+  }
+
+  /** Impide cantidades, precios, descuento e impuesto negativos. */
+  onSgcF27NumeroNoNegativo(
+    target: SgcF27Partida | SgcF27Orden,
+    campo: 'cantidad' | 'precioUnitario' | 'descuentoPct' | 'impuestoPct',
+    valor: unknown
+  ): void {
+    const n = this.aNumeroSgcF27(valor);
+    const limpio = n < 0 ? 0 : n;
+    (target as any)[campo] = limpio;
+    this.onSgcF27Editado();
+  }
+
+  quitarPartidaSgcF27(index: number): void {
+    if (!this.sgcF27OrdenActiva) {
+      return;
+    }
+    if (this.sgcF27OrdenActiva.partidas.length <= 1) {
+      this.sgcF27OrdenActiva.partidas.splice(0, 1, this.crearPartidaSgcF27Vacia());
+    } else {
+      this.sgcF27OrdenActiva.partidas.splice(index, 1);
+    }
+    this.onSgcF27Editado();
+  }
+
+  private cargarSgcF27DesdeServidor(): void {
+    this.sgcF27Cargando = true;
+    this.sgcF27Listo = false;
+    this.sgcF27Vista = 'archivero';
+    this.sgcF27OrdenActiva = null;
+    this.backendService.cargarSgcF27Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoSgcF27(res),
+        error: () => {
+          this.sgcF27Cargando = false;
+          this.sgcF27Listo = true;
+        }
+      });
+  }
+
+  private persistirSgcF27(): void {
+    if (!this.puedeGestionarPlantillasSgc) {
+      return;
+    }
+    if (!this.sgcF27Listo || this.sgcF27Guardando) {
+      return;
+    }
+    this.sincronizarOrdenActivaEnFormSgcF27();
+    this.sgcF27Guardando = true;
+    const editorAbierto = this.mostrarSgcF27Editor;
+    const activa = this.sgcF27OrdenActiva;
+    this.backendService.guardarSgcF27Formato(
+      { ...this.sgcF27Form, ordenActivaId: activa?.id || null },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF27Guardando = false;
+          this.aplicarEstadoSgcF27(res, editorAbierto, false, false);
+        },
+        error: () => {
+          this.sgcF27Guardando = false;
+        }
+      });
+  }
+
+  descargarPdfSgcF27(): void {
+    if (this.sgcF27DescargandoPdf) {
+      return;
+    }
+    this.sgcF27DescargandoPdf = true;
+    this.backendService.descargarPdfSgcF27()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.sgcF27DescargandoPdf = false;
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = 'SGC-F-27 Orden de compra.pdf';
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.sgcF27DescargandoPdf = false;
+        }
+      });
+  }
+
+  onSeleccionarPdfSgcF27(event: Event): void {
+    if (!this.sgcF27OrdenActiva) {
+      return;
+    }
+    const folio = this.sgcF27OrdenActiva.folio || 'sin-folio';
+    this.procesarPdfDocumento(
+      event,
+      `SGC-F-27 ${folio}.pdf`,
+      (base64, nombre) => this.subirPdfFirmadoSgcF27(base64, nombre)
+    );
+  }
+
+  private subirPdfFirmadoSgcF27(pdfBase64: string, nombreArchivo: string): void {
+    if (this.sgcF27SubiendoPdf || !this.sgcF27OrdenActiva) {
+      return;
+    }
+    this.sgcF27SubiendoPdf = true;
+    this.backendService.subirPdfFirmadoSgcF27(pdfBase64, nombreArchivo, this.sgcF27OrdenActiva.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF27SubiendoPdf = false;
+          this.aplicarEstadoSgcF27(res);
+          if (this.sgcF27OrdenActiva && res?.pdfFirmado) {
+            this.sgcF27OrdenActiva.pdfFirmado = this.sanitizarPdfSgcF27(res.pdfFirmado);
+            this.sincronizarOrdenActivaEnFormSgcF27();
+          }
+        },
+        error: () => {
+          this.sgcF27SubiendoPdf = false;
+        }
+      });
+  }
+
+  toggleSgcF27PdfViewer(): void {
+    const id = this.sgcF27OrdenActiva?.pdfFirmado?.driveFileId;
+    if (!id) {
+      return;
+    }
+    const abrir = !this.mostrarSgcF27PdfViewer;
+    this.mostrarSgcF27PdfViewer = abrir;
+    if (abrir) {
+      this.sgcF27PdfCargando = true;
+      const url = this.sgcF27OrdenActiva?.pdfFirmado?.previewUrl
+        || `https://drive.google.com/file/d/${id}/preview`;
+      this.sgcF27PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    this.sgcF27PdfEmbedUrlSafe = null;
+    this.sgcF27PdfCargando = false;
+  }
+
+  onSgcF27PdfIframeLoad(): void {
+    this.sgcF27PdfCargando = false;
+  }
+
+  toggleSgcF27Editor(): void {
+    if (!this.sgcF27DriveFileId) {
+      return;
+    }
+    const abrir = !this.mostrarSgcF27Editor;
+    this.mostrarSgcF27Editor = abrir;
+    if (abrir) {
+      this.sgcF27EditorIframeListo = false;
+      this.sgcF27EditorCargando = true;
+      // Relee el formato para reasignar permiso de enlace (evita el muro de login de Google).
+      this.backendService.cargarSgcF27Formato()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res: any) => {
+            const driveId = res?.driveFileId || this.sgcF27DriveFileId;
+            const editorUrl = res?.editorUrl
+              || this.resolverUrlEditorDrive(this.sgcF27EditorUrl, driveId);
+            if (driveId) {
+              this.sgcF27DriveFileId = driveId;
+            }
+            this.fijarEditorEmbedUrlSgcF27(editorUrl, true);
+          },
+          error: () => {
+            this.fijarEditorEmbedUrlSgcF27(
+              this.resolverUrlEditorDrive(this.sgcF27EditorUrl, this.sgcF27DriveFileId),
+              true
+            );
+          }
+        });
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+  }
+
+  onSgcF27IframeLoad(): void {
+    if (this.sgcF27EditorIframeListo) {
+      return;
+    }
+    this.sgcF27EditorIframeListo = true;
+    this.sgcF27EditorCargando = false;
+  }
+
+  actualizarPlantillaSgcF27(): void {
+    if (!this.puedeGestionarPlantillasSgc) {
+      return;
+    }
+    if (this.sgcF27ActualizandoPlantilla) {
+      return;
+    }
+    this.sgcF27ActualizandoPlantilla = true;
+    this.backendService.actualizarPlantillaSgcF27()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF27ActualizandoPlantilla = false;
+          this.aplicarEstadoSgcF27(res, false, false, true);
+        },
+        error: () => {
+          this.sgcF27ActualizandoPlantilla = false;
+        }
+      });
+  }
+
+  private sincronizarSgcF27DesdeDrive(): void {
+    if (this.sgcF27Guardando) {
+      return;
+    }
+    this.sgcF27Guardando = true;
+    this.backendService.sincronizarSgcF27DesdeDrive()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF27Guardando = false;
+          this.aplicarEstadoSgcF27(res, false, false);
+        },
+        error: () => {
+          this.sgcF27Guardando = false;
+        }
+      });
+  }
+
+  private fijarEditorEmbedUrlSgcF27(url: string | null, forzar = false): void {
+    if (!forzar && this.mostrarSgcF27Editor && this.sgcF27EditorEmbedUrlSafe && this.sgcF27EditorUrl === url) {
+      return;
+    }
+    if (!url) {
+      this.sgcF27EditorUrl = null;
+      this.sgcF27EditorEmbedUrlSafe = null;
+      return;
+    }
+    if (!forzar && this.sgcF27EditorUrl === url && this.sgcF27EditorEmbedUrlSafe) {
+      return;
+    }
+    this.sgcF27EditorUrl = url;
+    const embedUrl = this.urlIframeDriveSegunPermiso(url);
+    this.sgcF27EditorEmbedUrlSafe = embedUrl
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
+      : null;
+  }
+
+  private sincronizarOrdenActivaSgcF27(activoId: string | null, conservarEditorSiExiste: boolean): void {
+    if (!activoId) {
+      this.sgcF27OrdenActiva = null;
+      this.sgcF27Form.ordenActivaId = null;
+      if (!conservarEditorSiExiste) {
+        this.sgcF27Vista = 'archivero';
+      }
+      return;
+    }
+    const encontrada = (this.sgcF27Form.ordenes || []).find((o) => o.id === activoId) || null;
+    this.sgcF27OrdenActiva = encontrada;
+    this.sgcF27Form.ordenActivaId = encontrada?.id || null;
+    if (conservarEditorSiExiste && encontrada) {
+      this.sgcF27Vista = 'editor';
+    } else {
+      this.sgcF27Vista = 'archivero';
+      if (!encontrada) {
+        this.sgcF27OrdenActiva = null;
+        this.sgcF27Form.ordenActivaId = null;
+      } else if (!conservarEditorSiExiste) {
+        this.sgcF27OrdenActiva = null;
+        this.sgcF27Form.ordenActivaId = null;
+      }
+    }
+  }
+
+  private aplicarEstadoSgcF27(
+    res: any,
+    conservarEdicion = false,
+    sincronizacionSilenciosa = false,
+    forzarActualizacionDrive = false
+  ): void {
+    if (!res?.success) {
+      if (!sincronizacionSilenciosa) {
+        this.sgcF27Cargando = false;
+      }
+      this.sgcF27Listo = true;
+      return;
+    }
+
+    const editorAbierto = this.mostrarSgcF27Editor && !forzarActualizacionDrive;
+    const bloquearFormulario = editorAbierto || conservarEdicion;
+    const activoId = this.sgcF27OrdenActiva?.id || null;
+    const conservarEditor = this.sgcF27Vista === 'editor' && !!activoId;
+
+    if (!bloquearFormulario && res.datos) {
+      this.sgcF27IgnorarAutoSave = true;
+      this.sgcF27Listo = false;
+      this.sgcF27Form = this.normalizarSgcF27Form(res.datos);
+      this.sincronizarOrdenActivaSgcF27(activoId, conservarEditor);
+    } else if (!editorAbierto && !conservarEdicion) {
+      this.sgcF27IgnorarAutoSave = true;
+      this.sgcF27Listo = false;
+    }
+
+    const nuevoDriveId = res.driveFileId || null;
+    if (forzarActualizacionDrive || !editorAbierto) {
+      if (nuevoDriveId) {
+        this.sgcF27DriveFileId = nuevoDriveId;
+      }
+      if (res.editorUrl && (forzarActualizacionDrive || !this.mostrarSgcF27Editor)) {
+        this.fijarEditorEmbedUrlSgcF27(res.editorUrl, forzarActualizacionDrive);
+      }
+    }
+
+    this.sgcF27UltimaSync = res.ultimaSyncDrive || null;
+    this.sgcF27ContenidoModificado = !!res.contenidoModificado;
+
+    window.setTimeout(() => {
+      this.sgcF27IgnorarAutoSave = false;
+      this.sgcF27Listo = true;
+      if (!bloquearFormulario) {
+        this.sgcF27CambiosPendientes = false;
+      }
+      if (!sincronizacionSilenciosa) {
+        this.sgcF27Cargando = false;
       }
     }, editorAbierto ? 0 : 350);
   }
@@ -15448,6 +16203,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleSgcF24Editor();
       return;
     }
+    if (this.plantillaSlug === 'sgc-f-27') {
+      this.toggleSgcF27Editor();
+      return;
+    }
     if (this.plantillaSlug === 'sgc-f-29') {
       this.toggleSgcF29Editor();
       return;
@@ -15555,6 +16314,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-24') {
       this.actualizarPlantillaSgcF24();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-27') {
+      this.actualizarPlantillaSgcF27();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-29') {
