@@ -808,10 +808,7 @@
                     <div class="sgc-avance-panel__header">
                       <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
                       <div>
-                        <span class="sgc-avance-panel__title">Distribución por estatus</span>
-                        <span class="sgc-avance-panel__sub">
-                          {{ hayProyectoAvanceSeleccionado ? 'Solo actividades con porcentaje de avance' : 'Solo proyectos con porcentaje de avance' }}
-                        </span>
+                        <span class="sgc-avance-panel__title">Estatus de Proyectos</span>
                       </div>
                     </div>
                     <div class="sgc-avance-donut-inner">
@@ -921,9 +918,6 @@
                         <span class="sgc-avance-panel__title" *ngIf="!esModoClasificacionAud">Nivel de eficacia</span>
                         <span class="sgc-avance-panel__title" *ngIf="esModoClasificacionAud">
                           Auditoría No. {{ auditoriaSeleccionada?.auditoriaNo }}
-                        </span>
-                        <span class="sgc-avance-panel__sub" *ngIf="!esModoClasificacionAud">
-                          Eficacia por NC · 0–2 alto · 3–4 medio · ≥5 bajo
                         </span>
                         <span class="sgc-avance-panel__sub" *ngIf="esModoClasificacionAud">
                           Hallazgos · OP / NC menor / NC mayor

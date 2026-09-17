@@ -1,4 +1,4 @@
-<div class="ct">
+<div class="ct ct--enter">
   <header class="ct__bar">
     <div class="ct__bar-main">
       <span class="ct__chip">SP-F-28</span>
@@ -110,15 +110,9 @@
             <i class="fas" [ngClass]="estaExpandida(claveRaiz) ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
           </button>
           <div class="ct__files-chips" *ngIf="estaExpandida(claveRaiz)">
-            <button type="button" class="ct__chip-file"
-                    *ngFor="let doc of archivosRaiz; trackBy: trackByArchivoId"
-                    [class.is-active]="archivoSeleccionado?.id === doc.id"
-                    (click)="seleccionarArchivo(doc)"
-                    [title]="doc.nombreArchivo">
-              <i class="fas" [ngClass]="iconoTipo(doc.mimeType, doc.nombreArchivo)"></i>
-              <span>{{ doc.nombreArchivo }}</span>
-              <small>{{ etiquetaTipo(doc.mimeType, doc.nombreArchivo) }}</small>
-            </button>
+            <ng-container *ngFor="let doc of archivosRaiz; trackBy: trackByArchivoId">
+              <ng-container *ngTemplateOutlet="chipArchivo; context: { $implicit: doc }"></ng-container>
+            </ng-container>
           </div>
         </div>
       </div>
@@ -139,6 +133,23 @@
               · {{ formatearTamano(archivoSeleccionado.tamanoBytes) }}
               · {{ etiquetaCarpeta(archivoSeleccionado) }}
             </span>
+          </div>
+          <div class="ct__preview-actions">
+            <button type="button"
+                    class="ct__preview-action"
+                    title="Abrir visor integrado"
+                    (click)="abrirVisorIntegrado(archivoSeleccionado)">
+              <i class="fas fa-expand" aria-hidden="true"></i>
+              <span>Abrir</span>
+            </button>
+            <button type="button"
+                    class="ct__preview-action"
+                    title="Descargar archivo"
+                    [disabled]="descargandoArchivo"
+                    (click)="descargarArchivo(archivoSeleccionado)">
+              <i class="fas" [ngClass]="descargandoArchivo ? 'fa-spinner fa-spin' : 'fa-download'" aria-hidden="true"></i>
+              <span>Descargar</span>
+            </button>
           </div>
         </div>
 
@@ -195,35 +206,79 @@
     </div>
   </ng-container>
 
-  <button type="button" class="ct__chip-file"
-          *ngFor="let doc of archivosEn(rutaPadre); trackBy: trackByArchivoId"
-          [class.is-active]="archivoSeleccionado?.id === doc.id"
-          (click)="seleccionarArchivo(doc)"
-          [title]="doc.nombreArchivo">
-    <i class="fas" [ngClass]="iconoTipo(doc.mimeType, doc.nombreArchivo)"></i>
-    <span>{{ doc.nombreArchivo }}</span>
-    <small>{{ etiquetaTipo(doc.mimeType, doc.nombreArchivo) }}</small>
-  </button>
+  <ng-container *ngFor="let doc of archivosEn(rutaPadre); trackBy: trackByArchivoId">
+    <ng-container *ngTemplateOutlet="chipArchivo; context: { $implicit: doc }"></ng-container>
+  </ng-container>
 </ng-template>
 
-<div class="ct__full" *ngIf="visorExpandido && previewUrl" (click)="toggleVisorExpandido()">
-  <div class="ct__full-inner" (click)="$event.stopPropagation()">
-    <header class="ct__full-head">
-      <span class="ct__full-icon"><i class="fas" [ngClass]="iconoTipo(archivoSeleccionado?.mimeType, archivoSeleccionado?.nombreArchivo || '')"></i></span>
-      <div>
-        <strong>{{ archivoSeleccionado?.nombreArchivo }}</strong>
-        <small>{{ tituloAmbito }} · {{ formatearTamano(archivoSeleccionado?.tamanoBytes) }}</small>
-      </div>
-      <button type="button" class="ct__full-drive" (click)="abrirEnDrive()">
-        <i class="fas fa-external-link-alt"></i> Abrir en Drive
+<ng-template #chipArchivo let-doc>
+  <div class="ct__chip-file"
+       role="button"
+       tabindex="0"
+       [class.is-active]="archivoSeleccionado?.id === doc.id"
+       (click)="seleccionarArchivo(doc)"
+       (keydown.enter)="seleccionarArchivo(doc)"
+       (keydown.space)="$event.preventDefault(); seleccionarArchivo(doc)"
+       [attr.title]="doc.nombreArchivo"
+       [attr.aria-label]="doc.nombreArchivo">
+    <i class="fas ct__chip-file__ico" [ngClass]="iconoTipo(doc.mimeType, doc.nombreArchivo)" aria-hidden="true"></i>
+    <span class="ct__chip-file__name">{{ doc.nombreArchivo }}</span>
+    <small class="ct__chip-file__tipo">{{ etiquetaTipo(doc.mimeType, doc.nombreArchivo) }}</small>
+    <div class="ct__chip-file__actions" (click)="$event.stopPropagation()">
+      <button type="button"
+              title="Abrir visor integrado"
+              aria-label="Abrir visor integrado"
+              (click)="abrirVisorIntegrado(doc, $event)">
+        <i class="fas fa-expand" aria-hidden="true"></i>
       </button>
-      <button type="button" class="ct__full-close" (click)="toggleVisorExpandido()" aria-label="Cerrar">
-        <i class="fas fa-times"></i> <span>Cerrar</span>
+      <button type="button"
+              title="Descargar archivo"
+              aria-label="Descargar archivo"
+              [disabled]="descargandoArchivo"
+              (click)="descargarArchivo(doc, $event)">
+        <i class="fas fa-download" aria-hidden="true"></i>
       </button>
-    </header>
-    <div class="ct__full-stage">
-      <img *ngIf="esImagenPreview" [src]="previewUrl | safe" alt="">
-      <iframe *ngIf="!esImagenPreview" [src]="previewUrl | safe" title="Vista ampliada"></iframe>
     </div>
   </div>
+</ng-template>
+
+<div #visorIntegrado class="ct-viewer" *ngIf="visorExpandido" role="dialog" aria-modal="true"
+     [attr.aria-label]="'Vista de ' + (archivoSeleccionado?.nombreArchivo || 'documento')">
+  <div class="ct-viewer__backdrop" (click)="cerrarVisorIntegrado()"></div>
+  <section class="ct-viewer__panel">
+    <header class="ct-viewer__head">
+      <span class="ct-viewer__icon">
+        <i class="fas fa-file-alt" aria-hidden="true"></i>
+      </span>
+      <div class="ct-viewer__titles">
+        <strong>Visor integrado de documento</strong>
+        <small [title]="archivoSeleccionado?.nombreArchivo">{{ archivoSeleccionado?.nombreArchivo }}</small>
+      </div>
+      <button type="button" class="ct-viewer__download"
+              (click)="descargarArchivo(archivoSeleccionado)"
+              [disabled]="!archivoSeleccionado || descargandoArchivo">
+        <i class="fas" [ngClass]="descargandoArchivo ? 'fa-spinner fa-spin' : 'fa-download'" aria-hidden="true"></i>
+        <span>Descargar</span>
+      </button>
+      <button type="button" class="ct-viewer__close" (click)="cerrarVisorIntegrado()" aria-label="Volver al formulario">
+        <i class="fas fa-times" aria-hidden="true"></i>
+        <span>Volver al formulario</span>
+      </button>
+    </header>
+    <div class="ct-viewer__body">
+      <div class="ct-viewer__state" *ngIf="previewCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando documento…</span>
+      </div>
+      <img *ngIf="!previewCargando && previewUrl && esImagenPreview"
+           [src]="previewUrl | safe" [alt]="archivoSeleccionado?.nombreArchivo || 'documento'">
+      <iframe *ngIf="!previewCargando && previewUrl && !esImagenPreview"
+              [src]="previewUrl | safe" [title]="archivoSeleccionado?.nombreArchivo || 'Vista ampliada'"></iframe>
+      <div class="ct-viewer__state" *ngIf="!previewCargando && !previewUrl">
+        <i class="fas fa-file-alt" aria-hidden="true"></i>
+        <strong>Vista previa no disponible</strong>
+        <span>{{ previewError || 'Puedes descargar el archivo para revisarlo.' }}</span>
+      </div>
+    </div>
+  </section>
 </div>

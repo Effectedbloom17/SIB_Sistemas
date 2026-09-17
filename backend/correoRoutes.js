@@ -3,6 +3,7 @@ const path = require('path');
 const correoImapService = require('./correoImapService');
 const correoFirmaService = require('./correoFirmaService');
 const correoAdjuntosService = require('./correoAdjuntosService');
+const correoDriveAdjuntosService = require('./correoDriveAdjuntosService');
 
 const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || 'Biznaga Risk&Tech';
 const EMAIL_FROM_ADDRESS = process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USER || '';
@@ -15,6 +16,8 @@ const CORREO_LIMITE_MENSAJE_MB_BREVO = Math.max(
     CORREO_LIMITE_MENSAJE_MB_CPANEL,
     Number(process.env.CORREO_LIMITE_MENSAJE_MB_BREVO || 28)
 );
+// Archivos individuales mayores a este umbral (MB reales) van a Google Drive.
+const CORREO_DRIVE_UMBRAL_MB = Math.max(1, Number(process.env.CORREO_DRIVE_UMBRAL_MB || 25));
 
 module.exports = function createCorreoRoutes(deps) {
     const {
@@ -242,46 +245,42 @@ module.exports = function createCorreoRoutes(deps) {
             return '';
         }
 
-        const fechaTexto = escaparHtmlCorreo(
-            paquete.fechaExpiracionTexto
-            || correoAdjuntosService.formatearFechaLargaEs(paquete.expiresAt)
-        );
         const archivos = paquete.archivos;
-        const urlZip = escaparHtmlCorreo(paquete.urlZip || '');
         const totalArchivos = archivos.length;
         const etiquetaArchivos = totalArchivos === 1 ? '1 documento' : `${totalArchivos} documentos`;
 
         const items = archivos.map((item, index) => {
             const nombre = escaparHtmlCorreo(item.nombre || 'Archivo');
-            const url = escaparHtmlCorreo(item.url || paquete.url || '#');
+            const url = escaparHtmlCorreo(item.url || '#');
             const tamano = escaparHtmlCorreo(
                 item.tamanoTexto
+                || correoDriveAdjuntosService.formatearTamanoHumano(item.tamanoBytes)
                 || correoAdjuntosService.formatearTamanoHumano(item.tamanoBytes)
             );
             const ext = escaparHtmlCorreo(extensionArchivoCorreo(item.nombre || ''));
             const bordeInferior = index < archivos.length - 1 ? 'border-bottom:1px solid #e7eee9;' : '';
 
             return `
-              <tr>
-                <td style="padding:16px 20px;${bordeInferior}">
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
-                    <tr>
-                      <td width="48" valign="middle" style="padding-right:14px;">
-                        <div style="width:44px;height:52px;background:#f4f7f5;border:1px solid #d8e3dc;border-radius:8px;text-align:center;line-height:52px;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#1f6b4a;letter-spacing:0.4px;">
+              <tr style="height:auto;">
+                <td style="height:auto;padding:10px 12px;${bordeInferior};vertical-align:middle;font-family:Arial,Helvetica,sans-serif;">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;height:auto;table-layout:fixed;">
+                    <tr style="height:auto;">
+                      <td width="40" valign="middle" style="width:40px;height:auto;padding:0 10px 0 0;vertical-align:middle;">
+                        <div style="width:36px;height:40px;line-height:40px;background:#f4f7f5;border:1px solid #d8e3dc;border-radius:6px;text-align:center;font-size:10px;font-weight:700;color:#1f6b4a;letter-spacing:0.3px;">
                           ${ext}
                         </div>
                       </td>
-                      <td valign="middle" style="font-family:Arial,Helvetica,sans-serif;">
-                        <div style="font-size:15px;font-weight:700;color:#14261f;line-height:1.35;word-break:break-word;">
+                      <td valign="middle" style="height:auto;padding:0;vertical-align:middle;overflow:hidden;">
+                        <div style="font-size:13px;font-weight:700;color:#14261f;line-height:1.3;word-break:break-word;">
                           ${nombre}
                         </div>
-                        <div style="margin-top:4px;font-size:12px;color:#6a7a72;">
-                          ${tamano} · Descarga segura
+                        <div style="margin-top:2px;font-size:11px;color:#6a7a72;line-height:1.3;">
+                          ${tamano} · Google Drive
                         </div>
                       </td>
-                      <td width="132" valign="middle" align="right" style="padding-left:12px;white-space:nowrap;">
-                        <a href="${url}" target="_blank" style="display:inline-block;padding:11px 18px;background:#1f6b4a;color:#ffffff;text-decoration:none;border-radius:8px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.2px;border:1px solid #164f37;">
-                          Descargar
+                      <td width="118" valign="middle" align="right" style="width:118px;height:auto;padding:0 0 0 8px;vertical-align:middle;white-space:nowrap;">
+                        <a href="${url}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:8px 12px;background:#1f6b4a;color:#ffffff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:700;line-height:1.2;border:1px solid #164f37;">
+                          Abrir en Drive
                         </a>
                       </td>
                     </tr>
@@ -290,81 +289,34 @@ module.exports = function createCorreoRoutes(deps) {
               </tr>`;
         }).join('');
 
-        const filaZip = archivos.length > 1 && urlZip
-            ? `
-              <tr>
-                <td style="padding:0 20px 18px 20px;">
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f7faf8;border:1px solid #dce7e1;border-radius:10px;">
-                    <tr>
-                      <td style="padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#345246;">
-                        ¿Prefiere bajarlos juntos?
-                      </td>
-                      <td align="right" style="padding:14px 16px;white-space:nowrap;">
-                        <a href="${urlZip}" target="_blank" style="display:inline-block;padding:10px 16px;background:#164f37;color:#ffffff;text-decoration:none;border-radius:8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;">
-                          Descargar todo (.zip)
-                        </a>
-                      </td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>`
-            : '';
-
         return `
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:22px 0;border-collapse:collapse;max-width:640px;">
-            <tr>
-              <td style="background:#ffffff;border:1px solid #d5e0d9;border-radius:14px;overflow:hidden;">
-                <!-- Header -->
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
-                  <tr>
-                    <td style="padding:18px 20px 14px 20px;background:#16382b;border-radius:14px 14px 0 0;">
-                      <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#9bc4af;font-weight:700;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" data-biznaga-drive="1" style="margin:14px 0;border-collapse:collapse;max-width:520px;width:100%;height:auto;">
+            <tr style="height:auto;">
+              <td style="height:auto;padding:0;background:#ffffff;border:1px solid #d5e0d9;border-radius:10px;vertical-align:top;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;height:auto;">
+                  <tr style="height:auto;">
+                    <td style="height:auto;padding:10px 12px;background:#16382b;border-radius:10px 10px 0 0;vertical-align:top;font-family:Arial,Helvetica,sans-serif;">
+                      <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#9bc4af;font-weight:700;line-height:1.2;">
                         Biznaga · Documentos
                       </div>
-                      <div style="margin-top:6px;font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:700;color:#ffffff;line-height:1.3;">
-                        Archivos listos para descarga
+                      <div style="margin-top:3px;font-size:14px;font-weight:700;color:#ffffff;line-height:1.25;">
+                        Archivos disponibles en Google Drive
                       </div>
-                      <div style="margin-top:6px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#c5ddd1;">
-                        ${escaparHtmlCorreo(etiquetaArchivos)} disponibles en este correo
+                      <div style="margin-top:2px;font-size:11px;color:#c5ddd1;line-height:1.3;">
+                        ${escaparHtmlCorreo(etiquetaArchivos)} compartidos en este correo
                       </div>
                     </td>
                   </tr>
-                </table>
-
-                <!-- Aviso -->
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
-                  <tr>
-                    <td style="padding:14px 20px;background:#f3f8f5;border-bottom:1px solid #e2ebe6;">
-                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
-                        <tr>
-                          <td width="28" valign="top" style="padding-right:10px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1f6b4a;font-weight:700;">
-                            i
-                          </td>
-                          <td style="font-family:Arial,Helvetica,sans-serif;font-size:12.5px;line-height:1.55;color:#3d5448;">
-                            <strong style="color:#1f6b4a;">Aviso:</strong>
-                            los documentos compartidos mediante este correo estarán disponibles para descarga hasta el
-                            <strong style="color:#16382b;">${fechaTexto}</strong>.
-                            Una vez transcurrida esa fecha, los enlaces dejarán de estar disponibles.
-                          </td>
-                        </tr>
-                      </table>
+                  <tr style="height:auto;">
+                    <td style="height:auto;padding:8px 12px;background:#f3f8f5;border-bottom:1px solid #e2ebe6;vertical-align:top;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.4;color:#3d5448;">
+                      <strong style="color:#1f6b4a;">Aviso:</strong>
+                      archivos grandes en Google Drive. Pulsa <strong style="color:#16382b;">Abrir en Drive</strong> para verlos o descargarlos.
                     </td>
                   </tr>
-                </table>
-
-                <!-- Archivos -->
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
                   ${items}
-                </table>
-
-                ${filaZip}
-
-                <!-- Footer bloque -->
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
-                  <tr>
-                    <td style="padding:12px 20px 16px 20px;border-top:1px solid #e7eee9;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.5;color:#7a8a82;">
-                      Al pulsar <strong style="color:#4b5d54;">Descargar</strong> el archivo se obtiene de forma directa.
-                      No requiere cuenta de Google ni contraseña.
+                  <tr style="height:auto;">
+                    <td style="height:auto;padding:8px 12px 10px 12px;border-top:1px solid #e7eee9;vertical-align:top;font-family:Arial,Helvetica,sans-serif;font-size:10px;line-height:1.4;color:#7a8a82;">
+                      Al abrir el enlace puedes previsualizar o descargar el archivo en Google Drive.
                     </td>
                   </tr>
                 </table>
@@ -379,31 +331,29 @@ module.exports = function createCorreoRoutes(deps) {
             return '';
         }
 
-        const fechaTexto = paquete.fechaExpiracionTexto
-            || correoAdjuntosService.formatearFechaLargaEs(paquete.expiresAt);
         const lineas = paquete.archivos.map((item) => {
             const tamano = item.tamanoTexto
+                || correoDriveAdjuntosService.formatearTamanoHumano(item.tamanoBytes)
                 || correoAdjuntosService.formatearTamanoHumano(item.tamanoBytes);
             return `- ${item.nombre || 'Archivo'} (${tamano}): ${item.url || ''}`;
         });
 
         return [
             '',
-            `Aviso: los documentos compartidos mediante este correo estarán disponibles para descarga hasta el ${fechaTexto}. Una vez transcurrida esa fecha, los enlaces dejarán de estar disponibles.`,
+            'Aviso: los archivos grandes se guardaron en Google Drive. Abre el enlace para verlos o descargarlos.',
             '',
-            paquete.urlZip ? `Descargar todo (.zip): ${paquete.urlZip}` : null,
-            'Archivos:',
+            'Archivos en Google Drive:',
             ...lineas,
             ''
-        ].filter((x) => x !== null).join('\n');
+        ].join('\n');
     }
 
-    async function guardarAdjuntosGrandesLocal(adjuntosGrandes = [], correoPerfil = '', destinatarios = '') {
+    async function guardarAdjuntosGrandesDrive(adjuntosGrandes = [], correoPerfil = '', destinatarios = '') {
         if (!Array.isArray(adjuntosGrandes) || adjuntosGrandes.length === 0) {
             return null;
         }
 
-        return correoAdjuntosService.guardarPaqueteAdjuntos(
+        return correoDriveAdjuntosService.guardarPaqueteAdjuntosDrive(
             adjuntosGrandes.map((adjunto) => ({
                 content: adjunto.content,
                 filename: adjunto.filename,
@@ -417,8 +367,8 @@ module.exports = function createCorreoRoutes(deps) {
     }
 
     /**
-     * Si el MIME estimado supera el límite SMTP, guarda los adjuntos más grandes
-     * en el servidor y deja enlaces de descarga directa en el cuerpo del correo.
+     * Archivos > CORREO_DRIVE_UMBRAL_MB (default 25 MB) → Google Drive.
+     * Además, si el MIME restante supera el límite SMTP, se mueven los más grandes a Drive.
      */
     async function resolverAdjuntosGrandes(attachments = [], correoPerfil = '', destinatarios = '') {
         const adjuntos = Array.isArray(attachments) ? [...attachments] : [];
@@ -439,9 +389,20 @@ module.exports = function createCorreoRoutes(deps) {
 
         const limiteBytes = obtenerLimiteMensajeBytes();
         const limiteMb = Math.round(limiteBytes / (1024 * 1024));
+        const umbralDriveBytes = Math.round(CORREO_DRIVE_UMBRAL_MB * 1024 * 1024);
         const paraEnlace = [];
-        const inline = [...ordenados];
+        const inline = [];
 
+        for (const adjunto of ordenados) {
+            const tamano = Buffer.isBuffer(adjunto.content) ? adjunto.content.length : 0;
+            if (tamano > umbralDriveBytes) {
+                paraEnlace.push(adjunto);
+            } else {
+                inline.push(adjunto);
+            }
+        }
+
+        // Seguridad: si aún se pasa el tope SMTP (Brevo/cPanel), mover los más grandes a Drive.
         while (inline.length > 0 && estimarBytesMimeAdjuntos(inline) > limiteBytes) {
             paraEnlace.push(inline.shift());
         }
@@ -456,22 +417,19 @@ module.exports = function createCorreoRoutes(deps) {
             };
         }
 
+        const carpetaRaiz = correoDriveAdjuntosService.obtenerCarpetaRaizCorreoDrive();
         console.log(
-            `[CORREO] Adjuntos grandes → enlace de descarga | ${paraEnlace.length} archivo(s) | límite ${limiteMb} MB | base=${correoAdjuntosService.PUBLIC_BASE_URL} | ${correoPerfil || '?'}`
+            `[CORREO] Adjuntos grandes → Google Drive | ${paraEnlace.length} archivo(s) | umbralDrive=${CORREO_DRIVE_UMBRAL_MB} MB | límiteSMTP=${limiteMb} MB | carpeta=${carpetaRaiz} | ${correoPerfil || '?'}`
         );
-        if (correoAdjuntosService.esUrlPublicaLocal()) {
-            console.warn(
-                '[CORREO] PUBLIC_API_URL apunta a localhost: destinatarios externos no podrán descargar. En producción use https://api.sistema.biznaga.com.mx'
-            );
-        }
 
-        const paquete = await guardarAdjuntosGrandesLocal(paraEnlace, correoPerfil, destinatarios);
+        const paquete = await guardarAdjuntosGrandesDrive(paraEnlace, correoPerfil, destinatarios);
         const enlacesDescarga = (paquete?.archivos || []).map((archivo) => ({
             nombre: archivo.nombre,
             url: archivo.url,
             tamanoBytes: archivo.tamanoBytes,
-            expiresAt: paquete.expiresAt,
-            fechaExpiracionTexto: paquete.fechaExpiracionTexto
+            fileId: archivo.fileId || null,
+            carpetaId: archivo.carpetaId || null,
+            carpetaUrl: archivo.carpetaUrl || null
         }));
 
         return {
@@ -1221,7 +1179,7 @@ module.exports = function createCorreoRoutes(deps) {
                 console.error(`[CORREO] Error preparando adjuntos grandes: ${detalle}`);
                 return res.status(502).json({
                     success: false,
-                    message: `No se pudieron preparar los archivos grandes para envío: ${detalle}`
+                    message: `No se pudieron guardar los archivos grandes en Google Drive: ${detalle}`
                 });
             }
 
@@ -1293,13 +1251,19 @@ module.exports = function createCorreoRoutes(deps) {
             };
 
             // Preferir el relay global (Brevo u otro SMTP configurado).
-            // Los archivos que superen el límite seguro van como enlace de descarga directa.
+            // Los archivos que superen el umbral van como enlace de Google Drive.
             if (emailService.isEnabled()) {
                 resultadoEnvio = await enviarViaSmtpGlobal(payloadEnvio);
                 intentos.push({ origen: usarBrevoParaEnvio ? 'brevo' : 'sistema', ...resultadoEnvio });
                 if (resultadoEnvio.success) {
                     origenEnvio = usarBrevoParaEnvio ? 'brevo' : 'sistema';
+                } else {
+                    console.warn(
+                        `[CORREO] SMTP global falló (${usarBrevoParaEnvio ? 'brevo' : 'sistema'}): ${resultadoEnvio.error || 'sin detalle'}. Reintentando por perfil...`
+                    );
                 }
+            } else {
+                console.warn('[CORREO] SMTP global deshabilitado; enviando por SMTP del buzón (perfil).');
             }
 
             if (!resultadoEnvio?.success) {
@@ -1314,6 +1278,12 @@ module.exports = function createCorreoRoutes(deps) {
                     origenEnvio = 'perfil';
                 } else if (!resultadoEnvio) {
                     resultadoEnvio = resultadoPerfil;
+                } else {
+                    // Conservar el error más útil (perfil suele ser el último intento real).
+                    resultadoEnvio = {
+                        ...resultadoEnvio,
+                        error: resultadoPerfil.error || resultadoEnvio.error
+                    };
                 }
             }
 
@@ -1327,7 +1297,7 @@ module.exports = function createCorreoRoutes(deps) {
 
                 const errorTamano = intentos.find((item) => esErrorTamanoCorreo(item.error));
                 const errorFinal = errorTamano
-                    ? `El correo supera el límite del servidor de correo (~20 MB). Intente de nuevo: los archivos grandes se enviarán automáticamente como enlace de descarga directa.`
+                    ? `El correo supera el límite del servidor de correo (~20 MB). Intente de nuevo: los archivos grandes se enviarán automáticamente como enlace de Google Drive.`
                     : (resultadoEnvio?.error || 'No se pudo enviar el correo');
                 const ms = Date.now() - inicioEnvio;
                 console.error(`[CORREO] ENVIAR ERROR | ${correoPerfil} → ${destinatario} | "${asunto}" | ${errorTamano?.error || errorFinal} | ${ms}ms`);
@@ -1339,19 +1309,14 @@ module.exports = function createCorreoRoutes(deps) {
 
             const ms = Date.now() - inicioEnvio;
             const infoEnlaces = enlacesDescarga.length
-                ? ` | downloadLinks=${enlacesDescarga.length}`
+                ? ` | driveLinks=${enlacesDescarga.length}`
                 : '';
             console.log(`[CORREO] ENVIAR OK | ${correoPerfil} → ${destinatario} | "${asunto}" | ${origenEnvio || 'sistema'}${infoEnlaces} | ${ms}ms`);
-
-            const fechaExpiracionTexto = paqueteDescarga?.fechaExpiracionTexto
-                || (paqueteDescarga?.expiresAt
-                    ? correoAdjuntosService.formatearFechaLargaEs(paqueteDescarga.expiresAt)
-                    : null);
 
             const respuestaOk = {
                 success: true,
                 message: enlacesDescarga.length
-                    ? `Correo enviado correctamente. ${enlacesDescarga.length} archivo(s) grande(s) se enviaron como enlace de descarga directa${fechaExpiracionTexto ? ` (hasta el ${fechaExpiracionTexto})` : ''}.`
+                    ? `Correo enviado correctamente. ${enlacesDescarga.length} archivo(s) grande(s) se guardaron en Google Drive y se enviaron como enlace.`
                     : 'Correo enviado correctamente',
                 enviadoDesde: correoPerfil,
                 origen: origenEnvio || 'sistema',
@@ -1360,22 +1325,21 @@ module.exports = function createCorreoRoutes(deps) {
                     nombre: item.nombre,
                     url: item.url,
                     tamanoBytes: item.tamanoBytes,
-                    expiresAt: item.expiresAt || paqueteDescarga?.expiresAt || null,
-                    fechaExpiracionTexto: item.fechaExpiracionTexto || fechaExpiracionTexto
+                    fileId: item.fileId || null,
+                    carpetaId: item.carpetaId || null,
+                    carpetaUrl: item.carpetaUrl || null
                 })),
-                adjuntosTtlDias: correoAdjuntosService.TTL_DIAS,
-                adjuntosExpiresAt: paqueteDescarga?.expiresAt || null,
-                adjuntosFechaExpiracionTexto: fechaExpiracionTexto,
-                adjuntosUrlPaquete: paqueteDescarga?.url || null,
-                adjuntosUrlZip: paqueteDescarga?.urlZip || null,
-                adjuntosUrlLocal: correoAdjuntosService.esUrlPublicaLocal(),
-                adjuntosPublicBaseUrl: correoAdjuntosService.PUBLIC_BASE_URL,
-                // Compatibilidad con clientes que aún lean la clave anterior.
                 adjuntosViaDrive: enlacesDescarga.map((item) => ({
                     nombre: item.nombre,
                     url: item.url,
-                    tamanoBytes: item.tamanoBytes
-                }))
+                    tamanoBytes: item.tamanoBytes,
+                    fileId: item.fileId || null,
+                    carpetaId: item.carpetaId || null,
+                    carpetaUrl: item.carpetaUrl || null
+                })),
+                adjuntosDriveCarpetaRaizId: paqueteDescarga?.carpetaRaizId || correoDriveAdjuntosService.obtenerCarpetaRaizCorreoDrive(),
+                adjuntosDriveCarpetaRaizUrl: paqueteDescarga?.carpetaRaizUrl || null,
+                adjuntosProveedor: enlacesDescarga.length ? 'google-drive' : null
             };
 
             if (origenEnvio === 'perfil') {

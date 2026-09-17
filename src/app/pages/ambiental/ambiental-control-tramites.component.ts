@@ -1,6 +1,7 @@
-import { Component, EventEmitter, HostListener, Input, OnChanges, OnDestroy, OnInit, Output, SimpleChanges } from '@angular/core';
+import { Component, ElementRef, EventEmitter, HostListener, Input, OnChanges, OnDestroy, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { Subject, forkJoin, of } from 'rxjs';
 import { catchError, takeUntil } from 'rxjs/operators';
+import Swal from 'sweetalert2';
 import { BackendServices } from 'src/app/services/backend.services';
 
 export interface CtTramite {
@@ -55,6 +56,7 @@ export class AmbientalControlTramitesComponent implements OnInit, OnChanges, OnD
   @Input() tramiteInicialId: number | null = null;
   @Input() ambitoInicial: CtAmbito = 'documento';
   @Output() editarTramite = new EventEmitter<CtTramite>();
+  @ViewChild('visorIntegrado') private visorIntegradoRef?: ElementRef<HTMLElement>;
 
   tramites: CtTramite[] = [];
   tramitesFiltrados: CtTramite[] = [];
@@ -74,6 +76,7 @@ export class AmbientalControlTramitesComponent implements OnInit, OnChanges, OnD
   previewError: string | null = null;
   previewComoEmbed = false;
   visorExpandido = false;
+  descargandoArchivo = false;
 
   carpetasExpandidas = new Set<string>(['__raiz__']);
   readonly claveRaiz = '__raiz__';
@@ -81,6 +84,7 @@ export class AmbientalControlTramitesComponent implements OnInit, OnChanges, OnD
   pagina = 1;
 
   private readonly destroy$ = new Subject<void>();
+  private visorHostOriginal: HTMLElement | null = null;
 
   constructor(private backend: BackendServices) {}
 
@@ -97,13 +101,19 @@ export class AmbientalControlTramitesComponent implements OnInit, OnChanges, OnD
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    const el = this.visorIntegradoRef?.nativeElement;
+    if (el?.parentElement === document.body) {
+      el.remove();
+    }
+    this.visorHostOriginal = null;
+    this.visorExpandido = false;
     document.body.style.overflow = '';
   }
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
     if (this.visorExpandido) {
-      this.toggleVisorExpandido();
+      this.cerrarVisorIntegrado();
     }
   }
 
@@ -197,9 +207,73 @@ export class AmbientalControlTramitesComponent implements OnInit, OnChanges, OnD
     this.previewComoEmbed = false;
     this.cargarPreview(archivo);
     if (ampliar) {
-      this.visorExpandido = true;
-      document.body.style.overflow = 'hidden';
+      this.abrirVisorIntegrado(archivo);
     }
+  }
+
+  abrirVisorIntegrado(archivo?: CtArchivo | null, event?: Event): void {
+    event?.stopPropagation();
+    const doc = archivo || this.archivoSeleccionado;
+    if (!doc) return;
+    if (this.archivoSeleccionado?.id !== doc.id) {
+      this.archivoSeleccionado = doc;
+      this.previewComoEmbed = false;
+      this.cargarPreview(doc);
+    }
+    this.visorExpandido = true;
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => this.anclarVisorAlBody(), 0);
+  }
+
+  cerrarVisorIntegrado(): void {
+    if (!this.visorExpandido) return;
+    this.restaurarVisorEnHost();
+    this.visorExpandido = false;
+    document.body.style.overflow = '';
+  }
+
+  private anclarVisorAlBody(): void {
+    const el = this.visorIntegradoRef?.nativeElement;
+    if (!el || el.parentElement === document.body) return;
+    this.visorHostOriginal = el.parentElement;
+    document.body.appendChild(el);
+  }
+
+  private restaurarVisorEnHost(): void {
+    const el = this.visorIntegradoRef?.nativeElement;
+    if (el && this.visorHostOriginal && el.parentElement === document.body) {
+      this.visorHostOriginal.appendChild(el);
+    }
+    this.visorHostOriginal = null;
+  }
+
+  descargarArchivo(archivo?: CtArchivo | null, event?: Event): void {
+    event?.stopPropagation();
+    const doc = archivo || this.archivoSeleccionado;
+    if (!doc || !this.tramiteSeleccionado || this.descargandoArchivo) return;
+    this.descargandoArchivo = true;
+    this.backend.descargarAmbientalTramiteArchivo(this.tramiteSeleccionado.tramite_id, doc.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.descargandoArchivo = false;
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = doc.nombreArchivo || 'documento';
+          a.click();
+          URL.revokeObjectURL(url);
+        },
+        error: async (err) => {
+          this.descargandoArchivo = false;
+          await Swal.fire({
+            icon: 'error',
+            title: 'No se pudo descargar',
+            text: err?.error?.message || 'Error al descargar el archivo.',
+            confirmButtonColor: '#38512F'
+          });
+        }
+      });
   }
 
   toggleCarpeta(ruta: string): void {
@@ -248,21 +322,17 @@ export class AmbientalControlTramitesComponent implements OnInit, OnChanges, OnD
   }
 
   toggleVisorExpandido(): void {
-    if (!this.previewUrl) return;
-    this.visorExpandido = !this.visorExpandido;
-    document.body.style.overflow = this.visorExpandido ? 'hidden' : '';
+    if (this.visorExpandido) {
+      this.cerrarVisorIntegrado();
+      return;
+    }
+    this.abrirVisorIntegrado(this.archivoSeleccionado);
   }
 
   onEditar(): void {
     if (this.tramiteSeleccionado && this.puedeEditar) {
       this.editarTramite.emit(this.tramiteSeleccionado);
     }
-  }
-
-  abrirEnDrive(): void {
-    const id = this.archivoSeleccionado?.driveFileId;
-    if (!id) return;
-    window.open(`https://drive.google.com/file/d/${id}/view`, '_blank');
   }
 
   formatearTamano(bytes: number | null | undefined): string {

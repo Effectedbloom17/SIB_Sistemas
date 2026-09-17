@@ -525,12 +525,20 @@ async function resolverNombreResponsableUsuario(poolBiznaga, usuarioId, fallback
     if (usuarioId && poolBiznaga) {
         try {
             const [rows] = await poolBiznaga.query(
-                'SELECT nombre, apellido, username FROM usuario WHERE id = ? LIMIT 1',
+                `SELECT nombre, apellido, apellido_paterno, apellido_materno, username
+                 FROM usuario WHERE id = ? LIMIT 1`,
                 [usuarioId]
             );
             if (rows.length) {
-                const formatted = formatearNombreResponsable(rows[0].nombre, rows[0].apellido);
-                if (formatted) return formatted;
+                const partes = [
+                    rows[0].nombre,
+                    rows[0].apellido,
+                    rows[0].apellido_paterno,
+                    rows[0].apellido_materno
+                ]
+                    .map((p) => String(p || '').trim())
+                    .filter(Boolean);
+                if (partes.length) return partes.join(' ');
                 const username = String(rows[0].username || '').trim();
                 if (username) return username;
             }
@@ -1390,7 +1398,8 @@ async function obtenerFechasCentroOperacionesPorEmpresas(poolPC, empresaIds = []
     if (!ids.length) return mapa;
 
     const [rows] = await poolPC.query(
-        `SELECT empresa_id, fecha_ingreso_tramite, fecha_oficio_observaciones, operacion_id
+        `SELECT empresa_id, fecha_ingreso_tramite, fecha_oficio_observaciones,
+                responsable_pipc_usuario_id, operacion_id
          FROM pc_centro_operaciones
          WHERE empresa_id IN (?)
          ORDER BY activo DESC, (ciclo_cerrado_at IS NULL) DESC, operacion_id DESC`,
@@ -1402,7 +1411,8 @@ async function obtenerFechasCentroOperacionesPorEmpresas(poolPC, empresaIds = []
         if (mapa.has(empresaId)) continue;
         mapa.set(empresaId, {
             fecha_ingreso_tramite: row.fecha_ingreso_tramite,
-            fecha_oficio_observaciones: row.fecha_oficio_observaciones
+            fecha_oficio_observaciones: row.fecha_oficio_observaciones,
+            responsable_pipc_usuario_id: Number(row.responsable_pipc_usuario_id || 0) || null
         });
     }
     return mapa;
@@ -1426,6 +1436,35 @@ async function obtenerDatosControlResolutivos(poolSgc, poolPC = null, poolBiznag
         rows.map((row) => row.empresa_id_biznaga)
     );
 
+    const responsablePipcIds = [...new Set(
+        [...fechasCentroOps.values()]
+            .map((ops) => Number(ops.responsable_pipc_usuario_id || 0))
+            .filter((id) => id > 0)
+    )];
+    const nombresPipc = new Map();
+    if (poolBiznaga?.query && responsablePipcIds.length) {
+        try {
+            const placeholders = responsablePipcIds.map(() => '?').join(', ');
+            const [usuarios] = await poolBiznaga.query(
+                `SELECT id, username, nombre, apellido, apellido_paterno, apellido_materno
+                 FROM usuario
+                 WHERE id IN (${placeholders})`,
+                responsablePipcIds
+            );
+            for (const u of usuarios) {
+                const partes = [u.nombre, u.apellido, u.apellido_paterno, u.apellido_materno]
+                    .map((p) => String(p || '').trim())
+                    .filter(Boolean);
+                const nombre = partes.length
+                    ? partes.join(' ')
+                    : String(u.username || '').trim();
+                if (nombre) nombresPipc.set(Number(u.id), nombre);
+            }
+        } catch (_err) {
+            // fallback a responsable del registro
+        }
+    }
+
     const registros = [];
     for (const row of rows) {
         const incompleta = await verificarAsignacionIncompleta(
@@ -1434,16 +1473,21 @@ async function obtenerDatosControlResolutivos(poolSgc, poolPC = null, poolBiznag
             row.empresa_id_biznaga
         );
         const estatus = resolverEstatusRegistro(row, incompleta);
-        const responsable = await resolverNombreResponsableUsuario(
-            poolBiznaga,
-            row.responsable_usuario_id,
-            row.responsable
-        );
         const fechasOps = fechasCentroOps.get(Number(row.empresa_id_biznaga)) || {};
+        const pipcUsuarioId = fechasOps.responsable_pipc_usuario_id || null;
+        const responsablePipcNombre = pipcUsuarioId ? (nombresPipc.get(pipcUsuarioId) || null) : null;
+        // Preferir siempre el responsable asignado en Asignar documentos (PIPC)
+        const responsable = responsablePipcNombre
+            || await resolverNombreResponsableUsuario(
+                poolBiznaga,
+                pipcUsuarioId || row.responsable_usuario_id,
+                row.responsable
+            );
         registros.push({
             ...row,
             estatus,
             responsable,
+            responsable_usuario_id: pipcUsuarioId || row.responsable_usuario_id || null,
             // Preferir fechas propias del registro; fallback a centro de operaciones
             fecha_ingreso_tramite: row.fecha_ingreso_tramite || fechasOps.fecha_ingreso_tramite || null,
             fecha_oficio_observaciones: row.fecha_oficio_observaciones || fechasOps.fecha_oficio_observaciones || null

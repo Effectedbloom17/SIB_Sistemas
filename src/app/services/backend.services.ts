@@ -229,6 +229,26 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/${apiBase}/enviar`, payload);
     }
 
+    enviarCorreoPerfilConProgreso(
+        payload: {
+            destinatario: string;
+            asunto: string;
+            mensaje: string;
+            html?: string;
+            cc?: string;
+            cco?: string;
+            inReplyTo?: string;
+            references?: string;
+            adjuntos?: Array<{ nombre: string; contentType: string; contenidoBase64: string }>;
+        },
+        apiBase: 'correo' | 'correo-empresa' = 'correo'
+    ): Observable<HttpEvent<any>> {
+        return this.httpClient.post(`${this.baseUrl}/${apiBase}/enviar`, payload, {
+            reportProgress: true,
+            observe: 'events'
+        });
+    }
+
     // ============================================
     // CURSOS
     // ============================================

@@ -555,29 +555,34 @@
 
 .pc-feature-carousel__edge {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 44px;
-  height: min(140px, 38%);
-  z-index: 4;
+  /* Deja libre la franja superior (filtros / título) y amplía el hitbox vertical del resto */
+  top: 72px;
+  bottom: 0;
+  transform: none;
+  width: 64px;
+  height: auto;
+  z-index: 5;
   border: 0;
   padding: 0;
   background: transparent;
   cursor: pointer;
   transition: background 0.2s ease;
-  border-radius: 10px;
+  border-radius: 0;
+  display: block;
 
   &--prev {
     left: 0;
+    border-radius: 0 0 0 14px;
     &:hover {
-      background: linear-gradient(90deg, rgba(217, 114, 72, 0.12) 0%, transparent 100%);
+      background: linear-gradient(90deg, rgba(217, 114, 72, 0.16) 0%, transparent 100%);
     }
   }
 
   &--next {
     right: 0;
+    border-radius: 0 0 14px 0;
     &:hover {
-      background: linear-gradient(270deg, rgba(217, 114, 72, 0.12) 0%, transparent 100%);
+      background: linear-gradient(270deg, rgba(217, 114, 72, 0.16) 0%, transparent 100%);
     }
   }
 }
@@ -608,7 +613,7 @@
   min-height: var(--pc-carousel-height);
   max-height: 100%;
   overflow: hidden;
-  padding: 0.35rem 0.5rem;
+  padding: 0.35rem 0.85rem;
   position: relative;
   z-index: 2;
 }
@@ -704,26 +709,31 @@
   display: flex;
   justify-content: center;
   margin-top: 0.55rem;
+  padding: 0.35rem 0;
 }
 
 .pc-feature-carousel__dots {
   display: inline-flex;
-  gap: 0.45rem;
+  gap: 0.55rem;
   align-items: center;
+  padding: 0.45rem 0.65rem;
+  min-height: 36px;
 }
 
 .pc-feature-carousel__dot {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   border-radius: 999px;
   border: 0;
   padding: 0;
+  /* Amplía el área clicable sin agrandar el punto visual */
+  box-shadow: 0 0 0 10px transparent;
   background: rgba(217, 114, 72, 0.28);
   cursor: pointer;
   transition: width 0.25s ease, background 0.2s ease;
 
   &.is-active {
-    width: 22px;
+    width: 24px;
     background: #d97248;
   }
 }
@@ -748,8 +758,11 @@
   justify-content: space-between;
   gap: 0.75rem;
   flex-wrap: wrap;
-  padding: 0.7rem 1rem 0.45rem;
+  padding: 0.75rem 1rem 0.85rem;
   flex-shrink: 0;
+  position: relative;
+  z-index: 8;
+  overflow: visible;
 }
 
 .pc-avance-hero-head__main {
@@ -757,6 +770,8 @@
   align-items: center;
   gap: 0.85rem;
   min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .pc-avance-hero-badge {
@@ -780,18 +795,25 @@
   justify-content: flex-end;
   margin-left: auto;
   position: relative;
-  z-index: 6;
+  z-index: 9;
+  overflow: visible;
+  pointer-events: auto;
 }
 
 .pc-avance-filter-bar {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
-  padding: 0.28rem;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.98);
   border: 1px solid rgba(217, 114, 72, 0.14);
   box-shadow: 0 2px 8px rgba(50, 50, 93, 0.04);
+  position: relative;
+  z-index: 10;
+  overflow: visible;
+  pointer-events: auto;
 }
 
 .pc-avance-filter-chip {
@@ -802,9 +824,13 @@
   border: 1px solid transparent;
   background: transparent;
   border-radius: 999px;
-  padding: 0.28rem 0.55rem;
+  padding: 0.4rem 0.7rem;
+  min-height: 34px;
   cursor: pointer;
-  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.15s ease;
+  position: relative;
+  z-index: 11;
+  pointer-events: auto;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 
   &:hover {
     background: rgba(50, 50, 93, 0.04);
@@ -814,7 +840,6 @@
     background: rgba(217, 114, 72, 0.1);
     border-color: rgba(217, 114, 72, 0.35);
     box-shadow: 0 0 0 2px rgba(217, 114, 72, 0.12);
-    transform: translateY(-1px);
   }
 
   &__dot {
@@ -882,6 +907,8 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  position: relative;
+  z-index: 1;
 
   @media (max-width: 992px) {
     grid-template-columns: 1fr;
@@ -901,12 +928,13 @@
   overflow: hidden;
 
   &--bars {
-    max-height: none;
+    max-height: 100%;
     height: 100%;
+    min-height: 0;
   }
 
   &--donut {
-    max-height: none;
+    max-height: 100%;
     height: 100%;
     overflow: hidden;
   }
@@ -919,6 +947,7 @@
   margin-bottom: 0.6rem;
   padding-bottom: 0.55rem;
   border-bottom: 1px solid rgba(217, 114, 72, 0.1);
+  flex-shrink: 0;
 }
 
 .pc-avance-panel__icon {
@@ -982,27 +1011,40 @@
 }
 
 .pc-resolutivo-list {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 0.4rem;
-  flex: 1 1 auto;
+  /* flex-basis 0 + height 0: el listado toma solo el alto disponible y hace scroll */
+  flex: 1 1 0;
+  height: 0;
   min-height: 0;
+  max-height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-right: 0.15rem;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 0.25rem;
   scrollbar-gutter: stable;
-  scrollbar-color: rgba(217, 114, 72, 0.3) transparent;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(217, 114, 72, 0.45) rgba(217, 114, 72, 0.08);
 
-  &::-webkit-scrollbar { width: 5px; }
+  &::-webkit-scrollbar { width: 8px; }
   &::-webkit-scrollbar-track {
-    background: rgba(217, 114, 72, 0.06);
+    background: rgba(217, 114, 72, 0.08);
     border-radius: 999px;
   }
   &::-webkit-scrollbar-thumb {
-    background: rgba(217, 114, 72, 0.3);
+    background: rgba(217, 114, 72, 0.45);
     border-radius: 999px;
+
+    &:hover {
+      background: rgba(217, 114, 72, 0.65);
+    }
   }
+}
+
+.pc-resolutivo-list > .pc-resolutivo-row {
+  flex: 0 0 auto;
 }
 
 .pc-resolutivo-row {
@@ -1438,7 +1480,13 @@
   }
 
   .pc-avance-panel--bars {
-    max-height: 420px;
+    max-height: min(420px, 55vh);
+  }
+
+  .pc-resolutivo-list {
+    height: auto;
+    flex: 1 1 auto;
+    max-height: min(360px, 48vh);
   }
 
   .pc-avance-hero-tools {

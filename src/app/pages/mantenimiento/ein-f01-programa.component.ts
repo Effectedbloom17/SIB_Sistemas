@@ -1,4 +1,14 @@
-import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
+import {
+  AfterViewChecked,
+  AfterViewInit,
+  Component,
+  ElementRef,
+  HostListener,
+  OnDestroy,
+  OnInit,
+  QueryList,
+  ViewChildren
+} from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
 import Swal from 'sweetalert2';
@@ -41,7 +51,9 @@ export interface MtKpiCard {
   templateUrl: './ein-f01-programa.component.html',
   styleUrls: ['./ein-f01-programa.component.scss', './mantenimiento-drive.shared.scss']
 })
-export class EinF01ProgramaComponent implements OnInit, OnDestroy {
+export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterViewChecked, OnDestroy {
+  @ViewChildren('respTextarea') respTextareas?: QueryList<ElementRef<HTMLTextAreaElement>>;
+
   readonly meses = MESES_EIN_F01;
   readonly semanas = SEMANAS_POR_MES;
 
@@ -59,8 +71,11 @@ export class EinF01ProgramaComponent implements OnInit, OnDestroy {
   programadosPorMes: number[] = Array(12).fill(0);
   maxProgramadosMes = 1;
   private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private resizeTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingDriveSave = false;
   private abrirEditorTrasGuardar = false;
+  private pendingTextareaResize = false;
+  private textareasSub: { unsubscribe(): void } | null = null;
 
   /** true = expandido */
   seccionAbierta: Record<MtSeccionId, boolean> = {
@@ -80,6 +95,7 @@ export class EinF01ProgramaComponent implements OnInit, OnDestroy {
     this.cargarDrive();
     this.cargarColapso();
     this.recalcularIndicadores();
+    this.pendingTextareaResize = true;
     const panel = (this.route.snapshot.queryParamMap.get('panel') || '').toLowerCase();
     if (panel === 'bitacora' || panel === 'solicitudes' || panel === 'solicitud' || panel === 'f02' || panel === 'f03') {
       this.abrirYScroll('f03');
@@ -88,7 +104,31 @@ export class EinF01ProgramaComponent implements OnInit, OnDestroy {
     }
   }
 
+  ngAfterViewChecked(): void {
+    if (!this.pendingTextareaResize) {
+      return;
+    }
+    if (!this.respTextareas?.length) {
+      return;
+    }
+    this.pendingTextareaResize = false;
+    this.ajustarTodosTextareasResponsable();
+  }
+
+  ngAfterViewInit(): void {
+    this.textareasSub = this.respTextareas?.changes.subscribe(() => {
+      this.programarAjusteTextareas();
+    }) || null;
+    this.programarAjusteTextareas();
+  }
+
   ngOnDestroy(): void {
+    this.textareasSub?.unsubscribe();
+    this.textareasSub = null;
+    if (this.resizeTimer) {
+      clearTimeout(this.resizeTimer);
+      this.resizeTimer = null;
+    }
     if (this.autoSaveTimer) {
       clearTimeout(this.autoSaveTimer);
     }
@@ -236,6 +276,9 @@ export class EinF01ProgramaComponent implements OnInit, OnDestroy {
 
   toggleSeccion(id: MtSeccionId): void {
     this.seccionAbierta[id] = !this.seccionAbierta[id];
+    if (id === 'f01' && this.seccionAbierta.f01) {
+      this.programarAjusteTextareas();
+    }
     this.persistirColapso();
   }
 
@@ -296,6 +339,47 @@ export class EinF01ProgramaComponent implements OnInit, OnDestroy {
     this.persistir();
   }
 
+  ajustarTextareaResponsable(el: HTMLTextAreaElement | null | undefined): void {
+    if (!el) {
+      return;
+    }
+    // Forzar recálculo real del scrollHeight (si no, se queda en min-height y recorta).
+    el.style.height = '0px';
+    el.style.height = `${el.scrollHeight}px`;
+  }
+
+  private programarAjusteTextareas(): void {
+    this.pendingTextareaResize = true;
+    if (this.resizeTimer) {
+      clearTimeout(this.resizeTimer);
+    }
+    this.resizeTimer = setTimeout(() => {
+      this.resizeTimer = null;
+      this.ajustarTodosTextareasResponsable();
+      this.pendingTextareaResize = false;
+    }, 0);
+  }
+
+  private ajustarTodosTextareasResponsable(): void {
+    const refs = this.respTextareas?.toArray() || [];
+    if (refs.length) {
+      refs.forEach(ref => {
+        const el = (ref as ElementRef<HTMLTextAreaElement>).nativeElement
+          || (ref as unknown as HTMLTextAreaElement);
+        this.ajustarTextareaResponsable(el);
+      });
+      return;
+    }
+    document
+      .querySelectorAll<HTMLTextAreaElement>('#mt-sec-f01 textarea.mt-cell-textarea--auto')
+      .forEach(el => this.ajustarTextareaResponsable(el));
+  }
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    this.programarAjusteTextareas();
+  }
+
   agregarFila(): void {
     this.filas = [
       ...this.filas,
@@ -307,6 +391,7 @@ export class EinF01ProgramaComponent implements OnInit, OnDestroy {
         programado: {}
       }
     ];
+    this.programarAjusteTextareas();
     this.despuesDeCambio();
   }
 
@@ -334,6 +419,7 @@ export class EinF01ProgramaComponent implements OnInit, OnDestroy {
   reiniciarEjemplo(): void {
     this.meta = metaInicialEinF01(this.meta.anio || 2026);
     this.filas = filasSemillaEinF01();
+    this.programarAjusteTextareas();
     this.despuesDeCambio();
     this.flash('Programa restablecido al ejemplo EIN-F-01.');
   }

@@ -484,14 +484,17 @@ async function obtenerNombresUsuariosPorIds(poolBiznaga, usuarioIds = []) {
 
     const placeholders = ids.map(() => '?').join(', ');
     const [rows] = await poolBiznaga.query(
-        `SELECT id, username, nombre, apellido, email
+        `SELECT id, username, nombre, apellido, apellido_paterno, apellido_materno, email
          FROM usuario
          WHERE id IN (${placeholders}) AND activo = 1`,
         ids
     );
 
     for (const row of rows) {
-        mapa.set(Number(row.id), nombreCompletoUsuarioRow(row));
+        const nombre = nombreCompletoUsuarioRow(row);
+        if (nombre) {
+            mapa.set(Number(row.id), nombre);
+        }
     }
     return mapa;
 }
@@ -575,10 +578,26 @@ async function obtenerCicloActivo(poolProteccionCivil, empresaId) {
 }
 
 async function crearCicloActivo(poolProteccionCivil, empresaId) {
+    // Heredar responsable PIPC del ciclo más reciente para no perderlo al reiniciar
+    let responsableHeredado = null;
+    try {
+        const [prev] = await poolProteccionCivil.query(
+            `SELECT responsable_pipc_usuario_id
+             FROM pc_centro_operaciones
+             WHERE empresa_id = ? AND responsable_pipc_usuario_id IS NOT NULL
+             ORDER BY operacion_id DESC
+             LIMIT 1`,
+            [empresaId]
+        );
+        responsableHeredado = Number(prev[0]?.responsable_pipc_usuario_id || 0) || null;
+    } catch (_err) {
+        responsableHeredado = null;
+    }
+
     const [result] = await poolProteccionCivil.query(
-        `INSERT INTO pc_centro_operaciones (empresa_id, activo, pasos_completados)
-         VALUES (?, 1, '[]')`,
-        [empresaId]
+        `INSERT INTO pc_centro_operaciones (empresa_id, activo, pasos_completados, responsable_pipc_usuario_id)
+         VALUES (?, 1, '[]', ?)`,
+        [empresaId, responsableHeredado]
     );
     const [rows] = await poolProteccionCivil.query(
         'SELECT * FROM pc_centro_operaciones WHERE operacion_id = ?',
@@ -783,12 +802,15 @@ async function intentarSincronizarResolutivosOps(deps, req, empresaId, poolPC) {
         if (!poolSgc?.query || !poolBiznaga?.query || !poolPC?.query) {
             throw new Error('Conexiones a base de datos no disponibles para el control SP-F-29');
         }
+        const ciclo = await obtenerCicloActivo(poolPC, empresaId);
+        const responsablePipcId = Number(ciclo?.responsable_pipc_usuario_id || 0) || null;
         return await pcResolutivosService.sincronizarResolutivosCentroOperaciones({
             poolSgc,
             poolBiznaga,
             poolPC,
             empresaId,
-            responsableUsuarioId: req.user?.id || null
+            // Preferir responsable asignado en PIPC; solo si no hay, el usuario en sesión
+            responsableUsuarioId: responsablePipcId || req.user?.id || null
         });
     } catch (syncErr) {
         console.warn('[PC-OPS] Sincronización resolutivos SP-F-29:', syncErr.message);
@@ -967,6 +989,25 @@ function registerPcCentroOperacionesRoutes(app, deps) {
             if (usuarioId && poolBiznaga?.query) {
                 const nombres = await obtenerNombresUsuariosPorIds(poolBiznaga, [usuarioId]);
                 responsableNombre = nombres.get(usuarioId) || null;
+            }
+
+            // Propagar al control SP-F-29 para que gráficos y tabla usen el responsable del PIPC
+            try {
+                const { poolBiznagaSgcReady, getPoolBiznagaSgc } = deps;
+                if (poolBiznagaSgcReady && getPoolBiznagaSgc) {
+                    await poolBiznagaSgcReady;
+                    const poolSgc = getPoolBiznagaSgc();
+                    if (poolSgc?.query) {
+                        await poolSgc.query(
+                            `UPDATE pc_control_resolutivos
+                             SET responsable = ?, responsable_usuario_id = ?, updated_at = NOW()
+                             WHERE empresa_id_biznaga = ? AND activo = 1`,
+                            [responsableNombre || '—', usuarioId, empresaId]
+                        );
+                    }
+                }
+            } catch (syncRespErr) {
+                console.warn('[PC-OPS] No se pudo sincronizar responsable PIPC al control:', syncRespErr.message);
             }
 
             res.json({

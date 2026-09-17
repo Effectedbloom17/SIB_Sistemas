@@ -7,7 +7,12 @@ const CSS_VISTA_CORREO = [
     'html{margin:0;padding:0;overflow-x:auto;max-width:100%;}',
     'body{margin:0;overflow-x:auto;max-width:100%;box-sizing:border-box;}',
     'img{max-width:min(100%,680px);height:auto;}',
-    `img[alt="Firma digital"],img[data-firma-biznaga="1"]{max-width:${correoFirmaService.FIRMA_MAX_WIDTH_PX}px!important;width:100%!important;height:auto!important;display:block!important;border:0!important;}`
+    `img[alt="Firma digital"],img[data-firma-biznaga="1"]{max-width:${correoFirmaService.FIRMA_MAX_WIDTH_PX}px!important;width:100%!important;height:auto!important;display:block!important;border:0!important;}`,
+    // Evita que tarjetas/tablas citadas (p. ej. bloque Drive) se estiren al reenviar/contestar.
+    'table,tbody,thead,tr,td,th{height:auto!important;max-height:none!important;}',
+    'table[data-biznaga-drive="1"],table[data-biznaga-drive="1"] table{width:100%!important;max-width:520px!important;height:auto!important;border-collapse:collapse!important;}',
+    'table[data-biznaga-drive="1"] td,table[data-biznaga-drive="1"] th{height:auto!important;vertical-align:top!important;line-height:1.35!important;}',
+    'blockquote{margin:0.5em 0;padding-left:0.75em;border-left:2px solid #dadce0;}'
 ].join('');
 
 const CARPETAS_DEF = [

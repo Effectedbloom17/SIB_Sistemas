@@ -957,6 +957,7 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
     }
     this.comboResponsableTimer = setTimeout(() => {
       this.comboResponsableAbierto = false;
+      this.restaurarEtiquetaResponsableSeleccionado();
     }, 220);
   }
 
@@ -1000,6 +1001,26 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
     this.guardarResponsablePipc(null);
   }
 
+  private restaurarEtiquetaResponsableSeleccionado(): void {
+    if (!this.responsablePipcUsuarioId) {
+      return;
+    }
+    const op = this.responsablesOpciones.find((o) => o.id === this.responsablePipcUsuarioId);
+    if (op?.nombre) {
+      this.filtroResponsable = op.nombre;
+    }
+  }
+
+  private aplicarNombreResponsableDesdeOpciones(): void {
+    if (!this.responsablePipcUsuarioId || this.filtroResponsable.trim()) {
+      return;
+    }
+    const op = this.responsablesOpciones.find((o) => o.id === this.responsablePipcUsuarioId);
+    if (op?.nombre) {
+      this.filtroResponsable = op.nombre;
+    }
+  }
+
   private cargarUsuariosResponsables(): void {
     this.backendService.obtenerUsuarios().subscribe({
       next: (response: any) => {
@@ -1015,6 +1036,7 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
           }))
           .filter((usuario: OpcionResponsablePipc) => usuario.id > 0 && !!usuario.nombre)
           .sort((a: OpcionResponsablePipc, b: OpcionResponsablePipc) => a.nombre.localeCompare(b.nombre, 'es'));
+        this.aplicarNombreResponsableDesdeOpciones();
       },
       error: () => {
         this.responsablesOpciones = [];
@@ -1046,9 +1068,12 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
         }
         const ciclo = response?.ciclo || {};
         const usuarioId = Number(ciclo.responsable_pipc_usuario_id || 0) || null;
-        const nombre = String(ciclo.responsable_pipc_nombre || '').trim();
+        const nombreApi = String(ciclo.responsable_pipc_nombre || '').trim();
+        const nombreOpcion = usuarioId
+          ? (this.responsablesOpciones.find((op) => op.id === usuarioId)?.nombre || '')
+          : '';
         this.responsablePipcUsuarioId = usuarioId;
-        this.filtroResponsable = nombre;
+        this.filtroResponsable = nombreApi || nombreOpcion || '';
       },
       error: () => {
         if (seq !== this.responsableCargaSeq) {
@@ -1058,8 +1083,10 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
         if (this.guardandoResponsable) {
           return;
         }
-        this.responsablePipcUsuarioId = null;
-        this.filtroResponsable = '';
+        // No borrar un responsable ya mostrado si la recarga falla
+        if (!this.responsablePipcUsuarioId) {
+          this.filtroResponsable = '';
+        }
       }
     });
   }
