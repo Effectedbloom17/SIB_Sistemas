@@ -82,6 +82,22 @@
                 <i class="fas fa-pen-fancy mr-1"></i>
                 Abrir editor integrado
               </button>
+              <button type="button" class="btn btn-sm sgc-btn-pdf-icon"
+                      [disabled]="!driveFileId || descargandoPdf || guardando || !reporteActivo"
+                      (click)="descargarPdfReporte()"
+                      title="Generar PDF (carta, horizontal, ajustar al ancho)"
+                      aria-label="Generar PDF">
+                <i class="fas" [ngClass]="descargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                <span class="sgc-btn-pdf-icon__label">{{ descargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
+              </button>
+              <button type="button" class="btn btn-sm sgc-btn-pdf-icon sgc-btn-pdf-icon--mail"
+                      [disabled]="!driveFileId || guardando || !reporteActivo || envioDocCorreoVisible"
+                      (click)="abrirEnvioCorreo()"
+                      title="Envío por correo"
+                      aria-label="Envío por correo">
+                <i class="fas fa-envelope" aria-hidden="true"></i>
+                <span class="sgc-btn-pdf-icon__label">Envío por correo</span>
+              </button>
             </div>
           </div>
 
@@ -485,3 +501,13 @@
     </div>
   </div>
 </div>
+
+<app-envio-documento-correo
+  [visible]="envioDocCorreoVisible"
+  [asunto]="envioDocCorreoAsunto"
+  [mensaje]="envioDocCorreoMensaje"
+  [nombreAdjunto]="envioDocCorreoNombrePdf"
+  [pdfLoader]="envioDocCorreoPdfLoader"
+  tituloVentana="Envío por correo"
+  (cerrado)="cerrarEnvioDocumentoCorreo()">
+</app-envio-documento-correo>

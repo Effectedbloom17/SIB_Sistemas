@@ -20,6 +20,10 @@
   border: 1px solid #f0e4dc;
   position: relative;
   isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 
   &::before {
     content: '';
@@ -37,7 +41,20 @@
   .card-header,
   .card-body {
     position: relative;
-    z-index: 1;
+    z-index: 2;
+  }
+
+  .pc-analytics-card__header {
+    flex-shrink: 0;
+    overflow: visible;
+  }
+
+  .pc-analytics-subtitle {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    line-height: 1.35;
+    word-break: break-word;
   }
 }
 
@@ -323,7 +340,16 @@
 }
 
 .pc-analytics-status-body {
-  padding: 0 0.95rem 1rem !important;
+  padding: 0 1.1rem 1rem 0.95rem !important;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
 }
 
 .pc-analytics-status-loading {
@@ -335,6 +361,9 @@
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
 }
 
 .pc-status-overview {
@@ -417,14 +446,21 @@
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
+  position: relative;
+  z-index: 2;
 }
 
 .pc-status-item {
   background: #fff;
   border: 1px solid #edf2f7;
   border-radius: 12px;
-  padding: 0.65rem 0.72rem;
+  padding: 0.7rem 0.78rem;
+  min-height: 58px;
   animation: softRevealUp 0.38s ease-out both;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+  cursor: default;
 }
 
 .pc-status-item-row {
@@ -555,34 +591,66 @@
 
 .pc-feature-carousel__edge {
   position: absolute;
-  /* Deja libre la franja superior (filtros / título) y amplía el hitbox vertical del resto */
-  top: 72px;
+  top: 0;
   bottom: 0;
-  transform: none;
-  width: 64px;
-  height: auto;
-  z-index: 5;
+  width: 48px;
+  z-index: 20;
   border: 0;
   padding: 0;
+  margin: 0;
   background: transparent;
   cursor: pointer;
   transition: background 0.2s ease;
-  border-radius: 0;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Overlay: no consume espacio ni recorta el contenido */
+  pointer-events: auto;
+
+  &::after {
+    content: '';
+    width: 10px;
+    height: 10px;
+    border-style: solid;
+    border-color: rgba(217, 114, 72, 0.55);
+    border-width: 0 2.5px 2.5px 0;
+    opacity: 0.55;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  &:hover {
+    &::after {
+      opacity: 1;
+    }
+  }
 
   &--prev {
     left: 0;
-    border-radius: 0 0 0 14px;
+    border-radius: 18px 0 0 18px;
     &:hover {
-      background: linear-gradient(90deg, rgba(217, 114, 72, 0.16) 0%, transparent 100%);
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0.55) 0%, transparent 100%);
+    }
+    &::after {
+      transform: rotate(135deg);
+      margin-left: 4px;
+    }
+    &:hover::after {
+      transform: rotate(135deg) translate(-1px, -1px);
     }
   }
 
   &--next {
     right: 0;
-    border-radius: 0 0 14px 0;
+    border-radius: 0 18px 18px 0;
     &:hover {
-      background: linear-gradient(270deg, rgba(217, 114, 72, 0.16) 0%, transparent 100%);
+      background: linear-gradient(270deg, rgba(255, 255, 255, 0.55) 0%, transparent 100%);
+    }
+    &::after {
+      transform: rotate(-45deg);
+      margin-right: 4px;
+    }
+    &:hover::after {
+      transform: rotate(-45deg) translate(1px, -1px);
     }
   }
 }
@@ -595,6 +663,8 @@
   min-height: var(--pc-carousel-height);
   transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
+  position: relative;
+  z-index: 1;
 }
 
 .pc-feature-carousel__slide {
@@ -613,9 +683,9 @@
   min-height: var(--pc-carousel-height);
   max-height: 100%;
   overflow: hidden;
-  padding: 0.35rem 0.85rem;
+  padding: 0.35rem 0.65rem;
   position: relative;
-  z-index: 2;
+  z-index: 1;
 }
 
 .pc-carousel-slide-grid {
@@ -1473,6 +1543,10 @@
     max-height: none;
   }
 
+  .pc-feature-carousel__edge {
+    width: 40px;
+  }
+
   .pc-feature-carousel__slide-inner {
     min-height: 0;
     max-height: none;
@@ -1499,8 +1573,8 @@
   }
 
   .pc-feature-carousel__slide-inner {
-    padding-left: 0.35rem;
-    padding-right: 0.35rem;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
   }
 
   .pc-resolutivo-row__main {

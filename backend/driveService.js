@@ -1908,6 +1908,69 @@ async function recortarColumnasGoogleSheet(spreadsheetId, options = {}) {
 }
 
 /**
+ * Elimina filas vacías al final de la hoja (después de lastContentRow, 1-based inclusive).
+ * Evita que el PDF de Sheets genere páginas en blanco por rowCount excesivo.
+ */
+async function recortarFilasGoogleSheet(spreadsheetId, options = {}) {
+    if (!spreadsheetId) {
+        return null;
+    }
+
+    const lastContentRaw = Number(options.lastContentRow ?? options.maxRows);
+    const lastContentRow = Number.isFinite(lastContentRaw) && lastContentRaw > 0
+        ? Math.floor(lastContentRaw)
+        : null;
+    if (!lastContentRow) {
+        return null;
+    }
+
+    const bufferRows = Math.max(0, Math.floor(Number(options.bufferRows) || 0));
+    const keepThrough = lastContentRow + bufferRows;
+    const sheetTitle = typeof options.sheetTitle === 'string' && options.sheetTitle.trim()
+        ? options.sheetTitle.trim()
+        : null;
+
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const meta = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets(properties(sheetId,title,gridProperties(rowCount)))'
+    });
+
+    const sheets = Array.isArray(meta?.data?.sheets) ? meta.data.sheets : [];
+    const targets = sheetTitle
+        ? sheets.filter((s) => (s.properties?.title || '').trim() === sheetTitle)
+        : sheets.slice(0, 1);
+
+    const requests = [];
+    for (const sheet of targets) {
+        const sheetId = sheet?.properties?.sheetId;
+        const rowCount = Number(sheet?.properties?.gridProperties?.rowCount || 0);
+        if (sheetId === undefined || sheetId === null || rowCount <= keepThrough) {
+            continue;
+        }
+        requests.push({
+            deleteDimension: {
+                range: {
+                    sheetId,
+                    dimension: 'ROWS',
+                    startIndex: keepThrough,
+                    endIndex: rowCount
+                }
+            }
+        });
+    }
+
+    if (!requests.length) {
+        return null;
+    }
+
+    return sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests }
+    });
+}
+
+/**
  * Formato visual SGC-F-12: campos 1–5 alineados a la izquierda y columna L más ancha.
  * @param {string} spreadsheetId
  * @param {{ sheetTitle?: string, columnLPixelWidth?: number, textFields?: Array<{row:number,startCol:number,endCol:number}> }} options
@@ -5038,21 +5101,32 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
     const gidRaw = options.gid !== undefined && options.gid !== null ? String(options.gid) : '';
     const gidOpts = gidRaw ? { gid: gidRaw } : {};
 
-    // Márgenes: con «ajustar a la página» usar normales (~0.75"); si no, compactos.
-    const margins = fitToPage
-        ? {
-            top_margin: '0.75',
-            bottom_margin: '0.75',
-            left_margin: '0.70',
-            right_margin: '0.70'
-        }
-        : {
-            top_margin: '0.30',
-            bottom_margin: '0.30',
-            left_margin: '0.30',
-            right_margin: '0.30'
-        };
+    // Márgenes: 'normal'/'normales' ≈ Sheets «Normales» (~0.75"); 'narrow'/'estrechos' ≈ compactos.
+    // Por defecto: normales si fitToPage; si no, compactos (compatibilidad con exports previos).
+    const marginMode = String(
+        (typeof options.margins === 'string' ? options.margins : null)
+        || options.marginMode
+        || ''
+    ).trim().toLowerCase();
+    const useNormalMargins = marginMode === 'normal' || marginMode === 'normales'
+        || (!!fitToPage && marginMode !== 'narrow' && marginMode !== 'estrechos' && marginMode !== 'compact');
+    const margins = (options.margins && typeof options.margins === 'object')
+        ? options.margins
+        : (useNormalMargins
+            ? {
+                top_margin: '0.75',
+                bottom_margin: '0.75',
+                left_margin: '0.70',
+                right_margin: '0.70'
+            }
+            : {
+                top_margin: '0.30',
+                bottom_margin: '0.30',
+                left_margin: '0.30',
+                right_margin: '0.30'
+            });
 
+    // Escala: fitToPage → «Ajustar a la página»; si no → «Ajustar al ancho» (fitw).
     const scaleOpts = fitToPage
         ? {
             // scale=4 → «Ajustar a la página» en la UI de Sheets
@@ -10723,6 +10797,7 @@ module.exports = {
     reemplazarTextoEnGoogleSheet,
 
     recortarColumnasGoogleSheet,
+    recortarFilasGoogleSheet,
     aplicarFormatoVisualSgcF12,
     aplicarFormatoVisualSgcF11,
     aplicarFormatoVisualSgcF06,

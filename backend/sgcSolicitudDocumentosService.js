@@ -2,7 +2,8 @@
  * Solicitudes de cambio a documentos SGC (flujo tipo tickets + wizard).
  * Tabla: sgc_solicitudes_documento (BD biznaga / pool principal).
  *
- * Pasos: revision → formato → lista_maestra → notificar → cerrado
+ * Pasos (modificación/creación): revision → formato → lista_maestra → notificar → cerrado
+ * Pasos (eliminación): revision → lista_maestra (desactivar) → cerrado
  */
 const ESTADOS = new Set(['abierto', 'en_progreso', 'cerrado']);
 const TIPOS_SOLICITUD = new Set(['creacion', 'modificacion', 'eliminacion']);
@@ -438,6 +439,10 @@ async function actualizarEstado(pool, solicitudId, estado) {
     return obtenerPorId(pool, id);
 }
 
+function esEliminacion(solicitud) {
+    return String(solicitud?.tipo_solicitud || '').toLowerCase() === 'eliminacion';
+}
+
 async function autorizar(pool, solicitudId, usuarioId) {
     await asegurarTabla(pool);
     const actual = await obtenerPorId(pool, solicitudId);
@@ -453,6 +458,25 @@ async function autorizar(pool, solicitudId, usuarioId) {
         const error = new Error('La solicitud ya está cerrada');
         error.status = 400;
         throw error;
+    }
+
+    // Eliminación: no hay cambio de formato; salta directo a Lista Maestra.
+    if (esEliminacion(actual)) {
+        const versionActual = normalizarTexto(actual.version_actual, 16) || '00';
+        await pool.query(
+            `UPDATE sgc_solicitudes_documento
+             SET estado = 'en_progreso',
+                 paso_flujo = 'lista_maestra',
+                 formato_listo = 1,
+                 version_nueva = ?,
+                 fecha_revision_nueva = ?,
+                 autorizado_at = NOW(),
+                 autorizado_por = ?,
+                 updated_at = NOW()
+             WHERE solicitud_id = ?`,
+            [versionActual, fechaHoyIso(), Number(usuarioId) || null, actual.solicitud_id]
+        );
+        return obtenerPorId(pool, actual.solicitud_id);
     }
 
     await pool.query(
@@ -528,12 +552,40 @@ async function marcarListaMaestraListo(pool, solicitudId, datos = {}) {
         throw error;
     }
 
-    const versionNueva = normalizarTexto(datos.versionNueva, 16)
-        || actual.version_nueva
-        || incrementarVersion(actual.version_actual);
+    const esBaja = esEliminacion(actual) || datos.desactivar === true;
+    const versionNueva = esBaja
+        ? (normalizarTexto(datos.versionNueva, 16)
+            || normalizarTexto(actual.version_nueva, 16)
+            || normalizarTexto(actual.version_actual, 16)
+            || '00')
+        : (normalizarTexto(datos.versionNueva, 16)
+            || actual.version_nueva
+            || incrementarVersion(actual.version_actual));
     const fechaRevision = normalizarTexto(datos.fechaRevisionNueva, 16)
         || actual.fecha_revision_nueva
         || fechaHoyIso();
+
+    // Eliminación: desactiva en lista maestra y cierra sin notificar a Sistemas.
+    if (esBaja) {
+        const notas = normalizarTexto(datos.notasCambio, 4000)
+            || normalizarTexto(actual.motivo, 4000)
+            || 'Documento desactivado en Lista Maestra (eliminación).';
+        await pool.query(
+            `UPDATE sgc_solicitudes_documento
+             SET lista_maestra_listo = 1,
+                 paso_flujo = 'cerrado',
+                 estado = 'cerrado',
+                 version_nueva = ?,
+                 fecha_revision_nueva = ?,
+                 notificar_sistemas = 0,
+                 ticket_sistemas_id = NULL,
+                 notas_cambio = ?,
+                 updated_at = NOW()
+             WHERE solicitud_id = ?`,
+            [versionNueva, fechaRevision, notas || null, actual.solicitud_id]
+        );
+        return obtenerPorId(pool, actual.solicitud_id);
+    }
 
     await pool.query(
         `UPDATE sgc_solicitudes_documento
@@ -782,7 +834,10 @@ async function resolverContextoGestion({
     }
 
     const versionBase = documentoMaestro?.versionVigente || solicitud.version_actual || '00';
-    const versionPropuesta = solicitud.version_nueva || incrementarVersion(versionBase);
+    // Eliminación conserva la versión actual; no propone +1.
+    const versionPropuesta = esEliminacion(solicitud)
+        ? (solicitud.version_nueva || versionBase)
+        : (solicitud.version_nueva || incrementarVersion(versionBase));
     const fechaPropuesta = solicitud.fecha_revision_nueva || fechaHoyIso();
 
     return {
@@ -793,7 +848,8 @@ async function resolverContextoGestion({
             versionNueva: versionPropuesta,
             versionAnterior: versionBase,
             fechaRevisionNueva: fechaPropuesta,
-            fechaHoyMexico: fechaHoyIso()
+            fechaHoyMexico: fechaHoyIso(),
+            desactivar: esEliminacion(solicitud)
         }
     };
 }
@@ -818,11 +874,17 @@ async function regresarPaso(pool, solicitudId) {
             estado: 'abierto',
             extra: 'autorizado_at = NULL, autorizado_por = NULL, formato_listo = 0'
         },
-        lista_maestra: {
-            paso: 'formato',
-            estado: 'en_progreso',
-            extra: 'formato_listo = 0, lista_maestra_listo = 0'
-        },
+        lista_maestra: esEliminacion(actual)
+            ? {
+                paso: 'revision',
+                estado: 'abierto',
+                extra: 'autorizado_at = NULL, autorizado_por = NULL, formato_listo = 0, lista_maestra_listo = 0'
+            }
+            : {
+                paso: 'formato',
+                estado: 'en_progreso',
+                extra: 'formato_listo = 0, lista_maestra_listo = 0'
+            },
         notificar: {
             paso: 'lista_maestra',
             estado: 'en_progreso',
@@ -865,6 +927,7 @@ module.exports = {
     resolverArchivoPorCodigo,
     incrementarVersion,
     fechaHoyIso,
+    esEliminacion,
     inferirTipoDocumentoDesdeCodigo,
     mapearTipoDocumento,
     labelTipoSolicitud,

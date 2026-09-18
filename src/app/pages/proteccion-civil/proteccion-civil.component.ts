@@ -455,6 +455,8 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   resolutivosAtencionChartsReady = false;
   resolutivosAtencionDonut!: Partial<ResolutivosAtencionDonutOptions>;
   resumenAtencionCards: ResolutivoAtencionCard[] = [];
+  /** Chips de filtro estables (no regenerar en cada CD). */
+  filtrosAtencionChips: { key: string | null; label: string; count: number; color: string }[] = [];
   atencionDonutCentroValor = '0';
   atencionDonutCentroEtiqueta = 'Atención';
   atencionDonutCentroPct: number | null = null;
@@ -1793,12 +1795,52 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   // GESTIÓN DE EMPRESAS
   // =====================================================
 
+  private parsePasosCompletadosEmpresa(raw: unknown): PasoCentroOperacionesId[] {
+    let pasos: unknown = raw;
+    if (typeof raw === 'string') {
+      const texto = raw.trim();
+      if (!texto) return [];
+      try {
+        pasos = JSON.parse(texto);
+      } catch {
+        return [];
+      }
+    }
+    if (!Array.isArray(pasos)) return [];
+    return pasos
+      .map((paso) => String(paso || '').trim())
+      .filter((paso): paso is PasoCentroOperacionesId =>
+        this.pcPasosProcesoIds.includes(paso as PasoCentroOperacionesId)
+      );
+  }
+
+  private normalizarEmpresaListado(empresa: Partial<EmpresaPC> | any): EmpresaPC {
+    return {
+      empresa_id: Number(empresa?.empresa_id) || 0,
+      nombre_empresa: String(empresa?.nombre_empresa || '').trim(),
+      rfc: String(empresa?.rfc || '').trim(),
+      estado: String(empresa?.estado || '').trim(),
+      ciudad: String(empresa?.ciudad || '').trim(),
+      codigo_postal: String(empresa?.codigo_postal || '').trim(),
+      logo: empresa?.logo || null,
+      logo_url: empresa?.logo_url || empresa?.logo || null,
+      documentos_completos: Number(empresa?.documentos_completos) || 0,
+      documentos_totales: Number(empresa?.documentos_totales) || 0,
+      pasos_completados: this.parsePasosCompletadosEmpresa(empresa?.pasos_completados),
+      ciclo_cerrado: !!empresa?.ciclo_cerrado,
+      responsable_pipc_usuario_id: Number(empresa?.responsable_pipc_usuario_id || 0) || null,
+      responsable_pipc_nombre: empresa?.responsable_pipc_nombre
+        ? String(empresa.responsable_pipc_nombre).trim()
+        : null
+    };
+  }
+
   cargarEmpresas(): void {
     this.cargandoEmpresas = true;
     this.backendService.obtenerEmpresasProteccionCivil().subscribe(
       (response: any) => {
         if (response.success) {
-          this.empresas = response.empresas;
+          this.empresas = (response.empresas || []).map((empresa) => this.normalizarEmpresaListado(empresa));
           this.empresasFiltradas = [...this.empresas];
           this.extraerEstadosDeBD();
           this.cargarEmpresasRecientesDesdeStorage();
@@ -1819,7 +1861,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     this.backendService.obtenerEmpresas().subscribe(
       (response: any) => {
         if (response.success) {
-          this.empresas = response.empresas.map((e: any) => ({
+          this.empresas = response.empresas.map((e: any) => this.normalizarEmpresaListado({
             empresa_id: e.empresa_id,
             nombre_empresa: e.nombre_empresa,
             rfc: e.rfc,
@@ -2685,6 +2727,18 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
 
   trackByPipcAsignado(_index: number, pipc: PcPipcAsignadoOps): number {
     return pipc.documento_id;
+  }
+
+  trackByFiltroAtencionChip(_index: number, chip: { key: string | null }): string {
+    return chip.key ?? '__todos__';
+  }
+
+  trackByResolutivoAtencion(_index: number, r: ResolutivoAtencionItem): number {
+    return r.resolutivo_id;
+  }
+
+  trackByResumenAtencionCard(_index: number, item: ResolutivoAtencionCard): string {
+    return item.key;
   }
 
   async cerrarCicloCentroOperaciones(): Promise<void> {
@@ -5159,11 +5213,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   }
 
   getPasosProcesoEmpresa(empresa: EmpresaPC): PasoCentroOperacionesId[] {
-    const raw = Array.isArray(empresa?.pasos_completados) ? empresa.pasos_completados : [];
-    const pasos = raw.filter((paso): paso is PasoCentroOperacionesId =>
-      this.pcPasosProcesoIds.includes(paso as PasoCentroOperacionesId)
-    );
-    const unicos = Array.from(new Set(pasos));
+    const unicos = Array.from(new Set(this.parsePasosCompletadosEmpresa(empresa?.pasos_completados)));
     if ((Number(empresa.documentos_totales) || 0) > 0 && !unicos.includes('asignar')) {
       unicos.push('asignar');
     }
@@ -5727,18 +5777,37 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     if (!this.puedeVerGraficaActividadResolutivosPipc) return;
     this.carruselResolutivosElapsedMs = 0;
     this.actualizarProgresoCarruselResolutivos();
-    this.carruselResolutivosTimer = setInterval(() => {
-      if (this.carruselResolutivosHover || !this.carruselResolutivosAutoActivo) {
-        this.actualizarProgresoCarruselResolutivos();
-        return;
-      }
-      this.carruselResolutivosElapsedMs += this.CARRUSEL_RESOLUTIVOS_TICK_MS;
-      if (this.carruselResolutivosElapsedMs >= this.CARRUSEL_RESOLUTIVOS_INTERVALO_MS) {
-        this.ngZone.run(() => this.carruselResolutivosSiguiente());
-        return;
-      }
-      this.actualizarProgresoCarruselResolutivos();
-    }, this.CARRUSEL_RESOLUTIVOS_TICK_MS);
+    // Fuera de NgZone: evita CD cada 100ms que recreaba los chips de filtro.
+    this.ngZone.runOutsideAngular(() => {
+      this.carruselResolutivosTimer = setInterval(() => {
+        if (this.carruselResolutivosHover || !this.carruselResolutivosAutoActivo) {
+          return;
+        }
+        this.carruselResolutivosElapsedMs += this.CARRUSEL_RESOLUTIVOS_TICK_MS;
+        if (this.carruselResolutivosElapsedMs >= this.CARRUSEL_RESOLUTIVOS_INTERVALO_MS) {
+          this.ngZone.run(() => this.carruselResolutivosSiguiente());
+          return;
+        }
+        const pct = Math.min(
+          100,
+          (this.carruselResolutivosElapsedMs / this.CARRUSEL_RESOLUTIVOS_INTERVALO_MS) * 100
+        );
+        const secs = Math.max(
+          0,
+          Math.ceil((this.CARRUSEL_RESOLUTIVOS_INTERVALO_MS - this.carruselResolutivosElapsedMs) / 1000)
+        );
+        // Solo sincronizar UI cuando cambia lo visible (evita thrashing de DOM/animaciones).
+        if (
+          Math.round(pct) !== Math.round(this.carruselResolutivosProgresoPct) ||
+          secs !== this.carruselResolutivosSegundosRestantes
+        ) {
+          this.ngZone.run(() => {
+            this.carruselResolutivosProgresoPct = pct;
+            this.carruselResolutivosSegundosRestantes = secs;
+          });
+        }
+      }, this.CARRUSEL_RESOLUTIVOS_TICK_MS);
+    });
   }
 
   private detenerCarruselResolutivos(): void {
@@ -5805,8 +5874,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     return this.resolutivosAtencion.filter((r) => r.estatus === this.filtroAtencionEstatus);
   }
 
-  /** Chips de filtro: Todos + estatus de atención con conteo */
-  get filtrosAtencionChips(): { key: string | null; label: string; count: number; color: string }[] {
+  private rebuildFiltrosAtencionChips(): void {
     const todos = {
       key: null as string | null,
       label: 'Todos',
@@ -5823,7 +5891,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
         color: cfg?.color || '#8898aa'
       };
     });
-    return [todos, ...porEstatus];
+    this.filtrosAtencionChips = [todos, ...porEstatus];
   }
 
   seleccionarFiltroAtencion(estatus: string | null, event?: Event): void {
@@ -6033,6 +6101,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     this.resolutivosAtencionTotal = 0;
     this.resumenAtencionCards = [];
     this.filtroAtencionEstatus = null;
+    this.rebuildFiltrosAtencionChips();
     this.resetAtencionDonutCentro();
     this.resolutivosChartOptions = {
       ...this.resolutivosChartOptions,
@@ -6247,6 +6316,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
         color: cfg.color
       };
     });
+    this.rebuildFiltrosAtencionChips();
 
     this.resolutivosAtencionDonut = {
       ...this.resolutivosAtencionDonut,

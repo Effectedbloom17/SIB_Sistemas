@@ -141,7 +141,10 @@ function parsePasosCompletados(raw) {
     if (!raw) return [];
     try {
         const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        return Array.isArray(arr) ? arr.filter((p) => PC_OPS_PASOS.includes(p)) : [];
+        if (!Array.isArray(arr)) return [];
+        return arr
+            .map((p) => String(p || '').trim())
+            .filter((p) => PC_OPS_PASOS.includes(p));
     } catch {
         return [];
     }
@@ -468,7 +471,7 @@ async function ensureResponsablePipcColumn(poolProteccionCivil, addColumnIfNotEx
 }
 
 function nombreCompletoUsuarioRow(row = {}) {
-    const partes = [row.nombre, row.apellido, row.apellido_paterno, row.apellido_materno]
+    const partes = [row.nombre, row.apellido]
         .map((p) => String(p || '').trim())
         .filter(Boolean);
     if (partes.length) return partes.join(' ');
@@ -483,8 +486,9 @@ async function obtenerNombresUsuariosPorIds(poolBiznaga, usuarioIds = []) {
     }
 
     const placeholders = ids.map(() => '?').join(', ');
+    // Tabla usuario solo tiene nombre/apellido (no apellido_paterno/materno)
     const [rows] = await poolBiznaga.query(
-        `SELECT id, username, nombre, apellido, apellido_paterno, apellido_materno, email
+        `SELECT id, username, nombre, apellido, email
          FROM usuario
          WHERE id IN (${placeholders}) AND activo = 1`,
         ids

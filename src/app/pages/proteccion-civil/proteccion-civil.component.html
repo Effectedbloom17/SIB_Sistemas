@@ -727,7 +727,7 @@
                       <div class="pc-avance-filter-bar" role="tablist" aria-label="Filtrar por estatus">
                         <button type="button"
                                 class="pc-avance-filter-chip"
-                                *ngFor="let chip of filtrosAtencionChips"
+                                *ngFor="let chip of filtrosAtencionChips; trackBy: trackByFiltroAtencionChip"
                                 [class.is-active]="filtroAtencionEstatus === chip.key"
                                 [style.--chip-color]="chip.color"
                                 [style.border-color]="filtroAtencionEstatus === chip.key ? chip.color : null"
@@ -769,7 +769,7 @@
                       </div>
 
                       <div class="pc-resolutivo-list" *ngIf="resolutivosAtencionFiltrados.length; else sinAtencionFiltrada">
-                        <ng-container *ngFor="let r of resolutivosAtencionFiltrados; let i = index">
+                        <ng-container *ngFor="let r of resolutivosAtencionFiltrados; let i = index; trackBy: trackByResolutivoAtencion">
                           <div class="pc-resolutivo-row"
                                *ngIf="indicadorTiempoAtencion(r) as ind"
                                [ngClass]="ind.clase"
@@ -866,7 +866,7 @@
                       <div class="pc-avance-stats-legend" *ngIf="resumenAtencionCards.length">
                         <button type="button"
                                 class="pc-avance-stat-card"
-                                *ngFor="let item of resumenAtencionCards"
+                                *ngFor="let item of resumenAtencionCards; trackBy: trackByResumenAtencionCard"
                                 [class.is-active]="filtroAtencionEstatus === item.key"
                                 [class.pc-avance-stat-card--tramite]="item.key === 'En tramite'"
                                 [class.pc-avance-stat-card--proximo]="item.key === 'Próximo a vencer'"
@@ -1100,6 +1100,11 @@
                 </div>
                 <div class="pc-empresa-card__meta empresa-info-texto">
                   <h3 class="pc-empresa-card__name empresa-card-nombre">{{ empresa.nombre_empresa }}</h3>
+                  <p class="pc-empresa-card__rfc" *ngIf="empresa.rfc">RFC: {{ empresa.rfc }}</p>
+                  <p class="pc-empresa-card__ubicacion" *ngIf="empresa.ciudad || empresa.estado">
+                    <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                    {{ empresa.ciudad || '' }}{{ empresa.ciudad && empresa.estado ? ', ' : '' }}{{ empresa.estado || '' }}
+                  </p>
                 </div>
               </div>
 
@@ -1111,7 +1116,7 @@
                   <span class="pc-empresa-card__progress-label">{{ isProcesoCompleto(empresa) ? 'Trámite' : 'Avance del trámite' }}</span>
                   <span class="pc-empresa-card__progress-value">
                     {{ getProgresoProceso(empresa) }}%
-                    <small *ngIf="empresa.documentos_totales">{{ empresa.documentos_completos || 0 }}/{{ empresa.documentos_totales }} docs</small>
+                    <small>{{ empresa.documentos_completos || 0 }}/{{ empresa.documentos_totales || 0 }} docs</small>
                   </span>
                 </div>
                 <div class="pc-empresa-card__progress-track">

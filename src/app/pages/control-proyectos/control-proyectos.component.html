@@ -905,63 +905,38 @@
                     </span>
                   </div>
 
-                  <div class="cp-gestion-table-shell" *ngIf="grupo.actividades.length; else sinActividadesDetalle" (scroll)="cerrarMenuPrioridadGestion(); cerrarMenuEstatusGestion(); cerrarMenuResponsablesGestion()">
+                  <div class="cp-gestion-table-shell" *ngIf="grupo.actividades.length; else sinActividadesDetalle" (scroll)="cerrarMenuPrioridadGestion(); cerrarMenuEstatusGestion(); cerrarMenuResponsablesGestion(); cerrarMenuAccionesFila()">
                     <ng-container *ngIf="actividadesGestionPaginadas(grupo) as filas">
                       <table class="cp-gestion-act-table" *ngIf="filas.length; else sinFiltroActs">
                         <thead>
                           <tr>
                             <th class="cp-gestion-act-table__col--num">#</th>
-                            <th class="cp-gestion-act-table__col--tools" aria-label="Acciones"></th>
                             <th class="cp-gestion-act-table__col--name">Actividad</th>
                             <th class="cp-gestion-act-table__col--date">Vencimiento</th>
                             <th class="cp-gestion-act-table__col--status">Estatus</th>
                             <th class="cp-gestion-act-table__col--assignees">Responsables</th>
                             <th class="cp-gestion-act-table__col--obs">Observaciones</th>
-                            <th class="cp-gestion-act-table__col--act"></th>
+                            <th class="cp-gestion-act-table__col--act" aria-label="Acciones"></th>
                           </tr>
                         </thead>
                         <tbody>
                           <ng-container *ngFor="let item of filas; trackBy: trackByGestionActividad">
                             <tr
                               class="cp-gestion-act-table__row"
-                              [class.is-expanded]="actividadGestionExpandida(item.indice)"
+                              [attr.data-estatus-tone]="toneEstatusActividadGestion(item.proyecto.estatus)"
+                              [class.is-expanded]="actividadGestionExpandida(item.indice) && !actividadGestionCerrando(item.indice)"
                               [class.is-pinned]="actividadGestionFijada(item.indice)"
+                              [class.is-preview]="actividadGestionHoverPreview(item.indice)"
                               [class.is-readonly]="!puedeEditarActividadGestion(item.proyecto, grupo)"
                               (mouseenter)="abrirDetalleGestionHover(item.indice, item.proyecto)"
                               (mouseleave)="cerrarDetalleGestionHover(item.indice)"
+                              (click)="onClickFilaActividadGestion($event, item.indice, item.proyecto)"
                             >
                               <td
                                 class="cp-gestion-act-table__num"
-                                (click)="toggleExpandirActividadGestion(item.indice, item.proyecto)"
-                                title="Fijar detalle de la actividad"
+                                (click)="toggleExpandirActividadGestion(item.indice, item.proyecto); $event.stopPropagation()"
+                                title="Abrir o cerrar detalle"
                               >{{ numeroActividadGestion(grupo, item) }}</td>
-                              <td class="cp-gestion-act-table__tools-cell">
-                                <div class="cp-gestion-act-tools">
-                                  <button
-                                    type="button"
-                                    class="cp-gestion-row-btn cp-gestion-row-btn--menu"
-                                    (click)="abrirPanelActividad($event, item)"
-                                    [attr.aria-label]="'Detalles de la actividad ' + numeroActividadGestion(grupo, item)"
-                                    title="Detalles e historial"
-                                  >
-                                    <i class="fas fa-ellipsis-v"></i>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    class="cp-gestion-repo-icon"
-                                    (click)="abrirRepositorioActividad($event, grupo, item.proyecto)"
-                                    [disabled]="!puedeAbrirRepositorioActividad(item.proyecto)"
-                                    [attr.aria-label]="'Evidencias de la actividad (' + conteoAdjuntosActividad(item.proyecto) + ')'"
-                                    [title]="tituloRepositorioActividad(item.proyecto)"
-                                  >
-                                    <i class="fas fa-paperclip" aria-hidden="true"></i>
-                                    <span
-                                      class="cp-gestion-repo-icon__badge"
-                                      *ngIf="conteoAdjuntosActividad(item.proyecto) > 0"
-                                    >{{ conteoAdjuntosActividad(item.proyecto) > 99 ? '99+' : conteoAdjuntosActividad(item.proyecto) }}</span>
-                                  </button>
-                                </div>
-                              </td>
                               <td>
                                 <textarea
                                   class="cp-gestion-act-table__input cp-gestion-act-table__input--actividad"
@@ -1103,30 +1078,120 @@
                                   wrap="soft"
                                 ></textarea>
                               </td>
-                              <td>
-                                <button
-                                  *ngIf="puedeEliminarActividadGestion(item.proyecto)"
-                                  type="button"
-                                  class="cp-gestion-row-btn cp-gestion-row-btn--danger"
-                                  (click)="quitarFilaGestion(item.indice)"
-                                  title="Eliminar actividad"
+                              <td class="cp-gestion-act-table__act-cell">
+                                <div
+                                  class="cp-gestion-flyout"
+                                  [class.is-open]="menuAccionesFilaAbierto(item.indice)"
+                                  (mouseenter)="abrirMenuAccionesFila(item.indice, $event)"
+                                  (mouseleave)="cerrarMenuAccionesFila(item.indice)"
+                                  (click)="$event.stopPropagation()"
                                 >
-                                  <i class="fas fa-trash-alt"></i>
-                                </button>
+                                  <button
+                                    type="button"
+                                    class="cp-gestion-flyout__trigger"
+                                    [attr.aria-expanded]="menuAccionesFilaAbierto(item.indice)"
+                                    [attr.aria-label]="'Acciones de la actividad ' + numeroActividadGestion(grupo, item)"
+                                    title="Acciones"
+                                  >
+                                    <i class="fas fa-ellipsis-h" aria-hidden="true"></i>
+                                  </button>
+                                  <div
+                                    class="cp-gestion-flyout__panel"
+                                    role="menu"
+                                    *ngIf="menuAccionesFilaAbierto(item.indice)"
+                                    [ngStyle]="menuAccionesFilaStyle"
+                                    (mouseenter)="abrirMenuAccionesFila(item.indice)"
+                                    (mouseleave)="cerrarMenuAccionesFila(item.indice)"
+                                  >
+                                    <button
+                                      type="button"
+                                      class="cp-gestion-flyout__btn"
+                                      role="menuitem"
+                                      (click)="abrirRepositorioActividad($event, grupo, item.proyecto); cerrarMenuAccionesFila()"
+                                      [disabled]="!puedeAbrirRepositorioActividad(item.proyecto)"
+                                      [title]="tituloRepositorioActividad(item.proyecto)"
+                                    >
+                                      <i class="fas fa-paperclip" aria-hidden="true"></i>
+                                      <span>Evidencias</span>
+                                      <em
+                                        class="cp-gestion-flyout__count"
+                                        *ngIf="conteoAdjuntosActividad(item.proyecto) > 0"
+                                      >{{ conteoAdjuntosActividad(item.proyecto) > 99 ? '99+' : conteoAdjuntosActividad(item.proyecto) }}</em>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      class="cp-gestion-flyout__btn cp-gestion-flyout__btn--danger"
+                                      role="menuitem"
+                                      *ngIf="puedeEliminarActividadGestion(item.proyecto)"
+                                      (click)="quitarFilaGestion(item.indice); cerrarMenuAccionesFila()"
+                                      title="Desactivar actividad (soft delete)"
+                                    >
+                                      <i class="fas fa-ban" aria-hidden="true"></i>
+                                      <span>Desactivar</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr
+                              class="cp-gestion-act-table__preview"
+                              [attr.data-estatus-tone]="toneEstatusActividadGestion(item.proyecto.estatus)"
+                              *ngIf="actividadGestionHoverPreview(item.indice)"
+                              (mouseenter)="abrirDetalleGestionHover(item.indice, item.proyecto)"
+                              (mouseleave)="cerrarDetalleGestionHover(item.indice)"
+                              (click)="toggleExpandirActividadGestion(item.indice, item.proyecto)"
+                              title="Clic para abrir y editar"
+                            >
+                              <td colspan="7">
+                                <div
+                                  class="cp-gestion-act-table__preview-strip"
+                                  [attr.data-estatus-tone]="toneEstatusActividadGestion(item.proyecto.estatus)"
+                                >
+                                  <div class="cp-gestion-act-table__preview-cell">
+                                    <span class="cp-gestion-act-table__preview-label">Referencia <small>(opcional)</small></span>
+                                    <em
+                                      class="cp-gestion-act-table__preview-badge"
+                                      *ngIf="conteoTextoDetalleGestion(item.proyecto.referenciaNormativa) as nRef"
+                                    >{{ nRef > 99 ? '99+' : nRef }}</em>
+                                  </div>
+                                  <div class="cp-gestion-act-table__preview-cell">
+                                    <span class="cp-gestion-act-table__preview-label">Entregables</span>
+                                    <em
+                                      class="cp-gestion-act-table__preview-badge"
+                                      *ngIf="conteoTextoDetalleGestion(item.proyecto.entregables) as nEnt"
+                                    >{{ nEnt > 99 ? '99+' : nEnt }}</em>
+                                  </div>
+                                  <div class="cp-gestion-act-table__preview-cell">
+                                    <span class="cp-gestion-act-table__preview-label">Archivos adjuntos</span>
+                                    <em
+                                      class="cp-gestion-act-table__preview-badge"
+                                      *ngIf="conteoAdjuntosActividad(item.proyecto) as nAdj"
+                                    >{{ nAdj > 99 ? '99+' : nAdj }}</em>
+                                  </div>
+                                </div>
                               </td>
                             </tr>
                             <tr
                               class="cp-gestion-act-table__detail"
+                              [attr.data-estatus-tone]="toneEstatusActividadGestion(item.proyecto.estatus)"
                               [class.is-pinned]="actividadGestionFijada(item.indice)"
+                              [class.is-closing]="actividadGestionCerrando(item.indice)"
                               *ngIf="actividadGestionExpandida(item.indice)"
                               (mouseenter)="abrirDetalleGestionHover(item.indice, item.proyecto)"
                               (mouseleave)="cerrarDetalleGestionHover(item.indice)"
                             >
-                              <td colspan="8">
+                              <td colspan="7">
                                 <div
-                                  class="cp-gestion-act-table__detail-grid"
-                                  [class.is-editable]="actividadGestionFijada(item.indice)"
+                                  class="cp-gestion-act-table__detail-grid is-editable"
+                                  [attr.data-estatus-tone]="toneEstatusActividadGestion(item.proyecto.estatus)"
+                                  [class.is-closing]="actividadGestionCerrando(item.indice)"
                                 >
+                                  <img
+                                    class="cp-gestion-act-table__detail-deco"
+                                    src="assets/img/img_deco/Fondo_com_inf_der.png"
+                                    alt=""
+                                    aria-hidden="true"
+                                  >
                                   <label class="cp-gestion-act-table__field">
                                     <span>Referencia <small>(opcional)</small></span>
                                     <textarea
@@ -1134,7 +1199,7 @@
                                       [(ngModel)]="item.proyecto.referenciaNormativa"
                                       [name]="'gestion_ref_' + item.indice"
                                       (ngModelChange)="marcarGestionCambios()"
-                                      [readonly]="!actividadGestionFijada(item.indice) || !puedeEditarActividadGestion(item.proyecto, grupo)"
+                                      [readonly]="!puedeEditarActividadGestion(item.proyecto, grupo)"
                                       placeholder="NOM, cláusula…"
                                       wrap="soft"
                                     ></textarea>
@@ -1146,7 +1211,7 @@
                                       [(ngModel)]="item.proyecto.entregables"
                                       [name]="'gestion_ent_' + item.indice"
                                       (ngModelChange)="marcarGestionCambios()"
-                                      [readonly]="!actividadGestionFijada(item.indice) || !puedeEditarActividadGestion(item.proyecto, grupo)"
+                                      [readonly]="!puedeEditarActividadGestion(item.proyecto, grupo)"
                                       placeholder="Documentos o evidencias"
                                       wrap="soft"
                                     ></textarea>
@@ -1177,8 +1242,8 @@
                                       </span>
                                       <i class="fas fa-chevron-right cp-gestion-repo-mini__go" aria-hidden="true"></i>
                                     </button>
-                                    <p class="cp-gestion-adjuntos__hint" *ngIf="!actividadGestionFijada(item.indice)">
-                                      Clic en # para editar · Clic en el icono para abrir el repositorio
+                                    <p class="cp-gestion-adjuntos__hint">
+                                      Clic en el icono para abrir el repositorio
                                     </p>
                                     <p class="cp-gestion-adjuntos__error" *ngIf="errorAdjuntosActividad(item.proyecto) as errAdj">
                                       {{ errAdj }}
@@ -1260,8 +1325,8 @@
 
             <p class="cp-note" *ngIf="!esConsultaEmpresa">
               <i class="fas fa-info-circle"></i>
-              Selecciona un proyecto para gestionar sus actividades. Al agregar o eliminar una actividad se guarda al instante; el resto de ediciones se guardan al salir de Gestión o con <strong>Guardar</strong>.
-              Eliminar no borra de la base: deja la actividad inactiva y registra quién lo hizo y a qué hora (México).
+              Agregar o desactivar se guarda al instante; el resto, con <strong>Guardar</strong>.
+              Desactivar no borra: se puede reactivar en <strong>Eliminados</strong>.
             </p>
             <p class="cp-note" *ngIf="esConsultaEmpresa && gestionNivelVista === 'proyectos'">
               <i class="fas fa-info-circle"></i>

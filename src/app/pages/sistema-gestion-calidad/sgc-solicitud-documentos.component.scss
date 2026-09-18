@@ -551,6 +551,8 @@ $warning: #c87012;
   margin: 0 auto .8rem; padding: .65rem .8rem; border-radius: 9px; font-size: .73rem;
   &--success { color: $teal-deep; border: 1px solid #a9eee1; background: #edfff9; }
   &--error { color: $danger; border: 1px solid #fed7d7; background: #fff5f5; }
+  &--warn { color: #9a3412; border: 1px solid #fdba74; background: #fff7ed; }
+  &--master { margin: .85rem 1rem 0; max-width: none; }
 }
 
 .sgc-wizard-card, .sgc-completed-wrap {
@@ -792,6 +794,12 @@ $warning: #c87012;
   margin: 0 !important; padding: .3rem .5rem; border: 1px solid #bfe8e2; border-radius: 8px;
   color: $teal-deep !important; background: $teal-soft; font-size: .65rem !important;
   i { font-size: .55rem; }
+
+  &--off {
+    border-color: #fecaca;
+    color: #991b1b !important;
+    background: #fef2f2;
+  }
 }
 
 .sgc-btn {
@@ -803,6 +811,7 @@ $warning: #c87012;
   &--primary { color: #fff; background: linear-gradient(135deg, $teal-dark, $teal); }
   &--secondary { border-color: $teal; color: $teal-deep; background: $teal-soft; }
   &--ghost { border-color: #d8e1e7; color: #475569; background: #fff; }
+  &--danger { color: #fff; background: linear-gradient(135deg, #b91c1c, #dc2626); }
   &--block { width: 100%; }
 }
 
@@ -909,6 +918,57 @@ $warning: #c87012;
   }
 }
 
+.sgc-result-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .55rem;
+  padding: .85rem 1rem 0;
+
+  &__item {
+    display: flex;
+    align-items: flex-start;
+    gap: .5rem;
+    min-width: 0;
+    padding: .55rem .65rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #f8fafc, #fff);
+
+    > i {
+      margin-top: .12rem;
+      color: $teal;
+      font-size: .72rem;
+      flex: 0 0 auto;
+    }
+
+    > div {
+      min-width: 0;
+      span, strong, small { display: block; }
+      span {
+        color: $muted;
+        font-size: .55rem;
+        font-weight: 800;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+      }
+      strong {
+        margin-top: .1rem;
+        color: $text;
+        font-size: .74rem;
+        font-weight: 800;
+        line-height: 1.25;
+        word-break: break-word;
+      }
+      small {
+        margin-top: .08rem;
+        color: #64748b;
+        font-size: .58rem;
+        font-weight: 650;
+      }
+    }
+  }
+}
+
 .sgc-result-table-wrap {
   position: relative;
   z-index: 1;
@@ -963,7 +1023,7 @@ $warning: #c87012;
 
   &__cell {
     display: inline-flex;
-    align-items: center;
+    align-items: flex-start;
     gap: .4rem;
     max-width: 220px;
     padding: .35rem .55rem;
@@ -974,12 +1034,28 @@ $warning: #c87012;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    i { color: $teal; font-size: .62rem; flex: 0 0 auto; }
+    i { color: $teal; font-size: .62rem; flex: 0 0 auto; margin-top: .15rem; }
 
     &--code {
       font-weight: 800;
       color: $text;
     }
+
+    &--nombre {
+      max-width: 260px;
+      white-space: normal;
+      overflow: visible;
+      text-overflow: unset;
+      align-items: flex-start;
+    }
+  }
+
+  &__nombre {
+    display: block;
+    white-space: pre-line;
+    word-break: break-word;
+    line-height: 1.35;
+    font-weight: 700;
   }
 
   &__ver {
@@ -1110,6 +1186,7 @@ $warning: #c87012;
   .sgc-field-wide { grid-column: span 2; }
   .sgc-document-column { position: static; }
   .sgc-proc-card { max-width: 520px; width: 100%; margin: 0 auto; }
+  .sgc-result-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 680px) {
@@ -1126,6 +1203,7 @@ $warning: #c87012;
   .sgc-step__line { left: calc(50% + 16px); right: calc(-50% + 16px); }
   .sgc-format-options, .sgc-master-form, .sgc-decision__buttons { grid-template-columns: 1fr; }
   .sgc-field-wide { grid-column: auto; }
+  .sgc-result-meta { grid-template-columns: 1fr; }
   .sgc-wizard-card__footer, .sgc-close-simple { align-items: stretch; flex-direction: column; }
   .sgc-btn { width: 100%; }
   .sgc-editor-header { align-items: stretch; flex-direction: column; }

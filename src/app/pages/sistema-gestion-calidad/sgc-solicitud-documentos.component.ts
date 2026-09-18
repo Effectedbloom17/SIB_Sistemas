@@ -39,6 +39,7 @@ export interface SgcSolicitudDocumentoItem {
   fecha_solicitud?: string;
   created_at: string;
   updated_at?: string;
+  autorizado_at?: string | null;
   autor_nombre?: string;
   autor_usuario?: string;
 }
@@ -69,6 +70,7 @@ interface PropuestaGestion {
   versionAnterior?: string;
   fechaRevisionNueva?: string;
   fechaHoyMexico?: string;
+  desactivar?: boolean;
 }
 
 interface ContextoGestion {
@@ -359,9 +361,12 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
     this.backend.autorizarSolicitudDocumentoSgc(solicitud.solicitud_id)
       .pipe(this.finalizarAccion())
       .subscribe({
-        next: (res) => this.actualizarTrasAccion(
-          res?.solicitud, 'Cambio autorizado. Ahora actualiza el formato.'
-        ),
+        next: (res) => {
+          const msg = this.esEliminacion(res?.solicitud || solicitud)
+            ? 'Cambio autorizado. Continúa desactivando el documento en la Lista Maestra.'
+            : 'Cambio autorizado. Ahora actualiza el formato.';
+          this.actualizarTrasAccion(res?.solicitud, msg);
+        },
         error: (err) => this.gestionarError(err, 'No se pudo autorizar el cambio')
       });
   }
@@ -497,14 +502,22 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
       this.errorGestion = 'Completa todos los campos de la Lista Maestra.';
       return;
     }
+    const esBaja = this.esEliminacion(solicitud);
     this.iniciarAccion(solicitud.solicitud_id, 'lista');
     this.backend.actualizarListaMaestraSolicitudDocumentoSgc(
-      solicitud.solicitud_id, { ...this.listaMaestraForm, vigente: true }
+      solicitud.solicitud_id,
+      {
+        ...this.listaMaestraForm,
+        vigente: !esBaja
+      }
     )
       .pipe(this.finalizarAccion())
       .subscribe({
         next: (res) => this.actualizarTrasAccion(
-          res?.solicitud, res?.message || 'Lista Maestra actualizada.'
+          res?.solicitud,
+          res?.message || (esBaja
+            ? 'Documento desactivado en la Lista Maestra.'
+            : 'Lista Maestra actualizada.')
         ),
         error: (err) => this.gestionarError(err, 'No se pudo actualizar la Lista Maestra')
       });
@@ -572,12 +585,20 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
     tipoDocumento: string;
     tipoSolicitud: string;
     motivo: string;
+    solicitante: string;
+    puesto: string;
+    fechaSolicitud: string;
+    horaSolicitud: string;
+    ticketId: number | null;
   } {
     const s = this.contexto?.solicitud;
     const maestro = this.contexto?.documentoMaestro;
     const propuesta = this.contexto?.propuesta;
+    const nombreRaw = String(
+      maestro?.nombreDocumento || s?.nombre_documento || this.contexto?.formatoDescarga?.titulo || '—'
+    ).trim();
     return {
-      nombre: maestro?.nombreDocumento || s?.nombre_documento || this.contexto?.formatoDescarga?.titulo || '—',
+      nombre: this.formatearNombreResumen(nombreRaw),
       codigo: maestro?.codigo || s?.codigo || this.contexto?.formatoDescarga?.codigo || '—',
       version: String(
         maestro?.versionVigente
@@ -588,8 +609,66 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
       ),
       tipoDocumento: maestro?.especie || s?.tipo_documento || this.origenDocumentoLabel || '—',
       tipoSolicitud: this.tipoSolicitudLabel(s?.tipo_solicitud),
-      motivo: String(s?.motivo || '').trim() || 'Sin motivo registrado.'
+      motivo: String(s?.motivo || '').trim() || 'Sin motivo registrado.',
+      solicitante: s ? this.autorLabel(s) : '—',
+      puesto: s ? this.puestoLabel(s) : '',
+      fechaSolicitud: this.fechaUi(s?.fecha_solicitud || s?.created_at),
+      horaSolicitud: this.horaMexicoUi(s?.created_at || s?.fecha_solicitud),
+      ticketId: s?.solicitud_id ?? null
     };
+  }
+
+  esEliminacion(solicitud?: SgcSolicitudDocumentoItem | null): boolean {
+    return String(solicitud?.tipo_solicitud || '').toLowerCase() === 'eliminacion';
+  }
+
+  horaMexicoUi(valor?: string | null): string {
+    if (!valor) return '—';
+    const d = new Date(valor);
+    if (Number.isNaN(d.getTime())) return '—';
+    return new Intl.DateTimeFormat('es-MX', {
+      timeZone: 'America/Mexico_City',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).format(d);
+  }
+
+  fechaHoraMexicoUi(valor?: string | null): string {
+    if (!valor) return '—';
+    const d = new Date(valor);
+    if (Number.isNaN(d.getTime())) return this.fechaUi(valor);
+    return new Intl.DateTimeFormat('es-MX', {
+      timeZone: 'America/Mexico_City',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(d);
+  }
+
+  private formatearNombreResumen(nombre: string): string {
+    const limpio = String(nombre || '').replace(/\s+/g, ' ').trim();
+    if (!limpio || limpio === '—') return limpio || '—';
+    // Inserta saltos cada ~28 chars en límites de palabra para evitar el corte por ellipsis.
+    if (limpio.length <= 28) return limpio;
+    const palabras = limpio.split(' ');
+    const lineas: string[] = [];
+    let actual = '';
+    for (const palabra of palabras) {
+      const candidato = actual ? `${actual} ${palabra}` : palabra;
+      if (candidato.length > 28 && actual) {
+        lineas.push(actual);
+        actual = palabra;
+      } else {
+        actual = candidato;
+      }
+    }
+    if (actual) lineas.push(actual);
+    return lineas.join('\n');
   }
 
   snippetSolicitud(solicitud: SgcSolicitudDocumentoItem): string {
@@ -678,12 +757,16 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
     const maestro = contexto.documentoMaestro || {};
     const solicitud = contexto.solicitud;
     const propuesta = contexto.propuesta || {};
+    const versionBase = propuesta.versionAnterior || solicitud.version_actual || maestro.versionVigente || '';
+    const versionForm = this.esEliminacion(solicitud)
+      ? (versionBase || propuesta.versionNueva || solicitud.version_nueva || '')
+      : (propuesta.versionNueva || solicitud.version_nueva || solicitud.version_actual || '');
     return {
       codigo: maestro.codigo || solicitud.codigo || '',
       area: maestro.area || '',
       tipo: maestro.tipo || 'Interno',
       especie: maestro.especie || solicitud.tipo_documento || '',
-      versionVigente: propuesta.versionNueva || solicitud.version_nueva || solicitud.version_actual || '',
+      versionVigente: versionForm,
       fechaRevision: this.fechaInput(
         propuesta.fechaRevisionNueva || solicitud.fecha_revision_nueva || propuesta.fechaHoyMexico
       ),

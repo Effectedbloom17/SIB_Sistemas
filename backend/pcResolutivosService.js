@@ -525,20 +525,13 @@ async function resolverNombreResponsableUsuario(poolBiznaga, usuarioId, fallback
     if (usuarioId && poolBiznaga) {
         try {
             const [rows] = await poolBiznaga.query(
-                `SELECT nombre, apellido, apellido_paterno, apellido_materno, username
+                `SELECT nombre, apellido, username
                  FROM usuario WHERE id = ? LIMIT 1`,
                 [usuarioId]
             );
             if (rows.length) {
-                const partes = [
-                    rows[0].nombre,
-                    rows[0].apellido,
-                    rows[0].apellido_paterno,
-                    rows[0].apellido_materno
-                ]
-                    .map((p) => String(p || '').trim())
-                    .filter(Boolean);
-                if (partes.length) return partes.join(' ');
+                const formatted = formatearNombreResponsable(rows[0].nombre, rows[0].apellido);
+                if (formatted) return formatted;
                 const username = String(rows[0].username || '').trim();
                 if (username) return username;
             }
@@ -1446,13 +1439,13 @@ async function obtenerDatosControlResolutivos(poolSgc, poolPC = null, poolBiznag
         try {
             const placeholders = responsablePipcIds.map(() => '?').join(', ');
             const [usuarios] = await poolBiznaga.query(
-                `SELECT id, username, nombre, apellido, apellido_paterno, apellido_materno
+                `SELECT id, username, nombre, apellido
                  FROM usuario
                  WHERE id IN (${placeholders})`,
                 responsablePipcIds
             );
             for (const u of usuarios) {
-                const partes = [u.nombre, u.apellido, u.apellido_paterno, u.apellido_materno]
+                const partes = [u.nombre, u.apellido]
                     .map((p) => String(p || '').trim())
                     .filter(Boolean);
                 const nombre = partes.length

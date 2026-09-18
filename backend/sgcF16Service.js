@@ -1636,7 +1636,13 @@ async function descargarPlantillaPdf(pool) {
         throw new Error(`No se encontró la hoja activa «${tituloHoja}» para exportar a PDF.`);
     }
 
-    const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, { gid });
+    // Carta, vertical, ajustar al ancho, márgenes normales (UI Sheets).
+    const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
+        gid,
+        landscape: false,
+        size: 'letter',
+        margins: 'normal'
+    });
     if (!pdfBuffer || !pdfBuffer.length) {
         throw new Error('La exportación a PDF de SGC-F-16 quedó vacía.');
     }

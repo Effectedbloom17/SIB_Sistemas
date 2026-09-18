@@ -1996,6 +1996,13 @@ export class BackendServices {
         );
     }
 
+    descargarPdfRecorridoPipcPC(empresaId: number, documentoPipcId: number): Observable<Blob> {
+        return this.httpClient.get(
+            `${this.baseUrl}/proteccion-civil/empresas/${empresaId}/recorrido/pipc/${documentoPipcId}/descargar-pdf`,
+            { responseType: 'blob' }
+        );
+    }
+
     establecerModoRecorridoPC(empresaId: number, modo: 'manual' | 'pdf'): Observable<any> {
         return this.httpClient.put(
             `${this.baseUrl}/proteccion-civil/empresas/${empresaId}/recorrido/modo`,
@@ -2955,6 +2962,15 @@ export class BackendServices {
 
     actualizarPlantillaSpF02(): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sp-f-02/actualizar-plantilla`, {});
+    }
+
+    descargarPdfSpF02(reporteId?: string | null): Observable<Blob> {
+        const qs = reporteId
+            ? `?reporteId=${encodeURIComponent(String(reporteId))}`
+            : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sp-f-02/descargar-pdf${qs}`, {
+            responseType: 'blob'
+        });
     }
 
     subirImagenSpF02(payload: {

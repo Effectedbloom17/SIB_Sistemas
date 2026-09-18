@@ -2251,6 +2251,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   spF02ContenidoModificado = false;
   spF02EditorCargando = false;
   spF02ActualizandoPlantilla = false;
+  spF02DescargandoPdf = false;
+  envioDocCorreoVisible = false;
+  envioDocCorreoAsunto = '';
+  envioDocCorreoMensaje = '';
+  envioDocCorreoNombrePdf = 'documento.pdf';
+  envioDocCorreoPdfLoader: (() => Observable<Blob>) | null = null;
   private spF02EditorIframeListo = false;
   private spF02SubiendoImagenKey: string | null = null;
 
@@ -8580,6 +8586,108 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
+  abrirEnvioCorreoSgcF16(): void {
+    if (!this.sgcF16MinutaActiva || this.envioDocCorreoVisible) {
+      return;
+    }
+    const asuntoMinuta = String(this.sgcF16MinutaActiva.asunto || '').trim() || 'Sin asunto';
+    const folio = String(this.sgcF16MinutaActiva.folio || '').trim();
+    this.envioDocCorreoAsunto = `Envió de MINUTA  "${asuntoMinuta}"`;
+    this.envioDocCorreoMensaje =
+      `Se adjunta la minuta SGC-F-16${folio ? ` (${folio})` : ''} correspondiente a «${asuntoMinuta}».`;
+    this.envioDocCorreoNombrePdf = folio
+      ? `SGC-F-16 ${folio}.pdf`.replace(/[\\/:*?"<>|]+/g, '_')
+      : 'SGC-F-16 Minuta.pdf';
+    this.envioDocCorreoPdfLoader = () => this.backendService.descargarPdfSgcF16();
+
+    const abrir = () => {
+      this.envioDocCorreoVisible = true;
+    };
+
+    if (this.sgcF16CambiosPendientes && this.sgcF16Listo && !this.sgcF16Guardando) {
+      this.sgcF16Guardando = true;
+      const activa = this.sgcF16MinutaActiva;
+      this.backendService.guardarSgcF16Formato(
+        { ...this.sgcF16Form, minutaActivaId: activa?.id || null },
+        false
+      )
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.aplicarEstadoSgcF16(res, true, false, true);
+            this.sgcF16CambiosPendientes = false;
+            this.sgcF16Guardando = false;
+            abrir();
+          },
+          error: () => {
+            this.sgcF16Guardando = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'Guarda la minuta antes de enviarla por correo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+    abrir();
+  }
+
+  abrirEnvioCorreoSpF02(): void {
+    if (!this.spF02ReporteActivo || this.envioDocCorreoVisible) {
+      return;
+    }
+    const proposito = String(this.spF02ReporteActivo.proposito || '').trim() || 'Sin propósito';
+    const folio = String(this.spF02ReporteActivo.folio || '').trim();
+    const reporteId = this.spF02ReporteActivo.id;
+    this.envioDocCorreoAsunto = `Envió de Reporte de recorrido  "${proposito}"`;
+    this.envioDocCorreoMensaje =
+      `Se adjunta el reporte de visita y recorrido SP-F-02${folio ? ` (${folio})` : ''} — «${proposito}».`;
+    this.envioDocCorreoNombrePdf = folio
+      ? `SP-F-02 ${folio}.pdf`.replace(/[\\/:*?"<>|]+/g, '_')
+      : 'SP-F-02 Reporte de visita y recorrido.pdf';
+    this.envioDocCorreoPdfLoader = () => this.backendService.descargarPdfSpF02(reporteId);
+
+    const abrir = () => {
+      this.envioDocCorreoVisible = true;
+    };
+
+    if (this.spF02CambiosPendientes && this.spF02Listo && !this.spF02Guardando) {
+      this.spF02Guardando = true;
+      this.sincronizarReporteActivoEnFormSpF02();
+      this.backendService.guardarSpF02Formato(
+        { ...this.spF02Form, reporteActivoId: reporteId },
+        false
+      )
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.aplicarEstadoSpF02(res, true, false, true);
+            this.spF02CambiosPendientes = false;
+            this.spF02Guardando = false;
+            abrir();
+          },
+          error: () => {
+            this.spF02Guardando = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'Guarda el reporte antes de enviarlo por correo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+    abrir();
+  }
+
+  cerrarEnvioDocumentoCorreo(): void {
+    this.envioDocCorreoVisible = false;
+    this.envioDocCorreoPdfLoader = null;
+  }
+
   onSeleccionarPdfSgcF16(event: Event): void {
     if (!this.sgcF16MinutaActiva) {
       return;
@@ -12870,6 +12978,83 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     });
   }
 
+  descargarPdfSpF02(): void {
+    if (this.spF02DescargandoPdf || !this.spF02ReporteActivo) {
+      return;
+    }
+    const reporteId = this.spF02ReporteActivo.id;
+    const folio = String(this.spF02ReporteActivo.folio || '').trim() || 'reporte';
+    const nombreArchivo = `SP-F-02 ${folio}.pdf`.replace(/[\\/:*?"<>|]+/g, '_');
+
+    const iniciarDescarga = () => {
+      this.spF02DescargandoPdf = true;
+      this.backendService.descargarPdfSpF02(reporteId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.spF02DescargandoPdf = false;
+            if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+              void Swal.fire({
+                icon: 'error',
+                title: 'No se pudo generar el PDF',
+                text: 'Guarda la información y vuelve a intentar. Si el problema continúa, revisa que la hoja exista en Drive.',
+                confirmButtonText: 'Entendido'
+              });
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = nombreArchivo;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.spF02DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo descargar el PDF',
+              text: 'Guarda la información primero para sincronizar la hoja en Drive e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    };
+
+    if (this.spF02CambiosPendientes && this.spF02Listo && !this.spF02Guardando) {
+      this.spF02DescargandoPdf = true;
+      this.spF02Guardando = true;
+      this.sincronizarReporteActivoEnFormSpF02();
+      this.backendService.guardarSpF02Formato(
+        { ...this.spF02Form, reporteActivoId: reporteId },
+        false
+      )
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.aplicarEstadoSpF02(res, true, false, true);
+            this.spF02CambiosPendientes = false;
+            this.spF02Guardando = false;
+            this.spF02DescargandoPdf = false;
+            iniciarDescarga();
+          },
+          error: () => {
+            this.spF02Guardando = false;
+            this.spF02DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'No se guardaron los cambios antes de generar el PDF. Intenta de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+
+    iniciarDescarga();
+  }
+
   private cargarSpF02DesdeServidor(): void {
     this.spF02Cargando = true;
     this.backendService.cargarSpF02Formato().subscribe({
@@ -16074,6 +16259,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-10') {
       this.autosizeTextareasSgcF10();
+    }
+    if (this.plantillaSlug === 'sgc-f-04') {
+      this.autosizeTextareasSgcF04();
     }
   }
 
@@ -23284,12 +23472,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF04Vista = 'editor';
     this.generarFolioSgcF04();
     this.onSgcF04Editado();
+    this.autosizeTextareasSgcF04();
   }
 
   abrirReporteSgcF04(reporte: SgcF04Reporte): void {
     this.sgcF04ArchivoExpandidoId = null;
     this.sgcF04ReporteActivo = reporte;
     this.sgcF04Vista = 'editor';
+    this.autosizeTextareasSgcF04();
   }
 
   private intentarAbrirReporteSgcF04PorFolio(folio: string): void {
@@ -23356,6 +23546,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.sgcF04ReporteActivo.accionesCorreccion.push(this.crearFilaCorreccionSgcF04Vacia());
     this.onSgcF04Editado();
+    this.autosizeTextareasSgcF04();
   }
 
   quitarFilaCorreccionSgcF04(index: number): void {
@@ -23364,6 +23555,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.sgcF04ReporteActivo.accionesCorreccion.splice(index, 1);
     this.onSgcF04Editado();
+    this.autosizeTextareasSgcF04();
   }
 
   agregarCausaSgcF04(): void {
@@ -23372,6 +23564,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.sgcF04ReporteActivo.causas.push('');
     this.onSgcF04Editado();
+    this.autosizeTextareasSgcF04();
   }
 
   quitarCausaSgcF04(index: number): void {
@@ -23380,6 +23573,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.sgcF04ReporteActivo.causas.splice(index, 1);
     this.onSgcF04Editado();
+    this.autosizeTextareasSgcF04();
   }
 
   agregarFilaCorrectivaSgcF04(): void {
@@ -23390,6 +23584,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF04ReporteActivo.accionesCorrectivas.push(this.crearFilaCorrectivaSgcF04Vacia(no));
     this.renumerarCorrectivasSgcF04();
     this.onSgcF04Editado();
+    this.autosizeTextareasSgcF04();
   }
 
   quitarFilaCorrectivaSgcF04(index: number): void {
@@ -23399,6 +23594,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF04ReporteActivo.accionesCorrectivas.splice(index, 1);
     this.renumerarCorrectivasSgcF04();
     this.onSgcF04Editado();
+    this.autosizeTextareasSgcF04();
   }
 
   private renumerarCorrectivasSgcF04(): void {
@@ -23415,6 +23611,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF04ReporteActivo.resultados.push(this.crearFilaResultadoSgcF04Vacia(no));
     this.renumerarResultadosSgcF04();
     this.onSgcF04Editado();
+    this.autosizeTextareasSgcF04();
   }
 
   quitarFilaResultadoSgcF04(index: number): void {
@@ -23424,6 +23621,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF04ReporteActivo.resultados.splice(index, 1);
     this.renumerarResultadosSgcF04();
     this.onSgcF04Editado();
+    this.autosizeTextareasSgcF04();
   }
 
   private renumerarResultadosSgcF04(): void {
@@ -23432,11 +23630,30 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     });
   }
 
+  onSgcF04Input(event: Event): void {
+    this.autosizeTextarea(event.target);
+    this.onSgcF04Editado();
+  }
+
   onSgcF04Editado(): void {
     if (!this.sgcF04Listo || this.sgcF04IgnorarAutoSave) {
       return;
     }
     this.sgcF04CambiosPendientes = true;
+  }
+
+  private autosizeTextareasSgcF04(): void {
+    const aplicar = () => {
+      if (this.plantillaSlug !== 'sgc-f-04' || this.sgcF04Vista !== 'editor') {
+        return;
+      }
+      const nodos = this.host.nativeElement.querySelectorAll<HTMLTextAreaElement>(
+        '.sgc-f-04-doc--editor textarea'
+      );
+      nodos.forEach((el) => this.autosizeTextarea(el));
+    };
+    window.setTimeout(aplicar, 0);
+    window.setTimeout(aplicar, 180);
   }
 
   onSeleccionarPdfSgcF04(event: Event): void {
@@ -23806,6 +24023,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF04ComboCampo = null;
     this.sgcF04ComboFila = null;
     this.sgcF04ComboQuery = '';
+    this.autosizeTextareasSgcF04();
   }
 
   confirmarComboSgcF04(campo: SgcF04ComboCampo, fila: number | null = null): void {
@@ -23816,6 +24034,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF04ComboCampo = null;
     this.sgcF04ComboFila = null;
     this.sgcF04ComboQuery = '';
+    this.autosizeTextareasSgcF04();
   }
 
   limpiarComboSgcF04(campo: SgcF04ComboCampo, fila: number | null = null, event?: Event): void {
@@ -23989,6 +24208,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (this.sgcF04FolioPendiente) {
         this.intentarAbrirReporteSgcF04PorFolio(this.sgcF04FolioPendiente);
       }
+      this.autosizeTextareasSgcF04();
     }, editorAbierto ? 0 : 350);
   }
 

@@ -21075,6 +21075,7 @@ app.post('/api/sgc/solicitud-documentos/:id/formato-listo', authMiddleware, requ
 /**
  * POST /api/sgc/solicitud-documentos/:id/lista-maestra
  * Actualiza SGC-F-01 (+1 versión, fecha México) y avanza a notificar.
+ * Si es eliminación: desactiva el documento (vigente=false), conserva versión y cierra sin notificar a Sistemas.
  */
 app.post('/api/sgc/solicitud-documentos/:id/lista-maestra', authMiddleware, requireRootOCalidadSgc, async (req, res) => {
     try {
@@ -21090,11 +21091,17 @@ app.post('/api/sgc/solicitud-documentos/:id/lista-maestra', authMiddleware, requ
         });
 
         const base = contexto.documentoMaestro || {};
-        const versionNueva = String(
-            req.body?.versionVigente
-            || contexto.propuesta?.versionNueva
-            || sgcSolicitudDocumentosService.incrementarVersion(base.versionVigente || contexto.solicitud.version_actual)
+        const esEliminacion = sgcSolicitudDocumentosService.esEliminacion(contexto.solicitud);
+        const versionBase = String(
+            base.versionVigente || contexto.solicitud.version_actual || '00'
         ).trim();
+        const versionNueva = esEliminacion
+            ? String(req.body?.versionVigente || versionBase).trim() || versionBase
+            : String(
+                req.body?.versionVigente
+                || contexto.propuesta?.versionNueva
+                || sgcSolicitudDocumentosService.incrementarVersion(versionBase)
+            ).trim();
         const fechaRevision = String(
             req.body?.fechaRevision
             || contexto.propuesta?.fechaRevisionNueva
@@ -21117,7 +21124,7 @@ app.post('/api/sgc/solicitud-documentos/:id/lista-maestra', authMiddleware, requ
             responsable: String(
                 req.body?.responsable || base.responsable || 'Coordinador del SGC'
             ).trim(),
-            vigente: req.body?.vigente !== false
+            vigente: esEliminacion ? false : (req.body?.vigente !== false)
         };
 
         if (!documento.codigo && !documento.nombreDocumento) {
@@ -21131,12 +21138,21 @@ app.post('/api/sgc/solicitud-documentos/:id/lista-maestra', authMiddleware, requ
         const solicitud = await sgcSolicitudDocumentosService.marcarListaMaestraListo(
             pool,
             req.params.id,
-            { versionNueva, fechaRevisionNueva: fechaRevision }
+            {
+                versionNueva,
+                fechaRevisionNueva: fechaRevision,
+                desactivar: esEliminacion,
+                notasCambio: esEliminacion
+                    ? (contexto.solicitud.motivo || 'Documento desactivado en Lista Maestra (eliminación).')
+                    : undefined
+            }
         );
 
         res.json({
             success: true,
-            message: `Lista maestra actualizada a versión ${versionNueva}`,
+            message: esEliminacion
+                ? `Documento ${documento.codigo || documento.nombreDocumento} desactivado en la Lista Maestra.`
+                : `Lista maestra actualizada a versión ${versionNueva}`,
             solicitud,
             listaMaestra: payloadF01
         });
@@ -21156,10 +21172,16 @@ app.post('/api/sgc/solicitud-documentos/:id/lista-maestra', authMiddleware, requ
  */
 app.post('/api/sgc/solicitud-documentos/:id/cerrar', authMiddleware, requireRootOCalidadSgc, async (req, res) => {
     try {
-        const notificar = req.body?.notificar === true || req.body?.notificar === 1 || req.body?.notificar === '1';
+        let notificar = req.body?.notificar === true || req.body?.notificar === 1 || req.body?.notificar === '1';
         const descripcion = String(req.body?.descripcion || '').trim();
         let ticketId = null;
         let ticket = null;
+
+        const solicitudActual = await sgcSolicitudDocumentosService.obtenerPorId(pool, req.params.id);
+        // Eliminación nunca genera ticket a Sistemas.
+        if (sgcSolicitudDocumentosService.esEliminacion(solicitudActual)) {
+            notificar = false;
+        }
 
         if (notificar) {
             if (!descripcion) {
@@ -21168,7 +21190,7 @@ app.post('/api/sgc/solicitud-documentos/:id/cerrar', authMiddleware, requireRoot
                     message: 'Describe el cambio o mejora para notificar a Sistemas'
                 });
             }
-            const solicitud = await sgcSolicitudDocumentosService.obtenerPorId(pool, req.params.id);
+            const solicitud = solicitudActual;
             const prefijo = solicitud
                 ? `[SGC · Solicitud #${solicitud.solicitud_id}] ${solicitud.codigo || solicitud.nombre_documento}: `
                 : '[SGC · Solicitud de documentos] ';
@@ -27381,6 +27403,26 @@ app.post('/api/sgc/formatos/sp-f-02/actualizar-plantilla', requireRole('root'), 
     }
 });
 
+app.get('/api/sgc/formatos/sp-f-02/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const resultado = await sgcSpF02Service.descargarPlantillaPdf(poolBiznagaSgc, {
+            reporteId: req.query.reporteId || req.query.id || null
+        });
+        const nombre = String(resultado.nombreArchivo || 'SP-F-02 Reporte de visita y recorrido.pdf')
+            .replace(/[^\w.\- áéíóúÁÉÍÓÚñÑ()]/gi, '_')
+            .trim() || 'SP-F-02 Reporte de visita y recorrido.pdf';
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${nombre.replace(/"/g, '')}"`
+        );
+        return res.send(resultado.buffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SP-F-02');
+    }
+});
+
 app.get('/api/sgc/formatos/sgc-f-05', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
@@ -29619,16 +29661,23 @@ app.get('/api/proteccion-civil/empresas', requireAdminOrPC, async (req, res) => 
             ORDER BY e.nombre_empresa
         `);
 
-        const [allDocs] = await poolProteccionCivil.query(`
-            SELECT empresa_id, documento_id, documento_padre_id, clave_workflow, tipo_entrada,
-                   nombre_documento, estatus, archivo_url, nombre_archivo, valor_texto
-            FROM documento_proteccion_civil
-            WHERE clave_workflow IS NULL OR clave_workflow = ''
-        `);
+        let allDocs = [];
+        try {
+            const [docsRows] = await poolProteccionCivil.query(`
+                SELECT empresa_id, documento_id, documento_padre_id, clave_workflow, tipo_entrada,
+                       nombre_documento, estatus, archivo_url, nombre_archivo, valor_texto
+                FROM documento_proteccion_civil
+                WHERE clave_workflow IS NULL OR clave_workflow = ''
+            `);
+            allDocs = docsRows || [];
+        } catch (docsError) {
+            console.warn('[PC] No se pudo leer documentos para el listado:', docsError.message);
+        }
 
         const docsPorEmpresa = new Map();
         for (const doc of allDocs) {
-            const id = doc.empresa_id;
+            const id = Number(doc.empresa_id);
+            if (!id) continue;
             if (!docsPorEmpresa.has(id)) docsPorEmpresa.set(id, []);
             docsPorEmpresa.get(id).push(doc);
         }
@@ -29641,9 +29690,9 @@ app.get('/api/proteccion-civil/empresas', requireAdminOrPC, async (req, res) => 
                 ORDER BY activo DESC, operacion_id DESC
             `);
             for (const ciclo of ciclos) {
-                if (!cicloPorEmpresa.has(ciclo.empresa_id)) {
-                    cicloPorEmpresa.set(ciclo.empresa_id, ciclo);
-                }
+                const empresaId = Number(ciclo.empresa_id);
+                if (!empresaId || cicloPorEmpresa.has(empresaId)) continue;
+                cicloPorEmpresa.set(empresaId, ciclo);
             }
         } catch (cicloError) {
             console.warn('[PC] No se pudo leer el ciclo de operaciones para el listado:', cicloError.message);
@@ -29657,10 +29706,11 @@ app.get('/api/proteccion-civil/empresas', requireAdminOrPC, async (req, res) => 
         const nombresResponsables = await pcCentroOperaciones.obtenerNombresUsuariosPorIds(pool, responsableIds);
 
         const empresasConConteo = empresas.map((empresa) => {
+            const empresaId = Number(empresa.empresa_id);
             const conteo = pcCentroOperaciones.contarProgresoDocumentacionSubir(
-                docsPorEmpresa.get(empresa.empresa_id) || []
+                docsPorEmpresa.get(empresaId) || []
             );
-            const ciclo = cicloPorEmpresa.get(empresa.empresa_id);
+            const ciclo = cicloPorEmpresa.get(empresaId);
             const responsableId = Number(ciclo?.responsable_pipc_usuario_id || 0) || null;
             return {
                 ...empresa,

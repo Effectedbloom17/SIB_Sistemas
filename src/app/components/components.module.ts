@@ -6,6 +6,7 @@ import { NavbarComponent } from './navbar/navbar.component';
 import { FooterComponent } from './footer/footer.component';
 import { DocumentPreviewComponent } from './document-preview/document-preview.component';
 import { PdfCanvasViewerComponent } from './pdf-canvas-viewer/pdf-canvas-viewer.component';
+import { EnvioDocumentoCorreoComponent } from './envio-documento-correo/envio-documento-correo.component';
 import { SafePipe } from '../pipes/safe.pipe';
 import { FechaCursoPipe } from '../pipes/fecha-curso.pipe';
 import { RouterModule } from '@angular/router';
@@ -26,6 +27,7 @@ import { HttpClientModule } from '@angular/common/http';
     SidebarComponent,
     DocumentPreviewComponent,
     PdfCanvasViewerComponent,
+    EnvioDocumentoCorreoComponent,
     SafePipe,
     FechaCursoPipe
   ],
@@ -36,6 +38,7 @@ import { HttpClientModule } from '@angular/common/http';
     SidebarComponent,
     DocumentPreviewComponent,
     PdfCanvasViewerComponent,
+    EnvioDocumentoCorreoComponent,
     SafePipe,
     FechaCursoPipe
   ]

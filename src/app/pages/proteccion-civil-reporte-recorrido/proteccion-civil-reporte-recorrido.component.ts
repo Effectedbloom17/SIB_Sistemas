@@ -1,6 +1,7 @@
 import { animate, style, transition, trigger } from '@angular/animations';
 import { Component, ElementRef, EventEmitter, HostListener, Input, OnChanges, OnDestroy, OnInit, Output, Renderer2, SimpleChanges, ViewChild } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { Observable } from 'rxjs';
 
 import Swal from 'sweetalert2';
 
@@ -170,6 +171,14 @@ export class ProteccionCivilReporteRecorridoComponent implements OnInit, OnChang
   cargando = false;
 
   guardando = false;
+
+  descargandoPdf = false;
+
+  envioDocCorreoVisible = false;
+  envioDocCorreoAsunto = '';
+  envioDocCorreoMensaje = '';
+  envioDocCorreoNombrePdf = 'SP-F-02 Reporte de visita y recorrido.pdf';
+  envioDocCorreoPdfLoader: (() => Observable<Blob>) | null = null;
 
   subiendoPdfPipcId: number | null = null;
 
@@ -765,6 +774,145 @@ export class ProteccionCivilReporteRecorridoComponent implements OnInit, OnChang
   }
 
 
+
+  descargarPdfReporte(): void {
+    if (!this.empresaId || !this.pipcActivo || !this.reporteActivo || this.descargandoPdf || this.nodoBloqueado) {
+      return;
+    }
+
+    const empresaId = this.empresaId;
+    const documentoId = this.pipcActivo.documento_id;
+    const folio = String(this.reporteActivo.folio || '').trim() || 'reporte';
+    const nombreArchivo = `SP-F-02 ${folio}.pdf`.replace(/[\\/:*?"<>|]+/g, '_');
+
+    const iniciarDescarga = () => {
+      this.descargandoPdf = true;
+      this.backend.descargarPdfRecorridoPipcPC(empresaId, documentoId).subscribe({
+        next: (blob) => {
+          this.descargandoPdf = false;
+          if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo generar el PDF',
+              text: 'Guarda la información y vuelve a intentar.',
+              confirmButtonColor: '#d97248'
+            });
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = nombreArchivo;
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: (err) => {
+          this.descargandoPdf = false;
+          void Swal.fire({
+            icon: 'warning',
+            title: 'No se pudo descargar el PDF',
+            text: err?.error?.message || 'Guarda el reporte primero para sincronizar la hoja en Drive.',
+            confirmButtonColor: '#d97248'
+          });
+        }
+      });
+    };
+
+    if (this.cambiosPendientes && !this.guardando) {
+      this.guardando = true;
+      this.descargandoPdf = true;
+      this.backend.guardarRecorridoPipcPC(empresaId, documentoId, this.reporteActivo).subscribe({
+        next: (resp) => {
+          this.guardando = false;
+          this.cambiosPendientes = false;
+          this.ultimaSync = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
+          if (resp?.drive_file_id) {
+            this.driveFileId = resp.drive_file_id;
+          }
+          if (resp?.editor_url) {
+            this.editorUrl = resp.editor_url;
+          }
+          this.descargandoPdf = false;
+          iniciarDescarga();
+          this.cargar();
+          this.estadoActualizado.emit();
+        },
+        error: (err) => {
+          this.guardando = false;
+          this.descargandoPdf = false;
+          void Swal.fire({
+            icon: 'warning',
+            title: 'No se pudo guardar',
+            text: err?.error?.message || 'Guarda el reporte antes de generar el PDF.',
+            confirmButtonColor: '#d97248'
+          });
+        }
+      });
+      return;
+    }
+
+    iniciarDescarga();
+  }
+
+  abrirEnvioCorreo(): void {
+    if (!this.empresaId || !this.pipcActivo || !this.reporteActivo || this.envioDocCorreoVisible || this.nodoBloqueado) {
+      return;
+    }
+
+    const empresaId = this.empresaId;
+    const documentoId = this.pipcActivo.documento_id;
+    const proposito = String(this.reporteActivo.proposito || '').trim() || 'Sin propósito';
+    const folio = String(this.reporteActivo.folio || '').trim();
+
+    this.envioDocCorreoAsunto = `Envió de Reporte de recorrido  "${proposito}"`;
+    this.envioDocCorreoMensaje =
+      `Se adjunta el reporte de visita y recorrido SP-F-02${folio ? ` (${folio})` : ''} — «${proposito}».`;
+    this.envioDocCorreoNombrePdf = folio
+      ? `SP-F-02 ${folio}.pdf`.replace(/[\\/:*?"<>|]+/g, '_')
+      : 'SP-F-02 Reporte de visita y recorrido.pdf';
+    this.envioDocCorreoPdfLoader = () => this.backend.descargarPdfRecorridoPipcPC(empresaId, documentoId);
+
+    const abrir = () => {
+      this.envioDocCorreoVisible = true;
+    };
+
+    if (this.cambiosPendientes && !this.guardando) {
+      this.guardando = true;
+      this.backend.guardarRecorridoPipcPC(empresaId, documentoId, this.reporteActivo).subscribe({
+        next: (resp) => {
+          this.guardando = false;
+          this.cambiosPendientes = false;
+          this.ultimaSync = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
+          if (resp?.drive_file_id) {
+            this.driveFileId = resp.drive_file_id;
+          }
+          if (resp?.editor_url) {
+            this.editorUrl = resp.editor_url;
+          }
+          abrir();
+          this.cargar();
+          this.estadoActualizado.emit();
+        },
+        error: (err) => {
+          this.guardando = false;
+          void Swal.fire({
+            icon: 'warning',
+            title: 'No se pudo guardar',
+            text: err?.error?.message || 'Guarda el reporte antes de enviarlo por correo.',
+            confirmButtonColor: '#d97248'
+          });
+        }
+      });
+      return;
+    }
+
+    abrir();
+  }
+
+  cerrarEnvioDocumentoCorreo(): void {
+    this.envioDocCorreoVisible = false;
+    this.envioDocCorreoPdfLoader = null;
+  }
 
   abrirEditorIntegrado(): void {
     const url = this.resolverUrlEditorIntegrado();

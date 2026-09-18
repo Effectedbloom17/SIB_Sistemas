@@ -669,6 +669,29 @@ async function guardarReportePipc(pool, poolBiznaga, empresaId, operacionId, doc
     };
 }
 
+/**
+ * Genera PDF del reporte SP-F-02 de un PIPC (carta, horizontal, ajustar al ancho, márgenes normales).
+ */
+async function descargarPdfReportePipc(pool, empresaId, operacionId, documentoPipcId) {
+    const reporte = await obtenerReportePipc(pool, empresaId, operacionId, documentoPipcId);
+    if (!reporte?.guardado || !reporte?.datos) {
+        const err = new Error('Guarda el reporte primero para poder generar el PDF.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const driveFileId = String(reporte.drive_file_id || '').trim();
+    if (!driveFileId) {
+        const err = new Error('No hay Google Sheet del recorrido para exportar a PDF.');
+        err.statusCode = 404;
+        throw err;
+    }
+    return sgcSpF02Service.exportarReporteComoPdf(driveFileId, {
+        ...reporte.datos,
+        nombreHoja: reporte.nombre_hoja || reporte.datos?.nombreHoja || null,
+        folio: reporte.folio || reporte.datos?.folio || null
+    });
+}
+
 async function eliminarReportePipc(pool, empresaId, operacionId, documentoPipcId) {
     const [rows] = await pool.query(
         `SELECT drive_file_id, nombre_hoja FROM pc_recorrido_reporte
@@ -827,6 +850,40 @@ function registerPcRecorridoRoutes(app, deps) {
                 });
             } catch (error) {
                 handleError(res, error, 'No se pudo subir la imagen del recorrido');
+            }
+        }
+    );
+
+    app.get(
+        '/api/proteccion-civil/empresas/:empresaId/recorrido/pipc/:documentoPipcId/descargar-pdf',
+        requireAdminOrPC,
+        verificarServicioProteccionCivilEmpresa,
+        async (req, res) => {
+            try {
+                const pool = await resolvePool();
+                const empresaId = Number(req.params.empresaId);
+                const documentoPipcId = Number(req.params.documentoPipcId);
+                const ciclo = await obtenerCicloActivo(pool, empresaId);
+                if (!ciclo) {
+                    return res.status(404).json({ success: false, message: 'No hay ciclo activo' });
+                }
+                const resultado = await descargarPdfReportePipc(
+                    pool,
+                    empresaId,
+                    ciclo.operacion_id,
+                    documentoPipcId
+                );
+                const nombre = String(resultado.nombreArchivo || 'SP-F-02 Reporte de visita y recorrido.pdf')
+                    .replace(/[^\w.\- áéíóúÁÉÍÓÚñÑ()]/gi, '_')
+                    .trim() || 'SP-F-02 Reporte de visita y recorrido.pdf';
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader(
+                    'Content-Disposition',
+                    `attachment; filename="${nombre.replace(/"/g, '')}"`
+                );
+                return res.send(resultado.buffer);
+            } catch (error) {
+                handleError(res, error, 'No se pudo descargar el PDF del reporte de recorrido');
             }
         }
     );
@@ -1011,6 +1068,7 @@ module.exports = {
     listarEstadoRecorrido,
     guardarReportePipc,
     eliminarReportePipc,
+    descargarPdfReportePipc,
     evaluarRecorridoCompleto,
     subirImagenItemRecorrido,
     subirPdfRecorridoPipc,

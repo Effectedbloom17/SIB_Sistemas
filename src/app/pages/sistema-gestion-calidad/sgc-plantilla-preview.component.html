@@ -329,10 +329,43 @@
                     class="btn btn-sm sgc-btn-pdf-icon"
                     [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF16DescargandoPdf"
                     (click)="descargarPdfSgcF16()"
-                    title="Generar PDF"
+                    title="Generar PDF (carta, vertical, ajustar al ancho)"
                     aria-label="Generar PDF">
                     <i class="fas" [ngClass]="sgcF16DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF16DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'sgc-f-16'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon sgc-btn-pdf-icon--mail"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || !sgcF16MinutaActiva || envioDocCorreoVisible"
+                    (click)="abrirEnvioCorreoSgcF16()"
+                    title="Envío por correo"
+                    aria-label="Envío por correo">
+                    <i class="fas fa-envelope" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">Envío por correo</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'sp-f-02'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || spF02DescargandoPdf || !spF02ReporteActivo"
+                    (click)="descargarPdfSpF02()"
+                    title="Generar PDF (carta, horizontal, ajustar al ancho)"
+                    aria-label="Generar PDF">
+                    <i class="fas" [ngClass]="spF02DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ spF02DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'sp-f-02'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon sgc-btn-pdf-icon--mail"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || !spF02ReporteActivo || envioDocCorreoVisible"
+                    (click)="abrirEnvioCorreoSpF02()"
+                    title="Envío por correo"
+                    aria-label="Envío por correo">
+                    <i class="fas fa-envelope" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">Envío por correo</span>
                   </button>
                   <button
                     *ngIf="plantillaSlug === 'sgc-f-24'"
@@ -9367,7 +9400,7 @@
 
             <ng-container *ngSwitchCase="'sgc-f-04'">
               <form class="dg-f05-form" (ngSubmit)="$event.preventDefault()"
-                    (input)="onSgcF04Editado()" (change)="onSgcF04Editado()">
+                    (input)="onSgcF04Input($event)" (change)="onSgcF04Editado()">
                 <div class="dg-f05-doc-wrap" [class.dg-f05-doc-wrap--loading]="sgcF04Cargando">
                   <div class="dg-f05-loading" *ngIf="sgcF04Cargando" role="status">
                     <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Cargando formato…
@@ -9614,7 +9647,7 @@
                                 [name]="inputName"
                                 [ngModel]="textoComboSgcF04(campo)"
                                 (ngModelChange)="onFiltroComboSgcF04(campo, $event)"
-                                (focus)="abrirComboSgcF04(campo)"
+                                (focus)="abrirComboSgcF04(campo); autosizeTextarea($event.target)"
                                 (keydown)="onComboSgcF04Keydown(campo, $event)"
                                 (blur)="confirmarComboSgcF04(campo)"
                                 [placeholder]="placeholder"
@@ -9817,9 +9850,10 @@
                           <ol class="sgc-f-04-causas">
                             <li *ngFor="let causa of rep.causas; let i = index; trackBy: trackByIdx">
                               <div class="sgc-f-04-causas__row">
-                                <input class="dg-f05-field" type="text" [(ngModel)]="rep.causas[i]"
+                                <textarea class="dg-f05-field dg-f05-field--textarea" rows="1"
+                                  [(ngModel)]="rep.causas[i]"
                                   [name]="'sgcF04_causa' + i" autocomplete="off"
-                                  [placeholder]="'Causa ' + (i + 1)">
+                                  [placeholder]="'Causa ' + (i + 1)"></textarea>
                                 <button type="button" class="dg-f05-row-btn"
                                   (click)="quitarCausaSgcF04(i)"
                                   [disabled]="rep.causas.length <= 1"
@@ -12690,3 +12724,13 @@
     </div>
   </div>
 </div>
+
+<app-envio-documento-correo
+  [visible]="envioDocCorreoVisible"
+  [asunto]="envioDocCorreoAsunto"
+  [mensaje]="envioDocCorreoMensaje"
+  [nombreAdjunto]="envioDocCorreoNombrePdf"
+  [pdfLoader]="envioDocCorreoPdfLoader"
+  tituloVentana="Envío por correo"
+  (cerrado)="cerrarEnvioDocumentoCorreo()">
+</app-envio-documento-correo>

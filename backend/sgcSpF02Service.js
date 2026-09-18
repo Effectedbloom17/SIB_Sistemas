@@ -773,6 +773,68 @@ async function asegurarFilasItems(spreadsheetId, sheetTitle, reporte, layout) {
     };
 }
 
+/**
+ * Elimina filas de ítem vacías sobrantes entre la zona de datos y el resumen.
+ * Evita PDFs con varias páginas en blanco cuando la plantilla traía muchas filas.
+ */
+async function recortarFilasItemsSobrantes(spreadsheetId, sheetTitle, reporte, layout) {
+    const items = (reporte.items || []).filter((i) => !esItemVacio(i));
+    const needed = Math.max(MIN_ITEM_SLOTS, items.length || 1);
+    const actuales = Math.max(1, layout.itemsEnd - layout.itemsStart + 1);
+    const sobrantes = actuales - needed;
+    if (sobrantes <= 0) {
+        return { layout, eliminoFilas: false };
+    }
+
+    const sheetId = await obtenerSheetIdPorTitulo(spreadsheetId, sheetTitle);
+    if (sheetId == null) {
+        return { layout, eliminoFilas: false };
+    }
+
+    // 0-based: primera fila sobrante = itemsStart + needed - 1
+    const startIndex = layout.itemsStart + needed - 1;
+    await driveService.eliminarFilasGoogleSheet(spreadsheetId, sheetId, startIndex, sobrantes);
+    const shift = -sobrantes;
+    return {
+        eliminoFilas: true,
+        layout: {
+            ...layout,
+            itemsEnd: layout.itemsStart + needed - 1,
+            resumenTotal: { ...layout.resumenTotal, row: layout.resumenTotal.row + shift },
+            resumenAbiertos: { ...layout.resumenAbiertos, row: layout.resumenAbiertos.row + shift },
+            resumenCerrados: { ...layout.resumenCerrados, row: layout.resumenCerrados.row + shift },
+            resumenAvance: { ...layout.resumenAvance, row: layout.resumenAvance.row + shift },
+            resumenRevision: { ...layout.resumenRevision, row: layout.resumenRevision.row + shift }
+        }
+    };
+}
+
+/** Recorta el grid de la hoja justo después del bloque de resumen. */
+async function recortarFilasTrasContenido(spreadsheetId, sheetTitle, layout) {
+    const ultima = Math.max(
+        Number(layout?.resumenRevision?.row) || 0,
+        Number(layout?.resumenAvance?.row) || 0,
+        Number(layout?.resumenCerrados?.row) || 0,
+        Number(layout?.resumenAbiertos?.row) || 0,
+        Number(layout?.resumenTotal?.row) || 0,
+        Number(layout?.itemsEnd) || 0
+    );
+    if (!ultima) {
+        return false;
+    }
+    try {
+        await driveService.recortarFilasGoogleSheet(spreadsheetId, {
+            sheetTitle,
+            lastContentRow: ultima,
+            bufferRows: 0
+        });
+        return true;
+    } catch (err) {
+        console.warn('[SP-F-02] No se pudieron recortar filas finales:', err.message);
+        return false;
+    }
+}
+
 /** Garantiza una fila vacía entre la tabla de ítems y el bloque de resumen. */
 async function asegurarSeparacionResumen(spreadsheetId, sheetTitle, layout) {
     const gap = Number(layout.resumenTotal?.row) - Number(layout.itemsEnd);
@@ -813,6 +875,14 @@ async function escribirReporteEnHoja(spreadsheetId, sheetTitle, reporte) {
         if (ws) layout = parsearLayoutDesdeHoja(ws);
     }
 
+    const recorteItems = await recortarFilasItemsSobrantes(spreadsheetId, sheetTitle, reporte, layout);
+    layout = recorteItems.layout;
+    if (recorteItems.eliminoFilas) {
+        buffer = await descargarBufferDrive(spreadsheetId);
+        ws = await obtenerWorksheet(buffer, sheetTitle);
+        if (ws) layout = parsearLayoutDesdeHoja(ws);
+    }
+
     const sep = await asegurarSeparacionResumen(spreadsheetId, sheetTitle, layout);
     layout = sep.layout;
     if (sep.insertoFilas) {
@@ -833,6 +903,9 @@ async function escribirReporteEnHoja(spreadsheetId, sheetTitle, reporte) {
     } catch (err) {
         console.warn('[SP-F-02] No se pudo aplicar formato visual:', err.message);
     }
+
+    await recortarFilasTrasContenido(spreadsheetId, sheetTitle, layout);
+
     try {
         const limpio = sanitizarReporte(reporte);
         const items = limpio.items.filter((i) => !esItemVacio(i));
@@ -850,6 +923,7 @@ async function escribirReporteEnHoja(spreadsheetId, sheetTitle, reporte) {
         } catch (err) {
             console.warn('[SP-F-02] No se pudo aplicar formato post-imágenes:', err.message);
         }
+        await recortarFilasTrasContenido(driveIdFinal, sheetTitle, layout);
         return driveIdFinal;
     } catch (err) {
         console.warn('[SP-F-02] Error en bloque de imágenes:', err.message);
@@ -1604,6 +1678,103 @@ async function sincronizarReportePcEnSpreadsheetDedicado(spreadsheetId, reporte)
     return { nombreHoja: hojaActiva, folio: folioDesdeFecha(limpio.fecha) };
 }
 
+/**
+ * Exporta la hoja del reporte activo a PDF.
+ * Carta · horizontal · ajustar al ancho · márgenes normales (UI Sheets).
+ */
+async function descargarPlantillaPdf(pool, opciones = {}) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const datosDb = await leerDatosRegistro(registro);
+    const datos = datosDb || sanitizarDatos(DATOS_DEFECTO);
+
+    const reporteId = String(opciones.reporteId || opciones.id || '').trim() || null;
+    let reporte = null;
+    if (reporteId) {
+        reporte = (datos.reportes || []).find((r) => r.id === reporteId) || null;
+    }
+    if (!reporte) {
+        reporte = resolverReporteActivo(
+            reporteId ? { ...datos, reporteActivoId: reporteId } : datos
+        );
+    }
+    if (!reporte || !reporteTieneContenido(reporte)) {
+        const err = new Error('Abre o selecciona un reporte con datos para exportar a PDF.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const driveFileId = await resolverDriveFileId(registro);
+    if (!driveFileId) {
+        const err = new Error('No hay Google Sheet SP-F-02 configurado para exportar a PDF.');
+        err.statusCode = 404;
+        throw err;
+    }
+
+    return exportarReporteComoPdf(driveFileId, reporte);
+}
+
+/** Exporta un reporte SP-F-02 desde un spreadsheet concreto (SGC o PC). */
+async function exportarReporteComoPdf(driveFileId, reporte) {
+    const limpio = sanitizarReporte(reporte);
+    const tituloHoja = String(limpio.nombreHoja || '').trim() || resolverNombreHojaReporte(limpio);
+    if (!tituloHoja || tituloHoja === 'Sin-nombre') {
+        const err = new Error('No se pudo resolver la hoja del reporte para exportar a PDF.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    // Compactar filas sobrantes antes del export (evita PDFs con páginas en blanco).
+    try {
+        await escribirReporteEnHoja(driveFileId, tituloHoja, limpio);
+    } catch (err) {
+        console.warn('[SP-F-02] Compactación previa a PDF:', err.message);
+        try {
+            const buffer = await descargarBufferDrive(driveFileId);
+            const ws = await obtenerWorksheet(buffer, tituloHoja);
+            if (ws) {
+                let layout = parsearLayoutDesdeHoja(ws);
+                const recorte = await recortarFilasItemsSobrantes(driveFileId, tituloHoja, limpio, layout);
+                layout = recorte.layout;
+                await recortarFilasTrasContenido(driveFileId, tituloHoja, layout);
+            }
+        } catch (err2) {
+            console.warn('[SP-F-02] Recorte de filas previo a PDF falló:', err2.message);
+        }
+    }
+
+    let gid = null;
+    try {
+        gid = await driveService.obtenerGidHojaPorNombre(driveFileId, tituloHoja);
+    } catch (err) {
+        console.warn('[SP-F-02] No se pudo resolver gid de hoja para PDF:', err.message);
+    }
+    if (gid == null) {
+        const err = new Error(
+            `No se encontró la hoja «${tituloHoja}» en Drive. Guarda la información primero para sincronizar la hoja.`
+        );
+        err.statusCode = 404;
+        throw err;
+    }
+
+    const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
+        gid,
+        landscape: true,
+        size: 'letter',
+        margins: 'normal'
+    });
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de SP-F-02 quedó vacía.');
+    }
+
+    const folio = limpio.folio || folioDesdeFecha(limpio.fecha) || 'reporte';
+    const nombreSeguro = sanitizarNombreHoja(`SP-F-02 ${folio}`) || 'SP-F-02 Reporte';
+    return {
+        buffer: Buffer.from(pdfBuffer),
+        nombreArchivo: `${nombreSeguro}.pdf`
+    };
+}
+
 module.exports = {
     CODIGO_FORMATO,
     TEMPLATE_DRIVE_ID,
@@ -1614,6 +1785,8 @@ module.exports = {
     guardarFormato,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
+    descargarPlantillaPdf,
+    exportarReporteComoPdf,
     sanitizarDatos,
     sanitizarReporte,
     reporteTieneContenido,

@@ -6324,9 +6324,24 @@ $dg-f04-amenazas-head: #fae0e0;
     box-shadow: 0 2px 10px rgba(15, 118, 110, 0.18);
 
     .sgc-btn-pdf-icon__label {
-      max-width: 6rem;
+      max-width: 8rem;
       opacity: 1;
       transform: translateX(0);
+    }
+  }
+
+  &--mail {
+    border-color: rgba(56, 81, 47, 0.28);
+    background: linear-gradient(180deg, #ffffff 0%, #f4f7f1 100%);
+    color: #38512f;
+
+    &:hover:not(:disabled),
+    &:focus-visible:not(:disabled) {
+      min-width: 9.5rem;
+      background: rgba(56, 81, 47, 0.1);
+      border-color: rgba(56, 81, 47, 0.45);
+      color: #2d4126;
+      box-shadow: 0 2px 10px rgba(56, 81, 47, 0.16);
     }
   }
 
@@ -9761,6 +9776,15 @@ $dg-f02-layout-max: 46.5rem;
   .sgc-f-25-table__text.dg-f05-field--textarea {
     max-height: none;
     overflow-y: hidden;
+  }
+
+  .sgc-preview-page--dg-f-05 .sgc-f-04-doc {
+    .dg-f05-field--textarea,
+    .sgc-f-04-combo__input {
+      max-height: none;
+      overflow: hidden;
+      overflow-y: hidden;
+    }
   }
 }
 
@@ -14639,6 +14663,24 @@ $dg-f02-layout-max: 46.5rem;
   padding: 0.55rem 0.7rem;
 }
 
+.sgc-f-04-doc--editor {
+  textarea.dg-f05-field--textarea,
+  textarea.sgc-f-04-combo__input {
+    max-height: none;
+    overflow: hidden;
+    overflow-y: hidden;
+    resize: none;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    field-sizing: content;
+  }
+
+  .dg-f05-table-wrap {
+    overflow: visible;
+  }
+}
+
 .sgc-f-04-norma {
   padding: 0.7rem 0.75rem;
   background: rgba(255, 255, 255, 0.7);
@@ -14887,8 +14929,17 @@ $dg-f02-layout-max: 46.5rem;
 
 .sgc-f-04-causas__row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.35rem;
+
+  textarea.dg-f05-field {
+    min-height: 2.15rem;
+  }
+
+  .dg-f05-row-btn {
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+  }
 }
 
 .sgc-f-04-inline-foot {
@@ -14921,9 +14972,10 @@ $dg-f02-layout-max: 46.5rem;
   td {
     overflow: visible;
     position: relative;
+    vertical-align: top;
 
     .dg-f05-field {
-      white-space: normal;
+      white-space: pre-wrap;
       overflow-wrap: anywhere;
       word-break: break-word;
     }
