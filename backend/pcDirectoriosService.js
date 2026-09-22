@@ -50,9 +50,24 @@ function normalizarNombreDirectorio(valor) {
     return base;
 }
 
-function formatearDirectorio(row) {
+function formatearPipcAsociado(row) {
+    if (!row) return null;
+    const documentoId = Number(row.catalogo_documento_id || row.documento_id || 0);
+    if (!documentoId) return null;
+    return {
+        documentoId,
+        catalogoDocumentoId: documentoId,
+        nombre: String(row.pipc_nombre || row.nombre || '').trim(),
+        hojaNombre: String(row.hoja_nombre || '').trim() || null
+    };
+}
+
+function formatearDirectorio(row, pipcAsociados = []) {
     if (!row) return null;
     const driveFileId = String(row.drive_file_id || '').trim();
+    const asociados = Array.isArray(pipcAsociados)
+        ? pipcAsociados.map(formatearPipcAsociado).filter(Boolean)
+        : [];
     return {
         id: Number(row.id),
         nombre: row.nombre,
@@ -67,6 +82,8 @@ function formatearDirectorio(row) {
         creadoPor: row.creado_por || null,
         activo: Number(row.activo) !== 0,
         totalContactos: Number(row.total_contactos || 0),
+        pipcAsociados: asociados,
+        totalPipcAsociados: asociados.length,
         createdAt: row.created_at,
         updatedAt: row.updated_at
     };
@@ -119,6 +136,252 @@ async function asegurarTablasPcDirectorios(pool) {
                 ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS pc_directorio_pipc (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            directorio_id INT NOT NULL,
+            catalogo_documento_id INT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_pc_dir_pipc (directorio_id, catalogo_documento_id),
+            KEY idx_pc_dir_pipc_dir (directorio_id),
+            KEY idx_pc_dir_pipc_cat (catalogo_documento_id),
+            CONSTRAINT fk_pc_dir_pipc_dir
+                FOREIGN KEY (directorio_id) REFERENCES pc_directorio(id)
+                ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+}
+
+async function cargarAsociacionesPorDirectorios(pool, directorioIds = []) {
+    const ids = [...new Set((directorioIds || []).map(Number).filter((id) => id > 0))];
+    const mapa = new Map();
+    if (!ids.length) return mapa;
+
+    const placeholders = ids.map(() => '?').join(',');
+    const [rows] = await pool.query(
+        `SELECT
+            dp.directorio_id,
+            dp.catalogo_documento_id,
+            d.nombre AS pipc_nombre,
+            d.hoja_nombre
+         FROM pc_directorio_pipc dp
+         LEFT JOIN pc_catalogo_documento d ON d.documento_id = dp.catalogo_documento_id
+         WHERE dp.directorio_id IN (${placeholders})
+         ORDER BY d.nombre ASC, dp.catalogo_documento_id ASC`,
+        ids
+    );
+
+    for (const row of rows) {
+        const dirId = Number(row.directorio_id);
+        if (!mapa.has(dirId)) mapa.set(dirId, []);
+        mapa.get(dirId).push(row);
+    }
+    return mapa;
+}
+
+async function listarPipcCatalogoParaAsociacion(pool) {
+    await asegurarTablasPcDirectorios(pool);
+    const [rows] = await pool.query(
+        `SELECT d.documento_id, d.nombre, d.hoja_nombre, d.jurisdiccion
+         FROM pc_catalogo_documento d
+         INNER JOIN pc_catalogo_categoria c
+            ON c.categoria_id = d.categoria_id AND c.slug = 'pipc'
+         WHERE d.activo = 1
+           AND TRIM(COALESCE(d.hoja_nombre, '')) <> ''
+         ORDER BY d.nombre ASC`
+    );
+    return rows.map((row) => ({
+        documentoId: Number(row.documento_id),
+        catalogoDocumentoId: Number(row.documento_id),
+        nombre: String(row.nombre || '').trim(),
+        hojaNombre: String(row.hoja_nombre || '').trim() || null,
+        jurisdiccion: String(row.jurisdiccion || '').trim() || null
+    }));
+}
+
+async function obtenerAsociacionesDirectorio(pool, directorioId) {
+    await asegurarTablasPcDirectorios(pool);
+    const id = Number(directorioId);
+    if (!Number.isFinite(id) || id <= 0) return [];
+    const mapa = await cargarAsociacionesPorDirectorios(pool, [id]);
+    return (mapa.get(id) || []).map(formatearPipcAsociado).filter(Boolean);
+}
+
+async function guardarAsociacionesDirectorio(pool, directorioId, catalogoDocumentoIds = []) {
+    await asegurarTablasPcDirectorios(pool);
+    const id = Number(directorioId);
+    if (!Number.isFinite(id) || id <= 0) {
+        throw new Error('directorio_id inválido.');
+    }
+
+    const [dirs] = await pool.query(
+        'SELECT id FROM pc_directorio WHERE id = ? AND activo = 1 LIMIT 1',
+        [id]
+    );
+    if (!dirs.length) {
+        throw new Error('Directorio no encontrado.');
+    }
+
+    const idsUnicos = [...new Set(
+        (Array.isArray(catalogoDocumentoIds) ? catalogoDocumentoIds : [])
+            .map(Number)
+            .filter((n) => Number.isFinite(n) && n > 0)
+    )];
+
+    if (idsUnicos.length) {
+        const placeholders = idsUnicos.map(() => '?').join(',');
+        const [validos] = await pool.query(
+            `SELECT d.documento_id
+             FROM pc_catalogo_documento d
+             INNER JOIN pc_catalogo_categoria c
+                ON c.categoria_id = d.categoria_id AND c.slug = 'pipc'
+             WHERE d.activo = 1
+               AND d.documento_id IN (${placeholders})`,
+            idsUnicos
+        );
+        const validSet = new Set(validos.map((r) => Number(r.documento_id)));
+        const invalidos = idsUnicos.filter((n) => !validSet.has(n));
+        if (invalidos.length) {
+            throw new Error('Uno o más PIPC del catálogo no son válidos.');
+        }
+    }
+
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+        await conn.query('DELETE FROM pc_directorio_pipc WHERE directorio_id = ?', [id]);
+        for (const catalogoId of idsUnicos) {
+            await conn.query(
+                `INSERT INTO pc_directorio_pipc (directorio_id, catalogo_documento_id)
+                 VALUES (?, ?)`,
+                [id, catalogoId]
+            );
+        }
+        await conn.query(
+            'UPDATE pc_directorio SET updated_at = NOW() WHERE id = ?',
+            [id]
+        );
+        await conn.commit();
+    } catch (err) {
+        await conn.rollback();
+        throw err;
+    } finally {
+        conn.release();
+    }
+
+    return obtenerDirectorio(pool, id);
+}
+
+/**
+ * Directorios asociados a los PIPC asignados de una empresa (por catalogo_documento_id).
+ */
+async function listarDirectoriosPorPipcEmpresa(pool, pipcAsignados = []) {
+    await asegurarTablasPcDirectorios(pool);
+    const lista = Array.isArray(pipcAsignados) ? pipcAsignados : [];
+    if (!lista.length) return [];
+
+    const catalogoIds = [...new Set(
+        lista
+            .map((p) => Number(p.catalogo_documento_id || p.catalogoDocumentoId || 0))
+            .filter((id) => id > 0)
+    )];
+
+    let asociaciones = [];
+    if (catalogoIds.length) {
+        const placeholders = catalogoIds.map(() => '?').join(',');
+        const [rows] = await pool.query(
+            `SELECT
+                dp.catalogo_documento_id,
+                d.id, d.nombre, d.drive_file_id, d.web_view_link, d.mime_type,
+                d.creado_por, d.activo, d.created_at, d.updated_at,
+                (SELECT COUNT(*) FROM pc_directorio_contacto c WHERE c.directorio_id = d.id) AS total_contactos
+             FROM pc_directorio_pipc dp
+             INNER JOIN pc_directorio d ON d.id = dp.directorio_id AND d.activo = 1
+             WHERE dp.catalogo_documento_id IN (${placeholders})
+             ORDER BY d.nombre ASC`,
+            catalogoIds
+        );
+        asociaciones = rows;
+    }
+
+    const porCatalogo = new Map();
+    for (const row of asociaciones) {
+        const catId = Number(row.catalogo_documento_id);
+        if (!porCatalogo.has(catId)) porCatalogo.set(catId, []);
+        porCatalogo.get(catId).push(formatearDirectorio(row, []));
+    }
+
+    return lista.map((pipc) => {
+        const documentoId = Number(pipc.documento_id || 0);
+        const catalogoId = Number(pipc.catalogo_documento_id || pipc.catalogoDocumentoId || 0);
+        return {
+            documento_id: documentoId,
+            catalogo_documento_id: catalogoId || null,
+            nombre_documento: String(pipc.nombre_documento || pipc.nombre || '').trim(),
+            directorios: catalogoId ? (porCatalogo.get(catalogoId) || []) : []
+        };
+    });
+}
+
+/**
+ * True si cada PIPC asignado tiene al menos un directorio asociado.
+ */
+async function evaluarCoberturaDirectoriosPipc(pool, pipcAsignados = []) {
+    const porPipc = await listarDirectoriosPorPipcEmpresa(pool, pipcAsignados);
+    if (!porPipc.length) {
+        return { completo: false, total_pipc: 0, con_directorio: 0, por_pipc: [] };
+    }
+    const conDirectorio = porPipc.filter((p) => (p.directorios || []).length > 0).length;
+    return {
+        completo: conDirectorio === porPipc.length,
+        total_pipc: porPipc.length,
+        con_directorio: conDirectorio,
+        por_pipc: porPipc
+    };
+}
+
+async function exportarDirectorioBuffer(pool, directorioId, formato = 'pdf') {
+    const directorio = await obtenerDirectorio(pool, directorioId);
+    if (!directorio?.driveFileId) {
+        throw new Error('Directorio no encontrado o sin archivo en Drive.');
+    }
+
+    const fmt = String(formato || 'pdf').toLowerCase() === 'docx' ? 'docx' : 'pdf';
+    let buffer;
+    let contentType;
+    let extension;
+
+    if (fmt === 'docx') {
+        await (driveService.arranqueAuthPromise || Promise.resolve());
+        const { drive } = obtenerApisGoogle();
+        const response = await drive.files.export(
+            {
+                fileId: directorio.driveFileId,
+                mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            },
+            { responseType: 'arraybuffer' }
+        );
+        buffer = Buffer.from(response.data);
+        contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        extension = 'docx';
+    } else {
+        buffer = await driveService.exportarArchivoPDF(directorio.driveFileId);
+        contentType = 'application/pdf';
+        extension = 'pdf';
+    }
+
+    const nombreBase = String(directorio.nombre || `directorio_${directorio.id}`)
+        .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
+        .replace(/\s+/g, '_')
+        .slice(0, 120) || `directorio_${directorio.id}`;
+
+    return {
+        buffer,
+        contentType,
+        filename: `${nombreBase}.${extension}`,
+        directorio
+    };
 }
 
 function obtenerApisGoogle() {
@@ -241,7 +504,11 @@ async function listarDirectorios(pool) {
          WHERE d.activo = 1
          ORDER BY d.nombre ASC`
     );
-    return rows.map(formatearDirectorio);
+    const mapaAsoc = await cargarAsociacionesPorDirectorios(
+        pool,
+        rows.map((r) => Number(r.id))
+    );
+    return rows.map((row) => formatearDirectorio(row, mapaAsoc.get(Number(row.id)) || []));
 }
 
 async function obtenerDirectorio(pool, directorioId) {
@@ -256,7 +523,8 @@ async function obtenerDirectorio(pool, directorioId) {
     );
     if (!rows.length) return null;
 
-    const directorio = formatearDirectorio(rows[0]);
+    const mapaAsoc = await cargarAsociacionesPorDirectorios(pool, [id]);
+    const directorio = formatearDirectorio(rows[0], mapaAsoc.get(id) || []);
     const [contactos] = await pool.query(
         `SELECT id, directorio_id, dependencia, telefono, direccion, orden
          FROM pc_directorio_contacto
@@ -507,5 +775,11 @@ module.exports = {
     asegurarEjemploMineralDeLaReforma,
     sincronizarContactosDesdeDrive,
     eliminarDirectorio,
-    construirUrlEditor
+    construirUrlEditor,
+    listarPipcCatalogoParaAsociacion,
+    obtenerAsociacionesDirectorio,
+    guardarAsociacionesDirectorio,
+    listarDirectoriosPorPipcEmpresa,
+    evaluarCoberturaDirectoriosPipc,
+    exportarDirectorioBuffer
 };

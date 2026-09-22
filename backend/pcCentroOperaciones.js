@@ -4,8 +4,8 @@
 
 const { repararPadresPipcHuerfanos } = require('./pcPipcAsignacionService');
 
-const PC_OPS_PASOS = ['asignar', 'recorrido', 'documentacion', 'oficio', 'observaciones', 'resolutivo', 'finalizar'];
-const PC_OPS_PASOS_OBLIGATORIOS_FINAL = ['asignar', 'documentacion', 'oficio', 'resolutivo'];
+const PC_OPS_PASOS = ['asignar', 'directorio', 'recorrido', 'documentacion', 'oficio', 'observaciones', 'resolutivo', 'finalizar'];
+const PC_OPS_PASOS_OBLIGATORIOS_FINAL = ['asignar', 'directorio', 'documentacion', 'oficio', 'resolutivo'];
 
 /** Claves legacy (compatibilidad con ciclos antiguos). */
 const PC_WORKFLOW_CLAVES_LEGACY = {
@@ -253,7 +253,7 @@ function evaluarSlotResolutivo(archivo, fechaAprobacion) {
     return 'incomplete';
 }
 
-function evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura = null, fechasWorkflow = {}, recorridoEstado = null) {
+function evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura = null, fechasWorkflow = {}, recorridoEstado = null, directorioEstado = null) {
     const pasos = parsePasosCompletados(ciclo?.pasos_completados);
     const docsCargados = todosDocumentosAsignacionCargados(allDocs);
     const pipcAsignados = listarPipcAsignadosActivos(allDocs);
@@ -336,8 +336,12 @@ function evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura = null, f
     // Reporte de recorrido: opcional temporalmente (se puede completar el nodo sin llenar SP-F-02).
     const recorridoCompletable = true;
 
+    // Directorio: requerido. Cada PIPC asignado debe tener ≥1 directorio asociado en Gestión de Directorios.
+    const directorioCompletable = pipcAsignados.length > 0 && !!(directorioEstado?.completo);
+
     const puedeCompletar = {
         asignar: asignarCompleto,
+        directorio: directorioCompletable,
         recorrido: recorridoCompletable,
         documentacion: docsCargados,
         oficio: oficioOk,
@@ -354,6 +358,7 @@ function evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura = null, f
         observaciones_opcional_vacio: obsVacio,
         observaciones_omitible: obsVacio,
         recorrido_opcional: true,
+        directorio_cobertura: directorioEstado || null,
         resolutivo_slots: resolutivoEstadoPorPipc,
         pipc_cobertura: pipcCobertura,
         pipc_asignados: pipcAsignados,
@@ -922,7 +927,12 @@ function registerPcCentroOperacionesRoutes(app, deps) {
                 allDocs,
                 poolBiznaga
             );
-            const reglas = evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura, fechasWf, recorridoEstado);
+            const pcDirectoriosService = require('./pcDirectoriosService');
+            const directorioEstado = await pcDirectoriosService.evaluarCoberturaDirectoriosPipc(
+                pool,
+                listarPipcAsignadosActivos(allDocs)
+            );
+            const reglas = evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura, fechasWf, recorridoEstado, directorioEstado);
             const responsableId = Number(ciclo.responsable_pipc_usuario_id || 0) || null;
             let responsableNombre = null;
             if (responsableId && poolBiznaga?.query) {
@@ -938,6 +948,7 @@ function registerPcCentroOperacionesRoutes(app, deps) {
                 documentacion_cargada: reglas.documentacion_cargada,
                 observaciones_omitible: reglas.observaciones_omitible,
                 recorrido_opcional: reglas.recorrido_opcional,
+                directorio_cobertura: reglas.directorio_cobertura,
                 resolutivo_slots: reglas.resolutivo_slots,
                 pipc_cobertura: pipcCobertura,
                 pipc_asignados: reglas.pipc_asignados,
@@ -1125,12 +1136,19 @@ function registerPcCentroOperacionesRoutes(app, deps) {
                 allDocs,
                 poolBiznaga
             );
-            const reglas = evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura, fechasWf, recorridoEstado);
+            const pcDirectoriosService = require('./pcDirectoriosService');
+            const directorioEstado = await pcDirectoriosService.evaluarCoberturaDirectoriosPipc(
+                pool,
+                listarPipcAsignadosActivos(allDocs)
+            );
+            const reglas = evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura, fechasWf, recorridoEstado, directorioEstado);
 
             if (!reglas.puede_completar[paso]) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Aún no se cumplen los requisitos para completar este paso'
+                    message: paso === 'directorio'
+                        ? 'Asocia al menos un directorio a cada PIPC en «Gestión de Directorios» antes de completar este paso.'
+                        : 'Aún no se cumplen los requisitos para completar este paso'
                 });
             }
 
@@ -1203,7 +1221,12 @@ function registerPcCentroOperacionesRoutes(app, deps) {
             const archivosWorkflow = await ensureWorkflowDocuments(pool, empresaId, allDocs);
             const pipcCobertura = await evaluarCoberturaPipcAsignacion(pool, empresaId, allDocs);
             const fechasWf = parseFechasWorkflow(ciclo.fechas_workflow);
-            const reglas = evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura, fechasWf);
+            const pcDirectoriosService = require('./pcDirectoriosService');
+            const directorioEstado = await pcDirectoriosService.evaluarCoberturaDirectoriosPipc(
+                pool,
+                listarPipcAsignadosActivos(allDocs)
+            );
+            const reglas = evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura, fechasWf, null, directorioEstado);
 
             if (!reglas.puede_completar.finalizar) {
                 return res.status(400).json({
@@ -1310,8 +1333,16 @@ function construirDetallePasosPipc({
     });
     const resolutivoOk = slotsRes.includes('complete') && !slotsRes.includes('incomplete');
     const recorridoOk = pasos.includes('recorrido');
+    const directorioOk = pasos.includes('directorio');
 
     const pasosDetalle = [
+        {
+            id: 'directorio',
+            label: 'Directorio',
+            estado: directorioOk ? 'ok' : 'pendiente',
+            detalle: null,
+            pct: directorioOk ? 100 : 0
+        },
         {
             id: 'recorrido',
             label: 'Reporte de Recorrido',
@@ -1350,7 +1381,7 @@ function construirDetallePasosPipc({
     ];
 
     // Paso actual: no cuenta observaciones ni asignar
-    const ordenActual = ['recorrido', 'documentacion', 'oficio', 'resolutivo'];
+    const ordenActual = ['directorio', 'recorrido', 'documentacion', 'oficio', 'resolutivo'];
     let pasoActual = 'Finalizado';
     let pasoActualId = 'finalizar';
     for (const id of ordenActual) {
@@ -1362,7 +1393,7 @@ function construirDetallePasosPipc({
         }
     }
 
-    const requeridos = ['documentacion', 'oficio', 'resolutivo'];
+    const requeridos = ['directorio', 'documentacion', 'oficio', 'resolutivo'];
     const doneReq = requeridos.filter((id) => pasosDetalle.find((p) => p.id === id)?.estado === 'ok').length;
     const progresoPct = Math.round((doneReq / requeridos.length) * 100);
 

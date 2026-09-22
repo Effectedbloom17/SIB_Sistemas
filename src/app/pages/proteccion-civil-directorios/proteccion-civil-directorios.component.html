@@ -5,7 +5,7 @@
       <h3 class="pc-dir__title">Gestión de Directorios</h3>
       <p class="pc-dir__help">
         <i class="fas fa-info-circle"></i>
-        Registra directorios a partir de la plantilla Word/Docs. Cada uno se edita en el editor integrado y se sincroniza a la base de datos.
+        Registra directorios a partir de la plantilla Word/Docs, asócialos a uno o más PIPC y edítalos en el editor integrado.
       </p>
     </div>
     <div class="pc-dir__actions">
@@ -49,48 +49,117 @@
 
   <div *ngIf="!cargando && directoriosFiltrados.length" class="pc-dir__grid">
     <article class="pc-dir-card"
-             *ngFor="let dir of directoriosFiltrados; trackBy: trackByDirectorio"
-             (click)="abrirEditorIntegrado(dir)"
-             role="button"
-             tabindex="0"
-             (keydown.enter)="abrirEditorIntegrado(dir)">
-      <div class="pc-dir-card__icon" aria-hidden="true">
-        <i class="fas fa-file-word"></i>
-      </div>
-      <div class="pc-dir-card__body">
-        <h4 class="pc-dir-card__title">{{ dir.nombre }}</h4>
-        <p class="pc-dir-card__meta">
-          <span><i class="fas fa-phone-alt"></i> {{ dir.totalContactos || 0 }} contacto{{ (dir.totalContactos || 0) === 1 ? '' : 's' }}</span>
-          <span *ngIf="dir.updatedAt"><i class="fas fa-clock"></i> {{ dir.updatedAt | date:'dd/MM/yyyy HH:mm' }}</span>
-        </p>
-      </div>
-      <div class="pc-dir-card__actions" (click)="$event.stopPropagation()">
+             *ngFor="let dir of directoriosFiltrados; trackBy: trackByDirectorio">
+      <div class="pc-dir-card__top">
+        <span class="pc-dir-card__badge">
+          <i class="fas fa-file-word mr-1"></i>Directorio
+        </span>
         <button type="button"
-                class="btn btn-sm pc-dir-card__btn pc-dir-card__btn--edit"
-                title="Editor integrado"
+                class="pc-dir-card__menu"
+                title="Opciones"
+                (click)="toggleMenu(dir, $event)">
+          <i class="fas fa-ellipsis-v"></i>
+        </button>
+      </div>
+
+      <h6 class="pc-dir-card__title">{{ dir.nombre }}</h6>
+      <p class="pc-dir-card__subtitle">
+        {{ dir.totalContactos || 0 }} contacto{{ (dir.totalContactos || 0) === 1 ? '' : 's' }}
+        · {{ (dir.totalPipcAsociados || dir.pipcAsociados?.length || 0) }} PIPC
+      </p>
+
+      <div class="pc-dir-card__meta">
+        <span *ngIf="dir.updatedAt"><i class="fas fa-calendar-alt mr-1"></i>{{ dir.updatedAt | date:'dd/MM/yyyy HH:mm' }}</span>
+        <span *ngIf="dir.pipcAsociados?.length; else sinPipc">
+          <i class="fas fa-link mr-1"></i>
+          {{ etiquetasPipc(dir) }}
+        </span>
+        <ng-template #sinPipc>
+          <span class="pc-dir-card__meta--warn"><i class="fas fa-unlink mr-1"></i>Sin PIPC asociados</span>
+        </ng-template>
+      </div>
+
+      <div class="pc-dir-card__actions">
+        <button type="button"
+                class="pc-dir-action pc-dir-action--editor"
                 (click)="abrirEditorIntegrado(dir)">
           <i class="fas fa-edit"></i> Editar
         </button>
         <button type="button"
-                class="btn btn-sm pc-dir-card__btn"
-                title="Sincronizar contactos a BD"
+                class="pc-dir-action pc-dir-action--link"
+                title="Asociar a PIPC"
+                (click)="abrirAsociarPipc(dir, $event)">
+          <i class="fas fa-link"></i>
+        </button>
+        <button type="button"
+                class="pc-dir-action"
+                title="Sincronizar contactos"
                 (click)="sincronizarManual(dir, $event)">
           <i class="fas fa-sync-alt"></i>
         </button>
-        <button type="button"
-                class="btn btn-sm pc-dir-card__btn"
-                title="Abrir en Drive"
-                (click)="abrirEnDrive(dir, $event)">
-          <i class="fab fa-google-drive"></i>
+      </div>
+
+      <div class="pc-dir-card__dropdown" *ngIf="menuDirectorioId === dir.id" (click)="$event.stopPropagation()">
+        <button type="button" (click)="abrirAsociarPipc(dir, $event); cerrarMenu()">
+          <i class="fas fa-link"></i> Asociar a PIPC
         </button>
-        <button type="button"
-                class="btn btn-sm pc-dir-card__btn pc-dir-card__btn--danger"
-                title="Eliminar del sistema"
-                (click)="eliminarDirectorio(dir, $event)">
-          <i class="fas fa-trash-alt"></i>
+        <button type="button" (click)="abrirEnDrive(dir, $event); cerrarMenu()">
+          <i class="fab fa-google-drive"></i> Abrir en Drive
+        </button>
+        <button type="button" class="is-danger" (click)="eliminarDirectorio(dir, $event); cerrarMenu()">
+          <i class="fas fa-trash-alt"></i> Eliminar
         </button>
       </div>
     </article>
+  </div>
+</div>
+
+<!-- Modal asociar PIPC -->
+<div class="pc-dir-modal" *ngIf="asociarVisible" role="dialog" aria-modal="true" aria-labelledby="pc-dir-asoc-title">
+  <div class="pc-dir-modal__backdrop" (click)="cerrarAsociarPipc()"></div>
+  <div class="pc-dir-modal__panel">
+    <div class="pc-dir-modal__head">
+      <div>
+        <h4 id="pc-dir-asoc-title">Asociar a PIPC</h4>
+        <p>{{ directorioAsociando?.nombre }}</p>
+      </div>
+      <button type="button" class="pc-dir-modal__close" (click)="cerrarAsociarPipc()" aria-label="Cerrar">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="pc-dir-modal__body">
+      <p class="pc-dir-modal__hint">
+        Selecciona uno o más PIPC del catálogo. En PIPC Activos cada empresa descargará solo los directorios ligados a sus PIPC asignados.
+      </p>
+      <div *ngIf="cargandoPipcCatalogo" class="pc-dir-modal__loading">
+        <i class="fas fa-spinner fa-spin"></i> Cargando catálogo PIPC…
+      </div>
+      <div *ngIf="!cargandoPipcCatalogo && pipcCatalogo.length === 0" class="pc-dir-modal__empty">
+        No hay hojas PIPC en el catálogo. Revisa Gestión de PIPC.
+      </div>
+      <label class="pc-dir-modal__item"
+             *ngFor="let pipc of pipcCatalogo; trackBy: trackByPipcCatalogo">
+        <input type="checkbox"
+               [checked]="isPipcSeleccionado(pipc.documentoId)"
+               (change)="togglePipcSeleccion(pipc.documentoId, $event)">
+        <span>
+          <strong>{{ pipc.nombre }}</strong>
+          <small *ngIf="pipc.hojaNombre">{{ pipc.hojaNombre }}</small>
+        </span>
+      </label>
+    </div>
+    <div class="pc-dir-modal__foot">
+      <button type="button" class="btn btn-light" (click)="cerrarAsociarPipc()" [disabled]="guardandoAsociacion">
+        Cancelar
+      </button>
+      <button type="button"
+              class="btn pc-dir-btn pc-dir-btn--primary"
+              [disabled]="guardandoAsociacion || cargandoPipcCatalogo"
+              (click)="guardarAsociacionPipc()">
+        <i class="fas" [ngClass]="guardandoAsociacion ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+        Guardar asociaciones
+      </button>
+    </div>
   </div>
 </div>
 

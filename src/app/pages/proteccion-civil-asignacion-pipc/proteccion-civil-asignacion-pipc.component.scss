@@ -25,26 +25,29 @@ $pc-ink: #3d2418;
   50% { transform: translateY(-4px); }
 }
 
-// Header naranja (como PC)
-.asig-pipc-header.header-bg-image {
-  background-image: url('/assets/img/prote_civil.jpg');
-  background-size: cover;
-  background-position: center;
-  min-height: 240px;
-  position: relative;
+// Header naranja (como Control de Resolutivos / PC)
+.asig-pipc-header {
+  &.header-bg-image {
+    background-image: url('/assets/img/prote_civil.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    min-height: 240px;
+    position: relative;
 
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      145deg,
-      rgba(100, 42, 10, 0.88) 0%,
-      rgba(185, 90, 42, 0.58) 40%,
-      rgba(140, 58, 18, 0.78) 70%,
-      rgba(72, 26, 5, 0.92) 100%
-    );
-    z-index: 1;
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        145deg,
+        rgba(100, 42, 10, 0.88) 0%,
+        rgba(185, 90, 42, 0.58) 40%,
+        rgba(140, 58, 18, 0.78) 70%,
+        rgba(72, 26, 5, 0.92) 100%
+      );
+      z-index: 1;
+    }
   }
 
   &__inner {
@@ -58,27 +61,34 @@ $pc-ink: #3d2418;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.18);
     color: #fff;
     font-size: 1.45rem;
     margin-bottom: 0.65rem;
     backdrop-filter: blur(4px);
     animation: asigFloat 3.2s ease-in-out infinite;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+
+    i {
+      color: #fff;
+    }
   }
 
   &__title {
-    color: #fff;
+    color: #fff !important;
     font-weight: 700;
     font-size: 2.15rem;
     letter-spacing: -0.5px;
     margin: 0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   }
 
   &__sub {
-    color: rgba(255, 255, 255, 0.82);
+    color: rgba(255, 255, 255, 0.88) !important;
     font-size: 0.92rem;
     margin: 0.4rem 0 0;
     font-weight: 500;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   }
 }
 

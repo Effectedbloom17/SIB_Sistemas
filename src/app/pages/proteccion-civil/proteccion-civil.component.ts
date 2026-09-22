@@ -109,6 +109,7 @@ const PASOS_PIPC_FICHA_BASE: ReadonlyArray<Omit<PasoPipcDetalle, 'estado' | 'det
   detalle: null;
   pct: number;
 }> = [
+  { id: 'directorio', label: 'Directorio', estado: 'pendiente', detalle: null, pct: 0 },
   { id: 'recorrido', label: 'Reporte de Recorrido', estado: 'pendiente', detalle: null, pct: 0 },
   { id: 'documentacion', label: 'Subir Documentación', estado: 'pendiente', detalle: null, pct: 0 },
   { id: 'oficio', label: 'Oficio de Ingreso', estado: 'pendiente', detalle: null, pct: 0 },
@@ -238,7 +239,7 @@ interface ResolutivoAtencionCard {
   color: string;
 }
 
-type PasoCentroOperacionesId = 'asignar' | 'recorrido' | 'documentacion' | 'oficio' | 'observaciones' | 'resolutivo' | 'finalizar';
+type PasoCentroOperacionesId = 'asignar' | 'directorio' | 'recorrido' | 'documentacion' | 'oficio' | 'observaciones' | 'resolutivo' | 'finalizar';
 
 type PcWorkflowClave = string;
 
@@ -317,12 +318,25 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   vistaActual: 'empresas' | 'menuDocumentos' | 'asignarDocumentos' | 'revisarDocumentos' | 'subirDocumentos' | 'catalogo' | 'detalleDocumento' = 'empresas';
 
   /** Paso activo en el stepper del centro de operaciones (vista menú admin). */
-  pasoOperacionesSeleccionado: PasoCentroOperacionesId = 'recorrido';
+  pasoOperacionesSeleccionado: PasoCentroOperacionesId = 'directorio';
   opsPasosCompletados: PasoCentroOperacionesId[] = [];
   opsPuedeCompletar: Partial<Record<PasoCentroOperacionesId, boolean>> = {};
   opsObservacionesOmitible = false;
   opsPipcCobertura: { total_catalogo: number; total_asignadas: number; todas_asignadas: boolean } | null = null;
   opsPipcAsignados: PcPipcAsignadoOps[] = [];
+  opsDirectoriosPorPipc: Array<{
+    documento_id: number;
+    catalogo_documento_id?: number | null;
+    nombre_documento: string;
+    directorios: Array<{
+      id: number;
+      nombre: string;
+      totalContactos?: number;
+      driveFileId?: string;
+    }>;
+  }> = [];
+  opsDirectoriosCargando = false;
+  opsDescargandoDirectorioId: number | null = null;
   opsFechasWorkflow: Record<string, string> = {};
   opsRefreshAsignaciones = 0;
   opsRefreshRecorrido = 0;
@@ -1882,7 +1896,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Modelo único de apartados PIPC: siempre 5 pasos en orden canónico,
+   * Modelo único de apartados PIPC: pasos en orden canónico,
    * fusionando lo que venga del API sin perder labels/estados.
    */
   private normalizarPasosDetallePipc(
@@ -2162,20 +2176,74 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   }
 
   get totalEmpresasDashboard(): number {
-    return this.empresasFiltradas.length;
+    return new Set(
+      this.empresasFiltradas
+        .map((e) => Number(e.empresa_id))
+        .filter((id) => id > 0)
+    ).size;
+  }
+
+  /** Una ficha representativa por empresa (varios PIPC → un solo apartado). */
+  private elegirFichaRepresentativa(fichas: EmpresaPC[]): EmpresaPC {
+    if (fichas.length === 1) return fichas[0];
+    return [...fichas].sort((a, b) => {
+      const pa = Number(a.progreso_pct);
+      const pb = Number(b.progreso_pct);
+      const progA = Number.isFinite(pa) ? pa : 999;
+      const progB = Number.isFinite(pb) ? pb : 999;
+      if (progA !== progB) return progA - progB;
+      return String(a.pipc_nombre || '').localeCompare(String(b.pipc_nombre || ''), 'es');
+    })[0];
+  }
+
+  private elegirFichaTerminadaRepresentativa(
+    fichas: Array<PipcTerminadoReciente | EmpresaPC>
+  ): PipcTerminadoReciente | EmpresaPC {
+    if (fichas.length === 1) return fichas[0];
+    return [...fichas].sort((a, b) => {
+      const ta = a.ciclo_cerrado_at ? new Date(a.ciclo_cerrado_at).getTime() : 0;
+      const tb = b.ciclo_cerrado_at ? new Date(b.ciclo_cerrado_at).getTime() : 0;
+      if (tb !== ta) return tb - ta;
+      return String(a.pipc_nombre || '').localeCompare(String(b.pipc_nombre || ''), 'es');
+    })[0];
+  }
+
+  /** Nombres de PIPC gestionados bajo la misma empresa (o ciclo cerrado). */
+  getPipcNombresEmpresa(
+    empresa: EmpresaPC | PipcTerminadoReciente | any,
+    terminado = false
+  ): string[] {
+    const hermanas = this.getFichasHermanasPipc(empresa, terminado);
+    const nombres = (hermanas.length ? hermanas : [empresa])
+      .map((h) => String(h?.pipc_nombre || '').trim())
+      .filter(Boolean);
+    return [...new Set(nombres)];
   }
 
   get totalEstadosDashboard(): number {
     const estadosUnicos = new Set(
-      this.empresasFiltradas
+      this.empresasUnicasFiltradas
         .map((e) => (e.estado || '').trim().toLowerCase())
         .filter((estado) => !!estado)
     );
     return estadosUnicos.size;
   }
 
+  /** Empresas únicas del filtro (evita duplicar KPIs cuando hay varios PIPC). */
+  private get empresasUnicasFiltradas(): EmpresaPC[] {
+    const vistos = new Set<number>();
+    const result: EmpresaPC[] = [];
+    for (const empresa of this.empresasFiltradas) {
+      const id = Number(empresa.empresa_id);
+      if (!id || vistos.has(id)) continue;
+      vistos.add(id);
+      result.push(empresa);
+    }
+    return result;
+  }
+
   get archivosPendientesDashboard(): number {
-    return this.empresasFiltradas.reduce((acumulado, empresa) => {
+    return this.empresasUnicasFiltradas.reduce((acumulado, empresa) => {
       const totales = Number(empresa.documentos_totales) || 0;
       const completos = Number(empresa.documentos_completos) || 0;
       return acumulado + Math.max(totales - completos, 0);
@@ -2183,7 +2251,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   }
 
   get cumplimientoPromedioDashboard(): number {
-    const totalAsignados = this.empresasFiltradas.reduce((acumulado, empresa) => {
+    const totalAsignados = this.empresasUnicasFiltradas.reduce((acumulado, empresa) => {
       return acumulado + (Number(empresa.documentos_totales) || 0);
     }, 0);
 
@@ -2191,7 +2259,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       return 0;
     }
 
-    const totalCompletados = this.empresasFiltradas.reduce((acumulado, empresa) => {
+    const totalCompletados = this.empresasUnicasFiltradas.reduce((acumulado, empresa) => {
       return acumulado + (Number(empresa.documentos_completos) || 0);
     }, 0);
 
@@ -2199,32 +2267,60 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   }
 
   get totalDocumentosAsignados(): number {
-    return this.empresasFiltradas.reduce((acc, e) => acc + (Number(e.documentos_totales) || 0), 0);
+    return this.empresasUnicasFiltradas.reduce((acc, e) => acc + (Number(e.documentos_totales) || 0), 0);
   }
 
   get empresasSinDocumentos(): number {
-    return this.empresasFiltradas.filter(e => (Number(e.documentos_totales) || 0) === 0).length;
+    return this.empresasUnicasFiltradas.filter(e => (Number(e.documentos_totales) || 0) === 0).length;
   }
 
   get empresasActividadReciente(): EmpresaPC[] {
-    // Expande todas las fichas PIPC de cada empresa visitada recientemente.
+    // Una tarjeta por empresa reciente (todos sus PIPC se gestionan en el hover).
     const result: EmpresaPC[] = [];
-    const vistos = new Set<string>();
+    const vistos = new Set<number>();
     for (const empresaId of this.empresasRecientesIds) {
-      const fichas = this.empresasFiltradas.filter((e) => Number(e.empresa_id) === Number(empresaId));
-      for (const ficha of fichas) {
-        const key = ficha.ficha_key || `${ficha.empresa_id}-${ficha.pipc_documento_id || 0}`;
-        if (vistos.has(key)) continue;
-        vistos.add(key);
-        result.push(ficha);
-      }
+      const id = Number(empresaId);
+      if (!id || vistos.has(id)) continue;
+      const fichas = this.empresasFiltradas.filter((e) => Number(e.empresa_id) === id);
+      if (!fichas.length) continue;
+      vistos.add(id);
+      result.push(this.elegirFichaRepresentativa(fichas));
     }
     return result;
   }
 
   get empresasFiltradasResto(): EmpresaPC[] {
     const recientes = new Set(this.empresasRecientesIds.map((id) => Number(id)));
-    return this.empresasFiltradas.filter((empresa) => !recientes.has(Number(empresa.empresa_id)));
+    const vistos = new Set<number>();
+    const result: EmpresaPC[] = [];
+    for (const empresa of this.empresasFiltradas) {
+      const id = Number(empresa.empresa_id);
+      if (!id || recientes.has(id) || vistos.has(id)) continue;
+      vistos.add(id);
+      const hermanas = this.empresasFiltradas.filter((e) => Number(e.empresa_id) === id);
+      result.push(this.elegirFichaRepresentativa(hermanas));
+    }
+    return result;
+  }
+
+  /** Terminados: una tarjeta por empresa (varios PIPC del mismo cierre en el hover). */
+  get pipcTerminadosAgrupados(): Array<PipcTerminadoReciente | EmpresaPC> {
+    const vistos = new Set<string>();
+    const result: Array<PipcTerminadoReciente | EmpresaPC> = [];
+    for (const item of this.pipcTerminadosRecientes) {
+      const opId = Number(item?.operacion_id || 0);
+      const empId = Number(item?.empresa_id || 0);
+      const groupKey = opId > 0 ? `t-${opId}` : `t-e-${empId}`;
+      if (!empId || vistos.has(groupKey)) continue;
+      vistos.add(groupKey);
+      const hermanas = this.pipcTerminadosRecientes.filter((t) =>
+        opId > 0
+          ? Number(t.operacion_id) === opId
+          : Number(t.empresa_id) === empId
+      );
+      result.push(this.elegirFichaTerminadaRepresentativa(hermanas));
+    }
+    return result;
   }
 
   get hayActividadRecienteEmpresas(): boolean {
@@ -2281,27 +2377,29 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
 
   private readonly pasosCentroOperacionesDef: PasoCentroOperaciones[] = [
     { id: 'asignar', nombre: 'Asignar documentos', descripcion: '', icono: 'fa-tasks', orden: 1 },
-    { id: 'recorrido', nombre: 'Reporte de Recorrido', descripcion: 'Opcional: SP-F-02 por cada PIPC asignado', icono: 'fa-route', orden: 2 },
-    { id: 'documentacion', nombre: 'Subir documentación', descripcion: '', icono: 'fa-cloud-upload-alt', orden: 3 },
-    { id: 'oficio', nombre: 'Oficio de Ingreso', descripcion: 'Oficio y fecha por cada PIPC asignado', icono: 'fa-file-signature', orden: 4 },
-    { id: 'observaciones', nombre: 'Observaciones', descripcion: 'Opcional: 2 oficios y fecha por PIPC', icono: 'fa-comment-dots', orden: 5 },
-    { id: 'resolutivo', nombre: 'Resolutivo', descripcion: 'PIPC, Factibilidad y OTMS por cada PIPC', icono: 'fa-gavel', orden: 6 },
-    { id: 'finalizar', nombre: 'Finalizar', descripcion: 'Cierra el ciclo y permite nueva asignación', icono: 'fa-flag-checkered', orden: 7 }
+    { id: 'directorio', nombre: 'Directorio', descripcion: 'Descarga el directorio asociado a cada PIPC', icono: 'fa-address-book', orden: 2 },
+    { id: 'recorrido', nombre: 'Reporte de Recorrido', descripcion: 'Opcional: SP-F-02 por cada PIPC asignado', icono: 'fa-route', orden: 3 },
+    { id: 'documentacion', nombre: 'Subir documentación', descripcion: '', icono: 'fa-cloud-upload-alt', orden: 4 },
+    { id: 'oficio', nombre: 'Oficio de Ingreso', descripcion: 'Oficio y fecha por cada PIPC asignado', icono: 'fa-file-signature', orden: 5 },
+    { id: 'observaciones', nombre: 'Observaciones', descripcion: 'Opcional: 2 oficios y fecha por PIPC', icono: 'fa-comment-dots', orden: 6 },
+    { id: 'resolutivo', nombre: 'Resolutivo', descripcion: 'PIPC, Factibilidad y OTMS por cada PIPC', icono: 'fa-gavel', orden: 7 },
+    { id: 'finalizar', nombre: 'Finalizar', descripcion: 'Cierra el ciclo y permite nueva asignación', icono: 'fa-flag-checkered', orden: 8 }
   ];
 
-  /** En PIPC Activos la asignación vive en otra pantalla; el flujo empieza en Recorrido. */
+  /** En PIPC Activos la asignación vive en otra pantalla; el flujo empieza en Directorio. */
   private readonly pasosOcultosEnPipcActivos = new Set<PasoCentroOperacionesId>(['asignar']);
 
   /** Pasos que sí cuentan para el 100% del trámite. Recorrido y observaciones son opcionales. */
-  private readonly pcPasosRequeridosTramite: PasoCentroOperacionesId[] = ['asignar', 'documentacion', 'oficio', 'resolutivo'];
+  private readonly pcPasosRequeridosTramite: PasoCentroOperacionesId[] = ['asignar', 'directorio', 'documentacion', 'oficio', 'resolutivo'];
   private readonly pcPasosTramitePendientes: Array<{ id: PasoCentroOperacionesId; label: string; opcional: boolean }> = [
+    { id: 'directorio', label: 'Directorio', opcional: false },
     { id: 'recorrido', label: 'Reporte de Recorrido', opcional: true },
     { id: 'oficio', label: 'Oficio de Ingreso', opcional: false },
     { id: 'observaciones', label: 'Observaciones', opcional: true },
     { id: 'resolutivo', label: 'Resolutivo', opcional: false }
   ];
   private readonly pcPasosProcesoIds: PasoCentroOperacionesId[] = [
-    'asignar', 'recorrido', 'documentacion', 'oficio', 'observaciones', 'resolutivo', 'finalizar'
+    'asignar', 'directorio', 'recorrido', 'documentacion', 'oficio', 'observaciones', 'resolutivo', 'finalizar'
   ];
 
   get pasosCentroOperaciones(): PasoCentroOperaciones[] {
@@ -2329,6 +2427,66 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       this.cargarDocumentosEmpresa(this.empresaSeleccionada.empresa_id);
       this.cargarPcDocumentacionExtra();
     }
+    if (id === 'directorio') {
+      this.cargarDirectoriosPorPipcOps(this.empresaSeleccionada.empresa_id);
+    }
+  }
+
+  cargarDirectoriosPorPipcOps(empresaId: number): void {
+    if (!empresaId) return;
+    this.opsDirectoriosCargando = true;
+    this.backendService.obtenerDirectoriosPorPipcEmpresaPC(empresaId).subscribe({
+      next: (resp: any) => {
+        this.opsDirectoriosPorPipc = Array.isArray(resp?.pipcs) ? resp.pipcs : [];
+        this.opsDirectoriosCargando = false;
+      },
+      error: () => {
+        this.opsDirectoriosPorPipc = [];
+        this.opsDirectoriosCargando = false;
+      }
+    });
+  }
+
+  descargarDirectorioOps(directorioId: number, nombre?: string, formato: 'pdf' | 'docx' = 'pdf'): void {
+    const id = Number(directorioId);
+    if (!id || this.opsDescargandoDirectorioId) return;
+
+    this.opsDescargandoDirectorioId = id;
+    this.backendService.descargarDirectorioPC(id, formato).subscribe({
+      next: (blob: Blob) => {
+        this.opsDescargandoDirectorioId = null;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const safeName = String(nombre || `directorio_${id}`)
+          .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
+          .replace(/\s+/g, '_')
+          .slice(0, 120) || `directorio_${id}`;
+        a.href = url;
+        a.download = `${safeName}.${formato}`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: async (err: any) => {
+        this.opsDescargandoDirectorioId = null;
+        let mensaje = 'No se pudo descargar el directorio.';
+        try {
+          const texto = await err?.error?.text?.();
+          if (texto) {
+            const parsed = JSON.parse(texto);
+            if (parsed?.message) mensaje = parsed.message;
+          }
+        } catch { /* ignore */ }
+        Swal.fire('Error', mensaje, 'error');
+      }
+    });
+  }
+
+  trackByOpsDirectorioPipc(_index: number, item: { documento_id: number }): number {
+    return Number(item?.documento_id) || _index;
+  }
+
+  trackByOpsDirectorio(_index: number, item: { id: number }): number {
+    return Number(item?.id) || _index;
   }
 
   seleccionarTabDocumentacionOps(tab: 'carga' | 'revision'): void {
@@ -2465,6 +2623,9 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
             }
           }
           this.asegurarPreviewsWorkflow();
+          if (this.pasoOperacionesSeleccionado === 'directorio') {
+            this.cargarDirectoriosPorPipcOps(empresaId);
+          }
         }
         this.opsCargandoEstado = false;
         this.asegurarPasoOperacionesSeleccionadoValido();
@@ -2994,7 +3155,8 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
             confirmButtonColor: '#d97248'
           });
           this.opsPasosCompletados = [];
-          this.pasoOperacionesSeleccionado = 'recorrido';
+          this.pasoOperacionesSeleccionado = 'directorio';
+          this.opsDirectoriosPorPipc = [];
           this.vistaActual = 'empresas';
           this.empresaSeleccionada = null;
           this.cargarEmpresas();
@@ -3025,7 +3187,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   private asegurarPasoOperacionesSeleccionadoValido(): void {
     const pasos = this.pasosCentroOperaciones;
     if (!pasos.some((paso) => paso.id === this.pasoOperacionesSeleccionado)) {
-      this.pasoOperacionesSeleccionado = pasos[0]?.id ?? 'recorrido';
+      this.pasoOperacionesSeleccionado = pasos[0]?.id ?? 'directorio';
     }
   }
 
@@ -3036,7 +3198,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     this.pcDocsExtraSeleccionados = [];
     this.pcDocsExtraRaizInicializada = false;
     this.limpiarMiniaturasPcExtra();
-    this.pasoOperacionesSeleccionado = 'recorrido';
+    this.pasoOperacionesSeleccionado = 'directorio';
     this.vistaActual = 'menuDocumentos';
     this.cargarCentroOperaciones(empresa.empresa_id);
     this.router.navigate([], {
@@ -3132,9 +3294,9 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
         this.pasoOperacionesSeleccionado =
           paso === 'documentacion' || this.documentoIdPendienteVisor
             ? 'documentacion'
-            : (paso === 'recorrido' || paso === 'oficio' || paso === 'observaciones' || paso === 'resolutivo' || paso === 'finalizar'
+            : (paso === 'directorio' || paso === 'recorrido' || paso === 'oficio' || paso === 'observaciones' || paso === 'resolutivo' || paso === 'finalizar'
               ? paso as PasoCentroOperacionesId
-              : 'recorrido');
+              : 'directorio');
         this.vistaActual = 'menuDocumentos';
         this.cargarCentroOperaciones(empresaId);
         if (paso === 'documentacion' || this.documentoIdPendienteVisor) {
@@ -5466,6 +5628,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     if (label) return label;
     const pasos = this.getPasosProcesoEmpresa(empresa as EmpresaPC);
     const orden: Array<{ id: PasoCentroOperacionesId; label: string }> = [
+      { id: 'directorio', label: 'Directorio' },
       { id: 'recorrido', label: 'Reporte de Recorrido' },
       { id: 'documentacion', label: 'Subir Documentación' },
       { id: 'oficio', label: 'Oficio de Ingreso' },
@@ -5663,11 +5826,58 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     return 'Pendiente';
   }
 
-  getIconoPasoPipc(paso: PasoPipcDetalle, esActual = false): string {
+  /** Icono de estatus (✓ / ✕) en lugar de texto Pendiente/Listo. */
+  getIconoEstadoPasoHover(paso: PasoPipcDetalle): string {
     if (paso.estado === 'ok') return 'fa-check';
-    if (paso.estado === 'parcial') return 'fa-minus';
-    if (esActual) return 'fa-play';
-    return 'fa-circle';
+    if (paso.estado === 'parcial') return 'fa-exclamation';
+    return 'fa-times';
+  }
+
+  /** Iconos del stepper de gestión (centro de operaciones). */
+  private readonly iconosPasoPipcGestion: Record<string, string> = {
+    directorio: 'fa-address-book',
+    recorrido: 'fa-route',
+    documentacion: 'fa-cloud-upload-alt',
+    oficio: 'fa-file-signature',
+    observaciones: 'fa-comment-dots',
+    resolutivo: 'fa-gavel',
+    finalizar: 'fa-flag-checkered'
+  };
+
+  getIconoPasoPipc(paso: PasoPipcDetalle, _esActual = false): string {
+    return this.iconosPasoPipcGestion[String(paso?.id || '')] || 'fa-circle';
+  }
+
+  /** Columna en fila de 3: 0 izq, 1 centro, 2 der. */
+  getColumnaHover(index: number): 0 | 1 | 2 {
+    return (Number(index) % 3) as 0 | 1 | 2;
+  }
+
+  /** Card derecha → panel a la izquierda. */
+  esColumnaHoverDerecha(index: number): boolean {
+    return this.getColumnaHover(index) === 2;
+  }
+
+  /** Card centro → panel abajo con pasos en 2 columnas. */
+  esColumnaHoverCentro(index: number): boolean {
+    return this.getColumnaHover(index) === 1;
+  }
+
+  /** Card izquierda → panel a la derecha. */
+  esColumnaHoverIzquierda(index: number): boolean {
+    return this.getColumnaHover(index) === 0;
+  }
+
+  /** Centro: directorio + recorrido + documentación (columna izq del panel). */
+  getPasosHoverColumnaIzq(empresa: EmpresaPC | PipcTerminadoReciente | any): PasoPipcDetalle[] {
+    const ids = new Set(['directorio', 'recorrido', 'documentacion']);
+    return this.getPasosDetalleHover(empresa).filter((p) => ids.has(String(p.id)));
+  }
+
+  /** Centro: oficio + observaciones + resolutivo (columna der del panel). */
+  getPasosHoverColumnaDer(empresa: EmpresaPC | PipcTerminadoReciente | any): PasoPipcDetalle[] {
+    const ids = new Set(['oficio', 'observaciones', 'resolutivo']);
+    return this.getPasosDetalleHover(empresa).filter((p) => ids.has(String(p.id)));
   }
 
   esPasoActualHover(empresa: EmpresaPC | PipcTerminadoReciente | any, paso: PasoPipcDetalle): boolean {
@@ -5694,7 +5904,8 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   }
 
   trackByFichaEmpresa(_index: number, empresa: EmpresaPC): string {
-    return empresa.ficha_key || `${empresa.empresa_id}-${empresa.pipc_documento_id || 0}`;
+    // Agrupado por empresa: una tarjeta por empresa_id.
+    return `emp-${Number(empresa.empresa_id) || 0}`;
   }
 
   isProcesoCompleto(empresa: EmpresaPC): boolean {

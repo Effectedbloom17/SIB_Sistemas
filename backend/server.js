@@ -29947,6 +29947,7 @@ app.get('/api/proteccion-civil/pipc-terminados-recientes', requireAdminOrPC, asy
                 paso_actual: 'Finalizado',
                 paso_actual_id: 'finalizar',
                 pasos_detalle: [
+                    { id: 'directorio', label: 'Directorio', estado: 'ok', detalle: null, pct: 100 },
                     { id: 'recorrido', label: 'Reporte de Recorrido', estado: 'ok', detalle: null, pct: 100 },
                     { id: 'documentacion', label: 'Subir Documentación', estado: 'ok', detalle: null, pct: 100 },
                     { id: 'oficio', label: 'Oficio de Ingreso', estado: 'ok', detalle: null, pct: 100 },
@@ -31765,6 +31766,16 @@ app.get('/api/proteccion-civil/directorios', requireAdminOrPC, async (req, res) 
     }
 });
 
+app.get('/api/proteccion-civil/directorios/pipc-catalogo', requireAdminOrPC, async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        const pipcs = await pcDirectoriosService.listarPipcCatalogoParaAsociacion(poolProteccionCivil);
+        return res.json({ success: true, pipcs });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron listar los PIPC del catálogo');
+    }
+});
+
 app.get('/api/proteccion-civil/directorios/:id', requireAdminOrPC, async (req, res) => {
     try {
         await poolProteccionCivilReady;
@@ -31888,6 +31899,94 @@ app.delete('/api/proteccion-civil/directorios/:id', requireAdminOrPC, async (req
         handleError(res, error, 'No se pudo eliminar el directorio');
     }
 });
+
+app.put('/api/proteccion-civil/directorios/:id/pipc', requireAdminOrPC, async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        const idsRaw = req.body?.catalogo_documento_ids
+            ?? req.body?.catalogoDocumentoIds
+            ?? req.body?.pipc_ids
+            ?? [];
+        const catalogoIds = Array.isArray(idsRaw) ? idsRaw : [];
+        const directorio = await pcDirectoriosService.guardarAsociacionesDirectorio(
+            poolProteccionCivil,
+            req.params.id,
+            catalogoIds
+        );
+        return res.json({
+            success: true,
+            message: 'Asociaciones PIPC actualizadas.',
+            directorio
+        });
+    } catch (error) {
+        const msg = String(error?.message || '');
+        if (msg.includes('no encontrado') || msg.includes('inválido') || msg.includes('no son válidos')) {
+            return res.status(msg.includes('no encontrado') ? 404 : 400).json({
+                success: false,
+                message: msg
+            });
+        }
+        handleError(res, error, 'No se pudieron guardar las asociaciones del directorio');
+    }
+});
+
+app.get('/api/proteccion-civil/directorios/:id/descargar', requireAdminOrPC, async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        const formato = String(req.query.formato || 'pdf').toLowerCase();
+        const resultado = await pcDirectoriosService.exportarDirectorioBuffer(
+            poolProteccionCivil,
+            req.params.id,
+            formato
+        );
+        res.setHeader('Content-Type', resultado.contentType);
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${encodeURIComponent(resultado.filename)}"`
+        );
+        return res.send(resultado.buffer);
+    } catch (error) {
+        const msg = String(error?.message || '');
+        if (msg.includes('no encontrado') || msg.includes('sin archivo')) {
+            return res.status(404).json({ success: false, message: msg });
+        }
+        handleError(res, error, 'No se pudo descargar el directorio');
+    }
+});
+
+app.get(
+    '/api/proteccion-civil/empresas/:empresaId/directorios-por-pipc',
+    requireAdminOrPC,
+    verificarServicioProteccionCivilEmpresa,
+    async (req, res) => {
+        try {
+            await poolProteccionCivilReady;
+            const empresaId = Number(req.params.empresaId);
+            const [allDocs] = await poolProteccionCivil.query(
+                `SELECT documento_id, documento_padre_id, catalogo_documento_id, clave_workflow,
+                        tipo_entrada, nombre_documento, archivo_url, nombre_archivo, valor_texto, estatus
+                 FROM documento_proteccion_civil WHERE empresa_id = ?`,
+                [empresaId]
+            );
+            const pipcAsignados = pcCentroOperaciones.listarPipcAsignadosActivos(allDocs);
+            const porPipc = await pcDirectoriosService.listarDirectoriosPorPipcEmpresa(
+                poolProteccionCivil,
+                pipcAsignados
+            );
+            const cobertura = await pcDirectoriosService.evaluarCoberturaDirectoriosPipc(
+                poolProteccionCivil,
+                pipcAsignados
+            );
+            return res.json({
+                success: true,
+                pipcs: porPipc,
+                cobertura
+            });
+        } catch (error) {
+            handleError(res, error, 'No se pudieron obtener los directorios por PIPC');
+        }
+    }
+);
 
 // =====================================================
 // DOCUMENTACIÓN EXTRA PC (fuera del checklist PIPC)

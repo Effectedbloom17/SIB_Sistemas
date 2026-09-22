@@ -2220,6 +2220,68 @@ export class BackendServices {
         );
     }
 
+    // ============================================
+    // PROTECCIÓN CIVIL — GESTIÓN DE DIRECTORIOS
+    // ============================================
+
+    listarDirectoriosPC(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/directorios`);
+    }
+
+    obtenerDirectorioPC(id: number): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/directorios/${id}`);
+    }
+
+    crearDirectorioPC(nombre: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/directorios`, { nombre });
+    }
+
+    registrarDirectorioExistentePC(nombre: string, driveFileId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/directorios/registrar-existente`, {
+            nombre,
+            driveFileId
+        });
+    }
+
+    obtenerUrlEditorDirectorioPC(id: number, modo: 'edit' | 'preview' = 'edit'): Observable<any> {
+        return this.httpClient.get(
+            `${this.baseUrl}/proteccion-civil/directorios/${id}/url-editor`,
+            { params: { modo } }
+        );
+    }
+
+    sincronizarDirectorioPC(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/directorios/${id}/sincronizar`, {});
+    }
+
+    eliminarDirectorioPC(id: number, eliminarDrive = false): Observable<any> {
+        const params = eliminarDrive ? { eliminarDrive: '1' } : undefined;
+        return this.httpClient.delete(`${this.baseUrl}/proteccion-civil/directorios/${id}`, { params });
+    }
+
+    listarPipcCatalogoDirectoriosPC(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/directorios/pipc-catalogo`);
+    }
+
+    guardarAsociacionesDirectorioPC(id: number, catalogoDocumentoIds: number[]): Observable<any> {
+        return this.httpClient.put(`${this.baseUrl}/proteccion-civil/directorios/${id}/pipc`, {
+            catalogo_documento_ids: catalogoDocumentoIds
+        });
+    }
+
+    obtenerDirectoriosPorPipcEmpresaPC(empresaId: number): Observable<any> {
+        return this.httpClient.get(
+            `${this.baseUrl}/proteccion-civil/empresas/${empresaId}/directorios-por-pipc`
+        );
+    }
+
+    descargarDirectorioPC(id: number, formato: 'pdf' | 'docx' = 'pdf'): Observable<Blob> {
+        return this.httpClient.get(
+            `${this.baseUrl}/proteccion-civil/directorios/${id}/descargar`,
+            { params: { formato }, responseType: 'blob' }
+        );
+    }
+
     asignarDocumentosCatalogo(empresaId: number, documentos: any[], opciones?: { omitir_correo_empresa?: boolean }): Observable<any> {
         return this.httpClient.post(
             `${this.baseUrl}/proteccion-civil/empresas/${empresaId}/asignar-catalogo`,

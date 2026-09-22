@@ -127,8 +127,7 @@ export class ProteccionCivilAsignacionPipcComponent implements OnInit, OnDestroy
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res: any) => {
-          // El listado de PIPC Activos puede repetir empresa (1 ficha por PIPC).
-          // En asignación solo necesitamos la empresa una vez.
+          // PIPC Activos agrupa por empresa; aquí también desduplicamos.
           const porId = new Map<number, EmpresaOpcion>();
           for (const e of (res?.empresas || [])) {
             const id = Number(e.empresa_id);

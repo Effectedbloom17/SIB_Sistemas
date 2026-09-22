@@ -1,9 +1,16 @@
-import { Component, ElementRef, OnDestroy, OnInit, Renderer2, ViewChild } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit, Renderer2, ViewChild } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { BackendServices } from 'src/app/services/backend.services';
+
+export interface DirectorioPipcAsociado {
+  documentoId: number;
+  catalogoDocumentoId?: number;
+  nombre: string;
+  hojaNombre?: string | null;
+}
 
 export interface DirectorioPc {
   id: number;
@@ -13,6 +20,8 @@ export interface DirectorioPc {
   editorUrl?: string | null;
   mimeType?: string;
   totalContactos?: number;
+  totalPipcAsociados?: number;
+  pipcAsociados?: DirectorioPipcAsociado[];
   createdAt?: string;
   updatedAt?: string;
   contactos?: Array<{
@@ -22,6 +31,14 @@ export interface DirectorioPc {
     direccion: string;
     orden: number;
   }>;
+}
+
+export interface PipcCatalogoItem {
+  documentoId: number;
+  catalogoDocumentoId?: number;
+  nombre: string;
+  hojaNombre?: string | null;
+  jurisdiccion?: string | null;
 }
 
 @Component({
@@ -40,6 +57,14 @@ export class ProteccionCivilDirectoriosComponent implements OnInit, OnDestroy {
   textoBusqueda = '';
   cargando = true;
   registrando = false;
+  menuDirectorioId: number | null = null;
+
+  asociarVisible = false;
+  directorioAsociando: DirectorioPc | null = null;
+  pipcCatalogo: PipcCatalogoItem[] = [];
+  pipcSeleccionados = new Set<number>();
+  cargandoPipcCatalogo = false;
+  guardandoAsociacion = false;
 
   editorIntegradoVisible = false;
   editorIntegradoUrl: SafeResourceUrl | null = null;
@@ -63,6 +88,11 @@ export class ProteccionCivilDirectoriosComponent implements OnInit, OnDestroy {
     this.destroy$.next();
     this.destroy$.complete();
     this.liberarScrollPaginaEditor();
+  }
+
+  @HostListener('document:click')
+  onDocumentClick(): void {
+    this.cerrarMenu();
   }
 
   cargarDirectorios(): void {
@@ -90,14 +120,119 @@ export class ProteccionCivilDirectoriosComponent implements OnInit, OnDestroy {
       this.directoriosFiltrados = [...this.directorios];
       return;
     }
-    this.directoriosFiltrados = this.directorios.filter((d) =>
-      String(d.nombre || '').toLowerCase().includes(q)
-    );
+    this.directoriosFiltrados = this.directorios.filter((d) => {
+      const nombre = String(d.nombre || '').toLowerCase();
+      const pipcs = (d.pipcAsociados || [])
+        .map((p) => String(p.nombre || '').toLowerCase())
+        .join(' ');
+      return nombre.includes(q) || pipcs.includes(q);
+    });
   }
 
   limpiarBusqueda(): void {
     this.textoBusqueda = '';
     this.aplicarFiltro();
+  }
+
+  etiquetasPipc(dir: DirectorioPc): string {
+    const nombres = (dir.pipcAsociados || [])
+      .map((p) => String(p.nombre || '').trim())
+      .filter(Boolean);
+    if (!nombres.length) return 'Sin PIPC';
+    if (nombres.length <= 2) return nombres.join(', ');
+    return `${nombres.slice(0, 2).join(', ')} +${nombres.length - 2}`;
+  }
+
+  toggleMenu(dir: DirectorioPc, event?: Event): void {
+    event?.stopPropagation();
+    this.menuDirectorioId = this.menuDirectorioId === dir.id ? null : dir.id;
+  }
+
+  cerrarMenu(): void {
+    this.menuDirectorioId = null;
+  }
+
+  abrirAsociarPipc(dir: DirectorioPc, event?: Event): void {
+    event?.stopPropagation();
+    if (!dir?.id) return;
+
+    this.directorioAsociando = dir;
+    this.pipcSeleccionados = new Set(
+      (dir.pipcAsociados || [])
+        .map((p) => Number(p.documentoId || p.catalogoDocumentoId || 0))
+        .filter((id) => id > 0)
+    );
+    this.asociarVisible = true;
+    this.cargandoPipcCatalogo = true;
+    this.pipcCatalogo = [];
+
+    this.backendService.listarPipcCatalogoDirectoriosPC()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          this.pipcCatalogo = Array.isArray(res?.pipcs) ? res.pipcs : [];
+          this.cargandoPipcCatalogo = false;
+        },
+        error: () => {
+          this.cargandoPipcCatalogo = false;
+          Swal.fire('Error', 'No se pudo cargar el catálogo de PIPC.', 'error');
+        }
+      });
+  }
+
+  cerrarAsociarPipc(): void {
+    if (this.guardandoAsociacion) return;
+    this.asociarVisible = false;
+    this.directorioAsociando = null;
+    this.pipcSeleccionados = new Set();
+  }
+
+  isPipcSeleccionado(documentoId: number): boolean {
+    return this.pipcSeleccionados.has(Number(documentoId));
+  }
+
+  togglePipcSeleccion(documentoId: number, event: Event): void {
+    const checked = !!(event.target as HTMLInputElement)?.checked;
+    const id = Number(documentoId);
+    if (!id) return;
+    if (checked) {
+      this.pipcSeleccionados.add(id);
+    } else {
+      this.pipcSeleccionados.delete(id);
+    }
+  }
+
+  guardarAsociacionPipc(): void {
+    if (!this.directorioAsociando?.id || this.guardandoAsociacion) return;
+
+    this.guardandoAsociacion = true;
+    const ids = Array.from(this.pipcSeleccionados);
+    this.backendService.guardarAsociacionesDirectorioPC(this.directorioAsociando.id, ids)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          this.guardandoAsociacion = false;
+          if (!res?.success) {
+            Swal.fire('Error', res?.message || 'No se pudieron guardar las asociaciones.', 'error');
+            return;
+          }
+          this.asociarVisible = false;
+          this.directorioAsociando = null;
+          Swal.fire({
+            icon: 'success',
+            title: 'Asociaciones guardadas',
+            text: ids.length
+              ? `Se asociaron ${ids.length} PIPC a este directorio.`
+              : 'Se quitaron todas las asociaciones de este directorio.',
+            confirmButtonColor: '#d97248'
+          });
+          this.cargarDirectorios();
+        },
+        error: (err: any) => {
+          this.guardandoAsociacion = false;
+          Swal.fire('Error', err?.error?.message || 'No se pudieron guardar las asociaciones.', 'error');
+        }
+      });
   }
 
   async abrirRegistroNuevo(): Promise<void> {
@@ -172,7 +307,7 @@ export class ProteccionCivilDirectoriosComponent implements OnInit, OnDestroy {
           Swal.fire({
             icon: 'success',
             title: 'Directorio creado',
-            text: res.message || 'Listo. Ya puedes editarlo en el editor integrado.',
+            text: res.message || 'Listo. Ya puedes editarlo y asociarlo a PIPC.',
             confirmButtonColor: '#d97248'
           }).then(() => {
             this.cargarDirectorios();
@@ -326,6 +461,10 @@ export class ProteccionCivilDirectoriosComponent implements OnInit, OnDestroy {
 
   trackByDirectorio(_: number, item: DirectorioPc): number {
     return item.id;
+  }
+
+  trackByPipcCatalogo(_: number, item: PipcCatalogoItem): number {
+    return item.documentoId;
   }
 
   private bloquearScrollPaginaEditor(): void {
