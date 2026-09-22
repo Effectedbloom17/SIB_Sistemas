@@ -1715,13 +1715,6 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/proteccion-civil/empresas`);
     }
 
-    /** Últimos ciclos PIPC finalizados (rendimiento gestores) */
-    obtenerPipcTerminadosRecientes(limit = 9): Observable<any> {
-        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/pipc-terminados-recientes`, {
-            params: { limit: String(limit) }
-        });
-    }
-
     // Obtener documentos de PC de una empresa
     obtenerDocumentosProteccionCivil(empresaId: number): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/proteccion-civil/empresas/${empresaId}/documentos`);
@@ -2105,12 +2098,6 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/proteccion-civil/control-resolutivos/excel/guardar-drive`, {});
     }
 
-    importarControlResolutivosExcel(archivo: File): Observable<any> {
-        const formData = new FormData();
-        formData.append('archivo', archivo);
-        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/control-resolutivos/excel/importar`, formData);
-    }
-
     obtenerRegistrosControlResolutivos(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/proteccion-civil/control-resolutivos/registros`);
     }
@@ -2231,45 +2218,6 @@ export class BackendServices {
             `${this.baseUrl}/proteccion-civil/catalogo/documentos/${documentoId}/url-editor`,
             { params: { modo } }
         );
-    }
-
-    // ============================================
-    // PROTECCIÓN CIVIL — GESTIÓN DE DIRECTORIOS
-    // ============================================
-
-    listarDirectoriosPC(): Observable<any> {
-        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/directorios`);
-    }
-
-    obtenerDirectorioPC(id: number): Observable<any> {
-        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/directorios/${id}`);
-    }
-
-    crearDirectorioPC(nombre: string): Observable<any> {
-        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/directorios`, { nombre });
-    }
-
-    registrarDirectorioExistentePC(nombre: string, driveFileId: string): Observable<any> {
-        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/directorios/registrar-existente`, {
-            nombre,
-            driveFileId
-        });
-    }
-
-    obtenerUrlEditorDirectorioPC(id: number, modo: 'edit' | 'preview' = 'edit'): Observable<any> {
-        return this.httpClient.get(
-            `${this.baseUrl}/proteccion-civil/directorios/${id}/url-editor`,
-            { params: { modo } }
-        );
-    }
-
-    sincronizarDirectorioPC(id: number): Observable<any> {
-        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/directorios/${id}/sincronizar`, {});
-    }
-
-    eliminarDirectorioPC(id: number, eliminarDrive = false): Observable<any> {
-        const params = eliminarDrive ? { eliminarDrive: '1' } : undefined;
-        return this.httpClient.delete(`${this.baseUrl}/proteccion-civil/directorios/${id}`, { params });
     }
 
     asignarDocumentosCatalogo(empresaId: number, documentos: any[], opciones?: { omitir_correo_empresa?: boolean }): Observable<any> {
@@ -3599,6 +3547,40 @@ export class BackendServices {
 
     descargarPlantillaDgF08Pdf(): Observable<Blob> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/dg-f-08/descargar-plantilla-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
+    cargarAfF02Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/af-f-02`);
+    }
+
+    guardarAfF02Formato(datos: unknown): Observable<any> {
+        const payload = (datos && typeof datos === 'object') ? datos as Record<string, unknown> : {};
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/af-f-02/guardar`, {
+            datos: payload,
+            origen: 'sistema',
+            edicionCompleta: !!payload['edicionCompleta']
+        });
+    }
+
+    subirPdfFirmadoAfF02(pdfBase64: string, nombreArchivo: string, contratoActivoId?: string | null): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/af-f-02/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombre_archivo: nombreArchivo,
+            contratoActivoId: contratoActivoId || null
+        });
+    }
+
+    eliminarPdfHistorialAfF02(driveFileId: string, contratoActivoId?: string | null): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/af-f-02/eliminar-pdf-historial`, {
+            driveFileId,
+            contratoActivoId: contratoActivoId || null
+        });
+    }
+
+    descargarPlantillaAfF02Pdf(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/af-f-02/descargar-plantilla-pdf`, {
             responseType: 'blob'
         });
     }

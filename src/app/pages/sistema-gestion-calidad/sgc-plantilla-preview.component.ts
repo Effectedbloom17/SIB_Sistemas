@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import DOMPurify from 'dompurify';
 import { HttpEventType } from '@angular/common/http';
 import { Observable, Subject, of, timer } from 'rxjs';
-import { catchError, takeUntil, timeout } from 'rxjs/operators';
+import { catchError, switchMap, takeUntil, timeout } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
@@ -30,6 +30,21 @@ import {
   areaDePuesto,
   puestoCanonicoOrganigrama
 } from '../recursos-humanos/organigrama-biznaga.catalog';
+import {
+  AF_F02_DATOS_DEFECTO,
+  AF_F02_CAMPOS_DEFECTO,
+  AF_F02_CAMPOS_GRUPOS,
+  aplicarCamposAfF02,
+  aplicarCamposAfF02Html,
+  filtrarValorCampoAfF02,
+  teclaPermitidaCampoAfF02,
+  esCampoRestringidoAfF02 as esTipoCampoRestringidoAfF02,
+  parsePieFechaAfF02,
+  unirPieFechaAfF02,
+  AfF02CamposVariables,
+  AfF02CampoGrupoItem,
+  AfF02PieFechaPartes
+} from './af-f-02.defaults';
 
 interface AthF02ExperienciaFila {
   enQue: string;
@@ -543,6 +558,54 @@ interface DgF08Form {
   firmante: string;
   cargoFirmante: string;
   pdfFirmado: DgF02PdfFirmado | null;
+}
+
+interface AfF02Contrato {
+  id: string;
+  titulo: string;
+  fechaCreacion: string;
+  empresa: string;
+  fechaElaboracion: string;
+  revision: string;
+  intro: string;
+  declaraciones: string;
+  clausulas: string;
+  cierre: string;
+  clienteFirmante: string;
+  cargoClienteFirmante: string;
+  firmante: string;
+  cargoFirmante: string;
+  pieFirmas: string;
+  campos: AfF02CamposVariables;
+  pdfFirmado: DgF02PdfFirmado | null;
+  pdfsHistorial?: DgF02PdfFirmado[];
+  wordDriveFileId?: string | null;
+  wordNombre?: string | null;
+  wordWebViewLink?: string | null;
+  ultimoContratoWord?: {
+    driveFileId?: string | null;
+    nombreArchivo?: string | null;
+    webViewLink?: string | null;
+  } | null;
+}
+
+interface AfF02Form {
+  empresa: string;
+  fechaElaboracion: string;
+  revision: string;
+  intro: string;
+  declaraciones: string;
+  clausulas: string;
+  cierre: string;
+  clienteFirmante: string;
+  cargoClienteFirmante: string;
+  firmante: string;
+  cargoFirmante: string;
+  pieFirmas: string;
+  campos: AfF02CamposVariables;
+  pdfFirmado: DgF02PdfFirmado | null;
+  contratos?: AfF02Contrato[];
+  contratoActivoId?: string | null;
 }
 
 interface SgcF23Form {
@@ -1296,6 +1359,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   /** Formatos SGC en solo lectura (sin Guardar / Actualizar; Excel en preview). */
   @HostBinding('class.sgc-preview--solo-lectura')
   get esPlantillaSoloLectura(): boolean {
+    // AF-F-02: todos editan variables xxx; el texto completo se bloquea en la UI.
+    if (this.plantillaSlug === 'af-f-02') {
+      return false;
+    }
     return !this.puedeGestionarPlantillasSgc;
   }
 
@@ -1361,6 +1428,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   @HostBinding('class.sgc-preview--dg-f-08')
   get esDgF08(): boolean {
     return this.plantillaSlug === 'dg-f-08';
+  }
+
+  @HostBinding('class.sgc-preview--af-f-02')
+  get esAfF02(): boolean {
+    return this.plantillaSlug === 'af-f-02';
   }
 
   @HostBinding('class.sgc-preview--sgc-f-23')
@@ -1535,6 +1607,24 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF18Form = this.crearSgcF18Vacio();
   sgcPo01Form = this.crearSgcPo01Vacio();
   dgF08Form = this.crearDgF08Vacio();
+  afF02Form = this.crearAfF02Vacio();
+  afF02Contratos: AfF02Contrato[] = [];
+  afF02ContratoActivoId: string | null = null;
+  afF02Vista: 'archivero' | 'editor' = 'archivero';
+  afF02Busqueda = '';
+  afF02HistorialPdfs: DgF02PdfFirmado[] = [];
+  afF02HistorialPdfsTodos: DgF02PdfFirmado[] = [];
+  afF02BorrandoPdf = false;
+  afF02HistorialWord: Array<{
+    driveFileId?: string;
+    nombreArchivo?: string;
+    webViewLink?: string;
+    fechaSubida?: string;
+  }> = [];
+  /** Solo admins/calidad: editar texto base del contrato (no solo variables xxx). */
+  afF02EdicionCompleta = false;
+  /** Dispara recalculo de altura de textareas autoexpansibles. */
+  afF02AutosizeTick = 0;
   sgcF23Form = this.crearSgcF23Vacio();
   sgcF11Form = this.crearSgcF11Vacio();
   sgcF12Form = this.crearSgcF12Vacio();
@@ -2614,6 +2704,54 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return this.authService.puedeGestionarPlantillasSgcCapitulos(this.plantillaSlug);
   }
 
+  /** AF-F-02: editar texto completo — solo root o Ing. Sergio (calidad / sergio56). */
+  get puedeEditarDocumentoCompletoAfF02(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
+
+  /** AF-F-02: borrar PDFs del historial — mismos privilegios. */
+  get puedeBorrarPdfHistorialAfF02(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
+
+  private esPrivilegioRootOCalidadAfF02(): boolean {
+    if (this.authService.esRoot()) {
+      return true;
+    }
+    const username = String(this.authService.getUsername() || '').toLowerCase().trim();
+    return username === 'sergio56' || username === 'calidad';
+  }
+
+  readonly afF02CamposGrupos = AF_F02_CAMPOS_GRUPOS;
+
+  get afF02TextoRenderizado(): {
+    intro: string;
+    declaraciones: string;
+    clausulas: string;
+    cierre: string;
+    pieFirmas: string;
+  } {
+    return aplicarCamposAfF02(this.afF02Form, this.afF02Form.campos);
+  }
+
+  /** Vista en vivo con marcadores resaltados (azul / negrita). */
+  get afF02VistaHtml(): {
+    intro: SafeHtml;
+    declaraciones: SafeHtml;
+    clausulas: SafeHtml;
+    cierre: SafeHtml;
+    pieFirmas: SafeHtml;
+  } {
+    const html = aplicarCamposAfF02Html(this.afF02Form, this.afF02Form.campos);
+    return {
+      intro: this.sanitizer.bypassSecurityTrustHtml(html.intro),
+      declaraciones: this.sanitizer.bypassSecurityTrustHtml(html.declaraciones),
+      clausulas: this.sanitizer.bypassSecurityTrustHtml(html.clausulas),
+      cierre: this.sanitizer.bypassSecurityTrustHtml(html.cierre),
+      pieFirmas: this.sanitizer.bypassSecurityTrustHtml(html.pieFirmas)
+    };
+  }
+
   /** Solo superadmin (root) ve y gestiona documentos no vigentes en SGC-F-01. */
   get esSuperAdminSgcF01(): boolean {
     return this.authService.esRoot();
@@ -2998,11 +3136,22 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   dgF08PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   dgF08PdfCargando = false;
 
+  afF02Cargando = false;
+  afF02Guardando = false;
+  afF02SubiendoPdf = false;
+  afF02UltimaSync: string | null = null;
+  afF02ContenidoModificado = false;
+  mostrarAfF02PdfViewer = false;
+  afF02PdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  afF02PdfCargando = false;
+  afF02PdfViewerTitulo = 'AF-F-02 Contrato.pdf';
+
   descargandoPlantillaPdf = false;
   dgF01CambiosPendientes = false;
   dgF02CambiosPendientes = false;
   sgcPo01CambiosPendientes = false;
   dgF08CambiosPendientes = false;
+  afF02CambiosPendientes = false;
   sgcF23Cargando = false;
   sgcF23Guardando = false;
   sgcF23SubiendoPdf = false;
@@ -3065,6 +3214,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private sgcPo01Listo = false;
   private dgF08IgnorarAutoSave = false;
   private dgF08Listo = false;
+  private afF02IgnorarAutoSave = false;
+  private afF02Listo = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -3213,6 +3364,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (codigo === 'dg-f-08') {
         this.cargarDgF08DesdeServidor();
       }
+      if (codigo === 'af-f-02') {
+        this.cargarAfF02DesdeServidor();
+      }
       if (codigo === 'sgc-f-23') {
         this.cargarSgcF23DesdeServidor();
       }
@@ -3322,8 +3476,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   /** Documentos tipo hoja (mapa de procesos, alcance). */
   get esFormatoVistaDocumento(): boolean {
+    // Archivero AF-F-02 usa el ancho amplio (como SGC-F-24), no el layout estrecho de edición.
+    if (this.plantillaSlug === 'af-f-02' && this.afF02Vista === 'archivero') {
+      return false;
+    }
     return this.plantillaSlug === 'dg-f-01' || this.plantillaSlug === 'dg-f-02'
       || this.plantillaSlug === 'sgc-po-01' || this.plantillaSlug === 'dg-f-08'
+      || this.plantillaSlug === 'af-f-02'
       || this.plantillaSlug === 'sgc-f-23'
       || this.plantillaSlug === 'dg-f-03';
   }
@@ -3548,6 +3707,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'dg-f-02') return this.dgF02CambiosPendientes;
     if (this.plantillaSlug === 'sgc-po-01') return this.sgcPo01CambiosPendientes;
     if (this.plantillaSlug === 'dg-f-08') return this.dgF08CambiosPendientes;
+    if (this.plantillaSlug === 'af-f-02') return this.afF02CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-23') return this.sgcF23CambiosPendientes;
     if (this.plantillaSlug === 'dg-f-03') return this.dgF03CambiosPendientes;
     return false;
@@ -3661,7 +3821,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     if (this.plantillaSlug === 'dg-f-02' || this.plantillaSlug === 'sgc-po-01'
-      || this.plantillaSlug === 'dg-f-08' || this.plantillaSlug === 'sgc-f-23'
+      || this.plantillaSlug === 'dg-f-08' || this.plantillaSlug === 'af-f-02'
+      || this.plantillaSlug === 'sgc-f-23'
       || this.plantillaSlug === 'dg-f-03') {
       this.guardarInformacionDocumentoWord();
     }
@@ -3767,6 +3928,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleDgF08PdfViewer();
       return;
     }
+    if (this.mostrarAfF02PdfViewer) {
+      event.preventDefault();
+      this.toggleAfF02PdfViewer();
+      return;
+    }
     if (this.mostrarSgcF23PdfViewer) {
       event.preventDefault();
       this.toggleSgcF23PdfViewer();
@@ -3799,7 +3965,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }
       if (!this.hayCambiosPendientesSgc || this.driveSyncGuardando
         || this.dgF01Guardando || this.dgF02Guardando || this.sgcPo01Guardando
-        || this.dgF08Guardando || this.sgcF23Guardando || this.dgF03Guardando) {
+        || this.dgF08Guardando || this.afF02Guardando || this.sgcF23Guardando || this.dgF03Guardando) {
         this.reiniciarTemporizadorInactividadSgc();
         return;
       }
@@ -3948,6 +4114,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (slug === 'dg-f-08') {
       return this.backendService.guardarDgF08Formato(this.dgF08Form);
+    }
+    if (slug === 'af-f-02') {
+      return this.backendService.guardarAfF02Formato(this.payloadAfF02Guardar());
     }
     if (slug === 'sgc-f-23') {
       return this.backendService.guardarSgcF23Formato(this.sgcF23Form);
@@ -4127,6 +4296,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return '';
     }
     return 'Edita misión, visión, valores y código de trabajo en equipo. Usa «Guardar información» para conservar cambios (también tras 30 min sin actividad o al salir). Al final puedes subir la versión firmada en PDF.';
+  }
+
+  get afF02IntroLead(): string {
+    if (this.plantillaSlug !== 'af-f-02') {
+      return '';
+    }
+    if (this.afF02Vista === 'archivero') {
+      return 'Archivero de contratos Word (AF-F-02). Consulta, abre o crea contratos. Cada uno guarda su propio Word archivado y PDF firmado.';
+    }
+    return 'Edita el contrato (variables y, si eres admin, el texto completo). Usa «Guardar información» para sincronizar y archivar el Word. Vuelve al archivero para ver todos los contratos.';
   }
 
   get sgcF23IntroLead(): string {
@@ -4440,6 +4619,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'dg-f-08') {
       return this.dgF08IntroLead;
+    }
+    if (this.plantillaSlug === 'af-f-02') {
+      return this.afF02IntroLead;
     }
     if (this.plantillaSlug === 'sgc-f-23') {
       return this.sgcF23IntroLead;
@@ -15156,16 +15338,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
   }
 
-  filasTextoDgF02(texto: string): number {
+  filasTextoDgF02(texto: string, minimo = 3): number {
     if (!texto?.trim()) {
-      return 3;
+      return minimo;
     }
     // Estima también el wrap visual (~88 chars/línea) para que no quede scroll interno.
     const lineas = texto.split('\n').reduce((acc, linea) => {
       const len = Math.max(1, linea.length);
       return acc + Math.ceil(len / 88);
     }, 0);
-    return Math.max(3, lineas + 1);
+    return Math.max(minimo, lineas + 1);
   }
 
   onSeleccionarPdfDgF02(event: Event): void {
@@ -15266,6 +15448,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   guardarInformacionDocumentoWord(): void {
+    if (this.plantillaSlug === 'af-f-02') {
+      this.persistirAfF02();
+      return;
+    }
     if (!this.puedeGestionarPlantillasSgc) {
       return;
     }
@@ -19734,6 +19920,372 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.dgF08CambiosPendientes = true;
   }
 
+  onAfF02Editado(): void {
+    if (!this.afF02Listo || this.afF02IgnorarAutoSave) {
+      return;
+    }
+    this.afF02CambiosPendientes = true;
+  }
+
+  get afF02ContratosVista(): AfF02Contrato[] {
+    const q = this.afF02Busqueda.trim().toLowerCase();
+    const lista = this.afF02Contratos || [];
+    if (!q) {
+      return lista;
+    }
+    return lista.filter((c) =>
+      [c.titulo, c.campos?.clienteNombre, c.campos?.codigoProyecto, c.campos?.codigoCotizacion, c.wordNombre]
+        .some((v) => String(v || '').toLowerCase().includes(q))
+    );
+  }
+
+  contratoConWordAfF02(c: AfF02Contrato | null | undefined): boolean {
+    return !!(c?.wordDriveFileId || c?.ultimoContratoWord?.driveFileId);
+  }
+
+  contratoConPdfAfF02(c: AfF02Contrato | null | undefined): boolean {
+    return !!c?.pdfFirmado?.driveFileId;
+  }
+
+  formatearFechaCortaAfF02(iso: string | null | undefined): string {
+    return this.formatearFechaCortaSgcF16(iso);
+  }
+
+  tituloContratoAfF02(c: AfF02Contrato | null | undefined): string {
+    if (!c) return 'Nuevo contrato';
+    const cliente = String(c.campos?.clienteNombre || '').trim();
+    if (cliente && !/^x+\.?$/i.test(cliente)) {
+      return cliente;
+    }
+    return c.titulo?.trim() || 'Nuevo contrato';
+  }
+
+  subtituloContratoAfF02(c: AfF02Contrato | null | undefined): string {
+    if (!c) return '';
+    const proy = String(c.campos?.codigoProyecto || '').trim();
+    if (proy && !/^x+$/i.test(proy)) {
+      return `Proyecto ${proy}`;
+    }
+    const cot = String(c.campos?.codigoCotizacion || '').trim();
+    if (cot && !/^x+$/i.test(cot)) {
+      return `Cotización B-SC-${cot}`;
+    }
+    return c.wordNombre || 'Sin Word archivado';
+  }
+
+  nuevoContratoAfF02(): void {
+    this.sincronizarContratoActivoEnListaAfF02();
+    const nuevo = this.crearContratoAfF02Vacio();
+    this.afF02Contratos = [nuevo, ...this.afF02Contratos];
+    this.cargarContratoEnFormAfF02(nuevo);
+    this.afF02Vista = 'editor';
+    this.onAfF02Editado();
+  }
+
+  abrirContratoAfF02(c: AfF02Contrato): void {
+    this.sincronizarContratoActivoEnListaAfF02();
+    this.cargarContratoEnFormAfF02(c);
+    this.afF02Vista = 'editor';
+  }
+
+  volverArchiveroAfF02(): void {
+    this.sincronizarContratoActivoEnListaAfF02();
+    this.afF02Vista = 'archivero';
+    this.afF02ContratoActivoId = null;
+    if (this.mostrarAfF02PdfViewer) {
+      this.toggleAfF02PdfViewer();
+    }
+  }
+
+  eliminarContratoAfF02(c: AfF02Contrato, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    const etiqueta = this.tituloContratoAfF02(c);
+    if (!confirm(`¿Eliminar el contrato «${etiqueta}» del archivero?`)) {
+      return;
+    }
+    this.afF02Contratos = (this.afF02Contratos || []).filter((x) => x.id !== c.id);
+    if (this.afF02ContratoActivoId === c.id) {
+      this.afF02ContratoActivoId = null;
+      this.afF02Vista = 'archivero';
+      this.afF02Form = this.crearAfF02Vacio();
+    }
+    this.onAfF02Editado();
+  }
+
+  private crearIdContratoAfF02(): string {
+    try {
+      return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `aff02-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    } catch {
+      return `aff02-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    }
+  }
+
+  private crearContratoAfF02Vacio(): AfF02Contrato {
+    const base = this.crearAfF02Vacio();
+    const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+    return {
+      id: this.crearIdContratoAfF02(),
+      titulo: 'Nuevo contrato',
+      fechaCreacion: hoy,
+      ...base,
+      fechaElaboracion: hoy
+    };
+  }
+
+  private contratoDesdeFormAfF02(prev?: AfF02Contrato | null): AfF02Contrato {
+    const id = prev?.id || this.afF02ContratoActivoId || this.crearIdContratoAfF02();
+    const fechaCreacion = prev?.fechaCreacion
+      || this.afF02Form.fechaElaboracion
+      || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+    return {
+      id,
+      titulo: this.tituloContratoAfF02({
+        ...(prev || {} as AfF02Contrato),
+        campos: this.afF02Form.campos,
+        titulo: prev?.titulo || 'Nuevo contrato'
+      } as AfF02Contrato),
+      fechaCreacion,
+      empresa: this.afF02Form.empresa,
+      fechaElaboracion: this.afF02Form.fechaElaboracion,
+      revision: this.afF02Form.revision,
+      intro: this.afF02Form.intro,
+      declaraciones: this.afF02Form.declaraciones,
+      clausulas: this.afF02Form.clausulas,
+      cierre: this.afF02Form.cierre,
+      clienteFirmante: '',
+      cargoClienteFirmante: this.afF02Form.cargoClienteFirmante,
+      firmante: this.afF02Form.firmante,
+      cargoFirmante: this.afF02Form.cargoFirmante,
+      pieFirmas: this.afF02Form.pieFirmas,
+      campos: { ...this.afF02Form.campos },
+      pdfFirmado: this.afF02Form.pdfFirmado,
+      pdfsHistorial: prev?.pdfsHistorial || [],
+      wordDriveFileId: prev?.wordDriveFileId || null,
+      wordNombre: prev?.wordNombre || null,
+      wordWebViewLink: prev?.wordWebViewLink || null,
+      ultimoContratoWord: prev?.ultimoContratoWord || null
+    };
+  }
+
+  private sincronizarContratoActivoEnListaAfF02(): void {
+    if (!this.afF02ContratoActivoId || this.afF02Vista !== 'editor') {
+      return;
+    }
+    const idx = this.afF02Contratos.findIndex((c) => c.id === this.afF02ContratoActivoId);
+    const actualizado = this.contratoDesdeFormAfF02(
+      idx >= 0 ? this.afF02Contratos[idx] : null
+    );
+    if (idx >= 0) {
+      this.afF02Contratos = this.afF02Contratos.map((c, i) => (i === idx ? actualizado : c));
+    } else {
+      this.afF02Contratos = [actualizado, ...this.afF02Contratos];
+    }
+    this.afF02ContratoActivoId = actualizado.id;
+  }
+
+  private cargarContratoEnFormAfF02(c: AfF02Contrato, mantenerIgnorarAutoSave = false): void {
+    this.afF02IgnorarAutoSave = true;
+    this.afF02ContratoActivoId = c.id;
+    this.afF02Form = {
+      empresa: c.empresa || AF_F02_DATOS_DEFECTO.empresa,
+      fechaElaboracion: c.fechaElaboracion || AF_F02_DATOS_DEFECTO.fechaElaboracion,
+      revision: c.revision || AF_F02_DATOS_DEFECTO.revision,
+      intro: (c.intro && String(c.intro).trim()) || AF_F02_DATOS_DEFECTO.intro,
+      declaraciones: (c.declaraciones && String(c.declaraciones).trim()) || AF_F02_DATOS_DEFECTO.declaraciones,
+      clausulas: (c.clausulas && String(c.clausulas).trim()) || AF_F02_DATOS_DEFECTO.clausulas,
+      cierre: (c.cierre && String(c.cierre).trim()) || AF_F02_DATOS_DEFECTO.cierre,
+      clienteFirmante: '',
+      cargoClienteFirmante: (c.cargoClienteFirmante && String(c.cargoClienteFirmante).trim())
+        || AF_F02_DATOS_DEFECTO.cargoClienteFirmante,
+      firmante: (c.firmante && String(c.firmante).trim()) || AF_F02_DATOS_DEFECTO.firmante,
+      cargoFirmante: (c.cargoFirmante && String(c.cargoFirmante).trim()) || AF_F02_DATOS_DEFECTO.cargoFirmante,
+      pieFirmas: (c.pieFirmas && String(c.pieFirmas).trim()) || AF_F02_DATOS_DEFECTO.pieFirmas,
+      campos: { ...AF_F02_CAMPOS_DEFECTO, ...(c.campos || {}) },
+      pdfFirmado: c.pdfFirmado || null
+    };
+    this.normalizarPieFechaAfF02EnForm();
+    if (!mantenerIgnorarAutoSave) {
+      window.setTimeout(() => {
+        this.afF02IgnorarAutoSave = false;
+        this.afF02AutosizeTick += 1;
+      }, 50);
+    }
+  }
+
+  private payloadAfF02Guardar(): any {
+    this.sincronizarContratoActivoEnListaAfF02();
+    if (this.afF02Vista === 'archivero') {
+      const ref = this.afF02Contratos[0] || null;
+      return {
+        empresa: ref?.empresa || this.afF02Form.empresa,
+        fechaElaboracion: this.afF02Form.fechaElaboracion,
+        revision: this.afF02Form.revision,
+        intro: ref?.intro || this.afF02Form.intro,
+        declaraciones: ref?.declaraciones || this.afF02Form.declaraciones,
+        clausulas: ref?.clausulas || this.afF02Form.clausulas,
+        cierre: ref?.cierre || this.afF02Form.cierre,
+        clienteFirmante: '',
+        cargoClienteFirmante: ref?.cargoClienteFirmante || this.afF02Form.cargoClienteFirmante,
+        firmante: ref?.firmante || this.afF02Form.firmante,
+        cargoFirmante: ref?.cargoFirmante || this.afF02Form.cargoFirmante,
+        pieFirmas: ref?.pieFirmas || this.afF02Form.pieFirmas,
+        campos: ref?.campos ? { ...ref.campos } : { ...this.afF02Form.campos },
+        pdfFirmado: ref?.pdfFirmado || null,
+        pdfsHistorial: ref?.pdfsHistorial || [],
+        wordDriveFileId: ref?.wordDriveFileId || null,
+        wordNombre: ref?.wordNombre || null,
+        wordWebViewLink: ref?.wordWebViewLink || null,
+        ultimoContratoWord: ref?.ultimoContratoWord || null,
+        contratos: this.afF02Contratos,
+        contratoActivoId: ref?.id || null,
+        edicionCompleta: false
+      };
+    }
+    const activo = this.afF02Contratos.find((c) => c.id === this.afF02ContratoActivoId) || null;
+    return {
+      ...this.afF02Form,
+      clienteFirmante: '',
+      wordDriveFileId: activo?.wordDriveFileId || null,
+      wordNombre: activo?.wordNombre || null,
+      wordWebViewLink: activo?.wordWebViewLink || null,
+      ultimoContratoWord: activo?.ultimoContratoWord || null,
+      pdfsHistorial: activo?.pdfsHistorial || [],
+      contratos: this.afF02Contratos,
+      contratoActivoId: this.afF02ContratoActivoId,
+      edicionCompleta: this.afF02EdicionCompleta && this.puedeEditarDocumentoCompletoAfF02
+    };
+  }
+
+  onAfF02CampoChange(campo: AfF02CampoGrupoItem, valor: string): void {
+    const filtrado = filtrarValorCampoAfF02(campo.tipo, valor);
+    this.afF02Form.campos = {
+      ...this.afF02Form.campos,
+      [campo.key]: filtrado
+    };
+    this.onAfF02Editado();
+  }
+
+  get afF02PieFechaPartes(): AfF02PieFechaPartes {
+    return parsePieFechaAfF02(this.afF02Form?.campos?.pieFecha || '');
+  }
+
+  afF02FechaPiePartes(key: keyof AfF02CamposVariables): AfF02PieFechaPartes {
+    return parsePieFechaAfF02(String(this.afF02Form?.campos?.[key] || ''));
+  }
+
+  onAfF02PieFechaParte(parte: 'dia' | 'mes' | 'anio', valor: string): void {
+    this.onAfF02FechaPieParte('pieFecha', parte, valor);
+  }
+
+  onAfF02FechaPieParte(
+    key: keyof AfF02CamposVariables,
+    parte: 'dia' | 'mes' | 'anio',
+    valor: string
+  ): void {
+    let limpio = String(valor ?? '');
+    if (parte === 'dia') {
+      limpio = filtrarValorCampoAfF02('dia', limpio);
+    } else if (parte === 'anio') {
+      limpio = filtrarValorCampoAfF02('anio', limpio);
+    } else {
+      limpio = limpio.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]/g, '').slice(0, 12).toLowerCase();
+    }
+    const actual = parsePieFechaAfF02(String(this.afF02Form.campos[key] || ''));
+    const siguiente: AfF02PieFechaPartes = {
+      dia: parte === 'dia' ? limpio : actual.dia,
+      mes: parte === 'mes' ? limpio : actual.mes,
+      anio: parte === 'anio' ? limpio : actual.anio
+    };
+    this.afF02Form.campos = {
+      ...this.afF02Form.campos,
+      [key]: unirPieFechaAfF02(siguiente)
+    };
+    this.onAfF02Editado();
+  }
+
+  /** Limpia basura vieja en campos fechaPie. */
+  private normalizarPieFechaAfF02EnForm(): void {
+    (['pieFecha', 'fechaFinVigencia'] as const).forEach((key) => {
+      const raw = String(this.afF02Form?.campos?.[key] || '').trim();
+      if (!raw || /este\s*texto/i.test(raw) || /^x+(\.|\/)?/i.test(raw) || /^x+\/x+\/x+$/i.test(raw)) {
+        this.afF02Form.campos = { ...this.afF02Form.campos, [key]: '' };
+        return;
+      }
+      if (raw.includes('/')) {
+        this.afF02Form.campos = {
+          ...this.afF02Form.campos,
+          [key]: unirPieFechaAfF02(parsePieFechaAfF02(raw))
+        };
+      }
+    });
+  }
+
+  get afF02HistorialPdfsVista(): DgF02PdfFirmado[] {
+    const activo = this.afF02Contratos.find((c) => c.id === this.afF02ContratoActivoId);
+    if (Array.isArray(activo?.pdfsHistorial) && activo!.pdfsHistorial!.length) {
+      return activo!.pdfsHistorial!;
+    }
+    const cliente = String(activo?.campos?.clienteNombre || this.afF02Form?.campos?.clienteNombre || '')
+      .trim();
+    const idShort = String(activo?.id || this.afF02ContratoActivoId || '')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .slice(0, 8);
+    const fuente = Array.isArray(this.afF02HistorialPdfsTodos) && this.afF02HistorialPdfsTodos.length
+      ? this.afF02HistorialPdfsTodos
+      : (this.afF02HistorialPdfs || []);
+    return fuente.filter((p) => {
+      const n = String(p?.nombreArchivo || '');
+      if (p && (p as any).contratoId && activo?.id && (p as any).contratoId === activo.id) return true;
+      // Nuevo: AF-F-02 Contrato - Cliente - MM/AA - 01.pdf (y formatos viejos del mismo cliente)
+      if (cliente && new RegExp(
+        `^AF-F-02 Contrato - ${cliente.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} - \\d{2}/\\d{2}`,
+        'i'
+      ).test(n)) return true;
+      // Legacy: nombre con id corto embebido
+      if (idShort && n.includes(` - ${idShort} - `)) return true;
+      return false;
+    });
+  }
+
+  onAfF02CampoKeydown(campo: AfF02CampoGrupoItem, event: KeyboardEvent): void {
+    if (!esTipoCampoRestringidoAfF02(campo.tipo)) {
+      return;
+    }
+    if (event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+    const especiales = [
+      'Backspace', 'Delete', 'Tab', 'Escape', 'Enter',
+      'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'
+    ];
+    if (especiales.includes(event.key)) {
+      return;
+    }
+    if (!teclaPermitidaCampoAfF02(campo.tipo, event.key)) {
+      event.preventDefault();
+    }
+  }
+
+  onAfF02CampoPaste(campo: AfF02CampoGrupoItem, event: ClipboardEvent): void {
+    if (!esTipoCampoRestringidoAfF02(campo.tipo)) {
+      return;
+    }
+    event.preventDefault();
+    const texto = event.clipboardData?.getData('text') || '';
+    const filtrado = filtrarValorCampoAfF02(campo.tipo, texto);
+    const actual = String(this.afF02Form.campos[campo.key] || '');
+    this.onAfF02CampoChange(campo, actual + filtrado);
+  }
+
+  esCampoRestringidoAfF02(campo: AfF02CampoGrupoItem): boolean {
+    return esTipoCampoRestringidoAfF02(campo.tipo);
+  }
+
   onSgcF23Editado(): void {
     if (!this.sgcF23Listo || this.sgcF23IgnorarAutoSave) {
       return;
@@ -19754,6 +20306,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       event,
       'DG-F-08 Filosofía Biznaga Risk and Tech.pdf',
       (base64, nombre) => this.subirPdfDgF08(base64, nombre)
+    );
+  }
+
+  onSeleccionarPdfAfF02(event: Event): void {
+    this.procesarPdfDocumento(
+      event,
+      'AF-F-02 Contrato.pdf',
+      (base64, nombre) => this.subirPdfAfF02(base64, nombre)
     );
   }
 
@@ -19804,10 +20364,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
     const esPo01 = this.plantillaSlug === 'sgc-po-01';
     const esDgF08 = this.plantillaSlug === 'dg-f-08';
+    const esAfF02 = this.plantillaSlug === 'af-f-02';
     const esSgcF23 = this.plantillaSlug === 'sgc-f-23';
     const esDgF02 = this.plantillaSlug === 'dg-f-02';
     const esDgF03 = this.plantillaSlug === 'dg-f-03';
-    if (!esPo01 && !esDgF08 && !esSgcF23 && !esDgF02 && !esDgF03) {
+    if (!esPo01 && !esDgF08 && !esAfF02 && !esSgcF23 && !esDgF02 && !esDgF03) {
       return;
     }
 
@@ -19815,20 +20376,32 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       ? this.backendService.descargarPlantillaSgcPo01Pdf()
       : esDgF08
         ? this.backendService.descargarPlantillaDgF08Pdf()
-        : esSgcF23
-          ? this.backendService.descargarPlantillaSgcF23Pdf()
-          : esDgF03
-            ? this.backendService.descargarPlantillaDgF03Pdf()
-            : this.backendService.descargarPlantillaDgF02Pdf();
+        : esAfF02
+          ? this.backendService.guardarAfF02Formato(this.payloadAfF02Guardar()).pipe(
+              switchMap(() => this.backendService.descargarPlantillaAfF02Pdf())
+            )
+          : esSgcF23
+            ? this.backendService.descargarPlantillaSgcF23Pdf()
+            : esDgF03
+              ? this.backendService.descargarPlantillaDgF03Pdf()
+              : this.backendService.descargarPlantillaDgF02Pdf();
     const nombreArchivo = esPo01
       ? 'SGC-PO-01 Politica de calidad_Biznaga.pdf'
       : esDgF08
         ? 'DG-F-08 Filosofía Biznaga Risk and Tech.pdf'
-        : esSgcF23
-          ? 'SGC-F-23 Aviso de privacidad de datos personales (Biznaga).pdf'
-          : esDgF03
-            ? 'DG-F-03 Objetivos de calidad.pdf'
-            : 'DG-F-02 Alcance.pdf';
+        : esAfF02
+          ? (() => {
+              const cliente = String(this.afF02Form?.campos?.clienteNombre || '').trim();
+              const safe = cliente && !/^x+\.?$/i.test(cliente)
+                ? cliente.replace(/[<>:"/\\|?*]/g, '').slice(0, 60)
+                : 'Contrato';
+              return `AF-F-02 Contrato - ${safe}.pdf`;
+            })()
+          : esSgcF23
+            ? 'SGC-F-23 Aviso de privacidad de datos personales (Biznaga).pdf'
+            : esDgF03
+              ? 'DG-F-03 Objetivos de calidad.pdf'
+              : 'DG-F-02 Alcance.pdf';
 
     this.descargandoPlantillaPdf = true;
     descarga$
@@ -19843,8 +20416,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           enlace.click();
           URL.revokeObjectURL(url);
         },
-        error: () => {
+        error: (err) => {
           this.descargandoPlantillaPdf = false;
+          if (esAfF02) {
+            const msg = err?.error?.message || err?.message
+              || 'No se pudo generar el PDF con los datos del contrato. Revisa la consola del servidor.';
+            Swal.fire({
+              icon: 'error',
+              title: 'Error al descargar PDF',
+              text: String(msg),
+              confirmButtonText: 'Entendido'
+            });
+          }
         }
       });
   }
@@ -19875,6 +20458,46 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   onDgF08PdfIframeLoad(): void {
     this.dgF08PdfCargando = false;
+  }
+
+  toggleAfF02PdfViewer(pdf?: DgF02PdfFirmado | null): void {
+    if (this.mostrarAfF02PdfViewer && !pdf) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarAfF02PdfViewer = false;
+      this.afF02PdfEmbedUrlSafe = null;
+      this.afF02PdfCargando = false;
+      return;
+    }
+
+    const objetivo = pdf || this.afF02Form.pdfFirmado;
+    const id = objetivo?.driveFileId;
+    if (!id) {
+      return;
+    }
+
+    const mismoArchivo = this.mostrarAfF02PdfViewer
+      && this.afF02PdfViewerTitulo === (objetivo?.nombreArchivo || 'AF-F-02 Contrato.pdf');
+    if (mismoArchivo) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarAfF02PdfViewer = false;
+      this.afF02PdfEmbedUrlSafe = null;
+      this.afF02PdfCargando = false;
+      return;
+    }
+
+    this.mostrarAfF02PdfViewer = true;
+    this.afF02PdfCargando = true;
+    this.afF02PdfViewerTitulo = objetivo?.nombreArchivo || 'AF-F-02 Contrato.pdf';
+    const url = `https://drive.google.com/file/d/${id}/preview`;
+    this.afF02PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+
+  onAfF02PdfIframeLoad(): void {
+    this.afF02PdfCargando = false;
   }
 
   toggleSgcF23PdfViewer(): void {
@@ -21343,6 +21966,48 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
+  private subirPdfAfF02(base64: string, nombre: string): void {
+    if (this.afF02SubiendoPdf) {
+      return;
+    }
+    this.afF02SubiendoPdf = true;
+    this.backendService.subirPdfFirmadoAfF02(base64, nombre, this.afF02ContratoActivoId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.afF02SubiendoPdf = false;
+          this.aplicarEstadoAfF02(res);
+          const nombreFinal = res?.pdfFirmado?.nombreArchivo || nombre;
+          this.finalizarSubidaPdfSgc(!!res?.success, nombreFinal);
+        },
+        error: () => {
+          this.afF02SubiendoPdf = false;
+          this.finalizarSubidaPdfSgc(false);
+        }
+      });
+  }
+
+  eliminarPdfHistorialAfF02(hist: DgF02PdfFirmado): void {
+    if (!this.puedeBorrarPdfHistorialAfF02 || !hist?.driveFileId || this.afF02BorrandoPdf) {
+      return;
+    }
+    if (!confirm(`¿Eliminar «${hist.nombreArchivo || 'PDF'}» del historial?`)) {
+      return;
+    }
+    this.afF02BorrandoPdf = true;
+    this.backendService.eliminarPdfHistorialAfF02(hist.driveFileId, this.afF02ContratoActivoId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.afF02BorrandoPdf = false;
+          this.aplicarEstadoAfF02(res);
+        },
+        error: () => {
+          this.afF02BorrandoPdf = false;
+        }
+      });
+  }
+
   private subirPdfSgcF23(base64: string, nombre: string): void {
     if (this.sgcF23SubiendoPdf) {
       return;
@@ -22730,6 +23395,140 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }, 350);
   }
 
+  private cargarAfF02DesdeServidor(): void {
+    this.afF02Cargando = true;
+    this.afF02Listo = false;
+    this.backendService.cargarAfF02Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoAfF02(res),
+        error: () => {
+          this.afF02Cargando = false;
+          this.afF02Listo = true;
+        }
+      });
+  }
+
+  private persistirAfF02(): void {
+    if (!this.afF02Listo || this.afF02Guardando) {
+      return;
+    }
+    this.afF02Guardando = true;
+    this.backendService.guardarAfF02Formato(this.payloadAfF02Guardar())
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.afF02Guardando = false;
+          this.afF02CambiosPendientes = false;
+          this.aplicarEstadoAfF02(res);
+        },
+        error: () => {
+          this.afF02Guardando = false;
+        }
+      });
+  }
+
+  private aplicarEstadoAfF02(res: any): void {
+    if (!res?.success) {
+      this.afF02Cargando = false;
+      this.afF02Listo = true;
+      return;
+    }
+    if (res.datos) {
+      this.afF02IgnorarAutoSave = true;
+      this.afF02Listo = false;
+      const d = res.datos;
+      const def = AF_F02_DATOS_DEFECTO;
+      const contratosRaw = Array.isArray(d.contratos) ? d.contratos : [];
+      this.afF02Contratos = contratosRaw.map((c: any) => this.normalizarContratoAfF02DesdeApi(c, d));
+      if (!this.afF02Contratos.length) {
+        this.afF02Contratos = [this.normalizarContratoAfF02DesdeApi({ ...d, id: d.contratoActivoId }, d)];
+      }
+      const activoId = String(d.contratoActivoId || '').trim();
+      const activo = this.afF02Contratos.find((c) => c.id === activoId) || this.afF02Contratos[0];
+      if (this.afF02Vista === 'editor' && activo) {
+        this.cargarContratoEnFormAfF02(activo, true);
+      } else {
+        this.afF02ContratoActivoId = null;
+        this.afF02Form = {
+          empresa: d.empresa || def.empresa,
+          fechaElaboracion: d.fechaElaboracion || def.fechaElaboracion,
+          revision: d.revision || def.revision,
+          intro: (d.intro && String(d.intro).trim()) || def.intro,
+          declaraciones: (d.declaraciones && String(d.declaraciones).trim()) || def.declaraciones,
+          clausulas: (d.clausulas && String(d.clausulas).trim()) || def.clausulas,
+          cierre: (d.cierre && String(d.cierre).trim()) || def.cierre,
+          clienteFirmante: '',
+          cargoClienteFirmante: (d.cargoClienteFirmante && String(d.cargoClienteFirmante).trim())
+            || def.cargoClienteFirmante,
+          firmante: (d.firmante && String(d.firmante).trim()) || def.firmante,
+          cargoFirmante: (d.cargoFirmante && String(d.cargoFirmante).trim()) || def.cargoFirmante,
+          pieFirmas: (d.pieFirmas && String(d.pieFirmas).trim()) || def.pieFirmas,
+          campos: { ...AF_F02_CAMPOS_DEFECTO, ...(d.campos || {}) },
+          pdfFirmado: d.pdfFirmado ?? res.pdfFirmado ?? null
+        };
+        this.normalizarPieFechaAfF02EnForm();
+      }
+    }
+    this.afF02HistorialPdfs = Array.isArray(res.historialPdfs) ? res.historialPdfs : [];
+    this.afF02HistorialPdfsTodos = Array.isArray(res.historialPdfsTodos)
+      ? res.historialPdfsTodos
+      : this.afF02HistorialPdfs;
+    this.afF02HistorialWord = Array.isArray(res.historialContratosWord) ? res.historialContratosWord : [];
+    this.afF02UltimaSync = res.ultimaSyncDrive || null;
+    this.afF02ContenidoModificado = !!res.contenidoModificado;
+    window.setTimeout(() => {
+      this.afF02IgnorarAutoSave = false;
+      this.afF02Listo = true;
+      this.afF02Cargando = false;
+      this.afF02AutosizeTick += 1;
+    }, 350);
+  }
+
+  private normalizarContratoAfF02DesdeApi(c: any, fallback?: any): AfF02Contrato {
+    const src = c && typeof c === 'object' ? c : {};
+    const fb = fallback && typeof fallback === 'object' ? fallback : {};
+    const def = AF_F02_DATOS_DEFECTO;
+    const camposRaw = { ...AF_F02_CAMPOS_DEFECTO, ...(fb.campos || {}), ...(src.campos || {}) };
+    const campos = { ...camposRaw };
+    (Object.keys(campos) as (keyof AfF02CamposVariables)[]).forEach((k) => {
+      const v = String(campos[k] || '').trim();
+      if (/^x+\.?$/i.test(v) || /^x+\/x+\/x+$/i.test(v)) {
+        campos[k] = '';
+      }
+    });
+    const id = String(src.id || '').trim() || this.crearIdContratoAfF02();
+    const tituloRaw = String(src.titulo || '').trim();
+    const cliente = String(campos.clienteNombre || '').trim();
+    return {
+      id,
+      titulo: tituloRaw
+        || (cliente ? cliente : 'Nuevo contrato'),
+      fechaCreacion: src.fechaCreacion || src.fechaElaboracion || fb.fechaElaboracion || def.fechaElaboracion,
+      empresa: src.empresa || fb.empresa || def.empresa,
+      fechaElaboracion: src.fechaElaboracion || fb.fechaElaboracion || def.fechaElaboracion,
+      revision: src.revision || fb.revision || def.revision,
+      intro: (src.intro && String(src.intro).trim()) || fb.intro || def.intro,
+      declaraciones: (src.declaraciones && String(src.declaraciones).trim()) || fb.declaraciones || def.declaraciones,
+      clausulas: (src.clausulas && String(src.clausulas).trim()) || fb.clausulas || def.clausulas,
+      cierre: (src.cierre && String(src.cierre).trim()) || fb.cierre || def.cierre,
+      clienteFirmante: '',
+      cargoClienteFirmante: (src.cargoClienteFirmante && String(src.cargoClienteFirmante).trim())
+        || fb.cargoClienteFirmante || def.cargoClienteFirmante,
+      firmante: (src.firmante && String(src.firmante).trim()) || fb.firmante || def.firmante,
+      cargoFirmante: (src.cargoFirmante && String(src.cargoFirmante).trim())
+        || fb.cargoFirmante || def.cargoFirmante,
+      pieFirmas: (src.pieFirmas && String(src.pieFirmas).trim()) || fb.pieFirmas || def.pieFirmas,
+      campos,
+      pdfFirmado: src.pdfFirmado ?? null,
+      pdfsHistorial: Array.isArray(src.pdfsHistorial) ? src.pdfsHistorial : [],
+      wordDriveFileId: src.wordDriveFileId || src.ultimoContratoWord?.driveFileId || null,
+      wordNombre: src.wordNombre || src.ultimoContratoWord?.nombreArchivo || null,
+      wordWebViewLink: src.wordWebViewLink || src.ultimoContratoWord?.webViewLink || null,
+      ultimoContratoWord: src.ultimoContratoWord || null
+    };
+  }
+
   private cargarSgcF23DesdeServidor(): void {
     this.sgcF23Cargando = true;
     this.sgcF23Listo = false;
@@ -22866,6 +23665,25 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         'El trabajo en equipo es el resultado de un grupo de personas con sentido de pertenencia a la empresa, que trabaja para un fin común, compartiendo los mismos valores institucionales, lo cual incluye:\n\n• Colaborar con cada uno de los integrantes en el tiempo y espacio que me corresponde.\n• Tener apertura y respeto por las nuevas ideas sin importar quien las aporte.\n• Con mis actos busco el bien común del equipo.\n• Comparto información relevante para la mejora del grupo.\n• Contagio el sentido de pertenencia.',
       firmante: 'Marisol Azucena Santillán Melo',
       cargoFirmante: 'DIRECTORA GENERAL',
+      pdfFirmado: null
+    };
+  }
+
+  private crearAfF02Vacio(): AfF02Form {
+    return {
+      empresa: AF_F02_DATOS_DEFECTO.empresa,
+      fechaElaboracion: AF_F02_DATOS_DEFECTO.fechaElaboracion,
+      revision: AF_F02_DATOS_DEFECTO.revision,
+      intro: AF_F02_DATOS_DEFECTO.intro,
+      declaraciones: AF_F02_DATOS_DEFECTO.declaraciones,
+      clausulas: AF_F02_DATOS_DEFECTO.clausulas,
+      cierre: AF_F02_DATOS_DEFECTO.cierre,
+      clienteFirmante: '',
+      cargoClienteFirmante: AF_F02_DATOS_DEFECTO.cargoClienteFirmante,
+      firmante: AF_F02_DATOS_DEFECTO.firmante,
+      cargoFirmante: AF_F02_DATOS_DEFECTO.cargoFirmante,
+      pieFirmas: AF_F02_DATOS_DEFECTO.pieFirmas,
+      campos: { ...AF_F02_CAMPOS_DEFECTO },
       pdfFirmado: null
     };
   }

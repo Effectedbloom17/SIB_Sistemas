@@ -184,6 +184,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         previewMode: 'form'
       },
       {
+        codigo: 'AF-F-02',
+        titulo: 'Contrato',
+        nombre: 'AF-F-02 Contrato.docx',
+        driveFileId: '1BUj1qEMZGx6rdPSQgECn6paM72cnTfgBUbdkGQjngGk',
+        previewSlug: 'af-f-02',
+        previewMode: 'form'
+      },
+      {
         codigo: 'ATH-F-08',
         titulo: 'Eficacia de la capacitación',
         nombre: 'ATH-F-08 Eficacia de la capacitación',

@@ -17,7 +17,6 @@ import { ProteccionCivilHistorialDocumentosComponent } from '../proteccion-civil
 import { ProteccionCivilHistorialPcComponent } from '../proteccion-civil-historial-pc/proteccion-civil-historial-pc.component';
 import { ControlResolutivosPipcComponent } from '../control-resolutivos-pipc/control-resolutivos-pipc.component';
 import { ProteccionCivilReporteRecorridoComponent } from '../proteccion-civil-reporte-recorrido/proteccion-civil-reporte-recorrido.component';
-import { AutoResizeTextareaDirective } from '../proteccion-civil-reporte-recorrido/auto-resize-textarea.directive';
 
 const routes: Routes = [
     {
@@ -96,8 +95,7 @@ const routes: Routes = [
         ProteccionCivilHistorialDocumentosComponent,
         ProteccionCivilHistorialPcComponent,
         ControlResolutivosPipcComponent,
-        ProteccionCivilReporteRecorridoComponent,
-        AutoResizeTextareaDirective
+        ProteccionCivilReporteRecorridoComponent
     ]
 })
 export class ProteccionCivilModule {}

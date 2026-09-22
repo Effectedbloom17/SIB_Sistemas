@@ -1,5 +1,12 @@
 <ng-container *ngIf="config && plantilla as tpl">
-  <div class="sgc-preview-page" [class.sgc-preview-page--dg-f-01]="plantillaSlug === 'dg-f-01'" [class.sgc-preview-page--dg-f-02]="plantillaSlug === 'dg-f-02' || plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'sgc-f-23' || plantillaSlug === 'dg-f-03'" [class.sgc-preview-page--dg-f-03]="plantillaSlug === 'dg-f-03'" [class.sgc-preview-page--dg-f-05]="plantillaSlug === 'dg-f-05' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06'" [class.sgc-preview-page--dg-f-04]="plantillaSlug === 'dg-f-04'" [class.sgc-preview-page--dg-f-07]="plantillaSlug === 'dg-f-07'" [class.sgc-preview-page--metodologia-amef]="plantillaSlug === 'metodologia-amef'"
+  <div class="sgc-preview-page"
+       [class.sgc-preview-page--dg-f-01]="plantillaSlug === 'dg-f-01'"
+       [class.sgc-preview-page--dg-f-02]="(plantillaSlug === 'dg-f-02' || plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'sgc-f-23' || plantillaSlug === 'dg-f-03') || (plantillaSlug === 'af-f-02' && afF02Vista === 'editor')"
+       [class.sgc-preview-page--dg-f-03]="plantillaSlug === 'dg-f-03'"
+       [class.sgc-preview-page--dg-f-05]="plantillaSlug === 'dg-f-05' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || (plantillaSlug === 'af-f-02' && afF02Vista === 'archivero')"
+       [class.sgc-preview-page--dg-f-04]="plantillaSlug === 'dg-f-04'"
+       [class.sgc-preview-page--dg-f-07]="plantillaSlug === 'dg-f-07'"
+       [class.sgc-preview-page--metodologia-amef]="plantillaSlug === 'metodologia-amef'"
        [class.sgc-preview-page--ath-f-09-editor]="plantillaSlug === 'ath-f-09' && athF09Vista === 'editor'"
        [class.sgc-preview-page--ath-f-11-editor]="plantillaSlug === 'ath-f-11' && athF11Vista === 'editor'">
   <div class="header header-bg-image sgc-hero sgc-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
@@ -143,17 +150,18 @@
                   </span>
                 </div>
               </ng-container>
-              <ng-container *ngIf="plantillaSlug === 'dg-f-02' || plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'sgc-f-23' || plantillaSlug === 'dg-f-03'">
+              <ng-container *ngIf="plantillaSlug === 'dg-f-02' || plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'af-f-02' || plantillaSlug === 'sgc-f-23' || plantillaSlug === 'dg-f-03'">
                 <div class="sgc-preview-toolbar__actions">
                   <span class="sgc-preview-sync sgc-preview-sync--hint"
                     *ngIf="(plantillaSlug === 'dg-f-02' && dgF02CambiosPendientes && !dgF02Guardando)
                       || (plantillaSlug === 'sgc-po-01' && sgcPo01CambiosPendientes && !sgcPo01Guardando)
                       || (plantillaSlug === 'dg-f-08' && dgF08CambiosPendientes && !dgF08Guardando)
+                      || (plantillaSlug === 'af-f-02' && afF02CambiosPendientes && !afF02Guardando)
                       || (plantillaSlug === 'sgc-f-23' && sgcF23CambiosPendientes && !sgcF23Guardando)
                       || (plantillaSlug === 'dg-f-03' && dgF03CambiosPendientes && !dgF03Guardando)">
                     Cambios sin guardar
                   </span>
-                  <span class="sgc-preview-sync" *ngIf="(plantillaSlug === 'dg-f-02' && dgF02Guardando) || (plantillaSlug === 'sgc-po-01' && sgcPo01Guardando) || (plantillaSlug === 'dg-f-08' && dgF08Guardando) || (plantillaSlug === 'sgc-f-23' && sgcF23Guardando) || (plantillaSlug === 'dg-f-03' && dgF03Guardando)">
+                  <span class="sgc-preview-sync" *ngIf="(plantillaSlug === 'dg-f-02' && dgF02Guardando) || (plantillaSlug === 'sgc-po-01' && sgcPo01Guardando) || (plantillaSlug === 'dg-f-08' && dgF08Guardando) || (plantillaSlug === 'af-f-02' && afF02Guardando) || (plantillaSlug === 'sgc-f-23' && sgcF23Guardando) || (plantillaSlug === 'dg-f-03' && dgF03Guardando)">
                     <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i> Guardando…
                   </span>
                   <span class="sgc-preview-sync" *ngIf="plantillaSlug === 'dg-f-02' && !dgF02Guardando && dgF02UltimaSync">
@@ -164,6 +172,9 @@
                   </span>
                   <span class="sgc-preview-sync" *ngIf="plantillaSlug === 'dg-f-08' && !dgF08Guardando && dgF08UltimaSync">
                     Guardado: {{ formatearUltimaSync(dgF08UltimaSync) }}
+                  </span>
+                  <span class="sgc-preview-sync" *ngIf="plantillaSlug === 'af-f-02' && !afF02Guardando && afF02UltimaSync">
+                    Guardado: {{ formatearUltimaSync(afF02UltimaSync) }}
                   </span>
                   <span class="sgc-preview-sync" *ngIf="plantillaSlug === 'sgc-f-23' && !sgcF23Guardando && sgcF23UltimaSync">
                     Guardado: {{ formatearUltimaSync(sgcF23UltimaSync) }}
@@ -219,14 +230,23 @@
                 </div>
               </ng-container>
               <ng-template #toolbarDriveSync>
-              <ng-container *ngIf="plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'sgc-f-23' || plantillaSlug === 'dg-f-02' || plantillaSlug === 'dg-f-03'; else toolbarDriveSyncRest">
+              <ng-container *ngIf="plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'af-f-02' || plantillaSlug === 'sgc-f-23' || plantillaSlug === 'dg-f-02' || plantillaSlug === 'dg-f-03'; else toolbarDriveSyncRest">
                 <div class="sgc-preview-toolbar__actions">
                   <button
-                    *ngIf="puedeGestionarPlantillasSgc"
+                    *ngIf="plantillaSlug === 'af-f-02' && afF02Vista === 'editor'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-save-info af-f02-btn-volver"
+                    (click)="volverArchiveroAfF02()">
+                    <i class="fas fa-arrow-left mr-1" aria-hidden="true"></i>
+                    Volver al archivero
+                  </button>
+                  <button
+                    *ngIf="puedeGestionarPlantillasSgc || plantillaSlug === 'af-f-02'"
                     type="button"
                     class="btn btn-sm sgc-btn-save-info"
                     [disabled]="(plantillaSlug === 'sgc-po-01' && (sgcPo01Cargando || sgcPo01Guardando))
                       || (plantillaSlug === 'dg-f-08' && (dgF08Cargando || dgF08Guardando))
+                      || (plantillaSlug === 'af-f-02' && (afF02Cargando || afF02Guardando))
                       || (plantillaSlug === 'sgc-f-23' && (sgcF23Cargando || sgcF23Guardando))
                       || (plantillaSlug === 'dg-f-02' && (dgF02Cargando || dgF02Guardando))
                       || (plantillaSlug === 'dg-f-03' && (dgF03Cargando || dgF03Guardando))"
@@ -234,6 +254,7 @@
                     <i class="fas mr-1"
                       [ngClass]="(plantillaSlug === 'sgc-po-01' && sgcPo01Guardando)
                         || (plantillaSlug === 'dg-f-08' && dgF08Guardando)
+                        || (plantillaSlug === 'af-f-02' && afF02Guardando)
                         || (plantillaSlug === 'sgc-f-23' && sgcF23Guardando)
                         || (plantillaSlug === 'dg-f-02' && dgF02Guardando)
                         || (plantillaSlug === 'dg-f-03' && dgF03Guardando)
@@ -247,12 +268,15 @@
                     [disabled]="descargandoPlantillaPdf
                       || (plantillaSlug === 'sgc-po-01' && (sgcPo01Cargando || sgcPo01Guardando))
                       || (plantillaSlug === 'dg-f-08' && (dgF08Cargando || dgF08Guardando))
+                      || (plantillaSlug === 'af-f-02' && (afF02Cargando || afF02Guardando))
                       || (plantillaSlug === 'sgc-f-23' && (sgcF23Cargando || sgcF23Guardando))
                       || (plantillaSlug === 'dg-f-02' && (dgF02Cargando || dgF02Guardando))
                       || (plantillaSlug === 'dg-f-03' && (dgF03Cargando || dgF03Guardando))"
                     (click)="descargarPlantillaPdfFormato()">
                     <i class="fas mr-1" [ngClass]="descargandoPlantillaPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
-                    {{ descargandoPlantillaPdf ? 'Generando PDF…' : 'Descargar plantilla PDF' }}
+                    {{ descargandoPlantillaPdf
+                      ? 'Generando PDF…'
+                      : (plantillaSlug === 'af-f-02' ? 'Descargar contrato PDF' : 'Descargar plantilla PDF') }}
                   </button>
                 </div>
               </ng-container>
@@ -2802,6 +2826,440 @@
                       </div>
                     </div>
                   </aside>
+                </div>
+              </form>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'af-f-02'">
+              <form class="af-f02-form"
+                    [class.dg-f05-form]="afF02Vista === 'archivero'"
+                    [class.dg-f02-form]="afF02Vista === 'editor'"
+                    (ngSubmit)="$event.preventDefault()"
+                    (input)="onAfF02Editado()" (change)="onAfF02Editado()">
+                <div [class.dg-f05-doc-wrap]="afF02Vista === 'archivero'"
+                  [class.dg-f02-wrap]="afF02Vista === 'editor'"
+                  [class.dg-f05-doc-wrap--loading]="afF02Vista === 'archivero' && afF02Cargando"
+                  [class.dg-f02-wrap--loading]="afF02Vista === 'editor' && afF02Cargando">
+                  <div class="dg-f05-loading" *ngIf="afF02Vista === 'archivero' && afF02Cargando" role="status">
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    <span>Cargando contratos…</span>
+                  </div>
+                  <div class="dg-f02-loading" *ngIf="afF02Vista === 'editor' && afF02Cargando" role="status">
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    Cargando formato…
+                  </div>
+
+                  <!-- Archivero de contratos Word -->
+                  <article class="dg-f05-doc af-f02-doc af-f02-doc--archivero" *ngIf="afF02Vista === 'archivero'">
+                    <header class="dg-f05-doc__header">
+                      <div>
+                        <span class="dg-f05-doc__code">AF-F-02</span>
+                        <h3 class="dg-f05-doc__title">Contrato</h3>
+                      </div>
+                      <div class="sgc-f-16-doc__rev">
+                        <span>Rev. {{ afF02Form.revision || '00' }}</span>
+                        <span *ngIf="afF02Form.fechaElaboracion">{{ afF02Form.fechaElaboracion }}</span>
+                      </div>
+                    </header>
+
+                    <div class="sgc-f-04-archivero af-f02-archivero-contratos">
+                      <div class="sgc-f-04-archivero__intro">
+                        <div class="sgc-f-04-archivero__intro-main">
+                          <div class="sgc-f-04-archivero__intro-icon">
+                            <i class="fas fa-archive" aria-hidden="true"></i>
+                          </div>
+                          <div class="sgc-f-04-archivero__intro-text">
+                            <h4 class="sgc-f-04-archivero__title">Archivero de CONTRATOS</h4>
+                            <p class="sgc-f-04-archivero__hint">
+                              Consulta, abre o crea contratos. Cada contrato guarda su propio Word archivado y PDF firmado.
+                            </p>
+                          </div>
+                        </div>
+                        <div class="sgc-f-04-archivero__toolbar">
+                          <label class="sgc-f-04-archivero__search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input class="dg-f05-field" type="search" name="afF02_busqueda"
+                              [(ngModel)]="afF02Busqueda" placeholder="Buscar cliente, proyecto, cotización…"
+                              autocomplete="off">
+                          </label>
+                          <button type="button" class="sgc-f-04-archivero__btn-nuevo" (click)="nuevoContratoAfF02()">
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            Nuevo contrato
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="sgc-f-04-archivero__stats">
+                        <span class="sgc-f-04-archivero__stat">
+                          {{ afF02Contratos.length }}
+                          {{ afF02Contratos.length === 1 ? 'contrato' : 'contratos' }}
+                        </span>
+                        <span class="sgc-f-04-archivero__stat sgc-f-04-archivero__stat--muted"
+                          *ngIf="afF02Busqueda.trim() && afF02ContratosVista.length !== afF02Contratos.length">
+                          · {{ afF02ContratosVista.length }} en vista
+                        </span>
+                      </div>
+
+                      <ul class="sgc-f-04-archivero__grid" *ngIf="afF02ContratosVista.length; else afF02ArchiveroVacio">
+                        <li class="sgc-f-04-book"
+                          *ngFor="let c of afF02ContratosVista; trackBy: trackByIdx"
+                          [class.sgc-f-04-book--cerrado]="contratoConPdfAfF02(c)"
+                          [class.sgc-f-04-book--pdf]="contratoConPdfAfF02(c)">
+                          <button type="button" class="sgc-f-04-book__tap"
+                            (click)="abrirContratoAfF02(c)"
+                            [attr.aria-label]="'Abrir contrato ' + tituloContratoAfF02(c)">
+                            <span class="sgc-f-04-book__binding" aria-hidden="true">
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                            </span>
+                            <span class="sgc-f-04-book__page">
+                              <span class="sgc-f-04-book__corner" aria-hidden="true"></span>
+                              <span class="sgc-f-04-book__head">
+                                <span class="sgc-f-04-book__icon"
+                                  [class.sgc-f-04-book__icon--pdf]="contratoConPdfAfF02(c)">
+                                  <i class="fas"
+                                    [ngClass]="contratoConPdfAfF02(c) ? 'fa-file-pdf' : (contratoConWordAfF02(c) ? 'fa-file-word' : 'fa-file-contract')"></i>
+                                </span>
+                                <span class="sgc-f-04-book__estado"
+                                  [class.sgc-f-04-book__estado--cerrado]="contratoConPdfAfF02(c)">
+                                  {{ contratoConPdfAfF02(c) ? 'Firmado' : (contratoConWordAfF02(c) ? 'Word' : 'Borrador') }}
+                                </span>
+                              </span>
+                              <span class="sgc-f-04-book__origen">{{ tituloContratoAfF02(c) }}</span>
+                              <span class="sgc-f-04-book__folio">{{ subtituloContratoAfF02(c) }}</span>
+                              <span class="sgc-f-04-book__lines" aria-hidden="true">
+                                <span></span><span></span><span></span>
+                              </span>
+                              <span class="sgc-f-04-book__foot">
+                                <span class="sgc-f-04-book__fecha" *ngIf="c.fechaCreacion || c.fechaElaboracion">
+                                  {{ formatearFechaCortaAfF02(c.fechaCreacion || c.fechaElaboracion) }}
+                                </span>
+                                <span class="sgc-f-04-book__fuente" *ngIf="c.campos?.codigoProyecto">
+                                  {{ c.campos.codigoProyecto }}
+                                </span>
+                              </span>
+                            </span>
+                          </button>
+                          <button type="button" class="sgc-f-04-book__del"
+                            (click)="eliminarContratoAfF02(c, $event)" title="Eliminar contrato"
+                            aria-label="Eliminar contrato">
+                            <i class="fas fa-times" aria-hidden="true"></i>
+                          </button>
+                        </li>
+                      </ul>
+                      <ng-template #afF02ArchiveroVacio>
+                        <div class="sgc-f-04-archivero__empty">
+                          <i class="fas fa-archive" aria-hidden="true"></i>
+                          <p class="mb-0" *ngIf="afF02Busqueda.trim(); else afF02SinContratos">
+                            No hay contratos que coincidan con la búsqueda.
+                          </p>
+                          <ng-template #afF02SinContratos>
+                            <p class="mb-0">Aún no hay contratos. Crea el primero con «Nuevo contrato».</p>
+                          </ng-template>
+                        </div>
+                      </ng-template>
+                    </div>
+                  </article>
+
+                  <!-- Editor de un contrato -->
+                  <ng-container *ngIf="afF02Vista === 'editor'">
+
+                  <article class="dg-f02-page af-f02-page" aria-label="AF-F-02 Contrato">
+                    <div class="dg-f02-page__pattern" aria-hidden="true"></div>
+                    <div class="dg-f02-page__inner">
+                      <header class="dg-f02-page__brand">
+                        <img class="dg-f02-page__logo" src="assets/img/logo_biznaga.png" alt="Biznaga Risk and Tech">
+                      </header>
+
+                      <div class="dg-f02-page__meta">
+                        <label class="dg-f02-page__meta-item dg-f02-page__meta-item--empresa">
+                          <span class="dg-f02-page__meta-label">Empresa</span>
+                          <input class="dg-f02-page__meta-input" type="text"
+                            name="afF02_empresa" [(ngModel)]="afF02Form.empresa" autocomplete="off">
+                        </label>
+                        <div class="dg-f02-page__meta-item dg-f02-page__meta-item--fecha">
+                          <span class="dg-f02-page__meta-label">Fecha de rev.</span>
+                          <span class="dg-f02-page__meta-value"
+                            [title]="afF02ContenidoModificado ? 'Actualizada tras la última modificación' : 'Fecha original del formato'">
+                            {{ formatearFechaDgF02(afF02Form.fechaElaboracion) }}
+                          </span>
+                        </div>
+                        <div class="dg-f02-page__meta-item">
+                          <span class="dg-f02-page__meta-label">Revisión</span>
+                          <span class="dg-f02-page__meta-value"
+                            [title]="afF02ContenidoModificado ? 'Incrementada tras la última modificación' : 'Revisión vigente'">
+                            {{ afF02Form.revision }}
+                          </span>
+                        </div>
+                      </div>
+
+                      <h1 class="dg-f02-block__heading text-center mb-3">CONTRATO</h1>
+                      <p class="af-f02-lead text-center mb-4">
+                        Contrato de prestación de servicios · Código AF-F-02
+                      </p>
+
+                      <div class="af-f02-admin-bar" *ngIf="puedeEditarDocumentoCompletoAfF02">
+                        <button type="button" class="btn btn-sm af-f02-admin-bar__btn"
+                          [class.af-f02-admin-bar__btn--on]="afF02EdicionCompleta"
+                          (click)="afF02EdicionCompleta = !afF02EdicionCompleta; onAfF02Editado()">
+                          <i class="fas mr-1" [ngClass]="afF02EdicionCompleta ? 'fa-lock-open' : 'fa-file-alt'" aria-hidden="true"></i>
+                          {{ afF02EdicionCompleta ? 'Cerrar edición completa' : 'Editar documento completo' }}
+                        </button>
+                        <span class="af-f02-admin-bar__hint" *ngIf="!afF02EdicionCompleta">
+                          Desbloquea la edición de todo el texto del contrato (no solo los datos variables). Solo Root e Ing. Sergio Luis Guzmán Vigueras.
+                        </span>
+                        <span class="af-f02-admin-bar__hint" *ngIf="afF02EdicionCompleta">
+                          Estás editando el texto completo. Al cerrar, vuelves al modo de solo datos variables.
+                        </span>
+                      </div>
+
+                      <section class="dg-f02-block af-f02-campos">
+                        <h2 class="dg-f02-block__heading">Datos variables</h2>
+                        <p class="af-f02-campos__hint">
+                          Completa los marcadores por apartado. En la vista del contrato se resaltan en
+                          <strong class="af-f02-hl">azul y negrita</strong> y se actualizan al escribir.
+                        </p>
+
+                        <div class="af-f02-campos__grupo" *ngFor="let grupo of afF02CamposGrupos"
+                          [class.af-f02-campos__grupo--pie]="grupo.id === 'pie'">
+                          <h3 class="af-f02-campos__grupo-titulo">{{ grupo.titulo }}</h3>
+                          <div class="af-f02-campos__grid"
+                            [class.af-f02-campos__grid--pie]="grupo.id === 'pie'">
+                            <label class="af-f02-campos__item" *ngFor="let campo of grupo.campos"
+                              [class.af-f02-campos__item--fecha-pie]="campo.tipo === 'fechaPie'">
+                              <span class="af-f02-campos__label">{{ campo.label }}</span>
+                              <span class="af-f02-campos__field-hint" *ngIf="campo.hint">{{ campo.hint }}</span>
+
+                              <div *ngIf="campo.tipo === 'fechaPie'" class="af-f02-fecha-pie" role="group"
+                                [attr.aria-label]="'Fecha ' + campo.label + ' día / mes / año'">
+                                <input class="af-f02-campos__input af-f02-fecha-pie__dia"
+                                  type="text" inputmode="numeric" maxlength="2" placeholder="dd"
+                                  [name]="'afF02_fechaPie_dia_' + campo.key"
+                                  [ngModel]="afF02FechaPiePartes(campo.key).dia"
+                                  (ngModelChange)="onAfF02FechaPieParte(campo.key, 'dia', $event)"
+                                  autocomplete="off">
+                                <span class="af-f02-fecha-pie__sep" aria-hidden="true">/</span>
+                                <input class="af-f02-campos__input af-f02-fecha-pie__mes"
+                                  type="text" maxlength="12" placeholder="mes"
+                                  [name]="'afF02_fechaPie_mes_' + campo.key"
+                                  [ngModel]="afF02FechaPiePartes(campo.key).mes"
+                                  (ngModelChange)="onAfF02FechaPieParte(campo.key, 'mes', $event)"
+                                  autocomplete="off">
+                                <span class="af-f02-fecha-pie__sep" aria-hidden="true">/</span>
+                                <input class="af-f02-campos__input af-f02-fecha-pie__anio"
+                                  type="text" inputmode="numeric" maxlength="4" placeholder="aaaa"
+                                  [name]="'afF02_fechaPie_anio_' + campo.key"
+                                  [ngModel]="afF02FechaPiePartes(campo.key).anio"
+                                  (ngModelChange)="onAfF02FechaPieParte(campo.key, 'anio', $event)"
+                                  autocomplete="off">
+                              </div>
+
+                              <ng-container *ngIf="campo.tipo !== 'fechaPie'">
+                                <input *ngIf="esCampoRestringidoAfF02(campo); else afF02CampoLibre"
+                                  class="af-f02-campos__input af-f02-campos__input--restringido"
+                                  type="text"
+                                  [name]="'afF02_c_' + campo.key"
+                                  [attr.inputmode]="(campo.tipo === 'monto' || campo.tipo === 'dia' || campo.tipo === 'anio') ? 'decimal' : 'text'"
+                                  [attr.maxlength]="campo.tipo === 'dia' ? 2 : (campo.tipo === 'anio' ? 4 : null)"
+                                  [ngModel]="afF02Form.campos[campo.key]"
+                                  (ngModelChange)="onAfF02CampoChange(campo, $event)"
+                                  (keydown)="onAfF02CampoKeydown(campo, $event)"
+                                  (paste)="onAfF02CampoPaste(campo, $event)"
+                                  autocomplete="off">
+                                <ng-template #afF02CampoLibre>
+                                  <textarea class="af-f02-campos__input"
+                                    appAutoResize
+                                    [appAutoResizeRefresh]="afF02AutosizeTick"
+                                    [name]="'afF02_c_' + campo.key"
+                                    rows="2"
+                                    [ngModel]="afF02Form.campos[campo.key]"
+                                    (ngModelChange)="onAfF02CampoChange(campo, $event)"
+                                    autocomplete="off"></textarea>
+                                </ng-template>
+                              </ng-container>
+                            </label>
+                          </div>
+                        </div>
+                      </section>
+
+                      <ng-container *ngIf="afF02EdicionCompleta && puedeEditarDocumentoCompletoAfF02">
+                        <section class="dg-f02-block dg-f02-block--spaced">
+                          <h2 class="dg-f02-block__heading">Introducción</h2>
+                          <div class="dg-f02-block__editor">
+                            <textarea class="dg-f02-block__textarea af-f02-textarea"
+                              appAutoResize
+                              [appAutoResizeRefresh]="afF02AutosizeTick"
+                              name="afF02_intro"
+                              [(ngModel)]="afF02Form.intro"
+                              rows="4"
+                              aria-label="Introducción del contrato"></textarea>
+                          </div>
+                        </section>
+
+                        <section class="dg-f02-block dg-f02-block--spaced">
+                          <h2 class="dg-f02-block__heading">Declaraciones</h2>
+                          <div class="dg-f02-block__editor">
+                            <textarea class="dg-f02-block__textarea af-f02-textarea"
+                              appAutoResize
+                              [appAutoResizeRefresh]="afF02AutosizeTick"
+                              name="afF02_declaraciones"
+                              [(ngModel)]="afF02Form.declaraciones"
+                              rows="6"
+                              aria-label="Declaraciones"></textarea>
+                          </div>
+                        </section>
+
+                        <section class="dg-f02-block dg-f02-block--spaced">
+                          <h2 class="dg-f02-block__heading">Cláusulas</h2>
+                          <div class="dg-f02-block__editor">
+                            <textarea class="dg-f02-block__textarea af-f02-textarea"
+                              appAutoResize
+                              [appAutoResizeRefresh]="afF02AutosizeTick"
+                              name="afF02_clausulas"
+                              [(ngModel)]="afF02Form.clausulas"
+                              rows="8"
+                              aria-label="Cláusulas"></textarea>
+                          </div>
+                        </section>
+
+                        <section class="dg-f02-block dg-f02-block--spaced">
+                          <h2 class="dg-f02-block__heading">Cierre</h2>
+                          <div class="dg-f02-block__editor">
+                            <textarea class="dg-f02-block__textarea af-f02-textarea"
+                              appAutoResize
+                              [appAutoResizeRefresh]="afF02AutosizeTick"
+                              name="afF02_cierre"
+                              [(ngModel)]="afF02Form.cierre"
+                              rows="3"
+                              aria-label="Cierre del contrato"></textarea>
+                          </div>
+                        </section>
+
+                        <section class="dg-f02-block dg-f02-block--spaced">
+                          <h2 class="dg-f02-block__heading">Pie de firmas</h2>
+                          <div class="dg-f02-block__editor">
+                            <textarea class="dg-f02-block__textarea af-f02-textarea"
+                              appAutoResize
+                              [appAutoResizeRefresh]="afF02AutosizeTick"
+                              name="afF02_pieFirmas"
+                              [(ngModel)]="afF02Form.pieFirmas"
+                              rows="3"
+                              aria-label="Pie de firmas"></textarea>
+                          </div>
+                        </section>
+                      </ng-container>
+
+                      <section class="dg-f02-block dg-f02-block--spaced">
+                        <h2 class="dg-f02-block__heading">Vista del contrato</h2>
+                        <p class="af-f02-campos__hint">
+                          Vista en tiempo real. Los datos editables aparecen en
+                          <strong class="af-f02-hl">azul y negrita</strong>.
+                        </p>
+                        <div class="af-f02-preview" aria-label="Contrato con datos aplicados">
+                          <div class="af-f02-preview__block" [innerHTML]="afF02VistaHtml.intro"></div>
+                          <div class="af-f02-preview__block" [innerHTML]="afF02VistaHtml.declaraciones"></div>
+                          <div class="af-f02-preview__block" [innerHTML]="afF02VistaHtml.clausulas"></div>
+                          <div class="af-f02-preview__block" [innerHTML]="afF02VistaHtml.cierre"></div>
+                          <p class="af-f02-preview__note">Las firmas se realizan a mano sobre el documento impreso / PDF.</p>
+                          <div class="af-f02-preview__block af-f02-preview__block--pie"
+                            [innerHTML]="afF02VistaHtml.pieFirmas"></div>
+                        </div>
+                      </section>
+
+                      <footer class="dg-f02-page__footer">
+                        <span>www.biznaga.com.mx</span>
+                        <span class="dg-f02-page__footer-sep">·</span>
+                        <span>contacto@biznaga.mx</span>
+                      </footer>
+                    </div>
+                  </article>
+
+                  <aside class="dg-f02-attach" aria-label="Documento firmado y archivero">
+                    <div class="dg-f02-attach__head">
+                      <div class="dg-f02-attach__icon-wrap">
+                        <i class="fas fa-file-signature" aria-hidden="true"></i>
+                      </div>
+                      <div>
+                        <h3 class="dg-f02-attach__title">Versión firmada</h3>
+                        <p class="dg-f02-attach__desc mb-0">
+                          Sube el PDF firmado. Cada carga se agrega al historial de este contrato (no reemplaza versiones anteriores).
+                        </p>
+                      </div>
+                    </div>
+                    <label class="dg-f02-attach__dropzone" *ngIf="!afF02Form.pdfFirmado?.driveFileId"
+                      [class.dg-f02-attach__dropzone--busy]="afF02SubiendoPdf">
+                      <input type="file" class="dg-f02-attach__input" accept="application/pdf"
+                        (change)="onSeleccionarPdfAfF02($event)" [disabled]="afF02SubiendoPdf">
+                      <span class="dg-f02-attach__dropzone-icon">
+                        <i class="fas" [ngClass]="afF02SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                      </span>
+                      <span class="dg-f02-attach__dropzone-title">
+                        {{ afF02SubiendoPdf ? 'Subiendo PDF…' : 'Arrastra o selecciona el PDF firmado' }}
+                      </span>
+                      <span class="dg-f02-attach__dropzone-hint">Formato PDF · máximo {{ etiquetaMaxPdfSgc }}</span>
+                    </label>
+                    <input #afF02InputActualizarPdf type="file" class="dg-f02-attach__input" accept="application/pdf"
+                      (change)="onSeleccionarPdfAfF02($event)" [disabled]="afF02SubiendoPdf">
+                    <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="afF02Form.pdfFirmado as pdf">
+                      <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
+                      <div class="dg-f02-attach__file-info">
+                        <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo || 'AF-F-02 Contrato.pdf' }}</strong>
+                        <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                          Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}
+                        </small>
+                      </div>
+                      <div class="dg-f02-attach__file-actions" *ngIf="afF02Form.pdfFirmado?.driveFileId">
+                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                          (click)="toggleAfF02PdfViewer()">
+                          <i class="fas fa-eye mr-1" aria-hidden="true"></i>
+                          Abrir
+                        </button>
+                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
+                          [disabled]="afF02SubiendoPdf"
+                          (click)="afF02InputActualizarPdf.click()">
+                          <i class="fas mr-1" [ngClass]="afF02SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                          {{ afF02SubiendoPdf ? 'Subiendo a Drive…' : 'Subir nueva versión' }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="af-f02-historial-pdfs" *ngIf="afF02HistorialPdfsVista.length">
+                      <h4 class="af-f02-historial-pdfs__title">
+                        <i class="fas fa-file-pdf mr-1" aria-hidden="true"></i>
+                        Historial de PDFs firmados
+                      </h4>
+                      <p class="af-f02-historial-pdfs__hint">Solo versiones firmadas de este contrato.</p>
+                      <ul class="af-f02-historial-pdfs__list">
+                        <li class="af-f02-historial-pdfs__item" *ngFor="let hist of afF02HistorialPdfsVista">
+                          <div class="af-f02-historial-pdfs__item-main">
+                            <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                            <div>
+                              <strong>{{ hist.nombreArchivo }}</strong>
+                              <small *ngIf="hist.fechaSubida">{{ formatearFechaDgF02(hist.fechaSubida) }}</small>
+                            </div>
+                          </div>
+                          <div class="af-f02-historial-pdfs__actions">
+                            <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                              (click)="toggleAfF02PdfViewer(hist)">
+                              Abrir
+                            </button>
+                            <button *ngIf="puedeBorrarPdfHistorialAfF02" type="button"
+                              class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--danger"
+                              [disabled]="afF02BorrandoPdf"
+                              (click)="eliminarPdfHistorialAfF02(hist)"
+                              title="Eliminar PDF del historial">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </li>
+                      </ul>
+                    </div>
+                  </aside>
+                  </ng-container>
                 </div>
               </form>
             </ng-container>
@@ -12223,6 +12681,40 @@
         [src]="dgF08PdfEmbedUrlSafe"
         [title]="dgF08Form.pdfFirmado?.nombreArchivo || 'DG-F-08 Filosofía Biznaga Risk and Tech.pdf'"
         (load)="onDgF08PdfIframeLoad()"
+        allow="autoplay">
+      </iframe>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-drive-editor-fullscreen" *ngIf="mostrarAfF02PdfViewer"
+  role="dialog" aria-modal="true" aria-label="Visor PDF AF-F-02">
+  <div class="sgc-drive-editor-fullscreen__backdrop" (click)="toggleAfF02PdfViewer()"></div>
+  <div class="sgc-drive-editor-fullscreen__panel">
+    <div class="sgc-drive-editor-fullscreen__head">
+      <div class="sgc-drive-editor-fullscreen__title-wrap">
+        <span class="sgc-drive-editor-fullscreen__icon">
+          <i class="fas fa-file-pdf" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ afF02PdfViewerTitulo }}</strong>
+          <small class="sgc-drive-editor-fullscreen__subtitle">Vista previa del PDF · solo lectura</small>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-light" type="button" (click)="toggleAfF02PdfViewer()">
+        <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+      </button>
+    </div>
+    <div class="sgc-drive-editor-fullscreen__body">
+      <div class="sgc-drive-editor-fullscreen__loading" *ngIf="afF02PdfCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando PDF…</span>
+      </div>
+      <iframe *ngIf="afF02PdfEmbedUrlSafe"
+        class="sgc-drive-editor-fullscreen__iframe"
+        [src]="afF02PdfEmbedUrlSafe"
+        [title]="afF02PdfViewerTitulo"
+        (load)="onAfF02PdfIframeLoad()"
         allow="autoplay">
       </iframe>
     </div>

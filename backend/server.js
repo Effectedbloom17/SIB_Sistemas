@@ -1259,39 +1259,53 @@ async function probarMysqlAuth(host, port, timeoutMs = 5000) {
 }
 
 let localNetworkProbe = null;
-/** 'local' | 'lan' | 'remote' — resultado de las dos variables DB_HOST_LOCAL / DB_HOST_LAN */
+/** 'local' | 'lan' | 'remote' — destino elegido tras el probe */
 let mysqlDestinoTipo = 'remote';
 
 /**
+ * Orden de prueba (DB_PREFER en .env):
+ *   local  (default) → Docker de esta PC, luego LAN, luego producción
+ *   lan              → contenedor en otra PC (DB_HOST_LAN), luego local, luego producción
+ *   remote           → solo producción (DB_HOST_REMOTE)
+ */
+function getDbPreferOrder() {
+    const prefer = String(process.env.DB_PREFER || 'local').trim().toLowerCase();
+    if (prefer === 'lan' || prefer === 'remote' || prefer === 'local') return prefer;
+    return 'local';
+}
+
+/**
  * Detecta MySQL una sola vez y reutiliza el resultado en todos los pools.
- * 1) DB_HOST_LOCAL (esta PC / Docker local) con login válido
- * 2) DB_HOST_LAN (contenedor en otra PC de la misma red) con login válido
- * Si ambas fallan, el arranque usa DB_HOST_REMOTE.
  */
 async function isLocalNetwork() {
     if (!localNetworkProbe) {
         localNetworkProbe = (async () => {
+            const prefer = getDbPreferOrder();
             const port = Number(dbConfig.local.port || 3306);
             const candidatos = [...new Set([
                 dbConfig.local.host,
                 '127.0.0.1',
                 'localhost'
             ].filter(Boolean))];
-
-            for (const host of candidatos) {
-                const ok = await probarMysqlAuth(host, port, 5000);
-                if (ok) {
-                    if (host !== dbConfig.local.host) {
-                        dbConfig.local.host = host;
-                    }
-                    mysqlDestinoTipo = 'local';
-                    return true;
-                }
-            }
-
             const lanHost = dbConfig.lan.host && String(dbConfig.lan.host).trim();
             const lanPort = Number(dbConfig.lan.port || port);
-            if (lanHost) {
+
+            async function tryLocal() {
+                for (const host of candidatos) {
+                    const ok = await probarMysqlAuth(host, port, 5000);
+                    if (ok) {
+                        if (host !== dbConfig.local.host) {
+                            dbConfig.local.host = host;
+                        }
+                        mysqlDestinoTipo = 'local';
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            async function tryLan() {
+                if (!lanHost) return false;
                 const okLan = await probarMysqlAuth(lanHost, lanPort, 5000);
                 if (okLan) {
                     dbConfig.local.host = lanHost;
@@ -1303,10 +1317,25 @@ async function isLocalNetwork() {
                     `  MySQL del contenedor LAN no aceptó login en ${lanHost}:${lanPort} ` +
                     `(usuario ${dbConfig.user}).`
                 );
+                return false;
+            }
+
+            if (prefer === 'remote') {
+                mysqlDestinoTipo = 'remote';
+                startupLog.detail(`  DB_PREFER=remote → se usará ${dbConfig.remote.host}:${dbConfig.remote.port}`);
+                return false;
+            }
+
+            if (prefer === 'lan') {
+                if (await tryLan()) return true;
+                if (await tryLocal()) return true;
+            } else {
+                if (await tryLocal()) return true;
+                if (await tryLan()) return true;
             }
 
             console.warn(
-                `  MySQL local no aceptó login en ${candidatos.join(' / ')}:${port}` +
+                `  MySQL no aceptó login en local ${candidatos.join(' / ')}:${port}` +
                 (lanHost ? ` ni en LAN ${lanHost}:${lanPort}` : '') +
                 ` con ${dbConfig.user}. Se usará el host remoto.`
             );
@@ -2841,6 +2870,12 @@ async function requireAdminOrSgc(req, res, next) {
         // Todos los perfiles internos pueden consultar el Centro SGC y sus formatos.
         // La escritura continúa limitada a los gestores y delegados del formato.
         if (!isMutating && !userRoles.includes('empresa')) {
+            return next();
+        }
+
+        // AF-F-02: cualquier usuario SGC puede guardar variables xxx / PDF firmado.
+        // La edición del texto completo se valida en el handler con puedeEditarCompleto.
+        if (isMutating && formatoCodigo === 'af-f-02' && !userRoles.includes('empresa')) {
             return next();
         }
 
@@ -25787,6 +25822,7 @@ const sgcSgcF06Service = require('./sgcSgcF06Service');
 const sgcSgcF18Service = require('./sgcSgcF18Service');
 const sgcPo01Service = require('./sgcPo01Service');
 const sgcDgF08Service = require('./sgcDgF08Service');
+const sgcAfF02Service = require('./sgcAfF02Service');
 const sgcSgcF23Service = require('./sgcSgcF23Service');
 const sgcSgcF11Service = require('./sgcSgcF11Service');
 const sgcSgcF12Service = require('./sgcSgcF12Service');
@@ -28027,6 +28063,87 @@ app.get('/api/sgc/formatos/dg-f-08/descargar-plantilla-pdf', requireAdminOrSgc, 
         return res.send(pdfBuffer);
     } catch (error) {
         handleError(res, error, 'No se pudo descargar la plantilla PDF del formato DG-F-08');
+    }
+});
+
+app.get('/api/sgc/formatos/af-f-02', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
+        const payload = await sgcAfF02Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato AF-F-02');
+    }
+});
+
+app.post('/api/sgc/formatos/af-f-02/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        // Solo root (Super Admin) o Ing. Sergio (calidad / sergio56) editan el texto completo.
+        const puedeEditarCompleto = userRoles.includes('root') || esGestorCalidadSgc(req);
+        const payload = await sgcAfF02Service.guardarFormato(poolBiznagaSgc, req.body || {}, {
+            puedeEditarCompleto
+        });
+        return res.json({
+            success: true,
+            message: 'Formato AF-F-02 guardado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato AF-F-02');
+    }
+});
+
+app.post('/api/sgc/formatos/af-f-02/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAfF02Service.subirPdfFirmado(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'PDF firmado subido correctamente.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo subir el PDF firmado del formato AF-F-02');
+    }
+});
+
+app.post('/api/sgc/formatos/af-f-02/eliminar-pdf-historial', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const puedeBorrarHistorial = userRoles.includes('root') || esGestorCalidadSgc(req);
+        const payload = await sgcAfF02Service.eliminarPdfHistorial(poolBiznagaSgc, req.body || {}, {
+            puedeBorrarHistorial
+        });
+        return res.json({
+            success: true,
+            message: 'PDF eliminado del historial.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo eliminar el PDF del historial AF-F-02');
+    }
+});
+
+app.get('/api/sgc/formatos/af-f-02/descargar-plantilla-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcAfF02Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="AF-F-02 Contrato.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar la plantilla PDF del formato AF-F-02');
     }
 });
 
