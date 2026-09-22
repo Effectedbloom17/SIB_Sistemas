@@ -27,35 +27,36 @@
                 <i class="fas fa-file-excel mr-1"></i> Documento oficial
               </span>
               <h2 class="pc-section-title mb-0">Control de Resolutivos PIPC</h2>
-              <small class="text-muted">Formato SP-F-29 · resolutivos y fechas de centro de operaciones</small>
+              <small class="pc-section-sub">Formato SP-F-29 · resolutivos y fechas de centro de operaciones</small>
             </div>
             <div class="pc-control-actions-wrap mt-2 mt-md-0">
               <div class="pc-control-actions-row">
                 <button
-                  class="btn btn-sm text-white pc-control-btn pc-control-btn--pdf"
-                  [disabled]="descargandoControl"
-                  (click)="descargarControlPdf()">
-                  <i class="fas" [ngClass]="descargandoControl ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
-                  {{ descargandoControl ? ' Generando...' : ' Descargar control PDF' }}
-                </button>
-                <button
-                  class="btn btn-sm pc-control-btn pc-control-btn--excel"
-                  [disabled]="descargandoControlExcel"
-                  (click)="guardarControlExcelEnDrive()">
-                  <i class="fas" [ngClass]="descargandoControlExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'"></i>
-                  {{
-                    descargandoControlExcel
-                      ? (controlGenerado ? ' Actualizando...' : ' Generando...')
-                      : (controlGenerado ? ' Actualizar control de Resolutivos PIPC' : ' Generar control de Resolutivos PIPC')
-                  }}
-                </button>
-                <button
-                  class="btn btn-sm pc-control-btn pc-control-btn--editor"
                   type="button"
+                  class="pc-action-btn pc-action-btn--pdf"
+                  [disabled]="descargandoControl"
+                  (click)="descargarControlPdf()"
+                  [attr.aria-label]="descargandoControl ? 'Generando PDF...' : 'Descargar control PDF'">
+                  <i class="fas" [ngClass]="descargandoControl ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
+                  <span>{{ descargandoControl ? 'Generando...' : 'Descargar PDF' }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="pc-action-btn pc-action-btn--excel"
+                  [disabled]="descargandoControlExcel"
+                  (click)="guardarControlExcelEnDrive()"
+                  [attr.aria-label]="etiquetaActualizarControl">
+                  <i class="fas" [ngClass]="descargandoControlExcel ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                  <span>{{ etiquetaActualizarControlCorta }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="pc-action-btn pc-action-btn--editor"
                   [disabled]="!controlFileId"
-                  (click)="toggleControlEditor()">
-                  <i class="fas fa-pen mr-1"></i>
-                  Abrir editor del control
+                  (click)="toggleControlEditor()"
+                  [attr.aria-label]="mostrarControlEditor ? 'Cerrar editor del control' : 'Abrir editor del control'">
+                  <i class="fas" [ngClass]="mostrarControlEditor ? 'fa-times' : 'fa-pen'"></i>
+                  <span>{{ mostrarControlEditor ? 'Cerrar editor' : 'Abrir editor' }}</span>
                 </button>
               </div>
               <div class="pc-control-actions-meta">
@@ -73,7 +74,7 @@
           <div *ngIf="!controlFileId && !loadingRegistros" class="pc-control-empty py-4 text-center">
             <i class="fas fa-file-excel fa-2x mb-2" style="color: #d97248; opacity: 0.4;"></i>
             <p class="mb-1 text-muted" style="font-weight: 600;">Sin archivo generado</p>
-            <small class="text-muted">Usa el botón "Generar control de Resolutivos PIPC" para crear el documento en Drive.</small>
+            <small class="text-muted">Usa el botón de actualizar/generar control para crear el documento en Drive.</small>
           </div>
         </div>
       </div>
@@ -83,17 +84,44 @@
         <div class="card-header border-0 control-table-card__header">
           <div class="row align-items-center">
             <div class="col">
-              <h6 class="text-uppercase text-muted ls-1 mb-1 control-table-kicker">Registro SP-F-29</h6>
+              <h6 class="text-uppercase ls-1 mb-1 control-table-kicker">Registro SP-F-29</h6>
               <h2 class="mb-0 control-table-title">
                 <i class="fas fa-list-alt mr-2"></i>Resolutivos PIPC
               </h2>
-              <small class="text-muted control-table-hint">
+              <small class="control-table-hint">
                 <i class="fas fa-info-circle mr-1"></i>
                 Misma información del control oficial; usa los filtros para localizar trámites.
               </small>
             </div>
             <div class="col-auto">
-              <span class="badge badge-count">{{ registrosFiltrados.length }}</span>
+              <div class="control-table-tools">
+                <span class="badge badge-count">{{ registrosFiltrados.length }}</span>
+                <input
+                  id="pc-resolutivos-excel-import"
+                  type="file"
+                  accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                  hidden
+                  (change)="onArchivoExcelImportSeleccionado($event)">
+                <button
+                  type="button"
+                  class="pc-tool-btn pc-tool-btn--import"
+                  [disabled]="importandoExcel"
+                  (click)="abrirSelectorImportarExcel()"
+                  [attr.aria-label]="importandoExcel ? 'Importando Excel...' : 'Importar Excel SP-F-29'">
+                  <i class="fas" [ngClass]="importandoExcel ? 'fa-spinner fa-spin' : 'fa-file-excel'"></i>
+                  <span class="pc-tool-btn__label">{{ importandoExcel ? 'Importando...' : 'Importar Excel' }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="pc-tool-btn pc-tool-btn--compact"
+                  [class.pc-tool-btn--on]="vistaCompacta"
+                  (click)="toggleVistaCompacta()"
+                  [attr.aria-label]="vistaCompacta ? 'Ver tabla completa' : 'Vista comprimida'"
+                  [attr.aria-pressed]="vistaCompacta">
+                  <i class="fas" [ngClass]="vistaCompacta ? 'fa-table' : 'fa-th-list'"></i>
+                  <span class="pc-tool-btn__label">{{ vistaCompacta ? 'Vista completa' : 'Vista comprimida' }}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -123,6 +151,10 @@
             <select class="filter-select"
                     [(ngModel)]="filtroEstatus" (ngModelChange)="filtrarRegistros()">
               <option *ngFor="let op of opcionesEstatus" [value]="op.value">{{ op.label }}</option>
+            </select>
+            <select class="filter-select"
+                    [(ngModel)]="filtroOrigen" (ngModelChange)="filtrarRegistros()">
+              <option *ngFor="let op of opcionesOrigen" [value]="op.value">{{ op.label }}</option>
             </select>
             <label class="filter-date-wrap mb-0">
               <span class="filter-date-label">Fecha de aprobación</span>
@@ -156,47 +188,60 @@
             <button class="btn btn-sm btn-link btn-link-pc" (click)="limpiarFiltros()">Limpiar filtros</button>
           </div>
 
-          <div *ngIf="!loadingRegistros && hayRegistrosFiltrados" class="control-table-wrap">
-            <table class="table table-sm table-hover control-table mb-0">
+          <div *ngIf="!loadingRegistros && hayRegistrosFiltrados"
+               class="control-table-wrap"
+               [class.control-table-wrap--compact]="vistaCompacta">
+            <table class="table table-sm table-hover control-table mb-0"
+                   [class.control-table--compact]="vistaCompacta">
               <thead>
                 <tr>
                   <th>Item</th>
                   <th>Nombre de la empresa</th>
-                  <th>Tipo de trámite PIPC / OTMS / Factibilidad</th>
-                  <th>Responsable</th>
-                  <th class="sortable-th" (click)="ordenarPorFecha('fecha_ingreso_tramite'); $event.stopPropagation()"
-                      [class.sortable-th--active]="ordenCampoFecha === 'fecha_ingreso_tramite'"
-                      title="Ordenar por fecha de ingreso">
-                    Fecha de ingreso de trámite
-                    <i class="fas ml-1 sort-icon" [ngClass]="iconoOrdenFecha('fecha_ingreso_tramite')"></i>
-                  </th>
-                  <th class="sortable-th" (click)="ordenarPorFecha('fecha_oficio_observaciones'); $event.stopPropagation()"
-                      [class.sortable-th--active]="ordenCampoFecha === 'fecha_oficio_observaciones'"
-                      title="Ordenar por fecha de oficio">
-                    Fecha de Ingreso de oficio con observaciones
-                    <i class="fas ml-1 sort-icon" [ngClass]="iconoOrdenFecha('fecha_oficio_observaciones')"></i>
-                  </th>
-                  <th>Estatus</th>
-                  <th class="sortable-th" (click)="ordenarPorFecha('fecha_aprobacion'); $event.stopPropagation()"
-                      [class.sortable-th--active]="ordenCampoFecha === 'fecha_aprobacion'"
-                      title="Ordenar por fecha de aprobación">
-                    Fecha de aprobación
-                    <i class="fas ml-1 sort-icon" [ngClass]="iconoOrdenFecha('fecha_aprobacion')"></i>
-                  </th>
-                  <th class="sortable-th" (click)="ordenarPorFecha('fecha_vencimiento'); $event.stopPropagation()"
-                      [class.sortable-th--active]="ordenCampoFecha === 'fecha_vencimiento'"
-                      title="Ordenar por fecha de vencimiento">
-                    Fecha de vencimiento
-                    <i class="fas ml-1 sort-icon" [ngClass]="iconoOrdenFecha('fecha_vencimiento')"></i>
-                  </th>
-                  <th class="sortable-th" (click)="ordenarPorFecha('fecha_contacto_empresa'); $event.stopPropagation()"
-                      [class.sortable-th--active]="ordenCampoFecha === 'fecha_contacto_empresa'"
-                      title="Ordenar por fecha de contacto">
-                    Fecha para contacto empresa
-                    <i class="fas ml-1 sort-icon" [ngClass]="iconoOrdenFecha('fecha_contacto_empresa')"></i>
-                  </th>
-                  <th>Municipio (Lugar)</th>
-                  <th>Estado (Lugar)</th>
+                  <ng-container *ngIf="vistaCompacta">
+                    <th>Responsable</th>
+                    <th>Tipo de trámite</th>
+                    <th>Estatus</th>
+                  </ng-container>
+                  <ng-container *ngIf="!vistaCompacta">
+                    <th>Tipo de trámite</th>
+                    <th>Responsable</th>
+                    <th>Despliegue</th>
+                    <th class="sortable-th th-multiline"
+                        (click)="ordenarPorFecha('fecha_ingreso_tramite'); $event.stopPropagation()"
+                        [class.sortable-th--active]="ordenCampoFecha === 'fecha_ingreso_tramite'"
+                        title="Ordenar por fecha de ingreso">
+                      <div class="sortable-th__row">
+                        <span class="sortable-th__text">Fecha de Ingreso<br>trámite</span>
+                        <i class="fas sort-icon" [ngClass]="iconoOrdenFecha('fecha_ingreso_tramite')"></i>
+                      </div>
+                    </th>
+                    <th class="sortable-th th-multiline"
+                        (click)="ordenarPorFecha('fecha_oficio_observaciones'); $event.stopPropagation()"
+                        [class.sortable-th--active]="ordenCampoFecha === 'fecha_oficio_observaciones'"
+                        title="Ordenar por fecha de oficio">
+                      <div class="sortable-th__row">
+                        <span class="sortable-th__text">Fecha de Ingreso<br>Observaciones</span>
+                        <i class="fas sort-icon" [ngClass]="iconoOrdenFecha('fecha_oficio_observaciones')"></i>
+                      </div>
+                    </th>
+                    <th>Estatus</th>
+                    <th class="sortable-th" (click)="ordenarPorFecha('fecha_aprobacion'); $event.stopPropagation()"
+                        [class.sortable-th--active]="ordenCampoFecha === 'fecha_aprobacion'"
+                        title="Ordenar por fecha de aprobación">
+                      <div class="sortable-th__row">
+                        <span class="sortable-th__text">Fecha de aprobación</span>
+                        <i class="fas sort-icon" [ngClass]="iconoOrdenFecha('fecha_aprobacion')"></i>
+                      </div>
+                    </th>
+                    <th class="sortable-th" (click)="ordenarPorFecha('fecha_vencimiento'); $event.stopPropagation()"
+                        [class.sortable-th--active]="ordenCampoFecha === 'fecha_vencimiento'"
+                        title="Ordenar por fecha de vencimiento">
+                      <div class="sortable-th__row">
+                        <span class="sortable-th__text">Fecha de vencimiento</span>
+                        <i class="fas sort-icon" [ngClass]="iconoOrdenFecha('fecha_vencimiento')"></i>
+                      </div>
+                    </th>
+                  </ng-container>
                 </tr>
               </thead>
               <tbody>
@@ -206,18 +251,29 @@
                     title="Clic para editar">
                   <td class="text-center col-item">{{ row.item }}</td>
                   <td class="col-empresa"><strong>{{ row.nombre_empresa }}</strong></td>
-                  <td class="text-center">{{ row.tipo_tramite }}</td>
-                  <td class="col-responsable">{{ row.responsable }}</td>
-                  <td class="text-center">{{ row.fecha_ingreso_tramite }}</td>
-                  <td class="text-center">{{ row.fecha_oficio_observaciones }}</td>
-                  <td class="text-center">
-                    <span class="estatus-badge" [ngClass]="claseEstatus(row.estatus)">{{ row.estatus }}</span>
-                  </td>
-                  <td class="text-center">{{ row.fecha_aprobacion }}</td>
-                  <td class="text-center">{{ row.fecha_vencimiento }}</td>
-                  <td class="text-center">{{ row.fecha_contacto_empresa }}</td>
-                  <td class="text-center">{{ row.municipio }}</td>
-                  <td class="text-center">{{ row.estado }}</td>
+                  <ng-container *ngIf="vistaCompacta">
+                    <td class="col-responsable">{{ row.responsable }}</td>
+                    <td class="text-center">{{ row.tipo_tramite }}</td>
+                    <td class="text-center">
+                      <span class="estatus-badge" [ngClass]="claseEstatus(row.estatus)">{{ row.estatus }}</span>
+                    </td>
+                  </ng-container>
+                  <ng-container *ngIf="!vistaCompacta">
+                    <td class="text-center">{{ row.tipo_tramite }}</td>
+                    <td class="col-responsable">{{ row.responsable }}</td>
+                    <td class="text-center">
+                      <span class="origen-badge" [ngClass]="claseOrigen(row.origen)">
+                        {{ etiquetaOrigen(row.origen) }}
+                      </span>
+                    </td>
+                    <td class="text-center">{{ row.fecha_ingreso_tramite }}</td>
+                    <td class="text-center">{{ row.fecha_oficio_observaciones }}</td>
+                    <td class="text-center">
+                      <span class="estatus-badge" [ngClass]="claseEstatus(row.estatus)">{{ row.estatus }}</span>
+                    </td>
+                    <td class="text-center">{{ row.fecha_aprobacion }}</td>
+                    <td class="text-center">{{ row.fecha_vencimiento }}</td>
+                  </ng-container>
                 </tr>
               </tbody>
             </table>

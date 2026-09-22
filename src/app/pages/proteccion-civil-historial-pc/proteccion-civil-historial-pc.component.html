@@ -272,7 +272,7 @@
               <div class="history-search-head">
                 <div class="history-search-title-wrap">
                   <h6 class="history-search-title">Buscador de documentos</h6>
-                  <span class="history-search-subtitle">Consulta rápida por nombre, tipo o fecha</span>
+                  <span class="history-search-subtitle">Busca por el nombre de la asignación / requisito</span>
                 </div>
                 <span class="history-search-total">{{ itemsFiltrados.length }} / {{ totalArchivos }}</span>
               </div>
@@ -283,7 +283,8 @@
                     class="history-search-input"
                     type="text"
                     [(ngModel)]="filtroTexto"
-                    placeholder="Buscar archivo (ej. oficio, resolutivo, pdf, 2026)"
+                    (ngModelChange)="onFiltroTextoChange()"
+                    placeholder="Ej. Plano general, Programa de Mantenimiento..."
                   >
                 </div>
                 <select class="history-search-select" [(ngModel)]="seccionFiltro" (change)="onFiltroSeccionChange()">
@@ -328,59 +329,149 @@
                 <section class="history-active-panel" *ngIf="seccionActivaObj as seccionActivaView">
                   <div class="history-active-header">
                     <h6 class="history-active-title">{{ seccionActivaView.nombre }}</h6>
-                    <span class="history-active-meta">{{ itemsSeccionActiva.length }} archivo(s)</span>
+                    <span class="history-active-meta">
+                      {{ contarArchivosApartado(seccionActiva) }} archivo(s)
+                      <ng-container *ngIf="contarTextosApartado(seccionActiva) as nTextos">
+                        <span *ngIf="nTextos > 0"> · {{ nTextos }} texto(s)</span>
+                      </ng-container>
+                    </span>
                   </div>
 
-                  <div class="history-section-files">
-                    <ng-container *ngFor="let grupo of gruposSeccionActiva; let i = index">
-                      <div class="history-group-separator" [class.history-group-separator-first]="i === 0">
-                        <span class="history-group-title">{{ grupo.titulo }}</span>
-                        <span class="history-group-count">{{ grupo.archivos.length }} archivo(s)</span>
+                  <!-- Textos capturados en BD: bloque no editable arriba -->
+                  <div class="history-textos-panel" *ngIf="textosDeApartado(seccionActiva).length > 0">
+                    <div class="history-textos-panel__label">
+                      <i class="fas fa-align-left"></i>
+                      Información capturada como texto
+                    </div>
+                    <article
+                      class="history-texto-card"
+                      *ngFor="let texto of textosDeApartado(seccionActiva)"
+                    >
+                      <div class="history-texto-card__head">
+                        <strong
+                          class="history-texto-card__title"
+                          [innerHTML]="getNombreArchivoResaltado(texto.nombre_documento)"
+                        ></strong>
+                        <span class="history-texto-card__meta" *ngIf="texto.pipc_titulo">
+                          {{ texto.pipc_titulo }}
+                        </span>
                       </div>
+                      <pre class="history-texto-card__body">{{ texto.valor_texto }}</pre>
+                    </article>
+                  </div>
 
-                      <div class="history-files-table-head">
-                        <span class="col-file">Archivo</span>
-                        <span class="col-date">Fecha</span>
-                        <span class="col-size">Tamaño</span>
-                        <span class="col-actions">Acciones</span>
-                      </div>
-
+                  <!-- Oficios / Observaciones / Resolutivos -->
+                  <div class="history-compact-grid" *ngIf="esSeccionCompacta">
+                    <article
+                      class="history-compact-card"
+                      *ngFor="let archivo of archivosDeApartado(seccionActiva)"
+                      (click)="abrirItem(archivo)"
+                      role="button"
+                      tabindex="0"
+                      (keydown.enter)="abrirItem(archivo)"
+                    >
                       <div
-                        *ngFor="let archivo of grupo.archivos"
-                        class="history-file-row history-file-row-compact"
-                        (click)="abrirItem(archivo)"
+                        class="history-compact-card__icon"
+                        [style.background]="colorArchivo(archivo.mime_type, archivo.nombre_archivo)"
                       >
-                        <div class="history-file-main">
+                        <i class="fas" [ngClass]="iconoArchivo(archivo)"></i>
+                      </div>
+                      <div class="history-compact-card__body">
+                        <strong
+                          class="history-compact-card__title"
+                          [innerHTML]="getNombreArchivoResaltado(archivo.nombre_documento)"
+                        ></strong>
+                        <span class="history-compact-card__file" *ngIf="archivo.nombre_archivo && archivo.nombre_archivo !== archivo.nombre_documento">
+                          {{ archivo.nombre_archivo }}
+                        </span>
+                        <span class="history-compact-card__meta">
+                          <i class="fas fa-calendar-alt"></i>
+                          {{ formatFechaCorta(archivo.fecha_referencia) }}
+                          <span *ngIf="archivo.pipc_titulo"> · {{ archivo.pipc_titulo }}</span>
+                        </span>
+                      </div>
+                      <div class="history-compact-card__actions" (click)="$event.stopPropagation()">
+                        <button type="button" class="action-btn action-preview" (click)="abrirItem(archivo, $event)" title="Ver">
+                          <i class="fas fa-eye"></i>
+                        </button>
+                        <button
+                          type="button"
+                          class="action-btn action-download"
+                          *ngIf="archivo.drive_file_id"
+                          (click)="descargarItem(archivo, $event)"
+                          title="Descargar"
+                        >
+                          <i class="fas fa-download"></i>
+                        </button>
+                      </div>
+                    </article>
+                  </div>
+
+                  <!-- Documentación / Extra: 2 requisitos por fila -->
+                  <div class="history-req-grid" *ngIf="!esSeccionCompacta">
+                    <article
+                      class="history-req-card"
+                      *ngFor="let grupo of gruposSeccionActiva"
+                    >
+                      <div class="history-req-card__head">
+                        <div class="history-req-card__titles">
+                          <span class="history-req-card__pipc" *ngIf="grupo.pipc">
+                            <i class="fas fa-shield-alt"></i> {{ grupo.pipc }}
+                          </span>
+                          <h6
+                            class="history-req-card__title"
+                            [innerHTML]="getNombreArchivoResaltado(grupo.titulo)"
+                          ></h6>
+                        </div>
+                        <span class="history-req-card__count">{{ grupo.archivos.length }} archivo(s)</span>
+                      </div>
+
+                      <div class="history-req-card__files">
+                        <div
+                          *ngFor="let archivo of grupo.archivos"
+                          class="history-req-file"
+                          (click)="abrirItem(archivo)"
+                        >
                           <div
                             class="drive-file-icon drive-file-icon-sm"
                             [style.background]="colorArchivo(archivo.mime_type, archivo.nombre_archivo)"
                           >
                             <i class="fas" [ngClass]="iconoArchivo(archivo)"></i>
                           </div>
-                          <span
-                            class="history-file-name"
-                            [title]="archivo.nombre_archivo || archivo.nombre_documento"
-                            [innerHTML]="getNombreArchivoResaltado(archivo.nombre_archivo || archivo.nombre_documento)"
-                          ></span>
-                        </div>
-                        <div class="history-file-date">{{ formatFechaCorta(archivo.fecha_referencia) }}</div>
-                        <div class="history-file-size">{{ archivo.tipo_item === 'texto' ? 'Texto' : formatearTamano(archivo.tamano_bytes) }}</div>
-                        <div class="history-file-actions">
-                          <button type="button" class="action-btn action-preview" (click)="abrirItem(archivo, $event)" title="Ver">
-                            <i class="fas fa-eye"></i>
-                          </button>
-                          <button
-                            type="button"
-                            class="action-btn action-download"
-                            *ngIf="archivo.drive_file_id"
-                            (click)="descargarItem(archivo, $event)"
-                            title="Descargar"
-                          >
-                            <i class="fas fa-download"></i>
-                          </button>
+                          <div class="history-req-file__text">
+                            <span
+                              class="history-req-file__name"
+                              [title]="archivo.nombre_archivo || archivo.nombre_documento"
+                            >{{ archivo.nombre_archivo || archivo.nombre_documento }}</span>
+                            <small class="history-req-file__meta">
+                              {{ formatFechaCorta(archivo.fecha_referencia) }}
+                              <span *ngIf="archivo.tamano_bytes"> · {{ formatearTamano(archivo.tamano_bytes) }}</span>
+                            </small>
+                          </div>
+                          <div class="history-req-file__actions" (click)="$event.stopPropagation()">
+                            <button type="button" class="action-btn action-preview" (click)="abrirItem(archivo, $event)" title="Ver">
+                              <i class="fas fa-eye"></i>
+                            </button>
+                            <button
+                              type="button"
+                              class="action-btn action-download"
+                              *ngIf="archivo.drive_file_id"
+                              (click)="descargarItem(archivo, $event)"
+                              title="Descargar"
+                            >
+                              <i class="fas fa-download"></i>
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </ng-container>
+                    </article>
+                  </div>
+
+                  <div
+                    class="docs-empty docs-empty--soft"
+                    *ngIf="archivosDeApartado(seccionActiva).length === 0 && textosDeApartado(seccionActiva).length === 0"
+                  >
+                    <span>Sin documentos en este apartado</span>
                   </div>
                 </section>
               </div>
@@ -475,7 +566,7 @@
         tema="naranja">
       </app-pdf-canvas-viewer>
 
-      <div *ngIf="visorModoPdf && visorError"
+      <div *ngIf="(visorModoPdf || visorEsImagen) && visorError"
            class="pc-viewer-fallback">
         <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
         <p class="mb-2">{{ visorError }}</p>
@@ -484,14 +575,14 @@
         </button>
       </div>
 
-      <div *ngIf="visorUrl && visorEsImagen"
+      <div *ngIf="visorUrl && visorEsImagen && !visorError"
            class="history-viewer-stage history-viewer-stage--image"
            [style.zoom]="zoomVisor / 100">
-        <img [src]="visorUrl | safe"
+        <img [src]="visorUrl | safe:'url'"
              [alt]="visorNombre"
              class="history-viewer-image"
              (load)="onVisorLoad()"
-             (error)="onVisorLoad()">
+             (error)="onVisorImageError()">
       </div>
     </div>
   </div>

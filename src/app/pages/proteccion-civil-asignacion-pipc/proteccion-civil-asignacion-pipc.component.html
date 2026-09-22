@@ -1,0 +1,255 @@
+<!-- Header naranja PC -->
+<div class="header header-bg-image asig-pipc-header pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center asig-pipc-header__inner">
+          <div class="asig-pipc-header__icon">
+            <i class="fas fa-tasks"></i>
+          </div>
+          <h1 class="asig-pipc-header__title">Asignación de PIPC</h1>
+          <p class="asig-pipc-header__sub">Despliega plantillas y administra formatos</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--5 asig-pipc-page" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+  <div class="row justify-content-center">
+    <div class="col-12">
+      <div class="card border-0 shadow-lg asig-pipc-card">
+        <div class="card-header border-0 asig-pipc-card__header">
+          <div class="asig-pipc-card__header-text">
+            <span class="asig-pipc-eyebrow">Protección Civil</span>
+            <h2 class="asig-pipc-card__title">
+              <ng-container [ngSwitch]="pestanaActiva">
+                <ng-container *ngSwitchCase="'gestion'">Gestión de PIPC</ng-container>
+                <ng-container *ngSwitchCase="'directorios'">Gestión de Directorios</ng-container>
+                <ng-container *ngSwitchDefault>Desplegar PIPC por empresa</ng-container>
+              </ng-container>
+            </h2>
+            <p class="asig-pipc-help">
+              <i class="fas fa-info-circle"></i>
+              <ng-container [ngSwitch]="pestanaActiva">
+                <ng-container *ngSwitchCase="'desplegar'">
+                  Selecciona la empresa, el responsable y las plantillas PIPC a desplegar. La gestión del trámite se hace en PIPC Activos.
+                </ng-container>
+                <ng-container *ngSwitchCase="'gestion'">
+                  Administra categorías, plantillas y formatos del programa. Los cambios quedan disponibles al desplegar por empresa.
+                </ng-container>
+                <ng-container *ngSwitchCase="'directorios'">
+                  Registra directorios de apoyo externo (Word/Docs) desde la plantilla y edítalos en el sistema.
+                </ng-container>
+              </ng-container>
+            </p>
+          </div>
+
+          <div class="asig-pipc-tabs" role="tablist" aria-label="Secciones de asignación PIPC">
+            <button type="button"
+                    class="asig-pipc-tabs__btn"
+                    role="tab"
+                    [class.is-active]="pestanaActiva === 'desplegar'"
+                    [attr.aria-selected]="pestanaActiva === 'desplegar'"
+                    (click)="setPestana('desplegar')">
+              <i class="fas fa-building" aria-hidden="true"></i>
+              Desplegar por empresa
+            </button>
+            <button type="button"
+                    class="asig-pipc-tabs__btn"
+                    role="tab"
+                    [class.is-active]="pestanaActiva === 'gestion'"
+                    [attr.aria-selected]="pestanaActiva === 'gestion'"
+                    (click)="setPestana('gestion')">
+              <i class="fas fa-folder-open" aria-hidden="true"></i>
+              Gestión de PIPC
+            </button>
+            <button type="button"
+                    class="asig-pipc-tabs__btn"
+                    role="tab"
+                    [class.is-active]="pestanaActiva === 'directorios'"
+                    [attr.aria-selected]="pestanaActiva === 'directorios'"
+                    (click)="setPestana('directorios')">
+              <i class="fas fa-address-book" aria-hidden="true"></i>
+              Gestión de Directorios
+            </button>
+          </div>
+        </div>
+
+        <div class="card-body asig-pipc-card__body">
+          <!-- ===== Desplegar ===== -->
+          <ng-container *ngIf="pestanaActiva === 'desplegar'">
+            <div class="asig-pipc-fields">
+              <div class="asig-pipc-field">
+                <label class="asig-pipc-label">
+                  <i class="fas fa-building"></i> Buscar empresa *
+                </label>
+                <div class="asig-pipc-input-wrap dropdown-container"
+                     [class.is-selected]="!!empresaSeleccionada"
+                     [class.is-open]="mostrarDropdownEmpresa">
+                  <i class="fas fa-search asig-pipc-input-icon"></i>
+                  <input type="text"
+                         class="asig-pipc-input"
+                         [(ngModel)]="busquedaEmpresa"
+                         (input)="filtrarEmpresas()"
+                         (focus)="mostrarEmpresas()"
+                         (blur)="ocultarDropdownEmpresa()"
+                         placeholder="Nombre, RFC o ciudad..."
+                         autocomplete="off">
+                  <button type="button"
+                          class="asig-pipc-clear"
+                          *ngIf="empresaSeleccionada"
+                          (mousedown)="limpiarEmpresa(); $event.preventDefault()"
+                          title="Quitar empresa"
+                          aria-label="Quitar empresa">
+                    <i class="fas fa-times"></i>
+                  </button>
+                  <div class="asig-pipc-dropdown" *ngIf="mostrarDropdownEmpresa && empresasFiltradas.length > 0">
+                    <button type="button"
+                            class="asig-pipc-dropdown__item"
+                            *ngFor="let empresa of empresasFiltradas"
+                            (mousedown)="seleccionarEmpresa(empresa)">
+                      <ng-container *ngIf="getLogoEmpresaUrl(empresa) as logoUrl; else empIniciales">
+                        <div class="emp-avatar emp-avatar--logo">
+                          <img [src]="logoUrl" [alt]="empresa.nombre_empresa" (error)="onLogoError(empresa)">
+                        </div>
+                      </ng-container>
+                      <ng-template #empIniciales>
+                        <div class="emp-avatar">{{ empresa.nombre_empresa?.charAt(0) }}</div>
+                      </ng-template>
+                      <div class="asig-pipc-dropdown__meta">
+                        <span class="asig-pipc-dropdown__name">{{ empresa.nombre_empresa }}</span>
+                        <span class="asig-pipc-dropdown__loc" *ngIf="empresa.ciudad || empresa.estado">
+                          <i class="fas fa-map-marker-alt"></i>
+                          {{ empresa.ciudad }}<span *ngIf="empresa.ciudad && empresa.estado">, </span>{{ empresa.estado }}
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+                  <small class="asig-pipc-field-hint" *ngIf="mostrarDropdownEmpresa && !cargandoEmpresas && empresasFiltradas.length === 0">
+                    No se encontraron empresas
+                  </small>
+                </div>
+                <small class="asig-pipc-field-hint asig-pipc-field-hint--tip">
+                  <i class="fas fa-lightbulb"></i>
+                  Selecciona primero la empresa para habilitar la asignación.
+                </small>
+              </div>
+
+              <div class="asig-pipc-field"
+                   [class.is-disabled]="!empresaSeleccionada">
+                <label class="asig-pipc-label">
+                  <i class="fas fa-user-tie"></i> Responsable de PIPC
+                </label>
+                <div class="asig-pipc-input-wrap"
+                     [class.is-open]="comboResponsableAbierto"
+                     [class.is-disabled]="!empresaSeleccionada">
+                  <i class="fas fa-user asig-pipc-input-icon"></i>
+                  <input type="text"
+                         class="asig-pipc-input"
+                         [ngModel]="filtroResponsable"
+                         (ngModelChange)="onResponsableInput($event)"
+                         (focus)="abrirComboResponsable()"
+                         (blur)="cerrarComboResponsableDelayed()"
+                         [disabled]="!empresaSeleccionada || cargandoResponsable || guardandoResponsable"
+                         placeholder="{{ empresaSeleccionada ? 'Buscar usuario...' : 'Primero elige empresa' }}"
+                         autocomplete="off">
+                  <button type="button"
+                          class="asig-pipc-clear"
+                          *ngIf="responsablePipcUsuarioId && empresaSeleccionada"
+                          (mousedown)="limpiarResponsable($event)"
+                          [disabled]="guardandoResponsable"
+                          aria-label="Quitar responsable">
+                    <i class="fas fa-times"></i>
+                  </button>
+                  <ul class="asig-pipc-dropdown asig-pipc-dropdown--list"
+                      *ngIf="comboResponsableAbierto && empresaSeleccionada">
+                    <li *ngFor="let op of responsablesFiltrados"
+                        (mousedown)="seleccionarResponsable($event, op)"
+                        [class.is-active]="responsablePipcUsuarioId === op.id">
+                      {{ op.nombre }}
+                    </li>
+                    <li *ngIf="!responsablesFiltrados.length" class="is-empty">Sin coincidencias</li>
+                  </ul>
+                </div>
+                <small class="asig-pipc-field-hint" *ngIf="guardandoResponsable">
+                  <i class="fas fa-spinner fa-spin"></i> Guardando responsable...
+                </small>
+                <small class="asig-pipc-field-hint asig-pipc-field-hint--ok"
+                       *ngIf="!guardandoResponsable && responsableGuardadoOk">
+                  <i class="fas fa-check"></i> Responsable guardado
+                </small>
+              </div>
+            </div>
+
+            <div *ngIf="!empresaSeleccionada" class="asig-pipc-placeholder">
+              <div class="asig-pipc-placeholder__glow" aria-hidden="true"></div>
+              <div class="asig-pipc-placeholder__icon">
+                <i class="fas fa-folder-open"></i>
+              </div>
+              <h3 class="asig-pipc-placeholder__title">¿Listo para desplegar?</h3>
+              <p class="asig-pipc-placeholder__desc">
+                Elige una empresa arriba para comenzar. Podrás asignar plantillas PIPC nuevas aunque la empresa ya tenga otras en gestión.
+              </p>
+            </div>
+
+            <div *ngIf="empresaSeleccionada" class="asig-pipc-embed pc-animate-in">
+              <div class="asig-pipc-chip">
+                <ng-container *ngIf="getLogoEmpresaUrl(empresaSeleccionada) as logoUrl; else chipInicial">
+                  <div class="emp-avatar emp-avatar--logo emp-avatar--sm">
+                    <img [src]="logoUrl" [alt]="empresaSeleccionada.nombre_empresa" (error)="onLogoError(empresaSeleccionada)">
+                  </div>
+                </ng-container>
+                <ng-template #chipInicial>
+                  <div class="emp-avatar emp-avatar--sm">{{ empresaSeleccionada.nombre_empresa?.charAt(0) }}</div>
+                </ng-template>
+                <div class="asig-pipc-chip__text">
+                  <strong>{{ empresaSeleccionada.nombre_empresa }}</strong>
+                  <small *ngIf="empresaSeleccionada.ciudad || empresaSeleccionada.estado">
+                    {{ empresaSeleccionada.ciudad }}<span *ngIf="empresaSeleccionada.ciudad && empresaSeleccionada.estado">, </span>{{ empresaSeleccionada.estado }}
+                  </small>
+                </div>
+                <div class="asig-pipc-chip__actions">
+                  <button
+                    type="button"
+                    class="asig-pipc-save-btn"
+                    (click)="guardarAsignacionDesdeChip()"
+                    [disabled]="!puedeGuardarAsignacion"
+                    [class.is-ready]="puedeGuardarAsignacion"
+                    [class.is-loading]="guardandoAsignacion"
+                    [attr.aria-label]="'Guardar Asignación'"
+                    title="Guardar Asignación">
+                    <i class="fas" [ngClass]="guardandoAsignacion ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                    <span class="asig-pipc-save-btn__label">Guardar</span>
+                  </button>
+                </div>
+              </div>
+
+              <app-proteccion-civil-asignar-documentos
+                [embebido]="true"
+                [empresaIdEmbebida]="empresaSeleccionada.empresa_id"
+                [refreshToken]="refreshAsignacion"
+                [ocultarToolbarResponsable]="true"
+                [ocultarBotonGuardar]="true"
+                [modoNuevaAsignacion]="true"
+                (asignacionGuardada)="onAsignacionGuardada()"
+                (estadoAsignacionCambiado)="onEstadoAsignacionCambiado($event)"
+                (responsableActualizado)="onResponsableDesdeHijo($event)">
+              </app-proteccion-civil-asignar-documentos>
+            </div>
+          </ng-container>
+
+          <!-- ===== Gestión de PIPC (antes Catálogo) ===== -->
+          <div *ngIf="pestanaActiva === 'gestion'" class="asig-pipc-gestion">
+            <app-proteccion-civil-catalogo [embebido]="true"></app-proteccion-civil-catalogo>
+          </div>
+
+          <!-- ===== Gestión de Directorios (Google Docs) ===== -->
+          <div *ngIf="pestanaActiva === 'directorios'" class="asig-pipc-gestion">
+            <app-proteccion-civil-directorios></app-proteccion-civil-directorios>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

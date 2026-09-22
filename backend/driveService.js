@@ -9572,16 +9572,100 @@ async function generarReporteMantenimientoEinF04(params = {}) {
         }
     }
 
-    const evidenciasConUrl = evidencias.filter((e) => e?.url || e?.driveFileId || e?.webViewLink);
-    if (evidenciasConUrl.length) {
-        const doc3 = await docsApi.documents.get({ documentId });
-        const body3 = Array.isArray(doc3?.data?.body?.content) ? doc3.data.body.content : [];
-        const rangoEv = buscarCeldaSeccion(body3, [
+    /**
+     * Evidencia fotográfica:
+     * - La plantilla suele traer imágenes posicionadas con «Ajustar texto» (WRAP_TEXT).
+     *   deleteContentRange NO las elimina → si además insertamos inline, salen duplicadas.
+     * - Preferimos replaceImage sobre esos placeholders para conservar el ajuste de texto.
+     * - Solo insertamos inline si faltan placeholders.
+     */
+    const buscarCeldasEvidencia = (bodyContent) => {
+        const normalizedNeedles = [
             'evidencia fotografica',
             'evidencia fotográfica'
-        ], true);
-        let cursor = rangoEv?.startIndex || null;
-        const endEv = rangoEv?.endIndex || null;
+        ].map((n) => normalizarTexto(n)).filter(Boolean);
+        for (const element of bodyContent) {
+            if (!element?.table?.tableRows) continue;
+            const rows = element.table.tableRows;
+            for (let ri = 0; ri < rows.length; ri++) {
+                const cells = rows[ri]?.tableCells || [];
+                for (let ci = 0; ci < cells.length; ci++) {
+                    const cellText = normalizarTexto(extraerTextoCelda(cells[ci]));
+                    if (!normalizedNeedles.some((n) => cellText.includes(n))) continue;
+                    const headerCell = cells[ci];
+                    const contentCell = rows[ri + 1]?.tableCells?.[ci] || null;
+                    const rangoContent = obtenerRangoEditableCelda(contentCell);
+                    const rangoHeader = obtenerRangoEditableCelda(headerCell);
+                    return {
+                        headerCell,
+                        contentCell,
+                        rango: rangoContent || rangoHeader,
+                        insertIndex: rangoContent?.startIndex
+                            || (Number.isFinite(Number(element.endIndex)) ? Number(element.endIndex) : null)
+                    };
+                }
+            }
+        }
+        return null;
+    };
+
+    const recolectarImagenesDeCelda = (cell) => {
+        const positionedIds = [];
+        const inlineEntries = [];
+        if (!cell || !Array.isArray(cell.content)) {
+            return { positionedIds, inlineEntries };
+        }
+        for (const element of cell.content) {
+            const paragraph = element?.paragraph;
+            if (!paragraph) continue;
+            for (const objectId of paragraph.positionedObjectIds || []) {
+                if (objectId && !positionedIds.includes(objectId)) {
+                    positionedIds.push(objectId);
+                }
+            }
+            for (const pe of paragraph.elements || []) {
+                const inlineId = pe?.inlineObjectElement?.inlineObjectId;
+                if (!inlineId) continue;
+                inlineEntries.push({
+                    id: inlineId,
+                    startIndex: Number(pe.startIndex)
+                });
+            }
+        }
+        return { positionedIds, inlineEntries };
+    };
+
+    const urlPublicaEvidencia = async (ev) => {
+        const driveId = String(ev?.driveFileId || '').trim();
+        if (driveId) {
+            try {
+                await asignarPermisoLecturaPublica(driveId);
+            } catch (_) { /* ignore */ }
+            return `https://drive.google.com/uc?id=${driveId}&export=download`;
+        }
+        return String(ev?.url || '').trim();
+    };
+
+    // Deduplicar por driveFileId / url (evita 2 copias de la misma evidencia).
+    const evidenciasUnicas = [];
+    const keysEv = new Set();
+    for (const e of evidencias) {
+        if (!e?.url && !e?.driveFileId && !e?.webViewLink) continue;
+        const key = String(e.driveFileId || e.url || e.webViewLink || '').trim();
+        if (!key || keysEv.has(key)) continue;
+        keysEv.add(key);
+        evidenciasUnicas.push(e);
+    }
+    const fotos = evidenciasUnicas.slice(0, 2);
+
+    {
+        const doc3 = await docsApi.documents.get({ documentId });
+        const body3 = Array.isArray(doc3?.data?.body?.content) ? doc3.data.body.content : [];
+        const positionedObjects = doc3?.data?.positionedObjects || {};
+        const celdasEv = buscarCeldasEvidencia(body3);
+
+        let cursor = celdasEv?.insertIndex || null;
+        let endEv = celdasEv?.rango?.endIndex || null;
 
         if (!cursor) {
             cursor = buscarIndiceSeccion(body3, [
@@ -9590,95 +9674,166 @@ async function generarReporteMantenimientoEinF04(params = {}) {
             ]);
         }
 
-        if (!cursor) {
-            throw new Error('No se encontró la sección «Evidencia fotográfica» en la plantilla EIN-F-04.');
-        }
+        if (!cursor && !celdasEv) {
+            if (fotos.length) {
+                throw new Error('No se encontró la sección «Evidencia fotográfica» en la plantilla EIN-F-04.');
+            }
+        } else {
+        const imgsHeader = recolectarImagenesDeCelda(celdasEv?.headerCell);
+        const imgsContent = recolectarImagenesDeCelda(celdasEv?.contentCell);
 
-        // Limpiar celda (placeholders / imágenes previas) antes de insertar.
-        if (endEv != null && endEv > cursor) {
+        const layoutScore = (objectId) => {
+            const layout = String(
+                positionedObjects?.[objectId]?.positionedObjectProperties?.positioning?.layout || ''
+            ).toUpperCase();
+            // WRAP_TEXT = «Ajustar texto» en la UI de Docs.
+            if (layout.includes('WRAP')) return 0;
+            if (layout.includes('BREAK')) return 1;
+            return 2;
+        };
+
+        const positionedIds = [...imgsContent.positionedIds, ...imgsHeader.positionedIds]
+            .filter((id, idx, arr) => id && arr.indexOf(id) === idx)
+            .sort((a, b) => layoutScore(a) - layoutScore(b));
+
+        const inlineEntries = [...imgsContent.inlineEntries, ...imgsHeader.inlineEntries]
+            .filter((entry, idx, arr) => entry?.id && arr.findIndex((x) => x.id === entry.id) === idx);
+
+        // Placeholders: primero posicionadas (conservan Ajustar texto), luego inline.
+        const placeholders = [
+            ...positionedIds.map((id) => ({ id, tipo: 'positioned' })),
+            ...inlineEntries.map((entry) => ({
+                id: entry.id,
+                tipo: 'inline',
+                startIndex: entry.startIndex
+            }))
+        ];
+
+        const usados = new Set();
+        let fotosConReplace = 0;
+
+        for (let i = 0; i < fotos.length; i++) {
+            const imageUrl = await urlPublicaEvidencia(fotos[i]);
+            if (!imageUrl) continue;
+            const ph = placeholders[i];
+            if (!ph) break;
             try {
                 await docsApi.documents.batchUpdate({
                     documentId,
                     requestBody: {
                         requests: [
                             {
-                                deleteContentRange: {
-                                    range: { startIndex: cursor, endIndex: endEv }
+                                replaceImage: {
+                                    imageObjectId: ph.id,
+                                    uri: imageUrl,
+                                    imageReplaceMethod: 'CENTER_CROP'
                                 }
                             }
                         ]
                     }
                 });
-            } catch (clearErr) {
-                console.warn('[WARN] limpiar evidencias EIN-F-04:', clearErr?.message || clearErr);
+                usados.add(ph.id);
+                fotosConReplace += 1;
+            } catch (replaceErr) {
+                console.warn('[WARN] replaceImage EIN-F-04:', replaceErr?.message || replaceErr);
+                break;
             }
         }
 
-        const fotos = evidenciasConUrl.slice(0, 2);
-        const anchoImg = fotos.length === 1 ? 280 : EVIDENCIA_IMG_ANCHO_PT;
-        const altoImg = fotos.length === 1 ? 210 : EVIDENCIA_IMG_ALTO_PT;
-
-        for (let i = 0; i < fotos.length; i++) {
-            const ev = fotos[i];
-            const driveId = String(ev.driveFileId || '').trim();
-            if (driveId) {
-                try {
-                    await asignarPermisoLecturaPublica(driveId);
-                } catch (_) { /* ignore */ }
+        // Eliminar placeholders sobrantes (evita imágenes fantasma de la plantilla).
+        const deleteRequests = [];
+        for (const ph of placeholders) {
+            if (usados.has(ph.id)) continue;
+            if (ph.tipo === 'positioned') {
+                deleteRequests.push({ deletePositionedObject: { objectId: ph.id } });
             }
-            const imageUrl =
-                (driveId ? `https://drive.google.com/uc?id=${driveId}&export=download` : '') ||
-                String(ev.url || '').trim() ||
-                '';
-            const link = ev.webViewLink || imageUrl;
+        }
+        // Inline sobrantes: borrar de atrás hacia adelante.
+        const inlineSobrantes = placeholders
+            .filter((ph) => ph.tipo === 'inline' && !usados.has(ph.id) && Number.isFinite(ph.startIndex))
+            .sort((a, b) => b.startIndex - a.startIndex);
+        for (const ph of inlineSobrantes) {
+            deleteRequests.push({
+                deleteContentRange: {
+                    range: { startIndex: ph.startIndex, endIndex: ph.startIndex + 1 }
+                }
+            });
+        }
+        if (deleteRequests.length) {
             try {
-                if (imageUrl) {
-                    const requestsImg = [
-                        {
-                            insertInlineImage: {
-                                location: { index: cursor },
-                                uri: imageUrl,
-                                objectSize: {
-                                    height: { magnitude: altoImg, unit: 'PT' },
-                                    width: { magnitude: anchoImg, unit: 'PT' }
-                                }
-                            }
-                        }
-                    ];
-                    // Espacio entre imágenes (lado a lado); sin salto de línea.
-                    if (i < fotos.length - 1) {
-                        requestsImg.push({
-                            insertText: { location: { index: cursor + 1 }, text: '  ' }
-                        });
-                    }
-                    await docsApi.documents.batchUpdate({
-                        documentId,
-                        requestBody: { requests: requestsImg }
-                    });
-                    // Imagen = 1 índice; si hubo separador, +2 espacios.
-                    cursor += i < fotos.length - 1 ? 3 : 1;
-                } else if (link) {
-                    const textoLink = `[Evidencia] ${link}${i < fotos.length - 1 ? '  ' : ''}`;
+                await docsApi.documents.batchUpdate({
+                    documentId,
+                    requestBody: { requests: deleteRequests }
+                });
+            } catch (delErr) {
+                console.warn('[WARN] limpiar placeholders EIN-F-04:', delErr?.message || delErr);
+            }
+        }
+
+        const fotosRestantes = fotos.slice(fotosConReplace);
+        if (fotosRestantes.length) {
+            // Releer índices tras replace/delete.
+            const doc4 = await docsApi.documents.get({ documentId });
+            const body4 = Array.isArray(doc4?.data?.body?.content) ? doc4.data.body.content : [];
+            const celdas4 = buscarCeldasEvidencia(body4);
+            cursor = celdas4?.rango?.startIndex || celdas4?.insertIndex || cursor;
+            endEv = celdas4?.rango?.endIndex || endEv;
+
+            // Si no quedaron imágenes útiles, limpiar texto residual de la celda.
+            const imgsTras = recolectarImagenesDeCelda(celdas4?.contentCell);
+            const quedanImagenes = (imgsTras.positionedIds.length + imgsTras.inlineEntries.length) > 0;
+            if (!quedanImagenes && endEv != null && cursor != null && endEv > cursor) {
+                try {
                     await docsApi.documents.batchUpdate({
                         documentId,
                         requestBody: {
                             requests: [
                                 {
-                                    insertText: {
-                                        location: { index: cursor },
-                                        text: textoLink
+                                    deleteContentRange: {
+                                        range: { startIndex: cursor, endIndex: endEv }
                                     }
                                 }
                             ]
                         }
                     });
-                    cursor += textoLink.length;
+                } catch (clearErr) {
+                    console.warn('[WARN] limpiar celda evidencias EIN-F-04:', clearErr?.message || clearErr);
                 }
-            } catch (imgErr) {
-                console.warn('[WARN] imagen EIN-F-04:', imgErr?.message || imgErr);
-                if (link) {
-                    try {
-                        const textoLink = `[Evidencia] ${link}${i < fotos.length - 1 ? '  ' : ''}`;
+            }
+
+            const anchoImg = fotos.length === 1 ? 280 : EVIDENCIA_IMG_ANCHO_PT;
+            const altoImg = fotos.length === 1 ? 210 : EVIDENCIA_IMG_ALTO_PT;
+
+            for (let i = 0; i < fotosRestantes.length; i++) {
+                const ev = fotosRestantes[i];
+                const imageUrl = await urlPublicaEvidencia(ev);
+                const link = ev.webViewLink || imageUrl;
+                try {
+                    if (imageUrl && cursor != null) {
+                        const requestsImg = [
+                            {
+                                insertInlineImage: {
+                                    location: { index: cursor },
+                                    uri: imageUrl,
+                                    objectSize: {
+                                        height: { magnitude: altoImg, unit: 'PT' },
+                                        width: { magnitude: anchoImg, unit: 'PT' }
+                                    }
+                                }
+                            }
+                        ];
+                        if (i < fotosRestantes.length - 1) {
+                            requestsImg.push({
+                                insertText: { location: { index: cursor + 1 }, text: '  ' }
+                            });
+                        }
+                        await docsApi.documents.batchUpdate({
+                            documentId,
+                            requestBody: { requests: requestsImg }
+                        });
+                        cursor += i < fotosRestantes.length - 1 ? 3 : 1;
+                    } else if (link && cursor != null) {
+                        const textoLink = `[Evidencia] ${link}${i < fotosRestantes.length - 1 ? '  ' : ''}`;
                         await docsApi.documents.batchUpdate({
                             documentId,
                             requestBody: {
@@ -9693,10 +9848,13 @@ async function generarReporteMantenimientoEinF04(params = {}) {
                             }
                         });
                         cursor += textoLink.length;
-                    } catch (_) { /* ignore */ }
+                    }
+                } catch (imgErr) {
+                    console.warn('[WARN] imagen EIN-F-04:', imgErr?.message || imgErr);
                 }
             }
         }
+        } // fin else sección evidencia encontrada
     }
 
     return {

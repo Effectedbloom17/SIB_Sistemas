@@ -60,6 +60,7 @@ const { generarListadoPipcPdf, sanitizarNombreArchivo } = require('./pcPipcLista
 const {
     construirFilasCompletasDesdeDoc: construirFilasPipcCompletas,
     insertarRequisitosFaltantesPadrePipc,
+    restaurarRequisitosEliminadosConHistorial,
     repararPadresPipcHuerfanos,
     esSubtituloOperativoPcNombre,
     sincronizarTiposEntradaEmpresaDesdeCatalogo,
@@ -1661,6 +1662,13 @@ async function initializePoolProteccionCivil() {
         bootstrapDb: true,
         getPool: () => poolProteccionCivil
     });
+    try {
+        const pcResolutivosService = require('./pcResolutivosService');
+        await pcResolutivosService.asegurarTablaPcControlResolutivos(poolProteccionCivil);
+        startupLog.detail(`  Tabla pc_control_resolutivos verificada en ${DB_NAME_PC}`);
+    } catch (pcMigrErr) {
+        console.warn(`  [WARN] Tabla pc_control_resolutivos (${DB_NAME_PC}):`, pcMigrErr.message);
+    }
 }
 
 async function reinicializarPoolProteccionCivil(motivo = '') {
@@ -1705,10 +1713,19 @@ let isOnLocalNetworkSgc = false;
 
 async function ejecutarMigracionesBiznagaSgc(poolSgc) {
     try {
+        // Migración one-shot: datos históricos de resolutivos PIPC hacia proteccion_civil
         const pcResolutivosService = require('./pcResolutivosService');
-        await pcResolutivosService.asegurarTablaPcControlResolutivos(poolSgc);
+        if (poolProteccionCivil?.query) {
+            const mig = await pcResolutivosService.migrarControlResolutivosDesdeSgcSiNecesario(
+                poolProteccionCivil,
+                poolSgc
+            );
+            if (mig?.migrados > 0) {
+                startupLog.detail(`  pc_control_resolutivos: ${mig.migrados} registro(s) migrados a ${DB_NAME_PC}`);
+            }
+        }
     } catch (sgcMigrErr) {
-        console.warn(`  [WARN] Tabla pc_control_resolutivos (${DB_NAME_SGC}):`, sgcMigrErr.message);
+        console.warn(`  [WARN] Migración pc_control_resolutivos → ${DB_NAME_PC}:`, sgcMigrErr.message);
     }
     try {
         const sgcDgF05Service = require('./sgcDgF05Service');
@@ -4740,8 +4757,11 @@ async function esDriveIdConocido(driveId) {
                 `SELECT 1 FROM documento_proteccion_civil
                  WHERE archivo_url = ? OR archivo_url LIKE ?
                  UNION ALL SELECT 1 FROM pc_catalogo_documento WHERE drive_file_id = ?
+                 UNION ALL SELECT 1 FROM pc_historial_ciclo_item WHERE drive_file_id = ?
+                 UNION ALL SELECT 1 FROM historial_documentos_pc WHERE drive_file_id = ?
+                 UNION ALL SELECT 1 FROM documento_proteccion_civil_archivo WHERE drive_file_id = ?
                  LIMIT 1`,
-                [driveId, likeDriveId, driveId]
+                [driveId, likeDriveId, driveId, driveId, driveId, driveId]
             );
             if (r2 && r2.length > 0) conocido = true;
         } catch (_e) {
@@ -24852,6 +24872,16 @@ chatSocketIo = initChatSocket(server, {
         console.warn('  [WARN] pc_documentacion_extra:', e.message);
     }
 
+    try {
+        const pcDirectoriosService = require('./pcDirectoriosService');
+        await pcDirectoriosService.asegurarTablasPcDirectorios(poolProteccionCivil);
+        logDebug('  Tablas pc_directorio / pc_directorio_contacto: OK');
+        // Seed one-shot del ejemplo ya creado en Drive
+        await pcDirectoriosService.asegurarEjemploMineralDeLaReforma(poolProteccionCivil);
+    } catch (e) {
+        console.warn('  [WARN] pc_directorio:', e.message);
+    }
+
     // Crear tabla historial_documentos_pc en BD proteccion_civil
     try {
         await poolProteccionCivil.query(`
@@ -29664,10 +29694,10 @@ app.get('/api/proteccion-civil/empresas', requireAdminOrPC, async (req, res) => 
         let allDocs = [];
         try {
             const [docsRows] = await poolProteccionCivil.query(`
-                SELECT empresa_id, documento_id, documento_padre_id, clave_workflow, tipo_entrada,
+                SELECT empresa_id, documento_id, documento_padre_id, catalogo_documento_id,
+                       clave_workflow, tipo_entrada,
                        nombre_documento, estatus, archivo_url, nombre_archivo, valor_texto
                 FROM documento_proteccion_civil
-                WHERE clave_workflow IS NULL OR clave_workflow = ''
             `);
             allDocs = docsRows || [];
         } catch (docsError) {
@@ -29685,7 +29715,8 @@ app.get('/api/proteccion-civil/empresas', requireAdminOrPC, async (req, res) => 
         const cicloPorEmpresa = new Map();
         try {
             const [ciclos] = await poolProteccionCivil.query(`
-                SELECT empresa_id, pasos_completados, activo, ciclo_cerrado_at, responsable_pipc_usuario_id
+                SELECT empresa_id, pasos_completados, activo, ciclo_cerrado_at,
+                       responsable_pipc_usuario_id, fechas_workflow
                 FROM pc_centro_operaciones
                 ORDER BY activo DESC, operacion_id DESC
             `);
@@ -29705,26 +29736,131 @@ app.get('/api/proteccion-civil/empresas', requireAdminOrPC, async (req, res) => 
         )];
         const nombresResponsables = await pcCentroOperaciones.obtenerNombresUsuariosPorIds(pool, responsableIds);
 
-        const empresasConConteo = empresas.map((empresa) => {
+        // Una ficha por PIPC independiente (misma empresa puede repetirse).
+        const fichas = [];
+        for (const empresa of empresas) {
             const empresaId = Number(empresa.empresa_id);
-            const conteo = pcCentroOperaciones.contarProgresoDocumentacionSubir(
-                docsPorEmpresa.get(empresaId) || []
-            );
             const ciclo = cicloPorEmpresa.get(empresaId);
             const responsableId = Number(ciclo?.responsable_pipc_usuario_id || 0) || null;
-            return {
+            const empresaBase = {
                 ...empresa,
-                ...conteo,
                 pasos_completados: pcCentroOperaciones.parsePasosCompletados(ciclo?.pasos_completados),
                 ciclo_cerrado: !!(ciclo?.ciclo_cerrado_at) && Number(ciclo?.activo) === 0,
                 responsable_pipc_usuario_id: responsableId,
                 responsable_pipc_nombre: responsableId ? (nombresResponsables.get(responsableId) || null) : null
             };
-        });
+            const fichasEmpresa = pcCentroOperaciones.construirFichasPipcActivos({
+                empresaBase,
+                allDocsEmpresa: docsPorEmpresa.get(empresaId) || [],
+                ciclo
+            });
+            fichas.push(...fichasEmpresa);
+        }
 
-        res.json({ success: true, empresas: empresasConConteo });
+        res.json({ success: true, empresas: fichas });
     } catch (error) {
         handleError(res, error, 'Error al obtener empresas para Protección Civil');
+    }
+});
+
+/** Últimos ciclos PIPC finalizados (rendimiento gestores) */
+app.get('/api/proteccion-civil/pipc-terminados-recientes', requireAdminOrPC, async (req, res) => {
+    try {
+        const limit = Math.min(Math.max(Number(req.query.limit) || 9, 1), 30);
+        const [ciclos] = await poolProteccionCivil.query(`
+            SELECT operacion_id, empresa_id, ciclo_cerrado_at, fecha_creacion,
+                   responsable_pipc_usuario_id, pipc_titulos, historial_resumen
+            FROM pc_centro_operaciones
+            WHERE ciclo_cerrado_at IS NOT NULL
+            ORDER BY ciclo_cerrado_at DESC, operacion_id DESC
+            LIMIT ?
+        `, [limit]);
+
+        if (!ciclos?.length) {
+            return res.json({ success: true, terminados: [] });
+        }
+
+        const empresaIds = [...new Set(ciclos.map((c) => Number(c.empresa_id)).filter((id) => id > 0))];
+        const responsableIds = [...new Set(
+            ciclos.map((c) => Number(c.responsable_pipc_usuario_id || 0)).filter((id) => id > 0)
+        )];
+
+        const [empresasRows] = await pool.query(
+            `SELECT empresa_id, nombre_empresa, rfc, ciudad, estado, logo
+             FROM empresa
+             WHERE empresa_id IN (?)`,
+            [empresaIds]
+        );
+        const empresasMap = new Map((empresasRows || []).map((e) => [Number(e.empresa_id), e]));
+        const nombresResponsables = await pcCentroOperaciones.obtenerNombresUsuariosPorIds(pool, responsableIds);
+
+        const terminados = [];
+        for (const ciclo of ciclos) {
+            const emp = empresasMap.get(Number(ciclo.empresa_id)) || {};
+            let pipcTitulos = [];
+            try {
+                const raw = ciclo.pipc_titulos;
+                pipcTitulos = raw
+                    ? (typeof raw === 'string' ? JSON.parse(raw) : raw)
+                    : [];
+                if (!Array.isArray(pipcTitulos)) pipcTitulos = [];
+            } catch {
+                pipcTitulos = [];
+            }
+            const responsableId = Number(ciclo.responsable_pipc_usuario_id || 0) || null;
+            const base = {
+                operacion_id: Number(ciclo.operacion_id),
+                empresa_id: Number(ciclo.empresa_id),
+                nombre_empresa: emp.nombre_empresa || `Empresa ${ciclo.empresa_id}`,
+                rfc: emp.rfc || '',
+                ciudad: emp.ciudad || '',
+                estado: emp.estado || '',
+                logo: emp.logo || null,
+                logo_url: emp.logo || null,
+                ciclo_cerrado_at: ciclo.ciclo_cerrado_at,
+                fecha_inicio: ciclo.fecha_creacion,
+                responsable_pipc_usuario_id: responsableId,
+                responsable_pipc_nombre: responsableId
+                    ? (nombresResponsables.get(responsableId) || null)
+                    : null,
+                pipc_titulos: pipcTitulos,
+                total_pipc: pipcTitulos.length,
+                ciclo_cerrado: true,
+                progreso_pct: 100,
+                paso_actual: 'Finalizado',
+                paso_actual_id: 'finalizar',
+                pasos_detalle: [
+                    { id: 'recorrido', label: 'Reporte de Recorrido', estado: 'ok', detalle: null, pct: 100 },
+                    { id: 'documentacion', label: 'Subir Documentación', estado: 'ok', detalle: null, pct: 100 },
+                    { id: 'oficio', label: 'Oficio de Ingreso', estado: 'ok', detalle: null, pct: 100 },
+                    { id: 'observaciones', label: 'Observaciones', estado: 'ok', detalle: null, pct: 100 },
+                    { id: 'resolutivo', label: 'Resolutivo', estado: 'ok', detalle: null, pct: 100 }
+                ]
+            };
+
+            // Una ficha por PIPC del ciclo (empresa repetida si hubo varios).
+            if (pipcTitulos.length > 0) {
+                for (let i = 0; i < pipcTitulos.length; i++) {
+                    const titulo = String(pipcTitulos[i] || '').trim() || `PIPC ${i + 1}`;
+                    terminados.push({
+                        ...base,
+                        pipc_nombre: titulo,
+                        ficha_key: `t-${ciclo.operacion_id}-p-${i}`,
+                        total_pipc: 1
+                    });
+                }
+            } else {
+                terminados.push({
+                    ...base,
+                    pipc_nombre: null,
+                    ficha_key: `t-${ciclo.operacion_id}`
+                });
+            }
+        }
+
+        res.json({ success: true, terminados: terminados.slice(0, limit) });
+    } catch (error) {
+        handleError(res, error, 'Error al obtener PIPC terminados recientes');
     }
 });
 
@@ -29815,9 +29951,9 @@ app.get('/api/proteccion-civil/empresas/:empresaId/documentos', requireAdminOrEm
             }
         }
 
-        // Padres PIPC sin requisitos reales: rellenar desde catálogo (asignación incompleta).
-        // No reinserta requisitos borrados en plantillas que aún tienen hijos.
-        const [padresPipcVacios] = await poolProteccionCivil.query(
+        // Restaurar requisitos que desaparecieron al borrar aprobados (finalizar-revisión antiguo).
+        // Solo reinserta si hay rastro en historial; no revive borrados intencionales sin entrega.
+        const [padresPipcAsignados] = await poolProteccionCivil.query(
             `SELECT documento_id, catalogo_documento_id, nombre_documento
              FROM documento_proteccion_civil
              WHERE empresa_id = ?
@@ -29826,32 +29962,24 @@ app.get('/api/proteccion-civil/empresas/:empresaId/documentos', requireAdminOrEm
                AND (clave_workflow IS NULL OR clave_workflow = '')`,
             [empresaId]
         );
-        for (const padre of padresPipcVacios) {
-            const [hijosPadre] = await poolProteccionCivil.query(
-                'SELECT nombre_documento FROM documento_proteccion_civil WHERE documento_padre_id = ?',
-                [padre.documento_id]
-            );
-            const hijosReales = hijosPadre.filter(
-                (hijo) => !esSubtituloOperativoPcNombre(hijo.nombre_documento)
-            );
-            if (hijosReales.length > 0) {
-                continue;
-            }
+        for (const padre of padresPipcAsignados) {
             try {
-                const syncVacios = await insertarRequisitosFaltantesPadrePipc({
+                const sync = await restaurarRequisitosEliminadosConHistorial({
                     poolProteccionCivil,
                     driveService,
                     empresaId: Number(empresaId),
                     padreId: padre.documento_id,
                     padreNombre: padre.nombre_documento,
-                    catalogoDocumentoId: padre.catalogo_documento_id,
-                    actualizarVisibilidad: false
+                    catalogoDocumentoId: padre.catalogo_documento_id
                 });
-                if (syncVacios.insertados > 0) {
-                    console.log(`[PC-SYNC] empresa_id=${empresaId}: ${syncVacios.insertados} requisito(s) restaurados en "${padre.nombre_documento}"`);
+                if (sync.insertados > 0 || sync.rehidratados?.textos || sync.rehidratados?.archivos) {
+                    console.log(
+                        `[PC-SYNC] empresa_id=${empresaId}: restaurados ${sync.insertados} req. en "${padre.nombre_documento}"`
+                        + ` (textos=${sync.rehidratados?.textos || 0}, archivos=${sync.rehidratados?.archivos || 0})`
+                    );
                 }
-            } catch (syncVaciosErr) {
-                console.warn(`[PC-SYNC] No se pudo rellenar plantilla PIPC "${padre.nombre_documento}":`, syncVaciosErr.message);
+            } catch (syncFaltantesErr) {
+                console.warn(`[PC-SYNC] No se pudo sincronizar plantilla PIPC "${padre.nombre_documento}":`, syncFaltantesErr.message);
             }
         }
 
@@ -30317,9 +30445,9 @@ app.post('/api/proteccion-civil/empresas/:empresaId/asignar-catalogo', requireAd
         const registrarResolutivoTramite = async (padreId, nombreAsignacion) => {
             if (!padreId) return;
             try {
-                await poolBiznagaSgcReady;
+                await poolProteccionCivilReady;
                 await pcResolutivosService.crearResolutivoEnTramite({
-                    poolSgc: poolBiznagaSgc,
+                    poolSgc: poolProteccionCivil,
                     poolBiznaga: pool,
                     empresaId: Number(empresaId),
                     documentoAsignacionId: padreId,
@@ -31497,6 +31625,150 @@ app.get('/api/proteccion-civil/documentos/:documentoId/descargar', requireAdminO
     } catch (error) {
         console.error('[ERROR] Error al descargar archivo PC:', error.message);
         handleError(res, error, 'Error al descargar archivo');
+    }
+});
+
+// =====================================================
+// GESTIÓN DE DIRECTORIOS (teléfonos de emergencia / Google Docs)
+// =====================================================
+const pcDirectoriosService = require('./pcDirectoriosService');
+
+app.get('/api/proteccion-civil/directorios', requireAdminOrPC, async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        const directorios = await pcDirectoriosService.listarDirectorios(poolProteccionCivil);
+        return res.json({
+            success: true,
+            directorios,
+            plantillaDriveId: pcDirectoriosService.PLANTILLA_DIRECTORIO_ID,
+            carpetaDriveId: pcDirectoriosService.CARPETA_DIRECTORIOS_ID
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron listar los directorios');
+    }
+});
+
+app.get('/api/proteccion-civil/directorios/:id', requireAdminOrPC, async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        const directorio = await pcDirectoriosService.obtenerDirectorio(poolProteccionCivil, req.params.id);
+        if (!directorio) {
+            return res.status(404).json({ success: false, message: 'Directorio no encontrado' });
+        }
+        return res.json({ success: true, directorio });
+    } catch (error) {
+        handleError(res, error, 'No se pudo obtener el directorio');
+    }
+});
+
+app.post('/api/proteccion-civil/directorios', requireAdminOrPC, async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        const nombre = String(req.body?.nombre || '').trim();
+        if (!nombre) {
+            return res.status(400).json({ success: false, message: 'El nombre del directorio es obligatorio.' });
+        }
+        const creadoPor = String(req.user?.username || req.user?.email || req.user?.nombre || '').trim() || null;
+        const directorio = await pcDirectoriosService.crearDirectorioDesdePlantilla(
+            poolProteccionCivil,
+            nombre,
+            creadoPor
+        );
+        return res.status(201).json({
+            success: true,
+            message: 'Directorio registrado y plantilla duplicada en Drive.',
+            directorio
+        });
+    } catch (error) {
+        const msg = String(error?.message || '');
+        if (msg.includes('Ya existe') || msg.includes('obligatorio') || msg.includes('válido')) {
+            return res.status(400).json({ success: false, message: msg });
+        }
+        handleError(res, error, 'No se pudo registrar el directorio');
+    }
+});
+
+app.post('/api/proteccion-civil/directorios/registrar-existente', requireAdminOrPC, async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        const nombre = String(req.body?.nombre || '').trim();
+        const driveFileId = String(req.body?.driveFileId || req.body?.drive_file_id || '').trim();
+        if (!nombre || !driveFileId) {
+            return res.status(400).json({
+                success: false,
+                message: 'nombre y driveFileId son obligatorios.'
+            });
+        }
+        const creadoPor = String(req.user?.username || req.user?.email || req.user?.nombre || '').trim() || null;
+        const directorio = await pcDirectoriosService.registrarDirectorioExistente(poolProteccionCivil, {
+            nombre,
+            driveFileId,
+            creadoPor
+        });
+        return res.json({ success: true, directorio });
+    } catch (error) {
+        handleError(res, error, 'No se pudo registrar el directorio existente');
+    }
+});
+
+app.get('/api/proteccion-civil/directorios/:id/url-editor', requireAdminOrPC, async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        const modo = String(req.query.modo || 'edit').toLowerCase() === 'preview' ? 'preview' : 'edit';
+        const directorio = await pcDirectoriosService.obtenerDirectorio(poolProteccionCivil, req.params.id);
+        if (!directorio?.driveFileId) {
+            return res.status(404).json({ success: false, message: 'Directorio no encontrado' });
+        }
+        const url = pcDirectoriosService.construirUrlEditor(directorio.driveFileId, modo);
+        return res.json({
+            success: true,
+            url,
+            titulo: directorio.nombre,
+            mimeType: directorio.mimeType,
+            driveFileId: directorio.driveFileId
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo abrir el editor del directorio');
+    }
+});
+
+app.post('/api/proteccion-civil/directorios/:id/sincronizar', requireAdminOrPC, async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        const directorio = await pcDirectoriosService.obtenerDirectorio(poolProteccionCivil, req.params.id);
+        if (!directorio?.driveFileId) {
+            return res.status(404).json({ success: false, message: 'Directorio no encontrado' });
+        }
+        const resultado = await pcDirectoriosService.sincronizarContactosDesdeDrive(
+            poolProteccionCivil,
+            directorio.id,
+            directorio.driveFileId
+        );
+        const actualizado = await pcDirectoriosService.obtenerDirectorio(poolProteccionCivil, directorio.id);
+        return res.json({
+            success: true,
+            message: `Se sincronizaron ${resultado.sincronizados} contacto(s) desde el documento.`,
+            sincronizados: resultado.sincronizados,
+            advertencia: resultado.advertencia || null,
+            directorio: actualizado
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo sincronizar el directorio con la base de datos');
+    }
+});
+
+app.delete('/api/proteccion-civil/directorios/:id', requireAdminOrPC, async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        const eliminarEnDrive = String(req.query.eliminarDrive || '').trim() === '1';
+        await pcDirectoriosService.eliminarDirectorio(poolProteccionCivil, req.params.id, { eliminarEnDrive });
+        return res.json({ success: true, message: 'Directorio eliminado del sistema.' });
+    } catch (error) {
+        const msg = String(error?.message || '');
+        if (msg.includes('no encontrado')) {
+            return res.status(404).json({ success: false, message: msg });
+        }
+        handleError(res, error, 'No se pudo eliminar el directorio');
     }
 });
 
@@ -32706,13 +32978,13 @@ app.get('/api/proteccion-civil/empresas/:empresaId/resolutivo-contexto', require
             }
         }
 
-        await poolBiznagaSgcReady;
-        await pcResolutivosService.asegurarTablaPcControlResolutivos(poolBiznagaSgc);
+        await poolProteccionCivilReady;
+        await pcResolutivosService.asegurarTablaPcControlResolutivos(poolProteccionCivil);
 
         let yaRegistrado = false;
         if (documentoAsignacionId) {
             yaRegistrado = await pcResolutivosService.resolutivoYaCompletado(
-                poolBiznagaSgc, empresaId, documentoAsignacionId
+                poolProteccionCivil, empresaId, documentoAsignacionId
             );
         }
 
@@ -32765,10 +33037,10 @@ app.post('/api/proteccion-civil/empresas/:empresaId/registrar-resolutivo', requi
             null
         );
 
-        await poolBiznagaSgcReady;
+        await poolProteccionCivilReady;
 
         const resultado = await pcResolutivosService.registrarResolutivoPipc({
-            poolSgc: poolBiznagaSgc,
+            poolSgc: poolProteccionCivil,
             poolBiznaga: pool,
             poolPC: poolProteccionCivil,
             empresaId,
@@ -32814,8 +33086,8 @@ app.post('/api/proteccion-civil/empresas/:empresaId/registrar-resolutivo', requi
 app.get('/api/proteccion-civil/empresas/:empresaId/resolutivos', requireAdminOrPC, async (req, res) => {
     try {
         const empresaId = Number(req.params.empresaId);
-        await poolBiznagaSgcReady;
-        const resolutivos = await pcResolutivosService.listarResolutivosEmpresa(poolBiznagaSgc, empresaId);
+        await poolProteccionCivilReady;
+        const resolutivos = await pcResolutivosService.listarResolutivosEmpresa(poolProteccionCivil, empresaId);
         res.json({ success: true, resolutivos });
     } catch (error) {
         handleError(res, error, 'Error al listar resolutivos');
@@ -32824,9 +33096,9 @@ app.get('/api/proteccion-civil/empresas/:empresaId/resolutivos', requireAdminOrP
 
 app.get('/api/proteccion-civil/control-resolutivos/registros', requireAdmin, async (req, res) => {
     try {
-        await poolBiznagaSgcReady;
+        await poolProteccionCivilReady;
         const registros = await pcResolutivosService.listarRegistrosControlResolutivos(
-            poolBiznagaSgc,
+            poolProteccionCivil,
             poolProteccionCivil,
             pool
         );
@@ -32846,9 +33118,9 @@ app.get('/api/proteccion-civil/control-resolutivos/registros', requireAdmin, asy
 
 app.put('/api/proteccion-civil/control-resolutivos/registros/:resolutivoId', requireAdmin, async (req, res) => {
     try {
-        await poolBiznagaSgcReady;
+        await poolProteccionCivilReady;
         const registro = await pcResolutivosService.actualizarRegistroControlResolutivo(
-            poolBiznagaSgc,
+            poolProteccionCivil,
             req.params.resolutivoId,
             req.body || {}
         );
@@ -32868,9 +33140,9 @@ app.put('/api/proteccion-civil/control-resolutivos/registros/:resolutivoId', req
 
 app.delete('/api/proteccion-civil/control-resolutivos/registros/:resolutivoId', requireAdmin, async (req, res) => {
     try {
-        await poolBiznagaSgcReady;
+        await poolProteccionCivilReady;
         const resultado = await pcResolutivosService.desactivarRegistroControlResolutivo(
-            poolBiznagaSgc,
+            poolProteccionCivil,
             req.params.resolutivoId
         );
         return res.json({
@@ -32892,9 +33164,9 @@ app.delete('/api/proteccion-civil/control-resolutivos/registros/:resolutivoId', 
 app.get('/api/proteccion-civil/control-resolutivos/estadisticas', requireAdminOrPC, async (req, res) => {
     try {
         const anio = Number(req.query.anio) || new Date().getFullYear();
-        await poolBiznagaSgcReady;
+        await poolProteccionCivilReady;
         const estadisticas = await pcResolutivosService.obtenerEstadisticasResolutivosPipc(
-            poolBiznagaSgc,
+            poolProteccionCivil,
             poolProteccionCivil,
             pool,
             anio
@@ -32907,8 +33179,8 @@ app.get('/api/proteccion-civil/control-resolutivos/estadisticas', requireAdminOr
 
 app.get('/api/proteccion-civil/control-resolutivos/excel', requireAdmin, async (req, res) => {
     try {
-        await poolBiznagaSgcReady;
-        const reporte = await pcResolutivosService.generarControlResolutivosExcel(poolBiznagaSgc, poolProteccionCivil, pool);
+        await poolProteccionCivilReady;
+        const reporte = await pcResolutivosService.generarControlResolutivosExcel(poolProteccionCivil, poolProteccionCivil, pool);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename="${reporte.nombreArchivo}"`);
         return res.send(reporte.buffer);
@@ -32923,8 +33195,8 @@ app.get('/api/proteccion-civil/control-resolutivos/excel', requireAdmin, async (
 
 app.get('/api/proteccion-civil/control-resolutivos/pdf', requireAdmin, async (req, res) => {
     try {
-        await poolBiznagaSgcReady;
-        const reporte = await pcResolutivosService.generarControlResolutivosPdf(poolBiznagaSgc, poolProteccionCivil, pool);
+        await poolProteccionCivilReady;
+        const reporte = await pcResolutivosService.generarControlResolutivosPdf(poolProteccionCivil, poolProteccionCivil, pool);
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${reporte.nombreArchivo}"`);
         return res.send(reporte.buffer);
@@ -32959,8 +33231,8 @@ app.get('/api/proteccion-civil/control-resolutivos/excel/estado-drive', requireA
 
 app.post('/api/proteccion-civil/control-resolutivos/excel/guardar-drive', requireAdmin, async (req, res) => {
     try {
-        await poolBiznagaSgcReady;
-        const resultado = await pcResolutivosService.guardarControlResolutivosExcelEnDrive(poolBiznagaSgc, poolProteccionCivil, pool);
+        await poolProteccionCivilReady;
+        const resultado = await pcResolutivosService.guardarControlResolutivosExcelEnDrive(poolProteccionCivil, poolProteccionCivil, pool);
         return res.json({
             success: true,
             action: resultado.accion,
@@ -32982,127 +33254,106 @@ app.post('/api/proteccion-civil/control-resolutivos/excel/guardar-drive', requir
     }
 });
 
+/** Importa SP-F-29 a BD desarrollo (proteccion_civil): borra excel, conserva sistema, omite ≈90% similares. */
+app.post(
+    '/api/proteccion-civil/control-resolutivos/excel/importar',
+    requireAdmin,
+    uploadSeguridadNormativa.single('archivo'),
+    async (req, res) => {
+        try {
+            await poolProteccionCivilReady;
+            if (!req.file?.buffer) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Adjunta un archivo Excel (.xlsx) del formato SP-F-29.'
+                });
+            }
+
+            const resultado = await pcResolutivosService.importarControlResolutivosDesdeExcel(
+                poolProteccionCivil,
+                pool,
+                req.file.buffer,
+                { umbralSimilitud: 0.9 }
+            );
+
+            return res.json({
+                success: true,
+                ...resultado,
+                message: `Importación lista: ${resultado.insertados} nuevos (excel), `
+                    + `${resultado.omitidos_por_similitud} omitidos por similitud ≥90% con sistema, `
+                    + `${resultado.excel_desactivados} excel previos desactivados, `
+                    + `${resultado.sistema_conservados} de sistema conservados.`
+            });
+        } catch (error) {
+            const status = error.statusCode || 500;
+            return res.status(status).json({
+                success: false,
+                message: error.message || 'No se pudo importar el Excel de control de resolutivos.'
+            });
+        }
+    }
+);
+
 // =====================================================
 // FINALIZAR REVISIÓN: Eliminar documentos aprobados, conservar rechazados
 // =====================================================
+/** Conserva la asignación PIPC tras registrar resolutivo (ya no elimina aprobados). */
 async function finalizarAsignacionPcPadreAprobada(poolProteccionCivil, padreId) {
     const [padres] = await poolProteccionCivil.query(
-        `SELECT documento_id, nombre_documento, estatus, archivo_url
+        `SELECT documento_id, nombre_documento, estatus
          FROM documento_proteccion_civil
          WHERE documento_id = ? AND (documento_padre_id IS NULL OR documento_padre_id = 0)`,
         [padreId]
     );
 
     if (!padres.length) {
-        return { eliminados: 0, conservados: 0 };
+        return { eliminados: 0, conservados: 0, mantenidos: true };
     }
 
-    let eliminados = 0;
-    let conservados = 0;
     const padre = padres[0];
-
     const [hijos] = await poolProteccionCivil.query(
-        `SELECT documento_id, estatus, archivo_url
+        `SELECT documento_id, estatus
          FROM documento_proteccion_civil
          WHERE documento_padre_id = ?`,
         [padre.documento_id]
     );
 
+    let conservados = 0;
     if (hijos.length > 0) {
-        const hijosAprobados = hijos.filter((h) => h.estatus === 'aprobado');
-        const hijosRechazados = hijos.filter((h) => h.estatus === 'rechazado');
-
-        for (const hijo of hijosAprobados) {
-            await poolProteccionCivil.query('DELETE FROM documento_proteccion_civil WHERE documento_id = ?', [hijo.documento_id]);
-            eliminados++;
-        }
-
-        if (hijosRechazados.length === 0) {
-            const [restantes] = await poolProteccionCivil.query(
-                'SELECT COUNT(*) as cnt FROM documento_proteccion_civil WHERE documento_padre_id = ?',
-                [padre.documento_id]
-            );
-            if (restantes[0].cnt === 0) {
-                await poolProteccionCivil.query('DELETE FROM documento_proteccion_civil WHERE documento_id = ?', [padre.documento_id]);
-                eliminados++;
-            }
-        } else {
-            conservados += hijosRechazados.length;
-        }
-    } else if (padre.estatus === 'aprobado') {
-        await poolProteccionCivil.query('DELETE FROM documento_proteccion_civil WHERE documento_id = ?', [padre.documento_id]);
-        eliminados++;
-    } else if (padre.estatus === 'rechazado') {
-        conservados++;
+        conservados = hijos.filter((h) => h.estatus === 'aprobado' || h.estatus === 'rechazado').length;
+    } else if (padre.estatus === 'aprobado' || padre.estatus === 'rechazado') {
+        conservados = 1;
     }
 
-    return { eliminados, conservados };
+    // Los documentos aprobados permanecen en la asignación para consulta/corrección en Subir documentación.
+    return { eliminados: 0, conservados, mantenidos: true };
 }
 
 app.post('/api/proteccion-civil/empresas/:empresaId/finalizar-revision', requireAdminOrPC, async (req, res) => {
     try {
         const { empresaId } = req.params;
 
-        // Obtener todos los documentos padre de esta empresa
-        const [padres] = await poolProteccionCivil.query(
-            `SELECT documento_id, nombre_documento, estatus, archivo_url
+        const [rows] = await poolProteccionCivil.query(
+            `SELECT estatus
              FROM documento_proteccion_civil
-             WHERE empresa_id = ? AND (documento_padre_id IS NULL OR documento_padre_id = 0)`,
+             WHERE empresa_id = ?
+               AND (clave_workflow IS NULL OR clave_workflow = '')`,
             [empresaId]
         );
 
-        let eliminados = 0;
-        let conservados = 0;
+        const aprobados = (rows || []).filter((r) => r.estatus === 'aprobado').length;
+        const rechazados = (rows || []).filter((r) => r.estatus === 'rechazado').length;
+        const pendientes = (rows || []).filter((r) => r.estatus === 'pendiente' || r.estatus === 'revision').length;
 
-        for (const padre of padres) {
-            // Obtener hijos del padre
-            const [hijos] = await poolProteccionCivil.query(
-                `SELECT documento_id, estatus, archivo_url
-                 FROM documento_proteccion_civil
-                 WHERE documento_padre_id = ?`,
-                [padre.documento_id]
-            );
-
-            if (hijos.length > 0) {
-                // Documento con sub-documentos
-                const hijosAprobados = hijos.filter(h => h.estatus === 'aprobado');
-                const hijosRechazados = hijos.filter(h => h.estatus === 'rechazado');
-
-                // Eliminar de la BD los aprobados (archivos se conservan en PIPC como historial)
-                for (const hijo of hijosAprobados) {
-                    await poolProteccionCivil.query('DELETE FROM documento_proteccion_civil WHERE documento_id = ?', [hijo.documento_id]);
-                    eliminados++;
-                }
-
-                // Si no quedan hijos rechazados, eliminar también el padre de la BD
-                if (hijosRechazados.length === 0) {
-                    const [restantes] = await poolProteccionCivil.query(
-                        'SELECT COUNT(*) as cnt FROM documento_proteccion_civil WHERE documento_padre_id = ?',
-                        [padre.documento_id]
-                    );
-                    if (restantes[0].cnt === 0) {
-                        await poolProteccionCivil.query('DELETE FROM documento_proteccion_civil WHERE documento_id = ?', [padre.documento_id]);
-                        eliminados++;
-                    }
-                } else {
-                    conservados += hijosRechazados.length;
-                }
-            } else {
-                // Documento sin sub-documentos
-                if (padre.estatus === 'aprobado') {
-                    await poolProteccionCivil.query('DELETE FROM documento_proteccion_civil WHERE documento_id = ?', [padre.documento_id]);
-                    eliminados++;
-                } else if (padre.estatus === 'rechazado') {
-                    conservados++;
-                }
-            }
-        }
-
+        // Ya no se eliminan los aprobados: deben seguir visibles en «Subir documentación»
+        // (filtro Todos / Entregados) y en Historial PC. Solo se limpian al cerrar el ciclo.
         res.json({
             success: true,
-            message: `Revisión finalizada: ${eliminados} documento(s) aprobado(s) finalizado(s), ${conservados} rechazado(s) conservado(s).`,
-            eliminados,
-            conservados
+            message: `Revisión registrada: ${aprobados} entregado(s) y ${rechazados} rechazado(s) se conservan en la asignación`
+                + (pendientes ? `; ${pendientes} aún pendiente(s).` : '.'),
+            eliminados: 0,
+            conservados: aprobados + rechazados,
+            mantenidos: true
         });
     } catch (error) {
         handleError(res, error, 'Error al finalizar revisión');

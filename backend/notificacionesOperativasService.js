@@ -166,14 +166,15 @@ async function notifsControlDocumental(pool) {
 }
 
 async function notifsProteccionCivil(poolSgc, poolPC, poolBiznaga, user, pcResolutivosService) {
-    if (!poolSgc || !pcResolutivosService) return [];
+    if (!poolPC || !pcResolutivosService) return [];
 
     const userId = Number(user.id || user.usuario_id || 0);
     const nombreUsuario = [user.nombre, user.apellido].filter(Boolean).join(' ').trim().toLowerCase();
 
     let registros = [];
     try {
-        registros = await pcResolutivosService.obtenerDatosControlResolutivos(poolSgc, poolPC, poolBiznaga);
+        // Control SP-F-29 en proteccion_civil
+        registros = await pcResolutivosService.obtenerDatosControlResolutivos(poolPC, poolPC, poolBiznaga);
     } catch (e) {
         console.error('[NOTIF] Error listando resolutivos PC:', e.message);
         return [];

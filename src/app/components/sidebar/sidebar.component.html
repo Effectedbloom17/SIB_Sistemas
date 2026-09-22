@@ -30,7 +30,7 @@
             <a [class.active]="isLinkActive(menuItem)"
                [routerLink]="[menuItem.path]" class="nav-link" [ngClass]="{
                  'proteccion-civil-link': menuItem.path === '/proteccion-civil',
-                 'control-resolutivos-link': menuItem.path === '/proteccion-civil/control-resolutivos' || menuItem.path === '/proteccion-civil/historial-pc',
+                 'control-resolutivos-link': menuItem.path === '/proteccion-civil/control-resolutivos' || menuItem.path === '/proteccion-civil/historial-pc' || menuItem.path === '/proteccion-civil/asignacion-pipc',
                  'expedientes-medicos-link': menuItem.path === '/expedientes-medicos',
                  'estadisticas-medicas-link': menuItem.path === '/estadisticas-medicas',
                  'sistema-gestion-calidad-link': menuItem.path === '/sistema-gestion-calidad',
@@ -78,7 +78,7 @@
         <a [class.active]="isLinkActive(menuItem)"
            [routerLink]="[menuItem.path]" class="nav-link" [ngClass]="{
              'proteccion-civil-link': menuItem.path === '/proteccion-civil',
-             'control-resolutivos-link': menuItem.path === '/proteccion-civil/control-resolutivos' || menuItem.path === '/proteccion-civil/historial-pc',
+             'control-resolutivos-link': menuItem.path === '/proteccion-civil/control-resolutivos' || menuItem.path === '/proteccion-civil/historial-pc' || menuItem.path === '/proteccion-civil/asignacion-pipc',
              'expedientes-medicos-link': menuItem.path === '/expedientes-medicos',
              'estadisticas-medicas-link': menuItem.path === '/estadisticas-medicas',
              'sistema-gestion-calidad-link': menuItem.path === '/sistema-gestion-calidad',

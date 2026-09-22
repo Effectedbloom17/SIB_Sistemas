@@ -1715,6 +1715,13 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/proteccion-civil/empresas`);
     }
 
+    /** Últimos ciclos PIPC finalizados (rendimiento gestores) */
+    obtenerPipcTerminadosRecientes(limit = 9): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/pipc-terminados-recientes`, {
+            params: { limit: String(limit) }
+        });
+    }
+
     // Obtener documentos de PC de una empresa
     obtenerDocumentosProteccionCivil(empresaId: number): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/proteccion-civil/empresas/${empresaId}/documentos`);
@@ -2098,6 +2105,12 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/proteccion-civil/control-resolutivos/excel/guardar-drive`, {});
     }
 
+    importarControlResolutivosExcel(archivo: File): Observable<any> {
+        const formData = new FormData();
+        formData.append('archivo', archivo);
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/control-resolutivos/excel/importar`, formData);
+    }
+
     obtenerRegistrosControlResolutivos(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/proteccion-civil/control-resolutivos/registros`);
     }
@@ -2218,6 +2231,45 @@ export class BackendServices {
             `${this.baseUrl}/proteccion-civil/catalogo/documentos/${documentoId}/url-editor`,
             { params: { modo } }
         );
+    }
+
+    // ============================================
+    // PROTECCIÓN CIVIL — GESTIÓN DE DIRECTORIOS
+    // ============================================
+
+    listarDirectoriosPC(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/directorios`);
+    }
+
+    obtenerDirectorioPC(id: number): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/directorios/${id}`);
+    }
+
+    crearDirectorioPC(nombre: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/directorios`, { nombre });
+    }
+
+    registrarDirectorioExistentePC(nombre: string, driveFileId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/directorios/registrar-existente`, {
+            nombre,
+            driveFileId
+        });
+    }
+
+    obtenerUrlEditorDirectorioPC(id: number, modo: 'edit' | 'preview' = 'edit'): Observable<any> {
+        return this.httpClient.get(
+            `${this.baseUrl}/proteccion-civil/directorios/${id}/url-editor`,
+            { params: { modo } }
+        );
+    }
+
+    sincronizarDirectorioPC(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/directorios/${id}/sincronizar`, {});
+    }
+
+    eliminarDirectorioPC(id: number, eliminarDrive = false): Observable<any> {
+        const params = eliminarDrive ? { eliminarDrive: '1' } : undefined;
+        return this.httpClient.delete(`${this.baseUrl}/proteccion-civil/directorios/${id}`, { params });
     }
 
     asignarDocumentosCatalogo(empresaId: number, documentos: any[], opciones?: { omitir_correo_empresa?: boolean }): Observable<any> {

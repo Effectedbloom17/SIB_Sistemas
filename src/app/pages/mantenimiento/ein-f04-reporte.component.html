@@ -115,6 +115,9 @@
                   <i class="fas mr-1" [ngClass]="generandoReporte ? 'fa-spinner fa-spin' : 'fa-save'"></i>
                   Guardar información
                 </button>
+                <span class="mt-status mt-status--warn" *ngIf="tieneCambiosSinGuardarEnVista">
+                  Cambios sin guardar en Word
+                </span>
                 <div class="mt-editor__btn-group">
                   <button type="button" class="btn btn-sm mt-btn-save-info"
                     (click)="abrirEditorIntegradoF04()" [disabled]="generandoReporte">

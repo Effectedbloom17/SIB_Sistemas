@@ -40,7 +40,7 @@ declare interface MenuSection {
 const MENU_GROUPS: { title?: string; paths: string[] }[] = [
     { title: 'Gestión de empresas', paths: ['/mis-empresas', '/empleados-empresa', '/chat-empresas'] },
     { title: 'Capacitación', paths: ['/home', '/control-capacitacion', '/asig-curso', '/curso-activos', '/historial-cursos', '/historial-constancias-dc3'] },
-    { title: 'Protección Civil', paths: ['/proteccion-civil', '/proteccion-civil/control-resolutivos', '/proteccion-civil/historial-pc'] },
+    { title: 'Protección Civil', paths: ['/proteccion-civil/asignacion-pipc', '/proteccion-civil', '/proteccion-civil/control-resolutivos', '/proteccion-civil/historial-pc'] },
     { title: 'Médicos', paths: ['/expedientes-medicos', '/estadisticas-medicas'] },
     { title: 'SGC', paths: ['/sistema-gestion-calidad', '/sistema-gestion-calidad/procedimientos', '/sistema-gestion-calidad/instructivos', '/sistema-gestion-calidad/formatos', '/sistema-gestion-calidad/normativas', '/sistema-gestion-calidad/solicitud-documentos'] },
     { title: 'Seguridad', paths: ['/seguridad/normativas'] },
@@ -74,7 +74,8 @@ export const ROUTES: RouteInfo[] = [
     { path: '/tickets', title: 'Tickets',  icon:'ni-tag', class: '', roles: ['root'] },
     { path: '/gestion-usuarios', title: 'Gestión de\nusuarios',  icon:'ni-circle-08', class: '', roles: ['root', 'administrador'], bottomSection: true },
     { path: '/aviso-privacidad', title: 'Aviso de\nprivacidad',  icon:'ni-circle-08', class: '', roles: ['empresa'], bottomSection: true },
-    { path: '/proteccion-civil', title: 'Protección\nCivil',  icon:'ni-badge', class: '', roles: ['root', 'administrador', 'empresa', 'proteccion_civil'] },
+    { path: '/proteccion-civil/asignacion-pipc', title: 'Asignación\nde PIPC',  icon:'ni-books', class: '', roles: ['root', 'administrador', 'proteccion_civil'] },
+    { path: '/proteccion-civil', title: 'PIPC\nActivos',  icon:'ni-badge', class: '', roles: ['root', 'administrador', 'empresa', 'proteccion_civil'] },
     { path: '/proteccion-civil/control-resolutivos', title: 'Control de\nResolutivos',  icon:'ni-paper-diploma', class: '', roles: ['administrador'] },
     { path: '/proteccion-civil/historial-pc', title: 'Historial PC',  icon:'ni-archive-2', class: '', roles: ['administrador', 'proteccion_civil'] },
   { path: '/expedientes-medicos', title: 'Expedientes\nMédicos',  icon:'ni-archive-2', class: '', roles: ['root', 'administrador', 'doctor'] },

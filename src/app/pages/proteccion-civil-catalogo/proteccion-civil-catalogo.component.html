@@ -1,4 +1,4 @@
-﻿<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+﻿<div *ngIf="!embebido" class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
   <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
     <div class="row w-100 text-center">
       <div class="col-12">
@@ -8,7 +8,7 @@
             <i class="fas fa-folder-open"></i>
           </div>
           <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">
-            Catálogo de Documentos
+            Gestión de PIPC
           </h1>
         </div>
       </div>
@@ -16,22 +16,30 @@
   </div>
 </div>
 
-<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 3rem;">
-  <div class="row justify-content-center">
-    <div class="col-xl-11">
-      <div class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
-        <div class="card-header border-0" style="padding: 1.5rem 2rem;">
+<div [ngClass]="embebido ? 'pc-catalogo-embebido' : 'container-fluid mt--5'"
+     [attr.style]="embebido ? null : 'position: relative; z-index: 10; margin-bottom: 3rem;'">
+  <div [ngClass]="embebido ? '' : 'row justify-content-center'">
+    <div [ngClass]="embebido ? '' : 'col-xl-11'">
+      <div [ngClass]="embebido ? 'pc-catalogo-embebido__inner' : 'card shadow-lg border-0'"
+           [style.border-radius]="embebido ? null : '15px'"
+           [style.overflow]="embebido ? null : 'hidden'"
+           [style.background-color]="embebido ? null : '#fff'">
+        <div class="card-header border-0" [style.padding]="embebido ? '0 0 1rem' : '1.5rem 2rem'"
+             [style.background]="embebido ? 'transparent' : null">
           <div class="row align-items-center">
             <div class="col">
-              <button type="button" (click)="volver()" class="btn btn-link p-0 catalogo-back-btn mb-2">
+              <button *ngIf="!embebido" type="button" (click)="volver()" class="btn btn-link p-0 catalogo-back-btn mb-2">
                 <i class="fas fa-arrow-left mr-1"></i> Volver
               </button>
               <h6 class="text-uppercase catalogo-biblioteca-label ls-1 mb-1">
                 Biblioteca general
               </h6>
               <h2 class="mb-0" style="color: #d97248; font-weight: 700; font-size: 1.5rem;">
-                Documentos disponibles
+                Gestión de PIPC
               </h2>
+              <small class="d-block mt-1 text-muted" style="font-size: 0.78rem;">
+                Administra plantillas, categorías y formatos del programa.
+              </small>
             </div>
             <div class="col-auto mt-3 mt-md-0">
               <div class="catalogo-header-actions">
@@ -57,7 +65,7 @@
           </div>
         </div>
 
-        <div class="card-body" style="padding: 2rem;">
+        <div class="card-body" [style.padding]="embebido ? '0' : '2rem'">
           <div *ngIf="cargandoCatalogo" class="text-center py-5">
             <i class="fas fa-spinner fa-spin fa-2x text-muted mb-2"></i>
             <p class="text-muted mb-0">Cargando documentos...</p>
@@ -313,7 +321,7 @@
     <div class="pc-doc-modal__hero-content">
       <div class="pc-doc-modal__badge">
         <i class="fas fa-file-excel"></i>
-        <span>Catálogo</span>
+        <span>Gestión PIPC</span>
       </div>
       <div class="pc-doc-modal__hero-text">
         <h2 id="pc-doc-modal-title" class="pc-doc-modal__title">Nuevo documento</h2>
@@ -443,8 +451,9 @@
   </div>
 </div>
 
-<!-- Editor integrado (Google Sheets) -->
-<div class="pc-catalog-editor-fullscreen"
+<!-- Editor integrado (Google Sheets) — portal a body, pantalla completa como SGC -->
+<div #editorPortal
+     class="pc-catalog-editor-fullscreen"
      *ngIf="editorIntegradoVisible"
      role="dialog"
      aria-modal="true"
@@ -458,7 +467,7 @@
         </span>
         <div>
           <strong class="pc-catalog-editor-fullscreen__title">{{ editorIntegradoTitulo }}</strong>
-          <small class="pc-catalog-editor-fullscreen__subtitle">{{ editorIntegradoSubtitulo }} · Catálogo PIPC</small>
+          <small class="pc-catalog-editor-fullscreen__subtitle">{{ editorIntegradoSubtitulo }} · Gestión de PIPC</small>
         </div>
       </div>
       <div class="pc-catalog-editor-fullscreen__actions">
