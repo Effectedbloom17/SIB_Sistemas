@@ -1715,6 +1715,14 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/proteccion-civil/empresas`);
     }
 
+    /** Ciclos PIPC cerrados recientes (fichas terminadas en el tablero PC). */
+    obtenerPipcTerminadosRecientes(limit: number = 9): Observable<any> {
+        const lim = Math.min(Math.max(Number(limit) || 9, 1), 30);
+        return this.httpClient.get(
+            `${this.baseUrl}/proteccion-civil/pipc-terminados-recientes?limit=${lim}`
+        );
+    }
+
     // Obtener documentos de PC de una empresa
     obtenerDocumentosProteccionCivil(empresaId: number): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/proteccion-civil/empresas/${empresaId}/documentos`);
@@ -2096,6 +2104,16 @@ export class BackendServices {
 
     guardarControlResolutivosExcelDrive(): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/proteccion-civil/control-resolutivos/excel/guardar-drive`, {});
+    }
+
+    /** Importa Excel SP-F-29 a control de resolutivos (campo multipart: archivo). */
+    importarControlResolutivosExcel(archivo: File): Observable<any> {
+        const formData = new FormData();
+        formData.append('archivo', archivo, archivo.name);
+        return this.httpClient.post(
+            `${this.baseUrl}/proteccion-civil/control-resolutivos/excel/importar`,
+            formData
+        );
     }
 
     obtenerRegistrosControlResolutivos(): Observable<any> {
