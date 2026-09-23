@@ -7865,13 +7865,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.backendService.crearCarpetaEvidenciaSgcF14({
       proyecto_id: fila.id,
       folio: fila.folio,
+      nombre_proyecto: fila.nombreProyecto,
       nombre: String(nombre).trim()
     }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (res) => {
         void Swal.fire({
           icon: 'success',
           title: 'Carpeta creada',
-          text: `«${String(nombre).trim()}» quedó lista en Google Drive.`,
+          text: `«${String(nombre).trim()}» quedó dentro de «${fila.nombreProyecto || fila.folio || 'proyecto'}» en Google Drive.`,
           confirmButtonColor: '#0f766e',
           showCancelButton: !!res?.carpeta?.webViewLink,
           cancelButtonText: 'Abrir en Drive',
@@ -8000,13 +8001,25 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
             this.sgcF14EvidenciasProgresoEtiqueta = 'Listo';
             this.sgcF14EvidenciasSubiendo = false;
             this.cargarEvidenciasSgcF14();
+            const body = event.body || {};
+            const carpetaUrl = body.carpetaProyectoUrl
+              || body.documentos?.[0]?.carpetaProyectoUrl
+              || (body.documentos?.[0]?.carpetaDriveId
+                ? `https://drive.google.com/drive/folders/${body.documentos[0].carpetaDriveId}`
+                : '');
+            const destino = fila.nombreProyecto || fila.folio || 'proyecto';
             void Swal.fire({
-              toast: true,
-              position: 'top-end',
               icon: 'success',
               title: archivos.length === 1 ? 'Documento subido' : `${archivos.length} documentos subidos`,
-              showConfirmButton: false,
-              timer: 2200
+              text: `Guardado en Drive → «${destino}»`,
+              confirmButtonColor: '#0f766e',
+              showCancelButton: !!carpetaUrl,
+              cancelButtonText: 'Abrir carpeta',
+              confirmButtonText: 'Listo'
+            }).then((r) => {
+              if (r.dismiss === Swal.DismissReason.cancel && carpetaUrl) {
+                window.open(carpetaUrl, '_blank', 'noopener');
+              }
             });
             setTimeout(() => {
               this.sgcF14EvidenciasProgreso = 0;
