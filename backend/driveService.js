@@ -3053,6 +3053,8 @@ async function aplicarFormatoFilasSgcF14(spreadsheetId, sheetTitle, filaInicio, 
 
     const filas = Math.max(0, Number(numFilas) || 0);
     const startRow = filaInicio - 1;
+    // Encabezado (fila anterior a los datos) para cerrar el borde superior de la tabla.
+    const headerRow = Math.max(0, startRow - 1);
     const dataEndRow = startRow + filas;
     const blockEndRow = Number.isFinite(filaMax) && filaMax >= filaInicio
         ? Number(filaMax)
@@ -3113,20 +3115,23 @@ async function aplicarFormatoFilasSgcF14(spreadsheetId, sheetTitle, filaInicio, 
         requests.push(formatoColumna(4, 5, 'CENTER')); // E prioridad
         requests.push(formatoColumna(5, 6, 'CENTER')); // F estatus
         requests.push(formatoColumna(6, 8, 'CENTER')); // G:H % avance
-        // Solo se agrega el borde inferior de cada fila (el resto del diseno de
-        // la tabla ya viene en la plantilla). innerHorizontal traza la linea
-        // entre filas y bottom la del ultimo renglon con datos.
+        // Cuadrícula completa (encabezado + datos): superior, inferior, izquierdo,
+        // derecho e interiores — cierra los 4 lados de la tabla y de cada celda.
         requests.push({
             updateBorders: {
                 range: {
                     sheetId,
-                    startRowIndex: startRow,
+                    startRowIndex: headerRow,
                     endRowIndex: dataEndRow,
                     startColumnIndex: TABLA_COL_INICIO,
                     endColumnIndex: TABLA_COL_FIN
                 },
+                top: bordeNegro,
                 bottom: bordeNegro,
-                innerHorizontal: bordeNegro
+                left: bordeNegro,
+                right: bordeNegro,
+                innerHorizontal: bordeNegro,
+                innerVertical: bordeNegro
             }
         });
 
@@ -3156,11 +3161,28 @@ async function aplicarFormatoFilasSgcF14(spreadsheetId, sheetTitle, filaInicio, 
                 }
             });
         }
+    } else {
+        // Sin datos: solo enmarcar el encabezado y limpiar filas de captura.
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: headerRow,
+                    endRowIndex: startRow,
+                    startColumnIndex: TABLA_COL_INICIO,
+                    endColumnIndex: TABLA_COL_FIN
+                },
+                top: bordeNegro,
+                bottom: bordeNegro,
+                left: bordeNegro,
+                right: bordeNegro,
+                innerVertical: bordeNegro
+            }
+        });
     }
 
-    // 2) Quitar SOLO el borde inferior de las filas vacías que quedaron debajo
-    // de los datos (sin tocar el resto del diseño de la plantilla). No se toca
-    // "top" para no borrar el borde inferior del último renglón con datos.
+    // 2) Quitar bordes de las filas vacías debajo de los datos (sin tocar "top"
+    // para no borrar el borde inferior del último renglón con datos).
     if (blockEndRow > dataEndRow) {
         requests.push({
             updateBorders: {
@@ -3172,7 +3194,10 @@ async function aplicarFormatoFilasSgcF14(spreadsheetId, sheetTitle, filaInicio, 
                     endColumnIndex: TABLA_COL_FIN
                 },
                 bottom: sinBorde,
-                innerHorizontal: sinBorde
+                left: sinBorde,
+                right: sinBorde,
+                innerHorizontal: sinBorde,
+                innerVertical: sinBorde
             }
         });
     }
@@ -5091,6 +5116,55 @@ async function solicitarExportSheetPdf(baseUrl, token, params) {
     }
 }
 
+/** Normaliza márgenes de export PDF a params de Sheets (pulgadas). */
+function normalizarMargenesExportPdf(raw) {
+    const src = raw && typeof raw === 'object' ? raw : {};
+    const pick = (...keys) => {
+        for (const k of keys) {
+            if (src[k] === undefined || src[k] === null || src[k] === '') continue;
+            const n = Number(src[k]);
+            if (Number.isFinite(n)) return String(n);
+            return String(src[k]).trim();
+        }
+        return '0';
+    };
+    return {
+        top_margin: pick('top_margin', 'top', 'superior'),
+        bottom_margin: pick('bottom_margin', 'bottom', 'inferior'),
+        left_margin: pick('left_margin', 'left', 'izquierda'),
+        right_margin: pick('right_margin', 'right', 'derecha')
+    };
+}
+
+/**
+ * Escala de export PDF:
+ * - scalePercent / spct → personalizada (70 o 0.7 → scale=5&spct=0.7)
+ * - fitToPage → ajustar a la página
+ * - default → ajustar al ancho
+ */
+function resolverEscalaExportPdf(options = {}, fitToPage = false) {
+    const rawPercent = options.scalePercent ?? options.scalePercentage ?? options.spct;
+    if (rawPercent !== undefined && rawPercent !== null && rawPercent !== '') {
+        let n = Number(rawPercent);
+        if (Number.isFinite(n) && n > 0) {
+            // 70 → 0.7; si ya viene como fracción (0.7) se respeta
+            if (n > 1) n = n / 100;
+            return {
+                scale: '5',
+                spct: String(n)
+            };
+        }
+    }
+    if (fitToPage) {
+        return {
+            scale: '4',
+            fitw: 'true',
+            fith: 'true'
+        };
+    }
+    return { fitw: 'true' };
+}
+
 async function exportarGoogleSheetComoPDF(fileId, options = {}) {
     const token = await obtenerAccessTokenDrive();
     const landscape = !!options.landscape;
@@ -5101,42 +5175,66 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
     const gidRaw = options.gid !== undefined && options.gid !== null ? String(options.gid) : '';
     const gidOpts = gidRaw ? { gid: gidRaw } : {};
 
-    // Márgenes: 'normal'/'normales' ≈ Sheets «Normales» (~0.75"); 'narrow'/'estrechos' ≈ compactos.
+    // Márgenes: 'normal'/'normales' ≈ Sheets «Normales» (~0.75");
+    // 'wide'/'anchos' ≈ Sheets/Excel «Anchos» (1"); 'narrow'/'estrechos' ≈ compactos.
+    // Objeto: { top/bottom/left/right } o { top_margin/... } en pulgadas.
     // Por defecto: normales si fitToPage; si no, compactos (compatibilidad con exports previos).
     const marginMode = String(
         (typeof options.margins === 'string' ? options.margins : null)
         || options.marginMode
         || ''
     ).trim().toLowerCase();
-    const useNormalMargins = marginMode === 'normal' || marginMode === 'normales'
-        || (!!fitToPage && marginMode !== 'narrow' && marginMode !== 'estrechos' && marginMode !== 'compact');
+    const useWideMargins = marginMode === 'wide' || marginMode === 'anchos' || marginMode === 'ancho';
+    const useNormalMargins = !useWideMargins && (
+        marginMode === 'normal' || marginMode === 'normales'
+        || (!!fitToPage && marginMode !== 'narrow' && marginMode !== 'estrechos' && marginMode !== 'compact')
+    );
     const margins = (options.margins && typeof options.margins === 'object')
-        ? options.margins
-        : (useNormalMargins
+        ? normalizarMargenesExportPdf(options.margins)
+        : (useWideMargins
             ? {
-                top_margin: '0.75',
-                bottom_margin: '0.75',
-                left_margin: '0.70',
-                right_margin: '0.70'
+                top_margin: '1',
+                bottom_margin: '1',
+                left_margin: '1',
+                right_margin: '1'
             }
-            : {
-                top_margin: '0.30',
-                bottom_margin: '0.30',
-                left_margin: '0.30',
-                right_margin: '0.30'
-            });
+            : (useNormalMargins
+                ? {
+                    top_margin: '0.75',
+                    bottom_margin: '0.75',
+                    left_margin: '0.70',
+                    right_margin: '0.70'
+                }
+                : {
+                    top_margin: '0.30',
+                    bottom_margin: '0.30',
+                    left_margin: '0.30',
+                    right_margin: '0.30'
+                }));
 
-    // Escala: fitToPage → «Ajustar a la página»; si no → «Ajustar al ancho» (fitw).
-    const scaleOpts = fitToPage
-        ? {
-            // scale=4 → «Ajustar a la página» en la UI de Sheets
-            scale: '4',
-            fitw: 'true',
-            fith: 'true'
-        }
-        : { fitw: 'true' };
+    // Escala:
+    // - scalePercent / spct → personalizada (p.ej. 70 → scale=5&spct=0.7)
+    // - fitToPage → «Ajustar a la página»
+    // - si no → «Ajustar al ancho» (fitw)
+    const scaleOpts = resolverEscalaExportPdf(options, fitToPage);
 
     const sizeOpts = size ? { size } : {};
+
+    // Alineación del contenido en la página (cuando no llena el ancho/alto).
+    const hAlignRaw = String(
+        options.horizontalAlignment || options.horizontal_alignment || options.hAlign || ''
+    ).trim().toUpperCase();
+    const vAlignRaw = String(
+        options.verticalAlignment || options.vertical_alignment || options.vAlign || ''
+    ).trim().toUpperCase();
+    const alignOpts = {
+        ...(hAlignRaw === 'LEFT' || hAlignRaw === 'CENTER' || hAlignRaw === 'RIGHT'
+            ? { horizontal_alignment: hAlignRaw }
+            : {}),
+        ...(vAlignRaw === 'TOP' || vAlignRaw === 'MIDDLE' || vAlignRaw === 'BOTTOM'
+            ? { vertical_alignment: vAlignRaw }
+            : {})
+    };
 
     const baseUrl = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(fileId)}/export`;
     // Si hay gid, TODAS las variantes lo incluyen para no exportar el libro completo.
@@ -5151,6 +5249,7 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
             fzr: 'false',
             ...scaleOpts,
             ...margins,
+            ...alignOpts,
             ...sizeOpts,
             ...gidOpts
         },
@@ -5159,6 +5258,7 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
             portrait: landscape ? 'false' : 'true',
             ...scaleOpts,
             ...margins,
+            ...alignOpts,
             ...sizeOpts,
             ...gidOpts
         },

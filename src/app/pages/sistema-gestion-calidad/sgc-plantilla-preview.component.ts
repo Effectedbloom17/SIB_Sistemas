@@ -1691,6 +1691,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF04ArchivoExpandidoId: string | null = null;
   private sgcF04FolioPendiente: string | null = null;
   sgcF04SubiendoPdf = false;
+  sgcF04DescargandoPdf = false;
   mostrarSgcF04PdfViewer = false;
   sgcF04PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   sgcF04PdfCargando = false;
@@ -1922,6 +1923,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF14ContenidoModificado = false;
   sgcF14EditorCargando = false;
   sgcF14ActualizandoPlantilla = false;
+  sgcF14DescargandoPdf = false;
   private sgcF14EditorIframeListo = false;
   sgcF14EvidenciasModalAbierto = false;
   sgcF14EvidenciasIdx: number | null = null;
@@ -7199,6 +7201,29 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.sgcF14ActualizandoPlantilla = false;
+        }
+      });
+  }
+
+  descargarPdfSgcF14(): void {
+    if (this.sgcF14DescargandoPdf) {
+      return;
+    }
+    this.sgcF14DescargandoPdf = true;
+    this.backendService.descargarPdfSgcF14()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.sgcF14DescargandoPdf = false;
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = 'SGC-F-14 Bitacora de proyectos de mejora.pdf';
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.sgcF14DescargandoPdf = false;
         }
       });
   }
@@ -24472,6 +24497,82 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     };
     window.setTimeout(aplicar, 0);
     window.setTimeout(aplicar, 180);
+  }
+
+  descargarPdfSgcF04(): void {
+    if (this.sgcF04DescargandoPdf || !this.sgcF04ReporteActivo) {
+      return;
+    }
+    const reporteId = this.sgcF04ReporteActivo.id;
+    const folio = String(this.sgcF04ReporteActivo.folio || '').trim() || 'reporte';
+    const nombreArchivo = `SGC-F-04 ${folio}.pdf`.replace(/[\\/:*?"<>|]+/g, '_');
+
+    const iniciarDescarga = () => {
+      this.sgcF04DescargandoPdf = true;
+      this.backendService.descargarPdfSgcF04(reporteId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.sgcF04DescargandoPdf = false;
+            if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+              void Swal.fire({
+                icon: 'error',
+                title: 'No se pudo generar el PDF',
+                text: 'Guarda la información y vuelve a intentar. Si el problema continúa, revisa que la hoja exista en Drive.',
+                confirmButtonText: 'Entendido'
+              });
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = nombreArchivo;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.sgcF04DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo descargar el PDF',
+              text: 'Guarda la información primero para sincronizar la hoja en Drive e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    };
+
+    if (this.sgcF04CambiosPendientes && this.sgcF04Listo && !this.sgcF04Guardando) {
+      this.sgcF04DescargandoPdf = true;
+      this.sgcF04Guardando = true;
+      this.backendService.guardarSgcF04Formato(
+        { ...this.sgcF04Form, reporteActivoId: reporteId },
+        false
+      )
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.aplicarEstadoSgcF04(res, false, false);
+            this.sgcF04CambiosPendientes = false;
+            this.sgcF04Guardando = false;
+            this.sgcF04DescargandoPdf = false;
+            iniciarDescarga();
+          },
+          error: () => {
+            this.sgcF04Guardando = false;
+            this.sgcF04DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'No se guardaron los cambios antes de generar el PDF. Intenta de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+
+    iniciarDescarga();
   }
 
   onSeleccionarPdfSgcF04(event: Event): void {

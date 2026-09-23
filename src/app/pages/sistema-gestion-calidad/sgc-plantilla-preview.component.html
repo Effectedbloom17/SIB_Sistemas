@@ -359,6 +359,28 @@
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF16DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
                   </button>
                   <button
+                    *ngIf="plantillaSlug === 'sgc-f-14'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF14DescargandoPdf"
+                    (click)="descargarPdfSgcF14()"
+                    title="Descargar PDF (Legal, horizontal, márgenes anchos, ajustar al ancho)"
+                    aria-label="Descargar PDF de la bitácora de proyectos de mejora">
+                    <i class="fas" [ngClass]="sgcF14DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF14DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'sgc-f-04' && sgcF04Vista === 'editor'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF04DescargandoPdf || !sgcF04ReporteActivo"
+                    (click)="descargarPdfSgcF04()"
+                    title="Descargar PDF (Legal, márgenes 0.5 pulgada, escala 70%)"
+                    aria-label="Descargar PDF del reporte de no conformidad">
+                    <i class="fas" [ngClass]="sgcF04DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF04DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
+                  </button>
+                  <button
                     *ngIf="plantillaSlug === 'sgc-f-16'"
                     type="button"
                     class="btn btn-sm sgc-btn-pdf-icon sgc-btn-pdf-icon--mail"

@@ -26939,6 +26939,21 @@ app.post('/api/sgc/formatos/sgc-f-14/actualizar-plantilla', requireRole('root'),
     }
 });
 
+app.get('/api/sgc/formatos/sgc-f-14/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcF14Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="SGC-F-14 Bitacora de proyectos de mejora.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-14');
+    }
+});
+
 app.use('/api/sgc/formatos/sgc-f-14/evidencias', async (req, res, next) => {
     try {
         await poolBiznagaSgcReady;
@@ -28304,6 +28319,26 @@ app.post('/api/sgc/formatos/sgc-f-04/actualizar-plantilla', requireRole('root'),
         });
     } catch (error) {
         handleError(res, error, 'No se pudo actualizar la plantilla SGC-F-04 en Drive');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-04/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const resultado = await sgcSgcF04Service.descargarPlantillaPdf(poolBiznagaSgc, {
+            reporteId: req.query.reporteId || req.query.id || null
+        });
+        const nombre = String(resultado.nombreArchivo || 'SGC-F-04 Reporte de no conformidad.pdf')
+            .replace(/[^\w.\- áéíóúÁÉÍÓÚñÑ()]/gi, '_')
+            .trim() || 'SGC-F-04 Reporte de no conformidad.pdf';
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${nombre.replace(/"/g, '')}"`
+        );
+        return res.send(resultado.buffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-04');
     }
 });
 

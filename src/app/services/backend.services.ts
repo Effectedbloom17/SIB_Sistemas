@@ -2696,6 +2696,12 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-14/actualizar-plantilla`, {});
     }
 
+    descargarPdfSgcF14(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-14/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarSgcF25Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-25`);
     }
@@ -3895,6 +3901,13 @@ export class BackendServices {
             pdf_base64: pdfBase64,
             nombre_archivo: nombreArchivo,
             reporteId
+        });
+    }
+
+    descargarPdfSgcF04(reporteId?: string | null): Observable<Blob> {
+        const qs = reporteId ? `?reporteId=${encodeURIComponent(reporteId)}` : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-04/descargar-pdf${qs}`, {
+            responseType: 'blob'
         });
     }
 
