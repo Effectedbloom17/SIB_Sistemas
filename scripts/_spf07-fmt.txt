@@ -1,0 +1,51 @@
+==== PC-150926-01
+R31 1:{Momentos de la capacitación|CENTER|b=true} 3:{Fecha|CENTER|b=true} 4:{Hora de inicio|CENTER|b=true} 5:{Contenido temático|CENTER|b=true} 8:{Descripción de actividades / subtemas|CENTER|b=true} 10:{Hora de termino|CENTER|b=true} 11:{Técnicas instruccionales|CENTER|b=true} 12:{Técnicas grupales|CENTER|b=true} 13:{Duración|CENTER|b=true}
+R32 1:{Apertura|CENTER|b=true} 3:{17/9/2026|CENTER|b=true} 4:{2:47 p.m.|CENTER|b=true} 5:{111|CENTER|b=true} 8:{kkkk|CENTER|b=true} 10:{kkk|CENTER|b=true} 11:{kkk|CENTER|b=true} 12:{|CENTER|b=true} 13:{|CENTER|b=true} 14:{|CENTER|b=false}
+R33 1:{Desarrollo|CENTER|b=true} 3:{|CENTER|b=true} 4:{|CENTER|b=true} 5:{|CENTER|b=true} 8:{|CENTER|b=true} 10:{|CENTER|b=true} 11:{|CENTER|b=true} 12:{|CENTER|b=true} 13:{|CENTER|b=true} 14:{|CENTER|b=false}
+R34 1:{Cierre|CENTER|b=true} 3:{|CENTER|b=true} 4:{|CENTER|b=true} 5:{|CENTER|b=true} 8:{|CENTER|b=true} 10:{|CENTER|b=true} 11:{|CENTER|b=true} 12:{|CENTER|b=true} 13:{|CENTER|b=true} 14:{|CENTER|b=false}
+R35 1:{|CENTER|b=false} 3:{|CENTER|b=false} 4:{|CENTER|b=false} 5:{|CENTER|b=false} 8:{|CENTER|b=false} 11:{|CENTER|b=false} 13:{|CENTER|b=false}
+R36 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R37 1:{Método de evaluación del aprendizaje|CENTER|b=true} 5:{gfrg|CENTER|b=true}
+R38 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R39 1:{REFERENCIAS BIBLIOGRÁFICAS QUE SUSTENTAN|LEFT|b=false}
+R40 1:{Cierre|LEFT|b=false}
+R41 1:{1|CENTER|b=true} 2:{gfg|CENTER|b=true}
+R42 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false} 10:{|CENTER|b=false} 11:{|CENTER|b=false} 12:{|CENTER|b=false} 13:{|CENTER|b=false}
+R43 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R44 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R45 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R46 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R47 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R48 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R49 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R50 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R51 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R52 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R53 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R54 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R55 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+==== plantilla
+R31 1:{Momentos de la capacitación|CENTER|b=true} 3:{Fecha|CENTER|b=true} 4:{Hora de inicio|CENTER|b=true} 5:{Contenido temático|CENTER|b=true} 8:{Descripción de actividades / subtemas|CENTER|b=true} 10:{Hora de termino|CENTER|b=true} 11:{Técnicas instruccionales|CENTER|b=true} 12:{Técnicas grupales|CENTER|b=true} 13:{Duración|CENTER|b=true}
+R32 1:{Apertura|CENTER|b=true} 3:{|CENTER|b=true} 4:{|CENTER|b=true} 5:{|CENTER|b=true} 8:{|CENTER|b=true} 10:{|CENTER|b=true} 11:{|CENTER|b=true} 12:{|CENTER|b=true} 13:{|CENTER|b=true} 14:{|CENTER|b=false}
+R33 1:{Desarrollo|CENTER|b=true} 3:{|CENTER|b=true} 4:{|CENTER|b=true} 5:{|CENTER|b=true} 8:{|CENTER|b=true} 10:{|CENTER|b=true} 11:{|CENTER|b=true} 12:{|CENTER|b=true} 13:{|CENTER|b=true} 14:{|CENTER|b=false}
+R34 1:{Cierre|CENTER|b=true} 3:{|CENTER|b=true} 4:{|CENTER|b=true} 5:{|CENTER|b=true} 8:{|CENTER|b=true} 10:{|CENTER|b=true} 11:{|CENTER|b=true} 12:{|CENTER|b=true} 13:{|CENTER|b=true} 14:{|CENTER|b=false}
+R35 1:{|CENTER|b=false} 3:{|CENTER|b=false} 4:{|CENTER|b=false} 5:{|CENTER|b=false} 8:{|CENTER|b=false} 11:{Tiempo total|CENTER|b=false} 13:{|CENTER|b=false}
+R36 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R37 1:{Método de evaluación del aprendizaje|CENTER|b=true} 5:{|CENTER|b=true}
+R38 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R39 1:{REFERENCIAS BIBLIOGRÁFICAS QUE SUSTENTAN|LEFT|b=false}
+R41 1:{1|CENTER|b=true} 2:{|CENTER|b=true}
+R42 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false} 10:{|CENTER|b=false} 11:{|CENTER|b=false} 12:{|CENTER|b=false} 13:{|CENTER|b=false}
+R43 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R44 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R45 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R46 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R47 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R48 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R49 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R50 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R51 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R52 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R53 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R54 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}
+R55 7:{|CENTER|b=false} 8:{|CENTER|b=false} 9:{|CENTER|b=false}

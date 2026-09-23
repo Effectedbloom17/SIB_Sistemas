@@ -1,0 +1,166 @@
+==== SHEET PC-150926-01 merges=53
+R1 4:SISTEMA DE GESTIÓN DE CALIDAD || 12:Código: SP-F-07
+R2 4:PLAN DEL CURSO || 12:Rev.: 00
+R3 12:Fecha de Rev.: 08-01-25
+R5 1:DETALLES DEL CURSO
+R7 1:Nombre del curso || 6:alin
+R8 1:Propósito del curso || 6:leerrr
+R9 1:Nombre del instructor/capacitador || 6:jjjjjjjj
+R10 1:Fecha/Periodo || 6:lllllllll
+R11 1:Duración || 6:11111
+R12 1:Lugar || 6:sssssss
+R13 1:Número de participantes || 6:3333
+R15 1:PERFIL DE LOS PARTICIPANTES
+R17 1:Nivel de estudios || 4:ddddd
+R18 1:Conocimientos requeridos || 4:dddd
+R19 1:Habilidades requeridas || 4:ddddd
+R21 1:OBJETIVOS
+R23 1:General || 3:dddddd
+R24 1:Particulares || 3:a) ddddd / b) dddd
+R26 1:RECURSOS A UTILIZAR
+R28 1:Didácticos || 3:vvvvv
+R29 1:Equipo de apoyo || 3:bbbbb
+R31 1:Momentos de la capacitación || 3:Fecha || 4:Hora de inicio || 5:Contenido temático || 8:Descripción de actividades / subtemas || 10:Hora de termino || 11:Técnicas instruccionales || 12:Técnicas grupales || 13:Duración
+R32 1:Apertura || 3:17/9/2026 || 4:2:47 p.m. || 5:111 || 8:kkkk || 10:kkk || 11:kkk
+R33 1:Desarrollo
+R34 1:Cierre
+R37 1:Método de evaluación del aprendizaje || 5:gfrg
+R39 1:REFERENCIAS BIBLIOGRÁFICAS QUE SUSTENTAN AL CURSO
+R40 1:Cierre
+R41 1:1 || 2:gfg
+MERGE R1-3 C1-3
+MERGE R1-1 C4-11
+MERGE R1-1 C12-13
+MERGE R2-3 C4-11
+MERGE R2-2 C12-13
+MERGE R3-3 C12-13
+MERGE R7-7 C6-13
+MERGE R7-7 C1-5
+MERGE R8-8 C1-5
+MERGE R9-9 C1-5
+MERGE R10-10 C1-5
+MERGE R11-11 C1-5
+MERGE R12-12 C1-5
+MERGE R13-13 C1-5
+MERGE R18-18 C4-13
+MERGE R19-19 C4-13
+MERGE R23-23 C3-13
+MERGE R24-24 C3-13
+MERGE R28-28 C3-13
+MERGE R29-29 C3-13
+MERGE R31-31 C5-7
+MERGE R31-31 C8-9
+MERGE R8-8 C6-13
+MERGE R9-9 C6-13
+MERGE R10-10 C6-13
+MERGE R11-11 C6-13
+MERGE R12-12 C6-13
+MERGE R13-13 C6-13
+MERGE R17-17 C4-13
+MERGE R17-17 C1-3
+MERGE R18-18 C1-3
+MERGE R19-19 C1-3
+MERGE R23-23 C1-2
+MERGE R24-24 C1-2
+MERGE R28-28 C1-2
+MERGE R29-29 C1-2
+MERGE R33-33 C5-7
+MERGE R34-34 C5-7
+MERGE R35-35 C5-7
+MERGE R35-35 C8-9
+MERGE R35-35 C11-12
+MERGE R37-37 C5-13
+MERGE R41-41 C2-13
+MERGE R34-34 C1-2
+MERGE R35-35 C1-2
+MERGE R37-37 C1-4
+MERGE R31-31 C1-2
+MERGE R32-32 C1-2
+MERGE R32-32 C5-7
+MERGE R32-32 C8-9
+MERGE R33-33 C1-2
+MERGE R33-33 C8-9
+MERGE R34-34 C8-9
+==== SHEET plantilla merges=53
+R1 4:SISTEMA DE GESTIÓN DE CALIDAD || 12:Código: SP-F-07
+R2 4:PLAN DEL CURSO || 12:Rev.: 00
+R3 12:Fecha de Rev.: 08-01-25
+R5 1:DETALLES DEL CURSO
+R7 1:Nombre del curso
+R8 1:Propósito del curso
+R9 1:Nombre del instructor/capacitador
+R10 1:Fecha/Periodo
+R11 1:Duración
+R12 1:Lugar
+R13 1:Número de participantes
+R15 1:PERFIL DE LOS PARTICIPANTES
+R17 1:Nivel de estudios
+R18 1:Conocimientos requeridos
+R19 1:Habilidades requeridas
+R21 1:OBJETIVOS
+R23 1:General
+R24 1:Particulares
+R26 1:RECURSOS A UTILIZAR
+R28 1:Didácticos
+R29 1:Equipo de apoyo
+R31 1:Momentos de la capacitación || 3:Fecha || 4:Hora de inicio || 5:Contenido temático || 8:Descripción de actividades / subtemas || 10:Hora de termino || 11:Técnicas instruccionales || 12:Técnicas grupales || 13:Duración
+R32 1:Apertura
+R33 1:Desarrollo
+R34 1:Cierre
+R35 11:Tiempo total
+R37 1:Método de evaluación del aprendizaje
+R39 1:REFERENCIAS BIBLIOGRÁFICAS QUE SUSTENTAN AL CURSO
+R41 1:1
+MERGE R1-3 C1-3
+MERGE R1-1 C4-11
+MERGE R1-1 C12-13
+MERGE R2-3 C4-11
+MERGE R2-2 C12-13
+MERGE R3-3 C12-13
+MERGE R7-7 C6-13
+MERGE R7-7 C1-5
+MERGE R8-8 C1-5
+MERGE R9-9 C1-5
+MERGE R10-10 C1-5
+MERGE R11-11 C1-5
+MERGE R12-12 C1-5
+MERGE R13-13 C1-5
+MERGE R18-18 C4-13
+MERGE R19-19 C4-13
+MERGE R23-23 C3-13
+MERGE R24-24 C3-13
+MERGE R28-28 C3-13
+MERGE R29-29 C3-13
+MERGE R31-31 C5-7
+MERGE R31-31 C8-9
+MERGE R8-8 C6-13
+MERGE R9-9 C6-13
+MERGE R10-10 C6-13
+MERGE R11-11 C6-13
+MERGE R12-12 C6-13
+MERGE R13-13 C6-13
+MERGE R17-17 C4-13
+MERGE R17-17 C1-3
+MERGE R18-18 C1-3
+MERGE R19-19 C1-3
+MERGE R23-23 C1-2
+MERGE R24-24 C1-2
+MERGE R28-28 C1-2
+MERGE R29-29 C1-2
+MERGE R33-33 C5-7
+MERGE R34-34 C5-7
+MERGE R35-35 C5-7
+MERGE R35-35 C8-9
+MERGE R35-35 C11-12
+MERGE R37-37 C5-13
+MERGE R41-41 C2-13
+MERGE R34-34 C1-2
+MERGE R35-35 C1-2
+MERGE R37-37 C1-4
+MERGE R31-31 C1-2
+MERGE R32-32 C1-2
+MERGE R32-32 C5-7
+MERGE R32-32 C8-9
+MERGE R33-33 C1-2
+MERGE R33-33 C8-9
+MERGE R34-34 C8-9
