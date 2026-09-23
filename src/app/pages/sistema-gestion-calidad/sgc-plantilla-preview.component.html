@@ -359,12 +359,34 @@
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF16DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
                   </button>
                   <button
+                    *ngIf="plantillaSlug === 'sgc-f-06'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF06DescargandoPdf"
+                    (click)="descargarPdfSgcF06()"
+                    title="Descargar PDF (Carta, horizontal, márgenes estrechos, escala 80%)"
+                    aria-label="Descargar PDF de la lista y calificación de auditores internos">
+                    <i class="fas" [ngClass]="sgcF06DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF06DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'sgc-f-07'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF07DescargandoPdf"
+                    (click)="descargarPdfSgcF07()"
+                    title="Generar PDF (carta, horizontal, ajustar a la página, márgenes estrechos)"
+                    aria-label="Generar PDF del programa de auditoría">
+                    <i class="fas" [ngClass]="sgcF07DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF07DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
+                  </button>
+                  <button
                     *ngIf="plantillaSlug === 'sgc-f-14'"
                     type="button"
                     class="btn btn-sm sgc-btn-pdf-icon"
                     [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF14DescargandoPdf"
                     (click)="descargarPdfSgcF14()"
-                    title="Descargar PDF (Legal, horizontal, márgenes anchos, ajustar al ancho)"
+                    title="Descargar PDF (Carta, horizontal, márgenes estrechos, escala 85%)"
                     aria-label="Descargar PDF de la bitácora de proyectos de mejora">
                     <i class="fas" [ngClass]="sgcF14DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF14DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
@@ -375,7 +397,7 @@
                     class="btn btn-sm sgc-btn-pdf-icon"
                     [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF04DescargandoPdf || !sgcF04ReporteActivo"
                     (click)="descargarPdfSgcF04()"
-                    title="Descargar PDF (Legal, márgenes 0.5 pulgada, escala 70%)"
+                    title="Descargar PDF (Carta, ajustar al ancho, márgenes 0.5/1.4/1.0/1.0)"
                     aria-label="Descargar PDF del reporte de no conformidad">
                     <i class="fas" [ngClass]="sgcF04DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF04DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
@@ -4362,7 +4384,7 @@
                                 <th class="sgc-f-07-table__col--equipo">Equipo Auditor</th>
                                 <th class="sgc-f-07-table__col--lider">Auditor Líder</th>
                                 <th class="sgc-f-07-table__col--metodo">Método</th>
-                                <th class="sgc-f-07-table__col--fecha-aud">Fecha</th>
+                                <th class="sgc-f-07-table__col--fecha-aud">Fecha<br><small>P / R</small></th>
                               </tr>
                             </thead>
                             <tbody>
@@ -4401,9 +4423,22 @@
                                     [attr.rows]="filasTexto(auditoria.metodoAuditoria)"
                                     [(ngModel)]="auditoria.metodoAuditoria" [name]="'sgcF07_met' + i"></textarea>
                                 </td>
-                                <td>
-                                  <input class="dg-f05-field dg-f05-field--center" type="text"
-                                    [(ngModel)]="auditoria.fecha" [name]="'sgcF07_fec' + i">
+                                <td class="sgc-f-07-fecha-cell">
+                                  <div class="sgc-f-07-fecha-pair">
+                                    <label class="sgc-f-07-fecha-row">
+                                      <span class="sgc-f-07-fecha-tag sgc-f-07-fecha-tag--p" title="Auditoría programada">P</span>
+                                      <input class="dg-f05-field dg-f05-field--center" type="text"
+                                        [(ngModel)]="auditoria.fechaP" [name]="'sgcF07_fecP' + i"
+                                        placeholder="Programada"
+                                        (ngModelChange)="auditoria.fecha = auditoria.fechaP">
+                                    </label>
+                                    <label class="sgc-f-07-fecha-row">
+                                      <span class="sgc-f-07-fecha-tag sgc-f-07-fecha-tag--r" title="Revisión por Dirección">R</span>
+                                      <input class="dg-f05-field dg-f05-field--center" type="text"
+                                        [(ngModel)]="auditoria.fechaR" [name]="'sgcF07_fecR' + i"
+                                        placeholder="Revisión Dir.">
+                                    </label>
+                                  </div>
                                 </td>
                               </tr>
                             </tbody>
@@ -4416,7 +4451,7 @@
                           <span class="sgc-f-11-split-block__badge sgc-f-11-split-block__badge--acciones">2</span>
                           <div>
                             <strong class="sgc-f-11-split-block__title">Calendario y seguimiento</strong>
-                            <span class="sgc-f-11-split-block__subtitle">Vista compacta por auditoría (12 meses y 4 semanas por mes)</span>
+                            <span class="sgc-f-11-split-block__subtitle">Vista por mes: fila P (programada) y R (realizada), semanas 1 a 4</span>
                           </div>
                         </header>
                         <div class="sgc-f-07-cal-search">
@@ -4469,15 +4504,30 @@
                           <div class="sgc-f-07-cal-meses">
                             <section class="sgc-f-07-cal-mes" *ngFor="let mes of sgcF07Meses">
                               <h5 class="sgc-f-07-cal-mes__title">{{ mes.label }}</h5>
-                              <div class="sgc-f-07-cal-mes__weeks">
+                              <div class="sgc-f-07-cal-mes__grid" role="grid" [attr.aria-label]="'Calendario ' + mes.label">
+                                <span class="sgc-f-07-cal-mes__corner" aria-hidden="true"></span>
+                                <span class="sgc-f-07-cal-mes__week-h" *ngFor="let sem of [1, 2, 3, 4]">{{ sem }}</span>
+
+                                <span class="sgc-f-07-cal-mes__row-label sgc-f-07-cal-mes__row-label--p" title="Programada">P</span>
                                 <button type="button"
-                                  *ngFor="let sem of [0, 1, 2, 3]; let si = index"
-                                  class="sgc-f-07-check"
-                                  [class.sgc-f-07-check--on]="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si)"
-                                  (click)="toggleSgcF07Calendario(auditoriaActiva, mes.key, si)"
-                                  [attr.aria-label]="'Semana ' + (si + 1) + ' de ' + mes.label">
-                                  <span class="sgc-f-07-check__tag">s{{ si + 1 }}</span>
-                                  <span class="sgc-f-07-check__mark" *ngIf="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si)">X</span>
+                                  *ngFor="let si of [0, 1, 2, 3]"
+                                  class="sgc-f-07-check sgc-f-07-check--p"
+                                  [class.sgc-f-07-check--on]="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si, 'P')"
+                                  (click)="toggleSgcF07Calendario(auditoriaActiva, mes.key, si, 'P')"
+                                  [attr.aria-label]="'Programada semana ' + (si + 1) + ' de ' + mes.label"
+                                  [attr.aria-pressed]="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si, 'P')">
+                                  <span class="sgc-f-07-check__mark" *ngIf="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si, 'P')">P</span>
+                                </button>
+
+                                <span class="sgc-f-07-cal-mes__row-label sgc-f-07-cal-mes__row-label--r" title="Realizada">R</span>
+                                <button type="button"
+                                  *ngFor="let si of [0, 1, 2, 3]"
+                                  class="sgc-f-07-check sgc-f-07-check--r"
+                                  [class.sgc-f-07-check--on]="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si, 'R')"
+                                  (click)="toggleSgcF07Calendario(auditoriaActiva, mes.key, si, 'R')"
+                                  [attr.aria-label]="'Realizada semana ' + (si + 1) + ' de ' + mes.label"
+                                  [attr.aria-pressed]="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si, 'R')">
+                                  <span class="sgc-f-07-check__mark" *ngIf="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si, 'R')">R</span>
                                 </button>
                               </div>
                             </section>
@@ -4495,6 +4545,88 @@
                       </div>
                     </div>
                   </article>
+
+                  <aside class="dg-f02-attach sgc-f-07-attach" aria-label="Documento firmado">
+                    <div class="dg-f02-attach__head">
+                      <div class="dg-f02-attach__icon-wrap">
+                        <i class="fas fa-file-signature" aria-hidden="true"></i>
+                      </div>
+                      <div>
+                        <h3 class="dg-f02-attach__title">Versión firmada</h3>
+                        <p class="dg-f02-attach__desc mb-0">
+                          Sube el PDF firmado. Cada carga se agrega al historial del programa (no reemplaza versiones anteriores).
+                        </p>
+                      </div>
+                    </div>
+                    <label class="dg-f02-attach__dropzone" *ngIf="!sgcF07Form.pdfFirmado?.driveFileId"
+                      [class.dg-f02-attach__dropzone--busy]="sgcF07SubiendoPdf">
+                      <input type="file" class="dg-f02-attach__input" accept="application/pdf"
+                        (change)="onSeleccionarPdfSgcF07($event)" [disabled]="sgcF07SubiendoPdf">
+                      <span class="dg-f02-attach__dropzone-icon">
+                        <i class="fas" [ngClass]="sgcF07SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                      </span>
+                      <span class="dg-f02-attach__dropzone-title">
+                        {{ sgcF07SubiendoPdf ? 'Subiendo PDF…' : 'Arrastra o selecciona el PDF firmado' }}
+                      </span>
+                      <span class="dg-f02-attach__dropzone-hint">Formato PDF · máximo {{ etiquetaMaxPdfSgc }}</span>
+                    </label>
+                    <input #sgcF07InputActualizarPdf type="file" class="dg-f02-attach__input" accept="application/pdf"
+                      (change)="onSeleccionarPdfSgcF07($event)" [disabled]="sgcF07SubiendoPdf">
+                    <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="sgcF07Form.pdfFirmado as pdf">
+                      <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
+                      <div class="dg-f02-attach__file-info">
+                        <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo || 'SGC-F-07 Programa de auditoría.pdf' }}</strong>
+                        <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                          Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}
+                        </small>
+                      </div>
+                      <div class="dg-f02-attach__file-actions" *ngIf="sgcF07Form.pdfFirmado?.driveFileId">
+                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                          (click)="toggleSgcF07PdfViewer()">
+                          <i class="fas fa-eye mr-1" aria-hidden="true"></i>
+                          Abrir
+                        </button>
+                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
+                          [disabled]="sgcF07SubiendoPdf"
+                          (click)="sgcF07InputActualizarPdf.click()">
+                          <i class="fas mr-1" [ngClass]="sgcF07SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                          {{ sgcF07SubiendoPdf ? 'Subiendo a Drive…' : 'Subir nueva versión' }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="af-f02-historial-pdfs sgc-f-07-historial-pdfs" *ngIf="sgcF07HistorialPdfsVista.length">
+                      <h4 class="af-f02-historial-pdfs__title">
+                        <i class="fas fa-file-pdf mr-1" aria-hidden="true"></i>
+                        Historial de PDFs firmados
+                      </h4>
+                      <p class="af-f02-historial-pdfs__hint">Solo versiones firmadas de este programa de auditoría.</p>
+                      <ul class="af-f02-historial-pdfs__list">
+                        <li class="af-f02-historial-pdfs__item" *ngFor="let hist of sgcF07HistorialPdfsVista">
+                          <div class="af-f02-historial-pdfs__item-main">
+                            <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                            <div>
+                              <strong>{{ hist.nombreArchivo }}</strong>
+                              <small *ngIf="hist.fechaSubida">{{ formatearFechaDgF02(hist.fechaSubida) }}</small>
+                            </div>
+                          </div>
+                          <div class="af-f02-historial-pdfs__actions">
+                            <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                              (click)="toggleSgcF07PdfViewer(hist)">
+                              Abrir
+                            </button>
+                            <button *ngIf="puedeBorrarPdfHistorialSgcF07" type="button"
+                              class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--danger"
+                              [disabled]="sgcF07BorrandoPdf"
+                              (click)="eliminarPdfHistorialSgcF07(hist)"
+                              title="Eliminar PDF del historial">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </li>
+                      </ul>
+                    </div>
+                  </aside>
                 </div>
               </form>
             </ng-container>
@@ -13293,6 +13425,40 @@
         [src]="sgcPo01PdfEmbedUrlSafe"
         [title]="sgcPo01Form.pdfFirmado?.nombreArchivo || 'SGC-PO-01 Politica de calidad_Biznaga.pdf'"
         (load)="onSgcPo01PdfIframeLoad()"
+        allow="autoplay">
+      </iframe>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-drive-editor-fullscreen" *ngIf="mostrarSgcF07PdfViewer"
+  role="dialog" aria-modal="true" aria-label="Visor PDF SGC-F-07">
+  <div class="sgc-drive-editor-fullscreen__backdrop" (click)="toggleSgcF07PdfViewer()"></div>
+  <div class="sgc-drive-editor-fullscreen__panel">
+    <div class="sgc-drive-editor-fullscreen__head">
+      <div class="sgc-drive-editor-fullscreen__title-wrap">
+        <span class="sgc-drive-editor-fullscreen__icon">
+          <i class="fas fa-file-pdf" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ sgcF07PdfViewerActual?.nombreArchivo || sgcF07Form.pdfFirmado?.nombreArchivo || 'SGC-F-07 Programa de auditoría.pdf' }}</strong>
+          <small class="sgc-drive-editor-fullscreen__subtitle">Vista previa del PDF · solo lectura</small>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-light" type="button" (click)="toggleSgcF07PdfViewer()">
+        <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+      </button>
+    </div>
+    <div class="sgc-drive-editor-fullscreen__body">
+      <div class="sgc-drive-editor-fullscreen__loading" *ngIf="sgcF07PdfCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando PDF…</span>
+      </div>
+      <iframe *ngIf="sgcF07PdfEmbedUrlSafe"
+        class="sgc-drive-editor-fullscreen__iframe"
+        [src]="sgcF07PdfEmbedUrlSafe"
+        [title]="sgcF07PdfViewerActual?.nombreArchivo || sgcF07Form.pdfFirmado?.nombreArchivo || 'SGC-F-07 Programa de auditoría.pdf'"
+        (load)="onSgcF07PdfIframeLoad()"
         allow="autoplay">
       </iframe>
     </div>

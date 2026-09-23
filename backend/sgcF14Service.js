@@ -1024,12 +1024,13 @@ async function descargarPlantillaPdf(pool) {
         throw new Error(`No se encontró la hoja activa «${tituloHoja}» para exportar a PDF.`);
     }
 
-    // Legal, horizontal, márgenes anchos, ajustar al ancho.
+    // Carta, horizontal, márgenes estrechos, escala 85%.
     const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
         gid,
         landscape: true,
-        size: 'legal',
-        margins: 'anchos'
+        size: 'letter',
+        margins: 'estrechos',
+        scalePercent: 85
     });
     if (!pdfBuffer || !pdfBuffer.length) {
         throw new Error('La exportación a PDF de SGC-F-14 quedó vacía.');
