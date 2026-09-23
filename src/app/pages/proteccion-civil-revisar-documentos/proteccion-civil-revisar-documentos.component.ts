@@ -483,14 +483,21 @@ export class ProteccionCivilRevisarDocumentosComponent implements OnInit, OnDest
   private autoFinalizarRevision(): void {
     if (!this.empresaId) return;
     this.backendService.finalizarRevisionPC(this.empresaId).subscribe(
-      () => {
-        // Vaciar lista localmente — muestra estado vacío sin recargar
-        this.documentos = [];
-        this.documentoSeleccionadoId = null;
+      (resp: any) => {
+        // Ya no se vacía la lista: los entregados permanecen visibles en la asignación.
+        this.cargarDocumentosDesdeBackend();
+        Swal.fire({
+          icon: 'success',
+          title: 'Revisión completa',
+          html: resp?.message
+            || 'Los documentos entregados se conservan en la asignación (filtro Entregados / Todos).',
+          confirmButtonColor: '#d97248',
+          timer: 2200,
+          timerProgressBar: true
+        });
       },
       (err: any) => {
         console.error('Error en auto-finalizar revisión:', err);
-        // Si falla, recargar igualmente para mostrar estado real
         this.cargarDocumentosDesdeBackend();
       }
     );
@@ -504,9 +511,9 @@ export class ProteccionCivilRevisarDocumentosComponent implements OnInit, OnDest
 
     Swal.fire({
       title: '<i class="fas fa-flag-checkered" style="color: #d97248;"></i> Finalizar revisión',
-      html: `<p>Se eliminarán <strong>${aprobados}</strong> documento(s) aprobado(s) de la asignación.</p>` +
-            (rechazados > 0 ? `<p>Se conservarán <strong>${rechazados}</strong> documento(s) rechazado(s) para que la empresa los corrija.</p>` : '') +
-            `<p class="text-muted small">Los documentos aprobados ya fueron copiados al historial.</p>`,
+      html: `<p>Se registrará el cierre de revisión con <strong>${aprobados}</strong> documento(s) entregado(s).</p>` +
+            (rechazados > 0 ? `<p>Se conservarán <strong>${rechazados}</strong> documento(s) rechazado(s) para corrección.</p>` : '') +
+            `<p class="text-muted small mb-0">Los entregados <strong>no se eliminan</strong> de la asignación: seguirán visibles en Subir documentación (Todos / Entregados) y en Historial PC.</p>`,
       showCancelButton: true,
       confirmButtonColor: '#d97248',
       cancelButtonColor: '#6c757d',
@@ -519,10 +526,9 @@ export class ProteccionCivilRevisarDocumentosComponent implements OnInit, OnDest
             Swal.fire({
               icon: 'success',
               title: 'Revisión finalizada',
-              html: resp.message || 'Documentos aprobados eliminados correctamente.',
+              html: resp.message || 'Documentos entregados conservados en la asignación.',
               confirmButtonColor: '#d97248'
             }).then(() => {
-              // Recargar documentos desde backend
               this.cargarDocumentosDesdeBackend();
             });
           },

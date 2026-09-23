@@ -139,6 +139,7 @@ const CATALOGO_BASE = [
   doc("DG", "Interno", "Formato", "DG-F-06", "00", "2025-01-21", "Cuadro de mando para objetivos de calidad e indicadores", "Dirección General"),
   doc("DG", "Interno", "Formato", "DG-F-07", "00", "2025-01-21", "Caracterización de procesos", "Dirección General"),
   doc("DG", "Interno", "Formato", "DG-F-08", "00", "2026-03-17", "Filosofía Biznaga Risk and Tech", "Dirección General"),
+  doc("AF", "Interno", "Formato", "AF-F-02", "00", "2024-09-18", "Contrato", "Administración financiera"),
   doc("Dirección General", "Interno", "Política", "SGC-PO-01", "00", "2025-07-09", "Política de calidad"),
   doc("Dirección General", "Interno", "Política", "SGC-PO-02", "00", "2025-07-09", "Política de protección de propiedad del cliente o proveedor"),
   doc("Admón y Talento Humano", "Interno", "Instructivo", "SGC-I-01", "00", "2026-06-03", "Número de cotización y número de proyecto", "Ger. Admón y Talento Humano"),

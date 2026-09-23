@@ -9,13 +9,14 @@ import { NgApexchartsModule } from 'ng-apexcharts';
 
 import { ProteccionCivilComponent } from './proteccion-civil.component';
 import { ProteccionCivilAsignarDocumentosComponent } from '../proteccion-civil-asignar-documentos/proteccion-civil-asignar-documentos.component';
+import { ProteccionCivilAsignacionPipcComponent } from '../proteccion-civil-asignacion-pipc/proteccion-civil-asignacion-pipc.component';
 import { ProteccionCivilCatalogoComponent } from '../proteccion-civil-catalogo/proteccion-civil-catalogo.component';
+import { ProteccionCivilDirectoriosComponent } from '../proteccion-civil-directorios/proteccion-civil-directorios.component';
 import { ProteccionCivilRevisarDocumentosComponent } from '../proteccion-civil-revisar-documentos/proteccion-civil-revisar-documentos.component';
 import { ProteccionCivilHistorialDocumentosComponent } from '../proteccion-civil-historial-documentos/proteccion-civil-historial-documentos.component';
 import { ProteccionCivilHistorialPcComponent } from '../proteccion-civil-historial-pc/proteccion-civil-historial-pc.component';
 import { ControlResolutivosPipcComponent } from '../control-resolutivos-pipc/control-resolutivos-pipc.component';
 import { ProteccionCivilReporteRecorridoComponent } from '../proteccion-civil-reporte-recorrido/proteccion-civil-reporte-recorrido.component';
-import { AutoResizeTextareaDirective } from '../proteccion-civil-reporte-recorrido/auto-resize-textarea.directive';
 
 const routes: Routes = [
     {
@@ -25,6 +26,12 @@ const routes: Routes = [
         data: { roles: ['administrador', 'empresa', 'proteccion_civil'] }
     },
     {
+        path: 'asignacion-pipc',
+        component: ProteccionCivilAsignacionPipcComponent,
+        canActivate: [RoleGuard],
+        data: { roles: ['administrador', 'proteccion_civil'] }
+    },
+    {
         path: 'empresas/:id/asignar-documentos',
         component: ProteccionCivilAsignarDocumentosComponent,
         canActivate: [RoleGuard],
@@ -32,9 +39,9 @@ const routes: Routes = [
     },
     {
         path: 'catalogo',
-        component: ProteccionCivilCatalogoComponent,
+        component: ProteccionCivilAsignacionPipcComponent,
         canActivate: [RoleGuard],
-        data: { roles: ['administrador', 'proteccion_civil'] }
+        data: { roles: ['administrador', 'proteccion_civil'], tabInicial: 'gestion' }
     },
     {
         path: 'empresas/:id/revisar-documentos',
@@ -81,13 +88,14 @@ const routes: Routes = [
     declarations: [
         ProteccionCivilComponent,
         ProteccionCivilAsignarDocumentosComponent,
+        ProteccionCivilAsignacionPipcComponent,
         ProteccionCivilCatalogoComponent,
+        ProteccionCivilDirectoriosComponent,
         ProteccionCivilRevisarDocumentosComponent,
         ProteccionCivilHistorialDocumentosComponent,
         ProteccionCivilHistorialPcComponent,
         ControlResolutivosPipcComponent,
-        ProteccionCivilReporteRecorridoComponent,
-        AutoResizeTextareaDirective
+        ProteccionCivilReporteRecorridoComponent
     ]
 })
 export class ProteccionCivilModule {}

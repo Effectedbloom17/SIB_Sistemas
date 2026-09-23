@@ -212,7 +212,9 @@ async function snapshotCicloAlCerrar(pool, { ciclo, empresaId, allDocs }) {
         const pipcTitulo = clave
             ? extraerPipcDeNombre(doc.nombre_documento) || (padre?.nombre_documento || '')
             : (padre?.nombre_documento || (padreId ? '' : doc.nombre_documento) || '');
-        const grupo = pipcTitulo || doc.nombre_documento || 'Documentos';
+        const grupo = !clave && padreId
+            ? (doc.nombre_documento || 'Requisito')
+            : (pipcTitulo || doc.nombre_documento || 'Documentos');
         const tipoTexto = String(doc.tipo_entrada || '').toLowerCase() === 'texto';
         const valorTexto = String(doc.valor_texto || '').trim();
         const fechaRef = doc.fecha_subida || null;

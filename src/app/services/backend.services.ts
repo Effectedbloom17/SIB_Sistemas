@@ -229,6 +229,26 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/${apiBase}/enviar`, payload);
     }
 
+    enviarCorreoPerfilConProgreso(
+        payload: {
+            destinatario: string;
+            asunto: string;
+            mensaje: string;
+            html?: string;
+            cc?: string;
+            cco?: string;
+            inReplyTo?: string;
+            references?: string;
+            adjuntos?: Array<{ nombre: string; contentType: string; contenidoBase64: string }>;
+        },
+        apiBase: 'correo' | 'correo-empresa' = 'correo'
+    ): Observable<HttpEvent<any>> {
+        return this.httpClient.post(`${this.baseUrl}/${apiBase}/enviar`, payload, {
+            reportProgress: true,
+            observe: 'events'
+        });
+    }
+
     // ============================================
     // CURSOS
     // ============================================
@@ -1695,6 +1715,14 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/proteccion-civil/empresas`);
     }
 
+    /** Ciclos PIPC cerrados recientes (fichas terminadas en el tablero PC). */
+    obtenerPipcTerminadosRecientes(limit: number = 9): Observable<any> {
+        const lim = Math.min(Math.max(Number(limit) || 9, 1), 30);
+        return this.httpClient.get(
+            `${this.baseUrl}/proteccion-civil/pipc-terminados-recientes?limit=${lim}`
+        );
+    }
+
     // Obtener documentos de PC de una empresa
     obtenerDocumentosProteccionCivil(empresaId: number): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/proteccion-civil/empresas/${empresaId}/documentos`);
@@ -1976,6 +2004,13 @@ export class BackendServices {
         );
     }
 
+    descargarPdfRecorridoPipcPC(empresaId: number, documentoPipcId: number): Observable<Blob> {
+        return this.httpClient.get(
+            `${this.baseUrl}/proteccion-civil/empresas/${empresaId}/recorrido/pipc/${documentoPipcId}/descargar-pdf`,
+            { responseType: 'blob' }
+        );
+    }
+
     establecerModoRecorridoPC(empresaId: number, modo: 'manual' | 'pdf'): Observable<any> {
         return this.httpClient.put(
             `${this.baseUrl}/proteccion-civil/empresas/${empresaId}/recorrido/modo`,
@@ -2069,6 +2104,16 @@ export class BackendServices {
 
     guardarControlResolutivosExcelDrive(): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/proteccion-civil/control-resolutivos/excel/guardar-drive`, {});
+    }
+
+    /** Importa Excel SP-F-29 a control de resolutivos (campo multipart: archivo). */
+    importarControlResolutivosExcel(archivo: File): Observable<any> {
+        const formData = new FormData();
+        formData.append('archivo', archivo, archivo.name);
+        return this.httpClient.post(
+            `${this.baseUrl}/proteccion-civil/control-resolutivos/excel/importar`,
+            formData
+        );
     }
 
     obtenerRegistrosControlResolutivos(): Observable<any> {
@@ -2190,6 +2235,68 @@ export class BackendServices {
         return this.httpClient.get(
             `${this.baseUrl}/proteccion-civil/catalogo/documentos/${documentoId}/url-editor`,
             { params: { modo } }
+        );
+    }
+
+    // ============================================
+    // PROTECCIÓN CIVIL — GESTIÓN DE DIRECTORIOS
+    // ============================================
+
+    listarDirectoriosPC(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/directorios`);
+    }
+
+    obtenerDirectorioPC(id: number): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/directorios/${id}`);
+    }
+
+    crearDirectorioPC(nombre: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/directorios`, { nombre });
+    }
+
+    registrarDirectorioExistentePC(nombre: string, driveFileId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/directorios/registrar-existente`, {
+            nombre,
+            driveFileId
+        });
+    }
+
+    obtenerUrlEditorDirectorioPC(id: number, modo: 'edit' | 'preview' = 'edit'): Observable<any> {
+        return this.httpClient.get(
+            `${this.baseUrl}/proteccion-civil/directorios/${id}/url-editor`,
+            { params: { modo } }
+        );
+    }
+
+    sincronizarDirectorioPC(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/directorios/${id}/sincronizar`, {});
+    }
+
+    eliminarDirectorioPC(id: number, eliminarDrive = false): Observable<any> {
+        const params = eliminarDrive ? { eliminarDrive: '1' } : undefined;
+        return this.httpClient.delete(`${this.baseUrl}/proteccion-civil/directorios/${id}`, { params });
+    }
+
+    listarPipcCatalogoDirectoriosPC(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/directorios/pipc-catalogo`);
+    }
+
+    guardarAsociacionesDirectorioPC(id: number, catalogoDocumentoIds: number[]): Observable<any> {
+        return this.httpClient.put(`${this.baseUrl}/proteccion-civil/directorios/${id}/pipc`, {
+            catalogo_documento_ids: catalogoDocumentoIds
+        });
+    }
+
+    obtenerDirectoriosPorPipcEmpresaPC(empresaId: number): Observable<any> {
+        return this.httpClient.get(
+            `${this.baseUrl}/proteccion-civil/empresas/${empresaId}/directorios-por-pipc`
+        );
+    }
+
+    descargarDirectorioPC(id: number, formato: 'pdf' | 'docx' = 'pdf'): Observable<Blob> {
+        return this.httpClient.get(
+            `${this.baseUrl}/proteccion-civil/directorios/${id}/descargar`,
+            { params: { formato }, responseType: 'blob' }
         );
     }
 
@@ -2589,6 +2696,12 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-14/actualizar-plantilla`, {});
     }
 
+    descargarPdfSgcF14(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-14/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarSgcF25Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-25`);
     }
@@ -2935,6 +3048,15 @@ export class BackendServices {
 
     actualizarPlantillaSpF02(): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sp-f-02/actualizar-plantilla`, {});
+    }
+
+    descargarPdfSpF02(reporteId?: string | null): Observable<Blob> {
+        const qs = reporteId
+            ? `?reporteId=${encodeURIComponent(String(reporteId))}`
+            : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sp-f-02/descargar-pdf${qs}`, {
+            responseType: 'blob'
+        });
     }
 
     cargarSpF07Formato(): Observable<any> {
@@ -3543,6 +3665,40 @@ export class BackendServices {
         });
     }
 
+    cargarAfF02Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/af-f-02`);
+    }
+
+    guardarAfF02Formato(datos: unknown): Observable<any> {
+        const payload = (datos && typeof datos === 'object') ? datos as Record<string, unknown> : {};
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/af-f-02/guardar`, {
+            datos: payload,
+            origen: 'sistema',
+            edicionCompleta: !!payload['edicionCompleta']
+        });
+    }
+
+    subirPdfFirmadoAfF02(pdfBase64: string, nombreArchivo: string, contratoActivoId?: string | null): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/af-f-02/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombre_archivo: nombreArchivo,
+            contratoActivoId: contratoActivoId || null
+        });
+    }
+
+    eliminarPdfHistorialAfF02(driveFileId: string, contratoActivoId?: string | null): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/af-f-02/eliminar-pdf-historial`, {
+            driveFileId,
+            contratoActivoId: contratoActivoId || null
+        });
+    }
+
+    descargarPlantillaAfF02Pdf(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/af-f-02/descargar-plantilla-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarSgcF23Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-23`);
     }
@@ -3773,6 +3929,13 @@ export class BackendServices {
             pdf_base64: pdfBase64,
             nombre_archivo: nombreArchivo,
             reporteId
+        });
+    }
+
+    descargarPdfSgcF04(reporteId?: string | null): Observable<Blob> {
+        const qs = reporteId ? `?reporteId=${encodeURIComponent(reporteId)}` : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-04/descargar-pdf${qs}`, {
+            responseType: 'blob'
         });
     }
 

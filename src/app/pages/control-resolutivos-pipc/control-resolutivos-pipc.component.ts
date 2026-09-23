@@ -22,6 +22,8 @@ export interface RegistroControlResolutivo {
   fecha_contacto_empresa: string;
   municipio: string;
   estado: string;
+  /** Despliegue: sistema (centro ops) o excel (referencia histórica) */
+  origen?: 'sistema' | 'excel' | string;
   estatus: string;
   fecha_ingreso_tramite_iso?: string | null;
   fecha_oficio_observaciones_iso?: string | null;
@@ -72,11 +74,13 @@ export class ControlResolutivosPipcComponent implements OnInit, OnDestroy {
 
   descargandoControl = false;
   descargandoControlExcel = false;
+  importandoExcel = false;
   controlGenerado = false;
   controlUltimaActualizacion: string | null = null;
   controlFileId: string | null = null;
   mostrarControlEditor = false;
   controlVisorCargando = false;
+  vistaCompacta = false;
 
   loadingRegistros = true;
   registrosBD: RegistroControlResolutivo[] = [];
@@ -87,6 +91,7 @@ export class ControlResolutivosPipcComponent implements OnInit, OnDestroy {
   filtroTipoTramite = '';
   filtroFechaIngreso = '';
   filtroEstatus = '';
+  filtroOrigen = '';
   filtroFechaAprobacion = '';
 
   /** Campo de fecha activo para ordenar; vacío = sin orden por fecha */
@@ -100,6 +105,12 @@ export class ControlResolutivosPipcComponent implements OnInit, OnDestroy {
     { value: 'Vigentes', label: 'Vigentes' },
     { value: 'Próximo a vencer', label: 'Próximo a vencer' },
     { value: 'Vencido', label: 'Vencido' }
+  ];
+
+  readonly opcionesOrigen = [
+    { value: '', label: 'Todo despliegue' },
+    { value: 'sistema', label: 'Sistema' },
+    { value: 'excel', label: 'Excel' }
   ];
 
   readonly opcionesTipoTramite = [
@@ -135,6 +146,26 @@ export class ControlResolutivosPipcComponent implements OnInit, OnDestroy {
     private router: Router
   ) {}
 
+  get etiquetaActualizarControl(): string {
+    if (this.descargandoControlExcel) {
+      return this.controlGenerado ? 'Actualizando control de Resolutivos PIPC...' : 'Generando control de Resolutivos PIPC...';
+    }
+    return this.controlGenerado
+      ? 'Actualizar control de Resolutivos PIPC'
+      : 'Generar control de Resolutivos PIPC';
+  }
+
+  get etiquetaActualizarControlCorta(): string {
+    if (this.descargandoControlExcel) {
+      return this.controlGenerado ? 'Actualizando...' : 'Generando...';
+    }
+    return this.controlGenerado ? 'Actualizar control' : 'Generar control';
+  }
+
+  toggleVistaCompacta(): void {
+    this.vistaCompacta = !this.vistaCompacta;
+  }
+
   ngOnInit(): void {
     this.puedeVerControl = this.authService.esAdministradorOSuperior();
     if (!this.puedeVerControl) {
@@ -167,6 +198,7 @@ export class ControlResolutivosPipcComponent implements OnInit, OnDestroy {
         filtroTipoTramite: this.filtroTipoTramite,
         filtroFechaIngreso: this.filtroFechaIngreso,
         filtroEstatus: this.filtroEstatus,
+        filtroOrigen: this.filtroOrigen,
         filtroFechaAprobacion: this.filtroFechaAprobacion,
         ordenCampoFecha: this.ordenCampoFecha,
         ordenFechaAsc: this.ordenFechaAsc
@@ -183,6 +215,7 @@ export class ControlResolutivosPipcComponent implements OnInit, OnDestroy {
       this.filtroTipoTramite = typeof estado.filtroTipoTramite === 'string' ? estado.filtroTipoTramite : '';
       this.filtroFechaIngreso = typeof estado.filtroFechaIngreso === 'string' ? estado.filtroFechaIngreso : '';
       this.filtroEstatus = typeof estado.filtroEstatus === 'string' ? estado.filtroEstatus : '';
+      this.filtroOrigen = typeof estado.filtroOrigen === 'string' ? estado.filtroOrigen : '';
       this.filtroFechaAprobacion = typeof estado.filtroFechaAprobacion === 'string' ? estado.filtroFechaAprobacion : '';
       const camposFechaValidos = [
         'fecha_ingreso_tramite',
@@ -242,6 +275,10 @@ export class ControlResolutivosPipcComponent implements OnInit, OnDestroy {
 
     if (this.filtroEstatus) {
       resultado = resultado.filter((r) => r.estatus === this.filtroEstatus);
+    }
+
+    if (this.filtroOrigen) {
+      resultado = resultado.filter((r) => (r.origen || 'excel') === this.filtroOrigen);
     }
 
     if (this.textoBusqueda && this.textoBusqueda.trim()) {
@@ -333,6 +370,7 @@ export class ControlResolutivosPipcComponent implements OnInit, OnDestroy {
     this.filtroTipoTramite = '';
     this.filtroFechaIngreso = '';
     this.filtroEstatus = '';
+    this.filtroOrigen = '';
     this.filtroFechaAprobacion = '';
     this.ordenCampoFecha = '';
     this.ordenFechaAsc = true;
@@ -341,7 +379,7 @@ export class ControlResolutivosPipcComponent implements OnInit, OnDestroy {
 
   get hayFiltrosActivos(): boolean {
     return !!(this.textoBusqueda || this.filtroTipoTramite || this.filtroFechaIngreso ||
-      this.filtroEstatus || this.filtroFechaAprobacion || this.ordenCampoFecha);
+      this.filtroEstatus || this.filtroOrigen || this.filtroFechaAprobacion || this.ordenCampoFecha);
   }
 
   get hayRegistrosBase(): boolean {
@@ -358,6 +396,14 @@ export class ControlResolutivosPipcComponent implements OnInit, OnDestroy {
     if (val.includes('próximo') || val.includes('proximo')) return 'estatus--proximo';
     if (val === 'vencido') return 'estatus--vencido';
     return 'estatus--tramite';
+  }
+
+  claseOrigen(origen: string | undefined): string {
+    return (origen || 'excel') === 'sistema' ? 'origen--sistema' : 'origen--excel';
+  }
+
+  etiquetaOrigen(origen: string | undefined): string {
+    return (origen || 'excel') === 'sistema' ? 'Sistema' : 'Excel';
   }
 
   abrirEditarRegistro(row: RegistroControlResolutivo): void {
@@ -795,6 +841,83 @@ export class ControlResolutivosPipcComponent implements OnInit, OnDestroy {
           Swal.fire({
             title: 'Error',
             text: err?.error?.message || 'No se pudo guardar el Control de Resolutivos PIPC en Drive',
+            icon: 'error',
+            confirmButtonColor: '#d97248'
+          });
+        }
+      );
+  }
+
+  abrirSelectorImportarExcel(): void {
+    if (this.importandoExcel) return;
+    const input = document.getElementById('pc-resolutivos-excel-import') as HTMLInputElement | null;
+    if (input) {
+      input.value = '';
+      input.click();
+    }
+  }
+
+  onArchivoExcelImportSeleccionado(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const archivo = input?.files?.[0];
+    if (!archivo) return;
+
+    Swal.fire({
+      title: '¿Importar Excel SP-F-29?',
+      html: `
+        <p style="text-align:left;font-size:0.9rem;margin:0 0 0.5rem;">
+          Se desactivarán los registros con origen <b>Excel</b> y se conservarán los de origen <b>Sistema</b>.
+        </p>
+        <p style="text-align:left;font-size:0.9rem;margin:0;">
+          Filas del Excel con similitud ≥ 90% a un registro de sistema <b>no se insertarán</b>.
+        </p>
+      `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Importar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#d97248',
+      cancelButtonColor: '#8898aa'
+    }).then((result) => {
+      if (!result.isConfirmed) {
+        input.value = '';
+        return;
+      }
+      this.ejecutarImportacionExcel(archivo, input);
+    });
+  }
+
+  private ejecutarImportacionExcel(archivo: File, input: HTMLInputElement): void {
+    this.importandoExcel = true;
+    this.backendService.importarControlResolutivosExcel(archivo)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(
+        (res: any) => {
+          this.importandoExcel = false;
+          input.value = '';
+          Swal.fire({
+            title: 'Importación completada',
+            html: `
+              <p style="text-align:left;font-size:0.88rem;margin:0;">
+                ${res?.message || 'Listo'}<br><br>
+                Filas leídas: <b>${res?.filas_excel ?? 0}</b><br>
+                Insertados (excel): <b>${res?.insertados ?? 0}</b><br>
+                Omitidos (≥90% sistema): <b>${res?.omitidos_por_similitud ?? 0}</b><br>
+                Excel desactivados: <b>${res?.excel_desactivados ?? 0}</b><br>
+                Sistema conservados: <b>${res?.sistema_conservados ?? 0}</b>
+              </p>
+            `,
+            icon: 'success',
+            confirmButtonColor: '#d97248'
+          });
+          this.cargarRegistros();
+        },
+        (err) => {
+          this.importandoExcel = false;
+          input.value = '';
+          Swal.fire({
+            title: 'Error al importar',
+            text: err?.error?.message || 'No se pudo importar el Excel SP-F-29',
             icon: 'error',
             confirmButtonColor: '#d97248'
           });

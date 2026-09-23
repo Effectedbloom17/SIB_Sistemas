@@ -130,13 +130,16 @@ function esLimiteConexionesSmtp(error) {
 function esErrorTransitorioEmail(error) {
     const code = String(error?.code || '').toUpperCase();
     const msg = String(error?.message || '').toLowerCase();
+    // ENOTFOUND casi nunca se recupera en reintentos cortos (host mal configurado).
+    if (code === 'ENOTFOUND') {
+        return false;
+    }
     return esLimiteConexionesSmtp(error) ||
         [
             'ECONNRESET',
             'ETIMEDOUT',
             'ECONNREFUSED',
             'EAI_AGAIN',
-            'ENOTFOUND',
             'EPIPE',
             'EHOSTUNREACH',
             'ECONNABORTED'
@@ -240,6 +243,26 @@ function describirTransportMeta(meta = activeTransportMeta) {
     return `${SMTP_HOST}:${meta.port || SMTP_PORT} (${modo}${pool})`;
 }
 
+function esSmtpHostPlaceholder(host = SMTP_HOST) {
+    const h = String(host || '').trim().toLowerCase();
+    if (!h) return true;
+    return h.includes('tu-dominio')
+        || h.includes('example.com')
+        || h.includes('example.org')
+        || h === 'localhost'
+        || h === '127.0.0.1';
+}
+
+function esCredencialSmtpPlaceholder() {
+    const user = String(SMTP_USER || '').trim().toLowerCase();
+    const pass = String(SMTP_PASS || '').trim().toLowerCase();
+    return user.includes('tu-dominio')
+        || user.includes('example.com')
+        || pass === 'tu_password_smtp'
+        || pass === 'changeme'
+        || pass === 'password';
+}
+
 function verificarTransporter() {
     return Promise.race([
         transporter.verify(),
@@ -248,6 +271,18 @@ function verificarTransporter() {
 }
 
 if (SMTP_USER && SMTP_PASS) {
+    if (esSmtpHostPlaceholder(SMTP_HOST) || esCredencialSmtpPlaceholder()) {
+        emailEnabled = false;
+        transporter = null;
+        const motivo = esSmtpHostPlaceholder(SMTP_HOST)
+            ? `SMTP_HOST placeholder (${SMTP_HOST || 'vacío'})`
+            : 'credenciales SMTP de ejemplo';
+        startupLog.serviceFail(
+            'Correo',
+            `${motivo}. Configure smtp-relay.brevo.com. El módulo Correo usará SMTP del buzón (perfil).`
+        );
+        emailReadyPromise = Promise.resolve(false);
+    } else {
     const transportConfig = construirTransportConfig();
 
     if (SMTP_DEBUG) {
@@ -284,6 +319,7 @@ if (SMTP_USER && SMTP_PASS) {
     } else {
         emailReadyPromise = Promise.resolve(true);
     }
+    } // fin else host/credenciales válidos
 } else {
     startupLog.serviceFail('Correo', 'faltan SMTP_USER y/o SMTP_PASS');
     emailReadyPromise = Promise.resolve(false);
@@ -1403,15 +1439,18 @@ async function enviarCorreoPerfil({
             references: references || undefined
         });
 
+        console.log(`[EMAIL] Correo perfil OK (${correoRemitente} via ${smtpHost}) → ${to} | ID: ${info.messageId}`);
         return {
             success: true,
             messageId: info.messageId,
             origen: 'perfil'
         };
     } catch (error) {
+        const msg = error?.message || 'No se pudo enviar el correo desde el buzon del perfil';
+        console.error(`[EMAIL] Error enviando correo perfil a ${to} via ${smtpHost}: ${msg}`);
         return {
             success: false,
-            error: error?.message || 'No se pudo enviar el correo desde el buzon del perfil'
+            error: msg
         };
     } finally {
         try {

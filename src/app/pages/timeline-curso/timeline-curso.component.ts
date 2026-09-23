@@ -2502,9 +2502,9 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
 
   private obtenerFechaHoraInicioCurso(): Date | null {
     const fechaRaw = this.curso?.fecha_inicio;
-    const horaRaw = this.curso?.hora_inicio;
+    const horaRaw = this.curso?.hora_inicio || '00:00:00';
 
-    if (!fechaRaw || !horaRaw) return null;
+    if (!fechaRaw) return null;
 
     let year: number | null = null;
     let month: number | null = null;
@@ -2596,19 +2596,54 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
     return new Date(inicio.getTime() + (24 * 60 * 60 * 1000));
   }
 
+  private async asegurarEncuestaActivaParaAutoCierre(): Promise<boolean> {
+    if (!this.cursoId) return false;
+
+    const encuestaLocalActiva = !!this.encuestaCursoUrl || !!this.encuestaEditUrl || (this.encuestaStats?.cerrada === false);
+    if (encuestaLocalActiva) return true;
+
+    try {
+      const config: any = await firstValueFrom(this.backendServices.obtenerEncuestaConfigProgramado(this.cursoId));
+      if (config?.success) {
+        this.encuestaCursoUrl = config.encuesta_url || '';
+        this.encuestaEditUrl = config.encuesta_edit_url || '';
+        const encuestaBackendActiva = !!config.google_form_id || !!this.encuestaCursoUrl || !!this.encuestaEditUrl;
+        if (encuestaBackendActiva) return true;
+      }
+    } catch (err: any) {
+      this.registrarTimelineLog('autoCierreEncuesta.configError', { error: err?.message || 'error' });
+    }
+
+    try {
+      const stats: any = await firstValueFrom(this.backendServices.obtenerEncuestaStatsProgramado(this.cursoId, Date.now()));
+      if (stats?.success) {
+        this.encuestaStats = stats;
+        this.encuestaStatsUltimaActualizacion = new Date();
+        if (stats.encuesta_url) {
+          this.encuestaCursoUrl = stats.encuesta_url;
+        }
+        return stats.cerrada === false && (!!stats.google_form_id || !!stats.encuesta_url);
+      }
+    } catch (err: any) {
+      this.registrarTimelineLog('autoCierreEncuesta.statsError', { error: err?.message || 'error' });
+    }
+
+    return false;
+  }
+
   private async ejecutarAutoCierreEncuesta(cierre: Date): Promise<void> {
     if (this.cerrandoEncuesta) {
       this.registrarTimelineLog('autoCierreEncuesta.skip', { motivo: 'cerrando', cierre: cierre.toISOString() });
       return;
     }
 
-    const encuestaActiva = !!this.encuestaCursoUrl || !!this.encuestaEditUrl || (this.encuestaStats?.cerrada === false);
+    const encuestaActiva = await this.asegurarEncuestaActivaParaAutoCierre();
     if (!encuestaActiva) {
       this.registrarTimelineLog('autoCierreEncuesta.skip', { motivo: 'sin_encuesta', cierre: cierre.toISOString() });
       return;
     }
 
-    const ok = await this.cerrarEncuestaYGuardarResultados();
+    const ok = await this.cerrarEncuestaYGuardarResultados(true);
     if (!ok) {
       this.registrarTimelineLog('autoCierreEncuesta.error', { cierre: cierre.toISOString() });
       return;
@@ -3431,30 +3466,36 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
     return Math.round(promedio * 100) / 100;
   }
 
-  private async cerrarEncuestaYGuardarResultados(): Promise<boolean> {
+  private async cerrarEncuestaYGuardarResultados(silencioso: boolean = false): Promise<boolean> {
     if (!this.cursoId || this.cerrandoEncuesta) return false;
 
     this.cerrandoEncuesta = true;
     this.detenerAutoRefreshEncuestaStats();
 
     try {
-      Swal.fire({
-        title: 'Cerrando encuesta...',
-        text: 'Guardando métricas en Drive',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-      });
+      if (!silencioso) {
+        Swal.fire({
+          title: 'Cerrando encuesta...',
+          text: 'Guardando métricas en Drive',
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading()
+        });
+      }
 
       const response: any = await firstValueFrom(this.backendServices.cerrarEncuestaProgramado(this.cursoId));
-      Swal.close();
+      if (!silencioso) {
+        Swal.close();
+      }
 
       if (!response?.success) {
-        Swal.fire({
-          title: 'No se pudo cerrar',
-          text: response?.message || 'No fue posible cerrar la encuesta.',
-          icon: 'error',
-          confirmButtonColor: '#38512F'
-        });
+        if (!silencioso) {
+          Swal.fire({
+            title: 'No se pudo cerrar',
+            text: response?.message || 'No fue posible cerrar la encuesta.',
+            icon: 'error',
+            confirmButtonColor: '#38512F'
+          });
+        }
         return false;
       }
 
@@ -3469,23 +3510,31 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
       this.encuestaStatsUltimaActualizacion = new Date();
       this.destruirEncuestaPieCharts();
 
-      Swal.fire({
-        title: 'Encuesta cerrada',
-        text: `Resultados guardados en Drive (${response.total_respuestas || 0} respuestas).`,
-        icon: 'success',
-        timer: 1800,
-        showConfirmButton: false
-      });
+      if (!silencioso) {
+        Swal.fire({
+          title: 'Encuesta cerrada',
+          text: `Resultados guardados en Drive (${response.total_respuestas || 0} respuestas).`,
+          icon: 'success',
+          timer: 1800,
+          showConfirmButton: false
+        });
+      }
 
       return true;
     } catch (err: any) {
-      Swal.close();
-      Swal.fire({
-        title: 'Error',
-        text: err?.error?.message || 'Ocurrió un error al cerrar la encuesta.',
-        icon: 'error',
-        confirmButtonColor: '#38512F'
-      });
+      if (!silencioso) {
+        Swal.close();
+        Swal.fire({
+          title: 'Error',
+          text: err?.error?.message || 'Ocurrió un error al cerrar la encuesta.',
+          icon: 'error',
+          confirmButtonColor: '#38512F'
+        });
+      } else {
+        this.registrarTimelineLog('cerrarEncuesta.silenciosoError', {
+          error: err?.error?.message || err?.message || 'error'
+        });
+      }
       return false;
     } finally {
       this.cerrandoEncuesta = false;

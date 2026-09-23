@@ -70,9 +70,18 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
   @Input() empresaIdEmbebida: number | null = null;
   @Input() nodoBloqueado = false;
   @Input() refreshToken = 0;
+  /** En Asignación de PIPC: el responsable vive en el formulario padre. */
+  @Input() ocultarToolbarResponsable = false;
+  /**
+   * Modo despliegue nuevo: selección en blanco; plantillas ya asignadas siguen visibles pero bloqueadas.
+   */
+  @Input() modoNuevaAsignacion = false;
+  /** Oculta el botón grande de guardar (se usa el icono externo en Asignación de PIPC). */
+  @Input() ocultarBotonGuardar = false;
   @Output() asignacionGuardada = new EventEmitter<void>();
   @Output() solicitarDesbloqueo = new EventEmitter<void>();
   @Output() responsableActualizado = new EventEmitter<{ usuario_id: number | null; nombre: string | null }>();
+  @Output() estadoAsignacionCambiado = new EventEmitter<{ totalSeleccionados: number; guardando: boolean }>();
 
   empresaId: number | null = null;
   grupoAbiertoId: string | null = null;
@@ -204,11 +213,11 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
   }
 
   get hayDocumentosPipc(): boolean {
-    const categoria = this.categoriaPipc;
-    if (!categoria) {
-      return false;
-    }
-    return this.obtenerHojasCategoria(categoria).length > 0;
+    return this.documentosPipcVisibles.length > 0;
+  }
+
+  get hayPlantillasCatalogoPeroTodasAsignadas(): boolean {
+    return this.totalPlantillasCatalogo > 0 && this.totalPlantillasDisponibles === 0;
   }
 
   get documentosPipcVisibles(): DocumentoNode[] {
@@ -219,7 +228,9 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
 
     const visibles = categoria.documentos.filter((doc) => this.esDocumentoVisible(doc));
     const hojas = visibles.filter((doc) => doc.es_hoja_workbook || doc.hoja_nombre);
-    return hojas.length ? hojas : visibles;
+    const base = hojas.length ? hojas : visibles;
+    // Catálogo completo: las ya desplegadas se muestran bloqueadas como «Ya asignada».
+    return base;
   }
 
   get totalPlantillasCatalogo(): number {
@@ -228,6 +239,10 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
 
   get totalPlantillasAsignadas(): number {
     return this.documentosPipcVisibles.filter((doc) => this.esRamaYaAsignada(doc)).length;
+  }
+
+  get totalPlantillasDisponibles(): number {
+    return Math.max(0, this.totalPlantillasCatalogo - this.totalPlantillasAsignadas);
   }
 
   get todasPlantillasAsignadas(): boolean {
@@ -488,6 +503,7 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
       return;
     }
     item.necesario = !item.necesario;
+    this.emitirEstadoAsignacion();
   }
 
   esItemYaAsignado(item: ChecklistItemPipc): boolean {
@@ -566,6 +582,7 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
           };
           this.aplicarEstadoAsignadosChecklist(documento);
           this.segmentosAbiertos = { datos: true, documentos: true, todos: true };
+          this.emitirEstadoAsignacion();
         } else {
           this.checklistsPorPlantilla[documento.id] = {
             nombre: this.nombrePlantilla(documento),
@@ -573,6 +590,7 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
             error: response?.message || 'No se pudieron cargar los documentos de la plantilla',
             items: []
           };
+          this.emitirEstadoAsignacion();
         }
       },
       error: () => {
@@ -582,6 +600,7 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
           error: 'Error al leer la plantilla desde el servidor',
           items: []
         };
+        this.emitirEstadoAsignacion();
       }
     });
   }
@@ -598,6 +617,14 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
     }
 
     this.sincronizarPadres(documento.parent);
+    this.emitirEstadoAsignacion();
+  }
+
+  emitirEstadoAsignacion(): void {
+    this.estadoAsignacionCambiado.emit({
+      totalSeleccionados: this.totalSeleccionados,
+      guardando: this.guardando
+    });
   }
 
   isCategoriaCompleta(categoria: CategoriaDocumentos): boolean {
@@ -786,6 +813,7 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
     }).then((result) => {
       if (result.isConfirmed) {
         this.guardando = true;
+        this.emitirEstadoAsignacion();
 
         Swal.fire({
           title: 'Asignando documentos...',
@@ -803,6 +831,7 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
         }).subscribe({
           next: (response: any) => {
             this.guardando = false;
+            this.emitirEstadoAsignacion();
             Swal.close(); // Cerrar el loading
             
             if (response.success) {
@@ -831,6 +860,7 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
           },
           error: (err) => {
             this.guardando = false;
+            this.emitirEstadoAsignacion();
             console.error('Error al asignar documentos:', err);
             Swal.fire('Error', 'Ocurrió un error al asignar los documentos', 'error');
           }
@@ -957,6 +987,7 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
     }
     this.comboResponsableTimer = setTimeout(() => {
       this.comboResponsableAbierto = false;
+      this.restaurarEtiquetaResponsableSeleccionado();
     }, 220);
   }
 
@@ -1000,6 +1031,26 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
     this.guardarResponsablePipc(null);
   }
 
+  private restaurarEtiquetaResponsableSeleccionado(): void {
+    if (!this.responsablePipcUsuarioId) {
+      return;
+    }
+    const op = this.responsablesOpciones.find((o) => o.id === this.responsablePipcUsuarioId);
+    if (op?.nombre) {
+      this.filtroResponsable = op.nombre;
+    }
+  }
+
+  private aplicarNombreResponsableDesdeOpciones(): void {
+    if (!this.responsablePipcUsuarioId || this.filtroResponsable.trim()) {
+      return;
+    }
+    const op = this.responsablesOpciones.find((o) => o.id === this.responsablePipcUsuarioId);
+    if (op?.nombre) {
+      this.filtroResponsable = op.nombre;
+    }
+  }
+
   private cargarUsuariosResponsables(): void {
     this.backendService.obtenerUsuarios().subscribe({
       next: (response: any) => {
@@ -1015,6 +1066,7 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
           }))
           .filter((usuario: OpcionResponsablePipc) => usuario.id > 0 && !!usuario.nombre)
           .sort((a: OpcionResponsablePipc, b: OpcionResponsablePipc) => a.nombre.localeCompare(b.nombre, 'es'));
+        this.aplicarNombreResponsableDesdeOpciones();
       },
       error: () => {
         this.responsablesOpciones = [];
@@ -1046,9 +1098,12 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
         }
         const ciclo = response?.ciclo || {};
         const usuarioId = Number(ciclo.responsable_pipc_usuario_id || 0) || null;
-        const nombre = String(ciclo.responsable_pipc_nombre || '').trim();
+        const nombreApi = String(ciclo.responsable_pipc_nombre || '').trim();
+        const nombreOpcion = usuarioId
+          ? (this.responsablesOpciones.find((op) => op.id === usuarioId)?.nombre || '')
+          : '';
         this.responsablePipcUsuarioId = usuarioId;
-        this.filtroResponsable = nombre;
+        this.filtroResponsable = nombreApi || nombreOpcion || '';
       },
       error: () => {
         if (seq !== this.responsableCargaSeq) {
@@ -1058,8 +1113,10 @@ export class ProteccionCivilAsignarDocumentosComponent implements OnInit, OnChan
         if (this.guardandoResponsable) {
           return;
         }
-        this.responsablePipcUsuarioId = null;
-        this.filtroResponsable = '';
+        // No borrar un responsable ya mostrado si la recarga falla
+        if (!this.responsablePipcUsuarioId) {
+          this.filtroResponsable = '';
+        }
       }
     });
   }

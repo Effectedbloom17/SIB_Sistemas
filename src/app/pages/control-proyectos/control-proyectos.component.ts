@@ -340,8 +340,17 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   /** Catálogo de proyectos → detalle de actividades (drill-down). */
   gestionNivelVista: 'proyectos' | 'actividades' = 'proyectos';
   gestionActividadExpandidaIndice: number | null = null;
-  /** Si true, la fila expandida no se cierra al salir el mouse. */
+  /** Vista previa compacta al pasar el mouse (badges), sin abrir el formulario. */
+  gestionActividadHoverIndice: number | null = null;
+  /** Si true, la fila está abierta en modo edición completa. */
   gestionActividadFijada = false;
+  /** Fila en animación de cierre del detalle. */
+  gestionActividadCerrandoIndice: number | null = null;
+  private detalleCerrarAnimTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Menú compacto de acciones (hover) por fila. */
+  menuAccionesFilaIndice: number | null = null;
+  menuAccionesFilaStyle: { top: string; right: string } | null = null;
+  private menuAccionesFilaCloseTimer: ReturnType<typeof setTimeout> | null = null;
   gestionActPagina = 1;
   readonly gestionActTamanoPagina = 25;
   guardandoActividadGestion = false;
@@ -559,6 +568,14 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     if (this.detalleHoverOpenTimer) {
       clearTimeout(this.detalleHoverOpenTimer);
       this.detalleHoverOpenTimer = null;
+    }
+    if (this.detalleCerrarAnimTimer) {
+      clearTimeout(this.detalleCerrarAnimTimer);
+      this.detalleCerrarAnimTimer = null;
+    }
+    if (this.menuAccionesFilaCloseTimer) {
+      clearTimeout(this.menuAccionesFilaCloseTimer);
+      this.menuAccionesFilaCloseTimer = null;
     }
     if (this.exitoAdjuntosTimer) {
       clearTimeout(this.exitoAdjuntosTimer);
@@ -808,7 +825,10 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.gestionProyectoSeleccionadoClave = clave;
     this.gestionNivelVista = 'actividades';
     this.gestionActividadExpandidaIndice = null;
+    this.gestionActividadHoverIndice = null;
+    this.gestionActividadCerrandoIndice = null;
     this.gestionActividadFijada = false;
+    this.menuAccionesFilaIndice = null;
     this.gestionActPagina = 1;
     this.menuAgregarActividadAbierto = false;
     this.cerrarMenuPrioridadGestion();
@@ -828,7 +848,10 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.gestionNivelVista = 'proyectos';
     this.gestionProyectoSeleccionadoClave = null;
     this.gestionActividadExpandidaIndice = null;
+    this.gestionActividadHoverIndice = null;
+    this.gestionActividadCerrandoIndice = null;
     this.gestionActividadFijada = false;
+    this.menuAccionesFilaIndice = null;
     this.gestionActPagina = 1;
     this.menuAgregarActividadAbierto = false;
     this.cerrarMenuPrioridadGestion();
@@ -921,10 +944,17 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       clearTimeout(this.detalleHoverOpenTimer);
       this.detalleHoverOpenTimer = null;
     }
+    this.gestionActividadHoverIndice = null;
+    this.menuAccionesFilaIndice = null;
+
     if (this.gestionActividadExpandidaIndice === indice && this.gestionActividadFijada) {
-      this.gestionActividadExpandidaIndice = null;
-      this.gestionActividadFijada = false;
+      this.iniciarCierreDetalleGestion(indice);
     } else {
+      if (this.detalleCerrarAnimTimer) {
+        clearTimeout(this.detalleCerrarAnimTimer);
+        this.detalleCerrarAnimTimer = null;
+      }
+      this.gestionActividadCerrandoIndice = null;
       this.gestionActividadExpandidaIndice = indice;
       this.gestionActividadFijada = true;
       if (proyecto) {
@@ -937,12 +967,107 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.cerrarMenuEstatusGestion();
   }
 
+  private iniciarCierreDetalleGestion(indice: number): void {
+    this.gestionActividadFijada = false;
+    this.gestionActividadCerrandoIndice = indice;
+    if (this.detalleCerrarAnimTimer) {
+      clearTimeout(this.detalleCerrarAnimTimer);
+    }
+    this.detalleCerrarAnimTimer = setTimeout(() => {
+      if (this.gestionActividadCerrandoIndice === indice) {
+        this.gestionActividadExpandidaIndice = null;
+        this.gestionActividadCerrandoIndice = null;
+      }
+      this.detalleCerrarAnimTimer = null;
+    }, 320);
+  }
+
+  /** Clic en la fila: abre/cierra el detalle (ignora controles internos). */
+  onClickFilaActividadGestion(
+    event: Event,
+    indice: number,
+    proyecto?: ProyectoTableroItem
+  ): void {
+    const target = event.target as HTMLElement | null;
+    // En consulta empresa: campos de solo lectura también abren el detalle.
+    if (this.esConsultaEmpresa) {
+      if (target?.closest('button, a, .cp-gestion-flyout, .cp-gestion-repo-mini')) {
+        return;
+      }
+      this.toggleExpandirActividadGestion(indice, proyecto);
+      return;
+    }
+    if (
+      target?.closest(
+        'button, a, input, textarea, select, label, .cp-assignee-stack, .cp-gestion-vence, .cp-gestion-act-status, .cp-gestion-act-tools, .cp-gestion-repo-icon, .cp-gestion-assignees__menu, .cp-gestion-flyout'
+      )
+    ) {
+      return;
+    }
+    this.toggleExpandirActividadGestion(indice, proyecto);
+  }
+
   actividadGestionExpandida(indice: number): boolean {
-    return this.gestionActividadExpandidaIndice === indice;
+    return (
+      (this.gestionActividadExpandidaIndice === indice && this.gestionActividadFijada)
+      || this.gestionActividadCerrandoIndice === indice
+    );
   }
 
   actividadGestionFijada(indice: number): boolean {
     return this.gestionActividadFijada && this.gestionActividadExpandidaIndice === indice;
+  }
+
+  actividadGestionCerrando(indice: number): boolean {
+    return this.gestionActividadCerrandoIndice === indice;
+  }
+
+  /** Vista previa compacta (badges) al hover, sin formulario editable. */
+  actividadGestionHoverPreview(indice: number): boolean {
+    return this.gestionActividadHoverIndice === indice
+      && !this.actividadGestionFijada(indice)
+      && !this.actividadGestionCerrando(indice);
+  }
+
+  /** Líneas/bloques de texto con contenido (para badges de referencia/entregables). */
+  conteoTextoDetalleGestion(valor: string | null | undefined): number {
+    const texto = String(valor || '').trim();
+    if (!texto) return 0;
+    const lineas = texto.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+    return Math.max(1, lineas.length);
+  }
+
+  abrirMenuAccionesFila(indice: number, event?: MouseEvent): void {
+    if (this.menuAccionesFilaCloseTimer) {
+      clearTimeout(this.menuAccionesFilaCloseTimer);
+      this.menuAccionesFilaCloseTimer = null;
+    }
+    const host = (event?.currentTarget as HTMLElement | null) || null;
+    if (host) {
+      const rect = host.getBoundingClientRect();
+      this.menuAccionesFilaStyle = {
+        top: `${Math.round(rect.top + rect.height / 2)}px`,
+        right: `${Math.max(12, Math.round(window.innerWidth - rect.left + 8))}px`
+      };
+    }
+    this.menuAccionesFilaIndice = indice;
+  }
+
+  cerrarMenuAccionesFila(indice?: number): void {
+    if (this.menuAccionesFilaCloseTimer) {
+      clearTimeout(this.menuAccionesFilaCloseTimer);
+    }
+    this.menuAccionesFilaCloseTimer = setTimeout(() => {
+      if (indice == null || this.menuAccionesFilaIndice === indice) {
+        this.menuAccionesFilaIndice = null;
+        this.menuAccionesFilaStyle = null;
+      }
+      this.menuAccionesFilaCloseTimer = null;
+    }, 140);
+  }
+
+  menuAccionesFilaAbierto(indice: number): boolean {
+    return this.menuAccionesFilaIndice === indice;
   }
 
   abrirDetalleGestionHover(indice: number, proyecto?: ProyectoTableroItem): void {
@@ -950,26 +1075,19 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       clearTimeout(this.detalleHoverTimer);
       this.detalleHoverTimer = null;
     }
-    if (this.gestionActividadExpandidaIndice === indice) {
-      return;
-    }
-    // Si hay otra fijada, no la reemplaza con hover
-    if (this.gestionActividadFijada && this.gestionActividadExpandidaIndice !== null) {
+    if (this.actividadGestionFijada(indice)) {
       return;
     }
     if (this.detalleHoverOpenTimer) {
       clearTimeout(this.detalleHoverOpenTimer);
     }
     this.detalleHoverOpenTimer = setTimeout(() => {
-      this.gestionActividadExpandidaIndice = indice;
-      this.gestionActividadFijada = false;
-      this.cerrarMenuPrioridadGestion();
-      this.cerrarMenuEstatusGestion();
+      this.gestionActividadHoverIndice = indice;
       if (proyecto) {
         this.cargarAdjuntosActividad(proyecto, false);
       }
       this.detalleHoverOpenTimer = null;
-    }, 120);
+    }, 100);
   }
 
   cerrarDetalleGestionHover(indice: number): void {
@@ -977,15 +1095,15 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       clearTimeout(this.detalleHoverOpenTimer);
       this.detalleHoverOpenTimer = null;
     }
-    if (this.gestionActividadFijada) {
+    if (this.actividadGestionFijada(indice)) {
       return;
     }
     if (this.detalleHoverTimer) {
       clearTimeout(this.detalleHoverTimer);
     }
     this.detalleHoverTimer = setTimeout(() => {
-      if (!this.gestionActividadFijada && this.gestionActividadExpandidaIndice === indice) {
-        this.gestionActividadExpandidaIndice = null;
+      if (!this.actividadGestionFijada(indice) && this.gestionActividadHoverIndice === indice) {
+        this.gestionActividadHoverIndice = null;
       }
       this.detalleHoverTimer = null;
     }, 160);
@@ -4275,7 +4393,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
     const actividad = this.proyectosGestion[indice];
     if (!this.puedeEliminarActividadGestion(actividad)) {
-      this.errorGestion = 'Solo el autor (responsable) de la actividad puede eliminarla.';
+      this.errorGestion = 'Solo el autor (responsable) de la actividad puede desactivarla.';
       return;
     }
 
@@ -4287,7 +4405,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       return;
     }
     if (this.gestionCambiosPendientes) {
-      this.errorGestion = 'Guarda los cambios pendientes antes de eliminar una actividad.';
+      this.errorGestion = 'Guarda los cambios pendientes antes de desactivar una actividad.';
       return;
     }
 
@@ -4299,7 +4417,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
         next: (res) => {
           this.guardandoGestion = false;
           if (!res?.success) {
-            this.errorGestion = res?.message || 'No se pudo eliminar la actividad.';
+            this.errorGestion = res?.message || 'No se pudo desactivar la actividad.';
             return;
           }
           this.aplicarDashboard(res);
@@ -4312,7 +4430,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           this.guardandoGestion = false;
-          this.errorGestion = err?.error?.message || 'No se pudo eliminar la actividad.';
+          this.errorGestion = err?.error?.message || 'No se pudo desactivar la actividad.';
         }
       });
   }

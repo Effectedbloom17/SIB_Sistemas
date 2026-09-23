@@ -1912,6 +1912,69 @@ async function recortarColumnasGoogleSheet(spreadsheetId, options = {}) {
 }
 
 /**
+ * Elimina filas vacías al final de la hoja (después de lastContentRow, 1-based inclusive).
+ * Evita que el PDF de Sheets genere páginas en blanco por rowCount excesivo.
+ */
+async function recortarFilasGoogleSheet(spreadsheetId, options = {}) {
+    if (!spreadsheetId) {
+        return null;
+    }
+
+    const lastContentRaw = Number(options.lastContentRow ?? options.maxRows);
+    const lastContentRow = Number.isFinite(lastContentRaw) && lastContentRaw > 0
+        ? Math.floor(lastContentRaw)
+        : null;
+    if (!lastContentRow) {
+        return null;
+    }
+
+    const bufferRows = Math.max(0, Math.floor(Number(options.bufferRows) || 0));
+    const keepThrough = lastContentRow + bufferRows;
+    const sheetTitle = typeof options.sheetTitle === 'string' && options.sheetTitle.trim()
+        ? options.sheetTitle.trim()
+        : null;
+
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const meta = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets(properties(sheetId,title,gridProperties(rowCount)))'
+    });
+
+    const sheets = Array.isArray(meta?.data?.sheets) ? meta.data.sheets : [];
+    const targets = sheetTitle
+        ? sheets.filter((s) => (s.properties?.title || '').trim() === sheetTitle)
+        : sheets.slice(0, 1);
+
+    const requests = [];
+    for (const sheet of targets) {
+        const sheetId = sheet?.properties?.sheetId;
+        const rowCount = Number(sheet?.properties?.gridProperties?.rowCount || 0);
+        if (sheetId === undefined || sheetId === null || rowCount <= keepThrough) {
+            continue;
+        }
+        requests.push({
+            deleteDimension: {
+                range: {
+                    sheetId,
+                    dimension: 'ROWS',
+                    startIndex: keepThrough,
+                    endIndex: rowCount
+                }
+            }
+        });
+    }
+
+    if (!requests.length) {
+        return null;
+    }
+
+    return sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests }
+    });
+}
+
+/**
  * Formato visual SGC-F-12: campos 1–5 alineados a la izquierda y columna L más ancha.
  * @param {string} spreadsheetId
  * @param {{ sheetTitle?: string, columnLPixelWidth?: number, textFields?: Array<{row:number,startCol:number,endCol:number}> }} options
@@ -2994,6 +3057,8 @@ async function aplicarFormatoFilasSgcF14(spreadsheetId, sheetTitle, filaInicio, 
 
     const filas = Math.max(0, Number(numFilas) || 0);
     const startRow = filaInicio - 1;
+    // Encabezado (fila anterior a los datos) para cerrar el borde superior de la tabla.
+    const headerRow = Math.max(0, startRow - 1);
     const dataEndRow = startRow + filas;
     const blockEndRow = Number.isFinite(filaMax) && filaMax >= filaInicio
         ? Number(filaMax)
@@ -3054,20 +3119,23 @@ async function aplicarFormatoFilasSgcF14(spreadsheetId, sheetTitle, filaInicio, 
         requests.push(formatoColumna(4, 5, 'CENTER')); // E prioridad
         requests.push(formatoColumna(5, 6, 'CENTER')); // F estatus
         requests.push(formatoColumna(6, 8, 'CENTER')); // G:H % avance
-        // Solo se agrega el borde inferior de cada fila (el resto del diseno de
-        // la tabla ya viene en la plantilla). innerHorizontal traza la linea
-        // entre filas y bottom la del ultimo renglon con datos.
+        // Cuadrícula completa (encabezado + datos): superior, inferior, izquierdo,
+        // derecho e interiores — cierra los 4 lados de la tabla y de cada celda.
         requests.push({
             updateBorders: {
                 range: {
                     sheetId,
-                    startRowIndex: startRow,
+                    startRowIndex: headerRow,
                     endRowIndex: dataEndRow,
                     startColumnIndex: TABLA_COL_INICIO,
                     endColumnIndex: TABLA_COL_FIN
                 },
+                top: bordeNegro,
                 bottom: bordeNegro,
-                innerHorizontal: bordeNegro
+                left: bordeNegro,
+                right: bordeNegro,
+                innerHorizontal: bordeNegro,
+                innerVertical: bordeNegro
             }
         });
 
@@ -3097,11 +3165,28 @@ async function aplicarFormatoFilasSgcF14(spreadsheetId, sheetTitle, filaInicio, 
                 }
             });
         }
+    } else {
+        // Sin datos: solo enmarcar el encabezado y limpiar filas de captura.
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: headerRow,
+                    endRowIndex: startRow,
+                    startColumnIndex: TABLA_COL_INICIO,
+                    endColumnIndex: TABLA_COL_FIN
+                },
+                top: bordeNegro,
+                bottom: bordeNegro,
+                left: bordeNegro,
+                right: bordeNegro,
+                innerVertical: bordeNegro
+            }
+        });
     }
 
-    // 2) Quitar SOLO el borde inferior de las filas vacías que quedaron debajo
-    // de los datos (sin tocar el resto del diseño de la plantilla). No se toca
-    // "top" para no borrar el borde inferior del último renglón con datos.
+    // 2) Quitar bordes de las filas vacías debajo de los datos (sin tocar "top"
+    // para no borrar el borde inferior del último renglón con datos).
     if (blockEndRow > dataEndRow) {
         requests.push({
             updateBorders: {
@@ -3113,7 +3198,10 @@ async function aplicarFormatoFilasSgcF14(spreadsheetId, sheetTitle, filaInicio, 
                     endColumnIndex: TABLA_COL_FIN
                 },
                 bottom: sinBorde,
-                innerHorizontal: sinBorde
+                left: sinBorde,
+                right: sinBorde,
+                innerHorizontal: sinBorde,
+                innerVertical: sinBorde
             }
         });
     }
@@ -5032,6 +5120,62 @@ async function solicitarExportSheetPdf(baseUrl, token, params) {
     }
 }
 
+/** Normaliza márgenes de export PDF a params de Sheets (pulgadas). */
+function normalizarMargenesExportPdf(raw) {
+    const src = raw && typeof raw === 'object' ? raw : {};
+    const pick = (...keys) => {
+        for (const k of keys) {
+            if (src[k] === undefined || src[k] === null || src[k] === '') continue;
+            const n = Number(src[k]);
+            if (Number.isFinite(n)) return String(n);
+            return String(src[k]).trim();
+        }
+        return '0';
+    };
+    return {
+        top_margin: pick('top_margin', 'top', 'superior'),
+        bottom_margin: pick('bottom_margin', 'bottom', 'inferior'),
+        left_margin: pick('left_margin', 'left', 'izquierda'),
+        right_margin: pick('right_margin', 'right', 'derecha')
+    };
+}
+
+/**
+ * Escala de export PDF:
+ * - scalePercent / spct → personalizada (70 o 0.7 → scale=5&spct=0.7)
+ * - fitToPage → ajustar a la página
+ * - fitToWidth → ajustar al ancho (scale 2)
+ * - default → ajustar al ancho
+ */
+function resolverEscalaExportPdf(options = {}, fitToPage = false) {
+    const rawPercent = options.scalePercent ?? options.scalePercentage ?? options.spct;
+    if (rawPercent !== undefined && rawPercent !== null && rawPercent !== '') {
+        let n = Number(rawPercent);
+        if (Number.isFinite(n) && n > 0) {
+            // 70 → 0.7; si ya viene como fracción (0.7) se respeta
+            if (n > 1) n = n / 100;
+            return {
+                scale: '5',
+                spct: String(n)
+            };
+        }
+    }
+    if (fitToPage) {
+        return {
+            scale: '4',
+            fitw: 'true',
+            fith: 'true'
+        };
+    }
+    if (options.fitToWidth) {
+        return {
+            scale: '2',
+            fitw: 'true'
+        };
+    }
+    return { fitw: 'true' };
+}
+
 async function exportarGoogleSheetComoPDF(fileId, options = {}) {
     const token = await obtenerAccessTokenDrive();
     const landscape = !!options.landscape;
@@ -5043,36 +5187,67 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
     const gidRaw = options.gid !== undefined && options.gid !== null ? String(options.gid) : '';
     const gidOpts = gidRaw ? { gid: gidRaw } : {};
 
-    // Márgenes: con ajuste de escala usar normales (~0.75"); si no, compactos.
-    const margins = (fitToPage || fitToWidth)
-        ? {
-            top_margin: '0.75',
-            bottom_margin: '0.75',
-            left_margin: '0.70',
-            right_margin: '0.70'
-        }
-        : {
-            top_margin: '0.30',
-            bottom_margin: '0.30',
-            left_margin: '0.30',
-            right_margin: '0.30'
-        };
-
-    // scale: 2 = Ajustar al ancho · 4 = Ajustar a la página (UI de Sheets).
-    const scaleOpts = fitToPage
-        ? {
-            scale: '4',
-            fitw: 'true',
-            fith: 'true'
-        }
-        : fitToWidth
+    // Márgenes: 'normal'/'normales' ≈ Sheets «Normales» (~0.75");
+    // 'wide'/'anchos' ≈ Sheets/Excel «Anchos» (1"); 'narrow'/'estrechos' ≈ compactos.
+    // Objeto: { top/bottom/left/right } o { top_margin/... } en pulgadas.
+    // Por defecto: normales si fitToPage o fitToWidth; si no, compactos.
+    const marginMode = String(
+        (typeof options.margins === 'string' ? options.margins : null)
+        || options.marginMode
+        || ''
+    ).trim().toLowerCase();
+    const useWideMargins = marginMode === 'wide' || marginMode === 'anchos' || marginMode === 'ancho';
+    const useNormalMargins = !useWideMargins && (
+        marginMode === 'normal' || marginMode === 'normales'
+        || ((!!fitToPage || !!fitToWidth) && marginMode !== 'narrow' && marginMode !== 'estrechos' && marginMode !== 'compact')
+    );
+    const margins = (options.margins && typeof options.margins === 'object')
+        ? normalizarMargenesExportPdf(options.margins)
+        : (useWideMargins
             ? {
-                scale: '2',
-                fitw: 'true'
+                top_margin: '1',
+                bottom_margin: '1',
+                left_margin: '1',
+                right_margin: '1'
             }
-            : { fitw: 'true' };
+            : (useNormalMargins
+                ? {
+                    top_margin: '0.75',
+                    bottom_margin: '0.75',
+                    left_margin: '0.70',
+                    right_margin: '0.70'
+                }
+                : {
+                    top_margin: '0.30',
+                    bottom_margin: '0.30',
+                    left_margin: '0.30',
+                    right_margin: '0.30'
+                }));
+
+    // Escala:
+    // - scalePercent / spct → personalizada (p.ej. 70 → scale=5&spct=0.7)
+    // - fitToPage → «Ajustar a la página»
+    // - fitToWidth → «Ajustar al ancho» (scale 2)
+    // - si no → «Ajustar al ancho» (fitw)
+    const scaleOpts = resolverEscalaExportPdf(options, fitToPage);
 
     const sizeOpts = size ? { size } : {};
+
+    // Alineación del contenido en la página (cuando no llena el ancho/alto).
+    const hAlignRaw = String(
+        options.horizontalAlignment || options.horizontal_alignment || options.hAlign || ''
+    ).trim().toUpperCase();
+    const vAlignRaw = String(
+        options.verticalAlignment || options.vertical_alignment || options.vAlign || ''
+    ).trim().toUpperCase();
+    const alignOpts = {
+        ...(hAlignRaw === 'LEFT' || hAlignRaw === 'CENTER' || hAlignRaw === 'RIGHT'
+            ? { horizontal_alignment: hAlignRaw }
+            : {}),
+        ...(vAlignRaw === 'TOP' || vAlignRaw === 'MIDDLE' || vAlignRaw === 'BOTTOM'
+            ? { vertical_alignment: vAlignRaw }
+            : {})
+    };
 
     // Rango opcional (0-based, r2/c2 exclusivos) para partir páginas del PDF.
     const rangeOpts = {};
@@ -5102,6 +5277,7 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
             fzr: 'false',
             ...scaleOpts,
             ...margins,
+            ...alignOpts,
             ...sizeOpts,
             ...gidOpts,
             ...rangeOpts
@@ -5111,6 +5287,7 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
             portrait: landscape ? 'false' : 'true',
             ...scaleOpts,
             ...margins,
+            ...alignOpts,
             ...sizeOpts,
             ...gidOpts,
             ...rangeOpts
@@ -9526,16 +9703,100 @@ async function generarReporteMantenimientoEinF04(params = {}) {
         }
     }
 
-    const evidenciasConUrl = evidencias.filter((e) => e?.url || e?.driveFileId || e?.webViewLink);
-    if (evidenciasConUrl.length) {
-        const doc3 = await docsApi.documents.get({ documentId });
-        const body3 = Array.isArray(doc3?.data?.body?.content) ? doc3.data.body.content : [];
-        const rangoEv = buscarCeldaSeccion(body3, [
+    /**
+     * Evidencia fotográfica:
+     * - La plantilla suele traer imágenes posicionadas con «Ajustar texto» (WRAP_TEXT).
+     *   deleteContentRange NO las elimina → si además insertamos inline, salen duplicadas.
+     * - Preferimos replaceImage sobre esos placeholders para conservar el ajuste de texto.
+     * - Solo insertamos inline si faltan placeholders.
+     */
+    const buscarCeldasEvidencia = (bodyContent) => {
+        const normalizedNeedles = [
             'evidencia fotografica',
             'evidencia fotográfica'
-        ], true);
-        let cursor = rangoEv?.startIndex || null;
-        const endEv = rangoEv?.endIndex || null;
+        ].map((n) => normalizarTexto(n)).filter(Boolean);
+        for (const element of bodyContent) {
+            if (!element?.table?.tableRows) continue;
+            const rows = element.table.tableRows;
+            for (let ri = 0; ri < rows.length; ri++) {
+                const cells = rows[ri]?.tableCells || [];
+                for (let ci = 0; ci < cells.length; ci++) {
+                    const cellText = normalizarTexto(extraerTextoCelda(cells[ci]));
+                    if (!normalizedNeedles.some((n) => cellText.includes(n))) continue;
+                    const headerCell = cells[ci];
+                    const contentCell = rows[ri + 1]?.tableCells?.[ci] || null;
+                    const rangoContent = obtenerRangoEditableCelda(contentCell);
+                    const rangoHeader = obtenerRangoEditableCelda(headerCell);
+                    return {
+                        headerCell,
+                        contentCell,
+                        rango: rangoContent || rangoHeader,
+                        insertIndex: rangoContent?.startIndex
+                            || (Number.isFinite(Number(element.endIndex)) ? Number(element.endIndex) : null)
+                    };
+                }
+            }
+        }
+        return null;
+    };
+
+    const recolectarImagenesDeCelda = (cell) => {
+        const positionedIds = [];
+        const inlineEntries = [];
+        if (!cell || !Array.isArray(cell.content)) {
+            return { positionedIds, inlineEntries };
+        }
+        for (const element of cell.content) {
+            const paragraph = element?.paragraph;
+            if (!paragraph) continue;
+            for (const objectId of paragraph.positionedObjectIds || []) {
+                if (objectId && !positionedIds.includes(objectId)) {
+                    positionedIds.push(objectId);
+                }
+            }
+            for (const pe of paragraph.elements || []) {
+                const inlineId = pe?.inlineObjectElement?.inlineObjectId;
+                if (!inlineId) continue;
+                inlineEntries.push({
+                    id: inlineId,
+                    startIndex: Number(pe.startIndex)
+                });
+            }
+        }
+        return { positionedIds, inlineEntries };
+    };
+
+    const urlPublicaEvidencia = async (ev) => {
+        const driveId = String(ev?.driveFileId || '').trim();
+        if (driveId) {
+            try {
+                await asignarPermisoLecturaPublica(driveId);
+            } catch (_) { /* ignore */ }
+            return `https://drive.google.com/uc?id=${driveId}&export=download`;
+        }
+        return String(ev?.url || '').trim();
+    };
+
+    // Deduplicar por driveFileId / url (evita 2 copias de la misma evidencia).
+    const evidenciasUnicas = [];
+    const keysEv = new Set();
+    for (const e of evidencias) {
+        if (!e?.url && !e?.driveFileId && !e?.webViewLink) continue;
+        const key = String(e.driveFileId || e.url || e.webViewLink || '').trim();
+        if (!key || keysEv.has(key)) continue;
+        keysEv.add(key);
+        evidenciasUnicas.push(e);
+    }
+    const fotos = evidenciasUnicas.slice(0, 2);
+
+    {
+        const doc3 = await docsApi.documents.get({ documentId });
+        const body3 = Array.isArray(doc3?.data?.body?.content) ? doc3.data.body.content : [];
+        const positionedObjects = doc3?.data?.positionedObjects || {};
+        const celdasEv = buscarCeldasEvidencia(body3);
+
+        let cursor = celdasEv?.insertIndex || null;
+        let endEv = celdasEv?.rango?.endIndex || null;
 
         if (!cursor) {
             cursor = buscarIndiceSeccion(body3, [
@@ -9544,95 +9805,166 @@ async function generarReporteMantenimientoEinF04(params = {}) {
             ]);
         }
 
-        if (!cursor) {
-            throw new Error('No se encontró la sección «Evidencia fotográfica» en la plantilla EIN-F-04.');
-        }
+        if (!cursor && !celdasEv) {
+            if (fotos.length) {
+                throw new Error('No se encontró la sección «Evidencia fotográfica» en la plantilla EIN-F-04.');
+            }
+        } else {
+        const imgsHeader = recolectarImagenesDeCelda(celdasEv?.headerCell);
+        const imgsContent = recolectarImagenesDeCelda(celdasEv?.contentCell);
 
-        // Limpiar celda (placeholders / imágenes previas) antes de insertar.
-        if (endEv != null && endEv > cursor) {
+        const layoutScore = (objectId) => {
+            const layout = String(
+                positionedObjects?.[objectId]?.positionedObjectProperties?.positioning?.layout || ''
+            ).toUpperCase();
+            // WRAP_TEXT = «Ajustar texto» en la UI de Docs.
+            if (layout.includes('WRAP')) return 0;
+            if (layout.includes('BREAK')) return 1;
+            return 2;
+        };
+
+        const positionedIds = [...imgsContent.positionedIds, ...imgsHeader.positionedIds]
+            .filter((id, idx, arr) => id && arr.indexOf(id) === idx)
+            .sort((a, b) => layoutScore(a) - layoutScore(b));
+
+        const inlineEntries = [...imgsContent.inlineEntries, ...imgsHeader.inlineEntries]
+            .filter((entry, idx, arr) => entry?.id && arr.findIndex((x) => x.id === entry.id) === idx);
+
+        // Placeholders: primero posicionadas (conservan Ajustar texto), luego inline.
+        const placeholders = [
+            ...positionedIds.map((id) => ({ id, tipo: 'positioned' })),
+            ...inlineEntries.map((entry) => ({
+                id: entry.id,
+                tipo: 'inline',
+                startIndex: entry.startIndex
+            }))
+        ];
+
+        const usados = new Set();
+        let fotosConReplace = 0;
+
+        for (let i = 0; i < fotos.length; i++) {
+            const imageUrl = await urlPublicaEvidencia(fotos[i]);
+            if (!imageUrl) continue;
+            const ph = placeholders[i];
+            if (!ph) break;
             try {
                 await docsApi.documents.batchUpdate({
                     documentId,
                     requestBody: {
                         requests: [
                             {
-                                deleteContentRange: {
-                                    range: { startIndex: cursor, endIndex: endEv }
+                                replaceImage: {
+                                    imageObjectId: ph.id,
+                                    uri: imageUrl,
+                                    imageReplaceMethod: 'CENTER_CROP'
                                 }
                             }
                         ]
                     }
                 });
-            } catch (clearErr) {
-                console.warn('[WARN] limpiar evidencias EIN-F-04:', clearErr?.message || clearErr);
+                usados.add(ph.id);
+                fotosConReplace += 1;
+            } catch (replaceErr) {
+                console.warn('[WARN] replaceImage EIN-F-04:', replaceErr?.message || replaceErr);
+                break;
             }
         }
 
-        const fotos = evidenciasConUrl.slice(0, 2);
-        const anchoImg = fotos.length === 1 ? 280 : EVIDENCIA_IMG_ANCHO_PT;
-        const altoImg = fotos.length === 1 ? 210 : EVIDENCIA_IMG_ALTO_PT;
-
-        for (let i = 0; i < fotos.length; i++) {
-            const ev = fotos[i];
-            const driveId = String(ev.driveFileId || '').trim();
-            if (driveId) {
-                try {
-                    await asignarPermisoLecturaPublica(driveId);
-                } catch (_) { /* ignore */ }
+        // Eliminar placeholders sobrantes (evita imágenes fantasma de la plantilla).
+        const deleteRequests = [];
+        for (const ph of placeholders) {
+            if (usados.has(ph.id)) continue;
+            if (ph.tipo === 'positioned') {
+                deleteRequests.push({ deletePositionedObject: { objectId: ph.id } });
             }
-            const imageUrl =
-                (driveId ? `https://drive.google.com/uc?id=${driveId}&export=download` : '') ||
-                String(ev.url || '').trim() ||
-                '';
-            const link = ev.webViewLink || imageUrl;
+        }
+        // Inline sobrantes: borrar de atrás hacia adelante.
+        const inlineSobrantes = placeholders
+            .filter((ph) => ph.tipo === 'inline' && !usados.has(ph.id) && Number.isFinite(ph.startIndex))
+            .sort((a, b) => b.startIndex - a.startIndex);
+        for (const ph of inlineSobrantes) {
+            deleteRequests.push({
+                deleteContentRange: {
+                    range: { startIndex: ph.startIndex, endIndex: ph.startIndex + 1 }
+                }
+            });
+        }
+        if (deleteRequests.length) {
             try {
-                if (imageUrl) {
-                    const requestsImg = [
-                        {
-                            insertInlineImage: {
-                                location: { index: cursor },
-                                uri: imageUrl,
-                                objectSize: {
-                                    height: { magnitude: altoImg, unit: 'PT' },
-                                    width: { magnitude: anchoImg, unit: 'PT' }
-                                }
-                            }
-                        }
-                    ];
-                    // Espacio entre imágenes (lado a lado); sin salto de línea.
-                    if (i < fotos.length - 1) {
-                        requestsImg.push({
-                            insertText: { location: { index: cursor + 1 }, text: '  ' }
-                        });
-                    }
-                    await docsApi.documents.batchUpdate({
-                        documentId,
-                        requestBody: { requests: requestsImg }
-                    });
-                    // Imagen = 1 índice; si hubo separador, +2 espacios.
-                    cursor += i < fotos.length - 1 ? 3 : 1;
-                } else if (link) {
-                    const textoLink = `[Evidencia] ${link}${i < fotos.length - 1 ? '  ' : ''}`;
+                await docsApi.documents.batchUpdate({
+                    documentId,
+                    requestBody: { requests: deleteRequests }
+                });
+            } catch (delErr) {
+                console.warn('[WARN] limpiar placeholders EIN-F-04:', delErr?.message || delErr);
+            }
+        }
+
+        const fotosRestantes = fotos.slice(fotosConReplace);
+        if (fotosRestantes.length) {
+            // Releer índices tras replace/delete.
+            const doc4 = await docsApi.documents.get({ documentId });
+            const body4 = Array.isArray(doc4?.data?.body?.content) ? doc4.data.body.content : [];
+            const celdas4 = buscarCeldasEvidencia(body4);
+            cursor = celdas4?.rango?.startIndex || celdas4?.insertIndex || cursor;
+            endEv = celdas4?.rango?.endIndex || endEv;
+
+            // Si no quedaron imágenes útiles, limpiar texto residual de la celda.
+            const imgsTras = recolectarImagenesDeCelda(celdas4?.contentCell);
+            const quedanImagenes = (imgsTras.positionedIds.length + imgsTras.inlineEntries.length) > 0;
+            if (!quedanImagenes && endEv != null && cursor != null && endEv > cursor) {
+                try {
                     await docsApi.documents.batchUpdate({
                         documentId,
                         requestBody: {
                             requests: [
                                 {
-                                    insertText: {
-                                        location: { index: cursor },
-                                        text: textoLink
+                                    deleteContentRange: {
+                                        range: { startIndex: cursor, endIndex: endEv }
                                     }
                                 }
                             ]
                         }
                     });
-                    cursor += textoLink.length;
+                } catch (clearErr) {
+                    console.warn('[WARN] limpiar celda evidencias EIN-F-04:', clearErr?.message || clearErr);
                 }
-            } catch (imgErr) {
-                console.warn('[WARN] imagen EIN-F-04:', imgErr?.message || imgErr);
-                if (link) {
-                    try {
-                        const textoLink = `[Evidencia] ${link}${i < fotos.length - 1 ? '  ' : ''}`;
+            }
+
+            const anchoImg = fotos.length === 1 ? 280 : EVIDENCIA_IMG_ANCHO_PT;
+            const altoImg = fotos.length === 1 ? 210 : EVIDENCIA_IMG_ALTO_PT;
+
+            for (let i = 0; i < fotosRestantes.length; i++) {
+                const ev = fotosRestantes[i];
+                const imageUrl = await urlPublicaEvidencia(ev);
+                const link = ev.webViewLink || imageUrl;
+                try {
+                    if (imageUrl && cursor != null) {
+                        const requestsImg = [
+                            {
+                                insertInlineImage: {
+                                    location: { index: cursor },
+                                    uri: imageUrl,
+                                    objectSize: {
+                                        height: { magnitude: altoImg, unit: 'PT' },
+                                        width: { magnitude: anchoImg, unit: 'PT' }
+                                    }
+                                }
+                            }
+                        ];
+                        if (i < fotosRestantes.length - 1) {
+                            requestsImg.push({
+                                insertText: { location: { index: cursor + 1 }, text: '  ' }
+                            });
+                        }
+                        await docsApi.documents.batchUpdate({
+                            documentId,
+                            requestBody: { requests: requestsImg }
+                        });
+                        cursor += i < fotosRestantes.length - 1 ? 3 : 1;
+                    } else if (link && cursor != null) {
+                        const textoLink = `[Evidencia] ${link}${i < fotosRestantes.length - 1 ? '  ' : ''}`;
                         await docsApi.documents.batchUpdate({
                             documentId,
                             requestBody: {
@@ -9647,10 +9979,13 @@ async function generarReporteMantenimientoEinF04(params = {}) {
                             }
                         });
                         cursor += textoLink.length;
-                    } catch (_) { /* ignore */ }
+                    }
+                } catch (imgErr) {
+                    console.warn('[WARN] imagen EIN-F-04:', imgErr?.message || imgErr);
                 }
             }
         }
+        } // fin else sección evidencia encontrada
     }
 
     return {
@@ -10751,6 +11086,7 @@ module.exports = {
     reemplazarTextoEnGoogleSheet,
 
     recortarColumnasGoogleSheet,
+    recortarFilasGoogleSheet,
     aplicarFormatoVisualSgcF12,
     aplicarFormatoVisualSgcF11,
     aplicarFormatoVisualSgcF06,

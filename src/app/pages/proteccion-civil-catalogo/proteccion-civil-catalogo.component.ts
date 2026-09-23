@@ -1,6 +1,6 @@
-import { Component, ElementRef, HostListener, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, HostListener, Input, OnDestroy, OnInit, Renderer2, ViewChild } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { Location } from '@angular/common';
+import { Router } from '@angular/router';
 import Swal from 'sweetalert2';
 import { BackendServices } from 'src/app/services/backend.services';
 import { AuthService } from 'src/app/services/auth.service';
@@ -61,7 +61,10 @@ interface CatalogoFila {
   templateUrl: './proteccion-civil-catalogo.component.html',
   styleUrls: ['./proteccion-civil-catalogo.component.scss']
 })
-export class ProteccionCivilCatalogoComponent implements OnInit {
+export class ProteccionCivilCatalogoComponent implements OnInit, OnDestroy {
+  /** Cuando está dentro de Asignación de PIPC (sin hero ni botón volver). */
+  @Input() embebido = false;
+
   readonly acceptedPcFileTypes: string = '.pdf,.jpg,.jpeg,.png,.webp,.gif,.bmp,.tif,.tiff,.xls,.xlsx,.ppt,.pptx';
   readonly acceptedCatalogoNuevoDocumentoTypes: string = '.xlsx';
   private readonly allowedPcMimeTypes: string[] = [
@@ -107,6 +110,7 @@ export class ProteccionCivilCatalogoComponent implements OnInit {
   editorIntegradoSubtitulo = '';
   cargandoEditor = false;
   filaEditorActual: CatalogoFila | null = null;
+  private editorMontadoEnBody = false;
 
   // Reemplazo de archivo
   filaParaReemplazar: CatalogoFila | null = null;
@@ -117,17 +121,23 @@ export class ProteccionCivilCatalogoComponent implements OnInit {
 
   @ViewChild('fileInputReemplazar') fileInputReemplazar!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputNuevoDocumento') fileInputNuevoDocumento!: ElementRef<HTMLInputElement>;
+  @ViewChild('editorPortal') editorPortal?: ElementRef<HTMLElement>;
 
   constructor(
-    private location: Location,
+    private router: Router,
     private backendService: BackendServices,
     private sanitizer: DomSanitizer,
-    private authService: AuthService
+    private authService: AuthService,
+    private renderer: Renderer2
   ) {}
 
   ngOnInit(): void {
     this.esRootUser = this.authService.esRoot();
     this.cargarCatalogo();
+  }
+
+  ngOnDestroy(): void {
+    this.liberarScrollPaginaEditor();
   }
 
   get categoriaActiva(): CatalogoCategoria | null {
@@ -352,7 +362,9 @@ export class ProteccionCivilCatalogoComponent implements OnInit {
     this.editorIntegradoVisible = true;
     this.editorIntegradoUrl = null;
     this.editorIntegradoUrlRaw = '';
+    this.editorMontadoEnBody = false;
     this.bloquearScrollPaginaEditor();
+    setTimeout(() => this.montarEditorEnBody(), 0);
 
     const modo = soloVista && !this.esDocumentoExcel(fila) ? 'preview' : 'edit';
 
@@ -362,6 +374,7 @@ export class ProteccionCivilCatalogoComponent implements OnInit {
           if (!response?.success || !response.url) {
             this.cargandoEditor = false;
             this.editorIntegradoVisible = false;
+            this.editorMontadoEnBody = false;
             this.liberarScrollPaginaEditor();
             Swal.fire('Sin vista', response?.message || 'No se pudo abrir el editor.', 'info');
             return;
@@ -376,11 +389,13 @@ export class ProteccionCivilCatalogoComponent implements OnInit {
           this.editorIntegradoUrl = null;
           setTimeout(() => {
             this.editorIntegradoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(response.url);
+            this.montarEditorEnBody();
           }, 0);
         },
         error: (err: any) => {
           this.cargandoEditor = false;
           this.editorIntegradoVisible = false;
+          this.editorMontadoEnBody = false;
           this.liberarScrollPaginaEditor();
           const mensaje = err?.error?.message || 'No se pudo abrir el editor integrado.';
           Swal.fire('Error', mensaje, 'error');
@@ -393,6 +408,7 @@ export class ProteccionCivilCatalogoComponent implements OnInit {
     if (!url) {
       this.cargandoEditor = false;
       this.editorIntegradoVisible = false;
+      this.editorMontadoEnBody = false;
       this.liberarScrollPaginaEditor();
       Swal.fire('Sin vista', 'No se pudo abrir el editor para este archivo.', 'info');
       return;
@@ -445,6 +461,7 @@ export class ProteccionCivilCatalogoComponent implements OnInit {
     this.editorIntegradoSubtitulo = '';
     this.filaEditorActual = null;
     this.cargandoEditor = false;
+    this.editorMontadoEnBody = false;
     this.liberarScrollPaginaEditor();
     this.cargarCatalogo(undefined, false);
   }
@@ -462,11 +479,23 @@ export class ProteccionCivilCatalogoComponent implements OnInit {
   }
 
   private bloquearScrollPaginaEditor(): void {
+    document.body.classList.add('pc-drive-editor-open');
     document.body.style.overflow = 'hidden';
   }
 
   private liberarScrollPaginaEditor(): void {
+    document.body.classList.remove('pc-drive-editor-open');
     document.body.style.overflow = '';
+  }
+
+  /** Overlay fuera del layout para cubrir navbar/sidebar como en SGC. */
+  private montarEditorEnBody(): void {
+    const el = this.editorPortal?.nativeElement;
+    if (!el || this.editorMontadoEnBody || el.parentElement === document.body) {
+      return;
+    }
+    this.renderer.appendChild(document.body, el);
+    this.editorMontadoEnBody = true;
   }
 
   private esDocumentoExcel(fila: CatalogoFila | null): boolean {
@@ -485,7 +514,12 @@ export class ProteccionCivilCatalogoComponent implements OnInit {
   }
 
   volver(): void {
-    this.location.back();
+    if (this.embebido) {
+      return;
+    }
+    this.router.navigate(['/proteccion-civil/asignacion-pipc'], {
+      queryParams: { tab: 'gestion' }
+    });
   }
 
   cargarCatalogo(categoriaPreferidaId?: string, mostrarLoader: boolean = true): void {

@@ -4,8 +4,8 @@
 
 const { repararPadresPipcHuerfanos } = require('./pcPipcAsignacionService');
 
-const PC_OPS_PASOS = ['asignar', 'recorrido', 'documentacion', 'oficio', 'observaciones', 'resolutivo', 'finalizar'];
-const PC_OPS_PASOS_OBLIGATORIOS_FINAL = ['asignar', 'documentacion', 'oficio', 'resolutivo'];
+const PC_OPS_PASOS = ['asignar', 'directorio', 'recorrido', 'documentacion', 'oficio', 'observaciones', 'resolutivo', 'finalizar'];
+const PC_OPS_PASOS_OBLIGATORIOS_FINAL = ['asignar', 'directorio', 'documentacion', 'oficio', 'resolutivo'];
 
 /** Claves legacy (compatibilidad con ciclos antiguos). */
 const PC_WORKFLOW_CLAVES_LEGACY = {
@@ -141,7 +141,10 @@ function parsePasosCompletados(raw) {
     if (!raw) return [];
     try {
         const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        return Array.isArray(arr) ? arr.filter((p) => PC_OPS_PASOS.includes(p)) : [];
+        if (!Array.isArray(arr)) return [];
+        return arr
+            .map((p) => String(p || '').trim())
+            .filter((p) => PC_OPS_PASOS.includes(p));
     } catch {
         return [];
     }
@@ -250,7 +253,7 @@ function evaluarSlotResolutivo(archivo, fechaAprobacion) {
     return 'incomplete';
 }
 
-function evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura = null, fechasWorkflow = {}, recorridoEstado = null) {
+function evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura = null, fechasWorkflow = {}, recorridoEstado = null, directorioEstado = null) {
     const pasos = parsePasosCompletados(ciclo?.pasos_completados);
     const docsCargados = todosDocumentosAsignacionCargados(allDocs);
     const pipcAsignados = listarPipcAsignadosActivos(allDocs);
@@ -333,8 +336,12 @@ function evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura = null, f
     // Reporte de recorrido: opcional temporalmente (se puede completar el nodo sin llenar SP-F-02).
     const recorridoCompletable = true;
 
+    // Directorio: requerido. Cada PIPC asignado debe tener ≥1 directorio asociado en Gestión de Directorios.
+    const directorioCompletable = pipcAsignados.length > 0 && !!(directorioEstado?.completo);
+
     const puedeCompletar = {
         asignar: asignarCompleto,
+        directorio: directorioCompletable,
         recorrido: recorridoCompletable,
         documentacion: docsCargados,
         oficio: oficioOk,
@@ -351,6 +358,7 @@ function evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura = null, f
         observaciones_opcional_vacio: obsVacio,
         observaciones_omitible: obsVacio,
         recorrido_opcional: true,
+        directorio_cobertura: directorioEstado || null,
         resolutivo_slots: resolutivoEstadoPorPipc,
         pipc_cobertura: pipcCobertura,
         pipc_asignados: pipcAsignados,
@@ -468,7 +476,7 @@ async function ensureResponsablePipcColumn(poolProteccionCivil, addColumnIfNotEx
 }
 
 function nombreCompletoUsuarioRow(row = {}) {
-    const partes = [row.nombre, row.apellido, row.apellido_paterno, row.apellido_materno]
+    const partes = [row.nombre, row.apellido]
         .map((p) => String(p || '').trim())
         .filter(Boolean);
     if (partes.length) return partes.join(' ');
@@ -483,6 +491,7 @@ async function obtenerNombresUsuariosPorIds(poolBiznaga, usuarioIds = []) {
     }
 
     const placeholders = ids.map(() => '?').join(', ');
+    // Tabla usuario solo tiene nombre/apellido (no apellido_paterno/materno)
     const [rows] = await poolBiznaga.query(
         `SELECT id, username, nombre, apellido, email
          FROM usuario
@@ -491,7 +500,10 @@ async function obtenerNombresUsuariosPorIds(poolBiznaga, usuarioIds = []) {
     );
 
     for (const row of rows) {
-        mapa.set(Number(row.id), nombreCompletoUsuarioRow(row));
+        const nombre = nombreCompletoUsuarioRow(row);
+        if (nombre) {
+            mapa.set(Number(row.id), nombre);
+        }
     }
     return mapa;
 }
@@ -575,10 +587,26 @@ async function obtenerCicloActivo(poolProteccionCivil, empresaId) {
 }
 
 async function crearCicloActivo(poolProteccionCivil, empresaId) {
+    // Heredar responsable PIPC del ciclo más reciente para no perderlo al reiniciar
+    let responsableHeredado = null;
+    try {
+        const [prev] = await poolProteccionCivil.query(
+            `SELECT responsable_pipc_usuario_id
+             FROM pc_centro_operaciones
+             WHERE empresa_id = ? AND responsable_pipc_usuario_id IS NOT NULL
+             ORDER BY operacion_id DESC
+             LIMIT 1`,
+            [empresaId]
+        );
+        responsableHeredado = Number(prev[0]?.responsable_pipc_usuario_id || 0) || null;
+    } catch (_err) {
+        responsableHeredado = null;
+    }
+
     const [result] = await poolProteccionCivil.query(
-        `INSERT INTO pc_centro_operaciones (empresa_id, activo, pasos_completados)
-         VALUES (?, 1, '[]')`,
-        [empresaId]
+        `INSERT INTO pc_centro_operaciones (empresa_id, activo, pasos_completados, responsable_pipc_usuario_id)
+         VALUES (?, 1, '[]', ?)`,
+        [empresaId, responsableHeredado]
     );
     const [rows] = await poolProteccionCivil.query(
         'SELECT * FROM pc_centro_operaciones WHERE operacion_id = ?',
@@ -771,24 +799,26 @@ function buildCicloResponse(ciclo, reglas, extras = {}) {
 }
 
 async function intentarSincronizarResolutivosOps(deps, req, empresaId, poolPC) {
-    const { pcResolutivosService, poolBiznagaSgcReady, getPoolBiznagaSgc, getPoolBiznaga, poolReady } = deps;
-    if (!pcResolutivosService || !poolBiznagaSgcReady || !getPoolBiznagaSgc) {
+    const { pcResolutivosService, getPoolBiznaga, poolReady } = deps;
+    if (!pcResolutivosService || !poolPC?.query) {
         return { sincronizados: 0, registros: [] };
     }
     try {
         if (poolReady) await poolReady;
-        await poolBiznagaSgcReady;
-        const poolSgc = getPoolBiznagaSgc();
         const poolBiznaga = getPoolBiznaga ? getPoolBiznaga() : null;
-        if (!poolSgc?.query || !poolBiznaga?.query || !poolPC?.query) {
+        if (!poolBiznaga?.query) {
             throw new Error('Conexiones a base de datos no disponibles para el control SP-F-29');
         }
+        const ciclo = await obtenerCicloActivo(poolPC, empresaId);
+        const responsablePipcId = Number(ciclo?.responsable_pipc_usuario_id || 0) || null;
         return await pcResolutivosService.sincronizarResolutivosCentroOperaciones({
-            poolSgc,
+            // Control SP-F-29 vive en proteccion_civil (primer pool = almacenamiento)
+            poolSgc: poolPC,
             poolBiznaga,
             poolPC,
             empresaId,
-            responsableUsuarioId: req.user?.id || null
+            // Preferir responsable asignado en PIPC; solo si no hay, el usuario en sesión
+            responsableUsuarioId: responsablePipcId || req.user?.id || null
         });
     } catch (syncErr) {
         console.warn('[PC-OPS] Sincronización resolutivos SP-F-29:', syncErr.message);
@@ -803,56 +833,52 @@ function esCampoFechaResolutivoOps(campo) {
     return pcResolutivosService.CAMPOS_FECHA_RESOLUTIVO_OPS.has(campo);
 }
 
-async function finalizarRevisionEmpresaPC(poolProteccionCivil, empresaId) {
-    const [padres] = await poolProteccionCivil.query(
-        `SELECT documento_id, nombre_documento, estatus, archivo_url, clave_workflow
+/**
+ * Gestiona documentos de asignación PIPC al finalizar revisión o cerrar ciclo.
+ * - conservar (default): NO elimina aprobados; siguen visibles en «Subir documentación».
+ * - cerrar-ciclo: limpia la asignación activa (no workflow) tras el snapshot de historial.
+ */
+async function finalizarRevisionEmpresaPC(poolProteccionCivil, empresaId, opciones = {}) {
+    const modo = opciones.modo === 'cerrar-ciclo' ? 'cerrar-ciclo' : 'conservar';
+
+    if (modo === 'conservar') {
+        const [rows] = await poolProteccionCivil.query(
+            `SELECT estatus
+             FROM documento_proteccion_civil
+             WHERE empresa_id = ?
+               AND (clave_workflow IS NULL OR clave_workflow = '')`,
+            [empresaId]
+        );
+        const aprobados = (rows || []).filter((r) => r.estatus === 'aprobado').length;
+        const rechazados = (rows || []).filter((r) => r.estatus === 'rechazado').length;
+        return { eliminados: 0, conservados: aprobados + rechazados, modo };
+    }
+
+    const [docs] = await poolProteccionCivil.query(
+        `SELECT documento_id
          FROM documento_proteccion_civil
-         WHERE empresa_id = ? AND (documento_padre_id IS NULL OR documento_padre_id = 0)
+         WHERE empresa_id = ?
            AND (clave_workflow IS NULL OR clave_workflow = '')`,
         [empresaId]
     );
-
-    let eliminados = 0;
-    let conservados = 0;
-
-    for (const padre of padres) {
-        const [hijos] = await poolProteccionCivil.query(
-            `SELECT documento_id, estatus, archivo_url
-             FROM documento_proteccion_civil
-             WHERE documento_padre_id = ?`,
-            [padre.documento_id]
-        );
-
-        if (hijos.length > 0) {
-            const hijosAprobados = hijos.filter((h) => h.estatus === 'aprobado');
-            const hijosRechazados = hijos.filter((h) => h.estatus === 'rechazado');
-
-            for (const hijo of hijosAprobados) {
-                await poolProteccionCivil.query('DELETE FROM documento_proteccion_civil WHERE documento_id = ?', [hijo.documento_id]);
-                eliminados++;
-            }
-
-            if (hijosRechazados.length === 0) {
-                const [restantes] = await poolProteccionCivil.query(
-                    'SELECT COUNT(*) as cnt FROM documento_proteccion_civil WHERE documento_padre_id = ?',
-                    [padre.documento_id]
-                );
-                if (restantes[0].cnt === 0) {
-                    await poolProteccionCivil.query('DELETE FROM documento_proteccion_civil WHERE documento_id = ?', [padre.documento_id]);
-                    eliminados++;
-                }
-            } else {
-                conservados += hijosRechazados.length;
-            }
-        } else if (padre.estatus === 'aprobado') {
-            await poolProteccionCivil.query('DELETE FROM documento_proteccion_civil WHERE documento_id = ?', [padre.documento_id]);
-            eliminados++;
-        } else if (padre.estatus === 'rechazado') {
-            conservados++;
-        }
+    const ids = (docs || []).map((d) => Number(d.documento_id)).filter((id) => id > 0);
+    if (!ids.length) {
+        return { eliminados: 0, conservados: 0, modo };
     }
 
-    return { eliminados, conservados };
+    try {
+        await poolProteccionCivil.query(
+            'DELETE FROM documento_proteccion_civil_archivo WHERE documento_id IN (?)',
+            [ids]
+        );
+    } catch {
+        // tabla puede no existir
+    }
+    await poolProteccionCivil.query(
+        'DELETE FROM documento_proteccion_civil WHERE documento_id IN (?)',
+        [ids]
+    );
+    return { eliminados: ids.length, conservados: 0, modo };
 }
 
 function registerPcCentroOperacionesRoutes(app, deps) {
@@ -901,7 +927,12 @@ function registerPcCentroOperacionesRoutes(app, deps) {
                 allDocs,
                 poolBiznaga
             );
-            const reglas = evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura, fechasWf, recorridoEstado);
+            const pcDirectoriosService = require('./pcDirectoriosService');
+            const directorioEstado = await pcDirectoriosService.evaluarCoberturaDirectoriosPipc(
+                pool,
+                listarPipcAsignadosActivos(allDocs)
+            );
+            const reglas = evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura, fechasWf, recorridoEstado, directorioEstado);
             const responsableId = Number(ciclo.responsable_pipc_usuario_id || 0) || null;
             let responsableNombre = null;
             if (responsableId && poolBiznaga?.query) {
@@ -917,6 +948,7 @@ function registerPcCentroOperacionesRoutes(app, deps) {
                 documentacion_cargada: reglas.documentacion_cargada,
                 observaciones_omitible: reglas.observaciones_omitible,
                 recorrido_opcional: reglas.recorrido_opcional,
+                directorio_cobertura: reglas.directorio_cobertura,
                 resolutivo_slots: reglas.resolutivo_slots,
                 pipc_cobertura: pipcCobertura,
                 pipc_asignados: reglas.pipc_asignados,
@@ -967,6 +999,20 @@ function registerPcCentroOperacionesRoutes(app, deps) {
             if (usuarioId && poolBiznaga?.query) {
                 const nombres = await obtenerNombresUsuariosPorIds(poolBiznaga, [usuarioId]);
                 responsableNombre = nombres.get(usuarioId) || null;
+            }
+
+            // Propagar al control SP-F-29 (proteccion_civil.pc_control_resolutivos)
+            try {
+                if (pool?.query) {
+                    await pool.query(
+                        `UPDATE pc_control_resolutivos
+                         SET responsable = ?, responsable_usuario_id = ?, updated_at = NOW()
+                         WHERE empresa_id_biznaga = ? AND activo = 1`,
+                        [responsableNombre || '—', usuarioId, empresaId]
+                    );
+                }
+            } catch (syncRespErr) {
+                console.warn('[PC-OPS] No se pudo sincronizar responsable PIPC al control:', syncRespErr.message);
             }
 
             res.json({
@@ -1090,12 +1136,19 @@ function registerPcCentroOperacionesRoutes(app, deps) {
                 allDocs,
                 poolBiznaga
             );
-            const reglas = evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura, fechasWf, recorridoEstado);
+            const pcDirectoriosService = require('./pcDirectoriosService');
+            const directorioEstado = await pcDirectoriosService.evaluarCoberturaDirectoriosPipc(
+                pool,
+                listarPipcAsignadosActivos(allDocs)
+            );
+            const reglas = evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura, fechasWf, recorridoEstado, directorioEstado);
 
             if (!reglas.puede_completar[paso]) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Aún no se cumplen los requisitos para completar este paso'
+                    message: paso === 'directorio'
+                        ? 'Asocia al menos un directorio a cada PIPC en «Gestión de Directorios» antes de completar este paso.'
+                        : 'Aún no se cumplen los requisitos para completar este paso'
                 });
             }
 
@@ -1168,7 +1221,12 @@ function registerPcCentroOperacionesRoutes(app, deps) {
             const archivosWorkflow = await ensureWorkflowDocuments(pool, empresaId, allDocs);
             const pipcCobertura = await evaluarCoberturaPipcAsignacion(pool, empresaId, allDocs);
             const fechasWf = parseFechasWorkflow(ciclo.fechas_workflow);
-            const reglas = evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura, fechasWf);
+            const pcDirectoriosService = require('./pcDirectoriosService');
+            const directorioEstado = await pcDirectoriosService.evaluarCoberturaDirectoriosPipc(
+                pool,
+                listarPipcAsignadosActivos(allDocs)
+            );
+            const reglas = evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura, fechasWf, null, directorioEstado);
 
             if (!reglas.puede_completar.finalizar) {
                 return res.status(400).json({
@@ -1184,7 +1242,7 @@ function registerPcCentroOperacionesRoutes(app, deps) {
                 allDocs
             });
 
-            await finalizarRevisionEmpresaPC(pool, empresaId);
+            await finalizarRevisionEmpresaPC(pool, empresaId, { modo: 'cerrar-ciclo' });
             await pcHistorialCicloService.limpiarDocumentosWorkflowTrasCierre(pool, empresaId);
 
             const pasos = parsePasosCompletados(ciclo.pasos_completados);
@@ -1209,6 +1267,189 @@ function registerPcCentroOperacionesRoutes(app, deps) {
     });
 }
 
+/** Conteo de documentación solo para un padre PIPC. */
+function contarProgresoDocumentacionPadre(allDocs = [], padreId) {
+    const id = Number(padreId);
+    const normales = (allDocs || []).filter((d) => !d.clave_workflow);
+    const padre = normales.find((d) => Number(d.documento_id) === id);
+    if (!padre) {
+        return { documentos_totales: 0, documentos_completos: 0 };
+    }
+    const hijos = normales
+        .filter((h) => mismoPadreId(h.documento_padre_id, id))
+        .filter((h) => !esSubtituloOperativo(h.nombre_documento));
+    if (hijos.length > 0) {
+        return {
+            documentos_totales: hijos.length,
+            documentos_completos: hijos.filter((sub) => esElementoCompletadoSubir(sub)).length
+        };
+    }
+    return {
+        documentos_totales: 1,
+        documentos_completos: esElementoCompletadoSubir(padre) ? 1 : 0
+    };
+}
+
+function indexArchivosWorkflowDesdeDocs(allDocs = []) {
+    const map = {};
+    for (const doc of allDocs || []) {
+        const clave = String(doc.clave_workflow || '').trim();
+        if (clave) map[clave] = doc;
+    }
+    return map;
+}
+
+/**
+ * Detalle de pasos por PIPC (para fichas independientes en PIPC Activos).
+ * Observaciones se muestra en hover pero no define el «paso actual».
+ */
+function construirDetallePasosPipc({
+    pipc,
+    allDocs,
+    archivosWorkflow,
+    fechasWorkflow,
+    pasosCiclo = []
+}) {
+    const fechasWf = fechasWorkflow && typeof fechasWorkflow === 'object' ? fechasWorkflow : {};
+    const pasos = Array.isArray(pasosCiclo) ? pasosCiclo : [];
+    const docs = contarProgresoDocumentacionPadre(allDocs, pipc.documento_id);
+    const docsPct = docs.documentos_totales
+        ? Math.round((docs.documentos_completos / docs.documentos_totales) * 100)
+        : 0;
+    const docsOk = docs.documentos_totales > 0 && docs.documentos_completos >= docs.documentos_totales;
+
+    const oficioOk =
+        tieneArchivoWorkflow(archivosWorkflow, pipc.clave_oficio) && !!fechasWf[pipc.clave_oficio];
+
+    const a1 = tieneArchivoWorkflow(archivosWorkflow, pipc.clave_obs_1);
+    const a2 = tieneArchivoWorkflow(archivosWorkflow, pipc.clave_obs_2);
+    const fechaObs = !!fechasWf[pipc.clave_fecha_obs];
+    const obsVacio = !a1 && !a2 && !fechaObs;
+    const obsOk = a1 && a2 && fechaObs;
+
+    const slotsRes = RESOLUTIVO_TIPOS.map((rt) => {
+        const clave = claveResolutivoTipoPipc(pipc.documento_id, rt.tipo);
+        return evaluarSlotResolutivo(archivosWorkflow[clave], fechasWf[clave] || null);
+    });
+    const resolutivoOk = slotsRes.includes('complete') && !slotsRes.includes('incomplete');
+    const recorridoOk = pasos.includes('recorrido');
+    const directorioOk = pasos.includes('directorio');
+
+    const pasosDetalle = [
+        {
+            id: 'directorio',
+            label: 'Directorio',
+            estado: directorioOk ? 'ok' : 'pendiente',
+            detalle: null,
+            pct: directorioOk ? 100 : 0
+        },
+        {
+            id: 'recorrido',
+            label: 'Reporte de Recorrido',
+            estado: recorridoOk ? 'ok' : 'pendiente',
+            detalle: null,
+            pct: recorridoOk ? 100 : 0
+        },
+        {
+            id: 'documentacion',
+            label: 'Subir Documentación',
+            estado: docsOk ? 'ok' : 'pendiente',
+            detalle: `${docs.documentos_completos}/${docs.documentos_totales}`,
+            pct: docsPct
+        },
+        {
+            id: 'oficio',
+            label: 'Oficio de Ingreso',
+            estado: oficioOk ? 'ok' : 'pendiente',
+            detalle: null,
+            pct: oficioOk ? 100 : 0
+        },
+        {
+            id: 'observaciones',
+            label: 'Observaciones',
+            estado: obsOk ? 'ok' : (obsVacio ? 'pendiente' : 'parcial'),
+            detalle: null,
+            pct: obsOk ? 100 : 0
+        },
+        {
+            id: 'resolutivo',
+            label: 'Resolutivo',
+            estado: resolutivoOk ? 'ok' : 'pendiente',
+            detalle: null,
+            pct: resolutivoOk ? 100 : 0
+        }
+    ];
+
+    // Paso actual: no cuenta observaciones ni asignar
+    const ordenActual = ['directorio', 'recorrido', 'documentacion', 'oficio', 'resolutivo'];
+    let pasoActual = 'Finalizado';
+    let pasoActualId = 'finalizar';
+    for (const id of ordenActual) {
+        const p = pasosDetalle.find((x) => x.id === id);
+        if (p && p.estado !== 'ok') {
+            pasoActual = p.label;
+            pasoActualId = p.id;
+            break;
+        }
+    }
+
+    const requeridos = ['directorio', 'documentacion', 'oficio', 'resolutivo'];
+    const doneReq = requeridos.filter((id) => pasosDetalle.find((p) => p.id === id)?.estado === 'ok').length;
+    const progresoPct = Math.round((doneReq / requeridos.length) * 100);
+
+    return {
+        ...docs,
+        pasos_detalle: pasosDetalle,
+        paso_actual: pasoActual,
+        paso_actual_id: pasoActualId,
+        progreso_pct: progresoPct
+    };
+}
+
+/**
+ * Expande empresas a fichas independientes (1 ficha = 1 PIPC padre activo).
+ */
+function construirFichasPipcActivos({ empresaBase, allDocsEmpresa, ciclo }) {
+    const pasosCiclo = parsePasosCompletados(ciclo?.pasos_completados);
+    const fechasWf = parseFechasWorkflow(ciclo?.fechas_workflow);
+    const archivosWf = indexArchivosWorkflowDesdeDocs(allDocsEmpresa);
+    const pipcs = listarPipcAsignadosActivos(allDocsEmpresa);
+
+    if (!pipcs.length) {
+        const conteo = contarProgresoDocumentacionSubir(allDocsEmpresa);
+        return [{
+            ...empresaBase,
+            ...conteo,
+            pipc_documento_id: null,
+            pipc_nombre: null,
+            ficha_key: `e-${empresaBase.empresa_id}`,
+            pasos_completados: pasosCiclo,
+            pasos_detalle: [],
+            paso_actual: (Number(conteo.documentos_totales) || 0) > 0 ? 'Subir Documentación' : 'Sin PIPC',
+            paso_actual_id: 'documentacion',
+            progreso_pct: 0
+        }];
+    }
+
+    return pipcs.map((pipc) => {
+        const detalle = construirDetallePasosPipc({
+            pipc,
+            allDocs: allDocsEmpresa,
+            archivosWorkflow: archivosWf,
+            fechasWorkflow: fechasWf,
+            pasosCiclo
+        });
+        return {
+            ...empresaBase,
+            ...detalle,
+            pipc_documento_id: pipc.documento_id,
+            pipc_nombre: pipc.nombre_documento,
+            ficha_key: `e-${empresaBase.empresa_id}-p-${pipc.documento_id}`,
+            pasos_completados: pasosCiclo
+        };
+    });
+}
+
 module.exports = {
     PC_OPS_PASOS,
     PC_WORKFLOW_CLAVES,
@@ -1226,6 +1467,9 @@ module.exports = {
     parsePasosCompletados,
     agruparDocumentosAsignacion,
     contarProgresoDocumentacionSubir,
+    contarProgresoDocumentacionPadre,
+    construirFichasPipcActivos,
+    construirDetallePasosPipc,
     evaluarCoberturaPipcAsignacion,
     syncPasoAsignarSegunCobertura,
     obtenerCicloActivo

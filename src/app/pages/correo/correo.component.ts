@@ -1,5 +1,5 @@
 import { ChangeDetectorRef, Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild } from '@angular/core';
-import { HttpResponse } from '@angular/common/http';
+import { HttpEventType, HttpResponse } from '@angular/common/http';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -1193,10 +1193,52 @@ export class CorreoComponent implements OnInit, OnDestroy {
     }
 
     borrador.enviando = true;
+    const hayAdjuntos = Array.isArray(borrador.adjuntos) && borrador.adjuntos.length > 0;
+    const bytesAdjuntos = (borrador.adjuntos || []).reduce((sum, item) => sum + (Number(item?.size) || 0), 0);
+    const posibleDrive = hayAdjuntos && bytesAdjuntos > 25 * 1024 * 1024;
+
+    const actualizarProgresoEnvio = (porcentaje: number, titulo: string, detalle: string) => {
+      const pct = Math.max(0, Math.min(100, Math.round(porcentaje)));
+      const barra = `
+        <div style="margin:14px 0 8px;background:#e8eee9;border-radius:999px;overflow:hidden;height:10px;">
+          <div style="width:${pct}%;height:10px;background:#1f6b4a;border-radius:999px;transition:width .2s ease;"></div>
+        </div>
+        <div style="font-size:13px;color:#345246;text-align:left;line-height:1.45;">${detalle}</div>
+        <div style="margin-top:8px;font-size:12px;color:#6a7a72;text-align:right;font-weight:700;">${pct}%</div>
+      `;
+      if (Swal.isVisible()) {
+        Swal.update({ title: titulo, html: barra });
+      } else {
+        Swal.fire({
+          title: titulo,
+          html: barra,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          showConfirmButton: false,
+          didOpen: () => Swal.showLoading()
+        });
+      }
+    };
+
+    actualizarProgresoEnvio(
+      5,
+      'Preparando envío',
+      hayAdjuntos
+        ? 'Leyendo y preparando archivos adjuntos...'
+        : 'Preparando el mensaje...'
+    );
 
     this.prepararAdjuntosParaEnvio(borrador)
       .then((adjuntos) => {
-        this.backendService.enviarCorreoPerfil({
+        actualizarProgresoEnvio(
+          15,
+          posibleDrive ? 'Subiendo al servidor' : 'Enviando correo',
+          posibleDrive
+            ? 'Los archivos grandes se guardarán en Google Drive. Enviando datos al servidor...'
+            : 'Enviando el correo...'
+        );
+
+        this.backendService.enviarCorreoPerfilConProgreso({
           destinatario,
           asunto,
           mensaje,
@@ -1207,54 +1249,88 @@ export class CorreoComponent implements OnInit, OnDestroy {
           references: borrador.references || undefined,
           adjuntos
         }, this.correoApiBase).subscribe({
-          next: (response) => {
-            borrador.enviando = false;
-            this.cerrarCompose(borrador);
-            const viaDescarga = Array.isArray(response?.adjuntosViaDescarga)
-              ? response.adjuntosViaDescarga
-              : (Array.isArray(response?.adjuntosViaDrive) ? response.adjuntosViaDrive : []);
-            this.mensajeExito = response?.message || 'Correo enviado correctamente.';
-
-            if (viaDescarga.length) {
-              const fechaTexto = String(
-                response?.adjuntosFechaExpiracionTexto
-                || viaDescarga[0]?.fechaExpiracionTexto
-                || ''
-              ).trim();
-              const avisoLocal = response?.adjuntosUrlLocal === true
-                ? `<p style="margin:10px 0 0;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e3a8a;text-align:left;font-size:13px;">
-                    Nota: este envío se hizo en entorno local. El destinatario externo no podrá descargar hasta desplegar en producción
-                    (o configurar <code>PUBLIC_API_URL</code> con una URL pública).
-                  </p>`
-                : '';
-              Swal.fire({
-                icon: 'info',
-                title: 'Correo enviado',
-                html: `
-                  <p style="margin:0 0 10px;">Tu mensaje se envió correctamente.</p>
-                  <p style="margin:0;padding:10px 12px;background:#f3faf6;border:1px solid #d7e0da;border-radius:8px;color:#345246;text-align:left;">
-                    <strong>Aviso:</strong> los documentos compartidos mediante este correo estarán disponibles para descarga
-                    ${fechaTexto ? `hasta el <strong>${fechaTexto}</strong>` : 'durante el periodo de vigencia'}.
-                    Una vez transcurrida esa fecha, los enlaces dejarán de estar disponibles.
-                  </p>
-                  ${avisoLocal}
-                `,
-                confirmButtonText: 'Entendido',
-                confirmButtonColor: '#1f6b4a'
-              });
-            } else {
-              Swal.fire({
-                icon: 'success',
-                title: 'Correo enviado',
-                text: 'Tu mensaje se envió correctamente.',
-                timer: 2800,
-                showConfirmButton: false
-              });
+          next: (event) => {
+            if (event.type === HttpEventType.UploadProgress) {
+              const total = event.total || 0;
+              const loaded = event.loaded || 0;
+              if (total > 0) {
+                const pctHttp = loaded / total;
+                const pct = 15 + pctHttp * 55;
+                actualizarProgresoEnvio(
+                  pct,
+                  'Subiendo archivos',
+                  `Transferencia al servidor: ${Math.round(pctHttp * 100)}%`
+                );
+                if (pctHttp >= 0.98) {
+                  actualizarProgresoEnvio(
+                    72,
+                    posibleDrive ? 'Google Drive' : 'Procesando',
+                    posibleDrive
+                      ? 'Creando carpetas y subiendo archivos grandes a Google Drive...'
+                      : 'Procesando el mensaje en el servidor...'
+                  );
+                }
+              } else {
+                actualizarProgresoEnvio(40, 'Subiendo archivos', 'Transferencia en curso...');
+              }
+              return;
             }
 
-            this.carpetaActiva = 'sent';
-            this.cargarCarpetas(false);
-            this.cargarCorreos();
+            if (event.type === HttpEventType.Response) {
+              actualizarProgresoEnvio(
+                92,
+                'Finalizando',
+                posibleDrive
+                  ? 'Enlaces de Drive listos. Enviando el correo...'
+                  : 'Confirmando el envío del correo...'
+              );
+
+              const response = event.body || {};
+              borrador.enviando = false;
+              this.cerrarCompose(borrador);
+              const viaDrive = Array.isArray(response?.adjuntosViaDrive)
+                ? response.adjuntosViaDrive
+                : (Array.isArray(response?.adjuntosViaDescarga) ? response.adjuntosViaDescarga : []);
+              this.mensajeExito = response?.message || 'Correo enviado correctamente.';
+
+              if (viaDrive.length) {
+                const lista = viaDrive.map((item: any) => {
+                  const nombre = this.escaparHtmlCompose(String(item?.nombre || 'Archivo'));
+                  const url = String(item?.url || '').trim();
+                  return url
+                    ? `<li style="margin:0 0 6px;"><a href="${this.escaparHtmlCompose(url)}" target="_blank" rel="noopener noreferrer">${nombre}</a></li>`
+                    : `<li style="margin:0 0 6px;">${nombre}</li>`;
+                }).join('');
+                Swal.fire({
+                  icon: 'success',
+                  title: 'Correo enviado',
+                  html: `
+                    <p style="margin:0 0 10px;">Tu mensaje se envió correctamente.</p>
+                    <p style="margin:0;padding:10px 12px;background:#f3faf6;border:1px solid #d7e0da;border-radius:8px;color:#345246;text-align:left;">
+                      <strong>Google Drive:</strong> ${viaDrive.length} archivo(s) grande(s) se guardaron en Drive
+                      y el destinatario recibió el enlace para abrirlos o descargarlos.
+                    </p>
+                    <ul style="margin:12px 0 0;padding-left:18px;text-align:left;font-size:13px;color:#345246;">
+                      ${lista}
+                    </ul>
+                  `,
+                  confirmButtonText: 'Entendido',
+                  confirmButtonColor: '#1f6b4a'
+                });
+              } else {
+                Swal.fire({
+                  icon: 'success',
+                  title: 'Correo enviado',
+                  text: 'Tu mensaje se envió correctamente.',
+                  timer: 2800,
+                  showConfirmButton: false
+                });
+              }
+
+              this.carpetaActiva = 'sent';
+              this.cargarCarpetas(false);
+              this.cargarCorreos();
+            }
           },
           error: (error) => {
             borrador.enviando = false;
@@ -1272,6 +1348,12 @@ export class CorreoComponent implements OnInit, OnDestroy {
       .catch(() => {
         borrador.enviando = false;
         borrador.error = 'No se pudieron procesar los archivos adjuntos.';
+        Swal.fire({
+          icon: 'error',
+          title: 'Error al preparar adjuntos',
+          text: 'No se pudieron procesar los archivos adjuntos.',
+          confirmButtonText: 'Entendido'
+        });
       });
   }
 
@@ -1849,11 +1931,15 @@ export class CorreoComponent implements OnInit, OnDestroy {
       .replace(/'/g, '&#39;');
   }
 
-  private obtenerCuerpoHtmlParaCita(): string {
+  private obtenerCuerpoHtmlParaCita(opciones: { stripFirmas?: boolean } = {}): string {
     if (this.cuerpoHtmlContenido) {
       const doc = this.parsearHtmlSeguro(this.cuerpoHtmlContenido);
       if (doc?.body) {
         this.normalizarFirmasEnDocumento(doc);
+        this.compactarBloquesDriveEnDocumento(doc);
+        if (opciones.stripFirmas) {
+          this.eliminarFirmasDelDocumento(doc);
+        }
         // Tomar el cuerpo tal cual del correo original, sin rediseñar.
         return String(doc.body.innerHTML || '').replace(/^\s+|\s+$/g, '');
       }
@@ -1890,7 +1976,45 @@ export class CorreoComponent implements OnInit, OnDestroy {
     }
   }
 
-  private construirBloqueCitaHtml(titulo: string, filasMeta: Array<{ etiqueta: string; valor: string }>): string {
+  /** Quita firmas del cuerpo reenviado para que el backend solo agregue una al final. */
+  private eliminarFirmasDelDocumento(doc: Document): void {
+    const imagenes = Array.from(doc.querySelectorAll('img'));
+    for (const img of imagenes) {
+      const alt = String(img.getAttribute('alt') || '');
+      const src = String(img.getAttribute('src') || '');
+      const marcada = img.getAttribute('data-firma-biznaga') === '1';
+      const esFirma = marcada
+        || /^firma digital$/i.test(alt.trim())
+        || /cid:[^"']*firma/i.test(src)
+        || /firma-biznaga/i.test(src)
+        || /data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(src) && /firma/i.test(alt);
+      if (!esFirma) {
+        continue;
+      }
+      const contenedor = img.closest('div, p, table, td, span') || img.parentElement;
+      if (contenedor && contenedor !== doc.body && contenedor.childElementCount <= 2) {
+        const soloFirma = Array.from(contenedor.querySelectorAll('img')).every((nodo) => {
+          const a = String(nodo.getAttribute('alt') || '');
+          const s = String(nodo.getAttribute('src') || '');
+          return nodo.getAttribute('data-firma-biznaga') === '1'
+            || /^firma digital$/i.test(a.trim())
+            || /cid:[^"']*firma/i.test(s)
+            || /firma-biznaga/i.test(s);
+        });
+        if (soloFirma) {
+          contenedor.remove();
+          continue;
+        }
+      }
+      img.remove();
+    }
+  }
+
+  private construirBloqueCitaHtml(
+    titulo: string,
+    filasMeta: Array<{ etiqueta: string; valor: string }>,
+    opciones: { stripFirmas?: boolean } = {}
+  ): string {
     const metaLineas = filasMeta
       .filter((fila) => String(fila.valor || '').trim())
       .map((fila) => {
@@ -1900,7 +2024,7 @@ export class CorreoComponent implements OnInit, OnDestroy {
       })
       .join('<br>');
 
-    const cuerpo = this.obtenerCuerpoHtmlParaCita();
+    const cuerpo = this.obtenerCuerpoHtmlParaCita(opciones);
     const partes: string[] = [
       this.escaparHtmlCompose(titulo),
       metaLineas
@@ -1931,12 +2055,13 @@ export class CorreoComponent implements OnInit, OnDestroy {
       || this.mensajeSeleccionado?.destinatario
       || this.cuentaActiva
       || '';
+    // Quitar firma del cuerpo reenviado: el backend vuelve a insertar una sola al enviar.
     return this.construirBloqueCitaHtml('---------- Mensaje reenviado ----------', [
       { etiqueta: 'De', valor: this.remitenteCompletoVisible },
       { etiqueta: 'Fecha', valor: this.fechaEncabezadoVisible },
       { etiqueta: 'Para', valor: destinatario },
       { etiqueta: 'Asunto', valor: this.mensajeSeleccionado?.asunto || '' }
-    ]);
+    ], { stripFirmas: true });
   }
 
   private async asegurarListaAdjuntosParaReenvio(): Promise<CorreoAdjunto[]> {
@@ -2177,7 +2302,7 @@ export class CorreoComponent implements OnInit, OnDestroy {
   }
 
   private mostrarHtmlCorreo(html: string): void {
-    const contenidoHtml = String(html || '').trim();
+    const contenidoHtml = this.compactarBloquesDriveEnHtml(String(html || '').trim());
     const textoPlanoExtraido = this.extraerTextoPlanoDesdeHtml(contenidoHtml);
 
     if (this.esHtmlGeneradoDesdeTextoPlano(contenidoHtml, textoPlanoExtraido)) {
@@ -2186,8 +2311,8 @@ export class CorreoComponent implements OnInit, OnDestroy {
     }
 
     const partes = this.separarConversacionHtml(contenidoHtml);
-    this.cuerpoHtmlContenido = partes.principal;
-    this.conversacionHtml = partes.conversacion;
+    this.cuerpoHtmlContenido = this.compactarBloquesDriveEnHtml(partes.principal);
+    this.conversacionHtml = this.compactarBloquesDriveEnHtml(partes.conversacion);
     this.conversacionExpandida = false;
     this.esContestacionVista = partes.esContestacion
       || Boolean(this.detalleCorreo?.esContestacion)
@@ -2416,6 +2541,262 @@ export class CorreoComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Filtro de vista: reconstruye bloques Drive ya enviados (HTML viejo/estirado)
+   * a una tarjeta compacta igual a la de Gmail.
+   */
+  private compactarBloquesDriveEnHtml(html: string): string {
+    const contenido = String(html || '').trim();
+    if (!contenido) {
+      return '';
+    }
+    if (!/archivos disponibles en google drive|abrir en drive|data-biznaga-drive|biznaga\s*·\s*documentos/i.test(contenido)) {
+      return contenido;
+    }
+
+    const doc = this.parsearHtmlSeguro(contenido);
+    if (!doc?.body) {
+      return contenido;
+    }
+
+    this.reconstruirBloquesDriveEnDocumento(doc);
+    const eraDocumentoCompleto = /<html[\s>]/i.test(contenido) || /<!DOCTYPE/i.test(contenido);
+    if (eraDocumentoCompleto && doc.documentElement) {
+      return '<!DOCTYPE html>' + doc.documentElement.outerHTML;
+    }
+    return String(doc.body.innerHTML || '').trim();
+  }
+
+  private compactarBloquesDriveEnDocumento(doc: Document): void {
+    this.reconstruirBloquesDriveEnDocumento(doc);
+  }
+
+  private reconstruirBloquesDriveEnDocumento(doc: Document): void {
+    const tablas = Array.from(doc.querySelectorAll('table')) as HTMLTableElement[];
+    const exteriores = tablas.filter((tabla) => {
+      if (!this.esTablaBloqueDrive(tabla)) {
+        return false;
+      }
+      // Solo la tabla Drive más externa (evita reemplazar filas internas).
+      return !tablas.some((otra) => otra !== tabla && otra.contains(tabla) && this.esTablaBloqueDrive(otra));
+    });
+
+    const procesadas = new Set<HTMLElement>();
+
+    for (const tabla of exteriores) {
+      if (procesadas.has(tabla) || !tabla.isConnected) {
+        continue;
+      }
+
+      // Agrupa tablas Drive hermanas consecutivas (citas que parten el bloque).
+      const grupo: HTMLTableElement[] = [tabla];
+      let hermana = tabla.nextElementSibling;
+      while (hermana) {
+        if (hermana.tagName === 'TABLE' && this.esTablaBloqueDrive(hermana as HTMLTableElement)) {
+          grupo.push(hermana as HTMLTableElement);
+          hermana = hermana.nextElementSibling;
+          continue;
+        }
+        if (hermana.nodeType === Node.TEXT_NODE && !String(hermana.textContent || '').trim()) {
+          hermana = hermana.nextElementSibling;
+          continue;
+        }
+        if (hermana.tagName === 'BR' || hermana.tagName === 'HR') {
+          hermana = hermana.nextElementSibling;
+          continue;
+        }
+        break;
+      }
+
+      const archivos = this.extraerArchivosDriveDesdeNodos(grupo);
+      const card = this.crearNodoTarjetaDriveCompacta(doc, archivos);
+      tabla.parentNode?.insertBefore(card, tabla);
+      for (const nodo of grupo) {
+        procesadas.add(nodo);
+        nodo.remove();
+      }
+    }
+  }
+
+  private esTablaBloqueDrive(tabla: HTMLTableElement): boolean {
+    if (tabla.getAttribute('data-biznaga-drive') === '1') {
+      return true;
+    }
+    const texto = String(tabla.textContent || '');
+    if (/archivos disponibles en google drive/i.test(texto)) {
+      return true;
+    }
+    if (/biznaga\s*·\s*documentos/i.test(texto) && /google drive/i.test(texto)) {
+      return true;
+    }
+    if (/abrir en drive/i.test(texto) && (/google drive/i.test(texto) || !!tabla.querySelector('a[href*="drive.google"]'))) {
+      return true;
+    }
+    return false;
+  }
+
+  private extraerArchivosDriveDesdeNodos(nodos: HTMLElement[]): Array<{
+    nombre: string;
+    url: string;
+    meta: string;
+    ext: string;
+  }> {
+    const archivos: Array<{ nombre: string; url: string; meta: string; ext: string }> = [];
+    const urlsVistas = new Set<string>();
+
+    for (const nodo of nodos) {
+      const links = Array.from(nodo.querySelectorAll('a[href]')) as HTMLAnchorElement[];
+      for (const link of links) {
+        const url = String(link.getAttribute('href') || link.href || '').trim();
+        if (!url || !/drive\.google\.com/i.test(url)) {
+          continue;
+        }
+        if (urlsVistas.has(url)) {
+          continue;
+        }
+        urlsVistas.add(url);
+
+        const fila = (link.closest('tr') as HTMLElement | null) || link.parentElement;
+        const textoFila = String(fila?.textContent || '')
+          .replace(/abrir en drive/gi, ' ')
+          .replace(/google drive/gi, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        let nombre = '';
+        const matchNombre = textoFila.match(
+          /([^\s].{0,180}?\.(?:zip|rar|7z|pdf|docx?|xlsx?|pptx?|csv|png|jpe?g|gif|webp|txt|mp4|mov|avi))/i
+        );
+        if (matchNombre?.[1]) {
+          nombre = matchNombre[1].trim();
+        }
+        if (!nombre) {
+          const fuertes = Array.from(fila?.querySelectorAll('div, span, td, b, strong') || [])
+            .map((el) => String(el.textContent || '').trim())
+            .filter((t) => t && !/^abrir en drive$/i.test(t) && t.length < 220);
+          nombre = fuertes.find((t) => /\.[a-z0-9]{2,5}$/i.test(t)) || fuertes[0] || 'Archivo en Google Drive';
+        }
+
+        const matchTamano = textoFila.match(/(\d+(?:[.,]\d+)?\s*(?:B|KB|MB|GB|TB))/i);
+        const meta = matchTamano?.[1]
+          ? `${matchTamano[1].replace(',', '.')} · Google Drive`
+          : 'Google Drive';
+        const ext = this.extensionCortaArchivoDrive(nombre);
+
+        archivos.push({ nombre, url, meta, ext });
+      }
+    }
+
+    if (archivos.length === 0) {
+      archivos.push({
+        nombre: 'Archivo en Google Drive',
+        url: 'https://drive.google.com',
+        meta: 'Google Drive',
+        ext: 'DOC'
+      });
+    }
+
+    return archivos;
+  }
+
+  private extensionCortaArchivoDrive(nombre: string): string {
+    const ext = String(nombre || '').split('.').pop()?.toLowerCase() || '';
+    if (!ext || ext === String(nombre).toLowerCase() || ext.length > 4) {
+      return 'DOC';
+    }
+    return ext.slice(0, 4).toUpperCase();
+  }
+
+  private crearNodoTarjetaDriveCompacta(
+    doc: Document,
+    archivos: Array<{ nombre: string; url: string; meta: string; ext: string }>
+  ): HTMLElement {
+    const wrap = doc.createElement('div');
+    wrap.setAttribute('data-biznaga-drive', '1');
+    wrap.setAttribute(
+      'style',
+      'margin:14px 0;max-width:520px;width:100%;border:1px solid #d5e0d9;border-radius:10px;overflow:hidden;background:#ffffff;font-family:Arial,Helvetica,sans-serif;line-height:1.35;height:auto;'
+    );
+
+    const etiqueta = archivos.length === 1 ? '1 documento' : `${archivos.length} documentos`;
+    const header = doc.createElement('div');
+    header.setAttribute('style', 'padding:10px 12px;background:#16382b;color:#ffffff;');
+    header.innerHTML = `
+      <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#9bc4af;font-weight:700;line-height:1.2;">Biznaga · Documentos</div>
+      <div style="margin-top:3px;font-size:14px;font-weight:700;color:#ffffff;line-height:1.25;">Archivos disponibles en Google Drive</div>
+      <div style="margin-top:2px;font-size:11px;color:#c5ddd1;line-height:1.3;">${this.escaparHtmlCompose(etiqueta)} compartidos en este correo</div>
+    `;
+    wrap.appendChild(header);
+
+    const aviso = doc.createElement('div');
+    aviso.setAttribute(
+      'style',
+      'padding:8px 12px;background:#f3f8f5;border-bottom:1px solid #e2ebe6;font-size:12px;line-height:1.4;color:#3d5448;'
+    );
+    aviso.innerHTML = `<strong style="color:#1f6b4a;">Aviso:</strong> archivos grandes en Google Drive. Pulsa <strong style="color:#16382b;">Abrir en Drive</strong> para verlos o descargarlos.`;
+    wrap.appendChild(aviso);
+
+    archivos.forEach((archivo, index) => {
+      const fila = doc.createElement('div');
+      fila.setAttribute(
+        'style',
+        `display:flex;align-items:center;gap:10px;padding:10px 12px;${index < archivos.length - 1 ? 'border-bottom:1px solid #e7eee9;' : ''}`
+      );
+
+      const icono = doc.createElement('div');
+      icono.setAttribute(
+        'style',
+        'flex:0 0 36px;width:36px;height:40px;line-height:40px;background:#f4f7f5;border:1px solid #d8e3dc;border-radius:6px;text-align:center;font-size:10px;font-weight:700;color:#1f6b4a;'
+      );
+      icono.textContent = archivo.ext;
+      fila.appendChild(icono);
+
+      const info = doc.createElement('div');
+      info.setAttribute('style', 'flex:1 1 auto;min-width:0;');
+      info.innerHTML = `
+        <div style="font-size:13px;font-weight:700;color:#14261f;line-height:1.3;word-break:break-word;">${this.escaparHtmlCompose(archivo.nombre)}</div>
+        <div style="margin-top:2px;font-size:11px;color:#6a7a72;line-height:1.3;">${this.escaparHtmlCompose(archivo.meta)}</div>
+      `;
+      fila.appendChild(info);
+
+      const boton = doc.createElement('a');
+      boton.href = archivo.url;
+      boton.target = '_blank';
+      boton.rel = 'noopener noreferrer';
+      boton.textContent = 'Abrir en Drive';
+      boton.setAttribute(
+        'style',
+        'flex:0 0 auto;display:inline-block;padding:8px 12px;background:#1f6b4a;color:#ffffff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:700;line-height:1.2;border:1px solid #164f37;white-space:nowrap;'
+      );
+      fila.appendChild(boton);
+
+      wrap.appendChild(fila);
+    });
+
+    const footer = doc.createElement('div');
+    footer.setAttribute(
+      'style',
+      'padding:8px 12px 10px 12px;border-top:1px solid #e7eee9;font-size:10px;line-height:1.4;color:#7a8a82;'
+    );
+    footer.textContent = 'Al abrir el enlace puedes previsualizar o descargar el archivo en Google Drive.';
+    wrap.appendChild(footer);
+
+    return wrap;
+  }
+
+  private forzarAlturaAutoEnTablaDrive(el: HTMLElement): void {
+    el.removeAttribute('height');
+    const style = String(el.getAttribute('style') || '');
+    const limpio = style
+      .replace(/(?:^|;)\s*height\s*:\s*[^;]+/gi, '')
+      .replace(/(?:^|;)\s*min-height\s*:\s*[^;]+/gi, '')
+      .replace(/;{2,}/g, ';')
+      .replace(/^\s*;\s*|\s*;\s*$/g, '')
+      .trim();
+    const extras = 'height:auto!important;max-height:none!important;line-height:1.35';
+    el.setAttribute('style', limpio ? `${limpio};${extras}` : extras);
+  }
+
   private extraerTextoPlanoDesdeHtml(html: string): string {
     const doc = this.parsearHtmlSeguro(html);
     if (doc?.body) {
@@ -2533,7 +2914,7 @@ export class CorreoComponent implements OnInit, OnDestroy {
     this.iframeBlobFallbackIntentado = false;
     this.liberarIframeBlob();
     iframe.removeAttribute('src');
-    iframe.srcdoc = this.cuerpoHtmlContenido;
+    iframe.srcdoc = this.envolverHtmlVistaCorreo(this.cuerpoHtmlContenido);
     this.registrarDiagnosticoRender('iframe_srcdoc_asignado', {
       longitudHtml: this.cuerpoHtmlContenido.length
     });
@@ -2545,6 +2926,31 @@ export class CorreoComponent implements OnInit, OnDestroy {
     setTimeout(ajustar, 400);
     setTimeout(() => this.intentarRecuperacionRenderIframe(iframe), 220);
     setTimeout(() => this.intentarRecuperacionRenderIframe(iframe), 650);
+  }
+
+  /** Asegura CSS anti-estiramiento del bloque Drive también en fragmentos sin <head>. */
+  private envolverHtmlVistaCorreo(html: string): string {
+    const contenido = String(html || '').trim();
+    if (!contenido) {
+      return '';
+    }
+
+    const cssDrive = [
+      'table,tbody,thead,tr,td,th{height:auto!important;max-height:none!important;}',
+      'div[data-biznaga-drive="1"],table[data-biznaga-drive="1"],table[data-biznaga-drive="1"] table{max-width:520px!important;width:100%!important;height:auto!important;}',
+      'table[data-biznaga-drive="1"] td{vertical-align:top!important;line-height:1.35!important;}',
+      'blockquote{margin:0.5em 0;padding-left:0.75em;border-left:2px solid #dadce0;}'
+    ].join('');
+    const styleTag = `<style type="text/css">${cssDrive}</style>`;
+
+    if (/<head[\s>]/i.test(contenido)) {
+      return contenido.replace(/<head([^>]*)>/i, `<head$1>${styleTag}`);
+    }
+    if (/<html[\s>]/i.test(contenido)) {
+      return contenido.replace(/<html([^>]*)>/i, `<html$1><head>${styleTag}</head>`);
+    }
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">${styleTag}</head><body style="margin:0;padding:24px 36px 20px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.65;color:#1A1A1A;">${contenido}</body></html>`;
   }
 
   private intentarRecuperacionRenderIframe(iframe: HTMLIFrameElement): void {
@@ -2568,7 +2974,7 @@ export class CorreoComponent implements OnInit, OnDestroy {
       this.iframeBlobFallbackIntentado = true;
       try {
         this.liberarIframeBlob();
-        const htmlBlob = new Blob([this.cuerpoHtmlContenido], { type: 'text/html;charset=utf-8' });
+        const htmlBlob = new Blob([this.envolverHtmlVistaCorreo(this.cuerpoHtmlContenido)], { type: 'text/html;charset=utf-8' });
         this.iframeBlobUrl = URL.createObjectURL(htmlBlob);
         iframe.removeAttribute('srcdoc');
         iframe.src = this.iframeBlobUrl;

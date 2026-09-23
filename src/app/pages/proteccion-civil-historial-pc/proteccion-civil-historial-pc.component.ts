@@ -1,5 +1,6 @@
 import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
-import { firstValueFrom, Subscription } from 'rxjs';
+import { ActivatedRoute, Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { BackendServices } from 'src/app/services/backend.services';
 import { PdfPreviewLoaderService } from 'src/app/services/pdf-preview-loader.service';
 
@@ -128,23 +129,42 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
   visorLento = false;
   private visorSeq = 0;
   private visorSub?: Subscription;
+  private visorBlobUrl: string | null = null;
   zoomVisor = 100;
   readonly zoomVisorMin = 25;
   readonly zoomVisorMax = 300;
   readonly zoomVisorPaso = 25;
 
+  private deepLinkEmpresaId: number | null = null;
+  private deepLinkOperacionId: number | null = null;
+  private routeSub?: Subscription;
+
   constructor(
     private backendService: BackendServices,
-    private pdfPreviewLoader: PdfPreviewLoaderService
+    private pdfPreviewLoader: PdfPreviewLoaderService,
+    private route: ActivatedRoute,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
-    this.cargarEmpresas();
+    this.routeSub = this.route.queryParamMap.subscribe((params) => {
+      const empresaId = Number(params.get('empresaId') || 0) || null;
+      const operacionId = Number(params.get('operacionId') || 0) || null;
+      this.deepLinkEmpresaId = empresaId;
+      this.deepLinkOperacionId = operacionId;
+      if (!this.empresas.length) {
+        this.cargarEmpresas();
+      } else if (empresaId) {
+        this.aplicarDeepLinkSiPendiente();
+      }
+    });
   }
 
   ngOnDestroy(): void {
     this.visorSeq += 1;
     this.visorSub?.unsubscribe();
+    this.routeSub?.unsubscribe();
+    this.revocarVisorBlob();
     document.body.classList.remove('visor-fullscreen-open');
   }
 
@@ -211,9 +231,9 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
         return false;
       }
       if (!q) return true;
+      // Buscar por nombre de asignación/requisito (no depender del filename subido).
       return [
         item.nombre_documento,
-        item.nombre_archivo,
         item.pipc_titulo,
         item.grupo_titulo,
         item.valor_texto
@@ -225,7 +245,7 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     const base = this.seccionFiltro === 'todos'
       ? this.secciones
       : this.secciones.filter((s) => s.key === this.seccionFiltro);
-    return base.filter((s) => this.contarApartado(s.key, true) > 0 || this.contarApartado(s.key, false) > 0);
+    return base.filter((s) => this.contarApartado(s.key, true) > 0);
   }
 
   get seccionActivaObj(): SeccionHistorialPc | undefined {
@@ -233,17 +253,77 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
   }
 
   get itemsSeccionActiva(): ItemHistorialPc[] {
-    return this.itemsFiltrados.filter((i) => i.apartado === this.seccionActiva);
+    return this.itemsDeApartado(this.seccionActiva);
   }
 
-  get gruposSeccionActiva(): Array<{ titulo: string; archivos: ItemHistorialPc[] }> {
+  get gruposSeccionActiva(): Array<{ titulo: string; pipc?: string | null; archivos: ItemHistorialPc[] }> {
+    return this.gruposDeApartado(this.seccionActiva);
+  }
+
+  get esSeccionCompacta(): boolean {
+    return this.esSeccionCompactaKey(this.seccionActiva);
+  }
+
+  itemsDeApartado(apartado: string): ItemHistorialPc[] {
+    return this.itemsFiltrados.filter((i) => i.apartado === apartado);
+  }
+
+  textosDeApartado(apartado: string): ItemHistorialPc[] {
+    return this.itemsDeApartado(apartado).filter((i) => i.tipo_item === 'texto');
+  }
+
+  archivosDeApartado(apartado: string): ItemHistorialPc[] {
+    return this.itemsDeApartado(apartado).filter((i) => i.tipo_item !== 'texto');
+  }
+
+  esSeccionCompactaKey(apartado: string): boolean {
+    return ['oficios', 'observaciones', 'resolutivos'].includes(apartado);
+  }
+
+  gruposDeApartado(apartado: string): Array<{ titulo: string; pipc?: string | null; archivos: ItemHistorialPc[] }> {
+    const items = this.archivosDeApartado(apartado);
+    if (apartado === 'documentacion' || apartado === 'extra') {
+      const map = new Map<string, { titulo: string; pipc?: string | null; archivos: ItemHistorialPc[] }>();
+      for (const item of items) {
+        const requisito = String(item.nombre_documento || 'Documento').trim() || 'Documento';
+        const pipc = item.pipc_titulo || null;
+        const key = `${pipc || ''}::${requisito}`;
+        if (!map.has(key)) {
+          map.set(key, { titulo: requisito, pipc, archivos: [] });
+        }
+        map.get(key)!.archivos.push(item);
+      }
+      return [...map.values()].sort((a, b) => {
+        const pa = String(a.pipc || '').localeCompare(String(b.pipc || ''), 'es');
+        if (pa !== 0) return pa;
+        return a.titulo.localeCompare(b.titulo, 'es');
+      });
+    }
+
     const map = new Map<string, ItemHistorialPc[]>();
-    for (const item of this.itemsSeccionActiva) {
+    for (const item of items) {
       const titulo = item.grupo_titulo || item.pipc_titulo || item.nombre_documento || 'Documentos';
       if (!map.has(titulo)) map.set(titulo, []);
       map.get(titulo)!.push(item);
     }
     return [...map.entries()].map(([titulo, archivos]) => ({ titulo, archivos }));
+  }
+
+  onFiltroTextoChange(): void {
+    this.asegurarSeccionActivaVisible();
+  }
+
+  private inicializarSeccionActiva(): void {
+    const primera = this.secciones.find((s) => this.contarApartado(s.key, false) > 0);
+    this.seccionActiva = primera?.key || 'documentacion';
+  }
+
+  private asegurarSeccionActivaVisible(): void {
+    const visibles = this.seccionesConDatos.map((s) => s.key);
+    if (!visibles.length) return;
+    if (!visibles.includes(this.seccionActiva)) {
+      this.seccionActiva = visibles[0];
+    }
   }
 
   cargarEmpresas(): void {
@@ -254,6 +334,7 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
         this.estados = [...new Set(this.empresas.map((e) => e.estado).filter(Boolean) as string[])].sort();
         this.filtrarEmpresas();
         this.cargando = false;
+        this.aplicarDeepLinkSiPendiente();
       },
       error: () => {
         this.empresas = [];
@@ -261,6 +342,40 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
         this.cargando = false;
       }
     });
+  }
+
+  private aplicarDeepLinkSiPendiente(): void {
+    const empresaId = this.deepLinkEmpresaId;
+    if (!empresaId || !this.empresas.length) return;
+    const empresa = this.empresas.find((e) => Number(e.empresa_id) === empresaId);
+    if (!empresa) return;
+    if (!this.empresaSeleccionada || Number(this.empresaSeleccionada.empresa_id) !== empresaId) {
+      this.empresaSeleccionada = empresa;
+      this.cicloSeleccionado = null;
+      this.vista = 'lista';
+      this.cargarCiclos(true);
+      return;
+    }
+    if (this.deepLinkOperacionId && this.ciclos.length) {
+      this.abrirCicloDeepLink();
+    }
+  }
+
+  private abrirCicloDeepLink(): void {
+    const operacionId = this.deepLinkOperacionId;
+    if (!operacionId) return;
+    const ciclo = this.ciclos.find((c) => Number(c.operacion_id) === operacionId);
+    if (ciclo) {
+      this.deepLinkOperacionId = null;
+      this.deepLinkEmpresaId = null;
+      this.abrirDetalleCiclo(ciclo);
+      this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { empresaId: null, operacionId: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true
+      });
+    }
   }
 
   filtrarEmpresas(): void {
@@ -306,7 +421,7 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     this.vista = 'lista';
   }
 
-  cargarCiclos(): void {
+  cargarCiclos(desdeDeepLink = false): void {
     if (!this.empresaSeleccionada) return;
     this.cargandoCiclos = true;
     this.backendService.obtenerCiclosHistorialPC(this.empresaSeleccionada.empresa_id).subscribe({
@@ -319,6 +434,9 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
         )].sort((a, b) => b - a);
         this.filtrarCiclos();
         this.cargandoCiclos = false;
+        if (desdeDeepLink || this.deepLinkOperacionId) {
+          this.abrirCicloDeepLink();
+        }
       },
       error: () => {
         this.ciclos = [];
@@ -354,8 +472,7 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
         if (resp?.ciclo) {
           this.cicloSeleccionado = { ...ciclo, ...resp.ciclo };
         }
-        const primera = this.secciones.find((s) => this.contarApartado(s.key, false) > 0);
-        this.seccionActiva = primera?.key || 'documentacion';
+        this.inicializarSeccionActiva();
         this.cargandoDetalle = false;
       },
       error: () => {
@@ -379,6 +496,14 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
   contarApartado(key: string, filtrado: boolean): number {
     const fuente = filtrado ? this.itemsFiltrados : this.items;
     return fuente.filter((i) => i.apartado === key).length;
+  }
+
+  contarArchivosApartado(key: string): number {
+    return this.archivosDeApartado(key).length;
+  }
+
+  contarTextosApartado(key: string): number {
+    return this.textosDeApartado(key).length;
   }
 
   cambiarModoVisual(modo: 'normal' | 'compacto'): void {
@@ -489,15 +614,20 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
 
   abrirItem(item: ItemHistorialPc, event?: Event): void {
     event?.stopPropagation();
-    this.visorNombre = item.nombre_archivo || item.nombre_documento;
+    this.visorNombre = item.tipo_item === 'texto'
+      ? item.nombre_documento
+      : (item.nombre_archivo || item.nombre_documento);
     this.visorIcono = this.iconoArchivo(item);
     this.visorDriveId = item.drive_file_id || '';
     this.zoomVisor = 100;
+    this.revocarVisorBlob();
     if (item.tipo_item === 'texto') {
       this.visorEsTexto = true;
       this.visorEsImagen = false;
+      this.visorModoPdf = false;
       this.visorUsaZoom = false;
       this.visorCargando = false;
+      this.visorError = null;
       this.visorTexto = item.valor_texto || '';
       this.visorUrl = '';
       this.mostrarVisor = true;
@@ -521,6 +651,28 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     void this.prepararUrlVisor(item);
   }
 
+  private revocarVisorBlob(): void {
+    if (this.visorBlobUrl) {
+      URL.revokeObjectURL(this.visorBlobUrl);
+      this.visorBlobUrl = null;
+    }
+  }
+
+  private inferirMimeImagen(nombre: string): string {
+    const ext = String(nombre || '').toLowerCase().split('.').pop() || '';
+    const map: Record<string, string> = {
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      gif: 'image/gif',
+      webp: 'image/webp',
+      bmp: 'image/bmp',
+      tif: 'image/tiff',
+      tiff: 'image/tiff'
+    };
+    return map[ext] || 'image/png';
+  }
+
   private async prepararUrlVisor(item: ItemHistorialPc): Promise<void> {
     const driveId = String(item.drive_file_id || '').trim();
     if (!driveId) {
@@ -529,13 +681,31 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     }
 
     if (this.visorEsImagen) {
-      try {
-        await firstValueFrom(this.backendService.asegurarAccesoPublicoDrive(driveId));
-      } catch {
-        // El proxy del servidor sigue disponible para imágenes.
-      }
-      const proxyUrl = this.backendService.resolverUrlDrivePreview(driveId);
-      this.visorUrl = proxyUrl || `https://drive.google.com/file/d/${driveId}/preview`;
+      const seq = ++this.visorSeq;
+      this.visorSub?.unsubscribe();
+      const nombre = item.nombre_archivo || item.nombre_documento || 'imagen.png';
+      this.visorSub = this.backendService.descargarArchivoDrive(driveId, nombre).subscribe({
+        next: (blob) => {
+          if (seq !== this.visorSeq) return;
+          const mime = blob?.type?.startsWith('image/')
+            ? blob.type
+            : this.inferirMimeImagen(nombre);
+          const imageBlob = blob?.type?.startsWith('image/')
+            ? blob
+            : new Blob([blob], { type: mime });
+          this.revocarVisorBlob();
+          this.visorBlobUrl = URL.createObjectURL(imageBlob);
+          this.visorUrl = this.visorBlobUrl;
+          this.visorCargando = false;
+          this.visorError = null;
+        },
+        error: () => {
+          if (seq !== this.visorSeq) return;
+          this.visorError = 'No se pudo cargar la imagen. Intenta descargarla o abrirla en Drive.';
+          this.visorCargando = false;
+          this.visorUrl = '';
+        }
+      });
       return;
     }
 
@@ -603,6 +773,11 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     this.visorCargando = false;
   }
 
+  onVisorImageError(): void {
+    this.visorCargando = false;
+    this.visorError = 'No se pudo mostrar la imagen. Intenta descargarla o abrirla en Drive.';
+  }
+
   ajustarZoomVisor(delta: number): void {
     this.zoomVisor = Math.min(this.zoomVisorMax, Math.max(this.zoomVisorMin, this.zoomVisor + delta));
   }
@@ -623,10 +798,12 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     this.visorSeq += 1;
     this.visorSub?.unsubscribe();
     this.mostrarVisor = false;
+    this.revocarVisorBlob();
     this.visorUrl = '';
     this.visorTexto = '';
     this.visorDriveId = '';
     this.visorEsImagen = false;
+    this.visorEsTexto = false;
     this.visorModoPdf = false;
     this.visorUsaZoom = false;
     this.previewBlobVisor = null;
@@ -641,11 +818,13 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
   limpiarBusqueda(): void {
     this.filtroTexto = '';
     this.seccionFiltro = 'todos';
+    this.asegurarSeccionActivaVisible();
   }
 
   onFiltroSeccionChange(): void {
     if (this.seccionFiltro !== 'todos') {
       this.seccionActiva = this.seccionFiltro;
     }
+    this.asegurarSeccionActivaVisible();
   }
 }

@@ -590,11 +590,297 @@ async function repararPadresPipcHuerfanos(poolProteccionCivil, empresaId) {
     return { eliminados: padreIdsEliminados.length, padre_ids: padreIdsEliminados };
 }
 
+/**
+ * Rehidrata requisitos recién restaurados con datos del historial (textos/archivos aprobados).
+ * Útil cuando antes se borraban los aprobados al finalizar revisión.
+ */
+async function rehidratarRequisitosDesdeHistorial(poolProteccionCivil, empresaId, padreId) {
+    const empresa = Number(empresaId);
+    const padre = Number(padreId);
+    if (!empresa || !padre) {
+        return { textos: 0, archivos: 0 };
+    }
+
+    const [hijos] = await poolProteccionCivil.query(
+        `SELECT documento_id, nombre_documento, tipo_entrada, estatus, valor_texto, archivo_url, nombre_archivo
+         FROM documento_proteccion_civil
+         WHERE documento_padre_id = ?`,
+        [padre]
+    );
+    if (!hijos?.length) {
+        return { textos: 0, archivos: 0 };
+    }
+
+    let textosRows = [];
+    try {
+        const [rows] = await poolProteccionCivil.query(
+            `SELECT documento_id, documento_padre_id, nombre_campo, valor_texto, fecha_creacion
+             FROM historial_textos_pc
+             WHERE empresa_id = ?
+               AND valor_texto IS NOT NULL
+               AND TRIM(valor_texto) <> ''
+             ORDER BY fecha_actualizacion DESC, historial_texto_id DESC`,
+            [empresa]
+        );
+        textosRows = rows || [];
+    } catch {
+        textosRows = [];
+    }
+
+    let archivosRows = [];
+    try {
+        const [rows] = await poolProteccionCivil.query(
+            `SELECT documento_id, nombre_documento, nombre_archivo, drive_file_id, mime_type, fecha_creacion
+             FROM historial_documentos_pc
+             WHERE empresa_id = ?
+             ORDER BY fecha_actualizacion DESC, historial_id DESC`,
+            [empresa]
+        );
+        archivosRows = rows || [];
+    } catch {
+        archivosRows = [];
+    }
+
+    const textoPorClave = new Map();
+    for (const row of textosRows) {
+        const clave = normalizarClaveDocumentoPipc(row.nombre_campo);
+        if (!clave || textoPorClave.has(clave)) continue;
+        // Preferir coincidencia por padre; si no hay padre, aceptar por nombre de campo.
+        if (row.documento_padre_id && Number(row.documento_padre_id) !== padre) continue;
+        textoPorClave.set(clave, row);
+    }
+    // Segunda pasada: campos sin padre registrado (historial antiguo)
+    for (const row of textosRows) {
+        const clave = normalizarClaveDocumentoPipc(row.nombre_campo);
+        if (!clave || textoPorClave.has(clave)) continue;
+        if (row.documento_padre_id) continue;
+        textoPorClave.set(clave, row);
+    }
+
+    const archivoPorClave = new Map();
+    for (const row of archivosRows) {
+        const clave = normalizarClaveDocumentoPipc(row.nombre_documento);
+        if (!clave || archivoPorClave.has(clave)) continue;
+        archivoPorClave.set(clave, row);
+    }
+
+    let textos = 0;
+    let archivos = 0;
+
+    for (const hijo of hijos) {
+        const clave = normalizarClaveDocumentoPipc(hijo.nombre_documento);
+        if (!clave) continue;
+
+        const yaTieneTexto = String(hijo.valor_texto || '').trim().length > 0;
+        const yaTieneArchivo = !!(hijo.archivo_url && String(hijo.archivo_url).trim().length > 10);
+        if (hijo.estatus === 'aprobado' && (yaTieneTexto || yaTieneArchivo)) {
+            continue;
+        }
+
+        if (hijo.tipo_entrada === 'texto' || !yaTieneArchivo) {
+            const histTexto = textoPorClave.get(clave);
+            if (histTexto && !yaTieneTexto) {
+                await poolProteccionCivil.query(
+                    `UPDATE documento_proteccion_civil
+                     SET valor_texto = ?, estatus = 'aprobado', fecha_subida = COALESCE(?, fecha_subida, NOW()),
+                         fecha_actualizacion = NOW()
+                     WHERE documento_id = ?`,
+                    [histTexto.valor_texto, histTexto.fecha_creacion || null, hijo.documento_id]
+                );
+                textos += 1;
+                continue;
+            }
+        }
+
+        if (hijo.tipo_entrada !== 'texto' && !yaTieneArchivo) {
+            const histArchivo = archivoPorClave.get(clave);
+            if (histArchivo?.drive_file_id) {
+                await poolProteccionCivil.query(
+                    `UPDATE documento_proteccion_civil
+                     SET archivo_url = ?, nombre_archivo = ?, estatus = 'aprobado',
+                         fecha_subida = COALESCE(?, fecha_subida, NOW()), fecha_actualizacion = NOW()
+                     WHERE documento_id = ?`,
+                    [
+                        histArchivo.drive_file_id,
+                        histArchivo.nombre_archivo || 'archivo',
+                        histArchivo.fecha_creacion || null,
+                        hijo.documento_id
+                    ]
+                );
+                archivos += 1;
+            }
+        }
+    }
+
+    return { textos, archivos };
+}
+
+/**
+ * Restaura solo requisitos faltantes que ya existieron (hay rastro en historial).
+ * Evita reinsertar requisitos eliminados a propósito sin entrega previa.
+ */
+async function restaurarRequisitosEliminadosConHistorial({
+    poolProteccionCivil,
+    driveService,
+    empresaId,
+    padreId,
+    padreNombre,
+    catalogoDocumentoId
+}) {
+    const empresa = Number(empresaId);
+    const padre = Number(padreId);
+    if (!empresa || !padre || !catalogoDocumentoId) {
+        return { insertados: 0, rehidratados: { textos: 0, archivos: 0 } };
+    }
+
+    let textosRows = [];
+    let archivosRows = [];
+    try {
+        const [t] = await poolProteccionCivil.query(
+            `SELECT nombre_campo, documento_padre_id
+             FROM historial_textos_pc
+             WHERE empresa_id = ?
+               AND valor_texto IS NOT NULL AND TRIM(valor_texto) <> ''`,
+            [empresa]
+        );
+        textosRows = t || [];
+    } catch {
+        textosRows = [];
+    }
+    try {
+        const [a] = await poolProteccionCivil.query(
+            `SELECT nombre_documento FROM historial_documentos_pc WHERE empresa_id = ?`,
+            [empresa]
+        );
+        archivosRows = a || [];
+    } catch {
+        archivosRows = [];
+    }
+
+    const clavesHistorial = new Set();
+    for (const row of textosRows) {
+        if (row.documento_padre_id && Number(row.documento_padre_id) !== padre) continue;
+        const clave = normalizarClaveDocumentoPipc(row.nombre_campo);
+        if (clave) clavesHistorial.add(clave);
+    }
+    for (const row of archivosRows) {
+        const clave = normalizarClaveDocumentoPipc(row.nombre_documento);
+        if (clave) clavesHistorial.add(clave);
+    }
+
+    if (!clavesHistorial.size) {
+        // Sin historial: solo rellenar plantillas vacías (comportamiento previo)
+        const [hijos] = await poolProteccionCivil.query(
+            'SELECT nombre_documento FROM documento_proteccion_civil WHERE documento_padre_id = ?',
+            [padre]
+        );
+        const reales = (hijos || []).filter((h) => !esSubtituloOperativoPcNombre(h.nombre_documento));
+        if (reales.length > 0) {
+            return { insertados: 0, rehidratados: { textos: 0, archivos: 0 } };
+        }
+        const syncVacios = await insertarRequisitosFaltantesPadrePipc({
+            poolProteccionCivil,
+            driveService,
+            empresaId: empresa,
+            padreId: padre,
+            padreNombre,
+            catalogoDocumentoId,
+            actualizarVisibilidad: false
+        });
+        return { insertados: syncVacios.insertados || 0, rehidratados: { textos: 0, archivos: 0 } };
+    }
+
+    // Insertar faltantes del catálogo y luego rehidratar; si no hay historial para un
+    // insert nuevo sin match, quedará pendiente (aceptable: se restauró plantilla incompleta).
+    // Para no recrear borrados intencionales, filtramos: solo insertamos claves con historial.
+    const [catRows] = await poolProteccionCivil.query(
+        `SELECT documento_id, nombre, drive_file_id, mime_type, hoja_nombre
+         FROM pc_catalogo_documento
+         WHERE documento_id = ? AND activo = 1
+         LIMIT 1`,
+        [catalogoDocumentoId]
+    );
+    if (!catRows.length || !catRows[0].drive_file_id) {
+        const rehidratados = await rehidratarRequisitosDesdeHistorial(poolProteccionCivil, empresa, padre);
+        return { insertados: 0, rehidratados };
+    }
+
+    const cat = catRows[0];
+    const filasPlantilla = await construirFilasCompletasDesdeDoc(
+        driveService,
+        {
+            drive_file_id: cat.drive_file_id,
+            hoja_nombre: cat.hoja_nombre || padreNombre,
+            items_checklist: []
+        },
+        padreNombre
+    );
+
+    const [hijosActuales] = await poolProteccionCivil.query(
+        `SELECT nombre_documento FROM documento_proteccion_civil WHERE documento_padre_id = ?`,
+        [padre]
+    );
+    const existentes = new Set(
+        (hijosActuales || []).map((h) => normalizarClaveDocumentoPipc(h.nombre_documento))
+    );
+
+    const values = [];
+    for (const fila of filasPlantilla) {
+        const clave = normalizarClaveDocumentoPipc(fila.nombre);
+        if (!clave || existentes.has(clave) || !clavesHistorial.has(clave)) continue;
+        values.push([
+            empresa,
+            padre,
+            fila.nombre,
+            fila.especificacion || '',
+            fila.obligatorio !== false ? 1 : 0,
+            0,
+            fila.tipo_entrada || 'archivo',
+            'pendiente',
+            null,
+            new Date(),
+            new Date()
+        ]);
+    }
+
+    let insertados = 0;
+    if (values.length) {
+        await poolProteccionCivil.query(`
+            INSERT INTO documento_proteccion_civil
+                (empresa_id, documento_padre_id, nombre_documento, especificacion, obligatorio, visible_empresa, tipo_entrada, estatus, asignado_por_usuario_id, fecha_asignacion, fecha_creacion)
+            VALUES ?
+        `, [values]);
+        insertados = values.length;
+    }
+
+    // También rellenar plantilla totalmente vacía (sin historial match previa)
+    if (!insertados) {
+        const reales = (hijosActuales || []).filter((h) => !esSubtituloOperativoPcNombre(h.nombre_documento));
+        if (reales.length === 0) {
+            const syncVacios = await insertarRequisitosFaltantesPadrePipc({
+                poolProteccionCivil,
+                driveService,
+                empresaId: empresa,
+                padreId: padre,
+                padreNombre,
+                catalogoDocumentoId,
+                actualizarVisibilidad: false
+            });
+            insertados = syncVacios.insertados || 0;
+        }
+    }
+
+    const rehidratados = await rehidratarRequisitosDesdeHistorial(poolProteccionCivil, empresa, padre);
+    return { insertados, rehidratados };
+}
+
 module.exports = {
     mapaVisibilidadDesdeChecklist,
     parsearFilasCompletasDesdeCatalogo,
     construirFilasCompletasDesdeDoc,
     insertarRequisitosFaltantesPadrePipc,
+    rehidratarRequisitosDesdeHistorial,
+    restaurarRequisitosEliminadosConHistorial,
     leerMapaTiposEntradaCatalogo,
     aplicarTiposEntradaDesdeMapasEnDocumentos,
     sincronizarTipoEntradaPendientesDesdeCatalogo,

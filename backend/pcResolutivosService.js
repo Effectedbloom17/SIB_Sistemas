@@ -1,5 +1,6 @@
 // =====================================================
-// Control de resolutivos PIPC (SP-F-29) — BD satélite + Google Sheets
+// Control de resolutivos PIPC (SP-F-29) — BD proteccion_civil + Google Sheets
+// Tabla: proteccion_civil.pc_control_resolutivos
 // =====================================================
 
 const { google } = require('googleapis');
@@ -332,7 +333,10 @@ async function migrarEsquemaResolutivos(poolSgc) {
         `ALTER TABLE pc_control_resolutivos MODIFY COLUMN fecha_vencimiento DATE NULL`,
         `ALTER TABLE pc_control_resolutivos MODIFY COLUMN fecha_contacto_empresa DATE NULL`,
         `ALTER TABLE pc_control_resolutivos ADD COLUMN fecha_ingreso_tramite DATE NULL AFTER fecha_contacto_empresa`,
-        `ALTER TABLE pc_control_resolutivos ADD COLUMN fecha_oficio_observaciones DATE NULL AFTER fecha_ingreso_tramite`
+        `ALTER TABLE pc_control_resolutivos ADD COLUMN fecha_oficio_observaciones DATE NULL AFTER fecha_ingreso_tramite`,
+        // sistema = desplegado desde centro de operaciones / asignación PC
+        // excel = referencia histórica del control SP-F-29 (solo llenado de Excel)
+        `ALTER TABLE pc_control_resolutivos ADD COLUMN origen VARCHAR(20) NOT NULL DEFAULT 'excel' AFTER estado`
     ];
 
     for (const sql of alteraciones) {
@@ -363,10 +367,126 @@ async function migrarEsquemaResolutivos(poolSgc) {
             // ya migrado
         }
     }
+
+    try {
+        await poolSgc.query(
+            `ALTER TABLE pc_control_resolutivos ADD INDEX idx_pc_resolutivo_origen (origen)`
+        );
+    } catch (err) {
+        if (err.code !== 'ER_DUP_KEYNAME') {
+            // ya migrado
+        }
+    }
+
+    await clasificarOrigenRegistrosExistentes(poolSgc);
+    await deduplicarResolutivosPrioridadSistema(poolSgc);
 }
 
-async function asegurarTablaPcControlResolutivos(poolSgc) {
-    await poolSgc.query(`
+/** Normaliza origen a 'sistema' | 'excel'. */
+function normalizarOrigenDespliegue(valor) {
+    const v = String(valor || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+    if (v === 'sistema' || v === 'system') return 'sistema';
+    return 'excel';
+}
+
+/**
+ * Backfill: si hay vínculo a asignación PC (documento_asignacion_pc_id) → sistema.
+ * El resto queda como excel (referencia del control histórico).
+ */
+async function clasificarOrigenRegistrosExistentes(poolSgc) {
+    try {
+        await poolSgc.query(
+            `UPDATE pc_control_resolutivos
+             SET origen = 'sistema', updated_at = NOW()
+             WHERE activo = 1
+               AND documento_asignacion_pc_id IS NOT NULL
+               AND documento_asignacion_pc_id > 0
+               AND (origen IS NULL OR origen = '' OR origen = 'excel')`
+        );
+        await poolSgc.query(
+            `UPDATE pc_control_resolutivos
+             SET origen = 'excel', updated_at = NOW()
+             WHERE activo = 1
+               AND (documento_asignacion_pc_id IS NULL OR documento_asignacion_pc_id = 0)
+               AND (origen IS NULL OR origen = '')`
+        );
+    } catch (err) {
+        console.warn('[PC Resolutivos] No se pudo clasificar origen sistema/excel:', err.message);
+    }
+}
+
+/**
+ * Si hay registros similares (misma empresa + tipo + nombre normalizado) y uno es sistema,
+ * desactiva los de excel (prioridad al despliegue del sistema).
+ */
+async function deduplicarResolutivosPrioridadSistema(poolSgc) {
+    try {
+        const [rows] = await poolSgc.query(
+            `SELECT resolutivo_id, empresa_id_biznaga, tipo_tramite, nombre_empresa,
+                    nombre_asignacion, origen, documento_asignacion_pc_id
+             FROM pc_control_resolutivos
+             WHERE activo = 1
+             ORDER BY empresa_id_biznaga ASC, resolutivo_id ASC`
+        );
+        if (!rows?.length) return { desactivados: 0 };
+
+        const grupos = new Map();
+        for (const row of rows) {
+            const empresaId = Number(row.empresa_id_biznaga) || 0;
+            const tipo = String(row.tipo_tramite || '').trim().toLowerCase() || '_sin_tipo_';
+            const nombreKey = normalizarNombreAsignacion(row.nombre_asignacion)
+                || normalizarNombreAsignacion(row.nombre_empresa)
+                || `_id_${row.resolutivo_id}`;
+            const key = `${empresaId}|${tipo}|${nombreKey}`;
+            if (!grupos.has(key)) grupos.set(key, []);
+            grupos.get(key).push(row);
+        }
+
+        let desactivados = 0;
+        for (const grupo of grupos.values()) {
+            if (grupo.length < 2) continue;
+            const sistemas = grupo.filter((r) => normalizarOrigenDespliegue(r.origen) === 'sistema');
+            const excels = grupo.filter((r) => normalizarOrigenDespliegue(r.origen) !== 'sistema');
+            if (!sistemas.length || !excels.length) continue;
+
+            // Conservar el sistema con vínculo de asignación más reciente; desactivar excel del grupo
+            const idsExcel = excels.map((r) => Number(r.resolutivo_id)).filter((id) => id > 0);
+            if (!idsExcel.length) continue;
+            const placeholders = idsExcel.map(() => '?').join(', ');
+            await poolSgc.query(
+                `UPDATE pc_control_resolutivos
+                 SET activo = 0, updated_at = NOW()
+                 WHERE resolutivo_id IN (${placeholders})`,
+                idsExcel
+            );
+            desactivados += idsExcel.length;
+        }
+        if (desactivados > 0) {
+            console.log(`[PC Resolutivos] Deduplicación origen: ${desactivados} registro(s) excel desactivados (prioridad sistema)`);
+        }
+        return { desactivados };
+    } catch (err) {
+        console.warn('[PC Resolutivos] Deduplicación origen falló:', err.message);
+        return { desactivados: 0 };
+    }
+}
+
+/** Marca un registro como despliegue sistema (y re-deduplica similares). */
+async function marcarOrigenSistema(poolSgc, resolutivoId) {
+    const id = Number(resolutivoId);
+    if (!Number.isFinite(id) || id <= 0) return;
+    await poolSgc.query(
+        `UPDATE pc_control_resolutivos SET origen = 'sistema', updated_at = NOW() WHERE resolutivo_id = ?`,
+        [id]
+    );
+}
+
+async function asegurarTablaPcControlResolutivos(poolDb) {
+    await poolDb.query(`
         CREATE TABLE IF NOT EXISTS pc_control_resolutivos (
             resolutivo_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
             item INT UNSIGNED NOT NULL,
@@ -383,6 +503,7 @@ async function asegurarTablaPcControlResolutivos(poolSgc) {
             fecha_contacto_empresa DATE NULL,
             municipio VARCHAR(120) NULL,
             estado VARCHAR(120) NULL,
+            origen VARCHAR(20) NOT NULL DEFAULT 'excel',
             sheet_file_id VARCHAR(80) NULL,
             sheet_row INT UNSIGNED NULL,
             activo TINYINT(1) NOT NULL DEFAULT 1,
@@ -394,7 +515,88 @@ async function asegurarTablaPcControlResolutivos(poolSgc) {
             KEY idx_pc_resolutivo_item (item)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
-    await migrarEsquemaResolutivos(poolSgc);
+    await migrarEsquemaResolutivos(poolDb);
+}
+
+/**
+ * Copia registros de biznaga_sgc.pc_control_resolutivos → proteccion_civil
+ * solo si la tabla destino está vacía (migración one-shot).
+ */
+async function migrarControlResolutivosDesdeSgcSiNecesario(poolPC, poolSgc) {
+    if (!poolPC?.query) return { migrados: 0, omitido: true };
+    await asegurarTablaPcControlResolutivos(poolPC);
+
+    const [destino] = await poolPC.query(
+        'SELECT COUNT(*) AS total FROM pc_control_resolutivos'
+    );
+    if (Number(destino?.[0]?.total || 0) > 0) {
+        return { migrados: 0, omitido: true, motivo: 'destino_con_datos' };
+    }
+
+    if (!poolSgc?.query) {
+        return { migrados: 0, omitido: true, motivo: 'sin_pool_sgc' };
+    }
+
+    let origenRows = [];
+    try {
+        const [rows] = await poolSgc.query(
+            `SELECT * FROM pc_control_resolutivos ORDER BY resolutivo_id ASC`
+        );
+        origenRows = rows || [];
+    } catch (err) {
+        // Tabla aún no existe en SGC o sin permisos: no hay nada que migrar
+        if (err.code === 'ER_NO_SUCH_TABLE') {
+            return { migrados: 0, omitido: true, motivo: 'sin_tabla_sgc' };
+        }
+        throw err;
+    }
+
+    if (!origenRows.length) {
+        return { migrados: 0, omitido: true, motivo: 'origen_vacio' };
+    }
+
+    let migrados = 0;
+    for (const row of origenRows) {
+        await poolPC.query(
+            `INSERT INTO pc_control_resolutivos (
+                item, empresa_id_biznaga, documento_asignacion_pc_id,
+                nombre_empresa, nombre_asignacion, tipo_tramite,
+                responsable, estatus, responsable_usuario_id,
+                fecha_aprobacion, fecha_vencimiento, fecha_contacto_empresa,
+                fecha_ingreso_tramite, fecha_oficio_observaciones,
+                municipio, estado, origen, sheet_file_id, sheet_row,
+                activo, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                row.item,
+                row.empresa_id_biznaga,
+                row.documento_asignacion_pc_id,
+                row.nombre_empresa,
+                row.nombre_asignacion,
+                row.tipo_tramite,
+                row.responsable,
+                row.estatus,
+                row.responsable_usuario_id,
+                row.fecha_aprobacion,
+                row.fecha_vencimiento,
+                row.fecha_contacto_empresa,
+                row.fecha_ingreso_tramite || null,
+                row.fecha_oficio_observaciones || null,
+                row.municipio,
+                row.estado,
+                normalizarOrigenDespliegue(row.origen),
+                row.sheet_file_id,
+                row.sheet_row,
+                row.activo == null ? 1 : row.activo,
+                row.created_at || null,
+                row.updated_at || null
+            ]
+        );
+        migrados += 1;
+    }
+
+    console.log(`[PC Resolutivos] Migrados ${migrados} registro(s) de biznaga_sgc → proteccion_civil`);
+    return { migrados, omitido: false };
 }
 
 function resolverEstatusRegistro(row, asignacionIncompleta) {
@@ -525,7 +727,8 @@ async function resolverNombreResponsableUsuario(poolBiznaga, usuarioId, fallback
     if (usuarioId && poolBiznaga) {
         try {
             const [rows] = await poolBiznaga.query(
-                'SELECT nombre, apellido, username FROM usuario WHERE id = ? LIMIT 1',
+                `SELECT nombre, apellido, username
+                 FROM usuario WHERE id = ? LIMIT 1`,
                 [usuarioId]
             );
             if (rows.length) {
@@ -610,10 +813,14 @@ async function crearResolutivoEnTramite({
         if (documentoAsignacionId && Number(existentePorNombre.documento_asignacion_pc_id) !== Number(documentoAsignacionId)) {
             await poolSgc.query(
                 `UPDATE pc_control_resolutivos
-                 SET documento_asignacion_pc_id = ?, updated_at = NOW()
+                 SET documento_asignacion_pc_id = ?, origen = 'sistema', updated_at = NOW()
                  WHERE resolutivo_id = ?`,
                 [documentoAsignacionId, existentePorNombre.resolutivo_id]
             );
+            await marcarOrigenSistema(poolSgc, existentePorNombre.resolutivo_id);
+            await deduplicarResolutivosPrioridadSistema(poolSgc);
+        } else {
+            await marcarOrigenSistema(poolSgc, existentePorNombre.resolutivo_id);
         }
         return {
             resolutivo_id: existentePorNombre.resolutivo_id,
@@ -639,8 +846,8 @@ async function crearResolutivoEnTramite({
             nombre_empresa, nombre_asignacion, tipo_tramite,
             responsable, estatus, responsable_usuario_id,
             fecha_aprobacion, fecha_vencimiento, fecha_contacto_empresa,
-            municipio, estado
-        ) VALUES (?, ?, ?, ?, ?, NULL, ?, 'En tramite', ?, NULL, NULL, NULL, ?, ?)`,
+            municipio, estado, origen
+        ) VALUES (?, ?, ?, ?, ?, NULL, ?, 'En tramite', ?, NULL, NULL, NULL, ?, ?, 'sistema')`,
         [
             item,
             empresaId,
@@ -654,6 +861,8 @@ async function crearResolutivoEnTramite({
         ]
     );
 
+    await deduplicarResolutivosPrioridadSistema(poolSgc);
+
     return {
         resolutivo_id: insertResult.insertId,
         item,
@@ -661,6 +870,7 @@ async function crearResolutivoEnTramite({
         nombre_asignacion: nombreAsignacion || null,
         responsable: nombreResponsable,
         estatus: 'En tramite',
+        origen: 'sistema',
         ya_existia: false
     };
 }
@@ -866,6 +1076,7 @@ async function sincronizarResolutivosCentroOperaciones({
                     municipio = COALESCE(?, municipio),
                     estado = COALESCE(?, estado),
                     estatus = 'En tramite',
+                    origen = 'sistema',
                     updated_at = NOW()
                  WHERE resolutivo_id = ?`,
                 [
@@ -903,6 +1114,7 @@ async function sincronizarResolutivosCentroOperaciones({
                     nombre_asignacion = COALESCE(?, nombre_asignacion),
                     documento_asignacion_pc_id = COALESCE(?, documento_asignacion_pc_id),
                     estatus = 'En tramite',
+                    origen = 'sistema',
                     updated_at = NOW()
                  WHERE resolutivo_id = ?`,
                 [
@@ -931,8 +1143,8 @@ async function sincronizarResolutivosCentroOperaciones({
                 nombre_empresa, nombre_asignacion, tipo_tramite,
                 responsable, estatus, responsable_usuario_id,
                 fecha_aprobacion, fecha_vencimiento, fecha_contacto_empresa,
-                municipio, estado
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                municipio, estado, origen
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sistema')`,
             [
                 item,
                 empresaId,
@@ -959,6 +1171,7 @@ async function sincronizarResolutivosCentroOperaciones({
         });
     }
 
+    await deduplicarResolutivosPrioridadSistema(poolSgc);
     return { sincronizados: registros.length, registros };
 }
 
@@ -1045,6 +1258,7 @@ async function registrarResolutivoPipc({
                 estatus = ?,
                 municipio = ?,
                 estado = ?,
+                origen = 'sistema',
                 updated_at = NOW()
              WHERE resolutivo_id = ?`,
             [
@@ -1062,6 +1276,8 @@ async function registrarResolutivoPipc({
             ]
         );
 
+        await deduplicarResolutivosPrioridadSistema(poolSgc);
+
         return {
             resolutivo_id: existente.resolutivo_id,
             item: existente.item,
@@ -1075,6 +1291,7 @@ async function registrarResolutivoPipc({
             estatus: nuevoEstatus,
             municipio,
             estado,
+            origen: 'sistema',
             actualizado: true,
             sync_sheets: false
         };
@@ -1120,8 +1337,8 @@ async function registrarResolutivoPipc({
             nombre_empresa, nombre_asignacion, tipo_tramite,
             responsable, estatus, responsable_usuario_id,
             fecha_aprobacion, fecha_vencimiento, fecha_contacto_empresa,
-            municipio, estado, sheet_file_id, sheet_row
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            municipio, estado, origen, sheet_file_id, sheet_row
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sistema', ?, ?)`,
         [
             item,
             empresaId,
@@ -1142,6 +1359,8 @@ async function registrarResolutivoPipc({
         ]
     );
 
+    await deduplicarResolutivosPrioridadSistema(poolSgc);
+
     return {
         resolutivo_id: insertResult.insertId,
         item,
@@ -1155,6 +1374,7 @@ async function registrarResolutivoPipc({
         estatus: nuevoEstatus,
         municipio,
         estado,
+        origen: 'sistema',
         sheet_file_id: sheetFileId,
         sheet_row: sheetRow,
         sync_sheets: syncSheets && sheetRow != null,
@@ -1167,7 +1387,7 @@ async function listarResolutivosEmpresa(poolSgc, empresaId) {
     const [rows] = await poolSgc.query(
         `SELECT resolutivo_id, item, documento_asignacion_pc_id, nombre_asignacion,
                 tipo_tramite, responsable, estatus, fecha_aprobacion, fecha_vencimiento,
-                fecha_contacto_empresa, municipio, estado, sheet_row, created_at
+                fecha_contacto_empresa, municipio, estado, origen, sheet_row, created_at
          FROM pc_control_resolutivos
          WHERE empresa_id_biznaga = ? AND activo = 1
          ORDER BY item ASC`,
@@ -1390,7 +1610,8 @@ async function obtenerFechasCentroOperacionesPorEmpresas(poolPC, empresaIds = []
     if (!ids.length) return mapa;
 
     const [rows] = await poolPC.query(
-        `SELECT empresa_id, fecha_ingreso_tramite, fecha_oficio_observaciones, operacion_id
+        `SELECT empresa_id, fecha_ingreso_tramite, fecha_oficio_observaciones,
+                responsable_pipc_usuario_id, operacion_id
          FROM pc_centro_operaciones
          WHERE empresa_id IN (?)
          ORDER BY activo DESC, (ciclo_cerrado_at IS NULL) DESC, operacion_id DESC`,
@@ -1402,7 +1623,8 @@ async function obtenerFechasCentroOperacionesPorEmpresas(poolPC, empresaIds = []
         if (mapa.has(empresaId)) continue;
         mapa.set(empresaId, {
             fecha_ingreso_tramite: row.fecha_ingreso_tramite,
-            fecha_oficio_observaciones: row.fecha_oficio_observaciones
+            fecha_oficio_observaciones: row.fecha_oficio_observaciones,
+            responsable_pipc_usuario_id: Number(row.responsable_pipc_usuario_id || 0) || null
         });
     }
     return mapa;
@@ -1415,7 +1637,7 @@ async function obtenerDatosControlResolutivos(poolSgc, poolPC = null, poolBiznag
                 nombre_empresa, nombre_asignacion, tipo_tramite, responsable, responsable_usuario_id, estatus,
                 fecha_aprobacion, fecha_vencimiento, fecha_contacto_empresa,
                 fecha_ingreso_tramite, fecha_oficio_observaciones,
-                municipio, estado, created_at, updated_at
+                municipio, estado, origen, created_at, updated_at
          FROM pc_control_resolutivos
          WHERE activo = 1
          ORDER BY item ASC`
@@ -1426,6 +1648,35 @@ async function obtenerDatosControlResolutivos(poolSgc, poolPC = null, poolBiznag
         rows.map((row) => row.empresa_id_biznaga)
     );
 
+    const responsablePipcIds = [...new Set(
+        [...fechasCentroOps.values()]
+            .map((ops) => Number(ops.responsable_pipc_usuario_id || 0))
+            .filter((id) => id > 0)
+    )];
+    const nombresPipc = new Map();
+    if (poolBiznaga?.query && responsablePipcIds.length) {
+        try {
+            const placeholders = responsablePipcIds.map(() => '?').join(', ');
+            const [usuarios] = await poolBiznaga.query(
+                `SELECT id, username, nombre, apellido
+                 FROM usuario
+                 WHERE id IN (${placeholders})`,
+                responsablePipcIds
+            );
+            for (const u of usuarios) {
+                const partes = [u.nombre, u.apellido]
+                    .map((p) => String(p || '').trim())
+                    .filter(Boolean);
+                const nombre = partes.length
+                    ? partes.join(' ')
+                    : String(u.username || '').trim();
+                if (nombre) nombresPipc.set(Number(u.id), nombre);
+            }
+        } catch (_err) {
+            // fallback a responsable del registro
+        }
+    }
+
     const registros = [];
     for (const row of rows) {
         const incompleta = await verificarAsignacionIncompleta(
@@ -1434,16 +1685,21 @@ async function obtenerDatosControlResolutivos(poolSgc, poolPC = null, poolBiznag
             row.empresa_id_biznaga
         );
         const estatus = resolverEstatusRegistro(row, incompleta);
-        const responsable = await resolverNombreResponsableUsuario(
-            poolBiznaga,
-            row.responsable_usuario_id,
-            row.responsable
-        );
         const fechasOps = fechasCentroOps.get(Number(row.empresa_id_biznaga)) || {};
+        const pipcUsuarioId = fechasOps.responsable_pipc_usuario_id || null;
+        const responsablePipcNombre = pipcUsuarioId ? (nombresPipc.get(pipcUsuarioId) || null) : null;
+        // Preferir siempre el responsable asignado en Asignar documentos (PIPC)
+        const responsable = responsablePipcNombre
+            || await resolverNombreResponsableUsuario(
+                poolBiznaga,
+                pipcUsuarioId || row.responsable_usuario_id,
+                row.responsable
+            );
         registros.push({
             ...row,
             estatus,
             responsable,
+            responsable_usuario_id: pipcUsuarioId || row.responsable_usuario_id || null,
             // Preferir fechas propias del registro; fallback a centro de operaciones
             fecha_ingreso_tramite: row.fecha_ingreso_tramite || fechasOps.fecha_ingreso_tramite || null,
             fecha_oficio_observaciones: row.fecha_oficio_observaciones || fechasOps.fecha_oficio_observaciones || null
@@ -1468,6 +1724,7 @@ function mapearRegistroControlResolutivos(item) {
         fecha_contacto_empresa: formatearFechaMx(item.fecha_contacto_empresa),
         municipio: item.municipio || '',
         estado: item.estado || '',
+        origen: normalizarOrigenDespliegue(item.origen),
         estatus: item.estatus || '',
         fecha_ingreso_tramite_iso: toMysqlDate(item.fecha_ingreso_tramite),
         fecha_oficio_observaciones_iso: toMysqlDate(item.fecha_oficio_observaciones),
@@ -1813,6 +2070,287 @@ async function resolutivoYaCompletado(poolSgc, empresaId, documentoAsignacionId)
     return !!row && !esResolutivoPlaceholder(row);
 }
 
+function valorCeldaExcelTexto(cell) {
+    if (!cell) return '';
+    const v = cell.value;
+    if (v == null || v === '') return '';
+    if (v instanceof Date) return formatearFechaMx(v);
+    if (typeof v === 'object') {
+        if (v.text != null) return String(v.text).trim();
+        if (v.result != null) {
+            if (v.result instanceof Date) return formatearFechaMx(v.result);
+            return String(v.result).trim();
+        }
+        if (Array.isArray(v.richText)) {
+            return v.richText.map((t) => t.text || '').join('').trim();
+        }
+    }
+    return String(v).trim();
+}
+
+function valorCeldaExcelFecha(cell) {
+    if (!cell) return null;
+    const v = cell.value;
+    if (v instanceof Date) return toMysqlDate(v);
+    if (v && typeof v === 'object' && v.result instanceof Date) return toMysqlDate(v.result);
+    return toMysqlDate(valorCeldaExcelTexto(cell));
+}
+
+/** Similitud Dice sobre bigramas (0..1) tras normalizar texto. */
+function similitudDice(a, b) {
+    const s1 = normalizarNombreAsignacion(a);
+    const s2 = normalizarNombreAsignacion(b);
+    if (!s1 && !s2) return 1;
+    if (!s1 || !s2) return 0;
+    if (s1 === s2) return 1;
+    if (s1.length < 2 || s2.length < 2) return 0;
+    const bigrams = (s) => {
+        const map = new Map();
+        for (let i = 0; i < s.length - 1; i++) {
+            const bg = s.slice(i, i + 2);
+            map.set(bg, (map.get(bg) || 0) + 1);
+        }
+        return map;
+    };
+    const b1 = bigrams(s1);
+    const b2 = bigrams(s2);
+    let intersection = 0;
+    for (const [k, count] of b1) {
+        if (b2.has(k)) intersection += Math.min(count, b2.get(k));
+    }
+    return (2 * intersection) / ((s1.length - 1) + (s2.length - 1));
+}
+
+function similitudFechasIso(a, b) {
+    const da = toMysqlDate(a) || '';
+    const db = toMysqlDate(b) || '';
+    if (!da && !db) return 1;
+    if (!da || !db) return 0;
+    return da === db ? 1 : 0;
+}
+
+/**
+ * Compara fila Excel vs registro origen=sistema.
+ * Umbral típico: >= 0.90 → omitir inserción (prioridad sistema).
+ */
+function similitudRegistroExcelVsSistema(excelRow, sistemaRow) {
+    const pesos = [
+        ['nombre_empresa', 0.32, (x, y) => similitudDice(x, y)],
+        ['tipo_tramite', 0.18, (x, y) => similitudDice(x, y)],
+        ['municipio', 0.12, (x, y) => similitudDice(x, y)],
+        ['estado', 0.08, (x, y) => similitudDice(x, y)],
+        ['responsable', 0.10, (x, y) => similitudDice(x, y)],
+        ['fecha_aprobacion', 0.10, (x, y) => similitudFechasIso(x, y)],
+        ['fecha_vencimiento', 0.05, (x, y) => similitudFechasIso(x, y)],
+        ['fecha_contacto_empresa', 0.05, (x, y) => similitudFechasIso(x, y)]
+    ];
+    let total = 0;
+    for (const [campo, peso, fn] of pesos) {
+        total += peso * fn(excelRow[campo], sistemaRow[campo]);
+    }
+    return total;
+}
+
+function normalizarTipoTramiteImport(valor) {
+    const v = normalizarTextoControl(valor).replace(/\s+/g, ' ').trim();
+    if (!v) return '';
+    if (v.includes('factib')) return 'Factibilidad';
+    if (v.includes('otms')) return 'OTMS';
+    if (v.includes('pipc') || v.includes('proteccion civil') || v.includes('programa interno')) return 'PIPC';
+    const exact = TIPOS_TRAMITE_VALIDOS.find((t) => normalizarTextoControl(t) === v);
+    return exact || String(valor || '').trim();
+}
+
+async function cargarEmpresasCatalogoBiznaga(poolBiznaga) {
+    if (!poolBiznaga) return [];
+    try {
+        const [rows] = await poolBiznaga.query(
+            `SELECT empresa_id, nombre_empresa, ciudad, estado
+             FROM empresa
+             WHERE activo = TRUE
+             ORDER BY nombre_empresa ASC`
+        );
+        return rows || [];
+    } catch (err) {
+        console.warn('[PC Resolutivos] No se pudo cargar catálogo de empresas:', err.message);
+        return [];
+    }
+}
+
+function resolverEmpresaIdPorNombre(empresas, nombreEmpresa) {
+    const objetivo = normalizarNombreAsignacion(nombreEmpresa);
+    if (!objetivo || !empresas.length) return 0;
+    let mejorId = 0;
+    let mejorScore = 0;
+    for (const emp of empresas) {
+        const score = similitudDice(objetivo, emp.nombre_empresa);
+        if (score > mejorScore) {
+            mejorScore = score;
+            mejorId = Number(emp.empresa_id) || 0;
+        }
+    }
+    return mejorScore >= 0.72 ? mejorId : 0;
+}
+
+/**
+ * Importa SP-F-29 (.xlsx) a proteccion_civil.pc_control_resolutivos:
+ * 1) Desactiva registros origen=excel (reemplazo).
+ * 2) Conserva origen=sistema.
+ * 3) Omite filas Excel con similitud >= 90% respecto a algún registro sistema.
+ */
+async function importarControlResolutivosDesdeExcel(poolSgc, poolBiznaga, buffer, opciones = {}) {
+    await asegurarTablaPcControlResolutivos(poolSgc);
+    await clasificarOrigenRegistrosExistentes(poolSgc);
+
+    const umbralSimilitud = Number(opciones.umbralSimilitud);
+    const umbral = Number.isFinite(umbralSimilitud) && umbralSimilitud > 0
+        ? umbralSimilitud
+        : 0.9;
+
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+
+    if (!workbook.worksheets.length) {
+        const err = new Error('El archivo Excel no contiene hojas.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const worksheet = workbook.worksheets.find((ws) => ws.name === PC_SPF29_SHEET_NAME)
+        || workbook.worksheets[0];
+
+    const filasExcel = [];
+    const maxRow = Math.max(worksheet.rowCount || 0, PC_SPF29_DATA_START_ROW);
+    for (let r = PC_SPF29_DATA_START_ROW; r <= maxRow; r++) {
+        const row = worksheet.getRow(r);
+        const nombreEmpresa = valorCeldaExcelTexto(row.getCell(PC_SPF29_COLUMNS.empresa));
+        if (!nombreEmpresa) continue;
+
+        const fechaAprobacion = valorCeldaExcelFecha(row.getCell(PC_SPF29_COLUMNS.fechaAprobacion));
+        const fechaContacto = valorCeldaExcelFecha(row.getCell(PC_SPF29_COLUMNS.fechaContacto));
+        const fechaIngreso = valorCeldaExcelFecha(row.getCell(PC_SPF29_COLUMNS.fechaIngresoTramite));
+        const fechaOficio = valorCeldaExcelFecha(row.getCell(PC_SPF29_COLUMNS.fechaOficioObservaciones));
+        let fechaVencimiento = null;
+        if (fechaAprobacion) {
+            const fa = parseFechaInput(fechaAprobacion);
+            if (fa) {
+                const fv = new Date(fa.getTime());
+                fv.setFullYear(fv.getFullYear() + 1);
+                fechaVencimiento = toMysqlDate(fv);
+            }
+        }
+        if (!fechaVencimiento && fechaContacto) {
+            const fc = parseFechaInput(fechaContacto);
+            if (fc) {
+                const fv = new Date(fc.getTime());
+                fv.setDate(fv.getDate() + 40);
+                fechaVencimiento = toMysqlDate(fv);
+            }
+        }
+
+        const estatusCalc = calcularEstatusResolutivo({
+            fechaAprobacion,
+            fechaContactoEmpresa: fechaContacto,
+            asignacionIncompleta: false
+        });
+
+        filasExcel.push({
+            itemExcel: valorCeldaExcelTexto(row.getCell(PC_SPF29_COLUMNS.item)),
+            nombre_empresa: nombreEmpresa,
+            tipo_tramite: normalizarTipoTramiteImport(valorCeldaExcelTexto(row.getCell(PC_SPF29_COLUMNS.tipoTramite))),
+            responsable: valorCeldaExcelTexto(row.getCell(PC_SPF29_COLUMNS.responsable)) || '—',
+            fecha_ingreso_tramite: fechaIngreso,
+            fecha_oficio_observaciones: fechaOficio,
+            fecha_aprobacion: fechaAprobacion,
+            fecha_vencimiento: fechaVencimiento,
+            fecha_contacto_empresa: fechaContacto,
+            municipio: valorCeldaExcelTexto(row.getCell(PC_SPF29_COLUMNS.municipio)),
+            estado: valorCeldaExcelTexto(row.getCell(PC_SPF29_COLUMNS.estado)),
+            estatus: estatusCalc
+        });
+    }
+
+    if (!filasExcel.length) {
+        const err = new Error(
+            `No se encontraron filas de datos en el Excel (se esperaban desde la fila ${PC_SPF29_DATA_START_ROW}).`
+        );
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const [delResult] = await poolSgc.query(
+        `UPDATE pc_control_resolutivos
+         SET activo = 0, updated_at = NOW()
+         WHERE activo = 1 AND origen = 'excel'`
+    );
+    const excelEliminados = delResult?.affectedRows || 0;
+
+    const [sistemaRows] = await poolSgc.query(
+        `SELECT resolutivo_id, empresa_id_biznaga, nombre_empresa, tipo_tramite, responsable,
+                fecha_aprobacion, fecha_vencimiento, fecha_contacto_empresa,
+                fecha_ingreso_tramite, fecha_oficio_observaciones, municipio, estado, estatus
+         FROM pc_control_resolutivos
+         WHERE activo = 1 AND origen = 'sistema'`
+    );
+    const registrosSistema = sistemaRows || [];
+
+    const empresas = await cargarEmpresasCatalogoBiznaga(poolBiznaga);
+    let insertados = 0;
+    let omitidosPorSimilitud = 0;
+    let siguienteItem = await obtenerSiguienteItem(poolSgc);
+
+    for (const fila of filasExcel) {
+        let maxSim = 0;
+        for (const sis of registrosSistema) {
+            const sim = similitudRegistroExcelVsSistema(fila, sis);
+            if (sim > maxSim) maxSim = sim;
+        }
+        if (maxSim >= umbral) {
+            omitidosPorSimilitud += 1;
+            continue;
+        }
+
+        const empresaId = resolverEmpresaIdPorNombre(empresas, fila.nombre_empresa);
+        await poolSgc.query(
+            `INSERT INTO pc_control_resolutivos (
+                item, empresa_id_biznaga, documento_asignacion_pc_id,
+                nombre_empresa, nombre_asignacion, tipo_tramite,
+                responsable, estatus, responsable_usuario_id,
+                fecha_aprobacion, fecha_vencimiento, fecha_contacto_empresa,
+                fecha_ingreso_tramite, fecha_oficio_observaciones,
+                municipio, estado, origen
+            ) VALUES (?, ?, NULL, ?, NULL, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 'excel')`,
+            [
+                siguienteItem,
+                empresaId,
+                fila.nombre_empresa,
+                fila.tipo_tramite || null,
+                fila.responsable,
+                fila.estatus || 'En tramite',
+                fila.fecha_aprobacion,
+                fila.fecha_vencimiento,
+                fila.fecha_contacto_empresa,
+                fila.fecha_ingreso_tramite,
+                fila.fecha_oficio_observaciones,
+                fila.municipio || null,
+                fila.estado || null
+            ]
+        );
+        siguienteItem += 1;
+        insertados += 1;
+    }
+
+    return {
+        filas_excel: filasExcel.length,
+        excel_desactivados: excelEliminados,
+        sistema_conservados: registrosSistema.length,
+        omitidos_por_similitud: omitidosPorSimilitud,
+        insertados,
+        umbral_similitud: umbral
+    };
+}
+
 module.exports = {
     TIPOS_TRAMITE_VALIDOS,
     SLOTS_RESOLUTIVO_CENTRO_OPS,
@@ -1824,8 +2362,12 @@ module.exports = {
     PC_SPF29_DRIVE_FOLDER_ID,
     NOMBRE_ARCHIVO_CONTROL_RESOLUTIVOS,
     asegurarTablaPcControlResolutivos,
+    migrarControlResolutivosDesdeSgcSiNecesario,
     existeResolutivoAsignacion,
     normalizarNombreAsignacion,
+    normalizarOrigenDespliegue,
+    clasificarOrigenRegistrosExistentes,
+    deduplicarResolutivosPrioridadSistema,
     obtenerResolutivoEnTramitePorNombre,
     crearResolutivoEnTramite,
     sincronizarResolutivosCentroOperaciones,
@@ -1844,6 +2386,8 @@ module.exports = {
     generarControlResolutivosPdf,
     obtenerEstadoControlResolutivosExcelDrive,
     guardarControlResolutivosExcelEnDrive,
+    importarControlResolutivosDesdeExcel,
+    similitudRegistroExcelVsSistema,
     formatearFechaMx,
     calcularFechaContacto,
     calcularEstatusResolutivo,

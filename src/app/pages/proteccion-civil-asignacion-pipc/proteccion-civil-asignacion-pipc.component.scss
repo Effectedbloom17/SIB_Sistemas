@@ -1,0 +1,676 @@
+$pc: #d97248;
+$pc-deep: #a14a21;
+$pc-soft: #f7e4d8;
+$pc-ink: #3d2418;
+
+@keyframes asigFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    /* transform: none evita containing block que encoge position:fixed (editor integrado) */
+    transform: none;
+  }
+}
+
+@keyframes asigPulseSoft {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 114, 72, 0.25); }
+  50% { box-shadow: 0 0 0 10px rgba(217, 114, 72, 0); }
+}
+
+@keyframes asigFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+// Header naranja (como Control de Resolutivos / PC)
+.asig-pipc-header {
+  &.header-bg-image {
+    background-image: url('/assets/img/prote_civil.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    min-height: 240px;
+    position: relative;
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        145deg,
+        rgba(100, 42, 10, 0.88) 0%,
+        rgba(185, 90, 42, 0.58) 40%,
+        rgba(140, 58, 18, 0.78) 70%,
+        rgba(72, 26, 5, 0.92) 100%
+      );
+      z-index: 1;
+    }
+  }
+
+  &__inner {
+    animation: asigFadeUp 0.55s ease both;
+  }
+
+  &__icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    font-size: 1.45rem;
+    margin-bottom: 0.65rem;
+    backdrop-filter: blur(4px);
+    animation: asigFloat 3.2s ease-in-out infinite;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+
+    i {
+      color: #fff;
+    }
+  }
+
+  &__title {
+    color: #fff !important;
+    font-weight: 700;
+    font-size: 2.15rem;
+    letter-spacing: -0.5px;
+    margin: 0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  }
+
+  &__sub {
+    color: rgba(255, 255, 255, 0.88) !important;
+    font-size: 0.92rem;
+    margin: 0.4rem 0 0;
+    font-weight: 500;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+}
+
+.asig-pipc-page {
+  animation: asigFadeUp 0.45s ease 0.08s both;
+}
+
+.asig-pipc-card {
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(161, 74, 33, 0.12), 0 4px 12px rgba(0, 0, 0, 0.04) !important;
+
+  &__header {
+    padding: 1.6rem 2rem 0.85rem !important;
+    background: linear-gradient(180deg, rgba(217, 114, 72, 0.07) 0%, rgba(255, 255, 255, 0) 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  &__title {
+    margin: 0;
+    color: $pc;
+    font-weight: 700;
+    font-size: 1.45rem;
+  }
+
+  &__body {
+    padding: 1.25rem 2rem 2rem !important;
+  }
+}
+
+.asig-pipc-tabs {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.28rem;
+  border-radius: 999px;
+  background: rgba(217, 114, 72, 0.08);
+  border: 1px solid rgba(217, 114, 72, 0.16);
+  align-self: flex-start;
+
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: none;
+    background: transparent;
+    color: #8898aa;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 0.45rem 0.9rem;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+
+    i { font-size: 0.72rem; }
+
+    &:hover {
+      color: $pc-deep;
+      background: rgba(255, 255, 255, 0.65);
+    }
+
+    &.is-active {
+      color: #fff;
+      background: linear-gradient(135deg, $pc, $pc-deep);
+      box-shadow: 0 4px 12px rgba($pc, 0.28);
+    }
+  }
+}
+
+.asig-pipc-gestion {
+  /* Solo opacity: evita transform residual que reduce el editor fixed */
+  animation: asigFadeInSoft 0.35s ease both;
+}
+
+@keyframes asigFadeInSoft {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.asig-pipc-eyebrow {
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: $pc-deep;
+  opacity: 0.75;
+  margin-bottom: 0.25rem;
+}
+
+.asig-pipc-help {
+  margin: 0.55rem 0 0;
+  font-size: 0.82rem;
+  color: #6c757d;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  max-width: 42rem;
+  line-height: 1.45;
+
+  i {
+    color: $pc;
+    margin-top: 0.15rem;
+  }
+}
+
+.asig-pipc-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.15rem 1.35rem;
+  margin-bottom: 1.35rem;
+
+  @media (max-width: 767px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.asig-pipc-field {
+  min-width: 0;
+
+  &.is-disabled {
+    opacity: 0.72;
+  }
+}
+
+.asig-pipc-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: #8898aa;
+  margin-bottom: 0.45rem;
+
+  i {
+    color: $pc;
+    margin-right: 0.25rem;
+  }
+}
+
+.asig-pipc-input-wrap {
+  position: relative;
+  border: 1.5px solid #e8ecf1;
+  border-radius: 12px;
+  background: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+
+  &:hover:not(.is-disabled) {
+    border-color: rgba($pc, 0.45);
+  }
+
+  &.is-open,
+  &:focus-within {
+    border-color: $pc;
+    box-shadow: 0 0 0 4px rgba($pc, 0.14);
+  }
+
+  &.is-selected {
+    border-color: rgba($pc, 0.55);
+    background: rgba($pc, 0.03);
+  }
+
+  &.is-disabled {
+    background: #f7f8fa;
+    pointer-events: none;
+  }
+}
+
+.asig-pipc-input-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: $pc;
+  font-size: 0.85rem;
+  opacity: 0.85;
+  z-index: 1;
+}
+
+.asig-pipc-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0.72rem 2.4rem 0.72rem 2.35rem;
+  font-size: 0.9rem;
+  color: #32325d;
+  border-radius: 12px;
+
+  &:focus {
+    outline: none;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+
+  &::placeholder {
+    color: #adb5bd;
+  }
+}
+
+.asig-pipc-clear {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: rgba($pc, 0.1);
+  color: $pc;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  z-index: 2;
+  transition: background 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: rgba($pc, 0.22);
+  }
+}
+
+.asig-pipc-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 1060;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid rgba($pc, 0.2);
+  box-shadow: 0 14px 32px rgba(161, 74, 33, 0.16);
+  max-height: 280px;
+  overflow-y: auto;
+  animation: asigFadeUp 0.18s ease;
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: left;
+    padding: 0.7rem 0.9rem;
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: rgba($pc, 0.08);
+    }
+  }
+
+  &__meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  &__name {
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: #32325d;
+  }
+
+  &__loc {
+    font-size: 0.72rem;
+    color: #8898aa;
+
+    i {
+      color: $pc;
+      margin-right: 0.2rem;
+    }
+  }
+
+  &--list {
+    list-style: none;
+    margin: 0;
+    padding: 0.35rem 0;
+
+    li {
+      padding: 0.55rem 0.95rem;
+      font-size: 0.86rem;
+      color: #32325d;
+      cursor: pointer;
+
+      &:hover,
+      &.is-active {
+        background: rgba($pc, 0.1);
+        color: $pc-deep;
+        font-weight: 600;
+      }
+
+      &.is-empty {
+        color: #8898aa;
+        cursor: default;
+        font-style: italic;
+      }
+    }
+  }
+}
+
+.asig-pipc-field-hint {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  color: #8898aa;
+
+  i {
+    margin-right: 0.25rem;
+    color: $pc;
+  }
+
+  &--tip {
+    color: #6c757d;
+  }
+
+  &--ok {
+    color: $pc-deep;
+    font-weight: 600;
+  }
+}
+
+.emp-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, $pc, darken($pc, 10%));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  overflow: hidden;
+
+  &--sm {
+    width: 34px;
+    height: 34px;
+    font-size: 0.78rem;
+  }
+
+  &--logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.asig-pipc-placeholder {
+  position: relative;
+  text-align: center;
+  padding: 3.2rem 1.5rem;
+  border-radius: 16px;
+  border: 1.5px dashed rgba($pc, 0.4);
+  background:
+    radial-gradient(circle at 50% 0%, rgba($pc, 0.12), transparent 55%),
+    linear-gradient(180deg, rgba($pc, 0.05) 0%, rgba(255, 255, 255, 0.4) 100%);
+  overflow: hidden;
+  animation: asigFadeUp 0.4s ease both;
+
+  &__glow {
+    position: absolute;
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    background: rgba($pc, 0.12);
+    top: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    filter: blur(30px);
+    pointer-events: none;
+  }
+
+  &__icon {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 1rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, $pc, $pc-deep);
+    color: #fff;
+    font-size: 1.6rem;
+    animation: asigPulseSoft 2.4s ease-in-out infinite;
+    position: relative;
+    z-index: 1;
+  }
+
+  &__title {
+    position: relative;
+    z-index: 1;
+    margin: 0 0 0.45rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: $pc-ink;
+  }
+
+  &__desc {
+    position: relative;
+    z-index: 1;
+    margin: 0 auto;
+    max-width: 28rem;
+    font-size: 0.88rem;
+    color: #6c757d;
+    line-height: 1.5;
+  }
+}
+
+.asig-pipc-embed {
+  animation: asigFadeUp 0.4s ease both;
+}
+
+.pc-animate-in {
+  animation: asigFadeUp 0.4s ease both;
+}
+
+.asig-pipc-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgba($pc, 0.12), rgba($pc, 0.04));
+  border: 1px solid rgba($pc, 0.22);
+
+  &__text {
+    flex: 1;
+    min-width: 0;
+
+    strong {
+      display: block;
+      color: #32325d;
+      font-size: 0.92rem;
+    }
+
+    small {
+      color: #8898aa;
+      font-size: 0.75rem;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  &__badge {
+    flex-shrink: 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #fff;
+    background: linear-gradient(135deg, $pc, $pc-deep);
+    padding: 0.3rem 0.65rem;
+    border-radius: 999px;
+  }
+}
+
+.asig-pipc-save-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  height: 34px;
+  width: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #c5c9d3;
+  color: #fff;
+  cursor: not-allowed;
+  overflow: hidden;
+  white-space: nowrap;
+  transition:
+    width 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+
+  i {
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  &__label {
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    transition:
+      max-width 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.2s ease,
+      margin 0.2s ease;
+  }
+
+  &.is-ready {
+    background: linear-gradient(135deg, $pc, $pc-deep);
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba($pc, 0.28);
+
+    &:hover,
+    &:focus-visible {
+      width: 110px;
+      padding: 0 0.85rem 0 0.7rem;
+      gap: 0.4rem;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba($pc, 0.35);
+      outline: none;
+
+      .asig-pipc-save-btn__label {
+        max-width: 80px;
+        opacity: 1;
+      }
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  &.is-loading {
+    background: linear-gradient(135deg, $pc, $pc-deep);
+    cursor: wait;
+    opacity: 0.85;
+  }
+
+  &:disabled:not(.is-loading) {
+    background: #c5c9d3;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+}
+
+// Ajustes del hijo embebido dentro de esta página
+:host ::ng-deep {
+  .pc-embebido-shell .asignacion-card {
+    box-shadow: none !important;
+    border: 1px solid rgba($pc, 0.15);
+    border-radius: 14px;
+  }
+
+  .pc-embebido-shell .asignacion-body {
+    padding: 1.5rem 1.75rem 2rem !important;
+  }
+
+  .pc-embebido-shell .pipc-section__header {
+    max-width: none;
+  }
+
+  .asignacion-toolbar--solo-guardar {
+    justify-content: flex-end;
+  }
+
+  .asignacion-toolbar--solo-guardar .asignacion-toolbar__left {
+    display: none;
+  }
+
+  .text-success,
+  .text-info {
+    color: $pc !important;
+  }
+
+  .spinner-border.text-success,
+  .spinner-border.text-info {
+    color: $pc !important;
+    border-color: currentColor;
+  }
+}

@@ -234,7 +234,9 @@
                       <button type="button" class="sgc-btn sgc-btn--primary" (click)="autorizarCambio()"
                         [disabled]="estaProcesando()">
                         <i class="fas" [ngClass]="estaProcesando('autorizar') ? 'fa-spinner fa-spin' : 'fa-check'"></i>
-                        {{ estaProcesando('autorizar') ? 'Autorizando…' : 'Autorizar cambio' }}
+                        {{ estaProcesando('autorizar')
+                          ? 'Autorizando…'
+                          : (esEliminacion(contexto.solicitud) ? 'Autorizar eliminación' : 'Autorizar cambio') }}
                       </button>
                     </footer>
                   </section>
@@ -304,11 +306,19 @@
                       <div>
                         <span>Paso 2 · Lista Maestra</span>
                         <h3>Editar documento controlado</h3>
+                        <p *ngIf="esEliminacion(contexto.solicitud)">
+                          Esta solicitud es de eliminación: el documento se desactivará en la Lista Maestra sin subir versión ni notificar a Sistemas.
+                        </p>
                       </div>
                     </header>
 
                     <div class="sgc-wizard-card__body">
                       <div class="sgc-wizard-card__deco" aria-hidden="true"></div>
+                      <div class="sgc-inline-alert sgc-inline-alert--warn sgc-inline-alert--master"
+                        *ngIf="esEliminacion(contexto.solicitud)">
+                        <i class="fas fa-ban"></i>
+                        <span>Al guardar, el formato quedará <strong>no vigente</strong> en la Lista Maestra.</span>
+                      </div>
                       <form class="sgc-master-form" #listaForm="ngForm" (ngSubmit)="guardarListaMaestra()">
                         <label>
                           <span>Código <b>*</b></span>
@@ -330,11 +340,18 @@
                         <label class="sgc-version-field">
                           <span>Versión vigente <b>*</b></span>
                           <div>
-                            <input name="versionVigente" [(ngModel)]="listaMaestraForm.versionVigente" required />
-                            <span class="sgc-version-badge">
+                            <input name="versionVigente" [(ngModel)]="listaMaestraForm.versionVigente"
+                              [readonly]="esEliminacion(contexto.solicitud)" required />
+                            <span class="sgc-version-badge"
+                              *ngIf="!esEliminacion(contexto.solicitud)">
                               {{ contexto.propuesta.versionAnterior || contexto.solicitud.version_actual || '—' }}
                               <i class="fas fa-arrow-right"></i>
                               {{ listaMaestraForm.versionVigente || '+1' }}
+                            </span>
+                            <span class="sgc-version-badge sgc-version-badge--off"
+                              *ngIf="esEliminacion(contexto.solicitud)">
+                              <i class="fas fa-ban"></i>
+                              Desactivar (sin +1)
                             </span>
                           </div>
                         </label>
@@ -360,12 +377,24 @@
                         <i class="fas" [ngClass]="estaProcesando('regresar') ? 'fa-spinner fa-spin' : 'fa-arrow-left'"></i>
                         {{ estaProcesando('regresar') ? 'Regresando…' : 'Regresar' }}
                       </button>
-                      <span>Los cambios se aplicarán a la Lista Maestra vigente.</span>
+                      <span *ngIf="!esEliminacion(contexto.solicitud)">
+                        Los cambios se aplicarán a la Lista Maestra vigente.
+                      </span>
+                      <span *ngIf="esEliminacion(contexto.solicitud)">
+                        Se desactivará el documento y el ticket quedará completado.
+                      </span>
                       <button type="button" class="sgc-btn sgc-btn--primary"
+                        [class.sgc-btn--danger]="esEliminacion(contexto.solicitud)"
                         (click)="guardarListaMaestra()"
                         [disabled]="!formularioListaValido || estaProcesando()">
-                        <i class="fas" [ngClass]="estaProcesando('lista') ? 'fa-spinner fa-spin' : 'fa-lock'"></i>
-                        {{ estaProcesando('lista') ? 'Guardando…' : 'Guardar en lista maestra' }}
+                        <i class="fas" [ngClass]="estaProcesando('lista')
+                          ? 'fa-spinner fa-spin'
+                          : (esEliminacion(contexto.solicitud) ? 'fa-ban' : 'fa-lock')"></i>
+                        {{ estaProcesando('lista')
+                          ? 'Guardando…'
+                          : (esEliminacion(contexto.solicitud)
+                            ? 'Desactivar en lista maestra'
+                            : 'Guardar en lista maestra') }}
                       </button>
                     </footer>
                   </section>
@@ -445,6 +474,40 @@
 
                     <div class="sgc-wizard-card__body">
                       <div class="sgc-wizard-card__deco" aria-hidden="true"></div>
+                      <div class="sgc-result-meta" *ngIf="contexto.solicitud as sol">
+                        <div class="sgc-result-meta__item">
+                          <i class="fas fa-user"></i>
+                          <div>
+                            <span>Solicitante</span>
+                            <strong>{{ resumenCierre.solicitante }}</strong>
+                            <small *ngIf="resumenCierre.puesto">{{ resumenCierre.puesto }}</small>
+                          </div>
+                        </div>
+                        <div class="sgc-result-meta__item">
+                          <i class="fas fa-ticket-alt"></i>
+                          <div>
+                            <span>Ticket</span>
+                            <strong>#{{ resumenCierre.ticketId || sol.solicitud_id }}</strong>
+                            <small>{{ tipoSolicitudLabel(sol.tipo_solicitud) }}</small>
+                          </div>
+                        </div>
+                        <div class="sgc-result-meta__item">
+                          <i class="fas fa-calendar-alt"></i>
+                          <div>
+                            <span>Fecha (México)</span>
+                            <strong>{{ resumenCierre.fechaSolicitud }}</strong>
+                            <small>{{ resumenCierre.horaSolicitud }} hrs</small>
+                          </div>
+                        </div>
+                        <div class="sgc-result-meta__item" *ngIf="sol.autorizado_at || sol.updated_at">
+                          <i class="fas fa-flag-checkered"></i>
+                          <div>
+                            <span>Cierre</span>
+                            <strong>{{ fechaHoraMexicoUi(sol.updated_at || sol.autorizado_at) }}</strong>
+                            <small>Hora México</small>
+                          </div>
+                        </div>
+                      </div>
                       <div class="sgc-result-table-wrap">
                         <table class="sgc-result-table">
                           <thead>
@@ -464,9 +527,10 @@
                                 <span class="sgc-result-table__no">1</span>
                               </td>
                               <td>
-                                <span class="sgc-result-table__cell">
+                                <span class="sgc-result-table__cell sgc-result-table__cell--nombre"
+                                  [attr.title]="resumenCierre.nombre">
                                   <i class="fas fa-file-alt"></i>
-                                  {{ resumenCierre.nombre }}
+                                  <span class="sgc-result-table__nombre">{{ resumenCierre.nombre }}</span>
                                 </span>
                               </td>
                               <td>
@@ -498,6 +562,11 @@
                         <ng-container *ngIf="contexto.solicitud.ticket_sistemas_id">
                           con el ticket #{{ contexto.solicitud.ticket_sistemas_id }}
                         </ng-container>.
+                      </p>
+                      <p class="sgc-completed-wrap__note"
+                        *ngIf="esEliminacion(contexto.solicitud) && !contexto.solicitud.notificar_sistemas">
+                        <i class="fas fa-ban"></i>
+                        Documento desactivado en Lista Maestra. No se generó ticket para Sistemas.
                       </p>
                     </div>
                   </section>

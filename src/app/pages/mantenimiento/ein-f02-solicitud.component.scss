@@ -279,6 +279,15 @@
   font-weight: 600;
 }
 
+.mt-status--warn {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  white-space: nowrap;
+}
+
 .mt-icon-actions {
   margin-left: auto;
   display: flex;

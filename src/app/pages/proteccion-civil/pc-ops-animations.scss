@@ -6,7 +6,8 @@
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    /* Evita containing block residual que reduce el editor integrado a pantalla parcial */
+    transform: none;
   }
 }
 

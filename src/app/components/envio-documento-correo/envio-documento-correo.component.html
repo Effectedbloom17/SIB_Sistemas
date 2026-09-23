@@ -1,0 +1,182 @@
+<div class="edc-root" *ngIf="visible" role="dialog" aria-modal="true" [attr.aria-label]="tituloVentana">
+  <div class="edc-backdrop" (click)="cerrar()" aria-hidden="true"></div>
+
+  <div class="edc-float" [class.is-minimized]="minimizado" [class.is-sending]="enviando">
+    <header class="edc-float__header">
+      <span class="edc-float__title">{{ tituloMostrado }}</span>
+      <div class="edc-float__controls">
+        <button type="button" class="edc-float__ctrl" title="Minimizar" (click)="minimizar()">
+          <i class="fas fa-minus" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="edc-float__ctrl" title="Cerrar" (click)="cerrar()" [disabled]="enviando">
+          <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+      </div>
+    </header>
+
+    <div class="edc-float__body" *ngIf="!minimizado">
+      <div class="edc-error" *ngIf="error">
+        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+        <span>{{ error }}</span>
+      </div>
+
+      <form class="edc-form" (ngSubmit)="enviar()">
+        <div class="edc-row edc-row--para" [class.is-dropdown]="campoPara.dropdownVisible">
+          <span class="edc-row__label">Para</span>
+          <div class="edc-chips">
+            <span class="edc-chip" *ngFor="let correo of campoPara.seleccionados">
+              <i class="fas fa-envelope" aria-hidden="true"></i>
+              <span class="edc-chip__text">{{ correo }}</span>
+              <button type="button" class="edc-chip__remove" (click)="eliminarCorreo('para', correo)" aria-label="Quitar">
+                <i class="fas fa-times" aria-hidden="true"></i>
+              </button>
+            </span>
+            <input
+              type="text"
+              class="edc-input"
+              [placeholder]="campoPara.seleccionados.length ? 'Agregar otro…' : 'Buscar contacto o escribir correo'"
+              [ngModel]="campoPara.input"
+              (ngModelChange)="onCampoInput('para', $event)"
+              (keydown)="onCampoKeydown('para', $event)"
+              (blur)="onCampoBlur('para')"
+              name="edc-para"
+              autocomplete="off"
+              [disabled]="enviando">
+          </div>
+          <div class="edc-row__links">
+            <button *ngIf="!mostrarCc" type="button" class="edc-link" (click)="mostrarCampoCc()">Cc</button>
+            <button *ngIf="!mostrarCco" type="button" class="edc-link" (click)="mostrarCampoCco()">Cco</button>
+          </div>
+
+          <div class="edc-sugerencias" *ngIf="campoPara.dropdownVisible && campoPara.filtrados.length">
+            <button
+              type="button"
+              class="edc-sugerencia"
+              *ngFor="let s of campoPara.filtrados"
+              (mousedown)="seleccionarSugerido('para', s)">
+              <div class="edc-sugerencia__avatar" [class.has-photo]="getCorreoAvatarUrl(s)">
+                <img *ngIf="getCorreoAvatarUrl(s)" [src]="getCorreoAvatarUrl(s)" [alt]="s.nombre || s.email" (error)="onCorreoAvatarError(s)">
+                <span *ngIf="!getCorreoAvatarUrl(s)">{{ getCorreoIniciales(s) }}</span>
+              </div>
+              <div class="edc-sugerencia__meta">
+                <strong>{{ s.nombre || s.email }}</strong>
+                <small *ngIf="s.nombre">{{ s.email }}</small>
+                <small *ngIf="!s.nombre && s.origen === 'personal'">Correo personal</small>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div class="edc-row edc-row--para" *ngIf="mostrarCc" [class.is-dropdown]="campoCc.dropdownVisible">
+          <span class="edc-row__label">Cc</span>
+          <div class="edc-chips">
+            <span class="edc-chip" *ngFor="let correo of campoCc.seleccionados">
+              <i class="fas fa-envelope" aria-hidden="true"></i>
+              <span class="edc-chip__text">{{ correo }}</span>
+              <button type="button" class="edc-chip__remove" (click)="eliminarCorreo('cc', correo)" aria-label="Quitar">
+                <i class="fas fa-times" aria-hidden="true"></i>
+              </button>
+            </span>
+            <input
+              type="text"
+              class="edc-input"
+              [placeholder]="campoCc.seleccionados.length ? 'Agregar otro…' : 'Cc'"
+              [ngModel]="campoCc.input"
+              (ngModelChange)="onCampoInput('cc', $event)"
+              (keydown)="onCampoKeydown('cc', $event)"
+              (blur)="onCampoBlur('cc')"
+              name="edc-cc"
+              autocomplete="off"
+              [disabled]="enviando">
+          </div>
+          <div class="edc-sugerencias" *ngIf="campoCc.dropdownVisible && campoCc.filtrados.length">
+            <button type="button" class="edc-sugerencia" *ngFor="let s of campoCc.filtrados" (mousedown)="seleccionarSugerido('cc', s)">
+              <div class="edc-sugerencia__avatar" [class.has-photo]="getCorreoAvatarUrl(s)">
+                <img *ngIf="getCorreoAvatarUrl(s)" [src]="getCorreoAvatarUrl(s)" [alt]="s.nombre || s.email" (error)="onCorreoAvatarError(s)">
+                <span *ngIf="!getCorreoAvatarUrl(s)">{{ getCorreoIniciales(s) }}</span>
+              </div>
+              <div class="edc-sugerencia__meta">
+                <strong>{{ s.nombre || s.email }}</strong>
+                <small *ngIf="s.nombre">{{ s.email }}</small>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div class="edc-row edc-row--para" *ngIf="mostrarCco" [class.is-dropdown]="campoCco.dropdownVisible">
+          <span class="edc-row__label">Cco</span>
+          <div class="edc-chips">
+            <span class="edc-chip" *ngFor="let correo of campoCco.seleccionados">
+              <i class="fas fa-envelope" aria-hidden="true"></i>
+              <span class="edc-chip__text">{{ correo }}</span>
+              <button type="button" class="edc-chip__remove" (click)="eliminarCorreo('cco', correo)" aria-label="Quitar">
+                <i class="fas fa-times" aria-hidden="true"></i>
+              </button>
+            </span>
+            <input
+              type="text"
+              class="edc-input"
+              [placeholder]="campoCco.seleccionados.length ? 'Agregar otro…' : 'Cco'"
+              [ngModel]="campoCco.input"
+              (ngModelChange)="onCampoInput('cco', $event)"
+              (keydown)="onCampoKeydown('cco', $event)"
+              (blur)="onCampoBlur('cco')"
+              name="edc-cco"
+              autocomplete="off"
+              [disabled]="enviando">
+          </div>
+          <div class="edc-sugerencias" *ngIf="campoCco.dropdownVisible && campoCco.filtrados.length">
+            <button type="button" class="edc-sugerencia" *ngFor="let s of campoCco.filtrados" (mousedown)="seleccionarSugerido('cco', s)">
+              <div class="edc-sugerencia__avatar" [class.has-photo]="getCorreoAvatarUrl(s)">
+                <img *ngIf="getCorreoAvatarUrl(s)" [src]="getCorreoAvatarUrl(s)" [alt]="s.nombre || s.email" (error)="onCorreoAvatarError(s)">
+                <span *ngIf="!getCorreoAvatarUrl(s)">{{ getCorreoIniciales(s) }}</span>
+              </div>
+              <div class="edc-sugerencia__meta">
+                <strong>{{ s.nombre || s.email }}</strong>
+                <small *ngIf="s.nombre">{{ s.email }}</small>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div class="edc-row edc-row--asunto">
+          <span class="edc-row__label">Asunto</span>
+          <input
+            type="text"
+            class="edc-input edc-input--full"
+            [(ngModel)]="asuntoEdit"
+            name="edc-asunto"
+            autocomplete="off"
+            [disabled]="enviando">
+        </div>
+
+        <div class="edc-adjunto" *ngIf="nombreAdjunto">
+          <i class="fas fa-file-pdf" aria-hidden="true"></i>
+          <span>{{ nombreAdjunto }}</span>
+          <small>Se generará al enviar</small>
+        </div>
+
+        <label class="edc-mensaje">
+          <span class="edc-mensaje__label">Mensaje</span>
+          <textarea
+            class="edc-textarea"
+            rows="4"
+            [(ngModel)]="mensajeEdit"
+            name="edc-mensaje"
+            [disabled]="enviando"
+            placeholder="Mensaje opcional…"></textarea>
+        </label>
+
+        <div class="edc-footer">
+          <button type="submit" class="edc-enviar" [disabled]="enviando">
+            <i class="fas" [ngClass]="enviando ? 'fa-spinner fa-spin' : 'fa-paper-plane'" aria-hidden="true"></i>
+            {{ enviando ? 'Enviando…' : 'Enviar' }}
+          </button>
+          <button type="button" class="edc-discard" title="Descartar" (click)="cerrar()" [disabled]="enviando">
+            <i class="fas fa-trash" aria-hidden="true"></i>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

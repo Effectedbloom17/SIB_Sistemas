@@ -8,7 +8,7 @@
                style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
             <i class="fas fa-shield-alt"></i>
           </div>
-          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">Protección Civil</h1>
+          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">PIPC Activos</h1>
         </div>
       </div>
     </div>
@@ -727,7 +727,7 @@
                       <div class="pc-avance-filter-bar" role="tablist" aria-label="Filtrar por estatus">
                         <button type="button"
                                 class="pc-avance-filter-chip"
-                                *ngFor="let chip of filtrosAtencionChips"
+                                *ngFor="let chip of filtrosAtencionChips; trackBy: trackByFiltroAtencionChip"
                                 [class.is-active]="filtroAtencionEstatus === chip.key"
                                 [style.--chip-color]="chip.color"
                                 [style.border-color]="filtroAtencionEstatus === chip.key ? chip.color : null"
@@ -769,7 +769,7 @@
                       </div>
 
                       <div class="pc-resolutivo-list" *ngIf="resolutivosAtencionFiltrados.length; else sinAtencionFiltrada">
-                        <ng-container *ngFor="let r of resolutivosAtencionFiltrados; let i = index">
+                        <ng-container *ngFor="let r of resolutivosAtencionFiltrados; let i = index; trackBy: trackByResolutivoAtencion">
                           <div class="pc-resolutivo-row"
                                *ngIf="indicadorTiempoAtencion(r) as ind"
                                [ngClass]="ind.clase"
@@ -866,7 +866,7 @@
                       <div class="pc-avance-stats-legend" *ngIf="resumenAtencionCards.length">
                         <button type="button"
                                 class="pc-avance-stat-card"
-                                *ngFor="let item of resumenAtencionCards"
+                                *ngFor="let item of resumenAtencionCards; trackBy: trackByResumenAtencionCard"
                                 [class.is-active]="filtroAtencionEstatus === item.key"
                                 [class.pc-avance-stat-card--tramite]="item.key === 'En tramite'"
                                 [class.pc-avance-stat-card--proximo]="item.key === 'Próximo a vencer'"
@@ -951,18 +951,13 @@
         <header class="pc-empresas-selector__header">
           <div class="pc-empresas-selector__title-row">
             <div class="pc-empresas-selector__intro">
-              <h2 class="pc-empresas-selector__title">Seleccionar Empresa</h2>
-              <p class="pc-empresas-selector__subtitle">Elige una empresa para gestionar su documentación de protección civil</p>
+              <h2 class="pc-empresas-selector__title">PIPC gestionados</h2>
+              <p class="pc-empresas-selector__subtitle">Empresas con PIPC desplegados en el sistema. La gestión inicia en Reporte de Recorrido.</p>
             </div>
             <div class="pc-empresas-selector__actions">
               <span class="pc-empresas-selector__count" *ngIf="!cargandoEmpresas">
-                {{ empresasFiltradas.length }} {{ empresasFiltradas.length === 1 ? 'empresa' : 'empresas' }}
+                {{ totalEmpresasDashboard }} {{ totalEmpresasDashboard === 1 ? 'empresa' : 'empresas' }}
               </span>
-              <a class="pc-empresas-selector__catalog-btn"
-                 [routerLink]="['/proteccion-civil/catalogo']">
-                <i class="fas fa-list-alt" aria-hidden="true"></i>
-                <span>Catálogo</span>
-              </a>
             </div>
           </div>
 
@@ -1011,8 +1006,11 @@
             <div class="pc-empresas-selector__state-icon">
               <i class="fas fa-building" aria-hidden="true"></i>
             </div>
-            <p class="pc-empresas-selector__state-title">No hay empresas</p>
-            <p class="pc-empresas-selector__state-desc">No se encontraron empresas con los filtros aplicados.</p>
+            <p class="pc-empresas-selector__state-title">Sin PIPC activos</p>
+            <p class="pc-empresas-selector__state-desc">
+              No hay empresas con PIPC en gestión.
+              <a [routerLink]="['/proteccion-civil/asignacion-pipc']">Asigna un PIPC</a> para comenzar.
+            </p>
           </div>
 
           <section *ngIf="hayActividadRecienteEmpresas"
@@ -1041,12 +1039,13 @@
                 <i class="fas fa-bookmark"></i> Última visita
               </span>
               <div class="pc-empresas-recientes__grid">
-                <ng-container *ngFor="let empresa of empresasActividadReciente; let i = index">
+                <ng-container *ngFor="let empresa of empresasActividadReciente; let i = index; trackBy: trackByFichaEmpresa">
                   <ng-container *ngTemplateOutlet="pcEmpresaCard; context: {
                     $implicit: empresa,
                     index: i,
                     reciente: true,
-                    ultima: i === 0
+                    ultima: i === 0,
+                    terminado: false
                   }"></ng-container>
                 </ng-container>
               </div>
@@ -1055,31 +1054,40 @@
 
           <div *ngIf="hayActividadRecienteEmpresas && empresasFiltradasResto.length > 0"
                class="pc-empresas-selector__section-label">
-            Todas las empresas
+            PIPC en gestión
           </div>
 
           <div *ngIf="!cargandoEmpresas && empresasFiltradasResto.length > 0"
                class="pc-empresas-selector__grid">
-            <ng-container *ngFor="let empresa of empresasFiltradasResto; let i = index">
+            <ng-container *ngFor="let empresa of empresasFiltradasResto; let i = index; trackBy: trackByFichaEmpresa">
               <ng-container *ngTemplateOutlet="pcEmpresaCard; context: {
                 $implicit: empresa,
                 index: i,
                 reciente: false,
-                ultima: false
+                ultima: false,
+                terminado: false
               }"></ng-container>
             </ng-container>
           </div>
 
-          <ng-template #pcEmpresaCard let-empresa let-index="index" let-reciente="reciente" let-ultima="ultima">
-            <article class="pc-empresa-card empresa-card"
+          <ng-template #pcEmpresaCard let-empresa let-index="index" let-reciente="reciente" let-ultima="ultima" let-terminado="terminado">
+            <article class="pc-empresa-card empresa-card pc-ficha-pipc"
                      [class.pc-empresa-card--recent]="reciente"
                      [class.pc-empresa-card--latest]="ultima"
+                     [class.pc-ficha-pipc--terminado]="terminado"
+                     [class.pc-ficha-pipc--hover-open]="isHoverFichaAbierta(empresa, terminado)"
+                     [class.pc-ficha-pipc--hover-izq]="esColumnaHoverIzquierda(index)"
+                     [class.pc-ficha-pipc--hover-centro]="esColumnaHoverCentro(index)"
+                     [class.pc-ficha-pipc--hover-der]="esColumnaHoverDerecha(index)"
+                     [attr.data-col]="getColumnaHover(index)"
                      [style.animation-delay]="(0.04 + index * 0.05) + 's'"
-                     (click)="seleccionarEmpresa(empresa)"
-                     (keydown.enter)="seleccionarEmpresa(empresa)"
+                     (click)="terminado ? abrirPipcTerminadoEnHistorial(empresa) : seleccionarEmpresa(empresa)"
+                     (keydown.enter)="terminado ? abrirPipcTerminadoEnHistorial(empresa) : seleccionarEmpresa(empresa)"
+                     (mouseenter)="abrirHoverFicha(empresa, terminado)"
+                     (mouseleave)="cerrarHoverFicha(empresa, terminado)"
                      tabindex="0"
                      role="button"
-                     [attr.aria-label]="ultima ? 'Última visita: ' + empresa.nombre_empresa : 'Abrir ' + empresa.nombre_empresa">
+                     [attr.aria-label]="(ultima ? 'Última visita: ' : (terminado ? 'Abrir historial: ' : '')) + empresa.nombre_empresa + (getPipcNombresEmpresa(empresa, terminado).length ? (' — ' + getPipcNombresEmpresa(empresa, terminado).join(', ')) : '')">
 
               <div class="pc-empresa-card__responsable"
                    *ngIf="empresa.responsable_pipc_nombre"
@@ -1100,35 +1108,240 @@
                 </div>
                 <div class="pc-empresa-card__meta empresa-info-texto">
                   <h3 class="pc-empresa-card__name empresa-card-nombre">{{ empresa.nombre_empresa }}</h3>
+                  <p class="pc-empresa-card__ubicacion" *ngIf="empresa.ciudad || empresa.estado">
+                    <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                    {{ empresa.ciudad || '' }}{{ empresa.ciudad && empresa.estado ? ', ' : '' }}{{ empresa.estado || '' }}
+                  </p>
+                  <div class="pc-ficha-pipc__badges" *ngIf="getPipcNombresEmpresa(empresa, terminado) as pipcNombres">
+                    <span class="pc-ficha-pipc__badge" *ngFor="let nombre of pipcNombres">
+                      <i class="fas fa-shield-alt" aria-hidden="true"></i>
+                      {{ nombre }}
+                    </span>
+                  </div>
+                  <div class="pc-ficha-pipc__step-meta pc-ficha-pipc__step-meta--cerrado"
+                       *ngIf="terminado && empresa.ciclo_cerrado_at">
+                    <i class="fas fa-calendar-check" aria-hidden="true"></i>
+                    Cerrado {{ formatearFechaPipcTerminado(empresa.ciclo_cerrado_at) }}
+                  </div>
                 </div>
               </div>
 
-              <div class="pc-empresa-card__progress empresa-card-progreso"
-                   [class.pc-empresa-card__progress--complete]="isProcesoCompleto(empresa)"
-                   [class.pc-empresa-card__progress--docs-done]="documentosCompletosEmpresa(empresa) && !isProcesoCompleto(empresa)"
-                   [class.pc-empresa-card__progress--partial]="getProgresoProceso(empresa) > 0 && !documentosCompletosEmpresa(empresa) && !isProcesoCompleto(empresa)">
-                <div class="pc-empresa-card__progress-head">
-                  <span class="pc-empresa-card__progress-label">{{ isProcesoCompleto(empresa) ? 'Trámite' : 'Avance del trámite' }}</span>
-                  <span class="pc-empresa-card__progress-value">
-                    {{ getProgresoProceso(empresa) }}%
-                    <small *ngIf="empresa.documentos_totales">{{ empresa.documentos_completos || 0 }}/{{ empresa.documentos_totales }} docs</small>
-                  </span>
+              <!-- Línea de tiempo: oculta hasta hover -->
+              <div class="pc-ficha-pipc__proceso"
+                   [class.pc-ficha-pipc__proceso--done]="terminado || isProcesoCompleto(empresa)"
+                   [class.pc-ficha-pipc__proceso--docs]="!terminado && esPasoDocumentacion(getFichaHoverActiva(empresa, terminado))">
+                <div class="pc-ficha-pipc__track" aria-label="Nodos del trámite PIPC">
+                  <ng-container *ngIf="getFichaHoverActiva(empresa, terminado) as fichaTrack">
+                    <ng-container *ngFor="let paso of getPasosDetalleFicha(fichaTrack); let pi = index; let last = last">
+                      <button type="button"
+                              class="pc-ficha-pipc__node"
+                              [class.is-ok]="paso.estado === 'ok'"
+                              [class.is-parcial]="paso.estado === 'parcial'"
+                              [class.is-current]="esPasoActualHover(fichaTrack, paso)"
+                              [class.is-focus]="isPasoNodoResaltado(empresa, terminado, paso)"
+                              [attr.title]="paso.label + ': ' + getEstadoPasoHover(paso)"
+                              [attr.aria-label]="paso.label + ', ' + getEstadoPasoHover(paso)"
+                              (mouseenter)="resaltarPasoNodo(empresa, terminado, paso.id, $event)"
+                              (mouseleave)="limpiarPasoNodo(empresa, terminado, $event)"
+                              (focus)="resaltarPasoNodo(empresa, terminado, paso.id, $event)"
+                              (blur)="limpiarPasoNodo(empresa, terminado, $event)"
+                              (click)="$event.stopPropagation()">
+                        <i class="fas"
+                           [ngClass]="getIconoPasoPipc(paso, esPasoActualHover(fichaTrack, paso))"></i>
+                      </button>
+                      <span class="pc-ficha-pipc__node-line"
+                            *ngIf="!last"
+                            [class.is-ok]="paso.estado === 'ok'"
+                            aria-hidden="true"></span>
+                    </ng-container>
+                  </ng-container>
                 </div>
-                <div class="pc-empresa-card__progress-track">
-                  <span class="pc-empresa-card__progress-bar"
-                        [style.width.%]="getProgresoProceso(empresa)"></span>
+              </div>
+
+              <!-- Gestión por nodo: al costado (no abajo) -->
+              <div class="pc-ficha-pipc__detalle" aria-hidden="true">
+                <button
+                  type="button"
+                  class="pc-ficha-pipc__nav pc-ficha-pipc__nav--prev"
+                  *ngIf="tieneHermanosPipc(empresa, terminado)"
+                  (click)="cambiarHoverPipc(empresa, -1, $event, terminado)"
+                  title="PIPC anterior"
+                  aria-label="PIPC anterior">
+                  <i class="fas fa-chevron-left"></i>
+                </button>
+                <button
+                  type="button"
+                  class="pc-ficha-pipc__nav pc-ficha-pipc__nav--next"
+                  *ngIf="tieneHermanosPipc(empresa, terminado)"
+                  (click)="cambiarHoverPipc(empresa, 1, $event, terminado)"
+                  title="PIPC siguiente"
+                  aria-label="PIPC siguiente">
+                  <i class="fas fa-chevron-right"></i>
+                </button>
+
+                <div class="pc-ficha-pipc__detalle-inner"
+                     *ngFor="let token of [getFichaHoverKey(empresa, terminado)]">
+                  <ng-container *ngIf="getFichaHoverActiva(empresa, terminado) as fichaHover">
+                    <div class="pc-ficha-pipc__detalle-head">
+                      <div class="pc-ficha-pipc__detalle-head-text">
+                        <span class="pc-ficha-pipc__detalle-eyebrow">
+                          {{ terminado ? 'Ciclo cerrado' : 'Gestión por nodo' }}
+                        </span>
+                        <strong class="pc-ficha-pipc__detalle-title">
+                          {{ fichaHover.pipc_nombre || 'PIPC' }}
+                        </strong>
+                      </div>
+                      <div class="pc-ficha-pipc__detalle-score"
+                           *ngIf="contarPasosOkHover(fichaHover) as score">
+                        <span class="pc-ficha-pipc__detalle-score-num">{{ score.ok }}</span>
+                        <span class="pc-ficha-pipc__detalle-score-den">/{{ score.total }}</span>
+                      </div>
+                    </div>
+
+                    <span class="pc-ficha-pipc__detalle-dots" *ngIf="tieneHermanosPipc(empresa, terminado)">
+                      <i *ngFor="let h of getFichasHermanasPipc(empresa, terminado); let hi = index"
+                         class="pc-ficha-pipc__dot"
+                         [class.is-active]="hi === getHoverPipcIndex(empresa, terminado)"></i>
+                    </span>
+
+                    <!-- Lista normal (izq / der) -->
+                    <ol class="pc-ficha-pipc__gestion"
+                        *ngIf="!esColumnaHoverCentro(index)">
+                      <li *ngFor="let paso of getPasosDetalleHover(fichaHover); let pi = index"
+                          class="pc-ficha-pipc__gestion-item"
+                          [class.is-ok]="paso.estado === 'ok'"
+                          [class.is-parcial]="paso.estado === 'parcial'"
+                          [class.is-current]="esPasoActualHover(fichaHover, paso)"
+                          [class.is-focus]="isPasoNodoResaltado(empresa, terminado, paso)"
+                          [style.animation-delay]="(0.04 + pi * 0.045) + 's'">
+                        <span class="pc-ficha-pipc__gestion-index" aria-hidden="true">
+                          <i class="fas" [ngClass]="getIconoPasoPipc(paso)"></i>
+                        </span>
+                        <span class="pc-ficha-pipc__gestion-body">
+                          <span class="pc-ficha-pipc__gestion-label">{{ paso.label }}</span>
+                          <span class="pc-ficha-pipc__gestion-bar" *ngIf="paso.id === 'documentacion'">
+                            <span class="pc-ficha-pipc__gestion-fill"
+                                  [style.width.%]="paso.pct || (paso.estado === 'ok' ? 100 : 0)"></span>
+                          </span>
+                        </span>
+                        <span class="pc-ficha-pipc__gestion-status"
+                              [attr.data-estado]="paso.estado"
+                              [attr.title]="getEstadoPasoHover(paso)">
+                          <i class="fas" [ngClass]="getIconoEstadoPasoHover(paso)" aria-hidden="true"></i>
+                          <span class="pc-ficha-pipc__gestion-status-extra"
+                                *ngIf="paso.id === 'documentacion' && paso.detalle && paso.estado !== 'ok'">
+                            {{ paso.detalle }}
+                          </span>
+                        </span>
+                      </li>
+                    </ol>
+
+                    <!-- Centro: 2 columnas (recorrido+docs | oficio+obs+resolutivo) -->
+                    <div class="pc-ficha-pipc__gestion-split"
+                         *ngIf="esColumnaHoverCentro(index)">
+                      <ol class="pc-ficha-pipc__gestion">
+                        <li *ngFor="let paso of getPasosHoverColumnaIzq(fichaHover); let pi = index"
+                            class="pc-ficha-pipc__gestion-item"
+                            [class.is-ok]="paso.estado === 'ok'"
+                            [class.is-parcial]="paso.estado === 'parcial'"
+                            [class.is-current]="esPasoActualHover(fichaHover, paso)"
+                            [class.is-focus]="isPasoNodoResaltado(empresa, terminado, paso)"
+                            [style.animation-delay]="(0.04 + pi * 0.045) + 's'">
+                          <span class="pc-ficha-pipc__gestion-index" aria-hidden="true">
+                            <i class="fas" [ngClass]="getIconoPasoPipc(paso)"></i>
+                          </span>
+                          <span class="pc-ficha-pipc__gestion-body">
+                            <span class="pc-ficha-pipc__gestion-label">{{ paso.label }}</span>
+                            <span class="pc-ficha-pipc__gestion-bar" *ngIf="paso.id === 'documentacion'">
+                              <span class="pc-ficha-pipc__gestion-fill"
+                                    [style.width.%]="paso.pct || (paso.estado === 'ok' ? 100 : 0)"></span>
+                            </span>
+                          </span>
+                          <span class="pc-ficha-pipc__gestion-status"
+                                [attr.data-estado]="paso.estado"
+                                [attr.title]="getEstadoPasoHover(paso)">
+                            <i class="fas" [ngClass]="getIconoEstadoPasoHover(paso)" aria-hidden="true"></i>
+                            <span class="pc-ficha-pipc__gestion-status-extra"
+                                  *ngIf="paso.id === 'documentacion' && paso.detalle && paso.estado !== 'ok'">
+                              {{ paso.detalle }}
+                            </span>
+                          </span>
+                        </li>
+                      </ol>
+                      <ol class="pc-ficha-pipc__gestion">
+                        <li *ngFor="let paso of getPasosHoverColumnaDer(fichaHover); let pi = index"
+                            class="pc-ficha-pipc__gestion-item"
+                            [class.is-ok]="paso.estado === 'ok'"
+                            [class.is-parcial]="paso.estado === 'parcial'"
+                            [class.is-current]="esPasoActualHover(fichaHover, paso)"
+                            [class.is-focus]="isPasoNodoResaltado(empresa, terminado, paso)"
+                            [style.animation-delay]="(0.04 + pi * 0.045) + 's'">
+                          <span class="pc-ficha-pipc__gestion-index" aria-hidden="true">
+                            <i class="fas" [ngClass]="getIconoPasoPipc(paso)"></i>
+                          </span>
+                          <span class="pc-ficha-pipc__gestion-body">
+                            <span class="pc-ficha-pipc__gestion-label">{{ paso.label }}</span>
+                          </span>
+                          <span class="pc-ficha-pipc__gestion-status"
+                                [attr.data-estado]="paso.estado"
+                                [attr.title]="getEstadoPasoHover(paso)">
+                            <i class="fas" [ngClass]="getIconoEstadoPasoHover(paso)" aria-hidden="true"></i>
+                          </span>
+                        </li>
+                      </ol>
+                    </div>
+                  </ng-container>
                 </div>
-                <p class="pc-empresa-card__progress-hint"
-                   *ngIf="documentosCompletosEmpresa(empresa) && !isProcesoCompleto(empresa)">
-                  Documentos al 100%. {{ getTextoPendientesTramite(empresa) }}.
-                </p>
-                <p class="pc-empresa-card__progress-hint pc-empresa-card__progress-hint--ok"
-                   *ngIf="isProcesoCompleto(empresa)">
-                  Oficio y resolutivo capturados
-                </p>
               </div>
             </article>
           </ng-template>
+
+          <!-- Últimos 9 PIPC terminados (mismo diseño de ficha) -->
+          <section class="pc-terminados-recientes"
+                   *ngIf="!cargandoEmpresas"
+                   aria-label="PIPC terminados recientes">
+            <header class="pc-terminados-recientes__header">
+              <div class="pc-terminados-recientes__titles">
+                <span class="pc-terminados-recientes__eyebrow">
+                  <i class="fas fa-flag-checkered"></i> Rendimiento
+                </span>
+                <h3 class="pc-terminados-recientes__title">Últimos PIPC terminados</h3>
+                <p class="pc-terminados-recientes__desc">
+                  Los 9 cierres más recientes para revisar el rendimiento de los gestores.
+                </p>
+              </div>
+              <span class="pc-terminados-recientes__count" *ngIf="pipcTerminadosAgrupados.length">
+                {{ pipcTerminadosAgrupados.length }}
+              </span>
+            </header>
+
+            <div *ngIf="cargandoPipcTerminados" class="pc-terminados-loading">
+              <div class="spinner-border" role="status" style="width: 2rem; height: 2rem; color: #d97248;">
+                <span class="sr-only">Cargando...</span>
+              </div>
+            </div>
+
+            <div *ngIf="!cargandoPipcTerminados && pipcTerminadosAgrupados.length === 0"
+                 class="pc-terminados-empty">
+              <div class="pc-terminados-empty__icon">
+                <i class="fas fa-flag-checkered"></i>
+              </div>
+              <p class="mb-0">Aún no hay ciclos PIPC finalizados.</p>
+            </div>
+
+            <div *ngIf="!cargandoPipcTerminados && pipcTerminadosAgrupados.length > 0"
+                 class="pc-empresas-recientes__grid pc-terminados-grid--fichas">
+              <ng-container *ngFor="let item of pipcTerminadosAgrupados; let i = index">
+                <ng-container *ngTemplateOutlet="pcEmpresaCard; context: {
+                  $implicit: item,
+                  index: i,
+                  reciente: true,
+                  ultima: false,
+                  terminado: true
+                }"></ng-container>
+              </ng-container>
+            </div>
+          </section>
 
         </div>
       </section>
@@ -1301,6 +1514,90 @@
               (responsableActualizado)="onResponsablePipcActualizado($event)"
               (solicitarDesbloqueo)="solicitarDesbloqueoPasoAsignar()">
             </app-proteccion-civil-asignar-documentos>
+            </div>
+
+            <div *ngIf="pasoOperacionesSeleccionado === 'directorio'" class="pc-animate-section pc-animate-section--delay-1">
+              <p class="pc-ops-hint-naranja small mb-3">
+                Descarga el directorio de apoyo externo asociado a cada PIPC de esta empresa.
+                Las asociaciones se definen en Asignación de PIPC → Gestión de Directorios.
+              </p>
+              <div class="pc-ops-lock-banner" *ngIf="isOpsPasoCompletado('directorio')">
+                <span class="pc-ops-lock-banner__icon" aria-hidden="true"><i class="fas fa-lock"></i></span>
+                <div class="pc-ops-lock-banner__body">
+                  <strong>Directorio completado</strong>
+                  <span>Puedes seguir descargando los archivos. Desbloquea el paso si necesitas volver a marcarlo como pendiente.</span>
+                </div>
+                <button type="button" class="pc-ops-lock-banner__action" (click)="desbloquearPasoOperaciones('directorio')">
+                  <i class="fas fa-unlock-alt" aria-hidden="true"></i> Desbloquear
+                </button>
+              </div>
+
+              <div *ngIf="opsDirectoriosCargando" class="text-center py-4">
+                <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                <p class="text-muted mt-2 mb-0">Cargando directorios por PIPC…</p>
+              </div>
+
+              <div *ngIf="!opsDirectoriosCargando && opsDirectoriosPorPipc.length === 0" class="alert alert-warning py-2 mb-3">
+                <i class="fas fa-info-circle mr-1"></i>
+                Primero asigna al menos un PIPC a esta empresa en «Desplegar por empresa».
+              </div>
+
+              <div class="pc-ops-dir-grid" *ngIf="!opsDirectoriosCargando && opsDirectoriosPorPipc.length">
+                <article class="pc-ops-dir-card"
+                         *ngFor="let pipc of opsDirectoriosPorPipc; trackBy: trackByOpsDirectorioPipc">
+                  <div class="pc-ops-dir-card__top">
+                    <span class="pc-ops-dir-card__badge">
+                      <i class="fas fa-map-marker-alt mr-1"></i>PIPC
+                    </span>
+                    <span class="badge badge-pill"
+                          [class.badge-ops-done]="pipc.directorios?.length"
+                          [class.badge-ops-pending]="!pipc.directorios?.length">
+                      {{ pipc.directorios?.length ? (pipc.directorios.length + ' directorio' + (pipc.directorios.length === 1 ? '' : 's')) : 'Sin asociar' }}
+                    </span>
+                  </div>
+                  <h6 class="pc-ops-dir-card__title">{{ pipc.nombre_documento }}</h6>
+                  <p class="pc-ops-dir-card__subtitle mb-2" *ngIf="!pipc.directorios?.length">
+                    Asocia un directorio a este PIPC en Gestión de Directorios.
+                  </p>
+                  <div class="pc-ops-dir-card__list" *ngIf="pipc.directorios?.length">
+                    <div class="pc-ops-dir-item"
+                         *ngFor="let dir of pipc.directorios; trackBy: trackByOpsDirectorio">
+                      <div class="pc-ops-dir-item__info">
+                        <i class="fas fa-file-word" aria-hidden="true"></i>
+                        <div>
+                          <strong>{{ dir.nombre }}</strong>
+                          <small>{{ dir.totalContactos || 0 }} contacto{{ (dir.totalContactos || 0) === 1 ? '' : 's' }}</small>
+                        </div>
+                      </div>
+                      <div class="pc-ops-dir-item__actions">
+                        <button type="button"
+                                class="btn btn-sm pc-ops-btn-primary"
+                                [disabled]="opsDescargandoDirectorioId === dir.id"
+                                (click)="descargarDirectorioOps(dir.id, dir.nombre, 'pdf')">
+                          <i class="fas"
+                             [ngClass]="opsDescargandoDirectorioId === dir.id ? 'fa-spinner fa-spin' : 'fa-download'"></i>
+                          PDF
+                        </button>
+                        <button type="button"
+                                class="btn btn-sm pc-ops-btn-outline"
+                                [disabled]="opsDescargandoDirectorioId === dir.id"
+                                (click)="descargarDirectorioOps(dir.id, dir.nombre, 'docx')">
+                          Word
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              </div>
+
+              <div class="d-flex justify-content-end flex-wrap mt-3" style="gap: 0.5rem;" *ngIf="!isOpsPasoCompletado('directorio')">
+                <button type="button"
+                        class="btn pc-ops-btn-primary"
+                        [disabled]="!opsPuedeCompletar.directorio"
+                        (click)="completarPasoOperaciones('directorio')">
+                  <i class="fas fa-check mr-1"></i>Completar nodo
+                </button>
+              </div>
             </div>
 
             <div *ngIf="pasoOperacionesSeleccionado === 'recorrido'" class="pc-animate-section pc-animate-section--delay-1">

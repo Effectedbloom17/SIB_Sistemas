@@ -206,10 +206,12 @@
                   </td>
                   <td class="mt-sticky mt-sticky--resp">
                     <textarea
-                      class="mt-cell-textarea"
-                      rows="2"
+                      #respTextarea
+                      class="mt-cell-textarea mt-cell-textarea--auto"
+                      rows="1"
                       [(ngModel)]="fila.responsable"
-                      (ngModelChange)="onCampoFilaChange()"
+                      (ngModelChange)="onCampoFilaChange(); ajustarTextareaResponsable(respTextarea)"
+                      (input)="ajustarTextareaResponsable(respTextarea)"
                       aria-label="Responsable"
                     ></textarea>
                   </td>

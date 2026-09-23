@@ -187,6 +187,7 @@ export const SGC_F01_CATALOGO_BASE: SgcF01DocumentoCatalogo[] = [
   d('DG', 'Interno', 'Formato', 'DG-F-06', '00', '2025-01-21', 'Cuadro de mando para objetivos de calidad e indicadores', 'Dirección General'),
   d('DG', 'Interno', 'Formato', 'DG-F-07', '00', '2025-01-21', 'Caracterización de procesos', 'Dirección General'),
   d('DG', 'Interno', 'Formato', 'DG-F-08', '00', '2026-03-17', 'Filosofía Biznaga Risk and Tech', 'Dirección General'),
+  d('AF', 'Interno', 'Formato', 'AF-F-02', '00', '2024-09-18', 'Contrato', 'Administración financiera'),
 
   // —— POLÍTICAS ——
   d('Dirección General', 'Interno', 'Política', 'SGC-PO-01', '00', '2025-07-09', 'Política de calidad'),

@@ -724,6 +724,28 @@ $correo-white: #ffffff;
       display: block;
     }
 
+    table,
+    tbody,
+    thead,
+    tr,
+    td,
+    th {
+      height: auto !important;
+      max-height: none !important;
+    }
+
+    table[data-biznaga-drive="1"],
+    div[data-biznaga-drive="1"] {
+      max-width: 520px !important;
+      width: 100% !important;
+      height: auto !important;
+    }
+
+    table[data-biznaga-drive="1"] td {
+      vertical-align: top !important;
+      line-height: 1.35 !important;
+    }
+
     blockquote,
     pre {
       margin: 0.35rem 0;
@@ -1214,6 +1236,22 @@ $correo-white: #ffffff;
       width: 100% !important;
       height: auto !important;
       display: block;
+    }
+
+    table,
+    tbody,
+    thead,
+    tr,
+    td,
+    th {
+      height: auto !important;
+      max-height: none !important;
+    }
+
+    table[data-biznaga-drive="1"],
+    div[data-biznaga-drive="1"] {
+      max-width: 520px !important;
+      width: 100% !important;
     }
 
     blockquote,

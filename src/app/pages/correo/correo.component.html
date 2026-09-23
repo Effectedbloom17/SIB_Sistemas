@@ -402,7 +402,7 @@
                   #cuerpoIframe
                   class="correo-body-iframe"
                   [class.correo-body-iframe-hidden]="cargandoContenido || !mostrarCuerpoIframe"
-                  sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                  sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
                   title="Contenido del correo"
                   (load)="ajustarAlturaIframe($event)">
                 </iframe>

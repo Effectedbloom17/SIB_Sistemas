@@ -2,6 +2,7 @@ import { Component, ElementRef, EventEmitter, Input, OnDestroy, OnInit, Output, 
 import { DomSanitizer, SafeResourceUrl, SafeUrl } from '@angular/platform-browser';
 import { HttpEventType } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
+import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
 import {
@@ -49,6 +50,8 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
 
   fotosPendientes: File[] = [];
   private previewPendientes = new Map<File, SafeUrl>();
+  /** Hash del payload sincronizado en Word/Drive por folio (para detectar cambios sin guardar). */
+  private hashesGuardadosDrive = new Map<string, string>();
 
   lightboxAbierto = false;
   lightboxUrl = '';
@@ -136,6 +139,11 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     return this.seleccionada?.evidencias?.length || 0;
   }
 
+  /** Indica si la vista actual tiene cambios locales no reflejados en Word/Drive. */
+  get tieneCambiosSinGuardarEnVista(): boolean {
+    return !!this.seleccionada && this.tieneCambiosSinGuardarDrive(this.seleccionada);
+  }
+
   nuevoReporte(): void {
     const sol = crearSolicitudVacia(this.solicitudes, this.defaultsUsuario);
     this.solicitudes = [sol, ...this.solicitudes];
@@ -156,9 +164,12 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     if (!Array.isArray(sol.evidencias)) {
       sol.evidencias = [];
     }
+    // Deduplicar evidencias por driveFileId (evita contar/enviar la misma foto dos veces).
+    sol.evidencias = this.deduplicarEvidencias(sol.evidencias);
     this.limpiarFotosPendientes();
     this.seleccionada = sol;
     this.vista = 'editor';
+    this.asegurarSnapshotDrive(sol);
   }
 
   /** @deprecated usar abrirRegistro */
@@ -303,6 +314,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
           sol.reporteDriveFileId = reporte.driveFileId;
           sol.reporteWebViewLink = reporte.webViewLink || sol.reporteWebViewLink;
           this.persistir();
+          this.marcarSincronizadoDrive(sol);
         }
         this.flash('Información guardada en Word/Drive.');
       },
@@ -449,7 +461,8 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
           const res = (event.body || {}) as { evidencias?: EinF02Evidencia[] };
           const nuevas: EinF02Evidencia[] = Array.isArray(res.evidencias) ? res.evidencias : [];
           if (this.seleccionada && this.seleccionada.folio === folio) {
-            this.seleccionada.evidencias = [...(this.seleccionada.evidencias || []), ...nuevas];
+            const combinadas = [...(this.seleccionada.evidencias || []), ...nuevas];
+            this.seleccionada.evidencias = this.deduplicarEvidencias(combinadas).slice(0, MAX_EVIDENCIAS);
             this.onCampoChange();
           }
           this.limpiarFotosPendientes();
@@ -502,7 +515,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     });
   }
 
-  abrirEditorIntegradoF04(sol?: EinF02Solicitud, event?: Event): void {
+  async abrirEditorIntegradoF04(sol?: EinF02Solicitud, event?: Event): Promise<void> {
     event?.stopPropagation();
     const target = sol || this.seleccionada;
     if (!target) {
@@ -520,29 +533,39 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Siempre regenera para aplicar tipo (X), descripción e imágenes actualizadas.
-    this.generandoReporte = true;
-    this.backend.generarReporteMantenimientoF04(target.folio, this.payloadReporteF04(target)).subscribe({
-      next: (res) => {
-        this.generandoReporte = false;
-        const reporte = res?.reporte;
-        if (reporte?.driveFileId) {
-          target.reporteDriveFileId = reporte.driveFileId;
-          target.reporteWebViewLink = reporte.webViewLink || target.reporteWebViewLink;
-          this.persistir();
-        }
-        this.mostrarEditorIntegradoF04(target);
-      },
-      error: (err) => {
-        this.generandoReporte = false;
-        if (target.reporteWebViewLink || target.reporteDriveFileId) {
-          this.flash('No se pudo actualizar el Word; se abre la versión anterior.');
-          this.mostrarEditorIntegradoF04(target);
-          return;
-        }
-        this.flash(err?.error?.message || 'No se pudo generar el Word en Drive.');
+    target.evidencias = this.deduplicarEvidencias(target.evidencias || []);
+    this.asegurarSnapshotDrive(target);
+
+    const tieneWord = !!(target.reporteDriveFileId || target.reporteWebViewLink);
+    if (!tieneWord) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Word aún no generado',
+        html: 'Usa <strong>Guardar información</strong> para generar el Word en Drive. '
+          + 'El editor integrado solo abre el documento ya guardado; no sustituye ese botón.',
+        confirmButtonText: 'Entendido'
+      });
+      return;
+    }
+
+    if (this.tieneCambiosSinGuardarDrive(target)) {
+      const result = await Swal.fire({
+        icon: 'warning',
+        title: 'Cambios sin guardar',
+        html: 'Hay cambios en el sistema que <strong>no se han guardado</strong> con «Guardar información». '
+          + 'El Word puede verse diferente a lo que muestra el sistema.<br><br>'
+          + '¿Abrir el editor con la versión guardada en Drive?',
+        showCancelButton: true,
+        confirmButtonText: 'Abrir de todos modos',
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true
+      });
+      if (!result.isConfirmed) {
+        return;
       }
-    });
+    }
+
+    this.mostrarEditorIntegradoF04(target);
   }
 
   cerrarEditorIntegradoF04(): void {
@@ -636,6 +659,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
         }
         if (driveId || webLink) {
           this.persistir();
+          this.marcarSincronizadoDrive(sol);
         }
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -722,6 +746,57 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     );
     this.onCampoChange();
     this.flash('Evidencia eliminada.');
+  }
+
+  private deduplicarEvidencias(lista: EinF02Evidencia[]): EinF02Evidencia[] {
+    const out: EinF02Evidencia[] = [];
+    const keys = new Set<string>();
+    for (const ev of lista || []) {
+      const key = String(ev?.driveFileId || ev?.url || ev?.webViewLink || '').trim();
+      if (!key || keys.has(key)) {
+        continue;
+      }
+      keys.add(key);
+      out.push(ev);
+    }
+    return out;
+  }
+
+  private hashPayloadDrive(sol: EinF02Solicitud): string {
+    const payload = this.payloadReporteF04(sol);
+    try {
+      return JSON.stringify(payload);
+    } catch {
+      return String(Date.now());
+    }
+  }
+
+  private marcarSincronizadoDrive(sol: EinF02Solicitud): void {
+    if (!sol?.folio) {
+      return;
+    }
+    this.hashesGuardadosDrive.set(sol.folio, this.hashPayloadDrive(sol));
+  }
+
+  private asegurarSnapshotDrive(sol: EinF02Solicitud): void {
+    if (!sol?.folio || this.hashesGuardadosDrive.has(sol.folio)) {
+      return;
+    }
+    // Si ya existe Word en Drive, asumir sincronizado hasta que el usuario edite.
+    if (sol.reporteDriveFileId || sol.reporteWebViewLink) {
+      this.marcarSincronizadoDrive(sol);
+    }
+  }
+
+  private tieneCambiosSinGuardarDrive(sol: EinF02Solicitud): boolean {
+    if (!sol?.folio) {
+      return false;
+    }
+    const prev = this.hashesGuardadosDrive.get(sol.folio);
+    if (prev == null) {
+      return false;
+    }
+    return prev !== this.hashPayloadDrive(sol);
   }
 
   private limpiarPreviewFoto(foto: File): void {

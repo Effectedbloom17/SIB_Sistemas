@@ -34,8 +34,10 @@
             </small>
           </div>
 
-          <div class="asignacion-toolbar">
-            <div class="asignacion-toolbar__left">
+          <div class="asignacion-toolbar"
+               *ngIf="!ocultarToolbarResponsable || !ocultarBotonGuardar"
+               [class.asignacion-toolbar--solo-guardar]="ocultarToolbarResponsable && !ocultarBotonGuardar">
+            <div class="asignacion-toolbar__left" *ngIf="!ocultarToolbarResponsable">
               <label class="asignacion-responsable">
                 <span class="asignacion-responsable__label">
                   <i class="fas fa-user-tie" aria-hidden="true"></i>
@@ -84,7 +86,7 @@
               </label>
             </div>
 
-            <div class="asignacion-toolbar__right">
+            <div class="asignacion-toolbar__right" *ngIf="!ocultarBotonGuardar">
               <button type="button"
                       class="btn-guardar-asignacion"
                       (click)="guardarAsignacion()"
@@ -114,14 +116,16 @@
 
         <div class="card-body asignacion-body" style="padding: 2rem 2.5rem 2.5rem;">
           <div *ngIf="cargandoCatalogo" class="text-center py-5">
-            <i class="fas fa-spinner fa-spin fa-2x text-muted mb-2"></i>
-            <p class="text-muted mb-0">Cargando documentos...</p>
+            <i class="fas fa-spinner fa-spin fa-2x mb-2" style="color:#d97248;"></i>
+            <p class="mb-0" style="color:#d97248;font-weight:600;">Cargando documentos...</p>
           </div>
 
           <ng-container *ngIf="!cargandoCatalogo">
           <div *ngIf="!hayDocumentosPipc" class="text-center py-5">
             <i class="fas fa-inbox fa-2x text-muted"></i>
-            <p class="text-muted mt-2 mb-0">No hay plantillas PIPC disponibles para esta empresa</p>
+            <p class="text-muted mt-2 mb-0">
+              No hay plantillas PIPC en el catálogo para esta empresa
+            </p>
           </div>
 
           <div *ngIf="hayDocumentosPipc" class="pipc-section">
@@ -132,9 +136,12 @@
               <div class="pipc-section__titles">
                 <h3 class="pipc-section__title">Programa Interno de Protección Civil (PIPC)</h3>
                 <p class="pipc-section__subtitle">
-                  Selecciona las plantillas PIPC que aún no están asignadas.
-                  <span *ngIf="totalPlantillasAsignadas > 0" class="pipc-section__progress">
+                  Selecciona plantillas PIPC para desplegarlas. Las ya asignadas permanecen visibles y marcadas.
+                  <span *ngIf="totalPlantillasCatalogo > 0" class="pipc-section__progress">
                     {{ totalPlantillasAsignadas }}/{{ totalPlantillasCatalogo }} asignadas
+                    <ng-container *ngIf="totalPlantillasDisponibles > 0">
+                      · {{ totalPlantillasDisponibles }} disponibles
+                    </ng-container>
                   </span>
                 </p>
               </div>
@@ -203,8 +210,8 @@
                   </div>
 
                   <div *ngIf="checklist.cargando" class="text-center py-4">
-                    <i class="fas fa-spinner fa-spin fa-2x text-muted mb-2"></i>
-                    <p class="text-muted mb-0">Cargando documentos de la plantilla...</p>
+                    <i class="fas fa-spinner fa-spin fa-2x mb-2" style="color:#d97248;"></i>
+                    <p class="mb-0" style="color:#d97248;font-weight:600;">Cargando documentos de la plantilla...</p>
                   </div>
 
                   <div *ngIf="!checklist.cargando && checklist.error" class="alert alert-warning mt-3 mb-0">
@@ -295,8 +302,17 @@
                                 <span class="chk-tile__num">{{ i + 1 }}</span>
                                 <span class="chk-tile__label" [title]="item.documento">{{ item.documento }}</span>
                               </div>
-                              <span class="chk-tile__status">
-                                {{ item.yaAsignado ? 'Ya asignado' : (item.necesario ? 'Necesario' : 'Opcional') }}
+                              <span class="chk-tile__status-row">
+                                <span class="chk-tile__tipo"
+                                      [class.chk-tile__tipo--texto]="item.tipo_entrada === 'texto'"
+                                      [class.chk-tile__tipo--doc]="item.tipo_entrada !== 'texto'">
+                                  <i class="fas"
+                                     [ngClass]="item.tipo_entrada === 'texto' ? 'fa-font' : 'fa-file-alt'"></i>
+                                  {{ item.tipo_entrada === 'texto' ? 'Texto' : 'Documental' }}
+                                </span>
+                                <span class="chk-tile__status">
+                                  {{ item.yaAsignado ? 'Ya asignado' : (item.necesario ? 'Necesario' : 'Opcional') }}
+                                </span>
                               </span>
                             </button>
                           </div>

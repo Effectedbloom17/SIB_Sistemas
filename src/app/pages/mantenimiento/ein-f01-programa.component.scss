@@ -762,6 +762,17 @@
     border-right: 1px solid #e2e8f0;
     border-bottom: 1px solid #e2e8f0;
     vertical-align: middle;
+    height: auto;
+  }
+
+  tbody td {
+    vertical-align: top;
+  }
+
+  tbody td.mt-sticky--tipo,
+  tbody td.mt-sticky-end,
+  tbody td.mt-slot {
+    vertical-align: middle;
   }
 
   thead th {
@@ -773,6 +784,7 @@
     font-weight: 800;
     text-align: center;
     padding: 0.22rem 0.12rem;
+    vertical-align: middle;
   }
 
   .mt-grid__weeks th {
@@ -817,7 +829,9 @@
     max-width: 118px;
     width: 108px;
     z-index: 12;
-    vertical-align: middle;
+    vertical-align: top;
+    overflow: visible;
+    height: auto;
   }
 
   &--tipo {
@@ -878,12 +892,22 @@ thead .mt-sticky-end {
     background: #fff;
     box-shadow: inset 0 0 0 2px var(--mt-slate-soft);
   }
+
+  &--auto {
+    display: block;
+    overflow: hidden;
+    overflow-y: hidden;
+    max-height: none;
+    height: auto;
+    field-sizing: content;
+  }
 }
 
 .mt-slot {
   min-width: 1.28rem;
   width: 1.28rem;
-  height: 1.55rem;
+  min-height: 1.55rem;
+  height: auto;
   text-align: center;
   vertical-align: middle;
   cursor: pointer;
