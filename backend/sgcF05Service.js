@@ -1,21 +1,28 @@
 /**
  * SGC-F-05 · Bitácora de no conformidades — persistencia en biznaga_sgc y sync con Drive.
  *
- * Tabla simple: cada renglón es una no conformidad con columnas
- *   Folio | Fuente | Fecha inicio | Fecha cierre | Área donde se originó |
+ * El Google Sheet tiene dos hojas:
+ *   · «Plantilla» — formato visual limpio (sin datos; no se escribe nunca).
+ *   · «Bitácora»  — hoja de trabajo donde se guardan las no conformidades.
+ *
+ * Columnas: Folio | Fuente | Fecha inicio | Fecha cierre | Área donde se originó |
  *   Cliente | Descripción de la No Conformidad | Acción para la NC | Estatus.
  * Reutiliza el mismo esquema de persistencia/historial que SGC-F-14.
  */
 const ExcelJS = require('exceljs');
+const path = require('path');
+const fs = require('fs');
 const driveService = require('./driveService');
 const { asegurarTablaSgcFormatoDatos, persistirRegistroSgc, obtenerRegistroSgcPersistido } = require('./sgcDgF05Service');
 const excelHistorial = require('./sgcExcelHistorialService');
 
 const CODIGO_FORMATO = 'SGC-F-05';
-const TEMPLATE_DRIVE_ID = '17Rd37pyaQqubyndRcouc1TwOEgn6myZWlN0t05MW7MY';
+const TEMPLATE_DRIVE_ID = '1Ef0vaAwFcrED9RZOE2pkoRLZX9RxVUvfI2NLfEEpJBk';
 const CARPETA_DRIVE_ID = '1v2IBrryAJg5fILPH602gm_CZhJNyia82';
 const NOMBRE_ARCHIVO_DRIVE = 'SGC-F-05 Bitacora de no conformidades (sistema)';
+/** Hoja de trabajo (datos). La hoja «Plantilla» se conserva vacía y no se escribe. */
 const SHEET_TITLE = 'Bitácora';
+const SHEET_PLANTILLA = 'Plantilla';
 
 // Encabezados de tabla en fila 6; los datos comienzan en fila 7.
 const HEADER_ROW = 6;
@@ -280,26 +287,37 @@ function datosAActualizacionesSheet(datos, sheetTitle) {
     return actualizaciones;
 }
 
+function esHojaPlantillaBase(nombre) {
+    return String(nombre || '').trim().toLowerCase() === SHEET_PLANTILLA.toLowerCase();
+}
+
 async function obtenerHojaDatos(wb, modo = 'vigente') {
     const lista = Array.isArray(wb?.worksheets) ? wb.worksheets : [];
     if (!lista.length) return null;
+    const hojasTrabajo = lista.filter((ws) => !esHojaPlantillaBase(ws.name));
     if (String(modo || 'vigente').toLowerCase() === 'edicion') {
         const vigente = excelHistorial.obtenerHojaActivaDesdeWorkbook(wb, SHEET_TITLE, CODIGO_FORMATO);
-        return vigente || excelHistorial.obtenerHojaEdicionDesdeWorkbook(wb, SHEET_TITLE) || lista[0];
+        if (vigente && !esHojaPlantillaBase(vigente.name)) return vigente;
+        const edicion = excelHistorial.obtenerHojaEdicionDesdeWorkbook(wb, SHEET_TITLE);
+        if (edicion && !esHojaPlantillaBase(edicion.name)) return edicion;
+        return wb.getWorksheet(SHEET_TITLE) || hojasTrabajo[0] || null;
     }
-    return excelHistorial.obtenerHojaActivaDesdeWorkbook(wb, SHEET_TITLE, CODIGO_FORMATO)
-        || wb.getWorksheet(SHEET_TITLE)
-        || lista[0];
+    const activa = excelHistorial.obtenerHojaActivaDesdeWorkbook(wb, SHEET_TITLE, CODIGO_FORMATO);
+    if (activa && !esHojaPlantillaBase(activa.name)) return activa;
+    return wb.getWorksheet(SHEET_TITLE) || hojasTrabajo[0] || null;
 }
 
 async function resolverTituloHojaTrabajo(spreadsheetId) {
     if (!spreadsheetId) return SHEET_TITLE;
     try {
-        return await excelHistorial.resolverTituloHojaVigenteDesdeDrive(
+        const titulo = await excelHistorial.resolverTituloHojaVigenteDesdeDrive(
             spreadsheetId,
             SHEET_TITLE,
             CODIGO_FORMATO
         );
+        // Nunca escribir sobre la hoja maestra «Plantilla».
+        if (esHojaPlantillaBase(titulo)) return SHEET_TITLE;
+        return titulo || SHEET_TITLE;
     } catch (err) {
         console.warn('[SGC-F-05] No se pudo resolver hoja vigente:', err.message);
         return SHEET_TITLE;
@@ -385,6 +403,17 @@ async function generarBufferPlantillaMinimaSgcF05(datos = DATOS_DEFECTO) {
     return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
+const PLANTILLA_LOCAL_PATH = path.join(__dirname, 'plantillas', 'SGC-F-05-Bitacora-plantilla.xlsx');
+
+async function obtenerBufferPlantillaLocalSgcF05() {
+    try {
+        if (!fs.existsSync(PLANTILLA_LOCAL_PATH)) return null;
+        return fs.readFileSync(PLANTILLA_LOCAL_PATH);
+    } catch {
+        return null;
+    }
+}
+
 async function obtenerBufferPlantillaSgcF05(datosFallback = null) {
     const candidatos = [];
 
@@ -415,6 +444,12 @@ async function obtenerBufferPlantillaSgcF05(datosFallback = null) {
         } catch (err) {
             console.warn(`[SGC-F-05] No se pudo descargar plantilla ${fileId}:`, err.message);
         }
+    }
+
+    const local = await obtenerBufferPlantillaLocalSgcF05();
+    if (local) {
+        console.warn('[SGC-F-05] Usando plantilla local de respaldo (Drive no disponible).');
+        return local;
     }
 
     console.warn('[SGC-F-05] Generando plantilla mínima local (plantilla Drive no disponible).');
