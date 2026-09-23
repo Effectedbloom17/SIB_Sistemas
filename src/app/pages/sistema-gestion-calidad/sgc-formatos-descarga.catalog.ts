@@ -134,12 +134,12 @@ export const SGC_FORMATOS_DESCARGA_CATALOG: SgcFormatoDescarga[] = [
   fmt('DG-F-07', 'Caracterización de procesos', '1iYGK1KcsYIilSqtTcAMljXKmTbx6b0V0', 'capitulo-4', 'DG-F-07 Caracterización de procesos.xlsx'),
 
   // ── Cap. 5 Liderazgo ──
-  fmt('SGC-F-18', 'Tabla de requisitos legales y reglamentarios', '1lF8neqhRhRktx_EIVZ5N744BACMr1kA5', 'capitulo-5', 'SGC-F-18 Tabla de requisitos legales y reglamentarios.xlsx'),
+  fmt('SGC-F-18', 'Tabla de requisitos legales y reglamentarios', '1Ge8QOuUhgrnpEWBH4oTXi4orwDuLsXZKz-ApaLWErSk', 'capitulo-5', 'SGC-F-18 Tabla de requisitos legales y reglamentarios.xlsx'),
   fmt('SGC-PO-01', 'Política de calidad', '1cSMF8hoi5nOvU7opL0Q_bZBIJOwwbU7r', 'capitulo-5', 'SGC-PO-01 Politica de calidad_Biznaga.docx'),
   fmt('DG-F-08', 'Filosofía Biznaga Risk and Tech', '1fEfPhLuNVXd2rmuzSWtyTvNmqxqeTcqe', 'capitulo-5', 'DG-F-08 Filosofía Biznaga Risk and Tech.docx'),
 
   // ── Cap. 6 Planificación ──
-  fmt('SGC-F-11', 'AMEF', '1UJk-Fv0NcEgRTHDUGlDZr3c--aNzJQ31', 'capitulo-6', 'SGC-F-11 AMEF.xlsx'),
+  fmt('SGC-F-11', 'AMEF', '15iP8UalTLSW83DDuEmQEPZaAG3zao06zO51guKiR9_k', 'capitulo-6', 'SGC-F-11 AMEF.xlsx'),
   fmt('DG-F-03', 'Objetivos de calidad', '1WiLflIcVaCTRaYJKCFre6ejEZNUM_qUV', 'capitulo-6', 'DG-F-03 Objetivos de calidad.docx'),
   fmt('SGC-F-12', 'Notificacion de cambios al SGC', '1RXpyKoC8vw5NJfWjNqNaOia-ojDSy5mW', 'capitulo-6', 'SGC-F-12 Notificacion de cambios al SGC.xlsx'),
   fmt('SGC-DI-06', 'Metodología AMEF', '17jM2x1JwpekMg4xTJUByt9WraIXU05DWYbYg-jpXFG4', 'capitulo-6', 'Metodología AMEF.pptx'),

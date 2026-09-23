@@ -337,27 +337,29 @@
                     </span>
                   </div>
 
-                  <!-- Textos capturados en BD: bloque no editable arriba -->
+                  <!-- Textos capturados en BD: 2 campos por fila, igual que documentos -->
                   <div class="history-textos-panel" *ngIf="textosDeApartado(seccionActiva).length > 0">
                     <div class="history-textos-panel__label">
                       <i class="fas fa-align-left"></i>
                       Información capturada como texto
                     </div>
-                    <article
-                      class="history-texto-card"
-                      *ngFor="let texto of textosDeApartado(seccionActiva)"
-                    >
-                      <div class="history-texto-card__head">
-                        <strong
-                          class="history-texto-card__title"
-                          [innerHTML]="getNombreArchivoResaltado(texto.nombre_documento)"
-                        ></strong>
-                        <span class="history-texto-card__meta" *ngIf="texto.pipc_titulo">
-                          {{ texto.pipc_titulo }}
-                        </span>
-                      </div>
-                      <pre class="history-texto-card__body">{{ texto.valor_texto }}</pre>
-                    </article>
+                    <div class="history-textos-grid">
+                      <article
+                        class="history-texto-card"
+                        *ngFor="let texto of textosDeApartado(seccionActiva)"
+                      >
+                        <div class="history-texto-card__head">
+                          <strong
+                            class="history-texto-card__title"
+                            [innerHTML]="getNombreArchivoResaltado(texto.nombre_documento)"
+                          ></strong>
+                          <span class="history-texto-card__meta" *ngIf="texto.pipc_titulo">
+                            {{ texto.pipc_titulo }}
+                          </span>
+                        </div>
+                        <pre class="history-texto-card__body">{{ texto.valor_texto }}</pre>
+                      </article>
+                    </div>
                   </div>
 
                   <!-- Oficios / Observaciones / Resolutivos -->

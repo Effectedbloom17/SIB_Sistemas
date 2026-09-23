@@ -93,7 +93,7 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         codigo: 'SGC-F-18',
         titulo: 'Tabla de requisitos legales y reglamentarios',
         nombre: 'Tabla de requisitos legales y reglamentarios (Rev 00 03-07-25).xlsx',
-        driveFileId: '168hssf8Gj1hfrzQ0sYqQB7JxO9IwmmzV',
+        driveFileId: '1Ge8QOuUhgrnpEWBH4oTXi4orwDuLsXZKz-ApaLWErSk',
         previewSlug: 'sgc-f-18',
         previewMode: 'form'
       },

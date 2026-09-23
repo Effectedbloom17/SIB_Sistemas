@@ -5195,6 +5195,12 @@ $text-muted: #8898aa;
   &__hint {
     font-size: 0.78rem;
     line-height: 1.35;
+    color: #d97248;
+    font-weight: 600;
+
+    strong {
+      color: #c45f2c;
+    }
   }
 }
 

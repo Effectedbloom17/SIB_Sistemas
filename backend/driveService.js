@@ -2065,8 +2065,17 @@ async function aplicarFormatoVisualSgcF11(spreadsheetId, options = {}) {
 
     const sheetTitle = typeof options.sheetTitle === 'string' && options.sheetTitle.trim()
         ? options.sheetTitle.trim()
-        : 'AMEF';
+        : 'Plantilla';
     const numFilasDatos = Math.max(1, Number(options.numFilasDatos) || 1);
+    const dataStartRow = Math.max(1, Number(options.dataStartRow) || 11);
+    const dataRowHeight = Math.max(20, Number(options.dataRowHeight) || 150);
+    const headerRow = Math.max(1, Number(options.headerRow) || 10);
+    const colStart = Math.max(1, Number(options.colStart) || 2);
+    const colEnd = Math.max(colStart, Number(options.colEnd) || 20);
+    // Ocurrencia, Severidad, Detección, RPN (+ posteriores): columnas 6,8,11,12,17,18,19,20
+    const colsCentro = Array.isArray(options.colsCentro) && options.colsCentro.length
+        ? options.colsCentro.map(Number).filter((n) => Number.isFinite(n) && n >= 1)
+        : [6, 8, 11, 12, 17, 18, 19, 20];
 
     const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
     const meta = await sheetsApi.spreadsheets.get({
@@ -2103,6 +2112,33 @@ async function aplicarFormatoVisualSgcF11(spreadsheetId, options = {}) {
                     horizontalAlignment: horizontal,
                     verticalAlignment: 'MIDDLE',
                     wrapStrategy: 'WRAP',
+                    textFormat: bold ? textFormatBold : textFormat,
+                    borders: {
+                        top: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
+                        bottom: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
+                        left: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
+                        right: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } }
+                    }
+                }
+            },
+            fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,textFormat,borders)'
+        }
+    });
+
+    const formatRangeSinBorde = (startRow, endRow, startCol, endCol, horizontal = 'LEFT', bold = false) => ({
+        repeatCell: {
+            range: {
+                sheetId,
+                startRowIndex: startRow - 1,
+                endRowIndex: endRow,
+                startColumnIndex: startCol - 1,
+                endColumnIndex: endCol
+            },
+            cell: {
+                userEnteredFormat: {
+                    horizontalAlignment: horizontal,
+                    verticalAlignment: 'MIDDLE',
+                    wrapStrategy: 'WRAP',
                     textFormat: bold ? textFormatBold : textFormat
                 }
             },
@@ -2110,20 +2146,45 @@ async function aplicarFormatoVisualSgcF11(spreadsheetId, options = {}) {
         }
     });
 
+    const dataEndRow = dataStartRow + numFilasDatos - 1;
     const requests = [
-        formatRange(8, 8, 1, 3, 'CENTER', true),
-        formatRange(8, 8, 4, 6, 'CENTER', true),
-        formatRange(8, 8, 7, 9, 'CENTER', true),
-        formatRange(8, 8, 10, 12, 'CENTER', true),
-        formatRange(9, 10, 10, 12, 'CENTER', true),
-        formatRange(10, 10, 1, 4, 'CENTER', true),
-        formatRange(9, 9, 1, 9, 'LEFT'),
-        formatRange(8, 8, 13, 19, 'LEFT'),
-        formatRange(9, 9, 13, 19, 'LEFT'),
-        formatRange(10, 10, 5, 9, 'LEFT'),
-        formatRange(12, 12, 1, 19, 'CENTER', true),
-        formatRange(14, 13 + numFilasDatos, 1, 19, 'LEFT')
+        // Etiquetas meta
+        formatRangeSinBorde(5, 5, 2, 4, 'CENTER', true),
+        formatRangeSinBorde(5, 5, 5, 7, 'CENTER', true),
+        formatRangeSinBorde(5, 5, 8, 10, 'CENTER', true),
+        formatRangeSinBorde(5, 5, 11, 13, 'CENTER', true),
+        formatRangeSinBorde(6, 7, 11, 13, 'CENTER', true),
+        formatRangeSinBorde(7, 7, 2, 7, 'CENTER', true),
+        // Valores meta
+        formatRangeSinBorde(6, 6, 2, 10, 'LEFT'),
+        formatRangeSinBorde(5, 5, 14, 20, 'LEFT'),
+        formatRangeSinBorde(6, 7, 14, 20, 'LEFT'),
+        formatRangeSinBorde(7, 7, 8, 10, 'LEFT'),
+        // Encabezado tabla
+        formatRange(headerRow, headerRow, colStart, colEnd, 'CENTER', true),
+        // Datos: tipografía + wrap + borde + izquierda por defecto
+        formatRange(dataStartRow, dataEndRow, colStart, colEnd, 'LEFT')
     ];
+
+    // Centrar columnas numéricas (Oc / Sev / Det / RPN)
+    for (const col of colsCentro) {
+        if (col < colStart || col > colEnd) continue;
+        requests.push(formatRange(dataStartRow, dataEndRow, col, col, 'CENTER'));
+    }
+
+    // Altura de filas de datos = 150; no tocar filas del encabezado
+    requests.push({
+        updateDimensionProperties: {
+            range: {
+                sheetId,
+                dimension: 'ROWS',
+                startIndex: dataStartRow - 1,
+                endIndex: dataEndRow
+            },
+            properties: { pixelSize: dataRowHeight },
+            fields: 'pixelSize'
+        }
+    });
 
     return sheetsApi.spreadsheets.batchUpdate({
         spreadsheetId,
@@ -3208,6 +3269,132 @@ async function aplicarFormatoFilasSgcF14(spreadsheetId, sheetTitle, filaInicio, 
 
     if (!requests.length) {
         return true;
+    }
+
+    await sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests }
+    });
+    return true;
+}
+
+/**
+ * SGC-F-18 · Tabla de requisitos legales:
+ * Century Gothic 10, centrado, vertical medio, wrap, borde completo,
+ * alto de fila 50 y fondos alternados blanco / #f2f2f2 (desde fila 7).
+ */
+async function aplicarFormatoFilasSgcF18(spreadsheetId, sheetTitle, filaInicio, numFilas) {
+    if (!spreadsheetId || !sheetTitle) {
+        return null;
+    }
+
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const meta = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties(sheetId,title)'
+    });
+    const sheet = (meta.data.sheets || []).find(
+        (s) => (s.properties?.title || '').trim() === String(sheetTitle).trim()
+    );
+    const sheetId = sheet?.properties?.sheetId;
+    if (sheetId === undefined || sheetId === null) {
+        return null;
+    }
+
+    // Columnas B:H (1..8) — la columna A es logo/margen.
+    const COL_INICIO = 1;
+    const COL_FIN = 8;
+    const filas = Math.max(0, Number(numFilas) || 0);
+    const startRow = Math.max(0, (Number(filaInicio) || 7) - 1);
+    const dataEndRow = startRow + filas;
+    if (filas <= 0) {
+        return true;
+    }
+
+    const bordeNegro = { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } };
+    const textFormat = { fontFamily: 'Century Gothic', fontSize: 10 };
+    const fillBlanco = {
+        red: 1,
+        green: 1,
+        blue: 1
+    };
+    const fillGris = {
+        red: 242 / 255,
+        green: 242 / 255,
+        blue: 242 / 255
+    };
+
+    const requests = [
+        {
+            updateDimensionProperties: {
+                range: {
+                    sheetId,
+                    dimension: 'ROWS',
+                    startIndex: startRow,
+                    endIndex: dataEndRow
+                },
+                properties: { pixelSize: 67 },
+                fields: 'pixelSize'
+            }
+        },
+        {
+            repeatCell: {
+                range: {
+                    sheetId,
+                    startRowIndex: startRow,
+                    endRowIndex: dataEndRow,
+                    startColumnIndex: COL_INICIO,
+                    endColumnIndex: COL_FIN
+                },
+                cell: {
+                    userEnteredFormat: {
+                        horizontalAlignment: 'CENTER',
+                        verticalAlignment: 'MIDDLE',
+                        wrapStrategy: 'WRAP',
+                        textFormat
+                    }
+                },
+                fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)'
+            }
+        },
+        {
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: startRow,
+                    endRowIndex: dataEndRow,
+                    startColumnIndex: COL_INICIO,
+                    endColumnIndex: COL_FIN
+                },
+                top: bordeNegro,
+                bottom: bordeNegro,
+                left: bordeNegro,
+                right: bordeNegro,
+                innerHorizontal: bordeNegro,
+                innerVertical: bordeNegro
+            }
+        }
+    ];
+
+    for (let i = 0; i < filas; i++) {
+        const esPar = i % 2 === 1;
+        requests.push({
+            repeatCell: {
+                range: {
+                    sheetId,
+                    startRowIndex: startRow + i,
+                    endRowIndex: startRow + i + 1,
+                    startColumnIndex: COL_INICIO,
+                    endColumnIndex: COL_FIN
+                },
+                cell: {
+                    userEnteredFormat: {
+                        backgroundColor: esPar ? fillGris : fillBlanco
+                    }
+                },
+                fields: 'userEnteredFormat.backgroundColor'
+            }
+        });
     }
 
     await sheetsApi.spreadsheets.batchUpdate({
@@ -11212,6 +11399,7 @@ module.exports = {
     aplicarFormatoVisualSgcF16,
     aplicarFormatoVisualSpF02,
     aplicarFormatoFilasSgcF14,
+    aplicarFormatoFilasSgcF18,
     aplicarFormatoFilasSgcF25,
     aplicarFormatoFilasSgcF02,
     aplicarFormatoFilasSgcF29,

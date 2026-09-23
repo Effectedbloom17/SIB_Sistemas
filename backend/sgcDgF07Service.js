@@ -872,6 +872,57 @@ async function actualizarPlantillaDesdeSistema(pool) {
     return construirRespuesta(registroActualizado, datos, archivoDrive);
 }
 
+/**
+ * Exporta la hoja del proceso activo a PDF:
+ * Carta, vertical, ajustar al ancho, márgenes normales (como UI de Sheets).
+ */
+async function descargarPlantillaPdf(pool, options = {}) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    let driveFileId = await resolverDriveFileId(registro);
+    if (!driveFileId) {
+        throw new Error('No hay Google Sheet DG-F-07 configurado para exportar a PDF.');
+    }
+
+    const slug = String(options.slug || options.procesoSlug || '').trim();
+    const sheetTitle = (slug && SHEET_BY_SLUG[slug])
+        || String(options.sheetTitle || '').trim()
+        || PROCESOS_MAP[0]?.sheetTitle;
+
+    if (!sheetTitle) {
+        throw new Error('No se pudo determinar la hoja del proceso para exportar a PDF.');
+    }
+
+    let gid = null;
+    try {
+        gid = await driveService.obtenerGidHojaPorNombre(driveFileId, sheetTitle);
+    } catch (err) {
+        console.warn('[DG-F-07] No se pudo resolver gid de hoja para PDF:', err.message);
+    }
+    if (gid == null) {
+        throw new Error(`No se encontró la hoja «${sheetTitle}» para exportar a PDF.`);
+    }
+
+    const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
+        gid: String(gid),
+        landscape: false,
+        size: 'letter',
+        margins: 'normal'
+    });
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de DG-F-07 quedó vacía.');
+    }
+
+    const nombreSeguro = String(sheetTitle)
+        .replace(/[\\/:*?"<>|]+/g, '_')
+        .trim() || 'proceso';
+    return {
+        buffer: Buffer.from(pdfBuffer),
+        nombreArchivo: `DG-F-07 ${nombreSeguro}.pdf`,
+        sheetTitle
+    };
+}
+
 module.exports = {
     CODIGO_FORMATO,
     PROCESOS_MAP,
@@ -880,5 +931,6 @@ module.exports = {
     guardarFormato,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
+    descargarPlantillaPdf,
     sanitizarDatos
 };

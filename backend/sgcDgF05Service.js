@@ -2063,6 +2063,109 @@ async function obtenerEstadoDrive() {
     };
 }
 
+/**
+ * Exporta el Google Sheet DG-F-05 a PDF (solo la hoja activa, no históricas).
+ * Carta, horizontal, ajustar al ancho, márgenes personalizados 1 cm.
+ */
+async function resolverTituloHojaParaPdf(spreadsheetId) {
+    let titulos = [];
+    try {
+        titulos = await driveService.listarHojasGoogleSheet(spreadsheetId);
+    } catch (err) {
+        console.warn('[DG-F-05] No se pudieron listar hojas para PDF:', err.message);
+    }
+
+    // Preferir la hoja de edición (donde se guardan los cambios del sistema).
+    if (titulos.some((t) => String(t).trim() === SHEET_TITLE)) {
+        return SHEET_TITLE;
+    }
+
+    try {
+        const vigente = await excelHistorial.resolverTituloHojaVigenteDesdeDrive(
+            spreadsheetId,
+            SHEET_TITLE,
+            CODIGO_FORMATO
+        );
+        if (vigente && titulos.some((t) => String(t).trim() === String(vigente).trim())) {
+            return String(vigente).trim();
+        }
+    } catch (err) {
+        console.warn('[DG-F-05] No se pudo resolver hoja vigente para PDF:', err.message);
+    }
+
+    return titulos[0] || SHEET_TITLE;
+}
+
+async function descargarPlantillaPdf(pool) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    let driveFileId = await resolverDriveFileId(registro);
+    if (!driveFileId) {
+        throw new Error('No hay Google Sheet DG-F-05 configurado para exportar a PDF.');
+    }
+
+    const info = await driveService.obtenerInfoArchivo(driveFileId).catch(() => null);
+    const mime = String(info?.mimeType || '');
+    let spreadsheetId = driveFileId;
+    let tempConvertidoId = null;
+
+    if (mime !== 'application/vnd.google-apps.spreadsheet') {
+        try {
+            const convertido = await driveService.convertirOfficeExcelAGoogleSheet(driveFileId, {
+                nombre: `_tmp_dgf05_pdf_${Date.now()}`,
+                eliminarOriginal: false
+            });
+            tempConvertidoId = convertido?.id || null;
+            if (!tempConvertidoId) {
+                throw new Error('No se pudo convertir el Excel DG-F-05 a Google Sheet para PDF.');
+            }
+            spreadsheetId = tempConvertidoId;
+        } catch (err) {
+            throw new Error(`No se pudo preparar DG-F-05 para PDF: ${err.message}`);
+        }
+    }
+
+    try {
+        const tituloHoja = await resolverTituloHojaParaPdf(spreadsheetId);
+        let gid = null;
+        try {
+            gid = await driveService.obtenerGidHojaPorNombre(spreadsheetId, tituloHoja);
+        } catch (err) {
+            console.warn('[DG-F-05] No se pudo resolver gid de hoja para PDF:', err.message);
+        }
+        if (gid == null) {
+            throw new Error(`No se encontró la hoja activa «${tituloHoja}» para exportar a PDF.`);
+        }
+
+        // 1 cm ≈ 0.3937 in (API de exportación de Sheets usa pulgadas).
+        const margen1cm = '0.3937';
+        // gid obligatorio: sin él Sheets exporta TODO el libro (históricos = páginas duplicadas).
+        const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(spreadsheetId, {
+            gid: String(gid),
+            landscape: true,
+            size: 'letter',
+            margins: {
+                top_margin: margen1cm,
+                bottom_margin: margen1cm,
+                left_margin: margen1cm,
+                right_margin: margen1cm
+            }
+        });
+        if (!pdfBuffer || !pdfBuffer.length) {
+            throw new Error('La exportación a PDF de DG-F-05 quedó vacía.');
+        }
+        return Buffer.from(pdfBuffer);
+    } finally {
+        if (tempConvertidoId) {
+            try {
+                await driveService.eliminarArchivo(tempConvertidoId);
+            } catch (cleanupErr) {
+                console.warn('[DG-F-05] No se pudo eliminar Sheet temporal de PDF:', cleanupErr.message);
+            }
+        }
+    }
+}
+
 module.exports = {
     CODIGO_FORMATO,
     DATOS_DEFECTO,
@@ -2076,5 +2179,6 @@ module.exports = {
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
     obtenerEstadoDrive,
+    descargarPlantillaPdf,
     sanitizarDatos
 };
