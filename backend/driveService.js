@@ -1096,16 +1096,20 @@ function encontrarHojaPorNombre(hojas, objetivo) {
     const contiene = lista.filter((hoja) => {
         const clavesHoja = clavesTituloHojaDrive(hoja.title);
         return clavesObjetivo.some((clave) =>
-            clavesHoja.some((claveHoja) => claveHoja.includes(clave) || clave.includes(claveHoja))
+            clavesHoja.some((claveHoja) => {
+                if (!clave || !claveHoja) return false;
+                // Evita falsos positivos (p. ej. "PC-…" ≠ "plantilla").
+                if (clave.length < 4 || claveHoja.length < 4) return false;
+                return claveHoja.includes(clave) || clave.includes(claveHoja);
+            })
         );
     });
     if (contiene.length === 1) {
         return contiene[0];
     }
 
-    if (lista.length === 1) {
-        return lista[0];
-    }
+    // NO devolver la única hoja si el nombre no coincide: rompe formatos multi-pestaña
+    // (SP-F-07: pedían PC-… y devolvía "plantilla" → PDF/sync al archivo equivocado).
     return null;
 }
 
@@ -5032,14 +5036,15 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
     const token = await obtenerAccessTokenDrive();
     const landscape = !!options.landscape;
     const fitToPage = !!options.fitToPage;
+    const fitToWidth = !!options.fitToWidth;
     // Carta / Letter (Google Sheets export: letter, a4, legal, …)
     const sizeRaw = String(options.size || options.paperSize || '').trim().toLowerCase();
     const size = sizeRaw === 'carta' || sizeRaw === '1' ? 'letter' : sizeRaw;
     const gidRaw = options.gid !== undefined && options.gid !== null ? String(options.gid) : '';
     const gidOpts = gidRaw ? { gid: gidRaw } : {};
 
-    // Márgenes: con «ajustar a la página» usar normales (~0.75"); si no, compactos.
-    const margins = fitToPage
+    // Márgenes: con ajuste de escala usar normales (~0.75"); si no, compactos.
+    const margins = (fitToPage || fitToWidth)
         ? {
             top_margin: '0.75',
             bottom_margin: '0.75',
@@ -5053,16 +5058,36 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
             right_margin: '0.30'
         };
 
+    // scale: 2 = Ajustar al ancho · 4 = Ajustar a la página (UI de Sheets).
     const scaleOpts = fitToPage
         ? {
-            // scale=4 → «Ajustar a la página» en la UI de Sheets
             scale: '4',
             fitw: 'true',
             fith: 'true'
         }
-        : { fitw: 'true' };
+        : fitToWidth
+            ? {
+                scale: '2',
+                fitw: 'true'
+            }
+            : { fitw: 'true' };
 
     const sizeOpts = size ? { size } : {};
+
+    // Rango opcional (0-based, r2/c2 exclusivos) para partir páginas del PDF.
+    const rangeOpts = {};
+    if (options.range && typeof options.range === 'object') {
+        const r1 = Number(options.range.r1);
+        const r2 = Number(options.range.r2);
+        const c1 = Number(options.range.c1);
+        const c2 = Number(options.range.c2);
+        if (Number.isFinite(r1) && Number.isFinite(r2) && r2 > r1) {
+            rangeOpts.r1 = String(Math.max(0, Math.floor(r1)));
+            rangeOpts.r2 = String(Math.floor(r2));
+            rangeOpts.c1 = String(Number.isFinite(c1) ? Math.max(0, Math.floor(c1)) : 0);
+            rangeOpts.c2 = String(Number.isFinite(c2) ? Math.floor(c2) : 13);
+        }
+    }
 
     const baseUrl = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(fileId)}/export`;
     // Si hay gid, TODAS las variantes lo incluyen para no exportar el libro completo.
@@ -5078,7 +5103,8 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
             ...scaleOpts,
             ...margins,
             ...sizeOpts,
-            ...gidOpts
+            ...gidOpts,
+            ...rangeOpts
         },
         {
             format: 'pdf',
@@ -5086,13 +5112,15 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
             ...scaleOpts,
             ...margins,
             ...sizeOpts,
-            ...gidOpts
+            ...gidOpts,
+            ...rangeOpts
         },
         {
             format: 'pdf',
             portrait: landscape ? 'false' : 'true',
             ...sizeOpts,
-            ...gidOpts
+            ...gidOpts,
+            ...rangeOpts
         }
     ];
 

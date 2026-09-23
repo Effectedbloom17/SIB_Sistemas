@@ -2937,6 +2937,34 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sp-f-02/actualizar-plantilla`, {});
     }
 
+    cargarSpF07Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sp-f-07`);
+    }
+
+    guardarSpF07Formato(datos: unknown, editorActivo = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sp-f-07/guardar`, {
+            datos,
+            origen: 'sistema',
+            editorActivo
+        });
+    }
+
+    sincronizarSpF07DesdeDrive(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sp-f-07/sincronizar-drive`, {});
+    }
+
+    actualizarPlantillaSpF07(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sp-f-07/actualizar-plantilla`, {});
+    }
+
+    descargarPdfSpF07(planId?: string): Observable<Blob> {
+        const id = encodeURIComponent(String(planId || '').trim());
+        const qs = id ? `?planId=${id}` : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sp-f-07/descargar-pdf${qs}`, {
+            responseType: 'blob'
+        });
+    }
+
     subirImagenSpF02(payload: {
         campo: 'problema' | 'observaciones';
         item_index: number;

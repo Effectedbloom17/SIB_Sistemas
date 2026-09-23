@@ -25724,6 +25724,7 @@ const sgcF27Service = require('./sgcF27Service');
 const sgcF29Service = require('./sgcF29Service');
 const sgcF28Service = require('./sgcF28Service');
 const sgcSpF02Service = require('./sgcSpF02Service');
+const sgcSpF07Service = require('./sgcSpF07Service');
 const sgcF05Service = require('./sgcF05Service');
 const sgcAthF08Service = require('./sgcAthF08Service');
 const sgcAthF02Service = require('./sgcAthF02Service');
@@ -27378,6 +27379,80 @@ app.post('/api/sgc/formatos/sp-f-02/actualizar-plantilla', requireRole('root'), 
         });
     } catch (error) {
         handleError(res, error, 'No se pudo actualizar la plantilla SP-F-02');
+    }
+});
+
+app.get('/api/sgc/formatos/sp-f-07', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcSpF07Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato SP-F-07');
+    }
+});
+
+app.post('/api/sgc/formatos/sp-f-07/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcSpF07Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: 'Formato SP-F-07 guardado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato SP-F-07');
+    }
+});
+
+app.post('/api/sgc/formatos/sp-f-07/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcSpF07Service.sincronizarDesdeDrive(poolBiznagaSgc);
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: 'SP-F-07 sincronizado desde Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo sincronizar SP-F-07 desde Drive');
+    }
+});
+
+app.post('/api/sgc/formatos/sp-f-07/actualizar-plantilla', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcSpF07Service.actualizarPlantillaDesdeSistema(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Plantilla SP-F-07 actualizada.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo actualizar la plantilla SP-F-07');
+    }
+});
+
+app.get('/api/sgc/formatos/sp-f-07/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const resultado = await sgcSpF07Service.descargarPlantillaPdf(poolBiznagaSgc, {
+            planId: req.query.planId || req.query.id || null
+        });
+        const nombre = String(resultado.nombreArchivo || 'SP-F-07 Plan del curso.pdf')
+            .replace(/[^\w.\- áéíóúÁÉÍÓÚñÑ()]/gi, '_')
+            .trim() || 'SP-F-07 Plan del curso.pdf';
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${nombre.replace(/"/g, '')}"`
+        );
+        return res.send(resultado.buffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SP-F-07');
     }
 });
 

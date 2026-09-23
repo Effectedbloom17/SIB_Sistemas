@@ -921,6 +921,60 @@ interface SpF02FormData {
   reporteActivoId: string | null;
 }
 
+interface SpF07Momento {
+  id?: string;
+  momento: 'Apertura' | 'Desarrollo' | 'Cierre' | string;
+  fecha: string;
+  horaInicio: string;
+  contenidoTematico: string;
+  descripcionActividades: string;
+  horaTermino: string;
+  tecnicasInstruccionales: string;
+  tecnicasGrupales: string;
+  duracion: string;
+}
+
+/** Una tabla completa de momentos (Apertura / Desarrollo / Cierre) en la UI. */
+interface SpF07MomentosTabla {
+  id: string;
+  momentos: SpF07Momento[];
+}
+
+interface SpF07Plan {
+  id: string;
+  folio: string;
+  nombreHoja?: string;
+  nombreCurso: string;
+  proposito: string;
+  instructor: string;
+  fechaPeriodo: string;
+  duracion: string;
+  lugar: string;
+  numParticipantes: string;
+  nivelEstudios: string;
+  conocimientosRequeridos: string;
+  habilidadesRequeridas: string;
+  objetivoGeneral: string;
+  objetivosParticulares: string[];
+  recursosDidacticos: string;
+  equipoApoyo: string;
+  /** Plano (compat / Drive): todas las filas de todas las tablas. */
+  momentos: SpF07Momento[];
+  /** Tablas apiladas en la interfaz (cada una se replica debajo). */
+  momentosTablas: SpF07MomentosTabla[];
+  tiempoTotal: string;
+  metodoEvaluacion: string;
+  referencias: string[];
+}
+
+interface SpF07FormData {
+  revision: string;
+  fechaElaboracion: string;
+  fechaRevision: string;
+  planes: SpF07Plan[];
+  planActivoId: string | null;
+}
+
 interface SgcF05RegistroItem {
   folio: string;
   fuente: string;
@@ -1318,6 +1372,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-29'
       || this.plantillaSlug === 'sgc-f-28'
       || this.plantillaSlug === 'sp-f-02'
+      || this.plantillaSlug === 'sp-f-07'
       || this.plantillaSlug === 'sgc-f-05' || this.plantillaSlug === 'ath-f-02' || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-09'
       || this.plantillaSlug === 'ath-f-11';
@@ -1411,6 +1466,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   @HostBinding('class.sgc-preview--sp-f-02')
   get esSpF02(): boolean {
     return this.plantillaSlug === 'sp-f-02';
+  }
+
+  @HostBinding('class.sgc-preview--sp-f-07')
+  get esSpF07(): boolean {
+    return this.plantillaSlug === 'sp-f-07';
   }
 
   @HostBinding('class.sgc-preview--dg-f-03')
@@ -2253,6 +2313,28 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   spF02ActualizandoPlantilla = false;
   private spF02EditorIframeListo = false;
   private spF02SubiendoImagenKey: string | null = null;
+
+  readonly spF07MomentosOpciones: string[] = ['Apertura', 'Desarrollo', 'Cierre'];
+  readonly spF07ReferenciasMin = 5;
+  spF07Form: SpF07FormData = this.crearSpF07Vacio();
+  spF07Vista: 'archivero' | 'editor' = 'archivero';
+  spF07Busqueda = '';
+  spF07PlanActivo: SpF07Plan | null = null;
+  spF07Cargando = false;
+  spF07Guardando = false;
+  spF07Listo = false;
+  spF07CambiosPendientes = false;
+  spF07IgnorarAutoSave = false;
+  spF07UltimaSync: string | null = null;
+  spF07DriveFileId: string | null = null;
+  spF07EditorUrl: string | null = null;
+  spF07EditorEmbedUrlSafe: SafeResourceUrl | null = null;
+  mostrarSpF07Editor = false;
+  spF07ContenidoModificado = false;
+  spF07EditorCargando = false;
+  spF07ActualizandoPlantilla = false;
+  spF07DescargandoPdf = false;
+  private spF07EditorIframeListo = false;
 
   readonly sgcF05Fuentes: string[] = [
     'Queja de cliente',
@@ -3174,6 +3256,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (codigo === 'sp-f-02') {
         this.cargarSpF02DesdeServidor();
       }
+      if (codigo === 'sp-f-07') {
+        this.cargarSpF07DesdeServidor();
+      }
       if (codigo === 'ath-f-02') {
         this.cargarAthF02DesdeServidor();
       }
@@ -3301,7 +3386,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-08' || this.plantillaSlug === 'sgc-f-09'
       || this.plantillaSlug === 'sgc-f-10' || this.plantillaSlug === 'sgc-f-15'
       || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'dg-f-06'
-      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sgc-f-05'
+      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sp-f-07' || this.plantillaSlug === 'sgc-f-05'
       || this.plantillaSlug === 'ath-f-08';
   }
 
@@ -3337,7 +3422,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-02'
       || this.plantillaSlug === 'sgc-f-04'
       || this.plantillaSlug === 'sgc-f-22'
-      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sgc-f-05'
+      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sp-f-07' || this.plantillaSlug === 'sgc-f-05'
       || this.plantillaSlug === 'ath-f-02'
       || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-09'
@@ -3368,6 +3453,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Guardando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Guardando;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02Guardando;
+    if (this.plantillaSlug === 'sp-f-07') return this.spF07Guardando;
     if (this.plantillaSlug === 'ath-f-02') return this.athF02Guardando;
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05Guardando;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08Guardando;
@@ -3399,6 +3485,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29UltimaSync;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28UltimaSync;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02UltimaSync;
+    if (this.plantillaSlug === 'sp-f-07') return this.spF07UltimaSync;
     if (this.plantillaSlug === 'ath-f-02') return this.athF02UltimaSync;
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05UltimaSync;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08UltimaSync;
@@ -3430,6 +3517,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Cargando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Cargando;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02Cargando;
+    if (this.plantillaSlug === 'sp-f-07') return this.spF07Cargando;
     if (this.plantillaSlug === 'ath-f-02') return this.athF02Cargando;
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05Cargando;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08Cargando;
@@ -3461,6 +3549,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28ActualizandoPlantilla;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02ActualizandoPlantilla;
+    if (this.plantillaSlug === 'sp-f-07') return this.spF07ActualizandoPlantilla;
     if (this.plantillaSlug === 'ath-f-02') return this.athF02ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05ActualizandoPlantilla;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08ActualizandoPlantilla;
@@ -3493,6 +3582,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29DriveFileId;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28DriveFileId;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02DriveFileId;
+    if (this.plantillaSlug === 'sp-f-07') return this.spF07DriveFileId;
     if (this.plantillaSlug === 'ath-f-02') return this.athF02DriveFileId;
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05DriveFileId;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08DriveFileId;
@@ -3525,6 +3615,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28CambiosPendientes;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02CambiosPendientes;
+    if (this.plantillaSlug === 'sp-f-07') return this.spF07CambiosPendientes;
     if (this.plantillaSlug === 'ath-f-02') return this.athF02CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05CambiosPendientes;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08CambiosPendientes;
@@ -3570,6 +3661,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-29') return this.mostrarSgcF29Editor;
     if (this.plantillaSlug === 'sgc-f-28') return this.mostrarSgcF28Editor;
     if (this.plantillaSlug === 'sp-f-02') return this.mostrarSpF02Editor;
+    if (this.plantillaSlug === 'sp-f-07') return this.mostrarSpF07Editor;
     if (this.plantillaSlug === 'ath-f-02') return this.mostrarAthF02Editor;
     if (this.plantillaSlug === 'sgc-f-05') return this.mostrarSgcF05Editor;
     if (this.plantillaSlug === 'ath-f-08') return this.mostrarAthF08Editor;
@@ -3883,6 +3975,19 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (slug === 'sp-f-02') {
       return this.backendService.guardarSpF02Formato(this.spF02Form, false);
     }
+    if (slug === 'sp-f-07') {
+      if (this.spF07PlanActivo) {
+        this.sincronizarMomentosDesdeTablasSpF07(this.spF07PlanActivo);
+        const idx = this.spF07Form.planes.findIndex((p) => p.id === this.spF07PlanActivo?.id);
+        if (idx >= 0) {
+          this.spF07Form.planes[idx] = this.spF07PlanActivo;
+        }
+      }
+      return this.backendService.guardarSpF07Formato(
+        { ...this.spF07Form, planActivoId: this.spF07PlanActivo?.id || this.spF07Form.planActivoId },
+        false
+      );
+    }
     if (slug === 'ath-f-02') {
       return this.backendService.guardarAthF02Formato(
         { ...this.athF02Form, perfilActivoId: this.athF02PerfilActivo?.id || this.athF02Form.perfilActivoId },
@@ -4023,6 +4128,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sp-f-02') {
       this.persistirSpF02();
+      return;
+    }
+    if (this.plantillaSlug === 'sp-f-07') {
+      this.persistirSpF07();
       return;
     }
     if (this.plantillaSlug === 'ath-f-02') {
@@ -4392,6 +4501,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sp-f-02') {
       return this.spF02IntroLead;
+    }
+    if (this.plantillaSlug === 'sp-f-07') {
+      return this.spF07IntroLead;
     }
     if (this.plantillaSlug === 'ath-f-02') {
       return this.athF02IntroLead;
@@ -12971,6 +13083,931 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
   }
 
+  get spF07IntroLead(): string {
+    if (this.plantillaSlug !== 'sp-f-07') {
+      return '';
+    }
+    return 'Archivero de planes de curso. Crea, busca y edita cada plan con folio PC-DDMMAA-NN. Usa «Guardar información» para conservar el archivero y sincronizar con Excel en Drive.';
+  }
+
+  private nuevoIdSpF07(): string {
+    try {
+      return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `pc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    } catch {
+      return `pc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    }
+  }
+
+  private crearMomentoSpF07Vacio(momento = ''): SpF07Momento {
+    return {
+      id: this.nuevoIdSpF07(),
+      momento,
+      fecha: '',
+      horaInicio: '',
+      contenidoTematico: '',
+      descripcionActividades: '',
+      horaTermino: '',
+      tecnicasInstruccionales: '',
+      tecnicasGrupales: '',
+      duracion: ''
+    };
+  }
+
+  private crearMomentosTablaSpF07Vacia(fuente?: SpF07Momento[]): SpF07MomentosTabla {
+    const porSeccion: SpF07Momento[] = [];
+    for (const seccion of this.spF07MomentosOpciones) {
+      const n = Array.isArray(fuente) && fuente.length
+        ? Math.max(1, fuente.filter((m) => String(m.momento || '') === seccion).length)
+        : 1;
+      for (let i = 0; i < n; i++) {
+        porSeccion.push(this.crearMomentoSpF07Vacio(seccion));
+      }
+    }
+    return {
+      id: this.nuevoIdSpF07(),
+      momentos: this.asegurarMomentosBaseSpF07(porSeccion)
+    };
+  }
+
+  private aplanarMomentosTablasSpF07(tablas: SpF07MomentosTabla[]): SpF07Momento[] {
+    const out: SpF07Momento[] = [];
+    for (const t of tablas || []) {
+      out.push(...this.asegurarMomentosBaseSpF07(t.momentos || []));
+    }
+    return out;
+  }
+
+  private sincronizarMomentosDesdeTablasSpF07(plan: SpF07Plan): void {
+    if (!plan.momentosTablas?.length) {
+      plan.momentosTablas = [this.crearMomentosTablaSpF07Vacia()];
+    }
+    // Mutar en sitio (no reemplazar referencias) para que add/delete sigan
+    // apuntando a la misma tabla/fila del template.
+    for (const t of plan.momentosTablas) {
+      t.id = String(t.id || this.nuevoIdSpF07());
+      t.momentos = this.asegurarMomentosBaseSpF07(t.momentos || []);
+    }
+    plan.momentos = this.aplanarMomentosTablasSpF07(plan.momentosTablas);
+  }
+
+  private normalizarMomentosTablasSpF07(
+    datos: Partial<SpF07Plan> | null | undefined
+  ): SpF07MomentosTabla[] {
+    const rawTablas = (datos as any)?.momentosTablas;
+    if (Array.isArray(rawTablas) && rawTablas.length) {
+      return rawTablas.map((t: any) => ({
+        id: String(t?.id || this.nuevoIdSpF07()),
+        momentos: this.asegurarMomentosBaseSpF07(
+          Array.isArray(t?.momentos) ? t.momentos.map((m: any) => this.normalizarMomentoSpF07(m)) : []
+        )
+      }));
+    }
+    const planos = Array.isArray(datos?.momentos)
+      ? datos.momentos.map((m) => this.normalizarMomentoSpF07(m))
+      : [];
+    return [{
+      id: this.nuevoIdSpF07(),
+      momentos: this.asegurarMomentosBaseSpF07(planos)
+    }];
+  }
+
+  private crearPlanSpF07Vacio(): SpF07Plan {
+    const tabla = this.crearMomentosTablaSpF07Vacia();
+    return {
+      id: this.nuevoIdSpF07(),
+      folio: '',
+      nombreHoja: '',
+      nombreCurso: '',
+      proposito: '',
+      instructor: '',
+      fechaPeriodo: '',
+      duracion: '',
+      lugar: '',
+      numParticipantes: '',
+      nivelEstudios: '',
+      conocimientosRequeridos: '',
+      habilidadesRequeridas: '',
+      objetivoGeneral: '',
+      objetivosParticulares: [''],
+      recursosDidacticos: '',
+      equipoApoyo: '',
+      momentos: [...tabla.momentos],
+      momentosTablas: [tabla],
+      tiempoTotal: '',
+      metodoEvaluacion: '',
+      referencias: ['']
+    };
+  }
+
+  private crearSpF07Vacio(): SpF07FormData {
+    return {
+      revision: '00',
+      fechaElaboracion: '2025-01-08',
+      fechaRevision: '2025-01-08',
+      planes: [],
+      planActivoId: null
+    };
+  }
+
+  private normalizarListaTextosSpF07(raw: unknown, minimo = 1): string[] {
+    let lista: string[] = [];
+    if (Array.isArray(raw)) {
+      lista = raw.map((r) => String(r == null ? '' : r));
+    } else if (typeof raw === 'string' && raw.trim()) {
+      lista = raw.split(/\r?\n+/).map((r) => r.trim()).filter(Boolean);
+    }
+    if (!lista.length) {
+      lista = Array.from({ length: Math.max(1, minimo) }, () => '');
+    }
+    while (lista.length < minimo) {
+      lista.push('');
+    }
+    return lista;
+  }
+
+  private normalizarMomentoSpF07(raw: Partial<SpF07Momento> | null | undefined): SpF07Momento {
+    const base = this.crearMomentoSpF07Vacio();
+    if (!raw || typeof raw !== 'object') {
+      return base;
+    }
+    return {
+      id: String(raw.id || base.id),
+      momento: String(raw.momento || ''),
+      fecha: this.normalizarFechaInputSpF07Ui(raw.fecha),
+      horaInicio: this.normalizarHoraInputSpF07Ui(raw.horaInicio),
+      contenidoTematico: String(raw.contenidoTematico || ''),
+      descripcionActividades: String(raw.descripcionActividades || ''),
+      horaTermino: this.normalizarHoraInputSpF07Ui(raw.horaTermino),
+      tecnicasInstruccionales: String(raw.tecnicasInstruccionales || ''),
+      tecnicasGrupales: String(raw.tecnicasGrupales || ''),
+      duracion: String(raw.duracion || '')
+    };
+  }
+
+  private normalizarFechaInputSpF07Ui(valor: unknown): string {
+    const raw = String(valor == null ? '' : valor).trim();
+    if (!raw) {
+      return '';
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      return raw;
+    }
+    const m = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (m) {
+      const d = m[1].padStart(2, '0');
+      const mo = m[2].padStart(2, '0');
+      let y = m[3];
+      if (y.length === 2) {
+        y = `20${y}`;
+      }
+      return `${y}-${mo}-${d}`;
+    }
+    return raw;
+  }
+
+  private normalizarHoraInputSpF07Ui(valor: unknown): string {
+    const raw = String(valor == null ? '' : valor).trim();
+    if (!raw) {
+      return '';
+    }
+    let m = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*$/);
+    if (m) {
+      return `${String(Math.min(23, parseInt(m[1], 10))).padStart(2, '0')}:${m[2]}`;
+    }
+    m = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(a\.?\s*m\.?|p\.?\s*m\.?|am|pm)\.?$/i);
+    if (m) {
+      let h = parseInt(m[1], 10);
+      const min = m[2];
+      const esPm = /^p/i.test(String(m[3]).replace(/\s/g, ''));
+      if (esPm && h < 12) {
+        h += 12;
+      }
+      if (!esPm && h === 12) {
+        h = 0;
+      }
+      return `${String(Math.min(23, h)).padStart(2, '0')}:${min}`;
+    }
+    return raw;
+  }
+
+  private asegurarMomentosBaseSpF07(momentos: SpF07Momento[]): SpF07Momento[] {
+    // Conserva la misma instancia de cada fila (evita romper delete/ngModel).
+    const lista: SpF07Momento[] = Array.isArray(momentos)
+      ? momentos.map((m) => {
+        if (!m || typeof m !== 'object') {
+          return this.crearMomentoSpF07Vacio();
+        }
+        m.id = String(m.id || this.nuevoIdSpF07());
+        m.momento = String(m.momento || '');
+        m.fecha = this.normalizarFechaInputSpF07Ui(m.fecha);
+        m.horaInicio = this.normalizarHoraInputSpF07Ui(m.horaInicio);
+        m.contenidoTematico = String(m.contenidoTematico || '');
+        m.descripcionActividades = String(m.descripcionActividades || '');
+        m.horaTermino = this.normalizarHoraInputSpF07Ui(m.horaTermino);
+        m.tecnicasInstruccionales = String(m.tecnicasInstruccionales || '');
+        m.tecnicasGrupales = String(m.tecnicasGrupales || '');
+        m.duracion = String(m.duracion || '');
+        return m;
+      })
+      : [];
+    for (const seccion of this.spF07MomentosOpciones) {
+      if (!lista.some((m) => String(m.momento || '').trim() === seccion)) {
+        lista.push(this.crearMomentoSpF07Vacio(seccion));
+      }
+    }
+    const orden = new Map(this.spF07MomentosOpciones.map((s, i) => [s, i]));
+    lista.sort((a, b) => {
+      const ia = orden.has(a.momento) ? (orden.get(a.momento) as number) : 99;
+      const ib = orden.has(b.momento) ? (orden.get(b.momento) as number) : 99;
+      if (ia !== ib) {
+        return ia - ib;
+      }
+      return String(a.id || '').localeCompare(String(b.id || ''));
+    });
+    return lista;
+  }
+
+  private normalizarPlanSpF07(datos: Partial<SpF07Plan> | null | undefined): SpF07Plan {
+    const base = this.crearPlanSpF07Vacio();
+    if (!datos || typeof datos !== 'object') {
+      return base;
+    }
+    const momentosTablas = this.normalizarMomentosTablasSpF07(datos);
+    const momentos = this.aplanarMomentosTablasSpF07(momentosTablas);
+    return {
+      ...base,
+      ...datos,
+      id: String(datos.id || base.id),
+      folio: String(datos.folio || '').trim().toUpperCase(),
+      nombreHoja: String(datos.nombreHoja || ''),
+      nombreCurso: String(datos.nombreCurso || ''),
+      proposito: String(datos.proposito || ''),
+      instructor: String(datos.instructor || ''),
+      fechaPeriodo: String(datos.fechaPeriodo || ''),
+      duracion: String(datos.duracion || ''),
+      lugar: String(datos.lugar || ''),
+      numParticipantes: String(datos.numParticipantes || ''),
+      nivelEstudios: String(datos.nivelEstudios || ''),
+      conocimientosRequeridos: String(datos.conocimientosRequeridos || ''),
+      habilidadesRequeridas: String(datos.habilidadesRequeridas || ''),
+      objetivoGeneral: String(datos.objetivoGeneral || ''),
+      objetivosParticulares: this.normalizarListaTextosSpF07(datos.objetivosParticulares, 1),
+      recursosDidacticos: String(datos.recursosDidacticos || ''),
+      equipoApoyo: String(datos.equipoApoyo || ''),
+      momentos,
+      momentosTablas,
+      tiempoTotal: String(datos.tiempoTotal || ''),
+      metodoEvaluacion: String(datos.metodoEvaluacion || ''),
+      referencias: this.normalizarListaTextosSpF07(datos.referencias, this.spF07ReferenciasMin)
+    };
+  }
+
+  private normalizarSpF07Form(datos: any): SpF07FormData {
+    const base = this.crearSpF07Vacio();
+    if (!datos || typeof datos !== 'object') {
+      return base;
+    }
+    let planesRaw: any[] = [];
+    if (Array.isArray(datos.planes)) {
+      planesRaw = datos.planes;
+    } else if (
+      datos.folio
+      || datos.nombreCurso
+      || datos.instructor
+      || datos.proposito
+      || datos.objetivoGeneral
+    ) {
+      planesRaw = [datos];
+    }
+    return {
+      revision: String(datos.revision || base.revision),
+      fechaElaboracion: String(datos.fechaElaboracion || base.fechaElaboracion),
+      fechaRevision: String(datos.fechaRevision || base.fechaRevision),
+      planes: planesRaw.map((p) => this.normalizarPlanSpF07(p)),
+      planActivoId: datos.planActivoId ? String(datos.planActivoId) : null
+    };
+  }
+
+  get spF07PlanesVista(): SpF07Plan[] {
+    const q = this.spF07Busqueda.trim().toLowerCase();
+    const lista = this.spF07Form.planes || [];
+    if (!q) {
+      return lista;
+    }
+    return lista.filter((p) =>
+      [p.folio, p.nombreCurso, p.instructor]
+        .some((v) => String(v || '').toLowerCase().includes(q))
+    );
+  }
+
+  trackBySpF07Plan(_i: number, plan: SpF07Plan): string {
+    return plan?.id || String(_i);
+  }
+
+  trackBySpF07Momento(_i: number, momento: SpF07Momento): string {
+    return momento?.id || `${momento?.momento || ''}-${_i}`;
+  }
+
+  trackBySpF07MomentosTabla(_i: number, tabla: SpF07MomentosTabla): string {
+    return tabla?.id || `tabla-${_i}`;
+  }
+
+  letraParticularSpF07(index: number): string {
+    const i = Math.max(0, Number(index) || 0);
+    return String.fromCharCode(97 + (i % 26));
+  }
+
+  esMomentoDeSeccionSpF07(momento: SpF07Momento, seccion: string): boolean {
+    return String(momento?.momento || '') === seccion;
+  }
+
+  momentosDeSeccionSpF07(seccion: string, tabla?: SpF07MomentosTabla): SpF07Momento[] {
+    const lista = tabla?.momentos
+      || this.spF07PlanActivo?.momentos
+      || [];
+    return lista.filter((m) => String(m.momento || '') === seccion);
+  }
+
+  esPrimeraFilaMomentoSeccionSpF07(
+    momento: SpF07Momento,
+    seccion: string,
+    tabla?: SpF07MomentosTabla
+  ): boolean {
+    if (!this.esMomentoDeSeccionSpF07(momento, seccion)) {
+      return false;
+    }
+    const primero = this.momentosDeSeccionSpF07(seccion, tabla)[0];
+    return !!primero && primero === momento;
+  }
+
+  contarFilasMomentoSeccionSpF07(seccion: string, tabla?: SpF07MomentosTabla): number {
+    return Math.max(1, this.momentosDeSeccionSpF07(seccion, tabla).length);
+  }
+
+  abrirPlanSpF07(plan: SpF07Plan): void {
+    const normalizado = this.normalizarPlanSpF07(plan);
+    const idx = this.spF07Form.planes.findIndex((p) => p.id === plan.id);
+    if (idx >= 0) {
+      this.spF07Form.planes[idx] = normalizado;
+    }
+    this.spF07PlanActivo = normalizado;
+    this.spF07Form.planActivoId = normalizado.id;
+    this.spF07Vista = 'editor';
+  }
+
+  generarFolioSpF07(): void {
+    if (!this.spF07PlanActivo) {
+      return;
+    }
+    const hoy = new Date();
+    const dd = String(hoy.getDate()).padStart(2, '0');
+    const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+    const aa = String(hoy.getFullYear()).slice(-2);
+    const fechaTag = `${dd}${mm}${aa}`;
+    let maximo = 0;
+    this.spF07Form.planes.forEach((p) => {
+      if (p.id === this.spF07PlanActivo?.id) {
+        return;
+      }
+      const match = String(p.folio || '').match(/^PC-(\d{6})-(\d{1,})$/i);
+      if (match && match[1] === fechaTag) {
+        const n = parseInt(match[2], 10);
+        if (Number.isFinite(n) && n > maximo) {
+          maximo = n;
+        }
+      }
+    });
+    this.spF07PlanActivo.folio = `PC-${fechaTag}-${String(maximo + 1).padStart(2, '0')}`;
+    this.onSpF07Editado();
+  }
+
+  nuevoPlanSpF07(): void {
+    const plan = this.crearPlanSpF07Vacio();
+    this.spF07Form.planes = [plan, ...this.spF07Form.planes];
+    this.spF07Form.planActivoId = plan.id;
+    this.spF07PlanActivo = plan;
+    this.spF07Vista = 'editor';
+    this.generarFolioSpF07();
+    this.onSpF07Editado();
+  }
+
+  volverArchiveroSpF07(): void {
+    this.spF07Vista = 'archivero';
+    this.spF07PlanActivo = null;
+    this.spF07Form.planActivoId = null;
+  }
+
+  eliminarPlanSpF07(plan: SpF07Plan, event?: Event): void {
+    event?.stopPropagation();
+    if (!confirm(`¿Eliminar el plan ${plan.folio || 'sin folio'}?`)) {
+      return;
+    }
+    this.spF07Form.planes = this.spF07Form.planes.filter((p) => p.id !== plan.id);
+    if (this.spF07PlanActivo?.id === plan.id) {
+      this.volverArchiveroSpF07();
+    }
+    this.onSpF07Editado();
+  }
+
+  agregarMomentoSpF07(momentoLabel = 'Desarrollo', tabla?: SpF07MomentosTabla): void {
+    if (!this.spF07PlanActivo) {
+      return;
+    }
+    this.sincronizarMomentosDesdeTablasSpF07(this.spF07PlanActivo);
+    const target = tabla
+      || this.spF07PlanActivo.momentosTablas[this.spF07PlanActivo.momentosTablas.length - 1];
+    if (!target) {
+      return;
+    }
+    if (!Array.isArray(target.momentos)) {
+      target.momentos = [];
+    }
+    const seccion = String(momentoLabel || 'Desarrollo');
+    const insertAt = target.momentos.reduce((acc, m, idx) => (
+      String(m.momento || '') === seccion ? idx + 1 : acc
+    ), target.momentos.length);
+    const copia = [...target.momentos];
+    copia.splice(insertAt, 0, this.crearMomentoSpF07Vacio(seccion));
+    target.momentos = this.asegurarMomentosBaseSpF07(copia);
+    this.sincronizarMomentosDesdeTablasSpF07(this.spF07PlanActivo);
+    this.onSpF07Editado();
+  }
+
+  /**
+   * Añade otra tabla completa de momentos debajo de las ya existentes
+   * (misma estructura de filas que la última tabla, campos vacíos).
+   */
+  replicarCicloMomentosSpF07(): void {
+    if (!this.spF07PlanActivo) {
+      return;
+    }
+    this.sincronizarMomentosDesdeTablasSpF07(this.spF07PlanActivo);
+    const ultima = this.spF07PlanActivo.momentosTablas[
+      this.spF07PlanActivo.momentosTablas.length - 1
+    ];
+    const nueva = this.crearMomentosTablaSpF07Vacia(ultima?.momentos);
+    this.spF07PlanActivo.momentosTablas = [
+      ...this.spF07PlanActivo.momentosTablas,
+      nueva
+    ];
+    this.sincronizarMomentosDesdeTablasSpF07(this.spF07PlanActivo);
+    this.recalcularTiempoTotalSpF07();
+    this.onSpF07Editado();
+  }
+
+  eliminarTablaMomentosSpF07(tabla: SpF07MomentosTabla): void {
+    if (!this.spF07PlanActivo || !tabla) {
+      return;
+    }
+    this.sincronizarMomentosDesdeTablasSpF07(this.spF07PlanActivo);
+    if (this.spF07PlanActivo.momentosTablas.length <= 1) {
+      return;
+    }
+    this.spF07PlanActivo.momentosTablas = this.spF07PlanActivo.momentosTablas
+      .filter((t) => t !== tabla && t.id !== tabla.id);
+    this.sincronizarMomentosDesdeTablasSpF07(this.spF07PlanActivo);
+    this.recalcularTiempoTotalSpF07();
+    this.onSpF07Editado();
+  }
+
+  eliminarMomentoSpF07(momento: SpF07Momento, tabla?: SpF07MomentosTabla): void {
+    if (!this.spF07PlanActivo || !momento) {
+      return;
+    }
+    if (!this.spF07PlanActivo.momentosTablas?.length) {
+      this.sincronizarMomentosDesdeTablasSpF07(this.spF07PlanActivo);
+    }
+    const momentoId = String(momento.id || '');
+    const tablaId = tabla?.id;
+    const target = (tablaId
+      ? this.spF07PlanActivo.momentosTablas.find((t) => t.id === tablaId)
+      : null)
+      || this.spF07PlanActivo.momentosTablas.find((t) =>
+        (t.momentos || []).some((m) => m === momento || String(m.id || '') === momentoId)
+      )
+      || this.spF07PlanActivo.momentosTablas[0];
+    if (!target || !Array.isArray(target.momentos)) {
+      return;
+    }
+    const fila = target.momentos.find((m) => m === momento || String(m.id || '') === momentoId)
+      || momento;
+    const seccion = String(fila.momento || '');
+    const mismos = target.momentos.filter((m) => String(m.momento || '') === seccion);
+    if (mismos.length <= 1) {
+      Object.assign(fila, {
+        fecha: '',
+        horaInicio: '',
+        contenidoTematico: '',
+        descripcionActividades: '',
+        horaTermino: '',
+        tecnicasInstruccionales: '',
+        tecnicasGrupales: '',
+        duracion: '',
+        momento: seccion
+      });
+      this.sincronizarMomentosDesdeTablasSpF07(this.spF07PlanActivo);
+      this.recalcularTiempoTotalSpF07();
+      this.onSpF07Editado();
+      return;
+    }
+    target.momentos = target.momentos.filter(
+      (m) => m !== fila && String(m.id || '') !== momentoId
+    );
+    this.sincronizarMomentosDesdeTablasSpF07(this.spF07PlanActivo);
+    this.recalcularTiempoTotalSpF07();
+    this.onSpF07Editado();
+  }
+
+  private parseMinutosSpF07(texto: string): number {
+    const raw = String(texto || '').trim().toLowerCase();
+    if (!raw) {
+      return 0;
+    }
+    const hm = raw.match(/^(\d{1,2}):(\d{2})$/);
+    if (hm) {
+      return (parseInt(hm[1], 10) * 60) + parseInt(hm[2], 10);
+    }
+    const horas = raw.match(/(\d+(?:[.,]\d+)?)\s*h/);
+    const mins = raw.match(/(\d+)\s*m/);
+    let total = 0;
+    if (horas) {
+      total += Math.round(parseFloat(horas[1].replace(',', '.')) * 60);
+    }
+    if (mins) {
+      total += parseInt(mins[1], 10);
+    }
+    if (!horas && !mins) {
+      const soloNum = raw.match(/^(\d+)$/);
+      if (soloNum) {
+        total += parseInt(soloNum[1], 10);
+      }
+    }
+    return Number.isFinite(total) ? total : 0;
+  }
+
+  private formatearMinutosSpF07(totalMin: number): string {
+    if (!totalMin || totalMin <= 0) {
+      return '';
+    }
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    if (h && m) {
+      return `${h} h ${m} min`;
+    }
+    if (h) {
+      return `${h} h`;
+    }
+    return `${m} min`;
+  }
+
+  recalcularTiempoTotalSpF07(): void {
+    if (!this.spF07PlanActivo) {
+      return;
+    }
+    const total = (this.spF07PlanActivo.momentos || [])
+      .reduce((acc, m) => acc + this.parseMinutosSpF07(m.duracion), 0);
+    this.spF07PlanActivo.tiempoTotal = this.formatearMinutosSpF07(total);
+  }
+
+  onDuracionMomentoSpF07(): void {
+    if (this.spF07PlanActivo) {
+      this.sincronizarMomentosDesdeTablasSpF07(this.spF07PlanActivo);
+    }
+    this.recalcularTiempoTotalSpF07();
+    this.onSpF07Editado();
+  }
+
+  agregarParticularSpF07(): void {
+    if (!this.spF07PlanActivo) {
+      return;
+    }
+    if (!Array.isArray(this.spF07PlanActivo.objetivosParticulares)) {
+      this.spF07PlanActivo.objetivosParticulares = [''];
+    }
+    this.spF07PlanActivo.objetivosParticulares = [
+      ...this.spF07PlanActivo.objetivosParticulares,
+      ''
+    ];
+    this.onSpF07Editado();
+  }
+
+  eliminarParticularSpF07(index: number): void {
+    if (!this.spF07PlanActivo || !Array.isArray(this.spF07PlanActivo.objetivosParticulares)) {
+      return;
+    }
+    if (this.spF07PlanActivo.objetivosParticulares.length <= 1) {
+      this.spF07PlanActivo.objetivosParticulares = [''];
+      this.onSpF07Editado();
+      return;
+    }
+    this.spF07PlanActivo.objetivosParticulares = this.spF07PlanActivo.objetivosParticulares
+      .filter((_, i) => i !== index);
+    this.onSpF07Editado();
+  }
+
+  agregarReferenciaSpF07(): void {
+    if (!this.spF07PlanActivo) {
+      return;
+    }
+    if (!Array.isArray(this.spF07PlanActivo.referencias)) {
+      this.spF07PlanActivo.referencias = [''];
+    }
+    this.spF07PlanActivo.referencias = [...this.spF07PlanActivo.referencias, ''];
+    this.onSpF07Editado();
+  }
+
+  eliminarReferenciaSpF07(index: number): void {
+    if (!this.spF07PlanActivo || !Array.isArray(this.spF07PlanActivo.referencias)) {
+      return;
+    }
+    if (this.spF07PlanActivo.referencias.length <= 1) {
+      this.spF07PlanActivo.referencias = [''];
+      this.onSpF07Editado();
+      return;
+    }
+    this.spF07PlanActivo.referencias = this.spF07PlanActivo.referencias.filter((_, i) => i !== index);
+    this.onSpF07Editado();
+  }
+
+  onSpF07Editado(): void {
+    if (this.spF07PlanActivo) {
+      this.sincronizarMomentosDesdeTablasSpF07(this.spF07PlanActivo);
+    }
+    if (!this.spF07Listo || this.spF07IgnorarAutoSave) {
+      return;
+    }
+    this.spF07CambiosPendientes = true;
+  }
+
+  descargarPdfSpF07(): void {
+    if (this.spF07DescargandoPdf || !this.spF07PlanActivo) {
+      return;
+    }
+    const planId = this.spF07PlanActivo.id;
+    const folio = String(this.spF07PlanActivo.folio || '').trim() || 'Plan';
+    const nombreArchivo = `SP-F-07 ${folio}.pdf`.replace(/[\\/:*?"<>|]+/g, '_');
+
+    const iniciarDescarga = () => {
+      this.spF07DescargandoPdf = true;
+      this.backendService.descargarPdfSpF07(planId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.spF07DescargandoPdf = false;
+            if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+              void Swal.fire({
+                icon: 'error',
+                title: 'No se pudo generar el PDF',
+                text: 'Guarda la información y vuelve a intentar. Si el problema continúa, revisa que la hoja exista en Drive.',
+                confirmButtonText: 'Entendido'
+              });
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = nombreArchivo;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.spF07DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo descargar el PDF',
+              text: 'Guarda la información primero para sincronizar la hoja en Drive e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    };
+
+    if (this.spF07CambiosPendientes && this.spF07Listo && !this.spF07Guardando) {
+      this.spF07DescargandoPdf = true;
+      this.spF07Guardando = true;
+      this.sincronizarPlanActivoEnFormSpF07();
+      this.backendService.guardarSpF07Formato(
+        { ...this.spF07Form, planActivoId: planId },
+        false
+      )
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.aplicarEstadoSpF07(res, true, false, true);
+            this.spF07CambiosPendientes = false;
+            this.spF07Guardando = false;
+            this.spF07DescargandoPdf = false;
+            iniciarDescarga();
+          },
+          error: () => {
+            this.spF07Guardando = false;
+            this.spF07DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'No se guardaron los cambios antes de generar el PDF. Intenta de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+
+    iniciarDescarga();
+  }
+
+  private sincronizarPlanActivoEnFormSpF07(): void {
+    if (!this.spF07PlanActivo) {
+      return;
+    }
+    const idx = this.spF07Form.planes.findIndex((p) => p.id === this.spF07PlanActivo?.id);
+    if (idx >= 0) {
+      this.spF07Form.planes[idx] = this.normalizarPlanSpF07(this.spF07PlanActivo);
+    }
+    this.spF07Form.planActivoId = this.spF07PlanActivo.id;
+  }
+
+  toggleSpF07Editor(): void {
+    if (!this.spF07DriveFileId) {
+      return;
+    }
+    const abrir = !this.mostrarSpF07Editor;
+    if (abrir) {
+      if (this.spF07Guardando) {
+        return;
+      }
+      this.mostrarSpF07Editor = true;
+      this.spF07EditorIframeListo = false;
+      this.spF07EditorCargando = true;
+      this.fijarSpF07EditorEmbedUrl(
+        this.resolverUrlEditorDrive(this.spF07EditorUrl, this.spF07DriveFileId),
+        true
+      );
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    this.mostrarSpF07Editor = false;
+  }
+
+  onSpF07IframeLoad(): void {
+    if (this.spF07EditorIframeListo) {
+      return;
+    }
+    this.spF07EditorIframeListo = true;
+    this.spF07EditorCargando = false;
+  }
+
+  actualizarPlantillaSpF07(): void {
+    if (this.spF07ActualizandoPlantilla) {
+      return;
+    }
+    if (this.mostrarSpF07Editor) {
+      this.mostrarSpF07Editor = false;
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.spF07EditorCargando = false;
+    }
+    this.spF07ActualizandoPlantilla = true;
+    this.backendService.actualizarPlantillaSpF07()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.spF07ActualizandoPlantilla = false;
+          this.aplicarEstadoSpF07(res, false, false, true);
+        },
+        error: () => {
+          this.spF07ActualizandoPlantilla = false;
+        }
+      });
+  }
+
+  private cargarSpF07DesdeServidor(): void {
+    this.spF07Cargando = true;
+    this.spF07Listo = false;
+    this.spF07Vista = 'archivero';
+    this.spF07PlanActivo = null;
+    this.backendService.cargarSpF07Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoSpF07(res),
+        error: () => {
+          this.spF07Cargando = false;
+          this.spF07Listo = true;
+        }
+      });
+  }
+
+  private persistirSpF07(): void {
+    if (!this.puedeGestionarPlantillasSgc) {
+      return;
+    }
+    if (!this.spF07Listo || this.spF07Guardando) {
+      return;
+    }
+    this.spF07Guardando = true;
+    const editorAbierto = this.mostrarSpF07Editor;
+    this.sincronizarPlanActivoEnFormSpF07();
+    const planActivoId = this.spF07PlanActivo?.id || null;
+    this.spF07Form.planActivoId = planActivoId;
+    this.backendService.guardarSpF07Formato(
+      { ...this.spF07Form, planActivoId },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.spF07Guardando = false;
+          this.spF07CambiosPendientes = false;
+          this.aplicarEstadoSpF07(res, editorAbierto, true);
+        },
+        error: () => {
+          this.spF07Guardando = false;
+        }
+      });
+  }
+
+  private fijarSpF07EditorEmbedUrl(url: string | null, forzar = false): void {
+    if (!url) {
+      this.spF07EditorUrl = null;
+      this.spF07EditorEmbedUrlSafe = null;
+      return;
+    }
+    if (!forzar && this.spF07EditorUrl === url && this.spF07EditorEmbedUrlSafe) {
+      return;
+    }
+    this.spF07EditorUrl = url;
+    const embedUrl = this.urlIframeDriveSegunPermiso(url);
+    this.spF07EditorEmbedUrlSafe = embedUrl
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
+      : null;
+  }
+
+  private aplicarEstadoSpF07(
+    res: any,
+    conservarEdicion = false,
+    sincronizacionSilenciosa = false,
+    forzarActualizacionDrive = false
+  ): void {
+    if (!res?.success) {
+      if (!sincronizacionSilenciosa) {
+        this.spF07Cargando = false;
+      }
+      this.spF07Listo = true;
+      return;
+    }
+
+    const editorAbierto = this.mostrarSpF07Editor && !forzarActualizacionDrive;
+    const bloquearFormulario = editorAbierto || conservarEdicion;
+    const activoIdActual = this.spF07PlanActivo?.id || null;
+
+    if (!bloquearFormulario && res.datos) {
+      this.spF07IgnorarAutoSave = true;
+      this.spF07Listo = false;
+      this.spF07Form = this.normalizarSpF07Form(res.datos);
+      const activoId = activoIdActual || this.spF07Form.planActivoId || null;
+      if (activoId) {
+        this.spF07PlanActivo = this.spF07Form.planes.find((p) => p.id === activoId) || null;
+        this.spF07Form.planActivoId = this.spF07PlanActivo?.id || null;
+        if (!this.spF07PlanActivo && this.spF07Vista === 'editor') {
+          this.spF07Vista = 'archivero';
+        } else if (this.spF07PlanActivo && activoIdActual) {
+          this.spF07Vista = 'editor';
+        }
+      }
+    } else if (!editorAbierto && !conservarEdicion) {
+      this.spF07IgnorarAutoSave = true;
+      this.spF07Listo = false;
+    } else if (conservarEdicion) {
+      this.sincronizarPlanActivoEnFormSpF07();
+    }
+
+    const nuevoDriveId = res.driveFileId || null;
+    if (forzarActualizacionDrive || !editorAbierto) {
+      if (nuevoDriveId) {
+        this.spF07DriveFileId = nuevoDriveId;
+      }
+      if (res.editorUrl && (forzarActualizacionDrive || !this.mostrarSpF07Editor)) {
+        this.fijarSpF07EditorEmbedUrl(res.editorUrl, forzarActualizacionDrive);
+      }
+    }
+
+    this.spF07UltimaSync = res.ultimaSyncDrive || null;
+    this.spF07ContenidoModificado = !!res.contenidoModificado;
+
+    window.setTimeout(() => {
+      this.spF07IgnorarAutoSave = false;
+      this.spF07Listo = true;
+      if (!sincronizacionSilenciosa) {
+        this.spF07Cargando = false;
+      }
+    }, 0);
+  }
+
   private crearSgcF05FormVacio(): SgcF05FormData {
     return {
       fechaElaboracion: '',
@@ -16219,6 +17256,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleSpF02Editor();
       return;
     }
+    if (this.plantillaSlug === 'sp-f-07') {
+      this.toggleSpF07Editor();
+      return;
+    }
     if (this.plantillaSlug === 'ath-f-02') {
       this.toggleAthF02Editor();
       return;
@@ -16330,6 +17371,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sp-f-02') {
       this.actualizarPlantillaSpF02();
+      return;
+    }
+    if (this.plantillaSlug === 'sp-f-07') {
+      this.actualizarPlantillaSpF07();
       return;
     }
     if (this.plantillaSlug === 'ath-f-02') {

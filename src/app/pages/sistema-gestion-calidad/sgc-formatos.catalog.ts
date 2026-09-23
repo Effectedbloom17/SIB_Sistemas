@@ -271,6 +271,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         driveFileId: '1lZOjlr7PAvoudcOJF5Qz28x3ok88UUEb32L1YnxUAZI',
         previewSlug: 'sp-f-02',
         previewMode: 'form'
+      },
+      {
+        codigo: 'SP-F-07',
+        titulo: 'Plan del curso',
+        nombre: 'SP-F-07 Plan del curso.xlsx',
+        driveFileId: '1p0XiIIwWth04aKYTs6XYldsy4yNvHGdbJWfWEfYVs4w',
+        previewSlug: 'sp-f-07',
+        previewMode: 'form'
       }
     ]
   },
