@@ -198,6 +198,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         driveFileId: '1-tq5eEeFmUPk8cJXOmPEXpycthXTXwe6kwK_-M-7kww',
         previewSlug: 'ath-f-08',
         previewMode: 'form'
+      },
+      {
+        codigo: '1ATH-F-03',
+        titulo: 'Entrega - Recepción de EPP',
+        nombre: '1ATH-F-03 Entrega - Recepción de EPP',
+        driveFileId: '1wb0UqwXAF2-f-0qmX2RnBroD9mRF8UZg-qQetBhEElE',
+        previewSlug: 'ath-f-03',
+        previewMode: 'form'
       }
     ]
   },

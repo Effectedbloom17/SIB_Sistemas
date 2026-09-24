@@ -25808,6 +25808,7 @@ const sgcF14Service = require('./sgcF14Service');
 const sgcF25Service = require('./sgcF25Service');
 const sgcF16Service = require('./sgcF16Service');
 const sgcF24Service = require('./sgcF24Service');
+const sgcAthF03Service = require('./sgcAthF03Service');
 const sgcF27Service = require('./sgcF27Service');
 const sgcF29Service = require('./sgcF29Service');
 const sgcF28Service = require('./sgcF28Service');
@@ -27408,6 +27409,109 @@ app.get('/api/sgc/formatos/sgc-f-24/descargar-pdf', requireAdminOrSgc, async (re
         return res.send(pdfBuffer);
     } catch (error) {
         handleError(res, error, 'No se pudo descargar el PDF de SGC-F-24');
+    }
+});
+
+app.get('/api/sgc/formatos/ath-f-03', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
+        const payload = await sgcAthF03Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato 1ATH-F-03');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-03/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAthF03Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: 'Formato 1ATH-F-03 guardado correctamente.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato 1ATH-F-03');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-03/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAthF03Service.sincronizarDesdeDrive(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: '1ATH-F-03 sincronizado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo sincronizar 1ATH-F-03');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-03/actualizar-plantilla', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAthF03Service.actualizarPlantillaDesdeSistema(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Plantilla 1ATH-F-03 actualizada.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo actualizar la plantilla 1ATH-F-03');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-03/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAthF03Service.subirPdfFirmado(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'PDF firmado de 1ATH-F-03 subido a Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo subir el PDF firmado de 1ATH-F-03');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-03/eliminar-pdf-historial', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const puedeBorrarHistorial = userRoles.includes('root') || esGestorCalidadSgc(req);
+        const payload = await sgcAthF03Service.eliminarPdfHistorial(poolBiznagaSgc, req.body || {}, {
+            puedeBorrarHistorial
+        });
+        return res.json({
+            success: true,
+            message: 'PDF eliminado del historial de 1ATH-F-03.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo eliminar el PDF del historial de 1ATH-F-03');
+    }
+});
+
+app.get('/api/sgc/formatos/ath-f-03/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcAthF03Service.descargarPdfEntrega(poolBiznagaSgc, req.query.entregaId);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="1ATH-F-03 Entrega - Recepcion de EPP.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de 1ATH-F-03');
     }
 });
 

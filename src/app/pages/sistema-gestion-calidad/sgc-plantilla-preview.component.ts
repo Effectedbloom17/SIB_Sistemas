@@ -1303,6 +1303,50 @@ interface SgcF24FormData {
   cambioActivoId?: string | null;
 }
 
+interface AthF03PdfFirmado {
+  driveFileId: string;
+  nombreArchivo: string;
+  webViewLink?: string;
+  previewUrl?: string;
+  fechaSubida?: string | null;
+}
+
+interface AthF03Equipo {
+  descripcion: string;
+  marca: string;
+  modelo: string;
+  talla: string;
+  cantidad: string;
+  estado: string;
+}
+
+interface AthF03Entrega {
+  id: string;
+  folio: string;
+  nombreCompleto: string;
+  puesto: string;
+  areaDepartamento: string;
+  fechaIngreso: string;
+  fechaEntrega: string;
+  tipoEntrega: '' | 'ingreso' | 'reposicion' | 'cambio_puesto';
+  observaciones: string;
+  equipos: AthF03Equipo[];
+  nombreEntrego: string;
+  nombreRecibio: string;
+  driveFileId?: string | null;
+  nombreArchivo?: string | null;
+  pdfFirmado: AthF03PdfFirmado | null;
+  pdfsHistorial: AthF03PdfFirmado[];
+}
+
+interface AthF03FormData {
+  fechaElaboracion: string;
+  revision: string;
+  fechaRevision: string;
+  entregas: AthF03Entrega[];
+  entregaActivaId?: string | null;
+}
+
 interface SgcF27PdfFirmado {
   driveFileId: string;
   nombreArchivo: string;
@@ -1451,7 +1495,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sp-f-07'
       || this.plantillaSlug === 'sgc-f-05' || this.plantillaSlug === 'ath-f-02' || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-09'
-      || this.plantillaSlug === 'ath-f-11';
+      || this.plantillaSlug === 'ath-f-11'
+      || this.plantillaSlug === 'ath-f-03';
   }
 
   @HostBinding('class.sgc-preview--ath-f-02')
@@ -2102,6 +2147,34 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF24PdfCargando = false;
   sgcF24PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   private sgcF24EditorIframeListo = false;
+  athF03Form: AthF03FormData = this.crearAthF03FormVacio();
+  athF03Cargando = false;
+  athF03Guardando = false;
+  athF03Listo = false;
+  athF03CambiosPendientes = false;
+  athF03IgnorarAutoSave = false;
+  athF03UltimaSync: string | null = null;
+  athF03DriveFileId: string | null = null;
+  athF03EditorUrl: string | null = null;
+  athF03EditorEmbedUrlSafe: SafeResourceUrl | null = null;
+  mostrarAthF03Editor = false;
+  athF03ContenidoModificado = false;
+  athF03EditorCargando = false;
+  athF03ActualizandoPlantilla = false;
+  athF03Vista: 'archivero' | 'editor' = 'archivero';
+  athF03EntregaActiva: AthF03Entrega | null = null;
+  athF03Busqueda = '';
+  athF03DescargandoPdf = false;
+  athF03SubiendoPdf = false;
+  athF03BorrandoPdf = false;
+  athF03PdfVistaNombre = '';
+  mostrarAthF03PdfViewer = false;
+  athF03PdfCargando = false;
+  athF03PdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  private athF03EditorIframeListo = false;
+  athF03ColaboradoresCatalogo: Array<{ nombreCompleto: string; puesto: string; areaDepartamento: string }> = [];
+  athF03NombreComboAbierto = false;
+  athF03NombreComboQuery = '';
   sgcF27Form: SgcF27FormData = this.crearSgcF27FormVacio();
   sgcF27Cargando = false;
   sgcF27Guardando = false;
@@ -3468,6 +3541,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (codigo === 'sgc-f-24') {
         this.cargarSgcF24DesdeServidor();
       }
+      if (codigo === 'ath-f-03') {
+        this.cargarCatalogoColaboradoresAthF03();
+        this.cargarAthF03DesdeServidor();
+      }
       if (codigo === 'sgc-f-27') {
         this.cargarSgcF27DesdeServidor();
       }
@@ -3614,7 +3691,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-10' || this.plantillaSlug === 'sgc-f-15'
       || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'dg-f-06'
       || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sp-f-07' || this.plantillaSlug === 'sgc-f-05'
-      || this.plantillaSlug === 'ath-f-08';
+      || this.plantillaSlug === 'ath-f-08'
+      || this.plantillaSlug === 'ath-f-03';
   }
 
   get esFormatoSlidesEmbed(): boolean {
@@ -3659,6 +3737,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-09'
       || this.plantillaSlug === 'ath-f-11'
+      || this.plantillaSlug === 'ath-f-03'
       || this.plantillaSlug === 'dg-f-06';
   }
 
@@ -3681,6 +3760,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25Guardando;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16Guardando;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Guardando;
+    if (this.plantillaSlug === 'ath-f-03') return this.athF03Guardando;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27Guardando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Guardando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Guardando;
@@ -3713,6 +3793,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25UltimaSync;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16UltimaSync;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24UltimaSync;
+    if (this.plantillaSlug === 'ath-f-03') return this.athF03UltimaSync;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27UltimaSync;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29UltimaSync;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28UltimaSync;
@@ -3745,6 +3826,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25Cargando;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16Cargando;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Cargando;
+    if (this.plantillaSlug === 'ath-f-03') return this.athF03Cargando;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27Cargando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Cargando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Cargando;
@@ -3777,6 +3859,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24ActualizandoPlantilla;
+    if (this.plantillaSlug === 'ath-f-03') return this.athF03ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28ActualizandoPlantilla;
@@ -3810,6 +3893,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25DriveFileId;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16DriveFileId;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24DriveFileId;
+    if (this.plantillaSlug === 'ath-f-03') return this.athF03EntregaActiva?.driveFileId || this.athF03DriveFileId;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27DriveFileId;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29DriveFileId;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28DriveFileId;
@@ -3843,6 +3927,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-25') return this.sgcF25CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24CambiosPendientes;
+    if (this.plantillaSlug === 'ath-f-03') return this.athF03CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28CambiosPendientes;
@@ -3889,6 +3974,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-25') return this.mostrarSgcF25Editor;
     if (this.plantillaSlug === 'sgc-f-16') return this.mostrarSgcF16Editor;
     if (this.plantillaSlug === 'sgc-f-24') return this.mostrarSgcF24Editor;
+    if (this.plantillaSlug === 'ath-f-03') return this.mostrarAthF03Editor;
     if (this.plantillaSlug === 'sgc-f-27') return this.mostrarSgcF27Editor;
     if (this.plantillaSlug === 'sgc-f-10') return this.mostrarSgcF10Editor;
     if (this.plantillaSlug === 'sgc-f-29') return this.mostrarSgcF29Editor;
@@ -4035,6 +4121,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.cerrarCombosAthF11();
       return;
     }
+    if (this.athF03NombreComboAbierto) {
+      event.preventDefault();
+      this.athF03NombreComboAbierto = false;
+      return;
+    }
     if (this.sgcF16AsistComboAbierto !== null) {
       event.preventDefault();
       this.cerrarComboAsistSgcF16();
@@ -4105,6 +4196,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.mostrarSgcF07PdfViewer) {
       event.preventDefault();
       this.toggleSgcF07PdfViewer();
+      return;
+    }
+    if (this.mostrarAthF03PdfViewer) {
+      event.preventDefault();
+      this.toggleAthF03PdfViewer();
     }
   }
 
@@ -4200,6 +4296,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.sincronizarCambioActivoEnFormSgcF24();
       return this.backendService.guardarSgcF24Formato(
         { ...this.sgcF24Form, cambioActivoId: this.sgcF24CambioActivo?.id || this.sgcF24Form.cambioActivoId || null },
+        false
+      );
+    }
+    if (slug === 'ath-f-03') {
+      this.sincronizarEntregaActivaEnFormAthF03();
+      return this.backendService.guardarAthF03Formato(
+        { ...this.athF03Form, entregaActivaId: this.athF03EntregaActiva?.id || this.athF03Form.entregaActivaId || null },
         false
       );
     }
@@ -4362,6 +4465,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-24') {
       this.persistirSgcF24();
+      return;
+    }
+    if (this.plantillaSlug === 'ath-f-03') {
+      this.persistirAthF03();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-27') {
@@ -4673,6 +4780,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return 'Archivero de control de cambios. Registra proyecto, tipo, descripción, motivo y acciones; usa «Guardar información» para conservarlos en el sistema y en Drive.';
   }
 
+  get athF03IntroLead(): string {
+    if (this.plantillaSlug !== 'ath-f-03') {
+      return '';
+    }
+    return 'Archivero de entrega y recepción de EPP. Captura colaborador, tipo de entrega y el detalle del equipo; usa «Guardar información» para generar el documento. El PDF firmado se guarda en Drive.';
+  }
+
   get sgcF27IntroLead(): string {
     if (this.plantillaSlug !== 'sgc-f-27') {
       return '';
@@ -4794,6 +4908,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-24') {
       return this.sgcF24IntroLead;
+    }
+    if (this.plantillaSlug === 'ath-f-03') {
+      return this.athF03IntroLead;
     }
     if (this.plantillaSlug === 'sgc-f-27') {
       return this.sgcF27IntroLead;
@@ -10087,6 +10204,685 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (!sincronizacionSilenciosa) {
         this.sgcF24Cargando = false;
       }
+    }, editorAbierto ? 0 : 350);
+  }
+
+  // ===================== 1ATH-F-03 · Entrega - Recepción de EPP =====================
+
+  private crearAthF03FormVacio(): AthF03FormData {
+    return {
+      fechaElaboracion: '',
+      revision: '00',
+      fechaRevision: '',
+      entregas: [],
+      entregaActivaId: null
+    };
+  }
+
+  private nuevoIdAthF03(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return `epp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  private crearEquipoAthF03Vacio(): AthF03Equipo {
+    return { descripcion: '', marca: '', modelo: '', talla: '', cantidad: '', estado: '' };
+  }
+
+  private crearEntregaAthF03Vacia(): AthF03Entrega {
+    return {
+      id: this.nuevoIdAthF03(),
+      folio: '',
+      nombreCompleto: '',
+      puesto: '',
+      areaDepartamento: '',
+      fechaIngreso: '',
+      fechaEntrega: '',
+      tipoEntrega: '',
+      observaciones: '',
+      equipos: [this.crearEquipoAthF03Vacio()],
+      nombreEntrego: '',
+      nombreRecibio: '',
+      driveFileId: null,
+      nombreArchivo: null,
+      pdfFirmado: null,
+      pdfsHistorial: []
+    };
+  }
+
+  private sanitizarPdfAthF03(raw: any): AthF03PdfFirmado | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const driveFileId = String(raw.driveFileId || raw.drive_file_id || '').trim();
+    if (!driveFileId) return null;
+    return {
+      driveFileId,
+      nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || '1ATH-F-03 Entrega firmada.pdf').trim(),
+      webViewLink: raw.webViewLink || raw.web_view_link || null,
+      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      fechaSubida: raw.fechaSubida || raw.fecha_subida || null
+    };
+  }
+
+  private normalizarTipoEntregaAthF03(valor: unknown): AthF03Entrega['tipoEntrega'] {
+    const t = String(valor || '').trim().toLowerCase();
+    if (t === 'ingreso' || t === 'reposicion' || t === 'cambio_puesto') return t;
+    return '';
+  }
+
+  private normalizarEquipoAthF03(datos: any): AthF03Equipo {
+    const base = this.crearEquipoAthF03Vacio();
+    if (!datos || typeof datos !== 'object') return base;
+    return {
+      descripcion: String(datos.descripcion || '').trim(),
+      marca: String(datos.marca || '').trim(),
+      modelo: String(datos.modelo || '').trim(),
+      talla: String(datos.talla || '').trim(),
+      cantidad: String(datos.cantidad ?? '').trim(),
+      estado: String(datos.estado || '').trim()
+    };
+  }
+
+  private normalizarEntregaAthF03(datos: any): AthF03Entrega {
+    const base = this.crearEntregaAthF03Vacia();
+    if (!datos || typeof datos !== 'object') return base;
+    const equiposRaw = Array.isArray(datos.equipos) ? datos.equipos : [];
+    const equipos = equiposRaw.map((e: any) => this.normalizarEquipoAthF03(e));
+    return {
+      id: String(datos.id || '').trim() || this.nuevoIdAthF03(),
+      folio: String(datos.folio || '').trim().toUpperCase(),
+      nombreCompleto: String(datos.nombreCompleto || datos.nombre_completo || '').trim(),
+      puesto: String(datos.puesto || '').trim(),
+      areaDepartamento: String(datos.areaDepartamento || datos.area_departamento || '').trim(),
+      fechaIngreso: String(datos.fechaIngreso || datos.fecha_ingreso || '').trim(),
+      fechaEntrega: String(datos.fechaEntrega || datos.fecha_entrega || '').trim(),
+      tipoEntrega: this.normalizarTipoEntregaAthF03(datos.tipoEntrega || datos.tipo_entrega),
+      observaciones: String(datos.observaciones || ''),
+      equipos: equipos.length ? equipos : [this.crearEquipoAthF03Vacio()],
+      nombreEntrego: String(datos.nombreEntrego || datos.nombre_entrego || '').trim(),
+      nombreRecibio: String(datos.nombreRecibio || datos.nombre_recibio || '').trim(),
+      driveFileId: String(datos.driveFileId || datos.drive_file_id || '').trim() || null,
+      nombreArchivo: String(datos.nombreArchivo || datos.nombre_archivo || '').trim() || null,
+      pdfFirmado: this.sanitizarPdfAthF03(datos.pdfFirmado || datos.pdf_firmado),
+      pdfsHistorial: this.normalizarHistorialPdfAthF03(datos.pdfsHistorial || datos.pdfs_historial, datos.pdfFirmado || datos.pdf_firmado)
+    };
+  }
+
+  private normalizarHistorialPdfAthF03(raw: unknown, vigenteRaw?: unknown): AthF03PdfFirmado[] {
+    const lista = Array.isArray(raw) ? raw : [];
+    const vistos = new Set<string>();
+    const salida: AthF03PdfFirmado[] = [];
+    const agregar = (item: unknown) => {
+      const pdf = this.sanitizarPdfAthF03(item);
+      if (!pdf || vistos.has(pdf.driveFileId)) return;
+      vistos.add(pdf.driveFileId);
+      salida.push(pdf);
+    };
+    agregar(vigenteRaw);
+    lista.forEach(agregar);
+    return salida;
+  }
+
+  private normalizarAthF03Form(datos: any): AthF03FormData {
+    const base = this.crearAthF03FormVacio();
+    if (!datos || typeof datos !== 'object') return base;
+    const entregas = (Array.isArray(datos.entregas) ? datos.entregas : []).map((e: any) => this.normalizarEntregaAthF03(e));
+    const entregaActivaId = String(datos.entregaActivaId || '').trim() || null;
+    return {
+      fechaElaboracion: String(datos.fechaElaboracion || '').trim(),
+      revision: String(datos.revision || '00').trim() || '00',
+      fechaRevision: String(datos.fechaRevision || '').trim(),
+      entregas,
+      entregaActivaId: entregaActivaId && entregas.some((e) => e.id === entregaActivaId)
+        ? entregaActivaId
+        : (entregas[0]?.id || null)
+    };
+  }
+
+  private sincronizarEntregaActivaEnFormAthF03(): void {
+    const activo = this.athF03EntregaActiva;
+    if (!activo) {
+      this.athF03Form.entregaActivaId = null;
+      return;
+    }
+    const idx = (this.athF03Form.entregas || []).findIndex((e) => e.id === activo.id);
+    if (idx >= 0) this.athF03Form.entregas[idx] = activo;
+    else this.athF03Form.entregas = [activo, ...(this.athF03Form.entregas || [])];
+    this.athF03Form.entregaActivaId = activo.id;
+  }
+
+  get athF03EntregasVista(): AthF03Entrega[] {
+    const q = this.athF03Busqueda.trim().toLowerCase();
+    const lista = [...(this.athF03Form.entregas || [])].sort((a, b) => {
+      const fa = String(a.fechaEntrega || '');
+      const fb = String(b.fechaEntrega || '');
+      return fb.localeCompare(fa) || String(b.folio || '').localeCompare(String(a.folio || ''));
+    });
+    if (!q) return lista;
+    return lista.filter((e) =>
+      [e.folio, e.nombreCompleto, e.puesto, e.areaDepartamento]
+        .some((v) => String(v || '').toLowerCase().includes(q))
+    );
+  }
+
+  entregaFirmadaAthF03(entrega: AthF03Entrega | null | undefined): boolean {
+    return !!entrega?.pdfFirmado?.driveFileId;
+  }
+
+  etiquetaTipoEntregaAthF03(tipo: string | null | undefined): string {
+    if (tipo === 'ingreso') return 'Ingreso';
+    if (tipo === 'reposicion') return 'Reposición';
+    if (tipo === 'cambio_puesto') return 'Cambio de puesto';
+    return '';
+  }
+
+  formatearFechaCortaAthF03(iso: string | null | undefined): string {
+    return this.formatearFechaCortaSgcF16(iso);
+  }
+
+  onAthF03Editado(): void {
+    if (!this.athF03Listo || this.athF03IgnorarAutoSave) return;
+    this.athF03CambiosPendientes = true;
+  }
+
+  private cargarCatalogoColaboradoresAthF03(): void {
+    this.backendService.obtenerUsuarios()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          const usuarios: any[] = Array.isArray(res?.usuarios) ? res.usuarios : [];
+          const mapa = new Map<string, { nombreCompleto: string; puesto: string; areaDepartamento: string }>();
+          for (const u of usuarios) {
+            if (this.esPerfilEmpresaAthF11(u)) continue;
+            const item = this.mapearEmpleadoCatalogoAthF11(u);
+            if (!item.nombreCompleto) continue;
+            const key = this.normalizarTextoAthF11(item.nombreCompleto);
+            if (!mapa.has(key)) {
+              mapa.set(key, {
+                nombreCompleto: item.nombreCompleto,
+                puesto: item.puesto,
+                areaDepartamento: item.areaDepartamento
+              });
+            }
+          }
+          this.athF03ColaboradoresCatalogo = Array.from(mapa.values())
+            .sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto, 'es'));
+        },
+        error: () => {
+          this.athF03ColaboradoresCatalogo = [];
+        }
+      });
+  }
+
+  private normalizarTextoAthF03(valor: string): string {
+    return this.normalizarTextoAthF11(valor);
+  }
+
+  get colaboradoresOpcionesAthF03(): Array<{ nombreCompleto: string; puesto: string; areaDepartamento: string }> {
+    const mapa = new Map<string, { nombreCompleto: string; puesto: string; areaDepartamento: string }>();
+    for (const entrega of this.athF03Form?.entregas || []) {
+      const nombre = String(entrega?.nombreCompleto || '').trim();
+      if (!nombre) continue;
+      mapa.set(this.normalizarTextoAthF03(nombre), {
+        nombreCompleto: nombre,
+        puesto: String(entrega.puesto || '').trim(),
+        areaDepartamento: String(entrega.areaDepartamento || '').trim()
+      });
+    }
+    for (const emp of this.athF03ColaboradoresCatalogo) {
+      const key = this.normalizarTextoAthF03(emp.nombreCompleto);
+      const prev = mapa.get(key);
+      mapa.set(key, {
+        nombreCompleto: emp.nombreCompleto,
+        puesto: emp.puesto || prev?.puesto || '',
+        areaDepartamento: emp.areaDepartamento || prev?.areaDepartamento || ''
+      });
+    }
+    return Array.from(mapa.values())
+      .sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto, 'es'));
+  }
+
+  get colaboradoresFiltradosAthF03(): Array<{ nombreCompleto: string; puesto: string; areaDepartamento: string }> {
+    const query = this.normalizarTextoAthF03(this.athF03NombreComboQuery);
+    const base = this.colaboradoresOpcionesAthF03;
+    if (!query) return base.slice(0, 40);
+    return base
+      .filter((e) =>
+        [e.nombreCompleto, e.puesto, e.areaDepartamento]
+          .some((v) => this.normalizarTextoAthF03(v).includes(query))
+      )
+      .slice(0, 40);
+  }
+
+  get textoLibreNombreAthF03(): string {
+    const q = String(this.athF03NombreComboQuery || '').trim();
+    if (!q) return '';
+    const existe = this.colaboradoresOpcionesAthF03.some(
+      (e) => this.normalizarTextoAthF03(e.nombreCompleto) === this.normalizarTextoAthF03(q)
+    );
+    return existe ? '' : q;
+  }
+
+  textoComboNombreAthF03(): string {
+    if (this.athF03NombreComboAbierto) return this.athF03NombreComboQuery;
+    return String(this.athF03EntregaActiva?.nombreCompleto || '');
+  }
+
+  abrirComboNombreAthF03(): void {
+    this.athF03NombreComboAbierto = true;
+    this.athF03NombreComboQuery = String(this.athF03EntregaActiva?.nombreCompleto || '');
+  }
+
+  onNombreComboInputAthF03(valor: string): void {
+    if (!this.athF03EntregaActiva) return;
+    this.athF03NombreComboAbierto = true;
+    this.athF03NombreComboQuery = valor;
+    this.athF03EntregaActiva.nombreCompleto = valor;
+    this.onAthF03Editado();
+  }
+
+  seleccionarColaboradorAthF03(emp: { nombreCompleto: string; puesto: string; areaDepartamento: string }): void {
+    if (!this.athF03EntregaActiva || !emp) return;
+    this.athF03EntregaActiva.nombreCompleto = emp.nombreCompleto;
+    this.athF03EntregaActiva.puesto = emp.puesto || '';
+    this.athF03EntregaActiva.areaDepartamento = emp.areaDepartamento || '';
+    this.athF03NombreComboQuery = emp.nombreCompleto;
+    this.athF03NombreComboAbierto = false;
+    this.onAthF03Editado();
+  }
+
+  usarNombreLibreAthF03(nombre: string): void {
+    if (!this.athF03EntregaActiva) return;
+    this.athF03EntregaActiva.nombreCompleto = String(nombre || '').trim();
+    this.athF03NombreComboQuery = this.athF03EntregaActiva.nombreCompleto;
+    this.athF03NombreComboAbierto = false;
+    this.onAthF03Editado();
+  }
+
+  limpiarNombreAthF03(): void {
+    if (!this.athF03EntregaActiva) return;
+    this.athF03EntregaActiva.nombreCompleto = '';
+    this.athF03NombreComboQuery = '';
+    this.athF03NombreComboAbierto = false;
+    this.onAthF03Editado();
+  }
+
+  generarFolioAthF03(): void {
+    if (!this.athF03EntregaActiva) return;
+    const baseFecha = this.athF03EntregaActiva.fechaEntrega || new Date().toISOString().slice(0, 10);
+    const d = new Date(`${baseFecha}T12:00:00`);
+    const fecha = Number.isNaN(d.getTime()) ? new Date() : d;
+    const dd = String(fecha.getDate()).padStart(2, '0');
+    const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+    const aa = String(fecha.getFullYear()).slice(-2);
+    const fechaTag = `${dd}${mm}${aa}`;
+    if (!this.athF03EntregaActiva.fechaEntrega) {
+      this.athF03EntregaActiva.fechaEntrega = `${fecha.getFullYear()}-${mm}-${dd}`;
+    }
+    let maximo = 0;
+    (this.athF03Form.entregas || []).forEach((e) => {
+      if (e.id === this.athF03EntregaActiva?.id) return;
+      const match = String(e.folio || '').match(/^EPP-(\d{6})-(\d{1,})$/i);
+      if (match && match[1] === fechaTag) {
+        const n = parseInt(match[2], 10);
+        if (Number.isFinite(n) && n > maximo) maximo = n;
+      }
+    });
+    this.athF03EntregaActiva.folio = `EPP-${fechaTag}-${String(maximo + 1).padStart(2, '0')}`;
+    this.onAthF03Editado();
+  }
+
+  nuevaEntregaAthF03(): void {
+    const entrega = this.crearEntregaAthF03Vacia();
+    entrega.fechaEntrega = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+    this.athF03Form.entregas = [entrega, ...(this.athF03Form.entregas || [])];
+    this.athF03EntregaActiva = entrega;
+    this.athF03Form.entregaActivaId = entrega.id;
+    this.athF03Vista = 'editor';
+    this.athF03DriveFileId = null;
+    this.generarFolioAthF03();
+    this.onAthF03Editado();
+  }
+
+  abrirEntregaAthF03(entrega: AthF03Entrega): void {
+    this.athF03EntregaActiva = entrega;
+    this.athF03Form.entregaActivaId = entrega?.id || null;
+    this.athF03Vista = 'editor';
+    this.athF03DriveFileId = entrega?.driveFileId || null;
+    if (entrega?.driveFileId) {
+      this.fijarEditorEmbedUrlAthF03(`https://docs.google.com/document/d/${entrega.driveFileId}/edit?usp=sharing`);
+    }
+  }
+
+  volverArchiveroAthF03(): void {
+    this.sincronizarEntregaActivaEnFormAthF03();
+    this.athF03Vista = 'archivero';
+    this.athF03EntregaActiva = null;
+    this.athF03Form.entregaActivaId = null;
+    this.athF03DriveFileId = null;
+    if (this.mostrarAthF03PdfViewer) this.toggleAthF03PdfViewer();
+    if (this.mostrarAthF03Editor) this.toggleAthF03Editor();
+  }
+
+  eliminarEntregaAthF03(entrega: AthF03Entrega, event?: Event): void {
+    event?.stopPropagation();
+    if (!confirm(`¿Eliminar la entrega ${entrega.folio || entrega.nombreCompleto || 'sin folio'}?`)) return;
+    this.athF03Form.entregas = (this.athF03Form.entregas || []).filter((e) => e.id !== entrega.id);
+    if (this.athF03EntregaActiva?.id === entrega.id) this.volverArchiveroAthF03();
+    this.onAthF03Editado();
+  }
+
+  agregarEquipoAthF03(): void {
+    if (!this.athF03EntregaActiva) return;
+    if (this.athF03EntregaActiva.equipos.length >= 20) return;
+    this.athF03EntregaActiva.equipos.push(this.crearEquipoAthF03Vacio());
+    this.onAthF03Editado();
+  }
+
+  quitarEquipoAthF03(index: number): void {
+    if (!this.athF03EntregaActiva) return;
+    if (this.athF03EntregaActiva.equipos.length <= 1) {
+      this.athF03EntregaActiva.equipos.splice(0, 1, this.crearEquipoAthF03Vacio());
+    } else {
+      this.athF03EntregaActiva.equipos.splice(index, 1);
+    }
+    this.onAthF03Editado();
+  }
+
+  private cargarAthF03DesdeServidor(): void {
+    this.athF03Cargando = true;
+    this.athF03Listo = false;
+    this.athF03Vista = 'archivero';
+    this.athF03EntregaActiva = null;
+    this.backendService.cargarAthF03Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoAthF03(res),
+        error: () => {
+          this.athF03Cargando = false;
+          this.athF03Listo = true;
+        }
+      });
+  }
+
+  private persistirAthF03(): void {
+    if (!this.puedeGestionarPlantillasSgc || !this.athF03Listo || this.athF03Guardando) return;
+    this.sincronizarEntregaActivaEnFormAthF03();
+    this.athF03Guardando = true;
+    const editorAbierto = this.mostrarAthF03Editor;
+    const activa = this.athF03EntregaActiva;
+    this.backendService.guardarAthF03Formato(
+      { ...this.athF03Form, entregaActivaId: activa?.id || null },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.athF03Guardando = false;
+          this.aplicarEstadoAthF03(res, editorAbierto, false, false);
+        },
+        error: () => {
+          this.athF03Guardando = false;
+        }
+      });
+  }
+
+  descargarPdfAthF03(): void {
+    const entrega = this.athF03EntregaActiva;
+    if (this.athF03DescargandoPdf || !entrega?.driveFileId) return;
+    this.athF03DescargandoPdf = true;
+    const nombre = `1ATH-F-03 ${entrega.folio || 'entrega'}.pdf`;
+    this.backendService.descargarPdfAthF03(entrega.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.athF03DescargandoPdf = false;
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = nombre;
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.athF03DescargandoPdf = false;
+        }
+      });
+  }
+
+  onSeleccionarPdfAthF03(event: Event): void {
+    if (!this.athF03EntregaActiva) return;
+    const folio = this.athF03EntregaActiva.folio || 'sin-folio';
+    this.procesarPdfDocumento(
+      event,
+      `1ATH-F-03 ${folio} firmado.pdf`,
+      (base64, nombre) => this.subirPdfFirmadoAthF03(base64, nombre)
+    );
+  }
+
+  private subirPdfFirmadoAthF03(pdfBase64: string, nombreArchivo: string): void {
+    if (this.athF03SubiendoPdf || !this.athF03EntregaActiva) {
+      this.cerrarModalSubidaPdfSgc();
+      return;
+    }
+    this.sincronizarEntregaActivaEnFormAthF03();
+    const entregaId = this.athF03EntregaActiva.id;
+    const yaGuardada = !!this.athF03EntregaActiva.driveFileId;
+    this.athF03SubiendoPdf = true;
+    const enviarPdf = () => {
+      this.backendService.subirPdfFirmadoAthF03(pdfBase64, nombreArchivo, entregaId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.athF03SubiendoPdf = false;
+            this.aplicarEstadoAthF03(res);
+            const entregaResp = (res?.datos?.entregas || []).find((e: any) => e?.id === entregaId);
+            if (this.athF03EntregaActiva) {
+              const hist = this.normalizarHistorialPdfAthF03(
+                entregaResp?.pdfsHistorial,
+                res?.pdfFirmado || entregaResp?.pdfFirmado
+              );
+              if (hist.length) this.athF03EntregaActiva.pdfsHistorial = hist;
+              const vigente = this.sanitizarPdfAthF03(res?.pdfFirmado || entregaResp?.pdfFirmado);
+              if (vigente) this.athF03EntregaActiva.pdfFirmado = vigente;
+              this.sincronizarEntregaActivaEnFormAthF03();
+            }
+            this.finalizarSubidaPdfSgc(true, nombreArchivo);
+          },
+          error: () => {
+            this.athF03SubiendoPdf = false;
+            this.finalizarSubidaPdfSgc(false);
+          }
+        });
+    };
+    if (yaGuardada) {
+      enviarPdf();
+      return;
+    }
+    this.backendService.guardarAthF03Formato(
+      { ...this.athF03Form, entregaActivaId: entregaId },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.aplicarEstadoAthF03(res);
+          enviarPdf();
+        },
+        error: () => {
+          this.athF03SubiendoPdf = false;
+          this.finalizarSubidaPdfSgc(false);
+        }
+      });
+  }
+
+  get puedeBorrarPdfHistorialAthF03(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
+
+  toggleAthF03PdfViewer(pdf?: AthF03PdfFirmado | null): void {
+    if (this.mostrarAthF03PdfViewer && !pdf) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarAthF03PdfViewer = false;
+      this.athF03PdfEmbedUrlSafe = null;
+      this.athF03PdfCargando = false;
+      return;
+    }
+    const objetivo = pdf || this.athF03EntregaActiva?.pdfFirmado;
+    const id = objetivo?.driveFileId;
+    if (!id) return;
+    this.mostrarAthF03PdfViewer = true;
+    this.athF03PdfCargando = true;
+    this.athF03PdfVistaNombre = objetivo?.nombreArchivo || '1ATH-F-03 entrega firmada.pdf';
+    const url = objetivo?.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+    this.athF03PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+
+  eliminarPdfHistorialAthF03(hist: AthF03PdfFirmado): void {
+    const entregaId = this.athF03EntregaActiva?.id;
+    if (!this.puedeBorrarPdfHistorialAthF03 || !hist?.driveFileId || !entregaId || this.athF03BorrandoPdf) return;
+    if (!confirm(`¿Eliminar «${hist.nombreArchivo || 'PDF'}» del historial?`)) return;
+    this.athF03BorrandoPdf = true;
+    this.backendService.eliminarPdfHistorialAthF03(entregaId, hist.driveFileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.athF03BorrandoPdf = false;
+          this.aplicarEstadoAthF03(res);
+        },
+        error: () => {
+          this.athF03BorrandoPdf = false;
+        }
+      });
+  }
+
+  onAthF03PdfIframeLoad(): void {
+    this.athF03PdfCargando = false;
+  }
+
+  toggleAthF03Editor(): void {
+    if (this.mostrarAthF03Editor) {
+      this.mostrarAthF03Editor = false;
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      return;
+    }
+    const driveId = this.athF03EntregaActiva?.driveFileId || this.athF03DriveFileId;
+    if (!driveId) return;
+    this.mostrarAthF03Editor = true;
+    this.athF03EditorIframeListo = false;
+    this.athF03EditorCargando = true;
+    const url = this.athF03EditorUrl || `https://docs.google.com/document/d/${driveId}/edit?usp=sharing`;
+    this.fijarEditorEmbedUrlAthF03(this.resolverUrlEditorDrive(url, driveId), true);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+
+  onAthF03IframeLoad(): void {
+    if (this.athF03EditorIframeListo) return;
+    this.athF03EditorIframeListo = true;
+    this.athF03EditorCargando = false;
+  }
+
+  actualizarPlantillaAthF03(): void {
+    if (!this.puedeGestionarPlantillasSgc || this.athF03ActualizandoPlantilla) return;
+    this.athF03ActualizandoPlantilla = true;
+    this.backendService.actualizarPlantillaAthF03()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.athF03ActualizandoPlantilla = false;
+          this.aplicarEstadoAthF03(res, false, false, true);
+        },
+        error: () => {
+          this.athF03ActualizandoPlantilla = false;
+        }
+      });
+  }
+
+  private fijarEditorEmbedUrlAthF03(url: string | null, forzar = false): void {
+    if (!forzar && this.mostrarAthF03Editor && this.athF03EditorEmbedUrlSafe && this.athF03EditorUrl === url) return;
+    if (!url) {
+      this.athF03EditorUrl = null;
+      this.athF03EditorEmbedUrlSafe = null;
+      return;
+    }
+    if (!forzar && this.athF03EditorUrl === url && this.athF03EditorEmbedUrlSafe) return;
+    this.athF03EditorUrl = url;
+    const embedUrl = this.urlIframeDriveSegunPermiso(url);
+    this.athF03EditorEmbedUrlSafe = embedUrl
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
+      : null;
+  }
+
+  private sincronizarEntregaActivaAthF03(activoId: string | null, conservarEditorSiExiste: boolean): void {
+    if (!activoId) {
+      this.athF03EntregaActiva = null;
+      this.athF03Form.entregaActivaId = null;
+      this.athF03DriveFileId = null;
+      if (!conservarEditorSiExiste) this.athF03Vista = 'archivero';
+      return;
+    }
+    const encontrada = (this.athF03Form.entregas || []).find((e) => e.id === activoId) || null;
+    this.athF03EntregaActiva = encontrada;
+    this.athF03Form.entregaActivaId = encontrada?.id || null;
+    this.athF03DriveFileId = encontrada?.driveFileId || null;
+    if (conservarEditorSiExiste && encontrada) {
+      this.athF03Vista = 'editor';
+    } else {
+      this.athF03Vista = 'archivero';
+      this.athF03EntregaActiva = null;
+      this.athF03Form.entregaActivaId = null;
+      this.athF03DriveFileId = null;
+    }
+  }
+
+  private aplicarEstadoAthF03(
+    res: any,
+    conservarEdicion = false,
+    sincronizacionSilenciosa = false,
+    forzarActualizacionDrive = false
+  ): void {
+    if (!res?.success) {
+      if (!sincronizacionSilenciosa) this.athF03Cargando = false;
+      this.athF03Listo = true;
+      return;
+    }
+
+    const editorAbierto = this.mostrarAthF03Editor && !forzarActualizacionDrive;
+    const bloquearFormulario = editorAbierto || conservarEdicion;
+    const activoId = this.athF03EntregaActiva?.id || null;
+    const conservarEditor = this.athF03Vista === 'editor' && !!activoId;
+
+    if (!bloquearFormulario && res.datos) {
+      this.athF03IgnorarAutoSave = true;
+      this.athF03Listo = false;
+      this.athF03Form = this.normalizarAthF03Form(res.datos);
+      this.sincronizarEntregaActivaAthF03(activoId, conservarEditor);
+    } else if (!editorAbierto && !conservarEdicion) {
+      this.athF03IgnorarAutoSave = true;
+      this.athF03Listo = false;
+    }
+
+    const nuevoDriveId = res.driveFileId || this.athF03EntregaActiva?.driveFileId || null;
+    if (forzarActualizacionDrive || !editorAbierto) {
+      if (nuevoDriveId) this.athF03DriveFileId = nuevoDriveId;
+      if (res.editorUrl && (forzarActualizacionDrive || !this.mostrarAthF03Editor)) {
+        this.fijarEditorEmbedUrlAthF03(res.editorUrl, forzarActualizacionDrive);
+      }
+    }
+
+    this.athF03UltimaSync = res.ultimaSyncDrive || null;
+    this.athF03ContenidoModificado = !!res.contenidoModificado;
+
+    window.setTimeout(() => {
+      this.athF03IgnorarAutoSave = false;
+      this.athF03Listo = true;
+      if (!bloquearFormulario) this.athF03CambiosPendientes = false;
+      if (!sincronizacionSilenciosa) this.athF03Cargando = false;
     }, editorAbierto ? 0 : 350);
   }
 
@@ -17745,6 +18541,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (this.sgcF16AsistComboAbierto !== null) {
         this.cerrarComboAsistSgcF16();
       }
+      if (this.athF03NombreComboAbierto) {
+        this.athF03NombreComboAbierto = false;
+      }
     }
     if (this.sgcF04ComboCampo && target && !target.closest('.sgc-f-04-combo')) {
       this.cerrarComboSgcF04();
@@ -18207,6 +19006,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleSgcF24Editor();
       return;
     }
+    if (this.plantillaSlug === 'ath-f-03') {
+      this.toggleAthF03Editor();
+      return;
+    }
     if (this.plantillaSlug === 'sgc-f-27') {
       this.toggleSgcF27Editor();
       return;
@@ -18322,6 +19125,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-24') {
       this.actualizarPlantillaSgcF24();
+      return;
+    }
+    if (this.plantillaSlug === 'ath-f-03') {
+      this.actualizarPlantillaAthF03();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-27') {
