@@ -28043,6 +28043,26 @@ app.post('/api/sgc/formatos/ath-f-02/subir-pdf-firmado', requireAdminOrSgc, asyn
     }
 });
 
+app.get('/api/sgc/formatos/ath-f-02/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const resultado = await sgcAthF02Service.descargarPdfPerfil(poolBiznagaSgc, {
+            perfilId: req.query.perfilId || req.query.id || null
+        });
+        const nombre = String(resultado.nombreArchivo || 'ATH-F-02 Perfil.pdf')
+            .replace(/[^\w.\- áéíóúÁÉÍÓÚñÑ()]/gi, '_')
+            .trim() || 'ATH-F-02 Perfil.pdf';
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${nombre.replace(/"/g, '')}"`
+        );
+        return res.send(resultado.buffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de ATH-F-02');
+    }
+});
+
 app.get('/api/sgc/formatos/ath-f-09', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;

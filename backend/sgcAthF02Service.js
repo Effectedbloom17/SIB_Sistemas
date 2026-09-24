@@ -3,6 +3,7 @@
  * Arquetipo archivero: una hoja Google Sheet por perfil + PDF firmado en carpeta dedicada.
  */
 const ExcelJS = require('exceljs');
+const { google } = require('googleapis');
 const driveService = require('./driveService');
 const {
     asegurarTablaSgcFormatoDatos,
@@ -26,8 +27,9 @@ const FECHA_REV_CELL = { row: 3, col: 24 };
 const CELLS = {
     puesto: { row: 7, startCol: 7, endCol: 15 },
     areaDepartamento: { row: 8, startCol: 7, endCol: 15 },
-    puestoAlQueReporta: { row: 11, startCol: 7, endCol: 14 },
-    puestosQueLeReportan: { row: 11, startCol: 16, endCol: 20 },
+    // Valores en la misma fila que la etiqueta (G10:N10 y U10:AC10), no en la fila 11.
+    puestoAlQueReporta: { row: 10, startCol: 7, endCol: 14 },
+    puestosQueLeReportan: { row: 10, startCol: 21, endCol: 29 },
     objetivo: { startRow: 13, endRow: 16, startCol: 1, endCol: 15 },
     funciones: { startRow: 19, endRow: 44, startCol: 1, endCol: 15 },
     formacion: { startRow: 71, endRow: 78, startCol: 1, endCol: 15 },
@@ -36,13 +38,14 @@ const CELLS = {
 };
 
 const EDAD_ROW = 48;
-const EDAD_MARKS = { minima: 7, maxima: 13, indistinto: 20 };
+const EDAD_MARKS = { minima: 7, maxima: 13, indistinto: 19 };
 
 const SEXO_ROW = 50;
-const SEXO_MARKS = { masculino: 7, femenino: 13, indistinto: 20 };
+const SEXO_MARKS = { masculino: 7, femenino: 13, indistinto: 19 };
 
 const ESTADO_CIVIL_ROW = 52;
-const ESTADO_CIVIL_MARKS = { soltero: 7, casado: 13, indistinto: 20 };
+const ESTADO_CIVIL_MARKS = { soltero: 7, casado: 13, indistinto: 19 };
+const ESTADO_CIVIL_ROW_HEIGHT_PX = 19;
 
 const ESC_ROWS = {
     nivel1: 54,
@@ -59,11 +62,26 @@ const ESC_MARKS = {
     licenciatura: { row: 56, col: 13 },
     licText: { row: 56, col: 20 },
     especialidad: { row: 58, col: 7 },
-    espText: { row: 58, col: 14 },
+    espText: { row: 58, col: 13 },
     maestria: { row: 60, col: 7 },
-    maestText: { row: 60, col: 14 },
+    // Texto "En:" de maestría en M60 (master del merge M:Q).
+    maestText: { row: 60, col: 13 },
     otro: { row: 60, col: 20 }
 };
+const ESC_MARK_CELLS = [
+    ESC_MARKS.primaria,
+    ESC_MARKS.secundaria,
+    ESC_MARKS.bachillerato,
+    ESC_MARKS.tecnico,
+    ESC_MARKS.tsu,
+    ESC_MARKS.licenciatura,
+    ESC_MARKS.especialidad,
+    ESC_MARKS.maestria,
+    ESC_MARKS.otro
+];
+const MAESTRIA_EN_MERGE = { row: 60, startCol: 13, endCol: 17 };
+/** Ancho de columna M en píxeles (diálogo de Google Sheets). */
+const COL_M_PIXEL_SIZE = 65;
 
 const EXP_HEADER_ROW = 64;
 const EXP_DATA_ROWS = [65, 66, 67, 68];
@@ -77,11 +95,100 @@ const REQ_ROWS = {
     uniformes: 100,
     otros: 102
 };
+/** Casilla de verificación (columna L). */
 const REQ_MARK_COL = 12;
-const REQ_DETAIL_COL = 14;
+/** Etiqueta del requerimiento (columna A). */
+const REQ_LABEL_COL = 1;
+/** Texto "¿Cuál?:" / "Cantidad:" (columna M). */
+const REQ_PROMPT_COL = 13;
+/** Detalle en el merge P:AB (master P). */
+const REQ_DETAIL_COL = 16;
+/** Columna N: se usó por error en versiones previas. */
+const REQ_DETAIL_COL_LEGACY = 14;
+const REQ_LABELS = {
+    computadora: 'Computadora u ordenador',
+    software: 'Software',
+    informacion: 'Información',
+    herramientas: 'Herramientas o equipos',
+    uniformes: 'Uniformes',
+    otros: 'Otros:'
+};
+const REQ_PROMPTS = {
+    computadora: '¿Cuál?:',
+    software: '¿Cuál?:',
+    informacion: '¿Cuál?:',
+    herramientas: '¿Cuáles?:',
+    uniformes: 'Cantidad:',
+    otros: '¿Cuáles?:'
+};
 
-const REL_INTERNAS = { startRow: 107, endRow: 116, actorStart: 1, actorEnd: 15, motivoStart: 16, motivoEnd: 24 };
-const REL_EXTERNAS = { startRow: 120, endRow: 128, actorStart: 1, actorEnd: 15, motivoStart: 16, motivoEnd: 24 };
+const REL_INTERNAS_HEADER_ROW = 106;
+const REL_INTERNAS_DATA_START = 107;
+const REL_BASE_COUNT = 3;
+/** En plantilla compacta: Externas encabezado en 110, datos 111–113, firmas 115–120. */
+const REL_EXTERNAS_HEADER_BASE = 110;
+const REL_EXTERNAS_DATA_START_BASE = 111;
+const FIRMAS_BOX_START_BASE = 115;
+const FIRMAS_BOX_ROWS = 5; // 115–119
+const FIRMAS_LABEL_BASE = 120;
+const REL_ACTOR_START = 1;
+const REL_ACTOR_END = 15;
+const REL_MOTIVO_START = 16;
+const REL_MOTIVO_END = 29;
+const FIRMAS_LABELS = [
+    { col: 1, texto: 'Elaboró' },
+    { col: 11, texto: 'Revisó' },
+    { col: 22, texto: 'Autorizó' }
+];
+const REL_HEADER_TEXTOS_IGNORAR = new Set([
+    'externas',
+    'internas',
+    'descripcion del motivo de la interaccion',
+    'descripción del motivo de la interacción',
+    'elaboro',
+    'elaboró',
+    'reviso',
+    'revisó',
+    'autorizo',
+    'autorizó'
+]);
+
+/** Layout de pie según filas extra de internas/externas (plantilla base = 0 extras). */
+function calcularLayoutRelaciones(extraInternas = 0, extraExternas = 0) {
+    const ei = Math.max(0, Math.floor(Number(extraInternas) || 0));
+    const ee = Math.max(0, Math.floor(Number(extraExternas) || 0));
+    const internasStart = REL_INTERNAS_DATA_START;
+    const internasEnd = REL_INTERNAS_DATA_START + REL_BASE_COUNT - 1 + ei;
+    const externasHeader = REL_EXTERNAS_HEADER_BASE + ei;
+    const externasStart = REL_EXTERNAS_DATA_START_BASE + ei;
+    const externasEnd = externasStart + REL_BASE_COUNT - 1 + ee;
+    const firmasStart = FIRMAS_BOX_START_BASE + ei + ee;
+    const firmasEnd = firmasStart + FIRMAS_BOX_ROWS - 1;
+    const firmasLabel = FIRMAS_LABEL_BASE + ei + ee;
+    return {
+        internasHeader: REL_INTERNAS_HEADER_ROW,
+        internasStart,
+        internasEnd,
+        internasCount: REL_BASE_COUNT + ei,
+        externasHeader,
+        externasStart,
+        externasEnd,
+        externasCount: REL_BASE_COUNT + ee,
+        firmasStart,
+        firmasEnd,
+        firmasLabel,
+        extraInternas: ei,
+        extraExternas: ee
+    };
+}
+
+function contarRelacionesConContenido(lista) {
+    return (Array.isArray(lista) ? lista : [])
+        .map((r) => sanitizarRelacion(r))
+        .filter((r) => r.actor || r.motivo)
+        .filter((r) => !esTextoEstructuralRelacion(r.actor) && !esTextoEstructuralRelacion(r.motivo))
+        .length;
+}
 
 const MAX_FUNCIONES = CELLS.funciones.endRow - CELLS.funciones.startRow + 1;
 const MAX_EXP_FILAS = EXP_DATA_ROWS.length;
@@ -684,7 +791,12 @@ function leerEscolaridadDesdeHoja(ws) {
     Object.entries(ESC_MARKS).forEach(([key, pos]) => {
         if (typeof pos === 'object' && pos.row && pos.col) {
             if (['licText', 'espText', 'maestText'].includes(key)) {
-                esc[key] = leerCelda(ws, pos.row, pos.col);
+                // Fallback a columna N (legacy) si M está vacío.
+                let texto = leerCelda(ws, pos.row, pos.col);
+                if (!texto && (key === 'espText' || key === 'maestText')) {
+                    texto = leerCelda(ws, pos.row, 14);
+                }
+                esc[key] = texto;
             } else {
                 esc[key] = leerMarca(leerCelda(ws, pos.row, pos.col));
             }
@@ -710,6 +822,15 @@ function leerExperienciaLado(ws, rows, layout) {
     return out.filter(Boolean);
 }
 
+function esTextoEstructuralRelacion(texto) {
+    const t = String(texto || '').trim().toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+    if (!t) return false;
+    if (REL_HEADER_TEXTOS_IGNORAR.has(t)) return true;
+    return t.startsWith('descripcion del motivo');
+}
+
 function leerRelacionesDesdeHoja(ws, config) {
     const out = [];
     for (let row = config.startRow; row <= config.endRow; row++) {
@@ -725,22 +846,84 @@ function leerRelacionesDesdeHoja(ws, config) {
             startCol: config.motivoStart,
             endCol: config.motivoEnd
         });
+        if (esTextoEstructuralRelacion(actor) || esTextoEstructuralRelacion(motivo)) {
+            continue;
+        }
         if (actor || motivo) out.push(sanitizarRelacion({ actor, motivo }));
     }
     return out;
 }
 
+function pieFormatoActualizaciones(sheetTitle, layout) {
+    const L = layout || calcularLayoutRelaciones(0, 0);
+    const actualizaciones = [];
+    pushUpdate(actualizaciones, L.internasHeader, 1, 'Internas', sheetTitle);
+    pushUpdate(actualizaciones, L.internasHeader, 16, 'Descripción del motivo de la interacción', sheetTitle);
+    pushUpdate(actualizaciones, L.externasHeader, 1, 'Externas', sheetTitle);
+    pushUpdate(actualizaciones, L.externasHeader, 16, 'Descripción del motivo de la interacción', sheetTitle);
+    for (let row = L.firmasStart; row <= L.firmasEnd; row++) {
+        pushUpdate(actualizaciones, row, 1, '', sheetTitle);
+        pushUpdate(actualizaciones, row, 11, '', sheetTitle);
+        pushUpdate(actualizaciones, row, 22, '', sheetTitle);
+    }
+    FIRMAS_LABELS.forEach(({ col, texto }) => {
+        pushUpdate(actualizaciones, L.firmasLabel, col, texto, sheetTitle);
+    });
+    return actualizaciones;
+}
+
+function detectarLayoutRelacionesDesdeHoja(ws) {
+    let externasHeader = null;
+    let firmasLabel = null;
+    const maxScan = Math.min(200, (ws.rowCount || 160));
+    for (let row = REL_INTERNAS_HEADER_ROW; row <= maxScan; row++) {
+        const a = leerCelda(ws, row, 1);
+        const p = leerCelda(ws, row, 16);
+        const aNorm = String(a || '').trim().toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (aNorm === 'externas') externasHeader = row;
+        if (aNorm === 'elaboro' || aNorm === 'elaboró') firmasLabel = row;
+        if (/autorizo|autorizó|reviso|revisó/i.test(String(p || a || ''))) {
+            if (!firmasLabel && /elaboro|elaboró|reviso|revisó|autorizo|autorizó/i.test(aNorm)) {
+                firmasLabel = row;
+            }
+        }
+    }
+    if (!externasHeader) {
+        return calcularLayoutRelaciones(0, 0);
+    }
+    const internasEnd = externasHeader - 1;
+    const internasCount = Math.max(REL_BASE_COUNT, internasEnd - REL_INTERNAS_DATA_START + 1);
+    const extraInternas = Math.max(0, internasCount - REL_BASE_COUNT);
+    const externasStart = externasHeader + 1;
+    let externasEnd = externasStart + REL_BASE_COUNT - 1;
+    if (firmasLabel) {
+        externasEnd = Math.max(externasStart, firmasLabel - FIRMAS_BOX_ROWS - 1);
+    }
+    const externasCount = Math.max(REL_BASE_COUNT, externasEnd - externasStart + 1);
+    const extraExternas = Math.max(0, externasCount - REL_BASE_COUNT);
+    return calcularLayoutRelaciones(extraInternas, extraExternas);
+}
+
 function leerRequerimientosDesdeHoja(ws) {
     const out = {};
     Object.entries(REQ_ROWS).forEach(([key, row]) => {
+        const marcaL = leerMarca(leerCelda(ws, row, REQ_MARK_COL));
+        const celdaA = leerCelda(ws, row, REQ_LABEL_COL);
+        // Legacy: a veces la X se escribió sobre la etiqueta en A.
+        const marcaA = leerMarca(celdaA) && String(celdaA).trim().length <= 2;
+        let detalle = leerRango(ws, {
+            startRow: row,
+            endRow: row,
+            startCol: REQ_DETAIL_COL,
+            endCol: REQ_DETAIL_COL + 12
+        });
+        if (!detalle) {
+            detalle = leerCelda(ws, row, REQ_DETAIL_COL_LEGACY);
+        }
         out[key] = sanitizarRequerimiento({
-            activo: leerMarca(leerCelda(ws, row, REQ_MARK_COL)),
-            detalle: leerRango(ws, {
-                startRow: row,
-                endRow: row,
-                startCol: REQ_DETAIL_COL,
-                endCol: REQ_DETAIL_COL + 10
-            })
+            activo: marcaL || marcaA,
+            detalle
         });
     });
     return out;
@@ -761,15 +944,28 @@ function parsearFuncionesDesdeHoja(ws) {
     return funciones;
 }
 
+function layoutDesdePerfil(perfil) {
+    const p = perfil || {};
+    const nI = contarRelacionesConContenido(p.relacionesInternas);
+    const nE = contarRelacionesConContenido(p.relacionesExternas);
+    return calcularLayoutRelaciones(
+        Math.max(0, nI - REL_BASE_COUNT),
+        Math.max(0, nE - REL_BASE_COUNT)
+    );
+}
+
 function parsearDatosDesdeHoja(ws) {
     const revText = leerCelda(ws, REVISION_CELL.row, REVISION_CELL.col);
     const fechaRevText = leerCelda(ws, FECHA_REV_CELL.row, FECHA_REV_CELL.col);
     const edadData = leerEdadDesdeHoja(ws);
+    const layout = detectarLayoutRelacionesDesdeHoja(ws);
     const perfil = sanitizarPerfil({
         puesto: leerRango(ws, CELLS.puesto),
         areaDepartamento: leerRango(ws, CELLS.areaDepartamento),
-        puestoAlQueReporta: leerRango(ws, CELLS.puestoAlQueReporta),
-        puestosQueLeReportan: leerRango(ws, CELLS.puestosQueLeReportan),
+        puestoAlQueReporta: leerRango(ws, CELLS.puestoAlQueReporta)
+            || leerRango(ws, { row: 11, startCol: 7, endCol: 14 }),
+        puestosQueLeReportan: leerRango(ws, CELLS.puestosQueLeReportan)
+            || leerRango(ws, { row: 11, startCol: 16, endCol: 20 }),
         objetivo: leerBloqueFilas(ws, CELLS.objetivo),
         funciones: parsearFuncionesDesdeHoja(ws),
         ...edadData,
@@ -782,8 +978,22 @@ function parsearDatosDesdeHoja(ws) {
         habilidadesBlandas: leerBloqueFilas(ws, CELLS.habilidades),
         conocimientoEquipoOperacion: leerBloqueFilas(ws, CELLS.conocimiento),
         requerimientos: leerRequerimientosDesdeHoja(ws),
-        relacionesInternas: leerRelacionesDesdeHoja(ws, REL_INTERNAS),
-        relacionesExternas: leerRelacionesDesdeHoja(ws, REL_EXTERNAS)
+        relacionesInternas: leerRelacionesDesdeHoja(ws, {
+            startRow: layout.internasStart,
+            endRow: layout.internasEnd,
+            actorStart: REL_ACTOR_START,
+            actorEnd: REL_ACTOR_END,
+            motivoStart: REL_MOTIVO_START,
+            motivoEnd: REL_MOTIVO_END
+        }),
+        relacionesExternas: leerRelacionesDesdeHoja(ws, {
+            startRow: layout.externasStart,
+            endRow: layout.externasEnd,
+            actorStart: REL_ACTOR_START,
+            actorEnd: REL_ACTOR_END,
+            motivoStart: REL_MOTIVO_START,
+            motivoEnd: REL_MOTIVO_END
+        })
     });
     return {
         revision: extraerRevision(revText),
@@ -819,18 +1029,22 @@ function pushBloqueTexto(actualizaciones, config, texto, sheetTitle) {
     }
 }
 
-function pushRelaciones(actualizaciones, config, relaciones, sheetTitle) {
-    const total = config.endRow - config.startRow + 1;
+function pushRelaciones(actualizaciones, startRow, endRow, relaciones, sheetTitle) {
+    const limpia = (Array.isArray(relaciones) ? relaciones : [])
+        .map((r) => sanitizarRelacion(r))
+        .filter((r) => !esTextoEstructuralRelacion(r.actor) && !esTextoEstructuralRelacion(r.motivo));
+    const total = endRow - startRow + 1;
     for (let i = 0; i < total; i++) {
-        const row = config.startRow + i;
-        const item = relaciones[i];
-        pushUpdate(actualizaciones, row, config.actorStart, item?.actor || '', sheetTitle);
-        pushUpdate(actualizaciones, row, config.motivoStart, item?.motivo || '', sheetTitle);
+        const row = startRow + i;
+        const item = limpia[i];
+        pushUpdate(actualizaciones, row, REL_ACTOR_START, item?.actor || '', sheetTitle);
+        pushUpdate(actualizaciones, row, REL_MOTIVO_START, item?.motivo || '', sheetTitle);
     }
 }
 
-function perfilAActualizacionesSheet(perfil, meta, sheetTitle) {
+function perfilAActualizacionesSheet(perfil, meta, sheetTitle, layout) {
     const p = sanitizarPerfil(perfil);
+    const L = layout || layoutDesdePerfil(p);
     const actualizaciones = [];
 
     pushUpdate(actualizaciones, REVISION_CELL.row, REVISION_CELL.col,
@@ -842,6 +1056,9 @@ function perfilAActualizacionesSheet(perfil, meta, sheetTitle) {
     pushUpdate(actualizaciones, CELLS.areaDepartamento.row, CELLS.areaDepartamento.startCol, p.areaDepartamento, sheetTitle);
     pushUpdate(actualizaciones, CELLS.puestoAlQueReporta.row, CELLS.puestoAlQueReporta.startCol, p.puestoAlQueReporta, sheetTitle);
     pushUpdate(actualizaciones, CELLS.puestosQueLeReportan.row, CELLS.puestosQueLeReportan.startCol, p.puestosQueLeReportan, sheetTitle);
+    // Limpia celdas antiguas (fila 11) por si quedaron valores de un mapeo previo.
+    pushUpdate(actualizaciones, 11, 7, '', sheetTitle);
+    pushUpdate(actualizaciones, 11, 16, '', sheetTitle);
 
     pushBloqueTexto(actualizaciones, CELLS.objetivo, p.objetivo, sheetTitle);
 
@@ -872,12 +1089,17 @@ function perfilAActualizacionesSheet(perfil, meta, sheetTitle) {
 
     Object.entries(REQ_ROWS).forEach(([key, row]) => {
         const req = p.requerimientos?.[key] || REQUERIMIENTO_DEFECTO();
+        // Restaura etiqueta y prompt (se habían borrado al escribir la X en A).
+        pushUpdate(actualizaciones, row, REQ_LABEL_COL, REQ_LABELS[key] || '', sheetTitle);
+        pushUpdate(actualizaciones, row, REQ_PROMPT_COL, REQ_PROMPTS[key] || '', sheetTitle);
         pushUpdate(actualizaciones, row, REQ_MARK_COL, marcaCheckbox(req.activo), sheetTitle);
         pushUpdate(actualizaciones, row, REQ_DETAIL_COL, req.detalle || '', sheetTitle);
+        // Limpia columna N usada por error en versiones previas.
+        pushUpdate(actualizaciones, row, REQ_DETAIL_COL_LEGACY, '', sheetTitle);
     });
 
-    pushRelaciones(actualizaciones, REL_INTERNAS, p.relacionesInternas, sheetTitle);
-    pushRelaciones(actualizaciones, REL_EXTERNAS, p.relacionesExternas, sheetTitle);
+    pushRelaciones(actualizaciones, L.internasStart, L.internasEnd, p.relacionesInternas, sheetTitle);
+    pushRelaciones(actualizaciones, L.externasStart, L.externasEnd, p.relacionesExternas, sheetTitle);
 
     return actualizaciones;
 }
@@ -915,11 +1137,348 @@ async function resolverTituloPlantilla(spreadsheetId) {
         || SHEET_TITLE;
 }
 
+async function asegurarFilasRelacionesAthF02(spreadsheetId, sheetId, layout) {
+    if (!spreadsheetId || sheetId == null || !layout) return layout;
+    const ei = layout.extraInternas || 0;
+    const ee = layout.extraExternas || 0;
+    // Plantilla base: insertar extras de internas justo antes del encabezado Externas.
+    if (ei > 0) {
+        await driveService.insertarFilasGoogleSheet(
+            spreadsheetId,
+            sheetId,
+            REL_EXTERNAS_HEADER_BASE - 1,
+            ei,
+            { inheritFromBefore: true }
+        );
+    }
+    // Tras insertar internas, el bloque Externas/firmas ya se desplazó; insertar extras
+    // de externas al final del bloque de datos base (antes de la fila en blanco / firmas).
+    if (ee > 0) {
+        const insertAt = REL_EXTERNAS_DATA_START_BASE + REL_BASE_COUNT - 1 + ei;
+        await driveService.insertarFilasGoogleSheet(
+            spreadsheetId,
+            sheetId,
+            insertAt,
+            ee,
+            { inheritFromBefore: true }
+        );
+    }
+    return layout;
+}
+
+function pushMergeDosColumnasRelacion(requests, sheetId, row1Based) {
+    requests.push({
+        mergeCells: {
+            range: {
+                sheetId,
+                startRowIndex: row1Based - 1,
+                endRowIndex: row1Based,
+                startColumnIndex: 0,
+                endColumnIndex: 15
+            },
+            mergeType: 'MERGE_ALL'
+        }
+    });
+    requests.push({
+        mergeCells: {
+            range: {
+                sheetId,
+                startRowIndex: row1Based - 1,
+                endRowIndex: row1Based,
+                startColumnIndex: 15,
+                endColumnIndex: 29
+            },
+            mergeType: 'MERGE_ALL'
+        }
+    });
+}
+
+function pushBordesFilaRelacion(requests, sheetId, row1Based) {
+    const borde = { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } };
+    [
+        { c0: 0, c1: 15 },
+        { c0: 15, c1: 29 }
+    ].forEach(({ c0, c1 }) => {
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: row1Based - 1,
+                    endRowIndex: row1Based,
+                    startColumnIndex: c0,
+                    endColumnIndex: c1
+                },
+                top: borde,
+                bottom: borde,
+                left: borde,
+                right: borde
+            }
+        });
+    });
+}
+
+async function aplicarFormatoPerfilAthF02(spreadsheetId, sheetTitle, layout) {
+    if (!spreadsheetId || !sheetTitle) return null;
+    const L = layout || calcularLayoutRelaciones(0, 0);
+    const hojas = await driveService.obtenerMetadatosHojasGoogleSheet(spreadsheetId);
+    const hoja = (hojas || []).find((h) => String(h.title || '').trim() === String(sheetTitle).trim());
+    const sheetId = hoja?.sheetId;
+    if (sheetId === undefined || sheetId === null) return null;
+
+    const requests = [];
+
+    // Estado civil: altura de fila 19.
+    requests.push({
+        updateDimensionProperties: {
+            range: {
+                sheetId,
+                dimension: 'ROWS',
+                startIndex: ESTADO_CIVIL_ROW - 1,
+                endIndex: ESTADO_CIVIL_ROW
+            },
+            properties: { pixelSize: ESTADO_CIVIL_ROW_HEIGHT_PX },
+            fields: 'pixelSize'
+        }
+    });
+
+    // Columna M en 65 px (como en el diálogo de Google Sheets).
+    requests.push({
+        updateDimensionProperties: {
+            range: {
+                sheetId,
+                dimension: 'COLUMNS',
+                startIndex: 12,
+                endIndex: 13
+            },
+            properties: { pixelSize: COL_M_PIXEL_SIZE },
+            fields: 'pixelSize'
+        }
+    });
+
+    // Repara pie: relaciones + firmas (rango dinámico según extras).
+    requests.push({
+        unmergeCells: {
+            range: {
+                sheetId,
+                startRowIndex: REL_INTERNAS_HEADER_ROW - 1,
+                endRowIndex: L.firmasLabel,
+                startColumnIndex: 0,
+                endColumnIndex: 29
+            }
+        }
+    });
+
+    // Encabezado Internas + filas de datos.
+    pushMergeDosColumnasRelacion(requests, sheetId, L.internasHeader);
+    for (let row = L.internasStart; row <= L.internasEnd; row++) {
+        pushMergeDosColumnasRelacion(requests, sheetId, row);
+        pushBordesFilaRelacion(requests, sheetId, row);
+    }
+
+    // Encabezado Externas + filas de datos.
+    pushMergeDosColumnasRelacion(requests, sheetId, L.externasHeader);
+    for (let row = L.externasStart; row <= L.externasEnd; row++) {
+        pushMergeDosColumnasRelacion(requests, sheetId, row);
+        pushBordesFilaRelacion(requests, sheetId, row);
+    }
+
+    // Estilo encabezados Internas / Externas.
+    [L.internasHeader, L.externasHeader].forEach((row) => {
+        requests.push({
+            repeatCell: {
+                range: {
+                    sheetId,
+                    startRowIndex: row - 1,
+                    endRowIndex: row,
+                    startColumnIndex: 0,
+                    endColumnIndex: 29
+                },
+                cell: {
+                    userEnteredFormat: {
+                        horizontalAlignment: 'CENTER',
+                        verticalAlignment: 'MIDDLE',
+                        textFormat: { bold: true },
+                        backgroundColor: { red: 0.85, green: 0.85, blue: 0.85 }
+                    }
+                },
+                fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,textFormat.bold,backgroundColor)'
+            }
+        });
+    });
+
+    // Cajas de firma A:H, K:S, V:AC
+    const firmaMerges = [
+        { c0: 0, c1: 8 },
+        { c0: 10, c1: 19 },
+        { c0: 21, c1: 29 }
+    ];
+    firmaMerges.forEach(({ c0, c1 }) => {
+        requests.push({
+            mergeCells: {
+                range: {
+                    sheetId,
+                    startRowIndex: L.firmasStart - 1,
+                    endRowIndex: L.firmasEnd,
+                    startColumnIndex: c0,
+                    endColumnIndex: c1
+                },
+                mergeType: 'MERGE_ALL'
+            }
+        });
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: L.firmasStart - 1,
+                    endRowIndex: L.firmasEnd,
+                    startColumnIndex: c0,
+                    endColumnIndex: c1
+                },
+                top: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
+                bottom: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
+                left: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
+                right: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } }
+            }
+        });
+    });
+
+    // Etiquetas Elaboró / Revisó / Autorizó.
+    firmaMerges.forEach(({ c0, c1 }) => {
+        requests.push({
+            mergeCells: {
+                range: {
+                    sheetId,
+                    startRowIndex: L.firmasLabel - 1,
+                    endRowIndex: L.firmasLabel,
+                    startColumnIndex: c0,
+                    endColumnIndex: c1
+                },
+                mergeType: 'MERGE_ALL'
+            }
+        });
+        requests.push({
+            repeatCell: {
+                range: {
+                    sheetId,
+                    startRowIndex: L.firmasLabel - 1,
+                    endRowIndex: L.firmasLabel,
+                    startColumnIndex: c0,
+                    endColumnIndex: c1
+                },
+                cell: {
+                    userEnteredFormat: {
+                        horizontalAlignment: 'CENTER',
+                        verticalAlignment: 'MIDDLE',
+                        textFormat: { bold: true }
+                    }
+                },
+                fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,textFormat.bold)'
+            }
+        });
+    });
+
+    // Asegura merge M60:Q60 para el texto "En:" de maestría.
+    requests.push({
+        unmergeCells: {
+            range: {
+                sheetId,
+                startRowIndex: MAESTRIA_EN_MERGE.row - 1,
+                endRowIndex: MAESTRIA_EN_MERGE.row,
+                startColumnIndex: MAESTRIA_EN_MERGE.startCol - 1,
+                endColumnIndex: MAESTRIA_EN_MERGE.endCol
+            }
+        }
+    });
+    requests.push({
+        mergeCells: {
+            range: {
+                sheetId,
+                startRowIndex: MAESTRIA_EN_MERGE.row - 1,
+                endRowIndex: MAESTRIA_EN_MERGE.row,
+                startColumnIndex: MAESTRIA_EN_MERGE.startCol - 1,
+                endColumnIndex: MAESTRIA_EN_MERGE.endCol
+            },
+            mergeType: 'MERGE_ALL'
+        }
+    });
+
+    // Centra horizontalmente las X de escolaridad (y el texto En de maestría).
+    const centros = [
+        ...ESC_MARK_CELLS,
+        { row: MAESTRIA_EN_MERGE.row, col: MAESTRIA_EN_MERGE.startCol },
+        { row: SEXO_ROW, col: SEXO_MARKS.masculino },
+        { row: SEXO_ROW, col: SEXO_MARKS.femenino },
+        { row: SEXO_ROW, col: SEXO_MARKS.indistinto },
+        { row: ESTADO_CIVIL_ROW, col: ESTADO_CIVIL_MARKS.soltero },
+        { row: ESTADO_CIVIL_ROW, col: ESTADO_CIVIL_MARKS.casado },
+        { row: ESTADO_CIVIL_ROW, col: ESTADO_CIVIL_MARKS.indistinto }
+    ];
+    centros.forEach((pos) => {
+        requests.push({
+            repeatCell: {
+                range: {
+                    sheetId,
+                    startRowIndex: pos.row - 1,
+                    endRowIndex: pos.row,
+                    startColumnIndex: pos.col - 1,
+                    endColumnIndex: pos.col
+                },
+                cell: {
+                    userEnteredFormat: {
+                        horizontalAlignment: 'CENTER',
+                        verticalAlignment: 'MIDDLE'
+                    }
+                },
+                fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment)'
+            }
+        });
+    });
+
+    try {
+        const sheetsApi = google.sheets({ version: 'v4', auth: driveService.getAuthClient() });
+        return await sheetsApi.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: { requests }
+        });
+    } catch (err) {
+        console.warn('[ATH-F-02] Format batch falló:', err.message);
+        throw err;
+    }
+}
+
 async function escribirPerfilEnHoja(spreadsheetId, sheetTitle, perfil, meta) {
-    const actualizaciones = perfilAActualizacionesSheet(perfil, meta, sheetTitle);
+    const p = sanitizarPerfil(perfil);
+    const layout = layoutDesdePerfil(p);
+
+    // Inserta filas extras (si >3 internas/externas) antes de escribir valores.
+    try {
+        const hojas = await driveService.obtenerMetadatosHojasGoogleSheet(spreadsheetId);
+        const hoja = (hojas || []).find((h) => String(h.title || '').trim() === String(sheetTitle).trim());
+        if (hoja?.sheetId != null) {
+            await asegurarFilasRelacionesAthF02(spreadsheetId, hoja.sheetId, layout);
+        }
+    } catch (err) {
+        console.warn(`[ATH-F-02] No se pudieron insertar filas de relaciones en "${sheetTitle}":`, err.message);
+    }
+
+    const actualizaciones = perfilAActualizacionesSheet(p, meta, sheetTitle, layout);
     const CHUNK = 200;
     for (let i = 0; i < actualizaciones.length; i += CHUNK) {
         await driveService.actualizarCeldasGoogleSheet(spreadsheetId, actualizaciones.slice(i, i + CHUNK));
+    }
+    try {
+        await aplicarFormatoPerfilAthF02(spreadsheetId, sheetTitle, layout);
+    } catch (err) {
+        console.warn(`[ATH-F-02] No se pudo aplicar formato a "${sheetTitle}":`, err.message);
+    }
+    // Cabeceras Externas + etiquetas de firma DESPUÉS del merge (masters correctos).
+    try {
+        await driveService.actualizarCeldasGoogleSheet(
+            spreadsheetId,
+            pieFormatoActualizaciones(sheetTitle, layout)
+        );
+    } catch (err) {
+        console.warn(`[ATH-F-02] No se pudo restaurar pie de "${sheetTitle}":`, err.message);
     }
     return spreadsheetId;
 }
@@ -984,13 +1543,11 @@ async function sincronizarHojasPerfilesEnDrive(spreadsheetId, datos, datosPrevio
         }
 
         try {
-            if (setExistentes.has(nombreHoja)) {
-                await escribirPerfilEnHoja(driveIdActual, nombreHoja, perfil, meta);
-            } else {
-                const creada = await recrearHojaPerfil(driveIdActual, nombreHoja, perfil, meta);
-                nombreHoja = creada.titulo;
-                setExistentes.add(nombreHoja);
-            }
+            // Siempre recrear desde plantilla para que el layout de relaciones
+            // (3 base + extras) quede limpio y con bordes correctos.
+            const creada = await recrearHojaPerfil(driveIdActual, nombreHoja, perfil, meta);
+            nombreHoja = creada.titulo;
+            setExistentes.add(nombreHoja);
             hojasActivas.add(nombreHoja);
             perfilesOut.push({ ...perfil, nombreHoja });
         } catch (err) {
@@ -1483,6 +2040,80 @@ async function subirPdfFirmado(pool, body) {
     return { ...respuesta, pdfFirmado };
 }
 
+/**
+ * PDF del perfil activo (o el indicado): Carta, vertical, ajustar al alto,
+ * márgenes 0.5 cm arriba/abajo y 0 izquierda/derecha.
+ */
+async function descargarPdfPerfil(pool, opciones = {}) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+    const driveFileId = registro?.drive_file_id || null;
+    if (!driveFileId) {
+        const err = new Error('No hay archivo de ATH-F-02 en Drive. Guarda el formato primero.');
+        err.statusCode = 404;
+        throw err;
+    }
+
+    const perfilId = String(opciones.perfilId || opciones.id || datos.perfilActivoId || '').trim();
+    let perfil = null;
+    if (perfilId) {
+        perfil = (datos.perfiles || []).find((p) => p.id === perfilId) || null;
+    }
+    if (!perfil) {
+        perfil = resolverPerfilActivo(datos);
+    }
+    if (!perfil || !perfilTieneContenido(perfil)) {
+        const err = new Error('Selecciona un perfil con contenido para descargar el PDF.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const tituloHoja = sanitizarNombreHoja(perfil.nombreHoja) || resolverNombreHojaPerfil(perfil);
+    let gid = null;
+    try {
+        gid = await driveService.obtenerGidHojaPorNombre(driveFileId, tituloHoja);
+    } catch (err) {
+        console.warn('[ATH-F-02] No se pudo resolver gid de hoja para PDF:', err.message);
+    }
+    if (gid == null) {
+        const err = new Error(
+            `No se encontró la hoja «${tituloHoja}» en Drive. Guarda el perfil primero para sincronizar.`
+        );
+        err.statusCode = 404;
+        throw err;
+    }
+
+    // 0.5 cm ≈ 0.19685 in (API de exportación de Sheets usa pulgadas).
+    const margen05cm = '0.19685';
+    const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
+        gid: String(gid),
+        landscape: false,
+        size: 'letter',
+        fitToHeight: true,
+        horizontalAlignment: 'CENTER',
+        verticalAlignment: 'TOP',
+        margins: {
+            top_margin: margen05cm,
+            bottom_margin: margen05cm,
+            left_margin: '0',
+            right_margin: '0'
+        }
+    });
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de ATH-F-02 quedó vacía.');
+    }
+
+    const nombreSeguro = String(perfil.puesto || tituloHoja || 'perfil')
+        .replace(/[\\/:*?"<>|]+/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim() || 'perfil';
+    return {
+        buffer: Buffer.from(pdfBuffer),
+        nombreArchivo: `ATH-F-02 ${nombreSeguro}.pdf`
+    };
+}
+
 module.exports = {
     CODIGO_FORMATO,
     TEMPLATE_DRIVE_ID,
@@ -1494,6 +2125,7 @@ module.exports = {
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
     subirPdfFirmado,
+    descargarPdfPerfil,
     sanitizarDatos,
     sanitizarPerfil,
     crearPerfilVacio,

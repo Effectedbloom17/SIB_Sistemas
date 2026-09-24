@@ -5446,6 +5446,7 @@ function normalizarMargenesExportPdf(raw) {
  * - scalePercent / spct → personalizada (70 o 0.7 → scale=5&spct=0.7)
  * - scale/scaleMode predeterminada|normal|default → «Normal» (scale 1)
  * - fitToPage → ajustar a la página
+ * - fitToHeight → ajustar al alto (scale 3)
  * - fitToWidth → ajustar al ancho (scale 2)
  * - default → ajustar al ancho
  */
@@ -5482,6 +5483,12 @@ function resolverEscalaExportPdf(options = {}, fitToPage = false) {
             fith: 'true'
         };
     }
+    if (options.fitToHeight) {
+        return {
+            scale: '3',
+            fith: 'true'
+        };
+    }
     if (options.fitToWidth) {
         return {
             scale: '2',
@@ -5496,6 +5503,7 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
     const landscape = !!options.landscape;
     const fitToPage = !!options.fitToPage;
     const fitToWidth = !!options.fitToWidth;
+    const fitToHeight = !!options.fitToHeight;
     // Carta / Letter (Google Sheets export: letter, a4, legal, …)
     const sizeRaw = String(options.size || options.paperSize || '').trim().toLowerCase();
     const size = sizeRaw === 'carta' || sizeRaw === '1' ? 'letter' : sizeRaw;
@@ -5505,7 +5513,7 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
     // Márgenes: 'normal'/'normales' ≈ Sheets «Normales» (~0.75");
     // 'wide'/'anchos' ≈ Sheets/Excel «Anchos» (1"); 'narrow'/'estrechos' ≈ compactos.
     // Objeto: { top/bottom/left/right } o { top_margin/... } en pulgadas.
-    // Por defecto: normales si fitToPage o fitToWidth; si no, compactos.
+    // Por defecto: normales si fitToPage o fitToWidth/fitToHeight; si no, compactos.
     const marginMode = String(
         (typeof options.margins === 'string' ? options.margins : null)
         || options.marginMode
@@ -5515,7 +5523,7 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
     const useNormalMargins = !useWideMargins && (
         marginMode === 'normal' || marginMode === 'normales'
         || marginMode === 'predeterminados' || marginMode === 'predeterminado' || marginMode === 'default'
-        || ((!!fitToPage || !!fitToWidth) && marginMode !== 'narrow' && marginMode !== 'estrechos' && marginMode !== 'compact')
+        || ((!!fitToPage || !!fitToWidth || !!fitToHeight) && marginMode !== 'narrow' && marginMode !== 'estrechos' && marginMode !== 'compact')
     );
     const margins = (options.margins && typeof options.margins === 'object')
         ? normalizarMargenesExportPdf(options.margins)
@@ -5543,6 +5551,7 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
     // Escala:
     // - scalePercent / spct → personalizada (p.ej. 70 → scale=5&spct=0.7)
     // - fitToPage → «Ajustar a la página»
+    // - fitToHeight → «Ajustar al alto» (scale 3)
     // - fitToWidth → «Ajustar al ancho» (scale 2)
     // - si no → «Ajustar al ancho» (fitw)
     const scaleOpts = resolverEscalaExportPdf(options, fitToPage);

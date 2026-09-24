@@ -3217,6 +3217,15 @@ export class BackendServices {
         });
     }
 
+    descargarPdfAthF02(perfilId?: string): Observable<Blob> {
+        const params = perfilId
+            ? `?perfilId=${encodeURIComponent(perfilId)}`
+            : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-02/descargar-pdf${params}`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarAthF09Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-09`);
     }

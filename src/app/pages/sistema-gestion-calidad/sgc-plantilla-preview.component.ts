@@ -1594,6 +1594,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF02EditorCargando = false;
   athF02ActualizandoPlantilla = false;
   athF02SubiendoPdf = false;
+  athF02DescargandoPdf = false;
   private athF02EditorIframeListo = false;
   dgF01Form = this.crearDgF01Vacio();
 
@@ -18143,6 +18144,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-10') {
       this.autosizeTextareasSgcF10();
     }
+    if (this.plantillaSlug === 'ath-f-02') {
+      this.autosizeTextareasAthF02();
+    }
     if (this.plantillaSlug === 'sgc-f-04') {
       this.autosizeTextareasSgcF04();
     }
@@ -19259,22 +19263,30 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     key: keyof AthF02Requerimientos;
     label: string;
     detalleLabel: string;
+    icon: string;
   }> = [
-    { key: 'computadora', label: 'Computadora u ordenador', detalleLabel: '¿Cuál?' },
-    { key: 'software', label: 'Software', detalleLabel: '¿Cuál?' },
-    { key: 'informacion', label: 'Información', detalleLabel: '¿Cuál?' },
-    { key: 'herramientas', label: 'Herramientas o equipos', detalleLabel: '¿Cuáles?' },
-    { key: 'uniformes', label: 'Uniformes', detalleLabel: 'Cantidad:' },
-    { key: 'otros', label: 'Otros', detalleLabel: '¿Cuáles?' }
+    { key: 'computadora', label: 'Computadora u ordenador', detalleLabel: '¿Cuál?', icon: 'fa-desktop' },
+    { key: 'software', label: 'Software', detalleLabel: '¿Cuál?', icon: 'fa-code' },
+    { key: 'informacion', label: 'Información', detalleLabel: '¿Cuál?', icon: 'fa-database' },
+    { key: 'herramientas', label: 'Herramientas o equipos', detalleLabel: '¿Cuáles?', icon: 'fa-wrench' },
+    { key: 'uniformes', label: 'Uniformes', detalleLabel: 'Cantidad:', icon: 'fa-tshirt' },
+    { key: 'otros', label: 'Otros', detalleLabel: '¿Cuáles?', icon: 'fa-ellipsis-h' }
   ];
 
   private filasRelAthF02(): AthF02RelacionFila[] {
-    return [
-      { actor: '', motivo: '' },
-      { actor: '', motivo: '' },
-      { actor: '', motivo: '' },
-      { actor: '', motivo: '' }
-    ];
+    return [{ actor: '', motivo: '' }];
+  }
+
+  readonly athF02MaxRelaciones = 12;
+
+  private normalizarRelacionesAthF02(raw: unknown): AthF02RelacionFila[] {
+    const mapped = (Array.isArray(raw) ? raw : []).map((r) => ({
+      actor: String((r as any)?.actor || '').trim(),
+      motivo: String((r as any)?.motivo || '').trim()
+    }));
+    const conDatos = mapped.filter((r) => r.actor || r.motivo);
+    const lista = conDatos.length ? conDatos : [{ actor: '', motivo: '' }];
+    return lista.slice(0, this.athF02MaxRelaciones);
   }
 
   private reqAthF02Vacio(): AthF02ReqItem {
@@ -19522,22 +19534,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         uniformes: normReq('uniformes'),
         otros: normReq('otros')
       },
-      relacionesInternas: this.conFilasMinimasAthF02(
-        (Array.isArray(raw.relacionesInternas) ? raw.relacionesInternas : []).map((r) => ({
-          actor: String((r as any)?.actor || '').trim(),
-          motivo: String((r as any)?.motivo || '').trim()
-        })),
-        4,
-        () => ({ actor: '', motivo: '' })
-      ),
-      relacionesExternas: this.conFilasMinimasAthF02(
-        (Array.isArray(raw.relacionesExternas) ? raw.relacionesExternas : []).map((r) => ({
-          actor: String((r as any)?.actor || '').trim(),
-          motivo: String((r as any)?.motivo || '').trim()
-        })),
-        4,
-        () => ({ actor: '', motivo: '' })
-      ),
+      relacionesInternas: this.normalizarRelacionesAthF02(raw.relacionesInternas),
+      relacionesExternas: this.normalizarRelacionesAthF02(raw.relacionesExternas),
       pdfFirmado: this.sanitizarPdfAthF02(raw.pdfFirmado || (raw as any).pdf_firmado),
       nombreHoja: String(raw.nombreHoja || (raw as any).nombre_hoja || '').trim()
     };
@@ -19602,12 +19600,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.athF02PerfilActivo = perfil;
     this.athF02Vista = 'editor';
     this.onAthF02Editado();
+    this.programarAutosizeAthF02();
   }
 
   abrirPerfilAthF02(perfil: AthF02Perfil): void {
     this.athF02Form.perfilActivoId = perfil.id;
     this.athF02PerfilActivo = perfil;
     this.athF02Vista = 'editor';
+    this.programarAutosizeAthF02();
   }
 
   volverArchiveroAthF02(): void {
@@ -19638,6 +19638,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.athF02PerfilActivo.funciones = [...(this.athF02PerfilActivo.funciones || []), ''];
     this.onAthF02Editado();
+    this.programarAutosizeAthF02();
   }
 
   quitarFuncionAthF02(index: number): void {
@@ -19650,6 +19651,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.athF02PerfilActivo.funciones.splice(index, 1);
     }
     this.onAthF02Editado();
+    this.programarAutosizeAthF02();
   }
 
   agregarExperienciaAthF02(): void {
@@ -19675,6 +19677,133 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.athF02PerfilActivo.experiencias = lista;
     }
     this.onAthF02Editado();
+  }
+
+  tieneActorAthF02(r: AthF02RelacionFila | null | undefined): boolean {
+    return !!(r?.actor || '').trim();
+  }
+
+  countRelacionesActivasAthF02(lista: AthF02RelacionFila[] | null | undefined): number {
+    return (lista || []).filter((r) => this.tieneActorAthF02(r)).length;
+  }
+
+  tieneAlgunaRelacionActivaAthF02(perf: AthF02Perfil | null | undefined): boolean {
+    if (!perf) {
+      return false;
+    }
+    return this.countRelacionesActivasAthF02(perf.relacionesInternas) > 0
+      || this.countRelacionesActivasAthF02(perf.relacionesExternas) > 0;
+  }
+
+  agregarRelacionInternaAthF02(): void {
+    if (!this.athF02PerfilActivo) {
+      return;
+    }
+    const lista = this.athF02PerfilActivo.relacionesInternas || [];
+    if (lista.length >= this.athF02MaxRelaciones) {
+      return;
+    }
+    this.athF02PerfilActivo.relacionesInternas = [...lista, { actor: '', motivo: '' }];
+    this.onAthF02Editado();
+  }
+
+  quitarRelacionInternaAthF02(index: number): void {
+    if (!this.athF02PerfilActivo) {
+      return;
+    }
+    const lista = [...(this.athF02PerfilActivo.relacionesInternas || [])];
+    if (lista.length <= 1) {
+      this.athF02PerfilActivo.relacionesInternas = [{ actor: '', motivo: '' }];
+    } else {
+      lista.splice(index, 1);
+      this.athF02PerfilActivo.relacionesInternas = lista;
+    }
+    this.onAthF02Editado();
+  }
+
+  agregarRelacionExternaAthF02(): void {
+    if (!this.athF02PerfilActivo) {
+      return;
+    }
+    const lista = this.athF02PerfilActivo.relacionesExternas || [];
+    if (lista.length >= this.athF02MaxRelaciones) {
+      return;
+    }
+    this.athF02PerfilActivo.relacionesExternas = [...lista, { actor: '', motivo: '' }];
+    this.onAthF02Editado();
+  }
+
+  quitarRelacionExternaAthF02(index: number): void {
+    if (!this.athF02PerfilActivo) {
+      return;
+    }
+    const lista = [...(this.athF02PerfilActivo.relacionesExternas || [])];
+    if (lista.length <= 1) {
+      this.athF02PerfilActivo.relacionesExternas = [{ actor: '', motivo: '' }];
+    } else {
+      lista.splice(index, 1);
+      this.athF02PerfilActivo.relacionesExternas = lista;
+    }
+    this.onAthF02Editado();
+  }
+
+  descargarPdfAthF02(): void {
+    if (this.athF02DescargandoPdf || !this.athF02PerfilActivo || !this.athF02DriveFileId) {
+      return;
+    }
+    this.sincronizarPerfilActivoEnFormAthF02();
+    const perfilId = this.athF02PerfilActivo.id;
+    const nombreLocal = String(this.athF02PerfilActivo.puesto || 'perfil')
+      .replace(/[\\/:*?"<>|]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim() || 'perfil';
+
+    const lanzarDescarga = () => {
+      this.athF02DescargandoPdf = true;
+      this.backendService.descargarPdfAthF02(perfilId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.athF02DescargandoPdf = false;
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = `ATH-F-02 ${nombreLocal}.pdf`;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.athF02DescargandoPdf = false;
+          }
+        });
+    };
+
+    if (!this.athF02CambiosPendientes) {
+      lanzarDescarga();
+      return;
+    }
+
+    if (this.athF02Guardando) {
+      return;
+    }
+
+    this.athF02Guardando = true;
+    this.backendService.guardarAthF02Formato(
+      { ...this.athF02Form, perfilActivoId: perfilId },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.aplicarEstadoAthF02(res, true, false, true);
+          this.athF02CambiosPendientes = false;
+          this.athF02Guardando = false;
+          lanzarDescarga();
+        },
+        error: () => {
+          this.athF02Guardando = false;
+        }
+      });
   }
 
   onAthF02EdadIndistintoChange(activo: boolean): void {
@@ -19742,6 +19871,41 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.sincronizarPerfilActivoEnFormAthF02();
     }
     this.athF02CambiosPendientes = true;
+  }
+
+  onAthF02TextareaInput(event: Event): void {
+    this.autosizeAthF02Textarea(event.target);
+    this.onAthF02Editado();
+  }
+
+  /** Crece el textarea al contenido; nunca muestra scroll vertical. */
+  autosizeAthF02Textarea(target: EventTarget | HTMLTextAreaElement | null): void {
+    const el = target as HTMLTextAreaElement | null;
+    if (!el || el.tagName !== 'TEXTAREA') {
+      return;
+    }
+    el.style.maxHeight = 'none';
+    el.style.overflow = 'hidden';
+    el.style.overflowY = 'hidden';
+    el.style.height = '0px';
+    const alto = Math.max(el.scrollHeight, 72);
+    el.style.height = `${alto}px`;
+    el.style.overflow = 'hidden';
+    el.style.overflowY = 'hidden';
+  }
+
+  /** Recalcula altura de textareas ATH-F-02 para mostrar todo el texto sin scroll. */
+  private autosizeTextareasAthF02(): void {
+    const nodos = this.host.nativeElement.querySelectorAll<HTMLTextAreaElement>(
+      '.ath-f-02-doc--editor textarea.ath-f-02-autosize'
+    );
+    nodos.forEach((el) => this.autosizeAthF02Textarea(el));
+  }
+
+  private programarAutosizeAthF02(): void {
+    window.setTimeout(() => this.autosizeTextareasAthF02(), 0);
+    window.setTimeout(() => this.autosizeTextareasAthF02(), 50);
+    window.setTimeout(() => this.autosizeTextareasAthF02(), 200);
   }
 
   onSeleccionarPdfAthF02(event: Event): void {
@@ -19914,6 +20078,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }
       setTimeout(() => {
         this.athF02IgnorarAutoSave = false;
+        if (this.athF02Vista === 'editor') {
+          this.programarAutosizeAthF02();
+        }
       }, 0);
       this.sincronizarPerfilActivoEnFormAthF02();
     } else {
