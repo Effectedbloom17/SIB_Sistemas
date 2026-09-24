@@ -4063,8 +4063,9 @@ async function aplicarFormatoFilasSgcF05(spreadsheetId, sheetTitle, filaInicio, 
 /**
  * SGC-F-25 · Actividades posteriores a la entrega: Century Gothic 11,
  * alineación por columna y cuadrícula completa (bordes en todas las celdas con datos).
+ * Opcional: formatea la leyenda «N. texto» (cols A:F) alineada a la izquierda sin bordes.
  */
-async function aplicarFormatoFilasSgcF25(spreadsheetId, sheetTitle, filaInicio, numFilas, filaMax) {
+async function aplicarFormatoFilasSgcF25(spreadsheetId, sheetTitle, filaInicio, numFilas, filaMax, leyendaInicio = null, leyendaFilas = 5) {
     if (!spreadsheetId || !sheetTitle) {
         return null;
     }
@@ -4072,7 +4073,7 @@ async function aplicarFormatoFilasSgcF25(spreadsheetId, sheetTitle, filaInicio, 
     const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
     const meta = await sheetsApi.spreadsheets.get({
         spreadsheetId,
-        fields: 'sheets.properties(sheetId,title)'
+        fields: 'sheets(properties(sheetId,title),merges)'
     });
     const sheet = (meta.data.sheets || []).find((s) => (s.properties?.title || '').trim() === String(sheetTitle).trim());
     const sheetId = sheet?.properties?.sheetId;
@@ -4083,6 +4084,7 @@ async function aplicarFormatoFilasSgcF25(spreadsheetId, sheetTitle, filaInicio, 
     // Columnas (0-based, fin exclusivo): A..K (0..11)
     const TABLA_COL_INICIO = 0;
     const TABLA_COL_FIN = 11;
+    const LEYENDA_COL_FIN = 6; // A:F — espacio suficiente para el texto de categorías
 
     const filas = Math.max(0, Number(numFilas) || 0);
     const startRow = filaInicio - 1;
@@ -4117,6 +4119,28 @@ async function aplicarFormatoFilasSgcF25(spreadsheetId, sheetTitle, filaInicio, 
     });
 
     const requests = [];
+
+    // Desfusionar zona de datos + leyenda antes de reaplicar formato/merges.
+    const leyendaStart1Pre = Number(leyendaInicio);
+    const leyendaCountPre = Math.max(0, Number(leyendaFilas) || 0);
+    const unmergeEndRow = Math.max(
+        blockEndRow,
+        Number.isFinite(leyendaStart1Pre) && leyendaStart1Pre >= 1
+            ? (leyendaStart1Pre - 1) + leyendaCountPre
+            : 0,
+        dataEndRow
+    );
+    for (const m of (sheet.merges || [])) {
+        const overlapRows = m.startRowIndex < unmergeEndRow && m.endRowIndex > startRow;
+        const overlapCols = m.startColumnIndex < TABLA_COL_FIN && m.endColumnIndex > TABLA_COL_INICIO;
+        if (overlapRows && overlapCols) {
+            requests.push({
+                unmergeCells: {
+                    range: { ...m, sheetId }
+                }
+            });
+        }
+    }
 
     if (filas > 0) {
         requests.push(formatoColumna(0, 1, 'CENTER'));  // A No. contrato
@@ -4169,6 +4193,68 @@ async function aplicarFormatoFilasSgcF25(spreadsheetId, sheetTitle, filaInicio, 
                     startColumnIndex: TABLA_COL_INICIO,
                     endColumnIndex: TABLA_COL_FIN
                 },
+                bottom: sinBorde,
+                left: sinBorde,
+                right: sinBorde,
+                innerHorizontal: sinBorde,
+                innerVertical: sinBorde
+            }
+        });
+    }
+
+    // Leyenda: «N. texto» en A:F, izquierda, sin bordes (números alineados).
+    const leyendaStart1 = Number(leyendaInicio);
+    const leyendaCount = Math.max(0, Number(leyendaFilas) || 0);
+    if (Number.isFinite(leyendaStart1) && leyendaStart1 >= 1 && leyendaCount > 0) {
+        const leyendaStart0 = leyendaStart1 - 1;
+        const leyendaEnd0 = leyendaStart0 + leyendaCount;
+
+        for (let r = leyendaStart0; r < leyendaEnd0; r++) {
+            requests.push({
+                mergeCells: {
+                    range: {
+                        sheetId,
+                        startRowIndex: r,
+                        endRowIndex: r + 1,
+                        startColumnIndex: 0,
+                        endColumnIndex: LEYENDA_COL_FIN
+                    },
+                    mergeType: 'MERGE_ALL'
+                }
+            });
+        }
+
+        requests.push({
+            repeatCell: {
+                range: {
+                    sheetId,
+                    startRowIndex: leyendaStart0,
+                    endRowIndex: leyendaEnd0,
+                    startColumnIndex: 0,
+                    endColumnIndex: LEYENDA_COL_FIN
+                },
+                cell: {
+                    userEnteredFormat: {
+                        horizontalAlignment: 'LEFT',
+                        verticalAlignment: 'MIDDLE',
+                        wrapStrategy: 'WRAP',
+                        textFormat
+                    }
+                },
+                fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)'
+            }
+        });
+
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: leyendaStart0,
+                    endRowIndex: leyendaEnd0,
+                    startColumnIndex: TABLA_COL_INICIO,
+                    endColumnIndex: TABLA_COL_FIN
+                },
+                top: sinBorde,
                 bottom: sinBorde,
                 left: sinBorde,
                 right: sinBorde,
@@ -5574,6 +5660,29 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
             : {})
     };
 
+    // Orden de páginas: 1 = hacia abajo, luego derecha; 2 = hacia la derecha, luego abajo.
+    const pageOrderRaw = String(
+        options.pageOrder || options.pageorder || options.ordenPaginas || ''
+    ).trim().toLowerCase();
+    let pageOrderOpts = {};
+    if (
+        pageOrderRaw === '1'
+        || pageOrderRaw === 'down'
+        || pageOrderRaw === 'down_then_over'
+        || pageOrderRaw === 'abajo'
+        || pageOrderRaw === 'hacia_abajo'
+    ) {
+        pageOrderOpts = { pageorder: '1' };
+    } else if (
+        pageOrderRaw === '2'
+        || pageOrderRaw === 'over'
+        || pageOrderRaw === 'over_then_down'
+        || pageOrderRaw === 'derecha'
+        || pageOrderRaw === 'hacia_derecha'
+    ) {
+        pageOrderOpts = { pageorder: '2' };
+    }
+
     // Rango opcional (0-based, r2/c2 exclusivos) para partir páginas del PDF.
     const rangeOpts = {};
     if (options.range && typeof options.range === 'object') {
@@ -5609,6 +5718,7 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
             ...scaleOpts,
             ...margins,
             ...alignOpts,
+            ...pageOrderOpts,
             ...sizeOpts,
             ...gidOpts,
             ...rangeOpts
@@ -5620,6 +5730,7 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
             ...scaleOpts,
             ...margins,
             ...alignOpts,
+            ...pageOrderOpts,
             ...sizeOpts,
             ...gidOpts,
             ...rangeOpts
@@ -5631,6 +5742,7 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
             ...scaleOpts,
             ...margins,
             ...alignOpts,
+            ...pageOrderOpts,
             ...sizeOpts,
             ...gidOpts,
             ...rangeOpts

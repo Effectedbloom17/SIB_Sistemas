@@ -2788,6 +2788,12 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-25/asegurar-acceso`, {});
     }
 
+    descargarPdfSgcF25(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-25/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarSgcF16Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-16`);
     }
@@ -3189,6 +3195,12 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-08/actualizar-plantilla`, {});
     }
 
+    descargarPdfAthF08(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-08/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarAthF02Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-02`);
     }
@@ -3259,6 +3271,15 @@ export class BackendServices {
             nombre_archivo: nombreArchivo,
             cotizacionId,
             folioPropuesto: folioPropuesto || null
+        });
+    }
+
+    descargarPdfAthF09(cotizacionId: string): Observable<Blob> {
+        const params = cotizacionId
+            ? `?cotizacionId=${encodeURIComponent(cotizacionId)}`
+            : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-09/descargar-pdf${params}`, {
+            responseType: 'blob'
         });
     }
 
@@ -4049,6 +4070,13 @@ export class BackendServices {
     descargarPdfSgcF04(reporteId?: string | null): Observable<Blob> {
         const qs = reporteId ? `?reporteId=${encodeURIComponent(reporteId)}` : '';
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-04/descargar-pdf${qs}`, {
+            responseType: 'blob'
+        });
+    }
+
+    descargarPdfSgcF22(reporteId?: string | null): Observable<Blob> {
+        const qs = reporteId ? `?reporteId=${encodeURIComponent(reporteId)}` : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-22/descargar-pdf${qs}`, {
             responseType: 'blob'
         });
     }

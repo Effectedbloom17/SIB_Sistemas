@@ -23,6 +23,8 @@ const HEADER_ROW = 6;
 const DATA_START_ROW = 7;
 const MAX_FILAS = 60;
 const DATA_END_ROW = DATA_START_ROW + MAX_FILAS - 1;
+/** Posición fija antigua de la leyenda (tras las 60 filas vacías); se limpia al reubicar. */
+const LEYENDA_FILA_LEGACY = DATA_END_ROW + 2;
 
 const COLUMNAS = {
     noContrato: 1,   // A
@@ -45,6 +47,8 @@ const CATEGORIAS = [
     { id: 4, label: 'Requisito del cliente' },
     { id: 5, label: 'Retroalimentación del cliente' }
 ];
+
+const LEYENDA_NUM_FILAS = CATEGORIAS.length;
 
 const ACTIVIDADES_VALIDAS = [
     'Garantía',
@@ -199,16 +203,35 @@ function esActividadVacia(item) {
         && !a.fechaCompromiso && !a.responsables && !tieneCat;
 }
 
+function textoCoincideLeyenda(texto, catId) {
+    const t = String(texto || '').toLowerCase();
+    if (!t) return false;
+    const esperado = CATEGORIAS[catId - 1]?.label || '';
+    if (esperado && t.includes(String(esperado).toLowerCase().slice(0, 20))) return true;
+    return CATEGORIAS.some((cat) => t.includes(String(cat.label).toLowerCase().slice(0, 20)));
+}
+
 function esFilaLeyendaCategorias(row) {
     const a = celdaATexto(row.getCell(1).value);
     const b = celdaATexto(row.getCell(2).value);
     const c = celdaATexto(row.getCell(3).value);
+    // Formato unificado: "1. Requisito…" en columna A
+    const m = String(a).match(/^(\d+)\.\s+(.+)$/);
+    if (m) {
+        const n = Number(m[1]);
+        if (Number.isInteger(n) && n >= 1 && n <= 5 && textoCoincideLeyenda(m[2], n)) {
+            return true;
+        }
+    }
+    // Formato legado: número en B, texto en C
     if (a) return false;
     const n = Number(b);
     if (!Number.isInteger(n) || n < 1 || n > 5) return false;
-    const esperado = CATEGORIAS[n - 1]?.label || '';
-    return String(c).toLowerCase() === String(esperado).toLowerCase()
-        || CATEGORIAS.some((cat) => String(c).toLowerCase().includes(String(cat.label).toLowerCase().slice(0, 20)));
+    return textoCoincideLeyenda(c, n);
+}
+
+function textoLeyendaCategoria(cat) {
+    return `${cat.id}. ${cat.label}`;
 }
 
 function sanitizarDatos(raw) {
@@ -279,23 +302,97 @@ function escribirFilaActividad(row, item) {
     asignarTextoSimple(row.getCell(COLUMNAS.cat5), marcaDesdeBooleano(a.categorias[4]), 'center');
 }
 
+/**
+ * Leyenda pegada a la tabla (1 fila en blanco de separación) para que el PDF
+ * no deje páginas vacías entre datos y el listado 1..5.
+ */
+function resolverFilaInicioLeyenda(numActividades) {
+    const n = Math.max(0, Math.min(MAX_FILAS, Number(numActividades) || 0));
+    const ultimaFilaDatos = n > 0
+        ? DATA_START_ROW + n - 1
+        : DATA_START_ROW;
+    return ultimaFilaDatos + 2;
+}
+
+function resolverUltimaFilaImpresion(numActividades) {
+    return resolverFilaInicioLeyenda(numActividades) + LEYENDA_NUM_FILAS - 1;
+}
+
+function limpiarCeldasLeyendaEnFila(row) {
+    for (const col of [1, 2, 3]) {
+        const celda = row.getCell(col);
+        celda.value = '';
+        celda.border = {};
+        celda.font = {
+            name: 'Century Gothic',
+            size: 11
+        };
+        celda.alignment = {
+            horizontal: 'left',
+            vertical: 'middle',
+            wrapText: true
+        };
+    }
+}
+
+function limpiarFilaActividad(row) {
+    for (let col = 1; col <= 11; col++) {
+        const celda = row.getCell(col);
+        celda.value = '';
+        celda.border = {};
+        celda.font = {
+            name: 'Century Gothic',
+            size: 11
+        };
+        celda.alignment = {
+            horizontal: 'left',
+            vertical: 'middle',
+            wrapText: true
+        };
+    }
+}
+
 function escribirLeyendaCategorias(ws, filaInicio) {
     for (let i = 0; i < CATEGORIAS.length; i++) {
         const row = ws.getRow(filaInicio + i);
-        asignarTextoSimple(row.getCell(2), String(CATEGORIAS[i].id), 'center');
-        asignarTextoSimple(row.getCell(3), CATEGORIAS[i].label, 'left');
+        // Una sola celda «N. texto» alineada a la izquierda (evita números desalineados).
+        const celda = row.getCell(1);
+        celda.value = textoLeyendaCategoria(CATEGORIAS[i]);
+        celda.border = {};
+        celda.font = { name: 'Century Gothic', size: 11 };
+        celda.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+        for (const col of [2, 3]) {
+            const vacia = row.getCell(col);
+            vacia.value = '';
+            vacia.border = {};
+        }
+    }
+}
+
+function limpiarZonaLeyendaHoja(ws, desdeFila, hastaFila) {
+    const desde = Math.max(1, Number(desdeFila) || 1);
+    const hasta = Math.max(desde, Number(hastaFila) || desde);
+    for (let r = desde; r <= hasta; r++) {
+        limpiarCeldasLeyendaEnFila(ws.getRow(r));
     }
 }
 
 function escribirActividadesEnHoja(ws, actividadesRaw) {
     const actividades = Array.isArray(actividadesRaw) ? actividadesRaw : [];
+    const n = Math.min(actividades.length, MAX_FILAS);
     for (let i = 0; i < MAX_FILAS; i++) {
         const rowNum = DATA_START_ROW + i;
-        const fila = i < actividades.length ? actividades[i] : { ...ACTIVIDAD_DEFECTO };
-        escribirFilaActividad(ws.getRow(rowNum), fila);
+        if (i < n) {
+            escribirFilaActividad(ws.getRow(rowNum), actividades[i]);
+        } else {
+            limpiarFilaActividad(ws.getRow(rowNum));
+        }
     }
-    // Leyenda debajo del bloque de datos (fuera de las filas con bordes de captura).
-    const leyendaInicio = DATA_END_ROW + 2;
+    // Limpia leyenda legacy (fila 68+) y cualquier residuo entre datos y esa zona.
+    const leyendaInicio = resolverFilaInicioLeyenda(n);
+    const clearDesde = DATA_START_ROW + n;
+    const clearHasta = LEYENDA_FILA_LEGACY + LEYENDA_NUM_FILAS - 1;
+    limpiarZonaLeyendaHoja(ws, clearDesde, clearHasta);
     escribirLeyendaCategorias(ws, leyendaInicio);
 }
 
@@ -321,10 +418,11 @@ function rangoSheet(celda, sheetTitle) {
 
 function datosAActualizacionesSheet(datos, sheetTitle) {
     const d = sanitizarDatos(datos);
+    const n = d.actividades.length;
     const actualizaciones = [];
     for (let i = 0; i < MAX_FILAS; i++) {
         const rowNum = DATA_START_ROW + i;
-        const a = i < d.actividades.length ? d.actividades[i] : { ...ACTIVIDAD_DEFECTO, categorias: [false, false, false, false, false] };
+        const a = i < n ? d.actividades[i] : { ...ACTIVIDAD_DEFECTO, categorias: [false, false, false, false, false] };
         const cats = sanitizarCategorias(a.categorias);
         actualizaciones.push({ range: rangoSheet(`${columnaALetra(COLUMNAS.noContrato)}${rowNum}`, sheetTitle), values: [[a.noContrato || '']] });
         actualizaciones.push({ range: rangoSheet(`${columnaALetra(COLUMNAS.cliente)}${rowNum}`, sheetTitle), values: [[a.cliente || '']] });
@@ -338,12 +436,23 @@ function datosAActualizacionesSheet(datos, sheetTitle) {
         actualizaciones.push({ range: rangoSheet(`${columnaALetra(COLUMNAS.cat4)}${rowNum}`, sheetTitle), values: [[marcaDesdeBooleano(cats[3])]] });
         actualizaciones.push({ range: rangoSheet(`${columnaALetra(COLUMNAS.cat5)}${rowNum}`, sheetTitle), values: [[marcaDesdeBooleano(cats[4])]] });
     }
-    // Leyenda debajo del bloque de datos
-    const leyendaInicio = DATA_END_ROW + 2;
+    // Limpia leyenda anterior (posición fija o dinámica) y reescribe junto a la tabla.
+    const clearDesde = DATA_START_ROW + n;
+    const clearHasta = LEYENDA_FILA_LEGACY + LEYENDA_NUM_FILAS - 1;
+    for (let rowNum = clearDesde; rowNum <= clearHasta; rowNum++) {
+        actualizaciones.push({ range: rangoSheet(`A${rowNum}`, sheetTitle), values: [['']] });
+        actualizaciones.push({ range: rangoSheet(`B${rowNum}`, sheetTitle), values: [['']] });
+        actualizaciones.push({ range: rangoSheet(`C${rowNum}`, sheetTitle), values: [['']] });
+    }
+    const leyendaInicio = resolverFilaInicioLeyenda(n);
     for (let i = 0; i < CATEGORIAS.length; i++) {
         const rowNum = leyendaInicio + i;
-        actualizaciones.push({ range: rangoSheet(`B${rowNum}`, sheetTitle), values: [[String(CATEGORIAS[i].id)]] });
-        actualizaciones.push({ range: rangoSheet(`C${rowNum}`, sheetTitle), values: [[CATEGORIAS[i].label]] });
+        actualizaciones.push({
+            range: rangoSheet(`A${rowNum}`, sheetTitle),
+            values: [[textoLeyendaCategoria(CATEGORIAS[i])]]
+        });
+        actualizaciones.push({ range: rangoSheet(`B${rowNum}`, sheetTitle), values: [['']] });
+        actualizaciones.push({ range: rangoSheet(`C${rowNum}`, sheetTitle), values: [['']] });
     }
     return actualizaciones;
 }
@@ -522,13 +631,16 @@ async function aplicarFormatoVisualSgcF25(spreadsheetId, sheetTitle, datos) {
     if (!spreadsheetId || !sheetTitle) return;
     const d = sanitizarDatos(datos);
     const numFilas = d.actividades.length;
+    const leyendaInicio = resolverFilaInicioLeyenda(numFilas);
     try {
         await driveService.aplicarFormatoFilasSgcF25(
             spreadsheetId,
             sheetTitle,
             DATA_START_ROW,
             numFilas,
-            DATA_END_ROW
+            DATA_END_ROW,
+            leyendaInicio,
+            LEYENDA_NUM_FILAS
         );
     } catch (err) {
         console.warn('[SGC-F-25] No se pudo aplicar formato visual en Google Sheet:', err.message);
@@ -1253,12 +1365,80 @@ async function actualizarPlantillaDesdeSistema(pool) {
     return construirRespuesta(registroActualizado, datos, archivoDrive);
 }
 
+/**
+ * PDF: hoja actual, Carta, horizontal, márgenes normales, escala 84%.
+ * Reubica la leyenda junto a la tabla y limita el rango de impresión
+ * para evitar hojas en blanco y texto flotando solo.
+ */
+async function descargarPlantillaPdf(pool) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    let registro = await obtenerRegistroDb(pool);
+    let driveFileId = await resolverDriveFileId(registro);
+    if (!driveFileId) {
+        throw new Error('No hay Google Sheet SGC-F-25 configurado para exportar a PDF.');
+    }
+    driveFileId = await asegurarDriveIdGoogleSheet(driveFileId, pool, registro);
+
+    let datos = await leerDatosRegistro(registro);
+    if (!datos?.actividades?.length) {
+        try {
+            datos = await leerDatosDesdeDriveConfiable(driveFileId);
+        } catch (err) {
+            console.warn('[SGC-F-25] PDF: no se pudieron leer datos de Drive:', err.message);
+            datos = sanitizarDatos(DATOS_DEFECTO);
+        }
+    } else {
+        datos = sanitizarDatos(datos);
+    }
+
+    const tituloHoja = await resolverTituloHojaTrabajo(driveFileId);
+    // Asegura leyenda pegada a la tabla antes de exportar (corrige hojas ya guardadas).
+    try {
+        await actualizarDatosEnGoogleSheet(driveFileId, datos, tituloHoja);
+    } catch (err) {
+        console.warn('[SGC-F-25] PDF: no se pudo reubicar leyenda antes de exportar:', err.message);
+    }
+
+    let gid = null;
+    try {
+        gid = await driveService.obtenerGidHojaPorNombre(driveFileId, tituloHoja);
+    } catch (err) {
+        console.warn('[SGC-F-25] No se pudo resolver gid de hoja para PDF:', err.message);
+    }
+    if (gid == null) {
+        throw new Error(`No se encontró la hoja activa «${tituloHoja}» para exportar a PDF.`);
+    }
+
+    const ultimaFila = resolverUltimaFilaImpresion(datos.actividades.length);
+    // r1/r2 son 0-based exclusivos en el extremo superior → r2 = última fila 1-based.
+    const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
+        gid,
+        landscape: true,
+        size: 'letter',
+        margins: 'normal',
+        scalePercent: 84,
+        verticalAlignment: 'TOP',
+        horizontalAlignment: 'CENTER',
+        range: {
+            r1: 0,
+            r2: ultimaFila,
+            c1: 0,
+            c2: 11
+        }
+    });
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de SGC-F-25 quedó vacía.');
+    }
+    return Buffer.from(pdfBuffer);
+}
+
 module.exports = {
     cargarFormato,
     guardarFormato,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
     asegurarAccesoEditor,
+    descargarPlantillaPdf,
     sanitizarDatos,
     CATEGORIAS,
     ACTIVIDADES_VALIDAS

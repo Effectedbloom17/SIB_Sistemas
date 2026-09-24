@@ -27309,6 +27309,21 @@ app.post('/api/sgc/formatos/sgc-f-25/asegurar-acceso', requireAdminOrSgc, async 
     }
 });
 
+app.get('/api/sgc/formatos/sgc-f-25/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcF25Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="SGC-F-25 Actividades posteriores a la entrega.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-25');
+    }
+});
+
 app.get('/api/sgc/formatos/sgc-f-16', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
@@ -27974,6 +27989,21 @@ app.post('/api/sgc/formatos/ath-f-08/sincronizar-drive', requireAdminOrSgc, asyn
     }
 });
 
+app.get('/api/sgc/formatos/ath-f-08/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcAthF08Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${sgcAthF08Service.NOMBRE_PDF_ARCHIVO}"`
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de ATH-F-08');
+    }
+});
+
 app.get('/api/sgc/formatos/ath-f-02', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
@@ -28129,6 +28159,25 @@ app.post('/api/sgc/formatos/ath-f-09/subir-pdf-firmado', requireAdminOrSgc, asyn
         });
     } catch (error) {
         handleError(res, error, 'No se pudo subir el PDF firmado ATH-F-09');
+    }
+});
+
+app.get('/api/sgc/formatos/ath-f-09/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const cotizacionId = String(req.query?.cotizacionId || req.query?.id || '').trim();
+        const { pdfBuffer, nombreArchivo } = await sgcAthF09Service.descargarPdfCotizacion(
+            poolBiznagaSgc,
+            cotizacionId
+        );
+        const safeName = String(nombreArchivo || 'ATH-F-09 Cotizacion.pdf')
+            .replace(/[\r\n"]+/g, '')
+            .trim();
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de la cotización ATH-F-09');
     }
 });
 
@@ -28828,6 +28877,26 @@ app.post('/api/sgc/formatos/sgc-f-22/actualizar-plantilla', requireRole('root'),
         });
     } catch (error) {
         handleError(res, error, 'No se pudo actualizar la plantilla SGC-F-22 en Drive');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-22/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const resultado = await sgcF22Service.descargarPlantillaPdf(poolBiznagaSgc, {
+            reporteId: req.query.reporteId || req.query.id || null
+        });
+        const nombre = String(resultado.nombreArchivo || 'SGC-F-22 Reporte de daño o pérdida.pdf')
+            .replace(/[^\w.\- áéíóúÁÉÍÓÚñÑ()]/gi, '_')
+            .trim() || 'SGC-F-22 Reporte de daño o pérdida.pdf';
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${nombre.replace(/"/g, '')}"`
+        );
+        return res.send(resultado.buffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-22');
     }
 });
 

@@ -1616,6 +1616,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF09EditorCargando = false;
   athF09ActualizandoPlantilla = false;
   athF09SubiendoPdf = false;
+  athF09DescargandoPdf = false;
   athF09SiguienteFolio = 'SC-26-001';
   private athF09EditorIframeListo = false;
   private athF09PdfPendiente: { base64: string; nombre: string } | null = null;
@@ -1779,6 +1780,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF22Vista: 'archivero' | 'editor' = 'archivero';
   private sgcF22FolioPendiente: string | null = null;
   sgcF22SubiendoPdf = false;
+  sgcF22DescargandoPdf = false;
   mostrarSgcF22PdfViewer = false;
   sgcF22PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   sgcF22PdfCargando = false;
@@ -2071,6 +2073,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF25ContenidoModificado = false;
   sgcF25EditorCargando = false;
   sgcF25ActualizandoPlantilla = false;
+  sgcF25DescargandoPdf = false;
   private sgcF25EditorIframeListo = false;
   readonly sgcF16Estatus: string[] = ['Pendiente', 'En proceso', 'Cumplido'];
   sgcF16Form: SgcF16FormData = this.crearSgcF16FormVacio();
@@ -2539,6 +2542,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF08ContenidoModificado = false;
   athF08EditorCargando = false;
   athF08ActualizandoPlantilla = false;
+  athF08DescargandoPdf = false;
   private athF08EditorIframeListo = false;
   sgcF09Form: SgcF09FormData = this.crearSgcF09FormVacio();
   /** Grupos cacheados — no usar getter que recree arrays en cada CD (congela la vista). */
@@ -8582,6 +8586,29 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.sgcF25Guardando = false;
+        }
+      });
+  }
+
+  descargarPdfSgcF25(): void {
+    if (this.sgcF25DescargandoPdf) {
+      return;
+    }
+    this.sgcF25DescargandoPdf = true;
+    this.backendService.descargarPdfSgcF25()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.sgcF25DescargandoPdf = false;
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = 'SGC-F-25 Actividades posteriores a la entrega.pdf';
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.sgcF25DescargandoPdf = false;
         }
       });
   }
@@ -15929,6 +15956,75 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
+  descargarPdfAthF08(): void {
+    if (this.athF08DescargandoPdf || !this.athF08DriveFileId) {
+      return;
+    }
+    const nombreArchivo = 'ATH-F-08 Eficacia de la capacitacion.pdf';
+    const iniciarDescarga = () => {
+      this.athF08DescargandoPdf = true;
+      this.backendService.descargarPdfAthF08()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.athF08DescargandoPdf = false;
+            if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+              void Swal.fire({
+                icon: 'error',
+                title: 'No se pudo generar el PDF',
+                text: 'Guarda la información y vuelve a intentar. Si el problema continúa, revisa que la hoja exista en Drive.',
+                confirmButtonText: 'Entendido'
+              });
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = nombreArchivo;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.athF08DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo descargar el PDF',
+              text: 'Guarda la información primero para sincronizar la hoja en Drive e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    };
+
+    if (this.puedeGestionarPlantillasSgc && this.athF08CambiosPendientes && this.athF08Listo && !this.athF08Guardando) {
+      this.athF08DescargandoPdf = true;
+      this.athF08Guardando = true;
+      this.backendService.guardarAthF08Formato(this.athF08Form, false)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.athF08Guardando = false;
+            this.athF08CambiosPendientes = false;
+            this.aplicarEstadoAthF08(res, this.mostrarAthF08Editor, false, false);
+            iniciarDescarga();
+          },
+          error: () => {
+            this.athF08Guardando = false;
+            this.athF08DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'No se pudo sincronizar el formato antes de generar el PDF.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+
+    iniciarDescarga();
+  }
+
   private fijarEditorEmbedUrlAthF08(url: string | null, forzar = false): void {
     if (!forzar && this.mostrarAthF08Editor && this.athF08EditorEmbedUrlSafe && this.athF08EditorUrl === url) {
       return;
@@ -20746,6 +20842,66 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           this.aplicarEstadoAthF09(res, true, false, true);
           this.athF09CambiosPendientes = false;
           this.athF09Guardando = false;
+        },
+        error: () => {
+          this.athF09Guardando = false;
+        }
+      });
+  }
+
+  descargarPdfAthF09(): void {
+    if (this.athF09DescargandoPdf || !this.athF09CotizacionActiva) {
+      return;
+    }
+    this.sincronizarCotizacionActivaEnFormAthF09();
+    const cotizacionId = this.athF09CotizacionActiva.id;
+    const nombreLocal = String(
+      this.athF09CotizacionActiva.folio
+      || this.athF09CotizacionActiva.folioBase
+      || this.athF09CotizacionActiva.empresa
+      || 'cotizacion'
+    ).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() || 'cotizacion';
+
+    const lanzarDescarga = () => {
+      this.athF09DescargandoPdf = true;
+      this.backendService.descargarPdfAthF09(cotizacionId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.athF09DescargandoPdf = false;
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = `ATH-F-09 ${nombreLocal}.pdf`;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.athF09DescargandoPdf = false;
+          }
+        });
+    };
+
+    if (!this.athF09CambiosPendientes) {
+      lanzarDescarga();
+      return;
+    }
+
+    if (this.athF09Guardando) {
+      return;
+    }
+    this.athF09Guardando = true;
+    this.backendService.guardarAthF09Formato(
+      { ...this.athF09Form, cotizacionActivaId: cotizacionId },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.aplicarEstadoAthF09(res, true, false, true);
+          this.athF09CambiosPendientes = false;
+          this.athF09Guardando = false;
+          lanzarDescarga();
         },
         error: () => {
           this.athF09Guardando = false;
@@ -27860,6 +28016,82 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     this.sgcF22CambiosPendientes = true;
+  }
+
+  descargarPdfSgcF22(): void {
+    if (this.sgcF22DescargandoPdf || !this.sgcF22ReporteActivo) {
+      return;
+    }
+    const reporteId = this.sgcF22ReporteActivo.id;
+    const folio = String(this.sgcF22ReporteActivo.folio || '').trim() || 'reporte';
+    const nombreArchivo = `SGC-F-22 ${folio}.pdf`.replace(/[\\/:*?"<>|]+/g, '_');
+
+    const iniciarDescarga = () => {
+      this.sgcF22DescargandoPdf = true;
+      this.backendService.descargarPdfSgcF22(reporteId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.sgcF22DescargandoPdf = false;
+            if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+              void Swal.fire({
+                icon: 'error',
+                title: 'No se pudo generar el PDF',
+                text: 'Guarda la información y vuelve a intentar. Si el problema continúa, revisa que la hoja exista en Drive.',
+                confirmButtonText: 'Entendido'
+              });
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = nombreArchivo;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.sgcF22DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo descargar el PDF',
+              text: 'Guarda la información primero para sincronizar la hoja en Drive e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    };
+
+    if (this.sgcF22CambiosPendientes && this.sgcF22Listo && !this.sgcF22Guardando) {
+      this.sgcF22DescargandoPdf = true;
+      this.sgcF22Guardando = true;
+      this.backendService.guardarSgcF22Formato(
+        { ...this.sgcF22Form, reporteActivoId: reporteId },
+        false
+      )
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.aplicarEstadoSgcF22(res, false, false);
+            this.sgcF22CambiosPendientes = false;
+            this.sgcF22Guardando = false;
+            this.sgcF22DescargandoPdf = false;
+            iniciarDescarga();
+          },
+          error: () => {
+            this.sgcF22Guardando = false;
+            this.sgcF22DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'No se guardaron los cambios antes de generar el PDF. Intenta de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+
+    iniciarDescarga();
   }
 
   onSeleccionarPdfSgcF22(event: Event): void {
