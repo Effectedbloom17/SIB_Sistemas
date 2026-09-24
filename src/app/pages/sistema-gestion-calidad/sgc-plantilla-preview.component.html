@@ -312,7 +312,7 @@
                     Actualizar versiones
                   </button>
                   <button
-                    *ngIf="puedeGestionarPlantillasSgc && plantillaSlug !== 'sgc-f-05' && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04')"
+                    *ngIf="puedeGestionarPlantillasSgc && plantillaSlug !== 'sgc-f-05' && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04')"
                     type="button"
                     class="btn btn-sm sgc-btn-save-info"
                     [disabled]="driveSyncCargando || driveSyncGuardando || (plantillaSlug === 'sgc-f-10' && sgcF10GuardandoHistorico)"
@@ -358,6 +358,28 @@
                     Abrir editor integrado
                   </button>
                   <button
+                    *ngIf="plantillaSlug === 'dg-f-05'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || dgF05DescargandoPdf"
+                    (click)="descargarPdfDgF05()"
+                    title="Generar PDF (carta, horizontal, ajustar al ancho, márgenes 1 cm)"
+                    aria-label="Generar PDF">
+                    <i class="fas" [ngClass]="dgF05DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ dgF05DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'dg-f-07'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || dgF07DescargandoPdf"
+                    (click)="descargarPdfDgF07()"
+                    title="Generar PDF (carta, vertical, ajustar al ancho, márgenes normales · hoja actual)"
+                    aria-label="Generar PDF">
+                    <i class="fas" [ngClass]="dgF07DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ dgF07DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
+                  </button>
+                  <button
                     *ngIf="plantillaSlug === 'sgc-f-16'"
                     type="button"
                     class="btn btn-sm sgc-btn-pdf-icon"
@@ -369,12 +391,34 @@
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF16DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
                   </button>
                   <button
+                    *ngIf="plantillaSlug === 'sgc-f-06'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF06DescargandoPdf"
+                    (click)="descargarPdfSgcF06()"
+                    title="Descargar PDF (Carta, horizontal, márgenes estrechos, escala 80%)"
+                    aria-label="Descargar PDF de la lista y calificación de auditores internos">
+                    <i class="fas" [ngClass]="sgcF06DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF06DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'sgc-f-07'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF07DescargandoPdf"
+                    (click)="descargarPdfSgcF07()"
+                    title="Generar PDF (carta, horizontal, ajustar a la página, márgenes estrechos)"
+                    aria-label="Generar PDF del programa de auditoría">
+                    <i class="fas" [ngClass]="sgcF07DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF07DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
+                  </button>
+                  <button
                     *ngIf="plantillaSlug === 'sgc-f-14'"
                     type="button"
                     class="btn btn-sm sgc-btn-pdf-icon"
                     [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF14DescargandoPdf"
                     (click)="descargarPdfSgcF14()"
-                    title="Descargar PDF (Legal, horizontal, márgenes anchos, ajustar al ancho)"
+                    title="Descargar PDF (Carta, horizontal, márgenes estrechos, escala 85%)"
                     aria-label="Descargar PDF de la bitácora de proyectos de mejora">
                     <i class="fas" [ngClass]="sgcF14DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF14DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
@@ -385,7 +429,7 @@
                     class="btn btn-sm sgc-btn-pdf-icon"
                     [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF04DescargandoPdf || !sgcF04ReporteActivo"
                     (click)="descargarPdfSgcF04()"
-                    title="Descargar PDF (Legal, márgenes 0.5 pulgada, escala 70%)"
+                    title="Descargar PDF (Carta, ajustar al ancho, márgenes 0.5/1.4/1.0/1.0)"
                     aria-label="Descargar PDF del reporte de no conformidad">
                     <i class="fas" [ngClass]="sgcF04DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF04DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
@@ -2432,7 +2476,9 @@
                       </div>
                       <div>
                         <h3 class="dg-f02-attach__title">Versión firmada</h3>
-                        <p class="dg-f02-attach__desc mb-0">Sube el PDF con firmas de dirección para el expediente del SGC.</p>
+                        <p class="dg-f02-attach__desc mb-0">
+                          Sube el PDF firmado. Cada carga se agrega al historial de este mapa (no reemplaza versiones anteriores).
+                        </p>
                       </div>
                     </div>
                     <label class="dg-f02-attach__dropzone" *ngIf="!dgF01Form.pdfFirmado?.driveFileId"
@@ -2452,24 +2498,66 @@
                     <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="dgF01Form.pdfFirmado as pdf">
                       <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
                       <div class="dg-f02-attach__file-info">
+                        <span class="dg-f02-attach__file-badge">Vigente</span>
                         <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo || 'DG-F-01 Mapa de procesos.pdf' }}</strong>
                         <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                          <i class="far fa-calendar-alt" aria-hidden="true"></i>
                           Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}
                         </small>
                       </div>
                       <div class="dg-f02-attach__file-actions" *ngIf="dgF01Form.pdfFirmado?.driveFileId">
                         <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
                           (click)="toggleDgF01PdfViewer()">
-                          <i class="fas fa-expand mr-1" aria-hidden="true"></i>
+                          <i class="fas fa-expand" aria-hidden="true"></i>
                           Pantalla completa
                         </button>
                         <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
                           [disabled]="dgF01SubiendoPdf"
                           (click)="dgF01InputActualizarPdf.click()">
-                          <i class="fas mr-1" [ngClass]="dgF01SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-sync-alt'" aria-hidden="true"></i>
-                          {{ dgF01SubiendoPdf ? 'Subiendo a Drive…' : 'Actualizar Documento' }}
+                          <i class="fas" [ngClass]="dgF01SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                          {{ dgF01SubiendoPdf ? 'Subiendo…' : 'Nueva versión' }}
                         </button>
                       </div>
+                    </div>
+
+                    <div class="sgc-pdf-historial" *ngIf="dgF01HistorialPdfs.length">
+                      <div class="sgc-pdf-historial__head">
+                        <div class="sgc-pdf-historial__icon" aria-hidden="true">
+                          <i class="fas fa-history"></i>
+                        </div>
+                        <div>
+                          <h4 class="sgc-pdf-historial__title">Historial de PDFs firmados</h4>
+                          <p class="sgc-pdf-historial__hint">Solo versiones firmadas de este mapa de procesos.</p>
+                        </div>
+                      </div>
+                      <ul class="sgc-pdf-historial__list">
+                        <li class="sgc-pdf-historial__item" *ngFor="let hist of dgF01HistorialPdfs; let i = index">
+                          <div class="sgc-pdf-historial__item-main">
+                            <span class="sgc-pdf-historial__ver">{{ dgF01HistorialPdfs.length - i }}</span>
+                            <div class="sgc-pdf-historial__meta">
+                              <strong class="sgc-pdf-historial__name">{{ hist.nombreArchivo }}</strong>
+                              <small class="sgc-pdf-historial__date" *ngIf="hist.fechaSubida">
+                                <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                                {{ formatearFechaDgF02(hist.fechaSubida) }}
+                              </small>
+                            </div>
+                          </div>
+                          <div class="sgc-pdf-historial__actions">
+                            <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                              (click)="toggleDgF01PdfViewer(hist)">
+                              <i class="fas fa-eye" aria-hidden="true"></i>
+                              Abrir
+                            </button>
+                            <button *ngIf="puedeBorrarPdfHistorialDgF01" type="button"
+                              class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--danger"
+                              [disabled]="dgF01BorrandoPdf"
+                              (click)="eliminarPdfHistorialDgF01(hist)"
+                              title="Eliminar PDF del historial">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </li>
+                      </ul>
                     </div>
                   </aside>
                 </div>
@@ -2568,7 +2656,9 @@
                       </div>
                       <div>
                         <h3 class="dg-f02-attach__title">Versión firmada</h3>
-                        <p class="dg-f02-attach__desc mb-0">Sube el PDF con firmas de dirección para el expediente del SGC.</p>
+                        <p class="dg-f02-attach__desc mb-0">
+                          Sube el PDF firmado. Cada carga se agrega al historial de este alcance (no reemplaza versiones anteriores).
+                        </p>
                       </div>
                     </div>
                     <label class="dg-f02-attach__dropzone" *ngIf="!dgF02Form.pdfFirmado?.driveFileId"
@@ -2588,24 +2678,66 @@
                     <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="dgF02Form.pdfFirmado as pdf">
                       <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
                       <div class="dg-f02-attach__file-info">
+                        <span class="dg-f02-attach__file-badge">Vigente</span>
                         <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo || 'DG-F-02 Alcance.pdf' }}</strong>
                         <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                          <i class="far fa-calendar-alt" aria-hidden="true"></i>
                           Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}
                         </small>
                       </div>
                       <div class="dg-f02-attach__file-actions" *ngIf="dgF02Form.pdfFirmado?.driveFileId">
                         <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
                           (click)="toggleDgF02PdfViewer()">
-                          <i class="fas fa-eye mr-1" aria-hidden="true"></i>
+                          <i class="fas fa-eye" aria-hidden="true"></i>
                           Abrir
                         </button>
                         <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
                           [disabled]="dgF02SubiendoPdf"
                           (click)="dgF02InputActualizarPdf.click()">
-                          <i class="fas mr-1" [ngClass]="dgF02SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-sync-alt'" aria-hidden="true"></i>
-                          {{ dgF02SubiendoPdf ? 'Subiendo a Drive…' : 'Actualizar Documento' }}
+                          <i class="fas" [ngClass]="dgF02SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                          {{ dgF02SubiendoPdf ? 'Subiendo…' : 'Nueva versión' }}
                         </button>
                       </div>
+                    </div>
+
+                    <div class="sgc-pdf-historial" *ngIf="dgF02HistorialPdfs.length">
+                      <div class="sgc-pdf-historial__head">
+                        <div class="sgc-pdf-historial__icon" aria-hidden="true">
+                          <i class="fas fa-history"></i>
+                        </div>
+                        <div>
+                          <h4 class="sgc-pdf-historial__title">Historial de PDFs firmados</h4>
+                          <p class="sgc-pdf-historial__hint">Solo versiones firmadas de este alcance.</p>
+                        </div>
+                      </div>
+                      <ul class="sgc-pdf-historial__list">
+                        <li class="sgc-pdf-historial__item" *ngFor="let hist of dgF02HistorialPdfs; let i = index">
+                          <div class="sgc-pdf-historial__item-main">
+                            <span class="sgc-pdf-historial__ver">{{ dgF02HistorialPdfs.length - i }}</span>
+                            <div class="sgc-pdf-historial__meta">
+                              <strong class="sgc-pdf-historial__name">{{ hist.nombreArchivo }}</strong>
+                              <small class="sgc-pdf-historial__date" *ngIf="hist.fechaSubida">
+                                <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                                {{ formatearFechaDgF02(hist.fechaSubida) }}
+                              </small>
+                            </div>
+                          </div>
+                          <div class="sgc-pdf-historial__actions">
+                            <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                              (click)="toggleDgF02PdfViewer(hist)">
+                              <i class="fas fa-eye" aria-hidden="true"></i>
+                              Abrir
+                            </button>
+                            <button *ngIf="puedeBorrarPdfHistorialDgF02" type="button"
+                              class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--danger"
+                              [disabled]="dgF02BorrandoPdf"
+                              (click)="eliminarPdfHistorialDgF02(hist)"
+                              title="Eliminar PDF del historial">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </li>
+                      </ul>
                     </div>
                   </aside>
                 </div>
@@ -2696,7 +2828,9 @@
                       </div>
                       <div>
                         <h3 class="dg-f02-attach__title">Versión firmada</h3>
-                        <p class="dg-f02-attach__desc mb-0">Sube el PDF con firmas de dirección para el expediente del SGC.</p>
+                        <p class="dg-f02-attach__desc mb-0">
+                          Sube el PDF firmado. Cada carga se agrega al historial de esta política (no reemplaza versiones anteriores).
+                        </p>
                       </div>
                     </div>
                     <label class="dg-f02-attach__dropzone" *ngIf="!sgcPo01Form.pdfFirmado?.driveFileId"
@@ -2716,24 +2850,66 @@
                     <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="sgcPo01Form.pdfFirmado as pdf">
                       <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
                       <div class="dg-f02-attach__file-info">
+                        <span class="dg-f02-attach__file-badge">Vigente</span>
                         <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo || 'SGC-PO-01 Politica de calidad_Biznaga.pdf' }}</strong>
                         <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                          <i class="far fa-calendar-alt" aria-hidden="true"></i>
                           Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}
                         </small>
                       </div>
                       <div class="dg-f02-attach__file-actions" *ngIf="sgcPo01Form.pdfFirmado?.driveFileId">
                         <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
                           (click)="toggleSgcPo01PdfViewer()">
-                          <i class="fas fa-eye mr-1" aria-hidden="true"></i>
+                          <i class="fas fa-eye" aria-hidden="true"></i>
                           Abrir
                         </button>
                         <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
                           [disabled]="sgcPo01SubiendoPdf"
                           (click)="sgcPo01InputActualizarPdf.click()">
-                          <i class="fas mr-1" [ngClass]="sgcPo01SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-sync-alt'" aria-hidden="true"></i>
-                          {{ sgcPo01SubiendoPdf ? 'Subiendo a Drive…' : 'Actualizar Documento' }}
+                          <i class="fas" [ngClass]="sgcPo01SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                          {{ sgcPo01SubiendoPdf ? 'Subiendo…' : 'Nueva versión' }}
                         </button>
                       </div>
+                    </div>
+
+                    <div class="sgc-pdf-historial" *ngIf="sgcPo01HistorialPdfs.length">
+                      <div class="sgc-pdf-historial__head">
+                        <div class="sgc-pdf-historial__icon" aria-hidden="true">
+                          <i class="fas fa-history"></i>
+                        </div>
+                        <div>
+                          <h4 class="sgc-pdf-historial__title">Historial de PDFs firmados</h4>
+                          <p class="sgc-pdf-historial__hint">Solo versiones firmadas de esta política de calidad.</p>
+                        </div>
+                      </div>
+                      <ul class="sgc-pdf-historial__list">
+                        <li class="sgc-pdf-historial__item" *ngFor="let hist of sgcPo01HistorialPdfs; let i = index">
+                          <div class="sgc-pdf-historial__item-main">
+                            <span class="sgc-pdf-historial__ver">{{ sgcPo01HistorialPdfs.length - i }}</span>
+                            <div class="sgc-pdf-historial__meta">
+                              <strong class="sgc-pdf-historial__name">{{ hist.nombreArchivo }}</strong>
+                              <small class="sgc-pdf-historial__date" *ngIf="hist.fechaSubida">
+                                <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                                {{ formatearFechaDgF02(hist.fechaSubida) }}
+                              </small>
+                            </div>
+                          </div>
+                          <div class="sgc-pdf-historial__actions">
+                            <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                              (click)="toggleSgcPo01PdfViewer(hist)">
+                              <i class="fas fa-eye" aria-hidden="true"></i>
+                              Abrir
+                            </button>
+                            <button *ngIf="puedeBorrarPdfHistorialSgcPo01" type="button"
+                              class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--danger"
+                              [disabled]="sgcPo01BorrandoPdf"
+                              (click)="eliminarPdfHistorialSgcPo01(hist)"
+                              title="Eliminar PDF del historial">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </li>
+                      </ul>
                     </div>
                   </aside>
                 </div>
@@ -2840,7 +3016,9 @@
                       </div>
                       <div>
                         <h3 class="dg-f02-attach__title">Versión firmada</h3>
-                        <p class="dg-f02-attach__desc mb-0">Sube el PDF con firmas de dirección para el expediente del SGC.</p>
+                        <p class="dg-f02-attach__desc mb-0">
+                          Sube el PDF firmado. Cada carga se agrega al historial de esta filosofía (no reemplaza versiones anteriores).
+                        </p>
                       </div>
                     </div>
                     <label class="dg-f02-attach__dropzone" *ngIf="!dgF08Form.pdfFirmado?.driveFileId"
@@ -2860,24 +3038,66 @@
                     <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="dgF08Form.pdfFirmado as pdf">
                       <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
                       <div class="dg-f02-attach__file-info">
+                        <span class="dg-f02-attach__file-badge">Vigente</span>
                         <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo || 'DG-F-08 Filosofía Biznaga Risk and Tech.pdf' }}</strong>
                         <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                          <i class="far fa-calendar-alt" aria-hidden="true"></i>
                           Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}
                         </small>
                       </div>
                       <div class="dg-f02-attach__file-actions" *ngIf="dgF08Form.pdfFirmado?.driveFileId">
                         <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
                           (click)="toggleDgF08PdfViewer()">
-                          <i class="fas fa-eye mr-1" aria-hidden="true"></i>
+                          <i class="fas fa-eye" aria-hidden="true"></i>
                           Abrir
                         </button>
                         <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
                           [disabled]="dgF08SubiendoPdf"
                           (click)="dgF08InputActualizarPdf.click()">
-                          <i class="fas mr-1" [ngClass]="dgF08SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-sync-alt'" aria-hidden="true"></i>
-                          {{ dgF08SubiendoPdf ? 'Subiendo a Drive…' : 'Actualizar Documento' }}
+                          <i class="fas" [ngClass]="dgF08SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                          {{ dgF08SubiendoPdf ? 'Subiendo…' : 'Nueva versión' }}
                         </button>
                       </div>
+                    </div>
+
+                    <div class="sgc-pdf-historial" *ngIf="dgF08HistorialPdfs.length">
+                      <div class="sgc-pdf-historial__head">
+                        <div class="sgc-pdf-historial__icon" aria-hidden="true">
+                          <i class="fas fa-history"></i>
+                        </div>
+                        <div>
+                          <h4 class="sgc-pdf-historial__title">Historial de PDFs firmados</h4>
+                          <p class="sgc-pdf-historial__hint">Solo versiones firmadas de esta filosofía.</p>
+                        </div>
+                      </div>
+                      <ul class="sgc-pdf-historial__list">
+                        <li class="sgc-pdf-historial__item" *ngFor="let hist of dgF08HistorialPdfs; let i = index">
+                          <div class="sgc-pdf-historial__item-main">
+                            <span class="sgc-pdf-historial__ver">{{ dgF08HistorialPdfs.length - i }}</span>
+                            <div class="sgc-pdf-historial__meta">
+                              <strong class="sgc-pdf-historial__name">{{ hist.nombreArchivo }}</strong>
+                              <small class="sgc-pdf-historial__date" *ngIf="hist.fechaSubida">
+                                <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                                {{ formatearFechaDgF02(hist.fechaSubida) }}
+                              </small>
+                            </div>
+                          </div>
+                          <div class="sgc-pdf-historial__actions">
+                            <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                              (click)="toggleDgF08PdfViewer(hist)">
+                              <i class="fas fa-eye" aria-hidden="true"></i>
+                              Abrir
+                            </button>
+                            <button *ngIf="puedeBorrarPdfHistorialDgF08" type="button"
+                              class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--danger"
+                              [disabled]="dgF08BorrandoPdf"
+                              (click)="eliminarPdfHistorialDgF08(hist)"
+                              title="Eliminar PDF del historial">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </li>
+                      </ul>
                     </div>
                   </aside>
                 </div>
@@ -3261,44 +3481,54 @@
                     <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="afF02Form.pdfFirmado as pdf">
                       <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
                       <div class="dg-f02-attach__file-info">
+                        <span class="dg-f02-attach__file-badge">Vigente</span>
                         <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo || 'AF-F-02 Contrato.pdf' }}</strong>
                         <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                          <i class="far fa-calendar-alt" aria-hidden="true"></i>
                           Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}
                         </small>
                       </div>
                       <div class="dg-f02-attach__file-actions" *ngIf="afF02Form.pdfFirmado?.driveFileId">
                         <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
                           (click)="toggleAfF02PdfViewer()">
-                          <i class="fas fa-eye mr-1" aria-hidden="true"></i>
+                          <i class="fas fa-eye" aria-hidden="true"></i>
                           Abrir
                         </button>
                         <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
                           [disabled]="afF02SubiendoPdf"
                           (click)="afF02InputActualizarPdf.click()">
-                          <i class="fas mr-1" [ngClass]="afF02SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
-                          {{ afF02SubiendoPdf ? 'Subiendo a Drive…' : 'Subir nueva versión' }}
+                          <i class="fas" [ngClass]="afF02SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                          {{ afF02SubiendoPdf ? 'Subiendo…' : 'Nueva versión' }}
                         </button>
                       </div>
                     </div>
 
-                    <div class="af-f02-historial-pdfs" *ngIf="afF02HistorialPdfsVista.length">
-                      <h4 class="af-f02-historial-pdfs__title">
-                        <i class="fas fa-file-pdf mr-1" aria-hidden="true"></i>
-                        Historial de PDFs firmados
-                      </h4>
-                      <p class="af-f02-historial-pdfs__hint">Solo versiones firmadas de este contrato.</p>
-                      <ul class="af-f02-historial-pdfs__list">
-                        <li class="af-f02-historial-pdfs__item" *ngFor="let hist of afF02HistorialPdfsVista">
-                          <div class="af-f02-historial-pdfs__item-main">
-                            <i class="fas fa-file-pdf" aria-hidden="true"></i>
-                            <div>
-                              <strong>{{ hist.nombreArchivo }}</strong>
-                              <small *ngIf="hist.fechaSubida">{{ formatearFechaDgF02(hist.fechaSubida) }}</small>
+                    <div class="sgc-pdf-historial" *ngIf="afF02HistorialPdfsVista.length">
+                      <div class="sgc-pdf-historial__head">
+                        <div class="sgc-pdf-historial__icon" aria-hidden="true">
+                          <i class="fas fa-history"></i>
+                        </div>
+                        <div>
+                          <h4 class="sgc-pdf-historial__title">Historial de PDFs firmados</h4>
+                          <p class="sgc-pdf-historial__hint">Solo versiones firmadas de este contrato.</p>
+                        </div>
+                      </div>
+                      <ul class="sgc-pdf-historial__list">
+                        <li class="sgc-pdf-historial__item" *ngFor="let hist of afF02HistorialPdfsVista; let i = index">
+                          <div class="sgc-pdf-historial__item-main">
+                            <span class="sgc-pdf-historial__ver">{{ afF02HistorialPdfsVista.length - i }}</span>
+                            <div class="sgc-pdf-historial__meta">
+                              <strong class="sgc-pdf-historial__name">{{ hist.nombreArchivo }}</strong>
+                              <small class="sgc-pdf-historial__date" *ngIf="hist.fechaSubida">
+                                <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                                {{ formatearFechaDgF02(hist.fechaSubida) }}
+                              </small>
                             </div>
                           </div>
-                          <div class="af-f02-historial-pdfs__actions">
+                          <div class="sgc-pdf-historial__actions">
                             <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
                               (click)="toggleAfF02PdfViewer(hist)">
+                              <i class="fas fa-eye" aria-hidden="true"></i>
                               Abrir
                             </button>
                             <button *ngIf="puedeBorrarPdfHistorialAfF02" type="button"
@@ -3940,12 +4170,14 @@
                                   [(ngModel)]="fila.parteInteresada" [name]="'dgF05_pi' + i"></textarea>
                               </td>
                               <td class="dg-f05-table__col--tipo dg-f05-table__col--center">
-                                <select class="dg-f05-field dg-f05-field--select dg-f05-field--center"
-                                  [(ngModel)]="fila.tipo" [name]="'dgF05_tipo' + i">
-                                  <option value="">—</option>
-                                  <option value="Interno">Interno</option>
-                                  <option value="Externo">Externo</option>
-                                </select>
+                                <div class="dg-f05-seg dg-f05-seg--tipo" role="group" aria-label="Interno o externo">
+                                  <button type="button" class="dg-f05-seg__btn dg-f05-seg__btn--interno"
+                                    [class.is-active]="fila.tipo === 'Interno'"
+                                    (click)="setDgF05Campo(fila, 'tipo', 'Interno')">Interno</button>
+                                  <button type="button" class="dg-f05-seg__btn dg-f05-seg__btn--externo"
+                                    [class.is-active]="fila.tipo === 'Externo'"
+                                    (click)="setDgF05Campo(fila, 'tipo', 'Externo')">Externo</button>
+                                </div>
                               </td>
                               <td class="dg-f05-table__col--necesidades-parte">
                                 <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left"
@@ -3960,13 +4192,17 @@
                                   [(ngModel)]="fila.necesidadesOrg" [name]="'dgF05_no' + i"></textarea>
                               </td>
                               <td class="dg-f05-table__col--influencia dg-f05-table__col--center">
-                                <select class="dg-f05-field dg-f05-field--select dg-f05-field--center"
-                                  [(ngModel)]="fila.influencia" [name]="'dgF05_inf' + i">
-                                  <option value="">—</option>
-                                  <option value="Alta">Alta</option>
-                                  <option value="Media">Media</option>
-                                  <option value="Baja">Baja</option>
-                                </select>
+                                <div class="dg-f05-seg dg-f05-seg--influencia" role="group" aria-label="Influencia">
+                                  <button type="button" class="dg-f05-seg__btn dg-f05-seg__btn--alta"
+                                    [class.is-active]="fila.influencia === 'Alta'"
+                                    (click)="setDgF05Campo(fila, 'influencia', 'Alta')">Alta</button>
+                                  <button type="button" class="dg-f05-seg__btn dg-f05-seg__btn--media"
+                                    [class.is-active]="fila.influencia === 'Media'"
+                                    (click)="setDgF05Campo(fila, 'influencia', 'Media')">Media</button>
+                                  <button type="button" class="dg-f05-seg__btn dg-f05-seg__btn--baja"
+                                    [class.is-active]="fila.influencia === 'Baja'"
+                                    (click)="setDgF05Campo(fila, 'influencia', 'Baja')">Baja</button>
+                                </div>
                               </td>
                               <td class="dg-f05-table__col--center">
                                 <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--center"
@@ -4000,19 +4236,6 @@
                         </p>
                       </div>
                     </div>
-
-                    <footer class="dg-f05-signatures">
-                      <label class="dg-f05-signature">
-                        <span class="dg-f05-signature__label">Elaboró y revisó</span>
-                        <input class="dg-f05-field dg-f05-field--signature" type="text"
-                          name="dgF05_elab" [(ngModel)]="dgF05Form.elaboro" autocomplete="off">
-                      </label>
-                      <label class="dg-f05-signature">
-                        <span class="dg-f05-signature__label">Autorizó</span>
-                        <input class="dg-f05-field dg-f05-field--signature" type="text"
-                          name="dgF05_aut" [(ngModel)]="dgF05Form.autorizo" autocomplete="off">
-                      </label>
-                    </footer>
                   </article>
                 </div>
               </form>
@@ -4032,12 +4255,31 @@
                       <h3 class="dg-f05-doc__title">Tabla de requisitos legales y reglamentarios</h3>
                     </header>
 
-                    <div class="dg-f05-doc__meta">
+                    <div class="dg-f05-doc__meta dg-f05-doc__meta--sgc-f18">
                       <label class="dg-f05-meta-field">
                         <span class="dg-f05-meta-field__label">Revisión</span>
-                        <input class="dg-f05-field" type="text"
-                          name="sgcF18_revision" [(ngModel)]="sgcF18Form.revision" autocomplete="off">
+                        <input class="dg-f05-field dg-f05-field--readonly" type="text"
+                          name="sgcF18_revision" [ngModel]="sgcF18Form.revision" readonly
+                          title="Revisión según lista maestra (SGC-F-01)">
                       </label>
+                      <div class="sgc-f18-resumen" aria-label="Resumen de vigencia">
+                        <span class="sgc-chip sgc-chip--info">
+                          <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                          {{ sgcF18Form.filas.length }} requisitos
+                        </span>
+                        <span class="sgc-chip sgc-chip--success">
+                          <i class="fas fa-check-circle" aria-hidden="true"></i>
+                          {{ contarVigenciaSgcF18('Vigente') }} vigentes
+                        </span>
+                        <span class="sgc-chip sgc-chip--warning" *ngIf="contarVigenciaSgcF18('En trámite')">
+                          <i class="fas fa-clock" aria-hidden="true"></i>
+                          {{ contarVigenciaSgcF18('En trámite') }} en trámite
+                        </span>
+                        <span class="sgc-chip sgc-chip--danger" *ngIf="contarVigenciaSgcF18('No vigente')">
+                          <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+                          {{ contarVigenciaSgcF18('No vigente') }} no vigentes
+                        </span>
+                      </div>
                       <label class="dg-f05-meta-field">
                         <span class="dg-f05-meta-field__label">Fecha de revisión</span>
                         <input class="dg-f05-field dg-f05-field--readonly" type="date"
@@ -4046,30 +4288,25 @@
                       </label>
                     </div>
 
-                    <p class="dg-f05-instrucciones" role="note">
-                      <span class="dg-f05-instrucciones__label">Sistema de Gestión de Calidad [5.1.2]</span>
-                      Registra las leyes, normas, reglamentos y otros requisitos legales aplicables, su vigencia y responsable del cumplimiento.
-                    </p>
-
                     <div class="dg-f05-table-panel">
                       <div class="sgc-f-11-matriz__intro">
                         <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-gavel" aria-hidden="true"></i></div>
                         <div>
                           <h4 class="sgc-f-11-matriz__title">Requisitos legales y reglamentarios</h4>
-                          <p class="sgc-f-11-matriz__hint">Leyes, normas y reglamentos aplicables, su año de vigor, vigencia y responsable del cumplimiento.</p>
+                          <p class="sgc-f-11-matriz__hint">Nombre de la ley, norma o reglamento; instancia que lo emite; fecha o año de entrada en vigor; documento / requisito; vigencia y responsable del cumplimiento.</p>
                         </div>
                       </div>
-                      <div class="dg-f05-table-wrap dg-f05-table-wrap--scroll">
+                      <div class="dg-f05-table-wrap sgc-f18-table-wrap">
                         <table class="dg-f05-table sgc-f18-table">
                           <colgroup>
                             <col><col><col><col><col><col><col><col>
                           </colgroup>
                           <thead>
                             <tr>
-                              <th>Nombre de la ley, norma, reglamento</th>
+                              <th>Nombre de la ley, norma, reglamento u otro</th>
                               <th>Emite / Instancia reguladora</th>
-                              <th>Año de vigor</th>
-                              <th>Documento legal / Requisito</th>
+                              <th>Fecha / año de entrada en vigor</th>
+                              <th>Documento legal (si existe) / Requisito</th>
                               <th class="dg-f05-table__col--tipo">Vigencia</th>
                               <th>Responsable del cumplimiento</th>
                               <th>Observaciones</th>
@@ -4078,43 +4315,50 @@
                           </thead>
                           <tbody>
                             <tr *ngFor="let fila of sgcF18Form.filas; trackBy: trackByIdx; let i = index">
-                              <td>
-                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left"
-                                  [attr.rows]="filasTexto(fila.nombre)"
+                              <td class="sgc-f18-td">
+                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--center sgc-f18-field"
+                                  rows="1"
+                                  (input)="onSgcF18TextareaInput($event)"
                                   [(ngModel)]="fila.nombre" [name]="'sgcF18_n' + i"></textarea>
                               </td>
-                              <td class="dg-f05-table__col--center">
-                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--center"
-                                  [attr.rows]="filasTexto(fila.emite)"
+                              <td class="dg-f05-table__col--center sgc-f18-td sgc-f18-col-emite">
+                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--center sgc-f18-field"
+                                  rows="1"
+                                  (input)="onSgcF18TextareaInput($event)"
                                   [(ngModel)]="fila.emite" [name]="'sgcF18_e' + i"></textarea>
                               </td>
-                              <td class="dg-f05-table__col--center">
-                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--center"
-                                  [attr.rows]="filasTexto(fila.fechaVigor)"
+                              <td class="dg-f05-table__col--center sgc-f18-td sgc-f18-col-fecha">
+                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--center sgc-f18-field"
+                                  rows="1"
+                                  (input)="onSgcF18TextareaInput($event)"
                                   [(ngModel)]="fila.fechaVigor" [name]="'sgcF18_fv' + i"></textarea>
                               </td>
-                              <td>
-                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left"
-                                  [attr.rows]="filasTexto(fila.documento)"
+                              <td class="dg-f05-table__col--center sgc-f18-td">
+                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--center sgc-f18-field"
+                                  rows="1"
+                                  (input)="onSgcF18TextareaInput($event)"
                                   [(ngModel)]="fila.documento" [name]="'sgcF18_d' + i"></textarea>
                               </td>
-                              <td class="dg-f05-table__col--tipo dg-f05-table__col--center">
-                                <select class="dg-f05-field dg-f05-field--select dg-f05-field--center"
-                                  [(ngModel)]="fila.vigencia" [name]="'sgcF18_v' + i">
+                              <td class="dg-f05-table__col--tipo dg-f05-table__col--center sgc-f18-td">
+                                <select class="dg-f05-field dg-f05-field--select dg-f05-field--center sgc-f18-vigencia-select"
+                                  [(ngModel)]="fila.vigencia" [name]="'sgcF18_v' + i"
+                                  [attr.data-estado]="fila.vigencia || ''">
                                   <option value="">—</option>
                                   <option value="Vigente">Vigente</option>
-                                  <option value="No vigente">No vigente</option>
                                   <option value="En trámite">En trámite</option>
+                                  <option value="No vigente">No vigente</option>
                                 </select>
                               </td>
-                              <td class="dg-f05-table__col--center">
-                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--center"
-                                  [attr.rows]="filasTexto(fila.responsable)"
+                              <td class="dg-f05-table__col--center sgc-f18-td">
+                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--center sgc-f18-field"
+                                  rows="1"
+                                  (input)="onSgcF18TextareaInput($event)"
                                   [(ngModel)]="fila.responsable" [name]="'sgcF18_r' + i"></textarea>
                               </td>
-                              <td class="dg-f05-table__col--center">
-                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--center"
-                                  [attr.rows]="filasTexto(fila.observaciones)"
+                              <td class="dg-f05-table__col--center sgc-f18-td">
+                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--center sgc-f18-field"
+                                  rows="1"
+                                  (input)="onSgcF18TextareaInput($event)"
                                   [(ngModel)]="fila.observaciones" [name]="'sgcF18_o' + i"></textarea>
                               </td>
                               <td class="dg-f05-table__act">
@@ -4139,7 +4383,7 @@
                       <span class="dg-f05-meta-field__label">Fecha de revisión de la información contenida</span>
                       <input class="dg-f05-field" type="text"
                         name="sgcF18_fechaRevInfo" [(ngModel)]="sgcF18Form.fechaRevisionInformacion" autocomplete="off"
-                        placeholder="Ej. 03-07-2025">
+                        placeholder="Ej. 20-01-2025">
                     </label>
                   </article>
                 </div>
@@ -4383,7 +4627,7 @@
                                 <th class="sgc-f-07-table__col--equipo">Equipo Auditor</th>
                                 <th class="sgc-f-07-table__col--lider">Auditor Líder</th>
                                 <th class="sgc-f-07-table__col--metodo">Método</th>
-                                <th class="sgc-f-07-table__col--fecha-aud">Fecha</th>
+                                <th class="sgc-f-07-table__col--fecha-aud">Fecha<br><small>P / R</small></th>
                               </tr>
                             </thead>
                             <tbody>
@@ -4422,9 +4666,22 @@
                                     [attr.rows]="filasTexto(auditoria.metodoAuditoria)"
                                     [(ngModel)]="auditoria.metodoAuditoria" [name]="'sgcF07_met' + i"></textarea>
                                 </td>
-                                <td>
-                                  <input class="dg-f05-field dg-f05-field--center" type="text"
-                                    [(ngModel)]="auditoria.fecha" [name]="'sgcF07_fec' + i">
+                                <td class="sgc-f-07-fecha-cell">
+                                  <div class="sgc-f-07-fecha-pair">
+                                    <label class="sgc-f-07-fecha-row">
+                                      <span class="sgc-f-07-fecha-tag sgc-f-07-fecha-tag--p" title="Auditoría programada">P</span>
+                                      <input class="dg-f05-field dg-f05-field--center" type="text"
+                                        [(ngModel)]="auditoria.fechaP" [name]="'sgcF07_fecP' + i"
+                                        placeholder="Programada"
+                                        (ngModelChange)="auditoria.fecha = auditoria.fechaP">
+                                    </label>
+                                    <label class="sgc-f-07-fecha-row">
+                                      <span class="sgc-f-07-fecha-tag sgc-f-07-fecha-tag--r" title="Revisión por Dirección">R</span>
+                                      <input class="dg-f05-field dg-f05-field--center" type="text"
+                                        [(ngModel)]="auditoria.fechaR" [name]="'sgcF07_fecR' + i"
+                                        placeholder="Revisión Dir.">
+                                    </label>
+                                  </div>
                                 </td>
                               </tr>
                             </tbody>
@@ -4437,7 +4694,7 @@
                           <span class="sgc-f-11-split-block__badge sgc-f-11-split-block__badge--acciones">2</span>
                           <div>
                             <strong class="sgc-f-11-split-block__title">Calendario y seguimiento</strong>
-                            <span class="sgc-f-11-split-block__subtitle">Vista compacta por auditoría (12 meses y 4 semanas por mes)</span>
+                            <span class="sgc-f-11-split-block__subtitle">Vista por mes: fila P (programada) y R (realizada), semanas 1 a 4</span>
                           </div>
                         </header>
                         <div class="sgc-f-07-cal-search">
@@ -4490,15 +4747,30 @@
                           <div class="sgc-f-07-cal-meses">
                             <section class="sgc-f-07-cal-mes" *ngFor="let mes of sgcF07Meses">
                               <h5 class="sgc-f-07-cal-mes__title">{{ mes.label }}</h5>
-                              <div class="sgc-f-07-cal-mes__weeks">
+                              <div class="sgc-f-07-cal-mes__grid" role="grid" [attr.aria-label]="'Calendario ' + mes.label">
+                                <span class="sgc-f-07-cal-mes__corner" aria-hidden="true"></span>
+                                <span class="sgc-f-07-cal-mes__week-h" *ngFor="let sem of [1, 2, 3, 4]">{{ sem }}</span>
+
+                                <span class="sgc-f-07-cal-mes__row-label sgc-f-07-cal-mes__row-label--p" title="Programada">P</span>
                                 <button type="button"
-                                  *ngFor="let sem of [0, 1, 2, 3]; let si = index"
-                                  class="sgc-f-07-check"
-                                  [class.sgc-f-07-check--on]="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si)"
-                                  (click)="toggleSgcF07Calendario(auditoriaActiva, mes.key, si)"
-                                  [attr.aria-label]="'Semana ' + (si + 1) + ' de ' + mes.label">
-                                  <span class="sgc-f-07-check__tag">s{{ si + 1 }}</span>
-                                  <span class="sgc-f-07-check__mark" *ngIf="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si)">X</span>
+                                  *ngFor="let si of [0, 1, 2, 3]"
+                                  class="sgc-f-07-check sgc-f-07-check--p"
+                                  [class.sgc-f-07-check--on]="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si, 'P')"
+                                  (click)="toggleSgcF07Calendario(auditoriaActiva, mes.key, si, 'P')"
+                                  [attr.aria-label]="'Programada semana ' + (si + 1) + ' de ' + mes.label"
+                                  [attr.aria-pressed]="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si, 'P')">
+                                  <span class="sgc-f-07-check__mark" *ngIf="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si, 'P')">P</span>
+                                </button>
+
+                                <span class="sgc-f-07-cal-mes__row-label sgc-f-07-cal-mes__row-label--r" title="Realizada">R</span>
+                                <button type="button"
+                                  *ngFor="let si of [0, 1, 2, 3]"
+                                  class="sgc-f-07-check sgc-f-07-check--r"
+                                  [class.sgc-f-07-check--on]="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si, 'R')"
+                                  (click)="toggleSgcF07Calendario(auditoriaActiva, mes.key, si, 'R')"
+                                  [attr.aria-label]="'Realizada semana ' + (si + 1) + ' de ' + mes.label"
+                                  [attr.aria-pressed]="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si, 'R')">
+                                  <span class="sgc-f-07-check__mark" *ngIf="sgcF07SemanaMarcada(auditoriaActiva, mes.key, si, 'R')">R</span>
                                 </button>
                               </div>
                             </section>
@@ -4516,6 +4788,88 @@
                       </div>
                     </div>
                   </article>
+
+                  <aside class="dg-f02-attach sgc-f-07-attach" aria-label="Documento firmado">
+                    <div class="dg-f02-attach__head">
+                      <div class="dg-f02-attach__icon-wrap">
+                        <i class="fas fa-file-signature" aria-hidden="true"></i>
+                      </div>
+                      <div>
+                        <h3 class="dg-f02-attach__title">Versión firmada</h3>
+                        <p class="dg-f02-attach__desc mb-0">
+                          Sube el PDF firmado. Cada carga se agrega al historial del programa (no reemplaza versiones anteriores).
+                        </p>
+                      </div>
+                    </div>
+                    <label class="dg-f02-attach__dropzone" *ngIf="!sgcF07Form.pdfFirmado?.driveFileId"
+                      [class.dg-f02-attach__dropzone--busy]="sgcF07SubiendoPdf">
+                      <input type="file" class="dg-f02-attach__input" accept="application/pdf"
+                        (change)="onSeleccionarPdfSgcF07($event)" [disabled]="sgcF07SubiendoPdf">
+                      <span class="dg-f02-attach__dropzone-icon">
+                        <i class="fas" [ngClass]="sgcF07SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                      </span>
+                      <span class="dg-f02-attach__dropzone-title">
+                        {{ sgcF07SubiendoPdf ? 'Subiendo PDF…' : 'Arrastra o selecciona el PDF firmado' }}
+                      </span>
+                      <span class="dg-f02-attach__dropzone-hint">Formato PDF · máximo {{ etiquetaMaxPdfSgc }}</span>
+                    </label>
+                    <input #sgcF07InputActualizarPdf type="file" class="dg-f02-attach__input" accept="application/pdf"
+                      (change)="onSeleccionarPdfSgcF07($event)" [disabled]="sgcF07SubiendoPdf">
+                    <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="sgcF07Form.pdfFirmado as pdf">
+                      <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
+                      <div class="dg-f02-attach__file-info">
+                        <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo || 'SGC-F-07 Programa de auditoría.pdf' }}</strong>
+                        <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                          Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}
+                        </small>
+                      </div>
+                      <div class="dg-f02-attach__file-actions" *ngIf="sgcF07Form.pdfFirmado?.driveFileId">
+                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                          (click)="toggleSgcF07PdfViewer()">
+                          <i class="fas fa-eye mr-1" aria-hidden="true"></i>
+                          Abrir
+                        </button>
+                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
+                          [disabled]="sgcF07SubiendoPdf"
+                          (click)="sgcF07InputActualizarPdf.click()">
+                          <i class="fas mr-1" [ngClass]="sgcF07SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                          {{ sgcF07SubiendoPdf ? 'Subiendo a Drive…' : 'Subir nueva versión' }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="af-f02-historial-pdfs sgc-f-07-historial-pdfs" *ngIf="sgcF07HistorialPdfsVista.length">
+                      <h4 class="af-f02-historial-pdfs__title">
+                        <i class="fas fa-file-pdf mr-1" aria-hidden="true"></i>
+                        Historial de PDFs firmados
+                      </h4>
+                      <p class="af-f02-historial-pdfs__hint">Solo versiones firmadas de este programa de auditoría.</p>
+                      <ul class="af-f02-historial-pdfs__list">
+                        <li class="af-f02-historial-pdfs__item" *ngFor="let hist of sgcF07HistorialPdfsVista">
+                          <div class="af-f02-historial-pdfs__item-main">
+                            <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                            <div>
+                              <strong>{{ hist.nombreArchivo }}</strong>
+                              <small *ngIf="hist.fechaSubida">{{ formatearFechaDgF02(hist.fechaSubida) }}</small>
+                            </div>
+                          </div>
+                          <div class="af-f02-historial-pdfs__actions">
+                            <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                              (click)="toggleSgcF07PdfViewer(hist)">
+                              Abrir
+                            </button>
+                            <button *ngIf="puedeBorrarPdfHistorialSgcF07" type="button"
+                              class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--danger"
+                              [disabled]="sgcF07BorrandoPdf"
+                              (click)="eliminarPdfHistorialSgcF07(hist)"
+                              title="Eliminar PDF del historial">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </li>
+                      </ul>
+                    </div>
+                  </aside>
                 </div>
               </form>
             </ng-container>
@@ -9940,35 +10294,31 @@
                         </div>
                       </div>
 
-                      <div class="if-doc__edit-section">
-                        <div class="if-doc__edit-title if-doc__edit-title--muted">
-                          <i class="fas fa-toolbox"></i> Recursos
+                      <section class="dg-f07-info-panel if-doc__edit-section--last" aria-label="Recursos, criterios e indicadores">
+                        <div class="dg-f07-info-cards">
+                          <label class="dg-f07-info-card dg-f07-info-card--recursos">
+                            <span class="dg-f07-info-card__title">Recursos</span>
+                            <textarea class="dg-f07-info-card__textarea" rows="4"
+                              name="dgF07_rec" [(ngModel)]="proc.recursos"
+                              placeholder="Ej. Tiempo / Humano / Infraestructura"></textarea>
+                            <i class="fas fa-toolbox dg-f07-info-card__icon" aria-hidden="true"></i>
+                          </label>
+                          <label class="dg-f07-info-card dg-f07-info-card--criterios">
+                            <span class="dg-f07-info-card__title">Criterios y métodos</span>
+                            <textarea class="dg-f07-info-card__textarea" rows="4"
+                              name="dgF07_crit" [(ngModel)]="proc.criteriosMetodos"
+                              placeholder="Escribe aquí"></textarea>
+                            <i class="fas fa-clipboard-list dg-f07-info-card__icon" aria-hidden="true"></i>
+                          </label>
+                          <label class="dg-f07-info-card dg-f07-info-card--indicadores">
+                            <span class="dg-f07-info-card__title">Indicadores</span>
+                            <textarea class="dg-f07-info-card__textarea" rows="4"
+                              name="dgF07_ind" [(ngModel)]="proc.indicadores"
+                              placeholder="Escribe aquí"></textarea>
+                            <i class="fas fa-chart-bar dg-f07-info-card__icon" aria-hidden="true"></i>
+                          </label>
                         </div>
-                        <div class="if-doc__edit-body">
-                          <input class="if-doc__input w-100" type="text" name="dgF07_rec"
-                            [(ngModel)]="proc.recursos" placeholder="Ej. Tiempo / Humano / Infraestructura" autocomplete="off">
-                        </div>
-                      </div>
-
-                      <div class="if-doc__edit-section">
-                        <div class="if-doc__edit-title if-doc__edit-title--muted">
-                          <i class="fas fa-clipboard-list"></i> Criterios y métodos
-                        </div>
-                        <div class="if-doc__edit-body">
-                          <textarea class="if-doc__input if-doc__input--textarea w-100" rows="2"
-                            name="dgF07_crit" [(ngModel)]="proc.criteriosMetodos"></textarea>
-                        </div>
-                      </div>
-
-                      <div class="if-doc__edit-section if-doc__edit-section--last">
-                        <div class="if-doc__edit-title if-doc__edit-title--muted">
-                          <i class="fas fa-chart-bar"></i> Indicadores
-                        </div>
-                        <div class="if-doc__edit-body">
-                          <textarea class="if-doc__input if-doc__input--textarea w-100" rows="2"
-                            name="dgF07_ind" [(ngModel)]="proc.indicadores"></textarea>
-                        </div>
-                      </div>
+                      </section>
                     </div>
                   </article>
                 </div>
@@ -9976,7 +10326,7 @@
             </ng-container>
 
             <ng-container *ngSwitchCase="'sgc-f-11'">
-              <form class="dg-f05-form" (ngSubmit)="$event.preventDefault()"
+              <form class="dg-f05-form sgc-f-11-form" (ngSubmit)="$event.preventDefault()"
                     (input)="onSgcF11Editado()" (change)="onSgcF11Editado()">
                 <div class="dg-f05-doc-wrap" [class.dg-f05-doc-wrap--loading]="sgcF11Cargando">
                   <div class="dg-f05-loading" *ngIf="sgcF11Cargando" role="status">
@@ -9988,30 +10338,74 @@
                       <span class="dg-f05-doc__code">SGC-F-11</span>
                       <h3 class="dg-f05-doc__title">Análisis de Modo y Efecto de Falla (AMEF)</h3>
                     </header>
-                    <div class="dg-f05-doc__meta dg-f05-doc__meta--grid">
-                      <label class="dg-f05-meta-field"><span class="dg-f05-meta-field__label">Revisión</span>
-                        <input class="dg-f05-field dg-f05-field--readonly" type="text" name="sgcF11_revision" [(ngModel)]="sgcF11Form.revision" readonly tabindex="-1"></label>
-                      <label class="dg-f05-meta-field"><span class="dg-f05-meta-field__label">Fecha de revisión</span>
-                        <input class="dg-f05-field dg-f05-field--readonly" type="date" name="sgcF11_fechaRev" [(ngModel)]="sgcF11Form.fechaRevision" readonly></label>
-                      <label class="dg-f05-meta-field"><span class="dg-f05-meta-field__label">Área</span>
-                        <input class="dg-f05-field" type="text" name="sgcF11_area" [(ngModel)]="sgcF11Form.area"></label>
-                      <label class="dg-f05-meta-field"><span class="dg-f05-meta-field__label">Departamento</span>
-                        <input class="dg-f05-field" type="text" name="sgcF11_depto" [(ngModel)]="sgcF11Form.departamento"></label>
-                      <label class="dg-f05-meta-field"><span class="dg-f05-meta-field__label">Elaboró</span>
-                        <input class="dg-f05-field" type="text" name="sgcF11_elab" [(ngModel)]="sgcF11Form.elaboro"></label>
-                      <label class="dg-f05-meta-field"><span class="dg-f05-meta-field__label">Fecha elaboración</span>
-                        <input class="dg-f05-field dg-f05-field--readonly" type="date" name="sgcF11_fechaElab" [(ngModel)]="sgcF11Form.fechaElaboracion" readonly></label>
-                      <label class="dg-f05-meta-field"><span class="dg-f05-meta-field__label">Proceso</span>
-                        <input class="dg-f05-field" type="text" name="sgcF11_proceso" [(ngModel)]="sgcF11Form.proceso"></label>
-                      <label class="dg-f05-meta-field"><span class="dg-f05-meta-field__label">Equipo de trabajo</span>
-                        <input class="dg-f05-field" type="text" name="sgcF11_equipo" [(ngModel)]="sgcF11Form.equipoTrabajo"></label>
+
+                    <!-- Lista maestra: Revisión / Fecha (solo lectura) -->
+                    <div class="dg-f05-doc__meta dg-f05-doc__meta--sgc-f11-lista" aria-label="Datos de lista maestra">
+                      <label class="dg-f05-meta-field">
+                        <span class="dg-f05-meta-field__label">Revisión</span>
+                        <input class="dg-f05-field dg-f05-field--readonly" type="text"
+                          name="sgcF11_revision" [(ngModel)]="sgcF11Form.revision"
+                          readonly tabindex="-1"
+                          title="Revisión según lista maestra (SGC-F-01)">
+                      </label>
+                      <div class="sgc-f11-resumen" aria-label="Resumen AMEF">
+                        <span class="sgc-chip sgc-chip--info">
+                          <i class="fas fa-project-diagram" aria-hidden="true"></i>
+                          {{ sgcF11Form.filas.length }} operaciones
+                        </span>
+                        <span class="sgc-chip sgc-chip--warning" *ngIf="contarRpnAltoSgcF11() as altos">
+                          <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                          {{ altos }} RPN alto{{ altos === 1 ? '' : 's' }}
+                        </span>
+                      </div>
+                      <label class="dg-f05-meta-field">
+                        <span class="dg-f05-meta-field__label">Fecha de revisión</span>
+                        <input class="dg-f05-field dg-f05-field--readonly" type="date"
+                          name="sgcF11_fechaRev" [(ngModel)]="sgcF11Form.fechaRevision" readonly
+                          title="Fecha según lista maestra de documentos">
+                      </label>
                     </div>
+
+                    <!-- Metadatos del análisis (estilo estándar SGC) -->
+                    <div class="dg-f05-doc__meta dg-f05-doc__meta--sgc-f11-datos" aria-label="Datos del análisis">
+                      <label class="dg-f05-meta-field">
+                        <span class="dg-f05-meta-field__label">Área</span>
+                        <input class="dg-f05-field" type="text" name="sgcF11_area"
+                          [(ngModel)]="sgcF11Form.area" autocomplete="off">
+                      </label>
+                      <label class="dg-f05-meta-field">
+                        <span class="dg-f05-meta-field__label">Departamento</span>
+                        <input class="dg-f05-field" type="text" name="sgcF11_depto"
+                          [(ngModel)]="sgcF11Form.departamento" autocomplete="off">
+                      </label>
+                      <label class="dg-f05-meta-field">
+                        <span class="dg-f05-meta-field__label">Elaboró</span>
+                        <input class="dg-f05-field" type="text" name="sgcF11_elab"
+                          [(ngModel)]="sgcF11Form.elaboro" autocomplete="off">
+                      </label>
+                      <label class="dg-f05-meta-field">
+                        <span class="dg-f05-meta-field__label">Fecha elaboración</span>
+                        <input class="dg-f05-field dg-f05-field--readonly" type="date" name="sgcF11_fechaElab"
+                          [(ngModel)]="sgcF11Form.fechaElaboracion" readonly>
+                      </label>
+                      <label class="dg-f05-meta-field dg-f05-meta-field--wide">
+                        <span class="dg-f05-meta-field__label">Proceso</span>
+                        <input class="dg-f05-field" type="text" name="sgcF11_proceso"
+                          [(ngModel)]="sgcF11Form.proceso" autocomplete="off">
+                      </label>
+                      <label class="dg-f05-meta-field dg-f05-meta-field--wide">
+                        <span class="dg-f05-meta-field__label">Equipo de trabajo</span>
+                        <input class="dg-f05-field" type="text" name="sgcF11_equipo"
+                          [(ngModel)]="sgcF11Form.equipoTrabajo" autocomplete="off">
+                      </label>
+                    </div>
+
                     <div class="dg-f05-table-panel sgc-f-11-matriz">
                       <div class="sgc-f-11-matriz__intro">
                         <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-table" aria-hidden="true"></i></div>
                         <div>
                           <h4 class="sgc-f-11-matriz__title">Matriz AMEF</h4>
-                          <p class="sgc-f-11-matriz__hint">Análisis de riesgo y plan de acción en dos bloques; cada fila corresponde a la misma operación.</p>
+                          <p class="sgc-f-11-matriz__hint">Análisis de riesgo y plan de acción en dos bloques; cada fila corresponde a la misma operación. Desplaza horizontalmente si hace falta para ver todas las columnas.</p>
                         </div>
                       </div>
 
@@ -10023,8 +10417,21 @@
                             <span class="sgc-f-11-split-block__subtitle">Modo de falla, efectos y controles</span>
                           </div>
                         </header>
-                        <div class="dg-f05-table-wrap sgc-f-11-table-wrap">
+                        <div class="dg-f05-table-wrap sgc-f-11-table-wrap" tabindex="0">
                           <table class="dg-f05-table sgc-f-11-table sgc-f-11-table--analisis">
+                            <colgroup>
+                              <col class="sgc-f-11-col--idx">
+                              <col class="sgc-f-11-col--text">
+                              <col class="sgc-f-11-col--text">
+                              <col class="sgc-f-11-col--text">
+                              <col class="sgc-f-11-col--num">
+                              <col class="sgc-f-11-col--text">
+                              <col class="sgc-f-11-col--num">
+                              <col class="sgc-f-11-col--text">
+                              <col class="sgc-f-11-col--text">
+                              <col class="sgc-f-11-col--num">
+                              <col class="sgc-f-11-col--rpn">
+                            </colgroup>
                             <thead>
                               <tr>
                                 <th class="sgc-f-11-table__col--idx">#</th>
@@ -10044,16 +10451,52 @@
                               <tr *ngFor="let fila of sgcF11Form.filas; trackBy: trackByIdx; let i = index"
                                 class="sgc-f-11-table__row" [attr.data-row]="i + 1">
                                 <td class="sgc-f-11-table__idx">{{ i + 1 }}</td>
-                                <td><textarea class="dg-f05-field dg-f05-field--textarea" [attr.rows]="filasTexto(fila.etapa)" [(ngModel)]="fila.etapa" [name]="'sgcF11_et' + i"></textarea></td>
-                                <td><textarea class="dg-f05-field dg-f05-field--textarea" [attr.rows]="filasTexto(fila.modoFalla)" [(ngModel)]="fila.modoFalla" [name]="'sgcF11_mf' + i"></textarea></td>
-                                <td><textarea class="dg-f05-field dg-f05-field--textarea" [attr.rows]="filasTexto(fila.causas)" [(ngModel)]="fila.causas" [name]="'sgcF11_ca' + i"></textarea></td>
-                                <td><input class="dg-f05-field sgc-f-11-table__num" type="text" [(ngModel)]="fila.ocurrencia" [name]="'sgcF11_oc' + i" (input)="onSgcF11FilaRpnEditada(fila)"></td>
-                                <td><textarea class="dg-f05-field dg-f05-field--textarea" [attr.rows]="filasTexto(fila.efecto)" [(ngModel)]="fila.efecto" [name]="'sgcF11_ef' + i"></textarea></td>
-                                <td><input class="dg-f05-field sgc-f-11-table__num" type="text" [(ngModel)]="fila.severidad" [name]="'sgcF11_sev' + i" (input)="onSgcF11FilaRpnEditada(fila)"></td>
-                                <td><textarea class="dg-f05-field dg-f05-field--textarea" [attr.rows]="filasTexto(fila.controlesPreventivos)" [(ngModel)]="fila.controlesPreventivos" [name]="'sgcF11_cp' + i"></textarea></td>
-                                <td><textarea class="dg-f05-field dg-f05-field--textarea" [attr.rows]="filasTexto(fila.controlesDeteccion)" [(ngModel)]="fila.controlesDeteccion" [name]="'sgcF11_cd' + i"></textarea></td>
-                                <td><input class="dg-f05-field sgc-f-11-table__num" type="text" [(ngModel)]="fila.deteccion" [name]="'sgcF11_det' + i" (input)="onSgcF11FilaRpnEditada(fila)"></td>
-                                <td>
+                                <td class="sgc-f-11-td">
+                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                    rows="1" (input)="onSgcF11TextareaInput($event)"
+                                    [(ngModel)]="fila.etapa" [name]="'sgcF11_et' + i"></textarea>
+                                </td>
+                                <td class="sgc-f-11-td">
+                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                    rows="1" (input)="onSgcF11TextareaInput($event)"
+                                    [(ngModel)]="fila.modoFalla" [name]="'sgcF11_mf' + i"></textarea>
+                                </td>
+                                <td class="sgc-f-11-td">
+                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                    rows="1" (input)="onSgcF11TextareaInput($event)"
+                                    [(ngModel)]="fila.causas" [name]="'sgcF11_ca' + i"></textarea>
+                                </td>
+                                <td class="sgc-f-11-td sgc-f-11-td--num">
+                                  <input class="dg-f05-field sgc-f-11-table__num" type="text"
+                                    [(ngModel)]="fila.ocurrencia" [name]="'sgcF11_oc' + i"
+                                    (input)="onSgcF11FilaRpnEditada(fila)">
+                                </td>
+                                <td class="sgc-f-11-td">
+                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                    rows="1" (input)="onSgcF11TextareaInput($event)"
+                                    [(ngModel)]="fila.efecto" [name]="'sgcF11_ef' + i"></textarea>
+                                </td>
+                                <td class="sgc-f-11-td sgc-f-11-td--num">
+                                  <input class="dg-f05-field sgc-f-11-table__num" type="text"
+                                    [(ngModel)]="fila.severidad" [name]="'sgcF11_sev' + i"
+                                    (input)="onSgcF11FilaRpnEditada(fila)">
+                                </td>
+                                <td class="sgc-f-11-td">
+                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                    rows="1" (input)="onSgcF11TextareaInput($event)"
+                                    [(ngModel)]="fila.controlesPreventivos" [name]="'sgcF11_cp' + i"></textarea>
+                                </td>
+                                <td class="sgc-f-11-td">
+                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                    rows="1" (input)="onSgcF11TextareaInput($event)"
+                                    [(ngModel)]="fila.controlesDeteccion" [name]="'sgcF11_cd' + i"></textarea>
+                                </td>
+                                <td class="sgc-f-11-td sgc-f-11-td--num">
+                                  <input class="dg-f05-field sgc-f-11-table__num" type="text"
+                                    [(ngModel)]="fila.deteccion" [name]="'sgcF11_det' + i"
+                                    (input)="onSgcF11FilaRpnEditada(fila)">
+                                </td>
+                                <td class="sgc-f-11-td sgc-f-11-td--num">
                                   <span *ngIf="formatearRpnDisplay(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion) as rpnVal; else rpnVacioAnalisis"
                                     class="sgc-f-11-table__rpn-badge"
                                     [class.sgc-f-11-table__rpn-badge--alto]="esRpnAlto(rpnVal)">
@@ -10077,8 +10520,20 @@
                             <span class="sgc-f-11-split-block__subtitle">Acciones correctivas y RPN posterior</span>
                           </div>
                         </header>
-                        <div class="dg-f05-table-wrap sgc-f-11-table-wrap">
+                        <div class="dg-f05-table-wrap sgc-f-11-table-wrap" tabindex="0">
                           <table class="dg-f05-table sgc-f-11-table sgc-f-11-table--acciones">
+                            <colgroup>
+                              <col class="sgc-f-11-col--idx">
+                              <col class="sgc-f-11-col--text-lg">
+                              <col class="sgc-f-11-col--text">
+                              <col class="sgc-f-11-col--fecha">
+                              <col class="sgc-f-11-col--text-lg">
+                              <col class="sgc-f-11-col--num">
+                              <col class="sgc-f-11-col--num">
+                              <col class="sgc-f-11-col--num">
+                              <col class="sgc-f-11-col--rpn">
+                              <col class="sgc-f-11-col--act">
+                            </colgroup>
                             <thead>
                               <tr>
                                 <th class="sgc-f-11-table__col--idx">#</th>
@@ -10097,17 +10552,41 @@
                               <tr *ngFor="let fila of sgcF11Form.filas; trackBy: trackByIdx; let i = index"
                                 class="sgc-f-11-table__row" [attr.data-row]="i + 1">
                                 <td class="sgc-f-11-table__idx">{{ i + 1 }}</td>
-                                <td><textarea class="dg-f05-field dg-f05-field--textarea" [attr.rows]="filasTexto(fila.acciones)" [(ngModel)]="fila.acciones" [name]="'sgcF11_ac' + i"></textarea></td>
-                                <td><input class="dg-f05-field" type="text" [(ngModel)]="fila.responsable" [name]="'sgcF11_res' + i"></td>
-                                <td class="sgc-f-11-table__fecha">
+                                <td class="sgc-f-11-td">
+                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                    rows="1" (input)="onSgcF11TextareaInput($event)"
+                                    [(ngModel)]="fila.acciones" [name]="'sgcF11_ac' + i"></textarea>
+                                </td>
+                                <td class="sgc-f-11-td">
+                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                    rows="1" (input)="onSgcF11TextareaInput($event)"
+                                    [(ngModel)]="fila.responsable" [name]="'sgcF11_res' + i"></textarea>
+                                </td>
+                                <td class="sgc-f-11-table__fecha sgc-f-11-td sgc-f-11-td--num">
                                   <input class="dg-f05-field dg-f05-field--date" type="date"
                                     [(ngModel)]="fila.fechaCompromiso" [name]="'sgcF11_fc' + i">
                                 </td>
-                                <td><textarea class="dg-f05-field dg-f05-field--textarea" [attr.rows]="filasTexto(fila.resultado)" [(ngModel)]="fila.resultado" [name]="'sgcF11_re' + i"></textarea></td>
-                                <td><input class="dg-f05-field sgc-f-11-table__num" type="text" [(ngModel)]="fila.severidadPost" [name]="'sgcF11_sp' + i" (input)="onSgcF11FilaRpnEditada(fila)"></td>
-                                <td><input class="dg-f05-field sgc-f-11-table__num" type="text" [(ngModel)]="fila.ocurrenciaPost" [name]="'sgcF11_opo' + i" (input)="onSgcF11FilaRpnEditada(fila)"></td>
-                                <td><input class="dg-f05-field sgc-f-11-table__num" type="text" [(ngModel)]="fila.deteccionPost" [name]="'sgcF11_dpo' + i" (input)="onSgcF11FilaRpnEditada(fila)"></td>
-                                <td>
+                                <td class="sgc-f-11-td">
+                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                    rows="1" (input)="onSgcF11TextareaInput($event)"
+                                    [(ngModel)]="fila.resultado" [name]="'sgcF11_re' + i"></textarea>
+                                </td>
+                                <td class="sgc-f-11-td sgc-f-11-td--num">
+                                  <input class="dg-f05-field sgc-f-11-table__num" type="text"
+                                    [(ngModel)]="fila.severidadPost" [name]="'sgcF11_sp' + i"
+                                    (input)="onSgcF11FilaRpnEditada(fila)">
+                                </td>
+                                <td class="sgc-f-11-td sgc-f-11-td--num">
+                                  <input class="dg-f05-field sgc-f-11-table__num" type="text"
+                                    [(ngModel)]="fila.ocurrenciaPost" [name]="'sgcF11_opo' + i"
+                                    (input)="onSgcF11FilaRpnEditada(fila)">
+                                </td>
+                                <td class="sgc-f-11-td sgc-f-11-td--num">
+                                  <input class="dg-f05-field sgc-f-11-table__num" type="text"
+                                    [(ngModel)]="fila.deteccionPost" [name]="'sgcF11_dpo' + i"
+                                    (input)="onSgcF11FilaRpnEditada(fila)">
+                                </td>
+                                <td class="sgc-f-11-td sgc-f-11-td--num">
                                   <span *ngIf="formatearRpnDisplay(fila.rpnPost, fila.ocurrenciaPost, fila.severidadPost, fila.deteccionPost) as rpnPostVal; else rpnVacioPost"
                                     class="sgc-f-11-table__rpn-badge sgc-f-11-table__rpn-badge--post"
                                     [class.sgc-f-11-table__rpn-badge--alto]="esRpnAlto(rpnPostVal)">
@@ -10118,7 +10597,8 @@
                                   </ng-template>
                                 </td>
                                 <td class="dg-f05-table__act">
-                                  <button type="button" class="dg-f05-row-btn" (click)="quitarFilaSgcF11(i)" [disabled]="sgcF11Form.filas.length <= 1" title="Quitar fila">
+                                  <button type="button" class="dg-f05-row-btn" (click)="quitarFilaSgcF11(i)"
+                                    [disabled]="sgcF11Form.filas.length <= 1" title="Quitar fila">
                                     <i class="fas fa-times" aria-hidden="true"></i>
                                   </button>
                                 </td>
@@ -12171,30 +12651,57 @@
                       <h1 class="dg-f02-block__heading text-center mb-4">OBJETIVOS DE CALIDAD</h1>
                       <section class="dg-f02-block dg-f02-block--grow">
                         <div class="dg-f02-block__editor dg-f03-objetivos-editor">
+                          <header class="dg-f03-objetivos-toolbar">
+                            <div class="dg-f03-objetivos-toolbar__meta">
+                              <span class="dg-f03-objetivos-toolbar__title">Lista de objetivos</span>
+                              <span class="dg-f03-objetivos-toolbar__count">
+                                {{ itemsObjetivosDgF03.length }}
+                                {{ itemsObjetivosDgF03.length === 1 ? 'objetivo' : 'objetivos' }}
+                              </span>
+                            </div>
+                            <span class="dg-f03-objetivos-toolbar__badge" aria-hidden="true">
+                              <i class="fas fa-pen"></i>
+                              Editable
+                            </span>
+                          </header>
+
                           <ol class="dg-f03-objetivos-list">
                             <li *ngFor="let item of itemsObjetivosDgF03; let i = index; trackBy: trackByIndex"
                               class="dg-f03-objetivos-list__item">
-                              <textarea class="dg-f03-objetivos-list__input"
-                                [ngModel]="item"
-                                (ngModelChange)="actualizarLineaObjetivoDgF03(i, $event)"
-                                [name]="'dgF03_objetivo_' + i"
-                                rows="2"
-                                [placeholder]="itemsObjetivosDgF03.length > 1 ? ('Objetivo ' + (i + 1)) : 'Redacta los objetivos de calidad…'"
-                                [attr.aria-label]="itemsObjetivosDgF03.length > 1 ? ('Objetivo ' + (i + 1)) : 'Objetivos de calidad'"></textarea>
-                              <button type="button" class="dg-f03-objetivos-list__remove"
-                                *ngIf="itemsObjetivosDgF03.length > 1"
-                                (click)="eliminarLineaObjetivoDgF03(i)"
-                                [attr.aria-label]="'Eliminar objetivo ' + (i + 1)">
-                                <i class="fas fa-times" aria-hidden="true"></i>
-                              </button>
+                              <div class="dg-f03-objetivos-list__row"
+                                [class.dg-f03-objetivos-list__row--solo]="itemsObjetivosDgF03.length <= 1">
+                                <span class="dg-f03-objetivos-list__index" aria-hidden="true">
+                                  {{ (i + 1) < 10 ? '0' + (i + 1) : (i + 1) }}
+                                </span>
+                                <textarea class="dg-f03-objetivos-list__input"
+                                  appAutoResize
+                                  [appAutoResizeMinHeight]="44"
+                                  [ngModel]="item"
+                                  (ngModelChange)="actualizarLineaObjetivoDgF03(i, $event)"
+                                  [name]="'dgF03_objetivo_' + i"
+                                  rows="1"
+                                  [placeholder]="itemsObjetivosDgF03.length > 1 ? ('Describe el objetivo ' + (i + 1) + '…') : 'Redacta los objetivos de calidad…'"
+                                  [attr.aria-label]="itemsObjetivosDgF03.length > 1 ? ('Objetivo ' + (i + 1)) : 'Objetivos de calidad'"></textarea>
+                                <button type="button" class="dg-f03-objetivos-list__remove"
+                                  *ngIf="itemsObjetivosDgF03.length > 1"
+                                  (click)="eliminarLineaObjetivoDgF03(i)"
+                                  [attr.aria-label]="'Eliminar objetivo ' + (i + 1)"
+                                  title="Eliminar objetivo">
+                                  <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                                </button>
+                              </div>
                             </li>
                           </ol>
+
                           <button type="button" class="dg-f03-objetivos-list__add" (click)="agregarLineaObjetivoDgF03()">
-                            <i class="fas fa-plus mr-1" aria-hidden="true"></i> Agregar objetivo
+                            <span class="dg-f03-objetivos-list__add-icon" aria-hidden="true">
+                              <i class="fas fa-plus"></i>
+                            </span>
+                            <span class="dg-f03-objetivos-list__add-copy">
+                              <strong>Agregar objetivo</strong>
+                              <small>Se numerará automáticamente en el listado</small>
+                            </span>
                           </button>
-                          <span class="dg-f02-block__edit-hint" aria-hidden="true">
-                            <i class="fas fa-pen"></i> Editable
-                          </span>
                         </div>
                       </section>
                       <footer class="dg-f02-page__signatures">
@@ -13288,7 +13795,7 @@
           <i class="fas fa-file-pdf" aria-hidden="true"></i>
         </span>
         <div>
-          <strong class="sgc-drive-editor-fullscreen__title">{{ sgcPo01Form.pdfFirmado?.nombreArchivo || 'SGC-PO-01 Politica de calidad_Biznaga.pdf' }}</strong>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ sgcPo01PdfViewerTitulo }}</strong>
           <small class="sgc-drive-editor-fullscreen__subtitle">Vista previa del PDF · solo lectura</small>
         </div>
       </div>
@@ -13304,8 +13811,42 @@
       <iframe *ngIf="sgcPo01PdfEmbedUrlSafe"
         class="sgc-drive-editor-fullscreen__iframe"
         [src]="sgcPo01PdfEmbedUrlSafe"
-        [title]="sgcPo01Form.pdfFirmado?.nombreArchivo || 'SGC-PO-01 Politica de calidad_Biznaga.pdf'"
+        [title]="sgcPo01PdfViewerTitulo"
         (load)="onSgcPo01PdfIframeLoad()"
+        allow="autoplay">
+      </iframe>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-drive-editor-fullscreen" *ngIf="mostrarSgcF07PdfViewer"
+  role="dialog" aria-modal="true" aria-label="Visor PDF SGC-F-07">
+  <div class="sgc-drive-editor-fullscreen__backdrop" (click)="toggleSgcF07PdfViewer()"></div>
+  <div class="sgc-drive-editor-fullscreen__panel">
+    <div class="sgc-drive-editor-fullscreen__head">
+      <div class="sgc-drive-editor-fullscreen__title-wrap">
+        <span class="sgc-drive-editor-fullscreen__icon">
+          <i class="fas fa-file-pdf" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ sgcF07PdfViewerActual?.nombreArchivo || sgcF07Form.pdfFirmado?.nombreArchivo || 'SGC-F-07 Programa de auditoría.pdf' }}</strong>
+          <small class="sgc-drive-editor-fullscreen__subtitle">Vista previa del PDF · solo lectura</small>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-light" type="button" (click)="toggleSgcF07PdfViewer()">
+        <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+      </button>
+    </div>
+    <div class="sgc-drive-editor-fullscreen__body">
+      <div class="sgc-drive-editor-fullscreen__loading" *ngIf="sgcF07PdfCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando PDF…</span>
+      </div>
+      <iframe *ngIf="sgcF07PdfEmbedUrlSafe"
+        class="sgc-drive-editor-fullscreen__iframe"
+        [src]="sgcF07PdfEmbedUrlSafe"
+        [title]="sgcF07PdfViewerActual?.nombreArchivo || sgcF07Form.pdfFirmado?.nombreArchivo || 'SGC-F-07 Programa de auditoría.pdf'"
+        (load)="onSgcF07PdfIframeLoad()"
         allow="autoplay">
       </iframe>
     </div>
@@ -13322,7 +13863,7 @@
           <i class="fas fa-file-pdf" aria-hidden="true"></i>
         </span>
         <div>
-          <strong class="sgc-drive-editor-fullscreen__title">{{ dgF08Form.pdfFirmado?.nombreArchivo || 'DG-F-08 Filosofía Biznaga Risk and Tech.pdf' }}</strong>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ dgF08PdfViewerTitulo }}</strong>
           <small class="sgc-drive-editor-fullscreen__subtitle">Vista previa del PDF · solo lectura</small>
         </div>
       </div>
@@ -13338,7 +13879,7 @@
       <iframe *ngIf="dgF08PdfEmbedUrlSafe"
         class="sgc-drive-editor-fullscreen__iframe"
         [src]="dgF08PdfEmbedUrlSafe"
-        [title]="dgF08Form.pdfFirmado?.nombreArchivo || 'DG-F-08 Filosofía Biznaga Risk and Tech.pdf'"
+        [title]="dgF08PdfViewerTitulo"
         (load)="onDgF08PdfIframeLoad()"
         allow="autoplay">
       </iframe>
@@ -13390,7 +13931,7 @@
           <i class="fas fa-file-pdf" aria-hidden="true"></i>
         </span>
         <div>
-          <strong class="sgc-drive-editor-fullscreen__title">{{ dgF02Form.pdfFirmado?.nombreArchivo || 'DG-F-02 Alcance.pdf' }}</strong>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ dgF02PdfViewerTitulo }}</strong>
           <small class="sgc-drive-editor-fullscreen__subtitle">Vista previa del PDF · solo lectura</small>
         </div>
       </div>
@@ -13406,7 +13947,7 @@
       <iframe *ngIf="dgF02PdfEmbedUrlSafe"
         class="sgc-drive-editor-fullscreen__iframe"
         [src]="dgF02PdfEmbedUrlSafe"
-        [title]="dgF02Form.pdfFirmado?.nombreArchivo || 'DG-F-02 Alcance.pdf'"
+        [title]="dgF02PdfViewerTitulo"
         (load)="onDgF02PdfIframeLoad()"
         allow="autoplay">
       </iframe>
@@ -13424,7 +13965,7 @@
           <i class="fas fa-file-pdf" aria-hidden="true"></i>
         </span>
         <div>
-          <strong class="sgc-drive-editor-fullscreen__title">{{ dgF01Form.pdfFirmado?.nombreArchivo || 'DG-F-01 Mapa de procesos.pdf' }}</strong>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ dgF01PdfViewerTitulo }}</strong>
           <small class="sgc-drive-editor-fullscreen__subtitle">Vista previa del PDF · solo lectura</small>
         </div>
       </div>
@@ -13440,7 +13981,7 @@
       <iframe *ngIf="dgF01PdfEmbedUrlSafe"
         class="sgc-drive-editor-fullscreen__iframe"
         [src]="dgF01PdfEmbedUrlSafe"
-        [title]="dgF01Form.pdfFirmado?.nombreArchivo || 'DG-F-01 Mapa de procesos.pdf'"
+        [title]="dgF01PdfViewerTitulo"
         (load)="onDgF01PdfIframeLoad()"
         allow="autoplay">
       </iframe>

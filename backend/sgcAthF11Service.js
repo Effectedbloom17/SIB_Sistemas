@@ -211,6 +211,7 @@ function sanitizarEvaluacion(raw) {
         fechaIngreso: formatearFechaIso(base.fechaIngreso || base.fecha_ingreso) || '',
         periodoEvaluado: String(base.periodoEvaluado || base.periodo_evaluado || '').trim(),
         evaluador: String(base.evaluador || '').trim(),
+        evaluadorPuesto: String(base.evaluadorPuesto || base.evaluador_puesto || '').trim(),
         usuarioId: String(base.usuarioId || base.usuario_id || '').trim() || null,
         competencias,
         observaciones: normalizarSaltos(base.observaciones || ''),
@@ -324,129 +325,438 @@ async function copiarPlantillaComoGoogleDoc(nombreArchivo) {
     return copyResp.data;
 }
 
-function crearReplaceRequest(textoAnterior, textoNuevo) {
-    const anterior = String(textoAnterior ?? '');
-    const nuevo = String(textoNuevo ?? '');
-    if (!anterior.trim() || anterior === nuevo) {
-        return null;
+const MARCA_CALIFICACION = 'X';
+const CALIFICACIONES_COLS = [6, 7, 8, 9, 10];
+const LABELS_RESULTADOS = [
+    { key: 'promedio', label: 'Promedio general de desempeño' },
+    { key: 'fortalezas', label: 'Fortalezas del colaborador' },
+    { key: 'areasOportunidad', label: 'Áreas de oportunidad' },
+    { key: 'planMejora', label: 'Plan de mejora y desarrollo' },
+    { key: 'comentariosEvaluador', label: 'Comentarios generales del evaluador' }
+];
+
+function textoParrafo(el) {
+    if (!el?.paragraph) return '';
+    return (el.paragraph.elements || [])
+        .map((e) => e.textRun?.content || e.autoText?.content || '')
+        .join('');
+}
+
+function textoCeldaPlano(cell) {
+    return (cell?.content || []).map(textoParrafo).join('');
+}
+
+function extraerTextoPlano(content) {
+    const partes = [];
+    for (const el of content || []) {
+        if (el.paragraph) {
+            partes.push(textoParrafo(el));
+        } else if (el.table) {
+            for (const row of el.table.tableRows || []) {
+                for (const cell of row.tableCells || []) {
+                    partes.push(extraerTextoPlano(cell.content));
+                }
+            }
+        }
     }
+    return partes.join('\n');
+}
+
+function esPlantillaAntiguaAthF11(docData) {
+    const body = docData?.body?.content || [];
+    const texto = extraerTextoPlano(body);
+    if (/Objetivo de la evaluación|Modelo de evaluación propuesto|Beneficios para Biznaga|Alcance\s*\n|8\.\s*Conclusión/i.test(texto)) {
+        return true;
+    }
+    // Plantilla vigente: datos generales en tabla con Puesto y Área en celdas separadas.
+    const tablas = tablasDocumento(body);
+    const tablaDatos = tablas.find((t) =>
+        /Nombre completo/i.test(textoTabla(t)) && /Área\s*\/\s*Departamento|Area\s*\/\s*Departamento/i.test(textoTabla(t))
+    );
+    if (!tablaDatos) return true;
+    for (const row of tablaDatos.table.tableRows || []) {
+        for (const cell of row.tableCells || []) {
+            const t = textoCeldaPlano(cell);
+            if (/^Puesto:/i.test(t.trim()) && /Área|Area/i.test(t)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+function normalizarCmp(texto) {
+    return String(texto || '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\n+$/g, '')
+        .trim();
+}
+
+function rangoEditableDeElemento(el) {
+    const start = Number(el?.startIndex);
+    const end = Number(el?.endIndex);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+    if (end - 1 <= start) return { startIndex: start, endIndex: start, vacio: true };
+    return { startIndex: start, endIndex: end - 1, vacio: false };
+}
+
+function rangoEditableCelda(cell) {
+    const contenidos = cell?.content || [];
+    if (!contenidos.length) return null;
+    const start = Number(contenidos[0]?.startIndex);
+    const end = Number(contenidos[contenidos.length - 1]?.endIndex);
+    if (!Number.isFinite(start)) return null;
+    if (!Number.isFinite(end) || end - 1 <= start) {
+        return { startIndex: start, endIndex: start, vacio: true };
+    }
+    return { startIndex: start, endIndex: end - 1, vacio: false };
+}
+
+function opReemplazarRango(rango, textoNuevo, extras = []) {
+    if (!rango) return null;
+    const deseado = String(textoNuevo || '');
+    const reqs = [];
+    if (!rango.vacio) {
+        reqs.push({
+            deleteContentRange: {
+                range: { startIndex: rango.startIndex, endIndex: rango.endIndex }
+            }
+        });
+    }
+    if (deseado) {
+        reqs.push({
+            insertText: {
+                location: { index: rango.startIndex },
+                text: deseado
+            }
+        });
+        for (const extra of extras) {
+            const styled = extra(rango.startIndex, deseado.length);
+            if (styled) reqs.push(styled);
+        }
+    }
+    if (!reqs.length) return null;
+    return { index: rango.startIndex, requests: reqs };
+}
+
+function opSiCambia(rango, actual, deseado, extras) {
+    if (!rango) return null;
+    if (normalizarCmp(actual) === normalizarCmp(deseado)) return null;
+    return opReemplazarRango(rango, deseado, extras);
+}
+
+function tablasDocumento(content) {
+    return (content || []).filter((el) => el?.table?.tableRows);
+}
+
+function textoTabla(el) {
+    const partes = [];
+    for (const row of el.table.tableRows || []) {
+        for (const cell of row.tableCells || []) {
+            partes.push(textoCeldaPlano(cell));
+        }
+    }
+    return partes.join('\n');
+}
+
+function recorrerParrafos(content, visit) {
+    for (const el of content || []) {
+        if (el.paragraph) visit(el);
+        else if (el.table) {
+            for (const row of el.table.tableRows || []) {
+                for (const cell of row.tableCells || []) {
+                    recorrerParrafos(cell.content, visit);
+                }
+            }
+        }
+    }
+}
+
+function formatearPromedioDoc(valor) {
+    if (valor == null || valor === '') return '';
+    const n = Number(valor);
+    if (Number.isNaN(n)) return String(valor);
+    return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
+function estiloCentrar(startIndex, len) {
+    const end = startIndex + Math.max(Number(len) || 0, 1);
     return {
-        replaceAllText: {
-            containsText: { text: anterior, matchCase: false },
-            replaceText: nuevo
+        updateParagraphStyle: {
+            range: { startIndex, endIndex: end },
+            paragraphStyle: { alignment: 'CENTER' },
+            fields: 'alignment'
         }
     };
+}
+
+function estiloMarcaCalificacion(startIndex, len) {
+    return estiloCentrar(startIndex, len);
+}
+
+function opTextoCentrado(rango, actual, deseado) {
+    if (!rango) return null;
+    const texto = String(deseado || '');
+    if (normalizarCmp(actual) === normalizarCmp(texto)) {
+        // Reaplicar centrado aunque el texto no cambie (plan / comentarios suelen quedar a la izquierda).
+        if (rango.vacio && !texto) return null;
+        if (rango.vacio) {
+            return opReemplazarRango(rango, texto, [estiloCentrar]);
+        }
+        return {
+            index: rango.startIndex,
+            requests: [estiloCentrar(rango.startIndex, Math.max(rango.endIndex - rango.startIndex, 1))]
+        };
+    }
+    return opReemplazarRango(rango, texto, [estiloCentrar]);
+}
+
+function valoresResultados(item) {
+    return {
+        promedio: formatearPromedioDoc(item.promedioGeneral),
+        fortalezas: item.fortalezas || '',
+        areasOportunidad: item.areasOportunidad || '',
+        planMejora: item.planMejora || '',
+        comentariosEvaluador: item.comentariosEvaluador || ''
+    };
+}
+
+function construirOpsContenido(docData, item) {
+    const ops = [];
+    const body = docData?.body?.content || [];
+    const ingreso = item.fechaIngreso
+        ? formatearFechaSlash(item.fechaIngreso)
+        : '____/_____/_____';
+    const fechaEval = item.fechaEvaluacion
+        ? formatearFechaSlash(item.fechaEvaluacion)
+        : '____ / ____ / ______';
+    const nombreLinea = item.nombreCompleto
+        ? `Nombre completo: ${item.nombreCompleto}`
+        : 'Nombre completo: ____________________________________________________________________';
+    const puestoColabLinea = item.puesto
+        ? `Puesto: ${item.puesto}`
+        : 'Puesto: ________________________________';
+    const areaLinea = item.areaDepartamento
+        ? `Área / Departamento: ${item.areaDepartamento}`
+        : 'Área / Departamento: ______________________';
+    const periodoLinea = item.periodoEvaluado
+        ? `Periodo evaluado: ${item.periodoEvaluado}`
+        : 'Periodo evaluado:  _____________________________';
+    const ingresoLinea = `Fecha de ingreso: ${ingreso}`;
+    const fechaEvalLinea = `Fecha de la evaluación: ${fechaEval}`;
+    const nombreEvalLinea = item.evaluador ? `Nombre: ${item.evaluador}` : 'Nombre:';
+    const puestoEvalLinea = item.evaluadorPuesto
+        ? `Puesto: ${item.evaluadorPuesto}`
+        : 'Puesto:';
+
+    const tablas = tablasDocumento(body);
+    const tablaDatos = tablas.find((t) => /Nombre completo/i.test(textoTabla(t)));
+    const tablaComp = tablas.find((t) => /CRITERIO/i.test(textoTabla(t)));
+    const tablaResultados = tablas.find((t) => /RESULTADOS DE LA EVALUACI[OÓ]N/i.test(textoTabla(t)));
+    const tablaFirmas = tablas.find((t) => /Firma del evaluador/i.test(textoTabla(t)));
+
+    if (tablaDatos) {
+        for (const row of tablaDatos.table.tableRows || []) {
+            for (const cell of row.tableCells || []) {
+                const actual = textoCeldaPlano(cell).replace(/\n$/, '');
+                const rango = rangoEditableCelda(cell);
+                if (/^Nombre completo:/i.test(actual.trim())) {
+                    ops.push(opSiCambia(rango, actual, nombreLinea));
+                } else if (/^Puesto:/i.test(actual.trim()) && !/Área|Area/i.test(actual)) {
+                    ops.push(opSiCambia(rango, actual, puestoColabLinea));
+                } else if (/^Área\s*\/\s*Departamento:|^Area\s*\/\s*Departamento:/i.test(actual.trim())) {
+                    ops.push(opSiCambia(rango, actual, areaLinea));
+                } else if (/^Periodo evaluado:/i.test(actual.trim()) && !/Fecha de ingreso/i.test(actual)) {
+                    ops.push(opSiCambia(rango, actual, periodoLinea));
+                } else if (/^Fecha de ingreso:/i.test(actual.trim())) {
+                    ops.push(opSiCambia(rango, actual, ingresoLinea));
+                }
+            }
+        }
+    }
+
+    if (tablaFirmas) {
+        for (const row of tablaFirmas.table.tableRows || []) {
+            for (const cell of row.tableCells || []) {
+                const textoCell = textoCeldaPlano(cell);
+                if (!/Firma del evaluador/i.test(textoCell)) continue;
+                for (const el of cell.content || []) {
+                    if (!el.paragraph) continue;
+                    const actual = textoParrafo(el).replace(/\n$/, '');
+                    const rango = rangoEditableDeElemento(el);
+                    if (/^Nombre:/i.test(actual) && !/^Nombre completo:/i.test(actual)) {
+                        ops.push(opSiCambia(rango, actual, nombreEvalLinea));
+                    } else if (/^Puesto:/i.test(actual)) {
+                        ops.push(opSiCambia(rango, actual, puestoEvalLinea));
+                    }
+                }
+            }
+        }
+    }
+
+    // Fecha de evaluación (párrafo fuera de tablas) y compatibilidad con plantillas previas.
+    recorrerParrafos(body, (el) => {
+        const actual = textoParrafo(el).replace(/\n$/, '');
+        const rango = rangoEditableDeElemento(el);
+        if (/^Fecha de la evaluación:/i.test(actual) || /^Fecha de la evaluacion:/i.test(actual)) {
+            ops.push(opSiCambia(rango, actual, fechaEvalLinea));
+            return;
+        }
+        if (!tablaDatos) {
+            if (/^Nombre completo:/i.test(actual)) {
+                ops.push(opSiCambia(rango, actual, nombreLinea));
+            } else if (/^Puesto:/i.test(actual) && /Área|Area/i.test(actual)) {
+                ops.push(opSiCambia(
+                    rango,
+                    actual,
+                    `Puesto: ${item.puesto || '__________________________'} Área / Departamento: ${item.areaDepartamento || '_______________________________'}`
+                ));
+            } else if (/^Periodo evaluado:/i.test(actual) && /Fecha de ingreso/i.test(actual)) {
+                ops.push(opSiCambia(
+                    rango,
+                    actual,
+                    `Periodo evaluado: ${item.periodoEvaluado || '__________________________________'} Fecha de ingreso: ${ingreso}`
+                ));
+            }
+        }
+    });
+
+    if (tablaComp) {
+        const rows = tablaComp.table.tableRows || [];
+        const mapaComp = new Map((item.competencias || []).map((c) => [c.id, c]));
+        let filaObservaciones = -1;
+        rows.forEach((row, rIdx) => {
+            const cells = row.tableCells || [];
+            const texto0 = normalizarCmp(textoCeldaPlano(cells[0]));
+            if (/^OBSERVACIONES$/i.test(texto0)) {
+                filaObservaciones = rIdx;
+                return;
+            }
+            const competencia = COMPETENCIAS_DEFECTO.find((def) => texto0.startsWith(def.titulo));
+            if (!competencia) return;
+            const calificacion = mapaComp.get(competencia.id)?.calificacion;
+            CALIFICACIONES_COLS.forEach((valor, colOffset) => {
+                const cell = cells[colOffset + 1];
+                if (!cell) return;
+                const marca = calificacion === valor ? MARCA_CALIFICACION : '';
+                const extras = marca ? [estiloMarcaCalificacion] : [];
+                ops.push(opSiCambia(
+                    rangoEditableCelda(cell),
+                    textoCeldaPlano(cell),
+                    marca,
+                    extras
+                ));
+            });
+        });
+        if (filaObservaciones >= 0) {
+            const filaValor = rows[filaObservaciones + 1];
+            const cell = filaValor?.tableCells?.[0];
+            if (cell) {
+                ops.push(opSiCambia(
+                    rangoEditableCelda(cell),
+                    textoCeldaPlano(cell),
+                    item.observaciones || ''
+                ));
+            }
+        }
+    }
+
+    if (tablaResultados) {
+        const valores = valoresResultados(item);
+        for (const row of tablaResultados.table.tableRows || []) {
+            const cells = row.tableCells || [];
+            const texto0 = normalizarCmp(textoCeldaPlano(cells[0]));
+            const def = LABELS_RESULTADOS.find((itemLabel) =>
+                texto0.toLowerCase().startsWith(itemLabel.label.toLowerCase())
+            );
+            if (!def || cells.length < 2) continue;
+            ops.push(opSiCambia(
+                rangoEditableCelda(cells[0]),
+                textoCeldaPlano(cells[0]),
+                def.label
+            ));
+            ops.push(opTextoCentrado(
+                rangoEditableCelda(cells[1]),
+                textoCeldaPlano(cells[1]),
+                valores[def.key] || ''
+            ));
+        }
+    }
+
+    return ops.filter(Boolean);
+}
+
+async function aplicarRequestsAthF11(docsApi, docId, requests) {
+    const limpios = (requests || []).filter(Boolean);
+    if (!limpios.length) return;
+    await docsApi.documents.batchUpdate({
+        documentId: docId,
+        requestBody: { requests: limpios }
+    });
 }
 
 async function aplicarContenidoEnDocumento(docId, evaluacion) {
     if (!docId || !evaluacion) return;
     const { docsApi } = clienteGoogle();
     const item = sanitizarEvaluacion(evaluacion);
-    const requests = [];
+    const doc = await docsApi.documents.get({ documentId: docId });
+    const ops = construirOpsContenido(doc.data, item);
+    ops.sort((a, b) => b.index - a.index);
+    const requests = ops.flatMap((op) => op.requests);
+    await aplicarRequestsAthF11(docsApi, docId, requests);
+}
 
-    if (item.nombreCompleto) {
-        requests.push(crearReplaceRequest(
-            'Nombre completo: _____________________________________________________________________',
-            `Nombre completo: ${item.nombreCompleto}`
-        ));
+async function rematerializarDocumentoEvaluacion(driveFileIdAnterior, nombreArchivo) {
+    const copia = await copiarPlantillaComoGoogleDoc(nombreArchivo);
+    if (driveFileIdAnterior && driveFileIdAnterior !== copia.id) {
+        await driveService.eliminarArchivo(driveFileIdAnterior).catch((err) => {
+            console.warn('[ATH-F-11] No se pudo eliminar el documento con plantilla anterior:', err.message);
+        });
     }
-    if (item.puesto || item.areaDepartamento) {
-        requests.push(crearReplaceRequest(
-            'Puesto: __________________________ Área / Departamento: _______________________________',
-            `Puesto: ${item.puesto || '__________________________'} Área / Departamento: ${item.areaDepartamento || '_______________________________'}`
-        ));
-    }
-    if (item.periodoEvaluado || item.fechaIngreso) {
-        const periodo = item.periodoEvaluado || '_____________________________________________________________________';
-        const ingreso = formatearFechaSlash(item.fechaIngreso) || '____/_____/______';
-        requests.push(crearReplaceRequest(
-            'Periodo evaluado: _____________________________________________________________________ Fecha de ingreso: ____/_____/______',
-            `Periodo evaluado: ${periodo} Fecha de ingreso: ${ingreso}`
-        ));
-        // Plantillas previas con líneas separadas
-        if (item.periodoEvaluado) {
-            requests.push(crearReplaceRequest(
-                'Periodo evaluado: _____________________________________________________________________',
-                `Periodo evaluado: ${item.periodoEvaluado}`
-            ));
-        }
-        if (item.fechaIngreso) {
-            requests.push(crearReplaceRequest(
-                'Fecha de ingreso: ____/_____/______',
-                `Fecha de ingreso: ${ingreso}`
-            ));
-        }
-    }
-    if (item.promedioGeneral != null) {
-        requests.push(crearReplaceRequest(
-            'Promedio general de desempeño',
-            `Promedio general de desempeño: ${item.promedioGeneral}`
-        ));
-    }
-    if (item.fortalezas) {
-        requests.push(crearReplaceRequest('Fortalezas del colaborador', `Fortalezas del colaborador\n${item.fortalezas}`));
-    }
-    if (item.areasOportunidad) {
-        requests.push(crearReplaceRequest('Áreas de oportunidad', `Áreas de oportunidad\n${item.areasOportunidad}`));
-    }
-    if (item.planMejora) {
-        requests.push(crearReplaceRequest('Plan de mejora y desarrollo', `Plan de mejora y desarrollo\n${item.planMejora}`));
-    }
-    if (item.comentariosEvaluador) {
-        requests.push(crearReplaceRequest(
-            'Comentarios generales del evaluador',
-            `Comentarios generales del evaluador\n${item.comentariosEvaluador}`
-        ));
-    }
-    if (item.fechaEvaluacion) {
-        requests.push(crearReplaceRequest(
-            'Fecha de la evaluación: ____ / ____ / ______',
-            `Fecha de la evaluación: ${formatearFechaSlash(item.fechaEvaluacion)}`
-        ));
-    }
-
-    const unicos = [];
-    const vistos = new Set();
-    for (const req of requests.filter(Boolean)) {
-        const key = JSON.stringify(req);
-        if (!vistos.has(key)) {
-            vistos.add(key);
-            unicos.push(req);
-        }
-    }
-    if (!unicos.length) return;
-    await docsApi.documents.batchUpdate({
-        documentId: docId,
-        requestBody: { requests: unicos }
-    });
+    return copia;
 }
 
 async function asegurarDocumentoEvaluacion(evaluacion, sincronizarContenido = true) {
     const folio = normalizarFolio(evaluacion.folio) || nombreArchivoDrive(evaluacion.folio);
     let driveFileId = evaluacion.driveFileId;
     let nombre = evaluacion.nombreArchivo || nombreArchivoDrive(folio);
+    const nombreDeseado = nombreArchivoDrive(folio);
 
     if (!driveFileId) {
-        const copia = await copiarPlantillaComoGoogleDoc(nombreArchivoDrive(folio));
+        const copia = await copiarPlantillaComoGoogleDoc(nombreDeseado);
         driveFileId = copia.id;
-        nombre = copia.name || nombreArchivoDrive(folio);
         if (sincronizarContenido) {
             await aplicarContenidoEnDocumento(driveFileId, evaluacion);
         }
-        return { driveFileId, nombreArchivo: nombreArchivoDrive(folio), borrador: false };
+        return { driveFileId, nombreArchivo: nombreDeseado, borrador: false };
     }
 
     const existe = await driveService.verificarArchivoExiste(driveFileId).catch(() => false);
     if (!existe) {
-        const copia = await copiarPlantillaComoGoogleDoc(nombreArchivoDrive(folio));
+        const copia = await copiarPlantillaComoGoogleDoc(nombreDeseado);
         driveFileId = copia.id;
         if (sincronizarContenido) {
             await aplicarContenidoEnDocumento(driveFileId, evaluacion);
         }
-        return { driveFileId, nombreArchivo: nombreArchivoDrive(folio), borrador: false };
+        return { driveFileId, nombreArchivo: nombreDeseado, borrador: false };
     }
 
-    const nombreDeseado = nombreArchivoDrive(folio);
+    const { docsApi } = clienteGoogle();
+    let docActual = null;
+    try {
+        docActual = await docsApi.documents.get({ documentId: driveFileId });
+    } catch (err) {
+        console.warn('[ATH-F-11] No se pudo leer el documento actual:', err.message);
+    }
+    if (docActual && esPlantillaAntiguaAthF11(docActual.data)) {
+        const copia = await rematerializarDocumentoEvaluacion(driveFileId, nombreDeseado);
+        driveFileId = copia.id;
+        if (sincronizarContenido) {
+            await aplicarContenidoEnDocumento(driveFileId, evaluacion);
+        }
+        return { driveFileId, nombreArchivo: nombreDeseado, borrador: false };
+    }
+
     if (nombre !== nombreDeseado) {
         await driveService.renombrarArchivoPorId(driveFileId, nombreDeseado).catch((err) => {
             console.warn('[ATH-F-11] No se pudo renombrar documento:', err.message);

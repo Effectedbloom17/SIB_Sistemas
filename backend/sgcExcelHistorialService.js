@@ -10,7 +10,7 @@ const ALIAS_POR_CODIGO = {
     'DG-F-05': 'Partes',
     'SGC-F-04': 'SGCF04',
     'SGC-F-06': 'SGCF06',
-    'SGC-F-18': 'Legal',
+    'SGC-F-18': 'SGCF18',
     'SGC-F-11': 'AMEF',
     'SGC-F-12': 'Notif',
     'SGC-F-07': 'Audit',

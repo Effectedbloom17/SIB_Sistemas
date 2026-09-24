@@ -7,59 +7,86 @@ const { asegurarTablaSgcFormatoDatos, persistirRegistroSgc, obtenerRegistroSgcPe
 const excelHistorial = require('./sgcExcelHistorialService');
 
 const CODIGO_FORMATO = 'SGC-F-11';
-const TEMPLATE_DRIVE_ID = '1WMWdR8NbUXoBRANEPXBp5uMES2l5ekwQ';
+/** Plantilla maestra (hoja «Plantilla»): docs.google.com/spreadsheets/d/15iP8UalTLSW83DDuEmQEPZaAG3zao06zO51guKiR9_k */
+const TEMPLATE_DRIVE_ID = '15iP8UalTLSW83DDuEmQEPZaAG3zao06zO51guKiR9_k';
 const CARPETA_DRIVE_ID = '1v2IBrryAJg5fILPH602gm_CZhJNyia82';
 const NOMBRE_ARCHIVO_DRIVE = 'SGC-F-11 AMEF (sistema)';
-const SHEET_TITLE = 'AMEF';
+const SHEET_TITLE = 'Plantilla';
 
-const HEADER_ROW = 12;
-const DATA_START_ROW = 14;
-const REVISION_ROW = 3;
-const REVISION_COL = 14;
-const FECHA_REV_ROW = 5;
-const FECHA_REV_COL = 14;
+const HEADER_ROW = 10;
+const DATA_START_ROW = 11;
+const DATA_ROW_HEIGHT = 150;
+const REVISION_ROW = 2;
+const REVISION_COL = 15;
+const FECHA_REV_ROW = 3;
+const FECHA_REV_COL = 15;
 
+/** Metadatos — plantilla con columnas desde B (col 2). */
 const META = {
-    area: { row: 9, col: 1 },
-    departamento: { row: 9, col: 4 },
-    elaboro: { row: 9, col: 7 },
-    /** M8:S8 — valor de fecha (etiqueta en J8:L8; EQUIPO DE TRABAJO en J9:L10 de plantilla) */
-    fechaElaboracion: { row: 8, col: 13 },
-    equipoTrabajo: { row: 9, col: 13 },
-    proceso: { row: 10, col: 5 }
+    area: { row: 6, col: 2 },
+    departamento: { row: 6, col: 5 },
+    elaboro: { row: 6, col: 8 },
+    /** N5:T5 — valor de fecha (etiqueta K5:M5) */
+    fechaElaboracion: { row: 5, col: 14 },
+    /** N6:T7 — valor de equipo (etiqueta K6:M7) */
+    equipoTrabajo: { row: 6, col: 14 },
+    /** H7:J7 — valor de proceso (etiqueta B7:G7) */
+    proceso: { row: 7, col: 8 }
 };
 
 const TIMEZONE_MEXICO = 'America/Mexico_City';
 const FUENTE_SISTEMA = { name: 'Century Gothic', size: 12 };
 const FUENTE_ETIQUETA = { name: 'Century Gothic', size: 12, bold: true };
-
-const COL = {
-    operacion: 1,
-    etapa: 2,
-    modoFalla: 3,
-    causas: 4,
-    ocurrencia: 5,
-    efecto: 6,
-    severidad: 7,
-    controlesPreventivos: 8,
-    controlesDeteccion: 9,
-    deteccion: 10,
-    rpn: 11,
-    acciones: 12,
-    responsable: 13,
-    fechaCompromiso: 14,
-    resultado: 15,
-    severidadPost: 16,
-    ocurrenciaPost: 17,
-    deteccionPost: 18,
-    rpnPost: 19
+const BORDE_FINO = {
+    style: 'thin',
+    color: { argb: 'FF000000' }
+};
+const BORDES_CELDA = {
+    top: BORDE_FINO,
+    left: BORDE_FINO,
+    bottom: BORDE_FINO,
+    right: BORDE_FINO
 };
 
-const MAX_COLUMNAS_SISTEMA = 19;
+/** Columnas de la tabla (B=2 … T=20). */
+const COL = {
+    operacion: 2,
+    etapa: 3,
+    modoFalla: 4,
+    causas: 5,
+    ocurrencia: 6,
+    efecto: 7,
+    severidad: 8,
+    controlesPreventivos: 9,
+    controlesDeteccion: 10,
+    deteccion: 11,
+    rpn: 12,
+    acciones: 13,
+    responsable: 14,
+    fechaCompromiso: 15,
+    resultado: 16,
+    severidadPost: 17,
+    ocurrenciaPost: 18,
+    deteccionPost: 19,
+    rpnPost: 20
+};
+
+const COLS_CENTRO = new Set([
+    COL.ocurrencia,
+    COL.severidad,
+    COL.deteccion,
+    COL.rpn,
+    COL.severidadPost,
+    COL.ocurrenciaPost,
+    COL.deteccionPost,
+    COL.rpnPost
+]);
+
+const MAX_COLUMNAS_SISTEMA = 20;
 const DRIVE_SHEET_OPTIONS = {
     sheetTitle: SHEET_TITLE,
     maxColumns: MAX_COLUMNAS_SISTEMA,
-    keepSingleSheet: true
+    keepSingleSheet: false
 };
 
 const DATOS_DEFECTO = {
@@ -321,6 +348,11 @@ function leerFechaElaboracion(ws) {
     if (actual) {
         return formatearFechaIso(actual) || DATOS_DEFECTO.fechaElaboracion;
     }
+    // Compatibilidad con plantilla anterior (M8 / J9)
+    const legacyM8 = normalizarFechaElaboracion(leerMetaCelda(ws, { row: 8, col: 13 }));
+    if (legacyM8) {
+        return formatearFechaIso(legacyM8) || DATOS_DEFECTO.fechaElaboracion;
+    }
     const legacyJ9 = normalizarFechaElaboracion(leerMetaCelda(ws, { row: 9, col: 10 }));
     if (legacyJ9) {
         return formatearFechaIso(legacyJ9) || DATOS_DEFECTO.fechaElaboracion;
@@ -333,7 +365,29 @@ function leerEquipoTrabajo(ws) {
     if (actual) {
         return actual;
     }
+    const legacyM9 = normalizarEquipoTrabajo(leerMetaCelda(ws, { row: 9, col: 13 }));
+    if (legacyM9) {
+        return legacyM9;
+    }
     return normalizarEquipoTrabajo(leerMetaCelda(ws, { row: 9, col: 10 }));
+}
+
+function esColumnaCentrada(col) {
+    return COLS_CENTRO.has(col);
+}
+
+function aplicarBordesCelda(celda) {
+    celda.border = {
+        ...(celda.border || {}),
+        ...BORDES_CELDA
+    };
+}
+
+function obtenerHojaPlantilla(wb) {
+    return wb.getWorksheet(SHEET_TITLE)
+        || wb.worksheets.find((h) => /plantilla/i.test(String(h.name || '')))
+        || wb.worksheets[0]
+        || null;
 }
 
 function parsearDatosDesdeHoja(ws) {
@@ -399,7 +453,7 @@ async function leerDatosDesdeBuffer(buffer, opciones = {}) {
 }
 
 async function leerDatosDesdePlantilla() {
-    const buffer = await driveService.descargarArchivo(TEMPLATE_DRIVE_ID);
+    const buffer = await obtenerBufferPlantillaSgcF11();
     return leerDatosDesdeBuffer(buffer);
 }
 
@@ -416,7 +470,7 @@ async function descargarBufferDrive(fileId) {
     }
 }
 
-function asignarTexto(celda, texto, horizontal = 'left') {
+function asignarTexto(celda, texto, horizontal = 'left', conBorde = false) {
     celda.value = normalizarSaltosLinea(texto);
     celda.font = { ...(celda.font || {}), ...FUENTE_SISTEMA };
     celda.alignment = {
@@ -425,21 +479,31 @@ function asignarTexto(celda, texto, horizontal = 'left') {
         wrapText: true,
         horizontal
     };
+    if (conBorde) {
+        aplicarBordesCelda(celda);
+    }
 }
 
-function asignarNumeroOCelda(celda, texto) {
+function asignarNumeroOCelda(celda, texto, horizontal = 'center', conBorde = false) {
     const t = String(texto || '').trim();
     celda.font = { ...(celda.font || {}), ...FUENTE_SISTEMA };
     if (t && /^-?\d+(\.\d+)?$/.test(t)) {
         celda.value = Number(t);
     } else {
-        asignarTexto(celda, t);
-        return;
+        celda.value = normalizarSaltosLinea(t);
     }
-    celda.alignment = { ...(celda.alignment || {}), vertical: 'middle', horizontal: 'center' };
+    celda.alignment = {
+        ...(celda.alignment || {}),
+        vertical: 'middle',
+        wrapText: true,
+        horizontal
+    };
+    if (conBorde) {
+        aplicarBordesCelda(celda);
+    }
 }
 
-function aplicarEstiloCelda(celda, fuente, horizontal) {
+function aplicarEstiloCelda(celda, fuente, horizontal, conBorde = false) {
     celda.font = { ...(celda.font || {}), ...fuente };
     celda.alignment = {
         ...(celda.alignment || {}),
@@ -447,44 +511,66 @@ function aplicarEstiloCelda(celda, fuente, horizontal) {
         wrapText: true,
         horizontal
     };
+    if (conBorde) {
+        aplicarBordesCelda(celda);
+    }
 }
 
 function aplicarTipografiaSgcF11(ws, numFilasDatos) {
-    const aplicarRango = (filaInicio, filaFin, colInicio, colFin, fuente, horizontal) => {
-        for (let r = filaInicio; r <= filaFin; r++) {
-            for (let c = colInicio; c <= colFin; c++) {
-                aplicarEstiloCelda(ws.getRow(r).getCell(c), fuente, horizontal);
-            }
-        }
-    };
-
-    // Cuadros grises fila 8: Century Gothic 12 negritas, centrado
-    for (const col of [1, 4, 7, 10]) {
-        aplicarEstiloCelda(ws.getRow(8).getCell(col), FUENTE_ETIQUETA, 'center');
+    // Etiquetas de metadatos (fila 5 / 6 / 7)
+    for (const col of [2, 5, 8, 11]) {
+        aplicarEstiloCelda(ws.getRow(5).getCell(col), FUENTE_ETIQUETA, 'center');
     }
-    // Etiqueta EQUIPO DE TRABAJO (J9:L10 en plantilla)
-    aplicarEstiloCelda(ws.getRow(9).getCell(10), FUENTE_ETIQUETA, 'center');
-    // Etiqueta PROCESO (A10:D10)
-    aplicarEstiloCelda(ws.getRow(10).getCell(1), FUENTE_ETIQUETA, 'center');
+    aplicarEstiloCelda(ws.getRow(6).getCell(11), FUENTE_ETIQUETA, 'center');
+    aplicarEstiloCelda(ws.getRow(7).getCell(2), FUENTE_ETIQUETA, 'center');
 
-    // Valores meta fila 9 y fecha M8
-    for (const { row, col } of [META.area, META.departamento, META.elaboro, META.equipoTrabajo, META.fechaElaboracion]) {
+    // Valores meta
+    for (const { row, col } of [
+        META.area, META.departamento, META.elaboro,
+        META.equipoTrabajo, META.fechaElaboracion, META.proceso
+    ]) {
         aplicarEstiloCelda(ws.getRow(row).getCell(col), FUENTE_SISTEMA, 'left');
     }
-    aplicarEstiloCelda(ws.getRow(META.proceso.row).getCell(META.proceso.col), FUENTE_SISTEMA, 'left');
 
-    aplicarRango(HEADER_ROW, HEADER_ROW, 1, MAX_COLUMNAS_SISTEMA, FUENTE_ETIQUETA, 'center');
-    if (numFilasDatos > 0) {
-        aplicarRango(DATA_START_ROW, DATA_START_ROW + numFilasDatos - 1, 1, MAX_COLUMNAS_SISTEMA, FUENTE_SISTEMA, 'left');
+    // Encabezados de tabla
+    for (let c = COL.operacion; c <= COL.rpnPost; c++) {
+        aplicarEstiloCelda(ws.getRow(HEADER_ROW).getCell(c), FUENTE_ETIQUETA, 'center', true);
+    }
+
+    if (numFilasDatos <= 0) {
+        return;
+    }
+
+    const filaFin = DATA_START_ROW + numFilasDatos - 1;
+    for (let r = DATA_START_ROW; r <= filaFin; r++) {
+        const row = ws.getRow(r);
+        row.height = DATA_ROW_HEIGHT;
+        for (let c = COL.operacion; c <= COL.rpnPost; c++) {
+            const horizontal = esColumnaCentrada(c) ? 'center' : 'left';
+            aplicarEstiloCelda(row.getCell(c), FUENTE_SISTEMA, horizontal, true);
+        }
     }
 }
 
+async function obtenerBufferPlantillaSgcF11() {
+    try {
+        const info = await driveService.obtenerInfoArchivo(TEMPLATE_DRIVE_ID);
+        const mime = String(info?.mimeType || '');
+        if (mime === 'application/vnd.google-apps.spreadsheet') {
+            return driveService.exportarGoogleSheetComoXLSX(TEMPLATE_DRIVE_ID);
+        }
+    } catch (_err) {
+        // Continuar con descarga binaria / fallback
+    }
+    return driveService.descargarArchivo(TEMPLATE_DRIVE_ID);
+}
+
 async function escribirDatosEnPlantilla(datos) {
-    const templateBuffer = await driveService.descargarArchivo(TEMPLATE_DRIVE_ID);
+    const templateBuffer = await obtenerBufferPlantillaSgcF11();
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(templateBuffer);
-    const ws = wb.worksheets[0];
-    if (!ws) throw new Error('La plantilla SGC-F-11 no contiene hojas.');
+    const ws = obtenerHojaPlantilla(wb);
+    if (!ws) throw new Error('La plantilla SGC-F-11 no contiene la hoja «Plantilla».');
 
     const filaFin = encontrarFilaFinDatos(ws);
     const filasDisponibles = Math.max(0, filaFin - DATA_START_ROW);
@@ -492,7 +578,7 @@ async function escribirDatosEnPlantilla(datos) {
         ws.spliceRows(filaFin, 0, ...Array.from({ length: datos.filas.length - filasDisponibles }, () => []));
     }
 
-    const filaFinActual = encontrarFilaFinDatos(ws);
+    const filaFinActual = Math.max(encontrarFilaFinDatos(ws), DATA_START_ROW + datos.filas.length);
     for (let r = DATA_START_ROW; r < filaFinActual; r++) {
         const row = ws.getRow(r);
         for (let c = COL.operacion; c <= COL.rpnPost; c++) {
@@ -518,25 +604,26 @@ async function escribirDatosEnPlantilla(datos) {
 
     datos.filas.forEach((fila, idx) => {
         const row = ws.getRow(DATA_START_ROW + idx);
-        asignarTexto(row.getCell(COL.operacion), fila.operacion);
-        asignarTexto(row.getCell(COL.etapa), fila.etapa);
-        asignarTexto(row.getCell(COL.modoFalla), fila.modoFalla);
-        asignarTexto(row.getCell(COL.causas), fila.causas);
-        asignarNumeroOCelda(row.getCell(COL.ocurrencia), fila.ocurrencia);
-        asignarTexto(row.getCell(COL.efecto), fila.efecto);
-        asignarNumeroOCelda(row.getCell(COL.severidad), fila.severidad);
-        asignarTexto(row.getCell(COL.controlesPreventivos), fila.controlesPreventivos);
-        asignarTexto(row.getCell(COL.controlesDeteccion), fila.controlesDeteccion);
-        asignarNumeroOCelda(row.getCell(COL.deteccion), fila.deteccion);
-        asignarNumeroOCelda(row.getCell(COL.rpn), fila.rpn);
-        asignarTexto(row.getCell(COL.acciones), fila.acciones);
-        asignarTexto(row.getCell(COL.responsable), fila.responsable);
-        asignarTexto(row.getCell(COL.fechaCompromiso), fila.fechaCompromiso);
-        asignarTexto(row.getCell(COL.resultado), fila.resultado);
-        asignarNumeroOCelda(row.getCell(COL.severidadPost), fila.severidadPost);
-        asignarNumeroOCelda(row.getCell(COL.ocurrenciaPost), fila.ocurrenciaPost);
-        asignarNumeroOCelda(row.getCell(COL.deteccionPost), fila.deteccionPost);
-        asignarNumeroOCelda(row.getCell(COL.rpnPost), fila.rpnPost);
+        row.height = DATA_ROW_HEIGHT;
+        asignarTexto(row.getCell(COL.operacion), fila.operacion, 'left', true);
+        asignarTexto(row.getCell(COL.etapa), fila.etapa, 'left', true);
+        asignarTexto(row.getCell(COL.modoFalla), fila.modoFalla, 'left', true);
+        asignarTexto(row.getCell(COL.causas), fila.causas, 'left', true);
+        asignarNumeroOCelda(row.getCell(COL.ocurrencia), fila.ocurrencia, 'center', true);
+        asignarTexto(row.getCell(COL.efecto), fila.efecto, 'left', true);
+        asignarNumeroOCelda(row.getCell(COL.severidad), fila.severidad, 'center', true);
+        asignarTexto(row.getCell(COL.controlesPreventivos), fila.controlesPreventivos, 'left', true);
+        asignarTexto(row.getCell(COL.controlesDeteccion), fila.controlesDeteccion, 'left', true);
+        asignarNumeroOCelda(row.getCell(COL.deteccion), fila.deteccion, 'center', true);
+        asignarNumeroOCelda(row.getCell(COL.rpn), fila.rpn, 'center', true);
+        asignarTexto(row.getCell(COL.acciones), fila.acciones, 'left', true);
+        asignarTexto(row.getCell(COL.responsable), fila.responsable, 'left', true);
+        asignarTexto(row.getCell(COL.fechaCompromiso), fila.fechaCompromiso, 'left', true);
+        asignarTexto(row.getCell(COL.resultado), fila.resultado, 'left', true);
+        asignarNumeroOCelda(row.getCell(COL.severidadPost), fila.severidadPost, 'center', true);
+        asignarNumeroOCelda(row.getCell(COL.ocurrenciaPost), fila.ocurrenciaPost, 'center', true);
+        asignarNumeroOCelda(row.getCell(COL.deteccionPost), fila.deteccionPost, 'center', true);
+        asignarNumeroOCelda(row.getCell(COL.rpnPost), fila.rpnPost, 'center', true);
     });
 
     aplicarTipografiaSgcF11(ws, datos.filas.length);
@@ -688,7 +775,14 @@ async function reforzarFormatoDriveSheet(spreadsheetId, numFilasDatos) {
     try {
         await driveService.aplicarFormatoVisualSgcF11(spreadsheetId, {
             sheetTitle: SHEET_TITLE,
-            numFilasDatos
+            numFilasDatos,
+            dataStartRow: DATA_START_ROW,
+            // Sheets API usa píxeles; ExcelJS usa puntos (~150 pt ≈ 200 px)
+            dataRowHeight: Math.round(DATA_ROW_HEIGHT * (96 / 72)),
+            headerRow: HEADER_ROW,
+            colStart: COL.operacion,
+            colEnd: COL.rpnPost,
+            colsCentro: [...COLS_CENTRO]
         });
     } catch (err) {
         console.warn('[SGC-F-11] No se pudo aplicar formato visual en Drive:', err.message);

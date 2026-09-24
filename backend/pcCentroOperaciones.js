@@ -336,8 +336,8 @@ function evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura = null, f
     // Reporte de recorrido: opcional temporalmente (se puede completar el nodo sin llenar SP-F-02).
     const recorridoCompletable = true;
 
-    // Directorio: requerido. Cada PIPC asignado debe tener ≥1 directorio asociado en Gestión de Directorios.
-    const directorioCompletable = pipcAsignados.length > 0 && !!(directorioEstado?.completo);
+    // Directorio: se puede completar el nodo aunque falten asociaciones en Gestión de Directorios.
+    const directorioCompletable = true;
 
     const puedeCompletar = {
         asignar: asignarCompleto,

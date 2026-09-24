@@ -10,7 +10,9 @@ const CODIGO_FORMATO = 'SGC-F-07';
 const TEMPLATE_DRIVE_ID = '1JeFz9EUCEPfRcFw90vSO8PHTq9TMX_Jr';
 const DRIVE_FILE_ID_SISTEMA = '1JeFz9EUCEPfRcFw90vSO8PHTq9TMX_Jr';
 const CARPETA_DRIVE_ID = '1v2IBrryAJg5fILPH602gm_CZhJNyia82';
+const CARPETA_PDF_FIRMADO_DRIVE_ID = '11BP-e95f54iD7r0Tp9YhupT2ROkGmxCk';
 const NOMBRE_ARCHIVO_DRIVE = 'SGC-F-07 Programa de auditoría (sistema)';
+const NOMBRE_PDF_ARCHIVO = 'SGC-F-07 Programa de auditoría.pdf';
 const SHEET_TITLE = 'Programa de Auditoría Interna';
 
 const MESES_KEYS = [
@@ -53,6 +55,16 @@ const COLUMNAS = {
     calendarioFin: 58
 };
 
+const COLOR_CALENDARIO_P = 'FFFF00';
+const COLOR_CALENDARIO_R = '17CD1F';
+const COLOR_CALENDARIO_P_RGB = { red: 1, green: 1, blue: 0 };
+const COLOR_CALENDARIO_R_RGB = {
+    red: 0x17 / 255,
+    green: 0xCD / 255,
+    blue: 0x1F / 255
+};
+const COLOR_CALENDARIO_VACIO_RGB = { red: 1, green: 1, blue: 1 };
+
 const DATOS_DEFECTO = {
     empresa: 'BIZNAGA RISK AND TECH',
     fechaElaboracion: '2025-01-14',
@@ -67,7 +79,10 @@ const DATOS_DEFECTO = {
             auditorLider: '',
             metodoAuditoria: 'En sitio y persona a persona',
             fecha: '',
-            calendario: crearCalendarioVacio()
+            fechaP: '',
+            fechaR: '',
+            calendarioP: crearCalendarioVacio(),
+            calendarioR: crearCalendarioVacio()
         },
         {
             noAudi: '2',
@@ -79,7 +94,10 @@ const DATOS_DEFECTO = {
             auditorLider: 'Auditor externo',
             metodoAuditoria: 'En sitio y persona a persona',
             fecha: '',
-            calendario: crearCalendarioVacio()
+            fechaP: '',
+            fechaR: '',
+            calendarioP: crearCalendarioVacio(),
+            calendarioR: crearCalendarioVacio()
         },
         {
             noAudi: '3',
@@ -91,7 +109,10 @@ const DATOS_DEFECTO = {
             auditorLider: '',
             metodoAuditoria: 'Remota',
             fecha: '',
-            calendario: crearCalendarioVacio()
+            fechaP: '',
+            fechaR: '',
+            calendarioP: crearCalendarioVacio(),
+            calendarioR: crearCalendarioVacio()
         }
     ],
     footer: {
@@ -100,7 +121,9 @@ const DATOS_DEFECTO = {
         notaPrograma: '',
         firmaEjecutivo: 'Ejecutivo JR SGVC',
         firmaDireccion: 'Dirección General'
-    }
+    },
+    pdfFirmado: null,
+    pdfsHistorial: []
 };
 
 async function obtenerMetaHojaParaHistorial(fileId, infoArchivo = null) {
@@ -138,44 +161,84 @@ function crearCalendarioVacio() {
     }, {});
 }
 
-function marcarCeldaCalendario(valor) {
-    const texto = String(valor || '').trim();
+/** Normaliza marca de celda a la letra del tipo ('P' | 'R') o vacío. Acepta X legacy. */
+function marcarCeldaCalendario(valor, letraTipo) {
+    const letra = String(letraTipo || '').trim().toUpperCase();
+    const texto = String(valor || '').trim().toUpperCase();
     if (!texto) return '';
-    if (/^(x|✓|1|si|sí)$/i.test(texto)) return 'X';
-    return texto.toUpperCase() === 'X' ? 'X' : '';
+    if (letra === 'P' || letra === 'R') {
+        if (texto === letra || texto === 'X' || /^(✓|1|SI|SÍ)$/.test(texto)) {
+            return letra;
+        }
+        return '';
+    }
+    if (texto === 'P' || texto === 'R') return texto;
+    if (texto === 'X' || /^(✓|1|SI|SÍ)$/.test(texto)) return 'X';
+    return '';
 }
 
-function leerCalendarioDesdeFila(row) {
+function celdaCalendarioMarcada(valor, letraTipo) {
+    return marcarCeldaCalendario(valor, letraTipo) === String(letraTipo || '').toUpperCase();
+}
+
+function leerCalendarioDesdeFila(row, letraTipo) {
+    const letra = String(letraTipo || 'P').toUpperCase() === 'R' ? 'R' : 'P';
     const calendario = crearCalendarioVacio();
     MESES_KEYS.forEach((mes, idxMes) => {
         for (let sem = 0; sem < 4; sem++) {
             const col = COLUMNAS.calendarioInicio + idxMes * 4 + sem;
-            calendario[mes][sem] = marcarCeldaCalendario(row.getCell(col).value);
+            calendario[mes][sem] = marcarCeldaCalendario(row.getCell(col).value, letra);
         }
     });
     return calendario;
 }
 
-function combinarCalendarios(base, extra) {
+function combinarCalendarios(base, extra, letraTipo = 'P') {
+    const letra = String(letraTipo || 'P').toUpperCase() === 'R' ? 'R' : 'P';
     const calendario = crearCalendarioVacio();
     MESES_KEYS.forEach((mes) => {
         for (let i = 0; i < 4; i++) {
-            calendario[mes][i] = marcarCeldaCalendario(extra?.[mes]?.[i] || base?.[mes]?.[i]);
+            calendario[mes][i] = marcarCeldaCalendario(extra?.[mes]?.[i] || base?.[mes]?.[i], letra);
         }
     });
     return calendario;
 }
 
-function migrarCalendarioAuditoria(item) {
-    if (item?.calendario && typeof item.calendario === 'object') {
-        return combinarCalendarios(crearCalendarioVacio(), item.calendario);
+function esCalendarioMesesPlano(obj) {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
+    if (obj.p || obj.r || obj.calendarioP || obj.calendarioR) return false;
+    return MESES_KEYS.some((mes) => Array.isArray(obj[mes]));
+}
+
+function migrarCalendariosAuditoria(item) {
+    let calendarioP = crearCalendarioVacio();
+    let calendarioR = crearCalendarioVacio();
+
+    if (item?.calendarioP || item?.calendarioR) {
+        calendarioP = combinarCalendarios(crearCalendarioVacio(), item.calendarioP, 'P');
+        calendarioR = combinarCalendarios(crearCalendarioVacio(), item.calendarioR, 'R');
+    } else if (item?.calendario?.p || item?.calendario?.r) {
+        calendarioP = combinarCalendarios(crearCalendarioVacio(), item.calendario.p, 'P');
+        calendarioR = combinarCalendarios(crearCalendarioVacio(), item.calendario.r, 'R');
+    } else if (esCalendarioMesesPlano(item?.calendario)) {
+        calendarioP = combinarCalendarios(crearCalendarioVacio(), item.calendario, 'P');
+    } else {
+        if (item?.semana1) calendarioP.enero[0] = marcarCeldaCalendario(item.semana1, 'P');
+        if (item?.semana2) calendarioP.enero[1] = marcarCeldaCalendario(item.semana2, 'P');
+        if (item?.semana3) calendarioP.enero[2] = marcarCeldaCalendario(item.semana3, 'P');
+        if (item?.semana4) calendarioP.enero[3] = marcarCeldaCalendario(item.semana4, 'P');
     }
-    const calendario = crearCalendarioVacio();
-    if (item?.semana1) calendario.enero[0] = marcarCeldaCalendario(item.semana1);
-    if (item?.semana2) calendario.enero[1] = marcarCeldaCalendario(item.semana2);
-    if (item?.semana3) calendario.enero[2] = marcarCeldaCalendario(item.semana3);
-    if (item?.semana4) calendario.enero[3] = marcarCeldaCalendario(item.semana4);
-    return calendario;
+
+    // Exclusividad: si ambas están marcadas en la misma semana, prioriza P
+    MESES_KEYS.forEach((mes) => {
+        for (let i = 0; i < 4; i++) {
+            if (calendarioP[mes][i] && calendarioR[mes][i]) {
+                calendarioR[mes][i] = '';
+            }
+        }
+    });
+
+    return { calendarioP, calendarioR };
 }
 
 function columnaCalendarioParaMesSemana(idxMes, idxSemana) {
@@ -184,6 +247,55 @@ function columnaCalendarioParaMesSemana(idxMes, idxSemana) {
 
 function indiceFilaProgramada(indiceAuditoria) {
     return DATA_START_ROW + indiceAuditoria * 2;
+}
+
+/**
+ * ExcelJS reutiliza el mismo objeto de estilo entre celdas de la plantilla.
+ * Mutarlo pinta otras filas (incluidas las vacías) y desplaza el color de la letra.
+ */
+function aislarEstiloCelda(celda) {
+    const src = celda.style && typeof celda.style === 'object' ? celda.style : {};
+    const lado = (borde) => (borde ? { ...borde, color: borde.color ? { ...borde.color } : undefined } : undefined);
+    celda.style = {
+        numFmt: src.numFmt,
+        font: src.font ? { ...src.font, color: src.font.color ? { ...src.font.color } : undefined } : undefined,
+        alignment: src.alignment ? { ...src.alignment } : undefined,
+        border: src.border ? {
+            top: lado(src.border.top),
+            left: lado(src.border.left),
+            bottom: lado(src.border.bottom),
+            right: lado(src.border.right)
+        } : undefined,
+        fill: src.fill ? {
+            type: src.fill.type,
+            pattern: src.fill.pattern,
+            fgColor: src.fill.fgColor ? { ...src.fill.fgColor } : undefined,
+            bgColor: src.fill.bgColor ? { ...src.fill.bgColor } : undefined
+        } : undefined,
+        protection: src.protection ? { ...src.protection } : undefined
+    };
+}
+
+function aplicarRellenoCalendarioExcel(celda, marcado, colorArgb) {
+    aislarEstiloCelda(celda);
+    celda.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: marcado ? `FF${colorArgb}` : 'FFFFFFFF' }
+    };
+}
+
+function escribirMarcasCalendarioEnFila(row, calendario, letraTipo, colorArgb) {
+    const letra = String(letraTipo || 'P').toUpperCase() === 'R' ? 'R' : 'P';
+    MESES_KEYS.forEach((mes, idxMes) => {
+        for (let sem = 0; sem < 4; sem++) {
+            const col = columnaCalendarioParaMesSemana(idxMes, sem);
+            const celda = row.getCell(col);
+            const marcado = celdaCalendarioMarcada(calendario?.[mes]?.[sem], letra) ? letra : '';
+            asignarTextoSimple(celda, marcado, 'center');
+            aplicarRellenoCalendarioExcel(celda, marcado, colorArgb);
+        }
+    });
 }
 
 function celdaATexto(valor) {
@@ -208,9 +320,9 @@ function normalizarSaltosLinea(texto) {
 }
 
 function asignarTextoSimple(celda, valor, horizontal = 'center') {
+    aislarEstiloCelda(celda);
     celda.value = valor ?? '';
     celda.alignment = {
-        ...(celda.alignment || {}),
         horizontal,
         vertical: 'middle',
         wrapText: true
@@ -290,7 +402,77 @@ function fechaHoyIso() {
     return formatearFechaIso(new Date());
 }
 
+function nombrePdfHistorial(fechaIso = fechaHoyIso(), historial = []) {
+    const iso = formatearFechaIso(fechaIso) || fechaHoyIso();
+    const [, mm] = iso.split('-');
+    const yy = iso.slice(2, 4);
+    const version = siguienteVersionPdfHistorial(historial);
+    return `${NOMBRE_PDF_ARCHIVO.replace(/\.pdf$/i, '')} - ${mm}/${yy} - ${version}.pdf`;
+}
+
+function siguienteVersionPdfHistorial(historial = []) {
+    let max = 0;
+    const lista = Array.isArray(historial) ? historial : [];
+    for (const item of lista) {
+        const nombre = String(item?.nombreArchivo || item?.name || '');
+        const match = nombre.match(/- (\d{2})\.pdf$/i);
+        if (match) {
+            const n = parseInt(match[1], 10);
+            if (!Number.isNaN(n) && n > max) max = n;
+        }
+    }
+    return String(max + 1).padStart(2, '0');
+}
+
+async function listarPdfsHistorialDrive() {
+    const archivos = await driveService.listarArchivosCarpeta(CARPETA_PDF_FIRMADO_DRIVE_ID);
+    return (archivos || [])
+        .filter((f) => {
+            const n = String(f.name || '');
+            return /\.pdf$/i.test(n) && /^SGC-F-07 Programa de auditor[ií]a/i.test(n);
+        })
+        .map((f) => sanitizarPdfFirmado({
+            driveFileId: f.id,
+            nombreArchivo: f.name,
+            webViewLink: f.webViewLink || null,
+            fechaSubida: f.modifiedTime || fechaHoyIso()
+        }))
+        .filter(Boolean)
+        .sort((a, b) => String(b.fechaSubida || '').localeCompare(String(a.fechaSubida || '')));
+}
+
+function sanitizarPdfFirmado(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const driveFileId = String(raw.driveFileId || raw.drive_file_id || '').trim();
+    if (!driveFileId) return null;
+    return {
+        driveFileId,
+        nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || NOMBRE_PDF_ARCHIVO).trim()
+            || NOMBRE_PDF_ARCHIVO,
+        webViewLink: String(raw.webViewLink || raw.web_view_link || '').trim() || null,
+        previewUrl: `https://drive.google.com/file/d/${driveFileId}/preview`,
+        fechaSubida: formatearFechaIso(raw.fechaSubida || raw.fecha_subida) || fechaHoyIso()
+    };
+}
+
+function sanitizarPdfsHistorial(raw) {
+    if (!Array.isArray(raw)) return [];
+    const vistos = new Set();
+    const lista = [];
+    for (const item of raw) {
+        const pdf = sanitizarPdfFirmado(item);
+        if (!pdf || vistos.has(pdf.driveFileId)) continue;
+        vistos.add(pdf.driveFileId);
+        lista.push(pdf);
+    }
+    return lista;
+}
+
 function sanitizarAuditoria(item) {
+    const { calendarioP, calendarioR } = migrarCalendariosAuditoria(item);
+    const fechaLegacy = String(item?.fecha || '').trim();
+    const fechaP = String(item?.fechaP || item?.fecha_p || fechaLegacy || '').trim();
+    const fechaR = String(item?.fechaR || item?.fecha_r || '').trim();
     return {
         noAudi: String(item?.noAudi || '').trim(),
         tipoAuditoria: String(item?.tipoAuditoria || '').trim(),
@@ -300,8 +482,11 @@ function sanitizarAuditoria(item) {
         equipoAuditor: String(item?.equipoAuditor || '').trim(),
         auditorLider: String(item?.auditorLider || '').trim(),
         metodoAuditoria: String(item?.metodoAuditoria || '').trim(),
-        fecha: String(item?.fecha || '').trim(),
-        calendario: migrarCalendarioAuditoria(item)
+        fecha: fechaP,
+        fechaP,
+        fechaR,
+        calendarioP,
+        calendarioR
     };
 }
 
@@ -326,7 +511,9 @@ function sanitizarDatos(raw) {
         auditorias: auditorias.map(sanitizarAuditoria).filter(a => 
             a.noAudi || a.tipoAuditoria || a.alcance || a.objetivo
         ),
-        footer: sanitizarFooter(base.footer)
+        footer: sanitizarFooter(base.footer),
+        pdfFirmado: sanitizarPdfFirmado(base.pdfFirmado || base.pdf_firmado),
+        pdfsHistorial: sanitizarPdfsHistorial(base.pdfsHistorial || base.pdfs_historial)
     };
 }
 
@@ -387,9 +574,14 @@ function parsearDatosDesdeHoja(ws) {
             numerosVistos.add(noAudi);
             const filaRealizada = ws.getRow(rowNum + 1);
             const estadoRealizada = celdaATexto(filaRealizada.getCell(COLUMNAS.estadoCalendario).value).trim();
-            const calendario = /^R$/i.test(estadoRealizada)
-                ? combinarCalendarios(leerCalendarioDesdeFila(row), leerCalendarioDesdeFila(filaRealizada))
-                : leerCalendarioDesdeFila(row);
+            const calendarioP = leerCalendarioDesdeFila(row, 'P');
+            const calendarioR = /^R$/i.test(estadoRealizada)
+                ? leerCalendarioDesdeFila(filaRealizada, 'R')
+                : crearCalendarioVacio();
+            const fechaP = celdaATexto(row.getCell(COLUMNAS.fecha).value);
+            const fechaR = /^R$/i.test(estadoRealizada)
+                ? celdaATexto(filaRealizada.getCell(COLUMNAS.fecha).value)
+                : '';
             auditorias.push({
                 noAudi,
                 tipoAuditoria,
@@ -399,8 +591,11 @@ function parsearDatosDesdeHoja(ws) {
                 equipoAuditor: celdaATexto(row.getCell(COLUMNAS.equipoAuditor).value),
                 auditorLider: celdaATexto(row.getCell(COLUMNAS.auditorLider).value),
                 metodoAuditoria: celdaATexto(row.getCell(COLUMNAS.metodoAuditoria).value),
-                fecha: celdaATexto(row.getCell(COLUMNAS.fecha).value),
-                calendario
+                fecha: fechaP,
+                fechaP,
+                fechaR,
+                calendarioP,
+                calendarioR
             });
         }
         rowNum++;
@@ -470,18 +665,21 @@ function escribirAuditoriaEnFilasPar(ws, filaProgramada, filaRealizada, auditori
         asignarTextoSimple(row.getCell(COLUMNAS.equipoAuditor), aud.equipoAuditor, 'left');
         asignarTextoSimple(row.getCell(COLUMNAS.auditorLider), aud.auditorLider, 'left');
         asignarTextoSimple(row.getCell(COLUMNAS.metodoAuditoria), aud.metodoAuditoria, 'left');
-        asignarTextoSimple(row.getCell(COLUMNAS.estadoCalendario), idx === 0 ? 'P' : 'R', 'center');
+        const celdaEstado = row.getCell(COLUMNAS.estadoCalendario);
+        asignarTextoSimple(celdaEstado, idx === 0 ? 'P' : 'R', 'center');
+        aplicarRellenoCalendarioExcel(
+            celdaEstado,
+            'X',
+            idx === 0 ? COLOR_CALENDARIO_P : COLOR_CALENDARIO_R
+        );
     });
 
     const rowP = ws.getRow(filaProgramada);
-    asignarTextoSimple(rowP.getCell(COLUMNAS.fecha), aud.fecha, 'center');
-    MESES_KEYS.forEach((mes, idxMes) => {
-        for (let sem = 0; sem < 4; sem++) {
-            const col = columnaCalendarioParaMesSemana(idxMes, sem);
-            const marcado = aud.calendario?.[mes]?.[sem] === 'X' ? 'X' : '';
-            asignarTextoSimple(rowP.getCell(col), marcado, 'center');
-        }
-    });
+    const rowR = ws.getRow(filaRealizada);
+    asignarTextoSimple(rowP.getCell(COLUMNAS.fecha), aud.fechaP || aud.fecha, 'center');
+    asignarTextoSimple(rowR.getCell(COLUMNAS.fecha), aud.fechaR, 'center');
+    escribirMarcasCalendarioEnFila(rowP, aud.calendarioP, 'P', COLOR_CALENDARIO_P);
+    escribirMarcasCalendarioEnFila(rowR, aud.calendarioR, 'R', COLOR_CALENDARIO_R);
 }
 
 async function escribirDatosEnPlantilla(datos, driveFileId = DRIVE_FILE_ID_SISTEMA) {
@@ -496,7 +694,11 @@ async function escribirDatosEnPlantilla(datos, driveFileId = DRIVE_FILE_ID_SISTE
     for (let r = DATA_START_ROW; r <= DATA_END_ROW; r++) {
         const row = ws.getRow(r);
         for (let c = COLUMNAS.noAudi; c <= COLUMNAS.calendarioFin; c++) {
-            asignarTextoSimple(row.getCell(c), '', c >= COLUMNAS.calendarioInicio ? 'center' : 'left');
+            const celda = row.getCell(c);
+            asignarTextoSimple(celda, '', c >= COLUMNAS.calendarioInicio || c === COLUMNAS.estadoCalendario ? 'center' : 'left');
+            if (c >= COLUMNAS.estadoCalendario && c <= COLUMNAS.calendarioFin) {
+                aplicarRellenoCalendarioExcel(celda, '', COLOR_CALENDARIO_P);
+            }
         }
     }
 
@@ -511,9 +713,80 @@ async function escribirDatosEnPlantilla(datos, driveFileId = DRIVE_FILE_ID_SISTE
     asignarTextoSimple(ws.getCell(FOOTER_CELDAS.notaPrograma), footer.notaPrograma, 'left');
     asignarTextoSimple(ws.getCell(FOOTER_CELDAS.firmaEjecutivo), footer.firmaEjecutivo, 'center');
     asignarTextoSimple(ws.getCell(FOOTER_CELDAS.firmaDireccion), footer.firmaDireccion, 'center');
+    aplicarConfiguracionImpresionHoja(ws);
 
     const buffer = await wb.xlsx.writeBuffer();
     return Buffer.from(buffer);
+}
+
+/** Carta, horizontal, ajustar a 1 página, márgenes estrechos. */
+function aplicarConfiguracionImpresionHoja(ws) {
+    ws.pageSetup = {
+        ...(ws.pageSetup || {}),
+        paperSize: 1,
+        orientation: 'landscape',
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 1,
+        horizontalCentered: false,
+        verticalCentered: false,
+        margins: {
+            left: 0.25,
+            right: 0.25,
+            top: 0.75,
+            bottom: 0.75,
+            header: 0.3,
+            footer: 0.3
+        }
+    };
+    if (ws.pageSetup.scale) {
+        delete ws.pageSetup.scale;
+    }
+}
+
+const OPCIONES_PDF_IMPRESION = {
+    landscape: true,
+    fitToPage: true,
+    size: 'letter',
+    margins: 'estrechos',
+    horizontalAlignment: 'RIGHT',
+    verticalAlignment: 'TOP'
+};
+
+async function descargarPlantillaPdf(pool) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const driveFileId = await resolverDriveFileId(registro);
+    if (!driveFileId) {
+        throw new Error('No hay archivo SGC-F-07 en Drive para exportar a PDF.');
+    }
+
+    const opciones = { ...OPCIONES_PDF_IMPRESION };
+    const info = await driveService.obtenerInfoArchivo(driveFileId).catch(() => null);
+    if (info?.mimeType === 'application/vnd.google-apps.spreadsheet') {
+        let tituloHoja = SHEET_TITLE;
+        try {
+            tituloHoja = await excelHistorial.resolverTituloHojaVigenteDesdeDrive(
+                driveFileId,
+                SHEET_TITLE,
+                CODIGO_FORMATO
+            );
+        } catch (err) {
+            console.warn('[SGC-F-07] No se pudo resolver la hoja vigente para PDF:', err.message);
+        }
+        try {
+            const gid = await driveService.obtenerGidHojaPorNombre(driveFileId, tituloHoja);
+            if (gid != null) opciones.gid = gid;
+        } catch (err) {
+            console.warn('[SGC-F-07] No se pudo resolver gid de hoja para PDF:', err.message);
+        }
+    }
+
+    const pdfBuffer = await driveService.exportarArchivoPDF(driveFileId, opciones);
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de SGC-F-07 quedó vacía.');
+    }
+    return Buffer.from(pdfBuffer);
 }
 
 function rangoSheet(celda, sheetTitle = SHEET_TITLE) {
@@ -523,9 +796,11 @@ function rangoSheet(celda, sheetTitle = SHEET_TITLE) {
 function datosAActualizacionesSheet(datos, sheetTitle = SHEET_TITLE) {
     const datosSanitizados = sanitizarDatos(datos);
     const actualizaciones = [];
+    // Solo datos de auditoría (A-H). Estado/Fecha/Calendario (I-BF) van en sync atómico con color.
+    const COL_DATOS_FIN = COLUMNAS.metodoAuditoria;
 
     for (let rowNum = DATA_START_ROW; rowNum <= DATA_END_ROW; rowNum++) {
-        for (let colNum = COLUMNAS.noAudi; colNum <= COLUMNAS.calendarioFin; colNum++) {
+        for (let colNum = COLUMNAS.noAudi; colNum <= COL_DATOS_FIN; colNum++) {
             actualizaciones.push({
                 range: rangoSheet(`${columnaALetra(colNum)}${rowNum}`, sheetTitle),
                 values: [['']]
@@ -536,56 +811,45 @@ function datosAActualizacionesSheet(datos, sheetTitle = SHEET_TITLE) {
     let rowNum = DATA_START_ROW;
     datosSanitizados.auditorias.slice(0, MAX_AUDITORIAS_TABLA).forEach((auditoriaRaw) => {
         const auditoria = sanitizarAuditoria(auditoriaRaw);
-        actualizaciones.push({
-            range: rangoSheet(`A${rowNum}`, sheetTitle),
-            values: [[auditoria.noAudi || '']]
-        });
-        actualizaciones.push({
-            range: rangoSheet(`B${rowNum}`, sheetTitle),
-            values: [[auditoria.tipoAuditoria || '']]
-        });
-        actualizaciones.push({
-            range: rangoSheet(`C${rowNum}`, sheetTitle),
-            values: [[auditoria.alcance || '']]
-        });
-        actualizaciones.push({
-            range: rangoSheet(`D${rowNum}`, sheetTitle),
-            values: [[auditoria.objetivo || '']]
-        });
-        actualizaciones.push({
-            range: rangoSheet(`E${rowNum}`, sheetTitle),
-            values: [[auditoria.criterios || '']]
-        });
-        actualizaciones.push({
-            range: rangoSheet(`F${rowNum}`, sheetTitle),
-            values: [[auditoria.equipoAuditor || '']]
-        });
-        actualizaciones.push({
-            range: rangoSheet(`G${rowNum}`, sheetTitle),
-            values: [[auditoria.auditorLider || '']]
-        });
-        actualizaciones.push({
-            range: rangoSheet(`H${rowNum}`, sheetTitle),
-            values: [[auditoria.metodoAuditoria || '']]
-        });
-        actualizaciones.push({
-            range: rangoSheet(`I${rowNum}`, sheetTitle),
-            values: [['P']]
-        });
-        actualizaciones.push({
-            range: rangoSheet(`J${rowNum}`, sheetTitle),
-            values: [[auditoria.fecha || '']]
-        });
-        MESES_KEYS.forEach((mes, idxMes) => {
-            for (let sem = 0; sem < 4; sem++) {
-                const col = columnaCalendarioParaMesSemana(idxMes, sem);
-                const marcado = auditoria.calendario?.[mes]?.[sem] === 'X' ? 'X' : '';
-                actualizaciones.push({
-                    range: rangoSheet(`${columnaALetra(col)}${rowNum}`, sheetTitle),
-                    values: [[marcado]]
-                });
-            }
-        });
+        const filaR = rowNum + 1;
+
+        const empujarFilaBase = (fila) => {
+            actualizaciones.push({
+                range: rangoSheet(`A${fila}`, sheetTitle),
+                values: [[auditoria.noAudi || '']]
+            });
+            actualizaciones.push({
+                range: rangoSheet(`B${fila}`, sheetTitle),
+                values: [[auditoria.tipoAuditoria || '']]
+            });
+            actualizaciones.push({
+                range: rangoSheet(`C${fila}`, sheetTitle),
+                values: [[auditoria.alcance || '']]
+            });
+            actualizaciones.push({
+                range: rangoSheet(`D${fila}`, sheetTitle),
+                values: [[auditoria.objetivo || '']]
+            });
+            actualizaciones.push({
+                range: rangoSheet(`E${fila}`, sheetTitle),
+                values: [[auditoria.criterios || '']]
+            });
+            actualizaciones.push({
+                range: rangoSheet(`F${fila}`, sheetTitle),
+                values: [[auditoria.equipoAuditor || '']]
+            });
+            actualizaciones.push({
+                range: rangoSheet(`G${fila}`, sheetTitle),
+                values: [[auditoria.auditorLider || '']]
+            });
+            actualizaciones.push({
+                range: rangoSheet(`H${fila}`, sheetTitle),
+                values: [[auditoria.metodoAuditoria || '']]
+            });
+        };
+
+        empujarFilaBase(rowNum);
+        empujarFilaBase(filaR);
         rowNum += 2;
     });
 
@@ -614,9 +878,205 @@ function datosAActualizacionesSheet(datos, sheetTitle = SHEET_TITLE) {
     return actualizaciones;
 }
 
+function celdaSheetConValorYColor(texto, colorRgb) {
+    const valor = String(texto || '');
+    const tieneColor = !!colorRgb;
+    return {
+        userEnteredValue: valor ? { stringValue: valor } : { stringValue: '' },
+        userEnteredFormat: {
+            backgroundColor: tieneColor ? colorRgb : COLOR_CALENDARIO_VACIO_RGB,
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE'
+        }
+    };
+}
+
+function construirFilasCalendarioAtomicas(datos) {
+    const datosSanitizados = sanitizarDatos(datos);
+    const auditorias = Array.isArray(datosSanitizados.auditorias) ? datosSanitizados.auditorias : [];
+    const filas = [];
+
+    for (let index = 0; index < MAX_AUDITORIAS_TABLA; index++) {
+        const auditoria = auditorias[index] || null;
+        const hayAuditoria = !!auditoria;
+
+        const construirFila = (tipo) => {
+            const esP = tipo === 'P';
+            const cells = [];
+
+            // Col I: estado P/R
+            cells.push(celdaSheetConValorYColor(
+                hayAuditoria ? tipo : '',
+                hayAuditoria ? (esP ? COLOR_CALENDARIO_P_RGB : COLOR_CALENDARIO_R_RGB) : null
+            ));
+
+            // Col J: fecha
+            const fecha = !hayAuditoria
+                ? ''
+                : (esP ? (auditoria.fechaP || auditoria.fecha || '') : (auditoria.fechaR || ''));
+            cells.push(celdaSheetConValorYColor(fecha, null));
+
+            // Cols K-BF: calendario 12 meses x 4 semanas
+            const calendario = hayAuditoria
+                ? (esP ? auditoria.calendarioP : auditoria.calendarioR)
+                : null;
+            MESES_KEYS.forEach((mes) => {
+                for (let sem = 0; sem < 4; sem++) {
+                    const marcado = hayAuditoria && celdaCalendarioMarcada(calendario?.[mes]?.[sem], tipo)
+                        ? tipo
+                        : '';
+                    cells.push(celdaSheetConValorYColor(
+                        marcado,
+                        marcado ? (esP ? COLOR_CALENDARIO_P_RGB : COLOR_CALENDARIO_R_RGB) : null
+                    ));
+                }
+            });
+
+            return { values: cells };
+        };
+
+        filas.push(construirFila('P'));
+        filas.push(construirFila('R'));
+    }
+
+    return filas;
+}
+
+async function resolverSheetIdPorTitulo(sheetsApi, spreadsheetId, sheetTitle) {
+    const meta = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets(properties(sheetId,title),conditionalFormats,bandedRanges)'
+    });
+    const normalizarTitulo = (t) => String(t || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+    const tituloBuscado = normalizarTitulo(sheetTitle);
+    const hojas = meta.data.sheets || [];
+    const sheet = hojas.find((s) => {
+        const t = (s.properties?.title || '').trim();
+        return t === sheetTitle || normalizarTitulo(t) === tituloBuscado;
+    });
+    if (!sheet?.properties || sheet.properties.sheetId === undefined || sheet.properties.sheetId === null) {
+        return { sheetId: null, sheet: null, hojas };
+    }
+    return { sheetId: sheet.properties.sheetId, sheet, hojas };
+}
+
+async function limpiarFormatosAutomaticosCalendario(sheetsApi, spreadsheetId, sheetTitle, sheetId) {
+    const colStart = COLUMNAS.estadoCalendario - 1;
+    const colEnd = COLUMNAS.calendarioFin;
+    const rowStart = DATA_START_ROW - 1;
+    const rowEnd = DATA_END_ROW;
+    const rangosSeSolapan = (range) => {
+        if (range?.sheetId != null && range.sheetId !== sheetId) return false;
+        const c0 = Number(range.startColumnIndex ?? 0);
+        const c1 = Number(range.endColumnIndex ?? 0);
+        const r0 = Number(range.startRowIndex ?? 0);
+        const r1 = Number(range.endRowIndex ?? 0);
+        return c0 < colEnd && c1 > colStart && r0 < rowEnd && r1 > rowStart;
+    };
+
+    for (let intento = 0; intento < 40; intento += 1) {
+        const meta = await sheetsApi.spreadsheets.get({
+            spreadsheetId,
+            fields: 'sheets(properties(sheetId,title),conditionalFormats)'
+        });
+        const hoja = (meta.data.sheets || []).find((s) => s.properties?.sheetId === sheetId)
+            || (meta.data.sheets || []).find((s) => (s.properties?.title || '').trim() === sheetTitle);
+        const reglas = Array.isArray(hoja?.conditionalFormats) ? hoja.conditionalFormats : [];
+        let indiceBorrar = -1;
+        for (let index = reglas.length - 1; index >= 0; index -= 1) {
+            const afecta = Array.isArray(reglas[index]?.ranges)
+                && reglas[index].ranges.some(rangosSeSolapan);
+            if (afecta) {
+                indiceBorrar = index;
+                break;
+            }
+        }
+        if (indiceBorrar < 0) break;
+        await sheetsApi.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+                requests: [{
+                    deleteConditionalFormatRule: { sheetId, index: indiceBorrar }
+                }]
+            }
+        });
+    }
+
+    const metaBand = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets(properties(sheetId,title),bandedRanges)'
+    });
+    const hojaBand = (metaBand.data.sheets || []).find((s) => s.properties?.sheetId === sheetId);
+    const bandas = Array.isArray(hojaBand?.bandedRanges) ? hojaBand.bandedRanges : [];
+    const requestsBand = [];
+    for (const banda of bandas) {
+        const rango = banda?.range;
+        if (rangosSeSolapan(rango) && banda.bandedRangeId != null) {
+            requestsBand.push({ deleteBanding: { bandedRangeId: banda.bandedRangeId } });
+        }
+    }
+    if (requestsBand.length) {
+        await sheetsApi.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: { requests: requestsBand }
+        });
+    }
+}
+
+async function sincronizarCalendarioAtomicoGoogleSheet(spreadsheetId, datos, sheetTitle = SHEET_TITLE) {
+    if (!spreadsheetId) return;
+    try {
+        const { google } = require('googleapis');
+        const auth = driveService.getAuthClient();
+        if (!auth) {
+            console.warn('[SGC-F-07] Sin cliente Google Auth; no se sincroniza calendario.');
+            return;
+        }
+        const sheetsApi = google.sheets({ version: 'v4', auth });
+        const { sheetId, hojas } = await resolverSheetIdPorTitulo(sheetsApi, spreadsheetId, sheetTitle);
+        if (sheetId === undefined || sheetId === null) {
+            console.warn(
+                `[SGC-F-07] No se encontró hoja «${sheetTitle}» para calendario. Hojas:`,
+                (hojas || []).map((s) => s.properties?.title).join(', ')
+            );
+            return;
+        }
+
+        await limpiarFormatosAutomaticosCalendario(sheetsApi, spreadsheetId, sheetTitle, sheetId);
+
+        const filas = construirFilasCalendarioAtomicas(datos);
+        // I=9 → index 8; BF=58 → end exclusive 58
+        await sheetsApi.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+                requests: [{
+                    updateCells: {
+                        range: {
+                            sheetId,
+                            startRowIndex: DATA_START_ROW - 1,
+                            endRowIndex: DATA_END_ROW,
+                            startColumnIndex: COLUMNAS.estadoCalendario - 1,
+                            endColumnIndex: COLUMNAS.calendarioFin
+                        },
+                        rows: filas,
+                        fields: 'userEnteredValue,userEnteredFormat.backgroundColor,userEnteredFormat.horizontalAlignment,userEnteredFormat.verticalAlignment'
+                    }
+                }]
+            }
+        });
+    } catch (err) {
+        console.warn('[SGC-F-07] No se pudo sincronizar calendario/colores:', err.message);
+    }
+}
+
 async function actualizarDatosEnGoogleSheet(spreadsheetId, datos, sheetTitle = SHEET_TITLE) {
     const actualizaciones = datosAActualizacionesSheet(datos, sheetTitle);
     await driveService.actualizarCeldasGoogleSheet(spreadsheetId, actualizaciones);
+    await sincronizarCalendarioAtomicoGoogleSheet(spreadsheetId, datos, sheetTitle);
     return driveService.obtenerInfoArchivo(spreadsheetId).catch(() => ({ id: spreadsheetId }));
 }
 
@@ -626,10 +1086,24 @@ async function escribirSnapshotEnHojaDrive(spreadsheetId, sheetTitle, datos) {
 
 function contenidoEsEquivalente(a, b) {
     const copia = (datos) => {
-        const base = sanitizarDatos(datos);
-        return base;
+        const { pdfFirmado: _pdf, pdfsHistorial: _hist, ...rest } = sanitizarDatos(datos);
+        return rest;
     };
     return JSON.stringify(copia(a)) === JSON.stringify(copia(b));
+}
+
+function preservarPdfMeta(datosEntrada, datosPrevios) {
+    const pdfFirmado = sanitizarPdfFirmado(datosEntrada?.pdfFirmado)
+        || sanitizarPdfFirmado(datosPrevios?.pdfFirmado)
+        || null;
+    const histEntrada = sanitizarPdfsHistorial(datosEntrada?.pdfsHistorial);
+    const histPrevios = sanitizarPdfsHistorial(datosPrevios?.pdfsHistorial);
+    const pdfsHistorial = histEntrada.length ? histEntrada : histPrevios;
+    return { pdfFirmado, pdfsHistorial };
+}
+
+function preservarPdfFirmado(datosEntrada, datosPrevios) {
+    return preservarPdfMeta(datosEntrada, datosPrevios).pdfFirmado;
 }
 
 function estructuraEsEquivalente(a, b) {
@@ -763,12 +1237,23 @@ function construirRespuesta(registro, datos, archivoDrive) {
     const modificado = !!registro?.contenido_modificado;
     const fechaMostrar = modificado && fechaMod ? fechaMod : (fechaOriginal || datos.fechaElaboracion);
     const driveId = archivoDrive?.id || registro?.drive_file_id || null;
+    const pdfFirmado = datos.pdfFirmado
+        ? {
+            ...datos.pdfFirmado,
+            nombreArchivo: datos.pdfFirmado.nombreArchivo || NOMBRE_PDF_ARCHIVO,
+            previewUrl: datos.pdfFirmado.previewUrl
+                || `https://drive.google.com/file/d/${datos.pdfFirmado.driveFileId}/preview`
+        }
+        : null;
+    const pdfsHistorial = sanitizarPdfsHistorial(datos.pdfsHistorial);
 
     return {
         codigo: CODIGO_FORMATO,
         datos: {
             ...datos,
-            fechaElaboracion: fechaMostrar
+            fechaElaboracion: fechaMostrar,
+            pdfFirmado,
+            pdfsHistorial
         },
         fechaElaboracionOriginal: fechaOriginal || datos.fechaElaboracion,
         fechaModificacionContenido: fechaMod || null,
@@ -776,7 +1261,10 @@ function construirRespuesta(registro, datos, archivoDrive) {
         driveFileId: driveId,
         editorUrl: driveId ? `https://docs.google.com/spreadsheets/d/${driveId}/edit?usp=sharing` : null,
         previewUrl: driveId ? `https://docs.google.com/spreadsheets/d/${driveId}/preview` : null,
-        ultimaSyncDrive: formatearUltimaSyncDisplay(registro, archivoDrive)
+        ultimaSyncDrive: formatearUltimaSyncDisplay(registro, archivoDrive),
+        pdfPreviewUrl: pdfFirmado?.previewUrl || null,
+        pdfDriveFileId: pdfFirmado?.driveFileId || null,
+        historialPdfs: pdfsHistorial
     };
 }
 
@@ -807,6 +1295,15 @@ async function cargarFormato(pool) {
         try {
             const buffer = await descargarBufferDrive(driveFileId);
             datos = await leerDatosDesdeBuffer(buffer);
+            const datosDb = await leerDatosRegistro(registro);
+            if (datosDb) {
+                const metaPdf = preservarPdfMeta(datos, datosDb);
+                datos = {
+                    ...datos,
+                    pdfFirmado: metaPdf.pdfFirmado,
+                    pdfsHistorial: metaPdf.pdfsHistorial
+                };
+            }
             archivoDrive = await driveService.obtenerInfoArchivo(driveFileId).catch(() => null);
         } catch (err) {
             console.warn('[SGC-F-07] No se pudo leer archivo en Drive, usando BD/plantilla:', err.message);
@@ -891,6 +1388,9 @@ async function guardarFormato(pool, body, options = {}) {
         datosEntrada.footer = sanitizarFooter(datosPrevios.footer);
     }
 
+    datosEntrada.pdfFirmado = preservarPdfMeta(datosEntrada, datosPrevios).pdfFirmado;
+    datosEntrada.pdfsHistorial = preservarPdfMeta(datosEntrada, datosPrevios).pdfsHistorial;
+
     const huboCambio = !datosPrevios || !contenidoEsEquivalente(datosPrevios, datosEntrada);
 
     if (!huboCambio && registroPrevio?.drive_file_id) {
@@ -922,7 +1422,10 @@ async function guardarFormato(pool, body, options = {}) {
                     origen,
                     forzarTipo: body?.tipoCambio || null
                 });
-                datosGuardar = hist.datosGuardar;
+                datosGuardar = {
+                    ...hist.datosGuardar,
+                    ...preservarPdfMeta(hist.datosGuardar, datosEntrada)
+                };
 
                 if (hist.aplicado && origen !== 'consulta') {
                     contenidoModificado = true;
@@ -1029,7 +1532,11 @@ async function sincronizarDesdeDrive(pool) {
         const archivoDrive = await driveService
             .obtenerInfoArchivo(registro.drive_file_id)
             .catch(() => null);
-        return construirRespuesta(registro, datosDrive, archivoDrive);
+        const datosConPdf = {
+            ...datosDrive,
+            ...preservarPdfMeta(datosDrive, datosPrevios)
+        };
+        return construirRespuesta(registro, datosConPdf, archivoDrive);
     }
 
     const hist = await aplicarHistorialSgcF07({
@@ -1039,7 +1546,10 @@ async function sincronizarDesdeDrive(pool) {
         origen: 'drive'
     });
 
-    const datosGuardar = hist.datosGuardar;
+    const datosGuardar = {
+        ...hist.datosGuardar,
+        ...preservarPdfMeta(hist.datosGuardar, datosPrevios)
+    };
     if (hist.aplicado) {
         contenidoModificado = true;
         fechaModificacion = fechaHoyIso();
@@ -1110,9 +1620,112 @@ async function actualizarPlantillaDesdeSistema(pool) {
     return construirRespuesta(registroActualizado, datosPublicar, archivoDrive);
 }
 
+async function subirPdfFirmado(pool, body) {
+    const pdfBase64 = String(body?.pdf_base64 || body?.pdfBase64 || '').trim();
+    if (!pdfBase64) throw new Error('No se recibió el PDF (pdf_base64 requerido).');
+
+    const pdfBuffer = Buffer.from(pdfBase64, 'base64');
+    if (!pdfBuffer.length) throw new Error('El archivo PDF está vacío.');
+
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registroPrevio = await obtenerRegistroDb(pool);
+    const datosPrevios = (await leerDatosRegistro(registroPrevio)) || sanitizarDatos(DATOS_DEFECTO);
+
+    const historialDrivePrev = await listarPdfsHistorialDrive().catch(() => []);
+    const histPrev = sanitizarPdfsHistorial([
+        ...sanitizarPdfsHistorial(datosPrevios.pdfsHistorial),
+        ...historialDrivePrev
+    ]);
+    const nombreArchivo = nombrePdfHistorial(fechaHoyIso(), histPrev);
+    const driveResult = await driveService.subirArchivoNuevo(
+        pdfBuffer,
+        nombreArchivo,
+        'application/pdf',
+        CARPETA_PDF_FIRMADO_DRIVE_ID
+    );
+
+    const pdfFirmado = sanitizarPdfFirmado({
+        driveFileId: driveResult.id,
+        nombreArchivo: driveResult.name || nombreArchivo,
+        webViewLink: driveResult.webViewLink || null,
+        fechaSubida: fechaHoyIso()
+    });
+
+    const pdfsHistorial = [
+        pdfFirmado,
+        ...histPrev.filter((p) => p.driveFileId !== pdfFirmado.driveFileId)
+    ];
+
+    const datosGuardar = { ...datosPrevios, pdfFirmado, pdfsHistorial };
+    const fechaOriginal = formatearFechaIso(registroPrevio?.fecha_elaboracion_original) || datosPrevios.fechaElaboracion;
+    const contenidoModificado = !!registroPrevio?.contenido_modificado;
+    const fechaModificacion = formatearFechaIso(registroPrevio?.fecha_modificacion_contenido);
+    const driveFileId = registroPrevio?.drive_file_id || await resolverDriveFileId(registroPrevio);
+
+    await guardarRegistroDb(pool, {
+        driveFileId: driveFileId || null,
+        datos: datosGuardar,
+        fechaElaboracionOriginal: fechaOriginal,
+        fechaModificacionContenido: contenidoModificado ? fechaModificacion : null,
+        contenidoModificado
+    });
+
+    const registro = await obtenerRegistroDb(pool);
+    const archivoDrive = driveFileId
+        ? await driveService.obtenerInfoArchivo(driveFileId).catch(() => ({ id: driveFileId }))
+        : null;
+    return { ...construirRespuesta(registro, datosGuardar, archivoDrive), pdfFirmado };
+}
+
+async function eliminarPdfHistorial(pool, body, opciones = {}) {
+    if (!opciones.puedeBorrarHistorial) {
+        throw new Error('No autorizado para eliminar PDFs del historial.');
+    }
+    const driveFileId = String(body?.driveFileId || body?.drive_file_id || '').trim();
+    if (!driveFileId) throw new Error('driveFileId requerido.');
+
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registroPrevio = await obtenerRegistroDb(pool);
+    const datosPrevios = (await leerDatosRegistro(registroPrevio)) || sanitizarDatos(DATOS_DEFECTO);
+
+    await driveService.eliminarArchivo(driveFileId).catch((err) => {
+        console.warn('[SGC-F-07] No se pudo borrar PDF en Drive:', err.message);
+    });
+
+    const hist = sanitizarPdfsHistorial(datosPrevios.pdfsHistorial)
+        .filter((p) => p.driveFileId !== driveFileId);
+    let pdfFirmado = datosPrevios.pdfFirmado;
+    if (pdfFirmado?.driveFileId === driveFileId) {
+        pdfFirmado = hist[0] || null;
+    }
+
+    const datosGuardar = { ...datosPrevios, pdfFirmado, pdfsHistorial: hist };
+    const fechaOriginal = formatearFechaIso(registroPrevio?.fecha_elaboracion_original) || datosPrevios.fechaElaboracion;
+    const contenidoModificado = !!registroPrevio?.contenido_modificado;
+    const fechaModificacion = formatearFechaIso(registroPrevio?.fecha_modificacion_contenido);
+    const sheetId = registroPrevio?.drive_file_id || null;
+
+    await guardarRegistroDb(pool, {
+        driveFileId: sheetId,
+        datos: datosGuardar,
+        fechaElaboracionOriginal: fechaOriginal,
+        fechaModificacionContenido: contenidoModificado ? fechaModificacion : null,
+        contenidoModificado
+    });
+
+    const registro = await obtenerRegistroDb(pool);
+    const archivoDrive = sheetId
+        ? await driveService.obtenerInfoArchivo(sheetId).catch(() => ({ id: sheetId }))
+        : null;
+    return construirRespuesta(registro, datosGuardar, archivoDrive);
+}
+
 module.exports = {
     cargarFormato,
     guardarFormato,
     sincronizarDesdeDrive,
-    actualizarPlantillaDesdeSistema
+    actualizarPlantillaDesdeSistema,
+    subirPdfFirmado,
+    eliminarPdfHistorial,
+    descargarPlantillaPdf
 };

@@ -1780,18 +1780,19 @@ async function descargarPlantillaPdf(pool, opciones = {}) {
         throw err;
     }
 
-    // Legal, márgenes 0.5", escala 70 %, contenido centrado en la hoja
+    // Carta, ajustar al ancho, márgenes 0.5/1.4/1.0/1.0, centrado horizontal / arriba
     const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
         gid,
         landscape: false,
-        size: 'legal',
-        scalePercent: 70,
+        size: 'letter',
+        fitToWidth: true,
         horizontalAlignment: 'CENTER',
+        verticalAlignment: 'TOP',
         margins: {
             top: 0.5,
-            bottom: 0.5,
-            left: 0.5,
-            right: 0.5
+            bottom: 1.4,
+            left: 1.0,
+            right: 1.0
         }
     });
     if (!pdfBuffer || !pdfBuffer.length) {

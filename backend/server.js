@@ -25800,6 +25800,7 @@ const sgcDgF01Service = require('./sgcDgF01Service');
 const sgcDgF02Service = require('./sgcDgF02Service');
 const sgcDgF04Service = require('./sgcDgF04Service');
 const sgcDgF05Service = require('./sgcDgF05Service');
+const sgcDgF07Service = require('./sgcDgF07Service');
 const sgcF07Service = require('./sgcF07Service');
 const sgcF08Service = require('./sgcF08Service');
 const sgcF10Service = require('./sgcF10Service');
@@ -26461,6 +26462,26 @@ app.post('/api/sgc/formatos/dg-f-02/subir-pdf-firmado', requireAdminOrSgc, async
     }
 });
 
+app.post('/api/sgc/formatos/dg-f-02/eliminar-pdf-historial', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const puedeBorrarHistorial = userRoles.includes('root') || esGestorCalidadSgc(req);
+        const payload = await sgcDgF02Service.eliminarPdfHistorial(poolBiznagaSgc, req.body || {}, {
+            puedeBorrarHistorial
+        });
+        return res.json({
+            success: true,
+            message: 'PDF eliminado del historial.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo eliminar el PDF del historial DG-F-02');
+    }
+});
+
 app.get('/api/sgc/formatos/dg-f-02/descargar-plantilla-pdf', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
@@ -26538,6 +26559,26 @@ app.post('/api/sgc/formatos/dg-f-01/subir-pdf-firmado', requireAdminOrSgc, async
         });
     } catch (error) {
         handleError(res, error, 'No se pudo subir el PDF del formato DG-F-01');
+    }
+});
+
+app.post('/api/sgc/formatos/dg-f-01/eliminar-pdf-historial', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const puedeBorrarHistorial = userRoles.includes('root') || esGestorCalidadSgc(req);
+        const payload = await sgcDgF01Service.eliminarPdfHistorial(poolBiznagaSgc, req.body || {}, {
+            puedeBorrarHistorial
+        });
+        return res.json({
+            success: true,
+            message: 'PDF eliminado del historial.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo eliminar el PDF del historial DG-F-01');
     }
 });
 
@@ -26698,6 +26739,109 @@ app.post('/api/sgc/formatos/dg-f-05/actualizar-plantilla', requireRole('root'), 
     }
 });
 
+app.get('/api/sgc/formatos/dg-f-05/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcDgF05Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="DG-F-05 Listado de partes interesadas.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de DG-F-05');
+    }
+});
+
+app.get('/api/sgc/formatos/dg-f-07', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
+        const payload = await sgcDgF07Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato DG-F-07');
+    }
+});
+
+app.post('/api/sgc/formatos/dg-f-07/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcDgF07Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'Formato DG-F-07 guardado y sincronizado con Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato DG-F-07 en Drive');
+    }
+});
+
+app.post('/api/sgc/formatos/dg-f-07/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcDgF07Service.sincronizarDesdeDrive(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Cambios del editor integrado importados desde Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo sincronizar DG-F-07 desde Drive');
+    }
+});
+
+app.get('/api/sgc/formatos/dg-f-07/estado-drive', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const registro = await sgcDgF07Service.cargarFormato(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            exists: !!registro.driveFileId,
+            file: registro.driveFileId
+                ? { id: registro.driveFileId, modifiedTime: registro.ultimaSyncDrive }
+                : null,
+            editorUrl: registro.editorUrl,
+            previewUrl: registro.previewUrl
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo consultar el estado de DG-F-07 en Drive');
+    }
+});
+
+app.post('/api/sgc/formatos/dg-f-07/actualizar-plantilla', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcDgF07Service.actualizarPlantillaDesdeSistema(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Plantilla DG-F-07 regenerada en Google Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo actualizar la plantilla DG-F-07 en Drive');
+    }
+});
+
+app.get('/api/sgc/formatos/dg-f-07/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const { buffer, nombreArchivo } = await sgcDgF07Service.descargarPlantillaPdf(poolBiznagaSgc, {
+            slug: req.query.slug || req.query.proceso || ''
+        });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${String(nombreArchivo || 'DG-F-07.pdf').replace(/"/g, '')}"`
+        );
+        return res.send(buffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de DG-F-07');
+    }
+});
+
 app.get('/api/sgc/formatos/sgc-f-07', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
@@ -26763,6 +26907,55 @@ app.post('/api/sgc/formatos/sgc-f-07/actualizar-plantilla', requireRole('root'),
         });
     } catch (error) {
         handleError(res, error, 'No se pudo actualizar la plantilla SGC-F-07 en Drive');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-07/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF07Service.subirPdfFirmado(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'PDF firmado subido correctamente.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo subir el PDF firmado del formato SGC-F-07');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-07/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcF07Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="SGC-F-07 Programa de auditoria.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-07');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-07/eliminar-pdf-historial', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const puedeBorrarHistorial = userRoles.includes('root') || esGestorCalidadSgc(req);
+        const payload = await sgcF07Service.eliminarPdfHistorial(poolBiznagaSgc, req.body || {}, {
+            puedeBorrarHistorial
+        });
+        return res.json({
+            success: true,
+            message: 'PDF eliminado del historial.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo eliminar el PDF del historial SGC-F-07');
     }
 });
 
@@ -28010,6 +28203,21 @@ app.post('/api/sgc/formatos/sgc-f-06/actualizar-plantilla', requireRole('root'),
     }
 });
 
+app.get('/api/sgc/formatos/sgc-f-06/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcSgcF06Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="SGC-F-06 Lista y calificacion de auditores internos.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-06');
+    }
+});
+
 app.get('/api/sgc/formatos/sgc-f-18', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
@@ -28102,6 +28310,26 @@ app.post('/api/sgc/formatos/sgc-po-01/subir-pdf-firmado', requireAdminOrSgc, asy
     }
 });
 
+app.post('/api/sgc/formatos/sgc-po-01/eliminar-pdf-historial', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const puedeBorrarHistorial = userRoles.includes('root') || esGestorCalidadSgc(req);
+        const payload = await sgcPo01Service.eliminarPdfHistorial(poolBiznagaSgc, req.body || {}, {
+            puedeBorrarHistorial
+        });
+        return res.json({
+            success: true,
+            message: 'PDF eliminado del historial.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo eliminar el PDF del historial SGC-PO-01');
+    }
+});
+
 app.get('/api/sgc/formatos/sgc-po-01/descargar-plantilla-pdf', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
@@ -28153,6 +28381,26 @@ app.post('/api/sgc/formatos/dg-f-08/subir-pdf-firmado', requireAdminOrSgc, async
         });
     } catch (error) {
         handleError(res, error, 'No se pudo subir el PDF firmado del formato DG-F-08');
+    }
+});
+
+app.post('/api/sgc/formatos/dg-f-08/eliminar-pdf-historial', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const puedeBorrarHistorial = userRoles.includes('root') || esGestorCalidadSgc(req);
+        const payload = await sgcDgF08Service.eliminarPdfHistorial(poolBiznagaSgc, req.body || {}, {
+            puedeBorrarHistorial
+        });
+        return res.json({
+            success: true,
+            message: 'PDF eliminado del historial.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo eliminar el PDF del historial DG-F-08');
     }
 });
 

@@ -1423,6 +1423,40 @@ async function actualizarPlantillaDesdeSistema(pool) {
     return construirRespuesta(registroActualizado, datosPublicar, archivoDrive);
 }
 
+async function descargarPlantillaPdf(pool) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    let registro = await obtenerRegistroDb(pool);
+    let driveFileId = await resolverDriveFileId(registro);
+    if (!driveFileId) {
+        throw new Error('No hay Google Sheet SGC-F-06 configurado para exportar a PDF.');
+    }
+    driveFileId = await asegurarDriveIdGoogleSheet(driveFileId, pool, registro);
+
+    const tituloHoja = await resolverTituloHojaTrabajo(driveFileId);
+    let gid = null;
+    try {
+        gid = await driveService.obtenerGidHojaPorNombre(driveFileId, tituloHoja);
+    } catch (err) {
+        console.warn('[SGC-F-06] No se pudo resolver gid de hoja para PDF:', err.message);
+    }
+    if (gid == null) {
+        throw new Error(`No se encontró la hoja activa «${tituloHoja}» para exportar a PDF.`);
+    }
+
+    // Carta, horizontal, márgenes estrechos, escala 80 %.
+    const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
+        gid,
+        landscape: true,
+        size: 'letter',
+        margins: 'estrechos',
+        scalePercent: 80
+    });
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de SGC-F-06 quedó vacía.');
+    }
+    return Buffer.from(pdfBuffer);
+}
+
 module.exports = {
     CODIGO_FORMATO,
     DATOS_DEFECTO,
@@ -1430,5 +1464,6 @@ module.exports = {
     guardarFormato,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
+    descargarPlantillaPdf,
     sanitizarDatos
 };

@@ -1113,7 +1113,11 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       return !this.estaEditandoAutollenadoEmpresa(doc);
     }
 
-    return !this.textoEditandoEmpresa.has(doc.documento_id);
+    // Solo bloquear tras guardar (estatus distinto de pendiente), no mientras escribe.
+    if (doc.estatus === 'pendiente' || this.textoEditandoEmpresa.has(doc.documento_id)) {
+      return false;
+    }
+    return true;
   }
 
   activarEdicionTextoEmpresa(doc: DocumentoPC): void {
@@ -1687,7 +1691,11 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       return !this.estaEditandoAutollenadoSubir(doc);
     }
 
-    return !this.textoEditandoSubir.has(doc.documento_id);
+    // Solo bloquear tras guardar (estatus distinto de pendiente), no mientras escribe.
+    if (doc.estatus === 'pendiente' || this.textoEditandoSubir.has(doc.documento_id)) {
+      return false;
+    }
+    return true;
   }
 
   activarEdicionTextoSubir(doc: DocumentoPC): void {

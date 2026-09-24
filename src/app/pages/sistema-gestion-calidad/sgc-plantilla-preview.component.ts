@@ -214,6 +214,8 @@ interface AthF11Evaluacion {
   fechaIngreso: string;
   periodoEvaluado: string;
   evaluador: string;
+  /** Puesto en el organigrama del evaluador (usuario.organigrama). */
+  evaluadorPuesto: string;
   usuarioId: string | null;
   competencias: AthF11Competencia[];
   observaciones: string;
@@ -732,6 +734,8 @@ interface SgcF07Calendario {
   diciembre: string[];
 }
 
+type SgcF07CalendarioTipo = 'P' | 'R';
+
 interface SgcF07AuditoriaItem {
   noAudi: string;
   tipoAuditoria: string;
@@ -742,7 +746,10 @@ interface SgcF07AuditoriaItem {
   auditorLider: string;
   metodoAuditoria: string;
   fecha: string;
-  calendario: SgcF07Calendario;
+  fechaP: string;
+  fechaR: string;
+  calendarioP: SgcF07Calendario;
+  calendarioR: SgcF07Calendario;
 }
 
 interface SgcF07FooterData {
@@ -758,6 +765,8 @@ interface SgcF07FormData {
   fechaElaboracion: string;
   auditorias: SgcF07AuditoriaItem[];
   footer: SgcF07FooterData;
+  pdfFirmado: DgF02PdfFirmado | null;
+  pdfsHistorial: DgF02PdfFirmado[];
 }
 
 interface SgcF08AgendaItem {
@@ -1875,7 +1884,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       notaPrograma: '',
       firmaEjecutivo: 'Ejecutivo JR SGVC',
       firmaDireccion: 'Dirección General'
-    }
+    },
+    pdfFirmado: null,
+    pdfsHistorial: []
   };
   sgcF07Cargando = false;
   sgcF07Guardando = false;
@@ -1892,6 +1903,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF07ContenidoModificado = false;
   sgcF07EditorCargando = false;
   sgcF07ActualizandoPlantilla = false;
+  sgcF07SubiendoPdf = false;
+  sgcF07BorrandoPdf = false;
+  sgcF07DescargandoPdf = false;
+  mostrarSgcF07PdfViewer = false;
+  sgcF07PdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  sgcF07PdfCargando = false;
+  sgcF07PdfViewerActual: DgF02PdfFirmado | null = null;
   private sgcF07EditorIframeListo = false;
   sgcF08Form: SgcF08FormData = this.crearSgcF08FormVacio();
   sgcF08Cargando = false;
@@ -2711,6 +2729,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   mostrarDgF07Editor = false;
   dgF07EditorCargando = false;
   dgF07ActualizandoPlantilla = false;
+  dgF07DescargandoPdf = false;
 
   @ViewChild('dgF07TabsScroll') dgF07TabsScroll?: ElementRef<HTMLElement>;
   @ViewChild('amefSlidesFrame') amefSlidesFrame?: ElementRef<HTMLIFrameElement>;
@@ -2721,25 +2740,31 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   dgF01Guardando = false;
   dgF01SubiendoImagen = false;
   dgF01SubiendoPdf = false;
+  dgF01BorrandoPdf = false;
   dgF01UltimaSync: string | null = null;
   dgF01MapaPreviewUrl: string | null = null;
   dgF01ImagenVersion: number | null = null;
   dgF01ErrorImagen: string | null = null;
   private dgF01ImagenRespaldoUrl: string | null = null;
+  dgF01HistorialPdfs: DgF02PdfFirmado[] = [];
   mostrarDgF01PdfViewer = false;
   dgF01PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   dgF01PdfCargando = false;
+  dgF01PdfViewerTitulo = 'DG-F-01 Mapa de procesos.pdf';
   dgF01PdfVistaUrlSafe: SafeResourceUrl | null = null;
   dgF01PdfVistaCargando = false;
 
   dgF02Cargando = false;
   dgF02Guardando = false;
   dgF02SubiendoPdf = false;
+  dgF02BorrandoPdf = false;
   dgF02UltimaSync: string | null = null;
   dgF02ContenidoModificado = false;
+  dgF02HistorialPdfs: DgF02PdfFirmado[] = [];
   mostrarDgF02PdfViewer = false;
   dgF02PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   dgF02PdfCargando = false;
+  dgF02PdfViewerTitulo = 'DG-F-02 Alcance.pdf';
 
   dgF04Cargando = false;
   dgF04Guardando = false;
@@ -2764,6 +2789,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   dgF05ContenidoModificado = false;
   mostrarDgF05Editor = false;
   dgF05EditorCargando = false;
+  dgF05DescargandoPdf = false;
 
   /** Super admin (root), perfil calidad (sergio56 / calidad), editores delegados del formato o excepciones (p. ej. ATH-F-08 → mafer295). */
   private editoresFormatoVersion = 0;
@@ -2796,6 +2822,37 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   /** AF-F-02: borrar PDFs del historial — mismos privilegios. */
   get puedeBorrarPdfHistorialAfF02(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
+
+  /** SGC-F-07: borrar PDFs del historial — root / calidad. */
+  get puedeBorrarPdfHistorialSgcF07(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
+
+  get sgcF07HistorialPdfsVista(): DgF02PdfFirmado[] {
+    const hist = Array.isArray(this.sgcF07Form?.pdfsHistorial) ? this.sgcF07Form.pdfsHistorial : [];
+    const actualId = this.sgcF07Form?.pdfFirmado?.driveFileId || null;
+    return hist.filter((p) => p?.driveFileId && p.driveFileId !== actualId);
+  }
+
+  /** DG-F-02: borrar PDFs del historial — mismos privilegios que AF-F-02. */
+  get puedeBorrarPdfHistorialDgF02(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
+
+  /** DG-F-01: borrar PDFs del historial — mismos privilegios. */
+  get puedeBorrarPdfHistorialDgF01(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
+
+  /** SGC-PO-01: borrar PDFs del historial — mismos privilegios. */
+  get puedeBorrarPdfHistorialSgcPo01(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
+
+  /** DG-F-08: borrar PDFs del historial — mismos privilegios. */
+  get puedeBorrarPdfHistorialDgF08(): boolean {
     return this.esPrivilegioRootOCalidadAfF02();
   }
 
@@ -3112,6 +3169,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   mostrarSgcF06Editor = false;
   sgcF06EditorCargando = false;
   sgcF06ActualizandoPlantilla = false;
+  sgcF06DescargandoPdf = false;
 
   sgcF18Cargando = false;
   sgcF18Guardando = false;
@@ -3205,21 +3263,27 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcPo01Cargando = false;
   sgcPo01Guardando = false;
   sgcPo01SubiendoPdf = false;
+  sgcPo01BorrandoPdf = false;
   sgcPo01UltimaSync: string | null = null;
   sgcPo01ContenidoModificado = false;
   sgcPo01FechaOriginal: string | null = null;
+  sgcPo01HistorialPdfs: DgF02PdfFirmado[] = [];
   mostrarSgcPo01PdfViewer = false;
   sgcPo01PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   sgcPo01PdfCargando = false;
+  sgcPo01PdfViewerTitulo = 'SGC-PO-01 Politica de calidad_Biznaga.pdf';
 
   dgF08Cargando = false;
   dgF08Guardando = false;
   dgF08SubiendoPdf = false;
+  dgF08BorrandoPdf = false;
   dgF08UltimaSync: string | null = null;
   dgF08ContenidoModificado = false;
+  dgF08HistorialPdfs: DgF02PdfFirmado[] = [];
   mostrarDgF08PdfViewer = false;
   dgF08PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   dgF08PdfCargando = false;
+  dgF08PdfViewerTitulo = 'DG-F-08 Filosofía Biznaga Risk and Tech.pdf';
 
   afF02Cargando = false;
   afF02Guardando = false;
@@ -4036,6 +4100,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.mostrarDgF03PdfViewer) {
       event.preventDefault();
       this.toggleDgF03PdfViewer();
+      return;
+    }
+    if (this.mostrarSgcF07PdfViewer) {
+      event.preventDefault();
+      this.toggleSgcF07PdfViewer();
     }
   }
 
@@ -4188,7 +4257,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return this.backendService.guardarAthF08Formato(this.athF08Form, false);
     }
     if (slug === 'sgc-f-18') {
-      return this.backendService.guardarSgcF18Formato(this.sgcF18Form, false);
+      return this.backendService.guardarSgcF18Formato({
+        ...this.sgcF18Form,
+        revision: this.revisionListaMaestraSgcF18()
+      }, false);
     }
     if (slug === 'sgc-f-11') {
       return this.backendService.guardarSgcF11Formato(this.sgcF11Form, false);
@@ -5077,28 +5149,66 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF07SemanasMarcadas(auditoria: SgcF07AuditoriaItem): number {
     let total = 0;
     this.sgcF07Meses.forEach((mes) => {
-      const semanas = auditoria?.calendario?.[mes.key as keyof SgcF07Calendario];
-      if (Array.isArray(semanas)) {
-        total += semanas.filter((valor) => valor === 'X').length;
-      }
+      (['calendarioP', 'calendarioR'] as const).forEach((campo) => {
+        const semanas = auditoria?.[campo]?.[mes.key as keyof SgcF07Calendario];
+        if (Array.isArray(semanas)) {
+          total += semanas.filter((valor) => {
+            const t = String(valor || '').trim().toUpperCase();
+            return t === 'P' || t === 'R' || t === 'X';
+          }).length;
+        }
+      });
     });
     return total;
   }
 
-  toggleSgcF07Calendario(auditoria: SgcF07AuditoriaItem, mesKey: string, semanaIndex: number): void {
-    const calendario = auditoria.calendario || this.crearCalendarioVacioSgcF07();
-    auditoria.calendario = calendario;
-    const semanas = calendario[mesKey as keyof SgcF07Calendario];
+  toggleSgcF07Calendario(
+    auditoria: SgcF07AuditoriaItem,
+    mesKey: string,
+    semanaIndex: number,
+    tipo: SgcF07CalendarioTipo = 'P'
+  ): void {
+    const campo = tipo === 'R' ? 'calendarioR' : 'calendarioP';
+    const otroCampo = tipo === 'R' ? 'calendarioP' : 'calendarioR';
+    const letra = tipo === 'R' ? 'R' : 'P';
+    if (!auditoria[campo]) {
+      auditoria[campo] = this.crearCalendarioVacioSgcF07();
+    }
+    if (!auditoria[otroCampo]) {
+      auditoria[otroCampo] = this.crearCalendarioVacioSgcF07();
+    }
+    const semanas = auditoria[campo][mesKey as keyof SgcF07Calendario];
+    const otras = auditoria[otroCampo][mesKey as keyof SgcF07Calendario];
     if (!Array.isArray(semanas)) {
       return;
     }
-    semanas[semanaIndex] = semanas[semanaIndex] === 'X' ? '' : 'X';
+    const actual = String(semanas[semanaIndex] || '').trim().toUpperCase();
+    const yaMarcada = actual === letra || actual === 'X';
+    if (yaMarcada) {
+      semanas[semanaIndex] = '';
+    } else {
+      semanas[semanaIndex] = letra;
+      if (Array.isArray(otras)) {
+        otras[semanaIndex] = '';
+      }
+    }
     this.marcarCambiosSgcF07();
   }
 
-  sgcF07SemanaMarcada(auditoria: SgcF07AuditoriaItem, mesKey: string, semanaIndex: number): boolean {
-    const semanas = auditoria?.calendario?.[mesKey as keyof SgcF07Calendario];
-    return Array.isArray(semanas) && semanas[semanaIndex] === 'X';
+  sgcF07SemanaMarcada(
+    auditoria: SgcF07AuditoriaItem,
+    mesKey: string,
+    semanaIndex: number,
+    tipo: SgcF07CalendarioTipo = 'P'
+  ): boolean {
+    const campo = tipo === 'R' ? 'calendarioR' : 'calendarioP';
+    const letra = tipo === 'R' ? 'R' : 'P';
+    const semanas = auditoria?.[campo]?.[mesKey as keyof SgcF07Calendario];
+    if (!Array.isArray(semanas)) {
+      return false;
+    }
+    const actual = String(semanas[semanaIndex] || '').trim().toUpperCase();
+    return actual === letra || actual === 'X';
   }
 
   private crearCalendarioVacioSgcF07(): SgcF07Calendario {
@@ -5129,8 +5239,33 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       auditorLider: '',
       metodoAuditoria: '',
       fecha: '',
-      calendario: this.crearCalendarioVacioSgcF07()
+      fechaP: '',
+      fechaR: '',
+      calendarioP: this.crearCalendarioVacioSgcF07(),
+      calendarioR: this.crearCalendarioVacioSgcF07()
     };
+  }
+
+  private normalizarCalendarioSgcF07(origen: any, letra: SgcF07CalendarioTipo): SgcF07Calendario {
+    const calendario = this.crearCalendarioVacioSgcF07();
+    if (!origen || typeof origen !== 'object') {
+      return calendario;
+    }
+    this.sgcF07Meses.forEach((mes) => {
+      const semanas = origen[mes.key];
+      if (Array.isArray(semanas)) {
+        calendario[mes.key as keyof SgcF07Calendario] = semanas
+          .slice(0, 4)
+          .map((valor: unknown) => {
+            const t = String(valor || '').trim().toUpperCase();
+            if (t === letra || t === 'X') {
+              return letra;
+            }
+            return '';
+          });
+      }
+    });
+    return calendario;
   }
 
   private normalizarAuditoriasSgcF07(lista: any): SgcF07AuditoriaItem[] {
@@ -5138,22 +5273,36 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return [this.crearAuditoriaVaciaSgcF07(1)];
     }
     return lista.map((item, index) => {
-      const calendario = this.crearCalendarioVacioSgcF07();
-      if (item?.calendario && typeof item.calendario === 'object') {
-        this.sgcF07Meses.forEach((mes) => {
-          const origen = item.calendario[mes.key];
-          if (Array.isArray(origen)) {
-            calendario[mes.key as keyof SgcF07Calendario] = origen
-              .slice(0, 4)
-              .map((valor: unknown) => (String(valor || '').trim().toUpperCase() === 'X' ? 'X' : ''));
-          }
-        });
+      let calendarioP = this.crearCalendarioVacioSgcF07();
+      let calendarioR = this.crearCalendarioVacioSgcF07();
+
+      if (item?.calendarioP || item?.calendarioR) {
+        calendarioP = this.normalizarCalendarioSgcF07(item.calendarioP, 'P');
+        calendarioR = this.normalizarCalendarioSgcF07(item.calendarioR, 'R');
+      } else if (item?.calendario?.p || item?.calendario?.r) {
+        calendarioP = this.normalizarCalendarioSgcF07(item.calendario.p, 'P');
+        calendarioR = this.normalizarCalendarioSgcF07(item.calendario.r, 'R');
+      } else if (item?.calendario && typeof item.calendario === 'object') {
+        calendarioP = this.normalizarCalendarioSgcF07(item.calendario, 'P');
       } else {
-        if (item?.semana1) calendario.enero[0] = 'X';
-        if (item?.semana2) calendario.enero[1] = 'X';
-        if (item?.semana3) calendario.enero[2] = 'X';
-        if (item?.semana4) calendario.enero[3] = 'X';
+        if (item?.semana1) calendarioP.enero[0] = 'P';
+        if (item?.semana2) calendarioP.enero[1] = 'P';
+        if (item?.semana3) calendarioP.enero[2] = 'P';
+        if (item?.semana4) calendarioP.enero[3] = 'P';
       }
+
+      this.sgcF07Meses.forEach((mes) => {
+        for (let i = 0; i < 4; i++) {
+          if (calendarioP[mes.key as keyof SgcF07Calendario][i] && calendarioR[mes.key as keyof SgcF07Calendario][i]) {
+            calendarioR[mes.key as keyof SgcF07Calendario][i] = '';
+          }
+        }
+      });
+
+      const fechaLegacy = String(item?.fecha || '');
+      const fechaP = String(item?.fechaP || item?.fecha_p || fechaLegacy || '');
+      const fechaR = String(item?.fechaR || item?.fecha_r || '');
+
       return {
         noAudi: String(item?.noAudi || index + 1),
         tipoAuditoria: String(item?.tipoAuditoria || ''),
@@ -5163,8 +5312,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         equipoAuditor: String(item?.equipoAuditor || ''),
         auditorLider: String(item?.auditorLider || ''),
         metodoAuditoria: String(item?.metodoAuditoria || ''),
-        fecha: String(item?.fecha || ''),
-        calendario
+        fecha: fechaP,
+        fechaP,
+        fechaR,
+        calendarioP,
+        calendarioR
       };
     });
   }
@@ -5310,6 +5462,76 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
+  descargarPdfSgcF07(): void {
+    if (this.sgcF07DescargandoPdf || !this.sgcF07DriveFileId) {
+      return;
+    }
+    const nombreArchivo = 'SGC-F-07 Programa de auditoria.pdf';
+    const iniciarDescarga = () => {
+      this.sgcF07DescargandoPdf = true;
+      this.backendService.descargarPdfSgcF07()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.sgcF07DescargandoPdf = false;
+            if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+              void Swal.fire({
+                icon: 'error',
+                title: 'No se pudo generar el PDF',
+                text: 'Guarda la información y vuelve a intentar. Si el problema continúa, revisa que la hoja exista en Drive.',
+                confirmButtonText: 'Entendido'
+              });
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = nombreArchivo;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.sgcF07DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo descargar el PDF',
+              text: 'Guarda la información primero para sincronizar la hoja en Drive e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    };
+
+    if (this.puedeGestionarPlantillasSgc && this.sgcF07CambiosPendientes && this.sgcF07Listo && !this.sgcF07Guardando) {
+      this.sgcF07DescargandoPdf = true;
+      this.sgcF07Guardando = true;
+      const editorAbierto = this.mostrarSgcF07Editor;
+      this.backendService.guardarSgcF07Formato(this.sgcF07Form, false)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.sgcF07Guardando = false;
+            this.sgcF07CambiosPendientes = false;
+            this.aplicarEstadoSgcF07(res, editorAbierto, false, false);
+            iniciarDescarga();
+          },
+          error: () => {
+            this.sgcF07Guardando = false;
+            this.sgcF07DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'No se pudo sincronizar el programa antes de generar el PDF.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+
+    iniciarDescarga();
+  }
+
   private persistirSgcF07(): void {
     if (!this.puedeGestionarPlantillasSgc) {
       return;
@@ -5378,7 +5600,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         empresa: d.empresa ?? this.sgcF07Form.empresa,
         fechaElaboracion: d.fechaElaboracion ?? this.sgcF07Form.fechaElaboracion,
         auditorias: this.normalizarAuditoriasSgcF07(d.auditorias),
-        footer: this.normalizarFooterSgcF07(d.footer)
+        footer: this.normalizarFooterSgcF07(d.footer),
+        pdfFirmado: d.pdfFirmado ?? res.pdfFirmado ?? this.sgcF07Form.pdfFirmado,
+        pdfsHistorial: Array.isArray(d.pdfsHistorial)
+          ? d.pdfsHistorial
+          : (Array.isArray(res.historialPdfs) ? res.historialPdfs : (this.sgcF07Form.pdfsHistorial || []))
       };
       this.asegurarAuditoriaActivaSgcF07();
     } else if (!editorAbierto && !conservarEdicion) {
@@ -7318,6 +7544,29 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
+  descargarPdfSgcF06(): void {
+    if (this.sgcF06DescargandoPdf) {
+      return;
+    }
+    this.sgcF06DescargandoPdf = true;
+    this.backendService.descargarPdfSgcF06()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.sgcF06DescargandoPdf = false;
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = 'SGC-F-06 Lista y calificacion de auditores internos.pdf';
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.sgcF06DescargandoPdf = false;
+        }
+      });
+  }
+
   descargarPdfSgcF14(): void {
     if (this.sgcF14DescargandoPdf) {
       return;
@@ -7617,13 +7866,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.backendService.crearCarpetaEvidenciaSgcF14({
       proyecto_id: fila.id,
       folio: fila.folio,
+      nombre_proyecto: fila.nombreProyecto,
       nombre: String(nombre).trim()
     }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (res) => {
         void Swal.fire({
           icon: 'success',
           title: 'Carpeta creada',
-          text: `«${String(nombre).trim()}» quedó lista en Google Drive.`,
+          text: `«${String(nombre).trim()}» quedó dentro de «${fila.nombreProyecto || fila.folio || 'proyecto'}» en Google Drive.`,
           confirmButtonColor: '#0f766e',
           showCancelButton: !!res?.carpeta?.webViewLink,
           cancelButtonText: 'Abrir en Drive',
@@ -7752,13 +8002,25 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
             this.sgcF14EvidenciasProgresoEtiqueta = 'Listo';
             this.sgcF14EvidenciasSubiendo = false;
             this.cargarEvidenciasSgcF14();
+            const body = event.body || {};
+            const carpetaUrl = body.carpetaProyectoUrl
+              || body.documentos?.[0]?.carpetaProyectoUrl
+              || (body.documentos?.[0]?.carpetaDriveId
+                ? `https://drive.google.com/drive/folders/${body.documentos[0].carpetaDriveId}`
+                : '');
+            const destino = fila.nombreProyecto || fila.folio || 'proyecto';
             void Swal.fire({
-              toast: true,
-              position: 'top-end',
               icon: 'success',
               title: archivos.length === 1 ? 'Documento subido' : `${archivos.length} documentos subidos`,
-              showConfirmButton: false,
-              timer: 2200
+              text: `Guardado en Drive → «${destino}»`,
+              confirmButtonColor: '#0f766e',
+              showCancelButton: !!carpetaUrl,
+              cancelButtonText: 'Abrir carpeta',
+              confirmButtonText: 'Listo'
+            }).then((r) => {
+              if (r.dismiss === Swal.DismissReason.cancel && carpetaUrl) {
+                window.open(carpetaUrl, '_blank', 'noopener');
+              }
             });
             setTimeout(() => {
               this.sgcF14EvidenciasProgreso = 0;
@@ -16479,28 +16741,40 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     );
   }
 
-  toggleDgF01PdfViewer(): void {
-    const id = this.dgF01Form.pdfFirmado?.driveFileId;
+  toggleDgF01PdfViewer(pdf?: DgF02PdfFirmado | null): void {
+    if (this.mostrarDgF01PdfViewer && !pdf) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarDgF01PdfViewer = false;
+      this.dgF01PdfEmbedUrlSafe = null;
+      this.dgF01PdfCargando = false;
+      return;
+    }
+
+    const objetivo = pdf || this.dgF01Form.pdfFirmado;
+    const id = objetivo?.driveFileId;
     if (!id) {
       return;
     }
 
-    const abrir = !this.mostrarDgF01PdfViewer;
-    this.mostrarDgF01PdfViewer = abrir;
-
-    if (abrir) {
-      this.dgF01PdfCargando = true;
-      const url = `https://drive.google.com/file/d/${id}/preview`;
-      this.dgF01PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
-      document.documentElement.style.overflow = 'hidden';
-      document.body.style.overflow = 'hidden';
+    const mismoArchivo = this.mostrarDgF01PdfViewer
+      && this.dgF01PdfViewerTitulo === (objetivo?.nombreArchivo || 'DG-F-01 Mapa de procesos.pdf');
+    if (mismoArchivo) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarDgF01PdfViewer = false;
+      this.dgF01PdfEmbedUrlSafe = null;
+      this.dgF01PdfCargando = false;
       return;
     }
 
-    document.documentElement.style.overflow = '';
-    document.body.style.overflow = '';
-    this.dgF01PdfEmbedUrlSafe = null;
-    this.dgF01PdfCargando = false;
+    this.mostrarDgF01PdfViewer = true;
+    this.dgF01PdfCargando = true;
+    this.dgF01PdfViewerTitulo = objetivo?.nombreArchivo || 'DG-F-01 Mapa de procesos.pdf';
+    const url = `https://drive.google.com/file/d/${id}/preview`;
+    this.dgF01PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
   }
 
   onDgF01PdfIframeLoad(): void {
@@ -16525,28 +16799,40 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.dgF01PdfVistaUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(preview);
   }
 
-  toggleDgF02PdfViewer(): void {
-    const id = this.dgF02Form.pdfFirmado?.driveFileId;
+  toggleDgF02PdfViewer(pdf?: DgF02PdfFirmado | null): void {
+    if (this.mostrarDgF02PdfViewer && !pdf) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarDgF02PdfViewer = false;
+      this.dgF02PdfEmbedUrlSafe = null;
+      this.dgF02PdfCargando = false;
+      return;
+    }
+
+    const objetivo = pdf || this.dgF02Form.pdfFirmado;
+    const id = objetivo?.driveFileId;
     if (!id) {
       return;
     }
 
-    const abrir = !this.mostrarDgF02PdfViewer;
-    this.mostrarDgF02PdfViewer = abrir;
-
-    if (abrir) {
-      this.dgF02PdfCargando = true;
-      const url = `https://drive.google.com/file/d/${id}/preview`;
-      this.dgF02PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
-      document.documentElement.style.overflow = 'hidden';
-      document.body.style.overflow = 'hidden';
+    const mismoArchivo = this.mostrarDgF02PdfViewer
+      && this.dgF02PdfViewerTitulo === (objetivo?.nombreArchivo || 'DG-F-02 Alcance.pdf');
+    if (mismoArchivo) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarDgF02PdfViewer = false;
+      this.dgF02PdfEmbedUrlSafe = null;
+      this.dgF02PdfCargando = false;
       return;
     }
 
-    document.documentElement.style.overflow = '';
-    document.body.style.overflow = '';
-    this.dgF02PdfEmbedUrlSafe = null;
-    this.dgF02PdfCargando = false;
+    this.mostrarDgF02PdfViewer = true;
+    this.dgF02PdfCargando = true;
+    this.dgF02PdfViewerTitulo = objetivo?.nombreArchivo || 'DG-F-02 Alcance.pdf';
+    const url = `https://drive.google.com/file/d/${id}/preview`;
+    this.dgF02PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
   }
 
   onDgF02PdfIframeLoad(): void {
@@ -17062,8 +17348,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         imagenMapa: d.imagenMapa ?? this.dgF01Form.imagenMapa,
         pdfFirmado: d.pdfFirmado ?? res.pdfFirmado ?? this.dgF01Form.pdfFirmado
       };
+    } else if (res.datos?.pdfFirmado || res.pdfFirmado) {
+      this.dgF01Form = {
+        ...this.dgF01Form,
+        pdfFirmado: res.datos?.pdfFirmado ?? res.pdfFirmado ?? this.dgF01Form.pdfFirmado
+      };
     }
 
+    this.dgF01HistorialPdfs = Array.isArray(res.historialPdfs)
+      ? res.historialPdfs
+      : (Array.isArray(res.datos?.pdfsHistorial) ? res.datos.pdfsHistorial : []);
     this.dgF01UltimaSync = res.ultimaSyncDrive || null;
     this.dgF01ImagenVersion = res.imagenVersion ?? this.dgF01ImagenVersion;
     this.actualizarVistaPdfDgF01();
@@ -17123,11 +17417,33 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         next: (res) => {
           this.dgF02SubiendoPdf = false;
           this.aplicarEstadoDgF02(res);
-          this.finalizarSubidaPdfSgc(!!res?.success, nombreArchivo);
+          const nombreFinal = res?.pdfFirmado?.nombreArchivo || nombreArchivo;
+          this.finalizarSubidaPdfSgc(!!res?.success, nombreFinal);
         },
         error: () => {
           this.dgF02SubiendoPdf = false;
           this.finalizarSubidaPdfSgc(false);
+        }
+      });
+  }
+
+  eliminarPdfHistorialDgF02(hist: DgF02PdfFirmado): void {
+    if (!this.puedeBorrarPdfHistorialDgF02 || !hist?.driveFileId || this.dgF02BorrandoPdf) {
+      return;
+    }
+    if (!confirm(`¿Eliminar «${hist.nombreArchivo || 'PDF'}» del historial?`)) {
+      return;
+    }
+    this.dgF02BorrandoPdf = true;
+    this.backendService.eliminarPdfHistorialDgF02(hist.driveFileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.dgF02BorrandoPdf = false;
+          this.aplicarEstadoDgF02(res);
+        },
+        error: () => {
+          this.dgF02BorrandoPdf = false;
         }
       });
   }
@@ -17143,11 +17459,33 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         next: (res) => {
           this.dgF01SubiendoPdf = false;
           this.aplicarEstadoDgF01(res);
-          this.finalizarSubidaPdfSgc(!!res?.success, nombreArchivo);
+          const nombreFinal = res?.pdfFirmado?.nombreArchivo || nombreArchivo;
+          this.finalizarSubidaPdfSgc(!!res?.success, nombreFinal);
         },
         error: () => {
           this.dgF01SubiendoPdf = false;
           this.finalizarSubidaPdfSgc(false);
+        }
+      });
+  }
+
+  eliminarPdfHistorialDgF01(hist: DgF02PdfFirmado): void {
+    if (!this.puedeBorrarPdfHistorialDgF01 || !hist?.driveFileId || this.dgF01BorrandoPdf) {
+      return;
+    }
+    if (!confirm(`¿Eliminar «${hist.nombreArchivo || 'PDF'}» del historial?`)) {
+      return;
+    }
+    this.dgF01BorrandoPdf = true;
+    this.backendService.eliminarPdfHistorialDgF01(hist.driveFileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.dgF01BorrandoPdf = false;
+          this.aplicarEstadoDgF01(res);
+        },
+        error: () => {
+          this.dgF01BorrandoPdf = false;
         }
       });
   }
@@ -17172,6 +17510,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       };
     }
 
+    this.dgF02HistorialPdfs = Array.isArray(res.historialPdfs)
+      ? res.historialPdfs
+      : (Array.isArray(res.datos?.pdfsHistorial) ? res.datos.pdfsHistorial : []);
     this.dgF02UltimaSync = res.ultimaSyncDrive || null;
     this.dgF02ContenidoModificado = !!res.contenidoModificado;
 
@@ -17562,6 +17903,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-04') {
       this.autosizeTextareasSgcF04();
     }
+    if (this.plantillaSlug === 'sgc-f-18') {
+      this.autosizeTextareasSgcF18();
+    }
+    if (this.plantillaSlug === 'sgc-f-11') {
+      this.autosizeTextareasSgcF11();
+    }
   }
 
   onDgF05Editado(): void {
@@ -17569,6 +17916,176 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     this.dgF05CambiosPendientes = true;
+  }
+
+  setDgF05Campo(fila: DgF05Fila, campo: 'tipo' | 'influencia', valor: string): void {
+    if (!fila) {
+      return;
+    }
+    if (campo === 'tipo') {
+      const v = valor as DgF05Fila['tipo'];
+      fila.tipo = fila.tipo === v ? '' : v;
+    } else {
+      const v = valor as DgF05Fila['influencia'];
+      fila.influencia = fila.influencia === v ? '' : v;
+    }
+    this.onDgF05Editado();
+  }
+
+  descargarPdfDgF05(): void {
+    if (this.dgF05DescargandoPdf) {
+      return;
+    }
+    if (!this.dgF05DriveFileId) {
+      void Swal.fire({
+        icon: 'warning',
+        title: 'Sin archivo en Drive',
+        text: 'Guarda la información primero para generar el PDF.',
+        confirmButtonText: 'Entendido'
+      });
+      return;
+    }
+
+    const iniciarDescarga = () => {
+      this.dgF05DescargandoPdf = true;
+      this.backendService.descargarPdfDgF05()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.dgF05DescargandoPdf = false;
+            if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+              void Swal.fire({
+                icon: 'error',
+                title: 'No se pudo generar el PDF',
+                text: 'Guarda la información y vuelve a intentar. Si el problema continúa, revisa que la hoja exista en Drive.',
+                confirmButtonText: 'Entendido'
+              });
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = 'DG-F-05 Listado de partes interesadas.pdf';
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.dgF05DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo generar el PDF',
+              text: 'Intenta de nuevo. Si persiste, verifica la conexión con Drive.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    };
+
+    if (this.dgF05CambiosPendientes && this.dgF05Listo && !this.dgF05Guardando) {
+      this.dgF05Guardando = true;
+      this.backendService.guardarDgF05Formato(this.dgF05Form, false)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.dgF05Guardando = false;
+            this.dgF05CambiosPendientes = false;
+            this.aplicarEstadoDgF05(res, false, false, false);
+            iniciarDescarga();
+          },
+          error: () => {
+            this.dgF05Guardando = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'Guarda la información antes de generar el PDF.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+    iniciarDescarga();
+  }
+
+  descargarPdfDgF07(): void {
+    if (this.dgF07DescargandoPdf) {
+      return;
+    }
+    if (!this.dgF07DriveFileId) {
+      void Swal.fire({
+        icon: 'warning',
+        title: 'Sin archivo en Drive',
+        text: 'Guarda la información primero para generar el PDF.',
+        confirmButtonText: 'Entendido'
+      });
+      return;
+    }
+
+    const slug = this.dgF07ProcesoActivoSlug;
+    const etiqueta = this.dgF07Procesos.find((p) => p.slug === slug)?.etiqueta
+      || this.dgF07FormActivo?.nombreProceso
+      || 'proceso';
+
+    const iniciarDescarga = () => {
+      this.dgF07DescargandoPdf = true;
+      this.backendService.descargarPdfDgF07(slug)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.dgF07DescargandoPdf = false;
+            if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+              void Swal.fire({
+                icon: 'error',
+                title: 'No se pudo generar el PDF',
+                text: 'Guarda la información y vuelve a intentar. Si el problema continúa, revisa que la hoja exista en Drive.',
+                confirmButtonText: 'Entendido'
+              });
+              return;
+            }
+            const nombreSeguro = String(etiqueta).replace(/[\\/:*?"<>|]+/g, '_').trim() || 'proceso';
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = `DG-F-07 ${nombreSeguro}.pdf`;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.dgF07DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo generar el PDF',
+              text: 'Intenta de nuevo. Si persiste, verifica la conexión con Drive.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    };
+
+    if (this.dgF07CambiosPendientes && this.dgF07Listo && !this.dgF07Guardando) {
+      this.dgF07Guardando = true;
+      this.backendService.guardarDgF07Formato({ procesos: this.dgF07Forms }, false)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.dgF07Guardando = false;
+            this.dgF07CambiosPendientes = false;
+            this.aplicarEstadoDgF07(res, true, true);
+            iniciarDescarga();
+          },
+          error: () => {
+            this.dgF07Guardando = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'Guarda la información antes de generar el PDF.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+    iniciarDescarga();
   }
 
   toggleDgF05Editor(): void {
@@ -20048,6 +20565,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       fechaIngreso: fechaIso(raw.fechaIngreso || (raw as any).fecha_ingreso),
       periodoEvaluado: String(raw.periodoEvaluado || (raw as any).periodo_evaluado || '').trim(),
       evaluador: String(raw.evaluador || '').trim(),
+      evaluadorPuesto: String((raw as any).evaluadorPuesto || (raw as any).evaluador_puesto || '').trim(),
       usuarioId: String(raw.usuarioId || (raw as any).usuario_id || '').trim() || null,
       competencias,
       observaciones: this.normalizarSaltosAthF11(raw.observaciones),
@@ -20078,6 +20596,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       fechaIngreso: '',
       periodoEvaluado: '',
       evaluador: '',
+      evaluadorPuesto: '',
       usuarioId: null,
       competencias: this.crearCompetenciasAthF11Defecto(),
       observaciones: '',
@@ -20151,11 +20670,32 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           }
           this.athF11EmpleadosCatalogo = Array.from(mapa.values())
             .sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto, 'es'));
+          this.resolverPuestosEvaluadorAthF11Pendientes();
         },
         error: () => {
           this.athF11EmpleadosCatalogo = [];
         }
       });
+  }
+
+  /** Completa evaluadorPuesto desde organigrama cuando la evaluación ya tenía nombre pero no puesto. */
+  private resolverPuestosEvaluadorAthF11Pendientes(): void {
+    const lista = this.athF11Form?.evaluaciones || [];
+    let cambio = false;
+    for (const ev of lista) {
+      if (!ev?.evaluador || ev.evaluadorPuesto) continue;
+      const emp = this.athF11EmpleadosCatalogo.find(
+        (e) => this.normalizarTextoAthF11(e.nombreCompleto) === this.normalizarTextoAthF11(ev.evaluador)
+      );
+      if (emp?.puesto) {
+        ev.evaluadorPuesto = emp.puesto;
+        cambio = true;
+      }
+    }
+    if (cambio && this.athF11EvaluacionActiva) {
+      const actual = lista.find((e) => e.id === this.athF11EvaluacionActiva?.id);
+      if (actual) this.athF11EvaluacionActiva = actual;
+    }
   }
 
   private esPerfilEmpresaAthF11(usuario: any): boolean {
@@ -20313,6 +20853,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   seleccionarEvaluadorAthF11(emp: AthF11EmpleadoCatalogo): void {
     if (!this.athF11EvaluacionActiva || !emp) return;
     this.athF11EvaluacionActiva.evaluador = emp.nombreCompleto;
+    this.athF11EvaluacionActiva.evaluadorPuesto = String(emp.puesto || '').trim();
     this.athF11EvaluadorComboQuery = emp.nombreCompleto;
     this.athF11EvaluadorComboAbierto = false;
     this.onAthF11Editado();
@@ -20322,6 +20863,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!this.athF11EvaluacionActiva) return;
     const limpio = String(nombre || '').trim();
     this.athF11EvaluacionActiva.evaluador = limpio;
+    this.athF11EvaluacionActiva.evaluadorPuesto = '';
     this.athF11EvaluadorComboQuery = limpio;
     this.athF11EvaluadorComboAbierto = false;
     this.onAthF11Editado();
@@ -20330,6 +20872,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   limpiarEvaluadorAthF11(): void {
     if (!this.athF11EvaluacionActiva) return;
     this.athF11EvaluacionActiva.evaluador = '';
+    this.athF11EvaluacionActiva.evaluadorPuesto = '';
     this.athF11EvaluadorComboQuery = '';
     this.onAthF11Editado();
   }
@@ -20995,6 +21538,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   agregarFilaSgcF18(): void {
     this.sgcF18Form.filas.push(this.crearFilaSgcF18Vacia());
     this.onSgcF18Editado();
+    this.autosizeTextareasSgcF18();
   }
 
   quitarFilaSgcF18(index: number): void {
@@ -21003,6 +21547,66 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.sgcF18Form.filas.splice(index, 1);
     this.onSgcF18Editado();
+  }
+
+  setSgcF18Campo(fila: SgcF18Fila, campo: 'vigencia', valor: string): void {
+    if (!fila || campo !== 'vigencia') {
+      return;
+    }
+    fila.vigencia = fila.vigencia === valor ? '' : valor;
+    this.onSgcF18Editado();
+  }
+
+  /** Revisión oficial de SGC-F-18 según lista maestra (catálogo SGC-F-01). */
+  revisionListaMaestraSgcF18(): string {
+    const doc = clonarCatalogoSgcF01().find((d) => String(d?.codigo || '').toUpperCase() === 'SGC-F-18');
+    const rev = String(doc?.versionVigente || '').trim();
+    return rev || '00';
+  }
+
+  contarVigenciaSgcF18(estado: string): number {
+    return (this.sgcF18Form?.filas || []).filter((f) => String(f?.vigencia || '').trim() === estado).length;
+  }
+
+  onSgcF18TextareaInput(event: Event): void {
+    this.autosizeSgcF18Textarea(event.target);
+    this.onSgcF18Editado();
+  }
+
+  /** Crece el textarea al contenido real; nunca usa scroll vertical interno. */
+  autosizeSgcF18Textarea(target: EventTarget | HTMLTextAreaElement | null): void {
+    const el = target as HTMLTextAreaElement | null;
+    if (!el || el.tagName !== 'TEXTAREA') {
+      return;
+    }
+    el.style.maxHeight = 'none';
+    el.style.overflow = 'hidden';
+    el.style.overflowY = 'hidden';
+    el.style.height = '0px';
+    const alto = Math.max(el.scrollHeight, 34);
+    el.style.height = `${alto}px`;
+    el.style.overflowY = 'hidden';
+  }
+
+  private autosizeTextareasSgcF18(): void {
+    window.setTimeout(() => {
+      if (this.plantillaSlug !== 'sgc-f-18') {
+        return;
+      }
+      const nodos = this.host.nativeElement.querySelectorAll<HTMLTextAreaElement>(
+        '.sgc-f18-table textarea.sgc-f18-field'
+      );
+      nodos.forEach((el) => this.autosizeSgcF18Textarea(el));
+    }, 0);
+    window.setTimeout(() => {
+      if (this.plantillaSlug !== 'sgc-f-18') {
+        return;
+      }
+      const nodos = this.host.nativeElement.querySelectorAll<HTMLTextAreaElement>(
+        '.sgc-f18-table textarea.sgc-f18-field'
+      );
+      nodos.forEach((el) => this.autosizeSgcF18Textarea(el));
+    }, 120);
   }
 
   onSgcF18Editado(): void {
@@ -21460,6 +22064,68 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     );
   }
 
+  onSeleccionarPdfSgcF07(event: Event): void {
+    this.procesarPdfDocumento(
+      event,
+      'SGC-F-07 Programa de auditoría.pdf',
+      (base64, nombre) => this.subirPdfSgcF07(base64, nombre)
+    );
+  }
+
+  toggleSgcF07PdfViewer(pdf?: DgF02PdfFirmado | null): void {
+    const objetivo = pdf || this.sgcF07Form.pdfFirmado;
+    const id = objetivo?.driveFileId;
+    if (!id) {
+      return;
+    }
+
+    const mismoAbierto = this.mostrarSgcF07PdfViewer
+      && this.sgcF07PdfViewerActual?.driveFileId === id;
+    const abrir = !mismoAbierto;
+    this.mostrarSgcF07PdfViewer = abrir;
+
+    if (abrir) {
+      this.sgcF07PdfViewerActual = objetivo;
+      this.sgcF07PdfCargando = true;
+      const url = objetivo.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+      this.sgcF07PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    this.sgcF07PdfEmbedUrlSafe = null;
+    this.sgcF07PdfCargando = false;
+    this.sgcF07PdfViewerActual = null;
+  }
+
+  onSgcF07PdfIframeLoad(): void {
+    this.sgcF07PdfCargando = false;
+  }
+
+  eliminarPdfHistorialSgcF07(hist: DgF02PdfFirmado): void {
+    if (!this.puedeBorrarPdfHistorialSgcF07 || !hist?.driveFileId || this.sgcF07BorrandoPdf) {
+      return;
+    }
+    if (!confirm(`¿Eliminar «${hist.nombreArchivo || 'PDF'}» del historial?`)) {
+      return;
+    }
+    this.sgcF07BorrandoPdf = true;
+    this.backendService.eliminarPdfHistorialSgcF07(hist.driveFileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF07BorrandoPdf = false;
+          this.aplicarEstadoSgcF07(res);
+        },
+        error: () => {
+          this.sgcF07BorrandoPdf = false;
+        }
+      });
+  }
+
   onSeleccionarPdfDgF08(event: Event): void {
     this.procesarPdfDocumento(
       event,
@@ -21488,28 +22154,40 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.toggleSgcPo01PdfViewer();
   }
 
-  toggleSgcPo01PdfViewer(): void {
-    const id = this.sgcPo01Form.pdfFirmado?.driveFileId;
+  toggleSgcPo01PdfViewer(pdf?: DgF02PdfFirmado | null): void {
+    if (this.mostrarSgcPo01PdfViewer && !pdf) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarSgcPo01PdfViewer = false;
+      this.sgcPo01PdfEmbedUrlSafe = null;
+      this.sgcPo01PdfCargando = false;
+      return;
+    }
+
+    const objetivo = pdf || this.sgcPo01Form.pdfFirmado;
+    const id = objetivo?.driveFileId;
     if (!id) {
       return;
     }
 
-    const abrir = !this.mostrarSgcPo01PdfViewer;
-    this.mostrarSgcPo01PdfViewer = abrir;
-
-    if (abrir) {
-      this.sgcPo01PdfCargando = true;
-      const url = `https://drive.google.com/file/d/${id}/preview`;
-      this.sgcPo01PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
-      document.documentElement.style.overflow = 'hidden';
-      document.body.style.overflow = 'hidden';
+    const mismoArchivo = this.mostrarSgcPo01PdfViewer
+      && this.sgcPo01PdfViewerTitulo === (objetivo?.nombreArchivo || 'SGC-PO-01 Politica de calidad_Biznaga.pdf');
+    if (mismoArchivo) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarSgcPo01PdfViewer = false;
+      this.sgcPo01PdfEmbedUrlSafe = null;
+      this.sgcPo01PdfCargando = false;
       return;
     }
 
-    document.documentElement.style.overflow = '';
-    document.body.style.overflow = '';
-    this.sgcPo01PdfEmbedUrlSafe = null;
-    this.sgcPo01PdfCargando = false;
+    this.mostrarSgcPo01PdfViewer = true;
+    this.sgcPo01PdfCargando = true;
+    this.sgcPo01PdfViewerTitulo = objetivo?.nombreArchivo || 'SGC-PO-01 Politica de calidad_Biznaga.pdf';
+    const url = `https://drive.google.com/file/d/${id}/preview`;
+    this.sgcPo01PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
   }
 
   onSgcPo01PdfIframeLoad(): void {
@@ -21591,28 +22269,40 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
-  toggleDgF08PdfViewer(): void {
-    const id = this.dgF08Form.pdfFirmado?.driveFileId;
+  toggleDgF08PdfViewer(pdf?: DgF02PdfFirmado | null): void {
+    if (this.mostrarDgF08PdfViewer && !pdf) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarDgF08PdfViewer = false;
+      this.dgF08PdfEmbedUrlSafe = null;
+      this.dgF08PdfCargando = false;
+      return;
+    }
+
+    const objetivo = pdf || this.dgF08Form.pdfFirmado;
+    const id = objetivo?.driveFileId;
     if (!id) {
       return;
     }
 
-    const abrir = !this.mostrarDgF08PdfViewer;
-    this.mostrarDgF08PdfViewer = abrir;
-
-    if (abrir) {
-      this.dgF08PdfCargando = true;
-      const url = `https://drive.google.com/file/d/${id}/preview`;
-      this.dgF08PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
-      document.documentElement.style.overflow = 'hidden';
-      document.body.style.overflow = 'hidden';
+    const mismoArchivo = this.mostrarDgF08PdfViewer
+      && this.dgF08PdfViewerTitulo === (objetivo?.nombreArchivo || 'DG-F-08 Filosofía Biznaga Risk and Tech.pdf');
+    if (mismoArchivo) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarDgF08PdfViewer = false;
+      this.dgF08PdfEmbedUrlSafe = null;
+      this.dgF08PdfCargando = false;
       return;
     }
 
-    document.documentElement.style.overflow = '';
-    document.body.style.overflow = '';
-    this.dgF08PdfEmbedUrlSafe = null;
-    this.dgF08PdfCargando = false;
+    this.mostrarDgF08PdfViewer = true;
+    this.dgF08PdfCargando = true;
+    this.dgF08PdfViewerTitulo = objetivo?.nombreArchivo || 'DG-F-08 Filosofía Biznaga Risk and Tech.pdf';
+    const url = `https://drive.google.com/file/d/${id}/preview`;
+    this.dgF08PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
   }
 
   onDgF08PdfIframeLoad(): void {
@@ -21743,6 +22433,54 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return Number.isFinite(n) && n >= 12;
   }
 
+  contarRpnAltoSgcF11(): number {
+    return (this.sgcF11Form?.filas || []).filter((fila) => {
+      const rpn = this.formatearRpnDisplay(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion);
+      return rpn ? this.esRpnAlto(rpn) : false;
+    }).length;
+  }
+
+  onSgcF11TextareaInput(event: Event): void {
+    this.autosizeSgcF11Textarea(event.target);
+    this.onSgcF11Editado();
+  }
+
+  /** Crece el textarea al contenido real; nunca usa scroll vertical interno. */
+  autosizeSgcF11Textarea(target: EventTarget | HTMLTextAreaElement | null): void {
+    const el = target as HTMLTextAreaElement | null;
+    if (!el || el.tagName !== 'TEXTAREA') {
+      return;
+    }
+    el.style.maxHeight = 'none';
+    el.style.overflow = 'hidden';
+    el.style.overflowY = 'hidden';
+    el.style.height = '0px';
+    const alto = Math.max(el.scrollHeight, 44);
+    el.style.height = `${alto}px`;
+    el.style.overflowY = 'hidden';
+  }
+
+  private autosizeTextareasSgcF11(): void {
+    window.setTimeout(() => {
+      if (this.plantillaSlug !== 'sgc-f-11') {
+        return;
+      }
+      const nodos = this.host.nativeElement.querySelectorAll<HTMLTextAreaElement>(
+        '.sgc-f-11-table textarea.sgc-f-11-field'
+      );
+      nodos.forEach((el) => this.autosizeSgcF11Textarea(el));
+    }, 0);
+    window.setTimeout(() => {
+      if (this.plantillaSlug !== 'sgc-f-11') {
+        return;
+      }
+      const nodos = this.host.nativeElement.querySelectorAll<HTMLTextAreaElement>(
+        '.sgc-f-11-table textarea.sgc-f-11-field'
+      );
+      nodos.forEach((el) => this.autosizeSgcF11Textarea(el));
+    }, 120);
+  }
+
   onSgcF11FilaRpnEditada(fila: SgcF11Fila): void {
     fila.rpn = this.normalizarValorRpn(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion);
     fila.rpnPost = this.normalizarValorRpn(
@@ -21758,6 +22496,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF11Form.filas.push(this.crearFilaSgcF11Vacia());
     this.renumerarFilasSgcF11();
     this.onSgcF11Editado();
+    this.autosizeTextareasSgcF11();
   }
 
   quitarFilaSgcF11(index: number): void {
@@ -23096,11 +23835,53 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         next: (res) => {
           this.sgcPo01SubiendoPdf = false;
           this.aplicarEstadoSgcPo01(res);
-          this.finalizarSubidaPdfSgc(!!res?.success, nombre);
+          const nombreFinal = res?.pdfFirmado?.nombreArchivo || nombre;
+          this.finalizarSubidaPdfSgc(!!res?.success, nombreFinal);
         },
         error: () => {
           this.sgcPo01SubiendoPdf = false;
           this.finalizarSubidaPdfSgc(false);
+        }
+      });
+  }
+
+  private subirPdfSgcF07(base64: string, nombre: string): void {
+    if (this.sgcF07SubiendoPdf) {
+      return;
+    }
+    this.sgcF07SubiendoPdf = true;
+    this.backendService.subirPdfFirmadoSgcF07(base64, nombre)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF07SubiendoPdf = false;
+          this.aplicarEstadoSgcF07(res);
+          this.finalizarSubidaPdfSgc(!!res?.success, nombre);
+        },
+        error: () => {
+          this.sgcF07SubiendoPdf = false;
+          this.finalizarSubidaPdfSgc(false);
+        }
+      });
+  }
+
+  eliminarPdfHistorialSgcPo01(hist: DgF02PdfFirmado): void {
+    if (!this.puedeBorrarPdfHistorialSgcPo01 || !hist?.driveFileId || this.sgcPo01BorrandoPdf) {
+      return;
+    }
+    if (!confirm(`¿Eliminar «${hist.nombreArchivo || 'PDF'}» del historial?`)) {
+      return;
+    }
+    this.sgcPo01BorrandoPdf = true;
+    this.backendService.eliminarPdfHistorialSgcPo01(hist.driveFileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcPo01BorrandoPdf = false;
+          this.aplicarEstadoSgcPo01(res);
+        },
+        error: () => {
+          this.sgcPo01BorrandoPdf = false;
         }
       });
   }
@@ -23116,11 +23897,33 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         next: (res) => {
           this.dgF08SubiendoPdf = false;
           this.aplicarEstadoDgF08(res);
-          this.finalizarSubidaPdfSgc(!!res?.success, nombre);
+          const nombreFinal = res?.pdfFirmado?.nombreArchivo || nombre;
+          this.finalizarSubidaPdfSgc(!!res?.success, nombreFinal);
         },
         error: () => {
           this.dgF08SubiendoPdf = false;
           this.finalizarSubidaPdfSgc(false);
+        }
+      });
+  }
+
+  eliminarPdfHistorialDgF08(hist: DgF02PdfFirmado): void {
+    if (!this.puedeBorrarPdfHistorialDgF08 || !hist?.driveFileId || this.dgF08BorrandoPdf) {
+      return;
+    }
+    if (!confirm(`¿Eliminar «${hist.nombreArchivo || 'PDF'}» del historial?`)) {
+      return;
+    }
+    this.dgF08BorrandoPdf = true;
+    this.backendService.eliminarPdfHistorialDgF08(hist.driveFileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.dgF08BorrandoPdf = false;
+          this.aplicarEstadoDgF08(res);
+        },
+        error: () => {
+          this.dgF08BorrandoPdf = false;
         }
       });
   }
@@ -23338,6 +24141,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (!sincronizacionSilenciosa) {
         this.sgcF11Cargando = false;
       }
+      this.autosizeTextareasSgcF11();
     }, editorAbierto ? 0 : 350);
   }
 
@@ -24336,6 +25140,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF18Guardando = true;
     const editorAbierto = this.mostrarSgcF18Editor;
     const editorActivo = false;
+    this.sgcF18Form.revision = this.revisionListaMaestraSgcF18();
     this.backendService.guardarSgcF18Formato(this.sgcF18Form, false)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -24387,7 +25192,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.sgcF18IgnorarAutoSave = true;
       this.sgcF18Listo = false;
       this.sgcF18Form = {
-        revision: res.datos.revision ?? this.sgcF18Form.revision,
+        revision: this.revisionListaMaestraSgcF18(),
         fechaRevision: res.datos.fechaRevision ?? this.sgcF18Form.fechaRevision,
         fechaElaboracion: res.datos.fechaElaboracion ?? this.sgcF18Form.fechaElaboracion,
         fechaRevisionInformacion: res.datos.fechaRevisionInformacion ?? this.sgcF18Form.fechaRevisionInformacion,
@@ -24417,6 +25222,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (!sincronizacionSilenciosa) {
         this.sgcF18Cargando = false;
       }
+      this.autosizeTextareasSgcF18();
     }, editorAbierto ? 0 : 350);
   }
 
@@ -24479,6 +25285,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcPo01UltimaSync = res.ultimaSyncDrive || null;
     this.sgcPo01ContenidoModificado = !!res.contenidoModificado;
     this.sgcPo01FechaOriginal = res.fechaElaboracionOriginal || null;
+    this.sgcPo01HistorialPdfs = Array.isArray(res.historialPdfs)
+      ? res.historialPdfs
+      : (Array.isArray(res.datos?.pdfsHistorial) ? res.datos.pdfsHistorial : []);
     window.setTimeout(() => {
       this.sgcPo01IgnorarAutoSave = false;
       this.sgcPo01Listo = true;
@@ -24547,6 +25356,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.dgF08UltimaSync = res.ultimaSyncDrive || null;
     this.dgF08ContenidoModificado = !!res.contenidoModificado;
+    this.dgF08HistorialPdfs = Array.isArray(res.historialPdfs)
+      ? res.historialPdfs
+      : (Array.isArray(res.datos?.pdfsHistorial) ? res.datos.pdfsHistorial : []);
     window.setTimeout(() => {
       this.dgF08IgnorarAutoSave = false;
       this.dgF08Listo = true;
@@ -24779,8 +25591,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private crearSgcF18Vacio() {
     return {
       revision: '00',
-      fechaRevision: '2025-07-03',
-      fechaElaboracion: '2025-07-03',
+      fechaRevision: '2025-01-20',
+      fechaElaboracion: '2025-01-20',
       fechaRevisionInformacion: '',
       filas: [
         {

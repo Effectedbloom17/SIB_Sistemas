@@ -1,6 +1,6 @@
 /**
  * Evidencias de proyecto SGC-F-14 por fila (proyecto).
- * Archivos en Drive: carpeta F-14 / {folio} / {proyectoId}
+ * Archivos en Drive: {CARPETA_DRIVE_EVIDENCIAS} / {nombre del proyecto} / [subcarpeta opcional]
  * Índice en biznaga_sgc.sgc_f14_evidencia
  */
 const crypto = require('crypto');
@@ -8,7 +8,8 @@ const path = require('path');
 const fs = require('fs');
 const driveService = require('./driveService');
 
-const CARPETA_DRIVE_EVIDENCIAS = '1v2IBrryAJg5fILPH602gm_CZhJNyia82';
+/** Carpeta raíz de evidencias SGC-F-14 en Drive (una subcarpeta por nombre de proyecto). */
+const CARPETA_DRIVE_EVIDENCIAS = '1D0hAwRjPMykzD-fmiW6mIZtj5rPNXL6F';
 const CACHE_DIR = path.join(__dirname, 'uploads', 'sgc-f14-evidencias');
 const MIME_GENERICO = 'application/octet-stream';
 const SUBIDA_REINTENTOS_MAX = 3;
@@ -86,7 +87,7 @@ function nombreSeguroArchivo(nombre) {
 }
 
 function sanitizarNombreCarpeta(valor) {
-    return sanitizarTexto(valor, 80)
+    return sanitizarTexto(valor, 200)
         .replace(/[/\\?%*:|"<>]/g, '_')
         .replace(/\s+/g, ' ')
         .trim() || 'Sin-nombre';
@@ -198,12 +199,15 @@ function esErrorReintentable(err) {
     );
 }
 
-async function resolverCarpetaEvaluacion(folio, proyectoId, subcarpeta) {
-    const carpetaFolio = await driveService.obtenerOCrearCarpeta(
-        sanitizarNombreCarpeta(folio || 'Sin-folio'),
+/**
+ * Resuelve (o crea) la carpeta del proyecto bajo la raíz de evidencias.
+ * Estructura: raíz / {nombreProyecto} / [subcarpeta]
+ */
+async function resolverCarpetaProyecto(nombreProyecto, subcarpeta) {
+    const carpetaProyecto = await driveService.obtenerOCrearCarpeta(
+        sanitizarNombreCarpeta(nombreProyecto || 'Sin-nombre'),
         CARPETA_DRIVE_EVIDENCIAS
     );
-    const carpetaProyecto = await driveService.obtenerOCrearCarpeta(proyectoId, carpetaFolio);
     const sub = sanitizarNombreCarpeta(subcarpeta || '');
     if (sub && sub !== 'Sin-nombre') {
         return driveService.obtenerOCrearCarpeta(sub, carpetaProyecto);
@@ -214,13 +218,19 @@ async function resolverCarpetaEvaluacion(folio, proyectoId, subcarpeta) {
 async function crearCarpetaEvidencia(pool, body) {
     const proyectoId = normalizarProyectoId(body?.proyecto_id || body?.proyectoId);
     const folio = sanitizarTexto(body?.folio, 255);
+    const nombreProyecto = sanitizarTexto(body?.nombre_proyecto || body?.nombreProyecto, 255);
     const nombre = sanitizarNombreCarpeta(body?.nombre || body?.nombre_carpeta);
     if (!nombre || nombre === 'Sin-nombre') {
         throw Object.assign(new Error('Indica un nombre válido para la carpeta.'), { status: 400 });
     }
-    const carpetaDriveId = await resolverCarpetaEvaluacion(folio, proyectoId, nombre);
+    const nombreCarpetaProyecto = nombreProyecto || folio;
+    if (!nombreCarpetaProyecto) {
+        throw Object.assign(new Error('Indica el nombre del proyecto de mejora.'), { status: 400 });
+    }
+    const carpetaDriveId = await resolverCarpetaProyecto(nombreCarpetaProyecto, nombre);
     return {
         proyectoId,
+        nombreProyecto: nombreCarpetaProyecto,
         nombre,
         carpetaDriveId,
         webViewLink: `https://drive.google.com/drive/folders/${carpetaDriveId}`
@@ -341,9 +351,12 @@ async function subirEvidencia(pool, body, usuario) {
         throw Object.assign(new Error('El archivo supera el máximo de 40 MB.'), { status: 400 });
     }
 
-    const carpetaDriveId = await resolverCarpetaEvaluacion(
-        folio,
-        proyectoId,
+    if (!nombreProyecto && !folio) {
+        throw Object.assign(new Error('Indica el nombre del proyecto de mejora.'), { status: 400 });
+    }
+
+    const carpetaDriveId = await resolverCarpetaProyecto(
+        nombreProyecto || folio,
         body?.subcarpeta || body?.carpeta || body?.folder
     );
     let driveResult = null;
@@ -357,7 +370,7 @@ async function subirEvidencia(pool, body, usuario) {
                 mimeType,
                 carpetaDriveId
             );
-            return await subirABaseDeDatos(pool, {
+            const documento = await subirABaseDeDatos(pool, {
                 proyectoId,
                 folio,
                 nombre_proyecto: nombreProyecto,
@@ -368,6 +381,10 @@ async function subirEvidencia(pool, body, usuario) {
                 carpetaDriveId,
                 usuario
             });
+            return {
+                ...documento,
+                carpetaProyectoUrl: `https://drive.google.com/drive/folders/${carpetaDriveId}`
+            };
         } catch (err) {
             ultimoError = err;
             if (driveResult?.id) {
@@ -442,7 +459,12 @@ async function subirEvidenciasLote(pool, body, usuario) {
         exitosos: documentos.length,
         fallidos: errores.length,
         documentos,
-        errores
+        errores,
+        carpetaProyectoUrl: documentos[0]?.carpetaProyectoUrl
+            || (documentos[0]?.carpetaDriveId
+                ? `https://drive.google.com/drive/folders/${documentos[0].carpetaDriveId}`
+                : null),
+        carpetaRaizUrl: `https://drive.google.com/drive/folders/${CARPETA_DRIVE_EVIDENCIAS}`
     };
 }
 

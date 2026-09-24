@@ -7,17 +7,22 @@ const { asegurarTablaSgcFormatoDatos, persistirRegistroSgc, obtenerRegistroSgcPe
 const excelHistorial = require('./sgcExcelHistorialService');
 
 const CODIGO_FORMATO = 'SGC-F-18';
-const TEMPLATE_DRIVE_ID = '168hssf8Gj1hfrzQ0sYqQB7JxO9IwmmzV';
-const DRIVE_FILE_ID_SISTEMA = '11gAj4_45wIIxbc6-tb64lH9FotFfgMrpUqBwn7Cwiq8';
+/** Plantilla maestra (layout vigente: encabezado filas 1–3, cabeceras fila 6, datos desde fila 7). */
+const TEMPLATE_DRIVE_ID = '1Ge8QOuUhgrnpEWBH4oTXi4orwDuLsXZKz-ApaLWErSk';
+const DRIVE_FILE_ID_SISTEMA = '1Ge8QOuUhgrnpEWBH4oTXi4orwDuLsXZKz-ApaLWErSk';
 const CARPETA_DRIVE_ID = '1IIlNXxAE2h-AiVbZDDr6zuGa87NXdFLm';
 const NOMBRE_ARCHIVO_DRIVE = 'SGC-F-18 Tabla de requisitos legales (sistema)';
-const SHEET_TITLE = 'Requisitos legales';
+const SHEET_TITLE = 'Plantilla';
 
-const HEADER_ROW = 7;
-const DATA_START_ROW = 8;
-const REVISION_ROW = 4;
-const FECHA_REV_ROW = 5;
-const FECHA_REVISION_INFO_ROW = 30;
+const HEADER_ROW = 6;
+const DATA_START_ROW = 7;
+const REVISION_ROW = 2;
+const FECHA_REV_ROW = 3;
+const MAX_FILAS = 120;
+const DATA_END_ROW = DATA_START_ROW + MAX_FILAS - 1;
+
+/** Metadatos Código / Revisión / Fecha de rev. (columna H). */
+const COL_META = 8;
 
 const COL = {
     nombre: 2,
@@ -31,8 +36,8 @@ const COL = {
 
 const DATOS_DEFECTO = {
     revision: '00',
-    fechaRevision: '2025-07-03',
-    fechaElaboracion: '2025-07-03',
+    fechaRevision: '2025-01-20',
+    fechaElaboracion: '2025-01-20',
     fechaRevisionInformacion: '',
     filas: [
         {
@@ -306,34 +311,91 @@ function sanitizarFila(raw) {
     };
 }
 
-function sanitizarDatos(raw) {
+function revisionDesdeListaMaestra() {
+    try {
+        const f01 = require('./sgcSgcF01Service');
+        const doc = (f01.CATALOGO_BASE || []).find(
+            (d) => String(d?.codigo || '').toUpperCase() === CODIGO_FORMATO
+        );
+        const rev = String(doc?.versionVigente || '').trim();
+        return rev ? rev.padStart(2, '0') : '00';
+    } catch {
+        return '00';
+    }
+}
+
+function sanitizarDatos(raw, opciones = {}) {
     const base = raw && typeof raw === 'object' ? raw : {};
     const filasRaw = Array.isArray(base.filas) ? base.filas : DATOS_DEFECTO.filas;
     const filas = filasRaw.map(sanitizarFila).filter((f) => f.nombre);
+    const permitirVacias = !!opciones.permitirVacias;
+    const revisionMaestra = revisionDesdeListaMaestra();
     return {
-        revision: String(base.revision || DATOS_DEFECTO.revision).trim() || DATOS_DEFECTO.revision,
+        revision: revisionMaestra,
         fechaRevision: formatearFechaIso(base.fechaRevision) || DATOS_DEFECTO.fechaRevision,
         fechaElaboracion: formatearFechaIso(base.fechaElaboracion) || DATOS_DEFECTO.fechaElaboracion,
         fechaRevisionInformacion: String(base.fechaRevisionInformacion || '').trim(),
-        filas: filas.length ? filas : DATOS_DEFECTO.filas.map(sanitizarFila)
+        filas: filas.length ? filas : (permitirVacias ? [] : DATOS_DEFECTO.filas.map(sanitizarFila))
     };
 }
 
 function encontrarFilaFinDatos(ws) {
-    for (let r = DATA_START_ROW; r <= Math.max(ws.rowCount, FECHA_REVISION_INFO_ROW); r++) {
-        const txt = celdaATexto(ws.getRow(r).getCell(COL.nombre).value).toLowerCase();
-        if (txt.includes('fecha de revision') || txt.includes('fecha de revisión')) {
-            return r;
+    const maxRow = Math.max(ws.rowCount || 0, DATA_END_ROW);
+    let ultimaConDatos = DATA_START_ROW - 1;
+
+    for (let r = DATA_START_ROW; r <= maxRow; r++) {
+        const row = ws.getRow(r);
+        const nombre = celdaATexto(row.getCell(COL.nombre).value);
+        const emite = celdaATexto(row.getCell(COL.emite).value);
+        const lower = nombre.toLowerCase();
+
+        if (lower.includes('fecha de revision') || lower.includes('fecha de revisión')) {
+            return Math.max(r, ultimaConDatos + 1);
         }
-        if (r > DATA_START_ROW && !txt && !celdaATexto(ws.getRow(r).getCell(COL.emite).value)) {
-            const prev = celdaATexto(ws.getRow(r - 1).getCell(COL.nombre).value);
-            if (prev) return r;
+        if (nombre || emite) {
+            ultimaConDatos = r;
+            continue;
+        }
+        // Dos filas vacías seguidas tras haber visto datos → fin del bloque.
+        if (ultimaConDatos >= DATA_START_ROW) {
+            const nextNombre = celdaATexto(ws.getRow(r + 1).getCell(COL.nombre).value);
+            const nextEmite = celdaATexto(ws.getRow(r + 1).getCell(COL.emite).value);
+            if (!nextNombre && !nextEmite) {
+                return r;
+            }
         }
     }
-    return FECHA_REVISION_INFO_ROW;
+
+    return Math.max(ultimaConDatos + 1, DATA_START_ROW);
 }
 
-function parsearDatosDesdeHoja(ws) {
+function leerMetaDesdeHoja(ws) {
+    const revText = celdaATexto(ws.getRow(REVISION_ROW).getCell(COL_META).value);
+    const revMatch = revText.match(/(\d+)/);
+    const fechaRevText = celdaATexto(ws.getRow(FECHA_REV_ROW).getCell(COL_META).value);
+    const fechaRevMatch = fechaRevText.match(/(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/);
+
+    let fechaRevisionInfo = '';
+    const maxScan = Math.min(Math.max(ws.rowCount || 0, DATA_END_ROW), DATA_END_ROW + 20);
+    for (let r = DATA_START_ROW; r <= maxScan; r++) {
+        const label = celdaATexto(ws.getRow(r).getCell(COL.nombre).value).toLowerCase();
+        if (label.includes('fecha de revision') || label.includes('fecha de revisión')) {
+            fechaRevisionInfo = celdaATexto(ws.getRow(r).getCell(COL.emite).value)
+                || celdaATexto(ws.getRow(r).getCell(COL.documento).value)
+                || celdaATexto(ws.getRow(r).getCell(COL.fechaVigor).value);
+            break;
+        }
+    }
+
+    return {
+        revision: revMatch ? revMatch[1].padStart(2, '0') : DATOS_DEFECTO.revision,
+        fechaRevision: fechaRevMatch ? formatearFechaIso(fechaRevMatch[1]) : DATOS_DEFECTO.fechaRevision,
+        fechaElaboracion: fechaRevMatch ? formatearFechaIso(fechaRevMatch[1]) : DATOS_DEFECTO.fechaElaboracion,
+        fechaRevisionInformacion: fechaRevisionInfo
+    };
+}
+
+function parsearDatosDesdeHoja(ws, opciones = {}) {
     const filaFin = encontrarFilaFinDatos(ws);
     const filas = [];
 
@@ -342,6 +404,9 @@ function parsearDatosDesdeHoja(ws) {
         const nombre = celdaATexto(row.getCell(COL.nombre).value);
         if (!nombre) continue;
         if (nombre.toLowerCase().includes('nombre de la ley')) continue;
+        if (nombre.toLowerCase().includes('fecha de revision') || nombre.toLowerCase().includes('fecha de revisión')) {
+            continue;
+        }
 
         filas.push(sanitizarFila({
             nombre,
@@ -354,26 +419,13 @@ function parsearDatosDesdeHoja(ws) {
         }));
     }
 
-    const revText = celdaATexto(ws.getRow(REVISION_ROW).getCell(COL.nombre).value);
-    const revMatch = revText.match(/(\d+)/);
-    const fechaRevText = celdaATexto(ws.getRow(FECHA_REV_ROW).getCell(COL.nombre).value);
-    const fechaRevMatch = fechaRevText.match(/(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/);
-
-    let fechaRevisionInfo = '';
-    const filaInfo = ws.getRow(FECHA_REVISION_INFO_ROW);
-    fechaRevisionInfo = celdaATexto(filaInfo.getCell(COL.nombre).value);
-    if (fechaRevisionInfo.toLowerCase().includes('fecha de revision')) {
-        fechaRevisionInfo = celdaATexto(filaInfo.getCell(COL.emite).value)
-            || celdaATexto(filaInfo.getCell(COL.documento).value);
-    }
+    const meta = leerMetaDesdeHoja(ws);
+    const permitirDefaultFilas = opciones.usarDefaultSiVacio !== false;
 
     return sanitizarDatos({
-        revision: revMatch ? revMatch[1].padStart(2, '0') : DATOS_DEFECTO.revision,
-        fechaRevision: fechaRevMatch ? formatearFechaIso(fechaRevMatch[1]) : DATOS_DEFECTO.fechaRevision,
-        fechaElaboracion: fechaRevMatch ? formatearFechaIso(fechaRevMatch[1]) : DATOS_DEFECTO.fechaElaboracion,
-        fechaRevisionInformacion: fechaRevisionInfo,
-        filas: filas.length ? filas : DATOS_DEFECTO.filas
-    });
+        ...meta,
+        filas: filas.length ? filas : []
+    }, { permitirVacias: !permitirDefaultFilas });
 }
 
 async function leerDatosDesdeBuffer(buffer, opciones = {}) {
@@ -384,7 +436,9 @@ async function leerDatosDesdeBuffer(buffer, opciones = {}) {
         ? excelHistorial.obtenerHojaEdicionDesdeWorkbook(wb, SHEET_TITLE)
         : excelHistorial.obtenerHojaActivaDesdeWorkbook(wb, SHEET_TITLE, CODIGO_FORMATO);
     if (!ws) throw new Error('La plantilla SGC-F-18 no contiene hojas.');
-    return parsearDatosDesdeHoja(ws);
+    return parsearDatosDesdeHoja(ws, {
+        usarDefaultSiVacio: opciones.usarDefaultSiVacio !== false
+    });
 }
 
 async function leerDatosDesdePlantilla() {
@@ -405,10 +459,38 @@ async function descargarBufferDrive(fileId) {
     }
 }
 
-function asignarTexto(celda, texto) {
+function asignarTexto(celda, texto, opciones = {}) {
     celda.value = normalizarSaltosLinea(texto);
-    celda.alignment = { ...(celda.alignment || {}), vertical: 'middle', wrapText: true };
+    celda.font = {
+        ...(celda.font || {}),
+        name: 'Century Gothic',
+        size: 10,
+        ...(opciones.bold ? { bold: true } : {})
+    };
+    celda.alignment = {
+        ...(celda.alignment || {}),
+        vertical: 'middle',
+        wrapText: true,
+        horizontal: opciones.horizontal || 'center'
+    };
 }
+
+const BORDE_CELDA_F18 = {
+    top: { style: 'thin', color: { argb: 'FF000000' } },
+    left: { style: 'thin', color: { argb: 'FF000000' } },
+    bottom: { style: 'thin', color: { argb: 'FF000000' } },
+    right: { style: 'thin', color: { argb: 'FF000000' } }
+};
+const FILL_FILA_PAR = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF2F2F2' }
+};
+const FILL_FILA_IMPAR = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFFFFFFF' }
+};
 
 function formatearFechaDisplay(iso) {
     const f = formatearFechaIso(iso);
@@ -417,33 +499,72 @@ function formatearFechaDisplay(iso) {
     return `${d.padStart(2, '0')}-${m.padStart(2, '0')}-${y.slice(-2)}`;
 }
 
+function aplicarEstiloFilaDatos(ws, rowIndex, esPar) {
+    const row = ws.getRow(rowIndex);
+    row.height = 50;
+    const fill = esPar ? FILL_FILA_PAR : FILL_FILA_IMPAR;
+    for (let c = COL.nombre; c <= COL.observaciones; c++) {
+        const cell = row.getCell(c);
+        cell.border = BORDE_CELDA_F18;
+        cell.fill = fill;
+        cell.font = { ...(cell.font || {}), name: 'Century Gothic', size: 10 };
+        cell.alignment = {
+            ...(cell.alignment || {}),
+            vertical: 'middle',
+            horizontal: 'center',
+            wrapText: true
+        };
+    }
+}
+
 async function escribirDatosEnPlantilla(datos) {
     const templateBuffer = await driveService.descargarArchivo(TEMPLATE_DRIVE_ID);
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(templateBuffer);
-    const ws = wb.worksheets[0];
+    const ws = wb.worksheets[0] || wb.getWorksheet(SHEET_TITLE);
     if (!ws) throw new Error('La plantilla SGC-F-18 no contiene hojas.');
-
-    const filaFin = encontrarFilaFinDatos(ws);
-    const filasDisponibles = Math.max(0, filaFin - DATA_START_ROW);
-    if (datos.filas.length > filasDisponibles) {
-        ws.spliceRows(filaFin, 0, ...Array.from({ length: datos.filas.length - filasDisponibles }, () => []));
+    if (ws.name !== SHEET_TITLE) {
+        try { ws.name = SHEET_TITLE; } catch { /* ignore rename limits */ }
     }
 
-    const filaFinActual = encontrarFilaFinDatos(ws);
-    for (let r = DATA_START_ROW; r < filaFinActual; r++) {
+    const filasNecesarias = Math.max(datos.filas.length, 1);
+    const filaFinDeseada = DATA_START_ROW + filasNecesarias;
+    const filaFinActual = Math.max(encontrarFilaFinDatos(ws), DATA_START_ROW);
+    if (filaFinDeseada > filaFinActual) {
+        ws.spliceRows(
+            filaFinActual,
+            0,
+            ...Array.from({ length: filaFinDeseada - filaFinActual }, () => [])
+        );
+    }
+
+    const limpiaHasta = Math.max(encontrarFilaFinDatos(ws), filaFinDeseada + 2, DATA_END_ROW);
+    for (let r = DATA_START_ROW; r < limpiaHasta; r++) {
         const row = ws.getRow(r);
+        const label = celdaATexto(row.getCell(COL.nombre).value).toLowerCase();
+        if (label.includes('fecha de revision') || label.includes('fecha de revisión')) {
+            for (let c = COL.nombre; c <= COL.observaciones; c++) {
+                row.getCell(c).value = null;
+            }
+            continue;
+        }
         for (let c = COL.nombre; c <= COL.observaciones; c++) {
-            row.getCell(c).value = null;
+            const cell = row.getCell(c);
+            cell.value = null;
+            cell.fill = undefined;
         }
     }
 
-    ws.getRow(REVISION_ROW).getCell(COL.nombre).value = `Revisión: ${datos.revision || '00'}`;
-    ws.getRow(FECHA_REV_ROW).getCell(COL.nombre).value =
+    const revision = revisionDesdeListaMaestra();
+    ws.getRow(REVISION_ROW).getCell(COL_META).value = `Revisión: ${revision}`;
+    ws.getRow(FECHA_REV_ROW).getCell(COL_META).value =
         `Fecha de rev.: ${formatearFechaDisplay(datos.fechaRevision)}`;
 
     datos.filas.forEach((fila, idx) => {
-        const row = ws.getRow(DATA_START_ROW + idx);
+        const rowIndex = DATA_START_ROW + idx;
+        const esPar = idx % 2 === 1; // fila 7 blanca (idx 0), fila 8 #f2f2f2 (idx 1)
+        aplicarEstiloFilaDatos(ws, rowIndex, esPar);
+        const row = ws.getRow(rowIndex);
         asignarTexto(row.getCell(COL.nombre), fila.nombre);
         asignarTexto(row.getCell(COL.emite), fila.emite);
         asignarTexto(row.getCell(COL.fechaVigor), fila.fechaVigor);
@@ -454,7 +575,9 @@ async function escribirDatosEnPlantilla(datos) {
     });
 
     if (datos.fechaRevisionInformacion) {
-        const infoRow = ws.getRow(FECHA_REVISION_INFO_ROW);
+        const infoRowIndex = DATA_START_ROW + datos.filas.length + 1;
+        const infoRow = ws.getRow(infoRowIndex);
+        asignarTexto(infoRow.getCell(COL.nombre), 'Fecha de revisión de la información contenida:', { bold: true, horizontal: 'left' });
         asignarTexto(infoRow.getCell(COL.emite), datos.fechaRevisionInformacion);
     }
 
@@ -542,6 +665,15 @@ function datosSonEquivalentes(a, b) {
 async function escribirSnapshotEnHojaDrive(spreadsheetId, sheetTitle, datos) {
     const buffer = await escribirDatosEnPlantilla(datos);
     await excelHistorial.escribirSnapshotDesdeBufferPlantilla(spreadsheetId, sheetTitle, buffer);
+    const numFilas = Array.isArray(datos?.filas) ? datos.filas.length : 0;
+    await driveService.aplicarFormatoFilasSgcF18(
+        spreadsheetId,
+        sheetTitle,
+        DATA_START_ROW,
+        numFilas
+    ).catch((err) => {
+        console.warn('[SGC-F-18] No se pudo aplicar formato visual:', err.message);
+    });
 }
 
 async function aplicarHistorialSgcF18(opciones) {
@@ -552,7 +684,8 @@ async function aplicarHistorialSgcF18(opciones) {
         datosPrevios: opciones.datosPrevios,
         datosNuevos: opciones.datosNuevos,
         contenidoEsEquivalente: datosSonEquivalentes,
-        estructuraEsEquivalente: excelHistorial.estructuraFilasEquivalente,
+        // Agregar/quitar requisitos = captura normal → hoja SGCF18-MMAA (sin subir revisión).
+        estructuraEsEquivalente: () => true,
         escribirSnapshotEnHoja: escribirSnapshotEnHojaDrive,
         origen: opciones.origen || 'sistema',
         forzarTipo: opciones.forzarTipo || null,
@@ -563,6 +696,15 @@ async function aplicarHistorialSgcF18(opciones) {
 async function publicarDatosEnGoogleSheet(spreadsheetId, datos) {
     const buffer = await escribirDatosEnPlantilla(datos);
     await excelHistorial.escribirSnapshotDesdeBufferPlantilla(spreadsheetId, SHEET_TITLE, buffer);
+    const numFilas = Array.isArray(datos?.filas) ? datos.filas.length : 0;
+    await driveService.aplicarFormatoFilasSgcF18(
+        spreadsheetId,
+        SHEET_TITLE,
+        DATA_START_ROW,
+        numFilas
+    ).catch((err) => {
+        console.warn('[SGC-F-18] No se pudo aplicar formato visual:', err.message);
+    });
     return driveService.obtenerInfoArchivo(spreadsheetId).catch(() => ({ id: spreadsheetId }));
 }
 
@@ -594,7 +736,7 @@ async function subirOReemplazarEnDrive(buffer, driveFileIdPrevio) {
         buffer,
         NOMBRE_ARCHIVO_DRIVE,
         CARPETA_DRIVE_ID,
-        { sheetTitle: SHEET_TITLE, maxColumns: 11, keepSingleSheet: true }
+        { sheetTitle: SHEET_TITLE, maxColumns: 9, keepSingleSheet: true }
     );
 }
 
@@ -620,7 +762,16 @@ async function cargarFormato(pool) {
     if (driveFileId) {
         try {
             const buffer = await descargarBufferDrive(driveFileId);
-            datos = await leerDatosDesdeBuffer(buffer);
+            const datosDrive = await leerDatosDesdeBuffer(buffer, { usarDefaultSiVacio: false });
+            const datosDb = await leerDatosRegistro(registro);
+            // Plantilla nueva vacía: conservar la información ya persistida en BD.
+            if (datosDb?.filas?.length && !datosDrive?.filas?.length) {
+                datos = datosDb;
+            } else if (datosDrive?.filas?.length) {
+                datos = datosDrive;
+            } else {
+                datos = datosDb || datosDrive;
+            }
             archivoDrive = await driveService.obtenerInfoArchivo(driveFileId).catch(() => null);
         } catch (err) {
             console.warn('[SGC-F-18] No se pudo leer archivo en Drive, usando BD/plantilla:', err.message);
@@ -647,6 +798,7 @@ async function cargarFormato(pool) {
     }
 
     registro = { ...registro, drive_file_id: driveFileId || null };
+    datos = sanitizarDatos(datos || DATOS_DEFECTO);
     return construirRespuesta(registro, datos, archivoDrive);
 }
 
@@ -706,12 +858,12 @@ async function guardarFormato(pool, body, options = {}) {
                     forzarTipo: body?.tipoCambio || null
                 });
                 datosGuardar = hist.datosGuardar;
+                datosGuardar.revision = revisionDesdeListaMaestra();
 
                 if (hist.aplicado && origen !== 'consulta') {
                     contenidoModificado = true;
-                    fechaModificacion = hist.tipoCambio === 'formato'
-                        ? (datosGuardar.fechaRevision || excelHistorial.fechaAhoraMexicoIso())
-                        : fechaCambio;
+                    // Solo cambios de información: la revisión sigue la lista maestra.
+                    fechaModificacion = fechaCambio;
                 }
 
                 datosGuardar.fechaElaboracion = contenidoModificado && fechaModificacion
@@ -853,7 +1005,7 @@ async function actualizarPlantillaDesdeSistema(pool) {
         buffer,
         NOMBRE_ARCHIVO_DRIVE,
         CARPETA_DRIVE_ID,
-        { sheetTitle: SHEET_TITLE, maxColumns: 11, keepSingleSheet: true }
+        { sheetTitle: SHEET_TITLE, maxColumns: 9, keepSingleSheet: true }
     );
 
     await guardarRegistroDb(pool, {
