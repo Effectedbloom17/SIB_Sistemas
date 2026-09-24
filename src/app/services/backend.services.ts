@@ -2794,6 +2794,36 @@ export class BackendServices {
         });
     }
 
+    cargarSgcF03Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-03`);
+    }
+
+    guardarSgcF03Formato(datos: unknown, editorActivo = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-03/guardar`, {
+            datos,
+            origen: 'sistema',
+            editorActivo
+        });
+    }
+
+    sincronizarSgcF03DesdeDrive(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-03/sincronizar-drive`, {});
+    }
+
+    actualizarPlantillaSgcF03(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-03/actualizar-plantilla`, {});
+    }
+
+    asegurarAccesoSgcF03(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-03/asegurar-acceso`, {});
+    }
+
+    descargarPdfSgcF03(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-03/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarSgcF16Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-16`);
     }

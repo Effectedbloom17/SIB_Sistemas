@@ -4276,6 +4276,105 @@ async function aplicarFormatoFilasSgcF25(spreadsheetId, sheetTitle, filaInicio, 
 }
 
 /**
+ * SGC-F-03 · Lista de distribución: Century Gothic 11, alineación y cuadrícula A:L.
+ * No toca las filas de encabezado (1-6) ni sus celdas combinadas.
+ */
+async function aplicarFormatoFilasSgcF03(spreadsheetId, sheetTitle, filaInicio, numFilas, filaMax) {
+    if (!spreadsheetId || !sheetTitle) return null;
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const meta = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets(properties(sheetId,title))'
+    });
+    const sheet = (meta.data.sheets || []).find((s) => (s.properties?.title || '').trim() === String(sheetTitle).trim());
+    const sheetId = sheet?.properties?.sheetId;
+    if (sheetId === undefined || sheetId === null) return null;
+
+    const filas = Math.max(0, Number(numFilas) || 0);
+    const startRow = Math.max(0, Number(filaInicio) - 1);
+    const dataEndRow = startRow + filas;
+    const blockEndRow = Number.isFinite(filaMax) && filaMax >= filaInicio ? Number(filaMax) : dataEndRow;
+    const bordeNegro = { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } };
+    const sinBorde = { style: 'NONE' };
+    const textFormat = { fontFamily: 'Century Gothic', fontSize: 11 };
+    const requests = [];
+
+    const formatoColumna = (startCol, endCol, horizontal) => ({
+        repeatCell: {
+            range: {
+                sheetId,
+                startRowIndex: startRow,
+                endRowIndex: dataEndRow,
+                startColumnIndex: startCol,
+                endColumnIndex: endCol
+            },
+            cell: {
+                userEnteredFormat: {
+                    horizontalAlignment: horizontal,
+                    verticalAlignment: 'MIDDLE',
+                    wrapStrategy: 'WRAP',
+                    textFormat
+                }
+            },
+            fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)'
+        }
+    });
+
+    if (filas > 0) {
+        requests.push(formatoColumna(0, 1, 'CENTER'));
+        requests.push(formatoColumna(1, 2, 'LEFT'));
+        requests.push(formatoColumna(2, 3, 'CENTER'));
+        requests.push(formatoColumna(3, 4, 'LEFT'));
+        requests.push(formatoColumna(4, 5, 'CENTER'));
+        requests.push(formatoColumna(5, 6, 'LEFT'));
+        requests.push(formatoColumna(6, 7, 'CENTER'));
+        requests.push(formatoColumna(7, 10, 'LEFT'));
+        requests.push(formatoColumna(9, 10, 'CENTER'));
+        requests.push(formatoColumna(10, 12, 'LEFT'));
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: startRow,
+                    endRowIndex: dataEndRow,
+                    startColumnIndex: 0,
+                    endColumnIndex: 12
+                },
+                top: bordeNegro,
+                bottom: bordeNegro,
+                left: bordeNegro,
+                right: bordeNegro,
+                innerHorizontal: bordeNegro,
+                innerVertical: bordeNegro
+            }
+        });
+    }
+
+    if (blockEndRow > dataEndRow) {
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: dataEndRow,
+                    endRowIndex: blockEndRow,
+                    startColumnIndex: 0,
+                    endColumnIndex: 12
+                },
+                bottom: sinBorde,
+                left: sinBorde,
+                right: sinBorde,
+                innerHorizontal: sinBorde,
+                innerVertical: sinBorde
+            }
+        });
+    }
+
+    if (!requests.length) return true;
+    await sheetsApi.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } });
+    return true;
+}
+
+/**
  * SGC-F-04 · Reporte de no conformidad: alineación de celdas con datos del sistema
  * (Rev 02). Se aplica después de escribir valores vía API.
  */
@@ -11778,6 +11877,7 @@ module.exports = {
     aplicarFormatoFilasSgcF14,
     aplicarFormatoFilasSgcF18,
     aplicarFormatoFilasSgcF25,
+    aplicarFormatoFilasSgcF03,
     aplicarFormatoFilasSgcF02,
     aplicarFormatoFilasSgcF29,
     aplicarFormatoFilasAthF08,

@@ -3,10 +3,11 @@
        [class.sgc-preview-page--dg-f-01]="plantillaSlug === 'dg-f-01'"
        [class.sgc-preview-page--dg-f-02]="(plantillaSlug === 'dg-f-02' || plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'sgc-f-23' || plantillaSlug === 'dg-f-03') || (plantillaSlug === 'af-f-02' && afF02Vista === 'editor')"
        [class.sgc-preview-page--dg-f-03]="plantillaSlug === 'dg-f-03'"
-       [class.sgc-preview-page--dg-f-05]="plantillaSlug === 'dg-f-05' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || (plantillaSlug === 'af-f-02' && afF02Vista === 'archivero') || plantillaSlug === 'ath-f-03'"
+       [class.sgc-preview-page--dg-f-05]="plantillaSlug === 'dg-f-05' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || (plantillaSlug === 'af-f-02' && afF02Vista === 'archivero') || plantillaSlug === 'ath-f-03'"
        [class.sgc-preview-page--dg-f-04]="plantillaSlug === 'dg-f-04'"
        [class.sgc-preview-page--dg-f-07]="plantillaSlug === 'dg-f-07'"
        [class.sgc-preview-page--metodologia-amef]="plantillaSlug === 'metodologia-amef'"
+       [class.sgc-preview-page--sgc-f-03]="plantillaSlug === 'sgc-f-03'"
        [class.sgc-preview-page--ath-f-09-editor]="plantillaSlug === 'ath-f-09' && athF09Vista === 'editor'"
        [class.sgc-preview-page--ath-f-11-editor]="plantillaSlug === 'ath-f-11' && athF11Vista === 'editor'">
   <div class="header header-bg-image sgc-hero sgc-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
@@ -291,7 +292,7 @@
                 </div>
               </ng-container>
               <ng-template #toolbarDriveSyncRest>
-              <ng-container *ngIf="plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || plantillaSlug === 'ath-f-03'; else enlaceDriveExterno">
+              <ng-container *ngIf="plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || plantillaSlug === 'ath-f-03'; else enlaceDriveExterno">
                 <div class="sgc-preview-toolbar__actions">
                   <span class="sgc-preview-sync sgc-preview-sync--hint" *ngIf="driveSyncCambiosPendientes && !driveSyncGuardando && plantillaSlug !== 'sgc-f-05'">
                     Cambios sin guardar
@@ -312,7 +313,7 @@
                     Actualizar versiones
                   </button>
                   <button
-                    *ngIf="puedeGestionarPlantillasSgc && plantillaSlug !== 'sgc-f-05' && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'ath-f-03')"
+                    *ngIf="puedeGestionarPlantillasSgc && plantillaSlug !== 'sgc-f-05' && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'ath-f-03')"
                     type="button"
                     class="btn btn-sm sgc-btn-save-info"
                     [disabled]="driveSyncCargando || driveSyncGuardando || (plantillaSlug === 'sgc-f-10' && sgcF10GuardandoHistorico)"
@@ -444,6 +445,17 @@
                     aria-label="Descargar PDF de la bitácora de proyectos de mejora">
                     <i class="fas" [ngClass]="sgcF14DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF14DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'sgc-f-03'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF03DescargandoPdf"
+                    (click)="descargarPdfSgcF03()"
+                    title="Descargar PDF (Carta, horizontal, márgenes estrechos)"
+                    aria-label="Descargar PDF de la lista de distribución">
+                    <i class="fas" [ngClass]="sgcF03DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF03DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
                   </button>
                   <button
                     *ngIf="plantillaSlug === 'sgc-f-25'"
@@ -5724,6 +5736,122 @@
               </form>
             </ng-container>
 
+
+            <ng-container *ngSwitchCase="'sgc-f-03'">
+              <form class="dg-f05-form sgc-f-03-form" (ngSubmit)="$event.preventDefault()"
+                    (input)="onSgcF03Editado()" (change)="onSgcF03Editado()">
+                <div class="dg-f05-doc-wrap" [class.dg-f05-doc-wrap--loading]="sgcF03Cargando">
+                  <div class="dg-f05-loading" *ngIf="sgcF03Cargando" role="status">
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    <span>Cargando lista de distribución…</span>
+                  </div>
+                  <article class="dg-f05-doc sgc-f-03-doc" *ngIf="!sgcF03Cargando || sgcF03Form.registros.length">
+                    <header class="dg-f05-doc__header">
+                      <div>
+                        <span class="dg-f05-doc__code">SGC-F-03</span>
+                        <h3 class="dg-f05-doc__title">Lista de distribución de documentos</h3>
+                      </div>
+                    </header>
+                    <div class="dg-f05-table-panel sgc-f-03-panel">
+                      <div class="sgc-f-03-tools">
+                        <label class="sgc-f-03-search">
+                          <i class="fas fa-search" aria-hidden="true"></i>
+                          <input type="search" name="sgcF03_busqueda" [(ngModel)]="sgcF03Busqueda"
+                            placeholder="Buscar código, documento, área o persona" autocomplete="off">
+                        </label>
+                        <span class="sgc-f-03-count">{{ sgcF03Form.registros.length }} registro{{ sgcF03Form.registros.length === 1 ? '' : 's' }}</span>
+                      </div>
+                      <div class="dg-f05-table-wrap dg-f05-table-wrap--scroll sgc-f-11-table-wrap sgc-f-03-table-wrap">
+                        <table class="dg-f05-table sgc-f-03-table">
+                          <thead>
+                            <tr>
+                              <th class="sgc-f-03-g sgc-f-03-g--id" colspan="3">Identificación</th>
+                              <th class="sgc-f-03-g sgc-f-03-g--dist" colspan="4">Distribución</th>
+                              <th class="sgc-f-03-g sgc-f-03-g--acc" colspan="2">Acceso</th>
+                              <th class="sgc-f-03-g sgc-f-03-g--rec" colspan="3">Recuperación</th>
+                              <th class="dg-f05-table__act" rowspan="2" aria-label="Acciones"></th>
+                            </tr>
+                            <tr>
+                              <th class="sgc-f-03-table__col--codigo">Código</th>
+                              <th class="sgc-f-03-table__col--nombre">Nombre del documento</th>
+                              <th class="sgc-f-03-table__col--version">No. de versión</th>
+                              <th class="sgc-f-03-table__col--forma">Forma de distribución</th>
+                              <th class="sgc-f-03-table__col--fecha">Fecha de entrega</th>
+                              <th class="sgc-f-03-table__col--entrego">Entregó</th>
+                              <th class="sgc-f-03-table__col--copias">No. copias</th>
+                              <th class="sgc-f-03-table__col--recibe">Nombre de quién recibe</th>
+                              <th class="sgc-f-03-table__col--area">Área donde se usará</th>
+                              <th class="sgc-f-03-table__col--fecha">Fecha de recuperación</th>
+                              <th class="sgc-f-03-table__col--motivo">Motivo</th>
+                              <th class="sgc-f-03-table__col--disposicion">Disposición final</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr *ngFor="let item of sgcF03RegistrosVista">
+                              <td>
+                                <input class="dg-f05-field" [(ngModel)]="item.codigo" [name]="'sgcF03_cod' + sgcF03Form.registros.indexOf(item)">
+                              </td>
+                              <td>
+                                <input class="dg-f05-field" [(ngModel)]="item.nombreDocumento" [name]="'sgcF03_nom' + sgcF03Form.registros.indexOf(item)">
+                              </td>
+                              <td>
+                                <input class="dg-f05-field dg-f05-field--center" [(ngModel)]="item.numeroVersion" [name]="'sgcF03_ver' + sgcF03Form.registros.indexOf(item)">
+                              </td>
+                              <td>
+                                <select class="dg-f05-field dg-f05-field--select" [(ngModel)]="item.formaDistribucion" [name]="'sgcF03_forma' + sgcF03Form.registros.indexOf(item)">
+                                  <option value="">Seleccionar</option>
+                                  <option *ngFor="let forma of formasDistribucionSgcF03(item.formaDistribucion)" [value]="forma">{{ forma }}</option>
+                                </select>
+                              </td>
+                              <td>
+                                <input class="dg-f05-field" type="date" [(ngModel)]="item.fechaEntrega" [name]="'sgcF03_fe' + sgcF03Form.registros.indexOf(item)">
+                              </td>
+                              <td>
+                                <input class="dg-f05-field" [(ngModel)]="item.entrego" [name]="'sgcF03_ent' + sgcF03Form.registros.indexOf(item)">
+                              </td>
+                              <td>
+                                <input class="dg-f05-field dg-f05-field--center" [(ngModel)]="item.numeroCopias" [name]="'sgcF03_cop' + sgcF03Form.registros.indexOf(item)">
+                              </td>
+                              <td>
+                                <input class="dg-f05-field" [(ngModel)]="item.nombreRecibe" [name]="'sgcF03_rec' + sgcF03Form.registros.indexOf(item)">
+                              </td>
+                              <td>
+                                <input class="dg-f05-field" [(ngModel)]="item.areaUso" [name]="'sgcF03_area' + sgcF03Form.registros.indexOf(item)">
+                              </td>
+                              <td>
+                                <input class="dg-f05-field" type="date" [(ngModel)]="item.fechaRecuperacion" [name]="'sgcF03_fr' + sgcF03Form.registros.indexOf(item)">
+                              </td>
+                              <td>
+                                <input class="dg-f05-field" [(ngModel)]="item.motivo" [name]="'sgcF03_mot' + sgcF03Form.registros.indexOf(item)">
+                              </td>
+                              <td>
+                                <input class="dg-f05-field" [(ngModel)]="item.disposicionFinal" [name]="'sgcF03_dis' + sgcF03Form.registros.indexOf(item)">
+                              </td>
+                              <td class="dg-f05-table__act">
+                                <button type="button" class="dg-f05-row-btn" (click)="quitarFilaSgcF03(item)" title="Quitar registro">
+                                  <i class="fas fa-times" aria-hidden="true"></i>
+                                </button>
+                              </td>
+                            </tr>
+                            <tr *ngIf="!sgcF03RegistrosVista.length">
+                              <td class="sgc-f-03-table__empty" colspan="13">
+                                {{ sgcF03Busqueda.trim() ? 'Sin coincidencias.' : 'Aún no hay registros. Usa «Agregar registro» para comenzar.' }}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div class="dg-f05-table-foot">
+                        <button type="button" class="dg-f05-add-btn" (click)="agregarFilaSgcF03()">
+                          <i class="fas fa-plus" aria-hidden="true"></i>
+                          Agregar registro
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              </form>
+            </ng-container>
 
             <ng-container *ngSwitchCase="'sgc-f-25'">
               <form class="dg-f05-form sgc-f-25-form" (ngSubmit)="$event.preventDefault()"
@@ -14120,6 +14248,43 @@
   </div>
 </div>
 
+
+<div class="sgc-drive-editor-fullscreen" *ngIf="mostrarSgcF03Editor"
+  role="dialog" aria-modal="true" aria-label="Editor integrado SGC-F-03">
+  <div class="sgc-drive-editor-fullscreen__backdrop" (click)="toggleSgcF03Editor()"></div>
+  <div class="sgc-drive-editor-fullscreen__panel">
+    <div class="sgc-drive-editor-fullscreen__head">
+      <div class="sgc-drive-editor-fullscreen__title-wrap">
+        <span class="sgc-drive-editor-fullscreen__icon">
+          <i class="fas fa-share-alt" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ tituloEditorIntegrado }}</strong>
+          <small class="sgc-drive-editor-fullscreen__subtitle">SGC-F-03 · Lista de distribución de documentos</small>
+        </div>
+      </div>
+      <div class="sgc-drive-editor-fullscreen__head-actions">
+        <button class="btn btn-sm btn-light" type="button" (click)="toggleSgcF03Editor()">
+          <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+        </button>
+      </div>
+    </div>
+    <div class="sgc-drive-editor-fullscreen__body">
+      <div class="sgc-drive-editor-fullscreen__loading" *ngIf="sgcF03EditorCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando plantilla en Drive…</span>
+      </div>
+      <iframe *ngIf="sgcF03EditorEmbedUrlSafe"
+        class="sgc-drive-editor-fullscreen__iframe"
+        [src]="sgcF03EditorEmbedUrlSafe"
+        title="SGC-F-03 en Google Drive"
+        (load)="onSgcF03IframeLoad()"
+        allow="clipboard-read; clipboard-write"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-popups-to-escape-sandbox">
+      </iframe>
+    </div>
+  </div>
+</div>
 
 <div class="sgc-drive-editor-fullscreen" *ngIf="mostrarSgcF25Editor"
   role="dialog" aria-modal="true" aria-label="Editor integrado SGC-F-25">
