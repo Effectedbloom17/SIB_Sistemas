@@ -15,7 +15,23 @@ const TEMPLATE_DRIVE_ID = '1-tq5eEeFmUPk8cJXOmPEXpycthXTXwe6kwK_-M-7kww';
 const DRIVE_FILE_ID_SISTEMA = '1-tq5eEeFmUPk8cJXOmPEXpycthXTXwe6kwK_-M-7kww';
 const CARPETA_DRIVE_ID = '1IIlNXxAE2h-AiVbZDDr6zuGa87NXdFLm';
 const NOMBRE_ARCHIVO_DRIVE = 'ATH-F-08 Eficacia de la capacitación (sistema)';
+const NOMBRE_PDF_ARCHIVO = 'ATH-F-08 Eficacia de la capacitacion.pdf';
 const SHEET_TITLE = 'Evaluación';
+
+/**
+ * Impresión Sheets (hoja actual), 2 páginas:
+ * 1) Matriz + acreditaciones — carta, horizontal, ajustar al ancho.
+ * 2) Catálogo de cursos — misma hoja, salto de página automático al unir PDF.
+ */
+const OPCIONES_PDF_IMPRESION = {
+    landscape: true,
+    size: 'letter',
+    fitToWidth: true,
+    margins: 'normales',
+    pageOrder: 'down',
+    horizontalAlignment: 'LEFT',
+    verticalAlignment: 'TOP'
+};
 
 const MAX_CURSOS = 20;
 const MAX_COLABORADORES = 20;
@@ -26,6 +42,10 @@ const NOMBRE_COL = 2; // B (merge B:D)
 const TOTAL_COL = 25; // Y
 const APROBADAS_COL = 26; // Z
 const EFICACIA_COL = 27; // AA
+/** Columnas A–AA (matriz completa). */
+const PDF_MAX_COLUMNAS_MATRIZ = EFICACIA_COL;
+/** Columnas A–H del catálogo (nº, nombre, fecha, acreditaciones). */
+const PDF_MAX_COLUMNAS_CATALOGO = 8;
 const FECHA_CELL_COL = 5; // E5 (legacy / global; las fechas por curso van en E5:X5)
 const FECHA_CELL_ROW = 5;
 const CURSO_FECHA_HEADER_ROW = 5; // Fechas por curso arriba del número (E5:X5)
@@ -1565,11 +1585,107 @@ async function actualizarPlantillaDesdeSistema(pool) {
     return construirRespuesta(registroActualizado, datos, archivoDrive);
 }
 
+async function exportarPdfAthF08DosPaginas(driveFileId, gid, sheetTitle) {
+    const titulo = String(sheetTitle || SHEET_TITLE).trim() || SHEET_TITLE;
+    const acredStart = await detectarFilaAcreditacionesEnDrive(driveFileId, titulo);
+    const catalogoStart = await detectarFilaCatalogoCursosEnDrive(driveFileId, titulo, acredStart);
+    const acred = layoutAcredRows(acredStart);
+
+    // Página 1: encabezado + matriz + bloque Acreditaciones / eficacia general.
+    const finPagina1 = Math.max(acred.otro, DATA_START_ROW + 1);
+    // Página 2: encabezado «Curso» (si existe) + catálogo 1–20.
+    const inicioPagina2 = Math.max(finPagina1 + 1, catalogoStart - 1, 1);
+    const finPagina2 = Math.max(inicioPagina2 + 1, catalogoStart + MAX_CURSOS) + 1;
+
+    const optsBase = {
+        ...OPCIONES_PDF_IMPRESION,
+        ...(gid != null ? { gid } : {})
+    };
+
+    let buf1;
+    let buf2;
+    try {
+        buf1 = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
+            ...optsBase,
+            range: { r1: 0, c1: 0, r2: finPagina1, c2: PDF_MAX_COLUMNAS_MATRIZ }
+        });
+        buf2 = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
+            ...optsBase,
+            // Catálogo más angosto para que nombres/saltos de línea se lean bien.
+            range: {
+                r1: inicioPagina2 - 1,
+                c1: 0,
+                r2: finPagina2,
+                c2: PDF_MAX_COLUMNAS_CATALOGO
+            }
+        });
+    } catch (err) {
+        console.warn('[ATH-F-08] Export PDF por rangos falló, usando hoja completa:', err.message);
+        return driveService.exportarGoogleSheetComoPDF(driveFileId, optsBase);
+    }
+
+    try {
+        const { PDFDocument } = require('pdf-lib');
+        const out = await PDFDocument.create();
+        for (const buf of [buf1, buf2]) {
+            if (!buf || !buf.length) continue;
+            const doc = await PDFDocument.load(Buffer.from(buf), { ignoreEncryption: true });
+            const pages = await out.copyPages(doc, doc.getPageIndices());
+            pages.forEach((p) => out.addPage(p));
+        }
+        if (!out.getPageCount()) {
+            return driveService.exportarGoogleSheetComoPDF(driveFileId, optsBase);
+        }
+        return Buffer.from(await out.save());
+    } catch (err) {
+        console.warn('[ATH-F-08] No se pudo unir PDFs de 2 páginas:', err.message);
+        return driveService.exportarGoogleSheetComoPDF(driveFileId, optsBase);
+    }
+}
+
+async function descargarPlantillaPdf(pool) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    let driveFileId = await resolverDriveFileId(registro);
+    if (driveFileId) {
+        driveFileId = await asegurarDriveIdGoogleSheet(driveFileId, pool, registro);
+    }
+    if (!driveFileId) {
+        throw new Error('No hay archivo ATH-F-08 en Drive para exportar a PDF.');
+    }
+
+    let tituloHoja = SHEET_TITLE;
+    let gid = null;
+    const info = await driveService.obtenerInfoArchivo(driveFileId).catch(() => null);
+    if (info?.mimeType === 'application/vnd.google-apps.spreadsheet') {
+        try {
+            tituloHoja = await resolverTituloHojaTrabajo(driveFileId);
+        } catch (err) {
+            console.warn('[ATH-F-08] No se pudo resolver la hoja vigente para PDF:', err.message);
+        }
+        try {
+            gid = await driveService.obtenerGidHojaPorNombre(driveFileId, tituloHoja);
+        } catch (err) {
+            console.warn('[ATH-F-08] No se pudo resolver gid de hoja para PDF:', err.message);
+        }
+    }
+
+    const pdfBuffer = await exportarPdfAthF08DosPaginas(driveFileId, gid, tituloHoja);
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de ATH-F-08 quedó vacía.');
+    }
+    return Buffer.from(pdfBuffer);
+}
+
 module.exports = {
+    CODIGO_FORMATO,
+    NOMBRE_PDF_ARCHIVO,
+    OPCIONES_PDF_IMPRESION,
     cargarFormato,
     guardarFormato,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
+    descargarPlantillaPdf,
     sanitizarDatos,
     calcularEficaciaGeneral,
     calcularMetricasColaborador

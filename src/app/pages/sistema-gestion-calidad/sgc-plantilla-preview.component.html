@@ -446,6 +446,17 @@
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF14DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
                   </button>
                   <button
+                    *ngIf="plantillaSlug === 'sgc-f-25'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF25DescargandoPdf"
+                    (click)="descargarPdfSgcF25()"
+                    title="Descargar PDF (Carta, horizontal, márgenes normales, escala 84%)"
+                    aria-label="Descargar PDF de actividades posteriores a la entrega">
+                    <i class="fas" [ngClass]="sgcF25DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF25DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
+                  </button>
+                  <button
                     *ngIf="plantillaSlug === 'sgc-f-04' && sgcF04Vista === 'editor'"
                     type="button"
                     class="btn btn-sm sgc-btn-pdf-icon"
@@ -455,6 +466,17 @@
                     aria-label="Descargar PDF del reporte de no conformidad">
                     <i class="fas" [ngClass]="sgcF04DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF04DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'sgc-f-22' && sgcF22Vista === 'editor'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF22DescargandoPdf || !sgcF22ReporteActivo"
+                    (click)="descargarPdfSgcF22()"
+                    title="Descargar PDF (Carta, horizontal, ajustar a la página, márgenes estrechos)"
+                    aria-label="Descargar PDF del reporte de daño o pérdida">
+                    <i class="fas" [ngClass]="sgcF22DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF22DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
                   </button>
                   <button
                     *ngIf="plantillaSlug === 'sgc-f-16'"
@@ -554,6 +576,28 @@
                     aria-label="Envío por correo">
                     <i class="fas fa-envelope" aria-hidden="true"></i>
                     <span class="sgc-btn-pdf-icon__label">Envío por correo</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'ath-f-08'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || athF08DescargandoPdf"
+                    (click)="descargarPdfAthF08()"
+                    title="Generar PDF (carta, horizontal, ajustar al ancho · pág.1 matriz / pág.2 catálogo)"
+                    aria-label="Generar PDF de eficacia de la capacitación">
+                    <i class="fas" [ngClass]="athF08DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ athF08DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'ath-f-09' && athF09Vista === 'editor'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="athF09Cargando || athF09Guardando || athF09DescargandoPdf || !athF09CotizacionActiva"
+                    (click)="descargarPdfAthF09()"
+                    title="Descargar PDF (Carta, márgenes y escala predeterminados)"
+                    aria-label="Descargar PDF de esta cotización">
+                    <i class="fas" [ngClass]="athF09DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ athF09DescargandoPdf ? 'Descargando…' : 'Descargar PDF' }}</span>
                   </button>
                   <button
                     *ngIf="plantillaSlug === 'ath-f-11' && athF11Vista === 'editor'"

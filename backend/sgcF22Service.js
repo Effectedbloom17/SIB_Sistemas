@@ -1384,6 +1384,84 @@ async function subirPdfFirmado(pool, body) {
     return { ...respuesta, pdfFirmado };
 }
 
+/**
+ * Exporta la hoja del reporte activo a PDF (Google Sheets → PDF).
+ * Spec: Carta, horizontal, ajustar a la página, márgenes estrechos,
+ * sin cuadrícula/notas, orden abajo→derecha, alineación centro/arriba.
+ */
+async function descargarPlantillaPdf(pool, opciones = {}) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const datosDb = await leerDatosRegistro(registro);
+    const datos = datosDb || sanitizarDatos(DATOS_DEFECTO);
+
+    const reporteId = String(opciones.reporteId || opciones.id || '').trim() || null;
+    let reporte = null;
+    if (reporteId) {
+        reporte = (datos.reportes || []).find((r) => r.id === reporteId) || null;
+    }
+    if (!reporte) {
+        reporte = resolverReporteActivo(
+            reporteId ? { ...datos, reporteActivoId: reporteId } : datos
+        );
+    }
+    if (!reporte || (!reporteTieneContenido(reporte) && !String(reporte.folio || '').trim())) {
+        const err = new Error('Abre o selecciona un reporte con datos para exportar a PDF.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const driveFileId = await resolverDriveFileId(registro);
+    if (!driveFileId) {
+        const err = new Error('No hay Google Sheet SGC-F-22 configurado para exportar a PDF.');
+        err.statusCode = 404;
+        throw err;
+    }
+
+    const datosParaHoja = datosConReporteActivo(datos, reporte);
+    const tituloHoja = resolverNombreHojaReporte(datosParaHoja);
+    if (!tituloHoja || tituloHoja === 'Sin-folio') {
+        const err = new Error('No se pudo resolver la hoja del reporte para exportar a PDF.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    let gid = null;
+    try {
+        gid = await driveService.obtenerGidHojaPorNombre(driveFileId, tituloHoja);
+    } catch (err) {
+        console.warn('[SGC-F-22] No se pudo resolver gid de hoja para PDF:', err.message);
+    }
+    if (gid == null) {
+        const err = new Error(
+            `No se encontró la hoja «${tituloHoja}» en Drive. Guarda la información primero para sincronizar la hoja.`
+        );
+        err.statusCode = 404;
+        throw err;
+    }
+
+    const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
+        gid,
+        landscape: true,
+        size: 'letter',
+        fitToPage: true,
+        margins: 'estrechos',
+        pageOrder: 'down_then_over',
+        horizontalAlignment: 'CENTER',
+        verticalAlignment: 'TOP'
+    });
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de SGC-F-22 quedó vacía.');
+    }
+
+    const folio = String(reporte.folio || '').trim() || tituloHoja || 'reporte';
+    const nombreSeguro = sanitizarNombreHojaFolio(folio) || 'DP';
+    return {
+        buffer: Buffer.from(pdfBuffer),
+        nombreArchivo: `SGC-F-22 ${nombreSeguro}.pdf`
+    };
+}
+
 module.exports = {
     CODIGO_FORMATO,
     DATOS_DEFECTO,
@@ -1392,6 +1470,7 @@ module.exports = {
     guardarFormato,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
+    descargarPlantillaPdf,
     subirPdfFirmado,
     sanitizarDatos
 };

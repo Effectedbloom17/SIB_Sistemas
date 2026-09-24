@@ -832,6 +832,69 @@ function crearCotizacionVacia(cotizaciones = []) {
     });
 }
 
+/** Carta vertical, márgenes y escala predeterminados (sin gráficos de fondo). */
+const OPCIONES_PDF_IMPRESION = {
+    landscape: false,
+    size: 'letter',
+    margins: 'predeterminados'
+};
+
+async function descargarPdfCotizacion(pool, cotizacionId) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const datosPrevios = (await leerDatosRegistro(registro)) || { ...DATOS_DEFECTO, cotizaciones: [] };
+    const id = String(cotizacionId || '').trim();
+    let actual = id
+        ? (datosPrevios.cotizaciones || []).find((c) => c.id === id)
+        : resolverCotizacionActiva(datosPrevios);
+    if (!actual) {
+        throw new Error('No hay cotización seleccionada para descargar el PDF.');
+    }
+
+    const doc = await asegurarDocumentoCotizacion(actual, null, true);
+    actual = sanitizarCotizacion({
+        ...actual,
+        driveFileId: doc.driveFileId,
+        nombreArchivo: doc.nombreArchivo,
+        borrador: false
+    });
+
+    const cotizaciones = (datosPrevios.cotizaciones || []).map((c) =>
+        c.id === actual.id ? actual : c
+    );
+    const datosGuardar = sanitizarDatos({
+        ...datosPrevios,
+        cotizaciones,
+        cotizacionActivaId: actual.id
+    });
+    await guardarRegistroDb(pool, {
+        driveFileId: null,
+        datos: datosGuardar,
+        fechaElaboracionOriginal: formatearFechaIso(registro?.fecha_elaboracion_original) || fechaHoyIso(),
+        fechaModificacionContenido: excelHistorial.fechaAhoraMexicoIso(),
+        contenidoModificado: true,
+        ultimaSyncDrive: excelHistorial.fechaAhoraMexicoIso()
+    });
+
+    const pdfBuffer = await driveService.exportarArchivoPDF(doc.driveFileId, OPCIONES_PDF_IMPRESION);
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de la cotización quedó vacía.');
+    }
+
+    const etiqueta = String(actual.folio || actual.folioBase || actual.empresa || 'cotizacion')
+        .replace(/[\\/:*?"<>|]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80) || 'cotizacion';
+    return {
+        pdfBuffer: Buffer.from(pdfBuffer),
+        nombreArchivo: `ATH-F-09 ${etiqueta}.pdf`,
+        folio: actual.folio,
+        cotizacionId: actual.id,
+        driveFileId: doc.driveFileId
+    };
+}
+
 module.exports = {
     CODIGO_FORMATO,
     TEMPLATE_DRIVE_ID,
@@ -843,6 +906,7 @@ module.exports = {
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
     subirPdfFirmado,
+    descargarPdfCotizacion,
     sanitizarDatos,
     sanitizarCotizacion,
     crearCotizacionVacia,
