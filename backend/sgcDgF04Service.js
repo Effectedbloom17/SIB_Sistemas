@@ -925,7 +925,7 @@ async function leerDatosRegistro(registro) {
     }
 }
 
-function construirRespuesta(registro, datos, archivoDrive) {
+async function construirRespuesta(registro, datos, archivoDrive) {
     const fechaOriginal = formatearFechaIso(registro?.fecha_elaboracion_original);
     const fechaMod = formatearFechaIso(registro?.fecha_modificacion_contenido);
     const modificado = !!registro?.contenido_modificado;
@@ -942,7 +942,7 @@ function construirRespuesta(registro, datos, archivoDrive) {
         fechaModificacionContenido: fechaMod || null,
         contenidoModificado: modificado,
         driveFileId: driveId,
-        editorUrl: driveId ? `https://docs.google.com/spreadsheets/d/${driveId}/edit?usp=sharing` : null,
+        editorUrl: driveId ? await editorUrlConHojaVigente(driveId) : null,
         previewUrl: driveId ? `https://docs.google.com/spreadsheets/d/${driveId}/preview` : null,
         ultimaSyncDrive: formatearUltimaSyncDisplay(registro, archivoDrive)
     };
@@ -1014,7 +1014,7 @@ async function cargarFormato(pool) {
     }
 
     registro = { ...registro, drive_file_id: driveFileId || null };
-    return construirRespuesta(registro, datos, archivoDrive);
+    return await construirRespuesta(registro, datos, archivoDrive);
 }
 
 async function actualizarPlantillaDesdeSistema(pool) {
@@ -1067,7 +1067,7 @@ async function actualizarPlantillaDesdeSistema(pool) {
     });
 
     const registroActualizado = await obtenerRegistroDb(pool);
-    return construirRespuesta(registroActualizado, datosPublicar, archivoDrive);
+    return await construirRespuesta(registroActualizado, datosPublicar, archivoDrive);
 }
 
 async function guardarFormato(pool, body, options = {}) {
@@ -1113,7 +1113,7 @@ async function guardarFormato(pool, body, options = {}) {
         const archivoDrive = await driveService
             .obtenerInfoArchivo(registroPrevio.drive_file_id)
             .catch(() => null);
-        return construirRespuesta(registroPrevio, datosSinCambio, archivoDrive);
+        return await construirRespuesta(registroPrevio, datosSinCambio, archivoDrive);
     }
 
     const driveId = registroPrevio?.drive_file_id || null;
@@ -1167,7 +1167,7 @@ async function guardarFormato(pool, body, options = {}) {
                             contenidoModificado
                         });
                         const registro = await obtenerRegistroDb(pool);
-                        return construirRespuesta(registro, datosGuardar, archivoDrive);
+                        return await construirRespuesta(registro, datosGuardar, archivoDrive);
                     }
                 } else {
                     const archivoDrive = await driveService
@@ -1181,7 +1181,7 @@ async function guardarFormato(pool, body, options = {}) {
                         contenidoModificado
                     });
                     const registro = await obtenerRegistroDb(pool);
-                    return construirRespuesta(registro, datosGuardar, archivoDrive);
+                    return await construirRespuesta(registro, datosGuardar, archivoDrive);
                 }
             }
         } catch (err) {
@@ -1209,7 +1209,7 @@ async function guardarFormato(pool, body, options = {}) {
     });
 
     const registro = await obtenerRegistroDb(pool);
-    return construirRespuesta(registro, datosGuardar, archivoDrive);
+    return await construirRespuesta(registro, datosGuardar, archivoDrive);
 }
 
 async function sincronizarDesdeDrive(pool) {
@@ -1248,7 +1248,7 @@ async function sincronizarDesdeDrive(pool) {
         const archivoDrive = await driveService
             .obtenerInfoArchivo(registro.drive_file_id)
             .catch(() => null);
-        return construirRespuesta(registro, datosDrive, archivoDrive);
+        return await construirRespuesta(registro, datosDrive, archivoDrive);
     }
 
     const hist = await aplicarHistorialDgF04({
@@ -1283,7 +1283,56 @@ async function sincronizarDesdeDrive(pool) {
         .obtenerInfoArchivo(registro.drive_file_id)
         .catch(() => null);
 
-    return construirRespuesta(registroActualizado, datosGuardar, archivoDrive);
+    return await construirRespuesta(registroActualizado, datosGuardar, archivoDrive);
+}
+
+/**
+ * La hoja de edición «Analisis FODA» se archiva como DGF04-MMAA.
+ * El PDF y el editor deben abrir la versión fechada más reciente.
+ */
+async function resolverTituloHojaVigente(spreadsheetId) {
+    let titulos = [];
+    try {
+        titulos = await driveService.listarHojasGoogleSheet(spreadsheetId);
+    } catch (err) {
+        console.warn('[DG-F-04] No se pudieron listar hojas:', err.message);
+    }
+
+    if (titulos.some((t) => String(t).trim() === SHEET_TITLE)) {
+        return SHEET_TITLE;
+    }
+
+    try {
+        const vigente = await excelHistorial.resolverTituloHojaVigenteDesdeDrive(
+            spreadsheetId,
+            SHEET_TITLE,
+            CODIGO_FORMATO
+        );
+        if (vigente && titulos.some((t) => String(t).trim() === String(vigente).trim())) {
+            return String(vigente).trim();
+        }
+    } catch (err) {
+        console.warn('[DG-F-04] No se pudo resolver hoja vigente:', err.message);
+    }
+
+    return titulos[0] || SHEET_TITLE;
+}
+
+async function editorUrlConHojaVigente(driveId) {
+    const base = `https://docs.google.com/spreadsheets/d/${driveId}/edit?usp=sharing`;
+    if (!driveId) {
+        return null;
+    }
+    try {
+        const titulo = await resolverTituloHojaVigente(driveId);
+        const gid = await driveService.obtenerGidHojaPorNombre(driveId, titulo);
+        if (gid != null) {
+            return `${base}&gid=${gid}#gid=${gid}`;
+        }
+    } catch (err) {
+        console.warn('[DG-F-04] No se pudo armar URL del editor:', err.message);
+    }
+    return base;
 }
 
 /**
@@ -1297,14 +1346,15 @@ async function descargarPlantillaPdf(pool) {
         throw new Error('No hay Google Sheet DG-F-04 configurado para exportar a PDF.');
     }
 
+    const tituloHoja = await resolverTituloHojaVigente(driveFileId);
     let gid = null;
     try {
-        gid = await driveService.obtenerGidHojaPorNombre(driveFileId, SHEET_TITLE);
+        gid = await driveService.obtenerGidHojaPorNombre(driveFileId, tituloHoja);
     } catch (err) {
         console.warn('[DG-F-04] No se pudo resolver gid de hoja para PDF:', err.message);
     }
     if (gid == null) {
-        throw new Error(`No se encontró la hoja «${SHEET_TITLE}» para exportar a PDF.`);
+        throw new Error(`No se encontró la hoja vigente «${tituloHoja}» para exportar a PDF.`);
     }
 
     // Misma hoja de Drive: horizontal, ajustar al ancho (sin tocar el layout del sheet).
