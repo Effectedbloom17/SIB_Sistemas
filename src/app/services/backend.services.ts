@@ -2976,9 +2976,16 @@ export class BackendServices {
         );
     }
 
-    listarEvidenciasSgcF14(proyectoId: string): Observable<any> {
+    listarEvidenciasSgcF14(
+        proyectoId: string,
+        opts?: { folio?: string; nombre_proyecto?: string }
+    ): Observable<any> {
+        const params: Record<string, string> = {};
+        if (opts?.folio) params.folio = opts.folio;
+        if (opts?.nombre_proyecto) params.nombre_proyecto = opts.nombre_proyecto;
         return this.httpClient.get(
-            `${this.baseUrl}/sgc/formatos/sgc-f-14/evidencias/${encodeURIComponent(proyectoId)}`
+            `${this.baseUrl}/sgc/formatos/sgc-f-14/evidencias/${encodeURIComponent(proyectoId)}`,
+            { params }
         );
     }
 
@@ -4062,6 +4069,12 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/dg-f-03/subir-pdf-firmado`, {
             pdf_base64: pdfBase64,
             nombre_archivo: nombreArchivo
+        });
+    }
+
+    eliminarPdfHistorialDgF03(driveFileId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/dg-f-03/eliminar-pdf-historial`, {
+            driveFileId
         });
     }
 

@@ -103,7 +103,11 @@ function createSgcF14EvidenciaRouter({
         try {
             const resultado = await sgcF14EvidenciaService.listarEvidencias(
                 poolOrThrow(),
-                req.params.proyectoId
+                req.params.proyectoId,
+                {
+                    folio: req.query?.folio,
+                    nombre_proyecto: req.query?.nombre_proyecto || req.query?.nombreProyecto
+                }
             );
             return res.json({ success: true, ...resultado });
         } catch (error) {

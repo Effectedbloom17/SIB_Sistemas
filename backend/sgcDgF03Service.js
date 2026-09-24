@@ -43,6 +43,7 @@ const DATOS_DEFECTO = {
     firmante: 'Marisol Azucena Santillán Melo',
     cargoFirmante: 'DIRECTORA GENERAL',
     pdfFirmado: null,
+    pdfsHistorial: [],
     documentoSistemaDriveFileId: null,
     plantillaDriveFileId: TEMPLATE_DRIVE_ID
 };
@@ -86,11 +87,38 @@ function fechaHoyIso() {
     return new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE_MEXICO }).format(new Date());
 }
 
-function nombrePdfHistorial(fechaIso = fechaHoyIso()) {
+function siguienteVersionPdf(fechaIso = fechaHoyIso(), historialDrive = []) {
     const iso = formatearFechaIso(fechaIso) || fechaHoyIso();
     const [, mm] = iso.split('-');
     const yy = iso.slice(2, 4);
-    return `${NOMBRE_PDF_ARCHIVO.replace(/\.pdf$/i, '')} - ${mm}/${yy}.pdf`;
+    const base = NOMBRE_PDF_ARCHIVO.replace(/\.pdf$/i, '');
+    const prefijo = `${base} - ${mm}/${yy}`;
+    let max = 0;
+    const fuentes = Array.isArray(historialDrive) ? historialDrive : [];
+    const seen = new Set();
+    for (const p of fuentes) {
+        const n = String(p?.nombreArchivo || p?.name || '').trim();
+        if (!n || seen.has(n)) continue;
+        seen.add(n);
+        const mVer = n.match(new RegExp(`^${escaparRegex(prefijo)} - (\\d{1,2})\\.pdf$`, 'i'));
+        if (mVer) {
+            max = Math.max(max, parseInt(mVer[1], 10) || 0);
+            continue;
+        }
+        if (new RegExp(`^${escaparRegex(prefijo)}\\.pdf$`, 'i').test(n)) {
+            max = Math.max(max, 1);
+        }
+    }
+    return String(max + 1).padStart(2, '0');
+}
+
+function nombrePdfHistorial(fechaIso = fechaHoyIso(), historialDrive = []) {
+    const iso = formatearFechaIso(fechaIso) || fechaHoyIso();
+    const [, mm] = iso.split('-');
+    const yy = iso.slice(2, 4);
+    const base = NOMBRE_PDF_ARCHIVO.replace(/\.pdf$/i, '');
+    const version = siguienteVersionPdf(iso, historialDrive);
+    return `${base} - ${mm}/${yy} - ${version}.pdf`;
 }
 
 function escaparRegex(texto) {
@@ -101,7 +129,7 @@ function esNombrePdfDelFormato(nombre) {
     const base = NOMBRE_PDF_ARCHIVO.replace(/\.pdf$/i, '');
     const n = String(nombre || '').trim();
     return n.toLowerCase() === NOMBRE_PDF_ARCHIVO.toLowerCase()
-        || new RegExp(`^${escaparRegex(base)} - \\d{2}/\\d{2}\\.pdf$`, 'i').test(n);
+        || new RegExp(`^${escaparRegex(base)} - \\d{2}/\\d{2}( - \\d{1,2})?\\.pdf$`, 'i').test(n);
 }
 
 function formatearFechaIsoMexico(fecha) {
@@ -712,6 +740,19 @@ function sanitizarPdfFirmado(raw) {
     };
 }
 
+function sanitizarPdfsHistorial(raw) {
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set();
+    const out = [];
+    for (const item of raw) {
+        const pdf = sanitizarPdfFirmado(item);
+        if (!pdf || seen.has(pdf.driveFileId)) continue;
+        seen.add(pdf.driveFileId);
+        out.push(pdf);
+    }
+    return out;
+}
+
 function sanitizarDatos(raw) {
     const base = raw && typeof raw === 'object' ? raw : {};
     const plantillaSync = sanitizarPlantillaSync(base.plantillaSync);
@@ -723,6 +764,7 @@ function sanitizarDatos(raw) {
         firmante: String(base.firmante || DATOS_DEFECTO.firmante).trim(),
         cargoFirmante: String(base.cargoFirmante || DATOS_DEFECTO.cargoFirmante).trim(),
         pdfFirmado: sanitizarPdfFirmado(base.pdfFirmado || base.pdf_firmado),
+        pdfsHistorial: sanitizarPdfsHistorial(base.pdfsHistorial || base.pdfs_historial),
         documentoSistemaDriveFileId: String(base.documentoSistemaDriveFileId || '').trim() || null,
         plantillaDriveFileId: TEMPLATE_DRIVE_ID,
         plantillaSync
@@ -759,11 +801,30 @@ async function leerDatosRegistro(registro) {
     }
 }
 
-async function buscarPdfEnFormatos() {
+async function listarPdfsHistorialDrive() {
     const archivos = await driveService.listarArchivosCarpeta(CARPETA_DRIVE_ID);
     return (archivos || [])
         .filter((f) => esNombrePdfDelFormato(f.name))
-        .sort((a, b) => new Date(b.modifiedTime || 0) - new Date(a.modifiedTime || 0))[0] || null;
+        .sort((a, b) => new Date(b.modifiedTime || 0) - new Date(a.modifiedTime || 0))
+        .map((f) => sanitizarPdfFirmado({
+            driveFileId: f.id,
+            nombreArchivo: f.name || NOMBRE_PDF_ARCHIVO,
+            webViewLink: f.webViewLink || null,
+            fechaSubida: f.modifiedTime || fechaHoyIso()
+        }))
+        .filter(Boolean);
+}
+
+async function buscarPdfEnFormatos() {
+    const lista = await listarPdfsHistorialDrive();
+    return lista[0]
+        ? {
+            id: lista[0].driveFileId,
+            name: lista[0].nombreArchivo,
+            webViewLink: lista[0].webViewLink,
+            modifiedTime: lista[0].fechaSubida
+        }
+        : null;
 }
 
 async function resolverPdfFirmado(datos) {
@@ -772,17 +833,22 @@ async function resolverPdfFirmado(datos) {
         const existe = await driveService.verificarArchivoExiste(pdfDb.driveFileId).catch(() => false);
         if (existe) return sanitizarPdfFirmado(pdfDb);
     }
-    const enDrive = await buscarPdfEnFormatos();
-    if (!enDrive?.id) return pdfDb ? sanitizarPdfFirmado(pdfDb) : null;
-    return sanitizarPdfFirmado({
-        driveFileId: enDrive.id,
-        nombreArchivo: enDrive.name || NOMBRE_PDF_ARCHIVO,
-        webViewLink: enDrive.webViewLink || null,
-        fechaSubida: enDrive.modifiedTime || fechaHoyIso()
-    });
+    const lista = await listarPdfsHistorialDrive().catch(() => []);
+    if (lista[0]?.driveFileId) return lista[0];
+    return pdfDb ? sanitizarPdfFirmado(pdfDb) : null;
 }
 
-function construirRespuesta(registro, datos, archivoDrive = null) {
+async function publicarPdfEnDrive(pdfBuffer, historialDrive = []) {
+    const nombreArchivo = nombrePdfHistorial(fechaHoyIso(), historialDrive);
+    return driveService.subirArchivoNuevo(
+        pdfBuffer,
+        nombreArchivo,
+        'application/pdf',
+        CARPETA_DRIVE_ID
+    );
+}
+
+function construirRespuesta(registro, datos, historialPdfs = [], archivoDrive = null) {
     const fechaOriginal = formatearFechaIsoMexico(registro?.fecha_elaboracion_original);
     const fechaMod = formatearFechaIsoMexico(registro?.fecha_modificacion_contenido);
     const modificado = !!registro?.contenido_modificado;
@@ -800,9 +866,22 @@ function construirRespuesta(registro, datos, archivoDrive = null) {
         || archivoDrive?.id
         || null;
 
+    const historialDb = sanitizarPdfsHistorial(datos.pdfsHistorial);
+    const historialDrive = Array.isArray(historialPdfs) ? historialPdfs : [];
+    const historialUnido = sanitizarPdfsHistorial([
+        ...historialDb,
+        ...historialDrive
+    ]).sort((a, b) => new Date(b.fechaSubida || 0) - new Date(a.fechaSubida || 0));
+
     return {
         codigo: CODIGO_FORMATO,
-        datos: { ...datos, fechaElaboracion: fechaMostrar, pdfFirmado, documentoSistemaDriveFileId },
+        datos: {
+            ...datos,
+            fechaElaboracion: fechaMostrar,
+            pdfFirmado,
+            documentoSistemaDriveFileId,
+            pdfsHistorial: historialDb.length ? historialDb : historialUnido
+        },
         fechaElaboracionOriginal: fechaOriginal || datos.fechaElaboracion,
         fechaModificacionContenido: fechaMod || null,
         contenidoModificado: modificado,
@@ -811,6 +890,7 @@ function construirRespuesta(registro, datos, archivoDrive = null) {
         ),
         pdfPreviewUrl: pdfFirmado?.previewUrl || null,
         pdfDriveFileId: pdfFirmado?.driveFileId || null,
+        historialPdfs: historialUnido,
         documentoSistemaDriveFileId,
         documentoSistemaEditorUrl: documentoSistemaDriveFileId
             ? `https://docs.google.com/document/d/${documentoSistemaDriveFileId}/edit`
@@ -848,7 +928,8 @@ async function cargarFormato(pool) {
 
     const registroFinal = await obtenerRegistroDb(pool);
     const datosDb = sanitizarDatos(await leerDatosRegistro(registroFinal)) || datosFinales;
-    return construirRespuesta(registroFinal, datosDb, archivoDrive);
+    const historialPdfs = await listarPdfsHistorialDrive().catch(() => []);
+    return construirRespuesta(registroFinal, datosDb, historialPdfs, archivoDrive);
 }
 
 async function guardarFormato(pool, body) {
@@ -889,6 +970,7 @@ async function guardarFormato(pool, body) {
         revision,
         fechaElaboracion,
         pdfFirmado: pdfFirmado ? sanitizarPdfFirmado(pdfFirmado) : null,
+        pdfsHistorial: sanitizarPdfsHistorial(datosPrevios?.pdfsHistorial || datosEntrada.pdfsHistorial),
         documentoSistemaDriveFileId: sistemaFileId || datosPrevios.documentoSistemaDriveFileId,
         plantillaDriveFileId: TEMPLATE_DRIVE_ID,
         plantillaSync: datosPrevios?.plantillaSync || snapshotPlantillaDesdeDatos(datosPrevios)
@@ -917,7 +999,8 @@ async function guardarFormato(pool, body) {
 
     const registro = await obtenerRegistroDb(pool);
     const archivoActualizado = await driveService.obtenerInfoArchivo(datosGuardar.documentoSistemaDriveFileId).catch(() => archivoDrive);
-    return construirRespuesta(registro, datosGuardar, archivoActualizado);
+    const historialPdfs = await listarPdfsHistorialDrive().catch(() => []);
+    return construirRespuesta(registro, datosGuardar, historialPdfs, archivoActualizado);
 }
 
 async function subirPdfFirmado(pool, body) {
@@ -928,23 +1011,20 @@ async function subirPdfFirmado(pool, body) {
     if (!pdfBuffer.length) throw new Error('El archivo PDF está vacío.');
 
     const { registro: registroPrevio, datos: datosPrevios, archivoDrive } = await asegurarDocumentoSistemaEnDrive(pool);
-
-    const nombreArchivo = nombrePdfHistorial();
-    const driveResult = await driveService.subirArchivoNuevo(
-        pdfBuffer,
-        nombreArchivo,
-        'application/pdf',
-        CARPETA_DRIVE_ID
-    );
+    const historialDrivePrev = await listarPdfsHistorialDrive().catch(() => []);
+    const driveResult = await publicarPdfEnDrive(pdfBuffer, historialDrivePrev);
 
     const pdfFirmado = sanitizarPdfFirmado({
         driveFileId: driveResult.id,
-        nombreArchivo: driveResult.name || nombreArchivo,
+        nombreArchivo: driveResult.name || nombrePdfHistorial(fechaHoyIso(), historialDrivePrev),
         webViewLink: driveResult.webViewLink || null,
         fechaSubida: fechaHoyIso()
     });
 
-    const datosGuardar = { ...datosPrevios, pdfFirmado };
+    const histPrev = sanitizarPdfsHistorial(datosPrevios.pdfsHistorial);
+    const pdfsHistorial = [pdfFirmado, ...histPrev.filter((p) => p.driveFileId !== pdfFirmado.driveFileId)];
+
+    const datosGuardar = { ...datosPrevios, pdfFirmado, pdfsHistorial };
     const fechaOriginal = formatearFechaIso(registroPrevio?.fecha_elaboracion_original) || datosPrevios.fechaElaboracion;
     const contenidoModificado = !!registroPrevio?.contenido_modificado;
     const fechaModificacion = formatearFechaIso(registroPrevio?.fecha_modificacion_contenido);
@@ -958,7 +1038,48 @@ async function subirPdfFirmado(pool, body) {
     });
 
     const registro = await obtenerRegistroDb(pool);
-    return { ...construirRespuesta(registro, datosGuardar, archivoDrive), pdfFirmado };
+    const historialPdfs = await listarPdfsHistorialDrive().catch(() => []);
+    return { ...construirRespuesta(registro, datosGuardar, historialPdfs, archivoDrive), pdfFirmado };
+}
+
+async function eliminarPdfHistorial(pool, body, opciones = {}) {
+    if (!opciones.puedeBorrarHistorial) {
+        throw new Error('No autorizado para eliminar PDFs del historial.');
+    }
+    const driveFileId = String(body?.driveFileId || body?.drive_file_id || '').trim();
+    if (!driveFileId) throw new Error('driveFileId requerido.');
+
+    const registroPrevio = await obtenerRegistroDb(pool);
+    const datosPrevios = (await leerDatosRegistro(registroPrevio)) || sanitizarDatos(DATOS_DEFECTO);
+
+    await driveService.eliminarArchivo(driveFileId).catch((err) => {
+        console.warn('[DG-F-03] No se pudo borrar PDF en Drive:', err.message);
+    });
+
+    const hist = sanitizarPdfsHistorial(datosPrevios.pdfsHistorial)
+        .filter((p) => p.driveFileId !== driveFileId);
+    let pdfFirmado = datosPrevios.pdfFirmado;
+    if (pdfFirmado?.driveFileId === driveFileId) {
+        pdfFirmado = hist[0] || null;
+    }
+
+    const datosGuardar = {
+        ...datosPrevios,
+        pdfFirmado: pdfFirmado ? sanitizarPdfFirmado(pdfFirmado) : null,
+        pdfsHistorial: hist
+    };
+
+    await guardarRegistroDb(pool, {
+        pdfDriveFileId: datosGuardar.pdfFirmado?.driveFileId || null,
+        datos: datosGuardar,
+        fechaElaboracionOriginal: registroPrevio?.fecha_elaboracion_original,
+        fechaModificacionContenido: registroPrevio?.fecha_modificacion_contenido ?? null,
+        contenidoModificado: !!registroPrevio?.contenido_modificado
+    });
+
+    const registro = await obtenerRegistroDb(pool);
+    const historialPdfs = await listarPdfsHistorialDrive().catch(() => []);
+    return construirRespuesta(registro, datosGuardar, historialPdfs);
 }
 
 async function descargarPlantillaPdf(pool) {
@@ -1001,6 +1122,7 @@ module.exports = {
     cargarFormato,
     guardarFormato,
     subirPdfFirmado,
+    eliminarPdfHistorial,
     descargarPlantillaPdf,
     sincronizarDocumentoSistema,
     asegurarDocumentoSistemaEnDrive,

@@ -11980,76 +11980,78 @@
                       </div>
                     </header>
 
-                    <div class="sgc-f-02-lead">
-                      <div class="sgc-f-02-lead__icon" aria-hidden="true">
-                        <i class="fas fa-users"></i>
-                      </div>
-                      <div class="sgc-f-02-lead__body">
-                        <h4 class="sgc-f-02-lead__title">Solicitudes por persona</h4>
-                        <p class="sgc-f-02-lead__hint">
-                          Un registro por solicitante: todos sus documentos quedan dentro de la misma tarjeta
-                          (y una sola hoja Excel). Al guardar se conserva en la base de datos.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div class="sgc-f-02-lista">
-                      <div class="sgc-f-02-lista__toolbar">
-                        <label class="sgc-f-02-lista__search">
-                          <i class="fas fa-search" aria-hidden="true"></i>
-                          <input class="dg-f05-field" type="search" name="sgcF02_busqueda"
-                            [(ngModel)]="sgcF02Busqueda" placeholder="Buscar solicitante, puesto o área…"
-                            autocomplete="off">
-                        </label>
-                        <button type="button" class="sgc-f-02-lista__btn-nuevo" (click)="nuevaSolicitudSgcF02()">
-                          <i class="fas fa-plus" aria-hidden="true"></i>
-                          Nueva solicitud
-                        </button>
+                    <ng-container *ngIf="esSuperAdminSgcF01">
+                      <div class="sgc-f-02-lead">
+                        <div class="sgc-f-02-lead__icon" aria-hidden="true">
+                          <i class="fas fa-users"></i>
+                        </div>
+                        <div class="sgc-f-02-lead__body">
+                          <h4 class="sgc-f-02-lead__title">Solicitudes por persona</h4>
+                          <p class="sgc-f-02-lead__hint">
+                            Un registro por solicitante: todos sus documentos quedan dentro de la misma tarjeta
+                            (y una sola hoja Excel). Al guardar se conserva en la base de datos.
+                          </p>
+                        </div>
                       </div>
 
-                      <div class="sgc-f-02-lista__stats">
-                        <span class="sgc-f-02-lista__stat">
-                          <strong>{{ sgcF02Form.solicitudes.length }}</strong>
-                          {{ sgcF02Form.solicitudes.length === 1 ? 'solicitante' : 'solicitantes' }}
-                        </span>
-                      </div>
-
-                      <ul class="sgc-f-02-lista__grid" *ngIf="sgcF02SolicitudesVista.length; else sgcF02ListaVacia">
-                        <li class="sgc-f-02-person" *ngFor="let s of sgcF02SolicitudesVista; trackBy: trackByIdx">
-                          <button type="button" class="sgc-f-02-person__tap" (click)="abrirSolicitudSgcF02(s)">
-                            <span class="sgc-f-02-person__avatar" aria-hidden="true">
-                              {{ inicialesSgcF02(s.nombreSolicitante) }}
-                            </span>
-                            <span class="sgc-f-02-person__body">
-                              <strong class="sgc-f-02-person__nombre">{{ s.nombreSolicitante || 'Sin nombre' }}</strong>
-                              <span class="sgc-f-02-person__meta" *ngIf="s.puestoSolicitante">
-                                <span><i class="fas fa-id-badge" aria-hidden="true"></i> {{ s.puestoSolicitante }}</span>
-                              </span>
-                              <span class="sgc-f-02-person__foot" *ngIf="s.fechaSolicitud">
-                                <span class="sgc-f-02-person__fecha">
-                                  <i class="far fa-calendar-alt" aria-hidden="true"></i>
-                                  {{ s.fechaSolicitud | date:'dd/MM/yyyy' }}
-                                </span>
-                              </span>
-                            </span>
-                          </button>
-                          <button type="button" class="sgc-f-02-person__del"
-                            (click)="eliminarSolicitudSgcF02(s, $event)" title="Eliminar solicitud de esta persona">
-                            <i class="fas fa-trash-alt" aria-hidden="true"></i>
-                          </button>
-                        </li>
-                      </ul>
-                      <ng-template #sgcF02ListaVacia>
-                        <div class="sgc-f-02-lista__empty">
-                          <i class="fas fa-inbox" aria-hidden="true"></i>
-                          <p>No hay solicitudes todavía. Crea la primera con el nombre del solicitante y agrega ahí todos sus documentos.</p>
+                      <div class="sgc-f-02-lista">
+                        <div class="sgc-f-02-lista__toolbar">
+                          <label class="sgc-f-02-lista__search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input class="dg-f05-field" type="search" name="sgcF02_busqueda"
+                              [(ngModel)]="sgcF02Busqueda" placeholder="Buscar solicitante, puesto o área…"
+                              autocomplete="off">
+                          </label>
                           <button type="button" class="sgc-f-02-lista__btn-nuevo" (click)="nuevaSolicitudSgcF02()">
                             <i class="fas fa-plus" aria-hidden="true"></i>
                             Nueva solicitud
                           </button>
                         </div>
-                      </ng-template>
-                    </div>
+
+                        <div class="sgc-f-02-lista__stats">
+                          <span class="sgc-f-02-lista__stat">
+                            <strong>{{ sgcF02Form.solicitudes.length }}</strong>
+                            {{ sgcF02Form.solicitudes.length === 1 ? 'solicitante' : 'solicitantes' }}
+                          </span>
+                        </div>
+
+                        <ul class="sgc-f-02-lista__grid" *ngIf="sgcF02SolicitudesVista.length; else sgcF02ListaVacia">
+                          <li class="sgc-f-02-person" *ngFor="let s of sgcF02SolicitudesVista; trackBy: trackByIdx">
+                            <button type="button" class="sgc-f-02-person__tap" (click)="abrirSolicitudSgcF02(s)">
+                              <span class="sgc-f-02-person__avatar" aria-hidden="true">
+                                {{ inicialesSgcF02(s.nombreSolicitante) }}
+                              </span>
+                              <span class="sgc-f-02-person__body">
+                                <strong class="sgc-f-02-person__nombre">{{ s.nombreSolicitante || 'Sin nombre' }}</strong>
+                                <span class="sgc-f-02-person__meta" *ngIf="s.puestoSolicitante">
+                                  <span><i class="fas fa-id-badge" aria-hidden="true"></i> {{ s.puestoSolicitante }}</span>
+                                </span>
+                                <span class="sgc-f-02-person__foot" *ngIf="s.fechaSolicitud">
+                                  <span class="sgc-f-02-person__fecha">
+                                    <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                                    {{ s.fechaSolicitud | date:'dd/MM/yyyy' }}
+                                  </span>
+                                </span>
+                              </span>
+                            </button>
+                            <button type="button" class="sgc-f-02-person__del"
+                              (click)="eliminarSolicitudSgcF02(s, $event)" title="Eliminar solicitud de esta persona">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                          </li>
+                        </ul>
+                        <ng-template #sgcF02ListaVacia>
+                          <div class="sgc-f-02-lista__empty">
+                            <i class="fas fa-inbox" aria-hidden="true"></i>
+                            <p>No hay solicitudes todavía. Crea la primera con el nombre del solicitante y agrega ahí todos sus documentos.</p>
+                            <button type="button" class="sgc-f-02-lista__btn-nuevo" (click)="nuevaSolicitudSgcF02()">
+                              <i class="fas fa-plus" aria-hidden="true"></i>
+                              Nueva solicitud
+                            </button>
+                          </div>
+                        </ng-template>
+                      </div>
+                    </ng-container>
 
                     <section class="sgc-f-02-fisicos" aria-labelledby="sgc-f-02-fisicos-title">
                       <header class="sgc-f-02-fisicos__head">
@@ -12165,8 +12167,8 @@
                     </section>
                   </article>
 
-                  <!-- Editor de una solicitud -->
-                  <article class="dg-f05-doc sgc-f-02-doc" *ngIf="sgcF02Vista === 'editor' && sgcF02SolicitudActiva as sol">
+                  <!-- Editor de una solicitud (solo super administrador) -->
+                  <article class="dg-f05-doc sgc-f-02-doc" *ngIf="esSuperAdminSgcF01 && sgcF02Vista === 'editor' && sgcF02SolicitudActiva as sol">
                     <div class="sgc-f-02-editor-bar">
                       <button type="button" class="sgc-f-02-editor-bar__back" (click)="volverListaSgcF02()">
                         <i class="fas fa-arrow-left" aria-hidden="true"></i> Volver a la lista
@@ -12651,20 +12653,6 @@
                       <h1 class="dg-f02-block__heading text-center mb-4">OBJETIVOS DE CALIDAD</h1>
                       <section class="dg-f02-block dg-f02-block--grow">
                         <div class="dg-f02-block__editor dg-f03-objetivos-editor">
-                          <header class="dg-f03-objetivos-toolbar">
-                            <div class="dg-f03-objetivos-toolbar__meta">
-                              <span class="dg-f03-objetivos-toolbar__title">Lista de objetivos</span>
-                              <span class="dg-f03-objetivos-toolbar__count">
-                                {{ itemsObjetivosDgF03.length }}
-                                {{ itemsObjetivosDgF03.length === 1 ? 'objetivo' : 'objetivos' }}
-                              </span>
-                            </div>
-                            <span class="dg-f03-objetivos-toolbar__badge" aria-hidden="true">
-                              <i class="fas fa-pen"></i>
-                              Editable
-                            </span>
-                          </header>
-
                           <ol class="dg-f03-objetivos-list">
                             <li *ngFor="let item of itemsObjetivosDgF03; let i = index; trackBy: trackByIndex"
                               class="dg-f03-objetivos-list__item">
@@ -12720,32 +12708,90 @@
                   <aside class="dg-f02-attach" aria-label="Documento firmado">
                     <div class="dg-f02-attach__head">
                       <div class="dg-f02-attach__icon-wrap"><i class="fas fa-file-signature" aria-hidden="true"></i></div>
-                      <div><h3 class="dg-f02-attach__title">Versión firmada</h3>
-                        <p class="dg-f02-attach__desc mb-0">Sube el PDF con firmas de dirección para el expediente del SGC.</p></div>
+                      <div>
+                        <h3 class="dg-f02-attach__title">Versión firmada</h3>
+                        <p class="dg-f02-attach__desc mb-0">
+                          Sube el PDF firmado. Cada carga se agrega al historial de este formato (no reemplaza versiones anteriores).
+                        </p>
+                      </div>
                     </div>
-                    <label class="dg-f02-attach__dropzone" *ngIf="!dgF03Form.pdfFirmado?.driveFileId" [class.dg-f02-attach__dropzone--busy]="dgF03SubiendoPdf">
-                      <input type="file" class="dg-f02-attach__input" accept="application/pdf" (change)="onSeleccionarPdfDgF03($event)" [disabled]="dgF03SubiendoPdf">
-                      <span class="dg-f02-attach__dropzone-icon"><i class="fas" [ngClass]="dgF03SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i></span>
-                      <span class="dg-f02-attach__dropzone-title">{{ dgF03SubiendoPdf ? 'Subiendo PDF…' : 'Arrastra o selecciona el PDF firmado' }}</span>
+                    <label class="dg-f02-attach__dropzone" *ngIf="!dgF03Form.pdfFirmado?.driveFileId"
+                      [class.dg-f02-attach__dropzone--busy]="dgF03SubiendoPdf">
+                      <input type="file" class="dg-f02-attach__input" accept="application/pdf"
+                        (change)="onSeleccionarPdfDgF03($event)" [disabled]="dgF03SubiendoPdf">
+                      <span class="dg-f02-attach__dropzone-icon">
+                        <i class="fas" [ngClass]="dgF03SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                      </span>
+                      <span class="dg-f02-attach__dropzone-title">
+                        {{ dgF03SubiendoPdf ? 'Subiendo PDF…' : 'Arrastra o selecciona el PDF firmado' }}
+                      </span>
                       <span class="dg-f02-attach__dropzone-hint">Formato PDF · máximo {{ etiquetaMaxPdfSgc }}</span>
                     </label>
-                    <input #dgF03InputActualizarPdf type="file" class="dg-f02-attach__input" accept="application/pdf" (change)="onSeleccionarPdfDgF03($event)" [disabled]="dgF03SubiendoPdf">
+                    <input #dgF03InputActualizarPdf type="file" class="dg-f02-attach__input" accept="application/pdf"
+                      (change)="onSeleccionarPdfDgF03($event)" [disabled]="dgF03SubiendoPdf">
                     <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="dgF03Form.pdfFirmado as pdf">
                       <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
                       <div class="dg-f02-attach__file-info">
+                        <span class="dg-f02-attach__file-badge">Vigente</span>
                         <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo || 'DG-F-03 Objetivos de calidad.pdf' }}</strong>
-                        <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}</small>
+                        <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                          <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                          Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}
+                        </small>
                       </div>
                       <div class="dg-f02-attach__file-actions" *ngIf="dgF03Form.pdfFirmado?.driveFileId">
-                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn" (click)="toggleDgF03PdfViewer()">
-                          <i class="fas fa-eye mr-1" aria-hidden="true"></i> Abrir
+                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                          (click)="toggleDgF03PdfViewer()">
+                          <i class="fas fa-eye" aria-hidden="true"></i>
+                          Abrir
                         </button>
                         <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
-                          [disabled]="dgF03SubiendoPdf" (click)="dgF03InputActualizarPdf.click()">
-                          <i class="fas mr-1" [ngClass]="dgF03SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-sync-alt'" aria-hidden="true"></i>
-                          {{ dgF03SubiendoPdf ? 'Subiendo a Drive…' : 'Actualizar Documento' }}
+                          [disabled]="dgF03SubiendoPdf"
+                          (click)="dgF03InputActualizarPdf.click()">
+                          <i class="fas" [ngClass]="dgF03SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                          {{ dgF03SubiendoPdf ? 'Subiendo…' : 'Nueva versión' }}
                         </button>
                       </div>
+                    </div>
+
+                    <div class="sgc-pdf-historial" *ngIf="dgF03HistorialPdfs.length">
+                      <div class="sgc-pdf-historial__head">
+                        <div class="sgc-pdf-historial__icon" aria-hidden="true">
+                          <i class="fas fa-history"></i>
+                        </div>
+                        <div>
+                          <h4 class="sgc-pdf-historial__title">Historial de PDFs firmados</h4>
+                          <p class="sgc-pdf-historial__hint">Solo versiones firmadas de este formato.</p>
+                        </div>
+                      </div>
+                      <ul class="sgc-pdf-historial__list">
+                        <li class="sgc-pdf-historial__item" *ngFor="let hist of dgF03HistorialPdfs; let i = index">
+                          <div class="sgc-pdf-historial__item-main">
+                            <span class="sgc-pdf-historial__ver">{{ dgF03HistorialPdfs.length - i }}</span>
+                            <div class="sgc-pdf-historial__meta">
+                              <strong class="sgc-pdf-historial__name">{{ hist.nombreArchivo }}</strong>
+                              <small class="sgc-pdf-historial__date" *ngIf="hist.fechaSubida">
+                                <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                                {{ formatearFechaDgF02(hist.fechaSubida) }}
+                              </small>
+                            </div>
+                          </div>
+                          <div class="sgc-pdf-historial__actions">
+                            <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                              (click)="toggleDgF03PdfViewer(hist)">
+                              <i class="fas fa-eye" aria-hidden="true"></i>
+                              Abrir
+                            </button>
+                            <button *ngIf="puedeBorrarPdfHistorialDgF03" type="button"
+                              class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--danger"
+                              [disabled]="dgF03BorrandoPdf"
+                              (click)="eliminarPdfHistorialDgF03(hist)"
+                              title="Eliminar PDF del historial">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </li>
+                      </ul>
                     </div>
                   </aside>
                 </div>
@@ -14329,7 +14375,7 @@
       <div class="sgc-drive-editor-fullscreen__title-wrap">
         <span class="sgc-drive-editor-fullscreen__icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></span>
         <div>
-          <strong class="sgc-drive-editor-fullscreen__title">{{ dgF03Form.pdfFirmado?.nombreArchivo || 'DG-F-03 Objetivos de calidad.pdf' }}</strong>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ dgF03PdfViewerTitulo }}</strong>
           <small class="sgc-drive-editor-fullscreen__subtitle">Vista previa del PDF · solo lectura</small>
         </div>
       </div>
@@ -14342,12 +14388,12 @@
         <i class="fas fa-spinner fa-spin" aria-hidden="true"></i><span>Cargando PDF…</span>
       </div>
       <iframe *ngIf="dgF03PdfEmbedUrlSafe" class="sgc-drive-editor-fullscreen__iframe" [src]="dgF03PdfEmbedUrlSafe"
-        [title]="dgF03Form.pdfFirmado?.nombreArchivo || 'DG-F-03 Objetivos de calidad.pdf'" (load)="onDgF03PdfIframeLoad()" allow="autoplay"></iframe>
+        [title]="dgF03PdfViewerTitulo" (load)="onDgF03PdfIframeLoad()" allow="autoplay"></iframe>
     </div>
   </div>
 </div>
 
-<!-- Visor documentación física SGC-F-02 -->
+<!-- Visor documentación física SGC-F-02 (zoom + rotación como procedimientos) -->
 <div class="sgc-f-02-visor" *ngIf="sgcF02VisorDoc"
   role="dialog" aria-modal="true"
   [attr.aria-label]="'Vista de ' + sgcF02VisorDoc.nombre">
@@ -14382,29 +14428,17 @@
         </button>
       </div>
     </header>
-    <div class="sgc-f-02-visor__toolbar" aria-hidden="true">
-      <span class="sgc-f-02-visor__toolbar-label">
-        <i class="fas fa-bars" aria-hidden="true"></i>
-        DOCUMENTACIÓN FÍSICA
-      </span>
-      <span class="sgc-f-02-visor__toolbar-hint">Vista previa integrada · Google Drive</span>
-    </div>
     <div class="sgc-f-02-visor__body">
-      <div class="sgc-f-02-visor__loading" *ngIf="sgcF02VisorCargando && !sgcF02VisorError">
-        <div class="sgc-f-02-visor__spinner">
-          <i class="fas" [ngClass]="sgcF02VisorDoc.tipo === 'pdf' ? 'fa-file-pdf' : 'fa-file-image'" aria-hidden="true"></i>
-        </div>
-        <span>Preparando vista previa…</span>
-      </div>
-      <iframe *ngIf="!sgcF02VisorError && sgcF02VisorUrlSafe"
-        class="sgc-f-02-visor__iframe"
-        [class.sgc-f-02-visor__iframe--ready]="!sgcF02VisorCargando"
-        [src]="sgcF02VisorUrlSafe"
-        [title]="sgcF02VisorDoc.nombre"
-        allow="autoplay"
-        (load)="onSgcF02VisorLoad()"
-        (error)="onSgcF02VisorError()">
-      </iframe>
+      <app-pdf-canvas-viewer
+        *ngIf="!sgcF02VisorError"
+        [blob]="sgcF02VisorBlob"
+        [preparando]="sgcF02VisorCargando && !sgcF02VisorBlob"
+        [progresoServidor]="sgcF02VisorProgreso"
+        [etiquetaServidor]="sgcF02VisorEtiqueta"
+        [lento]="sgcF02VisorLento"
+        tema="oscuro"
+        (fallo)="onSgcF02VisorError($event)">
+      </app-pdf-canvas-viewer>
       <div *ngIf="sgcF02VisorError" class="sgc-f-02-visor__fallback">
         <i class="fas fa-exclamation-triangle fa-2x mb-3" aria-hidden="true"></i>
         <p class="mb-2">{{ sgcF02VisorError }}</p>

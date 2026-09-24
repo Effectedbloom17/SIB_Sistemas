@@ -103,6 +103,13 @@ function normalizarProyectoId(valor) {
     return id;
 }
 
+/** Clave estable: folio (PM-…) cuando existe; si no, el id UUID enviado. */
+function resolverClaveProyecto(folio, proyectoIdRaw) {
+    const folioLimpio = sanitizarTexto(folio, 64);
+    if (folioLimpio) return folioLimpio;
+    return normalizarProyectoId(proyectoIdRaw);
+}
+
 function generarProyectoId() {
     if (typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
@@ -215,9 +222,150 @@ async function resolverCarpetaProyecto(nombreProyecto, subcarpeta) {
     return carpetaProyecto;
 }
 
+async function buscarCarpetaProyectoExistente(nombreProyecto) {
+    const nombre = sanitizarNombreCarpeta(nombreProyecto || '');
+    if (!nombre || nombre === 'Sin-nombre') return null;
+    try {
+        return await driveService.buscarCarpeta(nombre, CARPETA_DRIVE_EVIDENCIAS);
+    } catch (err) {
+        console.warn('[SGC-F14-EVID] No se pudo buscar carpeta de proyecto:', err.message);
+        return null;
+    }
+}
+
+/** Lista archivos en la carpeta del proyecto y 1 nivel de subcarpetas. */
+async function listarArchivosDriveProyecto(carpetaProyectoId) {
+    if (!carpetaProyectoId) return [];
+    const resultados = [];
+    const raiz = await driveService.listarArchivosCarpeta(carpetaProyectoId);
+    for (const f of raiz || []) {
+        if (f?.id) resultados.push({ ...f, carpetaDriveId: carpetaProyectoId });
+    }
+    let subcarpetas = [];
+    try {
+        subcarpetas = await driveService.listarSubcarpetas(carpetaProyectoId);
+    } catch (_) {
+        subcarpetas = [];
+    }
+    for (const sub of subcarpetas || []) {
+        if (!sub?.id) continue;
+        try {
+            const archivos = await driveService.listarArchivosCarpeta(sub.id);
+            for (const f of archivos || []) {
+                if (f?.id) resultados.push({ ...f, carpetaDriveId: sub.id });
+            }
+        } catch (err) {
+            console.warn('[SGC-F14-EVID] No se pudo listar subcarpeta Drive:', err.message);
+        }
+    }
+    return resultados;
+}
+
+/**
+ * Reasigna filas huérfanas (UUID viejo) al folio estable y registra en BD
+ * los archivos que ya están en Drive pero no en sgc_f14_evidencia.
+ */
+async function sincronizarEvidenciasDesdeDrive(pool, {
+    proyectoId,
+    folio,
+    nombreProyecto
+}) {
+    await asegurarTablas(pool);
+    const clave = resolverClaveProyecto(folio, proyectoId);
+    const folioLimpio = sanitizarTexto(folio, 255);
+    const nombreLimpio = sanitizarTexto(nombreProyecto, 255);
+
+    // Unificar registros previos ligados por folio/nombre/UUID al folio estable.
+    const whereParts = ['proyecto_id = ?'];
+    const whereParams = [clave];
+    if (proyectoId && String(proyectoId).trim() !== clave) {
+        whereParts.push('proyecto_id = ?');
+        whereParams.push(String(proyectoId).trim());
+    }
+    if (folioLimpio) {
+        whereParts.push('folio = ?');
+        whereParams.push(folioLimpio);
+    }
+    if (nombreLimpio) {
+        whereParts.push('nombre_proyecto = ?');
+        whereParams.push(nombreLimpio);
+    }
+    await pool.query(
+        `UPDATE sgc_f14_evidencia
+         SET proyecto_id = ?,
+             folio = COALESCE(NULLIF(?, ''), folio),
+             nombre_proyecto = COALESCE(NULLIF(?, ''), nombre_proyecto)
+         WHERE ${whereParts.join(' OR ')}`,
+        [clave, folioLimpio || '', nombreLimpio || '', ...whereParams]
+    );
+
+    const carpetaId = await buscarCarpetaProyectoExistente(nombreLimpio || folioLimpio || clave);
+    if (!carpetaId) {
+        return { clave, importados: 0, carpetaDriveId: null };
+    }
+
+    const archivosDrive = await listarArchivosDriveProyecto(carpetaId);
+    if (!archivosDrive.length) {
+        return { clave, importados: 0, carpetaDriveId: carpetaId };
+    }
+
+    const driveIds = archivosDrive.map((a) => a.id).filter(Boolean);
+    const existentes = new Set();
+    if (driveIds.length) {
+        const placeholders = driveIds.map(() => '?').join(',');
+        const [rows] = await pool.query(
+            `SELECT drive_file_id FROM sgc_f14_evidencia WHERE drive_file_id IN (${placeholders})`,
+            driveIds
+        );
+        for (const row of rows) {
+            if (row.drive_file_id) existentes.add(row.drive_file_id);
+        }
+    }
+
+    let importados = 0;
+    for (const archivo of archivosDrive) {
+        if (!archivo?.id || existentes.has(archivo.id)) continue;
+        const nombreArchivo = nombreSeguroArchivo(archivo.name || 'documento');
+        const mimeType = resolverMimeType(nombreArchivo, archivo.mimeType);
+        const tamano = archivo.size != null ? Number(archivo.size) : null;
+        try {
+            await pool.query(
+                `INSERT INTO sgc_f14_evidencia
+                    (proyecto_id, folio, nombre_proyecto, titulo, nombre_archivo, nombre_archivo_drive,
+                     drive_file_id, carpeta_drive_id, web_view_link, mime_type, tamano_bytes, subido_por)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                    proyecto_id = VALUES(proyecto_id),
+                    folio = COALESCE(VALUES(folio), folio),
+                    nombre_proyecto = COALESCE(VALUES(nombre_proyecto), nombre_proyecto),
+                    updated_at = CURRENT_TIMESTAMP`,
+                [
+                    clave,
+                    folioLimpio || null,
+                    nombreLimpio || null,
+                    nombreArchivo,
+                    nombreArchivo,
+                    archivo.name || nombreArchivo,
+                    archivo.id,
+                    archivo.carpetaDriveId || carpetaId,
+                    archivo.webViewLink || `https://drive.google.com/file/d/${archivo.id}/view`,
+                    mimeType,
+                    Number.isFinite(tamano) ? tamano : null,
+                    'sync-drive'
+                ]
+            );
+            importados += 1;
+        } catch (err) {
+            console.warn('[SGC-F14-EVID] No se pudo registrar archivo de Drive en BD:', err.message);
+        }
+    }
+
+    return { clave, importados, carpetaDriveId: carpetaId };
+}
+
 async function crearCarpetaEvidencia(pool, body) {
-    const proyectoId = normalizarProyectoId(body?.proyecto_id || body?.proyectoId);
     const folio = sanitizarTexto(body?.folio, 255);
+    const proyectoId = resolverClaveProyecto(folio, body?.proyecto_id || body?.proyectoId);
     const nombreProyecto = sanitizarTexto(body?.nombre_proyecto || body?.nombreProyecto, 255);
     const nombre = sanitizarNombreCarpeta(body?.nombre || body?.nombre_carpeta);
     if (!nombre || nombre === 'Sin-nombre') {
@@ -237,25 +385,61 @@ async function crearCarpetaEvidencia(pool, body) {
     };
 }
 
-async function listarEvidencias(pool, proyectoId) {
+async function listarEvidencias(pool, proyectoId, opciones = {}) {
     await asegurarTablas(pool);
-    const id = normalizarProyectoId(proyectoId);
+    const folio = sanitizarTexto(opciones.folio, 255);
+    const nombreProyecto = sanitizarTexto(
+        opciones.nombre_proyecto || opciones.nombreProyecto,
+        255
+    );
+    const clave = resolverClaveProyecto(folio, proyectoId);
+
+    let syncInfo = { importados: 0, carpetaDriveId: null };
+    try {
+        syncInfo = await sincronizarEvidenciasDesdeDrive(pool, {
+            proyectoId,
+            folio,
+            nombreProyecto
+        });
+    } catch (err) {
+        console.warn('[SGC-F14-EVID] Sync Drive→BD omitida:', err.message);
+    }
+
+    const whereParts = ['proyecto_id = ?'];
+    const params = [clave];
+    if (proyectoId && String(proyectoId).trim() !== clave) {
+        whereParts.push('proyecto_id = ?');
+        params.push(String(proyectoId).trim());
+    }
+    if (folio) {
+        whereParts.push('folio = ?');
+        params.push(folio);
+    }
+    if (nombreProyecto) {
+        whereParts.push('nombre_proyecto = ?');
+        params.push(nombreProyecto);
+    }
+
     const [rows] = await pool.query(
         `SELECT ${COLUMNAS_SELECT}
          FROM sgc_f14_evidencia
-         WHERE proyecto_id = ?
+         WHERE ${whereParts.join(' OR ')}
          ORDER BY created_at DESC`,
-        [id]
+        params
     );
     const documentos = rows.map(formatearRegistro);
     const totalBytes = documentos.reduce((s, d) => s + (d.tamanoBytes || 0), 0);
+    const carpetaProyectoId = syncInfo.carpetaDriveId || documentos[0]?.carpetaDriveId || null;
     return {
-        proyectoId: id,
-        carpetaDriveId: CARPETA_DRIVE_EVIDENCIAS,
-        carpetaDriveUrl: `https://drive.google.com/drive/folders/${CARPETA_DRIVE_EVIDENCIAS}`,
+        proyectoId: clave,
+        carpetaDriveId: carpetaProyectoId || CARPETA_DRIVE_EVIDENCIAS,
+        carpetaDriveUrl: carpetaProyectoId
+            ? `https://drive.google.com/drive/folders/${carpetaProyectoId}`
+            : `https://drive.google.com/drive/folders/${CARPETA_DRIVE_EVIDENCIAS}`,
         documentos,
         total: documentos.length,
-        totalBytes
+        totalBytes,
+        sincronizados: syncInfo.importados || 0
     };
 }
 
@@ -265,17 +449,29 @@ async function contarEvidencias(pool, proyectoIds) {
         .map((v) => String(v || '').trim())
         .filter((v) => v && v.length <= 64);
     if (!ids.length) return {};
+
+    const mapa = {};
+    for (const id of ids) mapa[id] = 0;
+
     const placeholders = ids.map(() => '?').join(',');
     const [rows] = await pool.query(
-        `SELECT proyecto_id, COUNT(*) AS total
+        `SELECT id, proyecto_id, folio
          FROM sgc_f14_evidencia
-         WHERE proyecto_id IN (${placeholders})
-         GROUP BY proyecto_id`,
-        ids
+         WHERE proyecto_id IN (${placeholders}) OR folio IN (${placeholders})`,
+        [...ids, ...ids]
     );
-    const mapa = {};
+
+    const porClave = new Map();
+    for (const id of ids) porClave.set(id, new Set());
     for (const row of rows) {
-        mapa[row.proyecto_id] = Number(row.total) || 0;
+        for (const id of ids) {
+            if (row.proyecto_id === id || row.folio === id) {
+                porClave.get(id).add(row.id);
+            }
+        }
+    }
+    for (const id of ids) {
+        mapa[id] = porClave.get(id)?.size || 0;
     }
     return mapa;
 }
@@ -329,8 +525,8 @@ async function subirABaseDeDatos(pool, {
 }
 
 async function subirEvidencia(pool, body, usuario) {
-    const proyectoId = normalizarProyectoId(body?.proyecto_id || body?.proyectoId);
     const folio = sanitizarTexto(body?.folio, 255);
+    const proyectoId = resolverClaveProyecto(folio, body?.proyecto_id || body?.proyectoId);
     const nombreProyecto = sanitizarTexto(body?.nombre_proyecto || body?.nombreProyecto, 255);
     const archivoBase64 = String(body?.archivo_base64 || body?.archivoBase64 || '').trim();
     const nombreArchivo = nombreSeguroArchivo(body?.nombre_archivo || body?.nombreArchivo);
@@ -370,24 +566,35 @@ async function subirEvidencia(pool, body, usuario) {
                 mimeType,
                 carpetaDriveId
             );
-            const documento = await subirABaseDeDatos(pool, {
-                proyectoId,
-                folio,
-                nombre_proyecto: nombreProyecto,
-                nombreArchivo,
-                mimeType,
-                buffer,
-                driveResult,
-                carpetaDriveId,
-                usuario
-            });
+            let documento;
+            try {
+                documento = await subirABaseDeDatos(pool, {
+                    proyectoId,
+                    folio,
+                    nombre_proyecto: nombreProyecto,
+                    nombreArchivo,
+                    mimeType,
+                    buffer,
+                    driveResult,
+                    carpetaDriveId,
+                    usuario
+                });
+            } catch (dbErr) {
+                // Si Drive ya tiene el archivo, no lo borramos: reintentamos registrar en BD.
+                console.error('[SGC-F14-EVID] Archivo en Drive pero falló registro BD:', dbErr.message);
+                throw Object.assign(
+                    new Error(`El archivo se subió a Drive pero no se registró en BD: ${dbErr.message}`),
+                    { status: 500, driveFileId: driveResult?.id }
+                );
+            }
             return {
                 ...documento,
                 carpetaProyectoUrl: `https://drive.google.com/drive/folders/${carpetaDriveId}`
             };
         } catch (err) {
             ultimoError = err;
-            if (driveResult?.id) {
+            // Solo revertir Drive si el fallo fue ANTES de tener id o si no es error de BD post-subida
+            if (driveResult?.id && !err?.driveFileId) {
                 try {
                     await driveService.eliminarArchivo(driveResult.id);
                 } catch (cleanupErr) {
@@ -395,7 +602,7 @@ async function subirEvidencia(pool, body, usuario) {
                 }
                 driveResult = null;
             }
-            if (intento < SUBIDA_REINTENTOS_MAX && esErrorReintentable(err)) {
+            if (intento < SUBIDA_REINTENTOS_MAX && esErrorReintentable(err) && !err?.driveFileId) {
                 await esperar(SUBIDA_REINTENTO_MS * intento);
                 continue;
             }
@@ -425,8 +632,8 @@ async function ejecutarConConcurrencia(items, concurrencia, fn) {
 }
 
 async function subirEvidenciasLote(pool, body, usuario) {
-    const proyectoId = normalizarProyectoId(body?.proyecto_id || body?.proyectoId);
     const folio = sanitizarTexto(body?.folio, 255);
+    const proyectoId = resolverClaveProyecto(folio, body?.proyecto_id || body?.proyectoId);
     const nombreProyecto = sanitizarTexto(body?.nombre_proyecto || body?.nombreProyecto, 255);
     const archivos = Array.isArray(body?.archivos) ? body.archivos : [];
     if (!archivos.length) {
@@ -522,5 +729,6 @@ module.exports = {
     subirEvidenciasLote,
     eliminarEvidencia,
     obtenerDocumento,
-    obtenerBufferEvidencia
+    obtenerBufferEvidencia,
+    sincronizarEvidenciasDesdeDrive
 };
