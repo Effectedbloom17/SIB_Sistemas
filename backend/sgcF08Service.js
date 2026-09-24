@@ -10,8 +10,23 @@ const CODIGO_FORMATO = 'SGC-F-08';
 const TEMPLATE_DRIVE_ID = '19R5biJd2EHKN6OURoSEpvLnDWQSDi8YjfL9PhVdla-0';
 const DRIVE_FILE_ID_SISTEMA = '19R5biJd2EHKN6OURoSEpvLnDWQSDi8YjfL9PhVdla-0';
 const CARPETA_DRIVE_ID = '1v2IBrryAJg5fILPH602gm_CZhJNyia82';
+const CARPETA_PDF_FIRMADO_DRIVE_ID = '1FZD9Rc4V66pyznYNos-xOQQwpV0U79PZ';
 const NOMBRE_ARCHIVO_DRIVE = 'SGC-F-08 Plan de auditoría (sistema)';
+const NOMBRE_PDF_ARCHIVO = 'SGC-F-08 Plan de auditoría.pdf';
 const SHEET_TITLE = 'Plan';
+
+/** Carta, vertical, ajustar al ancho, márgenes normales, izq / arriba */
+const OPCIONES_PDF_IMPRESION = {
+    landscape: false,
+    fitToWidth: true,
+    size: 'letter',
+    horizontalAlignment: 'LEFT',
+    verticalAlignment: 'TOP',
+    margins: 'normales'
+};
+
+/** Columnas útiles del plan (A–H) al subir plantilla a Drive. */
+const PDF_MAX_COLUMNAS = 8;
 
 const AGENDA_START_ROW = 22;
 const AGENDA_END_ROW = 37;
@@ -217,7 +232,9 @@ const DATOS_DEFECTO = {
     numInterpretes: '0',
     numGuias: '0',
     agenda: AGENDA_DEFECTO.map((fila) => ({ ...fila })),
-    roles: [...ROLES_DEFECTO]
+    roles: [...ROLES_DEFECTO],
+    pdfFirmado: null,
+    pdfsHistorial: []
 };
 
 function normalizarSaltosLinea(texto) {
@@ -324,6 +341,82 @@ function sanitizarFilaAgenda(item) {
     });
 }
 
+function nombrePdfHistorial(fechaIso = fechaHoyIso(), historial = []) {
+    const iso = formatearFechaIso(fechaIso) || fechaHoyIso();
+    const [, mm] = iso.split('-');
+    const yy = iso.slice(2, 4);
+    const version = siguienteVersionPdfHistorial(historial);
+    return `${NOMBRE_PDF_ARCHIVO.replace(/\.pdf$/i, '')} - ${mm}/${yy} - ${version}.pdf`;
+}
+
+function siguienteVersionPdfHistorial(historial = []) {
+    let max = 0;
+    const lista = Array.isArray(historial) ? historial : [];
+    for (const item of lista) {
+        const nombre = String(item?.nombreArchivo || item?.name || '');
+        const match = nombre.match(/- (\d{2})\.pdf$/i);
+        if (match) {
+            const n = parseInt(match[1], 10);
+            if (!Number.isNaN(n) && n > max) max = n;
+        }
+    }
+    return String(max + 1).padStart(2, '0');
+}
+
+async function listarPdfsHistorialDrive() {
+    const archivos = await driveService.listarArchivosCarpeta(CARPETA_PDF_FIRMADO_DRIVE_ID);
+    return (archivos || [])
+        .filter((f) => {
+            const n = String(f.name || '');
+            return /\.pdf$/i.test(n) && /^SGC-F-08 Plan de auditor[ií]a/i.test(n);
+        })
+        .map((f) => sanitizarPdfFirmado({
+            driveFileId: f.id,
+            nombreArchivo: f.name,
+            webViewLink: f.webViewLink || null,
+            fechaSubida: f.modifiedTime || fechaHoyIso()
+        }))
+        .filter(Boolean)
+        .sort((a, b) => String(b.fechaSubida || '').localeCompare(String(a.fechaSubida || '')));
+}
+
+function sanitizarPdfFirmado(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const driveFileId = String(raw.driveFileId || raw.drive_file_id || '').trim();
+    if (!driveFileId) return null;
+    return {
+        driveFileId,
+        nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || NOMBRE_PDF_ARCHIVO).trim()
+            || NOMBRE_PDF_ARCHIVO,
+        webViewLink: String(raw.webViewLink || raw.web_view_link || '').trim() || null,
+        previewUrl: `https://drive.google.com/file/d/${driveFileId}/preview`,
+        fechaSubida: formatearFechaIso(raw.fechaSubida || raw.fecha_subida) || fechaHoyIso()
+    };
+}
+
+function sanitizarPdfsHistorial(raw) {
+    if (!Array.isArray(raw)) return [];
+    const vistos = new Set();
+    const lista = [];
+    for (const item of raw) {
+        const pdf = sanitizarPdfFirmado(item);
+        if (!pdf || vistos.has(pdf.driveFileId)) continue;
+        vistos.add(pdf.driveFileId);
+        lista.push(pdf);
+    }
+    return lista;
+}
+
+function preservarPdfMeta(datosEntrada, datosPrevios) {
+    const pdfFirmado = sanitizarPdfFirmado(datosEntrada?.pdfFirmado)
+        || sanitizarPdfFirmado(datosPrevios?.pdfFirmado)
+        || null;
+    const histEntrada = sanitizarPdfsHistorial(datosEntrada?.pdfsHistorial);
+    const histPrevios = sanitizarPdfsHistorial(datosPrevios?.pdfsHistorial);
+    const pdfsHistorial = histEntrada.length ? histEntrada : histPrevios;
+    return { pdfFirmado, pdfsHistorial };
+}
+
 function sanitizarDatos(raw) {
     const base = raw && typeof raw === 'object' ? raw : {};
     const agenda = Array.isArray(base.agenda) ? base.agenda : DATOS_DEFECTO.agenda;
@@ -351,7 +444,9 @@ function sanitizarDatos(raw) {
         numInterpretes: String(base.numInterpretes ?? DATOS_DEFECTO.numInterpretes).trim(),
         numGuias: String(base.numGuias ?? DATOS_DEFECTO.numGuias).trim(),
         agenda: agenda.map(sanitizarFilaAgenda),
-        roles: roles.map((r) => String(r || '').trim()).filter(Boolean)
+        roles: roles.map((r) => String(r || '').trim()).filter(Boolean),
+        pdfFirmado: sanitizarPdfFirmado(base.pdfFirmado || base.pdf_firmado),
+        pdfsHistorial: sanitizarPdfsHistorial(base.pdfsHistorial || base.pdfs_historial)
     };
 }
 
@@ -445,6 +540,9 @@ function fusionarDatosPreservandoTexto(datosNuevos, datosPrevios) {
             return sanitizarFilaAgenda(merged);
         });
     }
+    const metaPdf = preservarPdfMeta(d, p);
+    d.pdfFirmado = metaPdf.pdfFirmado;
+    d.pdfsHistorial = metaPdf.pdfsHistorial;
     return d;
 }
 
@@ -922,7 +1020,11 @@ async function escribirDatosEnPlantilla(datos, driveFileId = DRIVE_FILE_ID_SISTE
 }
 
 function contenidoEsEquivalente(a, b) {
-    return JSON.stringify(sanitizarDatos(a)) === JSON.stringify(sanitizarDatos(b));
+    const copia = (datos) => {
+        const { pdfFirmado: _pdf, pdfsHistorial: _hist, ...rest } = sanitizarDatos(datos);
+        return rest;
+    };
+    return JSON.stringify(copia(a)) === JSON.stringify(copia(b));
 }
 
 function estructuraEsEquivalente(a, b) {
@@ -1142,7 +1244,7 @@ async function subirOReemplazarEnDrive(buffer, driveFileIdPrevio) {
         buffer,
         NOMBRE_ARCHIVO_DRIVE,
         CARPETA_DRIVE_ID,
-        { sheetTitle: SHEET_TITLE, maxColumns: 6, keepSingleSheet: false }
+        { sheetTitle: SHEET_TITLE, maxColumns: PDF_MAX_COLUMNAS, keepSingleSheet: false }
     );
 }
 
@@ -1214,13 +1316,24 @@ function construirRespuesta(registro, datos, archivoDrive) {
     const modificado = !!registro?.contenido_modificado;
     const fechaMostrar = modificado && fechaMod ? fechaMod : (fechaOriginal || datos.fechaElaboracion);
     const driveId = archivoDrive?.id || registro?.drive_file_id || null;
+    const pdfFirmado = datos.pdfFirmado
+        ? {
+            ...datos.pdfFirmado,
+            nombreArchivo: datos.pdfFirmado.nombreArchivo || NOMBRE_PDF_ARCHIVO,
+            previewUrl: datos.pdfFirmado.previewUrl
+                || `https://drive.google.com/file/d/${datos.pdfFirmado.driveFileId}/preview`
+        }
+        : null;
+    const pdfsHistorial = sanitizarPdfsHistorial(datos.pdfsHistorial);
 
     return {
         codigo: CODIGO_FORMATO,
         datos: {
             ...datos,
             fechaElaboracion: fechaMostrar,
-            fechaRevision: resolverFechaRevisionDocumento(datos, null)
+            fechaRevision: resolverFechaRevisionDocumento(datos, null),
+            pdfFirmado,
+            pdfsHistorial
         },
         fechaElaboracionOriginal: fechaOriginal || datos.fechaElaboracion,
         fechaModificacionContenido: fechaMod || null,
@@ -1228,7 +1341,10 @@ function construirRespuesta(registro, datos, archivoDrive) {
         driveFileId: driveId,
         editorUrl: driveId ? `https://docs.google.com/spreadsheets/d/${driveId}/edit?usp=sharing` : null,
         previewUrl: driveId ? `https://docs.google.com/spreadsheets/d/${driveId}/preview` : null,
-        ultimaSyncDrive: formatearUltimaSyncDisplay(registro, archivoDrive)
+        ultimaSyncDrive: formatearUltimaSyncDisplay(registro, archivoDrive),
+        pdfPreviewUrl: pdfFirmado?.previewUrl || null,
+        pdfDriveFileId: pdfFirmado?.driveFileId || null,
+        historialPdfs: pdfsHistorial
     };
 }
 
@@ -1266,6 +1382,15 @@ async function cargarFormato(pool) {
         try {
             const buffer = await descargarBufferDrive(driveFileId);
             datos = await leerDatosDesdeBuffer(buffer);
+            const datosDb = await leerDatosRegistro(registro);
+            if (datosDb) {
+                const metaPdf = preservarPdfMeta(datos, datosDb);
+                datos = {
+                    ...datos,
+                    pdfFirmado: metaPdf.pdfFirmado,
+                    pdfsHistorial: metaPdf.pdfsHistorial
+                };
+            }
             archivoDrive = await driveService.obtenerInfoArchivo(driveFileId).catch(() => null);
         } catch (err) {
             console.warn('[SGC-F-08] No se pudo leer archivo en Drive, usando BD/plantilla:', err.message);
@@ -1318,6 +1443,9 @@ async function guardarFormato(pool, body, options = {}) {
         sanitizarDatos(body?.datos || body),
         datosPrevios
     );
+    const metaPdfEntrada = preservarPdfMeta(datosEntrada, datosPrevios);
+    datosEntrada.pdfFirmado = metaPdfEntrada.pdfFirmado;
+    datosEntrada.pdfsHistorial = metaPdfEntrada.pdfsHistorial;
     const origen = String(body?.origen || 'sistema').toLowerCase();
 
     let fechaOriginal = formatearFechaIso(registroPrevio?.fecha_elaboracion_original);
@@ -1354,6 +1482,9 @@ async function guardarFormato(pool, body, options = {}) {
                 forzarTipo: body?.tipoCambio || null
             });
             datosGuardar = hist.datosGuardar;
+            const metaPdfHist = preservarPdfMeta(datosGuardar, datosEntrada);
+            datosGuardar.pdfFirmado = metaPdfHist.pdfFirmado;
+            datosGuardar.pdfsHistorial = metaPdfHist.pdfsHistorial;
 
             if (hist.aplicado && origen !== 'consulta') {
                 contenidoModificado = true;
@@ -1443,7 +1574,13 @@ async function sincronizarDesdeDrive(pool) {
         const archivoDrive = await driveService
             .obtenerInfoArchivo(driveFileId)
             .catch(() => null);
-        return construirRespuesta({ ...registro, drive_file_id: driveFileId }, datosDrive, archivoDrive);
+        const metaPdf = preservarPdfMeta(datosDrive, datosPrevios);
+        const datosSinCambio = {
+            ...datosDrive,
+            pdfFirmado: metaPdf.pdfFirmado,
+            pdfsHistorial: metaPdf.pdfsHistorial
+        };
+        return construirRespuesta({ ...registro, drive_file_id: driveFileId }, datosSinCambio, archivoDrive);
     }
 
     const hist = await aplicarHistorialSgcF08({
@@ -1454,6 +1591,9 @@ async function sincronizarDesdeDrive(pool) {
     });
 
     const datosGuardar = hist.datosGuardar;
+    const metaPdfSync = preservarPdfMeta(datosGuardar, datosPrevios);
+    datosGuardar.pdfFirmado = metaPdfSync.pdfFirmado;
+    datosGuardar.pdfsHistorial = metaPdfSync.pdfsHistorial;
     if (hist.aplicado) {
         contenidoModificado = true;
         fechaModificacion = fechaHoyIso();
@@ -1523,9 +1663,153 @@ async function actualizarPlantillaDesdeSistema(pool) {
     return construirRespuesta(registroActualizado, datos, archivoDrive);
 }
 
+async function descargarPlantillaPdf(pool) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    let driveFileId = await resolverDriveFileId(registro);
+    if (driveFileId) {
+        driveFileId = await asegurarDriveIdGoogleSheet(driveFileId, pool, registro);
+    }
+    if (!driveFileId) {
+        throw new Error('No hay archivo SGC-F-08 en Drive para exportar a PDF.');
+    }
+
+    const opciones = { ...OPCIONES_PDF_IMPRESION };
+    const info = await driveService.obtenerInfoArchivo(driveFileId).catch(() => null);
+    if (info?.mimeType === 'application/vnd.google-apps.spreadsheet') {
+        let tituloHoja = SHEET_TITLE;
+        try {
+            tituloHoja = await excelHistorial.resolverTituloHojaVigenteDesdeDrive(
+                driveFileId,
+                SHEET_TITLE,
+                CODIGO_FORMATO
+            );
+        } catch (err) {
+            console.warn('[SGC-F-08] No se pudo resolver la hoja vigente para PDF:', err.message);
+        }
+        try {
+            const gid = await driveService.obtenerGidHojaPorNombre(driveFileId, tituloHoja);
+            if (gid != null) opciones.gid = gid;
+        } catch (err) {
+            console.warn('[SGC-F-08] No se pudo resolver gid de hoja para PDF:', err.message);
+        }
+    }
+
+    const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, opciones);
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de SGC-F-08 quedó vacía.');
+    }
+    return Buffer.from(pdfBuffer);
+}
+
+async function subirPdfFirmado(pool, body) {
+    const pdfBase64 = String(body?.pdf_base64 || body?.pdfBase64 || '').trim();
+    if (!pdfBase64) throw new Error('No se recibió el PDF (pdf_base64 requerido).');
+
+    const pdfBuffer = Buffer.from(pdfBase64, 'base64');
+    if (!pdfBuffer.length) throw new Error('El archivo PDF está vacío.');
+
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registroPrevio = await obtenerRegistroDb(pool);
+    const datosPrevios = (await leerDatosRegistro(registroPrevio)) || sanitizarDatos(DATOS_DEFECTO);
+
+    const historialDrivePrev = await listarPdfsHistorialDrive().catch(() => []);
+    const histPrev = sanitizarPdfsHistorial([
+        ...sanitizarPdfsHistorial(datosPrevios.pdfsHistorial),
+        ...historialDrivePrev
+    ]);
+    const nombreArchivo = nombrePdfHistorial(fechaHoyIso(), histPrev);
+    const driveResult = await driveService.subirArchivoNuevo(
+        pdfBuffer,
+        nombreArchivo,
+        'application/pdf',
+        CARPETA_PDF_FIRMADO_DRIVE_ID
+    );
+
+    const pdfFirmado = sanitizarPdfFirmado({
+        driveFileId: driveResult.id,
+        nombreArchivo: driveResult.name || nombreArchivo,
+        webViewLink: driveResult.webViewLink || null,
+        fechaSubida: fechaHoyIso()
+    });
+
+    const pdfsHistorial = [
+        pdfFirmado,
+        ...histPrev.filter((p) => p.driveFileId !== pdfFirmado.driveFileId)
+    ];
+
+    const datosGuardar = { ...datosPrevios, pdfFirmado, pdfsHistorial };
+    const fechaOriginal = formatearFechaIso(registroPrevio?.fecha_elaboracion_original)
+        || datosPrevios.fechaElaboracion;
+    const contenidoModificado = !!registroPrevio?.contenido_modificado;
+    const fechaModificacion = formatearFechaIso(registroPrevio?.fecha_modificacion_contenido);
+    const driveFileId = registroPrevio?.drive_file_id || await resolverDriveFileId(registroPrevio);
+
+    await guardarRegistroDb(pool, {
+        driveFileId: driveFileId || null,
+        datos: datosGuardar,
+        fechaElaboracionOriginal: fechaOriginal,
+        fechaModificacionContenido: contenidoModificado ? fechaModificacion : null,
+        contenidoModificado
+    });
+
+    const registro = await obtenerRegistroDb(pool);
+    const archivoDrive = driveFileId
+        ? await driveService.obtenerInfoArchivo(driveFileId).catch(() => ({ id: driveFileId }))
+        : null;
+    return { ...construirRespuesta(registro, datosGuardar, archivoDrive), pdfFirmado };
+}
+
+async function eliminarPdfHistorial(pool, body, opciones = {}) {
+    if (!opciones.puedeBorrarHistorial) {
+        throw new Error('No autorizado para eliminar PDFs del historial.');
+    }
+    const driveFileId = String(body?.driveFileId || body?.drive_file_id || '').trim();
+    if (!driveFileId) throw new Error('driveFileId requerido.');
+
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registroPrevio = await obtenerRegistroDb(pool);
+    const datosPrevios = (await leerDatosRegistro(registroPrevio)) || sanitizarDatos(DATOS_DEFECTO);
+
+    await driveService.eliminarArchivo(driveFileId).catch((err) => {
+        console.warn('[SGC-F-08] No se pudo borrar PDF en Drive:', err.message);
+    });
+
+    const hist = sanitizarPdfsHistorial(datosPrevios.pdfsHistorial)
+        .filter((p) => p.driveFileId !== driveFileId);
+    let pdfFirmado = datosPrevios.pdfFirmado;
+    if (pdfFirmado?.driveFileId === driveFileId) {
+        pdfFirmado = hist[0] || null;
+    }
+
+    const datosGuardar = { ...datosPrevios, pdfFirmado, pdfsHistorial: hist };
+    const fechaOriginal = formatearFechaIso(registroPrevio?.fecha_elaboracion_original)
+        || datosPrevios.fechaElaboracion;
+    const contenidoModificado = !!registroPrevio?.contenido_modificado;
+    const fechaModificacion = formatearFechaIso(registroPrevio?.fecha_modificacion_contenido);
+    const sheetId = registroPrevio?.drive_file_id || null;
+
+    await guardarRegistroDb(pool, {
+        driveFileId: sheetId,
+        datos: datosGuardar,
+        fechaElaboracionOriginal: fechaOriginal,
+        fechaModificacionContenido: contenidoModificado ? fechaModificacion : null,
+        contenidoModificado
+    });
+
+    const registro = await obtenerRegistroDb(pool);
+    const archivoDrive = sheetId
+        ? await driveService.obtenerInfoArchivo(sheetId).catch(() => ({ id: sheetId }))
+        : null;
+    return construirRespuesta(registro, datosGuardar, archivoDrive);
+}
+
 module.exports = {
     cargarFormato,
     guardarFormato,
     sincronizarDesdeDrive,
-    actualizarPlantillaDesdeSistema
+    actualizarPlantillaDesdeSistema,
+    subirPdfFirmado,
+    eliminarPdfHistorial,
+    descargarPlantillaPdf
 };

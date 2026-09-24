@@ -3,13 +3,14 @@ import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-brows
 import { ActivatedRoute, Router } from '@angular/router';
 import DOMPurify from 'dompurify';
 import { HttpEventType } from '@angular/common/http';
-import { Observable, Subject, of, timer } from 'rxjs';
+import { Observable, Subject, Subscription, of, timer } from 'rxjs';
 import { catchError, switchMap, takeUntil, timeout } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
 import { PdfThumbnailService } from 'src/app/services/pdf-thumbnail.service';
 import { DocumentPreviewService } from 'src/app/services/document-preview.service';
+import { PdfPreviewLoaderService } from 'src/app/services/pdf-preview-loader.service';
 import { SgcDashboardCacheService } from 'src/app/services/sgc-dashboard-cache.service';
 import { environment } from 'src/environments/environment';
 import { DG_F07_PROCESOS, DgF07ProcesoDef } from './sgc-dg-f07.procesos';
@@ -801,6 +802,8 @@ interface SgcF08FormData {
   numGuias: string;
   agenda: SgcF08AgendaItem[];
   roles: string[];
+  pdfFirmado: DgF02PdfFirmado | null;
+  pdfsHistorial: DgF02PdfFirmado[];
 }
 
 interface SgcF14ProyectoItem {
@@ -1636,6 +1639,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF02EditorCargando = false;
   athF02ActualizandoPlantilla = false;
   athF02SubiendoPdf = false;
+  athF02DescargandoPdf = false;
   private athF02EditorIframeListo = false;
   dgF01Form = this.crearDgF01Vacio();
 
@@ -1777,9 +1781,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF02DocsFisicosSubiendo = false;
   sgcF02DocsFisicosArrastrando = false;
   sgcF02VisorDoc: SgcF02DocFisico | null = null;
-  sgcF02VisorUrlSafe: SafeResourceUrl | null = null;
+  sgcF02VisorBlob: Blob | null = null;
   sgcF02VisorCargando = false;
   sgcF02VisorError: string | null = null;
+  sgcF02VisorProgreso = 0;
+  sgcF02VisorEtiqueta = 'Preparando vista previa…';
+  sgcF02VisorLento = false;
+  private sgcF02VisorSub?: Subscription;
+  private sgcF02VisorSeq = 0;
   sgcF02MiniaturasError = new Set<string>();
   sgcF02ReemplazarDocId: string | null = null;
   @ViewChild('sgcF02ReemplazarInput') sgcF02ReemplazarInput?: ElementRef<HTMLInputElement>;
@@ -1970,6 +1979,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF08ContenidoModificado = false;
   sgcF08EditorCargando = false;
   sgcF08ActualizandoPlantilla = false;
+  sgcF08SubiendoPdf = false;
+  sgcF08BorrandoPdf = false;
+  sgcF08DescargandoPdf = false;
+  mostrarSgcF08PdfViewer = false;
+  sgcF08PdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  sgcF08PdfCargando = false;
+  sgcF08PdfViewerActual: DgF02PdfFirmado | null = null;
   private sgcF08EditorIframeListo = false;
 
   private static readonly SGC_F10_AUDITORIA_ACTUAL = '3';
@@ -2005,6 +2021,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     driveFileId?: string | null;
     editorUrl?: string | null;
   }> = [];
+  sgcF10HistorialPdfs: DgF02PdfFirmado[] = [];
+  mostrarSgcF10PdfViewer = false;
+  sgcF10PdfCargando = false;
+  sgcF10PdfViewerTitulo = 'SGC-F-10 Informe de auditoría.pdf';
+  sgcF10PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   sgcF10Empresas: SgcF10EmpresaOpt[] = [];
   sgcF10Usuarios: SgcF10UsuarioOpt[] = [];
   sgcF10PickAuditores = '';
@@ -2602,6 +2623,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF09EditorEmbedUrlSafe: SafeResourceUrl | null = null;
   mostrarSgcF09Editor = false;
   sgcF09EditorCargando = false;
+  sgcF09DescargandoPdf = false;
   private sgcF09EditorIframeListo = false;
   sgcF15Indicadores: SgcF15Indicador[] = [
     {
@@ -2909,8 +2931,24 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return hist.filter((p) => p?.driveFileId && p.driveFileId !== actualId);
   }
 
+  /** SGC-F-08: borrar PDFs del historial — root / calidad. */
+  get puedeBorrarPdfHistorialSgcF08(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
+
+  get sgcF08HistorialPdfsVista(): DgF02PdfFirmado[] {
+    const hist = Array.isArray(this.sgcF08Form?.pdfsHistorial) ? this.sgcF08Form.pdfsHistorial : [];
+    const actualId = this.sgcF08Form?.pdfFirmado?.driveFileId || null;
+    return hist.filter((p) => p?.driveFileId && p.driveFileId !== actualId);
+  }
+
   /** DG-F-02: borrar PDFs del historial — mismos privilegios que AF-F-02. */
   get puedeBorrarPdfHistorialDgF02(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
+
+  /** DG-F-03: borrar PDFs del historial — mismos privilegios. */
+  get puedeBorrarPdfHistorialDgF03(): boolean {
     return this.esPrivilegioRootOCalidadAfF02();
   }
 
@@ -2967,7 +3005,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     };
   }
 
-  /** Solo superadmin (root) ve y gestiona documentos no vigentes en SGC-F-01. */
+  /** Solo superadmin (root). SGC-F-01 (no vigentes) y SGC-F-02 (solicitudes por persona). */
   get esSuperAdminSgcF01(): boolean {
     return this.authService.esRoot();
   }
@@ -3325,12 +3363,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   dgF03Cargando = false;
   dgF03Guardando = false;
   dgF03SubiendoPdf = false;
+  dgF03BorrandoPdf = false;
   dgF03UltimaSync: string | null = null;
   dgF03ContenidoModificado = false;
   dgF03FechaOriginal: string | null = null;
+  dgF03HistorialPdfs: DgF02PdfFirmado[] = [];
   mostrarDgF03PdfViewer = false;
   dgF03PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   dgF03PdfCargando = false;
+  dgF03PdfViewerTitulo = 'DG-F-03 Objetivos de calidad.pdf';
 
 
   sgcPo01Cargando = false;
@@ -3450,6 +3491,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     private sgcVigenciaLista: SgcListaMaestraVigenciaService,
     private pdfThumbnail: PdfThumbnailService,
     private documentPreview: DocumentPreviewService,
+    private pdfPreviewLoader: PdfPreviewLoaderService,
     private ngZone: NgZone
   ) {}
 
@@ -3654,6 +3696,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.marcarBodyAyudaDgF04(false);
     this.liberarMiniaturasEvidenciasSgcF29();
     this.liberarMiniaturasEvidenciasSgcF14();
+    this.cerrarVisorDocumentoFisicoSgcF02();
     this.destroy$.next();
     this.destroy$.complete();
     document.documentElement.style.overflow = '';
@@ -4183,6 +4226,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleAfF02PdfViewer();
       return;
     }
+    if (this.mostrarSgcF10PdfViewer) {
+      event.preventDefault();
+      this.toggleSgcF10PdfViewer();
+      return;
+    }
     if (this.mostrarSgcF23PdfViewer) {
       event.preventDefault();
       this.toggleSgcF23PdfViewer();
@@ -4201,6 +4249,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.mostrarAthF03PdfViewer) {
       event.preventDefault();
       this.toggleAthF03PdfViewer();
+      return;
+    }
+    if (this.mostrarSgcF08PdfViewer) {
+      event.preventDefault();
+      this.toggleSgcF08PdfViewer();
+      return;
     }
   }
 
@@ -4756,7 +4810,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug !== 'sgc-f-10') {
       return '';
     }
-    return 'Completa el informe con datos de la auditoría, hallazgos y conclusiones. «Guardar información» conserva el borrador; «Guardar Histórico» cierra el informe como registro inmutable (BD + Word) y abre uno nuevo.';
+    return 'Completa el informe con datos de la auditoría, hallazgos y conclusiones. «Guardar información» conserva el borrador; «Guardar Histórico» cierra el informe como registro inmutable (BD + Word + PDF) y abre uno nuevo.';
   }
 
   get sgcF15IntroLead(): string {
@@ -5649,6 +5703,114 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     iniciarDescarga();
   }
 
+  descargarPdfSgcF08(): void {
+    if (this.sgcF08DescargandoPdf || !this.sgcF08DriveFileId) {
+      return;
+    }
+    const nombreArchivo = 'SGC-F-08 Plan de auditoria.pdf';
+    const iniciarDescarga = () => {
+      this.sgcF08DescargandoPdf = true;
+      this.backendService.descargarPdfSgcF08()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.sgcF08DescargandoPdf = false;
+            if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+              void Swal.fire({
+                icon: 'error',
+                title: 'No se pudo generar el PDF',
+                text: 'Guarda la información y vuelve a intentar. Si el problema continúa, revisa que la hoja exista en Drive.',
+                confirmButtonText: 'Entendido'
+              });
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = nombreArchivo;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.sgcF08DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo descargar el PDF',
+              text: 'Guarda la información primero para sincronizar la hoja en Drive e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    };
+
+    if (this.puedeGestionarPlantillasSgc && this.sgcF08CambiosPendientes && this.sgcF08Listo && !this.sgcF08Guardando) {
+      this.sgcF08DescargandoPdf = true;
+      this.sgcF08Guardando = true;
+      this.backendService.guardarSgcF08Formato(this.sgcF08Form, false)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.sgcF08Guardando = false;
+            this.sgcF08CambiosPendientes = false;
+            this.aplicarEstadoSgcF08(res, this.mostrarSgcF08Editor, false, false);
+            iniciarDescarga();
+          },
+          error: () => {
+            this.sgcF08Guardando = false;
+            this.sgcF08DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'No se pudo sincronizar el plan antes de generar el PDF.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+
+    iniciarDescarga();
+  }
+
+  descargarPdfSgcF09(): void {
+    if (this.sgcF09DescargandoPdf || !this.sgcF09DriveFileId) {
+      return;
+    }
+    const nombreArchivo = 'SGC-F-09 Lista de verificacion de auditoria.pdf';
+    this.sgcF09DescargandoPdf = true;
+    this.backendService.descargarPdfSgcF09()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.sgcF09DescargandoPdf = false;
+          if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo generar el PDF',
+              text: 'Revisa que la plantilla exista en Drive e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = nombreArchivo;
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.sgcF09DescargandoPdf = false;
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo descargar el PDF',
+            text: 'No se pudo exportar la lista de verificación desde Drive. Inténtalo de nuevo.',
+            confirmButtonText: 'Entendido'
+          });
+        }
+      });
+  }
+
   private persistirSgcF07(): void {
     if (!this.puedeGestionarPlantillasSgc) {
       return;
@@ -5787,7 +5949,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       numInterpretes: '0',
       numGuias: '0',
       agenda: [],
-      roles: []
+      roles: [],
+      pdfFirmado: null,
+      pdfsHistorial: []
     };
   }
 
@@ -5840,7 +6004,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       numInterpretes: String(base.numInterpretes ?? '0').trim(),
       numGuias: String(base.numGuias ?? '0').trim(),
       agenda: this.normalizarAgendaSgcF08(base.agenda),
-      roles: Array.isArray(base.roles) ? base.roles.map((r) => String(r || '').trim()).filter(Boolean) : []
+      roles: Array.isArray(base.roles) ? base.roles.map((r) => String(r || '').trim()).filter(Boolean) : [],
+      pdfFirmado: base.pdfFirmado || null,
+      pdfsHistorial: Array.isArray(base.pdfsHistorial) ? base.pdfsHistorial : []
     };
   }
 
@@ -6017,7 +6183,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!bloquearFormulario && res.datos) {
       this.sgcF08IgnorarAutoSave = true;
       this.sgcF08Listo = false;
-      this.sgcF08Form = this.normalizarSgcF08Form(res.datos);
+      const d = res.datos;
+      this.sgcF08Form = this.normalizarSgcF08Form({
+        ...d,
+        pdfFirmado: d.pdfFirmado ?? res.pdfFirmado ?? this.sgcF08Form.pdfFirmado,
+        pdfsHistorial: Array.isArray(d.pdfsHistorial)
+          ? d.pdfsHistorial
+          : (Array.isArray(res.historialPdfs) ? res.historialPdfs : (this.sgcF08Form.pdfsHistorial || []))
+      });
     } else if (!editorAbierto && !conservarEdicion) {
       this.sgcF08IgnorarAutoSave = true;
       this.sgcF08Listo = false;
@@ -7255,7 +7428,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       title: '¿Guardar Histórico?',
       html:
         `<p>Se cerrará la <strong>Auditoría No. ${auditoriaNo}</strong> como registro inmutable.</p>`
-        + '<p>Se archivará el Word en Drive y se abrirá un <strong>nuevo informe</strong> vacío para la siguiente auditoría.</p>'
+        + '<p>Se archivará el <strong>Word</strong> y se generará el <strong>PDF</strong> en Drive, y se abrirá un <strong>nuevo informe</strong> vacío para la siguiente auditoría.</p>'
         + '<p class="mb-0"><small>Esta acción no se puede deshacer desde el formulario.</small></p>',
       showCancelButton: true,
       confirmButtonText: 'Sí, guardar histórico',
@@ -7347,6 +7520,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }));
     }
 
+    this.sgcF10HistorialPdfs = Array.isArray(res.historialPdfs)
+      ? res.historialPdfs.map((p: any) => ({
+          driveFileId: String(p?.driveFileId || '').trim(),
+          nombreArchivo: String(p?.nombreArchivo || 'SGC-F-10 Informe de auditoría.pdf').trim(),
+          webViewLink: p?.webViewLink || null,
+          previewUrl: p?.previewUrl
+            || (p?.driveFileId ? `https://drive.google.com/file/d/${p.driveFileId}/preview` : null),
+          fechaSubida: String(p?.fechaSubida || '').trim()
+        })).filter((p: DgF02PdfFirmado) => !!p.driveFileId)
+      : this.sgcF10HistorialPdfs;
+
     this.sgcF10DriveFileId = res.driveFileId || this.sgcF10DriveFileId || null;
     this.sgcF10EditorUrl = res.editorUrl || this.sgcF10EditorUrl || null;
     this.sgcF10UltimaSync = res.ultimaSyncDrive || null;
@@ -7411,6 +7595,46 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       : null;
   }
 
+  toggleSgcF10PdfViewer(pdf?: DgF02PdfFirmado | null): void {
+    if (this.mostrarSgcF10PdfViewer && !pdf) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarSgcF10PdfViewer = false;
+      this.sgcF10PdfEmbedUrlSafe = null;
+      this.sgcF10PdfCargando = false;
+      return;
+    }
+
+    const objetivo = pdf || this.sgcF10HistorialPdfs[0] || null;
+    const id = objetivo?.driveFileId;
+    if (!id) {
+      return;
+    }
+
+    const mismoArchivo = this.mostrarSgcF10PdfViewer
+      && this.sgcF10PdfViewerTitulo === (objetivo?.nombreArchivo || 'SGC-F-10 Informe de auditoría.pdf');
+    if (mismoArchivo) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarSgcF10PdfViewer = false;
+      this.sgcF10PdfEmbedUrlSafe = null;
+      this.sgcF10PdfCargando = false;
+      return;
+    }
+
+    this.mostrarSgcF10PdfViewer = true;
+    this.sgcF10PdfCargando = true;
+    this.sgcF10PdfViewerTitulo = objetivo?.nombreArchivo || 'SGC-F-10 Informe de auditoría.pdf';
+    const url = objetivo?.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+    this.sgcF10PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+
+  onSgcF10PdfIframeLoad(): void {
+    this.sgcF10PdfCargando = false;
+  }
+
   // ===================== SGC-F-14 · Bitácora de proyectos de mejora =====================
 
   private crearSgcF14FormVacio(): SgcF14FormData {
@@ -7443,15 +7667,20 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!Array.isArray(items) || !items.length) {
       return [];
     }
-    return items.map((item) => ({
-      id: String(item?.id || '').trim() || this.generarIdProyectoSgcF14(),
-      folio: String(item?.folio || '').trim(),
-      nombreProyecto: String(item?.nombreProyecto || '').trim(),
-      responsable: String(item?.responsable || '').trim(),
-      prioridad: String(item?.prioridad || '').trim(),
-      estatus: String(item?.estatus || '').trim(),
-      avance: this.normalizarAvanceSgcF14(item?.avance)
-    }));
+    return items.map((item) => {
+      const folio = String(item?.folio || '').trim();
+      // Folio estable: evita perder evidencias al recargar (Drive no guarda UUID).
+      const id = String(item?.id || folio || '').trim() || this.generarIdProyectoSgcF14();
+      return {
+        id,
+        folio,
+        nombreProyecto: String(item?.nombreProyecto || '').trim(),
+        responsable: String(item?.responsable || '').trim(),
+        prioridad: String(item?.prioridad || '').trim(),
+        estatus: String(item?.estatus || '').trim(),
+        avance: this.normalizarAvanceSgcF14(item?.avance)
+      };
+    });
   }
 
   private normalizarAvanceSgcF14(valor: unknown): string {
@@ -7493,6 +7722,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const fechaTag = `${dd}${mm}${aa}`;
     const consecutivo = this.siguienteConsecutivoSgcF14(fechaTag, index);
     fila.folio = `PM-${fechaTag}-${String(consecutivo).padStart(2, '0')}`;
+    fila.id = fila.folio;
     this.onSgcF14Editado();
   }
 
@@ -7844,12 +8074,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!fila) {
       return;
     }
-    if (!fila.id) {
-      fila.id = this.generarIdProyectoSgcF14();
-      this.onSgcF14Editado();
-    }
     if (!String(fila.folio || '').trim()) {
       this.generarFolioSgcF14(index);
+    }
+    // Anclar id al folio para que evidencias sobrevivan recargas / sync Drive.
+    const folio = String(fila.folio || '').trim();
+    if (folio && fila.id !== folio) {
+      fila.id = folio;
+      this.onSgcF14Editado();
+    } else if (!fila.id) {
+      fila.id = folio || this.generarIdProyectoSgcF14();
+      this.onSgcF14Editado();
     }
     this.sgcF14EvidenciasIdx = index;
     this.sgcF14EvidenciasModalAbierto = true;
@@ -7881,12 +8116,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   conteoEvidenciasProyectoSgcF14(proyecto: SgcF14ProyectoItem): number {
-    if (!proyecto?.id) return 0;
-    return this.sgcF14EvidenciasConteos[proyecto.id] || 0;
+    if (!proyecto) return 0;
+    const clave = String(proyecto.id || proyecto.folio || '').trim();
+    if (!clave) return 0;
+    return this.sgcF14EvidenciasConteos[clave]
+      || this.sgcF14EvidenciasConteos[proyecto.folio]
+      || 0;
   }
 
   private refrescarConteosEvidenciasSgcF14(): void {
-    const ids = (this.sgcF14Form.proyectos || []).map((p) => p.id).filter(Boolean);
+    const ids = (this.sgcF14Form.proyectos || [])
+      .map((p) => String(p.folio || p.id || '').trim())
+      .filter(Boolean);
     if (!ids.length) {
       this.sgcF14EvidenciasConteos = {};
       return;
@@ -7903,11 +8144,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   private cargarEvidenciasSgcF14(): void {
     const fila = this.sgcF14EvidenciasFila;
-    if (!fila?.id) {
+    if (!fila?.id && !fila?.folio) {
       return;
     }
+    const proyectoId = String(fila.id || fila.folio).trim();
     this.sgcF14EvidenciasCargando = true;
-    this.backendService.listarEvidenciasSgcF14(fila.id)
+    this.backendService.listarEvidenciasSgcF14(proyectoId, {
+      folio: fila.folio || undefined,
+      nombre_proyecto: fila.nombreProyecto || undefined
+    })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
@@ -7917,7 +8162,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
             : [];
           this.sgcF14EvidenciasConteos = {
             ...this.sgcF14EvidenciasConteos,
-            [fila.id]: this.sgcF14EvidenciasDocs.length
+            [proyectoId]: this.sgcF14EvidenciasDocs.length
           };
           void this.precargarMiniaturasEvidenciasSgcF14(this.sgcF14EvidenciasDocs);
         },
@@ -7981,7 +8226,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     this.backendService.crearCarpetaEvidenciaSgcF14({
-      proyecto_id: fila.id,
+      proyecto_id: String(fila.folio || fila.id).trim(),
       folio: fila.folio,
       nombre_proyecto: fila.nombreProyecto,
       nombre: String(nombre).trim()
@@ -8099,7 +8344,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.sgcF14EvidenciasProgreso = Math.max(this.sgcF14EvidenciasProgreso, 48);
       this.sgcF14EvidenciasProgresoEtiqueta = 'Subiendo a Google Drive…';
       this.backendService.subirEvidenciasLoteSgcF14Eventos({
-        proyecto_id: fila.id,
+        proyecto_id: String(fila.folio || fila.id).trim(),
         folio: fila.folio,
         nombre_proyecto: fila.nombreProyecto,
         archivos
@@ -18699,6 +18944,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-10') {
       this.autosizeTextareasSgcF10();
     }
+    if (this.plantillaSlug === 'ath-f-02') {
+      this.autosizeTextareasAthF02();
+    }
     if (this.plantillaSlug === 'sgc-f-04') {
       this.autosizeTextareasSgcF04();
     }
@@ -19823,22 +20071,30 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     key: keyof AthF02Requerimientos;
     label: string;
     detalleLabel: string;
+    icon: string;
   }> = [
-    { key: 'computadora', label: 'Computadora u ordenador', detalleLabel: '¿Cuál?' },
-    { key: 'software', label: 'Software', detalleLabel: '¿Cuál?' },
-    { key: 'informacion', label: 'Información', detalleLabel: '¿Cuál?' },
-    { key: 'herramientas', label: 'Herramientas o equipos', detalleLabel: '¿Cuáles?' },
-    { key: 'uniformes', label: 'Uniformes', detalleLabel: 'Cantidad:' },
-    { key: 'otros', label: 'Otros', detalleLabel: '¿Cuáles?' }
+    { key: 'computadora', label: 'Computadora u ordenador', detalleLabel: '¿Cuál?', icon: 'fa-desktop' },
+    { key: 'software', label: 'Software', detalleLabel: '¿Cuál?', icon: 'fa-code' },
+    { key: 'informacion', label: 'Información', detalleLabel: '¿Cuál?', icon: 'fa-database' },
+    { key: 'herramientas', label: 'Herramientas o equipos', detalleLabel: '¿Cuáles?', icon: 'fa-wrench' },
+    { key: 'uniformes', label: 'Uniformes', detalleLabel: 'Cantidad:', icon: 'fa-tshirt' },
+    { key: 'otros', label: 'Otros', detalleLabel: '¿Cuáles?', icon: 'fa-ellipsis-h' }
   ];
 
   private filasRelAthF02(): AthF02RelacionFila[] {
-    return [
-      { actor: '', motivo: '' },
-      { actor: '', motivo: '' },
-      { actor: '', motivo: '' },
-      { actor: '', motivo: '' }
-    ];
+    return [{ actor: '', motivo: '' }];
+  }
+
+  readonly athF02MaxRelaciones = 12;
+
+  private normalizarRelacionesAthF02(raw: unknown): AthF02RelacionFila[] {
+    const mapped = (Array.isArray(raw) ? raw : []).map((r) => ({
+      actor: String((r as any)?.actor || '').trim(),
+      motivo: String((r as any)?.motivo || '').trim()
+    }));
+    const conDatos = mapped.filter((r) => r.actor || r.motivo);
+    const lista = conDatos.length ? conDatos : [{ actor: '', motivo: '' }];
+    return lista.slice(0, this.athF02MaxRelaciones);
   }
 
   private reqAthF02Vacio(): AthF02ReqItem {
@@ -20086,22 +20342,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         uniformes: normReq('uniformes'),
         otros: normReq('otros')
       },
-      relacionesInternas: this.conFilasMinimasAthF02(
-        (Array.isArray(raw.relacionesInternas) ? raw.relacionesInternas : []).map((r) => ({
-          actor: String((r as any)?.actor || '').trim(),
-          motivo: String((r as any)?.motivo || '').trim()
-        })),
-        4,
-        () => ({ actor: '', motivo: '' })
-      ),
-      relacionesExternas: this.conFilasMinimasAthF02(
-        (Array.isArray(raw.relacionesExternas) ? raw.relacionesExternas : []).map((r) => ({
-          actor: String((r as any)?.actor || '').trim(),
-          motivo: String((r as any)?.motivo || '').trim()
-        })),
-        4,
-        () => ({ actor: '', motivo: '' })
-      ),
+      relacionesInternas: this.normalizarRelacionesAthF02(raw.relacionesInternas),
+      relacionesExternas: this.normalizarRelacionesAthF02(raw.relacionesExternas),
       pdfFirmado: this.sanitizarPdfAthF02(raw.pdfFirmado || (raw as any).pdf_firmado),
       nombreHoja: String(raw.nombreHoja || (raw as any).nombre_hoja || '').trim()
     };
@@ -20166,12 +20408,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.athF02PerfilActivo = perfil;
     this.athF02Vista = 'editor';
     this.onAthF02Editado();
+    this.programarAutosizeAthF02();
   }
 
   abrirPerfilAthF02(perfil: AthF02Perfil): void {
     this.athF02Form.perfilActivoId = perfil.id;
     this.athF02PerfilActivo = perfil;
     this.athF02Vista = 'editor';
+    this.programarAutosizeAthF02();
   }
 
   volverArchiveroAthF02(): void {
@@ -20202,6 +20446,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.athF02PerfilActivo.funciones = [...(this.athF02PerfilActivo.funciones || []), ''];
     this.onAthF02Editado();
+    this.programarAutosizeAthF02();
   }
 
   quitarFuncionAthF02(index: number): void {
@@ -20214,6 +20459,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.athF02PerfilActivo.funciones.splice(index, 1);
     }
     this.onAthF02Editado();
+    this.programarAutosizeAthF02();
   }
 
   agregarExperienciaAthF02(): void {
@@ -20239,6 +20485,133 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.athF02PerfilActivo.experiencias = lista;
     }
     this.onAthF02Editado();
+  }
+
+  tieneActorAthF02(r: AthF02RelacionFila | null | undefined): boolean {
+    return !!(r?.actor || '').trim();
+  }
+
+  countRelacionesActivasAthF02(lista: AthF02RelacionFila[] | null | undefined): number {
+    return (lista || []).filter((r) => this.tieneActorAthF02(r)).length;
+  }
+
+  tieneAlgunaRelacionActivaAthF02(perf: AthF02Perfil | null | undefined): boolean {
+    if (!perf) {
+      return false;
+    }
+    return this.countRelacionesActivasAthF02(perf.relacionesInternas) > 0
+      || this.countRelacionesActivasAthF02(perf.relacionesExternas) > 0;
+  }
+
+  agregarRelacionInternaAthF02(): void {
+    if (!this.athF02PerfilActivo) {
+      return;
+    }
+    const lista = this.athF02PerfilActivo.relacionesInternas || [];
+    if (lista.length >= this.athF02MaxRelaciones) {
+      return;
+    }
+    this.athF02PerfilActivo.relacionesInternas = [...lista, { actor: '', motivo: '' }];
+    this.onAthF02Editado();
+  }
+
+  quitarRelacionInternaAthF02(index: number): void {
+    if (!this.athF02PerfilActivo) {
+      return;
+    }
+    const lista = [...(this.athF02PerfilActivo.relacionesInternas || [])];
+    if (lista.length <= 1) {
+      this.athF02PerfilActivo.relacionesInternas = [{ actor: '', motivo: '' }];
+    } else {
+      lista.splice(index, 1);
+      this.athF02PerfilActivo.relacionesInternas = lista;
+    }
+    this.onAthF02Editado();
+  }
+
+  agregarRelacionExternaAthF02(): void {
+    if (!this.athF02PerfilActivo) {
+      return;
+    }
+    const lista = this.athF02PerfilActivo.relacionesExternas || [];
+    if (lista.length >= this.athF02MaxRelaciones) {
+      return;
+    }
+    this.athF02PerfilActivo.relacionesExternas = [...lista, { actor: '', motivo: '' }];
+    this.onAthF02Editado();
+  }
+
+  quitarRelacionExternaAthF02(index: number): void {
+    if (!this.athF02PerfilActivo) {
+      return;
+    }
+    const lista = [...(this.athF02PerfilActivo.relacionesExternas || [])];
+    if (lista.length <= 1) {
+      this.athF02PerfilActivo.relacionesExternas = [{ actor: '', motivo: '' }];
+    } else {
+      lista.splice(index, 1);
+      this.athF02PerfilActivo.relacionesExternas = lista;
+    }
+    this.onAthF02Editado();
+  }
+
+  descargarPdfAthF02(): void {
+    if (this.athF02DescargandoPdf || !this.athF02PerfilActivo || !this.athF02DriveFileId) {
+      return;
+    }
+    this.sincronizarPerfilActivoEnFormAthF02();
+    const perfilId = this.athF02PerfilActivo.id;
+    const nombreLocal = String(this.athF02PerfilActivo.puesto || 'perfil')
+      .replace(/[\\/:*?"<>|]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim() || 'perfil';
+
+    const lanzarDescarga = () => {
+      this.athF02DescargandoPdf = true;
+      this.backendService.descargarPdfAthF02(perfilId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.athF02DescargandoPdf = false;
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = `ATH-F-02 ${nombreLocal}.pdf`;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.athF02DescargandoPdf = false;
+          }
+        });
+    };
+
+    if (!this.athF02CambiosPendientes) {
+      lanzarDescarga();
+      return;
+    }
+
+    if (this.athF02Guardando) {
+      return;
+    }
+
+    this.athF02Guardando = true;
+    this.backendService.guardarAthF02Formato(
+      { ...this.athF02Form, perfilActivoId: perfilId },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.aplicarEstadoAthF02(res, true, false, true);
+          this.athF02CambiosPendientes = false;
+          this.athF02Guardando = false;
+          lanzarDescarga();
+        },
+        error: () => {
+          this.athF02Guardando = false;
+        }
+      });
   }
 
   onAthF02EdadIndistintoChange(activo: boolean): void {
@@ -20306,6 +20679,41 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.sincronizarPerfilActivoEnFormAthF02();
     }
     this.athF02CambiosPendientes = true;
+  }
+
+  onAthF02TextareaInput(event: Event): void {
+    this.autosizeAthF02Textarea(event.target);
+    this.onAthF02Editado();
+  }
+
+  /** Crece el textarea al contenido; nunca muestra scroll vertical. */
+  autosizeAthF02Textarea(target: EventTarget | HTMLTextAreaElement | null): void {
+    const el = target as HTMLTextAreaElement | null;
+    if (!el || el.tagName !== 'TEXTAREA') {
+      return;
+    }
+    el.style.maxHeight = 'none';
+    el.style.overflow = 'hidden';
+    el.style.overflowY = 'hidden';
+    el.style.height = '0px';
+    const alto = Math.max(el.scrollHeight, 72);
+    el.style.height = `${alto}px`;
+    el.style.overflow = 'hidden';
+    el.style.overflowY = 'hidden';
+  }
+
+  /** Recalcula altura de textareas ATH-F-02 para mostrar todo el texto sin scroll. */
+  private autosizeTextareasAthF02(): void {
+    const nodos = this.host.nativeElement.querySelectorAll<HTMLTextAreaElement>(
+      '.ath-f-02-doc--editor textarea.ath-f-02-autosize'
+    );
+    nodos.forEach((el) => this.autosizeAthF02Textarea(el));
+  }
+
+  private programarAutosizeAthF02(): void {
+    window.setTimeout(() => this.autosizeTextareasAthF02(), 0);
+    window.setTimeout(() => this.autosizeTextareasAthF02(), 50);
+    window.setTimeout(() => this.autosizeTextareasAthF02(), 200);
   }
 
   onSeleccionarPdfAthF02(event: Event): void {
@@ -20478,6 +20886,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }
       setTimeout(() => {
         this.athF02IgnorarAutoSave = false;
+        if (this.athF02Vista === 'editor') {
+          this.programarAutosizeAthF02();
+        }
       }, 0);
       this.sincronizarPerfilActivoEnFormAthF02();
     } else {
@@ -22879,6 +23290,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     );
   }
 
+  onSeleccionarPdfSgcF08(event: Event): void {
+    this.procesarPdfDocumento(
+      event,
+      'SGC-F-08 Plan de auditoría.pdf',
+      (base64, nombre) => this.subirPdfSgcF08(base64, nombre)
+    );
+  }
+
   toggleSgcF07PdfViewer(pdf?: DgF02PdfFirmado | null): void {
     const objetivo = pdf || this.sgcF07Form.pdfFirmado;
     const id = objetivo?.driveFileId;
@@ -22929,6 +23348,60 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.sgcF07BorrandoPdf = false;
+        }
+      });
+  }
+
+  toggleSgcF08PdfViewer(pdf?: DgF02PdfFirmado | null): void {
+    const objetivo = pdf || this.sgcF08Form.pdfFirmado;
+    const id = objetivo?.driveFileId;
+    if (!id) {
+      return;
+    }
+
+    const mismoAbierto = this.mostrarSgcF08PdfViewer
+      && this.sgcF08PdfViewerActual?.driveFileId === id;
+    const abrir = !mismoAbierto;
+    this.mostrarSgcF08PdfViewer = abrir;
+
+    if (abrir) {
+      this.sgcF08PdfViewerActual = objetivo;
+      this.sgcF08PdfCargando = true;
+      const url = objetivo.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+      this.sgcF08PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    this.sgcF08PdfEmbedUrlSafe = null;
+    this.sgcF08PdfCargando = false;
+    this.sgcF08PdfViewerActual = null;
+  }
+
+  onSgcF08PdfIframeLoad(): void {
+    this.sgcF08PdfCargando = false;
+  }
+
+  eliminarPdfHistorialSgcF08(hist: DgF02PdfFirmado): void {
+    if (!this.puedeBorrarPdfHistorialSgcF08 || !hist?.driveFileId || this.sgcF08BorrandoPdf) {
+      return;
+    }
+    if (!confirm(`¿Eliminar «${hist.nombreArchivo || 'PDF'}» del historial?`)) {
+      return;
+    }
+    this.sgcF08BorrandoPdf = true;
+    this.backendService.eliminarPdfHistorialSgcF08(hist.driveFileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF08BorrandoPdf = false;
+          this.aplicarEstadoSgcF08(res);
+        },
+        error: () => {
+          this.sgcF08BorrandoPdf = false;
         }
       });
   }
@@ -23502,6 +23975,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   nuevaSolicitudSgcF02(): void {
+    if (!this.esSuperAdminSgcF01) {
+      return;
+    }
     const sol = this.crearSolicitudSgcF02Vacia();
     this.sgcF02Form.solicitudes = [sol, ...(this.sgcF02Form.solicitudes || [])];
     this.sgcF02Form.solicitudActivaId = sol.id;
@@ -23511,6 +23987,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   abrirSolicitudSgcF02(sol: SgcF02Solicitud): void {
+    if (!this.esSuperAdminSgcF01) {
+      return;
+    }
     this.sgcF02Form.solicitudActivaId = sol.id;
     this.sgcF02SolicitudActiva = sol;
     this.sgcF02Vista = 'editor';
@@ -24193,31 +24672,61 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!doc?.id) {
       return;
     }
+    const seq = ++this.sgcF02VisorSeq;
+    this.sgcF02VisorSub?.unsubscribe();
     this.sgcF02VisorDoc = doc;
     this.sgcF02VisorError = null;
     this.sgcF02VisorCargando = true;
-    const preview = `https://drive.google.com/file/d/${encodeURIComponent(doc.id)}/preview`;
-    this.sgcF02VisorUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(preview);
+    this.sgcF02VisorBlob = null;
+    this.sgcF02VisorProgreso = 4;
+    this.sgcF02VisorEtiqueta = 'Solicitando documento…';
+    this.sgcF02VisorLento = false;
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
+
+    this.sgcF02VisorSub = this.pdfPreviewLoader.observar(
+      this.backendService.imprimirArchivoDriveComoPDFEventos(
+        doc.id,
+        doc.nombre || 'documento-fisico.pdf'
+      ),
+      'Preparando vista previa del documento…'
+    ).pipe(takeUntil(this.destroy$)).subscribe((state) => {
+      if (seq !== this.sgcF02VisorSeq) {
+        return;
+      }
+      this.sgcF02VisorProgreso = state.pct;
+      this.sgcF02VisorEtiqueta = state.etiqueta;
+      this.sgcF02VisorLento = state.lento;
+      if (state.error) {
+        this.sgcF02VisorCargando = false;
+        this.sgcF02VisorError = state.error;
+        return;
+      }
+      if (state.blob) {
+        this.sgcF02VisorBlob = state.blob;
+        this.sgcF02VisorCargando = false;
+      }
+    });
   }
 
   cerrarVisorDocumentoFisicoSgcF02(): void {
+    this.sgcF02VisorSeq += 1;
+    this.sgcF02VisorSub?.unsubscribe();
+    this.sgcF02VisorSub = undefined;
     this.sgcF02VisorDoc = null;
-    this.sgcF02VisorUrlSafe = null;
+    this.sgcF02VisorBlob = null;
     this.sgcF02VisorCargando = false;
     this.sgcF02VisorError = null;
+    this.sgcF02VisorProgreso = 0;
+    this.sgcF02VisorLento = false;
     document.documentElement.style.overflow = '';
     document.body.style.overflow = '';
   }
 
-  onSgcF02VisorLoad(): void {
-    this.sgcF02VisorCargando = false;
-  }
-
-  onSgcF02VisorError(): void {
+  onSgcF02VisorError(mensaje?: string): void {
     this.sgcF02VisorCargando = false;
     this.sgcF02VisorError =
+      mensaje ||
       'No se pudo cargar la vista previa integrada. Puedes abrir el archivo en Google Drive.';
   }
 
@@ -24459,29 +24968,65 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     );
   }
 
-  toggleDgF03PdfViewer(): void {
-    const id = this.dgF03Form.pdfFirmado?.driveFileId;
+  toggleDgF03PdfViewer(pdf?: DgF02PdfFirmado | null): void {
+    if (this.mostrarDgF03PdfViewer && !pdf) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarDgF03PdfViewer = false;
+      this.dgF03PdfEmbedUrlSafe = null;
+      this.dgF03PdfCargando = false;
+      return;
+    }
+
+    const objetivo = pdf || this.dgF03Form.pdfFirmado;
+    const id = objetivo?.driveFileId;
     if (!id) {
       return;
     }
-    const abrir = !this.mostrarDgF03PdfViewer;
-    this.mostrarDgF03PdfViewer = abrir;
-    if (abrir) {
-      this.dgF03PdfCargando = true;
-      const url = `https://drive.google.com/file/d/${id}/preview`;
-      this.dgF03PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
-      document.documentElement.style.overflow = 'hidden';
-      document.body.style.overflow = 'hidden';
+
+    const mismoArchivo = this.mostrarDgF03PdfViewer
+      && this.dgF03PdfViewerTitulo === (objetivo?.nombreArchivo || 'DG-F-03 Objetivos de calidad.pdf');
+    if (mismoArchivo) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarDgF03PdfViewer = false;
+      this.dgF03PdfEmbedUrlSafe = null;
+      this.dgF03PdfCargando = false;
       return;
     }
-    document.documentElement.style.overflow = '';
-    document.body.style.overflow = '';
-    this.dgF03PdfEmbedUrlSafe = null;
-    this.dgF03PdfCargando = false;
+
+    this.mostrarDgF03PdfViewer = true;
+    this.dgF03PdfCargando = true;
+    this.dgF03PdfViewerTitulo = objetivo?.nombreArchivo || 'DG-F-03 Objetivos de calidad.pdf';
+    const url = `https://drive.google.com/file/d/${id}/preview`;
+    this.dgF03PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
   }
 
   onDgF03PdfIframeLoad(): void {
     this.dgF03PdfCargando = false;
+  }
+
+  eliminarPdfHistorialDgF03(hist: DgF02PdfFirmado): void {
+    if (!this.puedeBorrarPdfHistorialDgF03 || !hist?.driveFileId || this.dgF03BorrandoPdf) {
+      return;
+    }
+    if (!confirm(`¿Eliminar «${hist.nombreArchivo || 'PDF'}» del historial?`)) {
+      return;
+    }
+    this.dgF03BorrandoPdf = true;
+    this.backendService.eliminarPdfHistorialDgF03(hist.driveFileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.dgF03BorrandoPdf = false;
+          this.aplicarEstadoDgF03(res);
+        },
+        error: () => {
+          this.dgF03BorrandoPdf = false;
+        }
+      });
   }
 
   onMetodologiaAmefIframeLoad(): void {
@@ -24667,6 +25212,26 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.sgcF07SubiendoPdf = false;
+          this.finalizarSubidaPdfSgc(false);
+        }
+      });
+  }
+
+  private subirPdfSgcF08(base64: string, nombre: string): void {
+    if (this.sgcF08SubiendoPdf) {
+      return;
+    }
+    this.sgcF08SubiendoPdf = true;
+    this.backendService.subirPdfFirmadoSgcF08(base64, nombre)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF08SubiendoPdf = false;
+          this.aplicarEstadoSgcF08(res);
+          this.finalizarSubidaPdfSgc(!!res?.success, nombre);
+        },
+        error: () => {
+          this.sgcF08SubiendoPdf = false;
           this.finalizarSubidaPdfSgc(false);
         }
       });
@@ -25762,11 +26327,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         solicitudActivaId: d.solicitudActivaId ?? this.sgcF02Form.solicitudActivaId
       });
       if (this.sgcF02Vista === 'editor' && this.sgcF02Form.solicitudActivaId) {
-        this.sgcF02SolicitudActiva = this.sgcF02Form.solicitudes.find(
-          (s) => s.id === this.sgcF02Form.solicitudActivaId
-        ) || null;
-        if (!this.sgcF02SolicitudActiva) {
+        if (!this.esSuperAdminSgcF01) {
           this.sgcF02Vista = 'lista';
+          this.sgcF02SolicitudActiva = null;
+        } else {
+          this.sgcF02SolicitudActiva = this.sgcF02Form.solicitudes.find(
+            (s) => s.id === this.sgcF02Form.solicitudActivaId
+          ) || null;
+          if (!this.sgcF02SolicitudActiva) {
+            this.sgcF02Vista = 'lista';
+          }
         }
       }
     } else if (!editorAbierto && !conservarEdicion) {
@@ -25853,6 +26423,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       };
       this.itemsObjetivosDgF03 = this.parseObjetivosAItems(this.dgF03Form.objetivos);
     }
+    this.dgF03HistorialPdfs = Array.isArray(res.historialPdfs)
+      ? res.historialPdfs
+      : (Array.isArray(res.datos?.pdfsHistorial) ? res.datos.pdfsHistorial : []);
     this.dgF03UltimaSync = res.ultimaSyncDrive || null;
     this.dgF03ContenidoModificado = !!res.contenidoModificado;
     this.dgF03FechaOriginal = res.fechaElaboracionOriginal || null;

@@ -12,9 +12,22 @@ const { asegurarTablaSgcFormatoDatos, persistirRegistroSgc, obtenerRegistroSgcPe
 const CODIGO_FORMATO = 'SGC-F-10';
 const TEMPLATE_DRIVE_ID = '1xHRlZqE7k733GqeeELyjwDHY2ljHViG5K3p9ArstWc4';
 const DRIVE_FILE_ID_SISTEMA = '1xHRlZqE7k733GqeeELyjwDHY2ljHViG5K3p9ArstWc4';
+/** Carpeta Drive · Word históricos (Guardar Histórico). */
+const CARPETA_WORD_HISTORICO_ID = '1dBLqiBESqyTtGr7iBJ5P-IA6avABDCxd';
+/** Carpeta Drive · PDF históricos generados al cerrar auditoría. */
+const CARPETA_PDF_HISTORICO_ID = '1XzBdZSatkcX6ia4aSKO5uyP9yEFKo3Df';
 const GOOGLE_DOC_MIME = 'application/vnd.google-apps.document';
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const NOMBRE_DOC_SISTEMA = 'SGC-F-10 Informe de auditoría (sistema)';
+const NOMBRE_PDF_PREFIJO = 'SGC-F-10 Informe de auditoría';
+/** Carta horizontal · márgenes estrechos · tablas ajustadas al ancho útil. */
+const OPCIONES_PDF_HISTORICO = {
+    size: 'letter',
+    landscape: true,
+    margins: 'estrechos',
+    scale: 'predeterminada',
+    fitToWidth: true
+};
 const MAX_HALLAZGOS = 40;
 const AUDITORIA_NO_ACTUAL = '3';
 
@@ -514,6 +527,20 @@ function inferirFechaAuditoria(fechasTexto, fallbackIso = null) {
     return formatearFechaIso(fallbackIso) || fechaHoyIso();
 }
 
+async function asegurarColumnaHistorialF10(pool, nombreColumna, definicionColumna) {
+    const [cols] = await pool.query(
+        `SELECT COLUMN_NAME
+           FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'sgc_f10_historial'
+            AND COLUMN_NAME = ?
+          LIMIT 1`,
+        [nombreColumna]
+    );
+    if (cols?.[0]?.COLUMN_NAME) return;
+    await pool.query(`ALTER TABLE sgc_f10_historial ADD COLUMN ${nombreColumna} ${definicionColumna}`);
+}
+
 async function asegurarTablaHistorialF10(pool) {
     await pool.query(`
         CREATE TABLE IF NOT EXISTS sgc_f10_historial (
@@ -532,6 +559,8 @@ async function asegurarTablaHistorialF10(pool) {
             datos_json JSON NOT NULL,
             drive_file_id VARCHAR(128) NULL,
             drive_file_name VARCHAR(512) NULL,
+            pdf_drive_file_id VARCHAR(128) NULL,
+            pdf_drive_file_name VARCHAR(512) NULL,
             origen VARCHAR(64) NOT NULL DEFAULT 'sistema',
             cerrado TINYINT(1) NOT NULL DEFAULT 1,
             cerrado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -543,6 +572,8 @@ async function asegurarTablaHistorialF10(pool) {
             KEY idx_sgc_f10_historial_fecha (fecha_auditoria)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    await asegurarColumnaHistorialF10(pool, 'pdf_drive_file_id', 'VARCHAR(128) NULL');
+    await asegurarColumnaHistorialF10(pool, 'pdf_drive_file_name', 'VARCHAR(512) NULL');
 }
 
 function mapearFilaHistorial(row) {
@@ -571,6 +602,11 @@ function mapearFilaHistorial(row) {
         editorUrl: row.drive_file_id
             ? `https://docs.google.com/document/d/${row.drive_file_id}/edit?usp=sharing`
             : null,
+        pdfDriveFileId: row.pdf_drive_file_id || null,
+        pdfDriveFileName: row.pdf_drive_file_name || null,
+        pdfPreviewUrl: row.pdf_drive_file_id
+            ? `https://drive.google.com/file/d/${row.pdf_drive_file_id}/preview`
+            : null,
         origen: row.origen || 'sistema',
         cerrado: !!row.cerrado,
         cerradoEn: formatearDatetimeMysqlMexico(row.cerrado_en),
@@ -585,7 +621,8 @@ async function listarHistorial(pool) {
     const [rows] = await pool.query(
         `SELECT id, auditoria_no, fechas_auditoria, fecha_auditoria, anio, empresa, ubicaciones,
                 total_hallazgos, total_op, total_nc_menor, total_nc_mayor, total_nc,
-                drive_file_id, drive_file_name, origen, cerrado, cerrado_en, cerrado_por,
+                drive_file_id, drive_file_name, pdf_drive_file_id, pdf_drive_file_name,
+                origen, cerrado, cerrado_en, cerrado_por,
                 sgc_auditoria_id, datos_json, created_at
            FROM sgc_f10_historial
           ORDER BY id ASC`
@@ -597,6 +634,60 @@ async function listarHistorial(pool) {
             const nb = Number(String(b.auditoriaNo || '').replace(/\D/g, '')) || 0;
             return na - nb || (a.id - b.id);
         });
+}
+
+function sanitizarPdfHistorico(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const driveFileId = String(raw.driveFileId || raw.drive_file_id || raw.id || '').trim();
+    if (!driveFileId) return null;
+    const nombreArchivo = String(
+        raw.nombreArchivo || raw.nombre_archivo || raw.name || raw.pdfDriveFileName || ''
+    ).trim() || `${NOMBRE_PDF_PREFIJO}.pdf`;
+    return {
+        driveFileId,
+        nombreArchivo,
+        webViewLink: String(raw.webViewLink || raw.web_view_link || '').trim() || null,
+        previewUrl: `https://drive.google.com/file/d/${driveFileId}/preview`,
+        fechaSubida: formatearFechaIso(raw.fechaSubida || raw.fecha_subida || raw.modifiedTime)
+            || fechaHoyIso()
+    };
+}
+
+function sanitizarPdfsHistorial(raw) {
+    if (!Array.isArray(raw)) return [];
+    const vistos = new Set();
+    const lista = [];
+    for (const item of raw) {
+        const pdf = sanitizarPdfHistorico(item);
+        if (!pdf || vistos.has(pdf.driveFileId)) continue;
+        vistos.add(pdf.driveFileId);
+        lista.push(pdf);
+    }
+    return lista;
+}
+
+function esNombrePdfHistoricoF10(nombre) {
+    const n = String(nombre || '');
+    return /\.pdf$/i.test(n) && /^SGC-F-10\s+Informe de auditor[ií]a/i.test(n);
+}
+
+async function listarPdfsHistorialDrive() {
+    const archivos = await driveService.listarArchivosCarpeta(CARPETA_PDF_HISTORICO_ID);
+    return (archivos || [])
+        .filter((f) => esNombrePdfHistoricoF10(f.name))
+        .map((f) => sanitizarPdfHistorico({
+            driveFileId: f.id,
+            nombreArchivo: f.name,
+            webViewLink: f.webViewLink || null,
+            fechaSubida: f.modifiedTime || fechaHoyIso()
+        }))
+        .filter(Boolean)
+        .sort((a, b) => String(b.fechaSubida || '').localeCompare(String(a.fechaSubida || '')));
+}
+
+function nombrePdfHistorico(auditoriaNo) {
+    const no = formatearAuditoriaNo(auditoriaNo);
+    return `${NOMBRE_PDF_PREFIJO} No.${no}.pdf`;
 }
 
 async function obtenerMaxAuditoriaNoHistorial(pool) {
@@ -621,16 +712,11 @@ async function existeHistorialAuditoriaNo(pool, auditoriaNo) {
 
 async function archivarDocumentoDrive(sistemaFileId, nombreHistorico) {
     const { drive } = clienteGoogle();
-    const meta = await drive.files.get({
-        fileId: sistemaFileId,
-        fields: 'id,parents,name,mimeType',
-        supportsAllDrives: true
-    });
     const copia = await drive.files.copy({
         fileId: sistemaFileId,
         requestBody: {
             name: nombreHistorico,
-            parents: meta?.data?.parents || undefined
+            parents: [CARPETA_WORD_HISTORICO_ID]
         },
         fields: 'id,name,webViewLink',
         supportsAllDrives: true
@@ -640,6 +726,37 @@ async function archivarDocumentoDrive(sistemaFileId, nombreHistorico) {
         throw new Error('No se pudo archivar el documento Word en Drive.');
     }
     return { id, name: copia.data.name || nombreHistorico };
+}
+
+/**
+ * Exporta el informe cerrado a PDF (carta / márgenes y escala predeterminados)
+ * y lo publica en la carpeta de PDFs históricos.
+ */
+async function publicarPdfHistoricoEnDrive(sourceFileId, auditoriaNo) {
+    if (!sourceFileId) {
+        throw new Error('No hay documento fuente para exportar el PDF histórico.');
+    }
+    const pdfBuffer = await driveService.exportarArchivoPDF(sourceFileId, { ...OPCIONES_PDF_HISTORICO });
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de SGC-F-10 quedó vacía.');
+    }
+    const nombreArchivo = nombrePdfHistorico(auditoriaNo);
+    const subido = await driveService.subirArchivoNuevo(
+        Buffer.from(pdfBuffer),
+        nombreArchivo,
+        'application/pdf',
+        CARPETA_PDF_HISTORICO_ID
+    );
+    const driveFileId = subido?.id;
+    if (!driveFileId) {
+        throw new Error('No se pudo subir el PDF histórico a Drive.');
+    }
+    return sanitizarPdfHistorico({
+        driveFileId,
+        nombreArchivo: subido.name || nombreArchivo,
+        webViewLink: subido.webViewLink || null,
+        fechaSubida: fechaHoyIso()
+    });
 }
 
 async function sincronizarDashboardDesdeHistorial(pool, snapshot, contadores) {
@@ -695,6 +812,8 @@ async function insertarHistorialInmutable(pool, {
     datos,
     driveFileId = null,
     driveFileName = null,
+    pdfDriveFileId = null,
+    pdfDriveFileName = null,
     origen = 'sistema',
     cerradoPor = null,
     fechaAuditoriaOverride = null,
@@ -735,9 +854,10 @@ async function insertarHistorialInmutable(pool, {
         `INSERT INTO sgc_f10_historial (
             auditoria_no, fechas_auditoria, fecha_auditoria, anio, empresa, ubicaciones,
             total_hallazgos, total_op, total_nc_menor, total_nc_mayor, total_nc,
-            datos_json, drive_file_id, drive_file_name, origen, cerrado, cerrado_en,
+            datos_json, drive_file_id, drive_file_name, pdf_drive_file_id, pdf_drive_file_name,
+            origen, cerrado, cerrado_en,
             cerrado_por, sgc_auditoria_id
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), ?, ?)`,
         [
             auditoriaNo,
             d.fechasAuditoria || null,
@@ -753,6 +873,8 @@ async function insertarHistorialInmutable(pool, {
             JSON.stringify(snapshotDatos),
             driveFileId,
             driveFileName,
+            pdfDriveFileId,
+            pdfDriveFileName,
             origen,
             cerradoPor,
             dashboardId || null
@@ -767,12 +889,14 @@ async function insertarHistorialInmutable(pool, {
         anio,
         driveFileId,
         driveFileName,
+        pdfDriveFileId,
+        pdfDriveFileName,
         sgcAuditoriaId: dashboardId || null
     };
 }
 
 /**
- * Cierra el informe actual como histórico inmutable (BD + copia Word en Drive)
+ * Cierra el informe actual como histórico inmutable (BD + Word + PDF en Drive)
  * y deja el formulario listo para una nueva auditoría.
  */
 async function guardarHistorico(pool, body = {}, usuario = null) {
@@ -831,6 +955,14 @@ async function guardarHistorico(pool, body = {}, usuario = null) {
         console.warn('[SGC-F-10] No se pudo copiar Word histórico en Drive:', err.message);
     }
 
+    let pdfHistorico = null;
+    try {
+        const fuentePdf = archivoHistorico.id || driveFileId;
+        pdfHistorico = await publicarPdfHistoricoEnDrive(fuentePdf, auditoriaNo);
+    } catch (err) {
+        console.warn('[SGC-F-10] No se pudo generar/publicar PDF histórico en Drive:', err.message);
+    }
+
     const cerradoPor = String(
         usuario?.nombre || usuario?.usuario || usuario?.email || body?.cerradoPor || ''
     ).trim() || null;
@@ -839,6 +971,8 @@ async function guardarHistorico(pool, body = {}, usuario = null) {
         datos: datosCerrar,
         driveFileId: archivoHistorico.id,
         driveFileName: archivoHistorico.name,
+        pdfDriveFileId: pdfHistorico?.driveFileId || null,
+        pdfDriveFileName: pdfHistorico?.nombreArchivo || null,
         origen: 'sistema',
         cerradoPor
     });
@@ -876,12 +1010,16 @@ async function guardarHistorico(pool, body = {}, usuario = null) {
 
     const registro = await obtenerRegistroDb(pool);
     const historial = await listarHistorial(pool);
+    const historialPdfs = await listarPdfsHistorialDrive().catch(() => []);
     return construirRespuesta(registro, datosNuevos, {
         historicoCerrado: historico,
         historial,
+        historialPdfs,
+        pdfHistorico,
         mensajeHistorico:
-            `Auditoría No. ${auditoriaNo} guardada en histórico. `
-            + `El formulario quedó listo para la auditoría No. ${siguienteNo}.`
+            `Auditoría No. ${auditoriaNo} guardada en histórico`
+            + (pdfHistorico ? ' (Word + PDF)' : ' (Word)')
+            + `. El formulario quedó listo para la auditoría No. ${siguienteNo}.`
     });
 }
 
@@ -981,7 +1119,8 @@ async function cargarFormato(pool) {
     }
 
     const historial = await listarHistorial(pool);
-    return construirRespuesta(registro, datos, { historial });
+    const historialPdfs = await listarPdfsHistorialDrive().catch(() => []);
+    return construirRespuesta(registro, datos, { historial, historialPdfs });
 }
 
 async function guardarFormato(pool, body = {}) {
@@ -1636,10 +1775,13 @@ module.exports = {
     DATOS_DEFECTO,
     TEMPLATE_DRIVE_ID,
     DRIVE_FILE_ID_SISTEMA,
+    CARPETA_WORD_HISTORICO_ID,
+    CARPETA_PDF_HISTORICO_ID,
     cargarFormato,
     guardarFormato,
     guardarHistorico,
     listarHistorial,
+    listarPdfsHistorialDrive,
     seedHistoricosPrecedentes,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,

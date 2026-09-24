@@ -413,6 +413,28 @@
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF07DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
                   </button>
                   <button
+                    *ngIf="plantillaSlug === 'sgc-f-08'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF08DescargandoPdf"
+                    (click)="descargarPdfSgcF08()"
+                    title="Generar PDF (carta, vertical, ajustar al ancho, márgenes normales, izq / arriba)"
+                    aria-label="Generar PDF del plan de auditoría">
+                    <i class="fas" [ngClass]="sgcF08DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF08DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'sgc-f-09'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF09DescargandoPdf"
+                    (click)="descargarPdfSgcF09()"
+                    title="Generar PDF (carta, horizontal, escala predeterminada, márgenes predeterminados)"
+                    aria-label="Generar PDF de la lista de verificación de auditoría">
+                    <i class="fas" [ngClass]="sgcF09DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF09DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
+                  </button>
+                  <button
                     *ngIf="plantillaSlug === 'sgc-f-14'"
                     type="button"
                     class="btn btn-sm sgc-btn-pdf-icon"
@@ -543,6 +565,17 @@
                     aria-label="Descargar PDF de esta evaluación">
                     <i class="fas" [ngClass]="athF11DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
                     <span class="sgc-btn-pdf-icon__label">{{ athF11DescargandoPdf ? 'Descargando…' : 'Descargar PDF' }}</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'ath-f-02' && athF02Vista === 'editor'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!athF02DriveFileId || athF02Cargando || athF02Guardando || athF02DescargandoPdf || !athF02PerfilActivo"
+                    (click)="descargarPdfAthF02()"
+                    title="Descargar PDF (Carta, vertical, ajustar al alto, márgenes 0.5 cm / 0)"
+                    aria-label="Descargar PDF del perfil de puesto">
+                    <i class="fas" [ngClass]="athF02DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ athF02DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
                   </button>
                   <a *ngIf="plantillaSlug === 'sgc-f-01' && driveSyncDriveFileId"
                     class="btn btn-sm sgc-btn-drive"
@@ -684,6 +717,7 @@
 
                   <!-- Editor de un perfil -->
                   <article class="dg-f05-doc ath-f-02-doc ath-f-02-doc--editor" *ngIf="athF02Vista === 'editor' && athF02PerfilActivo as perf">
+                    <div class="ath-f-02-doc__pattern" aria-hidden="true"></div>
                     <div class="sgc-f-04-editor-bar">
                       <button type="button" class="sgc-f-04-editor-bar__back" (click)="volverArchiveroAthF02()">
                         <i class="fas fa-arrow-left" aria-hidden="true"></i>
@@ -709,32 +743,50 @@
                           <span class="ath-f-02-section__badge"><i class="fas fa-id-card" aria-hidden="true"></i></span>
                           <div class="ath-f-02-section__titles">
                             <strong class="ath-f-02-section__title">Identificación</strong>
-                            <span class="ath-f-02-section__subtitle">Puesto, área y líneas de autoridad</span>
+                            <span class="ath-f-02-section__subtitle">Puesto y área o departamento</span>
                           </div>
                         </header>
                         <div class="ath-f-02-section__body">
-                        <div class="ath-f-02-field-grid ath-f-02-field-grid--2">
-                          <label class="ath-f-02-field">
-                            <span class="ath-f-02-field__label">Puesto</span>
-                            <input class="dg-f05-field ath-f-02-field__input" type="text" name="athF02_puesto"
-                              [(ngModel)]="perf.puesto" placeholder="Nombre del puesto" autocomplete="off">
-                          </label>
-                          <label class="ath-f-02-field">
-                            <span class="ath-f-02-field__label">Área o departamento</span>
-                            <input class="dg-f05-field ath-f-02-field__input" type="text" name="athF02_area"
-                              [(ngModel)]="perf.areaDepartamento" placeholder="Área o departamento" autocomplete="off">
-                          </label>
-                          <label class="ath-f-02-field">
-                            <span class="ath-f-02-field__label">Puesto al que le reporta</span>
-                            <input class="dg-f05-field ath-f-02-field__input" type="text" name="athF02_reporta"
-                              [(ngModel)]="perf.puestoAlQueReporta" placeholder="Jerarquía superior" autocomplete="off">
-                          </label>
-                          <label class="ath-f-02-field">
-                            <span class="ath-f-02-field__label">Puestos que le reportan</span>
-                            <input class="dg-f05-field ath-f-02-field__input" type="text" name="athF02_subordinados"
-                              [(ngModel)]="perf.puestosQueLeReportan" placeholder="Subordinados directos" autocomplete="off">
-                          </label>
+                          <div class="ath-f-02-field-grid ath-f-02-field-grid--2">
+                            <label class="ath-f-02-field">
+                              <span class="ath-f-02-field__label">Puesto</span>
+                              <input class="dg-f05-field ath-f-02-field__input" type="text" name="athF02_puesto"
+                                [(ngModel)]="perf.puesto" (ngModelChange)="onAthF02Editado()"
+                                placeholder="Nombre del puesto" autocomplete="off">
+                            </label>
+                            <label class="ath-f-02-field">
+                              <span class="ath-f-02-field__label">Área o departamento</span>
+                              <input class="dg-f05-field ath-f-02-field__input" type="text" name="athF02_area"
+                                [(ngModel)]="perf.areaDepartamento" (ngModelChange)="onAthF02Editado()"
+                                placeholder="Área o departamento" autocomplete="off">
+                            </label>
+                          </div>
                         </div>
+                      </section>
+
+                      <section class="ath-f-02-section" aria-labelledby="ath-f-02-autoridad">
+                        <header class="ath-f-02-section__head" id="ath-f-02-autoridad">
+                          <span class="ath-f-02-section__badge"><i class="fas fa-sitemap" aria-hidden="true"></i></span>
+                          <div class="ath-f-02-section__titles">
+                            <strong class="ath-f-02-section__title">Líneas de autoridad y responsabilidad</strong>
+                            <span class="ath-f-02-section__subtitle">Jerarquía superior y subordinados directos</span>
+                          </div>
+                        </header>
+                        <div class="ath-f-02-section__body">
+                          <div class="ath-f-02-field-grid ath-f-02-field-grid--2">
+                            <label class="ath-f-02-field">
+                              <span class="ath-f-02-field__label">Puesto al que le reporta</span>
+                              <input class="dg-f05-field ath-f-02-field__input" type="text" name="athF02_reporta"
+                                [(ngModel)]="perf.puestoAlQueReporta" (ngModelChange)="onAthF02Editado()"
+                                placeholder="Jerarquía superior" autocomplete="off">
+                            </label>
+                            <label class="ath-f-02-field">
+                              <span class="ath-f-02-field__label">Puestos que le reportan</span>
+                              <input class="dg-f05-field ath-f-02-field__input" type="text" name="athF02_subordinados"
+                                [(ngModel)]="perf.puestosQueLeReportan" (ngModelChange)="onAthF02Editado()"
+                                placeholder="Subordinados directos" autocomplete="off">
+                            </label>
+                          </div>
                         </div>
                       </section>
 
@@ -747,8 +799,10 @@
                           </div>
                         </header>
                         <div class="ath-f-02-section__body">
-                        <textarea class="dg-f05-field dg-f05-field--textarea ath-f-02-field__textarea" rows="4"
+                        <textarea class="dg-f05-field dg-f05-field--textarea ath-f-02-field__textarea ath-f-02-autosize" rows="3"
                           name="athF02_objetivo" [(ngModel)]="perf.objetivo"
+                          (input)="onAthF02TextareaInput($event)"
+                          (ngModelChange)="onAthF02Editado()"
                           placeholder="Describe el objetivo del puesto"></textarea>
                         </div>
                       </section>
@@ -758,27 +812,32 @@
                           <span class="ath-f-02-section__badge"><i class="fas fa-tasks" aria-hidden="true"></i></span>
                           <div class="ath-f-02-section__titles">
                             <strong class="ath-f-02-section__title">Funciones</strong>
-                            <span class="ath-f-02-section__subtitle">Lista numerada de funciones del puesto</span>
+                            <span class="ath-f-02-section__subtitle">Responsabilidades principales del puesto</span>
                           </div>
                         </header>
                         <div class="ath-f-02-section__body">
-                        <div class="ath-f-02-funciones">
-                          <div class="ath-f-02-funcion" *ngFor="let fn of perf.funciones; let i = index; trackBy: trackByIdx">
-                            <span class="ath-f-02-funcion__num">{{ i + 1 }}.</span>
-                            <input class="dg-f05-field" type="text" [(ngModel)]="perf.funciones[i]"
-                              [name]="'athF02_func' + i" placeholder="Función del puesto" autocomplete="off">
-                            <button type="button" class="dg-f05-row-btn" (click)="quitarFuncionAthF02(i)"
-                              [disabled]="perf.funciones.length <= 1" title="Quitar función">
-                              <i class="fas fa-times" aria-hidden="true"></i>
+                          <div class="ath-f-02-funciones ath-f-02-funciones--row" aria-label="Lista de funciones">
+                            <article class="ath-f-02-funcion-card" *ngFor="let fn of perf.funciones; let i = index; trackBy: trackByIdx">
+                              <span class="ath-f-02-funcion-card__title">Función {{ i + 1 }}</span>
+                              <textarea class="ath-f-02-funcion-card__textarea ath-f-02-autosize" rows="2"
+                                [(ngModel)]="perf.funciones[i]" [name]="'athF02_func' + i"
+                                (input)="onAthF02TextareaInput($event)"
+                                (ngModelChange)="onAthF02Editado()"
+                                placeholder="Describe la función del puesto"></textarea>
+                              <button type="button" class="ath-f-02-funcion-card__remove"
+                                (click)="quitarFuncionAthF02(i)"
+                                [disabled]="perf.funciones.length <= 1" title="Quitar función">
+                                <i class="fas fa-times" aria-hidden="true"></i>
+                              </button>
+                              <i class="fas fa-clipboard-list ath-f-02-funcion-card__icon" aria-hidden="true"></i>
+                            </article>
+                          </div>
+                          <div class="ath-f-02-exp-add-row">
+                            <button type="button" class="ath-f-02-exp-add-btn" (click)="agregarFuncionAthF02()">
+                              <i class="fas fa-plus-circle" aria-hidden="true"></i>
+                              <span>Agregar función</span>
                             </button>
                           </div>
-                        </div>
-                        <div class="dg-f05-table-foot">
-                          <button type="button" class="dg-f05-row-btn dg-f05-row-btn--add ath-f-02-add-btn" (click)="agregarFuncionAthF02()">
-                            <i class="fas fa-plus" aria-hidden="true"></i>
-                            Agregar función
-                          </button>
-                        </div>
                         </div>
                       </section>
 
@@ -791,110 +850,119 @@
                           </div>
                         </header>
                         <div class="ath-f-02-section__body">
-                        <div class="ath-f-02-perfil-rows">
-                          <div class="ath-f-02-perfil-row ath-f-02-perfil-row--edad">
-                            <span class="ath-f-02-perfil-row__label">Edad</span>
-                            <div class="ath-f-02-perfil-row__content ath-f-02-edad-row">
-                              <div class="ath-f-02-edad-fields">
-                                <label class="ath-f-02-edad-field">
-                                  <span class="ath-f-02-edad-field__lbl">Mínima</span>
-                                  <input class="dg-f05-field ath-f-02-field__input" type="text" name="athF02_edad_min"
-                                    [(ngModel)]="perf.edadMinima" [disabled]="perf.edadIndistinto"
-                                    (ngModelChange)="onAthF02EdadValorChange()" placeholder="Años" autocomplete="off">
-                                </label>
-                                <label class="ath-f-02-edad-field">
-                                  <span class="ath-f-02-edad-field__lbl">Máxima</span>
-                                  <input class="dg-f05-field ath-f-02-field__input" type="text" name="athF02_edad_max"
-                                    [(ngModel)]="perf.edadMaxima" [disabled]="perf.edadIndistinto"
-                                    (ngModelChange)="onAthF02EdadValorChange()" placeholder="Años" autocomplete="off">
+                          <div class="ath-f-02-perfil-trio">
+                            <div class="ath-f-02-perfil-card">
+                              <span class="ath-f-02-perfil-card__label">
+                                <i class="fas fa-birthday-cake" aria-hidden="true"></i> Edad
+                              </span>
+                              <div class="ath-f-02-edad-row">
+                                <div class="ath-f-02-edad-fields">
+                                  <label class="ath-f-02-edad-field">
+                                    <span class="ath-f-02-edad-field__lbl">Mín.</span>
+                                    <input class="dg-f05-field ath-f-02-field__input" type="text" name="athF02_edad_min"
+                                      [(ngModel)]="perf.edadMinima" [disabled]="perf.edadIndistinto"
+                                      (ngModelChange)="onAthF02EdadValorChange()" placeholder="Años" autocomplete="off">
+                                  </label>
+                                  <label class="ath-f-02-edad-field">
+                                    <span class="ath-f-02-edad-field__lbl">Máx.</span>
+                                    <input class="dg-f05-field ath-f-02-field__input" type="text" name="athF02_edad_max"
+                                      [(ngModel)]="perf.edadMaxima" [disabled]="perf.edadIndistinto"
+                                      (ngModelChange)="onAthF02EdadValorChange()" placeholder="Años" autocomplete="off">
+                                  </label>
+                                </div>
+                                <label class="ath-chip ath-chip--check ath-f-02-edad-ind" [class.ath-chip--on]="perf.edadIndistinto">
+                                  <input type="checkbox" class="ath-chip__input" name="athF02_edad_ind"
+                                    [(ngModel)]="perf.edadIndistinto" (ngModelChange)="onAthF02EdadIndistintoChange($event)">
+                                  <span>Indistinto</span>
                                 </label>
                               </div>
-                              <label class="ath-chip ath-chip--check ath-f-02-edad-ind" [class.ath-chip--on]="perf.edadIndistinto">
-                                <input type="checkbox" class="ath-chip__input" name="athF02_edad_ind"
-                                  [(ngModel)]="perf.edadIndistinto" (ngModelChange)="onAthF02EdadIndistintoChange($event)">
-                                <span>Indistinto</span>
-                              </label>
                             </div>
-                          </div>
 
-                          <div class="ath-f-02-perfil-row">
-                            <span class="ath-f-02-perfil-row__label">Sexo</span>
-                            <div class="ath-f-02-perfil-row__content">
-                              <div class="ath-chip-group" role="radiogroup" aria-label="Sexo">
+                            <div class="ath-f-02-perfil-card">
+                              <span class="ath-f-02-perfil-card__label">
+                                <i class="fas fa-venus-mars" aria-hidden="true"></i> Sexo
+                              </span>
+                              <div class="ath-chip-group ath-chip-group--wrap" role="radiogroup" aria-label="Sexo">
                                 <label class="ath-chip" [class.ath-chip--on]="perf.sexo === 'masculino'">
-                                  <input type="radio" class="ath-chip__input" name="ath-f02-sexo" [(ngModel)]="perf.sexo" [value]="'masculino'">
+                                  <input type="radio" class="ath-chip__input" name="ath-f02-sexo" [(ngModel)]="perf.sexo" [value]="'masculino'"
+                                    (ngModelChange)="onAthF02Editado()">
                                   Masculino
                                 </label>
                                 <label class="ath-chip" [class.ath-chip--on]="perf.sexo === 'femenino'">
-                                  <input type="radio" class="ath-chip__input" name="ath-f02-sexo" [(ngModel)]="perf.sexo" [value]="'femenino'">
+                                  <input type="radio" class="ath-chip__input" name="ath-f02-sexo" [(ngModel)]="perf.sexo" [value]="'femenino'"
+                                    (ngModelChange)="onAthF02Editado()">
                                   Femenino
                                 </label>
                                 <label class="ath-chip" [class.ath-chip--on]="perf.sexo === 'indistinto'">
-                                  <input type="radio" class="ath-chip__input" name="ath-f02-sexo" [(ngModel)]="perf.sexo" [value]="'indistinto'">
+                                  <input type="radio" class="ath-chip__input" name="ath-f02-sexo" [(ngModel)]="perf.sexo" [value]="'indistinto'"
+                                    (ngModelChange)="onAthF02Editado()">
                                   Indistinto
                                 </label>
                               </div>
                             </div>
-                          </div>
 
-                          <div class="ath-f-02-perfil-row">
-                            <span class="ath-f-02-perfil-row__label">Estado civil</span>
-                            <div class="ath-f-02-perfil-row__content">
-                              <div class="ath-chip-group" role="radiogroup" aria-label="Estado civil">
+                            <div class="ath-f-02-perfil-card">
+                              <span class="ath-f-02-perfil-card__label">
+                                <i class="fas fa-heart" aria-hidden="true"></i> Estado civil
+                              </span>
+                              <div class="ath-chip-group ath-chip-group--wrap" role="radiogroup" aria-label="Estado civil">
                                 <label class="ath-chip" [class.ath-chip--on]="perf.estadoCivil === 'soltero'">
-                                  <input type="radio" class="ath-chip__input" name="ath-f02-ec" [(ngModel)]="perf.estadoCivil" [value]="'soltero'">
+                                  <input type="radio" class="ath-chip__input" name="ath-f02-ec" [(ngModel)]="perf.estadoCivil" [value]="'soltero'"
+                                    (ngModelChange)="onAthF02Editado()">
                                   Soltero
                                 </label>
                                 <label class="ath-chip" [class.ath-chip--on]="perf.estadoCivil === 'casado'">
-                                  <input type="radio" class="ath-chip__input" name="ath-f02-ec" [(ngModel)]="perf.estadoCivil" [value]="'casado'">
+                                  <input type="radio" class="ath-chip__input" name="ath-f02-ec" [(ngModel)]="perf.estadoCivil" [value]="'casado'"
+                                    (ngModelChange)="onAthF02Editado()">
                                   Casado
                                 </label>
                                 <label class="ath-chip" [class.ath-chip--on]="perf.estadoCivil === 'indistinto'">
-                                  <input type="radio" class="ath-chip__input" name="ath-f02-ec" [(ngModel)]="perf.estadoCivil" [value]="'indistinto'">
+                                  <input type="radio" class="ath-chip__input" name="ath-f02-ec" [(ngModel)]="perf.estadoCivil" [value]="'indistinto'"
+                                    (ngModelChange)="onAthF02Editado()">
                                   Indistinto
                                 </label>
                               </div>
                             </div>
                           </div>
 
-                          <div class="ath-f-02-perfil-row ath-f-02-perfil-row--esc">
-                            <span class="ath-f-02-perfil-row__label">Escolaridad</span>
-                            <div class="ath-f-02-perfil-row__content">
-                              <div class="ath-chip-group ath-chip-group--wrap" role="radiogroup" aria-label="Escolaridad">
-                                <label class="ath-chip" *ngFor="let nivel of athF02EscNiveles"
-                                  [class.ath-chip--on]="perf.escNivel === nivel.key">
-                                  <input type="radio" class="ath-chip__input" name="ath-f02-esc"
-                                    [(ngModel)]="perf.escNivel" [value]="nivel.key">
-                                  {{ nivel.label }}
-                                </label>
-                              </div>
-                              <div class="ath-f-02-esc-details" *ngIf="perf.escNivel === 'licenciatura'">
-                                <label class="ath-f-02-esc-detail" for="athF02_esc_lic_en">Licenciatura en</label>
-                                <input class="dg-f05-field ath-f-02-field__input" type="text" id="athF02_esc_lic_en"
-                                  name="athF02_esc_lic_en" [(ngModel)]="perf.esc.licenciaturaEn"
-                                  placeholder="Ej. Ingeniería industrial" autocomplete="off">
-                              </div>
-                              <div class="ath-f-02-esc-details" *ngIf="perf.escNivel === 'especialidad'">
-                                <label class="ath-f-02-esc-detail" for="athF02_esc_esp_en">Especialidad en</label>
-                                <input class="dg-f05-field ath-f-02-field__input" type="text" id="athF02_esc_esp_en"
-                                  name="athF02_esc_esp_en" [(ngModel)]="perf.esc.especialidadEn"
-                                  placeholder="Área de especialización" autocomplete="off">
-                              </div>
-                              <div class="ath-f-02-esc-details" *ngIf="perf.escNivel === 'maestria'">
-                                <label class="ath-f-02-esc-detail" for="athF02_esc_maes_en">Maestría en</label>
-                                <input class="dg-f05-field ath-f-02-field__input" type="text" id="athF02_esc_maes_en"
-                                  name="athF02_esc_maes_en" [(ngModel)]="perf.esc.maestriaEn"
-                                  placeholder="Programa de maestría" autocomplete="off">
-                              </div>
-                              <div class="ath-f-02-esc-details" *ngIf="perf.escNivel === 'otro'">
-                                <label class="ath-f-02-esc-detail" for="athF02_esc_otro_det">Otro (especificar)</label>
-                                <input class="dg-f05-field ath-f-02-field__input" type="text" id="athF02_esc_otro_det"
-                                  name="athF02_esc_otro_det" [(ngModel)]="perf.esc.otroDetalle"
-                                  placeholder="Nivel o certificación" autocomplete="off">
-                              </div>
+                          <div class="ath-f-02-perfil-card ath-f-02-perfil-card--esc ath-f-02-perfil-card--esc-block">
+                            <span class="ath-f-02-perfil-card__label">
+                              <i class="fas fa-graduation-cap" aria-hidden="true"></i> Escolaridad
+                            </span>
+                            <div class="ath-chip-group ath-chip-group--wrap" role="radiogroup" aria-label="Escolaridad">
+                              <label class="ath-chip" *ngFor="let nivel of athF02EscNiveles"
+                                [class.ath-chip--on]="perf.escNivel === nivel.key">
+                                <input type="radio" class="ath-chip__input" name="ath-f02-esc"
+                                  [(ngModel)]="perf.escNivel" [value]="nivel.key"
+                                  (ngModelChange)="onAthF02Editado()">
+                                {{ nivel.label }}
+                              </label>
+                            </div>
+                            <div class="ath-f-02-esc-details" *ngIf="perf.escNivel === 'licenciatura'">
+                              <label class="ath-f-02-esc-detail" for="athF02_esc_lic_en">Licenciatura en</label>
+                              <input class="dg-f05-field ath-f-02-field__input" type="text" id="athF02_esc_lic_en"
+                                name="athF02_esc_lic_en" [(ngModel)]="perf.esc.licenciaturaEn"
+                                placeholder="Ej. Ingeniería industrial" autocomplete="off">
+                            </div>
+                            <div class="ath-f-02-esc-details" *ngIf="perf.escNivel === 'especialidad'">
+                              <label class="ath-f-02-esc-detail" for="athF02_esc_esp_en">Especialidad en</label>
+                              <input class="dg-f05-field ath-f-02-field__input" type="text" id="athF02_esc_esp_en"
+                                name="athF02_esc_esp_en" [(ngModel)]="perf.esc.especialidadEn"
+                                placeholder="Área de especialización" autocomplete="off">
+                            </div>
+                            <div class="ath-f-02-esc-details" *ngIf="perf.escNivel === 'maestria'">
+                              <label class="ath-f-02-esc-detail" for="athF02_esc_maes_en">Maestría en</label>
+                              <input class="dg-f05-field ath-f-02-field__input" type="text" id="athF02_esc_maes_en"
+                                name="athF02_esc_maes_en" [(ngModel)]="perf.esc.maestriaEn"
+                                placeholder="Programa de maestría" autocomplete="off">
+                            </div>
+                            <div class="ath-f-02-esc-details" *ngIf="perf.escNivel === 'otro'">
+                              <label class="ath-f-02-esc-detail" for="athF02_esc_otro_det">Otro (especificar)</label>
+                              <input class="dg-f05-field ath-f-02-field__input" type="text" id="athF02_esc_otro_det"
+                                name="athF02_esc_otro_det" [(ngModel)]="perf.esc.otroDetalle"
+                                placeholder="Nivel o certificación" autocomplete="off">
                             </div>
                           </div>
-                        </div>
                         </div>
                       </section>
 
@@ -907,74 +975,80 @@
                           </div>
                         </header>
                         <div class="ath-f-02-section__body">
-                        <div class="ath-f-02-exp-list">
-                          <div class="ath-f-02-exp-row" *ngFor="let fila of perf.experiencias; let i = index; trackBy: trackByExpIdx">
-                            <label class="ath-f-02-exp-field">
-                              <span class="ath-f-02-field__label">¿En qué?</span>
-                              <input class="dg-f05-field ath-f-02-field__input" type="text"
-                                [name]="'athF02_exp_en' + i" [(ngModel)]="fila.enQue"
-                                placeholder="Área o tipo de experiencia" autocomplete="off">
-                            </label>
-                            <label class="ath-f-02-exp-field ath-f-02-exp-field--tiempo">
-                              <span class="ath-f-02-field__label">Tiempo</span>
-                              <input class="dg-f05-field ath-f-02-field__input" type="text"
-                                [name]="'athF02_exp_t' + i" [(ngModel)]="fila.tiempo"
-                                placeholder="Ej. 2 años" autocomplete="off">
-                            </label>
-                            <button type="button" class="dg-f05-row-btn dg-f05-row-btn--remove ath-f-02-exp-remove"
-                              (click)="quitarExperienciaAthF02(i)"
-                              [disabled]="perf.experiencias.length <= 1" title="Quitar experiencia">
-                              <i class="fas fa-times" aria-hidden="true"></i>
+                          <div class="ath-f-02-exp-list">
+                            <article class="ath-f-02-exp-card" *ngFor="let fila of perf.experiencias; let i = index; trackBy: trackByExpIdx">
+                              <span class="ath-f-02-exp-card__num" aria-hidden="true">{{ i + 1 }}</span>
+                              <div class="ath-f-02-exp-card__fields">
+                                <label class="ath-f-02-exp-field">
+                                  <span class="ath-f-02-field__label">¿En qué?</span>
+                                  <input class="dg-f05-field ath-f-02-field__input" type="text"
+                                    [name]="'athF02_exp_en' + i" [(ngModel)]="fila.enQue"
+                                    placeholder="Área o tipo de experiencia" autocomplete="off">
+                                </label>
+                                <label class="ath-f-02-exp-field ath-f-02-exp-field--tiempo">
+                                  <span class="ath-f-02-field__label">Tiempo</span>
+                                  <input class="dg-f05-field ath-f-02-field__input" type="text"
+                                    [name]="'athF02_exp_t' + i" [(ngModel)]="fila.tiempo"
+                                    placeholder="Ej. 2 años" autocomplete="off">
+                                </label>
+                              </div>
+                              <button type="button" class="ath-f-02-exp-card__remove"
+                                (click)="quitarExperienciaAthF02(i)"
+                                [disabled]="perf.experiencias.length <= 1" title="Quitar experiencia">
+                                <i class="fas fa-times" aria-hidden="true"></i>
+                              </button>
+                              <i class="fas fa-hourglass-half ath-f-02-exp-card__icon" aria-hidden="true"></i>
+                            </article>
+                          </div>
+                          <div class="ath-f-02-exp-add-row">
+                            <button type="button" class="ath-f-02-exp-add-btn"
+                              (click)="agregarExperienciaAthF02()"
+                              [disabled]="perf.experiencias.length >= athF02MaxExperiencias">
+                              <i class="fas fa-plus-circle" aria-hidden="true"></i>
+                              <span>Agregar experiencia</span>
                             </button>
                           </div>
-                          <button type="button" class="dg-f05-row-btn dg-f05-row-btn--add ath-f-02-add-btn"
-                            (click)="agregarExperienciaAthF02()"
-                            [disabled]="perf.experiencias.length >= athF02MaxExperiencias">
-                            <i class="fas fa-plus" aria-hidden="true"></i> Agregar experiencia
-                          </button>
-                        </div>
                         </div>
                       </section>
 
-                      <section class="ath-f-02-section" aria-labelledby="ath-f-02-formacion">
-                        <header class="ath-f-02-section__head" id="ath-f-02-formacion">
-                          <span class="ath-f-02-section__badge"><i class="fas fa-tools" aria-hidden="true"></i></span>
+                      <section class="ath-f-02-section ath-f-02-section--competencias" aria-labelledby="ath-f-02-competencias">
+                        <header class="ath-f-02-section__head" id="ath-f-02-competencias">
+                          <span class="ath-f-02-section__badge"><i class="fas fa-layer-group" aria-hidden="true"></i></span>
                           <div class="ath-f-02-section__titles">
-                            <strong class="ath-f-02-section__title">Formación y competencias técnicas</strong>
+                            <strong class="ath-f-02-section__title">Competencias del perfil</strong>
+                            <span class="ath-f-02-section__subtitle">Formación técnica, habilidades blandas y manejo de equipo</span>
                           </div>
                         </header>
-                        <div class="ath-f-02-section__body">
-                        <textarea class="dg-f05-field dg-f05-field--textarea ath-f-02-field__textarea" rows="4"
-                          name="athF02_formacion" [(ngModel)]="perf.formacionCompetenciasTecnicas"
-                          placeholder="Formación y competencias técnicas"></textarea>
-                        </div>
-                      </section>
-
-                      <section class="ath-f-02-section" aria-labelledby="ath-f-02-habilidades">
-                        <header class="ath-f-02-section__head" id="ath-f-02-habilidades">
-                          <span class="ath-f-02-section__badge"><i class="fas fa-comments" aria-hidden="true"></i></span>
-                          <div class="ath-f-02-section__titles">
-                            <strong class="ath-f-02-section__title">Habilidades blandas requeridas</strong>
+                        <div class="ath-f-02-section__body ath-f-02-section__body--flush">
+                          <div class="ath-f-02-comp-grid" aria-label="Cuadrantes de competencias">
+                            <label class="ath-f-02-comp-card">
+                              <span class="ath-f-02-comp-card__title">Formación y competencias técnicas</span>
+                              <textarea class="ath-f-02-comp-card__textarea ath-f-02-autosize" rows="3"
+                                name="athF02_formacion" [(ngModel)]="perf.formacionCompetenciasTecnicas"
+                                (input)="onAthF02TextareaInput($event)"
+                                (ngModelChange)="onAthF02Editado()"
+                                placeholder="Formación y competencias técnicas"></textarea>
+                              <i class="fas fa-tools ath-f-02-comp-card__icon" aria-hidden="true"></i>
+                            </label>
+                            <label class="ath-f-02-comp-card">
+                              <span class="ath-f-02-comp-card__title">Habilidades blandas requeridas</span>
+                              <textarea class="ath-f-02-comp-card__textarea ath-f-02-autosize" rows="3"
+                                name="athF02_habilidades" [(ngModel)]="perf.habilidadesBlandas"
+                                (input)="onAthF02TextareaInput($event)"
+                                (ngModelChange)="onAthF02Editado()"
+                                placeholder="Habilidades blandas requeridas"></textarea>
+                              <i class="fas fa-comments ath-f-02-comp-card__icon" aria-hidden="true"></i>
+                            </label>
+                            <label class="ath-f-02-comp-card">
+                              <span class="ath-f-02-comp-card__title">Conocimiento y manejo de equipo para la operación</span>
+                              <textarea class="ath-f-02-comp-card__textarea ath-f-02-autosize" rows="3"
+                                name="athF02_equipo" [(ngModel)]="perf.conocimientoEquipoOperacion"
+                                (input)="onAthF02TextareaInput($event)"
+                                (ngModelChange)="onAthF02Editado()"
+                                placeholder="Equipo, sistemas o herramientas"></textarea>
+                              <i class="fas fa-laptop ath-f-02-comp-card__icon" aria-hidden="true"></i>
+                            </label>
                           </div>
-                        </header>
-                        <div class="ath-f-02-section__body">
-                        <textarea class="dg-f05-field dg-f05-field--textarea ath-f-02-field__textarea" rows="4"
-                          name="athF02_habilidades" [(ngModel)]="perf.habilidadesBlandas"
-                          placeholder="Habilidades blandas requeridas"></textarea>
-                        </div>
-                      </section>
-
-                      <section class="ath-f-02-section" aria-labelledby="ath-f-02-equipo">
-                        <header class="ath-f-02-section__head" id="ath-f-02-equipo">
-                          <span class="ath-f-02-section__badge"><i class="fas fa-laptop" aria-hidden="true"></i></span>
-                          <div class="ath-f-02-section__titles">
-                            <strong class="ath-f-02-section__title">Conocimiento y manejo de equipo para la operación</strong>
-                          </div>
-                        </header>
-                        <div class="ath-f-02-section__body">
-                        <textarea class="dg-f05-field dg-f05-field--textarea ath-f-02-field__textarea" rows="4"
-                          name="athF02_equipo" [(ngModel)]="perf.conocimientoEquipoOperacion"
-                          placeholder="Equipo, sistemas o herramientas para la operación"></textarea>
                         </div>
                       </section>
 
@@ -983,29 +1057,39 @@
                           <span class="ath-f-02-section__badge"><i class="fas fa-clipboard-check" aria-hidden="true"></i></span>
                           <div class="ath-f-02-section__titles">
                             <strong class="ath-f-02-section__title">Requerimientos para el desempeño de sus funciones</strong>
+                            <span class="ath-f-02-section__subtitle">Selecciona los recursos necesarios y completa el detalle</span>
                           </div>
                         </header>
                         <div class="ath-f-02-section__body">
-                        <div class="ath-f-02-req-list">
-                          <div class="ath-f-02-req-item" *ngFor="let item of athF02ReqItems">
-                            <label class="ath-f-02-req-toggle ath-chip ath-chip--check"
-                              [class.ath-chip--on]="perf.requerimientos[item.key].activo">
-                              <input type="checkbox" class="ath-chip__input"
-                                [name]="'athF02_req_' + item.key"
-                                [(ngModel)]="perf.requerimientos[item.key].activo">
-                              <span>{{ item.label }}</span>
-                            </label>
-                            <div class="ath-f-02-req-detail">
-                              <span class="ath-f-02-req-detail__label">{{ item.detalleLabel }}</span>
-                              <input class="dg-f05-field ath-f-02-req-detail__input" type="text"
-                                [name]="'athF02_req_' + item.key + '_det'"
-                                [(ngModel)]="perf.requerimientos[item.key].detalle"
-                                [disabled]="!perf.requerimientos[item.key].activo"
-                                [placeholder]="perf.requerimientos[item.key].activo ? 'Especifique…' : 'Active el requerimiento'"
-                                autocomplete="off">
-                            </div>
+                          <div class="ath-f-02-req-tiles" role="list">
+                            <article class="ath-f-02-req-tile" role="listitem"
+                              *ngFor="let item of athF02ReqItems"
+                              [class.ath-f-02-req-tile--on]="perf.requerimientos[item.key].activo">
+                              <span class="ath-f-02-req-tile__ok" *ngIf="perf.requerimientos[item.key].activo"
+                                aria-hidden="true" title="Seleccionado">
+                                <i class="fas fa-check"></i>
+                              </span>
+                              <label class="ath-f-02-req-tile__check">
+                                <input type="checkbox" class="ath-f-02-req-tile__input"
+                                  [name]="'athF02_req_' + item.key"
+                                  [(ngModel)]="perf.requerimientos[item.key].activo">
+                                <span class="ath-f-02-req-tile__icon-wrap" aria-hidden="true">
+                                  <i class="fas" [ngClass]="item.icon"></i>
+                                </span>
+                                <span class="ath-f-02-req-tile__name">{{ item.label }}</span>
+                              </label>
+                              <div class="ath-f-02-req-tile__detail"
+                                [class.ath-f-02-req-tile__detail--open]="perf.requerimientos[item.key].activo">
+                                <span class="ath-f-02-req-tile__detail-lbl">{{ item.detalleLabel }}</span>
+                                <input class="ath-f-02-req-tile__detail-input" type="text"
+                                  [name]="'athF02_req_' + item.key + '_det'"
+                                  [(ngModel)]="perf.requerimientos[item.key].detalle"
+                                  [disabled]="!perf.requerimientos[item.key].activo"
+                                  [placeholder]="perf.requerimientos[item.key].activo ? 'Especifique…' : 'Activa para editar'"
+                                  autocomplete="off">
+                              </div>
+                            </article>
                           </div>
-                        </div>
                         </div>
                       </section>
 
@@ -1014,68 +1098,117 @@
                           <span class="ath-f-02-section__badge"><i class="fas fa-project-diagram" aria-hidden="true"></i></span>
                           <div class="ath-f-02-section__titles">
                             <strong class="ath-f-02-section__title">Relaciones o interacciones</strong>
-                            <span class="ath-f-02-section__subtitle">Actores internos y externos con los que interactúa el puesto</span>
+                            <span class="ath-f-02-section__subtitle">Define actores arriba; los motivos se generan automáticamente abajo</span>
                           </div>
                         </header>
                         <div class="ath-f-02-section__body">
-                        <div class="ath-rel-body">
-                          <div class="ath-rel-block">
-                            <div class="ath-rel-block__head">
-                              <span class="ath-rel-block__badge ath-rel-block__badge--int">
-                                <i class="fas fa-building" aria-hidden="true"></i>
-                                Internas
-                              </span>
-                              <span class="ath-rel-block__hint">Áreas o puestos con los que interactúa dentro de la organización</span>
-                            </div>
-                            <div class="ath-rel-list">
-                              <article class="ath-rel-card" *ngFor="let r of perf.relacionesInternas; trackBy: trackByRelIdx; let i = index">
-                                <span class="ath-rel-card__num" aria-hidden="true">{{ i + 1 }}</span>
-                                <div class="ath-rel-card__fields">
-                                  <div class="ath-rel-card__field">
-                                    <label class="ath-rel-card__label" [attr.for]="'relIntA' + i">Interna</label>
-                                    <input class="dg-f05-field ath-rel-card__input" type="text" [id]="'relIntA' + i"
-                                      [(ngModel)]="r.actor" [name]="'relIntA' + i"
-                                      placeholder="Ej. Gerencia de operaciones" autocomplete="off">
-                                  </div>
-                                  <div class="ath-rel-card__field ath-rel-card__field--wide">
-                                    <label class="ath-rel-card__label" [attr.for]="'relIntM' + i">Motivo de la interacción</label>
-                                    <input class="dg-f05-field ath-rel-card__input" type="text" [id]="'relIntM' + i"
-                                      [(ngModel)]="r.motivo" [name]="'relIntM' + i"
-                                      placeholder="Describe el motivo o tipo de interacción" autocomplete="off">
-                                  </div>
+                          <div class="ath-rel-body ath-rel-body--split">
+                            <div class="ath-rel-block">
+                              <div class="ath-rel-block__head">
+                                <span class="ath-rel-block__badge ath-rel-block__badge--int">
+                                  <i class="fas fa-building" aria-hidden="true"></i>
+                                  Internas
+                                </span>
+                                <span class="ath-rel-block__hint">Áreas o puestos dentro de la organización</span>
+                              </div>
+                              <div class="ath-rel-actors">
+                                <div class="ath-rel-actor" *ngFor="let r of perf.relacionesInternas; trackBy: trackByRelIdx; let i = index">
+                                  <span class="ath-rel-actor__num" aria-hidden="true">{{ i + 1 }}</span>
+                                  <input class="dg-f05-field ath-rel-actor__input" type="text"
+                                    [id]="'relIntA' + i" [(ngModel)]="r.actor" [name]="'relIntA' + i"
+                                    placeholder="Ej. Gerencia de operaciones" autocomplete="off"
+                                    (ngModelChange)="onAthF02Editado()">
+                                  <button type="button" class="ath-rel-actor__remove"
+                                    (click)="quitarRelacionInternaAthF02(i)"
+                                    [disabled]="perf.relacionesInternas.length <= 1" title="Quitar relación">
+                                    <i class="fas fa-times" aria-hidden="true"></i>
+                                  </button>
                                 </div>
-                              </article>
+                              </div>
+                              <button type="button" class="ath-rel-add" (click)="agregarRelacionInternaAthF02()"
+                                [disabled]="perf.relacionesInternas.length >= athF02MaxRelaciones">
+                                <i class="fas fa-plus" aria-hidden="true"></i>
+                                <span>Agregar interna</span>
+                              </button>
+                            </div>
+                            <div class="ath-rel-block">
+                              <div class="ath-rel-block__head">
+                                <span class="ath-rel-block__badge ath-rel-block__badge--ext">
+                                  <i class="fas fa-handshake" aria-hidden="true"></i>
+                                  Externas
+                                </span>
+                                <span class="ath-rel-block__hint">Clientes, proveedores, autoridades u otros</span>
+                              </div>
+                              <div class="ath-rel-actors">
+                                <div class="ath-rel-actor" *ngFor="let r of perf.relacionesExternas; trackBy: trackByRelIdx; let i = index">
+                                  <span class="ath-rel-actor__num ath-rel-actor__num--ext" aria-hidden="true">{{ i + 1 }}</span>
+                                  <input class="dg-f05-field ath-rel-actor__input" type="text"
+                                    [id]="'relExtA' + i" [(ngModel)]="r.actor" [name]="'relExtA' + i"
+                                    placeholder="Ej. Cliente / autoridad" autocomplete="off"
+                                    (ngModelChange)="onAthF02Editado()">
+                                  <button type="button" class="ath-rel-actor__remove"
+                                    (click)="quitarRelacionExternaAthF02(i)"
+                                    [disabled]="perf.relacionesExternas.length <= 1" title="Quitar relación">
+                                    <i class="fas fa-times" aria-hidden="true"></i>
+                                  </button>
+                                </div>
+                              </div>
+                              <button type="button" class="ath-rel-add ath-rel-add--ext" (click)="agregarRelacionExternaAthF02()"
+                                [disabled]="perf.relacionesExternas.length >= athF02MaxRelaciones">
+                                <i class="fas fa-plus" aria-hidden="true"></i>
+                                <span>Agregar externa</span>
+                              </button>
                             </div>
                           </div>
-                          <div class="ath-rel-block">
-                            <div class="ath-rel-block__head">
-                              <span class="ath-rel-block__badge ath-rel-block__badge--ext">
-                                <i class="fas fa-handshake" aria-hidden="true"></i>
-                                Externas
-                              </span>
-                              <span class="ath-rel-block__hint">Clientes, proveedores, autoridades u otros actores externos</span>
+
+                          <div class="ath-rel-motivos" *ngIf="tieneAlgunaRelacionActivaAthF02(perf); else sinMotivosAthF02">
+                            <div class="ath-rel-motivos__head">
+                              <strong class="ath-rel-motivos__title">Motivo de la interacción</strong>
+                              <span class="ath-rel-motivos__hint">Se muestra un cuadro por cada relación capturada arriba</span>
                             </div>
-                            <div class="ath-rel-list">
-                              <article class="ath-rel-card" *ngFor="let r of perf.relacionesExternas; trackBy: trackByRelIdx; let i = index">
-                                <span class="ath-rel-card__num" aria-hidden="true">{{ i + 1 }}</span>
-                                <div class="ath-rel-card__fields">
-                                  <div class="ath-rel-card__field">
-                                    <label class="ath-rel-card__label" [attr.for]="'relExtA' + i">Externa</label>
-                                    <input class="dg-f05-field ath-rel-card__input" type="text" [id]="'relExtA' + i"
-                                      [(ngModel)]="r.actor" [name]="'relExtA' + i"
-                                      placeholder="Ej. Cliente / autoridad" autocomplete="off">
-                                  </div>
-                                  <div class="ath-rel-card__field ath-rel-card__field--wide">
-                                    <label class="ath-rel-card__label" [attr.for]="'relExtM' + i">Motivo de la interacción</label>
-                                    <input class="dg-f05-field ath-rel-card__input" type="text" [id]="'relExtM' + i"
-                                      [(ngModel)]="r.motivo" [name]="'relExtM' + i"
-                                      placeholder="Describe el motivo o tipo de interacción" autocomplete="off">
-                                  </div>
-                                </div>
-                              </article>
+                            <div class="ath-rel-motivos__grid">
+                              <div class="ath-rel-motivos__col" *ngIf="countRelacionesActivasAthF02(perf.relacionesInternas) as nInt">
+                                <span class="ath-rel-block__badge ath-rel-block__badge--int" *ngIf="nInt > 0">
+                                  <i class="fas fa-building" aria-hidden="true"></i>
+                                  Motivos internas ({{ nInt }})
+                                </span>
+                                <ng-container *ngFor="let r of perf.relacionesInternas; trackBy: trackByRelIdx; let i = index">
+                                  <article class="ath-rel-motivo-card" *ngIf="tieneActorAthF02(r)">
+                                    <span class="ath-rel-motivo-card__who">{{ r.actor }}</span>
+                                    <label class="ath-rel-motivo-card__label" [attr.for]="'relIntM' + i">Motivo</label>
+                                    <textarea class="ath-rel-motivo-card__textarea" rows="2"
+                                      [id]="'relIntM' + i" [(ngModel)]="r.motivo" [name]="'relIntM' + i"
+                                      placeholder="Describe el motivo o tipo de interacción"
+                                      (ngModelChange)="onAthF02Editado()"></textarea>
+                                  </article>
+                                </ng-container>
+                              </div>
+                              <div class="ath-rel-motivos__col" *ngIf="countRelacionesActivasAthF02(perf.relacionesExternas) as nExt">
+                                <span class="ath-rel-block__badge ath-rel-block__badge--ext" *ngIf="nExt > 0">
+                                  <i class="fas fa-handshake" aria-hidden="true"></i>
+                                  Motivos externas ({{ nExt }})
+                                </span>
+                                <ng-container *ngFor="let r of perf.relacionesExternas; trackBy: trackByRelIdx; let i = index">
+                                  <article class="ath-rel-motivo-card ath-rel-motivo-card--ext" *ngIf="tieneActorAthF02(r)">
+                                    <span class="ath-rel-motivo-card__who">{{ r.actor }}</span>
+                                    <label class="ath-rel-motivo-card__label" [attr.for]="'relExtM' + i">Motivo</label>
+                                    <textarea class="ath-rel-motivo-card__textarea" rows="2"
+                                      [id]="'relExtM' + i" [(ngModel)]="r.motivo" [name]="'relExtM' + i"
+                                      placeholder="Describe el motivo o tipo de interacción"
+                                      (ngModelChange)="onAthF02Editado()"></textarea>
+                                  </article>
+                                </ng-container>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                          <ng-template #sinMotivosAthF02>
+                            <div class="ath-rel-motivos ath-rel-motivos--empty">
+                              <div class="ath-rel-motivos__head">
+                                <strong class="ath-rel-motivos__title">Motivo de la interacción</strong>
+                                <span class="ath-rel-motivos__hint">Escribe al menos una relación interna o externa arriba para capturar sus motivos</span>
+                              </div>
+                            </div>
+                          </ng-template>
                         </div>
                       </section>
                     </div>
@@ -5095,6 +5228,88 @@
                       </div>
                     </div>
                   </article>
+
+                  <aside class="dg-f02-attach sgc-f-08-attach" aria-label="Documento firmado">
+                    <div class="dg-f02-attach__head">
+                      <div class="dg-f02-attach__icon-wrap">
+                        <i class="fas fa-file-signature" aria-hidden="true"></i>
+                      </div>
+                      <div>
+                        <h3 class="dg-f02-attach__title">Versión firmada</h3>
+                        <p class="dg-f02-attach__desc mb-0">
+                          Sube el PDF firmado. Cada carga se agrega al historial del plan (no reemplaza versiones anteriores).
+                        </p>
+                      </div>
+                    </div>
+                    <label class="dg-f02-attach__dropzone" *ngIf="!sgcF08Form.pdfFirmado?.driveFileId"
+                      [class.dg-f02-attach__dropzone--busy]="sgcF08SubiendoPdf">
+                      <input type="file" class="dg-f02-attach__input" accept="application/pdf"
+                        (change)="onSeleccionarPdfSgcF08($event)" [disabled]="sgcF08SubiendoPdf">
+                      <span class="dg-f02-attach__dropzone-icon">
+                        <i class="fas" [ngClass]="sgcF08SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                      </span>
+                      <span class="dg-f02-attach__dropzone-title">
+                        {{ sgcF08SubiendoPdf ? 'Subiendo PDF…' : 'Arrastra o selecciona el PDF firmado' }}
+                      </span>
+                      <span class="dg-f02-attach__dropzone-hint">Formato PDF · máximo {{ etiquetaMaxPdfSgc }}</span>
+                    </label>
+                    <input #sgcF08InputActualizarPdf type="file" class="dg-f02-attach__input" accept="application/pdf"
+                      (change)="onSeleccionarPdfSgcF08($event)" [disabled]="sgcF08SubiendoPdf">
+                    <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="sgcF08Form.pdfFirmado as pdf">
+                      <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
+                      <div class="dg-f02-attach__file-info">
+                        <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo || 'SGC-F-08 Plan de auditoría.pdf' }}</strong>
+                        <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                          Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}
+                        </small>
+                      </div>
+                      <div class="dg-f02-attach__file-actions" *ngIf="sgcF08Form.pdfFirmado?.driveFileId">
+                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                          (click)="toggleSgcF08PdfViewer()">
+                          <i class="fas fa-eye mr-1" aria-hidden="true"></i>
+                          Abrir
+                        </button>
+                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
+                          [disabled]="sgcF08SubiendoPdf"
+                          (click)="sgcF08InputActualizarPdf.click()">
+                          <i class="fas mr-1" [ngClass]="sgcF08SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                          {{ sgcF08SubiendoPdf ? 'Subiendo a Drive…' : 'Subir nueva versión' }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="af-f02-historial-pdfs sgc-f-08-historial-pdfs" *ngIf="sgcF08HistorialPdfsVista.length">
+                      <h4 class="af-f02-historial-pdfs__title">
+                        <i class="fas fa-file-pdf mr-1" aria-hidden="true"></i>
+                        Historial de PDFs firmados
+                      </h4>
+                      <p class="af-f02-historial-pdfs__hint">Solo versiones firmadas de este plan de auditoría.</p>
+                      <ul class="af-f02-historial-pdfs__list">
+                        <li class="af-f02-historial-pdfs__item" *ngFor="let hist of sgcF08HistorialPdfsVista">
+                          <div class="af-f02-historial-pdfs__item-main">
+                            <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                            <div>
+                              <strong>{{ hist.nombreArchivo }}</strong>
+                              <small *ngIf="hist.fechaSubida">{{ formatearFechaDgF02(hist.fechaSubida) }}</small>
+                            </div>
+                          </div>
+                          <div class="af-f02-historial-pdfs__actions">
+                            <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                              (click)="toggleSgcF08PdfViewer(hist)">
+                              Abrir
+                            </button>
+                            <button *ngIf="puedeBorrarPdfHistorialSgcF08" type="button"
+                              class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--danger"
+                              [disabled]="sgcF08BorrandoPdf"
+                              (click)="eliminarPdfHistorialSgcF08(hist)"
+                              title="Eliminar PDF del historial">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </li>
+                      </ul>
+                    </div>
+                  </aside>
                 </div>
               </form>
             </ng-container>
@@ -7709,7 +7924,7 @@
                           <div class="sgc-f-10-intro__icon"><i class="fas fa-file-signature" aria-hidden="true"></i></div>
                           <div>
                             <h4 class="sgc-f-10-intro__title">Informe de auditoría</h4>
-                            <p class="sgc-f-10-intro__hint">Datos generales, hallazgos y conclusiones del ciclo de auditoría interna (ISO 9001 · 9.2). Usa «Guardar Histórico» para cerrar el informe actual y abrir uno nuevo.</p>
+                            <p class="sgc-f-10-intro__hint">Datos generales, hallazgos y conclusiones del ciclo de auditoría interna (ISO 9001 · 9.2). Usa «Guardar Histórico» para cerrar el informe actual (Word + PDF en Drive) y abrir uno nuevo.</p>
                           </div>
                         </div>
                         <div class="sgc-f-10-intro__meta">
@@ -8434,6 +8649,73 @@
                       </div>
                     </div>
                   </article>
+
+                  <aside class="dg-f02-attach sgc-f-10-pdf-historial-wrap" aria-label="Historial de PDFs del informe">
+                    <div class="sgc-f-10-pdf-panel__head">
+                      <div class="sgc-f-10-pdf-panel__head-main">
+                        <div class="sgc-f-10-pdf-panel__icon" aria-hidden="true">
+                          <i class="fas fa-file-pdf"></i>
+                        </div>
+                        <div class="sgc-f-10-pdf-panel__titles">
+                          <div class="sgc-f-10-pdf-panel__title-row">
+                            <h3 class="sgc-f-10-pdf-panel__title">PDFs del histórico</h3>
+                            <span class="sgc-f-10-pdf-panel__badge" *ngIf="sgcF10HistorialPdfs.length">
+                              {{ sgcF10HistorialPdfs.length }}
+                              {{ sgcF10HistorialPdfs.length === 1 ? 'archivo' : 'archivos' }}
+                            </span>
+                          </div>
+                          <p class="sgc-f-10-pdf-panel__desc mb-0">
+                            Se generan automáticamente al usar «Guardar Histórico»
+                            (carta · <strong>horizontal</strong> · márgenes estrechos · ajustado al ancho). Sin carga manual.
+                          </p>
+                        </div>
+                      </div>
+                      <div class="sgc-f-10-pdf-panel__chip" aria-hidden="true">
+                        <i class="fas fa-cloud"></i>
+                        <span>Drive</span>
+                      </div>
+                    </div>
+
+                    <div class="sgc-f-10-pdf-panel__body" *ngIf="sgcF10HistorialPdfs.length; else sgcF10SinPdfs">
+                      <div class="sgc-f-10-pdf-panel__section-label">
+                        <i class="fas fa-history" aria-hidden="true"></i>
+                        <span>Historial de informes archivados</span>
+                      </div>
+                      <ul class="sgc-f-10-pdf-panel__list">
+                        <li class="sgc-f-10-pdf-panel__item" *ngFor="let hist of sgcF10HistorialPdfs; let i = index">
+                          <div class="sgc-f-10-pdf-panel__item-main">
+                            <span class="sgc-f-10-pdf-panel__ver">{{ sgcF10HistorialPdfs.length - i }}</span>
+                            <span class="sgc-f-10-pdf-panel__file-ico" aria-hidden="true">
+                              <i class="fas fa-file-pdf"></i>
+                            </span>
+                            <div class="sgc-f-10-pdf-panel__meta">
+                              <strong class="sgc-f-10-pdf-panel__name">{{ hist.nombreArchivo }}</strong>
+                              <small class="sgc-f-10-pdf-panel__date" *ngIf="hist.fechaSubida">
+                                <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                                Generado el {{ formatearFechaDgF02(hist.fechaSubida) }}
+                              </small>
+                            </div>
+                          </div>
+                          <div class="sgc-f-10-pdf-panel__actions">
+                            <button type="button" class="sgc-f-10-pdf-panel__btn"
+                              (click)="toggleSgcF10PdfViewer(hist)">
+                              <i class="fas fa-eye" aria-hidden="true"></i>
+                              Abrir
+                            </button>
+                          </div>
+                        </li>
+                      </ul>
+                    </div>
+                    <ng-template #sgcF10SinPdfs>
+                      <div class="sgc-f-10-pdf-historial-empty">
+                        <i class="fas fa-inbox" aria-hidden="true"></i>
+                        <div>
+                          <strong>Aún no hay PDFs históricos</strong>
+                          <p class="mb-0">Al guardar el histórico de una auditoría, el PDF aparecerá aquí automáticamente.</p>
+                        </div>
+                      </div>
+                    </ng-template>
+                  </aside>
                 </div>
               </form>
             </ng-container>
@@ -12436,76 +12718,78 @@
                       </div>
                     </header>
 
-                    <div class="sgc-f-02-lead">
-                      <div class="sgc-f-02-lead__icon" aria-hidden="true">
-                        <i class="fas fa-users"></i>
-                      </div>
-                      <div class="sgc-f-02-lead__body">
-                        <h4 class="sgc-f-02-lead__title">Solicitudes por persona</h4>
-                        <p class="sgc-f-02-lead__hint">
-                          Un registro por solicitante: todos sus documentos quedan dentro de la misma tarjeta
-                          (y una sola hoja Excel). Al guardar se conserva en la base de datos.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div class="sgc-f-02-lista">
-                      <div class="sgc-f-02-lista__toolbar">
-                        <label class="sgc-f-02-lista__search">
-                          <i class="fas fa-search" aria-hidden="true"></i>
-                          <input class="dg-f05-field" type="search" name="sgcF02_busqueda"
-                            [(ngModel)]="sgcF02Busqueda" placeholder="Buscar solicitante, puesto o área…"
-                            autocomplete="off">
-                        </label>
-                        <button type="button" class="sgc-f-02-lista__btn-nuevo" (click)="nuevaSolicitudSgcF02()">
-                          <i class="fas fa-plus" aria-hidden="true"></i>
-                          Nueva solicitud
-                        </button>
+                    <ng-container *ngIf="esSuperAdminSgcF01">
+                      <div class="sgc-f-02-lead">
+                        <div class="sgc-f-02-lead__icon" aria-hidden="true">
+                          <i class="fas fa-users"></i>
+                        </div>
+                        <div class="sgc-f-02-lead__body">
+                          <h4 class="sgc-f-02-lead__title">Solicitudes por persona</h4>
+                          <p class="sgc-f-02-lead__hint">
+                            Un registro por solicitante: todos sus documentos quedan dentro de la misma tarjeta
+                            (y una sola hoja Excel). Al guardar se conserva en la base de datos.
+                          </p>
+                        </div>
                       </div>
 
-                      <div class="sgc-f-02-lista__stats">
-                        <span class="sgc-f-02-lista__stat">
-                          <strong>{{ sgcF02Form.solicitudes.length }}</strong>
-                          {{ sgcF02Form.solicitudes.length === 1 ? 'solicitante' : 'solicitantes' }}
-                        </span>
-                      </div>
-
-                      <ul class="sgc-f-02-lista__grid" *ngIf="sgcF02SolicitudesVista.length; else sgcF02ListaVacia">
-                        <li class="sgc-f-02-person" *ngFor="let s of sgcF02SolicitudesVista; trackBy: trackByIdx">
-                          <button type="button" class="sgc-f-02-person__tap" (click)="abrirSolicitudSgcF02(s)">
-                            <span class="sgc-f-02-person__avatar" aria-hidden="true">
-                              {{ inicialesSgcF02(s.nombreSolicitante) }}
-                            </span>
-                            <span class="sgc-f-02-person__body">
-                              <strong class="sgc-f-02-person__nombre">{{ s.nombreSolicitante || 'Sin nombre' }}</strong>
-                              <span class="sgc-f-02-person__meta" *ngIf="s.puestoSolicitante">
-                                <span><i class="fas fa-id-badge" aria-hidden="true"></i> {{ s.puestoSolicitante }}</span>
-                              </span>
-                              <span class="sgc-f-02-person__foot" *ngIf="s.fechaSolicitud">
-                                <span class="sgc-f-02-person__fecha">
-                                  <i class="far fa-calendar-alt" aria-hidden="true"></i>
-                                  {{ s.fechaSolicitud | date:'dd/MM/yyyy' }}
-                                </span>
-                              </span>
-                            </span>
-                          </button>
-                          <button type="button" class="sgc-f-02-person__del"
-                            (click)="eliminarSolicitudSgcF02(s, $event)" title="Eliminar solicitud de esta persona">
-                            <i class="fas fa-trash-alt" aria-hidden="true"></i>
-                          </button>
-                        </li>
-                      </ul>
-                      <ng-template #sgcF02ListaVacia>
-                        <div class="sgc-f-02-lista__empty">
-                          <i class="fas fa-inbox" aria-hidden="true"></i>
-                          <p>No hay solicitudes todavía. Crea la primera con el nombre del solicitante y agrega ahí todos sus documentos.</p>
+                      <div class="sgc-f-02-lista">
+                        <div class="sgc-f-02-lista__toolbar">
+                          <label class="sgc-f-02-lista__search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input class="dg-f05-field" type="search" name="sgcF02_busqueda"
+                              [(ngModel)]="sgcF02Busqueda" placeholder="Buscar solicitante, puesto o área…"
+                              autocomplete="off">
+                          </label>
                           <button type="button" class="sgc-f-02-lista__btn-nuevo" (click)="nuevaSolicitudSgcF02()">
                             <i class="fas fa-plus" aria-hidden="true"></i>
                             Nueva solicitud
                           </button>
                         </div>
-                      </ng-template>
-                    </div>
+
+                        <div class="sgc-f-02-lista__stats">
+                          <span class="sgc-f-02-lista__stat">
+                            <strong>{{ sgcF02Form.solicitudes.length }}</strong>
+                            {{ sgcF02Form.solicitudes.length === 1 ? 'solicitante' : 'solicitantes' }}
+                          </span>
+                        </div>
+
+                        <ul class="sgc-f-02-lista__grid" *ngIf="sgcF02SolicitudesVista.length; else sgcF02ListaVacia">
+                          <li class="sgc-f-02-person" *ngFor="let s of sgcF02SolicitudesVista; trackBy: trackByIdx">
+                            <button type="button" class="sgc-f-02-person__tap" (click)="abrirSolicitudSgcF02(s)">
+                              <span class="sgc-f-02-person__avatar" aria-hidden="true">
+                                {{ inicialesSgcF02(s.nombreSolicitante) }}
+                              </span>
+                              <span class="sgc-f-02-person__body">
+                                <strong class="sgc-f-02-person__nombre">{{ s.nombreSolicitante || 'Sin nombre' }}</strong>
+                                <span class="sgc-f-02-person__meta" *ngIf="s.puestoSolicitante">
+                                  <span><i class="fas fa-id-badge" aria-hidden="true"></i> {{ s.puestoSolicitante }}</span>
+                                </span>
+                                <span class="sgc-f-02-person__foot" *ngIf="s.fechaSolicitud">
+                                  <span class="sgc-f-02-person__fecha">
+                                    <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                                    {{ s.fechaSolicitud | date:'dd/MM/yyyy' }}
+                                  </span>
+                                </span>
+                              </span>
+                            </button>
+                            <button type="button" class="sgc-f-02-person__del"
+                              (click)="eliminarSolicitudSgcF02(s, $event)" title="Eliminar solicitud de esta persona">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                          </li>
+                        </ul>
+                        <ng-template #sgcF02ListaVacia>
+                          <div class="sgc-f-02-lista__empty">
+                            <i class="fas fa-inbox" aria-hidden="true"></i>
+                            <p>No hay solicitudes todavía. Crea la primera con el nombre del solicitante y agrega ahí todos sus documentos.</p>
+                            <button type="button" class="sgc-f-02-lista__btn-nuevo" (click)="nuevaSolicitudSgcF02()">
+                              <i class="fas fa-plus" aria-hidden="true"></i>
+                              Nueva solicitud
+                            </button>
+                          </div>
+                        </ng-template>
+                      </div>
+                    </ng-container>
 
                     <section class="sgc-f-02-fisicos" aria-labelledby="sgc-f-02-fisicos-title">
                       <header class="sgc-f-02-fisicos__head">
@@ -12621,8 +12905,8 @@
                     </section>
                   </article>
 
-                  <!-- Editor de una solicitud -->
-                  <article class="dg-f05-doc sgc-f-02-doc" *ngIf="sgcF02Vista === 'editor' && sgcF02SolicitudActiva as sol">
+                  <!-- Editor de una solicitud (solo super administrador) -->
+                  <article class="dg-f05-doc sgc-f-02-doc" *ngIf="esSuperAdminSgcF01 && sgcF02Vista === 'editor' && sgcF02SolicitudActiva as sol">
                     <div class="sgc-f-02-editor-bar">
                       <button type="button" class="sgc-f-02-editor-bar__back" (click)="volverListaSgcF02()">
                         <i class="fas fa-arrow-left" aria-hidden="true"></i> Volver a la lista
@@ -13107,20 +13391,6 @@
                       <h1 class="dg-f02-block__heading text-center mb-4">OBJETIVOS DE CALIDAD</h1>
                       <section class="dg-f02-block dg-f02-block--grow">
                         <div class="dg-f02-block__editor dg-f03-objetivos-editor">
-                          <header class="dg-f03-objetivos-toolbar">
-                            <div class="dg-f03-objetivos-toolbar__meta">
-                              <span class="dg-f03-objetivos-toolbar__title">Lista de objetivos</span>
-                              <span class="dg-f03-objetivos-toolbar__count">
-                                {{ itemsObjetivosDgF03.length }}
-                                {{ itemsObjetivosDgF03.length === 1 ? 'objetivo' : 'objetivos' }}
-                              </span>
-                            </div>
-                            <span class="dg-f03-objetivos-toolbar__badge" aria-hidden="true">
-                              <i class="fas fa-pen"></i>
-                              Editable
-                            </span>
-                          </header>
-
                           <ol class="dg-f03-objetivos-list">
                             <li *ngFor="let item of itemsObjetivosDgF03; let i = index; trackBy: trackByIndex"
                               class="dg-f03-objetivos-list__item">
@@ -13176,32 +13446,90 @@
                   <aside class="dg-f02-attach" aria-label="Documento firmado">
                     <div class="dg-f02-attach__head">
                       <div class="dg-f02-attach__icon-wrap"><i class="fas fa-file-signature" aria-hidden="true"></i></div>
-                      <div><h3 class="dg-f02-attach__title">Versión firmada</h3>
-                        <p class="dg-f02-attach__desc mb-0">Sube el PDF con firmas de dirección para el expediente del SGC.</p></div>
+                      <div>
+                        <h3 class="dg-f02-attach__title">Versión firmada</h3>
+                        <p class="dg-f02-attach__desc mb-0">
+                          Sube el PDF firmado. Cada carga se agrega al historial de este formato (no reemplaza versiones anteriores).
+                        </p>
+                      </div>
                     </div>
-                    <label class="dg-f02-attach__dropzone" *ngIf="!dgF03Form.pdfFirmado?.driveFileId" [class.dg-f02-attach__dropzone--busy]="dgF03SubiendoPdf">
-                      <input type="file" class="dg-f02-attach__input" accept="application/pdf" (change)="onSeleccionarPdfDgF03($event)" [disabled]="dgF03SubiendoPdf">
-                      <span class="dg-f02-attach__dropzone-icon"><i class="fas" [ngClass]="dgF03SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i></span>
-                      <span class="dg-f02-attach__dropzone-title">{{ dgF03SubiendoPdf ? 'Subiendo PDF…' : 'Arrastra o selecciona el PDF firmado' }}</span>
+                    <label class="dg-f02-attach__dropzone" *ngIf="!dgF03Form.pdfFirmado?.driveFileId"
+                      [class.dg-f02-attach__dropzone--busy]="dgF03SubiendoPdf">
+                      <input type="file" class="dg-f02-attach__input" accept="application/pdf"
+                        (change)="onSeleccionarPdfDgF03($event)" [disabled]="dgF03SubiendoPdf">
+                      <span class="dg-f02-attach__dropzone-icon">
+                        <i class="fas" [ngClass]="dgF03SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                      </span>
+                      <span class="dg-f02-attach__dropzone-title">
+                        {{ dgF03SubiendoPdf ? 'Subiendo PDF…' : 'Arrastra o selecciona el PDF firmado' }}
+                      </span>
                       <span class="dg-f02-attach__dropzone-hint">Formato PDF · máximo {{ etiquetaMaxPdfSgc }}</span>
                     </label>
-                    <input #dgF03InputActualizarPdf type="file" class="dg-f02-attach__input" accept="application/pdf" (change)="onSeleccionarPdfDgF03($event)" [disabled]="dgF03SubiendoPdf">
+                    <input #dgF03InputActualizarPdf type="file" class="dg-f02-attach__input" accept="application/pdf"
+                      (change)="onSeleccionarPdfDgF03($event)" [disabled]="dgF03SubiendoPdf">
                     <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="dgF03Form.pdfFirmado as pdf">
                       <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
                       <div class="dg-f02-attach__file-info">
+                        <span class="dg-f02-attach__file-badge">Vigente</span>
                         <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo || 'DG-F-03 Objetivos de calidad.pdf' }}</strong>
-                        <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}</small>
+                        <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                          <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                          Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}
+                        </small>
                       </div>
                       <div class="dg-f02-attach__file-actions" *ngIf="dgF03Form.pdfFirmado?.driveFileId">
-                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn" (click)="toggleDgF03PdfViewer()">
-                          <i class="fas fa-eye mr-1" aria-hidden="true"></i> Abrir
+                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                          (click)="toggleDgF03PdfViewer()">
+                          <i class="fas fa-eye" aria-hidden="true"></i>
+                          Abrir
                         </button>
                         <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
-                          [disabled]="dgF03SubiendoPdf" (click)="dgF03InputActualizarPdf.click()">
-                          <i class="fas mr-1" [ngClass]="dgF03SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-sync-alt'" aria-hidden="true"></i>
-                          {{ dgF03SubiendoPdf ? 'Subiendo a Drive…' : 'Actualizar Documento' }}
+                          [disabled]="dgF03SubiendoPdf"
+                          (click)="dgF03InputActualizarPdf.click()">
+                          <i class="fas" [ngClass]="dgF03SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                          {{ dgF03SubiendoPdf ? 'Subiendo…' : 'Nueva versión' }}
                         </button>
                       </div>
+                    </div>
+
+                    <div class="sgc-pdf-historial" *ngIf="dgF03HistorialPdfs.length">
+                      <div class="sgc-pdf-historial__head">
+                        <div class="sgc-pdf-historial__icon" aria-hidden="true">
+                          <i class="fas fa-history"></i>
+                        </div>
+                        <div>
+                          <h4 class="sgc-pdf-historial__title">Historial de PDFs firmados</h4>
+                          <p class="sgc-pdf-historial__hint">Solo versiones firmadas de este formato.</p>
+                        </div>
+                      </div>
+                      <ul class="sgc-pdf-historial__list">
+                        <li class="sgc-pdf-historial__item" *ngFor="let hist of dgF03HistorialPdfs; let i = index">
+                          <div class="sgc-pdf-historial__item-main">
+                            <span class="sgc-pdf-historial__ver">{{ dgF03HistorialPdfs.length - i }}</span>
+                            <div class="sgc-pdf-historial__meta">
+                              <strong class="sgc-pdf-historial__name">{{ hist.nombreArchivo }}</strong>
+                              <small class="sgc-pdf-historial__date" *ngIf="hist.fechaSubida">
+                                <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                                {{ formatearFechaDgF02(hist.fechaSubida) }}
+                              </small>
+                            </div>
+                          </div>
+                          <div class="sgc-pdf-historial__actions">
+                            <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                              (click)="toggleDgF03PdfViewer(hist)">
+                              <i class="fas fa-eye" aria-hidden="true"></i>
+                              Abrir
+                            </button>
+                            <button *ngIf="puedeBorrarPdfHistorialDgF03" type="button"
+                              class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--danger"
+                              [disabled]="dgF03BorrandoPdf"
+                              (click)="eliminarPdfHistorialDgF03(hist)"
+                              title="Eliminar PDF del historial">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </li>
+                      </ul>
                     </div>
                   </aside>
                 </div>
@@ -13671,6 +13999,40 @@
         (load)="onSgcF10IframeLoad()"
         allow="clipboard-read; clipboard-write"
         sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-popups-to-escape-sandbox">
+      </iframe>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-drive-editor-fullscreen" *ngIf="mostrarSgcF10PdfViewer"
+  role="dialog" aria-modal="true" aria-label="Visor PDF SGC-F-10">
+  <div class="sgc-drive-editor-fullscreen__backdrop" (click)="toggleSgcF10PdfViewer()"></div>
+  <div class="sgc-drive-editor-fullscreen__panel">
+    <div class="sgc-drive-editor-fullscreen__head">
+      <div class="sgc-drive-editor-fullscreen__title-wrap">
+        <span class="sgc-drive-editor-fullscreen__icon">
+          <i class="fas fa-file-pdf" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ sgcF10PdfViewerTitulo }}</strong>
+          <small class="sgc-drive-editor-fullscreen__subtitle">Vista previa del PDF · solo lectura</small>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-light" type="button" (click)="toggleSgcF10PdfViewer()">
+        <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+      </button>
+    </div>
+    <div class="sgc-drive-editor-fullscreen__body">
+      <div class="sgc-drive-editor-fullscreen__loading" *ngIf="sgcF10PdfCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando PDF…</span>
+      </div>
+      <iframe *ngIf="sgcF10PdfEmbedUrlSafe"
+        class="sgc-drive-editor-fullscreen__iframe"
+        [src]="sgcF10PdfEmbedUrlSafe"
+        [title]="sgcF10PdfViewerTitulo"
+        (load)="onSgcF10PdfIframeLoad()"
+        allow="autoplay">
       </iframe>
     </div>
   </div>
@@ -14346,6 +14708,40 @@
   </div>
 </div>
 
+<div class="sgc-drive-editor-fullscreen" *ngIf="mostrarSgcF08PdfViewer"
+  role="dialog" aria-modal="true" aria-label="Visor PDF SGC-F-08">
+  <div class="sgc-drive-editor-fullscreen__backdrop" (click)="toggleSgcF08PdfViewer()"></div>
+  <div class="sgc-drive-editor-fullscreen__panel">
+    <div class="sgc-drive-editor-fullscreen__head">
+      <div class="sgc-drive-editor-fullscreen__title-wrap">
+        <span class="sgc-drive-editor-fullscreen__icon">
+          <i class="fas fa-file-pdf" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ sgcF08PdfViewerActual?.nombreArchivo || sgcF08Form.pdfFirmado?.nombreArchivo || 'SGC-F-08 Plan de auditoría.pdf' }}</strong>
+          <small class="sgc-drive-editor-fullscreen__subtitle">Vista previa del PDF · solo lectura</small>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-light" type="button" (click)="toggleSgcF08PdfViewer()">
+        <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+      </button>
+    </div>
+    <div class="sgc-drive-editor-fullscreen__body">
+      <div class="sgc-drive-editor-fullscreen__loading" *ngIf="sgcF08PdfCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando PDF…</span>
+      </div>
+      <iframe *ngIf="sgcF08PdfEmbedUrlSafe"
+        class="sgc-drive-editor-fullscreen__iframe"
+        [src]="sgcF08PdfEmbedUrlSafe"
+        [title]="sgcF08PdfViewerActual?.nombreArchivo || sgcF08Form.pdfFirmado?.nombreArchivo || 'SGC-F-08 Plan de auditoría.pdf'"
+        (load)="onSgcF08PdfIframeLoad()"
+        allow="autoplay">
+      </iframe>
+    </div>
+  </div>
+</div>
+
 <div class="sgc-drive-editor-fullscreen" *ngIf="mostrarDgF08PdfViewer"
   role="dialog" aria-modal="true" aria-label="Visor PDF DG-F-08">
   <div class="sgc-drive-editor-fullscreen__backdrop" (click)="toggleDgF08PdfViewer()"></div>
@@ -14856,7 +15252,7 @@
       <div class="sgc-drive-editor-fullscreen__title-wrap">
         <span class="sgc-drive-editor-fullscreen__icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></span>
         <div>
-          <strong class="sgc-drive-editor-fullscreen__title">{{ dgF03Form.pdfFirmado?.nombreArchivo || 'DG-F-03 Objetivos de calidad.pdf' }}</strong>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ dgF03PdfViewerTitulo }}</strong>
           <small class="sgc-drive-editor-fullscreen__subtitle">Vista previa del PDF · solo lectura</small>
         </div>
       </div>
@@ -14869,12 +15265,12 @@
         <i class="fas fa-spinner fa-spin" aria-hidden="true"></i><span>Cargando PDF…</span>
       </div>
       <iframe *ngIf="dgF03PdfEmbedUrlSafe" class="sgc-drive-editor-fullscreen__iframe" [src]="dgF03PdfEmbedUrlSafe"
-        [title]="dgF03Form.pdfFirmado?.nombreArchivo || 'DG-F-03 Objetivos de calidad.pdf'" (load)="onDgF03PdfIframeLoad()" allow="autoplay"></iframe>
+        [title]="dgF03PdfViewerTitulo" (load)="onDgF03PdfIframeLoad()" allow="autoplay"></iframe>
     </div>
   </div>
 </div>
 
-<!-- Visor documentación física SGC-F-02 -->
+<!-- Visor documentación física SGC-F-02 (zoom + rotación como procedimientos) -->
 <div class="sgc-f-02-visor" *ngIf="sgcF02VisorDoc"
   role="dialog" aria-modal="true"
   [attr.aria-label]="'Vista de ' + sgcF02VisorDoc.nombre">
@@ -14909,29 +15305,17 @@
         </button>
       </div>
     </header>
-    <div class="sgc-f-02-visor__toolbar" aria-hidden="true">
-      <span class="sgc-f-02-visor__toolbar-label">
-        <i class="fas fa-bars" aria-hidden="true"></i>
-        DOCUMENTACIÓN FÍSICA
-      </span>
-      <span class="sgc-f-02-visor__toolbar-hint">Vista previa integrada · Google Drive</span>
-    </div>
     <div class="sgc-f-02-visor__body">
-      <div class="sgc-f-02-visor__loading" *ngIf="sgcF02VisorCargando && !sgcF02VisorError">
-        <div class="sgc-f-02-visor__spinner">
-          <i class="fas" [ngClass]="sgcF02VisorDoc.tipo === 'pdf' ? 'fa-file-pdf' : 'fa-file-image'" aria-hidden="true"></i>
-        </div>
-        <span>Preparando vista previa…</span>
-      </div>
-      <iframe *ngIf="!sgcF02VisorError && sgcF02VisorUrlSafe"
-        class="sgc-f-02-visor__iframe"
-        [class.sgc-f-02-visor__iframe--ready]="!sgcF02VisorCargando"
-        [src]="sgcF02VisorUrlSafe"
-        [title]="sgcF02VisorDoc.nombre"
-        allow="autoplay"
-        (load)="onSgcF02VisorLoad()"
-        (error)="onSgcF02VisorError()">
-      </iframe>
+      <app-pdf-canvas-viewer
+        *ngIf="!sgcF02VisorError"
+        [blob]="sgcF02VisorBlob"
+        [preparando]="sgcF02VisorCargando && !sgcF02VisorBlob"
+        [progresoServidor]="sgcF02VisorProgreso"
+        [etiquetaServidor]="sgcF02VisorEtiqueta"
+        [lento]="sgcF02VisorLento"
+        tema="oscuro"
+        (fallo)="onSgcF02VisorError($event)">
+      </app-pdf-canvas-viewer>
       <div *ngIf="sgcF02VisorError" class="sgc-f-02-visor__fallback">
         <i class="fas fa-exclamation-triangle fa-2x mb-3" aria-hidden="true"></i>
         <p class="mb-2">{{ sgcF02VisorError }}</p>

@@ -127,15 +127,45 @@ function normalizarOpcion(valor, opciones) {
 }
 
 function sanitizarProyecto(item) {
-    const id = String(item?.id || '').trim().slice(0, 64);
+    const folio = String(item?.folio || '').trim();
+    // Folio es la clave estable (sobrevive sync Drive); si no hay folio, conservar id enviado.
+    const id = String(item?.id || folio || '').trim().slice(0, 64);
     return {
         ...(id ? { id } : {}),
-        folio: String(item?.folio || '').trim(),
+        folio,
         nombreProyecto: String(item?.nombreProyecto || '').trim(),
         responsable: String(item?.responsable || '').trim(),
         prioridad: normalizarOpcion(item?.prioridad, PRIORIDADES_VALIDAS),
         estatus: normalizarOpcion(item?.estatus, ESTATUS_VALIDOS),
         avance: parsearAvance(item?.avance)
+    };
+}
+
+/** Conserva ids de BD al releer la hoja de Drive (la hoja no tiene columna id). */
+function fusionarIdsProyectos(datosDrive, datosDb) {
+    const drive = sanitizarDatos(datosDrive || DATOS_DEFECTO);
+    const dbProyectos = Array.isArray(datosDb?.proyectos) ? datosDb.proyectos : [];
+    const porFolio = new Map();
+    const porNombre = new Map();
+    for (const p of dbProyectos) {
+        const folio = String(p?.folio || '').trim().toLowerCase();
+        const nombre = String(p?.nombreProyecto || '').trim().toLowerCase();
+        const id = String(p?.id || folio || '').trim();
+        if (folio && id) porFolio.set(folio, id);
+        if (nombre && id) porNombre.set(nombre, id);
+    }
+    return {
+        ...drive,
+        proyectos: drive.proyectos.map((p) => {
+            const folio = String(p.folio || '').trim().toLowerCase();
+            const nombre = String(p.nombreProyecto || '').trim().toLowerCase();
+            const idResuelto = p.id
+                || (folio ? porFolio.get(folio) : null)
+                || (nombre ? porNombre.get(nombre) : null)
+                || p.folio
+                || '';
+            return idResuelto ? { ...p, id: String(idResuelto).slice(0, 64) } : p;
+        })
     };
 }
 
@@ -755,6 +785,12 @@ async function cargarFormato(pool) {
             const buffer = await descargarBufferDrive(driveFileId);
             datos = await leerDatosDesdeBuffer(buffer);
             archivoDrive = await driveService.obtenerInfoArchivo(driveFileId).catch(() => null);
+            const datosDb = await leerDatosRegistro(registro);
+            if (datosDb) {
+                datos = fusionarIdsProyectos(datos, datosDb);
+            } else {
+                datos = fusionarIdsProyectos(datos, null);
+            }
         } catch (err) {
             console.warn('[SGC-F-14] No se pudo leer archivo en Drive, usando BD/plantilla:', err.message);
         }
@@ -771,6 +807,8 @@ async function cargarFormato(pool) {
             datos = sanitizarDatos(DATOS_DEFECTO);
         }
     }
+    // Asegura id estable (= folio) aunque vengan solo de plantilla/BD sin id.
+    datos = fusionarIdsProyectos(datos, datos);
 
     if (!registro) {
         registro = {
