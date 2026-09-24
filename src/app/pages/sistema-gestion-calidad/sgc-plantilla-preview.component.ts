@@ -2752,6 +2752,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   mostrarDgF04Editor = false;
   dgF04EditorCargando = false;
   dgF04ActualizandoPlantilla = false;
+  dgF04DescargandoPdf = false;
 
   dgF05Cargando = false;
   dgF05Guardando = false;
@@ -8993,6 +8994,56 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
               icon: 'error',
               title: 'No se pudo guardar',
               text: 'Guarda el reporte antes de enviarlo por correo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+    abrir();
+  }
+
+  abrirEnvioCorreoSpF07(): void {
+    if (!this.spF07PlanActivo || this.envioDocCorreoVisible) {
+      return;
+    }
+    const etiqueta =
+      'Curso de capacitación de auditores internos para auditar sistemas de gestión de calidad ISO 9001:2015';
+    const folio = String(this.spF07PlanActivo.folio || '').trim();
+    const planId = this.spF07PlanActivo.id;
+    this.envioDocCorreoAsunto = `Envió de PLAN DE CURSOS "${etiqueta}"`;
+    this.envioDocCorreoMensaje =
+      `Se adjunta el plan de curso SP-F-07 correspondiente a «${etiqueta}».`;
+    this.envioDocCorreoNombrePdf = folio
+      ? `SP-F-07 ${folio}.pdf`.replace(/[\\/:*?"<>|]+/g, '_')
+      : 'SP-F-07 Plan del curso.pdf';
+    this.envioDocCorreoPdfLoader = () => this.backendService.descargarPdfSpF07(planId);
+
+    const abrir = () => {
+      this.envioDocCorreoVisible = true;
+    };
+
+    if (this.spF07CambiosPendientes && this.spF07Listo && !this.spF07Guardando) {
+      this.spF07Guardando = true;
+      this.sincronizarPlanActivoEnFormSpF07();
+      this.backendService.guardarSpF07Formato(
+        { ...this.spF07Form, planActivoId: planId },
+        false
+      )
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.aplicarEstadoSpF07(res, true, false, true);
+            this.spF07CambiosPendientes = false;
+            this.spF07Guardando = false;
+            abrir();
+          },
+          error: () => {
+            this.spF07Guardando = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'Guarda el plan antes de enviarlo por correo.',
               confirmButtonText: 'Entendido'
             });
           }
@@ -17887,6 +17938,44 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const entradas = this.filasTexto(proc.entradas);
     const salidas = this.filasTexto(proc.salidas);
     return Math.max(entradas, salidas, 4);
+  }
+
+  descargarPdfDgF04(): void {
+    if (this.dgF04DescargandoPdf) {
+      return;
+    }
+    this.dgF04DescargandoPdf = true;
+    this.backendService.descargarPdfDgF04()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.dgF04DescargandoPdf = false;
+          if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo generar el PDF',
+              text: 'Guarda la información y vuelve a intentar. Si el problema continúa, revisa que la hoja exista en Drive.',
+              confirmButtonText: 'Entendido'
+            });
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = 'DG-F-04 Analisis FODA.pdf';
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.dgF04DescargandoPdf = false;
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo descargar el PDF',
+            text: 'No se pudo exportar el Análisis FODA. Verifica la conexión con Drive e inténtalo de nuevo.',
+            confirmButtonText: 'Entendido'
+          });
+        }
+      });
   }
 
   private cargarDgF04DesdeServidor(): void {

@@ -26612,6 +26612,21 @@ app.post('/api/sgc/formatos/dg-f-04/actualizar-plantilla', requireRole('root'), 
     }
 });
 
+app.get('/api/sgc/formatos/dg-f-04/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcDgF04Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="DG-F-04 Analisis FODA.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de DG-F-04');
+    }
+});
+
 app.get('/api/sgc/formatos/dg-f-05', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;

@@ -2497,6 +2497,12 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/dg-f-04/actualizar-plantilla`, {});
     }
 
+    descargarPdfDgF04(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/dg-f-04/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarDgF05Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/dg-f-05`);
     }

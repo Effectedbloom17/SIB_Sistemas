@@ -1286,6 +1286,41 @@ async function sincronizarDesdeDrive(pool) {
     return construirRespuesta(registroActualizado, datosGuardar, archivoDrive);
 }
 
+/**
+ * Exporta el Google Sheet vigente a PDF sin alterar celdas ni estilos de la plantilla.
+ */
+async function descargarPlantillaPdf(pool) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    let driveFileId = await resolverDriveFileId(registro);
+    if (!driveFileId) {
+        throw new Error('No hay Google Sheet DG-F-04 configurado para exportar a PDF.');
+    }
+
+    let gid = null;
+    try {
+        gid = await driveService.obtenerGidHojaPorNombre(driveFileId, SHEET_TITLE);
+    } catch (err) {
+        console.warn('[DG-F-04] No se pudo resolver gid de hoja para PDF:', err.message);
+    }
+    if (gid == null) {
+        throw new Error(`No se encontró la hoja «${SHEET_TITLE}» para exportar a PDF.`);
+    }
+
+    // Misma hoja de Drive: horizontal, ajustar al ancho (sin tocar el layout del sheet).
+    const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
+        gid,
+        landscape: true,
+        fitToWidth: true,
+        size: 'letter',
+        margins: 'normales'
+    });
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de DG-F-04 quedó vacía.');
+    }
+    return Buffer.from(pdfBuffer);
+}
+
 module.exports = {
     CODIGO_FORMATO,
     DATOS_DEFECTO,
@@ -1293,5 +1328,6 @@ module.exports = {
     guardarFormato,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
+    descargarPlantillaPdf,
     sanitizarDatos
 };

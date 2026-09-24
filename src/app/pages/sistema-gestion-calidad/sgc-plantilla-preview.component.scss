@@ -2278,8 +2278,9 @@ $dg-f04-amenazas-head: #fae0e0;
 }
 
 .dg-f04-table--row {
+  // Truco clásico: permite que height:100% en celdas hijas respete la fila más alta.
+  height: 1px;
   width: 100%;
-  height: 100%;
 
   tbody tr {
     height: 100%;
@@ -2322,6 +2323,68 @@ $dg-f04-amenazas-head: #fae0e0;
 
     .dg-f05-field--textarea {
       text-align: left;
+    }
+  }
+}
+
+// Solo interfaz (no afecta PDF/Drive): anula el "pill" de SGC-F-06 y centra
+// el contenido. La columna del factor define la altura de la fila; Responsable
+// (y Seguimiento en Fortalezas) se centran con absolute + translateY.
+@mixin dg-f04-textarea-sin-pill {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  max-height: none !important;
+  border-radius: 4px !important;
+  padding: 0.35rem 0.4rem !important;
+  line-height: 1.45 !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+  resize: none;
+}
+
+@mixin dg-f04-celda-vcenter {
+  position: relative;
+  vertical-align: middle !important;
+
+  > .dg-f04-vcenter-field {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    display: block;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    padding: 0.55rem 0.32rem;
+    box-sizing: border-box;
+  }
+
+  .dg-f05-field--textarea.dg-f05-field--center {
+    @include dg-f04-textarea-sin-pill;
+  }
+}
+
+// Fortalezas: Responsable + Seguimiento centrados en vertical
+.dg-f04-section--fortalezas {
+  .dg-f04-table--row {
+    tbody td.dg-f04-table__col--responsable,
+    tbody td.dg-f04-table__col--seguimiento {
+      @include dg-f04-celda-vcenter;
+    }
+  }
+}
+
+// Oportunidades / Debilidades / Amenazas: solo Responsable
+.dg-f04-section--oportunidades,
+.dg-f04-section--debilidades,
+.dg-f04-section--amenazas {
+  .dg-f04-table--row {
+    tbody td.dg-f04-table__col--responsable {
+      @include dg-f04-celda-vcenter;
     }
   }
 }
@@ -10303,7 +10366,8 @@ $dg-f02-layout-max: 46.5rem;
   text-align: center;
 }
 
-.dg-f05-table td .dg-f05-field--center,
+// Pill solo en inputs/selects/spans — no en textareas (rompe el centrado vertical del FODA).
+.dg-f05-table td .dg-f05-field--center:not(textarea),
 .dg-f05-table td .sgc-f-06-readonly-num,
 .dg-f05-table td .sgc-f06-readonly-num,
 .dg-f05-table td .sgc-f-06-table__num {

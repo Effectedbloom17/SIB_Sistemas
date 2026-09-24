@@ -227,6 +227,16 @@
                     <i class="fas mr-1" [ngClass]="puedeGestionarPlantillasSgc ? 'fa-pen' : 'fa-eye'" aria-hidden="true"></i>
                     Abrir editor integrado
                   </button>
+                  <button
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!dgF04DriveFileId || dgF04Cargando || dgF04DescargandoPdf"
+                    (click)="descargarPdfDgF04()"
+                    title="Descargar PDF del Análisis FODA (horizontal, carta, ajustar al ancho)"
+                    aria-label="Descargar PDF del Análisis FODA">
+                    <i class="fas" [ngClass]="dgF04DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ dgF04DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
+                  </button>
                 </div>
               </ng-container>
               <ng-template #toolbarDriveSync>
@@ -456,6 +466,17 @@
                     aria-label="Descargar PDF del plan del curso">
                     <i class="fas" [ngClass]="spF07DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
                     <span class="sgc-btn-pdf-icon__label">{{ spF07DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'sp-f-07'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon sgc-btn-pdf-icon--mail"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || !spF07PlanActivo || envioDocCorreoVisible"
+                    (click)="abrirEnvioCorreoSpF07()"
+                    title="Envío por correo"
+                    aria-label="Envío por correo">
+                    <i class="fas fa-envelope" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">Envío por correo</span>
                   </button>
                   <button
                     *ngIf="plantillaSlug === 'ath-f-11' && athF11Vista === 'editor'"
@@ -6096,14 +6117,6 @@
                         Volver al archivero
                       </button>
                       <span class="sgc-f-04-editor-bar__folio" *ngIf="plan.folio">{{ plan.folio }}</span>
-                      <button type="button" class="btn btn-sm sgc-btn-pdf-icon ml-auto"
-                        [disabled]="!spF07DriveFileId || spF07Cargando || spF07DescargandoPdf || !plan.folio"
-                        (click)="descargarPdfSpF07()"
-                        title="Descargar PDF del plan (horizontal, carta, ajustar al ancho)"
-                        aria-label="Descargar PDF del plan del curso">
-                        <i class="fas" [ngClass]="spF07DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
-                        <span class="sgc-btn-pdf-icon__label">{{ spF07DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
-                      </button>
                     </div>
 
                     <header class="dg-f05-doc__header sgc-f-04-doc__header">
