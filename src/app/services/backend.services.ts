@@ -2578,6 +2578,31 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-08/actualizar-plantilla`, {});
     }
 
+    subirPdfFirmadoSgcF08(pdfBase64: string, nombreArchivo: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-08/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombre_archivo: nombreArchivo
+        });
+    }
+
+    eliminarPdfHistorialSgcF08(driveFileId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-08/eliminar-pdf-historial`, {
+            driveFileId
+        });
+    }
+
+    descargarPdfSgcF08(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-08/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
+    descargarPdfSgcF09(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-09/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarSgcF10Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-10`);
     }

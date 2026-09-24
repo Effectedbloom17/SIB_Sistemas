@@ -413,6 +413,28 @@
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF07DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
                   </button>
                   <button
+                    *ngIf="plantillaSlug === 'sgc-f-08'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF08DescargandoPdf"
+                    (click)="descargarPdfSgcF08()"
+                    title="Generar PDF (carta, vertical, ajustar al ancho, márgenes normales, izq / arriba)"
+                    aria-label="Generar PDF del plan de auditoría">
+                    <i class="fas" [ngClass]="sgcF08DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF08DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'sgc-f-09'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF09DescargandoPdf"
+                    (click)="descargarPdfSgcF09()"
+                    title="Generar PDF (carta, horizontal, escala predeterminada, márgenes predeterminados)"
+                    aria-label="Generar PDF de la lista de verificación de auditoría">
+                    <i class="fas" [ngClass]="sgcF09DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF09DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
+                  </button>
+                  <button
                     *ngIf="plantillaSlug === 'sgc-f-14'"
                     type="button"
                     class="btn btn-sm sgc-btn-pdf-icon"
@@ -5092,6 +5114,88 @@
                       </div>
                     </div>
                   </article>
+
+                  <aside class="dg-f02-attach sgc-f-08-attach" aria-label="Documento firmado">
+                    <div class="dg-f02-attach__head">
+                      <div class="dg-f02-attach__icon-wrap">
+                        <i class="fas fa-file-signature" aria-hidden="true"></i>
+                      </div>
+                      <div>
+                        <h3 class="dg-f02-attach__title">Versión firmada</h3>
+                        <p class="dg-f02-attach__desc mb-0">
+                          Sube el PDF firmado. Cada carga se agrega al historial del plan (no reemplaza versiones anteriores).
+                        </p>
+                      </div>
+                    </div>
+                    <label class="dg-f02-attach__dropzone" *ngIf="!sgcF08Form.pdfFirmado?.driveFileId"
+                      [class.dg-f02-attach__dropzone--busy]="sgcF08SubiendoPdf">
+                      <input type="file" class="dg-f02-attach__input" accept="application/pdf"
+                        (change)="onSeleccionarPdfSgcF08($event)" [disabled]="sgcF08SubiendoPdf">
+                      <span class="dg-f02-attach__dropzone-icon">
+                        <i class="fas" [ngClass]="sgcF08SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                      </span>
+                      <span class="dg-f02-attach__dropzone-title">
+                        {{ sgcF08SubiendoPdf ? 'Subiendo PDF…' : 'Arrastra o selecciona el PDF firmado' }}
+                      </span>
+                      <span class="dg-f02-attach__dropzone-hint">Formato PDF · máximo {{ etiquetaMaxPdfSgc }}</span>
+                    </label>
+                    <input #sgcF08InputActualizarPdf type="file" class="dg-f02-attach__input" accept="application/pdf"
+                      (change)="onSeleccionarPdfSgcF08($event)" [disabled]="sgcF08SubiendoPdf">
+                    <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="sgcF08Form.pdfFirmado as pdf">
+                      <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
+                      <div class="dg-f02-attach__file-info">
+                        <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo || 'SGC-F-08 Plan de auditoría.pdf' }}</strong>
+                        <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                          Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}
+                        </small>
+                      </div>
+                      <div class="dg-f02-attach__file-actions" *ngIf="sgcF08Form.pdfFirmado?.driveFileId">
+                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                          (click)="toggleSgcF08PdfViewer()">
+                          <i class="fas fa-eye mr-1" aria-hidden="true"></i>
+                          Abrir
+                        </button>
+                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
+                          [disabled]="sgcF08SubiendoPdf"
+                          (click)="sgcF08InputActualizarPdf.click()">
+                          <i class="fas mr-1" [ngClass]="sgcF08SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                          {{ sgcF08SubiendoPdf ? 'Subiendo a Drive…' : 'Subir nueva versión' }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="af-f02-historial-pdfs sgc-f-08-historial-pdfs" *ngIf="sgcF08HistorialPdfsVista.length">
+                      <h4 class="af-f02-historial-pdfs__title">
+                        <i class="fas fa-file-pdf mr-1" aria-hidden="true"></i>
+                        Historial de PDFs firmados
+                      </h4>
+                      <p class="af-f02-historial-pdfs__hint">Solo versiones firmadas de este plan de auditoría.</p>
+                      <ul class="af-f02-historial-pdfs__list">
+                        <li class="af-f02-historial-pdfs__item" *ngFor="let hist of sgcF08HistorialPdfsVista">
+                          <div class="af-f02-historial-pdfs__item-main">
+                            <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                            <div>
+                              <strong>{{ hist.nombreArchivo }}</strong>
+                              <small *ngIf="hist.fechaSubida">{{ formatearFechaDgF02(hist.fechaSubida) }}</small>
+                            </div>
+                          </div>
+                          <div class="af-f02-historial-pdfs__actions">
+                            <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                              (click)="toggleSgcF08PdfViewer(hist)">
+                              Abrir
+                            </button>
+                            <button *ngIf="puedeBorrarPdfHistorialSgcF08" type="button"
+                              class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--danger"
+                              [disabled]="sgcF08BorrandoPdf"
+                              (click)="eliminarPdfHistorialSgcF08(hist)"
+                              title="Eliminar PDF del historial">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </li>
+                      </ul>
+                    </div>
+                  </aside>
                 </div>
               </form>
             </ng-container>
@@ -7706,7 +7810,7 @@
                           <div class="sgc-f-10-intro__icon"><i class="fas fa-file-signature" aria-hidden="true"></i></div>
                           <div>
                             <h4 class="sgc-f-10-intro__title">Informe de auditoría</h4>
-                            <p class="sgc-f-10-intro__hint">Datos generales, hallazgos y conclusiones del ciclo de auditoría interna (ISO 9001 · 9.2). Usa «Guardar Histórico» para cerrar el informe actual y abrir uno nuevo.</p>
+                            <p class="sgc-f-10-intro__hint">Datos generales, hallazgos y conclusiones del ciclo de auditoría interna (ISO 9001 · 9.2). Usa «Guardar Histórico» para cerrar el informe actual (Word + PDF en Drive) y abrir uno nuevo.</p>
                           </div>
                         </div>
                         <div class="sgc-f-10-intro__meta">
@@ -8431,6 +8535,73 @@
                       </div>
                     </div>
                   </article>
+
+                  <aside class="dg-f02-attach sgc-f-10-pdf-historial-wrap" aria-label="Historial de PDFs del informe">
+                    <div class="sgc-f-10-pdf-panel__head">
+                      <div class="sgc-f-10-pdf-panel__head-main">
+                        <div class="sgc-f-10-pdf-panel__icon" aria-hidden="true">
+                          <i class="fas fa-file-pdf"></i>
+                        </div>
+                        <div class="sgc-f-10-pdf-panel__titles">
+                          <div class="sgc-f-10-pdf-panel__title-row">
+                            <h3 class="sgc-f-10-pdf-panel__title">PDFs del histórico</h3>
+                            <span class="sgc-f-10-pdf-panel__badge" *ngIf="sgcF10HistorialPdfs.length">
+                              {{ sgcF10HistorialPdfs.length }}
+                              {{ sgcF10HistorialPdfs.length === 1 ? 'archivo' : 'archivos' }}
+                            </span>
+                          </div>
+                          <p class="sgc-f-10-pdf-panel__desc mb-0">
+                            Se generan automáticamente al usar «Guardar Histórico»
+                            (carta · <strong>horizontal</strong> · márgenes estrechos · ajustado al ancho). Sin carga manual.
+                          </p>
+                        </div>
+                      </div>
+                      <div class="sgc-f-10-pdf-panel__chip" aria-hidden="true">
+                        <i class="fas fa-cloud"></i>
+                        <span>Drive</span>
+                      </div>
+                    </div>
+
+                    <div class="sgc-f-10-pdf-panel__body" *ngIf="sgcF10HistorialPdfs.length; else sgcF10SinPdfs">
+                      <div class="sgc-f-10-pdf-panel__section-label">
+                        <i class="fas fa-history" aria-hidden="true"></i>
+                        <span>Historial de informes archivados</span>
+                      </div>
+                      <ul class="sgc-f-10-pdf-panel__list">
+                        <li class="sgc-f-10-pdf-panel__item" *ngFor="let hist of sgcF10HistorialPdfs; let i = index">
+                          <div class="sgc-f-10-pdf-panel__item-main">
+                            <span class="sgc-f-10-pdf-panel__ver">{{ sgcF10HistorialPdfs.length - i }}</span>
+                            <span class="sgc-f-10-pdf-panel__file-ico" aria-hidden="true">
+                              <i class="fas fa-file-pdf"></i>
+                            </span>
+                            <div class="sgc-f-10-pdf-panel__meta">
+                              <strong class="sgc-f-10-pdf-panel__name">{{ hist.nombreArchivo }}</strong>
+                              <small class="sgc-f-10-pdf-panel__date" *ngIf="hist.fechaSubida">
+                                <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                                Generado el {{ formatearFechaDgF02(hist.fechaSubida) }}
+                              </small>
+                            </div>
+                          </div>
+                          <div class="sgc-f-10-pdf-panel__actions">
+                            <button type="button" class="sgc-f-10-pdf-panel__btn"
+                              (click)="toggleSgcF10PdfViewer(hist)">
+                              <i class="fas fa-eye" aria-hidden="true"></i>
+                              Abrir
+                            </button>
+                          </div>
+                        </li>
+                      </ul>
+                    </div>
+                    <ng-template #sgcF10SinPdfs>
+                      <div class="sgc-f-10-pdf-historial-empty">
+                        <i class="fas fa-inbox" aria-hidden="true"></i>
+                        <div>
+                          <strong>Aún no hay PDFs históricos</strong>
+                          <p class="mb-0">Al guardar el histórico de una auditoría, el PDF aparecerá aquí automáticamente.</p>
+                        </div>
+                      </div>
+                    </ng-template>
+                  </aside>
                 </div>
               </form>
             </ng-container>
@@ -13266,6 +13437,40 @@
   </div>
 </div>
 
+<div class="sgc-drive-editor-fullscreen" *ngIf="mostrarSgcF10PdfViewer"
+  role="dialog" aria-modal="true" aria-label="Visor PDF SGC-F-10">
+  <div class="sgc-drive-editor-fullscreen__backdrop" (click)="toggleSgcF10PdfViewer()"></div>
+  <div class="sgc-drive-editor-fullscreen__panel">
+    <div class="sgc-drive-editor-fullscreen__head">
+      <div class="sgc-drive-editor-fullscreen__title-wrap">
+        <span class="sgc-drive-editor-fullscreen__icon">
+          <i class="fas fa-file-pdf" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ sgcF10PdfViewerTitulo }}</strong>
+          <small class="sgc-drive-editor-fullscreen__subtitle">Vista previa del PDF · solo lectura</small>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-light" type="button" (click)="toggleSgcF10PdfViewer()">
+        <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+      </button>
+    </div>
+    <div class="sgc-drive-editor-fullscreen__body">
+      <div class="sgc-drive-editor-fullscreen__loading" *ngIf="sgcF10PdfCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando PDF…</span>
+      </div>
+      <iframe *ngIf="sgcF10PdfEmbedUrlSafe"
+        class="sgc-drive-editor-fullscreen__iframe"
+        [src]="sgcF10PdfEmbedUrlSafe"
+        [title]="sgcF10PdfViewerTitulo"
+        (load)="onSgcF10PdfIframeLoad()"
+        allow="autoplay">
+      </iframe>
+    </div>
+  </div>
+</div>
+
 
 <div class="sgc-drive-editor-fullscreen" *ngIf="mostrarSgcF14Editor"
   role="dialog" aria-modal="true" aria-label="Editor integrado SGC-F-14">
@@ -13893,6 +14098,40 @@
         [src]="sgcF07PdfEmbedUrlSafe"
         [title]="sgcF07PdfViewerActual?.nombreArchivo || sgcF07Form.pdfFirmado?.nombreArchivo || 'SGC-F-07 Programa de auditoría.pdf'"
         (load)="onSgcF07PdfIframeLoad()"
+        allow="autoplay">
+      </iframe>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-drive-editor-fullscreen" *ngIf="mostrarSgcF08PdfViewer"
+  role="dialog" aria-modal="true" aria-label="Visor PDF SGC-F-08">
+  <div class="sgc-drive-editor-fullscreen__backdrop" (click)="toggleSgcF08PdfViewer()"></div>
+  <div class="sgc-drive-editor-fullscreen__panel">
+    <div class="sgc-drive-editor-fullscreen__head">
+      <div class="sgc-drive-editor-fullscreen__title-wrap">
+        <span class="sgc-drive-editor-fullscreen__icon">
+          <i class="fas fa-file-pdf" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ sgcF08PdfViewerActual?.nombreArchivo || sgcF08Form.pdfFirmado?.nombreArchivo || 'SGC-F-08 Plan de auditoría.pdf' }}</strong>
+          <small class="sgc-drive-editor-fullscreen__subtitle">Vista previa del PDF · solo lectura</small>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-light" type="button" (click)="toggleSgcF08PdfViewer()">
+        <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+      </button>
+    </div>
+    <div class="sgc-drive-editor-fullscreen__body">
+      <div class="sgc-drive-editor-fullscreen__loading" *ngIf="sgcF08PdfCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando PDF…</span>
+      </div>
+      <iframe *ngIf="sgcF08PdfEmbedUrlSafe"
+        class="sgc-drive-editor-fullscreen__iframe"
+        [src]="sgcF08PdfEmbedUrlSafe"
+        [title]="sgcF08PdfViewerActual?.nombreArchivo || sgcF08Form.pdfFirmado?.nombreArchivo || 'SGC-F-08 Plan de auditoría.pdf'"
+        (load)="onSgcF08PdfIframeLoad()"
         allow="autoplay">
       </iframe>
     </div>

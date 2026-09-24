@@ -1,6 +1,6 @@
 {
   "name": "argon-dashboard-angular",
-  "version": "3.292.5",
+  "version": "3.295.3",
   "scripts": {
     "ng": "ng",
     "postinstall": "node scripts/install-backend-deps.js",

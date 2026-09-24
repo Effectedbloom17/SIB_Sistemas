@@ -5444,6 +5444,7 @@ function normalizarMargenesExportPdf(raw) {
 /**
  * Escala de export PDF:
  * - scalePercent / spct → personalizada (70 o 0.7 → scale=5&spct=0.7)
+ * - scale/scaleMode predeterminada|normal|default → «Normal» (scale 1)
  * - fitToPage → ajustar a la página
  * - fitToWidth → ajustar al ancho (scale 2)
  * - default → ajustar al ancho
@@ -5460,6 +5461,19 @@ function resolverEscalaExportPdf(options = {}, fitToPage = false) {
                 spct: String(n)
             };
         }
+    }
+    const scaleMode = String(
+        options.scale || options.scaleMode || options.escala || ''
+    ).trim().toLowerCase();
+    if (
+        scaleMode === 'predeterminada'
+        || scaleMode === 'predeterminado'
+        || scaleMode === 'normal'
+        || scaleMode === 'default'
+        || scaleMode === '1'
+        || scaleMode === '100'
+    ) {
+        return { scale: '1' };
     }
     if (fitToPage) {
         return {
@@ -5500,6 +5514,7 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
     const useWideMargins = marginMode === 'wide' || marginMode === 'anchos' || marginMode === 'ancho';
     const useNormalMargins = !useWideMargins && (
         marginMode === 'normal' || marginMode === 'normales'
+        || marginMode === 'predeterminados' || marginMode === 'predeterminado' || marginMode === 'default'
         || ((!!fitToPage || !!fitToWidth) && marginMode !== 'narrow' && marginMode !== 'estrechos' && marginMode !== 'compact')
     );
     const margins = (options.margins && typeof options.margins === 'object')
@@ -5566,16 +5581,22 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
     }
 
     const baseUrl = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(fileId)}/export`;
+    // Sin encabezados/pies de Sheets (título, nombre hoja, nº página). La fecha/URL
+    // del navegador solo aparecen en Ctrl+P del browser, no en este export.
+    const sinCabecerasPies = {
+        sheetnames: 'false',
+        printtitle: 'false',
+        pagenumbers: 'false',
+        printnotes: 'false',
+        gridlines: 'false',
+        fzr: 'false'
+    };
     // Si hay gid, TODAS las variantes lo incluyen para no exportar el libro completo.
     const variants = [
         {
             format: 'pdf',
             portrait: landscape ? 'false' : 'true',
-            sheetnames: 'false',
-            printtitle: 'false',
-            pagenumbers: 'false',
-            gridlines: 'false',
-            fzr: 'false',
+            ...sinCabecerasPies,
             ...scaleOpts,
             ...margins,
             ...alignOpts,
@@ -5586,6 +5607,7 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
         {
             format: 'pdf',
             portrait: landscape ? 'false' : 'true',
+            ...sinCabecerasPies,
             ...scaleOpts,
             ...margins,
             ...alignOpts,
@@ -5596,6 +5618,10 @@ async function exportarGoogleSheetComoPDF(fileId, options = {}) {
         {
             format: 'pdf',
             portrait: landscape ? 'false' : 'true',
+            ...sinCabecerasPies,
+            ...scaleOpts,
+            ...margins,
+            ...alignOpts,
             ...sizeOpts,
             ...gidOpts,
             ...rangeOpts
@@ -5858,6 +5884,214 @@ async function descargarArchivoNativo(fileId, nombreSugerido = '') {
     return { buffer, contentType, filename };
 }
 
+/** Letter: 8.5×11 in → 612×792 PT. Landscape intercambia ancho/alto. */
+function resolverPageSizePtsGoogleDoc(options = {}) {
+    const sizeRaw = String(options.size || options.paperSize || 'letter').trim().toLowerCase();
+    const size = sizeRaw === 'carta' || sizeRaw === '1' ? 'letter' : sizeRaw;
+    const landscape = !!options.landscape;
+    // Solo carta por ahora (el resto de formatos SGC usan letter).
+    const portrait = { width: 612, height: 792 };
+    if (size === 'legal') {
+        portrait.width = 612;
+        portrait.height = 1008;
+    } else if (size === 'a4') {
+        portrait.width = 595.28;
+        portrait.height = 841.89;
+    }
+    return landscape
+        ? { width: portrait.height, height: portrait.width }
+        : portrait;
+}
+
+/** Márgenes Docs en PT. Predeterminados/normales ≈ 1" (72 PT). */
+function resolverMargenesPtsGoogleDoc(options = {}) {
+    const marginMode = String(
+        (typeof options.margins === 'string' ? options.margins : null)
+        || options.marginMode
+        || 'predeterminados'
+    ).trim().toLowerCase();
+
+    if (options.margins && typeof options.margins === 'object') {
+        const src = options.margins;
+        const toPt = (...keys) => {
+            for (const k of keys) {
+                if (src[k] === undefined || src[k] === null || src[k] === '') continue;
+                const n = Number(src[k]);
+                if (!Number.isFinite(n)) continue;
+                // Si viene en pulgadas (< 10) convertir; si ya parece PT (>= 10) respetar.
+                return n < 10 ? n * 72 : n;
+            }
+            return 72;
+        };
+        return {
+            top: toPt('top_margin', 'top', 'superior'),
+            bottom: toPt('bottom_margin', 'bottom', 'inferior'),
+            left: toPt('left_margin', 'left', 'izquierda'),
+            right: toPt('right_margin', 'right', 'derecha')
+        };
+    }
+
+    if (marginMode === 'estrechos' || marginMode === 'narrow' || marginMode === 'compact') {
+        return { top: 36, bottom: 36, left: 36, right: 36 }; // 0.5"
+    }
+    if (marginMode === 'anchos' || marginMode === 'wide' || marginMode === 'ancho') {
+        return { top: 72, bottom: 72, left: 72, right: 72 }; // 1"
+    }
+    // predeterminados / normales / default → 1" (estándar Docs)
+    return { top: 72, bottom: 72, left: 72, right: 72 };
+}
+
+function opcionesRequierenEstiloPaginaDoc(options = {}) {
+    if (!options || typeof options !== 'object') return false;
+    if (options.landscape === true || options.landscape === false) return true;
+    if (options.size || options.paperSize) return true;
+    if (options.margins != null || options.marginMode) return true;
+    return false;
+}
+
+async function aplicarEstiloPaginaGoogleDoc(docId, options = {}) {
+    if (!_driveAuthClient) {
+        throw new Error('Drive no autenticado para ajustar página del documento.');
+    }
+    const page = resolverPageSizePtsGoogleDoc(options);
+    const margins = resolverMargenesPtsGoogleDoc(options);
+    const docsApi = google.docs({ version: 'v1', auth: _driveAuthClient });
+    await docsApi.documents.batchUpdate({
+        documentId: docId,
+        requestBody: {
+            requests: [{
+                updateDocumentStyle: {
+                    documentStyle: {
+                        pageSize: {
+                            width: { magnitude: page.width, unit: 'PT' },
+                            height: { magnitude: page.height, unit: 'PT' }
+                        },
+                        marginTop: { magnitude: margins.top, unit: 'PT' },
+                        marginBottom: { magnitude: margins.bottom, unit: 'PT' },
+                        marginLeft: { magnitude: margins.left, unit: 'PT' },
+                        marginRight: { magnitude: margins.right, unit: 'PT' }
+                    },
+                    fields: 'pageSize,marginTop,marginBottom,marginLeft,marginRight'
+                }
+            }]
+        }
+    });
+}
+
+/**
+ * Reescala columnas de tablas para que quepan en el ancho útil de la página
+ * (pageWidth − márgenes). Evita recortes al exportar PDF en horizontal.
+ */
+async function ajustarTablasAlAnchoPaginaGoogleDoc(docId, options = {}) {
+    if (!_driveAuthClient) return;
+    const docsApi = google.docs({ version: 'v1', auth: _driveAuthClient });
+    const page = resolverPageSizePtsGoogleDoc(options);
+    const margins = resolverMargenesPtsGoogleDoc(options);
+    const anchoUtil = Math.max(120, page.width - margins.left - margins.right);
+
+    const doc = await docsApi.documents.get({
+        documentId: docId,
+        fields: 'body(content(startIndex,table(tableStyle(tableColumnProperties),tableRows(tableCells))))'
+    });
+
+    const requests = [];
+    for (const el of doc?.data?.body?.content || []) {
+        const table = el.table;
+        const tableStart = Number(el.startIndex);
+        if (!table || !Number.isFinite(tableStart)) continue;
+
+        const props = Array.isArray(table.tableStyle?.tableColumnProperties)
+            ? table.tableStyle.tableColumnProperties
+            : [];
+        const colCount = props.length
+            || (Array.isArray(table.tableRows?.[0]?.tableCells)
+                ? table.tableRows[0].tableCells.length
+                : 0);
+        if (colCount < 1) continue;
+
+        const widths = [];
+        for (let i = 0; i < colCount; i++) {
+            const mag = Number(props[i]?.width?.magnitude);
+            widths.push(Number.isFinite(mag) && mag > 0 ? mag : 0);
+        }
+        const totalActual = widths.reduce((a, b) => a + b, 0);
+        const sinAnchos = totalActual <= 0;
+        // Si ya cabe y tiene anchos definidos, no tocar.
+        if (!sinAnchos && totalActual <= anchoUtil + 2) continue;
+
+        const base = sinAnchos
+            ? widths.map(() => anchoUtil / colCount)
+            : widths.map((w) => (w > 0 ? w : (totalActual / colCount)));
+        const totalBase = base.reduce((a, b) => a + b, 0) || anchoUtil;
+        const factor = anchoUtil / totalBase;
+        for (let i = 0; i < colCount; i++) {
+            const nueva = Math.max(24, Math.round(base[i] * factor * 100) / 100);
+            requests.push({
+                updateTableColumnProperties: {
+                    tableStartLocation: { index: tableStart },
+                    columnIndices: [i],
+                    tableColumnProperties: {
+                        widthType: 'FIXED_WIDTH',
+                        width: { magnitude: nueva, unit: 'PT' }
+                    },
+                    fields: 'widthType,width'
+                }
+            });
+        }
+    }
+
+    if (!requests.length) return;
+    await docsApi.documents.batchUpdate({
+        documentId: docId,
+        requestBody: { requests }
+    });
+}
+
+async function exportarGoogleDocComoPDF(fileId, options = {}) {
+    const aplicarEstilo = opcionesRequierenEstiloPaginaDoc(options);
+    const ajustarAncho = !!(options.fitToWidth || options.fitContent || options.ajustarAlAncho);
+    if (!aplicarEstilo && !ajustarAncho) {
+        const response = await drive.files.export(
+            { fileId, mimeType: 'application/pdf' },
+            { responseType: 'arraybuffer' }
+        );
+        return Buffer.from(response.data);
+    }
+
+    // Copia temporal para no mutar la plantilla (orientación / tamaño / márgenes).
+    const copyResponse = await drive.files.copy({
+        fileId,
+        requestBody: {
+            name: `_temp_pdf_doc_export_${Date.now()}`,
+            mimeType: 'application/vnd.google-apps.document'
+        }
+    });
+    const tempFileId = copyResponse.data.id;
+    try {
+        if (aplicarEstilo) {
+            await aplicarEstiloPaginaGoogleDoc(tempFileId, options);
+        }
+        if (ajustarAncho) {
+            try {
+                await ajustarTablasAlAnchoPaginaGoogleDoc(tempFileId, options);
+            } catch (fitErr) {
+                console.warn('[exportarGoogleDocComoPDF] No se pudieron ajustar tablas al ancho:', fitErr.message);
+            }
+        }
+        const response = await drive.files.export(
+            { fileId: tempFileId, mimeType: 'application/pdf' },
+            { responseType: 'arraybuffer' }
+        );
+        return Buffer.from(response.data);
+    } finally {
+        try {
+            await drive.files.delete({ fileId: tempFileId });
+        } catch (cleanupError) {
+            console.warn('[exportarGoogleDocComoPDF] No se pudo eliminar copia temporal:', cleanupError.message);
+        }
+    }
+}
+
 async function exportarArchivoPDF(fileId, options = {}) {
     try {
         // Primero obtener info del archivo para saber su mimeType
@@ -5884,6 +6118,11 @@ async function exportarArchivoPDF(fileId, options = {}) {
             if (mimeType === 'application/vnd.google-apps.spreadsheet') {
                 driveDebug(`  [exportarPDF] Google Sheet, exportando a PDF (${landscape ? 'landscape' : 'portrait'})`);
                 return await exportarGoogleSheetComoPDF(fileId, options);
+            }
+
+            if (mimeType === 'application/vnd.google-apps.document') {
+                driveDebug(`  [exportarPDF] Google Doc, exportando a PDF (${landscape ? 'landscape' : 'portrait'})`);
+                return await exportarGoogleDocComoPDF(fileId, options);
             }
 
             driveDebug('  [exportarPDF] Archivo Google Workspace, exportando a PDF');
@@ -5924,6 +6163,23 @@ async function exportarArchivoPDF(fileId, options = {}) {
                 if (officeToGoogleMap[mimeType] === 'application/vnd.google-apps.spreadsheet') {
                     driveDebug(`  [exportarPDF] Hoja convertida temporalmente, exportando (${landscape ? 'landscape' : 'portrait'})`);
                     pdfBuffer = await exportarGoogleSheetComoPDF(tempFileId, options);
+                } else if (officeToGoogleMap[mimeType] === 'application/vnd.google-apps.document') {
+                    driveDebug(`  [exportarPDF] Doc convertido temporalmente, exportando (${landscape ? 'landscape' : 'portrait'})`);
+                    if (opcionesRequierenEstiloPaginaDoc(options)) {
+                        await aplicarEstiloPaginaGoogleDoc(tempFileId, options);
+                    }
+                    if (options.fitToWidth || options.fitContent || options.ajustarAlAncho) {
+                        try {
+                            await ajustarTablasAlAnchoPaginaGoogleDoc(tempFileId, options);
+                        } catch (fitErr) {
+                            console.warn('  [exportarPDF] No se pudieron ajustar tablas al ancho:', fitErr.message);
+                        }
+                    }
+                    const pdfResponse = await drive.files.export(
+                        { fileId: tempFileId, mimeType: 'application/pdf' },
+                        { responseType: 'arraybuffer' }
+                    );
+                    pdfBuffer = Buffer.from(pdfResponse.data);
                 } else {
                     const pdfResponse = await drive.files.export(
                         { fileId: tempFileId, mimeType: 'application/pdf' },

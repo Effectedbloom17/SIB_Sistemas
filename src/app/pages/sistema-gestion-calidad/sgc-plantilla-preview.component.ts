@@ -802,6 +802,8 @@ interface SgcF08FormData {
   numGuias: string;
   agenda: SgcF08AgendaItem[];
   roles: string[];
+  pdfFirmado: DgF02PdfFirmado | null;
+  pdfsHistorial: DgF02PdfFirmado[];
 }
 
 interface SgcF14ProyectoItem {
@@ -1931,6 +1933,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF08ContenidoModificado = false;
   sgcF08EditorCargando = false;
   sgcF08ActualizandoPlantilla = false;
+  sgcF08SubiendoPdf = false;
+  sgcF08BorrandoPdf = false;
+  sgcF08DescargandoPdf = false;
+  mostrarSgcF08PdfViewer = false;
+  sgcF08PdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  sgcF08PdfCargando = false;
+  sgcF08PdfViewerActual: DgF02PdfFirmado | null = null;
   private sgcF08EditorIframeListo = false;
 
   private static readonly SGC_F10_AUDITORIA_ACTUAL = '3';
@@ -1966,6 +1975,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     driveFileId?: string | null;
     editorUrl?: string | null;
   }> = [];
+  sgcF10HistorialPdfs: DgF02PdfFirmado[] = [];
+  mostrarSgcF10PdfViewer = false;
+  sgcF10PdfCargando = false;
+  sgcF10PdfViewerTitulo = 'SGC-F-10 Informe de auditoría.pdf';
+  sgcF10PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   sgcF10Empresas: SgcF10EmpresaOpt[] = [];
   sgcF10Usuarios: SgcF10UsuarioOpt[] = [];
   sgcF10PickAuditores = '';
@@ -2535,6 +2549,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF09EditorEmbedUrlSafe: SafeResourceUrl | null = null;
   mostrarSgcF09Editor = false;
   sgcF09EditorCargando = false;
+  sgcF09DescargandoPdf = false;
   private sgcF09EditorIframeListo = false;
   sgcF15Indicadores: SgcF15Indicador[] = [
     {
@@ -2839,6 +2854,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   get sgcF07HistorialPdfsVista(): DgF02PdfFirmado[] {
     const hist = Array.isArray(this.sgcF07Form?.pdfsHistorial) ? this.sgcF07Form.pdfsHistorial : [];
     const actualId = this.sgcF07Form?.pdfFirmado?.driveFileId || null;
+    return hist.filter((p) => p?.driveFileId && p.driveFileId !== actualId);
+  }
+
+  /** SGC-F-08: borrar PDFs del historial — root / calidad. */
+  get puedeBorrarPdfHistorialSgcF08(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
+
+  get sgcF08HistorialPdfsVista(): DgF02PdfFirmado[] {
+    const hist = Array.isArray(this.sgcF08Form?.pdfsHistorial) ? this.sgcF08Form.pdfsHistorial : [];
+    const actualId = this.sgcF08Form?.pdfFirmado?.driveFileId || null;
     return hist.filter((p) => p?.driveFileId && p.driveFileId !== actualId);
   }
 
@@ -4108,6 +4134,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleAfF02PdfViewer();
       return;
     }
+    if (this.mostrarSgcF10PdfViewer) {
+      event.preventDefault();
+      this.toggleSgcF10PdfViewer();
+      return;
+    }
     if (this.mostrarSgcF23PdfViewer) {
       event.preventDefault();
       this.toggleSgcF23PdfViewer();
@@ -4121,6 +4152,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.mostrarSgcF07PdfViewer) {
       event.preventDefault();
       this.toggleSgcF07PdfViewer();
+      return;
+    }
+    if (this.mostrarSgcF08PdfViewer) {
+      event.preventDefault();
+      this.toggleSgcF08PdfViewer();
     }
   }
 
@@ -4665,7 +4701,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug !== 'sgc-f-10') {
       return '';
     }
-    return 'Completa el informe con datos de la auditoría, hallazgos y conclusiones. «Guardar información» conserva el borrador; «Guardar Histórico» cierra el informe como registro inmutable (BD + Word) y abre uno nuevo.';
+    return 'Completa el informe con datos de la auditoría, hallazgos y conclusiones. «Guardar información» conserva el borrador; «Guardar Histórico» cierra el informe como registro inmutable (BD + Word + PDF) y abre uno nuevo.';
   }
 
   get sgcF15IntroLead(): string {
@@ -5548,6 +5584,114 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     iniciarDescarga();
   }
 
+  descargarPdfSgcF08(): void {
+    if (this.sgcF08DescargandoPdf || !this.sgcF08DriveFileId) {
+      return;
+    }
+    const nombreArchivo = 'SGC-F-08 Plan de auditoria.pdf';
+    const iniciarDescarga = () => {
+      this.sgcF08DescargandoPdf = true;
+      this.backendService.descargarPdfSgcF08()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.sgcF08DescargandoPdf = false;
+            if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+              void Swal.fire({
+                icon: 'error',
+                title: 'No se pudo generar el PDF',
+                text: 'Guarda la información y vuelve a intentar. Si el problema continúa, revisa que la hoja exista en Drive.',
+                confirmButtonText: 'Entendido'
+              });
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = nombreArchivo;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.sgcF08DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo descargar el PDF',
+              text: 'Guarda la información primero para sincronizar la hoja en Drive e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    };
+
+    if (this.puedeGestionarPlantillasSgc && this.sgcF08CambiosPendientes && this.sgcF08Listo && !this.sgcF08Guardando) {
+      this.sgcF08DescargandoPdf = true;
+      this.sgcF08Guardando = true;
+      this.backendService.guardarSgcF08Formato(this.sgcF08Form, false)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.sgcF08Guardando = false;
+            this.sgcF08CambiosPendientes = false;
+            this.aplicarEstadoSgcF08(res, this.mostrarSgcF08Editor, false, false);
+            iniciarDescarga();
+          },
+          error: () => {
+            this.sgcF08Guardando = false;
+            this.sgcF08DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'No se pudo sincronizar el plan antes de generar el PDF.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+
+    iniciarDescarga();
+  }
+
+  descargarPdfSgcF09(): void {
+    if (this.sgcF09DescargandoPdf || !this.sgcF09DriveFileId) {
+      return;
+    }
+    const nombreArchivo = 'SGC-F-09 Lista de verificacion de auditoria.pdf';
+    this.sgcF09DescargandoPdf = true;
+    this.backendService.descargarPdfSgcF09()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.sgcF09DescargandoPdf = false;
+          if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo generar el PDF',
+              text: 'Revisa que la plantilla exista en Drive e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = nombreArchivo;
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.sgcF09DescargandoPdf = false;
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo descargar el PDF',
+            text: 'No se pudo exportar la lista de verificación desde Drive. Inténtalo de nuevo.',
+            confirmButtonText: 'Entendido'
+          });
+        }
+      });
+  }
+
   private persistirSgcF07(): void {
     if (!this.puedeGestionarPlantillasSgc) {
       return;
@@ -5686,7 +5830,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       numInterpretes: '0',
       numGuias: '0',
       agenda: [],
-      roles: []
+      roles: [],
+      pdfFirmado: null,
+      pdfsHistorial: []
     };
   }
 
@@ -5739,7 +5885,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       numInterpretes: String(base.numInterpretes ?? '0').trim(),
       numGuias: String(base.numGuias ?? '0').trim(),
       agenda: this.normalizarAgendaSgcF08(base.agenda),
-      roles: Array.isArray(base.roles) ? base.roles.map((r) => String(r || '').trim()).filter(Boolean) : []
+      roles: Array.isArray(base.roles) ? base.roles.map((r) => String(r || '').trim()).filter(Boolean) : [],
+      pdfFirmado: base.pdfFirmado || null,
+      pdfsHistorial: Array.isArray(base.pdfsHistorial) ? base.pdfsHistorial : []
     };
   }
 
@@ -5916,7 +6064,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!bloquearFormulario && res.datos) {
       this.sgcF08IgnorarAutoSave = true;
       this.sgcF08Listo = false;
-      this.sgcF08Form = this.normalizarSgcF08Form(res.datos);
+      const d = res.datos;
+      this.sgcF08Form = this.normalizarSgcF08Form({
+        ...d,
+        pdfFirmado: d.pdfFirmado ?? res.pdfFirmado ?? this.sgcF08Form.pdfFirmado,
+        pdfsHistorial: Array.isArray(d.pdfsHistorial)
+          ? d.pdfsHistorial
+          : (Array.isArray(res.historialPdfs) ? res.historialPdfs : (this.sgcF08Form.pdfsHistorial || []))
+      });
     } else if (!editorAbierto && !conservarEdicion) {
       this.sgcF08IgnorarAutoSave = true;
       this.sgcF08Listo = false;
@@ -7154,7 +7309,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       title: '¿Guardar Histórico?',
       html:
         `<p>Se cerrará la <strong>Auditoría No. ${auditoriaNo}</strong> como registro inmutable.</p>`
-        + '<p>Se archivará el Word en Drive y se abrirá un <strong>nuevo informe</strong> vacío para la siguiente auditoría.</p>'
+        + '<p>Se archivará el <strong>Word</strong> y se generará el <strong>PDF</strong> en Drive, y se abrirá un <strong>nuevo informe</strong> vacío para la siguiente auditoría.</p>'
         + '<p class="mb-0"><small>Esta acción no se puede deshacer desde el formulario.</small></p>',
       showCancelButton: true,
       confirmButtonText: 'Sí, guardar histórico',
@@ -7246,6 +7401,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }));
     }
 
+    this.sgcF10HistorialPdfs = Array.isArray(res.historialPdfs)
+      ? res.historialPdfs.map((p: any) => ({
+          driveFileId: String(p?.driveFileId || '').trim(),
+          nombreArchivo: String(p?.nombreArchivo || 'SGC-F-10 Informe de auditoría.pdf').trim(),
+          webViewLink: p?.webViewLink || null,
+          previewUrl: p?.previewUrl
+            || (p?.driveFileId ? `https://drive.google.com/file/d/${p.driveFileId}/preview` : null),
+          fechaSubida: String(p?.fechaSubida || '').trim()
+        })).filter((p: DgF02PdfFirmado) => !!p.driveFileId)
+      : this.sgcF10HistorialPdfs;
+
     this.sgcF10DriveFileId = res.driveFileId || this.sgcF10DriveFileId || null;
     this.sgcF10EditorUrl = res.editorUrl || this.sgcF10EditorUrl || null;
     this.sgcF10UltimaSync = res.ultimaSyncDrive || null;
@@ -7308,6 +7474,46 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF10EditorEmbedUrlSafe = embedUrl
       ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
       : null;
+  }
+
+  toggleSgcF10PdfViewer(pdf?: DgF02PdfFirmado | null): void {
+    if (this.mostrarSgcF10PdfViewer && !pdf) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarSgcF10PdfViewer = false;
+      this.sgcF10PdfEmbedUrlSafe = null;
+      this.sgcF10PdfCargando = false;
+      return;
+    }
+
+    const objetivo = pdf || this.sgcF10HistorialPdfs[0] || null;
+    const id = objetivo?.driveFileId;
+    if (!id) {
+      return;
+    }
+
+    const mismoArchivo = this.mostrarSgcF10PdfViewer
+      && this.sgcF10PdfViewerTitulo === (objetivo?.nombreArchivo || 'SGC-F-10 Informe de auditoría.pdf');
+    if (mismoArchivo) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarSgcF10PdfViewer = false;
+      this.sgcF10PdfEmbedUrlSafe = null;
+      this.sgcF10PdfCargando = false;
+      return;
+    }
+
+    this.mostrarSgcF10PdfViewer = true;
+    this.sgcF10PdfCargando = true;
+    this.sgcF10PdfViewerTitulo = objetivo?.nombreArchivo || 'SGC-F-10 Informe de auditoría.pdf';
+    const url = objetivo?.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+    this.sgcF10PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+
+  onSgcF10PdfIframeLoad(): void {
+    this.sgcF10PdfCargando = false;
   }
 
   // ===================== SGC-F-14 · Bitácora de proyectos de mejora =====================
@@ -22109,6 +22315,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     );
   }
 
+  onSeleccionarPdfSgcF08(event: Event): void {
+    this.procesarPdfDocumento(
+      event,
+      'SGC-F-08 Plan de auditoría.pdf',
+      (base64, nombre) => this.subirPdfSgcF08(base64, nombre)
+    );
+  }
+
   toggleSgcF07PdfViewer(pdf?: DgF02PdfFirmado | null): void {
     const objetivo = pdf || this.sgcF07Form.pdfFirmado;
     const id = objetivo?.driveFileId;
@@ -22159,6 +22373,60 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.sgcF07BorrandoPdf = false;
+        }
+      });
+  }
+
+  toggleSgcF08PdfViewer(pdf?: DgF02PdfFirmado | null): void {
+    const objetivo = pdf || this.sgcF08Form.pdfFirmado;
+    const id = objetivo?.driveFileId;
+    if (!id) {
+      return;
+    }
+
+    const mismoAbierto = this.mostrarSgcF08PdfViewer
+      && this.sgcF08PdfViewerActual?.driveFileId === id;
+    const abrir = !mismoAbierto;
+    this.mostrarSgcF08PdfViewer = abrir;
+
+    if (abrir) {
+      this.sgcF08PdfViewerActual = objetivo;
+      this.sgcF08PdfCargando = true;
+      const url = objetivo.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+      this.sgcF08PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    this.sgcF08PdfEmbedUrlSafe = null;
+    this.sgcF08PdfCargando = false;
+    this.sgcF08PdfViewerActual = null;
+  }
+
+  onSgcF08PdfIframeLoad(): void {
+    this.sgcF08PdfCargando = false;
+  }
+
+  eliminarPdfHistorialSgcF08(hist: DgF02PdfFirmado): void {
+    if (!this.puedeBorrarPdfHistorialSgcF08 || !hist?.driveFileId || this.sgcF08BorrandoPdf) {
+      return;
+    }
+    if (!confirm(`¿Eliminar «${hist.nombreArchivo || 'PDF'}» del historial?`)) {
+      return;
+    }
+    this.sgcF08BorrandoPdf = true;
+    this.backendService.eliminarPdfHistorialSgcF08(hist.driveFileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF08BorrandoPdf = false;
+          this.aplicarEstadoSgcF08(res);
+        },
+        error: () => {
+          this.sgcF08BorrandoPdf = false;
         }
       });
   }
@@ -23969,6 +24237,26 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.sgcF07SubiendoPdf = false;
+          this.finalizarSubidaPdfSgc(false);
+        }
+      });
+  }
+
+  private subirPdfSgcF08(base64: string, nombre: string): void {
+    if (this.sgcF08SubiendoPdf) {
+      return;
+    }
+    this.sgcF08SubiendoPdf = true;
+    this.backendService.subirPdfFirmadoSgcF08(base64, nombre)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF08SubiendoPdf = false;
+          this.aplicarEstadoSgcF08(res);
+          this.finalizarSubidaPdfSgc(!!res?.success, nombre);
+        },
+        error: () => {
+          this.sgcF08SubiendoPdf = false;
           this.finalizarSubidaPdfSgc(false);
         }
       });
