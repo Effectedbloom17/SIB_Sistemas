@@ -1,4 +1,5 @@
 import {
+  ChangeDetectorRef,
   Component,
   EventEmitter,
   HostListener,
@@ -57,12 +58,15 @@ export class EnvioDocumentoCorreoComponent implements OnChanges, OnDestroy {
   enviando = false;
   error = '';
   minimizado = false;
+  progreso = 0;
+  etapa = '';
 
   private destroy$ = new Subject<void>();
 
   constructor(
     private backend: BackendServices,
-    private correoSugerencias: CorreoSugerenciasService
+    private correoSugerencias: CorreoSugerenciasService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -213,22 +217,65 @@ export class EnvioDocumentoCorreoComponent implements OnChanges, OnDestroy {
     }
 
     this.enviando = true;
-    this.pdfLoader()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (blob) => {
-          if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
-            this.enviando = false;
-            this.error = 'No se pudo generar el PDF. Guarda la información e inténtalo de nuevo.';
-            return;
-          }
-          void this.enviarConAdjunto(blob, para, cc, cco, asunto);
-        },
-        error: () => {
-          this.enviando = false;
-          this.error = 'No se pudo generar el PDF. Guarda la información e inténtalo de nuevo.';
+    this.error = '';
+    void this.prepararPdfYEnviar(para, cc, cco, asunto);
+  }
+
+  /**
+   * 1) Verifica el PDF.
+   * 2) Si falla, vuelve a verificarlo sin avisar.
+   * 3) Si vuelve a fallar, lo genera otra vez (misma función que Generar PDF).
+   * 4) Solo entonces, si sigue sin un PDF válido, el correo no sale.
+   */
+  private async prepararPdfYEnviar(
+    para: string[],
+    cc: string[],
+    cco: string[],
+    asunto: string
+  ): Promise<void> {
+    const etapas = [
+      { inicio: 8, fin: 28, texto: 'Verificando el PDF…' },
+      { inicio: 34, fin: 54, texto: 'Reintentando la verificación del PDF…' },
+      { inicio: 60, fin: 78, texto: 'Generando el PDF…' }
+    ];
+
+    let pdf: Blob | null = null;
+    for (const etapa of etapas) {
+      this.setProgreso(etapa.inicio, etapa.texto);
+      try {
+        const blob = await this.cargarPdf();
+        this.setProgreso(etapa.fin - 6, 'Revisando que el archivo sea un PDF…');
+        if (await this.esPdfBlob(blob)) {
+          this.setProgreso(etapa.fin, 'PDF listo.');
+          pdf = blob;
+          break;
         }
-      });
+      } catch {
+        // El siguiente paso lo intenta otra vez.
+      }
+    }
+
+    if (!pdf) {
+      this.falloEnvio('No se pudo generar el PDF. El correo no se envió. Guarda la información e inténtalo de nuevo.');
+      return;
+    }
+
+    await this.enviarConAdjunto(pdf, para, cc, cco, asunto);
+  }
+
+  private cargarPdf(): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      if (!this.pdfLoader) {
+        reject(new Error('sin generador'));
+        return;
+      }
+      this.pdfLoader()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => resolve(blob),
+          error: (err) => reject(err)
+        });
+    });
   }
 
   private async enviarConAdjunto(
@@ -240,7 +287,12 @@ export class EnvioDocumentoCorreoComponent implements OnChanges, OnDestroy {
   ): Promise<void> {
     try {
       const nombre = String(this.nombreAdjunto || 'documento.pdf').replace(/[\\/:*?"<>|]+/g, '_');
+      this.setProgreso(82, 'Preparando el archivo para el correo…');
       const base64 = await this.blobABase64(blob);
+      if (!base64 || base64.length < 80) {
+        this.falloEnvio('No se pudo preparar el PDF. El correo no se envió.');
+        return;
+      }
       const mensaje = String(this.mensajeEdit || '').trim()
         || `Se adjunta el documento «${nombre}».`;
       const html = `<p>${this.escaparHtml(mensaje).replace(/\n/g, '<br>')}</p>`;
@@ -249,6 +301,7 @@ export class EnvioDocumentoCorreoComponent implements OnChanges, OnDestroy {
       cc.forEach((c) => this.correoSugerencias.guardarPersonalSiNuevo(c));
       cco.forEach((c) => this.correoSugerencias.guardarPersonalSiNuevo(c));
 
+      this.setProgreso(86, 'Enviando el correo…');
       this.backend.enviarCorreoPerfilConProgreso({
         destinatario: para.join(', '),
         cc: cc.length ? cc.join(', ') : undefined,
@@ -256,6 +309,7 @@ export class EnvioDocumentoCorreoComponent implements OnChanges, OnDestroy {
         asunto,
         mensaje,
         html,
+        requiereAdjunto: true,
         adjuntos: [{
           nombre,
           contentType: 'application/pdf',
@@ -265,13 +319,19 @@ export class EnvioDocumentoCorreoComponent implements OnChanges, OnDestroy {
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: (event) => {
+            if (event.type === HttpEventType.UploadProgress && event.total) {
+              const avance = event.loaded / event.total;
+              this.setProgreso(86 + avance * 10, 'Enviando el correo…');
+              return;
+            }
             if (event.type === HttpEventType.Response) {
-              this.enviando = false;
               const body: any = event.body;
-              if (body && body.success === false) {
-                this.error = body.message || 'No se pudo enviar el correo.';
+              if (!body || body.success === false || body.adjuntosIncluidos < 1) {
+                this.falloEnvio(body?.message || 'El correo no se envió: el archivo no quedó adjunto.');
                 return;
               }
+              this.setProgreso(100, 'Correo enviado.');
+              this.enviando = false;
               this.enviado.emit();
               this.visible = false;
               void Swal.fire({
@@ -285,20 +345,34 @@ export class EnvioDocumentoCorreoComponent implements OnChanges, OnDestroy {
             }
           },
           error: (err) => {
-            this.enviando = false;
-            this.error = err?.error?.message || 'No se pudo enviar el correo.';
+            this.falloEnvio(err?.error?.message || 'No se pudo enviar el correo.');
           }
         });
     } catch {
-      this.enviando = false;
-      this.error = 'No se pudo preparar el adjunto PDF.';
+      this.falloEnvio('No se pudo preparar el adjunto PDF.');
     }
+  }
+
+  private setProgreso(valor: number, etapa: string): void {
+    this.progreso = Math.max(0, Math.min(100, Math.round(valor)));
+    this.etapa = etapa;
+    this.cdr.detectChanges();
+  }
+
+  private falloEnvio(mensaje: string): void {
+    this.enviando = false;
+    this.progreso = 0;
+    this.etapa = '';
+    this.error = mensaje;
+    this.cdr.detectChanges();
   }
 
   private abrir(): void {
     this.minimizado = false;
     this.error = '';
     this.enviando = false;
+    this.progreso = 0;
+    this.etapa = '';
     this.mostrarCc = false;
     this.mostrarCco = false;
     this.campoPara = this.crearCampo();
@@ -381,6 +455,26 @@ export class EnvioDocumentoCorreoComponent implements OnChanges, OnDestroy {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  private async esPdfBlob(blob: Blob): Promise<boolean> {
+    if (!blob || blob.size < 128) {
+      return false;
+    }
+    const tipo = String(blob.type || '').toLowerCase();
+    if (tipo.includes('json') || tipo.includes('html') || tipo.startsWith('text/')) {
+      return false;
+    }
+    try {
+      const bytes = new Uint8Array(await blob.slice(0, 5).arrayBuffer());
+      if (bytes.length < 5) {
+        return false;
+      }
+      const header = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3], bytes[4]);
+      return header === '%PDF-';
+    } catch {
+      return false;
+    }
   }
 
   private blobABase64(blob: Blob): Promise<string> {

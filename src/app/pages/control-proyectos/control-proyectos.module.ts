@@ -2,6 +2,7 @@ import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Routes } from '@angular/router';
+import { DragDropModule } from '@angular/cdk/drag-drop';
 import { NgxEchartsModule } from 'ngx-echarts';
 import { ComponentsModule } from 'src/app/components/components.module';
 import { RoleGuard } from 'src/app/guards/role.guard';
@@ -27,6 +28,7 @@ const routes: Routes = [
     CommonModule,
     FormsModule,
     ComponentsModule,
+    DragDropModule,
     NgxEchartsModule,
     RouterModule.forChild(routes)
   ],

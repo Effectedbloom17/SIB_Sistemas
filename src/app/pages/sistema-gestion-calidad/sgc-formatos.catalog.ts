@@ -192,6 +192,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         previewMode: 'form'
       },
       {
+        codigo: 'ATH-F-07',
+        titulo: 'Programa de capacitación',
+        nombre: 'ATH-F-07 Programa de Capacitación (sistema)',
+        driveFileId: '1r2jJZXzF6-9z2upxZW03U9fR54vJOg52Oo0JTvag4Jc',
+        previewSlug: 'ath-f-07',
+        previewMode: 'form'
+      },
+      {
         codigo: 'ATH-F-08',
         titulo: 'Eficacia de la capacitación',
         nombre: 'ATH-F-08 Eficacia de la capacitación',

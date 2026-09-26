@@ -1,4 +1,5 @@
 import { Component, ElementRef, HostBinding, HostListener, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
@@ -73,6 +74,8 @@ interface ProyectoTableroItem {
   prioridad: string;
   estatus: string;
   avance: number;
+  /** Orden de visualización dentro del proyecto (drag-and-drop). */
+  orden?: number;
   activo?: boolean;
   modificadoPor?: string | null;
   modificadoEn?: string | null;
@@ -265,6 +268,9 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   busquedaActividadesGestion = '';
   busquedaEliminados = '';
   ordenVencimientoActividadesGestion: '' | 'proxima' | 'lejana' = '';
+  /** True mientras se arrastra una fila para reordenar (oculta preview/detalle). */
+  draggingActividadGestion = false;
+  private gestionGuardadoEnCola = false;
   busquedaProyectoDashboard = '';
   filtroResponsable = '';
   filtroPrioridadDashboard = '';
@@ -817,6 +823,14 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       }
       grupos.get(clave)!.actividades.push({ proyecto, indice });
     }
+    for (const grupo of grupos.values()) {
+      grupo.actividades.sort((a, b) => {
+        const oa = Number(a.proyecto.orden) || 0;
+        const ob = Number(b.proyecto.orden) || 0;
+        if (oa !== ob) return oa - ob;
+        return a.indice - b.indice;
+      });
+    }
     this.gestionAgrupadaLista = Array.from(grupos.values());
     this.asegurarSeleccionProyectoGestion();
   }
@@ -935,7 +949,65 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.cerrarMenuEstatusGestion();
   }
 
+  get puedeReordenarActividadesGestion(): boolean {
+    return !this.esConsultaEmpresa && !this.hayFiltrosActividadesGestion;
+  }
+
+  onDragInicioActividadGestion(): void {
+    this.draggingActividadGestion = true;
+    this.gestionActividadHoverIndice = null;
+    this.gestionActividadExpandidaIndice = null;
+    this.gestionActividadFijada = false;
+    this.gestionActividadCerrandoIndice = null;
+    this.cerrarMenuPrioridadGestion();
+    this.cerrarMenuEstatusGestion();
+    this.cerrarMenuResponsablesGestion();
+    this.cerrarMenuAccionesFila();
+  }
+
+  onDragFinActividadGestion(): void {
+    this.draggingActividadGestion = false;
+  }
+
+  onDropActividadGestion(
+    event: CdkDragDrop<Array<{ proyecto: ProyectoTableroItem; indice: number }>>,
+    grupo: GrupoGestionProyecto
+  ): void {
+    this.draggingActividadGestion = false;
+    if (!this.puedeReordenarActividadesGestion || !grupo?.actividades?.length) return;
+    if (event.previousIndex === event.currentIndex) return;
+
+    const listaCompleta = [...grupo.actividades];
+    const offset = (this.gestionActPagina - 1) * this.gestionActTamanoPagina;
+    const from = offset + event.previousIndex;
+    const to = offset + event.currentIndex;
+    if (from < 0 || to < 0 || from >= listaCompleta.length || to >= listaCompleta.length) return;
+
+    moveItemInArray(listaCompleta, from, to);
+
+    const indicesOriginales = listaCompleta
+      .map((a) => a.indice)
+      .slice()
+      .sort((a, b) => a - b);
+    const reordenadas = listaCompleta.map((a) => a.proyecto);
+
+    for (let i = indicesOriginales.length - 1; i >= 0; i--) {
+      this.proyectosGestion.splice(indicesOriginales[i], 1);
+    }
+    const insertAt = indicesOriginales[0] ?? 0;
+    this.proyectosGestion.splice(insertAt, 0, ...reordenadas);
+
+    reordenadas.forEach((proyecto, i) => {
+      proyecto.orden = i + 1;
+      proyecto.item = String(i + 1);
+    });
+
+    this.reconstruirGestionVista();
+    this.marcarGestionCambios();
+  }
+
   toggleExpandirActividadGestion(indice: number, proyecto?: ProyectoTableroItem): void {
+    if (!this.esSuperAdministrador) return;
     if (this.detalleHoverTimer) {
       clearTimeout(this.detalleHoverTimer);
       this.detalleHoverTimer = null;
@@ -988,6 +1060,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     indice: number,
     proyecto?: ProyectoTableroItem
   ): void {
+    if (!this.esSuperAdministrador) return;
     const target = event.target as HTMLElement | null;
     // En consulta empresa: campos de solo lectura también abren el detalle.
     if (this.esConsultaEmpresa) {
@@ -1071,6 +1144,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   }
 
   abrirDetalleGestionHover(indice: number, proyecto?: ProyectoTableroItem): void {
+    if (!this.esSuperAdministrador) return;
     if (this.detalleHoverTimer) {
       clearTimeout(this.detalleHoverTimer);
       this.detalleHoverTimer = null;
@@ -1652,10 +1726,10 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     hoy.setHours(0, 0, 0, 0);
 
     for (const { proyecto } of actividades) {
-      const avance = Number(proyecto.avance || 0);
+      const avance = this.avancePorEstatusActividad(proyecto.estatus);
       sumaAvance += avance;
       const est = this.normalizar(proyecto.estatus || '');
-      if (est === 'concluido' || avance >= 100) {
+      if (est === 'concluido') {
         concluidas += 1;
         continue;
       }
@@ -1698,13 +1772,33 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     avance: number;
   } {
     const base = grupo?.actividades?.[0]?.proyecto;
+    const stats = this.statsGrupoGestion(grupo);
     return {
       responsable: this.responsablePrincipal(base) || 'Sin responsable',
       fechaCompromiso: base?.fechaCompromiso || '',
       prioridad: base?.prioridad || '',
-      estatus: base?.estatus || 'No iniciado',
-      avance: Number(base?.avance || 0)
+      estatus: this.estatusAgregadoActividades(grupo),
+      avance: stats.avance
     };
+  }
+
+  /** El porcentaje de una actividad sale solo de su estatus. */
+  private avancePorEstatusActividad(estatus: string | null | undefined): number {
+    const n = this.normalizar(estatus || '');
+    if (n === 'concluido') return 100;
+    if (n === 'en revision' || n === 'en revisión') return 75;
+    if (n === 'en proceso') return 50;
+    return 0;
+  }
+
+  /** Estatus del proyecto según todas sus actividades, no solo la primera. */
+  private estatusAgregadoActividades(grupo: GrupoGestionProyecto): string {
+    const estados = (grupo?.actividades || []).map(({ proyecto }) => this.normalizar(proyecto.estatus || ''));
+    if (!estados.length) return 'No iniciado';
+    if (estados.every((e) => e === 'concluido')) return 'Concluido';
+    if (estados.some((e) => e === 'en revision' || e === 'en revisión')) return 'En revisión';
+    if (estados.some((e) => e === 'en proceso' || e === 'concluido')) return 'En proceso';
+    return 'No iniciado';
   }
 
   /** Fecha de inicio del proyecto (la más temprana entre actividades / createdAt / folio). */
@@ -4127,13 +4221,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   seleccionarEstatusGestion(proyecto: ProyectoTableroItem, estatus: string): void {
     if (!this.puedeEditarActividadGestion(proyecto, this.grupoGestionSeleccionado)) return;
     proyecto.estatus = estatus;
-    if (this.normalizar(estatus) === 'concluido') {
-      proyecto.avance = 100;
-    } else if (this.normalizar(estatus) === 'no iniciado') {
-      proyecto.avance = 0;
-    } else if (!proyecto.avance || proyecto.avance <= 0) {
-      proyecto.avance = 25;
-    }
+    proyecto.avance = this.avancePorEstatusActividad(estatus);
     this.cerrarMenuEstatusGestion();
     this.marcarGestionCambios();
   }
@@ -4183,9 +4271,13 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     }
     if (this.guardandoActividadGestion || this.guardandoGestion) return;
 
+    const siguienteOrden = Math.max(
+      0,
+      ...grupo.actividades.map((a) => Number(a.proyecto.orden) || 0)
+    ) + 1;
     const siguienteItem = String(
       Math.max(
-        0,
+        siguienteOrden - 1,
         ...grupo.actividades.map((a) => Number.parseInt(String(a.proyecto.item || '0'), 10) || 0)
       ) + 1
     );
@@ -4213,7 +4305,8 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       observaciones: '',
       prioridad: base.prioridad || 'Media',
       estatus: 'No iniciado',
-      avance: 0
+      avance: 0,
+      orden: siguienteOrden
     })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -4285,7 +4378,8 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
           observaciones: String(p.observaciones || '').trim(),
           prioridad: p.prioridad || undefined,
           estatus: p.estatus || undefined,
-          avance: p.avance
+          avance: p.avance,
+          orden: Number(p.orden) > 0 ? Number(p.orden) : undefined
         };
       })
       .filter((p) =>
@@ -4437,6 +4531,10 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   guardarGestion(silencioso = false): void {
     if (this.esConsultaEmpresa) return;
+    if (this.guardandoGestion) {
+      this.gestionGuardadoEnCola = true;
+      return;
+    }
     const payload = this.proyectosGestion
       .filter((p) => this.puedeEditarActividadAlGuardar(p))
       .map((p) => {
@@ -4459,7 +4557,8 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
           observaciones: String(p.observaciones || '').trim(),
           prioridad: p.prioridad || undefined,
           estatus: p.estatus || undefined,
-          avance: p.avance
+          avance: p.avance,
+          orden: Number(p.orden) > 0 ? Number(p.orden) : undefined
         };
       })
       .filter((p) =>
@@ -4495,15 +4594,21 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
             if (!silencioso) {
               this.errorGestion = res?.message || 'No se pudieron guardar los proyectos.';
             }
+            this.gestionGuardadoEnCola = false;
             return;
           }
           this.gestionCambiosPendientes = false;
           if (!this.gestionComponenteDestruido) {
             this.aplicarDashboard(res);
           }
+          if (this.gestionGuardadoEnCola) {
+            this.gestionGuardadoEnCola = false;
+            this.guardarGestion(silencioso);
+          }
         },
         error: (err) => {
           this.guardandoGestion = false;
+          this.gestionGuardadoEnCola = false;
           if (!silencioso) {
             this.errorGestion = err?.error?.message || 'No se pudieron guardar los proyectos.';
           }
@@ -4843,6 +4948,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       prioridad: String(item?.prioridad || '').trim() || 'Ninguna',
       estatus: String(item?.estatus || '').trim() || 'No iniciado',
       avance: this.normalizarAvance(item?.avance),
+      orden: Number(item?.orden) > 0 ? Number(item.orden) : 0,
       activo: item?.activo !== false,
       modificadoPor: item?.modificadoPor || null,
       modificadoEn: item?.modificadoEn || null,

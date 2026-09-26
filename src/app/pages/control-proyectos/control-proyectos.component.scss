@@ -7547,13 +7547,15 @@ thead .cp-activities-table__sticky {
   .cp-gestion-act-table__input,
   .cp-gestion-act-table__input--actividad,
   .cp-gestion-act-table__field textarea {
-    color: #334155;
+    color: #0f172a;
+    font-weight: 400;
+    background: rgba(255, 255, 255, 0.72);
     cursor: pointer;
 
     &:hover,
     &:focus {
-      border-color: transparent;
-      background: transparent;
+      border-color: rgba(15, 23, 42, 0.12);
+      background: rgba(255, 255, 255, 0.82);
       box-shadow: none;
     }
   }
@@ -7589,6 +7591,26 @@ thead .cp-activities-table__sticky {
   border-radius: 999px;
   padding: 0.2rem 0.55rem;
   white-space: nowrap;
+}
+
+.cp-gestion-reorder-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+
+  i {
+    color: #94a3b8;
+    font-size: 0.7rem;
+  }
+
+  &--muted {
+    color: #94a3b8;
+    font-weight: 500;
+  }
 }
 
 .cp-gestion-act-filters {
@@ -7763,7 +7785,7 @@ thead .cp-activities-table__sticky {
   }
 }
 
-.cp-gestion-act-table__col--num { width: 48px; }
+.cp-gestion-act-table__col--num { width: 56px; }
 .cp-gestion-act-table__col--tools { width: 78px; }
 .cp-gestion-act-table__col--more { width: 72px; }
 .cp-gestion-act-table__col--act { width: 56px; }
@@ -7943,7 +7965,8 @@ thead .cp-activities-table__sticky {
   word-break: break-word;
   line-height: 1.4;
   font-size: 0.76rem;
-  font-weight: 500;
+  font-weight: 400;
+  color: #0f172a;
   scrollbar-width: none;
 
   &::-webkit-scrollbar {
@@ -7965,8 +7988,8 @@ thead .cp-activities-table__sticky {
   flex: 1 1 auto;
   min-width: 7.5rem;
   max-width: 10rem;
-  border-color: #e2e8f0;
-  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .cp-gestion-vence__badge {
@@ -8022,9 +8045,9 @@ thead .cp-activities-table__sticky {
   min-width: 0;
 
   &.is-open .cp-gestion-act-status__btn {
-    border-color: #cbd5e1;
-    box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.18);
-    background: #ffffff;
+    border-color: #94a3b8;
+    box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.1);
+    background: rgba(255, 255, 255, 0.94);
   }
 }
 
@@ -8036,16 +8059,16 @@ thead .cp-activities-table__sticky {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 10px;
   padding: 0.38rem 0.5rem;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.72);
   cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, background 0.15s ease;
   text-align: left;
   color: #0f172a;
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 500;
 
   > .fas:first-child {
     flex-shrink: 0;
@@ -8062,8 +8085,8 @@ thead .cp-activities-table__sticky {
   }
 
   &:hover {
-    border-color: #cbd5e1;
-    background: #ffffff;
+    border-color: #94a3b8;
+    background: rgba(255, 255, 255, 0.88);
   }
 }
 
@@ -8453,7 +8476,7 @@ thead .cp-activities-table__sticky {
   color: #94a3b8;
   text-align: center;
   font-variant-numeric: tabular-nums;
-  cursor: pointer;
+  cursor: grab;
   user-select: none;
   transition: color 0.2s ease;
 
@@ -8461,36 +8484,90 @@ thead .cp-activities-table__sticky {
   .cp-gestion-act-table__row[data-estatus-tone='done'] & { color: #10b981; }
   .cp-gestion-act-table__row[data-estatus-tone='todo'] & { color: #64748b; }
   .cp-gestion-act-table__row[data-estatus-tone='review'] & { color: #8b5cf6; }
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+.cp-gestion-act-table__num-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 1.75rem;
+}
+
+.cp-gestion-act-table__grip {
+  font-size: 0.62rem;
+  opacity: 0.55;
+}
+
+.cp-gestion-act-table__row.cdk-drag-preview {
+  display: table;
+  table-layout: fixed;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+  border-radius: 10px;
+  opacity: 0.97;
+}
+
+.cp-gestion-act-table__row.cdk-drag-placeholder {
+  background: rgba(148, 163, 184, 0.18) !important;
+  opacity: 0.55;
+
+  td {
+    border-bottom-color: transparent;
+  }
+}
+
+.cp-gestion-act-table__row.cdk-drag-animating {
+  transition: transform 180ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.cp-gestion-act-table tbody.cdk-drop-list-dragging .cp-gestion-act-table__row:not(.cdk-drag-placeholder) {
+  transition: transform 180ms cubic-bezier(0, 0, 0.2, 1);
 }
 
 .cp-gestion-act-table__input {
   width: 100%;
-  border: 1px solid transparent;
+  border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 8px;
   padding: 0.42rem 0.55rem;
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: 400;
   color: #0f172a;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.72);
   transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
   font-family: inherit;
 
   &:hover {
-    border-color: #e2e8f0;
-    background: #ffffff;
+    border-color: #94a3b8;
+    background: rgba(255, 255, 255, 0.88);
   }
 
   &:focus {
     outline: none;
-    border-color: #cbd5e1;
-    background: #ffffff;
-    box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.2);
+    border-color: #334155;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.12);
   }
 
   &--date {
     font-size: 0.74rem;
-    font-weight: 600;
+    font-weight: 400;
     max-width: 140px;
+    color: #0f172a;
+    color-scheme: light;
+
+    &::-webkit-datetime-edit,
+    &::-webkit-datetime-edit-fields-wrapper,
+    &::-webkit-datetime-edit-text,
+    &::-webkit-datetime-edit-month-field,
+    &::-webkit-datetime-edit-day-field,
+    &::-webkit-datetime-edit-year-field {
+      color: #0f172a;
+    }
   }
 
   &--actividad {
@@ -8503,12 +8580,12 @@ thead .cp-activities-table__sticky {
     word-break: break-word;
     field-sizing: content;
     font-weight: 400;
-    color: #475569;
+    color: #0f172a;
   }
 
   &::placeholder {
-    color: #94a3b8;
-    font-weight: 500;
+    color: #64748b;
+    font-weight: 400;
   }
 }
 

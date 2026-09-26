@@ -94,6 +94,25 @@ interface ComposeAdjuntoPendiente {
   esImagen?: boolean;
 }
 
+type ComposeAdjuntoCargaEstado = 'pendiente' | 'cargando' | 'listo' | 'error';
+
+interface ComposeAdjuntoCargaItem {
+  indice: number;
+  nombre: string;
+  estado: ComposeAdjuntoCargaEstado;
+  size?: number;
+}
+
+interface ComposeCargaAdjuntos {
+  activa: boolean;
+  total: number;
+  listos: number;
+  fallidos: number;
+  cancelada: boolean;
+  enviarAlTerminar: boolean;
+  archivos: ComposeAdjuntoCargaItem[];
+}
+
 interface ComposeBorrador {
   id: string;
   modo: 'float' | 'inline';
@@ -110,6 +129,7 @@ interface ComposeBorrador {
   inReplyTo?: string;
   references?: string;
   adjuntos: ComposeAdjuntoPendiente[];
+  cargaAdjuntos: ComposeCargaAdjuntos | null;
   minimizado: boolean;
   expandido: boolean;
   formatoAbierto: boolean;
@@ -188,6 +208,7 @@ export class CorreoComponent implements OnInit, OnDestroy {
   composiciones: ComposeBorrador[] = [];
   private readonly maxComposiciones = 2;
   private composeAdjuntosTargetId: string | null = null;
+  private cargaAdjuntosTokens = new Map<string, number>();
   private composeDragDepth = new Map<string, number>();
   composeFirmaHtml: SafeHtml | null = null;
   cargandoComposeFirma = false;
@@ -243,6 +264,7 @@ export class CorreoComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.cargaAdjuntosTokens.forEach((_token, id) => this.invalidarCargaAdjuntos(id));
     this.liberarIframe();
   }
 
@@ -569,6 +591,7 @@ export class CorreoComponent implements OnInit, OnDestroy {
       citaHtml: '',
       citaExpandida: false,
       adjuntos: [],
+      cargaAdjuntos: null,
       minimizado: false,
       expandido: false,
       formatoAbierto: false,
@@ -650,6 +673,7 @@ export class CorreoComponent implements OnInit, OnDestroy {
     if (!inline) {
       return;
     }
+    this.invalidarCargaAdjuntos(inline.id);
     this.composiciones = this.composiciones.filter((item) => item.id !== inline.id);
   }
 
@@ -863,6 +887,7 @@ export class CorreoComponent implements OnInit, OnDestroy {
   }
 
   cerrarCompose(borrador: ComposeBorrador): void {
+    this.invalidarCargaAdjuntos(borrador.id);
     this.composiciones = this.composiciones.filter((item) => item.id !== borrador.id);
     this.composeDragDepth.delete(borrador.id);
     if (this.composeAdjuntosTargetId === borrador.id) {
@@ -1150,7 +1175,12 @@ export class CorreoComponent implements OnInit, OnDestroy {
     return this.mensajes;
   }
 
-  enviarMensaje(borrador: ComposeBorrador): void {
+  enviarMensaje(borrador: ComposeBorrador, opciones: { omitirVerificacionAdjuntos?: boolean } = {}): void {
+    if (!opciones.omitirVerificacionAdjuntos && this.tieneAdjuntosPendientesDeCarga(borrador)) {
+      void this.confirmarEnvioConAdjuntosPendientes(borrador);
+      return;
+    }
+
     const destinatarios = this.obtenerCorreosCampo(borrador, 'para');
     const destinatario = destinatarios.join(', ');
     const correosCc = this.obtenerCorreosCampo(borrador, 'cc');
@@ -1711,7 +1741,9 @@ export class CorreoComponent implements OnInit, OnDestroy {
       borrador.campoPara = this.crearCampoCorreoCompose();
       borrador.campoCc = this.crearCampoCorreoCompose();
       borrador.campoCco = this.crearCampoCorreoCompose();
+      this.invalidarCargaAdjuntos(borrador.id);
       borrador.adjuntos = [];
+      borrador.cargaAdjuntos = null;
       borrador.mensajeHtml = '';
       borrador.citaHtml = '';
       borrador.citaExpandida = false;
@@ -2090,24 +2122,201 @@ export class CorreoComponent implements OnInit, OnDestroy {
     }
   }
 
+  porcentajeCargaAdjuntos(borrador: ComposeBorrador): number {
+    const carga = borrador.cargaAdjuntos;
+    if (!carga || carga.total <= 0) {
+      return 0;
+    }
+    const avance = carga.listos + carga.fallidos;
+    return Math.max(0, Math.min(100, Math.round((avance / carga.total) * 100)));
+  }
+
+  faltantesCargaAdjuntos(borrador: ComposeBorrador): number {
+    const carga = borrador.cargaAdjuntos;
+    if (!carga) {
+      return 0;
+    }
+    return Math.max(0, carga.total - carga.listos - carga.fallidos);
+  }
+
+  etiquetaEstadoCargaAdjunto(estado: ComposeAdjuntoCargaEstado): string {
+    if (estado === 'listo') {
+      return 'Cargado';
+    }
+    if (estado === 'cargando') {
+      return 'Cargando';
+    }
+    if (estado === 'error') {
+      return 'No se pudo cargar';
+    }
+    return 'Pendiente';
+  }
+
+  private tieneAdjuntosPendientesDeCarga(borrador: ComposeBorrador): boolean {
+    const carga = borrador.cargaAdjuntos;
+    if (!carga) {
+      return false;
+    }
+    if (carga.activa && (carga.total === 0 || this.faltantesCargaAdjuntos(borrador) > 0)) {
+      return true;
+    }
+    return !carga.activa && carga.fallidos > 0;
+  }
+
+  private async confirmarEnvioConAdjuntosPendientes(borrador: ComposeBorrador): Promise<void> {
+    const carga = borrador.cargaAdjuntos;
+    if (!carga) {
+      return;
+    }
+
+    if (carga.enviarAlTerminar && carga.activa) {
+      const faltantes = this.faltantesCargaAdjuntos(borrador);
+      await Swal.fire({
+        icon: 'info',
+        title: 'Esperando adjuntos',
+        text: `Faltan ${faltantes} archivo${faltantes === 1 ? '' : 's'} por cargar. El correo se enviará cuando terminen.`,
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#38512F'
+      });
+      return;
+    }
+
+    const buscando = carga.activa && carga.total === 0;
+    const enCurso = carga.activa && (buscando || this.faltantesCargaAdjuntos(borrador) > 0);
+    const cantidad = enCurso ? this.faltantesCargaAdjuntos(borrador) : carga.fallidos;
+    const detalle = buscando
+      ? 'Aún se están localizando los adjuntos del mensaje original.'
+      : enCurso
+        ? `Aún no se han cargado todos los archivos. Faltan <strong>${cantidad}</strong> archivo${cantidad === 1 ? '' : 's'} por cargar.`
+        : `No se pudieron cargar <strong>${cantidad}</strong> archivo${cantidad === 1 ? '' : 's'}.`;
+    const ayuda = enCurso
+      ? 'Si lo envías ahora, el correo saldrá sin esos archivos. También puedes esperar a que terminen de cargar y enviarlo completo.'
+      : 'Si lo envías ahora, el correo saldrá sin esos archivos.';
+    const pendientes = carga.archivos
+      .filter((archivo) => archivo.estado === 'pendiente' || archivo.estado === 'cargando' || archivo.estado === 'error')
+      .map((archivo) => `<li style="margin:0 0 4px;">${this.escaparHtmlCompose(archivo.nombre)}</li>`)
+      .join('');
+
+    const resultado = await Swal.fire({
+      icon: 'warning',
+      title: 'Faltan archivos por cargar',
+      html: `
+        <p style="margin:0 0 10px;text-align:left;line-height:1.45;">${detalle}</p>
+        <p style="margin:0 0 10px;text-align:left;line-height:1.45;">${ayuda}</p>
+        ${pendientes ? `<ul style="margin:0;padding-left:18px;text-align:left;max-height:140px;overflow:auto;font-size:13px;color:#345246;">${pendientes}</ul>` : ''}
+      `,
+      showCancelButton: true,
+      showDenyButton: enCurso,
+      confirmButtonText: enCurso ? 'Esperar y enviar completo' : 'Enviar de todas formas',
+      denyButtonText: 'Enviar sin esos archivos',
+      cancelButtonText: 'Revisar',
+      confirmButtonColor: '#38512F',
+      denyButtonColor: '#856404',
+      focusConfirm: true,
+      reverseButtons: true
+    });
+
+    if (!this.composiciones.some((item) => item.id === borrador.id) || !borrador.cargaAdjuntos) {
+      return;
+    }
+
+    if (enCurso && resultado.isConfirmed) {
+      if (!borrador.cargaAdjuntos.activa) {
+        this.enviarMensaje(borrador);
+        return;
+      }
+      borrador.cargaAdjuntos.enviarAlTerminar = true;
+      this.cdr.detectChanges();
+      return;
+    }
+
+    const enviarIncompleto = (enCurso && resultado.isDenied) || (!enCurso && resultado.isConfirmed);
+    if (!enviarIncompleto) {
+      return;
+    }
+
+    if (borrador.cargaAdjuntos.activa) {
+      borrador.cargaAdjuntos.cancelada = true;
+      borrador.cargaAdjuntos.activa = false;
+      this.invalidarCargaAdjuntos(borrador.id);
+    }
+    borrador.cargaAdjuntos = null;
+    borrador.error = '';
+    this.enviarMensaje(borrador, { omitirVerificacionAdjuntos: true });
+  }
+
+  private invalidarCargaAdjuntos(borradorId: string): void {
+    const actual = this.cargaAdjuntosTokens.get(borradorId) || 0;
+    this.cargaAdjuntosTokens.set(borradorId, actual + 1);
+  }
+
+  private cargaAdjuntosVigente(borradorId: string, token: number): boolean {
+    return this.cargaAdjuntosTokens.get(borradorId) === token
+      && this.composiciones.some((item) => item.id === borradorId);
+  }
+
   private async cargarAdjuntosAlReenvio(borrador: ComposeBorrador): Promise<void> {
     const mensaje = this.mensajeSeleccionado;
     if (!mensaje?.uid) {
       return;
     }
 
+    const token = (this.cargaAdjuntosTokens.get(borrador.id) || 0) + 1;
+    this.cargaAdjuntosTokens.set(borrador.id, token);
+    borrador.cargaAdjuntos = {
+      activa: true,
+      total: 0,
+      listos: 0,
+      fallidos: 0,
+      cancelada: false,
+      enviarAlTerminar: false,
+      archivos: []
+    };
+    borrador.error = '';
+    this.cdr.detectChanges();
+
     const lista = await this.asegurarListaAdjuntosParaReenvio();
+    if (!this.cargaAdjuntosVigente(borrador.id, token)) {
+      return;
+    }
+    const enviarAlTerminar = Boolean(borrador.cargaAdjuntos?.enviarAlTerminar);
     if (!lista.length) {
+      borrador.cargaAdjuntos = null;
+      this.cdr.detectChanges();
+      if (enviarAlTerminar) {
+        this.enviarMensaje(borrador);
+      }
       return;
     }
 
-    borrador.error = 'Preparando adjuntos del mensaje original...';
-    this.cdr.markForCheck();
+    borrador.cargaAdjuntos = {
+      activa: true,
+      total: lista.length,
+      listos: 0,
+      fallidos: 0,
+      cancelada: false,
+      enviarAlTerminar,
+      archivos: lista.map((adjunto) => ({
+        indice: adjunto.indice,
+        nombre: String(adjunto.nombre || `Adjunto ${adjunto.indice + 1}`).trim(),
+        estado: 'pendiente',
+        size: Number(adjunto.size) > 0 ? Number(adjunto.size) : undefined
+      }))
+    };
+    borrador.error = '';
+    this.cdr.detectChanges();
 
-    const adjuntosNuevos: ComposeAdjuntoPendiente[] = [];
-    let fallidos = 0;
+    for (let indiceLista = 0; indiceLista < lista.length; indiceLista += 1) {
+      const cargaActual = borrador.cargaAdjuntos;
+      if (!this.cargaAdjuntosVigente(borrador.id, token) || !cargaActual || cargaActual.cancelada) {
+        return;
+      }
 
-    for (const adjunto of lista) {
+      const adjunto = lista[indiceLista];
+      const item = cargaActual.archivos[indiceLista];
+      item.estado = 'cargando';
+      this.cdr.detectChanges();
+
       try {
         const response = await firstValueFrom(
           this.backendService.descargarAdjuntoCorreo(
@@ -2117,39 +2326,68 @@ export class CorreoComponent implements OnInit, OnDestroy {
             this.correoApiBase
           )
         );
+        const cargaTrasDescarga = borrador.cargaAdjuntos;
+        if (!this.cargaAdjuntosVigente(borrador.id, token) || !cargaTrasDescarga || cargaTrasDescarga.cancelada) {
+          return;
+        }
+
         const blob = response.body;
         if (!blob) {
-          fallidos += 1;
+          item.estado = 'error';
+          cargaTrasDescarga.fallidos += 1;
+          this.cdr.detectChanges();
           continue;
         }
 
         const nombre = this.obtenerNombreArchivoDescarga(response, adjunto);
         const tipo = adjunto.contentType || blob.type || 'application/octet-stream';
         const file = new File([blob], nombre, { type: tipo });
-        adjuntosNuevos.push({
+        const pendiente: ComposeAdjuntoPendiente = {
           id: `fwd-${Date.now()}-${adjunto.indice}-${Math.random().toString(36).slice(2, 7)}`,
           file,
           nombre,
           size: file.size,
           esImagen: /^image\//i.test(tipo)
-        });
+        };
+        borrador.adjuntos = [...borrador.adjuntos, pendiente];
+        item.nombre = nombre;
+        item.size = file.size;
+        item.estado = 'listo';
+        cargaTrasDescarga.listos += 1;
       } catch {
-        fallidos += 1;
+        const cargaTrasError = borrador.cargaAdjuntos;
+        if (!this.cargaAdjuntosVigente(borrador.id, token) || !cargaTrasError) {
+          return;
+        }
+        item.estado = 'error';
+        cargaTrasError.fallidos += 1;
       }
+
+      this.cdr.detectChanges();
     }
 
-    // Evitar pisar adjuntos que el usuario haya agregado mientras cargábamos.
-    borrador.adjuntos = [...borrador.adjuntos, ...adjuntosNuevos];
+    if (!this.cargaAdjuntosVigente(borrador.id, token) || !borrador.cargaAdjuntos) {
+      return;
+    }
 
-    if (fallidos > 0 && adjuntosNuevos.length === 0) {
+    const carga = borrador.cargaAdjuntos;
+    carga.activa = false;
+    const enviarAlCerrar = carga.enviarAlTerminar;
+
+    if (carga.fallidos > 0 && carga.listos === 0) {
       borrador.error = 'No se pudieron cargar los adjuntos del mensaje original.';
-    } else if (fallidos > 0) {
-      borrador.error = `Se reenviaron ${adjuntosNuevos.length} adjunto(s); ${fallidos} no se pudieron cargar.`;
+    } else if (carga.fallidos > 0) {
+      borrador.error = `Se cargaron ${carga.listos} adjunto(s); ${carga.fallidos} no se pudieron cargar.`;
     } else {
       borrador.error = '';
+      borrador.cargaAdjuntos = null;
     }
 
     this.cdr.detectChanges();
+
+    if (enviarAlCerrar) {
+      this.enviarMensaje(borrador);
+    }
   }
 
   private cargarCarpetas(cargarMensajes: boolean): void {

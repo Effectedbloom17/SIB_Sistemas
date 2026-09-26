@@ -200,6 +200,53 @@ module.exports = function createCorreoRoutes(deps) {
         return adjuntos.length ? adjuntos : undefined;
     }
 
+    function nombreAdjuntoSeguro(nombre, index = 0) {
+        const base = path.basename(String(nombre || `adjunto-${index + 1}`))
+            .replace(/["\r\n]/g, '')
+            .replace(/[\\/:*?<>|]+/g, '_')
+            .replace(/\s+/g, ' ')
+            .trim();
+        return base || `adjunto-${index + 1}`;
+    }
+
+    function esPdfBuffer(buffer) {
+        return Buffer.isBuffer(buffer)
+            && buffer.length >= 128
+            && buffer.subarray(0, 5).toString('ascii') === '%PDF-';
+    }
+
+    function normalizarAdjuntoEntrada(adjunto, index = 0) {
+        const contenidoBase64Raw = String(adjunto?.contenidoBase64 || adjunto?.contentBase64 || '').trim();
+        const contenidoBase64 = contenidoBase64Raw
+            .replace(/^data:[^;]+;base64,/i, '')
+            .replace(/\s/g, '');
+        if (!contenidoBase64) {
+            return null;
+        }
+
+        let content;
+        try {
+            content = Buffer.from(contenidoBase64, 'base64');
+        } catch (_) {
+            return null;
+        }
+        if (!content.length) {
+            return null;
+        }
+
+        const contentType = String(adjunto?.contentType || adjunto?.tipo || 'application/octet-stream')
+            .split(';')[0]
+            .trim() || 'application/octet-stream';
+
+        return {
+            filename: nombreAdjuntoSeguro(adjunto?.nombre || adjunto?.filename, index),
+            content,
+            contentType,
+            contentDisposition: 'attachment',
+            contentTransferEncoding: 'base64'
+        };
+    }
+
     function construirTextoCorreoPerfil(texto) {
         return String(texto || '').trim();
     }
@@ -1153,23 +1200,37 @@ module.exports = function createCorreoRoutes(deps) {
             }
 
             const adjuntosEntrada = Array.isArray(req.body?.adjuntos) ? req.body.adjuntos : [];
+            const requiereAdjunto = req.body?.requiereAdjunto === true
+                || req.body?.requiereAdjunto === 'true'
+                || req.body?.requiereAdjunto === 1;
             const attachments = adjuntosEntrada
-                .map((adjunto, index) => {
-                    const contenidoBase64 = String(adjunto?.contenidoBase64 || adjunto?.contentBase64 || '').trim();
-                    if (!contenidoBase64) {
-                        return null;
-                    }
-
-                    const nombre = path.basename(String(adjunto?.nombre || adjunto?.filename || `adjunto-${index + 1}`))
-                        .replace(/["\r\n]/g, '') || `adjunto-${index + 1}`;
-
-                    return {
-                        filename: nombre,
-                        content: Buffer.from(contenidoBase64, 'base64'),
-                        contentType: String(adjunto?.contentType || adjunto?.tipo || 'application/octet-stream')
-                    };
-                })
+                .map((adjunto, index) => normalizarAdjuntoEntrada(adjunto, index))
                 .filter(Boolean);
+
+            if ((requiereAdjunto || adjuntosEntrada.length > 0) && attachments.length === 0) {
+                console.error(
+                    `[CORREO] ENVIO BLOQUEADO | ${correoPerfil} → ${destinatario} | "${asunto}" | se pidieron ${adjuntosEntrada.length} adjunto(s) y ninguno llegó con contenido`
+                );
+                return res.status(400).json({
+                    success: false,
+                    message: 'El correo no se envió: el archivo no llegó al servidor. Vuelve a intentarlo.',
+                    adjuntosIncluidos: 0
+                });
+            }
+
+            if (requiereAdjunto && !attachments.some((adjunto) => esPdfBuffer(adjunto.content))) {
+                const detalle = attachments
+                    .map((adjunto) => `${adjunto.filename}:${adjunto.content.length}b`)
+                    .join(', ') || 'vacío';
+                console.error(
+                    `[CORREO] ENVIO BLOQUEADO | ${correoPerfil} → ${destinatario} | "${asunto}" | PDF inválido (${detalle})`
+                );
+                return res.status(400).json({
+                    success: false,
+                    message: 'El correo no se envió: el PDF generado no es válido. Guarda la información e inténtalo de nuevo.',
+                    adjuntosIncluidos: 0
+                });
+            }
 
             let adjuntosResueltos;
             try {
@@ -1197,6 +1258,22 @@ module.exports = function createCorreoRoutes(deps) {
                 : textoBase;
             const attachmentsInline = adjuntosResueltos.attachmentsInline || [];
             const adjuntosCorreo = combinarAdjuntosCorreo(attachmentsInline, correoCompuesto.firmaAttachment);
+            const bytesAdjuntosInline = attachmentsInline.reduce(
+                (sum, adjunto) => sum + (Buffer.isBuffer(adjunto.content) ? adjunto.content.length : 0),
+                0
+            );
+            const adjuntosIncluidos = attachmentsInline.length + (adjuntosResueltos.enlacesDescarga || []).length;
+
+            if (requiereAdjunto && adjuntosIncluidos === 0) {
+                console.error(
+                    `[CORREO] ENVIO BLOQUEADO | ${correoPerfil} → ${destinatario} | "${asunto}" | el PDF no quedó ni adjunto ni en Drive`
+                );
+                return res.status(400).json({
+                    success: false,
+                    message: 'El correo no se envió: no se pudo adjuntar el archivo.',
+                    adjuntosIncluidos: 0
+                });
+            }
             const enlacesDescarga = adjuntosResueltos.enlacesDescarga || [];
             const paqueteDescarga = adjuntosResueltos.paquete || null;
 
@@ -1311,7 +1388,10 @@ module.exports = function createCorreoRoutes(deps) {
             const infoEnlaces = enlacesDescarga.length
                 ? ` | driveLinks=${enlacesDescarga.length}`
                 : '';
-            console.log(`[CORREO] ENVIAR OK | ${correoPerfil} → ${destinatario} | "${asunto}" | ${origenEnvio || 'sistema'}${infoEnlaces} | ${ms}ms`);
+            const infoAdjuntos = adjuntosIncluidos
+                ? ` | adjuntos=${adjuntosIncluidos} (${bytesAdjuntosInline}b)`
+                : ' | adjuntos=0';
+            console.log(`[CORREO] ENVIAR OK | ${correoPerfil} → ${destinatario} | "${asunto}" | ${origenEnvio || 'sistema'}${infoAdjuntos}${infoEnlaces} | ${ms}ms`);
 
             const respuestaOk = {
                 success: true,
@@ -1321,6 +1401,8 @@ module.exports = function createCorreoRoutes(deps) {
                 enviadoDesde: correoPerfil,
                 origen: origenEnvio || 'sistema',
                 messageId: resultadoEnvio.messageId || null,
+                adjuntosIncluidos,
+                adjuntosBytes: bytesAdjuntosInline,
                 adjuntosViaDescarga: enlacesDescarga.map((item) => ({
                     nombre: item.nombre,
                     url: item.url,

@@ -1266,6 +1266,136 @@ $correo-white: #ffffff;
   margin-bottom: 0.45rem;
 }
 
+.correo-compose-carga {
+  background: #f3faf6;
+  border: 1px solid #c5d7cb;
+  border-radius: 10px;
+  color: #24362c;
+  flex-shrink: 0;
+  margin: 0.55rem 0.75rem 0.35rem;
+  padding: 0.7rem 0.8rem 0.55rem;
+}
+
+.correo-compose-inline .correo-compose-carga {
+  margin: 0 0 0.55rem;
+}
+
+.correo-compose-carga-head {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.correo-compose-carga-titulo {
+  align-items: center;
+  display: flex;
+  font-size: 0.84rem;
+  font-weight: 700;
+  gap: 0.4rem;
+}
+
+.correo-compose-carga-pct {
+  color: $correo-green;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.correo-compose-carga-track {
+  background: #e3ebe6;
+  border-radius: 999px;
+  height: 10px;
+  margin-top: 0.45rem;
+  overflow: hidden;
+}
+
+.correo-compose-carga-fill {
+  background: $correo-green;
+  border-radius: 999px;
+  height: 100%;
+  min-width: 0;
+  transition: width 0.2s ease;
+
+  &.is-indeterminada {
+    width: 36%;
+    animation: correoCargaIndeterminada 1.1s ease-in-out infinite;
+  }
+}
+
+@keyframes correoCargaIndeterminada {
+  0% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.correo-compose-carga-meta {
+  color: $correo-muted;
+  font-size: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.correo-compose-carga-espera {
+  color: $correo-green;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin: 0.35rem 0 0;
+}
+
+.correo-compose-carga-lista {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  max-height: 148px;
+  overflow: auto;
+  padding: 0;
+}
+
+.correo-compose-carga-item {
+  align-items: center;
+  display: flex;
+  font-size: 0.75rem;
+  gap: 0.4rem;
+  min-height: 22px;
+}
+
+.correo-compose-carga-icono {
+  flex: 0 0 14px;
+  text-align: center;
+  width: 14px;
+}
+
+.correo-compose-carga-item.is-listo .correo-compose-carga-icono {
+  color: $correo-green;
+}
+
+.correo-compose-carga-item.is-cargando .correo-compose-carga-icono {
+  color: #1d6fbf;
+}
+
+.correo-compose-carga-item.is-error .correo-compose-carga-icono,
+.correo-compose-carga-item.is-error .correo-compose-carga-estado {
+  color: #a33b32;
+}
+
+.correo-compose-carga-item.is-pendiente {
+  color: #7b867f;
+}
+
+.correo-compose-carga-nombre {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.correo-compose-carga-estado {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+
 .correo-compose-inline .correo-compose-footer {
   border-top: 0;
   margin-top: 0.35rem;

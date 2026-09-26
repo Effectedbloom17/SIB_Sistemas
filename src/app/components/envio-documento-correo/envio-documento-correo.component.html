@@ -167,6 +167,19 @@
             placeholder="Mensaje opcional…"></textarea>
         </label>
 
+        <div class="edc-progreso" *ngIf="enviando" aria-live="polite">
+          <div class="edc-progreso__texto">{{ etapa }}</div>
+          <div
+            class="edc-progreso__pista"
+            role="progressbar"
+            [attr.aria-valuenow]="progreso"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            [attr.aria-valuetext]="etapa">
+            <div class="edc-progreso__barra" [style.width.%]="progreso"></div>
+          </div>
+        </div>
+
         <div class="edc-footer">
           <button type="submit" class="edc-enviar" [disabled]="enviando">
             <i class="fas" [ngClass]="enviando ? 'fa-spinner fa-spin' : 'fa-paper-plane'" aria-hidden="true"></i>

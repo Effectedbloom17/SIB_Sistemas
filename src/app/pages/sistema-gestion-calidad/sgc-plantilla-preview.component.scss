@@ -27971,3 +27971,646 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
     margin-right: 0;
   }
 }
+
+// ═══ ATH-F-07 · Programa de Capacitación (archivero + Docs + firmados) ═══
+:host.sgc-preview--ath-f-07 {
+  .ath-f07-cursos {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 0 0.85rem 1rem;
+    min-width: 0;
+  }
+
+  .ath-f07-curso {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.55rem 0.7rem;
+    padding: 0.8rem 0.85rem 0.9rem;
+    border: 1px solid rgba(15, 118, 110, 0.14);
+    border-radius: 12px;
+    background: #fff;
+    min-width: 0;
+
+    @media (max-width: 900px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (max-width: 560px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .ath-f07-curso__head {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .ath-f07-curso__no {
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, #0f766e, #15a596);
+  }
+
+  .ath-f07-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.22rem;
+    margin: 0;
+    min-width: 0;
+
+    &--curso,
+    &--objetivo {
+      grid-column: span 3;
+    }
+
+    &--obs,
+    &--dirigido {
+      grid-column: span 2;
+    }
+
+    @media (max-width: 900px) {
+      &,
+      &--curso,
+      &--objetivo,
+      &--obs,
+      &--dirigido {
+        grid-column: 1 / -1;
+      }
+    }
+
+    span {
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+
+    textarea,
+    input {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      border: 1px solid rgba(21, 165, 150, 0.32);
+      border-radius: 8px;
+      padding: 0.45rem 0.55rem;
+      font: inherit;
+      font-size: 0.8rem;
+      line-height: 1.4;
+      color: #1e293b;
+      background: #fff;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      resize: vertical;
+
+      &:focus {
+        outline: none;
+        border-color: #15a596;
+        box-shadow: 0 0 0 3px rgba(21, 165, 150, 0.15);
+      }
+    }
+  }
+
+  .ath-f07-cell {
+    width: 100%;
+    min-width: 6.5rem;
+    border: 1px solid transparent;
+    background: transparent;
+    border-radius: 6px;
+    padding: 0.28rem 0.35rem;
+    font-size: 0.75rem;
+    color: #1e293b;
+
+    &:focus {
+      outline: none;
+      border-color: #15a596;
+      background: #fff;
+      box-shadow: 0 0 0 2px rgba(21, 165, 150, 0.16);
+    }
+  }
+
+  .ath-f07-tabla__no {
+    width: 2.4rem;
+    text-align: center;
+    color: #64748b;
+    font-weight: 700;
+  }
+
+  .ath-f07-del {
+    border: 0;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+
+    &:hover { color: #b91c1c; }
+  }
+
+  .ath-f07-add {
+    white-space: nowrap;
+  }
+
+  .ath-f07-programa-select {
+    border: 1px solid rgba(21, 165, 150, 0.38);
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+    color: #0f766e;
+    background: #fff;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  .ath-f07-firmas {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 1rem 0 0.5rem;
+
+    @media (max-width: 767px) {
+      grid-template-columns: 1fr;
+    }
+
+    &__col {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      margin: 0;
+      padding: 0.75rem;
+      border: 1px solid rgba(15, 118, 110, 0.16);
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    &__rol {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #0f766e;
+    }
+
+    &__label, &__firma {
+      font-size: 0.68rem;
+      color: #64748b;
+    }
+
+    &__firma {
+      margin-top: 1.4rem;
+      padding-top: 0.35rem;
+      border-top: 1px solid #e8edf2;
+    }
+  }
+
+  .ath-f07-firmados {
+    margin-top: 0.85rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(15, 118, 110, 0.12);
+
+    &__head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 0.55rem;
+
+      h4 {
+        margin: 0;
+        font-size: 0.85rem;
+        color: #0f766e;
+      }
+
+      a {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #0f766e;
+      }
+    }
+  }
+
+  .ath-f-07-doc {
+    animation: ath-f02-doc-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    width: 100%;
+  }
+
+  .ath-f-07-doc--archivero .sgc-f-04-archivero {
+    width: 100%;
+  }
+
+  .ath-f-07-doc__fecha-rev {
+    display: inline-block;
+    min-width: 5.5rem;
+    text-align: right;
+    font-weight: 600;
+    color: #0f766e;
+  }
+
+  .ath-f-07-archivero {
+    margin-top: 0.5rem;
+  }
+
+  .ath-f-07-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 0.5rem 0 1rem;
+  }
+
+  .ath-f-07-page {
+    position: relative;
+    width: 100%;
+    max-width: 58rem;
+    background: #fff;
+    border: 1px solid $sgc-teal-border;
+    border-radius: 12px;
+    box-shadow: 0 2px 16px rgba(15, 118, 110, 0.08);
+    overflow: visible;
+
+    &__pattern {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.4;
+      background-color: #fafbfc;
+      background-image:
+        linear-gradient(30deg, rgba(15, 118, 110, 0.03) 12%, transparent 12.5%, transparent 50%, rgba(15, 118, 110, 0.03) 50%, rgba(15, 118, 110, 0.03) 62.5%, transparent 62.5%, transparent 100%),
+        linear-gradient(150deg, rgba(15, 118, 110, 0.03) 12%, transparent 12.5%, transparent 50%, rgba(15, 118, 110, 0.03) 50%, rgba(15, 118, 110, 0.03) 62.5%, transparent 62.5%, transparent 100%);
+      background-size: 56px 96px;
+      border-radius: 12px;
+    }
+
+    &__inner {
+      position: relative;
+      z-index: 1;
+      padding: 1.75rem 2rem 2rem;
+      font-size: 0.88rem;
+      line-height: 1.55;
+      color: #1e293b;
+    }
+
+    &__doc-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+      gap: 1rem 1.25rem;
+      align-items: start;
+      margin-bottom: 1.25rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(15, 118, 110, 0.14);
+
+      @media (max-width: 767px) {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    &__logo {
+      display: block;
+      height: 2.5rem;
+      width: auto;
+      max-width: 12rem;
+    }
+
+    &__brand-sub {
+      margin: 0.45rem 0 0;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+
+    &__meta-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.72rem;
+
+      th, td {
+        border: 1px solid rgba(15, 118, 110, 0.22);
+        padding: 0.35rem 0.5rem;
+        vertical-align: middle;
+      }
+
+      th {
+        width: 22%;
+        background: rgba(21, 165, 150, 0.08);
+        color: #0f766e;
+        font-weight: 700;
+        text-align: left;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        font-size: 0.62rem;
+      }
+
+      td {
+        background: #fff;
+        color: #1e293b;
+        font-weight: 600;
+      }
+    }
+
+    &__toolbar {
+      display: grid;
+      grid-template-columns: minmax(7rem, 9rem) minmax(0, 1.6fr) minmax(0, 1fr) 5.5rem;
+      gap: 0.65rem;
+      margin-bottom: 0.85rem;
+
+      @media (max-width: 767px) {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      @media (max-width: 480px) {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    &__mini-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      margin: 0;
+
+      span {
+        font-size: 0.62rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #64748b;
+      }
+
+      input {
+        border: 1px solid $sgc-teal-border;
+        border-radius: 8px;
+        padding: 0.45rem 0.6rem;
+        font-size: 0.82rem;
+        color: #1e293b;
+        background: #fff;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+        &:focus {
+          outline: none;
+          border-color: #15a596;
+          box-shadow: 0 0 0 3px rgba(21, 165, 150, 0.15);
+        }
+      }
+
+      &--grow {
+        grid-column: span 1;
+      }
+    }
+
+    &__obs {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      margin: 0 0 1.1rem;
+
+      span {
+        font-size: 0.62rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #64748b;
+      }
+
+      textarea {
+        border: 1px solid $sgc-teal-border;
+        border-radius: 8px;
+        padding: 0.55rem 0.7rem;
+        font-size: 0.82rem;
+        color: #1e293b;
+        resize: vertical;
+        min-height: 2.6rem;
+        background: #fff;
+
+        &:focus {
+          outline: none;
+          border-color: #15a596;
+          box-shadow: 0 0 0 3px rgba(21, 165, 150, 0.15);
+        }
+      }
+    }
+
+    &__drive-card {
+      margin-bottom: 1.25rem;
+      padding: 1rem 1.1rem;
+      border-radius: 12px;
+      border: 1px solid rgba(43, 87, 154, 0.22);
+      background: linear-gradient(135deg, rgba(43, 87, 154, 0.06), rgba(21, 165, 150, 0.06));
+    }
+
+    &__drive-card-head {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      margin-bottom: 0.85rem;
+    }
+
+    &__drive-card-icon {
+      flex: 0 0 auto;
+      width: 2.4rem;
+      height: 2.4rem;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: linear-gradient(135deg, #2b579a, #4472c4);
+      box-shadow: 0 4px 12px rgba(43, 87, 154, 0.25);
+    }
+
+    &__drive-card-title {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #0f766e;
+    }
+
+    &__drive-card-desc {
+      margin-top: 0.15rem;
+      font-size: 0.78rem;
+      color: #64748b;
+    }
+
+    &__drive-name {
+      margin: 0 0 0.75rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #1e293b;
+      word-break: break-word;
+    }
+
+    &__drive-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    &__ghost-btn {
+      border-radius: 999px;
+      border: 1px solid $sgc-teal-border;
+      background: #fff;
+      color: #0f766e;
+      font-weight: 600;
+
+      &:hover {
+        background: rgba(21, 165, 150, 0.08);
+      }
+    }
+
+    &__drive-hint {
+      margin: 0;
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+  }
+
+  .ath-f-07-vault {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.85rem;
+
+    @media (max-width: 767px) {
+      grid-template-columns: 1fr;
+    }
+
+    &__panel {
+      border: 1px solid rgba(15, 118, 110, 0.14);
+      border-radius: 12px;
+      background: #fff;
+      padding: 0.95rem 1rem 1rem;
+      box-shadow: 0 1px 8px rgba(15, 118, 110, 0.05);
+      min-height: 11rem;
+    }
+
+    &__head {
+      display: flex;
+      gap: 0.65rem;
+      align-items: flex-start;
+      margin-bottom: 0.85rem;
+    }
+
+    &__icon {
+      width: 2.15rem;
+      height: 2.15rem;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: linear-gradient(135deg, #b91c1c, #dc2626);
+      flex: 0 0 auto;
+
+      &--hist {
+        background: linear-gradient(135deg, #0f766e, #15a596);
+      }
+    }
+
+    &__title {
+      margin: 0;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #0f766e;
+    }
+
+    &__hint {
+      font-size: 0.72rem;
+      color: #64748b;
+    }
+
+    &__folder-link {
+      display: inline-flex;
+      align-items: center;
+      margin-top: 0.75rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #0f766e;
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .ath-f-07-historial {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    max-height: 14rem;
+    overflow: auto;
+
+    &__item {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.55rem 0.65rem;
+      border-radius: 8px;
+      background: #f8fafc;
+      border: 1px solid #e8edf2;
+    }
+
+    &__icon {
+      color: #dc2626;
+      font-size: 1rem;
+    }
+
+    &__info {
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+
+      strong {
+        font-size: 0.78rem;
+        color: #1e293b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      small {
+        font-size: 0.68rem;
+        color: #64748b;
+      }
+    }
+
+    &__link {
+      color: #0f766e;
+      padding: 0.25rem;
+      border-radius: 6px;
+
+      &:hover {
+        background: rgba(21, 165, 150, 0.12);
+      }
+    }
+
+    &__empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.45rem;
+      text-align: center;
+      padding: 1.1rem 0.5rem;
+      color: #64748b;
+      font-size: 0.76rem;
+
+      i {
+        font-size: 1.35rem;
+        color: rgba(15, 118, 110, 0.45);
+      }
+    }
+  }
+}
+
+:host.sgc-preview--ath-f-07 .sgc-preview-page--ath-f-07-editor {
+  .ath-f-07-page {
+    max-width: none;
+  }
+}

@@ -181,6 +181,53 @@ interface AthF09FormData {
   cotizacionActivaId: string | null;
 }
 
+interface AthF07PdfFirmado {
+  driveFileId: string;
+  nombreArchivo: string;
+  webViewLink: string | null;
+  previewUrl?: string | null;
+  fechaSubida: string | null;
+  nota?: string;
+}
+
+interface AthF07Curso {
+  id: string;
+  numero: number;
+  curso: string;
+  objetivo: string;
+  fechaRealizacion: string;
+  lugar: string;
+  duracion: string;
+  instructor: string;
+  dirigidoA: string;
+  observaciones: string;
+}
+
+interface AthF07Programa {
+  id: string;
+  folio: string;
+  anio: string;
+  cursos: AthF07Curso[];
+  elaboroPuesto: string;
+  revisoPuesto: string;
+  aproboPuesto: string;
+  driveFileId: string | null;
+  nombreArchivo: string | null;
+  fechaCreacion: string;
+  fechaActualizacion: string | null;
+  pdfFirmado: AthF07PdfFirmado | null;
+  historialFirmados: AthF07PdfFirmado[];
+  borrador?: boolean;
+}
+
+interface AthF07FormData {
+  revision: string;
+  fechaRevision: string;
+  fechaElaboracion: string;
+  programas: AthF07Programa[];
+  programaActivoId: string | null;
+}
+
 interface AthF11Competencia {
   id: string;
   grupo: 'tecnicas' | 'organizacionales' | 'interpersonales' | 'personales';
@@ -1498,6 +1545,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sp-f-07'
       || this.plantillaSlug === 'sgc-f-05' || this.plantillaSlug === 'ath-f-02' || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-09'
+      || this.plantillaSlug === 'ath-f-07'
       || this.plantillaSlug === 'ath-f-11'
       || this.plantillaSlug === 'ath-f-03';
   }
@@ -1510,6 +1558,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   @HostBinding('class.sgc-preview--ath-f-09')
   get esAthF09(): boolean {
     return this.plantillaSlug === 'ath-f-09';
+  }
+
+  @HostBinding('class.sgc-preview--ath-f-07')
+  get esAthF07(): boolean {
+    return this.plantillaSlug === 'ath-f-07';
   }
 
   @HostBinding('class.sgc-preview--ath-f-11')
@@ -1665,6 +1718,33 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF09SiguienteFolio = 'SC-26-001';
   private athF09EditorIframeListo = false;
   private athF09PdfPendiente: { base64: string; nombre: string } | null = null;
+
+  athF07Form: AthF07FormData = this.crearAthF07FormVacio();
+  athF07Vista: 'archivero' | 'editor' = 'archivero';
+  athF07Busqueda = '';
+  athF07ProgramaActivo: AthF07Programa | null = null;
+  athF07Cargando = false;
+  athF07Guardando = false;
+  athF07Listo = false;
+  athF07CambiosPendientes = false;
+  athF07IgnorarAutoSave = false;
+  athF07UltimaSync: string | null = null;
+  athF07DriveFileId: string | null = null;
+  athF07EditorUrl: string | null = null;
+  athF07EditorEmbedUrlSafe: SafeResourceUrl | null = null;
+  mostrarAthF07Editor = false;
+  athF07ContenidoModificado = false;
+  athF07EditorCargando = false;
+  athF07ActualizandoPlantilla = false;
+  athF07SubiendoPdf = false;
+  athF07DescargandoPdf = false;
+  athF07SiguienteFolio = 'PC-26-001';
+  athF07CarpetaProgramasUrl: string | null =
+    'https://drive.google.com/drive/folders/1-oOq3LUUVXzANIDYQ1N8llcGyAzFrZVy';
+  athF07CarpetaFirmadosUrl: string | null =
+    'https://drive.google.com/drive/folders/1ltHFN6eu4GxTgxSqg276dBJK1ee-cUbB';
+  private athF07EditorIframeListo = false;
+  private athF07PdfPendiente: { base64: string; nombre: string } | null = null;
 
   athF11Form: AthF11FormData = this.crearAthF11FormVacio();
   athF11Vista: 'archivero' | 'editor' = 'archivero';
@@ -3612,6 +3692,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (codigo === 'ath-f-09') {
         this.cargarAthF09DesdeServidor();
       }
+      if (codigo === 'ath-f-07') {
+        this.cargarAthF07DesdeServidor();
+      }
       if (codigo === 'ath-f-11') {
         this.cargarCatalogoEmpleadosAthF11();
         this.cargarAthF11DesdeServidor();
@@ -3783,6 +3866,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'ath-f-02'
       || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-09'
+      || this.plantillaSlug === 'ath-f-07'
       || this.plantillaSlug === 'ath-f-11'
       || this.plantillaSlug === 'ath-f-03'
       || this.plantillaSlug === 'dg-f-06';
@@ -3817,6 +3901,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05Guardando;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08Guardando;
     if (this.plantillaSlug === 'ath-f-09') return this.athF09Guardando;
+    if (this.plantillaSlug === 'ath-f-07') return this.athF07Guardando;
     if (this.plantillaSlug === 'ath-f-11') return this.athF11Guardando;
     return false;
   }
@@ -3850,6 +3935,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05UltimaSync;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08UltimaSync;
     if (this.plantillaSlug === 'ath-f-09') return this.athF09UltimaSync;
+    if (this.plantillaSlug === 'ath-f-07') return this.athF07UltimaSync;
     if (this.plantillaSlug === 'ath-f-11') return this.athF11UltimaSync;
     return null;
   }
@@ -3883,6 +3969,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05Cargando;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08Cargando;
     if (this.plantillaSlug === 'ath-f-09') return this.athF09Cargando;
+    if (this.plantillaSlug === 'ath-f-07') return this.athF07Cargando;
     if (this.plantillaSlug === 'ath-f-11') return this.athF11Cargando;
     return false;
   }
@@ -3916,6 +4003,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05ActualizandoPlantilla;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08ActualizandoPlantilla;
     if (this.plantillaSlug === 'ath-f-09') return this.athF09ActualizandoPlantilla;
+    if (this.plantillaSlug === 'ath-f-07') return this.athF07ActualizandoPlantilla;
     if (this.plantillaSlug === 'ath-f-11') return this.athF11ActualizandoPlantilla;
     return false;
   }
@@ -3950,6 +4038,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05DriveFileId;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08DriveFileId;
     if (this.plantillaSlug === 'ath-f-09') return this.athF09DriveFileId;
+    if (this.plantillaSlug === 'ath-f-07') return this.athF07DriveFileId;
     if (this.plantillaSlug === 'ath-f-11') return this.athF11DriveFileId;
     if (this.plantillaSlug === 'dg-f-06') return this.dgF06DriveFileId;
     return null;
@@ -3984,6 +4073,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-05') return this.sgcF05CambiosPendientes;
     if (this.plantillaSlug === 'ath-f-08') return this.athF08CambiosPendientes;
     if (this.plantillaSlug === 'ath-f-09') return this.athF09CambiosPendientes;
+    if (this.plantillaSlug === 'ath-f-07') return this.athF07CambiosPendientes;
     if (this.plantillaSlug === 'ath-f-11') return this.athF11CambiosPendientes;
     return false;
   }
@@ -4032,6 +4122,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-05') return this.mostrarSgcF05Editor;
     if (this.plantillaSlug === 'ath-f-08') return this.mostrarAthF08Editor;
     if (this.plantillaSlug === 'ath-f-09') return this.mostrarAthF09Editor;
+    if (this.plantillaSlug === 'ath-f-07') return this.mostrarAthF07Editor;
     if (this.plantillaSlug === 'ath-f-11') return this.mostrarAthF11Editor;
     if (this.plantillaSlug === 'dg-f-06') return this.mostrarDgF06Editor;
     return false;
@@ -4405,6 +4496,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         false
       );
     }
+    if (slug === 'ath-f-07') {
+      return this.backendService.guardarAthF07Formato(
+        { ...this.athF07Form, programaActivoId: this.athF07ProgramaActivo?.id || this.athF07Form.programaActivoId },
+        false
+      );
+    }
     if (slug === 'ath-f-11') {
       return this.backendService.guardarAthF11Formato(
         { ...this.athF11Form, evaluacionActivaId: this.athF11EvaluacionActiva?.id || this.athF11Form.evaluacionActivaId },
@@ -4555,6 +4652,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'ath-f-09') {
       this.persistirAthF09();
+      return;
+    }
+    if (this.plantillaSlug === 'ath-f-07') {
+      this.persistirAthF07();
       return;
     }
     if (this.plantillaSlug === 'ath-f-11') {
@@ -4942,6 +5043,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'ath-f-09') {
       return this.athF09IntroLead;
+    }
+    if (this.plantillaSlug === 'ath-f-07') {
+      return this.athF07IntroLead;
     }
     if (this.plantillaSlug === 'ath-f-11') {
       return this.athF11IntroLead;
@@ -19382,6 +19486,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleAthF09Editor();
       return;
     }
+    if (this.plantillaSlug === 'ath-f-07') {
+      this.toggleAthF07Editor();
+      return;
+    }
     if (this.plantillaSlug === 'ath-f-11') {
       this.toggleAthF11Editor();
       return;
@@ -19501,6 +19609,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'ath-f-09') {
       this.actualizarPlantillaAthF09();
+      return;
+    }
+    if (this.plantillaSlug === 'ath-f-07') {
+      this.actualizarPlantillaAthF07();
       return;
     }
     if (this.plantillaSlug === 'ath-f-11') {
@@ -21768,6 +21880,591 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.athF09Listo = true;
     if (!conservarEdicion) {
       this.athF09Cargando = false;
+    }
+  }
+
+  private crearAthF07FormVacio(): AthF07FormData {
+    const hoy = new Date().toISOString().slice(0, 10);
+    return {
+      revision: '00',
+      fechaRevision: '2025-01-28',
+      fechaElaboracion: hoy,
+      programas: [],
+      programaActivoId: null
+    };
+  }
+
+  private nuevoIdAthF07(): string {
+    return `ath07-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  formatearFechaRevAthF07(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return String(iso);
+    return `${m[3]}-${m[2]}-${m[1].slice(-2)}`;
+  }
+
+  private generarFolioSugeridoAthF07(programas: AthF07Programa[] = []): string {
+    const yy = String(new Date().getFullYear()).slice(-2);
+    let max = 0;
+    for (const p of programas) {
+      const m = String(p.folio || '').toUpperCase().match(/^PC-(\d{2})-(\d{3})$/);
+      if (m && m[1] === yy) {
+        max = Math.max(max, Number(m[2]));
+      }
+    }
+    return `PC-${yy}-${String(max + 1).padStart(3, '0')}`;
+  }
+
+  private sanitizarPdfAthF07(raw: any): AthF07PdfFirmado | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const driveFileId = String(raw.driveFileId || raw.drive_file_id || '').trim();
+    if (!driveFileId) return null;
+    return {
+      driveFileId,
+      nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'Programa firmado.pdf').trim(),
+      webViewLink: raw.webViewLink || raw.web_view_link || null,
+      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      fechaSubida: raw.fechaSubida || raw.fecha_subida || null,
+      nota: String(raw.nota || '').trim() || undefined
+    };
+  }
+
+  private crearAthF07CursoVacio(index = 0): AthF07Curso {
+    return {
+      id: this.nuevoIdAthF07(),
+      numero: index + 1,
+      curso: '',
+      objetivo: '',
+      fechaRealizacion: '',
+      lugar: '',
+      duracion: '',
+      instructor: '',
+      dirigidoA: '',
+      observaciones: ''
+    };
+  }
+
+  private normalizarAthF07Curso(raw: any, index = 0): AthF07Curso {
+    const base = this.crearAthF07CursoVacio(index);
+    if (!raw || typeof raw !== 'object') return base;
+    const fecha = String(raw.fechaRealizacion || raw.fecha || '').trim().slice(0, 10);
+    return {
+      id: String(raw.id || '').trim() || this.nuevoIdAthF07(),
+      numero: Number(raw.numero) > 0 ? Number(raw.numero) : index + 1,
+      curso: String(raw.curso || raw.cursoCapacitacion || '').trim().slice(0, 300),
+      objetivo: String(raw.objetivo || '').trim().slice(0, 500),
+      fechaRealizacion: /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : '',
+      lugar: String(raw.lugar || '').trim().slice(0, 180),
+      duracion: String(raw.duracion || raw.duracionCurso || '').trim().slice(0, 80),
+      instructor: String(raw.instructor || '').trim().slice(0, 180),
+      dirigidoA: String(raw.dirigidoA || raw.dirigido || '').trim().slice(0, 180),
+      observaciones: String(raw.observaciones || '').trim().slice(0, 400)
+    };
+  }
+
+  private normalizarAthF07Programa(raw: Partial<AthF07Programa> | null | undefined): AthF07Programa {
+    const base = this.crearAthF07ProgramaVacio();
+    if (!raw || typeof raw !== 'object') return base;
+    const folio = String(raw.folio || '').trim().toUpperCase().replace(/\s+/g, '');
+    const folioNorm = /^PC-\d{2}-\d{3}$/.test(folio) ? folio : folio.slice(0, 40);
+    const anioRaw = String(raw.anio || (raw as any).año || '').trim().slice(0, 4);
+    const anioFolio = folioNorm.match(/^PC-(\d{2})-/);
+    const historialRaw = Array.isArray(raw.historialFirmados)
+      ? raw.historialFirmados
+      : (Array.isArray((raw as any).historial_firmados) ? (raw as any).historial_firmados : []);
+    const pdfFirmado = this.sanitizarPdfAthF07(raw.pdfFirmado || (raw as any).pdf_firmado);
+    let historialFirmados = historialRaw
+      .map((h: any) => this.sanitizarPdfAthF07(h))
+      .filter((h: AthF07PdfFirmado | null): h is AthF07PdfFirmado => !!h);
+    if (pdfFirmado) {
+      historialFirmados = historialFirmados.filter((h) => h.driveFileId !== pdfFirmado.driveFileId);
+    }
+    const cursosRaw = Array.isArray(raw.cursos) ? raw.cursos : [];
+    const cursos = (cursosRaw.length ? cursosRaw : [{}]).map((c: any, i: number) => this.normalizarAthF07Curso(c, i));
+    return {
+      id: String(raw.id || '').trim() || this.nuevoIdAthF07(),
+      folio: folioNorm,
+      anio: anioRaw || (anioFolio ? `20${anioFolio[1]}` : String(new Date().getFullYear())),
+      cursos,
+      elaboroPuesto: String(raw.elaboroPuesto || (raw as any).elaboro?.puesto || '').trim().slice(0, 120),
+      revisoPuesto: String(raw.revisoPuesto || (raw as any).reviso?.puesto || '').trim().slice(0, 120),
+      aproboPuesto: String(raw.aproboPuesto || (raw as any).aprobo?.puesto || '').trim().slice(0, 120),
+      driveFileId: String(raw.driveFileId || (raw as any).drive_file_id || '').trim() || null,
+      nombreArchivo: String(raw.nombreArchivo || (raw as any).nombre_archivo || '').trim() || null,
+      fechaCreacion: String(raw.fechaCreacion || (raw as any).fecha_creacion || '').trim().slice(0, 10)
+        || new Date().toISOString().slice(0, 10),
+      fechaActualizacion: String(raw.fechaActualizacion || (raw as any).fecha_actualizacion || '').trim().slice(0, 10) || null,
+      pdfFirmado,
+      historialFirmados,
+      borrador: raw.borrador === true || (raw as any).borrador === 1 || (raw as any).borrador === '1'
+    };
+  }
+
+  private crearAthF07ProgramaVacio(folioSugerido?: string): AthF07Programa {
+    const folio = folioSugerido || this.generarFolioSugeridoAthF07(this.athF07Form?.programas || []);
+    const anioFolio = folio.match(/^PC-(\d{2})-/);
+    const anio = anioFolio ? `20${anioFolio[1]}` : String(new Date().getFullYear());
+    return {
+      id: this.nuevoIdAthF07(),
+      folio,
+      anio,
+      cursos: [this.crearAthF07CursoVacio(0)],
+      elaboroPuesto: '',
+      revisoPuesto: '',
+      aproboPuesto: '',
+      driveFileId: null,
+      nombreArchivo: null,
+      fechaCreacion: new Date().toISOString().slice(0, 10),
+      fechaActualizacion: null,
+      pdfFirmado: null,
+      historialFirmados: [],
+      borrador: true
+    };
+  }
+
+  private normalizarAthF07Form(datos: Partial<AthF07FormData> | any | null | undefined): AthF07FormData {
+    const base = this.crearAthF07FormVacio();
+    if (!datos || typeof datos !== 'object') return base;
+    const programas = (Array.isArray(datos.programas) ? datos.programas : [])
+      .map((p) => this.normalizarAthF07Programa(p));
+    const activoId = datos.programaActivoId || datos.programa_activo_id
+      ? String(datos.programaActivoId || datos.programa_activo_id)
+      : null;
+    return {
+      revision: String(datos.revision || base.revision).trim() || base.revision,
+      fechaRevision: String(datos.fechaRevision || base.fechaRevision).trim() || base.fechaRevision,
+      fechaElaboracion: String(datos.fechaElaboracion || base.fechaElaboracion).trim() || base.fechaElaboracion,
+      programas,
+      programaActivoId: activoId && programas.some((p) => p.id === activoId)
+        ? activoId
+        : (programas[0]?.id || null)
+    };
+  }
+
+  get athF07IntroLead(): string {
+    if (this.plantillaSlug !== 'ath-f-07') return '';
+    return 'Captura los cursos del programa (objetivo, fecha, lugar, duración, instructor y a quién va dirigido). Al guardar, esos renglones se escriben en el documento de Drive.';
+  }
+
+  get athF07ProgramasVista(): AthF07Programa[] {
+    const q = this.athF07Busqueda.trim().toLowerCase();
+    const lista = [...(this.athF07Form.programas || [])].sort((a, b) => {
+      const fa = String(a.folio || '');
+      const fb = String(b.folio || '');
+      return fb.localeCompare(fa, 'es');
+    });
+    if (!q) return lista;
+    return lista.filter((p) =>
+      [p.folio, p.anio, ...(p.cursos || []).map((c) => [c.curso, c.instructor, c.lugar, c.dirigidoA].join(' '))]
+        .some((v) => String(v || '').toLowerCase().includes(q))
+    );
+  }
+
+  get athF07CursosVista(): AthF07Curso[] {
+    const cursos = this.athF07ProgramaActivo?.cursos || [];
+    const q = this.athF07Busqueda.trim().toLowerCase();
+    if (!q) return cursos;
+    return cursos.filter((c) =>
+      [c.curso, c.objetivo, c.lugar, c.duracion, c.instructor, c.dirigidoA, c.observaciones, c.fechaRealizacion]
+        .some((v) => String(v || '').toLowerCase().includes(q))
+    );
+  }
+
+  agregarCursoAthF07(): void {
+    if (!this.athF07ProgramaActivo) {
+      this.nuevoProgramaAthF07();
+      return;
+    }
+    const prog = this.athF07ProgramaActivo;
+    if (!prog) return;
+    prog.cursos = [...(prog.cursos || []), this.crearAthF07CursoVacio(prog.cursos?.length || 0)];
+    this.onAthF07Editado();
+  }
+
+  quitarCursoAthF07(curso: AthF07Curso): void {
+    const prog = this.athF07ProgramaActivo;
+    if (!prog) return;
+    prog.cursos = (prog.cursos || []).filter((c) => c.id !== curso.id);
+    if (!prog.cursos.length) prog.cursos = [this.crearAthF07CursoVacio(0)];
+    this.onAthF07Editado();
+  }
+
+  seleccionarProgramaAthF07(id: string): void {
+    const prog = (this.athF07Form.programas || []).find((p) => p.id === id);
+    if (!prog) return;
+    this.abrirProgramaAthF07(prog);
+  }
+
+  nuevoProgramaAthF07(): void {
+    const prog = this.crearAthF07ProgramaVacio(this.athF07SiguienteFolio || undefined);
+    this.athF07Form.programas = [prog, ...(this.athF07Form.programas || [])];
+    this.athF07Form.programaActivoId = prog.id;
+    this.athF07ProgramaActivo = prog;
+    this.athF07Vista = 'editor';
+    this.actualizarDriveActivoAthF07(prog);
+    this.onAthF07Editado();
+  }
+
+  abrirProgramaAthF07(prog: AthF07Programa): void {
+    this.athF07Form.programaActivoId = prog.id;
+    this.athF07ProgramaActivo = prog;
+    this.athF07Vista = 'editor';
+    this.actualizarDriveActivoAthF07(prog);
+  }
+
+  volverArchiveroAthF07(): void {
+    this.athF07Vista = 'archivero';
+    this.athF07ProgramaActivo = null;
+    this.athF07Form.programaActivoId = null;
+    if (this.mostrarAthF07Editor) {
+      this.toggleAthF07Editor();
+    }
+  }
+
+  eliminarProgramaAthF07(prog: AthF07Programa, event?: Event): void {
+    event?.stopPropagation();
+    const etiqueta = prog.folio || prog.anio || 'sin folio';
+    if (!confirm(`¿Eliminar el programa «${etiqueta}» del archivero?`)) return;
+    this.athF07Form.programas = (this.athF07Form.programas || []).filter((p) => p.id !== prog.id);
+    if (this.athF07ProgramaActivo?.id === prog.id) {
+      this.volverArchiveroAthF07();
+    }
+    this.onAthF07Editado();
+  }
+
+  private sincronizarProgramaActivoAthF07(): void {
+    if (!this.athF07ProgramaActivo) return;
+    const idx = (this.athF07Form.programas || []).findIndex((p) => p.id === this.athF07ProgramaActivo?.id);
+    if (idx >= 0) {
+      this.athF07Form.programas[idx] = { ...this.athF07ProgramaActivo };
+    }
+    this.athF07Form.programaActivoId = this.athF07ProgramaActivo.id;
+  }
+
+  private actualizarDriveActivoAthF07(prog?: AthF07Programa | null): void {
+    const activo = prog || this.athF07ProgramaActivo;
+    this.athF07DriveFileId = activo?.driveFileId || null;
+    const editorUrl = activo?.driveFileId
+      ? `https://docs.google.com/document/d/${activo.driveFileId}/edit?usp=sharing`
+      : null;
+    this.fijarEditorEmbedUrlAthF07(editorUrl, true);
+  }
+
+  onAthF07Editado(): void {
+    if (this.athF07IgnorarAutoSave || !this.athF07Listo) return;
+    if (this.athF07ProgramaActivo) {
+      this.sincronizarProgramaActivoAthF07();
+    }
+    this.athF07CambiosPendientes = true;
+  }
+
+  abrirPdfAthF07(pdf: AthF07PdfFirmado | null | undefined): void {
+    const url = pdf?.webViewLink || pdf?.previewUrl;
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  eliminarPdfHistorialAthF07(hist: AthF07PdfFirmado): void {
+    const prog = this.athF07ProgramaActivo;
+    if (!prog?.historialFirmados?.length || !hist?.driveFileId) return;
+    if (!confirm('¿Quitar este PDF del historial del programa?')) return;
+    prog.historialFirmados = prog.historialFirmados.filter((h) => h.driveFileId !== hist.driveFileId);
+    this.sincronizarProgramaActivoAthF07();
+    this.persistirAthF07();
+  }
+
+  onSeleccionarPdfAthF07(event: Event): void {
+    if (!this.athF07ProgramaActivo) return;
+    const folio = (this.athF07ProgramaActivo.folio || 'programa')
+      .replace(/[^\w\s-]/g, '').trim();
+    this.procesarPdfDocumento(
+      event,
+      `${folio} firmado.pdf`,
+      (base64, nombre) => this.subirPdfFirmadoAthF07(base64, nombre)
+    );
+  }
+
+  private subirPdfFirmadoAthF07(pdfBase64: string, nombreArchivo: string): void {
+    if (this.athF07SubiendoPdf || !this.athF07ProgramaActivo) return;
+    this.athF07SubiendoPdf = true;
+    this.backendService.subirPdfFirmadoAthF07(
+      pdfBase64,
+      nombreArchivo,
+      this.athF07ProgramaActivo.id
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.athF07SubiendoPdf = false;
+          this.aplicarRespuestaAthF07(res);
+          if (this.athF07ProgramaActivo) {
+            if (res?.pdfFirmado) {
+              this.athF07ProgramaActivo.pdfFirmado = this.sanitizarPdfAthF07(res.pdfFirmado);
+            }
+            if (Array.isArray(res?.historialFirmados)) {
+              this.athF07ProgramaActivo.historialFirmados = res.historialFirmados
+                .map((h: any) => this.sanitizarPdfAthF07(h))
+                .filter((h: AthF07PdfFirmado | null): h is AthF07PdfFirmado => !!h);
+            }
+            this.sincronizarProgramaActivoAthF07();
+          }
+        },
+        error: () => {
+          this.athF07SubiendoPdf = false;
+        }
+      });
+  }
+
+  private fijarEditorEmbedUrlAthF07(editorUrl: string | null, forzar = false): void {
+    if (!forzar && this.mostrarAthF07Editor && this.athF07EditorEmbedUrlSafe && this.athF07EditorUrl === editorUrl) {
+      return;
+    }
+    if (!editorUrl) {
+      this.athF07EditorUrl = null;
+      this.athF07EditorEmbedUrlSafe = null;
+      return;
+    }
+    const url = this.resolverUrlEditorDrive(editorUrl, this.athF07DriveFileId);
+    this.athF07EditorUrl = url || editorUrl;
+    const embedUrl = this.urlIframeDriveSegunPermiso(this.athF07EditorUrl);
+    this.athF07EditorEmbedUrlSafe = embedUrl
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
+      : null;
+  }
+
+  toggleAthF07Editor(): void {
+    if (this.mostrarAthF07Editor) {
+      this.mostrarAthF07Editor = false;
+      this.athF07EditorCargando = false;
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      return;
+    }
+    if (!this.athF07ProgramaActivo?.driveFileId) {
+      void Swal.fire({
+        icon: 'info',
+        title: 'Documento pendiente',
+        text: 'Guarda el programa primero para generar el documento en Drive y poder abrir el editor.',
+        confirmButtonColor: '#15a596'
+      });
+      return;
+    }
+    const url = this.resolverUrlEditorDrive(this.athF07EditorUrl, this.athF07DriveFileId);
+    this.fijarEditorEmbedUrlAthF07(url, true);
+    this.mostrarAthF07Editor = true;
+    this.athF07EditorCargando = true;
+    this.athF07EditorIframeListo = false;
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+
+  onAthF07IframeLoad(): void {
+    this.athF07EditorIframeListo = true;
+    this.athF07EditorCargando = false;
+  }
+
+  actualizarPlantillaAthF07(): void {
+    if (this.athF07ActualizandoPlantilla) return;
+    this.athF07ActualizandoPlantilla = true;
+    this.backendService.actualizarPlantillaAthF07()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.athF07ActualizandoPlantilla = false;
+          void Swal.fire({
+            icon: 'success',
+            title: 'Plantilla verificada',
+            text: 'La plantilla maestra ATH-F-07 está disponible para nuevos programas.',
+            confirmButtonColor: '#15a596'
+          });
+        },
+        error: () => {
+          this.athF07ActualizandoPlantilla = false;
+        }
+      });
+  }
+
+  private cargarAthF07DesdeServidor(): void {
+    this.athF07Cargando = true;
+    this.backendService.cargarAthF07Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarRespuestaAthF07(res),
+        error: () => {
+          this.athF07Cargando = false;
+          this.athF07Vista = 'archivero';
+          this.athF07ProgramaActivo = null;
+          this.athF07Listo = true;
+        }
+      });
+  }
+
+  private sincronizarAthF07DesdeDrive(): void {
+    this.backendService.sincronizarAthF07DesdeDrive(this.athF07ProgramaActivo?.id || undefined)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarRespuestaAthF07(res, false, true, true)
+      });
+  }
+
+  private persistirAthF07(): void {
+    if (this.athF07Guardando || !this.athF07Listo) return;
+    this.athF07Guardando = true;
+    this.sincronizarProgramaActivoAthF07();
+    if (this.athF07ProgramaActivo) {
+      this.athF07ProgramaActivo.borrador = false;
+    }
+    this.backendService.guardarAthF07Formato(
+      { ...this.athF07Form, programaActivoId: this.athF07ProgramaActivo?.id || this.athF07Form.programaActivoId },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.aplicarRespuestaAthF07(res, true, false, true);
+          this.athF07CambiosPendientes = false;
+          this.athF07Guardando = false;
+          if (Array.isArray(res?.avisosDrive) && res.avisosDrive.length) {
+            void Swal.fire({
+              icon: 'warning',
+              title: 'Guardado en el sistema',
+              text: String(res.avisosDrive[0]),
+              confirmButtonColor: '#15a596'
+            });
+          }
+        },
+        error: (err) => {
+          this.athF07Guardando = false;
+          const msg = err?.error?.message || 'No se pudo guardar el programa de capacitación.';
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se guardó',
+            text: String(msg),
+            confirmButtonColor: '#15a596'
+          });
+        }
+      });
+  }
+
+  descargarPdfAthF07(): void {
+    if (this.athF07DescargandoPdf || !this.athF07ProgramaActivo) {
+      return;
+    }
+    this.sincronizarProgramaActivoAthF07();
+    const programaId = this.athF07ProgramaActivo.id;
+    const nombreLocal = String(
+      this.athF07ProgramaActivo.folio
+      || 'programa'
+    ).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() || 'programa';
+
+    const lanzarDescarga = () => {
+      this.athF07DescargandoPdf = true;
+      this.backendService.descargarPdfAthF07(programaId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.athF07DescargandoPdf = false;
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = `ATH-F-07 ${nombreLocal}.pdf`;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.athF07DescargandoPdf = false;
+          }
+        });
+    };
+
+    if (!this.athF07CambiosPendientes) {
+      lanzarDescarga();
+      return;
+    }
+
+    if (this.athF07Guardando) {
+      return;
+    }
+    this.athF07Guardando = true;
+    this.backendService.guardarAthF07Formato(
+      { ...this.athF07Form, programaActivoId: programaId },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.aplicarRespuestaAthF07(res, true, false, true);
+          this.athF07CambiosPendientes = false;
+          this.athF07Guardando = false;
+          lanzarDescarga();
+        },
+        error: () => {
+          this.athF07Guardando = false;
+        }
+      });
+  }
+
+  private aplicarRespuestaAthF07(
+    res: any,
+    conservarEdicion = false,
+    desdeDrive = false,
+    forzarActualizacionDrive = false
+  ): void {
+    if (!res) {
+      if (!desdeDrive) this.athF07Cargando = false;
+      this.athF07Listo = true;
+      return;
+    }
+
+    const editorAbierto = this.mostrarAthF07Editor && !forzarActualizacionDrive;
+    const activoId = this.athF07ProgramaActivo?.id || this.athF07Form.programaActivoId || null;
+
+    if (res.datos) {
+      this.athF07IgnorarAutoSave = true;
+      this.athF07Form = this.normalizarAthF07Form(res.datos);
+      const idConservado = activoId && this.athF07Form.programas.some((p) => p.id === activoId)
+        ? activoId
+        : this.athF07Form.programaActivoId;
+      this.athF07Form.programaActivoId = idConservado;
+      this.athF07ProgramaActivo = idConservado
+        ? this.athF07Form.programas.find((p) => p.id === idConservado) || null
+        : null;
+      if (this.athF07ProgramaActivo) {
+        this.athF07Vista = 'editor';
+      } else if (this.athF07Vista === 'editor') {
+        this.athF07Vista = 'archivero';
+      }
+      setTimeout(() => {
+        this.athF07IgnorarAutoSave = false;
+      }, 0);
+      this.sincronizarProgramaActivoAthF07();
+    }
+
+    if (res.siguienteFolioSugerido) {
+      this.athF07SiguienteFolio = res.siguienteFolioSugerido;
+    } else {
+      this.athF07SiguienteFolio = this.generarFolioSugeridoAthF07(this.athF07Form.programas);
+    }
+
+    if (res.carpetaProgramasUrl) {
+      this.athF07CarpetaProgramasUrl = res.carpetaProgramasUrl;
+    }
+    if (res.carpetaFirmadosUrl) {
+      this.athF07CarpetaFirmadosUrl = res.carpetaFirmadosUrl;
+    }
+
+    this.athF07UltimaSync = res.ultimaSyncDrive || null;
+    this.athF07ContenidoModificado = !!res.contenidoModificado;
+    this.actualizarDriveActivoAthF07(this.athF07ProgramaActivo);
+    if (res.editorUrl && (forzarActualizacionDrive || !editorAbierto)) {
+      this.fijarEditorEmbedUrlAthF07(res.editorUrl, forzarActualizacionDrive);
+    }
+
+    this.athF07Listo = true;
+    if (!conservarEdicion) {
+      this.athF07Cargando = false;
     }
   }
 

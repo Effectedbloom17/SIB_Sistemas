@@ -3,10 +3,11 @@
        [class.sgc-preview-page--dg-f-01]="plantillaSlug === 'dg-f-01'"
        [class.sgc-preview-page--dg-f-02]="(plantillaSlug === 'dg-f-02' || plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'sgc-f-23' || plantillaSlug === 'dg-f-03') || (plantillaSlug === 'af-f-02' && afF02Vista === 'editor')"
        [class.sgc-preview-page--dg-f-03]="plantillaSlug === 'dg-f-03'"
-       [class.sgc-preview-page--dg-f-05]="plantillaSlug === 'dg-f-05' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || (plantillaSlug === 'af-f-02' && afF02Vista === 'archivero') || plantillaSlug === 'ath-f-03'"
+       [class.sgc-preview-page--dg-f-05]="plantillaSlug === 'dg-f-05' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || (plantillaSlug === 'af-f-02' && afF02Vista === 'archivero') || plantillaSlug === 'ath-f-03'"
        [class.sgc-preview-page--dg-f-04]="plantillaSlug === 'dg-f-04'"
        [class.sgc-preview-page--dg-f-07]="plantillaSlug === 'dg-f-07'"
        [class.sgc-preview-page--metodologia-amef]="plantillaSlug === 'metodologia-amef'"
+       [class.sgc-preview-page--ath-f-07-editor]="plantillaSlug === 'ath-f-07' && athF07Vista === 'editor'"
        [class.sgc-preview-page--ath-f-09-editor]="plantillaSlug === 'ath-f-09' && athF09Vista === 'editor'"
        [class.sgc-preview-page--ath-f-11-editor]="plantillaSlug === 'ath-f-11' && athF11Vista === 'editor'">
   <div class="header header-bg-image sgc-hero sgc-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
@@ -291,7 +292,7 @@
                 </div>
               </ng-container>
               <ng-template #toolbarDriveSyncRest>
-              <ng-container *ngIf="plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || plantillaSlug === 'ath-f-03'; else enlaceDriveExterno">
+              <ng-container *ngIf="plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || plantillaSlug === 'ath-f-03'; else enlaceDriveExterno">
                 <div class="sgc-preview-toolbar__actions">
                   <span class="sgc-preview-sync sgc-preview-sync--hint" *ngIf="driveSyncCambiosPendientes && !driveSyncGuardando && plantillaSlug !== 'sgc-f-05'">
                     Cambios sin guardar
@@ -312,7 +313,7 @@
                     Actualizar versiones
                   </button>
                   <button
-                    *ngIf="puedeGestionarPlantillasSgc && plantillaSlug !== 'sgc-f-05' && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'ath-f-03')"
+                    *ngIf="puedeGestionarPlantillasSgc && plantillaSlug !== 'sgc-f-05' && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'ath-f-03')"
                     type="button"
                     class="btn btn-sm sgc-btn-save-info"
                     [disabled]="driveSyncCargando || driveSyncGuardando || (plantillaSlug === 'sgc-f-10' && sgcF10GuardandoHistorico)"
@@ -349,7 +350,9 @@
                     [disabled]="
                       (plantillaSlug === 'ath-f-11'
                         ? (athF11Vista !== 'editor' || !athF11EvaluacionActiva || athF11Guardando || athF11Cargando)
-                        : !driveSyncDriveFileId)
+                        : plantillaSlug === 'ath-f-07'
+                          ? (athF07Vista !== 'editor' || !athF07ProgramaActivo?.driveFileId || athF07Guardando || athF07Cargando)
+                          : !driveSyncDriveFileId)
                       || driveSyncCargando
                       || driveSyncActualizandoPlantilla
                       || (plantillaSlug === 'sgc-f-10' && sgcF10GuardandoHistorico)"
@@ -587,6 +590,17 @@
                     aria-label="Generar PDF de eficacia de la capacitación">
                     <i class="fas" [ngClass]="athF08DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
                     <span class="sgc-btn-pdf-icon__label">{{ athF08DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'ath-f-07' && athF07Vista === 'editor'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="athF07Cargando || athF07Guardando || athF07DescargandoPdf || !athF07ProgramaActivo"
+                    (click)="descargarPdfAthF07()"
+                    title="Descargar PDF del programa (horizontal, carta)"
+                    aria-label="Descargar PDF de este programa de capacitación">
+                    <i class="fas" [ngClass]="athF07DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ athF07DescargandoPdf ? 'Descargando…' : 'Descargar PDF' }}</span>
                   </button>
                   <button
                     *ngIf="plantillaSlug === 'ath-f-09' && athF09Vista === 'editor'"
@@ -1303,7 +1317,221 @@
                 </div>
               </form>
             </ng-container>
-            <ng-container *ngSwitchCase="'ath-f-09'">
+            <ng-container *ngSwitchCase="'ath-f-07'">
+              <form class="dg-f05-form sgc-f05-form ath-f-07-form" (ngSubmit)="$event.preventDefault()"
+                    (input)="onAthF07Editado()" (change)="onAthF07Editado()">
+                <div class="dg-f05-doc-wrap" [class.dg-f05-doc-wrap--loading]="athF07Cargando">
+                  <div class="dg-f05-loading" *ngIf="athF07Cargando" role="status">
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    <span>Cargando programa de capacitación…</span>
+                  </div>
+                  <article class="dg-f05-doc sgc-f05-doc" *ngIf="!athF07Cargando">
+                    <header class="dg-f05-doc__header sgc-f-14-doc__header">
+                      <div>
+                        <span class="dg-f05-doc__code">ATH-F-07</span>
+                        <h3 class="dg-f05-doc__title">Programa de capacitación</h3>
+                      </div>
+                    </header>
+
+                    <div class="dg-f05-table-panel sgc-f05-panel" *ngIf="athF07ProgramaActivo as prog; else athF07SinPrograma">
+                      <div class="sgc-f05-toolbar">
+                        <div class="sgc-f05-toolbar__lead">
+                          <div class="sgc-f05-toolbar__icon" aria-hidden="true">
+                            <i class="fas fa-chalkboard-teacher"></i>
+                          </div>
+                          <div>
+                            <h4 class="sgc-f05-toolbar__title">Cursos del programa</h4>
+                            <p class="sgc-f05-toolbar__hint">
+                              Misma estructura del formato oficial: curso, objetivo, fecha, lugar, duración, instructor y a quién va dirigido.
+                              Folio <strong>{{ prog.folio || athF07SiguienteFolio }}</strong>
+                              · Rev. {{ athF07Form.revision }}
+                              · {{ formatearFechaRevAthF07(athF07Form.fechaRevision) }}
+                            </p>
+                          </div>
+                        </div>
+                        <div class="sgc-f05-stats">
+                          <div class="sgc-f05-stat sgc-f05-stat--total">
+                            <span class="sgc-f05-stat__valor">{{ prog.cursos.length }}</span>
+                            <span class="sgc-f05-stat__label">Cursos</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="sgc-f05-filtros">
+                        <div class="sgc-f05-filtros__buscador">
+                          <i class="fas fa-search" aria-hidden="true"></i>
+                          <input type="text" placeholder="Buscar por curso, instructor, lugar o dirigido a…"
+                            [(ngModel)]="athF07Busqueda" name="athF07Busqueda" autocomplete="off">
+                          <button type="button" class="sgc-f05-filtros__clear" *ngIf="athF07Busqueda"
+                            (click)="athF07Busqueda = ''" title="Limpiar búsqueda">
+                            <i class="fas fa-times" aria-hidden="true"></i>
+                          </button>
+                        </div>
+                        <select class="ath-f07-programa-select" *ngIf="athF07Form.programas.length > 1"
+                          [ngModel]="prog.id" (ngModelChange)="seleccionarProgramaAthF07($event)" name="athF07_programa">
+                          <option *ngFor="let p of athF07Form.programas" [value]="p.id">{{ p.folio }} · {{ p.anio }}</option>
+                        </select>
+                        <button type="button" class="sgc-f-04-archivero__btn-nuevo ath-f07-add" (click)="agregarCursoAthF07()">
+                          <i class="fas fa-plus" aria-hidden="true"></i> Agregar curso
+                        </button>
+                      </div>
+
+                      <div class="ath-f07-cursos" *ngIf="athF07CursosVista.length; else athF07CursosVacios">
+                        <article class="ath-f07-curso" *ngFor="let c of athF07CursosVista; let i = index; trackBy: trackByIdx">
+                          <header class="ath-f07-curso__head">
+                            <span class="ath-f07-curso__no">{{ i + 1 }}</span>
+                            <button type="button" class="ath-f07-del" (click)="quitarCursoAthF07(c)" title="Quitar curso" aria-label="Quitar curso">
+                              <i class="fas fa-times" aria-hidden="true"></i>
+                            </button>
+                          </header>
+                          <label class="ath-f07-field ath-f07-field--curso">
+                            <span>Curso de capacitación</span>
+                            <textarea rows="2" [name]="'athF07_curso_' + c.id" [(ngModel)]="c.curso" placeholder="Nombre del curso"></textarea>
+                          </label>
+                          <label class="ath-f07-field ath-f07-field--objetivo">
+                            <span>Objetivo</span>
+                            <textarea rows="2" [name]="'athF07_obj_' + c.id" [(ngModel)]="c.objetivo" placeholder="Objetivo"></textarea>
+                          </label>
+                          <label class="ath-f07-field">
+                            <span>Fecha de realización</span>
+                            <input type="date" [name]="'athF07_fecha_' + c.id" [(ngModel)]="c.fechaRealizacion">
+                          </label>
+                          <label class="ath-f07-field">
+                            <span>Lugar</span>
+                            <textarea rows="2" [name]="'athF07_lugar_' + c.id" [(ngModel)]="c.lugar" placeholder="Lugar"></textarea>
+                          </label>
+                          <label class="ath-f07-field">
+                            <span>Duración</span>
+                            <textarea rows="2" [name]="'athF07_dur_' + c.id" [(ngModel)]="c.duracion" placeholder="Ej. 8 h"></textarea>
+                          </label>
+                          <label class="ath-f07-field">
+                            <span>Instructor</span>
+                            <textarea rows="2" [name]="'athF07_inst_' + c.id" [(ngModel)]="c.instructor" placeholder="Instructor"></textarea>
+                          </label>
+                          <label class="ath-f07-field ath-f07-field--dirigido">
+                            <span>Dirigido a</span>
+                            <textarea rows="2" [name]="'athF07_dir_' + c.id" [(ngModel)]="c.dirigidoA" placeholder="Área o puesto"></textarea>
+                          </label>
+                          <label class="ath-f07-field ath-f07-field--obs">
+                            <span>Observaciones</span>
+                            <textarea rows="2" [name]="'athF07_obs_' + c.id" [(ngModel)]="c.observaciones" placeholder="Observaciones"></textarea>
+                          </label>
+                        </article>
+                      </div>
+                      <ng-template #athF07CursosVacios>
+                        <div class="sgc-f05-lista__empty">
+                          <div class="sgc-f05-lista__empty-icon"><i class="fas fa-search" aria-hidden="true"></i></div>
+                          <p>Ningún curso coincide con la búsqueda.</p>
+                        </div>
+                      </ng-template>
+
+                      <aside class="dg-f02-attach sgc-f-04-attach" aria-label="Versión firmada">
+                        <div class="dg-f02-attach__head">
+                          <div class="dg-f02-attach__icon-wrap">
+                            <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                          </div>
+                          <div>
+                            <h3 class="dg-f02-attach__title">Versión firmada</h3>
+                            <p class="dg-f02-attach__desc mb-0">
+                              Sube el PDF firmado. Cada carga se agrega al historial de este programa.
+                            </p>
+                            <span class="sgc-f-24-estado-badge"
+                              [class.sgc-f-24-estado-badge--ok]="!!prog.pdfFirmado?.driveFileId"
+                              [class.sgc-f-24-estado-badge--no]="!prog.pdfFirmado?.driveFileId">
+                              {{ prog.pdfFirmado?.driveFileId ? 'Firmada' : 'Pendiente' }}
+                            </span>
+                          </div>
+                        </div>
+                        <label class="dg-f02-attach__dropzone" *ngIf="!prog.pdfFirmado?.driveFileId"
+                          [class.dg-f02-attach__dropzone--busy]="athF07SubiendoPdf">
+                          <input type="file" class="dg-f02-attach__input" accept="application/pdf"
+                            (change)="onSeleccionarPdfAthF07($event)" [disabled]="athF07SubiendoPdf">
+                          <span class="dg-f02-attach__dropzone-icon">
+                            <i class="fas" [ngClass]="athF07SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                          </span>
+                          <span class="dg-f02-attach__dropzone-title">
+                            {{ athF07SubiendoPdf ? 'Subiendo PDF…' : 'Arrastra o selecciona el PDF firmado' }}
+                          </span>
+                          <span class="dg-f02-attach__dropzone-hint">Formato PDF · máximo {{ etiquetaMaxPdfSgc }}</span>
+                        </label>
+                        <input #athF07InputActualizarPdf type="file" class="dg-f02-attach__input" accept="application/pdf"
+                          (change)="onSeleccionarPdfAthF07($event)" [disabled]="athF07SubiendoPdf">
+                        <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="prog.pdfFirmado as pdf">
+                          <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
+                          <div class="dg-f02-attach__file-info">
+                            <span class="dg-f02-attach__file-badge">Vigente</span>
+                            <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo || ('ATH-F-07 ' + (prog.folio || 'programa') + '.pdf') }}</strong>
+                            <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                              <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                              Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}
+                            </small>
+                          </div>
+                          <div class="dg-f02-attach__file-actions" *ngIf="prog.pdfFirmado?.driveFileId">
+                            <button type="button" class="btn btn-sm dg-f02-attach__file-btn" (click)="abrirPdfAthF07(pdf)">
+                              <i class="fas fa-eye" aria-hidden="true"></i>
+                              Abrir
+                            </button>
+                            <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
+                              [disabled]="athF07SubiendoPdf"
+                              (click)="athF07InputActualizarPdf.click()">
+                              <i class="fas" [ngClass]="athF07SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                              {{ athF07SubiendoPdf ? 'Subiendo…' : 'Nueva versión' }}
+                            </button>
+                          </div>
+                        </div>
+                        <div class="sgc-pdf-historial" *ngIf="prog.historialFirmados?.length">
+                          <div class="sgc-pdf-historial__head">
+                            <div class="sgc-pdf-historial__icon" aria-hidden="true">
+                              <i class="fas fa-history"></i>
+                            </div>
+                            <div>
+                              <h4 class="sgc-pdf-historial__title">Historial de PDFs firmados</h4>
+                              <p class="sgc-pdf-historial__hint">Solo versiones firmadas de este programa.</p>
+                            </div>
+                          </div>
+                          <ul class="sgc-pdf-historial__list">
+                            <li class="sgc-pdf-historial__item" *ngFor="let hist of prog.historialFirmados; let i = index; trackBy: trackByIdx">
+                              <div class="sgc-pdf-historial__item-main">
+                                <span class="sgc-pdf-historial__ver">{{ prog.historialFirmados.length - i }}</span>
+                                <div class="sgc-pdf-historial__meta">
+                                  <strong class="sgc-pdf-historial__name">{{ hist.nombreArchivo }}</strong>
+                                  <small class="sgc-pdf-historial__date" *ngIf="hist.fechaSubida">
+                                    <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                                    {{ formatearFechaDgF02(hist.fechaSubida) }}
+                                  </small>
+                                </div>
+                              </div>
+                              <div class="sgc-pdf-historial__actions">
+                                <button type="button" class="btn btn-sm dg-f02-attach__file-btn" (click)="abrirPdfAthF07(hist)">
+                                  <i class="fas fa-eye" aria-hidden="true"></i>
+                                  Abrir
+                                </button>
+                                <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--danger"
+                                  (click)="eliminarPdfHistorialAthF07(hist)"
+                                  title="Eliminar PDF del historial">
+                                  <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                                </button>
+                              </div>
+                            </li>
+                          </ul>
+                        </div>
+                      </aside>
+                    </div>
+
+                    <ng-template #athF07SinPrograma>
+                      <div class="sgc-f05-lista__empty">
+                        <div class="sgc-f05-lista__empty-icon"><i class="fas fa-inbox" aria-hidden="true"></i></div>
+                        <p>Aún no hay un programa de capacitación.</p>
+                        <button type="button" class="sgc-f-04-archivero__btn-nuevo" (click)="nuevoProgramaAthF07()">
+                          <i class="fas fa-plus" aria-hidden="true"></i> Crear programa {{ athF07SiguienteFolio }}
+                        </button>
+                      </div>
+                    </ng-template>
+                  </article>
+                </div>
+              </form>
+            </ng-container>
+<ng-container *ngSwitchCase="'ath-f-09'">
               <form class="dg-f05-form ath-f-09-form" (ngSubmit)="$event.preventDefault()"
                     (input)="onAthF09Editado()" (change)="onAthF09Editado()">
                 <div class="dg-f05-doc-wrap" [class.dg-f05-doc-wrap--loading]="athF09Cargando">
@@ -14492,6 +14720,43 @@
         [src]="athF02EditorEmbedUrlSafe"
         title="ATH-F-02 en Google Drive"
         (load)="onAthF02IframeLoad()"
+        allow="clipboard-read; clipboard-write"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-popups-to-escape-sandbox">
+      </iframe>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-drive-editor-fullscreen" *ngIf="mostrarAthF07Editor"
+  role="dialog" aria-modal="true" aria-label="Editor integrado ATH-F-07">
+  <div class="sgc-drive-editor-fullscreen__backdrop" (click)="toggleAthF07Editor()"></div>
+  <div class="sgc-drive-editor-fullscreen__panel">
+    <div class="sgc-drive-editor-fullscreen__head">
+      <div class="sgc-drive-editor-fullscreen__title-wrap">
+        <span class="sgc-drive-editor-fullscreen__icon">
+          <i class="fas fa-chalkboard-teacher" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ tituloEditorIntegrado }}</strong>
+          <small class="sgc-drive-editor-fullscreen__subtitle">ATH-F-07 · Programa de capacitación · Google Docs</small>
+        </div>
+      </div>
+      <div class="sgc-drive-editor-fullscreen__head-actions">
+        <button class="btn btn-sm btn-light" type="button" (click)="toggleAthF07Editor()">
+          <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+        </button>
+      </div>
+    </div>
+    <div class="sgc-drive-editor-fullscreen__body">
+      <div class="sgc-drive-editor-fullscreen__loading" *ngIf="athF07EditorCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando documento en Drive…</span>
+      </div>
+      <iframe *ngIf="athF07EditorEmbedUrlSafe"
+        class="sgc-drive-editor-fullscreen__iframe"
+        [src]="athF07EditorEmbedUrlSafe"
+        title="ATH-F-07 en Google Drive"
+        (load)="onAthF07IframeLoad()"
         allow="clipboard-read; clipboard-write"
         sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-popups-to-escape-sandbox">
       </iframe>

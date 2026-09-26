@@ -25819,6 +25819,7 @@ const sgcF05Service = require('./sgcF05Service');
 const sgcAthF08Service = require('./sgcAthF08Service');
 const sgcAthF02Service = require('./sgcAthF02Service');
 const sgcAthF09Service = require('./sgcAthF09Service');
+const sgcAthF07Service = require('./sgcAthF07Service');
 const sgcAthF11Service = require('./sgcAthF11Service');
 const sgcControlProyectosService = require('./sgcControlProyectosService');
 const controlProyectosAdjuntosService = require('./controlProyectosAdjuntosService');
@@ -28194,6 +28195,98 @@ app.get('/api/sgc/formatos/ath-f-02/descargar-pdf', requireAdminOrSgc, async (re
         return res.send(resultado.buffer);
     } catch (error) {
         handleError(res, error, 'No se pudo descargar el PDF de ATH-F-02');
+    }
+});
+
+app.get('/api/sgc/formatos/ath-f-07', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAthF07Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, message: 'Formato ATH-F-07 cargado.', ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato ATH-F-07');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-07/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAthF07Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: 'Formato ATH-F-07 guardado y sincronizado con Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato ATH-F-07');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-07/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAthF07Service.sincronizarDesdeDrive(poolBiznagaSgc, req.body || {});
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: 'ATH-F-07 sincronizado desde Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo sincronizar ATH-F-07 desde Drive');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-07/actualizar-plantilla', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAthF07Service.actualizarPlantillaDesdeSistema(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Plantilla ATH-F-07 verificada.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo actualizar la plantilla ATH-F-07');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-07/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAthF07Service.subirPdfFirmado(poolBiznagaSgc, req.body || {});
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: 'PDF firmado ATH-F-07 subido a Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo subir el PDF firmado ATH-F-07');
+    }
+});
+
+app.get('/api/sgc/formatos/ath-f-07/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const programaId = String(req.query?.programaId || req.query?.programa_id || '').trim();
+        const { pdfBuffer, nombreArchivo } = await sgcAthF07Service.descargarPdfPrograma(
+            poolBiznagaSgc,
+            programaId
+        );
+        const safeName = String(nombreArchivo || 'ATH-F-07 Programa.pdf')
+            .replace(/[\\/:*?"<>|]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${safeName.replace(/"/g, '')}"`
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF del programa ATH-F-07');
     }
 });
 

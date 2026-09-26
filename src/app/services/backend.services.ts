@@ -222,6 +222,7 @@ export class BackendServices {
             cco?: string;
             inReplyTo?: string;
             references?: string;
+            requiereAdjunto?: boolean;
             adjuntos?: Array<{ nombre: string; contentType: string; contenidoBase64: string }>;
         },
         apiBase: 'correo' | 'correo-empresa' = 'correo'
@@ -239,6 +240,7 @@ export class BackendServices {
             cco?: string;
             inReplyTo?: string;
             references?: string;
+            requiereAdjunto?: boolean;
             adjuntos?: Array<{ nombre: string; contentType: string; contenidoBase64: string }>;
         },
         apiBase: 'correo' | 'correo-empresa' = 'correo'
@@ -3280,6 +3282,51 @@ export class BackendServices {
         });
     }
 
+    cargarAthF07Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-07`);
+    }
+
+    guardarAthF07Formato(datos: unknown, editorActivo = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-07/guardar`, {
+            datos,
+            origen: 'sistema',
+            editorActivo
+        });
+    }
+
+    sincronizarAthF07DesdeDrive(programaActivoId?: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-07/sincronizar-drive`, {
+            programaActivoId: programaActivoId || null
+        });
+    }
+
+    actualizarPlantillaAthF07(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-07/actualizar-plantilla`, {});
+    }
+
+    subirPdfFirmadoAthF07(
+        pdfBase64: string,
+        nombreArchivo: string,
+        programaId: string,
+        nota?: string
+    ): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-07/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombre_archivo: nombreArchivo,
+            programaId,
+            nota: nota || null
+        });
+    }
+
+    descargarPdfAthF07(programaId: string): Observable<Blob> {
+        const params = programaId
+            ? `?programaId=${encodeURIComponent(programaId)}`
+            : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-07/descargar-pdf${params}`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarAthF09Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-09`);
     }
@@ -3453,6 +3500,7 @@ export class BackendServices {
         prioridad?: string;
         estatus?: string;
         avance?: number | string;
+        orden?: number;
     }>, empresaId?: number | null): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/control-proyectos/proyectos/guardar`, { proyectos, empresaId });
     }
@@ -3475,6 +3523,8 @@ export class BackendServices {
         prioridad?: string;
         estatus?: string;
         avance?: number | string;
+        /** Orden de actividad dentro del proyecto (drag-and-drop / alta). */
+        orden?: number;
     }): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/control-proyectos/proyectos/crear`, proyecto);
     }

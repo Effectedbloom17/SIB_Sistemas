@@ -129,6 +129,14 @@ function normalizarIndicadorAvance(valor) {
         (Math.abs(curr - avance) < Math.abs(prev - avance) ? curr : prev), 0);
 }
 
+function avanceDesdeEstatus(estatus) {
+    const n = normalizar(estatus);
+    if (n === 'concluido') return 100;
+    if (n === 'en revision' || n === 'en revisión') return 75;
+    if (n === 'en proceso') return 50;
+    return 0;
+}
+
 function estatusDesdeAvance(avance) {
     const n = parsearAvance(avance);
     if (n >= 100) return 'Concluido';
@@ -250,6 +258,7 @@ function mapRowToActividad(row) {
         prioridad: String(row.prioridad || '').trim(),
         estatus: String(row.estatus || '').trim() || estatusDesdeAvance(avance),
         avance,
+        orden: Number.isFinite(Number(row.orden)) ? Number(row.orden) : 0,
         activo: row.activo == null ? true : Boolean(Number(row.activo)),
         modificadoPor: row.modificado_por || null,
         modificadoEn: row.modificado_en || null,
@@ -286,7 +295,11 @@ function sanitizarActividad(item) {
         observaciones: String(item?.observaciones || '').trim(),
         prioridad: normalizarPrioridad(item?.prioridad),
         estatus: estatusEntrada || estatusDesdeAvance(avance),
-        avance
+        avance,
+        orden: (() => {
+            const n = Number(item?.orden);
+            return Number.isInteger(n) && n > 0 ? n : 0;
+        })()
     };
 }
 
@@ -537,7 +550,7 @@ async function insertarActividad(pool, actividadRaw, orden, auditoria = {}) {
     };
 }
 
-async function actualizarActividad(pool, actividadRaw, orden, auditoria = {}) {
+async function actualizarActividad(pool, actividadRaw, orden, auditoria = {}, opciones = {}) {
     const p = sanitizarActividad(actividadRaw);
     const id = idActividadValido(p.id);
     if (!id) return null;
@@ -547,7 +560,8 @@ async function actualizarActividad(pool, actividadRaw, orden, auditoria = {}) {
 
     const [prevRows] = await pool.query(
         `SELECT control_proyecto_id, actividades_accion, referencia_normativa, responsable,
-                fecha_inicio, fecha_compromiso, entregables, observaciones, prioridad, estatus, avance
+                fecha_inicio, fecha_compromiso, entregables, observaciones, prioridad, estatus, avance,
+                creado_por, created_at
          FROM sgc_control_proyectos
          WHERE control_proyecto_id = ?
          LIMIT 1`,
@@ -606,15 +620,20 @@ async function actualizarActividad(pool, actividadRaw, orden, auditoria = {}) {
         ]
     );
 
-    try {
-        await registrarCambiosHistorial(pool, id, anterior, p, { usuarioNombre: usuario, fechaHora: ahora });
-    } catch (histErr) {
-        console.warn('[control-proyectos] No se pudo registrar historial:', histErr.message);
+    if (Array.isArray(opciones.deferHistorial)) {
+        opciones.deferHistorial.push({ id, anterior, nuevo: p, auditoria: { usuarioNombre: usuario, fechaHora: ahora } });
+    } else {
+        try {
+            await registrarCambiosHistorial(pool, id, anterior, p, { usuarioNombre: usuario, fechaHora: ahora });
+        } catch (histErr) {
+            console.warn('[control-proyectos] No se pudo registrar historial:', histErr.message);
+        }
     }
 
     return {
         ...p,
         id,
+        orden,
         responsableUsuarioIds: parseResponsableUsuarioIds(p.responsableUsuarioIds),
         activo: true,
         modificadoPor: usuario,
@@ -701,6 +720,7 @@ async function softDeleteActividades(pool, ids, auditoria = {}) {
  * - Actualiza por id las actividades que siguen en el payload
  * - Inserta las nuevas
  * La ausencia de una actividad en el payload nunca se interpreta como eliminación.
+ * Reintenta ante deadlock y bloquea filas en orden de id para evitar ciclos de locks.
  */
 async function reemplazarActividades(pool, actividadesRaw, opciones = {}) {
     await asegurarTablaControlProyectos(pool);
@@ -711,52 +731,112 @@ async function reemplazarActividades(pool, actividadesRaw, opciones = {}) {
         fechaHora: opciones.fechaHora || fechaHoraMexicoMySQL()
     };
 
-    const conn = await pool.getConnection();
-    try {
-        await conn.beginTransaction();
+    const maxAttempts = 4;
+    let lastError = null;
 
-        const whereParts = ['activo = 1'];
-        const params = [];
-        if (empresaId) {
-            whereParts.push('empresa_id = ?');
-            params.push(empresaId);
-        }
-
-        const [existentes] = await conn.query(
-            `SELECT control_proyecto_id
-             FROM sgc_control_proyectos
-             WHERE ${whereParts.join(' AND ')}`,
-            params
-        );
-        const idsExistentes = new Set(
-            existentes.map((row) => Number(row.control_proyecto_id)).filter((id) => Number.isInteger(id) && id > 0)
-        );
-        const resultado = [];
-
-        for (let i = 0; i < actividades.length; i++) {
-            const actividad = actividades[i];
-            const id = idActividadValido(actividad.id);
-            const orden = i + 1;
-
-            if (id && idsExistentes.has(id)) {
-                const actualizada = await actualizarActividad(conn, actividad, orden, auditoria);
-                if (actualizada) {
-                    resultado.push(actualizada);
-                }
-            } else {
-                const creada = await insertarActividad(conn, { ...actividad, id: null }, orden, auditoria);
-                resultado.push(creada);
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const conn = await pool.getConnection();
+        try {
+            await conn.beginTransaction();
+            try {
+                await conn.query('SET SESSION innodb_lock_wait_timeout = 15');
+            } catch (_timeoutErr) {
+                /* algunos entornos no permiten cambiar el timeout de sesión */
             }
-        }
 
-        await conn.commit();
-        return resultado;
-    } catch (error) {
-        await conn.rollback();
-        throw error;
-    } finally {
-        conn.release();
+            const whereParts = ['activo = 1'];
+            const params = [];
+            if (empresaId) {
+                whereParts.push('empresa_id = ?');
+                params.push(empresaId);
+            }
+
+            const [existentes] = await conn.query(
+                `SELECT control_proyecto_id
+                 FROM sgc_control_proyectos
+                 WHERE ${whereParts.join(' AND ')}
+                 ORDER BY control_proyecto_id ASC
+                 FOR UPDATE`,
+                params
+            );
+            const idsExistentes = new Set(
+                existentes.map((row) => Number(row.control_proyecto_id)).filter((id) => Number.isInteger(id) && id > 0)
+            );
+
+            // Orden estable por proyecto (respeta orden del payload / drag-and-drop).
+            const contadorPorProyecto = new Map();
+            const conOrden = actividades.map((actividad, indicePayload) => {
+                const clave = claveProyecto(actividad);
+                const siguiente = (contadorPorProyecto.get(clave) || 0) + 1;
+                contadorPorProyecto.set(clave, siguiente);
+                const ordenPayload = Number(actividad.orden);
+                const orden = Number.isInteger(ordenPayload) && ordenPayload > 0
+                    ? ordenPayload
+                    : siguiente;
+                return { actividad, orden, indicePayload };
+            });
+
+            // Actualizar por id ascendente evita deadlocks entre transacciones concurrentes.
+            const paraActualizar = conOrden
+                .filter(({ actividad }) => {
+                    const id = idActividadValido(actividad.id);
+                    return id && idsExistentes.has(id);
+                })
+                .sort((a, b) => idActividadValido(a.actividad.id) - idActividadValido(b.actividad.id));
+
+            const paraInsertar = conOrden.filter(({ actividad }) => {
+                const id = idActividadValido(actividad.id);
+                return !id || !idsExistentes.has(id);
+            });
+
+            const resultadoPorPayload = new Array(actividades.length);
+            const pendientesHistorial = [];
+
+            for (const { actividad, orden, indicePayload } of paraActualizar) {
+                const actualizada = await actualizarActividad(conn, actividad, orden, auditoria, {
+                    deferHistorial: pendientesHistorial
+                });
+                if (actualizada) {
+                    resultadoPorPayload[indicePayload] = actualizada;
+                }
+            }
+
+            for (const { actividad, orden, indicePayload } of paraInsertar) {
+                const creada = await insertarActividad(conn, { ...actividad, id: null }, orden, auditoria);
+                resultadoPorPayload[indicePayload] = creada;
+            }
+
+            for (const pendiente of pendientesHistorial) {
+                await registrarCambiosHistorial(
+                    conn,
+                    pendiente.id,
+                    pendiente.anterior,
+                    pendiente.nuevo,
+                    pendiente.auditoria
+                );
+            }
+
+            await conn.commit();
+            return resultadoPorPayload.filter(Boolean);
+        } catch (error) {
+            try {
+                await conn.rollback();
+            } catch (_rollbackErr) {
+                /* ignore */
+            }
+            lastError = error;
+            const esDeadlock = error?.code === 'ER_LOCK_DEADLOCK' || Number(error?.errno) === 1213;
+            if (esDeadlock && attempt < maxAttempts) {
+                await new Promise((resolve) => setTimeout(resolve, 40 * attempt + Math.floor(Math.random() * 40)));
+                continue;
+            }
+            throw error;
+        } finally {
+            conn.release();
+        }
     }
+
+    throw lastError || new Error('No se pudieron guardar los proyectos.');
 }
 
 async function desactivarActividades(pool, idsRaw = [], opciones = {}) {
@@ -806,9 +886,18 @@ async function crearProyecto(pool, body = {}, opciones = {}) {
     }
 
     const [ordenRows] = await pool.query(
-        'SELECT COALESCE(MAX(orden), 0) AS maxOrden FROM sgc_control_proyectos WHERE activo = 1'
+        `SELECT COALESCE(MAX(orden), 0) AS maxOrden
+         FROM sgc_control_proyectos
+         WHERE activo = 1
+           AND LOWER(TRIM(COALESCE(folio, ''))) = LOWER(TRIM(?))
+           AND LOWER(TRIM(COALESCE(nombre_proyecto, ''))) = LOWER(TRIM(?))`,
+        [p.folio || '', p.nombreProyecto || '']
     );
-    return insertarActividad(pool, p, Number(ordenRows[0]?.maxOrden || 0) + 1, auditoria);
+    const ordenPayload = Number(body?.orden);
+    const orden = Number.isInteger(ordenPayload) && ordenPayload > 0
+        ? ordenPayload
+        : Number(ordenRows[0]?.maxOrden || 0) + 1;
+    return insertarActividad(pool, p, orden, auditoria);
 }
 
 function actividadesParaFormato(actividades) {
@@ -833,6 +922,7 @@ function actividadesParaFormato(actividades) {
         prioridad: p.prioridad,
         estatus: p.estatus,
         avance: parsearAvance(p.avance),
+        orden: Number.isFinite(Number(p.orden)) ? Number(p.orden) : 0,
         activo: p.activo !== false,
         creadoPor: p.creadoPor || null,
         modificadoPor: p.modificadoPor || null,
@@ -888,7 +978,10 @@ function agruparProyectos(actividades) {
 
     return Array.from(mapa.values()).map((proyecto) => {
         const total = proyecto.actividades.length || 1;
-        const sumaAvance = proyecto.actividades.reduce((acc, a) => acc + parsearAvance(a.avance), 0);
+        const sumaAvance = proyecto.actividades.reduce(
+            (acc, a) => acc + avanceDesdeEstatus(a.estatus || estatusDesdeAvance(a.avance)),
+            0
+        );
         const avance = Math.round(sumaAvance / total);
         const estados = proyecto.actividades.map((a) => normalizar(a.estatus || estatusDesdeAvance(a.avance)));
         let estatus = 'No iniciado';

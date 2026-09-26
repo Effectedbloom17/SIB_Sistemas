@@ -474,6 +474,7 @@
                     <i class="fas fa-exclamation-triangle"></i>
                     <span>{{ borrador.error }}</span>
                   </div>
+                  <ng-container *ngTemplateOutlet="cargaAdjuntosTpl; context: { $implicit: borrador }"></ng-container>
 
                   <form class="correo-compose-inline-form" (ngSubmit)="enviarMensaje(borrador)">
                     <div
@@ -786,6 +787,7 @@
       <i class="fas fa-exclamation-triangle"></i>
       <span>{{ borrador.error }}</span>
     </div>
+    <ng-container *ngTemplateOutlet="cargaAdjuntosTpl; context: { $implicit: borrador }"></ng-container>
 
     <form class="correo-compose-float-form" (ngSubmit)="enviarMensaje(borrador)">
       <div
@@ -1087,6 +1089,57 @@
     </div>
   </div>
 </div>
+
+<ng-template #cargaAdjuntosTpl let-borrador>
+  <div *ngIf="borrador.cargaAdjuntos as carga" class="correo-compose-carga" role="status" aria-live="polite">
+    <div class="correo-compose-carga-head">
+      <span class="correo-compose-carga-titulo">
+        <i class="fas fa-paperclip"></i>
+        Preparando adjuntos
+      </span>
+      <strong class="correo-compose-carga-pct">{{ carga.total ? porcentajeCargaAdjuntos(borrador) + '%' : '…' }}</strong>
+    </div>
+    <div
+      class="correo-compose-carga-track"
+      role="progressbar"
+      [attr.aria-valuenow]="porcentajeCargaAdjuntos(borrador)"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      [attr.aria-valuetext]="carga.total ? (carga.listos + ' de ' + carga.total + ' archivos') : 'Buscando adjuntos'">
+      <div
+        class="correo-compose-carga-fill"
+        [class.is-indeterminada]="!carga.total"
+        [style.width.%]="carga.total ? porcentajeCargaAdjuntos(borrador) : null"></div>
+    </div>
+    <div class="correo-compose-carga-meta">
+      <span *ngIf="!carga.total">Buscando los archivos del mensaje…</span>
+      <span *ngIf="carga.total">{{ carga.listos }} de {{ carga.total }} archivo(s)</span>
+      <span *ngIf="carga.activa && faltantesCargaAdjuntos(borrador) > 0"> · faltan {{ faltantesCargaAdjuntos(borrador) }}</span>
+      <span *ngIf="carga.fallidos > 0"> · {{ carga.fallidos }} con error</span>
+    </div>
+    <p *ngIf="carga.enviarAlTerminar && carga.activa" class="correo-compose-carga-espera">
+      El correo se enviará cuando terminen de cargar los archivos restantes.
+    </p>
+    <ul class="correo-compose-carga-lista">
+      <li
+        *ngFor="let archivo of carga.archivos"
+        class="correo-compose-carga-item"
+        [class.is-listo]="archivo.estado === 'listo'"
+        [class.is-cargando]="archivo.estado === 'cargando'"
+        [class.is-error]="archivo.estado === 'error'"
+        [class.is-pendiente]="archivo.estado === 'pendiente'">
+        <i class="fas correo-compose-carga-icono" [ngClass]="{
+          'fa-check': archivo.estado === 'listo',
+          'fa-spinner fa-spin': archivo.estado === 'cargando',
+          'fa-times': archivo.estado === 'error',
+          'fa-clock': archivo.estado === 'pendiente'
+        }"></i>
+        <span class="correo-compose-carga-nombre" [title]="archivo.nombre">{{ archivo.nombre }}</span>
+        <span class="correo-compose-carga-estado">{{ etiquetaEstadoCargaAdjunto(archivo.estado) }}</span>
+      </li>
+    </ul>
+  </div>
+</ng-template>
 
 <input #inputAdjuntoCompose type="file" multiple hidden (change)="onAdjuntosSeleccionados($event)">
 <input #inputImagenCompose type="file" accept="image/*" multiple hidden (change)="onImagenSeleccionada($event)">

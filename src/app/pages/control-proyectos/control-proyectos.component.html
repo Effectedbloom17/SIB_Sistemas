@@ -903,6 +903,13 @@
                     <span class="cp-gestion-detail-panel__count" *ngIf="hayFiltrosActividadesGestion || grupo.actividades.length > gestionActTamanoPagina">
                       {{ actividadesGestionFiltradas(grupo).length }} de {{ grupo.actividades.length }}
                     </span>
+                    <span class="cp-gestion-reorder-hint" *ngIf="puedeReordenarActividadesGestion && !esConsultaEmpresa">
+                      <i class="fas fa-grip-vertical" aria-hidden="true"></i>
+                      Arrastra el # para reordenar
+                    </span>
+                    <span class="cp-gestion-reorder-hint cp-gestion-reorder-hint--muted" *ngIf="!puedeReordenarActividadesGestion && !esConsultaEmpresa && hayFiltrosActividadesGestion">
+                      Quita el orden por fecha para reacomodar
+                    </span>
                   </div>
 
                   <div class="cp-gestion-table-shell" *ngIf="grupo.actividades.length; else sinActividadesDetalle" (scroll)="cerrarMenuPrioridadGestion(); cerrarMenuEstatusGestion(); cerrarMenuResponsablesGestion(); cerrarMenuAccionesFila()">
@@ -919,24 +926,40 @@
                             <th class="cp-gestion-act-table__col--act" aria-label="Acciones"></th>
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody
+                          cdkDropList
+                          [cdkDropListData]="filas"
+                          [cdkDropListDisabled]="!puedeReordenarActividadesGestion"
+                          (cdkDropListDropped)="onDropActividadGestion($event, grupo)"
+                        >
                           <ng-container *ngFor="let item of filas; trackBy: trackByGestionActividad">
                             <tr
                               class="cp-gestion-act-table__row"
+                              cdkDrag
+                              [cdkDragDisabled]="!puedeReordenarActividadesGestion"
+                              (cdkDragStarted)="onDragInicioActividadGestion()"
+                              (cdkDragEnded)="onDragFinActividadGestion()"
                               [attr.data-estatus-tone]="toneEstatusActividadGestion(item.proyecto.estatus)"
                               [class.is-expanded]="actividadGestionExpandida(item.indice) && !actividadGestionCerrando(item.indice)"
                               [class.is-pinned]="actividadGestionFijada(item.indice)"
                               [class.is-preview]="actividadGestionHoverPreview(item.indice)"
                               [class.is-readonly]="!puedeEditarActividadGestion(item.proyecto, grupo)"
+                              [class.is-dragging]="draggingActividadGestion"
                               (mouseenter)="abrirDetalleGestionHover(item.indice, item.proyecto)"
                               (mouseleave)="cerrarDetalleGestionHover(item.indice)"
                               (click)="onClickFilaActividadGestion($event, item.indice, item.proyecto)"
                             >
                               <td
                                 class="cp-gestion-act-table__num"
-                                (click)="toggleExpandirActividadGestion(item.indice, item.proyecto); $event.stopPropagation()"
-                                title="Abrir o cerrar detalle"
-                              >{{ numeroActividadGestion(grupo, item) }}</td>
+                                cdkDragHandle
+                                (click)="$event.stopPropagation()"
+                                [attr.title]="puedeReordenarActividadesGestion ? 'Arrastra para reordenar' : 'Número de actividad'"
+                              >
+                                <span class="cp-gestion-act-table__num-inner">
+                                  <i class="fas fa-grip-vertical cp-gestion-act-table__grip" *ngIf="puedeReordenarActividadesGestion" aria-hidden="true"></i>
+                                  {{ numeroActividadGestion(grupo, item) }}
+                                </span>
+                              </td>
                               <td>
                                 <textarea
                                   class="cp-gestion-act-table__input cp-gestion-act-table__input--actividad"
@@ -1081,6 +1104,7 @@
                               <td class="cp-gestion-act-table__act-cell">
                                 <div
                                   class="cp-gestion-flyout"
+                                  *ngIf="esSuperAdministrador || puedeEliminarActividadGestion(item.proyecto)"
                                   [class.is-open]="menuAccionesFilaAbierto(item.indice)"
                                   (mouseenter)="abrirMenuAccionesFila(item.indice, $event)"
                                   (mouseleave)="cerrarMenuAccionesFila(item.indice)"
@@ -1107,6 +1131,7 @@
                                       type="button"
                                       class="cp-gestion-flyout__btn"
                                       role="menuitem"
+                                      *ngIf="esSuperAdministrador"
                                       (click)="abrirRepositorioActividad($event, grupo, item.proyecto); cerrarMenuAccionesFila()"
                                       [disabled]="!puedeAbrirRepositorioActividad(item.proyecto)"
                                       [title]="tituloRepositorioActividad(item.proyecto)"
@@ -1136,7 +1161,7 @@
                             <tr
                               class="cp-gestion-act-table__preview"
                               [attr.data-estatus-tone]="toneEstatusActividadGestion(item.proyecto.estatus)"
-                              *ngIf="actividadGestionHoverPreview(item.indice)"
+                              *ngIf="esSuperAdministrador && !draggingActividadGestion && actividadGestionHoverPreview(item.indice)"
                               (mouseenter)="abrirDetalleGestionHover(item.indice, item.proyecto)"
                               (mouseleave)="cerrarDetalleGestionHover(item.indice)"
                               (click)="toggleExpandirActividadGestion(item.indice, item.proyecto)"
@@ -1176,7 +1201,7 @@
                               [attr.data-estatus-tone]="toneEstatusActividadGestion(item.proyecto.estatus)"
                               [class.is-pinned]="actividadGestionFijada(item.indice)"
                               [class.is-closing]="actividadGestionCerrando(item.indice)"
-                              *ngIf="actividadGestionExpandida(item.indice)"
+                              *ngIf="esSuperAdministrador && !draggingActividadGestion && actividadGestionExpandida(item.indice)"
                               (mouseenter)="abrirDetalleGestionHover(item.indice, item.proyecto)"
                               (mouseleave)="cerrarDetalleGestionHover(item.indice)"
                             >
