@@ -184,6 +184,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         previewMode: 'form'
       },
       {
+        codigo: 'SGC-F-03',
+        titulo: 'Lista de distribución de documentos',
+        nombre: 'SGC-F-03 Lista de distribución de documentos REV 00 (sistema)',
+        driveFileId: '1XpcTc_ZzNMf747KGejC3D4NM67hwHTIpPJ3--mRKtsA',
+        previewSlug: 'sgc-f-03',
+        previewMode: 'form'
+      },
+      {
         codigo: 'AF-F-02',
         titulo: 'Contrato',
         nombre: 'AF-F-02 Contrato.docx',

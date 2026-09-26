@@ -25807,6 +25807,7 @@ const sgcF09Service = require('./sgcF09Service');
 const sgcF10Service = require('./sgcF10Service');
 const sgcF14Service = require('./sgcF14Service');
 const sgcF25Service = require('./sgcF25Service');
+const sgcF03Service = require('./sgcF03Service');
 const sgcF16Service = require('./sgcF16Service');
 const sgcF24Service = require('./sgcF24Service');
 const sgcAthF03Service = require('./sgcAthF03Service');
@@ -27323,6 +27324,89 @@ app.get('/api/sgc/formatos/sgc-f-25/descargar-pdf', requireAdminOrSgc, async (re
         return res.send(pdfBuffer);
     } catch (error) {
         handleError(res, error, 'No se pudo descargar el PDF de SGC-F-25');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-03', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
+        const payload = await sgcF03Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato SGC-F-03');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-03/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF03Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: 'Formato SGC-F-03 guardado correctamente.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato SGC-F-03');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-03/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF03Service.sincronizarDesdeDrive(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'SGC-F-03 sincronizado desde Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo sincronizar SGC-F-03');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-03/actualizar-plantilla', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF03Service.actualizarPlantillaDesdeSistema(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Plantilla SGC-F-03 actualizada.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo actualizar la plantilla SGC-F-03');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-03/asegurar-acceso', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF03Service.asegurarAccesoEditor(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Acceso al editor SGC-F-03 asegurado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo asegurar el acceso al editor SGC-F-03');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-03/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcF03Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="SGC-F-03 Lista de distribucion de documentos.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-03');
     }
 });
 
