@@ -222,6 +222,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         driveFileId: '1wb0UqwXAF2-f-0qmX2RnBroD9mRF8UZg-qQetBhEElE',
         previewSlug: 'ath-f-03',
         previewMode: 'form'
+      },
+      {
+        codigo: 'ATH-F-13',
+        titulo: 'Solicitud de vacaciones',
+        nombre: 'ATH-F-13 Solicitud de vacaciones.docx',
+        driveFileId: '14MCp6YsY4Gf82TcPRzmNlwLPhifytDbG_9kklYhLWk4',
+        previewSlug: 'ath-f-13',
+        previewMode: 'form'
       }
     ]
   },
