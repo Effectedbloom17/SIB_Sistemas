@@ -2584,7 +2584,7 @@ async function aplicarFormatoFilasAthF08(spreadsheetId, sheetTitle, filaInicio, 
             }
         },
         formatoColumna(0, 1, 'CENTER'),
-        formatoColumna(1, 4, 'LEFT', 'WRAP'),
+        formatoColumna(1, 4, 'LEFT', 'CLIP'),
         formatoColumna(4, CURSO_COL_FIN, 'CENTER'),
         formatoColumna(CURSO_COL_FIN, TABLA_COL_FIN, 'CENTER'),
         {
@@ -2595,7 +2595,19 @@ async function aplicarFormatoFilasAthF08(spreadsheetId, sheetTitle, filaInicio, 
                     startIndex: 1,
                     endIndex: 3
                 },
-                properties: { pixelSize: 100 },
+                properties: { pixelSize: 120 },
+                fields: 'pixelSize'
+            }
+        },
+        {
+            updateDimensionProperties: {
+                range: {
+                    sheetId,
+                    dimension: 'COLUMNS',
+                    startIndex: 3,
+                    endIndex: 4
+                },
+                properties: { pixelSize: 120 },
                 fields: 'pixelSize'
             }
         },

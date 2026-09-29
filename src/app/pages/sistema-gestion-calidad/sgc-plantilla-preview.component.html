@@ -2559,6 +2559,10 @@
             <ng-container *ngSwitchCase="'ath-f-08'">
               <form class="dg-f05-form ath-f-08-form" (ngSubmit)="$event.preventDefault()"
                     (input)="onAthF08Editado()" (change)="onAthF08Editado()">
+                <div class="ath-f-08-curso-tip" *ngIf="athF08CursoTip as tip" role="tooltip"
+                  [style.top.px]="tip.top" [style.left.px]="tip.left">
+                  <strong>{{ tip.texto }}</strong>
+                </div>
                 <div class="dg-f05-doc-wrap" [class.dg-f05-doc-wrap--loading]="athF08Cargando">
                   <div class="dg-f05-loading" *ngIf="athF08Cargando" role="status">
                     <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
@@ -2588,6 +2592,7 @@
                         </div>
                       </div>
                       <div class="dg-f05-table-wrap ath-f-08-matriz-wrap dg-f05-table-wrap--scroll"
+                        (scroll)="ocultarTipCursoAthF08()"
                         *ngIf="columnasMatrizAthF08.length; else athF08SinCursosMatriz">
                         <table class="dg-f05-table ath-f-08-matriz"
                           [attr.data-cursos]="columnasMatrizAthF08.length">
@@ -2603,19 +2608,16 @@
                           </colgroup>
                           <thead>
                             <tr>
-                              <th class="ath-f-08-matriz__col--nombre">Nombre del<br>colaborador</th>
+                              <th class="ath-f-08-matriz__col--nombre">Nombre del colaborador</th>
                               <th *ngFor="let cursoIdx of columnasMatrizAthF08; trackBy: trackByIdx"
-                                class="ath-f-08-matriz__col--curso"
-                                [title]="etiquetaCursoAthF08(cursoIdx)">
+                                class="ath-f-08-matriz__col--curso">
                                 <span class="ath-f-08-matriz__curso-head">
-                                  <span class="ath-f-08-matriz__curso-num">{{ cursoIdx + 1 }}</span>
-                                  <button type="button"
-                                    class="ath-f-08-matriz__curso-del"
-                                    (click)="quitarCursoAthF08(cursoIdx)"
-                                    title="Quitar columna"
-                                    aria-label="Quitar columna">
-                                    <i class="fas fa-times" aria-hidden="true"></i>
-                                  </button>
+                                  <span class="ath-f-08-matriz__curso-num"
+                                    tabindex="0"
+                                    (mouseenter)="mostrarTipCursoAthF08($event, cursoIdx)"
+                                    (mouseleave)="ocultarTipCursoAthF08()"
+                                    (focus)="mostrarTipCursoAthF08($event, cursoIdx)"
+                                    (blur)="ocultarTipCursoAthF08()">{{ cursoIdx + 1 }}</span>
                                 </span>
                               </th>
                               <th class="ath-f-08-matriz__col--add">
@@ -2645,8 +2647,8 @@
                                     <span class="ath-f-08-combo__icon" aria-hidden="true">
                                       <i class="fas fa-search"></i>
                                     </span>
-                                    <textarea class="ath-f-08-combo__input ath-f-08-combo__input--nombre"
-                                      rows="2"
+                                    <input class="ath-f-08-combo__input ath-f-08-combo__input--nombre"
+                                      type="text"
                                       [name]="'athF08_nombre' + i"
                                       [ngModel]="textoComboColabAthF08(i)"
                                       (ngModelChange)="onFiltroColabAthF08(i, $event)"
@@ -2657,7 +2659,7 @@
                                       autocomplete="off"
                                       aria-label="Buscar o escribir colaborador"
                                       aria-autocomplete="list"
-                                      [attr.aria-expanded]="athF08ColabComboAbierto === i"></textarea>
+                                      [attr.aria-expanded]="athF08ColabComboAbierto === i">
                                     <button *ngIf="col.nombre || (athF08ColabComboAbierto === i && athF08ColabComboQuery)"
                                       type="button"
                                       class="ath-f-08-combo__clear"
@@ -2729,8 +2731,7 @@
                                 class="ath-f-08-matriz__cell--curso">
                                 <select class="dg-f05-field dg-f05-field--select dg-f05-field--center ath-f-08-matriz__select"
                                   [name]="'athF08_res' + i + '_' + cursoIdx"
-                                  [(ngModel)]="col.resultados[cursoIdx]"
-                                  [attr.title]="etiquetaCursoAthF08(cursoIdx)">
+                                  [(ngModel)]="col.resultados[cursoIdx]">
                                   <option value="">—</option>
                                   <option value="A">A</option>
                                   <option value="NA">NA</option>

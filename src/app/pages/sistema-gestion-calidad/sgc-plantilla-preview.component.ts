@@ -2902,6 +2902,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF08CursoComboQuery = '';
   athF08ColabComboAbierto: number | null = null;
   athF08ColabComboQuery = '';
+  athF08CursoTip: { texto: string; top: number; left: number } | null = null;
   athF08Cargando = false;
   athF08Guardando = false;
   athF08Listo = false;
@@ -18796,6 +18797,24 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return nombre || `Curso ${index + 1}`;
   }
 
+  mostrarTipCursoAthF08(event: Event, index: number): void {
+    const el = event.currentTarget as HTMLElement | null;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const ancho = Math.min(220, window.innerWidth - 16);
+    let left = rect.left + rect.width / 2 - ancho / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - ancho - 8));
+    this.athF08CursoTip = {
+      texto: this.etiquetaCursoAthF08(index),
+      top: rect.bottom + 6,
+      left
+    };
+  }
+
+  ocultarTipCursoAthF08(): void {
+    this.athF08CursoTip = null;
+  }
+
   agregarCursoAthF08(): void {
     if (this.athF08Form.cursos.length >= this.athF08MaxCursos) {
       return;
@@ -18967,29 +18986,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.athF08ColabComboAbierto === index) {
       return this.athF08ColabComboQuery;
     }
-    return this.nombreColabConSaltoAthF08(this.athF08Form.colaboradores[index]?.nombre);
-  }
-
-  /** Un salto de línea entre palabras para que el nombre no quede cortado. */
-  private nombreColabConSaltoAthF08(nombre: string): string {
-    const limpio = String(nombre || '').replace(/\s*[\r\n]+\s*/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!limpio) {
-      return '';
-    }
-    const partes = limpio.split(' ');
-    if (partes.length < 2) {
-      return limpio;
-    }
-    let corte = 1;
-    let mejor = Infinity;
-    for (let i = 1; i < partes.length; i++) {
-      const diff = Math.abs(partes.slice(0, i).join(' ').length - partes.slice(i).join(' ').length);
-      if (diff < mejor) {
-        mejor = diff;
-        corte = i;
-      }
-    }
-    return `${partes.slice(0, corte).join(' ')}\n${partes.slice(corte).join(' ')}`;
+    return this.nombreColabUnaLineaAthF08(this.athF08Form.colaboradores[index]?.nombre);
   }
 
   private nombreColabUnaLineaAthF08(nombre: string): string {

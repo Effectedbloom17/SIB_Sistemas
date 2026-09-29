@@ -236,22 +236,9 @@ function sanitizarColaborador(item, numCursos = CURSOS_PLANTILLA) {
     };
 }
 
-/** Un salto entre palabras para que el nombre se lea en dos renglones en la hoja. */
+/** Una sola línea en la hoja y en el PDF. El salto de los nombres largos vive solo en la interfaz. */
 function nombreColaboradorEnHoja(nombre) {
-    const limpio = String(nombre || '').replace(/\s*[\r\n]+\s*/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!limpio) return '';
-    const partes = limpio.split(' ');
-    if (partes.length < 2) return limpio;
-    let corte = 1;
-    let mejor = Infinity;
-    for (let i = 1; i < partes.length; i++) {
-        const diff = Math.abs(partes.slice(0, i).join(' ').length - partes.slice(i).join(' ').length);
-        if (diff < mejor) {
-            mejor = diff;
-            corte = i;
-        }
-    }
-    return `${partes.slice(0, corte).join(' ')}\n${partes.slice(corte).join(' ')}`;
+    return String(nombre || '').replace(/\s*[\r\n]+\s*/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function esColaboradorVacio(item) {
@@ -1311,18 +1298,38 @@ async function aplicarPresentacionNombreEnDrive(spreadsheetId, sheetTitle) {
     const sheetId = await obtenerSheetIdAthF08(spreadsheetId, titulo);
     if (sheetId === null) return;
     const sheetsApi = google.sheets({ version: 'v4', auth: driveService.getAuthClient() });
-    const requests = [{
-        updateDimensionProperties: {
-            range: {
-                sheetId,
-                dimension: 'COLUMNS',
-                startIndex: 1,
-                endIndex: 3
-            },
-            properties: { pixelSize: 100 },
-            fields: 'pixelSize'
+    const requests = [
+        {
+            updateDimensionProperties: {
+                range: {
+                    sheetId,
+                    dimension: 'COLUMNS',
+                    startIndex: 1,
+                    endIndex: 4
+                },
+                properties: { pixelSize: 120 },
+                fields: 'pixelSize'
+            }
+        },
+        {
+            repeatCell: {
+                range: {
+                    sheetId,
+                    startRowIndex: DATA_START_ROW - 1,
+                    endRowIndex: DATA_END_ROW,
+                    startColumnIndex: 1,
+                    endColumnIndex: 4
+                },
+                cell: {
+                    userEnteredFormat: {
+                        wrapStrategy: 'CLIP',
+                        verticalAlignment: 'MIDDLE'
+                    }
+                },
+                fields: 'userEnteredFormat.wrapStrategy,userEnteredFormat.verticalAlignment'
+            }
         }
-    }];
+    ];
     try {
         const encabezado = await sheetsApi.spreadsheets.values.get({
             spreadsheetId,
@@ -2043,8 +2050,196 @@ async function actualizarPlantillaDesdeSistema(pool) {
     return construirRespuesta(registroActualizado, datos, archivoDrive);
 }
 
+async function aplanarNombresColaboradorParaPdf(spreadsheetId, sheetTitle) {
+    const titulo = String(sheetTitle || '').trim();
+    if (!spreadsheetId || !titulo) return;
+    const sheetsApi = google.sheets({ version: 'v4', auth: driveService.getAuthClient() });
+    const fin = DATA_START_ROW + MAX_COLABORADORES - 1;
+    const lectura = `'${titulo}'!B${DATA_START_ROW}:B${fin}`;
+    const got = await sheetsApi.spreadsheets.values.get({ spreadsheetId, range: lectura });
+    const filas = got.data.values || [];
+    const data = filas.map((fila) => [
+        String((fila && fila[0]) || '').replace(/\s*[\r\n]+\s*/g, ' ').replace(/\s+/g, ' ').trim()
+    ]);
+    const haySalto = filas.some((fila) => /[\r\n]/.test(String((fila && fila[0]) || '')));
+    if (haySalto && data.length) {
+        const end = DATA_START_ROW + data.length - 1;
+        await sheetsApi.spreadsheets.values.update({
+            spreadsheetId,
+            range: `'${titulo}'!B${DATA_START_ROW}:B${end}`,
+            valueInputOption: 'RAW',
+            requestBody: { values: data }
+        });
+    }
+    await aplicarPresentacionNombreEnDrive(spreadsheetId, titulo);
+}
+
+/**
+ * El catálogo del PDF usa la columna B, que es angosta y parte el nombre.
+ * Se ensancha solo mientras se exporta la página de cursos y luego se restaura.
+ */
+async function presentarCursosEnUnaFilaParaPdf(spreadsheetId, sheetTitle) {
+    const titulo = String(sheetTitle || '').trim();
+    const restaurarNada = async () => {};
+    if (!spreadsheetId || !titulo) return restaurarNada;
+
+    const acredStart = await detectarFilaAcreditacionesEnDrive(spreadsheetId, titulo);
+    const catalogoStart = await detectarFilaCatalogoCursosEnDrive(spreadsheetId, titulo, acredStart);
+    const numCursos = await detectarNumColumnasCursoEnDrive(spreadsheetId, titulo);
+    const fin = catalogoStart + Math.max(1, numCursos) - 1;
+    const sheetsApi = google.sheets({ version: 'v4', auth: driveService.getAuthClient() });
+    const sheetId = await obtenerSheetIdAthF08(spreadsheetId, titulo);
+    if (sheetId === null) return restaurarNada;
+
+    const lectura = `'${titulo}'!B${catalogoStart}:B${fin}`;
+    const got = await sheetsApi.spreadsheets.values.get({ spreadsheetId, range: lectura });
+    const originales = (got.data.values || []).map((fila) => String((fila && fila[0]) || ''));
+    const planos = originales.map((texto) => texto.replace(/\s*[\r\n]+\s*/g, ' ').replace(/\s+/g, ' ').trim());
+    const haySalto = originales.some((texto, i) => texto !== planos[i]);
+    if (haySalto && planos.length) {
+        await sheetsApi.spreadsheets.values.update({
+            spreadsheetId,
+            range: `'${titulo}'!B${catalogoStart}:B${catalogoStart + planos.length - 1}`,
+            valueInputOption: 'RAW',
+            requestBody: { values: planos.map((texto) => [texto]) }
+        });
+    }
+
+    const meta = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        ranges: [lectura],
+        fields: 'sheets(data(rowMetadata(pixelSize),columnMetadata(pixelSize)))'
+    });
+    const bloque = (meta.data.sheets || [])[0]?.data?.[0] || {};
+    const anchoPrevio = Number(bloque.columnMetadata?.[0]?.pixelSize) || 120;
+    const altos = (bloque.rowMetadata || []).map((fila) => Number(fila?.pixelSize) || 21);
+    const startRow = catalogoStart - 1;
+    const endRow = fin;
+
+    await sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+            requests: [
+                {
+                    updateDimensionProperties: {
+                        range: {
+                            sheetId,
+                            dimension: 'COLUMNS',
+                            startIndex: 1,
+                            endIndex: 2
+                        },
+                        properties: { pixelSize: 460 },
+                        fields: 'pixelSize'
+                    }
+                },
+                {
+                    updateDimensionProperties: {
+                        range: {
+                            sheetId,
+                            dimension: 'ROWS',
+                            startIndex: startRow,
+                            endIndex: endRow
+                        },
+                        properties: { pixelSize: 21 },
+                        fields: 'pixelSize'
+                    }
+                },
+                {
+                    repeatCell: {
+                        range: {
+                            sheetId,
+                            startRowIndex: startRow,
+                            endRowIndex: endRow,
+                            startColumnIndex: 1,
+                            endColumnIndex: 2
+                        },
+                        cell: {
+                            userEnteredFormat: {
+                                wrapStrategy: 'CLIP',
+                                verticalAlignment: 'MIDDLE'
+                            }
+                        },
+                        fields: 'userEnteredFormat.wrapStrategy,userEnteredFormat.verticalAlignment'
+                    }
+                }
+            ]
+        }
+    });
+
+    return async () => {
+        const requests = [
+            {
+                updateDimensionProperties: {
+                    range: {
+                        sheetId,
+                        dimension: 'COLUMNS',
+                        startIndex: 1,
+                        endIndex: 2
+                    },
+                    properties: { pixelSize: anchoPrevio },
+                    fields: 'pixelSize'
+                }
+            },
+            {
+                repeatCell: {
+                    range: {
+                        sheetId,
+                        startRowIndex: startRow,
+                        endRowIndex: endRow,
+                        startColumnIndex: 1,
+                        endColumnIndex: 2
+                    },
+                    cell: {
+                        userEnteredFormat: {
+                            wrapStrategy: 'WRAP',
+                            verticalAlignment: 'MIDDLE'
+                        }
+                    },
+                    fields: 'userEnteredFormat.wrapStrategy,userEnteredFormat.verticalAlignment'
+                }
+            }
+        ];
+        let i = 0;
+        while (i < altos.length) {
+            const px = altos[i];
+            let j = i + 1;
+            while (j < altos.length && altos[j] === px) j += 1;
+            requests.push({
+                updateDimensionProperties: {
+                    range: {
+                        sheetId,
+                        dimension: 'ROWS',
+                        startIndex: startRow + i,
+                        endIndex: startRow + j
+                    },
+                    properties: { pixelSize: px },
+                    fields: 'pixelSize'
+                }
+            });
+            i = j;
+        }
+        await sheetsApi.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: { requests }
+        });
+        if (haySalto && originales.length) {
+            await sheetsApi.spreadsheets.values.update({
+                spreadsheetId,
+                range: `'${titulo}'!B${catalogoStart}:B${catalogoStart + originales.length - 1}`,
+                valueInputOption: 'RAW',
+                requestBody: { values: originales.map((texto) => [texto]) }
+            });
+        }
+    };
+}
+
 async function exportarPdfAthF08DosPaginas(driveFileId, gid, sheetTitle) {
     const titulo = String(sheetTitle || SHEET_TITLE).trim() || SHEET_TITLE;
+    try {
+        await aplanarNombresColaboradorParaPdf(driveFileId, titulo);
+    } catch (err) {
+        console.warn('[ATH-F-08] No se pudieron dejar los nombres en un renglón para el PDF:', err.message);
+    }
     const acredStart = await detectarFilaAcreditacionesEnDrive(driveFileId, titulo);
     const catalogoStart = await detectarFilaCatalogoCursosEnDrive(driveFileId, titulo, acredStart);
     const acred = layoutAcredRows(acredStart);
@@ -2069,16 +2264,23 @@ async function exportarPdfAthF08DosPaginas(driveFileId, gid, sheetTitle) {
             ...optsBase,
             range: { r1: 0, c1: 0, r2: finPagina1, c2: columnasPdf.eficaciaCol }
         });
-        buf2 = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
-            ...optsBase,
-            // Catálogo más angosto para que nombres/saltos de línea se lean bien.
-            range: {
-                r1: inicioPagina2 - 1,
-                c1: 0,
-                r2: finPagina2,
-                c2: PDF_MAX_COLUMNAS_CATALOGO
-            }
-        });
+        let restaurarCursosPdf = async () => {};
+        try {
+            restaurarCursosPdf = await presentarCursosEnUnaFilaParaPdf(driveFileId, titulo);
+            buf2 = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
+                ...optsBase,
+                range: {
+                    r1: inicioPagina2 - 1,
+                    c1: 0,
+                    r2: finPagina2,
+                    c2: PDF_MAX_COLUMNAS_CATALOGO
+                }
+            });
+        } finally {
+            await restaurarCursosPdf().catch((err) => {
+                console.warn('[ATH-F-08] No se pudo restaurar el catálogo tras el PDF:', err.message);
+            });
+        }
     } catch (err) {
         console.warn('[ATH-F-08] Export PDF por rangos falló, usando hoja completa:', err.message);
         return driveService.exportarGoogleSheetComoPDF(driveFileId, optsBase);
