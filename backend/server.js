@@ -25968,6 +25968,7 @@ const sgcF16Service = require('./sgcF16Service');
 const sgcF24Service = require('./sgcF24Service');
 const sgcAthF03Service = require('./sgcAthF03Service');
 const sgcAthF13Service = require('./sgcAthF13Service');
+const sgcAthF14Service = require('./sgcAthF14Service');
 const sgcF27Service = require('./sgcF27Service');
 const sgcF29Service = require('./sgcF29Service');
 const sgcF28Service = require('./sgcF28Service');
@@ -27974,6 +27975,46 @@ app.post('/api/sgc/formatos/ath-f-13/guardar', requireAdminOrSgc, async (req, re
         });
     } catch (error) {
         handleError(res, error, 'No se pudo guardar el formato ATH-F-13');
+    }
+});
+
+app.get('/api/sgc/formatos/ath-f-14', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
+        const payload = await sgcAthF14Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato ATH-F-14');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-14/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
+        const payload = await sgcAthF14Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'Control de vacaciones guardado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato ATH-F-14');
+    }
+});
+
+app.get('/api/sgc/formatos/ath-f-14/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        const pdfBuffer = await sgcAthF14Service.descargarPlantillaPdf();
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="ATH-F-14 Control de vacaciones.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de ATH-F-14');
     }
 });
 

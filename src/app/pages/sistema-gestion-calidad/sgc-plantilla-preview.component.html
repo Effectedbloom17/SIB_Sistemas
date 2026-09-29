@@ -3,7 +3,7 @@
        [class.sgc-preview-page--dg-f-01]="plantillaSlug === 'dg-f-01'"
        [class.sgc-preview-page--dg-f-02]="(plantillaSlug === 'dg-f-02' || plantillaSlug === 'sgc-po-01' || plantillaSlug === 'dg-f-08' || plantillaSlug === 'sgc-f-23' || plantillaSlug === 'dg-f-03') || (plantillaSlug === 'af-f-02' && afF02Vista === 'editor')"
        [class.sgc-preview-page--dg-f-03]="plantillaSlug === 'dg-f-03'"
-       [class.sgc-preview-page--dg-f-05]="plantillaSlug === 'dg-f-05' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-27-medicion' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || (plantillaSlug === 'af-f-02' && afF02Vista === 'archivero') || plantillaSlug === 'ath-f-03' || plantillaSlug === 'ath-f-13'"
+       [class.sgc-preview-page--dg-f-05]="plantillaSlug === 'dg-f-05' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-27-medicion' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || (plantillaSlug === 'af-f-02' && afF02Vista === 'archivero') || plantillaSlug === 'ath-f-03' || plantillaSlug === 'ath-f-13' || plantillaSlug === 'ath-f-14'"
        [class.sgc-preview-page--dg-f-04]="plantillaSlug === 'dg-f-04'"
        [class.sgc-preview-page--dg-f-07]="plantillaSlug === 'dg-f-07'"
        [class.sgc-preview-page--metodologia-amef]="plantillaSlug === 'metodologia-amef'"
@@ -293,8 +293,17 @@
                 </div>
               </ng-container>
               <ng-template #toolbarDriveSyncRest>
-              <ng-container *ngIf="plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-27-medicion' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || plantillaSlug === 'ath-f-03' || plantillaSlug === 'ath-f-13'; else enlaceDriveExterno">
+              <ng-container *ngIf="plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-09' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-27-medicion' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'sgc-f-05' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || plantillaSlug === 'ath-f-03' || plantillaSlug === 'ath-f-13' || plantillaSlug === 'ath-f-14'; else enlaceDriveExterno">
                 <div class="sgc-preview-toolbar__actions">
+                  <button
+                    *ngIf="plantillaSlug === 'ath-f-14'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-save-info"
+                    [disabled]="athF14Cargando"
+                    (click)="cargarAthF14()">
+                    <i class="fas mr-1" [ngClass]="athF14Cargando ? 'fa-spinner fa-spin' : 'fa-sync-alt'" aria-hidden="true"></i>
+                    Actualizar
+                  </button>
                   <span class="sgc-preview-sync sgc-preview-sync--hint" *ngIf="driveSyncCambiosPendientes && !driveSyncGuardando && plantillaSlug !== 'sgc-f-05'">
                     Cambios sin guardar
                   </span>
@@ -314,7 +323,7 @@
                     Actualizar versiones
                   </button>
                   <button
-                    *ngIf="puedeGestionarPlantillasSgc && plantillaSlug !== 'sgc-f-05' && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-27-medicion' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'ath-f-03' || plantillaSlug === 'ath-f-13')"
+                    *ngIf="puedeGestionarPlantillasSgc && plantillaSlug !== 'sgc-f-05' && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-27-medicion' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'ath-f-03' || plantillaSlug === 'ath-f-13' || plantillaSlug === 'ath-f-14')"
                     type="button"
                     class="btn btn-sm sgc-btn-save-info"
                     [disabled]="driveSyncCargando || driveSyncGuardando || (plantillaSlug === 'sgc-f-10' && sgcF10GuardandoHistorico)"
@@ -371,6 +380,17 @@
                     aria-label="Generar PDF">
                     <i class="fas" [ngClass]="dgF05DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
                     <span class="sgc-btn-pdf-icon__label">{{ dgF05DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
+                  </button>
+                  <button
+                    *ngIf="plantillaSlug === 'ath-f-14'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || athF14DescargandoPdf || athF14Guardando"
+                    (click)="descargarPdfAthF14()"
+                    title="Generar PDF (carta, horizontal, ajustar al ancho, márgenes normales · hoja actual)"
+                    aria-label="Generar PDF">
+                    <i class="fas" [ngClass]="athF14DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ athF14DescargandoPdf ? 'Generando…' : 'Generar PDF' }}</span>
                   </button>
                   <button
                     *ngIf="plantillaSlug === 'dg-f-07'"
@@ -10375,7 +10395,7 @@
                           </div>
                         </div>
 
-                        <div class="ath-f13-vac-meta">
+                        <div class="ath-f13-vac-meta" [class.ath-f13-vac-meta--excede]="solicitudAthF13ExcedeDisponibles || !!athF13AvisoAjuste">
                           <label class="ath-f13-vac-chip ath-f13-vac-chip--dias">
                             <span class="ath-f13-vac-chip__mark" aria-hidden="true">
                               <i class="fas fa-hashtag"></i>
@@ -10389,6 +10409,15 @@
                                 title="Solo días laborales (lun–vie). Con fecha de inicio, calcula el término automáticamente.">
                             </span>
                           </label>
+                          <div class="ath-f13-vac-chip ath-f13-vac-chip--disponibles" role="group" aria-label="Días disponibles">
+                            <span class="ath-f13-vac-chip__mark" aria-hidden="true">
+                              <i class="fas fa-umbrella-beach"></i>
+                            </span>
+                            <span class="ath-f13-vac-chip__body">
+                              <span class="ath-f13-vac-chip__label">Días disponibles</span>
+                              <span class="ath-f13-vac-chip__value">{{ diasDisponiblesAthF13Activo === null ? '—' : diasDisponiblesAthF13Activo }}</span>
+                            </span>
+                          </div>
                           <div class="ath-f13-vac-chip ath-f13-vac-chip--inicio" role="group" aria-label="Fecha de inicio">
                             <span class="ath-f13-vac-chip__mark" aria-hidden="true">
                               <i class="fas fa-circle"></i>
@@ -10417,6 +10446,10 @@
                             </span>
                           </div>
                         </div>
+                        <p class="ath-f13-vac-aviso" *ngIf="mensajeDiasAthF13 as avisoDias" role="alert">
+                          <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+                          {{ avisoDias }}
+                        </p>
 
                         <div class="sgc-f-24-datos__grid" style="margin-top: 0.75rem;">
                           <label class="sgc-f-24-datos__card sgc-f-24-datos__card--wide">
@@ -10556,6 +10589,93 @@
                         </ul>
                       </div>
                     </aside>
+                  </article>
+                </div>
+              </form>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'ath-f-14'">
+              <form class="dg-f05-form ath-f-14-form" (ngSubmit)="$event.preventDefault()">
+                <div class="dg-f05-doc-wrap" [class.dg-f05-doc-wrap--loading]="athF14Cargando">
+                  <div class="dg-f05-loading" *ngIf="athF14Cargando" role="status">
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    <span>Cargando control de vacaciones…</span>
+                  </div>
+                  <article class="dg-f05-doc">
+                    <header class="dg-f05-doc__header">
+                      <div>
+                        <span class="dg-f05-doc__code">ATH-F-14</span>
+                        <h3 class="dg-f05-doc__title">Control de vacaciones</h3>
+                      </div>
+                      <div class="sgc-f-16-doc__rev">
+                        <span>Rev. 00</span>
+                        <span>17/03/2026</span>
+                      </div>
+                    </header>
+
+                    <div class="dg-f05-table-panel">
+                      <div class="sgc-f-11-matriz__intro">
+                        <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-umbrella-beach" aria-hidden="true"></i></div>
+                        <div>
+                          <h4 class="sgc-f-11-matriz__title">Saldo de vacaciones por colaborador</h4>
+                          <p class="sgc-f-11-matriz__hint">
+                            Cada fila es un usuario activo. Fecha de ingreso y días disponibles se capturan aquí.
+                            Días tomados y la fecha de vacaciones salen de ATH-F-13. Días restantes son la diferencia. «Guardar información» actualiza la hoja.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div class="ath-f-14-toolbar">
+                        <label class="ath-f-14-search">
+                          <i class="fas fa-search" aria-hidden="true"></i>
+                          <input class="dg-f05-field" type="search" name="athF14_busqueda"
+                            [(ngModel)]="athF14Busqueda" placeholder="Buscar colaborador…"
+                            autocomplete="off">
+                        </label>
+                        <span class="ath-f-14-count">
+                          {{ athF14FilasVista.length }}
+                          {{ athF14FilasVista.length === 1 ? 'colaborador' : 'colaboradores' }}
+                        </span>
+                      </div>
+
+                      <p class="ath-f-14-aviso" *ngIf="athF14Error">{{ athF14Error }}</p>
+
+                      <div class="ath-f-14-lista" *ngIf="athF14FilasVista.length; else athF14Vacio">
+                        <article class="ath-f-14-persona" *ngFor="let fila of athF14FilasVista; let i = index">
+                          <strong class="ath-f-14-persona__nombre">{{ fila.nombreCompleto }}</strong>
+                          <label class="ath-f-14-persona__campo">
+                            <span>Fecha de ingreso</span>
+                            <input class="ath-f-14-input" type="date"
+                              [name]="'athF14_ingreso_' + i"
+                              [ngModel]="fila.fechaIngreso"
+                              (ngModelChange)="onFechaIngresoAthF14(fila, $event)">
+                          </label>
+                          <span class="ath-f-14-persona__dato">{{ fila.antiguedad || 'Sin antigüedad' }}</span>
+                          <label class="ath-f-14-persona__campo">
+                            <span>Días disponibles</span>
+                            <input class="ath-f-14-input ath-f-14-input--num" type="number"
+                              min="0" step="1" inputmode="numeric"
+                              [name]="'athF14_dias_' + i"
+                              [ngModel]="fila.diasDisponibles"
+                              (ngModelChange)="onDiasDisponiblesAthF14(fila, $event)">
+                          </label>
+                          <span class="ath-f-14-persona__dato">{{ fila.diasTomados }} tomados</span>
+                          <span class="ath-f-14-persona__dato">{{ fila.diasRestantes }} restantes</span>
+                          <span class="ath-f-14-persona__dato">{{ fila.fechaVacaciones || 'Sin periodo' }}</span>
+                        </article>
+                      </div>
+                      <ng-template #athF14Vacio>
+                        <div class="sgc-f-04-archivero__empty" *ngIf="!athF14Cargando">
+                          <i class="fas fa-umbrella-beach" aria-hidden="true"></i>
+                          <p class="mb-0" *ngIf="athF14Busqueda.trim(); else athF14SinUsuarios">
+                            No hay colaboradores que coincidan con la búsqueda.
+                          </p>
+                          <ng-template #athF14SinUsuarios>
+                            <p class="mb-0">No hay usuarios activos para armar el control.</p>
+                          </ng-template>
+                        </div>
+                      </ng-template>
+                    </div>
                   </article>
                 </div>
               </form>
@@ -14948,6 +15068,37 @@
         (load)="onDgF04IframeLoad()"
         allow="clipboard-read; clipboard-write"
         sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-popups-to-escape-sandbox">
+      </iframe>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-drive-editor-fullscreen" *ngIf="mostrarAthF14Editor"
+  role="dialog" aria-modal="true" aria-label="Editor integrado ATH-F-14">
+  <div class="sgc-drive-editor-fullscreen__backdrop" (click)="toggleAthF14Editor()"></div>
+  <div class="sgc-drive-editor-fullscreen__panel">
+    <div class="sgc-drive-editor-fullscreen__head">
+      <div class="sgc-drive-editor-fullscreen__title-wrap">
+        <span class="sgc-drive-editor-fullscreen__icon">
+          <i class="fas fa-umbrella-beach" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ tituloEditorIntegrado }}</strong>
+          <small class="sgc-drive-editor-fullscreen__subtitle">ATH-F-14 · Control de vacaciones</small>
+        </div>
+      </div>
+      <div class="sgc-drive-editor-fullscreen__head-actions">
+        <button class="btn btn-sm btn-light" type="button" (click)="toggleAthF14Editor()">
+          <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+        </button>
+      </div>
+    </div>
+    <div class="sgc-drive-editor-fullscreen__body">
+      <iframe *ngIf="athF14EditorSrc as srcHoja"
+        class="sgc-drive-editor-fullscreen__iframe ath-f-14-editor__iframe"
+        [src]="srcHoja"
+        title="ATH-F-14 en Google Drive"
+        allow="clipboard-read; clipboard-write">
       </iframe>
     </div>
   </div>

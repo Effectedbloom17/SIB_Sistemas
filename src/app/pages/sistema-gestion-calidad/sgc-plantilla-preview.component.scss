@@ -7864,9 +7864,29 @@ $dg-f04-amenazas-head: #fae0e0;
 /* Chips resumen en una sola fila */
 .ath-f13-vac-meta {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.55rem;
   margin-top: 0.15rem;
+}
+
+.ath-f13-vac-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0.55rem 0 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+
+  i {
+    margin-top: 0.12rem;
+    flex-shrink: 0;
+  }
 }
 
 .ath-f13-vac-chip {
@@ -7968,6 +7988,26 @@ $dg-f04-amenazas-head: #fae0e0;
 
     .ath-f13-vac-chip__value {
       color: #1e3a8a;
+    }
+  }
+
+  &--disponibles {
+    background: linear-gradient(135deg, rgba(21, 165, 150, 0.14), rgba(45, 212, 191, 0.1));
+    border-color: rgba(15, 118, 110, 0.32);
+
+    .ath-f13-vac-chip__mark {
+      background: #0f766e;
+      color: #fff;
+      font-size: 0.78rem;
+      box-shadow: 0 2px 6px rgba(15, 118, 110, 0.32);
+    }
+
+    .ath-f13-vac-chip__label {
+      color: #0f766e;
+    }
+
+    .ath-f13-vac-chip__value {
+      color: #115e59;
     }
   }
 
@@ -29627,6 +29667,40 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
   }
 }
 
+/* ===== ATH-F-14 · Control de vacaciones ===== */
+.ath-f-14-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 0.75rem;
+}
+
+.ath-f-14-search {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1;
+  min-width: 0;
+  max-width: 28rem;
+  padding: 0 0.7rem;
+  border: 1px solid $sgc-teal-border;
+  border-radius: 999px;
+  background: #fff;
+
+  i {
+    color: $sgc-teal;
+    font-size: 0.75rem;
+  }
+
+  .dg-f05-field {
+    border: 0;
+    background: transparent;
+    min-height: 2rem;
+  }
+}
+
+
 .sgc-f27m-grid--3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -29808,4 +29882,109 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
   .sgc-f27m-resultado {
     grid-template-columns: 1fr;
   }
+}
+
+.ath-f-14-count {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: $sgc-teal-dark;
+  background: $sgc-teal-soft;
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+}
+
+.ath-f-14-aviso {
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  background: $sgc-teal-soft;
+  color: $sgc-teal-dark;
+  font-size: 0.78rem;
+}
+
+.ath-f-14-form .dg-f05-doc {
+  overflow: visible;
+}
+
+.ath-f-14-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.65rem;
+  background: #f8fafc;
+}
+
+.ath-f-14-persona {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.5fr) repeat(6, minmax(7rem, 1fr));
+  gap: 0.45rem 0.65rem;
+  align-items: center;
+  min-height: 4.2rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #d7e3e1;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+}
+
+.ath-f-14-persona__nombre {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ath-f-14-persona__campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.ath-f-14-persona__dato {
+  color: #0f172a;
+  font-size: 0.84rem;
+}
+
+.ath-f-14-editor__iframe {
+  position: relative !important;
+  inset: auto !important;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 70vh;
+  border: 0;
+  background: #fff;
+}
+
+.ath-f-14-input {
+  display: block;
+  width: 100%;
+  height: 2.1rem !important;
+  min-height: 2.1rem !important;
+  box-sizing: border-box;
+  text-align: center;
+  color: #0f172a;
+  background: #fff;
+  border: 1px solid $sgc-teal-border;
+  border-radius: 8px;
+  padding: 0.15rem 0.35rem;
+
+  &:focus {
+    outline: none;
+    border-color: $sgc-teal;
+    box-shadow: 0 0 0 3px $sgc-teal-soft;
+  }
+}
+
+.ath-f-14-input--num {
+  font-weight: 700;
+  color: $sgc-teal-dark;
 }

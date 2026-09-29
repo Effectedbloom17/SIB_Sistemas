@@ -3,7 +3,7 @@ import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-brows
 import { ActivatedRoute, Router } from '@angular/router';
 import DOMPurify from 'dompurify';
 import { HttpEventType } from '@angular/common/http';
-import { Observable, Subject, Subscription, of, timer } from 'rxjs';
+import { Observable, Subject, Subscription, forkJoin, of, timer } from 'rxjs';
 import { catchError, switchMap, takeUntil, timeout } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
@@ -1495,6 +1495,22 @@ interface AthF13FormData {
   solicitudActivaId?: string | null;
 }
 
+interface AthF14Fila {
+  nombreCompleto: string;
+  fechaIngreso: string;
+  antiguedad: string;
+  diasDisponibles: number;
+  diasTomados: number;
+  diasRestantes: number;
+  fechaVacaciones: string;
+}
+
+interface AthF14Guardado {
+  nombreCompleto: string;
+  fechaIngreso: string;
+  diasDisponibles: number;
+}
+
 interface SgcF27PdfFirmado {
   driveFileId: string;
   nombreArchivo: string;
@@ -1647,7 +1663,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'ath-f-07'
       || this.plantillaSlug === 'ath-f-11'
       || this.plantillaSlug === 'ath-f-03'
-      || this.plantillaSlug === 'ath-f-13';
+      || this.plantillaSlug === 'ath-f-13'
+      || this.plantillaSlug === 'ath-f-14';
   }
 
   @HostBinding('class.sgc-preview--ath-f-02')
@@ -2460,6 +2477,26 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   /** Evita bucles al recalcular días ↔ fechas. */
   private athF13SyncFechasLock = false;
   readonly athF13CalDiasSemana = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+  private athF13DiasPorNombre = new Map<string, number>();
+  athF13AvisoAjuste = '';
+  athF14Filas: AthF14Fila[] = [];
+  athF14DriveFileId = '1Fxn1FNWcByT3RcinuVmmf4IgPR4g1AVksYF149-YvBc';
+  athF14EditorUrl: string | null = null;
+  athF14EditorEmbedUrlSafe: SafeResourceUrl | null = null;
+  mostrarAthF14Editor = false;
+  athF14EditorCargando = false;
+  private athF14EditorIframeListo = false;
+  private athF14EditorSrcCache: SafeResourceUrl | null = null;
+  athF14Cargando = false;
+  athF14Guardando = false;
+  athF14DescargandoPdf = false;
+  athF14CambiosPendientes = false;
+  athF14Listo = false;
+  athF14IgnorarAutoSave = false;
+  athF14UltimaSync: string | null = null;
+  athF14Busqueda = '';
+  athF14Error = '';
+  private athF14SolicitudesPorNombre = new Map<string, AthF13Solicitud[]>();
   sgcF27Form: SgcF27FormData = this.crearSgcF27FormVacio();
   sgcF27Cargando = false;
   sgcF27Guardando = false;
@@ -3861,6 +3898,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         this.cargarCatalogoColaboradoresAthF13();
         this.cargarAthF13DesdeServidor();
       }
+      if (codigo === 'ath-f-14') {
+        this.cargarAthF14();
+      }
       if (codigo === 'sgc-f-27') {
         this.cargarSgcF27DesdeServidor();
       }
@@ -4016,7 +4056,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-03' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-27-medicion' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sp-f-07' || this.plantillaSlug === 'sgc-f-05'
       || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-03'
-      || this.plantillaSlug === 'ath-f-13';
+      || this.plantillaSlug === 'ath-f-13'
+      || this.plantillaSlug === 'ath-f-14';
   }
 
   get esFormatoSlidesEmbed(): boolean {
@@ -4064,6 +4105,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'ath-f-11'
       || this.plantillaSlug === 'ath-f-03'
       || this.plantillaSlug === 'ath-f-13'
+      || this.plantillaSlug === 'ath-f-14'
       || this.plantillaSlug === 'dg-f-06';
   }
 
@@ -4089,6 +4131,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Guardando;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03Guardando;
     if (this.plantillaSlug === 'ath-f-13') return this.athF13Guardando;
+    if (this.plantillaSlug === 'ath-f-14') return this.athF14Guardando;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27Guardando;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mGuardando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Guardando;
@@ -4126,6 +4169,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24UltimaSync;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03UltimaSync;
     if (this.plantillaSlug === 'ath-f-13') return this.athF13UltimaSync;
+    if (this.plantillaSlug === 'ath-f-14') return this.athF14UltimaSync;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27UltimaSync;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mUltimaSync;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29UltimaSync;
@@ -4163,6 +4207,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Cargando;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03Cargando;
     if (this.plantillaSlug === 'ath-f-13') return this.athF13Cargando;
+    if (this.plantillaSlug === 'ath-f-14') return this.athF14Cargando;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27Cargando;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mCargando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Cargando;
@@ -4238,6 +4283,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24DriveFileId;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03EntregaActiva?.driveFileId || this.athF03DriveFileId;
     if (this.plantillaSlug === 'ath-f-13') return this.athF13SolicitudActiva?.driveFileId || this.athF13DriveFileId;
+    if (this.plantillaSlug === 'ath-f-14') return this.athF14DriveFileId;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27DriveFileId;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mDriveFileId;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29DriveFileId;
@@ -4276,6 +4322,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24CambiosPendientes;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03CambiosPendientes;
     if (this.plantillaSlug === 'ath-f-13') return this.athF13CambiosPendientes;
+    if (this.plantillaSlug === 'ath-f-14') return this.athF14CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mCambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29CambiosPendientes;
@@ -4327,6 +4374,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-24') return this.mostrarSgcF24Editor;
     if (this.plantillaSlug === 'ath-f-03') return this.mostrarAthF03Editor;
     if (this.plantillaSlug === 'ath-f-13') return this.mostrarAthF13Editor;
+    if (this.plantillaSlug === 'ath-f-14') return this.mostrarAthF14Editor;
     if (this.plantillaSlug === 'sgc-f-27') return this.mostrarSgcF27Editor;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.mostrarSgcF27mEditor;
     if (this.plantillaSlug === 'sgc-f-10') return this.mostrarSgcF10Editor;
@@ -4873,6 +4921,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.persistirAthF13();
       return;
     }
+    if (this.plantillaSlug === 'ath-f-14') {
+      this.persistirAthF14();
+      return;
+    }
     if (this.plantillaSlug === 'sgc-f-27') {
       this.persistirSgcF27();
       return;
@@ -5204,6 +5256,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return 'Archivero de solicitudes de vacaciones. Captura colaborador, fechas y motivo; usa «Guardar información» para generar el documento. El PDF firmado se guarda en Drive.';
   }
 
+  get athF14IntroLead(): string {
+    if (this.plantillaSlug !== 'ath-f-14') {
+      return '';
+    }
+    return 'Control de vacaciones de todos los usuarios del sistema. Fecha de ingreso y días disponibles se capturan aquí. Días tomados y la fecha de vacaciones salen de ATH-F-13; los días restantes son la diferencia.';
+  }
+
   get sgcF27IntroLead(): string {
     if (this.plantillaSlug !== 'sgc-f-27') {
       return '';
@@ -5337,6 +5396,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'ath-f-13') {
       return this.athF13IntroLead;
+    }
+    if (this.plantillaSlug === 'ath-f-14') {
+      return this.athF14IntroLead;
     }
     if (this.plantillaSlug === 'sgc-f-27') {
       return this.sgcF27IntroLead;
@@ -12220,6 +12282,352 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }, editorAbierto ? 0 : 350);
   }
 
+  // ===================== ATH-F-14 · Control de vacaciones =====================
+
+  get athF14FilasVista(): AthF14Fila[] {
+    const q = this.normalizarTextoAthF11(this.athF14Busqueda);
+    if (!q) return this.athF14Filas;
+    return this.athF14Filas.filter((fila) =>
+      [fila.nombreCompleto, fila.antiguedad, fila.fechaVacaciones]
+        .some((valor) => this.normalizarTextoAthF11(valor).includes(q))
+    );
+  }
+
+  cargarAthF14(): void {
+    this.athF14Cargando = true;
+    this.athF14Error = '';
+    this.athF14IgnorarAutoSave = true;
+    forkJoin({
+      usuarios: this.backendService.obtenerUsuarios().pipe(catchError(() => of({ usuarios: [] }))),
+      formato: this.backendService.cargarAthF13Formato().pipe(catchError(() => of(null))),
+      guardado: this.backendService.cargarAthF14Formato().pipe(catchError(() => of(null)))
+    })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: ({ usuarios, formato, guardado }) => {
+          this.athF14Filas = this.construirFilasAthF14(usuarios, formato);
+          this.aplicarGuardadosAthF14(guardado?.datos?.filas);
+          if (guardado?.driveFileId) this.athF14DriveFileId = guardado.driveFileId;
+          if (guardado?.editorUrl) this.athF14EditorUrl = guardado.editorUrl;
+          this.athF14UltimaSync = guardado?.ultimaSyncDrive || null;
+          this.athF14Cargando = false;
+          this.athF14Listo = true;
+          this.athF14CambiosPendientes = false;
+          this.athF14IgnorarAutoSave = false;
+          const avisos: string[] = [];
+          if (!formato?.success && !formato?.datos) {
+            avisos.push('No se pudieron leer las solicitudes de ATH-F-13.');
+          }
+          if (!guardado?.success) {
+            avisos.push('Reinicia el backend para cargar y guardar este formato.');
+          }
+          this.athF14Error = avisos.join(' ');
+        },
+        error: () => {
+          this.athF14Filas = [];
+          this.athF14Cargando = false;
+          this.athF14Listo = true;
+          this.athF14IgnorarAutoSave = false;
+          this.athF14Error = 'No se pudo cargar el control de vacaciones.';
+        }
+      });
+  }
+
+  onAthF14Editado(): void {
+    if (!this.athF14Listo || this.athF14IgnorarAutoSave) return;
+    this.athF14CambiosPendientes = true;
+  }
+
+  onFechaIngresoAthF14(fila: AthF14Fila, valor: string): void {
+    fila.fechaIngreso = String(valor || '').trim();
+    fila.diasDisponibles = this.diasDisponiblesLftAthF14(fila.fechaIngreso);
+    this.recalcularDerivadosAthF14(fila);
+    this.onAthF14Editado();
+  }
+
+  onDiasDisponiblesAthF14(fila: AthF14Fila, valor: string): void {
+    const n = parseInt(String(valor ?? '').replace(/[^\d]/g, ''), 10);
+    fila.diasDisponibles = Number.isFinite(n) ? n : 0;
+    fila.diasRestantes = fila.diasDisponibles - fila.diasTomados;
+    this.onAthF14Editado();
+  }
+
+  trackByNombreAthF14(_index: number, fila: AthF14Fila): string {
+    return this.normalizarTextoAthF11(fila.nombreCompleto);
+  }
+
+  get athF14EditorSrc(): SafeResourceUrl | null {
+    return this.mostrarAthF14Editor ? this.athF14EditorSrcCache : null;
+  }
+
+  toggleAthF14Editor(): void {
+    if (!this.athF14DriveFileId) return;
+    this.mostrarAthF14Editor = !this.mostrarAthF14Editor;
+    if (this.mostrarAthF14Editor && !this.athF14EditorSrcCache) {
+      const id = encodeURIComponent(this.athF14DriveFileId);
+      const url = `https://docs.google.com/spreadsheets/d/${id}/edit?usp=sharing&embedded=true&single=true`;
+      this.athF14EditorSrcCache = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    }
+    document.documentElement.style.overflow = this.mostrarAthF14Editor ? 'hidden' : '';
+    document.body.style.overflow = this.mostrarAthF14Editor ? 'hidden' : '';
+  }
+
+  onAthF14IframeLoad(): void {
+    if (this.athF14EditorIframeListo) return;
+    this.athF14EditorIframeListo = true;
+    this.athF14EditorCargando = false;
+  }
+
+  private fijarEditorEmbedUrlAthF14(url: string | null, forzar = false): void {
+    if (!forzar && this.mostrarAthF14Editor && this.athF14EditorEmbedUrlSafe && this.athF14EditorUrl === url) {
+      return;
+    }
+    if (!url) {
+      this.athF14EditorUrl = null;
+      this.athF14EditorEmbedUrlSafe = null;
+      return;
+    }
+    if (!forzar && this.athF14EditorUrl === url && this.athF14EditorEmbedUrlSafe) {
+      return;
+    }
+    this.athF14EditorUrl = url;
+    const embedUrl = this.urlIframeDriveSegunPermiso(url);
+    this.athF14EditorEmbedUrlSafe = embedUrl
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
+      : null;
+  }
+
+  descargarPdfAthF14(): void {
+    if (this.athF14DescargandoPdf || this.athF14Guardando) return;
+    const iniciar = () => {
+      this.athF14DescargandoPdf = true;
+      this.backendService.descargarPdfAthF14()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.athF14DescargandoPdf = false;
+            if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+              void Swal.fire({
+                icon: 'error',
+                title: 'No se pudo generar el PDF',
+                text: 'Guarda la información y vuelve a intentar. Si acabas de actualizar el servidor, reinícialo.',
+                confirmButtonText: 'Entendido'
+              });
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = 'ATH-F-14 Control de vacaciones.pdf';
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.athF14DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo generar el PDF',
+              text: 'Reinicia el backend e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    };
+    if (this.athF14CambiosPendientes && this.athF14Listo && this.puedeGestionarPlantillasSgc) {
+      this.athF14Guardando = true;
+      this.athF14Error = '';
+      this.backendService.guardarAthF14Formato({ filas: this.athF14Filas })
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.athF14Guardando = false;
+            this.athF14CambiosPendientes = false;
+            this.athF14UltimaSync = res?.ultimaSyncDrive || new Date().toISOString();
+            iniciar();
+          },
+          error: () => {
+            this.athF14Guardando = false;
+            this.athF14Error = 'No se pudo guardar antes de generar el PDF. Reinicia el backend e inténtalo de nuevo.';
+          }
+        });
+      return;
+    }
+    iniciar();
+  }
+
+  private persistirAthF14(): void {
+    if (!this.puedeGestionarPlantillasSgc || !this.athF14Listo || this.athF14Guardando) return;
+    this.athF14Guardando = true;
+    this.athF14Error = '';
+    this.backendService.guardarAthF14Formato({ filas: this.athF14Filas })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.athF14Guardando = false;
+          this.athF14CambiosPendientes = false;
+          this.athF14UltimaSync = res?.ultimaSyncDrive || new Date().toISOString();
+        },
+        error: () => {
+          this.athF14Guardando = false;
+          this.athF14Error = 'No se pudo guardar. Si acabas de actualizar el servidor, reinícialo e inténtalo de nuevo.';
+        }
+      });
+  }
+
+  private construirFilasAthF14(resUsuarios: any, resFormato: any): AthF14Fila[] {
+    const usuarios: any[] = Array.isArray(resUsuarios?.usuarios) ? resUsuarios.usuarios : [];
+    const solicitudesRaw = resFormato?.datos?.solicitudes;
+    const solicitudes: AthF13Solicitud[] = Array.isArray(solicitudesRaw)
+      ? solicitudesRaw.map((item) => this.normalizarSolicitudAthF13(item))
+      : [];
+    const porNombre = new Map<string, AthF13Solicitud[]>();
+    for (const solicitud of solicitudes) {
+      const key = this.normalizarTextoAthF11(solicitud.nombreCompleto);
+      if (!key) continue;
+      const lista = porNombre.get(key) || [];
+      lista.push(solicitud);
+      porNombre.set(key, lista);
+    }
+    this.athF14SolicitudesPorNombre = porNombre;
+
+    const filas: AthF14Fila[] = [];
+    const vistos = new Set<string>();
+    for (const usuario of usuarios) {
+      if (this.esPerfilEmpresaAthF11(usuario)) continue;
+      const emp = this.mapearEmpleadoCatalogoAthF11(usuario);
+      const key = this.normalizarTextoAthF11(emp.nombreCompleto);
+      if (!key || vistos.has(key)) continue;
+      vistos.add(key);
+      filas.push(this.filaAthF14DesdeSolicitudes(emp.nombreCompleto, porNombre.get(key) || []));
+    }
+    return filas.sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto, 'es'));
+  }
+
+  private filaAthF14DesdeSolicitudes(nombreCompleto: string, solicitudes: AthF13Solicitud[]): AthF14Fila {
+    const ordenadas = [...solicitudes].sort((a, b) =>
+      String(b.fechaInicio || b.fechaIngreso || '').localeCompare(String(a.fechaInicio || a.fechaIngreso || ''))
+    );
+    const conIngreso = ordenadas.find((s) => !!this.parseIsoLocalAthF13(s.fechaIngreso));
+    const fechaIngreso = String(conIngreso?.fechaIngreso || '').trim();
+    const fila: AthF14Fila = {
+      nombreCompleto,
+      fechaIngreso,
+      antiguedad: '',
+      diasDisponibles: this.diasDisponiblesLftAthF14(fechaIngreso),
+      diasTomados: 0,
+      diasRestantes: 0,
+      fechaVacaciones: ''
+    };
+    this.recalcularDerivadosAthF14(fila, solicitudes);
+    return fila;
+  }
+
+  private aplicarGuardadosAthF14(filasGuardadas: unknown): void {
+    const lista = Array.isArray(filasGuardadas) ? filasGuardadas as AthF14Guardado[] : [];
+    if (!lista.length) return;
+    const mapa = new Map<string, AthF14Guardado>();
+    for (const item of lista) {
+      const key = this.normalizarTextoAthF11(item?.nombreCompleto || '');
+      if (!key) continue;
+      mapa.set(key, item);
+    }
+    for (const fila of this.athF14Filas) {
+      const guardado = mapa.get(this.normalizarTextoAthF11(fila.nombreCompleto));
+      if (!guardado) continue;
+      fila.fechaIngreso = String(guardado.fechaIngreso || '').trim();
+      const dias = Number(guardado.diasDisponibles);
+      fila.diasDisponibles = Number.isFinite(dias) && dias >= 0 ? dias : 0;
+      this.recalcularDerivadosAthF14(fila);
+    }
+  }
+
+  private recalcularDerivadosAthF14(fila: AthF14Fila, solicitudes?: AthF13Solicitud[]): void {
+    const lista = solicitudes || this.athF14SolicitudesPorNombre.get(this.normalizarTextoAthF11(fila.nombreCompleto)) || [];
+    const periodo = this.periodoVigenteAthF14(fila.fechaIngreso);
+    const delPeriodo = lista.filter((s) => this.solicitudEnPeriodoAthF14(s, periodo));
+    fila.diasTomados = delPeriodo.reduce((suma, s) => suma + this.diasSolicitadosNumeroAthF14(s), 0);
+    fila.diasRestantes = fila.diasDisponibles - fila.diasTomados;
+    fila.antiguedad = this.etiquetaAntiguedadAthF14(fila.fechaIngreso);
+    fila.fechaVacaciones = delPeriodo
+      .slice()
+      .sort((a, b) => String(a.fechaInicio || '').localeCompare(String(b.fechaInicio || '')))
+      .map((s) => this.etiquetaPeriodoVacacionesAthF14(s))
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  private etiquetaAntiguedadAthF14(iso: string, hoy = new Date()): string {
+    const ingreso = this.parseIsoLocalAthF13(iso);
+    if (!ingreso) return '';
+    let meses = (hoy.getFullYear() - ingreso.getFullYear()) * 12 + (hoy.getMonth() - ingreso.getMonth());
+    if (hoy.getDate() < ingreso.getDate()) meses -= 1;
+    if (meses < 0) meses = 0;
+    const anios = Math.floor(meses / 12);
+    const resto = meses % 12;
+    const txtAnios = anios === 1 ? '1 año' : `${anios} años`;
+    const txtMeses = resto === 1 ? '1 mes' : `${resto} meses`;
+    if (anios && resto) return `${txtAnios} ${txtMeses}`;
+    if (anios) return txtAnios;
+    return txtMeses;
+  }
+
+  /** Días de vacaciones según antigüedad cumplida (LFT art. 76, reforma 2023). */
+  private diasDisponiblesLftAthF14(fechaIngreso: string, hoy = new Date()): number {
+    const ingreso = this.parseIsoLocalAthF13(fechaIngreso);
+    if (!ingreso) return 0;
+    const hoyDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    let anios = hoyDia.getFullYear() - ingreso.getFullYear();
+    const aniversario = new Date(hoyDia.getFullYear(), ingreso.getMonth(), ingreso.getDate());
+    if (hoyDia < aniversario) anios -= 1;
+    if (anios < 1) return 0;
+    if (anios <= 5) return 10 + anios * 2;
+    return 22 + Math.floor((anios - 6) / 5) * 2;
+  }
+
+  private periodoVigenteAthF14(fechaIngreso: string, hoy = new Date()): { inicio: string; fin: string } | null {
+    const ingreso = this.parseIsoLocalAthF13(fechaIngreso);
+    if (!ingreso) return null;
+    const hoyDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    let anio = hoyDia.getFullYear();
+    const aniversario = new Date(anio, ingreso.getMonth(), ingreso.getDate());
+    if (hoyDia < aniversario) anio -= 1;
+    if (anio < ingreso.getFullYear()) return null;
+    return {
+      inicio: this.aIsoLocalAthF13(new Date(anio, ingreso.getMonth(), ingreso.getDate())),
+      fin: this.aIsoLocalAthF13(new Date(anio + 1, ingreso.getMonth(), ingreso.getDate()))
+    };
+  }
+
+  private solicitudEnPeriodoAthF14(
+    solicitud: AthF13Solicitud,
+    periodo: { inicio: string; fin: string } | null
+  ): boolean {
+    if (!periodo) return true;
+    const inicio = String(solicitud.fechaInicio || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio)) return true;
+    return inicio >= periodo.inicio && inicio < periodo.fin;
+  }
+
+  private diasSolicitadosNumeroAthF14(solicitud: AthF13Solicitud): number {
+    const n = parseInt(String(solicitud.diasSolicitados || '').trim(), 10);
+    if (Number.isFinite(n) && n > 0) return n;
+    if (solicitud.fechaInicio && solicitud.fechaTermino) {
+      return this.contarDiasLaboralesAthF13(solicitud.fechaInicio, solicitud.fechaTermino);
+    }
+    return 0;
+  }
+
+  private etiquetaPeriodoVacacionesAthF14(solicitud: AthF13Solicitud): string {
+    const ini = this.parseIsoLocalAthF13(solicitud.fechaInicio)
+      ? this.formatearFechaCortaSgcF16(solicitud.fechaInicio)
+      : '';
+    const fin = this.parseIsoLocalAthF13(solicitud.fechaTermino)
+      ? this.formatearFechaCortaSgcF16(solicitud.fechaTermino)
+      : '';
+    if (ini && fin && ini !== fin) return `${ini} – ${fin}`;
+    return ini || fin || '';
+  }
+
   // ===================== ATH-F-13 · Solicitud de vacaciones =====================
 
   private crearAthF13FormVacio(): AthF13FormData {
@@ -12493,7 +12901,22 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   onDiasSolicitadosAthF13Change(valor: string): void {
     if (!this.athF13SolicitudActiva) return;
-    this.athF13SolicitudActiva.diasSolicitados = String(valor || '').replace(/[^\d]/g, '');
+    const digits = String(valor || '').replace(/[^\d]/g, '');
+    const tope = this.diasDisponiblesAthF13Activo;
+    const n = parseInt(digits, 10);
+    if (tope != null && Number.isFinite(n) && n > tope) {
+      this.athF13SolicitudActiva.diasSolicitados = tope > 0 ? String(tope) : '';
+      this.athF13AvisoAjuste = tope > 0
+        ? `No es posible solicitar más de ${tope} días disponibles.`
+        : 'Este colaborador no tiene días disponibles.';
+      if (tope < 1) {
+        this.athF13SolicitudActiva.fechaTermino = '';
+        this.athF13SolicitudActiva.fechaReincorporacion = '';
+      }
+    } else {
+      this.athF13SolicitudActiva.diasSolicitados = digits;
+      this.athF13AvisoAjuste = '';
+    }
     this.sincronizarTerminoDesdeDiasAthF13();
     this.alinearCalendarioAthF13AFechas();
     this.onAthF13Editado();
@@ -12598,6 +13021,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       sol.fechaTermino = '';
       sol.diasSolicitados = '';
       sol.fechaReincorporacion = '';
+      this.athF13AvisoAjuste = '';
     } else {
       // Segundo clic = término (o intercambia si es anterior)
       if (iso < sol.fechaInicio) {
@@ -12607,6 +13031,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         sol.fechaTermino = iso;
       }
       this.sincronizarDerivadosDesdeRangoAthF13();
+      this.ajustarRangoAlSaldoAthF13();
     }
     this.onAthF13Editado();
   }
@@ -12617,7 +13042,83 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.athF13SolicitudActiva.fechaTermino = '';
     this.athF13SolicitudActiva.diasSolicitados = '';
     this.athF13SolicitudActiva.fechaReincorporacion = '';
+    this.athF13AvisoAjuste = '';
     this.onAthF13Editado();
+  }
+
+  get diasDisponiblesAthF13Activo(): number | null {
+    const nombre = this.normalizarTextoAthF13(this.athF13SolicitudActiva?.nombreCompleto || '');
+    if (!nombre) return null;
+    if (this.athF13DiasPorNombre.has(nombre)) return this.athF13DiasPorNombre.get(nombre) ?? 0;
+    const fecha = String(this.athF13SolicitudActiva?.fechaIngreso || '').trim();
+    if (!fecha) return null;
+    return this.diasDisponiblesLftAthF14(fecha);
+  }
+
+  get solicitudAthF13ExcedeDisponibles(): boolean {
+    const tope = this.diasDisponiblesAthF13Activo;
+    const dias = parseInt(String(this.athF13SolicitudActiva?.diasSolicitados || ''), 10);
+    return tope != null && Number.isFinite(dias) && dias > tope;
+  }
+
+  get mensajeDiasAthF13(): string {
+    const tope = this.diasDisponiblesAthF13Activo;
+    if (this.solicitudAthF13ExcedeDisponibles && tope != null) {
+      return tope > 0
+        ? `No es posible exceder los ${tope} días disponibles de este colaborador.`
+        : 'Este colaborador no tiene días disponibles.';
+    }
+    return this.athF13AvisoAjuste;
+  }
+
+  private cargarDiasDisponiblesAthF13(): void {
+    this.backendService.cargarAthF14Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          const filas = Array.isArray(res?.datos?.filas) ? res.datos.filas : [];
+          const mapa = new Map<string, number>();
+          for (const fila of filas) {
+            const clave = this.normalizarTextoAthF13(fila?.nombreCompleto || '');
+            if (!clave) continue;
+            const n = Number(fila?.diasDisponibles);
+            mapa.set(clave, Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
+          }
+          this.athF13DiasPorNombre = mapa;
+        },
+        error: () => {
+          this.athF13DiasPorNombre = new Map();
+        }
+      });
+  }
+
+  private ajustarRangoAlSaldoAthF13(): void {
+    const sol = this.athF13SolicitudActiva;
+    const tope = this.diasDisponiblesAthF13Activo;
+    if (!sol || tope == null) {
+      this.athF13AvisoAjuste = '';
+      return;
+    }
+    const dias = parseInt(String(sol.diasSolicitados || ''), 10);
+    if (!Number.isFinite(dias) || dias <= tope) {
+      this.athF13AvisoAjuste = '';
+      return;
+    }
+    if (tope < 1) {
+      sol.fechaTermino = '';
+      sol.diasSolicitados = '';
+      sol.fechaReincorporacion = '';
+      this.athF13AvisoAjuste = 'Este colaborador no tiene días disponibles.';
+      return;
+    }
+    if (sol.fechaInicio) {
+      sol.fechaTermino = this.calcularFechaTerminoPorDiasAthF13(sol.fechaInicio, tope);
+      sol.fechaReincorporacion = sol.fechaTermino
+        ? this.calcularFechaReincorporacionAthF13(sol.fechaTermino)
+        : '';
+    }
+    sol.diasSolicitados = String(tope);
+    this.athF13AvisoAjuste = `No es posible exceder los ${tope} días disponibles. El periodo se ajustó a ese saldo.`;
   }
 
   get athF13ResumenRango(): string {
@@ -12721,6 +13222,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.athF13NombreComboAbierto = true;
     this.athF13NombreComboQuery = valor;
     this.athF13SolicitudActiva.nombreCompleto = valor;
+    this.athF13AvisoAjuste = '';
     this.onAthF13Editado();
   }
 
@@ -12731,6 +13233,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.athF13SolicitudActiva.areaDepartamento = emp.areaDepartamento || '';
     this.athF13NombreComboQuery = emp.nombreCompleto;
     this.athF13NombreComboAbierto = false;
+    this.athF13AvisoAjuste = '';
     this.onAthF13Editado();
   }
 
@@ -12739,6 +13242,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.athF13SolicitudActiva.nombreCompleto = String(nombre || '').trim();
     this.athF13NombreComboQuery = this.athF13SolicitudActiva.nombreCompleto;
     this.athF13NombreComboAbierto = false;
+    this.athF13AvisoAjuste = '';
     this.onAthF13Editado();
   }
 
@@ -12785,6 +13289,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.generarFolioAthF13();
     this.alinearCalendarioAthF13AFechas();
     this.athF13AutosizeTick += 1;
+    this.athF13AvisoAjuste = '';
     this.onAthF13Editado();
   }
 
@@ -12795,6 +13300,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.athF13DriveFileId = solicitud?.driveFileId || null;
     this.alinearCalendarioAthF13AFechas();
     this.athF13AutosizeTick += 1;
+    this.athF13AvisoAjuste = '';
     if (solicitud?.driveFileId) {
       this.fijarEditorEmbedUrlAthF13(`https://docs.google.com/document/d/${solicitud.driveFileId}/edit?usp=sharing`);
     }
@@ -12823,6 +13329,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.athF13Listo = false;
     this.athF13Vista = 'archivero';
     this.athF13SolicitudActiva = null;
+    this.cargarDiasDisponiblesAthF13();
     this.backendService.cargarAthF13Formato()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -12836,6 +13343,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   private persistirAthF13(): void {
     if (!this.puedeGestionarPlantillasSgc || !this.athF13Listo || this.athF13Guardando) return;
+    if (this.solicitudAthF13ExcedeDisponibles) return;
     this.sincronizarSolicitudActivaEnFormAthF13();
     this.athF13Guardando = true;
     const editorAbierto = this.mostrarAthF13Editor;
@@ -21391,6 +21899,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'ath-f-13') {
       this.toggleAthF13Editor();
+      return;
+    }
+    if (this.plantillaSlug === 'ath-f-14') {
+      this.toggleAthF14Editor();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-27') {

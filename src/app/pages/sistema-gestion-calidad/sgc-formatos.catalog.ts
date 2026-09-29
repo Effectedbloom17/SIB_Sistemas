@@ -238,6 +238,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         driveFileId: '14MCp6YsY4Gf82TcPRzmNlwLPhifytDbG_9kklYhLWk4',
         previewSlug: 'ath-f-13',
         previewMode: 'form'
+      },
+      {
+        codigo: 'ATH-F-14',
+        titulo: 'Control de vacaciones',
+        nombre: 'ATH-F-14 Control de vacaciones (Sistema)',
+        driveFileId: '1Fxn1FNWcByT3RcinuVmmf4IgPR4g1AVksYF149-YvBc',
+        previewSlug: 'ath-f-14',
+        previewMode: 'form'
       }
     ]
   },

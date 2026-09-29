@@ -3034,6 +3034,23 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-13`);
     }
 
+    cargarAthF14Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-14`);
+    }
+
+    guardarAthF14Formato(datos: unknown): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-14/guardar`, {
+            datos,
+            origen: 'sistema'
+        });
+    }
+
+    descargarPdfAthF14(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-14/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
     guardarAthF13Formato(datos: unknown, editorActivo = false): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-13/guardar`, {
             datos,
