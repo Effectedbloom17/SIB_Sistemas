@@ -1459,6 +1459,42 @@ interface AthF03FormData {
   entregaActivaId?: string | null;
 }
 
+interface AthF13PdfFirmado {
+  driveFileId: string;
+  nombreArchivo: string;
+  webViewLink?: string;
+  previewUrl?: string;
+  fechaSubida?: string | null;
+}
+
+interface AthF13Solicitud {
+  id: string;
+  folio: string;
+  lugarFecha: string;
+  nombreCompleto: string;
+  puesto: string;
+  areaDepartamento: string;
+  fechaIngreso: string;
+  fechaInicio: string;
+  fechaTermino: string;
+  diasSolicitados: string;
+  fechaReincorporacion: string;
+  motivo: string;
+  fechaAutorizacion: string;
+  driveFileId?: string | null;
+  nombreArchivo?: string | null;
+  pdfFirmado: AthF13PdfFirmado | null;
+  pdfsHistorial: AthF13PdfFirmado[];
+}
+
+interface AthF13FormData {
+  fechaElaboracion: string;
+  revision: string;
+  fechaRevision: string;
+  solicitudes: AthF13Solicitud[];
+  solicitudActivaId?: string | null;
+}
+
 interface SgcF27PdfFirmado {
   driveFileId: string;
   nombreArchivo: string;
@@ -1610,7 +1646,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'ath-f-09'
       || this.plantillaSlug === 'ath-f-07'
       || this.plantillaSlug === 'ath-f-11'
-      || this.plantillaSlug === 'ath-f-03';
+      || this.plantillaSlug === 'ath-f-03'
+      || this.plantillaSlug === 'ath-f-13';
   }
 
   @HostBinding('class.sgc-preview--ath-f-02')
@@ -2389,6 +2426,40 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF03ColaboradoresCatalogo: Array<{ nombreCompleto: string; puesto: string; areaDepartamento: string }> = [];
   athF03NombreComboAbierto = false;
   athF03NombreComboQuery = '';
+  athF13Form: AthF13FormData = this.crearAthF13FormVacio();
+  athF13Cargando = false;
+  athF13Guardando = false;
+  athF13Listo = false;
+  athF13CambiosPendientes = false;
+  athF13IgnorarAutoSave = false;
+  athF13UltimaSync: string | null = null;
+  athF13DriveFileId: string | null = null;
+  athF13EditorUrl: string | null = null;
+  athF13EditorEmbedUrlSafe: SafeResourceUrl | null = null;
+  mostrarAthF13Editor = false;
+  athF13ContenidoModificado = false;
+  athF13EditorCargando = false;
+  athF13ActualizandoPlantilla = false;
+  athF13Vista: 'archivero' | 'editor' = 'archivero';
+  athF13SolicitudActiva: AthF13Solicitud | null = null;
+  athF13Busqueda = '';
+  athF13DescargandoPdf = false;
+  athF13SubiendoPdf = false;
+  athF13BorrandoPdf = false;
+  athF13PdfVistaNombre = '';
+  mostrarAthF13PdfViewer = false;
+  athF13PdfCargando = false;
+  athF13PdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  private athF13EditorIframeListo = false;
+  athF13ColaboradoresCatalogo: Array<{ nombreCompleto: string; puesto: string; areaDepartamento: string }> = [];
+  athF13NombreComboAbierto = false;
+  athF13NombreComboQuery = '';
+  athF13AutosizeTick = 0;
+  /** Mes izquierdo del calendario dual (día 1 del mes, local). */
+  athF13CalMesBase: Date = this.crearMesBaseAthF13(new Date());
+  /** Evita bucles al recalcular días ↔ fechas. */
+  private athF13SyncFechasLock = false;
+  readonly athF13CalDiasSemana = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
   sgcF27Form: SgcF27FormData = this.crearSgcF27FormVacio();
   sgcF27Cargando = false;
   sgcF27Guardando = false;
@@ -3786,6 +3857,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         this.cargarCatalogoColaboradoresAthF03();
         this.cargarAthF03DesdeServidor();
       }
+      if (codigo === 'ath-f-13') {
+        this.cargarCatalogoColaboradoresAthF13();
+        this.cargarAthF13DesdeServidor();
+      }
       if (codigo === 'sgc-f-27') {
         this.cargarSgcF27DesdeServidor();
       }
@@ -3940,7 +4015,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-27-medicion' || this.plantillaSlug === 'dg-f-06'
       || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-03' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-27-medicion' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sp-f-07' || this.plantillaSlug === 'sgc-f-05'
       || this.plantillaSlug === 'ath-f-08'
-      || this.plantillaSlug === 'ath-f-03';
+      || this.plantillaSlug === 'ath-f-03'
+      || this.plantillaSlug === 'ath-f-13';
   }
 
   get esFormatoSlidesEmbed(): boolean {
@@ -3987,6 +4063,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'ath-f-07'
       || this.plantillaSlug === 'ath-f-11'
       || this.plantillaSlug === 'ath-f-03'
+      || this.plantillaSlug === 'ath-f-13'
       || this.plantillaSlug === 'dg-f-06';
   }
 
@@ -4011,6 +4088,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16Guardando;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Guardando;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03Guardando;
+    if (this.plantillaSlug === 'ath-f-13') return this.athF13Guardando;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27Guardando;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mGuardando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Guardando;
@@ -4047,6 +4125,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16UltimaSync;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24UltimaSync;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03UltimaSync;
+    if (this.plantillaSlug === 'ath-f-13') return this.athF13UltimaSync;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27UltimaSync;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mUltimaSync;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29UltimaSync;
@@ -4083,6 +4162,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16Cargando;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Cargando;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03Cargando;
+    if (this.plantillaSlug === 'ath-f-13') return this.athF13Cargando;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27Cargando;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mCargando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Cargando;
@@ -4119,6 +4199,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24ActualizandoPlantilla;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03ActualizandoPlantilla;
+    if (this.plantillaSlug === 'ath-f-13') return this.athF13ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29ActualizandoPlantilla;
@@ -4156,6 +4237,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16DriveFileId;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24DriveFileId;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03EntregaActiva?.driveFileId || this.athF03DriveFileId;
+    if (this.plantillaSlug === 'ath-f-13') return this.athF13SolicitudActiva?.driveFileId || this.athF13DriveFileId;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27DriveFileId;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mDriveFileId;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29DriveFileId;
@@ -4193,6 +4275,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24CambiosPendientes;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03CambiosPendientes;
+    if (this.plantillaSlug === 'ath-f-13') return this.athF13CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mCambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29CambiosPendientes;
@@ -4243,6 +4326,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-16') return this.mostrarSgcF16Editor;
     if (this.plantillaSlug === 'sgc-f-24') return this.mostrarSgcF24Editor;
     if (this.plantillaSlug === 'ath-f-03') return this.mostrarAthF03Editor;
+    if (this.plantillaSlug === 'ath-f-13') return this.mostrarAthF13Editor;
     if (this.plantillaSlug === 'sgc-f-27') return this.mostrarSgcF27Editor;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.mostrarSgcF27mEditor;
     if (this.plantillaSlug === 'sgc-f-10') return this.mostrarSgcF10Editor;
@@ -4396,6 +4480,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.athF03NombreComboAbierto = false;
       return;
     }
+    if (this.athF13NombreComboAbierto) {
+      event.preventDefault();
+      this.athF13NombreComboAbierto = false;
+      return;
+    }
     if (this.sgcF16AsistComboAbierto !== null) {
       event.preventDefault();
       this.cerrarComboAsistSgcF16();
@@ -4476,6 +4565,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.mostrarAthF03PdfViewer) {
       event.preventDefault();
       this.toggleAthF03PdfViewer();
+      return;
+    }
+    if (this.mostrarAthF13PdfViewer) {
+      event.preventDefault();
+      this.toggleAthF13PdfViewer();
       return;
     }
     if (this.mostrarSgcF08PdfViewer) {
@@ -4590,6 +4684,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.sincronizarEntregaActivaEnFormAthF03();
       return this.backendService.guardarAthF03Formato(
         { ...this.athF03Form, entregaActivaId: this.athF03EntregaActiva?.id || this.athF03Form.entregaActivaId || null },
+        false
+      );
+    }
+    if (slug === 'ath-f-13') {
+      this.sincronizarSolicitudActivaEnFormAthF13();
+      return this.backendService.guardarAthF13Formato(
+        { ...this.athF13Form, solicitudActivaId: this.athF13SolicitudActiva?.id || this.athF13Form.solicitudActivaId || null },
         false
       );
     }
@@ -4766,6 +4867,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'ath-f-03') {
       this.persistirAthF03();
+      return;
+    }
+    if (this.plantillaSlug === 'ath-f-13') {
+      this.persistirAthF13();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-27') {
@@ -5092,6 +5197,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return 'Archivero de entrega y recepción de EPP. Captura colaborador, tipo de entrega y el detalle del equipo; usa «Guardar información» para generar el documento. El PDF firmado se guarda en Drive.';
   }
 
+  get athF13IntroLead(): string {
+    if (this.plantillaSlug !== 'ath-f-13') {
+      return '';
+    }
+    return 'Archivero de solicitudes de vacaciones. Captura colaborador, fechas y motivo; usa «Guardar información» para generar el documento. El PDF firmado se guarda en Drive.';
+  }
+
   get sgcF27IntroLead(): string {
     if (this.plantillaSlug !== 'sgc-f-27') {
       return '';
@@ -5222,6 +5334,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'ath-f-03') {
       return this.athF03IntroLead;
+    }
+    if (this.plantillaSlug === 'ath-f-13') {
+      return this.athF13IntroLead;
     }
     if (this.plantillaSlug === 'sgc-f-27') {
       return this.sgcF27IntroLead;
@@ -12102,6 +12217,902 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.athF03Listo = true;
       if (!bloquearFormulario) this.athF03CambiosPendientes = false;
       if (!sincronizacionSilenciosa) this.athF03Cargando = false;
+    }, editorAbierto ? 0 : 350);
+  }
+
+  // ===================== ATH-F-13 · Solicitud de vacaciones =====================
+
+  private crearAthF13FormVacio(): AthF13FormData {
+    return {
+      fechaElaboracion: '',
+      revision: '00',
+      fechaRevision: '2026-03-17',
+      solicitudes: [],
+      solicitudActivaId: null
+    };
+  }
+
+  private nuevoIdAthF13(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return `vac-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  private crearSolicitudAthF13Vacia(): AthF13Solicitud {
+    return {
+      id: this.nuevoIdAthF13(),
+      folio: '',
+      lugarFecha: '',
+      nombreCompleto: '',
+      puesto: '',
+      areaDepartamento: '',
+      fechaIngreso: '',
+      fechaInicio: '',
+      fechaTermino: '',
+      diasSolicitados: '',
+      fechaReincorporacion: '',
+      motivo: '',
+      fechaAutorizacion: '',
+      driveFileId: null,
+      nombreArchivo: null,
+      pdfFirmado: null,
+      pdfsHistorial: []
+    };
+  }
+
+  private sanitizarPdfAthF13(raw: any): AthF13PdfFirmado | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const driveFileId = String(raw.driveFileId || raw.drive_file_id || '').trim();
+    if (!driveFileId) return null;
+    return {
+      driveFileId,
+      nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'ATH-F-13 Solicitud firmada.pdf').trim(),
+      webViewLink: raw.webViewLink || raw.web_view_link || null,
+      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      fechaSubida: raw.fechaSubida || raw.fecha_subida || null
+    };
+  }
+
+  private normalizarSolicitudAthF13(datos: any): AthF13Solicitud {
+    const base = this.crearSolicitudAthF13Vacia();
+    if (!datos || typeof datos !== 'object') return base;
+    return {
+      id: String(datos.id || '').trim() || this.nuevoIdAthF13(),
+      folio: String(datos.folio || '').trim().toUpperCase(),
+      lugarFecha: String(datos.lugarFecha || datos.lugar_fecha || '').trim(),
+      nombreCompleto: String(datos.nombreCompleto || datos.nombre_completo || '').trim(),
+      puesto: String(datos.puesto || '').trim(),
+      areaDepartamento: String(datos.areaDepartamento || datos.area_departamento || '').trim(),
+      fechaIngreso: String(datos.fechaIngreso || datos.fecha_ingreso || '').trim(),
+      fechaInicio: String(datos.fechaInicio || datos.fecha_inicio || '').trim(),
+      fechaTermino: String(datos.fechaTermino || datos.fecha_termino || '').trim(),
+      diasSolicitados: String(datos.diasSolicitados ?? datos.dias_solicitados ?? '').trim(),
+      fechaReincorporacion: String(datos.fechaReincorporacion || datos.fecha_reincorporacion || '').trim(),
+      motivo: String(datos.motivo || ''),
+      fechaAutorizacion: String(datos.fechaAutorizacion || datos.fecha_autorizacion || '').trim(),
+      driveFileId: String(datos.driveFileId || datos.drive_file_id || '').trim() || null,
+      nombreArchivo: String(datos.nombreArchivo || datos.nombre_archivo || '').trim() || null,
+      pdfFirmado: this.sanitizarPdfAthF13(datos.pdfFirmado || datos.pdf_firmado),
+      pdfsHistorial: this.normalizarHistorialPdfAthF13(datos.pdfsHistorial || datos.pdfs_historial, datos.pdfFirmado || datos.pdf_firmado)
+    };
+  }
+
+  private normalizarHistorialPdfAthF13(raw: unknown, vigenteRaw?: unknown): AthF13PdfFirmado[] {
+    const lista = Array.isArray(raw) ? raw : [];
+    const vistos = new Set<string>();
+    const salida: AthF13PdfFirmado[] = [];
+    const agregar = (item: unknown) => {
+      const pdf = this.sanitizarPdfAthF13(item);
+      if (!pdf || vistos.has(pdf.driveFileId)) return;
+      vistos.add(pdf.driveFileId);
+      salida.push(pdf);
+    };
+    agregar(vigenteRaw);
+    lista.forEach(agregar);
+    return salida;
+  }
+
+  private normalizarAthF13Form(datos: any): AthF13FormData {
+    const base = this.crearAthF13FormVacio();
+    if (!datos || typeof datos !== 'object') return base;
+    const solicitudes = (Array.isArray(datos.solicitudes) ? datos.solicitudes : []).map((s: any) => this.normalizarSolicitudAthF13(s));
+    const solicitudActivaId = String(datos.solicitudActivaId || '').trim() || null;
+    return {
+      fechaElaboracion: String(datos.fechaElaboracion || '').trim(),
+      revision: String(datos.revision || '00').trim() || '00',
+      fechaRevision: String(datos.fechaRevision || '').trim(),
+      solicitudes,
+      solicitudActivaId: solicitudActivaId && solicitudes.some((s) => s.id === solicitudActivaId)
+        ? solicitudActivaId
+        : (solicitudes[0]?.id || null)
+    };
+  }
+
+  private sincronizarSolicitudActivaEnFormAthF13(): void {
+    const activo = this.athF13SolicitudActiva;
+    if (!activo) {
+      this.athF13Form.solicitudActivaId = null;
+      return;
+    }
+    const idx = (this.athF13Form.solicitudes || []).findIndex((s) => s.id === activo.id);
+    if (idx >= 0) this.athF13Form.solicitudes[idx] = activo;
+    else this.athF13Form.solicitudes = [activo, ...(this.athF13Form.solicitudes || [])];
+    this.athF13Form.solicitudActivaId = activo.id;
+  }
+
+  get athF13SolicitudesVista(): AthF13Solicitud[] {
+    const q = this.athF13Busqueda.trim().toLowerCase();
+    const lista = [...(this.athF13Form.solicitudes || [])].sort((a, b) => {
+      const fa = String(a.fechaInicio || '');
+      const fb = String(b.fechaInicio || '');
+      return fb.localeCompare(fa) || String(b.folio || '').localeCompare(String(a.folio || ''));
+    });
+    if (!q) return lista;
+    return lista.filter((s) =>
+      [s.folio, s.nombreCompleto, s.puesto, s.areaDepartamento, s.motivo]
+        .some((v) => String(v || '').toLowerCase().includes(q))
+    );
+  }
+
+  solicitudFirmadaAthF13(solicitud: AthF13Solicitud | null | undefined): boolean {
+    return !!solicitud?.pdfFirmado?.driveFileId;
+  }
+
+  etiquetaVersionPdfAthF13(n: number): string {
+    const v = Math.max(0, Math.floor(Number(n) || 0));
+    return String(v).padStart(2, '0');
+  }
+
+  formatearFechaCortaAthF13(iso: string | null | undefined): string {
+    return this.formatearFechaCortaSgcF16(iso);
+  }
+
+  onAthF13Editado(): void {
+    if (!this.athF13Listo || this.athF13IgnorarAutoSave) return;
+    this.athF13CambiosPendientes = true;
+  }
+
+  onAthF13MotivoEditado(): void {
+    this.athF13AutosizeTick += 1;
+    this.onAthF13Editado();
+  }
+
+  // ----- Calendario dual + días laborales (ATH-F-13) -----
+
+  private crearMesBaseAthF13(fecha: Date): Date {
+    return new Date(fecha.getFullYear(), fecha.getMonth(), 1);
+  }
+
+  private parseIsoLocalAthF13(iso: string | null | undefined): Date | null {
+    const m = String(iso || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    const d = new Date(+m[1], +m[2] - 1, +m[3]);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  private aIsoLocalAthF13(fecha: Date): string {
+    const y = fecha.getFullYear();
+    const m = String(fecha.getMonth() + 1).padStart(2, '0');
+    const d = String(fecha.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  private esLaboralAthF13(fecha: Date): boolean {
+    const dow = fecha.getDay();
+    return dow >= 1 && dow <= 5;
+  }
+
+  private sumarDiasAthF13(fecha: Date, dias: number): Date {
+    const d = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+    d.setDate(d.getDate() + dias);
+    return d;
+  }
+
+  /** Cuenta días laborales inclusivos entre inicio y fin. */
+  contarDiasLaboralesAthF13(inicioIso: string, finIso: string): number {
+    const a = this.parseIsoLocalAthF13(inicioIso);
+    const b = this.parseIsoLocalAthF13(finIso);
+    if (!a || !b) return 0;
+    let desde = a;
+    let hasta = b;
+    if (desde.getTime() > hasta.getTime()) {
+      desde = b;
+      hasta = a;
+    }
+    let n = 0;
+    for (let cur = new Date(desde); cur.getTime() <= hasta.getTime(); cur = this.sumarDiasAthF13(cur, 1)) {
+      if (this.esLaboralAthF13(cur)) n += 1;
+    }
+    return n;
+  }
+
+  /**
+   * Avanza N días laborales desde inicio (el inicio cuenta si es laboral).
+   * Si el inicio cae en fin de semana, empieza el siguiente lunes.
+   */
+  calcularFechaTerminoPorDiasAthF13(inicioIso: string, diasLaborales: number): string {
+    const start = this.parseIsoLocalAthF13(inicioIso);
+    const n = Math.max(0, Math.floor(Number(diasLaborales) || 0));
+    if (!start || n < 1) return '';
+    let cur = new Date(start);
+    while (!this.esLaboralAthF13(cur)) {
+      cur = this.sumarDiasAthF13(cur, 1);
+    }
+    let restantes = n - 1;
+    while (restantes > 0) {
+      cur = this.sumarDiasAthF13(cur, 1);
+      if (this.esLaboralAthF13(cur)) restantes -= 1;
+    }
+    return this.aIsoLocalAthF13(cur);
+  }
+
+  /** Primer día laboral estrictamente posterior a la fecha de término. */
+  calcularFechaReincorporacionAthF13(terminoIso: string): string {
+    const fin = this.parseIsoLocalAthF13(terminoIso);
+    if (!fin) return '';
+    let cur = this.sumarDiasAthF13(fin, 1);
+    while (!this.esLaboralAthF13(cur)) {
+      cur = this.sumarDiasAthF13(cur, 1);
+    }
+    return this.aIsoLocalAthF13(cur);
+  }
+
+  private sincronizarDerivadosDesdeRangoAthF13(): void {
+    const sol = this.athF13SolicitudActiva;
+    if (!sol || this.athF13SyncFechasLock) return;
+    this.athF13SyncFechasLock = true;
+    try {
+      if (sol.fechaInicio && sol.fechaTermino) {
+        const dias = this.contarDiasLaboralesAthF13(sol.fechaInicio, sol.fechaTermino);
+        sol.diasSolicitados = dias > 0 ? String(dias) : '';
+        sol.fechaReincorporacion = this.calcularFechaReincorporacionAthF13(sol.fechaTermino);
+      } else if (sol.fechaInicio && !sol.fechaTermino) {
+        sol.fechaReincorporacion = '';
+      }
+    } finally {
+      this.athF13SyncFechasLock = false;
+    }
+  }
+
+  private sincronizarTerminoDesdeDiasAthF13(): void {
+    const sol = this.athF13SolicitudActiva;
+    if (!sol || this.athF13SyncFechasLock) return;
+    const dias = parseInt(String(sol.diasSolicitados || '').trim(), 10);
+    if (!sol.fechaInicio || !Number.isFinite(dias) || dias < 1) return;
+    this.athF13SyncFechasLock = true;
+    try {
+      sol.fechaTermino = this.calcularFechaTerminoPorDiasAthF13(sol.fechaInicio, dias);
+      sol.fechaReincorporacion = sol.fechaTermino
+        ? this.calcularFechaReincorporacionAthF13(sol.fechaTermino)
+        : '';
+    } finally {
+      this.athF13SyncFechasLock = false;
+    }
+  }
+
+  onDiasSolicitadosAthF13Change(valor: string): void {
+    if (!this.athF13SolicitudActiva) return;
+    this.athF13SolicitudActiva.diasSolicitados = String(valor || '').replace(/[^\d]/g, '');
+    this.sincronizarTerminoDesdeDiasAthF13();
+    this.alinearCalendarioAthF13AFechas();
+    this.onAthF13Editado();
+  }
+
+  get athF13CalMesDerecho(): Date {
+    return new Date(this.athF13CalMesBase.getFullYear(), this.athF13CalMesBase.getMonth() + 1, 1);
+  }
+
+  etiquetaMesAthF13(fecha: Date): string {
+    const nombre = fecha.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+    return nombre.charAt(0).toUpperCase() + nombre.slice(1);
+  }
+
+  private construirCeldasMesAthF13(mes: Date): Array<{
+    iso: string;
+    dia: number;
+    fueraMes: boolean;
+    laboral: boolean;
+  }> {
+    const y = mes.getFullYear();
+    const m = mes.getMonth();
+    const primero = new Date(y, m, 1);
+    // Lunes=0 … Domingo=6
+    const offset = (primero.getDay() + 6) % 7;
+    const inicioGrid = this.sumarDiasAthF13(primero, -offset);
+    const celdas: Array<{ iso: string; dia: number; fueraMes: boolean; laboral: boolean }> = [];
+    for (let i = 0; i < 42; i += 1) {
+      const cur = this.sumarDiasAthF13(inicioGrid, i);
+      celdas.push({
+        iso: this.aIsoLocalAthF13(cur),
+        dia: cur.getDate(),
+        fueraMes: cur.getMonth() !== m,
+        laboral: this.esLaboralAthF13(cur)
+      });
+    }
+    // Quita la última semana si ya no hay ningún día de este mes (evita el renglón pintado de más).
+    while (celdas.length >= 7 && celdas.slice(-7).every((c) => c.fueraMes)) {
+      celdas.splice(celdas.length - 7, 7);
+    }
+    return celdas;
+  }
+
+  get athF13CalCeldasIzq() {
+    return this.construirCeldasMesAthF13(this.athF13CalMesBase);
+  }
+
+  get athF13CalCeldasDer() {
+    return this.construirCeldasMesAthF13(this.athF13CalMesDerecho);
+  }
+
+  claseDiaCalAthF13(iso: string, fueraMes: boolean): string {
+    const sol = this.athF13SolicitudActiva;
+    const clases = ['ath-f13-cal__dia'];
+    if (fueraMes) {
+      clases.push('ath-f13-cal__dia--fuera');
+      return clases.join(' ');
+    }
+    if (!sol) return clases.join(' ');
+
+    const inicio = sol.fechaInicio || '';
+    const termino = sol.fechaTermino || '';
+    const reincorp = sol.fechaReincorporacion || '';
+    const laboral = (() => {
+      const d = this.parseIsoLocalAthF13(iso);
+      return d ? this.esLaboralAthF13(d) : false;
+    })();
+
+    if (inicio && termino && iso >= inicio && iso <= termino) {
+      clases.push(laboral ? 'ath-f13-cal__dia--lab' : 'ath-f13-cal__dia--nolab');
+      if (iso === inicio) clases.push('ath-f13-cal__dia--rango-ini');
+      if (iso === termino) clases.push('ath-f13-cal__dia--rango-fin');
+    }
+    if (iso === inicio) clases.push('ath-f13-cal__dia--inicio');
+    if (iso === termino) clases.push('ath-f13-cal__dia--termino');
+    if (iso === reincorp) clases.push('ath-f13-cal__dia--reincorp');
+    return clases.join(' ');
+  }
+
+  navegarCalAthF13(deltaMeses: number): void {
+    this.athF13CalMesBase = new Date(
+      this.athF13CalMesBase.getFullYear(),
+      this.athF13CalMesBase.getMonth() + deltaMeses,
+      1
+    );
+  }
+
+  alinearCalendarioAthF13AFechas(): void {
+    const sol = this.athF13SolicitudActiva;
+    const base = this.parseIsoLocalAthF13(sol?.fechaInicio || sol?.fechaTermino || '')
+      || new Date();
+    this.athF13CalMesBase = this.crearMesBaseAthF13(base);
+  }
+
+  onClickDiaCalAthF13(iso: string, fueraMes: boolean): void {
+    if (!this.athF13SolicitudActiva || fueraMes) return;
+    const sol = this.athF13SolicitudActiva;
+
+    if (!sol.fechaInicio || (sol.fechaInicio && sol.fechaTermino)) {
+      // Nuevo rango: primer clic = inicio
+      sol.fechaInicio = iso;
+      sol.fechaTermino = '';
+      sol.diasSolicitados = '';
+      sol.fechaReincorporacion = '';
+    } else {
+      // Segundo clic = término (o intercambia si es anterior)
+      if (iso < sol.fechaInicio) {
+        sol.fechaTermino = sol.fechaInicio;
+        sol.fechaInicio = iso;
+      } else {
+        sol.fechaTermino = iso;
+      }
+      this.sincronizarDerivadosDesdeRangoAthF13();
+    }
+    this.onAthF13Editado();
+  }
+
+  limpiarRangoCalAthF13(): void {
+    if (!this.athF13SolicitudActiva) return;
+    this.athF13SolicitudActiva.fechaInicio = '';
+    this.athF13SolicitudActiva.fechaTermino = '';
+    this.athF13SolicitudActiva.diasSolicitados = '';
+    this.athF13SolicitudActiva.fechaReincorporacion = '';
+    this.onAthF13Editado();
+  }
+
+  get athF13ResumenRango(): string {
+    const sol = this.athF13SolicitudActiva;
+    if (!sol?.fechaInicio) return 'Selecciona el día de inicio en el calendario';
+    if (!sol.fechaTermino) return `Inicio ${this.formatearFechaCortaAthF13(sol.fechaInicio)} · elige el día de término`;
+    const dias = sol.diasSolicitados || String(this.contarDiasLaboralesAthF13(sol.fechaInicio, sol.fechaTermino));
+    return `${this.formatearFechaCortaAthF13(sol.fechaInicio)} → ${this.formatearFechaCortaAthF13(sol.fechaTermino)} · ${dias} día(s) laboral(es)`;
+  }
+
+  private cargarCatalogoColaboradoresAthF13(): void {
+    this.backendService.obtenerUsuarios()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          const usuarios: any[] = Array.isArray(res?.usuarios) ? res.usuarios : [];
+          const mapa = new Map<string, { nombreCompleto: string; puesto: string; areaDepartamento: string }>();
+          for (const u of usuarios) {
+            if (this.esPerfilEmpresaAthF11(u)) continue;
+            const item = this.mapearEmpleadoCatalogoAthF11(u);
+            if (!item.nombreCompleto) continue;
+            const key = this.normalizarTextoAthF11(item.nombreCompleto);
+            if (!mapa.has(key)) {
+              mapa.set(key, {
+                nombreCompleto: item.nombreCompleto,
+                puesto: item.puesto,
+                areaDepartamento: item.areaDepartamento
+              });
+            }
+          }
+          this.athF13ColaboradoresCatalogo = Array.from(mapa.values())
+            .sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto, 'es'));
+        },
+        error: () => {
+          this.athF13ColaboradoresCatalogo = [];
+        }
+      });
+  }
+
+  private normalizarTextoAthF13(valor: string): string {
+    return this.normalizarTextoAthF11(valor);
+  }
+
+  get colaboradoresOpcionesAthF13(): Array<{ nombreCompleto: string; puesto: string; areaDepartamento: string }> {
+    const mapa = new Map<string, { nombreCompleto: string; puesto: string; areaDepartamento: string }>();
+    for (const solicitud of this.athF13Form?.solicitudes || []) {
+      const nombre = String(solicitud?.nombreCompleto || '').trim();
+      if (!nombre) continue;
+      mapa.set(this.normalizarTextoAthF13(nombre), {
+        nombreCompleto: nombre,
+        puesto: String(solicitud.puesto || '').trim(),
+        areaDepartamento: String(solicitud.areaDepartamento || '').trim()
+      });
+    }
+    for (const emp of this.athF13ColaboradoresCatalogo) {
+      const key = this.normalizarTextoAthF13(emp.nombreCompleto);
+      const prev = mapa.get(key);
+      mapa.set(key, {
+        nombreCompleto: emp.nombreCompleto,
+        puesto: emp.puesto || prev?.puesto || '',
+        areaDepartamento: emp.areaDepartamento || prev?.areaDepartamento || ''
+      });
+    }
+    return Array.from(mapa.values())
+      .sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto, 'es'));
+  }
+
+  get colaboradoresFiltradosAthF13(): Array<{ nombreCompleto: string; puesto: string; areaDepartamento: string }> {
+    const query = this.normalizarTextoAthF13(this.athF13NombreComboQuery);
+    const base = this.colaboradoresOpcionesAthF13;
+    if (!query) return base.slice(0, 40);
+    return base
+      .filter((e) =>
+        [e.nombreCompleto, e.puesto, e.areaDepartamento]
+          .some((v) => this.normalizarTextoAthF13(v).includes(query))
+      )
+      .slice(0, 40);
+  }
+
+  get textoLibreNombreAthF13(): string {
+    const q = String(this.athF13NombreComboQuery || '').trim();
+    if (!q) return '';
+    const existe = this.colaboradoresOpcionesAthF13.some(
+      (e) => this.normalizarTextoAthF13(e.nombreCompleto) === this.normalizarTextoAthF13(q)
+    );
+    return existe ? '' : q;
+  }
+
+  textoComboNombreAthF13(): string {
+    if (this.athF13NombreComboAbierto) return this.athF13NombreComboQuery;
+    return String(this.athF13SolicitudActiva?.nombreCompleto || '');
+  }
+
+  abrirComboNombreAthF13(): void {
+    this.athF13NombreComboAbierto = true;
+    this.athF13NombreComboQuery = String(this.athF13SolicitudActiva?.nombreCompleto || '');
+  }
+
+  onNombreComboInputAthF13(valor: string): void {
+    if (!this.athF13SolicitudActiva) return;
+    this.athF13NombreComboAbierto = true;
+    this.athF13NombreComboQuery = valor;
+    this.athF13SolicitudActiva.nombreCompleto = valor;
+    this.onAthF13Editado();
+  }
+
+  seleccionarColaboradorAthF13(emp: { nombreCompleto: string; puesto: string; areaDepartamento: string }): void {
+    if (!this.athF13SolicitudActiva || !emp) return;
+    this.athF13SolicitudActiva.nombreCompleto = emp.nombreCompleto;
+    this.athF13SolicitudActiva.puesto = emp.puesto || '';
+    this.athF13SolicitudActiva.areaDepartamento = emp.areaDepartamento || '';
+    this.athF13NombreComboQuery = emp.nombreCompleto;
+    this.athF13NombreComboAbierto = false;
+    this.onAthF13Editado();
+  }
+
+  usarNombreLibreAthF13(nombre: string): void {
+    if (!this.athF13SolicitudActiva) return;
+    this.athF13SolicitudActiva.nombreCompleto = String(nombre || '').trim();
+    this.athF13NombreComboQuery = this.athF13SolicitudActiva.nombreCompleto;
+    this.athF13NombreComboAbierto = false;
+    this.onAthF13Editado();
+  }
+
+  limpiarNombreAthF13(): void {
+    if (!this.athF13SolicitudActiva) return;
+    this.athF13SolicitudActiva.nombreCompleto = '';
+    this.athF13NombreComboQuery = '';
+    this.athF13NombreComboAbierto = false;
+    this.onAthF13Editado();
+  }
+
+  generarFolioAthF13(): void {
+    if (!this.athF13SolicitudActiva) return;
+    const hoyMx = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+    const baseFecha = this.athF13SolicitudActiva.fechaInicio || hoyMx;
+    const d = new Date(`${baseFecha}T12:00:00`);
+    const fecha = Number.isNaN(d.getTime()) ? new Date() : d;
+    const dd = String(fecha.getDate()).padStart(2, '0');
+    const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+    const aa = String(fecha.getFullYear()).slice(-2);
+    const fechaTag = `${dd}${mm}${aa}`;
+    let maximo = 0;
+    (this.athF13Form.solicitudes || []).forEach((s) => {
+      if (s.id === this.athF13SolicitudActiva?.id) return;
+      const match = String(s.folio || '').match(/^VAC-(\d{6})-(\d{1,})$/i);
+      if (match && match[1] === fechaTag) {
+        const n = parseInt(match[2], 10);
+        if (Number.isFinite(n) && n > maximo) maximo = n;
+      }
+    });
+    this.athF13SolicitudActiva.folio = `VAC-${fechaTag}-${String(maximo + 1).padStart(2, '0')}`;
+    this.onAthF13Editado();
+  }
+
+  nuevaSolicitudAthF13(): void {
+    const solicitud = this.crearSolicitudAthF13Vacia();
+    solicitud.lugarFecha = '';
+    solicitud.fechaInicio = '';
+    this.athF13Form.solicitudes = [solicitud, ...(this.athF13Form.solicitudes || [])];
+    this.athF13SolicitudActiva = solicitud;
+    this.athF13Form.solicitudActivaId = solicitud.id;
+    this.athF13Vista = 'editor';
+    this.athF13DriveFileId = null;
+    this.generarFolioAthF13();
+    this.alinearCalendarioAthF13AFechas();
+    this.athF13AutosizeTick += 1;
+    this.onAthF13Editado();
+  }
+
+  abrirSolicitudAthF13(solicitud: AthF13Solicitud): void {
+    this.athF13SolicitudActiva = solicitud;
+    this.athF13Form.solicitudActivaId = solicitud?.id || null;
+    this.athF13Vista = 'editor';
+    this.athF13DriveFileId = solicitud?.driveFileId || null;
+    this.alinearCalendarioAthF13AFechas();
+    this.athF13AutosizeTick += 1;
+    if (solicitud?.driveFileId) {
+      this.fijarEditorEmbedUrlAthF13(`https://docs.google.com/document/d/${solicitud.driveFileId}/edit?usp=sharing`);
+    }
+  }
+
+  volverArchiveroAthF13(): void {
+    this.sincronizarSolicitudActivaEnFormAthF13();
+    this.athF13Vista = 'archivero';
+    this.athF13SolicitudActiva = null;
+    this.athF13Form.solicitudActivaId = null;
+    this.athF13DriveFileId = null;
+    if (this.mostrarAthF13PdfViewer) this.toggleAthF13PdfViewer();
+    if (this.mostrarAthF13Editor) this.toggleAthF13Editor();
+  }
+
+  eliminarSolicitudAthF13(solicitud: AthF13Solicitud, event?: Event): void {
+    event?.stopPropagation();
+    if (!confirm(`¿Eliminar la solicitud ${solicitud.folio || solicitud.nombreCompleto || 'sin folio'}?`)) return;
+    this.athF13Form.solicitudes = (this.athF13Form.solicitudes || []).filter((s) => s.id !== solicitud.id);
+    if (this.athF13SolicitudActiva?.id === solicitud.id) this.volverArchiveroAthF13();
+    this.onAthF13Editado();
+  }
+
+  private cargarAthF13DesdeServidor(): void {
+    this.athF13Cargando = true;
+    this.athF13Listo = false;
+    this.athF13Vista = 'archivero';
+    this.athF13SolicitudActiva = null;
+    this.backendService.cargarAthF13Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoAthF13(res),
+        error: () => {
+          this.athF13Cargando = false;
+          this.athF13Listo = true;
+        }
+      });
+  }
+
+  private persistirAthF13(): void {
+    if (!this.puedeGestionarPlantillasSgc || !this.athF13Listo || this.athF13Guardando) return;
+    this.sincronizarSolicitudActivaEnFormAthF13();
+    this.athF13Guardando = true;
+    const editorAbierto = this.mostrarAthF13Editor;
+    const activa = this.athF13SolicitudActiva;
+    this.backendService.guardarAthF13Formato(
+      { ...this.athF13Form, solicitudActivaId: activa?.id || null },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.athF13Guardando = false;
+          this.aplicarEstadoAthF13(res, editorAbierto, false, false);
+        },
+        error: () => {
+          this.athF13Guardando = false;
+        }
+      });
+  }
+
+  descargarPdfAthF13(): void {
+    const solicitud = this.athF13SolicitudActiva;
+    if (this.athF13DescargandoPdf || !solicitud?.driveFileId) return;
+    this.athF13DescargandoPdf = true;
+    const nombre = `ATH-F-13 ${solicitud.folio || 'solicitud'}.pdf`;
+    this.backendService.descargarPdfAthF13(solicitud.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.athF13DescargandoPdf = false;
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = nombre;
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.athF13DescargandoPdf = false;
+        }
+      });
+  }
+
+  onSeleccionarPdfAthF13(event: Event): void {
+    if (!this.athF13SolicitudActiva) return;
+    const folio = this.athF13SolicitudActiva.folio || 'sin-folio';
+    this.procesarPdfDocumento(
+      event,
+      `ATH-F-13 ${folio} firmado.pdf`,
+      (base64, nombre) => this.subirPdfFirmadoAthF13(base64, nombre)
+    );
+  }
+
+  private subirPdfFirmadoAthF13(pdfBase64: string, nombreArchivo: string): void {
+    if (this.athF13SubiendoPdf || !this.athF13SolicitudActiva) {
+      this.cerrarModalSubidaPdfSgc();
+      return;
+    }
+    this.sincronizarSolicitudActivaEnFormAthF13();
+    const solicitudId = this.athF13SolicitudActiva.id;
+    const yaGuardada = !!this.athF13SolicitudActiva.driveFileId;
+    this.athF13SubiendoPdf = true;
+    const enviarPdf = () => {
+      this.backendService.subirPdfFirmadoAthF13(pdfBase64, nombreArchivo, solicitudId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.athF13SubiendoPdf = false;
+            this.aplicarEstadoAthF13(res);
+            const solicitudResp = (res?.datos?.solicitudes || []).find((s: any) => s?.id === solicitudId);
+            if (this.athF13SolicitudActiva) {
+              const hist = this.normalizarHistorialPdfAthF13(
+                solicitudResp?.pdfsHistorial,
+                res?.pdfFirmado || solicitudResp?.pdfFirmado
+              );
+              if (hist.length) this.athF13SolicitudActiva.pdfsHistorial = hist;
+              const vigente = this.sanitizarPdfAthF13(res?.pdfFirmado || solicitudResp?.pdfFirmado);
+              if (vigente) this.athF13SolicitudActiva.pdfFirmado = vigente;
+              this.sincronizarSolicitudActivaEnFormAthF13();
+            }
+            this.finalizarSubidaPdfSgc(true, nombreArchivo);
+          },
+          error: () => {
+            this.athF13SubiendoPdf = false;
+            this.finalizarSubidaPdfSgc(false);
+          }
+        });
+    };
+    if (yaGuardada) {
+      enviarPdf();
+      return;
+    }
+    this.backendService.guardarAthF13Formato(
+      { ...this.athF13Form, solicitudActivaId: solicitudId },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.aplicarEstadoAthF13(res);
+          enviarPdf();
+        },
+        error: () => {
+          this.athF13SubiendoPdf = false;
+          this.finalizarSubidaPdfSgc(false);
+        }
+      });
+  }
+
+  get puedeBorrarPdfHistorialAthF13(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
+
+  toggleAthF13PdfViewer(pdf?: AthF13PdfFirmado | null): void {
+    if (this.mostrarAthF13PdfViewer && !pdf) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.mostrarAthF13PdfViewer = false;
+      this.athF13PdfEmbedUrlSafe = null;
+      this.athF13PdfCargando = false;
+      return;
+    }
+    const objetivo = pdf || this.athF13SolicitudActiva?.pdfFirmado;
+    const id = objetivo?.driveFileId;
+    if (!id) return;
+    this.mostrarAthF13PdfViewer = true;
+    this.athF13PdfCargando = true;
+    this.athF13PdfVistaNombre = objetivo?.nombreArchivo || 'ATH-F-13 solicitud firmada.pdf';
+    const url = objetivo?.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+    this.athF13PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+
+  eliminarPdfHistorialAthF13(hist: AthF13PdfFirmado): void {
+    const solicitudId = this.athF13SolicitudActiva?.id;
+    if (!this.puedeBorrarPdfHistorialAthF13 || !hist?.driveFileId || !solicitudId || this.athF13BorrandoPdf) return;
+    if (!confirm(`¿Eliminar «${hist.nombreArchivo || 'PDF'}» del historial?`)) return;
+    this.athF13BorrandoPdf = true;
+    this.backendService.eliminarPdfHistorialAthF13(solicitudId, hist.driveFileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.athF13BorrandoPdf = false;
+          this.aplicarEstadoAthF13(res);
+        },
+        error: () => {
+          this.athF13BorrandoPdf = false;
+        }
+      });
+  }
+
+  onAthF13PdfIframeLoad(): void {
+    this.athF13PdfCargando = false;
+  }
+
+  toggleAthF13Editor(): void {
+    if (this.mostrarAthF13Editor) {
+      this.mostrarAthF13Editor = false;
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      return;
+    }
+    const driveId = this.athF13SolicitudActiva?.driveFileId || this.athF13DriveFileId;
+    if (!driveId) return;
+    this.mostrarAthF13Editor = true;
+    this.athF13EditorIframeListo = false;
+    this.athF13EditorCargando = true;
+    const url = this.athF13EditorUrl || `https://docs.google.com/document/d/${driveId}/edit?usp=sharing`;
+    this.fijarEditorEmbedUrlAthF13(this.resolverUrlEditorDrive(url, driveId), true);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+
+  onAthF13IframeLoad(): void {
+    if (this.athF13EditorIframeListo) return;
+    this.athF13EditorIframeListo = true;
+    this.athF13EditorCargando = false;
+  }
+
+  actualizarPlantillaAthF13(): void {
+    if (!this.puedeGestionarPlantillasSgc || this.athF13ActualizandoPlantilla) return;
+    this.athF13ActualizandoPlantilla = true;
+    this.backendService.actualizarPlantillaAthF13()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.athF13ActualizandoPlantilla = false;
+          this.aplicarEstadoAthF13(res, false, false, true);
+        },
+        error: () => {
+          this.athF13ActualizandoPlantilla = false;
+        }
+      });
+  }
+
+  private fijarEditorEmbedUrlAthF13(url: string | null, forzar = false): void {
+    if (!forzar && this.mostrarAthF13Editor && this.athF13EditorEmbedUrlSafe && this.athF13EditorUrl === url) return;
+    if (!url) {
+      this.athF13EditorUrl = null;
+      this.athF13EditorEmbedUrlSafe = null;
+      return;
+    }
+    if (!forzar && this.athF13EditorUrl === url && this.athF13EditorEmbedUrlSafe) return;
+    this.athF13EditorUrl = url;
+    const embedUrl = this.urlIframeDriveSegunPermiso(url);
+    this.athF13EditorEmbedUrlSafe = embedUrl
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
+      : null;
+  }
+
+  private sincronizarSolicitudActivaAthF13(activoId: string | null, conservarEditorSiExiste: boolean): void {
+    if (!activoId) {
+      this.athF13SolicitudActiva = null;
+      this.athF13Form.solicitudActivaId = null;
+      this.athF13DriveFileId = null;
+      if (!conservarEditorSiExiste) this.athF13Vista = 'archivero';
+      return;
+    }
+    const encontrada = (this.athF13Form.solicitudes || []).find((s) => s.id === activoId) || null;
+    this.athF13SolicitudActiva = encontrada;
+    this.athF13Form.solicitudActivaId = encontrada?.id || null;
+    this.athF13DriveFileId = encontrada?.driveFileId || null;
+    if (conservarEditorSiExiste && encontrada) {
+      this.athF13Vista = 'editor';
+    } else {
+      this.athF13Vista = 'archivero';
+      this.athF13SolicitudActiva = null;
+      this.athF13Form.solicitudActivaId = null;
+      this.athF13DriveFileId = null;
+    }
+  }
+
+  private aplicarEstadoAthF13(
+    res: any,
+    conservarEdicion = false,
+    sincronizacionSilenciosa = false,
+    forzarActualizacionDrive = false
+  ): void {
+    if (!res?.success) {
+      if (!sincronizacionSilenciosa) this.athF13Cargando = false;
+      this.athF13Listo = true;
+      return;
+    }
+
+    const editorAbierto = this.mostrarAthF13Editor && !forzarActualizacionDrive;
+    const bloquearFormulario = editorAbierto || conservarEdicion;
+    const activoId = this.athF13SolicitudActiva?.id || null;
+    const conservarEditor = this.athF13Vista === 'editor' && !!activoId;
+
+    if (!bloquearFormulario && res.datos) {
+      this.athF13IgnorarAutoSave = true;
+      this.athF13Listo = false;
+      this.athF13Form = this.normalizarAthF13Form(res.datos);
+      this.sincronizarSolicitudActivaAthF13(activoId, conservarEditor);
+    } else if (!editorAbierto && !conservarEdicion) {
+      this.athF13IgnorarAutoSave = true;
+      this.athF13Listo = false;
+    }
+
+    const nuevoDriveId = res.driveFileId || this.athF13SolicitudActiva?.driveFileId || null;
+    if (forzarActualizacionDrive || !editorAbierto) {
+      if (nuevoDriveId) this.athF13DriveFileId = nuevoDriveId;
+      if (res.editorUrl && (forzarActualizacionDrive || !this.mostrarAthF13Editor)) {
+        this.fijarEditorEmbedUrlAthF13(res.editorUrl, forzarActualizacionDrive);
+      }
+    }
+
+    this.athF13UltimaSync = res.ultimaSyncDrive || null;
+    this.athF13ContenidoModificado = !!res.contenidoModificado;
+
+    window.setTimeout(() => {
+      this.athF13IgnorarAutoSave = false;
+      this.athF13Listo = true;
+      this.athF13AutosizeTick += 1;
+      if (!bloquearFormulario) this.athF13CambiosPendientes = false;
+      if (!sincronizacionSilenciosa) this.athF13Cargando = false;
     }, editorAbierto ? 0 : 350);
   }
 
@@ -19902,6 +20913,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (this.athF03NombreComboAbierto) {
         this.athF03NombreComboAbierto = false;
       }
+      if (this.athF13NombreComboAbierto) {
+        this.athF13NombreComboAbierto = false;
+      }
     }
     if (this.sgcF04ComboCampo && target && !target.closest('.sgc-f-04-combo')) {
       this.cerrarComboSgcF04();
@@ -20375,6 +21389,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleAthF03Editor();
       return;
     }
+    if (this.plantillaSlug === 'ath-f-13') {
+      this.toggleAthF13Editor();
+      return;
+    }
     if (this.plantillaSlug === 'sgc-f-27') {
       this.toggleSgcF27Editor();
       return;
@@ -20506,6 +21524,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'ath-f-03') {
       this.actualizarPlantillaAthF03();
+      return;
+    }
+    if (this.plantillaSlug === 'ath-f-13') {
+      this.actualizarPlantillaAthF13();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-27') {

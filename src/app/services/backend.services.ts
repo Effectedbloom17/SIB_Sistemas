@@ -3030,6 +3030,48 @@ export class BackendServices {
         });
     }
 
+    cargarAthF13Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-13`);
+    }
+
+    guardarAthF13Formato(datos: unknown, editorActivo = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-13/guardar`, {
+            datos,
+            origen: 'sistema',
+            editorActivo
+        });
+    }
+
+    sincronizarAthF13DesdeDrive(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-13/sincronizar-drive`, {});
+    }
+
+    actualizarPlantillaAthF13(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-13/actualizar-plantilla`, {});
+    }
+
+    eliminarPdfHistorialAthF13(solicitudId: string, driveFileId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-13/eliminar-pdf-historial`, {
+            solicitudId,
+            driveFileId
+        });
+    }
+
+    subirPdfFirmadoAthF13(pdfBase64: string, nombreArchivo: string, solicitudId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-13/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombre_archivo: nombreArchivo,
+            solicitudId
+        });
+    }
+
+    descargarPdfAthF13(solicitudId: string): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-13/descargar-pdf`, {
+            params: { solicitudId },
+            responseType: 'blob'
+        });
+    }
+
     cargarSgcF27Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-27`);
     }

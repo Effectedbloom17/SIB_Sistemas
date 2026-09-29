@@ -230,6 +230,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         driveFileId: '1EK1xd8hJtpkDs_H7F_aoprV3eAz7bAmzIp9Fy0kHZy0',
         previewSlug: 'sgc-f-27-medicion',
         previewMode: 'form'
+      },
+      {
+        codigo: 'ATH-F-13',
+        titulo: 'Solicitud de vacaciones',
+        nombre: 'ATH-F-13 Solicitud de vacaciones.docx',
+        driveFileId: '14MCp6YsY4Gf82TcPRzmNlwLPhifytDbG_9kklYhLWk4',
+        previewSlug: 'ath-f-13',
+        previewMode: 'form'
       }
     ]
   },
