@@ -43,7 +43,7 @@ const MENU_GROUPS: { title?: string; paths: string[] }[] = [
     { title: 'Protección Civil', paths: ['/proteccion-civil/asignacion-pipc', '/proteccion-civil', '/proteccion-civil/control-resolutivos', '/proteccion-civil/historial-pc'] },
     { title: 'Médicos', paths: ['/expedientes-medicos', '/estadisticas-medicas'] },
     { title: 'SGC', paths: ['/sistema-gestion-calidad', '/sistema-gestion-calidad/procedimientos', '/sistema-gestion-calidad/instructivos', '/sistema-gestion-calidad/formatos', '/sistema-gestion-calidad/normativas', '/sistema-gestion-calidad/solicitud-documentos'] },
-    { title: 'Seguridad', paths: ['/seguridad/normativas'] },
+    { title: 'Seguridad', paths: ['/seguridad/normativas', '/seguridad/asignacion', '/seguridad/gestion'] },
     { title: 'Recursos Humanos', paths: ['/recursos-humanos/residentes', '/recursos-humanos/colaboradores'] },
     { title: 'Ambiental', paths: ['/ambiental', '/control-tramites'] },
     { title: 'Control de Proyectos', paths: ['/control-proyectos', '/control-oficios'] },
@@ -87,6 +87,8 @@ export const ROUTES: RouteInfo[] = [
     { path: '/sistema-gestion-calidad/normativas', title: 'Normativas', icon: '', iconFa: 'fa-file-pdf', class: '' },
     { path: '/sistema-gestion-calidad/solicitud-documentos', title: 'Solicitud de\nDocumentos', icon: '', iconFa: 'fa-file-signature', class: '', roles: ['root'] },
     { path: '/seguridad/normativas', title: 'Normativas', icon: '', iconFa: 'fa-clipboard-check', class: '' },
+    { path: '/seguridad/asignacion', title: 'Asignación de\nnormativas', icon: '', iconFa: 'fa-tasks', class: '' },
+    { path: '/seguridad/gestion', title: 'Gestión de\nnormativas', icon: '', iconFa: 'fa-folder-open', class: '' },
     { path: '/recursos-humanos/residentes', title: 'Residentes', icon: '', iconFa: 'fa-user-friends', class: '', roles: ['root', 'administrador', 'rrhh'] },
     { path: '/recursos-humanos/colaboradores', title: 'Colaboradores', icon: '', iconFa: 'fa-id-badge', class: '', roles: ['root', 'administrador', 'rrhh'] },
     { path: '/control-proyectos', title: 'Control de avance\nde proyectos', icon: '', iconFa: 'fa-project-diagram', class: '' }, // Todos los perfiles; empresa en consulta
@@ -562,7 +564,13 @@ export class SidebarComponent implements OnInit, OnDestroy {
       return this.currentUrl.startsWith('/sistema-gestion-calidad/solicitud-documentos');
     }
     if (path === '/seguridad/normativas') {
-      return this.currentUrl.startsWith('/seguridad');
+      return this.currentUrl.startsWith('/seguridad/normativas');
+    }
+    if (path === '/seguridad/asignacion') {
+      return this.currentUrl.startsWith('/seguridad/asignacion');
+    }
+    if (path === '/seguridad/gestion') {
+      return this.currentUrl.startsWith('/seguridad/gestion');
     }
     if (path === '/sistema-gestion-calidad') {
       return this.isSgcSectionActive();

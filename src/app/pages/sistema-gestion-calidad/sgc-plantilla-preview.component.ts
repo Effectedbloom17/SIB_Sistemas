@@ -68,6 +68,7 @@ interface AthF02Escolaridad {
   bachillerato: boolean;
   tecnico: boolean;
   tsu: boolean;
+  tsuEn: string;
   licenciatura: boolean;
   licenciaturaEn: string;
   especialidad: boolean;
@@ -885,6 +886,43 @@ interface SgcF25FormData {
   actividades: SgcF25ActividadItem[];
 }
 
+interface SgcF27MedicionCorrida {
+  estandar: number | null;
+  mediciones: Array<number | null>;
+  estatus: string;
+}
+
+interface SgcF27MedicionCalculo {
+  errores: Array<number | null>;
+  cuadrados: Array<number | null>;
+  suma: number | null;
+  nMenos1: number | null;
+  varianza: number | null;
+  desviacion: number | null;
+  fueraDeRango: boolean;
+}
+
+interface SgcF27MedicionFormData {
+  fechaElaboracion: string;
+  revision: string;
+  fechaRevision: string;
+  nombreVerifica: string;
+  fechaVerificacion: string;
+  instrumento: string;
+  queMide: string;
+  patronNombre: string;
+  patronClave: string;
+  patronUnidad: string;
+  recursoId: string;
+  recursoUnidad: string;
+  intervalos: string[];
+  corridas: SgcF27MedicionCorrida[];
+  resultado: string;
+  accion: string;
+  pdfFirmado: DgF02PdfFirmado | null;
+  pdfsHistorial: DgF02PdfFirmado[];
+}
+
 interface SgcF03Registro {
   codigo: string;
   nombreDocumento: string;
@@ -1160,6 +1198,8 @@ interface AthF08FormData {
   fecha: string;
   revision: string;
   fechaRevision: string;
+  /** Columnas de calificación pedidas, incluidas las vacías recién agregadas. */
+  numColumnas?: number;
   cursos: AthF08Curso[];
   colaboradores: AthF08Colaborador[];
 }
@@ -1561,6 +1601,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-08' || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-03' || this.plantillaSlug === 'sgc-f-16'
       || this.plantillaSlug === 'sgc-f-24'
       || this.plantillaSlug === 'sgc-f-27'
+      || this.plantillaSlug === 'sgc-f-27-medicion'
       || this.plantillaSlug === 'sgc-f-29'
       || this.plantillaSlug === 'sgc-f-28'
       || this.plantillaSlug === 'sp-f-02'
@@ -1702,6 +1743,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF02PerfilActivo: AthF02Perfil | null = null;
   athF02Cargando = false;
   athF02Guardando = false;
+  athF02Importando = false;
   athF02Listo = false;
   athF02CambiosPendientes = false;
   athF02IgnorarAutoSave = false;
@@ -2222,6 +2264,29 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF25ActualizandoPlantilla = false;
   sgcF25DescargandoPdf = false;
   private sgcF25EditorIframeListo = false;
+
+  readonly sgcF27mEstatus = ['OK', 'Fuera de rango'];
+  readonly sgcF27mResultados = ['Verificación aprobada', 'Verificación no aprobada'];
+  readonly sgcF27mLimiteS = 0.5;
+  sgcF27mForm: SgcF27MedicionFormData = this.crearSgcF27MedicionEjemplo();
+  sgcF27mCargando = false;
+  sgcF27mGuardando = false;
+  sgcF27mListo = false;
+  sgcF27mCambiosPendientes = false;
+  sgcF27mUltimaSync: string | null = null;
+  sgcF27mDriveFileId: string | null = null;
+  sgcF27mEditorUrl: string | null = null;
+  sgcF27mEditorEmbedUrlSafe: SafeResourceUrl | null = null;
+  mostrarSgcF27mEditor = false;
+  sgcF27mEditorCargando = false;
+  sgcF27mActualizandoPlantilla = false;
+  sgcF27mDescargandoPdf = false;
+  sgcF27mSubiendoPdf = false;
+  sgcF27mBorrandoPdf = false;
+  mostrarSgcF27mPdfViewer = false;
+  sgcF27mPdfCargando = false;
+  sgcF27mPdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  sgcF27mPdfViewerActual: DgF02PdfFirmado | null = null;
   readonly sgcF03FormasDistribucion: string[] = [
     'Copia controlada',
     'Copia no controlada',
@@ -2717,7 +2782,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF05EditorCargando = false;
   sgcF05ActualizandoPlantilla = false;
   private sgcF05EditorIframeListo = false;
-  readonly athF08MaxCursos = 20;
+  /** Columnas fijas de la plantilla Excel. A partir de aquí se crean columnas extra. */
+  readonly athF08CursosPlantilla = 20;
+  readonly athF08MaxCursos = 60;
   readonly athF08MaxColaboradores = 20;
   readonly athF08ResultadoOpciones: AthF08Resultado[] = ['', 'A', 'NA'];
   athF08Form: AthF08FormData = this.crearAthF08FormVacio();
@@ -3722,6 +3789,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (codigo === 'sgc-f-27') {
         this.cargarSgcF27DesdeServidor();
       }
+      if (codigo === 'sgc-f-27-medicion') {
+        this.cargarSgcF27MedicionDesdeServidor();
+      }
       if (codigo === 'sgc-f-29') {
         this.cargarSgcF29DesdeServidor();
       }
@@ -3867,8 +3937,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-06' || this.plantillaSlug === 'sgc-f-07'
       || this.plantillaSlug === 'sgc-f-08' || this.plantillaSlug === 'sgc-f-09'
       || this.plantillaSlug === 'sgc-f-10' || this.plantillaSlug === 'sgc-f-15'
-      || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'dg-f-06'
-      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-03' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sp-f-07' || this.plantillaSlug === 'sgc-f-05'
+      || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-27-medicion' || this.plantillaSlug === 'dg-f-06'
+      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-03' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-27-medicion' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sp-f-07' || this.plantillaSlug === 'sgc-f-05'
       || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-03';
   }
@@ -3910,7 +3980,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-02'
       || this.plantillaSlug === 'sgc-f-04'
       || this.plantillaSlug === 'sgc-f-22'
-      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-03' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sp-f-07' || this.plantillaSlug === 'sgc-f-05'
+      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-03' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-27-medicion' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sp-f-07' || this.plantillaSlug === 'sgc-f-05'
       || this.plantillaSlug === 'ath-f-02'
       || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-09'
@@ -3942,6 +4012,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Guardando;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03Guardando;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27Guardando;
+    if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mGuardando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Guardando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Guardando;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02Guardando;
@@ -3977,6 +4048,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24UltimaSync;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03UltimaSync;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27UltimaSync;
+    if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mUltimaSync;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29UltimaSync;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28UltimaSync;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02UltimaSync;
@@ -4012,6 +4084,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Cargando;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03Cargando;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27Cargando;
+    if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mCargando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Cargando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Cargando;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02Cargando;
@@ -4047,6 +4120,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24ActualizandoPlantilla;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27ActualizandoPlantilla;
+    if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28ActualizandoPlantilla;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02ActualizandoPlantilla;
@@ -4083,6 +4157,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24DriveFileId;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03EntregaActiva?.driveFileId || this.athF03DriveFileId;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27DriveFileId;
+    if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mDriveFileId;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29DriveFileId;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28DriveFileId;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02DriveFileId;
@@ -4119,6 +4194,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24CambiosPendientes;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27CambiosPendientes;
+    if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mCambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28CambiosPendientes;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02CambiosPendientes;
@@ -4168,6 +4244,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-24') return this.mostrarSgcF24Editor;
     if (this.plantillaSlug === 'ath-f-03') return this.mostrarAthF03Editor;
     if (this.plantillaSlug === 'sgc-f-27') return this.mostrarSgcF27Editor;
+    if (this.plantillaSlug === 'sgc-f-27-medicion') return this.mostrarSgcF27mEditor;
     if (this.plantillaSlug === 'sgc-f-10') return this.mostrarSgcF10Editor;
     if (this.plantillaSlug === 'sgc-f-29') return this.mostrarSgcF29Editor;
     if (this.plantillaSlug === 'sgc-f-28') return this.mostrarSgcF28Editor;
@@ -4695,6 +4772,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.persistirSgcF27();
       return;
     }
+    if (this.plantillaSlug === 'sgc-f-27-medicion') {
+      this.persistirSgcF27Medicion();
+      return;
+    }
     if (this.plantillaSlug === 'sgc-f-29') {
       this.persistirSgcF29();
       return;
@@ -5144,6 +5225,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-27') {
       return this.sgcF27IntroLead;
+    }
+    if (this.plantillaSlug === 'sgc-f-27-medicion') {
+      return 'Reporte de verificación de equipos de medición. Cada corrida calcula error, varianza y desviación estándar.';
     }
     if (this.plantillaSlug === 'dg-f-06') {
       return this.dgF06IntroLead;
@@ -8878,6 +8962,449 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           this.sgcF25Guardando = false;
         }
       });
+  }
+
+  private crearCorridaSgcF27Medicion(
+    estandar: number | null = null,
+    mediciones: Array<number | null> = [null, null, null],
+    estatus = ''
+  ): SgcF27MedicionCorrida {
+    const tres = [0, 1, 2].map((i) => {
+      const n = mediciones[i];
+      return n === null || n === undefined || Number.isNaN(Number(n)) ? null : Number(n);
+    });
+    return { estandar, mediciones: tres, estatus };
+  }
+
+  private crearSgcF27MedicionEjemplo(): SgcF27MedicionFormData {
+    return {
+      fechaElaboracion: '2025-01-21',
+      revision: '00',
+      fechaRevision: '2025-01-21',
+      nombreVerifica: '',
+      fechaVerificacion: '',
+      instrumento: 'Probetas',
+      queMide: 'Volumen',
+      patronNombre: 'Báscula',
+      patronClave: 'BAS-01',
+      patronUnidad: 'Gramos (g)',
+      recursoId: 'PROB-01',
+      recursoUnidad: 'mililitros (ml)',
+      intervalos: ['a 100 ml', 'a 350 ml', 'a 700 ml'],
+      corridas: [
+        this.crearCorridaSgcF27Medicion(100, [100.1, 100.1, 100.1], 'OK'),
+        this.crearCorridaSgcF27Medicion(350, [350.3, 350.3, 350.3], 'OK'),
+        this.crearCorridaSgcF27Medicion(700, [700.1, 700.1, 700.1], 'OK'),
+        this.crearCorridaSgcF27Medicion(null, [1000.06, 999.45, 999.87], 'OK')
+      ],
+      resultado: 'Verificación aprobada',
+      accion: '',
+      pdfFirmado: null,
+      pdfsHistorial: []
+    };
+  }
+
+  private numeroSgcF27Medicion(valor: unknown): number | null {
+    if (valor === null || valor === undefined || valor === '') {
+      return null;
+    }
+    const n = Number(valor);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  calcularCorridaSgcF27Medicion(corrida: SgcF27MedicionCorrida): SgcF27MedicionCalculo {
+    const mediciones = [0, 1, 2].map((i) => this.numeroSgcF27Medicion(corrida?.mediciones?.[i]));
+    const estandar = this.numeroSgcF27Medicion(corrida?.estandar);
+    const hayDatos = estandar != null || mediciones.some((m) => m != null);
+    if (!hayDatos) {
+      return {
+        errores: [null, null, null],
+        cuadrados: [null, null, null],
+        suma: null,
+        nMenos1: null,
+        varianza: null,
+        desviacion: null,
+        fueraDeRango: false
+      };
+    }
+    const base = estandar == null ? 0 : estandar;
+    const errores = mediciones.map((xi) => (xi == null ? 0 : xi) - base);
+    const cuadrados = errores.map((e) => e * e);
+    const suma = cuadrados.reduce((acc, n) => acc + n, 0);
+    const nMenos1 = 2;
+    const varianza = suma / nMenos1;
+    const desviacion = Math.sqrt(varianza);
+    return {
+      errores,
+      cuadrados,
+      suma,
+      nMenos1,
+      varianza,
+      desviacion,
+      fueraDeRango: desviacion > this.sgcF27mLimiteS
+    };
+  }
+
+  formatoCalcSgcF27Medicion(valor: number | null, tipo: 'error' | 'var' | 's' = 'error'): string {
+    if (valor == null || !Number.isFinite(valor)) {
+      return '—';
+    }
+    const decimales = tipo === 'var' && Math.abs(valor) < 0.1 ? 3 : 2;
+    return valor.toLocaleString('es-MX', {
+      minimumFractionDigits: decimales,
+      maximumFractionDigits: decimales
+    });
+  }
+
+  criterioSgcF27Medicion(): { cumple: boolean; ok: number; detalle: string } {
+    const activas = this.sgcF27mForm.corridas
+      .map((c) => ({ c, calc: this.calcularCorridaSgcF27Medicion(c) }))
+      .filter((item) => item.calc.desviacion != null);
+    const ok = activas.filter((item) => item.c.estatus === 'OK').length;
+    const altas = activas.filter((item) => (item.calc.desviacion || 0) > this.sgcF27mLimiteS);
+    const cumple = activas.length > 0 && altas.length === 0 && ok >= 3;
+    let detalle = `Estatus OK en ${ok} de ${activas.length} corridas.`;
+    if (altas.length) {
+      const nums = altas.map((item) => this.sgcF27mForm.corridas.indexOf(item.c) + 1);
+      detalle = `La desviación supera 0.50 en la corrida ${nums.join(', ')}. ${detalle}`;
+    } else if (ok < 3) {
+      detalle = `Faltan corridas con estatus OK (se piden 3). ${detalle}`;
+    } else {
+      detalle = `Todas las corridas quedan en S ≤ 0.50. ${detalle}`;
+    }
+    return { cumple, ok, detalle };
+  }
+
+  onSgcF27MedicionEditado(): void {
+    if (!this.sgcF27mListo) {
+      return;
+    }
+    this.sgcF27mCambiosPendientes = true;
+  }
+
+  onMedicionSgcF27Medicion(index: number): void {
+    const corrida = this.sgcF27mForm.corridas[index];
+    if (!corrida) {
+      return;
+    }
+    const calc = this.calcularCorridaSgcF27Medicion(corrida);
+    corrida.estatus = calc.desviacion == null
+      ? ''
+      : (calc.fueraDeRango ? 'Fuera de rango' : 'OK');
+    this.aplicarResultadoSgcF27Medicion();
+    this.onSgcF27MedicionEditado();
+  }
+
+  onEstatusSgcF27Medicion(): void {
+    this.aplicarResultadoSgcF27Medicion();
+    this.onSgcF27MedicionEditado();
+  }
+
+  private aplicarResultadoSgcF27Medicion(): void {
+    const criterio = this.criterioSgcF27Medicion();
+    const hayDatos = this.sgcF27mForm.corridas.some((c) => this.calcularCorridaSgcF27Medicion(c).desviacion != null);
+    if (!hayDatos) {
+      return;
+    }
+    this.sgcF27mForm.resultado = criterio.cumple
+      ? 'Verificación aprobada'
+      : 'Verificación no aprobada';
+  }
+
+  agregarCorridaSgcF27Medicion(): void {
+    if (this.sgcF27mForm.corridas.length >= 12) {
+      return;
+    }
+    this.sgcF27mForm.corridas.push(this.crearCorridaSgcF27Medicion());
+    this.onSgcF27MedicionEditado();
+  }
+
+  quitarCorridaSgcF27Medicion(index: number): void {
+    if (this.sgcF27mForm.corridas.length <= 1) {
+      this.sgcF27mForm.corridas.splice(0, 1, this.crearCorridaSgcF27Medicion());
+    } else {
+      this.sgcF27mForm.corridas.splice(index, 1);
+    }
+    this.onSgcF27MedicionEditado();
+  }
+
+  agregarIntervaloSgcF27Medicion(): void {
+    if (this.sgcF27mForm.intervalos.length >= 4) {
+      return;
+    }
+    this.sgcF27mForm.intervalos.push('');
+    this.onSgcF27MedicionEditado();
+  }
+
+  quitarIntervaloSgcF27Medicion(index: number): void {
+    this.sgcF27mForm.intervalos.splice(index, 1);
+    this.onSgcF27MedicionEditado();
+  }
+
+  private normalizarPdfSgcF27Medicion(raw: any): DgF02PdfFirmado | null {
+    const id = String(raw?.driveFileId || '').trim();
+    if (!id) {
+      return null;
+    }
+    return {
+      driveFileId: id,
+      nombreArchivo: String(raw?.nombreArchivo || 'SGC-F-27 firmado.pdf'),
+      webViewLink: raw?.webViewLink || null,
+      previewUrl: raw?.previewUrl || `https://drive.google.com/file/d/${id}/preview`,
+      fechaSubida: raw?.fechaSubida || ''
+    };
+  }
+
+  private aplicarEstadoSgcF27Medicion(res: any): void {
+    const datos = res?.datos || {};
+    const corridas = Array.isArray(datos.corridas) && datos.corridas.length
+      ? datos.corridas.map((c: any) => this.crearCorridaSgcF27Medicion(
+        this.numeroSgcF27Medicion(c?.estandar),
+        [0, 1, 2].map((i) => this.numeroSgcF27Medicion(c?.mediciones?.[i])),
+        String(c?.estatus || '')
+      ))
+      : this.crearSgcF27MedicionEjemplo().corridas;
+    const intervalos = Array.isArray(datos.intervalos)
+      ? datos.intervalos.map((v: unknown) => String(v || ''))
+      : [];
+    this.sgcF27mForm = {
+      fechaElaboracion: String(datos.fechaElaboracion || '2025-01-21'),
+      revision: String(datos.revision || '00'),
+      fechaRevision: String(datos.fechaRevision || '2025-01-21'),
+      nombreVerifica: String(datos.nombreVerifica || ''),
+      fechaVerificacion: String(datos.fechaVerificacion || ''),
+      instrumento: String(datos.instrumento || ''),
+      queMide: String(datos.queMide || ''),
+      patronNombre: String(datos.patronNombre || ''),
+      patronClave: String(datos.patronClave || ''),
+      patronUnidad: String(datos.patronUnidad || ''),
+      recursoId: String(datos.recursoId || ''),
+      recursoUnidad: String(datos.recursoUnidad || ''),
+      intervalos: intervalos.length ? intervalos : [''],
+      corridas,
+      resultado: String(datos.resultado || ''),
+      accion: String(datos.accion || ''),
+      pdfFirmado: this.normalizarPdfSgcF27Medicion(datos.pdfFirmado),
+      pdfsHistorial: (Array.isArray(datos.pdfsHistorial) ? datos.pdfsHistorial : [])
+        .map((p: any) => this.normalizarPdfSgcF27Medicion(p))
+        .filter((p: DgF02PdfFirmado | null): p is DgF02PdfFirmado => !!p)
+    };
+    this.sgcF27mDriveFileId = res?.driveFileId || this.sgcF27mDriveFileId;
+    this.sgcF27mEditorUrl = res?.editorUrl || this.sgcF27mEditorUrl;
+    this.sgcF27mUltimaSync = res?.ultimaSyncDrive || this.sgcF27mUltimaSync;
+    this.sgcF27mCambiosPendientes = false;
+    this.sgcF27mCargando = false;
+    this.sgcF27mListo = true;
+  }
+
+  private cargarSgcF27MedicionDesdeServidor(): void {
+    this.sgcF27mCargando = true;
+    this.sgcF27mListo = false;
+    this.backendService.cargarSgcF27MedicionFormato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoSgcF27Medicion(res),
+        error: () => {
+          this.sgcF27mForm = this.crearSgcF27MedicionEjemplo();
+          this.sgcF27mCargando = false;
+          this.sgcF27mListo = true;
+        }
+      });
+  }
+
+  private persistirSgcF27Medicion(): void {
+    if (!this.puedeGestionarPlantillasSgc || !this.sgcF27mListo || this.sgcF27mGuardando) {
+      return;
+    }
+    this.sgcF27mGuardando = true;
+    this.backendService.guardarSgcF27MedicionFormato(this.sgcF27mForm, false)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF27mGuardando = false;
+          this.aplicarEstadoSgcF27Medicion(res);
+        },
+        error: () => {
+          this.sgcF27mGuardando = false;
+        }
+      });
+  }
+
+  descargarPdfSgcF27Medicion(): void {
+    if (this.sgcF27mDescargandoPdf) {
+      return;
+    }
+    this.sgcF27mDescargandoPdf = true;
+    const pedirPdf = () => {
+      this.backendService.descargarPdfSgcF27Medicion()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.sgcF27mDescargandoPdf = false;
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = 'SGC-F-27 Reporte de verificacion de equipos de medicion.pdf';
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.sgcF27mDescargandoPdf = false;
+          }
+        });
+    };
+    if (!this.puedeGestionarPlantillasSgc) {
+      pedirPdf();
+      return;
+    }
+    this.backendService.guardarSgcF27MedicionFormato(this.sgcF27mForm, false)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.aplicarEstadoSgcF27Medicion(res);
+          pedirPdf();
+        },
+        error: () => {
+          this.sgcF27mDescargandoPdf = false;
+        }
+      });
+  }
+
+  toggleSgcF27MedicionEditor(): void {
+    if (!this.sgcF27mDriveFileId) {
+      return;
+    }
+    const abrir = !this.mostrarSgcF27mEditor;
+    this.mostrarSgcF27mEditor = abrir;
+    if (abrir) {
+      this.sgcF27mEditorCargando = true;
+      const url = this.resolverUrlEditorDrive(this.sgcF27mEditorUrl, this.sgcF27mDriveFileId);
+      this.sgcF27mEditorEmbedUrlSafe = url
+        ? this.sanitizer.bypassSecurityTrustResourceUrl(url)
+        : null;
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      this.backendService.asegurarAccesoSgcF27Medicion()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            if (res?.driveFileId) {
+              this.sgcF27mDriveFileId = res.driveFileId;
+            }
+          },
+          error: () => undefined
+        });
+      return;
+    }
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    if (this.puedeGestionarPlantillasSgc) {
+      this.sgcF27mGuardando = true;
+      this.backendService.sincronizarSgcF27MedicionDesdeDrive()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.sgcF27mGuardando = false;
+            this.aplicarEstadoSgcF27Medicion(res);
+          },
+          error: () => {
+            this.sgcF27mGuardando = false;
+          }
+        });
+    }
+  }
+
+  onSgcF27MedicionIframeLoad(): void {
+    this.sgcF27mEditorCargando = false;
+  }
+
+  private actualizarPlantillaSgcF27Medicion(): void {
+    if (this.sgcF27mActualizandoPlantilla) {
+      return;
+    }
+    this.sgcF27mActualizandoPlantilla = true;
+    this.backendService.actualizarPlantillaSgcF27Medicion()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF27mActualizandoPlantilla = false;
+          this.aplicarEstadoSgcF27Medicion(res);
+        },
+        error: () => {
+          this.sgcF27mActualizandoPlantilla = false;
+        }
+      });
+  }
+
+  onSeleccionarPdfSgcF27Medicion(event: Event): void {
+    this.procesarPdfDocumento(
+      event,
+      'SGC-F-27 Reporte de verificacion firmado.pdf',
+      (base64, nombre) => this.subirPdfSgcF27Medicion(base64, nombre)
+    );
+  }
+
+  private subirPdfSgcF27Medicion(base64: string, nombre: string): void {
+    if (this.sgcF27mSubiendoPdf) {
+      return;
+    }
+    this.sgcF27mSubiendoPdf = true;
+    this.backendService.subirPdfFirmadoSgcF27Medicion(base64, nombre)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF27mSubiendoPdf = false;
+          this.aplicarEstadoSgcF27Medicion(res);
+          this.finalizarSubidaPdfSgc(!!res?.success, nombre);
+        },
+        error: () => {
+          this.sgcF27mSubiendoPdf = false;
+          this.finalizarSubidaPdfSgc(false);
+        }
+      });
+  }
+
+  eliminarPdfHistorialSgcF27Medicion(pdf: DgF02PdfFirmado): void {
+    if (!pdf?.driveFileId || this.sgcF27mBorrandoPdf || !this.puedeBorrarPdfHistorialSgcF27Medicion) {
+      return;
+    }
+    this.sgcF27mBorrandoPdf = true;
+    this.backendService.eliminarPdfHistorialSgcF27Medicion(pdf.driveFileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF27mBorrandoPdf = false;
+          this.aplicarEstadoSgcF27Medicion(res);
+        },
+        error: () => {
+          this.sgcF27mBorrandoPdf = false;
+        }
+      });
+  }
+
+  toggleSgcF27MedicionPdfViewer(pdf?: DgF02PdfFirmado | null): void {
+    const objetivo = pdf || this.sgcF27mForm.pdfFirmado;
+    const id = objetivo?.driveFileId;
+    if (!id) {
+      return;
+    }
+    const mismo = this.mostrarSgcF27mPdfViewer && this.sgcF27mPdfViewerActual?.driveFileId === id;
+    this.mostrarSgcF27mPdfViewer = !mismo;
+    if (this.mostrarSgcF27mPdfViewer && objetivo) {
+      this.sgcF27mPdfViewerActual = objetivo;
+      this.sgcF27mPdfCargando = true;
+      const url = objetivo.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+      this.sgcF27mPdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+  }
+
+  get puedeBorrarPdfHistorialSgcF27Medicion(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
   }
 
   descargarPdfSgcF25(): void {
@@ -16574,8 +17101,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return 'Registra las no conformidades con su folio (NC-DDMMAA-NN), fuente, fechas, área, cliente, descripción, acción y estatus. Usa «Guardar información» para conservar los cambios y reflejarlos en el Excel de Drive.';
   }
 
-  private crearAthF08ResultadosVacios(): AthF08Resultado[] {
-    return Array.from({ length: this.athF08MaxCursos }, () => '' as AthF08Resultado);
+  private crearAthF08ResultadosVacios(cantidad = 1): AthF08Resultado[] {
+    const n = Math.max(1, Math.min(this.athF08MaxCursos, cantidad));
+    return Array.from({ length: n }, () => '' as AthF08Resultado);
   }
 
   private crearAthF08AcreditacionesVacias(): AthF08Acreditaciones {
@@ -16599,6 +17127,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       fecha: '',
       revision: '00',
       fechaRevision: '2026-02-09',
+      numColumnas: 1,
       cursos: [this.crearAthF08CursoVacio()],
       colaboradores: [this.crearAthF08ColaboradorVacio()]
     };
@@ -16636,26 +17165,44 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const cursosRaw = Array.isArray(raw?.cursos) ? raw.cursos : [];
     const colsRaw = Array.isArray(raw?.colaboradores) ? raw.colaboradores : [];
 
+    const pedidas = Number(raw?.numColumnas);
+    const preservarColumnas = (Number.isFinite(pedidas) && pedidas >= 1)
+      || cursosRaw.length > this.athF08CursosPlantilla;
     const cursosCompactos: AthF08Curso[] = [];
     const indicesOriginales: number[] = [];
-    cursosRaw.forEach((c: any, idx: number) => {
-      const curso = this.normalizarAthF08Curso(c);
-      if (!(curso.nombre || curso.fecha
-        || curso.acreditaciones.dc3 || curso.acreditaciones.diploma
-        || curso.acreditaciones.examen || curso.acreditaciones.otro)) {
-        return;
+    if (preservarColumnas) {
+      const tope = Number.isFinite(pedidas) && pedidas >= 1
+        ? Math.min(this.athF08MaxCursos, Math.max(1, Math.floor(pedidas)))
+        : this.athF08MaxCursos;
+      cursosRaw.slice(0, tope).forEach((c: any, idx: number) => {
+        cursosCompactos.push(this.normalizarAthF08Curso(c));
+        indicesOriginales.push(idx);
+      });
+      while (cursosCompactos.length < tope && Number.isFinite(pedidas)) {
+        cursosCompactos.push(this.crearAthF08CursoVacio());
+        indicesOriginales.push(cursosCompactos.length - 1);
       }
-      cursosCompactos.push(curso);
-      indicesOriginales.push(idx);
-    });
+    } else {
+      cursosRaw.forEach((c: any, idx: number) => {
+        const curso = this.normalizarAthF08Curso(c);
+        if (!(curso.nombre || curso.fecha
+          || curso.acreditaciones.dc3 || curso.acreditaciones.diploma
+          || curso.acreditaciones.examen || curso.acreditaciones.otro)) {
+          return;
+        }
+        cursosCompactos.push(curso);
+        indicesOriginales.push(idx);
+      });
+    }
     const cursos = cursosCompactos.slice(0, this.athF08MaxCursos);
+    const numColumnas = Math.max(cursos.length, 1);
 
     const colaboradores = colsRaw
       .map((c: any) => {
         const resultadosRaw = Array.isArray(c?.resultados) ? c.resultados : [];
         return {
           nombre: String(c?.nombre || '').trim(),
-          resultados: Array.from({ length: this.athF08MaxCursos }, (_, i) => {
+          resultados: Array.from({ length: numColumnas }, (_, i) => {
             const origen = indicesOriginales.length ? indicesOriginales[i] : i;
             if (origen === undefined) {
               return '' as AthF08Resultado;
@@ -16670,16 +17217,25 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       fecha: String(raw?.fecha || '').trim().slice(0, 10),
       revision: String(raw?.revision || base.revision).trim().padStart(2, '0').slice(0, 2),
       fechaRevision: String(raw?.fechaRevision || base.fechaRevision).trim().slice(0, 10),
+      numColumnas: cursos.length || 1,
       cursos: cursos.length ? cursos : [this.crearAthF08CursoVacio()],
       colaboradores: colaboradores.length ? colaboradores : [this.crearAthF08ColaboradorVacio()]
     };
   }
 
-  /** Índices de cursos con nombre (columnas visibles en la matriz). */
+  /** Todas las columnas de calificación, incluidas las recién agregadas. */
+  get columnasMatrizAthF08(): number[] {
+    return (this.athF08Form.cursos || []).map((_, idx) => idx);
+  }
+
+  /** Cursos que entran al cálculo: con nombre, o con alguna calificación capturada. */
   get cursosActivosIndicesAthF08(): number[] {
     return (this.athF08Form.cursos || [])
       .map((curso, idx) => ({ curso, idx }))
-      .filter((item) => !!String(item.curso?.nombre || '').trim())
+      .filter((item) => {
+        if (String(item.curso?.nombre || '').trim()) return true;
+        return (this.athF08Form.colaboradores || []).some((col) => !!col?.resultados?.[item.idx]);
+      })
       .map((item) => item.idx);
   }
 
@@ -16726,6 +17282,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     this.athF08Form.cursos.push(this.crearAthF08CursoVacio());
+    this.sincronizarResultadosConCursosAthF08();
     this.onAthF08Editado();
   }
 
@@ -16733,18 +17290,32 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.athF08Form.cursos.length <= 1) {
       this.athF08Form.cursos.splice(0, 1, this.crearAthF08CursoVacio());
       for (const col of this.athF08Form.colaboradores) {
-        col.resultados = this.crearAthF08ResultadosVacios();
+        col.resultados = this.crearAthF08ResultadosVacios(1);
       }
     } else {
       this.athF08Form.cursos.splice(index, 1);
       for (const col of this.athF08Form.colaboradores) {
         col.resultados.splice(index, 1);
-        while (col.resultados.length < this.athF08MaxCursos) {
-          col.resultados.push('');
-        }
       }
+      this.sincronizarResultadosConCursosAthF08();
     }
     this.onAthF08Editado();
+  }
+
+  private sincronizarResultadosConCursosAthF08(): void {
+    const n = Math.max(1, this.athF08Form.cursos.length);
+    this.athF08Form.numColumnas = n;
+    for (const col of this.athF08Form.colaboradores || []) {
+      if (!Array.isArray(col.resultados)) {
+        col.resultados = [];
+      }
+      while (col.resultados.length < n) {
+        col.resultados.push('');
+      }
+      if (col.resultados.length > n) {
+        col.resultados.splice(n);
+      }
+    }
   }
 
   private cargarCatalogoCursosAthF08(): void {
@@ -16877,7 +17448,33 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.athF08ColabComboAbierto === index) {
       return this.athF08ColabComboQuery;
     }
-    return String(this.athF08Form.colaboradores[index]?.nombre || '');
+    return this.nombreColabConSaltoAthF08(this.athF08Form.colaboradores[index]?.nombre);
+  }
+
+  /** Un salto de línea entre palabras para que el nombre no quede cortado. */
+  private nombreColabConSaltoAthF08(nombre: string): string {
+    const limpio = String(nombre || '').replace(/\s*[\r\n]+\s*/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!limpio) {
+      return '';
+    }
+    const partes = limpio.split(' ');
+    if (partes.length < 2) {
+      return limpio;
+    }
+    let corte = 1;
+    let mejor = Infinity;
+    for (let i = 1; i < partes.length; i++) {
+      const diff = Math.abs(partes.slice(0, i).join(' ').length - partes.slice(i).join(' ').length);
+      if (diff < mejor) {
+        mejor = diff;
+        corte = i;
+      }
+    }
+    return `${partes.slice(0, corte).join(' ')}\n${partes.slice(corte).join(' ')}`;
+  }
+
+  private nombreColabUnaLineaAthF08(nombre: string): string {
+    return String(nombre || '').replace(/\s*[\r\n]+\s*/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
   abrirComboCursoAthF08(index: number): void {
@@ -16889,7 +17486,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   abrirComboColabAthF08(index: number): void {
     this.cerrarComboCursoAthF08(true);
     this.athF08ColabComboAbierto = index;
-    this.athF08ColabComboQuery = String(this.athF08Form.colaboradores[index]?.nombre || '');
+    this.athF08ColabComboQuery = this.nombreColabUnaLineaAthF08(this.athF08Form.colaboradores[index]?.nombre);
   }
 
   onFiltroCursoAthF08(index: number, valor: string): void {
@@ -16899,7 +17496,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   onFiltroColabAthF08(index: number, valor: string): void {
     this.athF08ColabComboAbierto = index;
-    this.athF08ColabComboQuery = valor;
+    this.athF08ColabComboQuery = this.nombreColabUnaLineaAthF08(valor);
   }
 
   seleccionarCursoAthF08(index: number, nombre: string): void {
@@ -16918,7 +17515,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!col) {
       return;
     }
-    col.nombre = String(nombre || '').trim();
+    col.nombre = this.nombreColabUnaLineaAthF08(nombre);
     this.athF08ColabComboAbierto = null;
     this.athF08ColabComboQuery = '';
     this.onAthF08Editado();
@@ -17296,15 +17893,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           otro: !!(a.acreditaciones?.otro || b.acreditaciones?.otro)
         }
       } as AthF08Curso;
-    }).filter((c) => c.nombre || c.fecha
-      || c.acreditaciones.dc3 || c.acreditaciones.diploma
-      || c.acreditaciones.examen || c.acreditaciones.otro);
+    });
+    const cursosVisibles = cursos.slice(0, this.athF08MaxCursos);
 
     return {
       fecha: String(local.fecha || remoto.fecha || '').trim().slice(0, 10),
       revision: String(remoto.revision || local.revision || '00').trim().padStart(2, '0').slice(0, 2),
       fechaRevision: String(remoto.fechaRevision || local.fechaRevision || '').trim().slice(0, 10),
-      cursos: cursos.length ? cursos.slice(0, this.athF08MaxCursos) : [this.crearAthF08CursoVacio()],
+      numColumnas: cursosVisibles.length || 1,
+      cursos: cursosVisibles.length ? cursosVisibles : [this.crearAthF08CursoVacio()],
       colaboradores: preferirColabLocal
         ? (local.colaboradores?.length ? local.colaboradores : [this.crearAthF08ColaboradorVacio()])
         : (remoto.colaboradores?.length ? remoto.colaboradores : [this.crearAthF08ColaboradorVacio()])
@@ -19782,6 +20379,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleSgcF27Editor();
       return;
     }
+    if (this.plantillaSlug === 'sgc-f-27-medicion') {
+      this.toggleSgcF27MedicionEditor();
+      return;
+    }
     if (this.plantillaSlug === 'sgc-f-29') {
       this.toggleSgcF29Editor();
       return;
@@ -19909,6 +20510,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-27') {
       this.actualizarPlantillaSgcF27();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-27-medicion') {
+      this.actualizarPlantillaSgcF27Medicion();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-29') {
@@ -20587,7 +21192,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     'Seguir con las políticas, procedimientos y protocolos normativos en materia de seguridad e higiene establecidos.'
   ];
 
-  readonly athF02EscNiveles: ReadonlyArray<{ key: AthF02Perfil['escNivel']; label: string }> = [
+  readonly athF02EscNiveles: ReadonlyArray<{
+    key: 'primaria' | 'secundaria' | 'bachillerato' | 'tecnico' | 'tsu' | 'licenciatura' | 'especialidad' | 'maestria' | 'otro';
+    label: string;
+  }> = [
     { key: 'primaria', label: 'Primaria' },
     { key: 'secundaria', label: 'Secundaria' },
     { key: 'bachillerato', label: 'Bachillerato' },
@@ -20640,6 +21248,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       bachillerato: false,
       tecnico: false,
       tsu: false,
+      tsuEn: '',
       licenciatura: false,
       licenciaturaEn: '',
       especialidad: false,
@@ -20718,6 +21327,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       bachillerato: !!raw.bachillerato,
       tecnico: !!raw.tecnico,
       tsu: !!raw.tsu,
+      tsuEn: String(raw.tsuEn || (raw as any).tsu_en || (raw as any).tsuText || '').trim(),
       licenciatura: !!raw.licenciatura,
       licenciaturaEn: String(raw.licenciaturaEn || (raw as any).licText || '').trim(),
       especialidad: !!raw.especialidad,
@@ -20827,6 +21437,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       : [];
     const esc = this.normalizarEscAthF02(raw.esc || (raw as any).escolaridad);
     const escNivel = this.resolverEscNivelAthF02(raw, esc);
+    const nivelUnico = this.athF02EscNiveles.find((n) => n.key === escNivel);
+    if (nivelUnico && !this.athF02EscNiveles.some((n) => esc[n.key])) {
+      esc[nivelUnico.key] = true;
+    }
     const experiencias = this.resolverExperienciasAthF02(raw);
     const experiencia = experiencias[0] || this.expAthF02Vacia();
     const edadLegacy = this.normalizarOpcionAthF02(raw.edad, ['', 'minima', 'maxima', 'indistinto']);
@@ -20845,7 +21459,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       areaDepartamento: String(raw.areaDepartamento || (raw as any).area_departamento || '').trim(),
       puestoAlQueReporta: String(raw.puestoAlQueReporta || (raw as any).puesto_al_que_reporta || '').trim(),
       puestosQueLeReportan: String(raw.puestosQueLeReportan || (raw as any).puestos_que_le_reportan || '').trim(),
-      objetivo: String(raw.objetivo || '').trim(),
+      objetivo: this.colapsarTextoRepetidoAthF02(raw.objetivo),
       funciones: funcionesRaw.length ? funcionesRaw : [''],
       edad: edadIndistinto ? 'indistinto' : '',
       edadMinima,
@@ -20859,13 +21473,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       experiencias,
       experienciaIzq: experiencias,
       experienciaDer: this.filasExpAthF02(),
-      formacionCompetenciasTecnicas: String(
-        raw.formacionCompetenciasTecnicas || (raw as any).formacion_competencias_tecnicas || ''
-      ).trim(),
-      habilidadesBlandas: String(raw.habilidadesBlandas || (raw as any).habilidades_blandas || '').trim(),
-      conocimientoEquipoOperacion: String(
-        raw.conocimientoEquipoOperacion || (raw as any).conocimiento_equipo_operacion || ''
-      ).trim(),
+      formacionCompetenciasTecnicas: this.colapsarTextoRepetidoAthF02(
+        raw.formacionCompetenciasTecnicas || (raw as any).formacion_competencias_tecnicas
+      ),
+      habilidadesBlandas: this.colapsarTextoRepetidoAthF02(
+        raw.habilidadesBlandas || (raw as any).habilidades_blandas
+      ),
+      conocimientoEquipoOperacion: this.colapsarTextoRepetidoAthF02(
+        raw.conocimientoEquipoOperacion || (raw as any).conocimiento_equipo_operacion
+      ),
       requerimientos: {
         computadora: normReq('computadora'),
         software: normReq('software'),
@@ -20941,6 +21557,115 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.athF02Vista = 'editor';
     this.onAthF02Editado();
     this.programarAutosizeAthF02();
+  }
+
+  onImportarExcelAthF02(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    input.value = '';
+    if (!archivo || this.athF02Importando) {
+      return;
+    }
+    const nombre = String(archivo.name || '');
+    if (!/\.xlsx$/i.test(nombre)) {
+      void Swal.fire({
+        icon: 'warning',
+        title: 'Archivo no válido',
+        text: 'Selecciona un Excel .xlsx con el formato ATH-F-02.',
+        confirmButtonColor: '#15a596'
+      });
+      return;
+    }
+    if (archivo.size > 25 * 1024 * 1024) {
+      void Swal.fire({
+        icon: 'warning',
+        title: 'Archivo muy grande',
+        text: 'El Excel no puede superar 25 MB.',
+        confirmButtonColor: '#15a596'
+      });
+      return;
+    }
+
+    const lector = new FileReader();
+    lector.onload = () => {
+      const resultado = lector.result;
+      if (typeof resultado !== 'string') {
+        return;
+      }
+      const base64 = resultado.split(',')[1] || '';
+      if (!base64) {
+        void Swal.fire({
+          icon: 'error',
+          title: 'No se pudo leer el archivo',
+          text: 'Vuelve a seleccionar el Excel.',
+          confirmButtonColor: '#15a596'
+        });
+        return;
+      }
+      this.athF02Importando = true;
+      this.backendService.importarExcelAthF02(base64, nombre)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.athF02Importando = false;
+            const importados = Array.isArray(res?.importados) ? res.importados : [];
+            this.aplicarEstadoAthF02(res, false, false, true);
+            this.athF02CambiosPendientes = false;
+            if (importados.length === 1) {
+              const perfil = (this.athF02Form.perfiles || []).find((p) => p.id === importados[0].id);
+              if (perfil) {
+                this.abrirPerfilAthF02(perfil);
+              }
+            } else {
+              this.volverArchiveroAthF02();
+            }
+            void Swal.fire({
+              icon: 'success',
+              title: 'Excel importado',
+              text: this.mensajeImportacionAthF02(importados),
+              confirmButtonColor: '#15a596'
+            });
+          },
+          error: (err) => {
+            this.athF02Importando = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se importó el Excel',
+              text: err?.error?.message || 'No se pudo recuperar la información del formato.',
+              confirmButtonColor: '#15a596'
+            });
+          }
+        });
+    };
+    lector.onerror = () => {
+      void Swal.fire({
+        icon: 'error',
+        title: 'No se pudo leer el archivo',
+        text: 'Vuelve a seleccionar el Excel.',
+        confirmButtonColor: '#15a596'
+      });
+    };
+    lector.readAsDataURL(archivo);
+  }
+
+  private mensajeImportacionAthF02(importados: Array<{ puesto?: string; accion?: string }>): string {
+    const creados = importados.filter((item) => item.accion === 'creado');
+    const actualizados = importados.filter((item) => item.accion === 'actualizado');
+    const etiqueta = (item: { puesto?: string }) => item.puesto || 'sin puesto';
+    if (creados.length === 1 && !actualizados.length) {
+      return `Se creó el perfil «${etiqueta(creados[0])}» y se guardó en una hoja nueva de Excel.`;
+    }
+    if (actualizados.length === 1 && !creados.length) {
+      return `Se actualizó el perfil «${etiqueta(actualizados[0])}» y se sincronizó su hoja de Excel.`;
+    }
+    const partes: string[] = [];
+    if (creados.length) {
+      partes.push(`${creados.length} perfil${creados.length === 1 ? '' : 'es'} nuevo${creados.length === 1 ? '' : 's'}`);
+    }
+    if (actualizados.length) {
+      partes.push(`${actualizados.length} actualizado${actualizados.length === 1 ? '' : 's'}`);
+    }
+    return `Se importaron ${partes.join(' y ')}. La información quedó guardada en Excel.`;
   }
 
   abrirPerfilAthF02(perfil: AthF02Perfil): void {
@@ -21161,6 +21886,95 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.onAthF02Editado();
   }
 
+  /** El mismo párrafo repetido (celda combinada leída por cada fila) queda en una sola copia. */
+  private colapsarTextoRepetidoAthF02(texto: unknown): string {
+    const limpio = String(texto || '').replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    if (!limpio) {
+      return '';
+    }
+    const compactar = (s: string) => s.replace(/\s+/g, ' ').trim();
+    const lineas = limpio.split('\n').map((l) => l.trim()).filter(Boolean);
+    if (lineas.length >= 2) {
+      const n = lineas.length;
+      for (let size = 1; size <= Math.floor(n / 2); size++) {
+        if (n % size !== 0) {
+          continue;
+        }
+        let repetido = true;
+        for (let i = 0; i < n; i++) {
+          if (compactar(lineas[i]) !== compactar(lineas[i % size])) {
+            repetido = false;
+            break;
+          }
+        }
+        if (repetido) {
+          return lineas.slice(0, size).join('\n');
+        }
+      }
+    }
+    const plano = compactar(limpio);
+    for (const veces of [3, 2]) {
+      if (plano.length < 40 || plano.length % veces !== 0) {
+        continue;
+      }
+      const n = plano.length / veces;
+      const chunk = plano.slice(0, n).trim();
+      if (!chunk || chunk.length < 20) {
+        continue;
+      }
+      const partes: string[] = [];
+      for (let i = 0; i < veces; i++) {
+        partes.push(plano.slice(i * n, (i + 1) * n).trim());
+      }
+      if (partes.every((p) => p === chunk)) {
+        return chunk;
+      }
+    }
+    return limpio;
+  }
+
+  filasCompetenciaAthF02(texto: string): number {
+    return Math.max(4, this.filasTextoAjustadas(String(texto || ''), 36, 24));
+  }
+
+  onAthF02EscToggle(
+    key: 'primaria' | 'secundaria' | 'bachillerato' | 'tecnico' | 'tsu' | 'licenciatura' | 'especialidad' | 'maestria' | 'otro',
+    marcado: boolean
+  ): void {
+    const perfil = this.athF02PerfilActivo;
+    if (!perfil) {
+      return;
+    }
+    perfil.esc[key] = !!marcado;
+    const activos = this.athF02EscNiveles.filter((n) => perfil.esc[n.key]).map((n) => n.key);
+    perfil.escNivel = activos[0] || '';
+    this.onAthF02Editado();
+  }
+
+  resumenObjetivoAthF02(perfil: AthF02Perfil | null | undefined): string {
+    return String(perfil?.objetivo || '').replace(/\s+/g, ' ').trim();
+  }
+
+  contarFuncionesAthF02(perfil: AthF02Perfil | null | undefined): number {
+    return (perfil?.funciones || []).map((f) => String(f || '').trim()).filter(Boolean).length;
+  }
+
+  resumenEscolaridadAthF02(perfil: AthF02Perfil | null | undefined): string {
+    return this.athF02EscNiveles
+      .filter((n) => perfil?.esc?.[n.key])
+      .map((n) => n.label)
+      .join(', ');
+  }
+
+  resumenExperienciaAthF02(perfil: AthF02Perfil | null | undefined): string {
+    const filas = (perfil?.experiencias || []).filter((e) => String(e?.enQue || '').trim() || String(e?.tiempo || '').trim());
+    if (!filas.length) {
+      return '';
+    }
+    const primera = [filas[0].enQue, filas[0].tiempo].map((v) => String(v || '').trim()).filter(Boolean).join(' · ');
+    return filas.length > 1 ? `${primera} (+${filas.length - 1})` : primera;
+  }
+
   onAthF02EdadValorChange(): void {
     if (!this.athF02PerfilActivo || this.athF02PerfilActivo.edadIndistinto) {
       return;
@@ -21176,13 +21990,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     perfil.experiencia = perfil.experiencias[0] || this.expAthF02Vacia();
     perfil.experienciaIzq = [...perfil.experiencias];
     perfil.experienciaDer = this.filasExpAthF02();
-    const boolKeys: Array<'primaria' | 'secundaria' | 'bachillerato' | 'tecnico' | 'tsu' | 'licenciatura' | 'especialidad' | 'maestria' | 'otro'> = [
-      'primaria', 'secundaria', 'bachillerato', 'tecnico', 'tsu',
-      'licenciatura', 'especialidad', 'maestria', 'otro'
-    ];
-    boolKeys.forEach((key) => {
-      perfil.esc[key] = perfil.escNivel === key;
-    });
+    const activos = this.athF02EscNiveles.filter((n) => perfil.esc?.[n.key]).map((n) => n.key);
+    perfil.escNivel = activos[0] || '';
     perfil.edad = perfil.edadIndistinto ? 'indistinto' : '';
   }
 

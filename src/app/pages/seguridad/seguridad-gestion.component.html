@@ -1,0 +1,169 @@
+<div class="header header-bg-image seg-hero pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative seg-hero__inner">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="seg-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i class="fas fa-folder-open" aria-hidden="true"></i>
+          </div>
+          <p class="text-white mb-1 seg-hero-tagline">Seguridad e Higiene</p>
+          <h1 class="text-white mb-0 seg-hero-title">Gestión de Normativas</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid seg-main-wrap mt--5">
+  <div class="seg-panel ges-panel" *ngIf="!esDetalle">
+    <header class="ges-head">
+      <div>
+        <h2>Normativas asignadas</h2>
+        <p>Aquí se trabaja lo que ya se publicó desde Asignación. Suba la evidencia de cada punto.</p>
+      </div>
+      <a class="btn ges-btn" routerLink="/seguridad/asignacion">Asignar normativas</a>
+    </header>
+
+    <div class="ges-tools">
+      <div class="seg-search ges-search">
+        <i class="fas fa-search" aria-hidden="true"></i>
+        <input type="search" [(ngModel)]="busqueda" placeholder="Empresa, clave, título o responsable…" aria-label="Buscar asignaciones">
+      </div>
+      <div class="ges-chips">
+        <button type="button" [class.is-on]="!empresaFiltro" (click)="elegirEmpresa(null)">Todas</button>
+        <button type="button" *ngFor="let emp of empresas" [class.is-on]="empresaFiltro === emp.empresa_id" (click)="elegirEmpresa(emp.empresa_id)">
+          {{ emp.nombre_empresa }}
+        </button>
+      </div>
+    </div>
+
+    <div class="ges-loading" *ngIf="cargando"><i class="fas fa-spinner fa-spin"></i> Cargando gestión…</div>
+    <p class="ges-empty" *ngIf="error">{{ error }}</p>
+    <div class="ges-empty" *ngIf="!cargando && !error && gruposEmpresa.length === 0">
+      <p>Todavía no hay normativas asignadas.</p>
+      <a routerLink="/seguridad/asignacion">Crear la primera asignación</a>
+    </div>
+
+    <section class="ges-empresa" *ngFor="let grupo of gruposEmpresa">
+      <h3>{{ grupo.nombre }}</h3>
+      <div class="ges-grid">
+        <button type="button" class="ges-card" *ngFor="let item of grupo.items" (click)="abrir(item)">
+          <span class="ges-card__code">{{ item.codigo }}</span>
+          <span class="ges-card__title">{{ item.titulo }}</span>
+          <span class="ges-card__people">
+            <span *ngFor="let resp of item.responsables">{{ resp.nombre }}</span>
+          </span>
+          <span class="ges-bar"><span [style.width.%]="avance(item)"></span></span>
+          <span class="ges-card__meta">{{ item.puntos_con_evidencia }}/{{ item.puntos_asignados }} puntos con evidencia · {{ item.documentos }} archivos</span>
+        </button>
+      </div>
+    </section>
+  </div>
+
+  <div class="seg-panel ges-panel" *ngIf="esDetalle && detalle as det">
+    <header class="ges-detail-head">
+      <button type="button" class="ges-back" (click)="volver()"><i class="fas fa-arrow-left"></i> Volver</button>
+      <div>
+        <p class="ges-kicker">{{ det.asignacion.empresa_nombre }}</p>
+        <h2>{{ det.asignacion.codigo }}</h2>
+        <p>{{ det.asignacion.titulo }}</p>
+        <div class="ges-card__people">
+          <span *ngFor="let resp of det.asignacion.responsables">{{ resp.nombre }}</span>
+        </div>
+      </div>
+      <div class="ges-detail-actions">
+        <div class="ges-stat">
+          <strong>{{ avance(det.asignacion) }}%</strong>
+          <span>{{ det.asignacion.puntos_con_evidencia }} de {{ det.puntos.length }} con evidencia</span>
+        </div>
+        <button type="button" class="btn ges-btn-ghost" (click)="archivar()">Retirar</button>
+      </div>
+    </header>
+
+    <section class="ges-general">
+      <div>
+        <h3>Documentos de la normativa</h3>
+        <p>Archivos que cubren la norma completa, además de la evidencia de cada punto.</p>
+      </div>
+      <label class="ges-upload">
+        <input type="file" (change)="subir(null, $event)" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.zip" [disabled]="subiendo === 'general'">
+        <i class="fas" [class.fa-cloud-upload-alt]="subiendo !== 'general'" [class.fa-spinner]="subiendo === 'general'" [class.fa-spin]="subiendo === 'general'"></i>
+        {{ subiendo === 'general' ? 'Subiendo…' : 'Subir archivo' }}
+      </label>
+      <ul class="ges-docs">
+        <li *ngFor="let doc of det.documentos_generales">
+          <button type="button" (click)="descargar(doc)"><i class="fas fa-file"></i> {{ doc.nombre_original }}</button>
+          <small>{{ peso(doc.tamano) }}</small>
+          <button type="button" class="ges-x" (click)="eliminarDoc(doc)" aria-label="Quitar"><i class="fas fa-times"></i></button>
+        </li>
+      </ul>
+    </section>
+
+    <div class="seg-search ges-search ges-search--solo">
+      <i class="fas fa-search" aria-hidden="true"></i>
+      <input type="search" [(ngModel)]="busquedaPunto" placeholder="Buscar un punto asignado…" aria-label="Buscar puntos">
+    </div>
+
+    <div class="ges-caps" *ngIf="busquedaPunto.trim().length < 2 && !capituloAbierto">
+      <button type="button" class="ges-cap" *ngFor="let cap of capitulos()" (click)="abrirCapitulo(cap.clave)">
+        <span>Capítulo</span>
+        <strong>{{ cap.clave }}</strong>
+        <em>{{ cap.conEvidencia }} de {{ cap.total }} con evidencia</em>
+      </button>
+    </div>
+
+    <div class="ges-cap-nav" *ngIf="capituloAbierto && busquedaPunto.trim().length < 2">
+      <button type="button" (click)="capituloAbierto = null"><i class="fas fa-arrow-left"></i> Capítulos</button>
+      <strong>Capítulo {{ capituloAbierto }}</strong>
+    </div>
+
+    <ng-container *ngIf="busquedaPunto.trim().length >= 2; else seccionesTpl">
+      <article class="ges-punto" *ngFor="let punto of resultados()">
+        <ng-container *ngTemplateOutlet="puntoTpl; context: { $implicit: punto }"></ng-container>
+      </article>
+      <p class="ges-empty" *ngIf="resultados().length === 0">Ningún punto coincide.</p>
+    </ng-container>
+    <ng-template #seccionesTpl>
+      <section class="ges-sec" *ngFor="let sec of secciones()">
+        <button type="button" class="ges-sec__head" (click)="toggleSeccion(sec.clave)">
+          <i class="fas" [class.fa-chevron-down]="sec.abierto" [class.fa-chevron-right]="!sec.abierto"></i>
+          {{ sec.clave }}
+          <small>{{ sec.puntos.length }} puntos</small>
+        </button>
+        <div *ngIf="sec.abierto">
+          <article class="ges-punto" *ngFor="let punto of sec.puntos">
+            <ng-container *ngTemplateOutlet="puntoTpl; context: { $implicit: punto }"></ng-container>
+          </article>
+        </div>
+      </section>
+    </ng-template>
+
+    <ng-template #puntoTpl let-punto>
+      <div class="ges-punto__top">
+        <strong>{{ punto.punto_norma || '—' }}</strong>
+        <span>{{ punto.descripcion || 'Sin descripción' }}</span>
+        <em *ngIf="punto.tipo_evidencia">{{ punto.tipo_evidencia }}</em>
+      </div>
+      <div class="ges-punto__files">
+        <ul>
+          <li *ngFor="let doc of punto.documentos">
+            <button type="button" (click)="descargar(doc)">{{ doc.nombre_original }}</button>
+            <small>{{ peso(doc.tamano) }}</small>
+            <button type="button" class="ges-x" (click)="eliminarDoc(doc)" aria-label="Quitar documento"><i class="fas fa-times"></i></button>
+          </li>
+        </ul>
+        <label class="ges-upload ges-upload--mini">
+          <input type="file" (change)="subir(punto.id, $event)" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.zip" [disabled]="subiendo === '' + punto.id">
+          {{ subiendo === '' + punto.id ? 'Subiendo…' : 'Subir evidencia' }}
+        </label>
+      </div>
+    </ng-template>
+  </div>
+
+  <div class="seg-panel ges-panel" *ngIf="esDetalle && cargandoDetalle">
+    <div class="ges-loading"><i class="fas fa-spinner fa-spin"></i> Abriendo normativa…</div>
+  </div>
+  <div class="seg-panel ges-panel" *ngIf="esDetalle && error && !detalle && !cargandoDetalle">
+    <p class="ges-empty">{{ error }}</p>
+  </div>
+</div>

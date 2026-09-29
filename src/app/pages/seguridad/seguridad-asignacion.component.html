@@ -1,0 +1,337 @@
+<div class="header header-bg-image seg-hero pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative seg-hero__inner">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="seg-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i class="fas fa-tasks" aria-hidden="true"></i>
+          </div>
+          <p class="text-white mb-1 seg-hero-tagline">Seguridad e Higiene</p>
+          <h1 class="text-white mb-0 seg-hero-title">Asignación de Normativas</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid seg-main-wrap mt--5">
+  <div class="seg-panel asig-panel">
+    <div class="asig-top">
+      <ol class="asig-pasos" aria-label="Pasos de la asignación">
+        <li *ngFor="let nombre of pasos; let i = index">
+          <button type="button"
+                  class="asig-pasos__btn"
+                  [class.is-active]="paso === i"
+                  [class.is-done]="paso > i"
+                  (click)="irAPaso(i)">
+            <span class="asig-pasos__n">{{ paso > i ? '✓' : i + 1 }}</span>
+            {{ nombre }}
+          </button>
+        </li>
+      </ol>
+      <div class="asig-save" [class.is-error]="estadoGuardado === 'error'" [class.is-ok]="estadoGuardado === 'guardado'">
+        <i class="fas"
+           [class.fa-check-circle]="estadoGuardado === 'guardado'"
+           [class.fa-circle-notch]="estadoGuardado === 'guardando' || estadoGuardado === 'pendiente'"
+           [class.fa-spin]="estadoGuardado === 'guardando' || estadoGuardado === 'pendiente'"
+           [class.fa-exclamation-circle]="estadoGuardado === 'error'"
+           [class.fa-save]="estadoGuardado === 'limpio'"
+           aria-hidden="true"></i>
+        <span>{{ textoGuardado }}</span>
+      </div>
+    </div>
+
+    <div class="asig-banner" *ngIf="avisoRecuperado">
+      <i class="fas fa-history" aria-hidden="true"></i>
+      {{ avisoRecuperado }}
+    </div>
+
+    <!-- Empresa -->
+    <section class="asig-step" *ngIf="paso === 0">
+      <header class="asig-step__head">
+        <h2>Empresa</h2>
+        <p>Elija la empresa del sistema a la que se aplicarán las normativas. El avance queda ligado a esa empresa.</p>
+      </header>
+
+      <div class="asig-field">
+        <label for="buscar-empresa">Buscar empresa</label>
+        <div class="asig-combo" [class.is-open]="mostrarDropdownEmpresa">
+          <i class="fas fa-search" aria-hidden="true"></i>
+          <input id="buscar-empresa"
+                 type="text"
+                 [(ngModel)]="busquedaEmpresa"
+                 (input)="filtrarEmpresas()"
+                 (click)="mostrarEmpresas()"
+                 (focus)="mostrarEmpresas()"
+                 (blur)="ocultarDropdownEmpresa()"
+                 placeholder="Nombre, RFC o ciudad…"
+                 autocomplete="off">
+          <button type="button" class="asig-combo__clear" *ngIf="empresa" (mousedown)="limpiarEmpresa(); $event.preventDefault()" aria-label="Quitar empresa">
+            <i class="fas fa-times" aria-hidden="true"></i>
+          </button>
+          <div class="asig-combo__list" *ngIf="mostrarDropdownEmpresa">
+            <button type="button" *ngFor="let emp of empresasFiltradas" (mousedown)="seleccionarEmpresa(emp)">
+              <span class="asig-avatar">{{ iniciales(emp.nombre_empresa) }}</span>
+              <span>
+                <strong>{{ emp.nombre_empresa }}</strong>
+                <small *ngIf="emp.ciudad || emp.estado || emp.rfc">
+                  {{ emp.rfc }}<span *ngIf="emp.rfc && (emp.ciudad || emp.estado)"> · </span>{{ emp.ciudad }}<span *ngIf="emp.ciudad && emp.estado">, </span>{{ emp.estado }}
+                </small>
+              </span>
+            </button>
+            <p class="asig-combo__empty" *ngIf="!cargandoEmpresas && empresasFiltradas.length === 0">No hay empresas con ese dato.</p>
+          </div>
+        </div>
+        <p class="asig-hint" *ngIf="cargandoEmpresas">Cargando empresas…</p>
+      </div>
+
+      <article class="asig-empresa-card" *ngIf="empresa">
+        <span class="asig-avatar asig-avatar--lg">{{ iniciales(empresa.nombre_empresa) }}</span>
+        <div>
+          <h3>{{ empresa.nombre_empresa }}</h3>
+          <p>{{ empresa.rfc || 'Sin RFC' }}<span *ngIf="empresa.ciudad || empresa.estado"> · {{ empresa.ciudad }}<span *ngIf="empresa.ciudad && empresa.estado">, </span>{{ empresa.estado }}</span></p>
+        </div>
+      </article>
+    </section>
+
+    <!-- Normativas -->
+    <section class="asig-step" *ngIf="paso === 1">
+      <header class="asig-step__head">
+        <h2>Normativas a aplicar</h2>
+        <p>El catálogo completo cabe aquí aunque haya decenas de normas. Marque solo las que aplican a {{ empresa?.nombre_empresa }}.</p>
+      </header>
+
+      <div class="asig-norma-tools">
+        <div class="seg-search asig-search">
+          <i class="fas fa-search" aria-hidden="true"></i>
+          <input type="search" [(ngModel)]="busquedaNorma" (ngModelChange)="aplicarFiltroNormas()" placeholder="Clave o título…" aria-label="Buscar normativas">
+        </div>
+        <button type="button" class="btn btn-sm asig-btn-ghost" (click)="seleccionarVisibles()" [disabled]="!catalogoFiltrado.length">
+          Marcar visibles
+        </button>
+        <span class="asig-count">{{ normas.length }} seleccionada{{ normas.length === 1 ? '' : 's' }}</span>
+      </div>
+
+      <div class="asig-chips" role="group" aria-label="Grupo de normativas">
+        <button type="button" class="seg-chip" [class.seg-chip--active]="!categoriaActiva" (click)="categoriaActiva = ''; aplicarFiltroNormas()">
+          Todas <span class="seg-chip__count">{{ catalogo.length }}</span>
+        </button>
+        <button type="button" class="seg-chip" *ngFor="let cat of categorias" [class.seg-chip--active]="categoriaActiva === cat.id" (click)="seleccionarCategoria(cat.id)">
+          NOM {{ cat.prefijo }} <span class="seg-chip__count">{{ contarPorCategoria(cat.id) }}</span>
+        </button>
+      </div>
+
+      <div class="asig-loading" *ngIf="cargandoCatalogo"><i class="fas fa-spinner fa-spin"></i> Cargando catálogo…</div>
+      <div class="asig-norma-grid" *ngIf="!cargandoCatalogo">
+        <button type="button"
+                class="asig-norma"
+                *ngFor="let item of catalogoFiltrado"
+                [class.is-on]="estaSeleccionada(item.id)"
+                (click)="toggleNorma(item)">
+          <span class="asig-norma__check" aria-hidden="true"><i class="fas" [class.fa-check]="estaSeleccionada(item.id)"></i></span>
+          <span class="asig-norma__code">{{ item.codigo }}</span>
+          <span class="asig-norma__title">{{ item.titulo }}</span>
+          <span class="asig-norma__meta">
+            {{ item.total_requisitos || 0 }} puntos
+            <em *ngIf="publicadasIds.has(item.id)">En gestión</em>
+          </span>
+        </button>
+      </div>
+      <p class="asig-empty" *ngIf="!cargandoCatalogo && catalogoFiltrado.length === 0">No hay normativas con ese filtro. Impórtelas desde el catálogo de Normativas.</p>
+    </section>
+
+    <!-- Responsables -->
+    <section class="asig-step" *ngIf="paso === 2">
+      <header class="asig-step__head">
+        <h2>Responsables</h2>
+        <p>Una persona puede cubrir varias normativas. Cada normativa admite como máximo 2 empleados de {{ empresa?.nombre_empresa }}.</p>
+      </header>
+      <p class="asig-hint" *ngIf="cargandoEmpleados">Cargando empleados…</p>
+      <p class="asig-empty" *ngIf="!cargandoEmpleados && empleados.length === 0">Esta empresa no tiene empleados activos. Regístrelos en Empleados y vuelva; el resto del borrador se conserva.</p>
+
+      <div class="asig-resp" *ngFor="let norma of normas">
+        <div class="asig-resp__info">
+          <strong>{{ norma.codigo }}</strong>
+          <span>{{ norma.titulo }}</span>
+        </div>
+        <div class="asig-resp__slots">
+          <div class="asig-chip" *ngFor="let emp of norma.empleados">
+            <span class="asig-avatar">{{ iniciales(emp.nombre) }}</span>
+            <span>
+              <strong>{{ emp.nombre }}</strong>
+              <small *ngIf="emp.puesto">{{ emp.puesto }}</small>
+            </span>
+            <button type="button" (click)="quitarResponsable(norma, emp.empleado_id)" aria-label="Quitar responsable"><i class="fas fa-times"></i></button>
+          </div>
+
+          <div class="asig-combo asig-combo--inline" *ngIf="norma.empleados.length < 2" [class.is-open]="comboRespId === norma.normativa_id">
+            <i class="fas fa-user" aria-hidden="true"></i>
+            <input type="text"
+                   [ngModel]="busquedaResp[norma.normativa_id]"
+                   (ngModelChange)="busquedaResp[norma.normativa_id] = $event"
+                   (focus)="abrirResp(norma)"
+                   (click)="abrirResp(norma)"
+                   (blur)="cerrarResp()"
+                   placeholder="Buscar empleado…"
+                   autocomplete="off"
+                   [attr.aria-label]="'Responsable de ' + norma.codigo">
+            <div class="asig-combo__list" *ngIf="comboRespId === norma.normativa_id">
+              <button type="button" *ngFor="let emp of empleadosFiltrados(norma)" (mousedown)="agregarResponsable(norma, emp)">
+                <span class="asig-avatar">{{ iniciales(emp.nombre) }}</span>
+                <span><strong>{{ emp.nombre }}</strong><small *ngIf="emp.puesto">{{ emp.puesto }}</small></span>
+              </button>
+              <p class="asig-combo__empty" *ngIf="empleadosFiltrados(norma).length === 0">Sin coincidencias.</p>
+            </div>
+          </div>
+          <span class="asig-resp__max" *ngIf="norma.empleados.length === 2">2 de 2</span>
+          <button type="button" class="asig-link" *ngIf="norma.empleados.length && normas.length > 1" (click)="copiarResponsables(norma)">
+            Usar en las demás
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Puntos -->
+    <section class="asig-step asig-step--puntos" *ngIf="paso === 3">
+      <header class="asig-step__head">
+        <h2>Puntos que aplican</h2>
+        <p>Trabaje una norma a la vez. Los capítulos agrupan cientos de puntos para no recorrerlos todos de golpe.</p>
+      </header>
+
+      <div class="asig-puntos">
+        <aside class="asig-rail" aria-label="Normativas seleccionadas">
+          <button type="button"
+                  class="asig-rail__item"
+                  *ngFor="let norma of normas"
+                  [class.is-active]="norma.normativa_id === normaActivaId"
+                  (click)="abrirNormaPuntos(norma)">
+            <span class="asig-rail__code">{{ norma.codigo }}</span>
+            <span class="asig-rail__bar">
+              <span [style.width.%]="norma.total_requisitos ? (norma.requisito_ids.length / norma.total_requisitos) * 100 : 0"></span>
+            </span>
+            <span class="asig-rail__meta" [class.is-warn]="!norma.requisito_ids.length">
+              {{ norma.requisito_ids.length }} seleccionados
+            </span>
+          </button>
+        </aside>
+
+        <div class="asig-puntos__main" *ngIf="normaActiva as norma">
+          <div class="asig-puntos__head">
+            <div>
+              <h3>{{ norma.codigo }}</h3>
+              <p>{{ norma.titulo }}</p>
+            </div>
+            <div class="asig-puntos__actions">
+              <button type="button" class="btn btn-sm asig-btn-ghost" (click)="seleccionarTodosPuntos(norma)" [disabled]="!puntosActivos.length">Marcar todos</button>
+              <button type="button" class="btn btn-sm asig-btn-ghost" (click)="limpiarPuntos(norma)" [disabled]="!norma.requisito_ids.length">Quitar marcas</button>
+            </div>
+          </div>
+
+          <div class="seg-search asig-search">
+            <i class="fas fa-search" aria-hidden="true"></i>
+            <input type="search"
+                   [(ngModel)]="busquedaPunto"
+                   placeholder="Buscar punto, texto o tipo de evidencia…"
+                   aria-label="Buscar puntos">
+          </div>
+
+          <div class="asig-loading" *ngIf="cargandoPuntos"><i class="fas fa-spinner fa-spin"></i> Cargando puntos…</div>
+          <p class="asig-empty" *ngIf="errorPuntos">{{ errorPuntos }}</p>
+
+          <ng-container *ngIf="!cargandoPuntos && !errorPuntos">
+            <div class="asig-resultados" *ngIf="busquedaPunto.trim().length >= 2; else mapaCapitulos">
+              <div class="asig-resultados__bar">
+                <span>{{ totalCoincidencias(norma) }} coincidencias</span>
+                <button type="button" class="asig-link" (click)="toggleGrupo(norma, resultadosBusqueda(norma))">Marcar estas</button>
+              </div>
+              <p class="asig-hint" *ngIf="totalCoincidencias(norma) > 80">Se muestran las primeras 80. Afine la búsqueda para ver el resto.</p>
+              <label class="asig-punto" *ngFor="let punto of resultadosBusqueda(norma)">
+                <input type="checkbox" [checked]="estaPunto(norma, punto.id)" (change)="togglePunto(norma, punto.id)">
+                <span class="asig-punto__id">{{ punto.punto_norma || '—' }}</span>
+                <span class="asig-punto__txt">{{ punto.descripcion || 'Sin descripción' }}</span>
+                <span class="asig-punto__tag" *ngIf="punto.tipo_evidencia">{{ punto.tipo_evidencia }}</span>
+              </label>
+              <p class="asig-empty" *ngIf="totalCoincidencias(norma) === 0">Nada coincide con esa búsqueda.</p>
+            </div>
+
+            <ng-template #mapaCapitulos>
+              <div class="asig-caps" *ngIf="!capituloAbierto; else detalleCap">
+                <button type="button" class="asig-cap" *ngFor="let cap of capitulos(norma)" (click)="abrirCapitulo(cap.clave)">
+                  <span class="asig-cap__kicker">Capítulo</span>
+                  <strong>{{ cap.clave }}</strong>
+                  <span class="asig-cap__meta">{{ cap.seleccionados }} de {{ cap.total }}</span>
+                  <span class="asig-rail__bar"><span [style.width.%]="cap.total ? (cap.seleccionados / cap.total) * 100 : 0"></span></span>
+                </button>
+                <p class="asig-empty" *ngIf="capitulos(norma).length === 0">Esta normativa todavía no tiene puntos en el catálogo.</p>
+              </div>
+              <ng-template #detalleCap>
+                <div class="asig-cap-nav">
+                  <button type="button" class="asig-link" (click)="volverCapitulos()"><i class="fas fa-arrow-left"></i> Capítulos</button>
+                  <strong>Capítulo {{ capituloAbierto }}</strong>
+                  <button type="button" class="asig-link" (click)="toggleGrupo(norma, puntosDelCapitulo(norma))">Marcar capítulo</button>
+                </div>
+                <div class="asig-sec" *ngFor="let sec of seccionesCapitulo(norma)">
+                  <div class="asig-sec__head">
+                    <button type="button" (click)="toggleSeccion(sec.clave)">
+                      <i class="fas" [class.fa-chevron-down]="sec.abierto" [class.fa-chevron-right]="!sec.abierto"></i>
+                      {{ sec.clave }}
+                      <small>{{ sec.seleccionados }}/{{ sec.puntos.length }}</small>
+                    </button>
+                    <button type="button" class="asig-link" (click)="toggleGrupo(norma, sec.puntos)">
+                      {{ sec.seleccionados === sec.puntos.length ? 'Quitar sección' : 'Marcar sección' }}
+                    </button>
+                  </div>
+                  <div class="asig-sec__body" *ngIf="sec.abierto">
+                    <label class="asig-punto" *ngFor="let punto of sec.puntos">
+                      <input type="checkbox" [checked]="estaPunto(norma, punto.id)" (change)="togglePunto(norma, punto.id)">
+                      <span class="asig-punto__id">{{ punto.punto_norma || '—' }}</span>
+                      <span class="asig-punto__txt">{{ punto.descripcion || 'Sin descripción' }}</span>
+                      <span class="asig-punto__tag" *ngIf="punto.tipo_evidencia">{{ punto.tipo_evidencia }}</span>
+                    </label>
+                  </div>
+                </div>
+              </ng-template>
+            </ng-template>
+          </ng-container>
+        </div>
+      </div>
+    </section>
+
+    <!-- Publicar -->
+    <section class="asig-step" *ngIf="paso === 4">
+      <header class="asig-step__head">
+        <h2>Revisar y publicar</h2>
+        <p>Al publicar, {{ empresa?.nombre_empresa }} verá estas normativas en Gestión, listas para cargar documentos.</p>
+      </header>
+      <div class="asig-resumen">
+        <article *ngFor="let norma of normas">
+          <header>
+            <strong>{{ norma.codigo }}</strong>
+            <span [class.is-warn]="norma.empleados.length < 1 || !norma.requisito_ids.length">
+              {{ norma.requisito_ids.length }} puntos
+            </span>
+          </header>
+          <p>{{ norma.titulo }}</p>
+          <div class="asig-resumen__people">
+            <span *ngFor="let emp of norma.empleados">{{ emp.nombre }}</span>
+            <span class="is-warn" *ngIf="!norma.empleados.length">Sin responsable</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <footer class="asig-footer">
+      <button type="button" class="btn asig-btn-ghost" (click)="anterior()" [disabled]="paso === 0">Anterior</button>
+      <div class="asig-footer__mid">
+        <span *ngIf="paso === 1">{{ normas.length }} normativas</span>
+        <span *ngIf="paso === 2">{{ normasSinResponsable() }} sin responsable</span>
+        <span *ngIf="paso === 3">{{ totalPuntosMarcados() }} puntos · {{ normasSinPuntos() }} normas pendientes</span>
+      </div>
+      <button type="button" class="btn asig-btn-primary" *ngIf="paso < 4" (click)="siguiente()">Continuar</button>
+      <button type="button" class="btn asig-btn-primary" *ngIf="paso === 4" (click)="publicar()" [disabled]="publicando">
+        <i class="fas fa-spinner fa-spin" *ngIf="publicando"></i>
+        {{ publicando ? 'Publicando…' : 'Publicar en gestión' }}
+      </button>
+    </footer>
+  </div>
+</div>

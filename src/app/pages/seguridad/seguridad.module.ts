@@ -5,6 +5,8 @@ import { RouterModule, Routes } from '@angular/router';
 import { RoleGuard } from 'src/app/guards/role.guard';
 import { SeguridadNormativasComponent } from './seguridad-normativas.component';
 import { SeguridadNormativaDetalleComponent } from './seguridad-normativa-detalle.component';
+import { SeguridadAsignacionComponent } from './seguridad-asignacion.component';
+import { SeguridadGestionComponent } from './seguridad-gestion.component';
 
 const routes: Routes = [
   {
@@ -23,6 +25,24 @@ const routes: Routes = [
     component: SeguridadNormativaDetalleComponent,
     canActivate: [RoleGuard],
     data: { roles: [] }
+  },
+  {
+    path: 'asignacion',
+    component: SeguridadAsignacionComponent,
+    canActivate: [RoleGuard],
+    data: { roles: [] }
+  },
+  {
+    path: 'gestion',
+    component: SeguridadGestionComponent,
+    canActivate: [RoleGuard],
+    data: { roles: [] }
+  },
+  {
+    path: 'gestion/:id',
+    component: SeguridadGestionComponent,
+    canActivate: [RoleGuard],
+    data: { roles: [] }
   }
 ];
 
@@ -34,7 +54,9 @@ const routes: Routes = [
   ],
   declarations: [
     SeguridadNormativasComponent,
-    SeguridadNormativaDetalleComponent
+    SeguridadNormativaDetalleComponent,
+    SeguridadAsignacionComponent,
+    SeguridadGestionComponent
   ]
 })
 export class SeguridadModule {}

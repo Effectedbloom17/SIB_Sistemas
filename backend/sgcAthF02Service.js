@@ -56,8 +56,9 @@ const ESC_ROWS = {
 const ESC_MARKS = {
     primaria: { row: 54, col: 7 },
     secundaria: { row: 54, col: 13 },
-    bachillerato: { row: 54, col: 20 },
-    tecnico: { row: 54, col: 26 },
+    // La X va en la casilla, no sobre la etiqueta (Bachillerato está en T54, Técnico en Z54).
+    bachillerato: { row: 54, col: 19 },
+    tecnico: { row: 54, col: 25 },
     tsu: { row: 56, col: 7 },
     licenciatura: { row: 56, col: 13 },
     licText: { row: 56, col: 20 },
@@ -66,8 +67,20 @@ const ESC_MARKS = {
     maestria: { row: 60, col: 7 },
     // Texto "En:" de maestría en M60 (master del merge M:Q).
     maestText: { row: 60, col: 13 },
-    otro: { row: 60, col: 20 }
+    // Casilla de Otro en S60. La palabra "Otro" vive en el merge T60:U60 y no se debe borrar.
+    otro: { row: 60, col: 19 }
 };
+const ESC_ETIQUETAS = {
+    bachillerato: { row: 54, col: 20, texto: 'Bachillerato' },
+    tecnico: { row: 54, col: 26, texto: 'Técnico' },
+    otro: { row: 60, col: 20, texto: 'Otro' }
+};
+/** "En:" de TSU (J56, entre la etiqueta y la casilla de licenciatura). */
+const ESC_TSU_EN = { row: 56, col: 10 };
+/** Texto "En:" de Otro, en el merge V60:AB60. */
+const ESC_OTRO_EN = { row: 60, col: 22 };
+/** Última fila vacía de la plantilla antes de Edad (fila 48). */
+const FUNCIONES_HUECO_FIN = 47;
 const ESC_MARK_CELLS = [
     ESC_MARKS.primaria,
     ESC_MARKS.secundaria,
@@ -249,6 +262,39 @@ function normalizarSaltos(texto) {
         .trim();
 }
 
+/** Quita el mismo párrafo repetido 2 o 3 veces (efecto de leer una celda combinada por cada fila). */
+function colapsarTextoRepetido(texto) {
+    const limpio = normalizarSaltos(texto);
+    if (!limpio) return '';
+    const compactar = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+    const lineas = limpio.split('\n').map((l) => l.trim()).filter(Boolean);
+    if (lineas.length >= 2) {
+        const n = lineas.length;
+        for (let size = 1; size <= Math.floor(n / 2); size++) {
+            if (n % size !== 0) continue;
+            let repetido = true;
+            for (let i = 0; i < n; i++) {
+                if (compactar(lineas[i]) !== compactar(lineas[i % size])) {
+                    repetido = false;
+                    break;
+                }
+            }
+            if (repetido) return lineas.slice(0, size).join('\n');
+        }
+    }
+    const plano = compactar(limpio);
+    for (const veces of [3, 2]) {
+        if (plano.length < 40 || plano.length % veces !== 0) continue;
+        const n = plano.length / veces;
+        const chunk = plano.slice(0, n).trim();
+        if (!chunk || chunk.length < 20) continue;
+        const partes = [];
+        for (let i = 0; i < veces; i++) partes.push(plano.slice(i * n, (i + 1) * n).trim());
+        if (partes.every((p) => p === chunk)) return chunk;
+    }
+    return limpio;
+}
+
 function celdaATexto(valor) {
     if (valor === null || valor === undefined) return '';
     if (valor instanceof Date) return formatearFechaIso(valor);
@@ -344,21 +390,14 @@ function sanitizarRequerimiento(raw) {
 function sanitizarEscolaridad(raw) {
     const base = raw && typeof raw === 'object' ? raw : {};
     const niveles = ['primaria', 'secundaria', 'bachillerato', 'tecnico', 'tsu', 'licenciatura', 'especialidad', 'maestria', 'otro'];
-    let nivel = String(base.nivel || base.escNivel || '').trim().toLowerCase();
-    if (!nivel) {
-        for (const n of niveles) {
-            if (base[n]) {
-                nivel = n;
-                break;
-            }
-        }
-    }
+    const algunoMarcado = niveles.some((n) => base[n] === true || base[n] === 1 || base[n] === 'X');
     const out = {
         primaria: false,
         secundaria: false,
         bachillerato: false,
         tecnico: false,
         tsu: false,
+        tsuEn: normalizarSaltos(base.tsuEn || base.tsu_en || base.tsuText || ''),
         licenciatura: false,
         licText: normalizarSaltos(base.licText || base.lic_text || base.licenciaturaEn || ''),
         especialidad: false,
@@ -366,8 +405,15 @@ function sanitizarEscolaridad(raw) {
         maestria: false,
         maestText: normalizarSaltos(base.maestText || base.maest_text || base.maestriaEn || ''),
         otro: false,
-        otroDetalle: normalizarSaltos(base.otroDetalle || base.otro_detalle || '')
+        otroDetalle: normalizarSaltos(base.otroDetalle || base.otro_detalle || base.otroEn || '')
     };
+    if (algunoMarcado) {
+        niveles.forEach((n) => {
+            out[n] = !!(base[n] === true || base[n] === 1 || base[n] === 'X');
+        });
+        return out;
+    }
+    let nivel = String(base.nivel || base.escNivel || '').trim().toLowerCase();
     if (niveles.includes(nivel)) {
         out[nivel] = true;
     }
@@ -510,7 +556,7 @@ function sanitizarPerfil(raw) {
         areaDepartamento: String(base.areaDepartamento || base.area_departamento || '').trim(),
         puestoAlQueReporta: normalizarSaltos(base.puestoAlQueReporta || base.puesto_al_que_reporta || ''),
         puestosQueLeReportan: normalizarSaltos(base.puestosQueLeReportan || base.puestos_que_le_reportan || ''),
-        objetivo: normalizarSaltos(base.objetivo || ''),
+        objetivo: colapsarTextoRepetido(base.objetivo || ''),
         funciones: sanitizarFunciones(base.funciones),
         edad,
         edadMinima,
@@ -536,11 +582,11 @@ function sanitizarPerfil(raw) {
             0,
             EXP_ITEM_DEFECTO
         ).slice(0, MAX_EXP_FILAS),
-        formacionCompetenciasTecnicas: normalizarSaltos(
+        formacionCompetenciasTecnicas: colapsarTextoRepetido(
             base.formacionCompetenciasTecnicas || base.formacion_competencias_tecnicas || ''
         ),
-        habilidadesBlandas: normalizarSaltos(base.habilidadesBlandas || base.habilidades_blandas || ''),
-        conocimientoEquipoOperacion: normalizarSaltos(
+        habilidadesBlandas: colapsarTextoRepetido(base.habilidadesBlandas || base.habilidades_blandas || ''),
+        conocimientoEquipoOperacion: colapsarTextoRepetido(
             base.conocimientoEquipoOperacion || base.conocimiento_equipo_operacion || ''
         ),
         requerimientos: {
@@ -736,13 +782,31 @@ function leerRango(ws, config) {
     return '';
 }
 
+function esContinuacionDeMerge(ws, row, col) {
+    const merges = ws && ws._merges ? ws._merges : {};
+    for (const key of Object.keys(merges)) {
+        const raw = merges[key];
+        const m = raw && raw.model ? raw.model : raw;
+        const top = Number(m && m.top);
+        const bottom = Number(m && m.bottom);
+        const left = Number(m && m.left);
+        const right = Number(m && m.right);
+        if (row > top && row <= bottom && col >= left && col <= right) return true;
+    }
+    return false;
+}
+
 function leerBloqueFilas(ws, config) {
     const lineas = [];
     for (let row = config.startRow; row <= config.endRow; row++) {
+        // Una celda combinada repite el mismo valor en cada fila; solo cuenta la fila maestra.
+        if (esContinuacionDeMerge(ws, row, config.startCol)) continue;
         const texto = leerRango(ws, { startRow: row, endRow: row, startCol: config.startCol, endCol: config.endCol });
-        if (texto) lineas.push(texto);
+        if (!texto) continue;
+        if (lineas.length && lineas[lineas.length - 1] === texto) continue;
+        lineas.push(texto);
     }
-    return normalizarSaltos(lineas.join('\n'));
+    return colapsarTextoRepetido(lineas.join('\n'));
 }
 
 function leerEdadDesdeHoja(ws) {
@@ -802,7 +866,15 @@ function leerEscolaridadDesdeHoja(ws) {
             }
         }
     });
-    return esc;
+    // Versiones previas escribían la X encima de la etiqueta y borraban el texto.
+    Object.entries(ESC_ETIQUETAS).forEach(([key, pos]) => {
+        if (leerMarca(leerCelda(ws, pos.row, pos.col))) esc[key] = true;
+    });
+    const tsuEn = leerCelda(ws, ESC_TSU_EN.row, ESC_TSU_EN.col);
+    if (tsuEn && !/^en:?$/i.test(tsuEn)) esc.tsuEn = tsuEn;
+    const otroEn = leerCelda(ws, ESC_OTRO_EN.row, ESC_OTRO_EN.col);
+    if (otroEn && !/^otro$/i.test(otroEn) && !leerMarca(otroEn)) esc.otroDetalle = otroEn;
+    return sanitizarEscolaridad(esc);
 }
 
 function leerExperienciaLado(ws, rows, layout) {
@@ -1018,15 +1090,29 @@ function pushEscolaridad(actualizaciones, esc, sheetTitle) {
             pushUpdate(actualizaciones, pos.row, pos.col, marcaCheckbox(!!limpio[key]), sheetTitle);
         }
     });
+    pushUpdate(actualizaciones, ESC_TSU_EN.row, ESC_TSU_EN.col, limpio.tsuEn || '', sheetTitle);
+    pushUpdate(actualizaciones, ESC_OTRO_EN.row, ESC_OTRO_EN.col, limpio.otroDetalle || '', sheetTitle);
+    Object.values(ESC_ETIQUETAS).forEach((pos) => {
+        pushUpdate(actualizaciones, pos.row, pos.col, pos.texto, sheetTitle);
+    });
 }
 
 function pushBloqueTexto(actualizaciones, config, texto, sheetTitle) {
-    const lineas = normalizarSaltos(texto).split('\n');
-    const totalFilas = config.endRow - config.startRow + 1;
-    for (let i = 0; i < totalFilas; i++) {
-        const row = config.startRow + i;
-        pushUpdate(actualizaciones, row, config.startCol, lineas[i] || '', sheetTitle);
-    }
+    // Objetivo y competencias son un merge vertical: el texto completo va solo en la fila maestra.
+    // Escribir las líneas siguientes las mete dentro del merge y Sheets solo enseña la primera.
+    const limpio = colapsarTextoRepetido(texto);
+    pushUpdate(actualizaciones, config.startRow, config.startCol, limpio, sheetTitle);
+}
+
+/** Deja una sola fila vacía debajo de la última función y borra el hueco hasta Edad. */
+function calcularCompactacionFunciones(cantidad) {
+    const usadas = Math.max(0, Math.min(MAX_FUNCIONES, Math.floor(Number(cantidad) || 0)));
+    if (!usadas) return { deleteFrom: 0, numDelete: 0 };
+    const ultima = CELLS.funciones.startRow + usadas - 1;
+    const deleteFrom1 = ultima + 2;
+    const numDelete = FUNCIONES_HUECO_FIN - deleteFrom1 + 1;
+    if (numDelete <= 0) return { deleteFrom: 0, numDelete: 0 };
+    return { deleteFrom: deleteFrom1 - 1, numDelete };
 }
 
 function pushRelaciones(actualizaciones, startRow, endRow, relaciones, sheetTitle) {
@@ -1217,9 +1303,63 @@ function pushBordesFilaRelacion(requests, sheetId, row1Based) {
     });
 }
 
-async function aplicarFormatoPerfilAthF02(spreadsheetId, sheetTitle, layout) {
+function lineasVisuales(texto, charsPorLinea) {
+    const chars = Math.max(20, charsPorLinea);
+    return String(texto || '').split('\n').reduce((total, linea) => {
+        const largo = String(linea || '').trim().length;
+        return total + Math.max(1, Math.ceil((largo || 1) / chars));
+    }, 0);
+}
+
+function pushWrap(requests, sheetId, startRow, endRow, startCol, endCol) {
+    requests.push({
+        repeatCell: {
+            range: {
+                sheetId,
+                startRowIndex: startRow - 1,
+                endRowIndex: endRow,
+                startColumnIndex: startCol - 1,
+                endColumnIndex: endCol
+            },
+            cell: {
+                userEnteredFormat: {
+                    wrapStrategy: 'WRAP',
+                    verticalAlignment: 'MIDDLE'
+                }
+            },
+            fields: 'userEnteredFormat(wrapStrategy,verticalAlignment)'
+        }
+    });
+}
+
+function pushAltoFilas(requests, sheetId, startRow, endRow, pixelSize) {
+    const px = Math.max(16, Math.min(80, Math.round(pixelSize)));
+    requests.push({
+        updateDimensionProperties: {
+            range: {
+                sheetId,
+                dimension: 'ROWS',
+                startIndex: startRow - 1,
+                endIndex: endRow
+            },
+            properties: { pixelSize: px },
+            fields: 'pixelSize'
+        }
+    });
+}
+
+function pushAltoBloqueTexto(requests, sheetId, config, texto, charsPorLinea) {
+    const filas = config.endRow - config.startRow + 1;
+    const lineas = lineasVisuales(texto, charsPorLinea);
+    const totalPx = Math.max(filas * 16, lineas * 18 + 8);
+    pushWrap(requests, sheetId, config.startRow, config.endRow, config.startCol, config.endCol);
+    pushAltoFilas(requests, sheetId, config.startRow, config.endRow, totalPx / filas);
+}
+
+async function aplicarFormatoPerfilAthF02(spreadsheetId, sheetTitle, layout, perfil) {
     if (!spreadsheetId || !sheetTitle) return null;
     const L = layout || calcularLayoutRelaciones(0, 0);
+    const p = perfil || {};
     const hojas = await driveService.obtenerMetadatosHojasGoogleSheet(spreadsheetId);
     const hoja = (hojas || []).find((h) => String(h.title || '').trim() === String(sheetTitle).trim());
     const sheetId = hoja?.sheetId;
@@ -1402,6 +1542,86 @@ async function aplicarFormatoPerfilAthF02(spreadsheetId, sheetTitle, layout) {
         }
     });
 
+    // Ajuste de texto: puestos que le reportan, competencias y relaciones.
+    const puestosTexto = String(p.puestosQueLeReportan || '');
+    pushWrap(requests, sheetId, CELLS.puestosQueLeReportan.row, CELLS.puestosQueLeReportan.row,
+        CELLS.puestosQueLeReportan.startCol, CELLS.puestosQueLeReportan.endCol);
+    if (puestosTexto.length > 40) {
+        pushAltoFilas(
+            requests,
+            sheetId,
+            CELLS.puestosQueLeReportan.row,
+            CELLS.puestosQueLeReportan.row,
+            Math.min(64, 20 + Math.ceil(puestosTexto.length / 42) * 16)
+        );
+    }
+    pushAltoBloqueTexto(requests, sheetId, CELLS.formacion, p.formacionCompetenciasTecnicas, 90);
+    pushAltoBloqueTexto(requests, sheetId, CELLS.habilidades, p.habilidadesBlandas, 90);
+    pushAltoBloqueTexto(requests, sheetId, CELLS.conocimiento, p.conocimientoEquipoOperacion, 90);
+
+    const tsuEn = String(p.esc?.tsuEn || '').trim();
+    if (tsuEn) {
+        requests.push({
+            unmergeCells: {
+                range: {
+                    sheetId,
+                    startRowIndex: ESC_TSU_EN.row - 1,
+                    endRowIndex: ESC_TSU_EN.row,
+                    startColumnIndex: ESC_TSU_EN.col - 1,
+                    endColumnIndex: 12
+                }
+            }
+        });
+        requests.push({
+            mergeCells: {
+                range: {
+                    sheetId,
+                    startRowIndex: ESC_TSU_EN.row - 1,
+                    endRowIndex: ESC_TSU_EN.row,
+                    startColumnIndex: ESC_TSU_EN.col - 1,
+                    endColumnIndex: 12
+                },
+                mergeType: 'MERGE_ALL'
+            }
+        });
+        pushWrap(requests, sheetId, ESC_TSU_EN.row, ESC_TSU_EN.row, ESC_TSU_EN.col, 12);
+    }
+    pushWrap(requests, sheetId, ESC_OTRO_EN.row, ESC_OTRO_EN.row, ESC_OTRO_EN.col, 28);
+
+    const internas = Array.isArray(p.relacionesInternas) ? p.relacionesInternas : [];
+    const externas = Array.isArray(p.relacionesExternas) ? p.relacionesExternas : [];
+    if (L.internasEnd >= L.internasStart) {
+        pushWrap(requests, sheetId, L.internasStart, L.internasEnd, 1, 29);
+        internas.forEach((rel, idx) => {
+            if (idx >= L.internasCount) return;
+            const largo = Math.max(String(rel?.actor || '').length, String(rel?.motivo || '').length);
+            if (largo > 42) {
+                pushAltoFilas(
+                    requests,
+                    sheetId,
+                    L.internasStart + idx,
+                    L.internasStart + idx,
+                    Math.min(72, 18 + Math.ceil(largo / 48) * 16)
+                );
+            }
+        });
+    }
+    if (L.externasEnd >= L.externasStart) {
+        pushWrap(requests, sheetId, L.externasStart, L.externasEnd, 1, 29);
+        externas.forEach((rel, idx) => {
+            if (idx >= L.externasCount) return;
+            const largo = Math.max(String(rel?.actor || '').length, String(rel?.motivo || '').length);
+            if (largo > 42) {
+                pushAltoFilas(
+                    requests,
+                    sheetId,
+                    L.externasStart + idx,
+                    L.externasStart + idx,
+                    Math.min(72, 18 + Math.ceil(largo / 48) * 16)
+                );
+            }
+        });
+    }
     // Centra horizontalmente las X de escolaridad (y el texto En de maestría).
     const centros = [
         ...ESC_MARK_CELLS,
@@ -1449,12 +1669,14 @@ async function aplicarFormatoPerfilAthF02(spreadsheetId, sheetTitle, layout) {
 async function escribirPerfilEnHoja(spreadsheetId, sheetTitle, perfil, meta) {
     const p = sanitizarPerfil(perfil);
     const layout = layoutDesdePerfil(p);
+    let sheetIdPerfil = null;
 
     // Inserta filas extras (si >3 internas/externas) antes de escribir valores.
     try {
         const hojas = await driveService.obtenerMetadatosHojasGoogleSheet(spreadsheetId);
         const hoja = (hojas || []).find((h) => String(h.title || '').trim() === String(sheetTitle).trim());
         if (hoja?.sheetId != null) {
+            sheetIdPerfil = hoja.sheetId;
             await asegurarFilasRelacionesAthF02(spreadsheetId, hoja.sheetId, layout);
         }
     } catch (err) {
@@ -1467,7 +1689,7 @@ async function escribirPerfilEnHoja(spreadsheetId, sheetTitle, perfil, meta) {
         await driveService.actualizarCeldasGoogleSheet(spreadsheetId, actualizaciones.slice(i, i + CHUNK));
     }
     try {
-        await aplicarFormatoPerfilAthF02(spreadsheetId, sheetTitle, layout);
+        await aplicarFormatoPerfilAthF02(spreadsheetId, sheetTitle, layout, p);
     } catch (err) {
         console.warn(`[ATH-F-02] No se pudo aplicar formato a "${sheetTitle}":`, err.message);
     }
@@ -1479,6 +1701,20 @@ async function escribirPerfilEnHoja(spreadsheetId, sheetTitle, perfil, meta) {
         );
     } catch (err) {
         console.warn(`[ATH-F-02] No se pudo restaurar pie de "${sheetTitle}":`, err.message);
+    }
+    // El hueco de funciones está arriba de Edad: borrarlo al final desplaza el resto junto con sus datos.
+    const compactacion = calcularCompactacionFunciones((p.funciones || []).length);
+    if (sheetIdPerfil != null && compactacion.numDelete > 0) {
+        try {
+            await driveService.eliminarFilasGoogleSheet(
+                spreadsheetId,
+                sheetIdPerfil,
+                compactacion.deleteFrom,
+                compactacion.numDelete
+            );
+        } catch (err) {
+            console.warn(`[ATH-F-02] No se pudo compactar funciones en "${sheetTitle}":`, err.message);
+        }
     }
     return spreadsheetId;
 }
@@ -1786,6 +2022,133 @@ async function cargarFormato(pool) {
     return construirRespuesta(registro, datos, archivoDrive, {
         hojaEditor: resolverNombreHojaPerfil(resolverPerfilActivo(datos))
     });
+}
+
+function clavePuestoAthF02(perfil) {
+    return String(perfil?.puesto || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+}
+
+function hojaImportableAthF02(perfil) {
+    const puesto = String(perfil?.puesto || '').trim();
+    const area = String(perfil?.areaDepartamento || '').trim();
+    return !!(puesto || area) && perfilTieneContenido(perfil);
+}
+
+async function leerPerfilesDesdeExcelBuffer(buffer) {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer);
+    const encontrados = [];
+    for (const ws of wb.worksheets || []) {
+        if (!ws || ws.state === 'hidden' || ws.state === 'veryHidden') continue;
+        let parsed;
+        try {
+            parsed = parsearDatosDesdeHoja(ws);
+        } catch (err) {
+            console.warn(`[ATH-F-02] No se pudo leer la hoja "${ws.name}":`, err.message);
+            continue;
+        }
+        if (!hojaImportableAthF02(parsed?.perfil)) continue;
+        encontrados.push({
+            hoja: String(ws.name || '').trim(),
+            perfil: sanitizarPerfil({
+                ...parsed.perfil,
+                pdfFirmado: null,
+                nombreHoja: ''
+            })
+        });
+    }
+    return encontrados;
+}
+
+async function importarExcelPerfiles(pool, body = {}) {
+    const crudo = String(body.excelBase64 || body.excel_base64 || '').trim();
+    const limpio = crudo.replace(/^data:.*;base64,/i, '').replace(/\s+/g, '');
+    if (!limpio) {
+        const error = new Error('Selecciona un archivo Excel (.xlsx) del formato ATH-F-02.');
+        error.statusCode = 400;
+        throw error;
+    }
+    let buffer;
+    try {
+        buffer = Buffer.from(limpio, 'base64');
+    } catch {
+        const error = new Error('No se pudo leer el archivo Excel.');
+        error.statusCode = 400;
+        throw error;
+    }
+    if (!buffer.length || buffer[0] !== 0x50 || buffer[1] !== 0x4b) {
+        const error = new Error('El archivo debe ser un Excel .xlsx con el formato ATH-F-02.');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    let encontrados;
+    try {
+        encontrados = await leerPerfilesDesdeExcelBuffer(buffer);
+    } catch (err) {
+        const error = new Error('No se pudo leer el Excel. Usa el formato ATH-F-02 (.xlsx).');
+        error.statusCode = 400;
+        throw error;
+    }
+    if (!encontrados.length) {
+        const error = new Error(
+            'El Excel no tiene un perfil con puesto o área. Llena el formato ATH-F-02 y vuelve a importarlo.'
+        );
+        error.statusCode = 400;
+        throw error;
+    }
+
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+    const perfiles = [...(datos.perfiles || [])];
+    const importados = [];
+
+    for (const item of encontrados) {
+        const clave = clavePuestoAthF02(item.perfil);
+        const idx = clave ? perfiles.findIndex((p) => clavePuestoAthF02(p) === clave) : -1;
+        if (idx >= 0) {
+            const previo = perfiles[idx];
+            perfiles[idx] = sanitizarPerfil({
+                ...item.perfil,
+                id: previo.id,
+                pdfFirmado: previo.pdfFirmado,
+                nombreHoja: previo.nombreHoja || ''
+            });
+            importados.push({
+                id: perfiles[idx].id,
+                puesto: perfiles[idx].puesto || perfiles[idx].areaDepartamento,
+                accion: 'actualizado'
+            });
+            continue;
+        }
+        const creado = sanitizarPerfil({
+            ...item.perfil,
+            id: nuevoId(),
+            pdfFirmado: null,
+            nombreHoja: ''
+        });
+        perfiles.unshift(creado);
+        importados.push({
+            id: creado.id,
+            puesto: creado.puesto || creado.areaDepartamento,
+            accion: 'creado'
+        });
+    }
+
+    const respuesta = await guardarFormato(pool, {
+        datos: {
+            ...datos,
+            perfiles,
+            perfilActivoId: importados[0]?.id || datos.perfilActivoId
+        },
+        origen: 'sistema'
+    });
+    return { ...respuesta, importados };
 }
 
 async function guardarFormato(pool, body, options = {}) {
@@ -2122,6 +2485,8 @@ module.exports = {
     DATOS_DEFECTO,
     cargarFormato,
     guardarFormato,
+    importarExcelPerfiles,
+    leerPerfilesDesdeExcelBuffer,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
     subirPdfFirmado,

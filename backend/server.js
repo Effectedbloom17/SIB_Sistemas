@@ -759,6 +759,18 @@ const uploadSeguridadNormativa = multer({
     }
 });
 
+/** Evidencias de Gestión de Normativas (PDF, Office, imágenes y ZIP). */
+const uploadSeguridadAsignacionDoc = multer({
+    storage: storageMemory,
+    limits: { fileSize: 25 * 1024 * 1024 },
+    fileFilter: function (req, file, cb) {
+        const ext = path.extname(String(file.originalname || '')).toLowerCase();
+        const ok = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg', '.webp', '.zip'];
+        if (ok.includes(ext)) return cb(null, true);
+        return cb(new Error('Formato no permitido. Use PDF, Word, Excel, imagen o ZIP.'));
+    }
+});
+
 /** Reemplazo de normativas SGC (solo PDF). */
 const uploadSgcNormativa = multer({
     storage: storageMemory,
@@ -1949,6 +1961,7 @@ async function initializePoolNormativas() {
     const seguridadNormativasService = require('./seguridadNormativasService');
     await seguridadNormativasService.asegurarTablas(poolNormativas);
     await seguridadNormativasService.asegurarHistorialImportacionInicial(poolNormativas);
+    await require('./seguridadAsignacionService').asegurarTablas(poolNormativas);
     startupLog.detail(`  Tablas de normativas verificadas en ${DB_NAME_NORMATIVAS}`);
 }
 
@@ -25659,6 +25672,148 @@ app.delete('/api/seguridad/normativas/:id', requireAdmin, async (req, res) => {
     }
 });
 
+// ── Seguridad · Asignación y gestión de normativas por empresa ──
+const seguridadAsignacionService = require('./seguridadAsignacionService');
+
+function responderErrorSeguridadAsignacion(res, error, fallback) {
+    const status = error.status || 500;
+    if (status !== 500) {
+        return res.status(status).json({ success: false, message: error.message });
+    }
+    return handleError(res, error, fallback);
+}
+
+app.get('/api/seguridad/asignacion/estado', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const estado = await seguridadAsignacionService.obtenerEstado(poolNormativas, req.query.empresa_id);
+        res.json({ success: true, ...estado });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al recuperar la asignación');
+    }
+});
+
+app.put('/api/seguridad/asignacion/borrador', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const guardado = await seguridadAsignacionService.guardarBorrador(
+            poolNormativas,
+            req.body?.empresa_id,
+            req.body?.payload,
+            req.user
+        );
+        res.json({ success: true, ...guardado });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al guardar el borrador');
+    }
+});
+
+app.get('/api/seguridad/asignacion/puntos/:normativaId', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const puntos = await seguridadAsignacionService.listarPuntos(poolNormativas, req.params.normativaId);
+        res.json({ success: true, puntos });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al cargar los puntos de la normativa');
+    }
+});
+
+app.post('/api/seguridad/asignacion/publicar', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const resultado = await seguridadAsignacionService.publicar(
+            poolNormativas,
+            pool,
+            req.body || {},
+            req.user
+        );
+        res.json({
+            success: true,
+            message: `Asignación publicada para ${resultado.empresa_nombre}.`,
+            ...resultado
+        });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al publicar la asignación');
+    }
+});
+
+app.get('/api/seguridad/asignacion/documentos/:docId', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const doc = await seguridadAsignacionService.leerDocumento(poolNormativas, req.params.docId);
+        res.setHeader('Content-Type', doc.mime);
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(doc.nombre)}`);
+        fs.createReadStream(doc.path).pipe(res);
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al descargar el documento');
+    }
+});
+
+app.delete('/api/seguridad/asignacion/documentos/:docId', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        await seguridadAsignacionService.eliminarDocumento(poolNormativas, req.params.docId);
+        res.json({ success: true, message: 'Documento eliminado.' });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al eliminar el documento');
+    }
+});
+
+app.get('/api/seguridad/asignacion', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const asignaciones = await seguridadAsignacionService.listarGestion(
+            poolNormativas,
+            req.query.empresa_id
+        );
+        res.json({ success: true, asignaciones });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al listar la gestión de normativas');
+    }
+});
+
+app.get('/api/seguridad/asignacion/:id', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const detalle = await seguridadAsignacionService.obtenerGestion(poolNormativas, req.params.id);
+        res.json({ success: true, ...detalle });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al abrir la normativa asignada');
+    }
+});
+
+app.post(
+    '/api/seguridad/asignacion/:id/documentos',
+    authMiddleware,
+    denyEmpresa,
+    uploadSeguridadAsignacionDoc.single('archivo'),
+    async (req, res) => {
+        try {
+            await poolNormativasReady;
+            const documento = await seguridadAsignacionService.guardarDocumento(
+                poolNormativas,
+                req.params.id,
+                req.file,
+                req.body?.requisito_id,
+                req.user
+            );
+            res.json({ success: true, message: 'Documento cargado.', documento });
+        } catch (error) {
+            responderErrorSeguridadAsignacion(res, error, 'Error al subir el documento');
+        }
+    }
+);
+
+app.post('/api/seguridad/asignacion/:id/archivar', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        await seguridadAsignacionService.archivarAsignacion(poolNormativas, req.params.id);
+        res.json({ success: true, message: 'La normativa se retiró de la gestión de esta empresa.' });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al archivar la asignación');
+    }
+});
+
 // ── Normativas oficiales (PDF en Drive) ──
 const sgcNormativasService = require('./sgcNormativasService');
 
@@ -25807,6 +25962,7 @@ const sgcF09Service = require('./sgcF09Service');
 const sgcF10Service = require('./sgcF10Service');
 const sgcF14Service = require('./sgcF14Service');
 const sgcF25Service = require('./sgcF25Service');
+const sgcF27MedicionService = require('./sgcF27MedicionService');
 const sgcF03Service = require('./sgcF03Service');
 const sgcF16Service = require('./sgcF16Service');
 const sgcF24Service = require('./sgcF24Service');
@@ -27312,6 +27468,121 @@ app.post('/api/sgc/formatos/sgc-f-25/asegurar-acceso', requireAdminOrSgc, async 
     }
 });
 
+app.get('/api/sgc/formatos/sgc-f-27-medicion', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF27MedicionService.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato SGC-F-27 de verificación');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-27-medicion/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF27MedicionService.guardarFormato(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'Formato SGC-F-27 guardado correctamente.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato SGC-F-27 de verificación');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-27-medicion/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF27MedicionService.sincronizarDesdeDrive(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'SGC-F-27 sincronizado desde Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo sincronizar SGC-F-27 de verificación');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-27-medicion/actualizar-plantilla', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF27MedicionService.actualizarPlantillaDesdeSistema(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Plantilla SGC-F-27 de verificación verificada.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo actualizar la plantilla SGC-F-27 de verificación');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-27-medicion/asegurar-acceso', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF27MedicionService.asegurarAccesoEditor(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Acceso al editor SGC-F-27 asegurado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo asegurar el acceso al editor SGC-F-27 de verificación');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-27-medicion/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcF27MedicionService.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="SGC-F-27 Reporte de verificacion de equipos de medicion.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-27 de verificación');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-27-medicion/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF27MedicionService.subirPdfFirmado(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'PDF firmado de SGC-F-27 subido a Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo subir el PDF firmado de SGC-F-27');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-27-medicion/eliminar-pdf-historial', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const puedeBorrarHistorial = userRoles.includes('root') || esGestorCalidadSgc(req);
+        const payload = await sgcF27MedicionService.eliminarPdfHistorial(poolBiznagaSgc, req.body || {}, {
+            puedeBorrarHistorial
+        });
+        return res.json({
+            success: true,
+            message: 'PDF eliminado del historial de SGC-F-27.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo eliminar el PDF del historial SGC-F-27');
+    }
+});
+
 app.get('/api/sgc/formatos/sgc-f-25/descargar-pdf', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
@@ -28215,6 +28486,24 @@ app.post('/api/sgc/formatos/ath-f-02/guardar', requireAdminOrSgc, async (req, re
         });
     } catch (error) {
         handleError(res, error, 'No se pudo guardar el formato ATH-F-02');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-02/importar-excel', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcAthF02Service.importarExcelPerfiles(poolBiznagaSgc, req.body || {});
+        sgcDashboardService.invalidarCacheDashboard();
+        const total = Array.isArray(payload.importados) ? payload.importados.length : 0;
+        return res.json({
+            success: true,
+            message: total === 1
+                ? 'Perfil importado y guardado en Excel.'
+                : `${total} perfiles importados y guardados en Excel.`,
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo importar el Excel de ATH-F-02');
     }
 });
 

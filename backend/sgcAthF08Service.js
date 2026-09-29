@@ -1,8 +1,10 @@
 /**
  * ATH-F-08 · Eficacia de la capacitación — persistencia en biznaga_sgc y sync con Drive.
  *
- * Hoja «Evaluación»: catálogo de hasta 20 cursos, matriz colaborador × curso (A/NA),
+ * Hoja «Evaluación»: catálogo de cursos, matriz colaborador × curso (A/NA),
  * totales por fila, acreditaciones (DC-3, Diploma, Examen, Otro) y eficacia general.
+ * La plantilla trae 20 columnas de calificación; el sistema puede crear o quitar
+ * columnas extra (hasta MAX_CURSOS) y las refleja en el Google Sheet.
  */
 const ExcelJS = require('exceljs');
 const { google } = require('googleapis');
@@ -33,15 +35,20 @@ const OPCIONES_PDF_IMPRESION = {
     verticalAlignment: 'TOP'
 };
 
-const MAX_CURSOS = 20;
+/** Columnas de calificación que trae la plantilla (E–X). No se eliminan. */
+const CURSOS_PLANTILLA = 20;
+/** Tope de columnas que el sistema puede registrar (plantilla + extras). */
+const MAX_CURSOS = 60;
 const MAX_COLABORADORES = 20;
 const DATA_START_ROW = 7;
 const DATA_END_ROW = DATA_START_ROW + MAX_COLABORADORES - 1; // 26
 const CURSO_COL_INICIO = 5; // E = curso 1
 const NOMBRE_COL = 2; // B (merge B:D)
-const TOTAL_COL = 25; // Y
-const APROBADAS_COL = 26; // Z
-const EFICACIA_COL = 27; // AA
+const CURSO_NUM_HEADER_ROW = 6; // Números 1…N encima de las calificaciones
+/** Columnas de métricas con la plantilla de 20 cursos: Y, Z, AA. */
+const TOTAL_COL = CURSO_COL_INICIO + CURSOS_PLANTILLA; // 25
+const APROBADAS_COL = TOTAL_COL + 1; // 26
+const EFICACIA_COL = TOTAL_COL + 2; // 27
 /** Columnas A–AA (matriz completa). */
 const PDF_MAX_COLUMNAS_MATRIZ = EFICACIA_COL;
 /** Columnas A–H del catálogo (nº, nombre, fecha, acreditaciones). */
@@ -71,18 +78,37 @@ const CURSO_DEFECTO = () => ({
     acreditaciones: ACREDITACIONES_VACIAS()
 });
 
-const COLABORADOR_DEFECTO = () => ({
+const COLABORADOR_DEFECTO = (numCursos = CURSOS_PLANTILLA) => ({
     nombre: '',
-    resultados: Array.from({ length: MAX_CURSOS }, () => '')
+    resultados: Array.from({ length: Math.max(1, Number(numCursos) || CURSOS_PLANTILLA) }, () => '')
 });
 
 const DATOS_DEFECTO = {
     fecha: '',
     revision: '00',
     fechaRevision: '2026-02-09',
-    cursos: Array.from({ length: MAX_CURSOS }, () => CURSO_DEFECTO()),
+    cursos: Array.from({ length: CURSOS_PLANTILLA }, () => CURSO_DEFECTO()),
     colaboradores: Array.from({ length: MAX_COLABORADORES }, () => COLABORADOR_DEFECTO())
 };
+
+/**
+ * Con 20 cursos las métricas quedan en Y/Z/AA y la revisión en Z.
+ * Cada columna extra desplaza ese bloque a la derecha.
+ */
+function layoutColumnas(numCursos) {
+    const n = Math.min(
+        MAX_CURSOS,
+        Math.max(CURSOS_PLANTILLA, Number(numCursos) || CURSOS_PLANTILLA)
+    );
+    const totalCol = CURSO_COL_INICIO + n;
+    return {
+        numCursos: n,
+        totalCol,
+        aprobadasCol: totalCol + 1,
+        eficaciaCol: totalCol + 2,
+        revisionCol: totalCol + 1
+    };
+}
 
 function normalizarSaltosLinea(texto) {
     return String(texto || '')
@@ -162,7 +188,7 @@ function calcularMetricasColaborador(resultados, cursosActivos = null) {
     const lista = Array.isArray(resultados) ? resultados : [];
     const indices = Array.isArray(cursosActivos) && cursosActivos.length
         ? cursosActivos
-        : Array.from({ length: MAX_CURSOS }, (_, i) => i);
+        : lista.map((_, i) => i);
     let total = 0;
     let aprobadas = 0;
     for (const i of indices) {
@@ -175,15 +201,20 @@ function calcularMetricasColaborador(resultados, cursosActivos = null) {
     return { total, aprobadas, eficacia };
 }
 
-function indicesCursosActivos(cursos) {
-    return (Array.isArray(cursos) ? cursos : [])
+function indicesCursosActivos(cursos, colaboradores = null) {
+    const lista = Array.isArray(cursos) ? cursos : [];
+    const cols = Array.isArray(colaboradores) ? colaboradores : [];
+    return lista
         .map((curso, idx) => ({ curso, idx }))
-        .filter((item) => !!String(item.curso?.nombre || '').trim())
+        .filter((item) => {
+            if (String(item.curso?.nombre || '').trim()) return true;
+            return cols.some((col) => normalizarResultado((col?.resultados || [])[item.idx]));
+        })
         .map((item) => item.idx);
 }
 
 function calcularEficaciaGeneral(colaboradores, cursos = null) {
-    const activos = indicesCursosActivos(cursos);
+    const activos = indicesCursosActivos(cursos, colaboradores);
     let total = 0;
     let aprobadas = 0;
     for (const col of colaboradores || []) {
@@ -195,18 +226,74 @@ function calcularEficaciaGeneral(colaboradores, cursos = null) {
     return Math.round((aprobadas / total) * 1000) / 10;
 }
 
-function sanitizarColaborador(item) {
+function sanitizarColaborador(item, numCursos = CURSOS_PLANTILLA) {
+    const n = Math.min(MAX_CURSOS, Math.max(1, Number(numCursos) || CURSOS_PLANTILLA));
     const resultadosRaw = Array.isArray(item?.resultados) ? item.resultados : [];
-    const resultados = Array.from({ length: MAX_CURSOS }, (_, i) => normalizarResultado(resultadosRaw[i]));
+    const resultados = Array.from({ length: n }, (_, i) => normalizarResultado(resultadosRaw[i]));
     return {
-        nombre: String(item?.nombre || '').trim(),
+        nombre: String(item?.nombre || '').replace(/\s*[\r\n]+\s*/g, ' ').replace(/\s+/g, ' ').trim(),
         resultados
     };
 }
 
+/** Un salto entre palabras para que el nombre se lea en dos renglones en la hoja. */
+function nombreColaboradorEnHoja(nombre) {
+    const limpio = String(nombre || '').replace(/\s*[\r\n]+\s*/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!limpio) return '';
+    const partes = limpio.split(' ');
+    if (partes.length < 2) return limpio;
+    let corte = 1;
+    let mejor = Infinity;
+    for (let i = 1; i < partes.length; i++) {
+        const diff = Math.abs(partes.slice(0, i).join(' ').length - partes.slice(i).join(' ').length);
+        if (diff < mejor) {
+            mejor = diff;
+            corte = i;
+        }
+    }
+    return `${partes.slice(0, corte).join(' ')}\n${partes.slice(corte).join(' ')}`;
+}
+
 function esColaboradorVacio(item) {
-    const c = sanitizarColaborador(item);
-    return !c.nombre && c.resultados.every((r) => !r);
+    if (String(item?.nombre || '').trim()) return false;
+    const resultados = Array.isArray(item?.resultados) ? item.resultados : [];
+    return !resultados.some((r) => !!normalizarResultado(r));
+}
+
+function resultadoEnIndice(colsRaw, idx) {
+    return (Array.isArray(colsRaw) ? colsRaw : []).some((col) => {
+        const resultados = Array.isArray(col?.resultados) ? col.resultados : [];
+        return !!normalizarResultado(resultados[idx]);
+    });
+}
+
+/**
+ * Conserva los cursos con datos y, si el cliente pide más columnas
+ * (`numColumnas`), deja al final los espacios vacíos para crearlas en el Excel.
+ * Sin ese dato se descartan solo los huecos vacíos (relleno viejo de 20).
+ */
+function resolverBloqueCursos(cursosRaw, colsRaw, numColumnasPedidas) {
+    const raw = (Array.isArray(cursosRaw) ? cursosRaw : []).slice(0, MAX_CURSOS);
+    const cursos = [];
+    const indicesOriginales = [];
+    raw.forEach((cursoRaw, idx) => {
+        const curso = sanitizarCurso(cursoRaw);
+        if (esCursoVacio(curso) && !resultadoEnIndice(colsRaw, idx)) return;
+        cursos.push(curso);
+        indicesOriginales.push(idx);
+    });
+
+    let slots = cursos.length;
+    const pedidas = Number(numColumnasPedidas);
+    if (Number.isFinite(pedidas) && pedidas > slots) {
+        slots = Math.min(MAX_CURSOS, Math.floor(pedidas));
+    }
+    if (slots < 1) slots = 1;
+    while (cursos.length < slots) {
+        cursos.push(CURSO_DEFECTO());
+        indicesOriginales.push(undefined);
+    }
+    return { cursos, indicesOriginales, numColumnas: slots };
 }
 
 function sanitizarAcreditaciones(raw) {
@@ -263,29 +350,15 @@ function sanitizarDatos(raw) {
     const cursosRaw = Array.isArray(base.cursos) ? base.cursos : [];
     const colsRaw = Array.isArray(base.colaboradores) ? base.colaboradores : [];
 
-    // Compactar cursos vacíos y reindexar resultados de colaboradores
-    // para que curso 3+ no pierda calificaciones al sincronizar.
-    const cursosCompactos = [];
-    const indicesOriginales = [];
-    cursosRaw.forEach((cursoRaw, idx) => {
-        const curso = sanitizarCurso(cursoRaw);
-        if (esCursoVacio(curso)) {
-            return;
-        }
-        cursosCompactos.push(curso);
-        indicesOriginales.push(idx);
-    });
-
-    const cursos = cursosCompactos.slice(0, MAX_CURSOS);
-    while (cursos.length < MAX_CURSOS) {
-        cursos.push(CURSO_DEFECTO());
-    }
+    const bloque = resolverBloqueCursos(cursosRaw, colsRaw, base.numColumnas);
+    const cursos = bloque.cursos;
+    const indicesOriginales = bloque.indicesOriginales;
 
     const colaboradores = colsRaw
         .map((item) => {
-            const baseCol = sanitizarColaborador(item);
+            const baseCol = sanitizarColaborador(item, cursos.length);
             const resultadosRaw = Array.isArray(item?.resultados) ? item.resultados : baseCol.resultados;
-            const resultados = Array.from({ length: MAX_CURSOS }, (_, i) => {
+            const resultados = Array.from({ length: cursos.length }, (_, i) => {
                 const origen = indicesOriginales.length ? indicesOriginales[i] : i;
                 if (origen === undefined) {
                     return '';
@@ -293,7 +366,7 @@ function sanitizarDatos(raw) {
                 return normalizarResultado(resultadosRaw[origen]);
             });
             return {
-                nombre: baseCol.nombre,
+                nombre: String(item?.nombre || baseCol.nombre || '').trim(),
                 resultados
             };
         })
@@ -301,13 +374,14 @@ function sanitizarDatos(raw) {
         .slice(0, MAX_COLABORADORES);
 
     while (colaboradores.length < MAX_COLABORADORES) {
-        colaboradores.push(COLABORADOR_DEFECTO());
+        colaboradores.push(COLABORADOR_DEFECTO(cursos.length));
     }
 
     return {
         fecha: formatearFechaIso(base.fecha) || '',
         revision: String(base.revision || DATOS_DEFECTO.revision).trim().padStart(2, '0').slice(0, 2),
         fechaRevision: formatearFechaIso(base.fechaRevision) || DATOS_DEFECTO.fechaRevision,
+        numColumnas: bloque.numColumnas,
         cursos,
         colaboradores
     };
@@ -329,7 +403,86 @@ function marcarAcreditacionActiva(texto) {
     return t === 'X' || t === 'SI' || t === 'SÍ' || t === '1' || t === '✓' || t === '✔';
 }
 
-function leerColaboradoresDesdeHoja(ws) {
+/** Primera celda de métricas: «Total de capacitaciones por colaborador». */
+function textoEsInicioDeTotales(texto) {
+    const t = String(texto || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!t.startsWith('total')) return false;
+    if (t.includes('aprobad')) return false;
+    return true;
+}
+
+function numColumnasDesdeValoresEncabezado(filasDesdeColumnaE) {
+    const filas = Array.isArray(filasDesdeColumnaE) ? filasDesdeColumnaE : [];
+    for (let r = 0; r < filas.length; r++) {
+        const row = filas[r] || [];
+        for (let c = 0; c < row.length; c++) {
+            if (!textoEsInicioDeTotales(row[c])) continue;
+            const n = c;
+            if (n >= 1) return Math.min(MAX_CURSOS, n);
+        }
+    }
+    return 0;
+}
+
+function detectarNumColumnasCursoEnHoja(ws) {
+    const filas = [];
+    for (let r = 4; r <= CURSO_NUM_HEADER_ROW; r++) {
+        const row = ws.getRow(r);
+        const valores = [];
+        const tope = CURSO_COL_INICIO + MAX_CURSOS + 3;
+        for (let col = CURSO_COL_INICIO; col <= tope; col++) {
+            valores.push(celdaATexto(row.getCell(col).value));
+        }
+        filas.push(valores);
+    }
+    const detectadas = numColumnasDesdeValoresEncabezado(filas);
+    return detectadas > 0 ? Math.max(CURSOS_PLANTILLA, detectadas) : CURSOS_PLANTILLA;
+}
+
+/**
+ * Inserta o quita columnas de curso en un XLSX local, siempre dejando
+ * al menos las 20 de la plantilla. Devuelve el layout con el que se puede escribir.
+ */
+function ajustarColumnasCursoEnWorksheet(ws, necesarias) {
+    const objetivo = layoutColumnas(necesarias).numCursos;
+    const actuales = detectarNumColumnasCursoEnHoja(ws);
+    if (actuales === objetivo || typeof ws.spliceColumns !== 'function') {
+        return layoutColumnas(Math.min(objetivo, Math.max(actuales, CURSOS_PLANTILLA)));
+    }
+    if (objetivo > actuales) {
+        const inserts = Array.from({ length: objetivo - actuales }, () => []);
+        ws.spliceColumns(CURSO_COL_INICIO + actuales, 0, ...inserts);
+        const origen = CURSO_COL_INICIO + actuales - 1;
+        for (let col = CURSO_COL_INICIO + actuales; col < CURSO_COL_INICIO + objetivo; col++) {
+            copiarEstiloColumnaCurso(ws, origen, col);
+        }
+    } else if (actuales > objetivo) {
+        ws.spliceColumns(CURSO_COL_INICIO + objetivo, actuales - objetivo);
+    }
+    return layoutColumnas(objetivo);
+}
+
+function copiarEstiloColumnaCurso(ws, origen, destino) {
+    try {
+        const colOrigen = ws.getColumn(origen);
+        const colDestino = ws.getColumn(destino);
+        if (colOrigen && colDestino && colOrigen.width) {
+            colDestino.width = colOrigen.width;
+        }
+        const ultima = Math.max(Number(ws.rowCount) || 0, 60);
+        for (let r = 1; r <= ultima; r++) {
+            const a = ws.getRow(r).getCell(origen);
+            const b = ws.getRow(r).getCell(destino);
+            if (a && a.style) {
+                b.style = JSON.parse(JSON.stringify(a.style));
+            }
+        }
+    } catch (err) {
+        console.warn('[ATH-F-08] No se pudo copiar el estilo de la columna:', err.message);
+    }
+}
+
+function leerColaboradoresDesdeHoja(ws, numCursos = CURSOS_PLANTILLA) {
     const colaboradores = [];
     for (let r = DATA_START_ROW; r <= DATA_END_ROW; r++) {
         const row = ws.getRow(r);
@@ -339,14 +492,15 @@ function leerColaboradoresDesdeHoja(ws) {
         if (String(nombreCelda || '').toLowerCase().includes('acreditaciones')) {
             break;
         }
+        const n = Math.min(MAX_CURSOS, Math.max(CURSOS_PLANTILLA, Number(numCursos) || CURSOS_PLANTILLA));
         const resultados = [];
-        for (let i = 0; i < MAX_CURSOS; i++) {
+        for (let i = 0; i < n; i++) {
             resultados.push(normalizarResultado(celdaATexto(row.getCell(CURSO_COL_INICIO + i).value)));
         }
         const fila = sanitizarColaborador({
             nombre: celdaATexto(row.getCell(NOMBRE_COL).value),
             resultados
-        });
+        }, n);
         colaboradores.push(fila);
     }
     return colaboradores;
@@ -385,11 +539,12 @@ function detectarFilaAcreditacionesEnHoja(ws) {
     return ACRED_ROWS.dc3;
 }
 
-function leerCursosDesdeHoja(ws) {
+function leerCursosDesdeHoja(ws, numCursos = CURSOS_PLANTILLA) {
     const acredStart = detectarFilaAcreditacionesEnHoja(ws);
     const catalogoStart = detectarFilaCatalogoCursosEnHoja(ws, acredStart);
     const acred = layoutAcredRows(acredStart);
-    return Array.from({ length: MAX_CURSOS }, (_, i) => {
+    const n = Math.min(MAX_CURSOS, Math.max(CURSOS_PLANTILLA, Number(numCursos) || CURSOS_PLANTILLA));
+    return Array.from({ length: n }, (_, i) => {
         const row = ws.getRow(catalogoStart + i);
         const nombre = celdaATexto(row.getCell(NOMBRE_COL).value) || celdaATexto(row.getCell(4).value);
         const fechaHeader = celdaATexto(ws.getRow(CURSO_FECHA_HEADER_ROW).getCell(CURSO_COL_INICIO + i).value);
@@ -421,32 +576,41 @@ function leerCursosDesdeHoja(ws) {
 }
 
 function parsearDatosDesdeHoja(ws) {
-    const revisionTexto = celdaATexto(ws.getRow(REVISION_CELL.row).getCell(REVISION_CELL.col).value);
-    const fechaRevTexto = celdaATexto(ws.getRow(FECHA_REV_CELL.row).getCell(FECHA_REV_CELL.col).value);
-    const cursos = leerCursosDesdeHoja(ws);
-    const primeraFechaCurso = (cursos.find((c) => !!String(c.fecha || '').trim()) || {}).fecha || '';
+    const columnas = layoutColumnas(detectarNumColumnasCursoEnHoja(ws));
+    const revisionTexto = celdaATexto(ws.getRow(REVISION_CELL.row).getCell(columnas.revisionCol).value);
+    const fechaRevTexto = celdaATexto(ws.getRow(FECHA_REV_CELL.row).getCell(columnas.revisionCol).value);
+    const cursosLeidos = leerCursosDesdeHoja(ws, columnas.numCursos);
+    const primeraFechaCurso = (cursosLeidos.find((c) => !!String(c.fecha || '').trim()) || {}).fecha || '';
+    const ultimaConDatos = cursosLeidos.reduce((acc, curso, idx) => (
+        esCursoVacio(curso) ? acc : idx
+    ), -1);
+    const columnasHoja = columnas.numCursos > CURSOS_PLANTILLA
+        ? columnas.numCursos
+        : Math.max(ultimaConDatos + 1, 1);
     return sanitizarDatos({
         fecha: primeraFechaCurso,
         revision: parsearRevisionDesdeCelda(revisionTexto),
         fechaRevision: parsearFechaRevDesdeCelda(fechaRevTexto),
-        cursos,
-        colaboradores: leerColaboradoresDesdeHoja(ws)
+        numColumnas: columnasHoja,
+        cursos: cursosLeidos,
+        colaboradores: leerColaboradoresDesdeHoja(ws, columnas.numCursos)
     });
 }
 
-function escribirFilaColaborador(row, item, index, cursos) {
-    const c = sanitizarColaborador(item);
-    const activos = indicesCursosActivos(cursos);
+function escribirFilaColaborador(row, item, index, cursos, columnas) {
+    const cols = columnas || layoutColumnas((cursos || []).length);
+    const c = sanitizarColaborador(item, cols.numCursos);
+    const activos = indicesCursosActivos(cursos, [c]);
     const metricas = calcularMetricasColaborador(c.resultados, activos.length ? activos : null);
     row.getCell(1).value = index + 1;
-    asignarTextoSimple(row.getCell(NOMBRE_COL), c.nombre, 'left');
-    for (let i = 0; i < MAX_CURSOS; i++) {
+    asignarTextoSimple(row.getCell(NOMBRE_COL), nombreColaboradorEnHoja(c.nombre), 'left');
+    for (let i = 0; i < cols.numCursos; i++) {
         asignarTextoSimple(row.getCell(CURSO_COL_INICIO + i), c.resultados[i] || '', 'center');
     }
-    asignarTextoSimple(row.getCell(TOTAL_COL), metricas.total > 0 ? String(metricas.total) : '', 'center');
-    asignarTextoSimple(row.getCell(APROBADAS_COL), metricas.total > 0 ? String(metricas.aprobadas) : '', 'center');
+    asignarTextoSimple(row.getCell(cols.totalCol), metricas.total > 0 ? String(metricas.total) : '', 'center');
+    asignarTextoSimple(row.getCell(cols.aprobadasCol), metricas.total > 0 ? String(metricas.aprobadas) : '', 'center');
     asignarTextoSimple(
-        row.getCell(EFICACIA_COL),
+        row.getCell(cols.eficaciaCol),
         metricas.eficacia === null ? '' : `${metricas.eficacia}%`,
         'center'
     );
@@ -454,24 +618,30 @@ function escribirFilaColaborador(row, item, index, cursos) {
 
 function escribirDatosEnHoja(ws, datos) {
     const d = sanitizarDatos(datos);
+    const columnas = ajustarColumnasCursoEnWorksheet(ws, d.cursos.length);
+    const n = columnas.numCursos;
 
-    // Fechas por curso en la fila 5 (E5:X5), alineadas con columnas 1–20.
-    for (let i = 0; i < MAX_CURSOS; i++) {
+    for (let i = 0; i < n; i++) {
         const curso = sanitizarCurso(d.cursos[i] || CURSO_DEFECTO());
         asignarTextoSimple(
             ws.getRow(CURSO_FECHA_HEADER_ROW).getCell(CURSO_COL_INICIO + i),
             curso.fecha ? formatearFechaDisplay(curso.fecha) : '',
             'center'
         );
+        asignarTextoSimple(
+            ws.getRow(CURSO_NUM_HEADER_ROW).getCell(CURSO_COL_INICIO + i),
+            String(i + 1),
+            'center'
+        );
     }
 
     asignarTextoSimple(
-        ws.getRow(REVISION_CELL.row).getCell(REVISION_CELL.col),
+        ws.getRow(REVISION_CELL.row).getCell(columnas.revisionCol),
         `Revisión: ${d.revision}`,
         'left'
     );
     asignarTextoSimple(
-        ws.getRow(FECHA_REV_CELL.row).getCell(FECHA_REV_CELL.col),
+        ws.getRow(FECHA_REV_CELL.row).getCell(columnas.revisionCol),
         `Fecha Rev.: ${formatearFechaDisplay(d.fechaRevision)}`,
         'left'
     );
@@ -479,9 +649,10 @@ function escribirDatosEnHoja(ws, datos) {
     for (let i = 0; i < MAX_COLABORADORES; i++) {
         escribirFilaColaborador(
             ws.getRow(DATA_START_ROW + i),
-            d.colaboradores[i] || COLABORADOR_DEFECTO(),
+            d.colaboradores[i] || COLABORADOR_DEFECTO(n),
             i,
-            d.cursos
+            d.cursos,
+            columnas
         );
     }
 
@@ -489,7 +660,7 @@ function escribirDatosEnHoja(ws, datos) {
     const catalogoStart = detectarFilaCatalogoCursosEnHoja(ws, acredStart);
     const acred = layoutAcredRows(acredStart);
 
-    for (let i = 0; i < MAX_CURSOS; i++) {
+    for (let i = 0; i < n; i++) {
         const row = ws.getRow(catalogoStart + i);
         const curso = sanitizarCurso(d.cursos[i] || CURSO_DEFECTO());
         row.getCell(1).value = i + 1;
@@ -502,8 +673,7 @@ function escribirDatosEnHoja(ws, datos) {
         asignarTextoSimple(row.getCell(CURSO_ACRED_COLS.otro), '', 'center');
     }
 
-    // Acreditaciones por curso en el bloque DC-3 / Diploma / Examen / Otro (columnas E:X).
-    for (let i = 0; i < MAX_CURSOS; i++) {
+    for (let i = 0; i < n; i++) {
         const curso = sanitizarCurso(d.cursos[i] || CURSO_DEFECTO());
         const col = CURSO_COL_INICIO + i;
         asignarTextoSimple(ws.getRow(acred.dc3).getCell(col), curso.acreditaciones.dc3 ? 'X' : '', 'center');
@@ -514,10 +684,23 @@ function escribirDatosEnHoja(ws, datos) {
 
     const eficaciaGral = calcularEficaciaGeneral(d.colaboradores, d.cursos);
     asignarTextoSimple(
-        ws.getRow(acred.eficaciaGeneral).getCell(EFICACIA_COL),
+        ws.getRow(acred.eficaciaGeneral).getCell(columnas.eficaciaCol),
         eficaciaGral === null ? '' : `${eficaciaGral}%`,
         'center'
     );
+
+    ws.getColumn(2).width = 14;
+    ws.getColumn(3).width = 14;
+    for (let r = 4; r <= 8; r++) {
+        const fila = ws.getRow(r);
+        for (let c = 1; c <= 4; c++) {
+            const celda = fila.getCell(c);
+            const texto = celdaATexto(celda.value);
+            if (/nombre del colaborador/i.test(texto)) {
+                asignarTextoSimple(celda, 'Nombre del\ncolaborador', 'left');
+            }
+        }
+    }
 }
 
 function columnaALetra(col) {
@@ -537,8 +720,12 @@ function rangoSheet(celda, sheetTitle) {
 
 function datosAActualizacionesSheet(datos, sheetTitle, layout = null) {
     const d = sanitizarDatos(datos);
+    const columnas = layout?.totalCol
+        ? layout
+        : layoutColumnas(layout?.numCursos || d.cursos.length);
+    const n = Math.min(MAX_CURSOS, Math.max(CURSOS_PLANTILLA, columnas.numCursos || d.cursos.length));
     const actualizaciones = [];
-    const activos = indicesCursosActivos(d.cursos);
+    const activos = indicesCursosActivos(d.cursos, d.colaboradores);
     const filled = d.colaboradores.filter((c) => !esColaboradorVacio(c)).length;
     const capacidadLayout = Math.max(
         1,
@@ -551,29 +738,32 @@ function datosAActualizacionesSheet(datos, sheetTitle, layout = null) {
     );
     const acred = layoutAcredRows(layout?.acredStart || ACRED_ROWS.dc3);
 
-    // Fechas por curso en E5:X5 (antes se limpiaban y quedaba la fila Fecha vacía).
-    for (let i = 0; i < MAX_CURSOS; i++) {
+    for (let i = 0; i < n; i++) {
         const curso = sanitizarCurso(d.cursos[i] || CURSO_DEFECTO());
         actualizaciones.push({
             range: rangoSheet(`${columnaALetra(CURSO_COL_INICIO + i)}${CURSO_FECHA_HEADER_ROW}`, sheetTitle),
             values: [[curso.fecha ? formatearFechaDisplay(curso.fecha) : '']]
         });
+        actualizaciones.push({
+            range: rangoSheet(`${columnaALetra(CURSO_COL_INICIO + i)}${CURSO_NUM_HEADER_ROW}`, sheetTitle),
+            values: [[String(i + 1)]]
+        });
     }
 
     actualizaciones.push({
-        range: rangoSheet(`${columnaALetra(REVISION_CELL.col)}${REVISION_CELL.row}`, sheetTitle),
+        range: rangoSheet(`${columnaALetra(columnas.revisionCol)}${REVISION_CELL.row}`, sheetTitle),
         values: [[`Revisión: ${d.revision}`]]
     });
     actualizaciones.push({
-        range: rangoSheet(`${columnaALetra(FECHA_REV_CELL.col)}${FECHA_REV_CELL.row}`, sheetTitle),
+        range: rangoSheet(`${columnaALetra(columnas.revisionCol)}${FECHA_REV_CELL.row}`, sheetTitle),
         values: [[`Fecha Rev.: ${formatearFechaDisplay(d.fechaRevision)}`]]
     });
 
     for (let i = 0; i < numFilas; i++) {
         const rowNum = DATA_START_ROW + i;
         const c = i < filled
-            ? (d.colaboradores[i] || COLABORADOR_DEFECTO())
-            : COLABORADOR_DEFECTO();
+            ? (d.colaboradores[i] || COLABORADOR_DEFECTO(n))
+            : COLABORADOR_DEFECTO(n);
         const metricas = calcularMetricasColaborador(c.resultados, activos.length ? activos : null);
         actualizaciones.push({
             range: rangoSheet(`${columnaALetra(1)}${rowNum}`, sheetTitle),
@@ -581,30 +771,29 @@ function datosAActualizacionesSheet(datos, sheetTitle, layout = null) {
         });
         actualizaciones.push({
             range: rangoSheet(`${columnaALetra(NOMBRE_COL)}${rowNum}`, sheetTitle),
-            values: [[c.nombre || '']]
+            values: [[nombreColaboradorEnHoja(c.nombre)]]
         });
-        // Siempre volcar las 20 columnas de resultado (curso 3+ inclusive).
-        for (let j = 0; j < MAX_CURSOS; j++) {
+        for (let j = 0; j < n; j++) {
             actualizaciones.push({
                 range: rangoSheet(`${columnaALetra(CURSO_COL_INICIO + j)}${rowNum}`, sheetTitle),
                 values: [[c.resultados[j] || '']]
             });
         }
         actualizaciones.push({
-            range: rangoSheet(`${columnaALetra(TOTAL_COL)}${rowNum}`, sheetTitle),
+            range: rangoSheet(`${columnaALetra(columnas.totalCol)}${rowNum}`, sheetTitle),
             values: [[metricas.total > 0 ? String(metricas.total) : '']]
         });
         actualizaciones.push({
-            range: rangoSheet(`${columnaALetra(APROBADAS_COL)}${rowNum}`, sheetTitle),
+            range: rangoSheet(`${columnaALetra(columnas.aprobadasCol)}${rowNum}`, sheetTitle),
             values: [[metricas.total > 0 ? String(metricas.aprobadas) : '']]
         });
         actualizaciones.push({
-            range: rangoSheet(`${columnaALetra(EFICACIA_COL)}${rowNum}`, sheetTitle),
+            range: rangoSheet(`${columnaALetra(columnas.eficaciaCol)}${rowNum}`, sheetTitle),
             values: [[metricas.eficacia === null ? '' : `${metricas.eficacia}%`]]
         });
     }
 
-    for (let i = 0; i < MAX_CURSOS; i++) {
+    for (let i = 0; i < n; i++) {
         const rowNum = (Number(layout?.catalogoStart) || CURSO_NOMBRE_START_ROW) + i;
         const curso = sanitizarCurso(d.cursos[i] || CURSO_DEFECTO());
         actualizaciones.push({
@@ -637,8 +826,7 @@ function datosAActualizacionesSheet(datos, sheetTitle, layout = null) {
         });
     }
 
-    // Acreditaciones por curso (DC-3 / Diploma / Examen / Otro × columnas E:X).
-    for (let i = 0; i < MAX_CURSOS; i++) {
+    for (let i = 0; i < n; i++) {
         const curso = sanitizarCurso(d.cursos[i] || CURSO_DEFECTO());
         const colLetra = columnaALetra(CURSO_COL_INICIO + i);
         actualizaciones.push({
@@ -661,7 +849,7 @@ function datosAActualizacionesSheet(datos, sheetTitle, layout = null) {
 
     const eficaciaGral = calcularEficaciaGeneral(d.colaboradores, d.cursos);
     actualizaciones.push({
-        range: rangoSheet(`${columnaALetra(EFICACIA_COL)}${acred.eficaciaGeneral}`, sheetTitle),
+        range: rangoSheet(`${columnaALetra(columnas.eficaciaCol)}${acred.eficaciaGeneral}`, sheetTitle),
         values: [[eficaciaGral === null ? '' : `${eficaciaGral}%`]]
     });
 
@@ -813,6 +1001,186 @@ async function insertarFilasColaboradoresEnDrive(spreadsheetId, sheetTitle, fila
  * Asegura espacio para N colaboradores. Si el bloque Acreditaciones queda
  * demasiado arriba, inserta filas y re-detecta el layout.
  */
+async function obtenerSheetIdAthF08(spreadsheetId, sheetTitle) {
+    const sheetsApi = google.sheets({ version: 'v4', auth: driveService.getAuthClient() });
+    const meta = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets(properties(sheetId,title))'
+    });
+    const sheet = (meta.data.sheets || []).find(
+        (s) => (s.properties?.title || '').trim() === String(sheetTitle).trim()
+    );
+    const sheetId = sheet?.properties?.sheetId;
+    return sheetId === undefined || sheetId === null ? null : sheetId;
+}
+
+async function detectarNumColumnasCursoEnDrive(spreadsheetId, sheetTitle) {
+    try {
+        const sheetsApi = google.sheets({ version: 'v4', auth: driveService.getAuthClient() });
+        const fin = columnaALetra(CURSO_COL_INICIO + MAX_CURSOS + 3);
+        const res = await sheetsApi.spreadsheets.values.get({
+            spreadsheetId,
+            range: `'${sheetTitle}'!${columnaALetra(CURSO_COL_INICIO)}4:${fin}${CURSO_NUM_HEADER_ROW}`,
+            majorDimension: 'ROWS'
+        });
+        const detectadas = numColumnasDesdeValoresEncabezado(res.data.values || []);
+        if (detectadas > 0) {
+            return Math.min(MAX_CURSOS, Math.max(CURSOS_PLANTILLA, detectadas));
+        }
+    } catch (err) {
+        console.warn('[ATH-F-08] No se pudo detectar columnas de cursos:', err.message);
+    }
+    return CURSOS_PLANTILLA;
+}
+
+/**
+ * Crea o quita columnas de calificación en el Sheet.
+ * Nunca deja menos de las 20 columnas de la plantilla.
+ * Devuelve cuántas quedaron.
+ */
+async function ajustarColumnasCursosEnDrive(spreadsheetId, sheetTitle, necesarias) {
+    const objetivo = layoutColumnas(necesarias).numCursos;
+    const actuales = await detectarNumColumnasCursoEnDrive(spreadsheetId, sheetTitle);
+    if (!spreadsheetId || !sheetTitle || actuales === objetivo) {
+        return actuales;
+    }
+    const sheetId = await obtenerSheetIdAthF08(spreadsheetId, sheetTitle);
+    if (sheetId === null) return actuales;
+
+    const sheetsApi = google.sheets({ version: 'v4', auth: driveService.getAuthClient() });
+    if (objetivo > actuales) {
+        const startIndex = (CURSO_COL_INICIO - 1) + actuales;
+        const cantidad = objetivo - actuales;
+        await sheetsApi.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+                requests: [{
+                    insertDimension: {
+                        range: {
+                            sheetId,
+                            dimension: 'COLUMNS',
+                            startIndex,
+                            endIndex: startIndex + cantidad
+                        },
+                        inheritFromBefore: true
+                    }
+                }]
+            }
+        });
+        console.log(`[ATH-F-08] Columnas de curso: ${actuales} → ${objetivo} (insertadas ${cantidad}).`);
+        return objetivo;
+    }
+
+    const conservar = Math.max(CURSOS_PLANTILLA, objetivo);
+    if (actuales > conservar) {
+        const startIndex = (CURSO_COL_INICIO - 1) + conservar;
+        const endIndex = (CURSO_COL_INICIO - 1) + actuales;
+        await sheetsApi.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+                requests: [{
+                    deleteDimension: {
+                        range: {
+                            sheetId,
+                            dimension: 'COLUMNS',
+                            startIndex,
+                            endIndex
+                        }
+                    }
+                }]
+            }
+        });
+        console.log(`[ATH-F-08] Columnas de curso: ${actuales} → ${conservar} (eliminadas ${actuales - conservar}).`);
+        return conservar;
+    }
+    return actuales;
+}
+
+async function contarFilasCatalogoExtraEnDrive(spreadsheetId, sheetTitle, catalogoStart) {
+    const inicio = Number(catalogoStart) + CURSOS_PLANTILLA;
+    if (!inicio || inicio < 1) return 0;
+    try {
+        const sheetsApi = google.sheets({ version: 'v4', auth: driveService.getAuthClient() });
+        const fin = inicio + MAX_CURSOS;
+        const res = await sheetsApi.spreadsheets.values.get({
+            spreadsheetId,
+            range: `'${sheetTitle}'!A${inicio}:A${fin}`,
+            majorDimension: 'ROWS'
+        });
+        const values = res.data.values || [];
+        let extras = 0;
+        for (let i = 0; i < values.length; i++) {
+            const marca = String((values[i] || [])[0] || '').trim();
+            if (marca === String(CURSOS_PLANTILLA + extras + 1)) {
+                extras += 1;
+                continue;
+            }
+            break;
+        }
+        return extras;
+    } catch (err) {
+        console.warn('[ATH-F-08] No se pudieron contar filas extra del catálogo:', err.message);
+        return 0;
+    }
+}
+
+async function eliminarFilasEnDrive(spreadsheetId, sheetTitle, filaInicio, cantidad) {
+    const n = Math.max(0, Number(cantidad) || 0);
+    const fila = Math.max(1, Number(filaInicio) || 1);
+    if (!spreadsheetId || !sheetTitle || n <= 0) return false;
+    const sheetId = await obtenerSheetIdAthF08(spreadsheetId, sheetTitle);
+    if (sheetId === null) return false;
+    const sheetsApi = google.sheets({ version: 'v4', auth: driveService.getAuthClient() });
+    const startIndex = fila - 1;
+    await sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+            requests: [{
+                deleteDimension: {
+                    range: {
+                        sheetId,
+                        dimension: 'ROWS',
+                        startIndex,
+                        endIndex: startIndex + n
+                    }
+                }
+            }]
+        }
+    });
+    return true;
+}
+
+/**
+ * El catálogo de la plantilla tiene 20 renglones. Si hay más cursos,
+ * agrega renglones; si bajan a 20 o menos, quita solo los extra.
+ */
+async function ajustarFilasCatalogoEnDrive(spreadsheetId, sheetTitle, catalogoStart, numCursos) {
+    const objetivo = layoutColumnas(numCursos).numCursos;
+    const extras = await contarFilasCatalogoExtraEnDrive(spreadsheetId, sheetTitle, catalogoStart);
+    const existentes = CURSOS_PLANTILLA + extras;
+    if (objetivo > existentes) {
+        const faltan = objetivo - existentes;
+        await insertarFilasColaboradoresEnDrive(
+            spreadsheetId,
+            sheetTitle,
+            Number(catalogoStart) + existentes,
+            faltan
+        );
+        return true;
+    }
+    if (existentes > objetivo && existentes > CURSOS_PLANTILLA) {
+        const quitar = existentes - Math.max(objetivo, CURSOS_PLANTILLA);
+        await eliminarFilasEnDrive(
+            spreadsheetId,
+            sheetTitle,
+            Number(catalogoStart) + Math.max(objetivo, CURSOS_PLANTILLA),
+            quitar
+        );
+        return true;
+    }
+    return false;
+}
+
 async function asegurarFilasColaboradoresEnDrive(spreadsheetId, sheetTitle, numColaboradores) {
     const needed = Math.min(Math.max(Number(numColaboradores) || 1, 1), MAX_COLABORADORES);
     let acredStart = await detectarFilaAcreditacionesEnDrive(spreadsheetId, sheetTitle);
@@ -879,13 +1247,19 @@ function fusionarDatosAthF08(datosDb, datosDrive) {
     if (!db) return drive;
     if (!drive) return db;
 
-    const preferirCursosDb = contarCursosConNombreAthF08(db) >= contarCursosConNombreAthF08(drive);
+    const nombresDb = contarCursosConNombreAthF08(db);
+    const nombresDrive = contarCursosConNombreAthF08(drive);
+    const preferirCursosDb = nombresDb > nombresDrive
+        || (nombresDb === nombresDrive && db.cursos.length >= drive.cursos.length);
     const preferirColabDb = contarColaboradoresConNombreAthF08(db) >= contarColaboradoresConNombreAthF08(drive);
     const cursosBase = preferirCursosDb ? db.cursos : drive.cursos;
     const cursosAlt = preferirCursosDb ? drive.cursos : db.cursos;
-    const cursos = cursosBase.map((curso, i) => {
+    const totalCursos = Math.min(MAX_CURSOS, Math.max(cursosBase.length, cursosAlt.length));
+    const cursos = [];
+    for (let i = 0; i < totalCursos; i++) {
+        const curso = cursosBase[i] || CURSO_DEFECTO();
         const alt = cursosAlt[i] || CURSO_DEFECTO();
-        return sanitizarCurso({
+        cursos.push(sanitizarCurso({
             nombre: curso.nombre || alt.nombre,
             fecha: curso.fecha || alt.fecha,
             acreditaciones: {
@@ -894,8 +1268,8 @@ function fusionarDatosAthF08(datosDb, datosDrive) {
                 examen: !!(curso.acreditaciones.examen || alt.acreditaciones.examen),
                 otro: !!(curso.acreditaciones.otro || alt.acreditaciones.otro)
             }
-        });
-    });
+        }));
+    }
 
     return sanitizarDatos({
         fecha: db.fecha || drive.fecha,
@@ -923,24 +1297,107 @@ async function aplicarFormatoVisualAthF08(spreadsheetId, sheetTitle, datos, layo
             sheetTitle,
             DATA_START_ROW,
             numFilas,
-            filaMax
+            filaMax,
+            { numCursos: d.cursos.length }
         );
     } catch (err) {
         console.warn('[ATH-F-08] No se pudo aplicar formato visual en Google Sheet:', err.message);
     }
 }
 
+async function aplicarPresentacionNombreEnDrive(spreadsheetId, sheetTitle) {
+    const titulo = String(sheetTitle || '').trim();
+    if (!spreadsheetId || !titulo) return;
+    const sheetId = await obtenerSheetIdAthF08(spreadsheetId, titulo);
+    if (sheetId === null) return;
+    const sheetsApi = google.sheets({ version: 'v4', auth: driveService.getAuthClient() });
+    const requests = [{
+        updateDimensionProperties: {
+            range: {
+                sheetId,
+                dimension: 'COLUMNS',
+                startIndex: 1,
+                endIndex: 3
+            },
+            properties: { pixelSize: 100 },
+            fields: 'pixelSize'
+        }
+    }];
+    try {
+        const encabezado = await sheetsApi.spreadsheets.values.get({
+            spreadsheetId,
+            range: `'${titulo}'!A4:D8`
+        });
+        const filas = encabezado.data.values || [];
+        filas.forEach((fila, r) => {
+            (fila || []).forEach((valor, c) => {
+                const texto = String(valor || '');
+                if (!/nombre del colaborador/i.test(texto) || texto.includes('\n')) return;
+                requests.push({
+                    repeatCell: {
+                        range: {
+                            sheetId,
+                            startRowIndex: 3 + r,
+                            endRowIndex: 4 + r,
+                            startColumnIndex: c,
+                            endColumnIndex: c + 1
+                        },
+                        cell: {
+                            userEnteredValue: { stringValue: 'Nombre del\ncolaborador' },
+                            userEnteredFormat: {
+                                wrapStrategy: 'WRAP',
+                                verticalAlignment: 'MIDDLE'
+                            }
+                        },
+                        fields: 'userEnteredValue,userEnteredFormat.wrapStrategy,userEnteredFormat.verticalAlignment'
+                    }
+                });
+                void celda;
+            });
+        });
+    } catch (err) {
+        console.warn('[ATH-F-08] No se pudo leer el encabezado del nombre:', err.message);
+    }
+    await sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests }
+    });
+}
+
 async function actualizarDatosEnGoogleSheet(spreadsheetId, datos, sheetTitle) {
-    const titulo = String(sheetTitle || await resolverTituloHojaTrabajo(spreadsheetId)).trim();
     const d = sanitizarDatos(datos);
     const filled = d.colaboradores.filter((c) => !esColaboradorVacio(c)).length;
-    const layout = await asegurarFilasColaboradoresEnDrive(spreadsheetId, titulo, Math.max(filled, 1));
+    let numCursos = layoutColumnas(d.cursos.length).numCursos;
+    try {
+        numCursos = await ajustarColumnasCursosEnDrive(spreadsheetId, titulo, numCursos);
+    } catch (err) {
+        console.warn('[ATH-F-08] No se pudieron ajustar columnas de cursos:', err.message);
+        numCursos = await detectarNumColumnasCursoEnDrive(spreadsheetId, titulo);
+    }
+    const columnas = layoutColumnas(Math.min(numCursos, d.cursos.length));
+    const layoutFilas = await asegurarFilasColaboradoresEnDrive(spreadsheetId, titulo, Math.max(filled, 1));
+    try {
+        await ajustarFilasCatalogoEnDrive(
+            spreadsheetId,
+            titulo,
+            layoutFilas.catalogoStart,
+            columnas.numCursos
+        );
+    } catch (err) {
+        console.warn('[ATH-F-08] No se pudieron ajustar filas del catálogo:', err.message);
+    }
+    const layout = { ...layoutFilas, ...columnas };
     const actualizaciones = datosAActualizacionesSheet(d, titulo, layout);
     const CHUNK = 200;
     for (let i = 0; i < actualizaciones.length; i += CHUNK) {
         await driveService.actualizarCeldasGoogleSheet(spreadsheetId, actualizaciones.slice(i, i + CHUNK));
     }
     await aplicarFormatoVisualAthF08(spreadsheetId, titulo, d, layout);
+    try {
+        await aplicarPresentacionNombreEnDrive(spreadsheetId, titulo);
+    } catch (err) {
+        console.warn('[ATH-F-08] No se pudo ajustar el ancho del nombre:', err.message);
+    }
     return driveService.obtenerInfoArchivo(spreadsheetId).catch(() => ({ id: spreadsheetId }));
 }
 
@@ -965,6 +1422,7 @@ function snapshotComparable(datos) {
         fecha: d.fecha,
         revision: d.revision,
         fechaRevision: d.fechaRevision,
+        numColumnas: d.numColumnas,
         cursos: d.cursos.map((c) => ({
             nombre: c.nombre,
             fecha: c.fecha,
@@ -1240,7 +1698,7 @@ function formatearUltimaSyncDisplay(registro, archivoDrive) {
 
 function enriquecerDatosRespuesta(datos) {
     const d = sanitizarDatos(datos);
-    const activos = indicesCursosActivos(d.cursos);
+    const activos = indicesCursosActivos(d.cursos, d.colaboradores);
     const colaboradores = d.colaboradores.map((c) => {
         const m = calcularMetricasColaborador(c.resultados, activos.length ? activos : null);
         return {
@@ -1252,7 +1710,7 @@ function enriquecerDatosRespuesta(datos) {
     });
     return {
         ...d,
-        cursos: d.cursos.filter((c) => !esCursoVacio(c)),
+        cursos: d.cursos.length ? d.cursos.slice() : [CURSO_DEFECTO()],
         colaboradores,
         eficaciaGeneral: calcularEficaciaGeneral(d.colaboradores, d.cursos)
     };
@@ -1592,10 +2050,12 @@ async function exportarPdfAthF08DosPaginas(driveFileId, gid, sheetTitle) {
     const acred = layoutAcredRows(acredStart);
 
     // Página 1: encabezado + matriz + bloque Acreditaciones / eficacia general.
+    const numCursosPdf = await detectarNumColumnasCursoEnDrive(driveFileId, titulo);
+    const columnasPdf = layoutColumnas(numCursosPdf);
     const finPagina1 = Math.max(acred.otro, DATA_START_ROW + 1);
-    // Página 2: encabezado «Curso» (si existe) + catálogo 1–20.
+    // Página 2: encabezado «Curso» (si existe) + catálogo de cursos.
     const inicioPagina2 = Math.max(finPagina1 + 1, catalogoStart - 1, 1);
-    const finPagina2 = Math.max(inicioPagina2 + 1, catalogoStart + MAX_CURSOS) + 1;
+    const finPagina2 = Math.max(inicioPagina2 + 1, catalogoStart + columnasPdf.numCursos) + 1;
 
     const optsBase = {
         ...OPCIONES_PDF_IMPRESION,
@@ -1607,7 +2067,7 @@ async function exportarPdfAthF08DosPaginas(driveFileId, gid, sheetTitle) {
     try {
         buf1 = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
             ...optsBase,
-            range: { r1: 0, c1: 0, r2: finPagina1, c2: PDF_MAX_COLUMNAS_MATRIZ }
+            range: { r1: 0, c1: 0, r2: finPagina1, c2: columnasPdf.eficaciaCol }
         });
         buf2 = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
             ...optsBase,

@@ -2462,7 +2462,7 @@ async function aplicarFormatoFilasDgF05(spreadsheetId, sheetTitle, filaInicio, n
  * @param {number} numFilas - Cantidad de filas con datos.
  * @param {number} filaMax - Última fila del bloque de datos a normalizar (1-based).
  */
-async function aplicarFormatoFilasAthF08(spreadsheetId, sheetTitle, filaInicio, numFilas, filaMax) {
+async function aplicarFormatoFilasAthF08(spreadsheetId, sheetTitle, filaInicio, numFilas, filaMax, opciones = {}) {
     if (!spreadsheetId || !sheetTitle) {
         return null;
     }
@@ -2478,9 +2478,11 @@ async function aplicarFormatoFilasAthF08(spreadsheetId, sheetTitle, filaInicio, 
         return null;
     }
 
-    // Columnas (0-based): A #, B:D nombre, E:X cursos 1-20, Y total, Z aprobadas, AA eficacia.
+    // Columnas (0-based): A #, B:D nombre, E… cursos, luego total / aprobadas / eficacia.
+    const numCursos = Math.min(80, Math.max(20, Number(opciones?.numCursos) || 20));
     const TABLA_COL_INICIO = 0;
-    const TABLA_COL_FIN = 27;
+    const CURSO_COL_FIN = 4 + numCursos;
+    const TABLA_COL_FIN = CURSO_COL_FIN + 3;
     const NOMBRE_COL_INICIO = 1; // B
     const NOMBRE_COL_FIN = 4; // D (exclusivo)
     const filasSolicitadas = Math.max(0, Number(numFilas) || 0);
@@ -2577,14 +2579,26 @@ async function aplicarFormatoFilasAthF08(spreadsheetId, sheetTitle, filaInicio, 
                     startIndex: startRow,
                     endIndex: dataEndRow
                 },
-                properties: { pixelSize: 28 },
+                properties: { pixelSize: 38 },
                 fields: 'pixelSize'
             }
         },
         formatoColumna(0, 1, 'CENTER'),
-        formatoColumna(1, 4, 'LEFT'),
-        formatoColumna(4, 24, 'CENTER'),
-        formatoColumna(24, 27, 'CENTER'),
+        formatoColumna(1, 4, 'LEFT', 'WRAP'),
+        formatoColumna(4, CURSO_COL_FIN, 'CENTER'),
+        formatoColumna(CURSO_COL_FIN, TABLA_COL_FIN, 'CENTER'),
+        {
+            updateDimensionProperties: {
+                range: {
+                    sheetId,
+                    dimension: 'COLUMNS',
+                    startIndex: 1,
+                    endIndex: 3
+                },
+                properties: { pixelSize: 100 },
+                fields: 'pixelSize'
+            }
+        },
         {
             updateBorders: {
                 range: {

@@ -222,6 +222,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         driveFileId: '1wb0UqwXAF2-f-0qmX2RnBroD9mRF8UZg-qQetBhEElE',
         previewSlug: 'ath-f-03',
         previewMode: 'form'
+      },
+      {
+        codigo: 'SGC-F-27',
+        titulo: 'Reporte de verificación de equipos de medición',
+        nombre: 'SGC-F-27 Reporte de verificación de equipos de medición.xlsx',
+        driveFileId: '1EK1xd8hJtpkDs_H7F_aoprV3eAz7bAmzIp9Fy0kHZy0',
+        previewSlug: 'sgc-f-27-medicion',
+        previewMode: 'form'
       }
     ]
   },
