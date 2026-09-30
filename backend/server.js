@@ -30143,6 +30143,60 @@ app.post('/api/sgc/formatos/sgc-f-12/sincronizar-drive', requireAdminOrSgc, asyn
     }
 });
 
+app.get('/api/sgc/formatos/sgc-f-12/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const resultado = await sgcSgcF12Service.descargarPlantillaPdf(poolBiznagaSgc, {
+            notificacionId: req.query.notificacionId || req.query.id || null
+        });
+        const nombre = String(resultado.nombreArchivo || 'SGC-F-12 Notificacion de cambios.pdf')
+            .replace(/[^\w.\- áéíóúÁÉÍÓÚñÑ()]/gi, '_')
+            .trim() || 'SGC-F-12 Notificacion de cambios.pdf';
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${nombre.replace(/"/g, '')}"`
+        );
+        return res.send(resultado.buffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-12');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-12/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcSgcF12Service.subirPdfFirmado(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'PDF firmado de la notificación de cambios subido a Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo subir el PDF firmado de SGC-F-12');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-12/eliminar-pdf-historial', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const puedeBorrarHistorial = userRoles.includes('root') || esGestorCalidadSgc(req);
+        const payload = await sgcSgcF12Service.eliminarPdfHistorial(poolBiznagaSgc, req.body || {}, {
+            puedeBorrarHistorial
+        });
+        return res.json({
+            success: true,
+            message: 'PDF eliminado del historial de SGC-F-12.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo eliminar el PDF del historial de SGC-F-12');
+    }
+});
+
 app.post('/api/sgc/formatos/sgc-f-12/actualizar-plantilla', requireRole('root'), async (req, res) => {
     try {
         await poolBiznagaSgcReady;

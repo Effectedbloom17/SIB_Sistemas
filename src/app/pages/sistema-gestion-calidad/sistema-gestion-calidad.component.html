@@ -376,10 +376,23 @@
                     <div class="sgc-avance-hero-badge sgc-avance-hero-badge--sat"><i class="fas fa-poll"></i></div>
                     <div>
                       <h2 class="sgc-section-title mb-0">Satisfacción del cliente</h2>
-                      <p class="sgc-analytics-desc mb-0">Encuesta SGC-F-26 · actualizada automáticamente desde Google Forms.</p>
+                      <p class="sgc-analytics-desc mb-0">Encuesta SGC-F-26 · {{ etiquetaCicloSatisfaccion }} · actualizada automáticamente desde Google Forms.</p>
                     </div>
                   </div>
                   <div class="sgc-avance-hero-head__aside">
+                    <div class="sgc-sat-ciclo-filter"
+                         *ngIf="satisfaccionCiclos.length > 1"
+                         role="group"
+                         aria-label="Ciclo de la encuesta de satisfacción">
+                      <button type="button"
+                              class="sgc-sat-ciclo-filter__btn"
+                              *ngFor="let ciclo of satisfaccionCiclos"
+                              [class.is-active]="cicloSatisfaccionId === ciclo.ciclo"
+                              (click)="seleccionarCicloSatisfaccion(ciclo.ciclo, $event)"
+                              [attr.aria-pressed]="cicloSatisfaccionId === ciclo.ciclo">
+                        {{ ciclo.etiqueta || ciclo.ciclo }}
+                      </button>
+                    </div>
                     <button
                       type="button"
                       class="sgc-sat-comentarios-btn sgc-sat-comentarios-btn--preguntas"
@@ -427,7 +440,7 @@
                         <span class="sgc-avance-panel__icon"><i class="fas fa-chart-line"></i></span>
                         <div>
                           <span class="sgc-avance-panel__title">Evolución mensual</span>
-                          <span class="sgc-avance-panel__sub">Índice de satisfacción y respuestas por mes · {{ anioSeleccionado }}</span>
+                          <span class="sgc-avance-panel__sub">Índice de satisfacción y respuestas por mes · {{ etiquetaCicloSatisfaccion }}</span>
                         </div>
                       </div>
                       <div class="sgc-chart-canvas-wrap">
@@ -491,7 +504,7 @@
                   </div>
                   <div *ngIf="!cargandoDashboard && !hayDatosSatisfaccion" class="sgc-dash-empty">
                     <i class="fas fa-poll fa-2x mb-2"></i>
-                    <p class="mb-0">Sin respuestas de la encuesta de satisfacción del cliente para {{ anioSeleccionado }}.</p>
+                    <p class="mb-0">Sin respuestas de la encuesta de satisfacción del cliente para {{ etiquetaCicloSatisfaccion }}.</p>
                   </div>
                 </div>
               </div>
@@ -1483,7 +1496,7 @@
           <h2 class="sgc-modal__title">Comentarios de la encuesta</h2>
           <p class="sgc-modal__subtitle">
             {{ totalComentariosSatisfaccion }} comentario{{ totalComentariosSatisfaccion !== 1 ? 's' : '' }}
-            · Satisfacción del cliente · {{ anioSeleccionado }}
+            · Satisfacción del cliente · {{ etiquetaCicloSatisfaccion }}
           </p>
         </div>
         <button type="button" class="sgc-modal__close" (click)="cerrarComentariosSatisfaccion()" aria-label="Cerrar"><i class="fas fa-times"></i></button>
@@ -1502,7 +1515,7 @@
       </div>
       <div class="sgc-dash-empty sgc-dash-empty--modal" *ngIf="totalComentariosSatisfaccion === 0">
         <i class="fas fa-comment-slash fa-2x mb-2"></i>
-        <p class="mb-0">No hay comentarios registrados para {{ anioSeleccionado }}.</p>
+        <p class="mb-0">No hay comentarios registrados para {{ etiquetaCicloSatisfaccion }}.</p>
       </div>
     </div>
     <div class="sgc-modal__foot">
@@ -1665,18 +1678,18 @@
             <div class="sgc-sat-combo__options">
               <button type="button" class="sgc-sat-combo__option"
                       [class.sgc-sat-combo__option--selected]="filtroMesSatCliente == null"
-                      (click)="seleccionarMesSatCliente(null, $event)">
+                      (click)="seleccionarMesSatCliente(null, null, $event)">
                 <span class="sgc-sat-combo__option-icon" aria-hidden="true"><i class="fas fa-globe"></i></span>
-                <span class="sgc-sat-combo__option-text">Todo el año</span>
+                <span class="sgc-sat-combo__option-text">Todo el ciclo</span>
                 <span class="sgc-sat-combo__option-check" *ngIf="filtroMesSatCliente == null" aria-hidden="true"><i class="fas fa-check"></i></span>
               </button>
               <button type="button" class="sgc-sat-combo__option"
                       *ngFor="let m of mesesDisponiblesSatCliente; trackBy: trackByMesSat"
-                      [class.sgc-sat-combo__option--selected]="filtroMesSatCliente === m.mes_num"
-                      (click)="seleccionarMesSatCliente(m.mes_num, $event)">
+                      [class.sgc-sat-combo__option--selected]="filtroMesSatCliente === m.mes_num && (filtroAnioSatCliente == null || m.anio == null || filtroAnioSatCliente === m.anio)"
+                      (click)="seleccionarMesSatCliente(m.mes_num, m.anio, $event)">
                 <span class="sgc-sat-combo__option-icon" aria-hidden="true"><i class="fas fa-calendar"></i></span>
                 <span class="sgc-sat-combo__option-text">{{ m.mes }} · {{ m.respuestas }} resp.</span>
-                <span class="sgc-sat-combo__option-check" *ngIf="filtroMesSatCliente === m.mes_num" aria-hidden="true"><i class="fas fa-check"></i></span>
+                <span class="sgc-sat-combo__option-check" *ngIf="filtroMesSatCliente === m.mes_num && (filtroAnioSatCliente == null || m.anio == null || filtroAnioSatCliente === m.anio)" aria-hidden="true"><i class="fas fa-check"></i></span>
               </button>
             </div>
           </div>

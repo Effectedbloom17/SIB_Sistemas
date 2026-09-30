@@ -4405,6 +4405,29 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-12/actualizar-plantilla`, {});
     }
 
+    descargarPdfSgcF12(notificacionId?: string | null): Observable<Blob> {
+        const id = String(notificacionId || '').trim();
+        const qs = id ? `?notificacionId=${encodeURIComponent(id)}` : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-12/descargar-pdf${qs}`, {
+            responseType: 'blob'
+        });
+    }
+
+    subirPdfFirmadoSgcF12(pdfBase64: string, nombreArchivo: string, notificacionId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-12/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombreArchivo,
+            notificacionId
+        });
+    }
+
+    eliminarPdfHistorialSgcF12(driveFileId: string, notificacionId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-12/eliminar-pdf-historial`, {
+            driveFileId,
+            notificacionId
+        });
+    }
+
     cargarSgcF04Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-04`);
     }

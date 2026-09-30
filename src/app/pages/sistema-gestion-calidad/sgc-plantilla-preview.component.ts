@@ -400,6 +400,32 @@ interface SgcF12Fila {
   verificacion: string;
 }
 
+interface SgcF12Notificacion {
+  id: string;
+  folio: string;
+  nombreHoja?: string;
+  fecha: string;
+  responsableCambio: string;
+  queSeVaACambiar: string;
+  proposito: string;
+  consecuencias: string;
+  planTrabajo: string;
+  elaboro?: string;
+  reviso?: string;
+  autorizo?: string;
+  filas: SgcF12Fila[];
+  pdfFirmado: DgF02PdfFirmado | null;
+  pdfsHistorial: DgF02PdfFirmado[];
+}
+
+interface SgcF12FormData {
+  revision: string;
+  fechaRevision: string;
+  notificaciones: SgcF12Notificacion[];
+  notificacionActivaId: string | null;
+  ejemploAplicado?: boolean;
+}
+
 interface SgcF02Fila {
   nombreDocumento: string;
   codigo: string;
@@ -1994,7 +2020,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   afF02AutosizeTick = 0;
   sgcF23Form = this.crearSgcF23Vacio();
   sgcF11Form = this.crearSgcF11Vacio();
-  sgcF12Form = this.crearSgcF12Vacio();
+  sgcF12Form: SgcF12FormData = this.crearSgcF12Vacio();
   sgcF01Form: SgcF01FormData = this.crearSgcF01Vacio();
   sgcF01Busqueda = '';
   /** Filtro por id de sección Excel (procedimientos, formatos, …) o vacío = todas. */
@@ -3733,6 +3759,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   mostrarSgcF12Editor = false;
   sgcF12EditorCargando = false;
   sgcF12ActualizandoPlantilla = false;
+  sgcF12Vista: 'archivero' | 'editor' = 'archivero';
+  sgcF12Busqueda = '';
+  sgcF12NotificacionActiva: SgcF12Notificacion | null = null;
+  sgcF12DescargandoPdf = false;
+  sgcF12SubiendoPdf = false;
+  sgcF12BorrandoPdf = false;
+  mostrarSgcF12PdfViewer = false;
+  sgcF12PdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  sgcF12PdfCargando = false;
+  sgcF12PdfViewerTitulo = '';
 
   sgcF02Cargando = false;
   sgcF02Guardando = false;
@@ -5241,7 +5277,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug !== 'sgc-f-12') {
       return '';
     }
-    return 'Notificación de cambios al SGC. Usa «Guardar información» para conservar el plan de trabajo y el historial en Excel.';
+    return 'Archivero de notificaciones de cambios al SGC. Cada notificación tiene folio CAM-DDMMAA-NN y su propia hoja de Excel. Desde el formato puedes descargar el PDF y subir la versión firmada.';
   }
 
   get sgcF01IntroLead(): string {
@@ -5739,24 +5775,91 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return texto;
   }
 
-  private normalizarFormularioSgcF12<T extends {
-    fecha?: string;
-    fechaRevision?: string;
-    planTrabajo?: string;
-    filas?: SgcF12Fila[];
-  }>(form: T): T {
-    const filas = Array.isArray(form.filas)
-      ? form.filas.map((fila) => ({
-          ...fila,
-          fechaCompromiso: this.normalizarFechaIsoSgcF12(fila.fechaCompromiso)
-        }))
-      : form.filas;
+  private normalizarNotificacionSgcF12(raw: any): SgcF12Notificacion {
+    const base = raw && typeof raw === 'object' ? raw : {};
+    const filasSrc = Array.isArray(base.filas) ? base.filas : [];
+    const filas = filasSrc.length
+      ? filasSrc.map((fila: SgcF12Fila) => ({
+        actividad: String(fila?.actividad || ''),
+        asignacion: String(fila?.asignacion || ''),
+        recursos: String(fila?.recursos || ''),
+        fechaCompromiso: this.normalizarFechaIsoSgcF12(fila?.fechaCompromiso),
+        verificacion: String(fila?.verificacion || '')
+      }))
+      : [this.crearFilaSgcF12Vacia()];
+    const pdf = base.pdfFirmado?.driveFileId ? base.pdfFirmado as DgF02PdfFirmado : null;
+    const hist = (Array.isArray(base.pdfsHistorial) ? base.pdfsHistorial : [])
+      .filter((p: DgF02PdfFirmado) => !!p?.driveFileId);
     return {
-      ...form,
-      fecha: this.normalizarFechaIsoSgcF12(form.fecha),
-      fechaRevision: this.normalizarFechaIsoSgcF12(form.fechaRevision),
-      filas
+      id: String(base.id || '').trim() || this.nuevoIdSgcF12(),
+      folio: String(base.folio || '').trim().toUpperCase(),
+      nombreHoja: String(base.nombreHoja || '').trim(),
+      fecha: this.normalizarFechaIsoSgcF12(base.fecha),
+      responsableCambio: String(base.responsableCambio || ''),
+      queSeVaACambiar: String(base.queSeVaACambiar || ''),
+      proposito: String(base.proposito || ''),
+      consecuencias: String(base.consecuencias || ''),
+      planTrabajo: String(base.planTrabajo || ''),
+      elaboro: String(base.elaboro || ''),
+      reviso: String(base.reviso || ''),
+      autorizo: String(base.autorizo || ''),
+      filas,
+      pdfFirmado: pdf,
+      pdfsHistorial: hist
     };
+  }
+
+  private normalizarFormularioSgcF12(form: any): SgcF12FormData {
+    const base = form && typeof form === 'object' ? form : {};
+    let notificaciones: SgcF12Notificacion[] = [];
+    if (Array.isArray(base.notificaciones)) {
+      notificaciones = base.notificaciones.map((n: any) => this.normalizarNotificacionSgcF12(n));
+    } else if (base.fecha || base.responsableCambio || base.queSeVaACambiar || base.proposito || base.consecuencias
+      || (Array.isArray(base.filas) && base.filas.length)) {
+      notificaciones = [this.normalizarNotificacionSgcF12(base)];
+    }
+    const ids = new Set(notificaciones.map((n) => n.id));
+    const activa = String(base.notificacionActivaId || '');
+    this.asegurarFoliosSgcF12(notificaciones);
+    return {
+      revision: String(base.revision || '00'),
+      fechaRevision: this.normalizarFechaIsoSgcF12(base.fechaRevision) || '2025-01-17',
+      notificaciones,
+      notificacionActivaId: ids.has(activa) ? activa : (notificaciones[0]?.id || null),
+      ejemploAplicado: !!base.ejemploAplicado
+    };
+  }
+
+  private asegurarFoliosSgcF12(lista: SgcF12Notificacion[]): void {
+    for (const n of lista) {
+      if (String(n.folio || '').trim()) {
+        n.folio = String(n.folio).trim().toUpperCase();
+        continue;
+      }
+      const tieneDatos = !!(n.fecha || n.responsableCambio || n.queSeVaACambiar || n.proposito || n.consecuencias
+        || n.filas.some((f) => f.actividad || f.asignacion || f.recursos || f.fechaCompromiso || f.verificacion));
+      if (!tieneDatos) {
+        continue;
+      }
+      const fecha = n.fecha || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+      const d = new Date(`${fecha}T12:00:00`);
+      const base = Number.isNaN(d.getTime()) ? new Date() : d;
+      const dd = String(base.getDate()).padStart(2, '0');
+      const mm = String(base.getMonth() + 1).padStart(2, '0');
+      const aa = String(base.getFullYear()).slice(-2);
+      const tag = `${dd}${mm}${aa}`;
+      let maximo = 0;
+      lista.forEach((otro) => {
+        if (otro === n) {
+          return;
+        }
+        const match = String(otro.folio || '').toUpperCase().match(/^CAM-(\d{6})-(\d+)$/);
+        if (match && match[1] === tag) {
+          maximo = Math.max(maximo, parseInt(match[2], 10) || 0);
+        }
+      });
+      n.folio = `CAM-${tag}-${String(maximo + 1).padStart(2, '0')}`;
+    }
   }
 
   /** Altura uniforme de textareas en la misma fila. */
@@ -28521,19 +28624,116 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   agregarFilaSgcF12(): void {
-    this.sgcF12Form.filas.push(this.crearFilaSgcF12Vacia());
+    if (!this.sgcF12NotificacionActiva) {
+      return;
+    }
+    this.sgcF12NotificacionActiva.filas.push(this.crearFilaSgcF12Vacia());
     this.onSgcF12Editado();
   }
 
   quitarFilaSgcF12(index: number): void {
-    if (this.sgcF12Form.filas.length <= 1) {
+    const not = this.sgcF12NotificacionActiva;
+    if (!not || not.filas.length <= 1) {
       return;
     }
-    this.sgcF12Form.filas.splice(index, 1);
+    not.filas.splice(index, 1);
     this.onSgcF12Editado();
   }
 
-  onSgcF12Editado(): void {
+  get sgcF12NotificacionesVista(): SgcF12Notificacion[] {
+    const q = String(this.sgcF12Busqueda || '').trim().toLowerCase();
+    const lista = Array.isArray(this.sgcF12Form.notificaciones) ? this.sgcF12Form.notificaciones : [];
+    if (!q) {
+      return lista;
+    }
+    return lista.filter((n) =>
+      [n.folio, n.responsableCambio, n.queSeVaACambiar, n.proposito, n.consecuencias, n.fecha]
+        .some((v) => String(v || '').toLowerCase().includes(q))
+    );
+  }
+
+  get puedeBorrarPdfHistorialSgcF12(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
+
+  nuevaNotificacionSgcF12(): void {
+    const notificacion = this.crearNotificacionSgcF12Vacia();
+    notificacion.fecha = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+    this.sgcF12Form.notificaciones = [notificacion, ...this.sgcF12Form.notificaciones];
+    this.sgcF12Form.notificacionActivaId = notificacion.id;
+    this.sgcF12NotificacionActiva = notificacion;
+    this.sgcF12Vista = 'editor';
+    this.generarFolioSgcF12();
+    this.onSgcF12Editado();
+    this.persistirSgcF12Inmediato();
+  }
+
+  generarFolioSgcF12(): void {
+    const actual = this.sgcF12NotificacionActiva;
+    if (!actual) {
+      return;
+    }
+    const baseFecha = actual.fecha || new Date().toISOString().slice(0, 10);
+    const d = new Date(`${baseFecha}T12:00:00`);
+    const fecha = Number.isNaN(d.getTime()) ? new Date() : d;
+    const dd = String(fecha.getDate()).padStart(2, '0');
+    const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+    const aa = String(fecha.getFullYear()).slice(-2);
+    const fechaTag = `${dd}${mm}${aa}`;
+    if (!actual.fecha) {
+      actual.fecha = `${fecha.getFullYear()}-${mm}-${dd}`;
+    }
+    let maximo = 0;
+    this.sgcF12Form.notificaciones.forEach((n) => {
+      if (n.id === actual.id) {
+        return;
+      }
+      const match = String(n.folio || '').match(/^CAM-(\d{6})-(\d+)$/i);
+      if (match && match[1] === fechaTag) {
+        const num = parseInt(match[2], 10);
+        if (Number.isFinite(num) && num > maximo) {
+          maximo = num;
+        }
+      }
+    });
+    actual.folio = `CAM-${fechaTag}-${String(maximo + 1).padStart(2, '0')}`;
+  }
+
+  abrirNotificacionSgcF12(notificacion: SgcF12Notificacion): void {
+    if (!notificacion.filas?.length) {
+      notificacion.filas = [this.crearFilaSgcF12Vacia()];
+    }
+    this.sgcF12Form.notificacionActivaId = notificacion.id;
+    this.sgcF12NotificacionActiva = notificacion;
+    this.sgcF12Vista = 'editor';
+  }
+
+  volverArchiveroSgcF12(): void {
+    if (this.mostrarSgcF12PdfViewer) {
+      this.cerrarVisorPdfSgcF12();
+    }
+    this.sgcF12Vista = 'archivero';
+    this.sgcF12NotificacionActiva = null;
+  }
+
+  eliminarNotificacionSgcF12(notificacion: SgcF12Notificacion, event?: Event): void {
+    event?.stopPropagation();
+    if (!confirm(`¿Eliminar la notificación ${notificacion.folio || 'sin folio'}?`)) {
+      return;
+    }
+    this.sgcF12Form.notificaciones = this.sgcF12Form.notificaciones.filter((n) => n.id !== notificacion.id);
+    if (this.sgcF12NotificacionActiva?.id === notificacion.id) {
+      this.volverArchiveroSgcF12();
+    }
+    this.onSgcF12Editado();
+    this.persistirSgcF12Inmediato();
+  }
+
+  onSgcF12Editado(event?: Event): void {
+    const nombre = String((event?.target as HTMLInputElement | null)?.name || '');
+    if (nombre === 'sgcF12_busqueda') {
+      return;
+    }
     if (!this.sgcF12Listo || this.sgcF12IgnorarAutoSave) {
       return;
     }
@@ -28598,6 +28798,158 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.sgcF12EditorIframeListo = true;
     this.sgcF12EditorCargando = false;
+  }
+
+  descargarPdfSgcF12(): void {
+    const notificacion = this.sgcF12NotificacionActiva;
+    if (this.sgcF12DescargandoPdf || !notificacion) {
+      return;
+    }
+    const notificacionId = notificacion.id;
+    const folio = String(notificacion.folio || '').trim() || 'notificacion';
+    const nombreArchivo = `SGC-F-12 ${folio}.pdf`.replace(/[\\/:*?"<>|]+/g, '_');
+    this.sgcF12Form.notificacionActivaId = notificacionId;
+
+    const iniciarDescarga = () => {
+      this.sgcF12DescargandoPdf = true;
+      this.backendService.descargarPdfSgcF12(notificacionId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.sgcF12DescargandoPdf = false;
+            if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+              void Swal.fire({
+                icon: 'error',
+                title: 'No se pudo generar el PDF',
+                text: 'Guarda la información y vuelve a intentar.',
+                confirmButtonText: 'Entendido'
+              });
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = nombreArchivo;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.sgcF12DescargandoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo descargar el PDF',
+              text: 'Guarda la información primero para sincronizar la hoja en Drive e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    };
+
+    if (this.sgcF12CambiosPendientes && this.sgcF12Listo && !this.sgcF12Guardando) {
+      this.persistirSgcF12Inmediato(() => iniciarDescarga());
+      return;
+    }
+    iniciarDescarga();
+  }
+
+  onSeleccionarPdfSgcF12(event: Event): void {
+    const notificacion = this.sgcF12NotificacionActiva;
+    if (!notificacion) {
+      return;
+    }
+    const folio = notificacion.folio || 'notificacion';
+    this.procesarPdfDocumento(
+      event,
+      `SGC-F-12 ${folio}.pdf`,
+      (base64, nombre) => this.subirPdfFirmadoSgcF12(base64, nombre)
+    );
+  }
+
+  private subirPdfFirmadoSgcF12(pdfBase64: string, nombreArchivo: string): void {
+    const notificacionId = this.sgcF12NotificacionActiva?.id;
+    if (!notificacionId || this.sgcF12SubiendoPdf) {
+      return;
+    }
+    const enviar = () => {
+      this.sgcF12SubiendoPdf = true;
+      this.backendService.subirPdfFirmadoSgcF12(pdfBase64, nombreArchivo, notificacionId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.sgcF12SubiendoPdf = false;
+            this.sgcF12CambiosPendientes = false;
+            this.aplicarEstadoSgcF12(res, false, false);
+          },
+          error: () => {
+            this.sgcF12SubiendoPdf = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo subir el PDF',
+              text: 'Guarda la notificación e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    };
+    if (this.sgcF12CambiosPendientes && this.sgcF12Listo && !this.sgcF12Guardando) {
+      this.persistirSgcF12Inmediato(() => enviar());
+      return;
+    }
+    enviar();
+  }
+
+  eliminarPdfHistorialSgcF12(hist: DgF02PdfFirmado): void {
+    const notificacionId = this.sgcF12NotificacionActiva?.id;
+    if (!this.puedeBorrarPdfHistorialSgcF12 || !hist?.driveFileId || !notificacionId || this.sgcF12BorrandoPdf) {
+      return;
+    }
+    if (!confirm(`¿Eliminar «${hist.nombreArchivo || 'PDF'}» del historial?`)) {
+      return;
+    }
+    this.sgcF12BorrandoPdf = true;
+    this.backendService.eliminarPdfHistorialSgcF12(hist.driveFileId, notificacionId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF12BorrandoPdf = false;
+          this.aplicarEstadoSgcF12(res, false, false);
+        },
+        error: () => {
+          this.sgcF12BorrandoPdf = false;
+        }
+      });
+  }
+
+  toggleSgcF12PdfViewer(pdf?: DgF02PdfFirmado | null): void {
+    const objetivo = pdf || this.sgcF12NotificacionActiva?.pdfFirmado;
+    const id = objetivo?.driveFileId;
+    if (this.mostrarSgcF12PdfViewer && (!pdf || this.sgcF12PdfViewerTitulo === (objetivo?.nombreArchivo || ''))) {
+      this.cerrarVisorPdfSgcF12();
+      return;
+    }
+    if (!id) {
+      return;
+    }
+    this.mostrarSgcF12PdfViewer = true;
+    this.sgcF12PdfCargando = true;
+    this.sgcF12PdfViewerTitulo = objetivo?.nombreArchivo || 'SGC-F-12 notificación firmada.pdf';
+    const url = objetivo?.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+    this.sgcF12PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+
+  cerrarVisorPdfSgcF12(): void {
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    this.mostrarSgcF12PdfViewer = false;
+    this.sgcF12PdfEmbedUrlSafe = null;
+    this.sgcF12PdfCargando = false;
+    this.sgcF12PdfViewerTitulo = '';
+  }
+
+  onSgcF12PdfIframeLoad(): void {
+    this.sgcF12PdfCargando = false;
   }
 
   actualizarPlantillaSgcF12(): void {
@@ -30279,23 +30631,19 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!bloquearFormulario && res.datos) {
       this.sgcF12IgnorarAutoSave = true;
       this.sgcF12Listo = false;
-      const d = res.datos;
-      this.sgcF12Form = this.normalizarFormularioSgcF12({
-        revision: d.revision ?? this.sgcF12Form.revision,
-        fechaRevision: d.fechaRevision ?? this.sgcF12Form.fechaRevision,
-        fecha: d.fecha ?? this.sgcF12Form.fecha,
-        responsableCambio: d.responsableCambio ?? this.sgcF12Form.responsableCambio,
-        queSeVaACambiar: d.queSeVaACambiar ?? this.sgcF12Form.queSeVaACambiar,
-        proposito: d.proposito ?? this.sgcF12Form.proposito,
-        consecuencias: d.consecuencias ?? this.sgcF12Form.consecuencias,
-        planTrabajo: d.planTrabajo ?? this.sgcF12Form.planTrabajo,
-        filas: Array.isArray(d.filas) && d.filas.length
-          ? d.filas
-          : (this.sgcF12Form.filas.length ? this.sgcF12Form.filas : [this.crearFilaSgcF12Vacia()]),
-        elaboro: d.elaboro ?? this.sgcF12Form.elaboro,
-        reviso: d.reviso ?? this.sgcF12Form.reviso,
-        autorizo: d.autorizo ?? this.sgcF12Form.autorizo
-      });
+      const activaId = this.sgcF12NotificacionActiva?.id
+        || res.datos.notificacionActivaId
+        || null;
+      const vista = this.sgcF12Vista;
+      this.sgcF12Form = this.normalizarFormularioSgcF12(res.datos);
+      if (vista === 'editor' && activaId) {
+        const activa = this.sgcF12Form.notificaciones.find((n) => n.id === activaId) || null;
+        this.sgcF12NotificacionActiva = activa;
+        this.sgcF12Form.notificacionActivaId = activa?.id || null;
+        if (!activa) {
+          this.sgcF12Vista = 'archivero';
+        }
+      }
     } else if (!editorAbierto && !conservarEdicion) {
       this.sgcF12IgnorarAutoSave = true;
       this.sgcF12Listo = false;
@@ -31843,20 +32191,35 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     };
   }
 
-  private crearSgcF12Vacio() {
+  private nuevoIdSgcF12(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return `cam-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  private crearNotificacionSgcF12Vacia(): SgcF12Notificacion {
     return {
-      revision: '00',
-      fechaRevision: '2025-01-17',
+      id: this.nuevoIdSgcF12(),
+      folio: '',
       fecha: '',
       responsableCambio: '',
       queSeVaACambiar: '',
       proposito: '',
       consecuencias: '',
       planTrabajo: '',
-      filas: [this.crearFilaSgcF12Vacia()] as SgcF12Fila[],
-      elaboro: '',
-      reviso: '',
-      autorizo: ''
+      filas: [this.crearFilaSgcF12Vacia()],
+      pdfFirmado: null,
+      pdfsHistorial: []
+    };
+  }
+
+  private crearSgcF12Vacio(): SgcF12FormData {
+    return {
+      revision: '00',
+      fechaRevision: '2025-01-17',
+      notificaciones: [],
+      notificacionActivaId: null
     };
   }
 

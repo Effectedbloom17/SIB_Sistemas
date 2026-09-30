@@ -3435,6 +3435,51 @@ $sgc-surface: #f8fafb;
   }
 }
 
+.sgc-sat-ciclo-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+
+  &__btn {
+    height: 2.35rem;
+    margin: 0;
+    padding: 0 0.95rem;
+    border-radius: 999px;
+    border: 1.5px solid rgba(30, 157, 142, 0.55);
+    background: linear-gradient(145deg, #ffffff 0%, $sgc-sat-cliente-bg 100%);
+    color: $sgc-sat-cliente-dark;
+    font-size: 0.8rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(30, 157, 142, 0.16);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
+
+    &:hover:not(.is-active) {
+      background: #fff;
+      border-color: $sgc-sat-cliente;
+      color: $sgc-sat-cliente;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 16px rgba(30, 157, 142, 0.22);
+    }
+
+    &.is-active {
+      border-color: transparent;
+      background: linear-gradient(145deg, $sgc-sat-cliente-dark 0%, $sgc-sat-cliente 100%);
+      color: #fff;
+      box-shadow: 0 8px 18px rgba(30, 157, 142, 0.34);
+    }
+
+    &:focus-visible {
+      outline: 2px solid $sgc-sat-cliente;
+      outline-offset: 2px;
+    }
+  }
+}
+
 .sgc-avance-hero-badge--aud {
   background: linear-gradient(135deg, #0e7490 0%, $sgc-teal 100%);
   box-shadow: 0 8px 20px rgba(14, 116, 144, 0.28);

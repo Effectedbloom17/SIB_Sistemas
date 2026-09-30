@@ -21,10 +21,31 @@ const sgcAthF08Service = require('./sgcAthF08Service');
 const opinionesService = require('./opinionesService');
 const { obtenerRegistroSgcPersistido } = require('./sgcDgF05Service');
 
-/** Formulario fijo SGC-F-26 · Encuesta de Satisfacción del cliente. */
-const SGC_SATISFACCION_CLIENTE_FORM_ID =
-    process.env.SGC_SATISFACCION_CLIENTE_FORM_ID ||
-    '1otY7kAA7Ko5CICg2-HwpdLjVEU5hsj6onUM-0NC5tDs';
+/**
+ * Ciclos SGC-F-26. Cada periodo usa su propio formulario de Google.
+ * 2025-2026 conserva el cuestionario anterior; 2026-2027 es el vigente
+ * (revisión 01, 30-09-26).
+ */
+const CICLOS_SATISFACCION_CLIENTE = [
+    {
+        id: '2025-2026',
+        etiqueta: '2025-2026',
+        formId: process.env.SGC_SATISFACCION_CLIENTE_FORM_ID_2526
+            || process.env.SGC_SATISFACCION_CLIENTE_FORM_ID
+            || '1otY7kAA7Ko5CICg2-HwpdLjVEU5hsj6onUM-0NC5tDs',
+        vigente: false
+    },
+    {
+        id: '2026-2027',
+        etiqueta: '2026-2027',
+        formId: process.env.SGC_SATISFACCION_CLIENTE_FORM_ID_2627
+            || '1U1--K0OLk5iVe-17NIlB2kyeB620S-PMnpy8akkc9qo',
+        vigente: true
+    }
+];
+
+const CICLO_SATISFACCION_VIGENTE = CICLOS_SATISFACCION_CLIENTE.find((c) => c.vigente)
+    || CICLOS_SATISFACCION_CLIENTE[CICLOS_SATISFACCION_CLIENTE.length - 1];
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
@@ -173,13 +194,16 @@ function construirPreguntasAgregadasForms(preguntasForm = [], responses = []) {
 function payloadSatisfaccionVacio(anioNum, extra = {}) {
     return {
         anio: anioNum,
+        ciclo: CICLO_SATISFACCION_VIGENTE.id,
+        etiqueta: CICLO_SATISFACCION_VIGENTE.etiqueta,
+        vigente: true,
         indiceAnual: 0,
         totalRespuestas: 0,
         empresas: 0,
         cursosConEncuesta: 0,
         recomiendaPct: 0,
         fuente: 'google_forms',
-        formId: SGC_SATISFACCION_CLIENTE_FORM_ID,
+        formId: CICLO_SATISFACCION_VIGENTE.formId,
         ultimaRespuesta: null,
         servicios: [],
         comentarios: [],
@@ -199,24 +223,72 @@ function payloadSatisfaccionVacio(anioNum, extra = {}) {
     };
 }
 
+function serieMensualDesdeBuckets(buckets, anioRespaldo) {
+    const anios = new Set(Array.from(buckets.values()).map((b) => b.year));
+    if (anios.size <= 1) {
+        const year = anios.values().next().value || anioRespaldo;
+        return Array.from({ length: 12 }, (_, i) => {
+            const bucket = buckets.get(`${year}-${i}`);
+            return {
+                mes_num: i + 1,
+                anio: year,
+                mes: MESES_CORTOS[i],
+                indice: indiceEscalaCuatro(bucket?.evaluacion || nuevaCeldaEscala()),
+                respuestas: bucket?.respuestas || 0,
+                recomienda_pct: 0
+            };
+        });
+    }
+
+    const orden = Array.from(buckets.values())
+        .sort((a, b) => a.year - b.year || a.monthIdx - b.monthIdx);
+    const first = orden[0];
+    const last = orden[orden.length - 1];
+    const serie = [];
+    let year = first.year;
+    let monthIdx = first.monthIdx;
+    while (year < last.year || (year === last.year && monthIdx <= last.monthIdx)) {
+        const bucket = buckets.get(`${year}-${monthIdx}`);
+        serie.push({
+            mes_num: monthIdx + 1,
+            anio: year,
+            mes: `${MESES_CORTOS[monthIdx]} ${String(year).slice(2)}`,
+            indice: indiceEscalaCuatro(bucket?.evaluacion || nuevaCeldaEscala()),
+            respuestas: bucket?.respuestas || 0,
+            recomienda_pct: 0
+        });
+        monthIdx += 1;
+        if (monthIdx > 11) {
+            monthIdx = 0;
+            year += 1;
+        }
+    }
+    return serie;
+}
+
 /**
  * Índice de satisfacción del cliente (SGC-F-26) leído en vivo desde Google Forms.
- * Se filtra por año de envío; el dashboard cachea ~5 min para no saturar la API.
+ * El periodo lo define el formulario del ciclo (2025-2026 o 2026-2027), no el
+ * año del resto del dashboard. El dashboard cachea ~5 min para no saturar la API.
  */
-async function obtenerSatisfaccionCurso(_pool, anio) {
+async function obtenerSatisfaccionCurso(_pool, anio, ciclo = CICLO_SATISFACCION_VIGENTE) {
     const anioNum = Number(anio) || new Date().getFullYear();
+    const metaCiclo = {
+        ciclo: ciclo.id,
+        etiqueta: ciclo.etiqueta,
+        vigente: !!ciclo.vigente,
+        formId: ciclo.formId
+    };
 
     let formulario;
     try {
-        formulario = await googleFormsService.obtenerFormularioConRespuestas(
-            SGC_SATISFACCION_CLIENTE_FORM_ID
-        );
+        formulario = await googleFormsService.obtenerFormularioConRespuestas(ciclo.formId);
     } catch (err) {
         console.warn(
-            '[SGC] No se pudo leer la encuesta de satisfacción del cliente (Forms):',
+            `[SGC] No se pudo leer la encuesta de satisfacción del cliente (${ciclo.etiqueta}):`,
             err.message || err
         );
-        return payloadSatisfaccionVacio(anioNum, { error: err.message || String(err) });
+        return payloadSatisfaccionVacio(anioNum, { ...metaCiclo, error: err.message || String(err) });
     }
 
     const preguntas = formulario.preguntas || [];
@@ -233,13 +305,22 @@ async function obtenerSatisfaccionCurso(_pool, anio) {
         const ts = r.lastSubmittedTime || r.createTime;
         if (!ts) return false;
         const d = new Date(ts);
-        return !Number.isNaN(d.getTime()) && d.getFullYear() === anioNum;
+        return !Number.isNaN(d.getTime());
     });
 
-    const meses = Array.from({ length: 12 }, () => ({
-        evaluacion: nuevaCeldaEscala(),
-        respuestas: 0
-    }));
+    const bucketsMes = new Map();
+    const bucketMes = (year, monthIdx) => {
+        const key = `${year}-${monthIdx}`;
+        if (!bucketsMes.has(key)) {
+            bucketsMes.set(key, {
+                year,
+                monthIdx,
+                evaluacion: nuevaCeldaEscala(),
+                respuestas: 0
+            });
+        }
+        return bucketsMes.get(key);
+    };
     const evaluacionAnual = nuevaCeldaEscala();
     const serviciosMap = new Map();
     const empresasMap = new Map(); // key normalizada -> nombre mostrado
@@ -262,7 +343,9 @@ async function obtenerSatisfaccionCurso(_pool, anio) {
 
         const d = new Date(ts);
         const mesIdx = Number.isNaN(d.getTime()) ? 0 : d.getMonth();
-        meses[mesIdx].respuestas += 1;
+        const anioResp = Number.isNaN(d.getTime()) ? anioNum : d.getFullYear();
+        const mesBucket = bucketMes(anioResp, mesIdx);
+        mesBucket.respuestas += 1;
 
         const answers = response.answers || {};
         let empresaNombre = '';
@@ -303,7 +386,7 @@ async function obtenerSatisfaccionCurso(_pool, anio) {
         for (const pregunta of preguntasEscala) {
             const vals = valoresRespuesta(answers[pregunta.questionId]);
             for (const v of vals) {
-                registrarEscalaEnCelda(v, meses[mesIdx].evaluacion);
+                registrarEscalaEnCelda(v, mesBucket.evaluacion);
                 registrarEscalaEnCelda(v, evaluacionAnual);
             }
         }
@@ -315,6 +398,7 @@ async function obtenerSatisfaccionCurso(_pool, anio) {
         }
         respuestasLite.push({
             mes_num: mesIdx + 1,
+            anio: anioResp,
             empresa: empresaNombre || 'Sin empresa',
             answers: answersLite
         });
@@ -340,13 +424,7 @@ async function obtenerSatisfaccionCurso(_pool, anio) {
         }
     }
 
-    const serieMensual = meses.map((m, i) => ({
-        mes_num: i + 1,
-        mes: MESES_CORTOS[i],
-        indice: indiceEscalaCuatro(m.evaluacion),
-        respuestas: m.respuestas,
-        recomienda_pct: 0
-    }));
+    const serieMensual = serieMensualDesdeBuckets(bucketsMes, anioNum);
 
     const empresasLista = Array.from(empresasMap.values())
         .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
@@ -355,6 +433,9 @@ async function obtenerSatisfaccionCurso(_pool, anio) {
 
     return {
         anio: anioNum,
+        ciclo: ciclo.id,
+        etiqueta: ciclo.etiqueta,
+        vigente: !!ciclo.vigente,
         indiceAnual: indiceEscalaCuatro(evaluacionAnual),
         totalRespuestas: responsesAnio.length,
         empresas,
@@ -362,7 +443,7 @@ async function obtenerSatisfaccionCurso(_pool, anio) {
         cursosConEncuesta: empresas,
         recomiendaPct: 0,
         fuente: 'google_forms',
-        formId: SGC_SATISFACCION_CLIENTE_FORM_ID,
+        formId: ciclo.formId,
         formTitulo: formulario.info?.title || 'Encuesta de Satisfacción',
         ultimaRespuesta,
         servicios,
@@ -380,6 +461,12 @@ async function obtenerSatisfaccionCurso(_pool, anio) {
         },
         serieMensual
     };
+}
+
+async function obtenerSatisfaccionCiclos(pool, anio) {
+    return Promise.all(
+        CICLOS_SATISFACCION_CLIENTE.map((ciclo) => obtenerSatisfaccionCurso(pool, anio, ciclo))
+    );
 }
 
 function formatearFechaIso(fecha) {
@@ -1874,7 +1961,7 @@ async function obtenerDashboard(pool, poolSgc, anio, opciones = {}) {
     const [
         eficaciaCapacitacion,
         satisfaccionCapacitacion,
-        satisfaccionCurso,
+        satisfaccionCiclos,
         quejasCliente,
         evaluacionProveedores,
         avanceProyectos,
@@ -1884,7 +1971,7 @@ async function obtenerDashboard(pool, poolSgc, anio, opciones = {}) {
     ] = await Promise.all([
         obtenerEficaciaCapacitacionAthF08(poolSgc, anioNum),
         obtenerSatisfaccionCapacitacion(pool, anioNum),
-        obtenerSatisfaccionCurso(pool, anioNum),
+        obtenerSatisfaccionCiclos(pool, anioNum),
         obtenerQuejasCliente(poolSgc, anioNum),
         obtenerEvaluacionProveedores(poolSgc, anioNum),
         obtenerAvanceProyectos(poolSgc),
@@ -1897,12 +1984,17 @@ async function obtenerDashboard(pool, poolSgc, anio, opciones = {}) {
     const anios = [anioActual, anioActual - 1, anioActual - 2, anioActual - 3];
     if (!anios.includes(anioNum)) anios.unshift(anioNum);
 
+    const satisfaccionCurso = (satisfaccionCiclos || []).find((c) => c.vigente)
+        || (satisfaccionCiclos || [])[Math.max((satisfaccionCiclos || []).length - 1, 0)]
+        || payloadSatisfaccionVacio(anioNum);
+
     const payload = {
         anio: anioNum,
         anios,
         eficaciaCapacitacion,
         satisfaccionCapacitacion,
         satisfaccionCurso,
+        satisfaccionCiclos: satisfaccionCiclos || [],
         quejasCliente,
         evaluacionProveedores,
         avanceProyectos,
@@ -1921,6 +2013,7 @@ async function obtenerDashboard(pool, poolSgc, anio, opciones = {}) {
 module.exports = {
     obtenerDashboard,
     obtenerSatisfaccionCurso,
+    obtenerSatisfaccionCiclos,
     obtenerSatisfaccionCapacitacion,
     obtenerSatisfaccionMensual: obtenerSatisfaccionCurso,
     obtenerEficaciaCapacitacion,

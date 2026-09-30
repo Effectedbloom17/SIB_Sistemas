@@ -197,6 +197,8 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   eficaciaCapacitacion: any = null;
   satisfaccionCapacitacion: any = null;
   satisfaccionCurso: any = null;
+  satisfaccionCiclos: any[] = [];
+  cicloSatisfaccionId = '2026-2027';
   quejasCliente: any = null;
   evaluacionProveedores: any = null;
   avanceProyectos: any = null;
@@ -237,7 +239,9 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   histogramaChartKey = 0;
   /** null = año completo */
   filtroMesSatCap: number | null = null;
+  /** null = ciclo completo */
   filtroMesSatCliente: number | null = null;
+  filtroAnioSatCliente: number | null = null;
   /** '' = todas las empresas */
   filtroEmpresaSatCliente = '';
   filtroNegativosSatCliente = false;
@@ -498,7 +502,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     }
     this.eficaciaCapacitacion = res.eficaciaCapacitacion || null;
     this.satisfaccionCapacitacion = res.satisfaccionCapacitacion || null;
-    this.satisfaccionCurso = res.satisfaccionCurso || res.satisfaccion || null;
+    this.aplicarSatisfaccionCiclo(res);
     this.quejasCliente = res.quejasCliente || null;
     this.evaluacionProveedores = res.evaluacionProveedores || null;
     this.avanceProyectos = res.avanceProyectos || res.mejoraContinua || null;
@@ -519,9 +523,46 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     this.activarIntroAnimacionUnaVez();
   }
 
+  private aplicarSatisfaccionCiclo(res: any): void {
+    const lista = Array.isArray(res?.satisfaccionCiclos) ? res.satisfaccionCiclos : [];
+    this.satisfaccionCiclos = lista;
+    const elegido = lista.find((c: any) => c?.ciclo === this.cicloSatisfaccionId);
+    const vigente = lista.find((c: any) => c?.vigente) || lista[lista.length - 1];
+    if (elegido || vigente) {
+      const activo = elegido || vigente;
+      this.cicloSatisfaccionId = activo.ciclo || this.cicloSatisfaccionId;
+      this.satisfaccionCurso = activo;
+      return;
+    }
+    this.satisfaccionCurso = res?.satisfaccionCurso || res?.satisfaccion || null;
+  }
+
+  seleccionarCicloSatisfaccion(ciclo: string, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!ciclo || ciclo === this.cicloSatisfaccionId) return;
+    const encontrado = this.satisfaccionCiclos.find((c) => c?.ciclo === ciclo);
+    if (!encontrado) return;
+    this.cicloSatisfaccionId = ciclo;
+    this.satisfaccionCurso = encontrado;
+    this.filtroMesSatCliente = null;
+    this.filtroAnioSatCliente = null;
+    this.filtroEmpresaSatCliente = '';
+    this.filtroNegativosSatCliente = false;
+    this.cerrarCombosFiltroSat();
+    this.construirKpis();
+    this.actualizarCharts();
+    this.resetSatDonutCentro();
+  }
+
+  get etiquetaCicloSatisfaccion(): string {
+    return this.satisfaccionCurso?.etiqueta || this.satisfaccionCurso?.ciclo || this.cicloSatisfaccionId;
+  }
+
   onAnioChange(): void {
     this.filtroMesSatCap = null;
     this.filtroMesSatCliente = null;
+    this.filtroAnioSatCliente = null;
     this.filtroEmpresaSatCliente = '';
     this.filtroNegativosSatCliente = false;
     this.cerrarCombosFiltroSat();
@@ -2833,9 +2874,12 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   }
 
   get etiquetaFiltroMesSatCliente(): string {
-    if (this.filtroMesSatCliente == null) return 'Todo el año';
-    const m = this.mesesDisponiblesSatCliente.find((x) => x.mes_num === this.filtroMesSatCliente);
-    return m ? `${m.mes} · ${m.respuestas} resp.` : (this.mesesCortosSat[this.filtroMesSatCliente - 1] || 'Mes');
+    if (this.filtroMesSatCliente == null) return 'Todo el ciclo';
+    const m = this.mesesDisponiblesSatCliente.find((x) =>
+      x.mes_num === this.filtroMesSatCliente &&
+      (this.filtroAnioSatCliente == null || x.anio === this.filtroAnioSatCliente)
+    );
+    return m ? m.mes : (this.mesesCortosSat[this.filtroMesSatCliente - 1] || 'Mes');
   }
 
   get etiquetaFiltroEmpresaSatCliente(): string {
@@ -2891,10 +2935,11 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     this.filtroMesSatCapAbierto = false;
   }
 
-  seleccionarMesSatCliente(mes: number | null, event?: Event): void {
+  seleccionarMesSatCliente(mes: number | null, anio: number | null = null, event?: Event): void {
     event?.preventDefault();
     event?.stopPropagation();
     this.filtroMesSatCliente = mes;
+    this.filtroAnioSatCliente = mes == null ? null : anio;
     this.filtroMesSatClienteAbierto = false;
     this.onFiltroMesSatClienteChange();
   }
@@ -2952,8 +2997,11 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   }
 
   colorOpcionSatCliente(label: string): string {
-    const n = String(label || '').toLowerCase();
-    if (n.includes('excelente') || n.includes('definitivamente si')) return '#16a34a';
+    const n = this.normalizarTextoSat(label);
+    if (n.includes('excelente') || n.includes('muy probable')) return '#16a34a';
+    if (n.includes('nada probable')) return '#e11d48';
+    if (n.includes('poco probable')) return '#f59e0b';
+    if (n === 'probable') return this.palette.satCliente;
     if (n.includes('buen')) return this.palette.satCliente;
     if (n.includes('regular')) return '#f59e0b';
     if (n.includes('mal') || n.includes('no')) return '#e11d48';
@@ -2986,21 +3034,29 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     return preguntas.filter((p) => p?.type === 'choice' && (p?.total_respuestas || 0) > 0);
   }
 
-  get respuestasLiteSatCliente(): Array<{ mes_num: number; empresa: string; answers: Record<string, string[]> }> {
+  get respuestasLiteSatCliente(): Array<{ mes_num: number; anio: number | null; empresa: string; answers: Record<string, string[]> }> {
     return ((this.satisfaccionCurso?.respuestasLite || []) as any[]).map((r) => ({
       mes_num: Number(r?.mes_num) || 0,
+      anio: Number(r?.anio) || null,
       empresa: String(r?.empresa || 'Sin empresa'),
       answers: (r?.answers || {}) as Record<string, string[]>
     }));
   }
 
-  get respuestasLiteSatClienteFiltradas(): Array<{ mes_num: number; empresa: string; answers: Record<string, string[]> }> {
+  private respuestaCoincideMesSatCliente(respuesta: { mes_num: number; anio: number | null }): boolean {
+    if (this.filtroMesSatCliente == null) return true;
+    if (respuesta.mes_num !== this.filtroMesSatCliente) return false;
+    if (this.filtroAnioSatCliente == null || !respuesta.anio) return true;
+    return respuesta.anio === this.filtroAnioSatCliente;
+  }
+
+  get respuestasLiteSatClienteFiltradas(): Array<{ mes_num: number; anio: number | null; empresa: string; answers: Record<string, string[]> }> {
     let lista = this.respuestasLiteSatCliente;
     if (this.filtroNegativosSatCliente) {
       lista = lista.filter((r) => this.respuestaTieneNegativosSatCliente(r));
     }
     if (this.filtroMesSatCliente != null) {
-      lista = lista.filter((r) => r.mes_num === this.filtroMesSatCliente);
+      lista = lista.filter((r) => this.respuestaCoincideMesSatCliente(r));
     }
     if (this.filtroEmpresaSatCliente) {
       const key = this.filtroEmpresaSatCliente.trim().toLowerCase();
@@ -3009,7 +3065,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     return lista;
   }
 
-  get mesesDisponiblesSatCliente(): Array<{ mes_num: number; mes: string; respuestas: number }> {
+  get mesesDisponiblesSatCliente(): Array<{ mes_num: number; anio: number | null; mes: string; respuestas: number }> {
     let lista = this.respuestasLiteSatCliente;
     if (this.filtroNegativosSatCliente) {
       lista = lista.filter((r) => this.respuestaTieneNegativosSatCliente(r));
@@ -3018,17 +3074,23 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       const key = this.filtroEmpresaSatCliente.trim().toLowerCase();
       lista = lista.filter((r) => r.empresa.trim().toLowerCase() === key);
     }
-    const conteo = new Map<number, number>();
+    const anios = new Set(lista.map((r) => r.anio).filter((anio): anio is number => !!anio));
+    const variosAnios = anios.size > 1;
+    const conteo = new Map<string, { mes_num: number; anio: number | null; respuestas: number }>();
     for (const r of lista) {
       if (!r.mes_num) continue;
-      conteo.set(r.mes_num, (conteo.get(r.mes_num) || 0) + 1);
+      const clave = variosAnios ? `${r.anio || 0}-${r.mes_num}` : String(r.mes_num);
+      const prev = conteo.get(clave) || { mes_num: r.mes_num, anio: variosAnios ? r.anio : null, respuestas: 0 };
+      prev.respuestas += 1;
+      conteo.set(clave, prev);
     }
-    return Array.from(conteo.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([mes_num, respuestas]) => ({
-        mes_num,
-        mes: this.mesesCortosSat[mes_num - 1] || `M${mes_num}`,
-        respuestas
+    return Array.from(conteo.values())
+      .sort((a, b) => (a.anio || 0) - (b.anio || 0) || a.mes_num - b.mes_num)
+      .map((item) => ({
+        ...item,
+        mes: variosAnios && item.anio
+          ? `${this.mesesCortosSat[item.mes_num - 1] || `M${item.mes_num}`} ${item.anio}`
+          : (this.mesesCortosSat[item.mes_num - 1] || `M${item.mes_num}`)
       }));
   }
 
@@ -3038,7 +3100,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       lista = lista.filter((r) => this.respuestaTieneNegativosSatCliente(r));
     }
     if (this.filtroMesSatCliente != null) {
-      lista = lista.filter((r) => r.mes_num === this.filtroMesSatCliente);
+      lista = lista.filter((r) => this.respuestaCoincideMesSatCliente(r));
     }
     const set = new Set<string>();
     for (const r of lista) {
@@ -3078,9 +3140,10 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
 
     const partes: string[] = [];
     if (this.filtroMesSatCliente != null) {
-      partes.push(this.mesesCortosSat[this.filtroMesSatCliente - 1] || `M${this.filtroMesSatCliente}`);
+      const mes = this.mesesCortosSat[this.filtroMesSatCliente - 1] || `M${this.filtroMesSatCliente}`;
+      partes.push(this.filtroAnioSatCliente ? `${mes} ${this.filtroAnioSatCliente}` : mes);
     }
-    partes.push(String(this.anioSeleccionado));
+    partes.push(this.etiquetaCicloSatisfaccion);
     if (this.filtroEmpresaSatCliente) {
       partes.push(this.filtroEmpresaSatCliente);
     }
@@ -3094,6 +3157,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
 
   abrirPreguntasSatisfaccion(): void {
     this.filtroMesSatCliente = null;
+    this.filtroAnioSatCliente = null;
     this.filtroEmpresaSatCliente = '';
     this.filtroNegativosSatCliente = false;
     this.cerrarCombosFiltroSat();
@@ -3103,6 +3167,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   cerrarPreguntasSatisfaccion(): void {
     this.mostrarPreguntasSatisfaccion = false;
     this.filtroMesSatCliente = null;
+    this.filtroAnioSatCliente = null;
     this.filtroEmpresaSatCliente = '';
     this.filtroNegativosSatCliente = false;
     this.cerrarCombosFiltroSat();
@@ -3125,9 +3190,13 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     }
     if (
       this.filtroMesSatCliente != null &&
-      !this.mesesDisponiblesSatCliente.some((m) => m.mes_num === this.filtroMesSatCliente)
+      !this.mesesDisponiblesSatCliente.some((m) =>
+        m.mes_num === this.filtroMesSatCliente &&
+        (this.filtroAnioSatCliente == null || m.anio == null || m.anio === this.filtroAnioSatCliente)
+      )
     ) {
       this.filtroMesSatCliente = null;
+      this.filtroAnioSatCliente = null;
     }
   }
 
@@ -3150,7 +3219,14 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
 
   private esRespuestaNegativaSat(valor: string): boolean {
     const n = this.normalizarTextoSat(valor);
+    if (n.includes('poco probable') || n.includes('nada probable')) return true;
+    if (n.includes('muy probable') || n === 'probable') return false;
     return n.includes('regular') || n.includes('mal');
+  }
+
+  private esPreguntaRecomendacionSat(pregunta: { type?: string; options?: string[] }): boolean {
+    if (!pregunta || pregunta.type !== 'choice') return false;
+    return (pregunta.options || []).some((o) => this.normalizarTextoSat(o).includes('probable'));
   }
 
   private get idsPreguntasEscalaSatCliente(): string[] {
@@ -3159,7 +3235,9 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       type?: string;
       options?: string[];
     }>;
-    return form.filter((p) => this.esPreguntaEscalaSat(p)).map((p) => p.questionId);
+    return form
+      .filter((p) => this.esPreguntaEscalaSat(p) || this.esPreguntaRecomendacionSat(p))
+      .map((p) => p.questionId);
   }
 
   private respuestaTieneNegativosSatCliente(respuesta: {
@@ -3190,9 +3268,13 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   onFiltroEmpresaSatClienteChange(): void {
     if (
       this.filtroMesSatCliente != null &&
-      !this.mesesDisponiblesSatCliente.some((m) => m.mes_num === this.filtroMesSatCliente)
+      !this.mesesDisponiblesSatCliente.some((m) =>
+        m.mes_num === this.filtroMesSatCliente &&
+        (this.filtroAnioSatCliente == null || m.anio == null || m.anio === this.filtroAnioSatCliente)
+      )
     ) {
       this.filtroMesSatCliente = null;
+      this.filtroAnioSatCliente = null;
     }
   }
 
@@ -3397,8 +3479,8 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     return c.label;
   }
 
-  trackByMesSat(_index: number, m: { mes_num: number }): number {
-    return m.mes_num;
+  trackByMesSat(_index: number, m: { mes_num: number; anio?: number | null }): string {
+    return `${m.anio || 0}-${m.mes_num}`;
   }
 
   trackByEmpresaSat(_index: number, emp: string): string {

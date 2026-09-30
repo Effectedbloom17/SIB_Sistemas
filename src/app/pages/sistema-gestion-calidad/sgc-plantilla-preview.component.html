@@ -514,6 +514,17 @@
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF27mDescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
                   </button>
                   <button
+                    *ngIf="plantillaSlug === 'sgc-f-12' && sgcF12Vista === 'editor'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF12DescargandoPdf || !sgcF12NotificacionActiva"
+                    (click)="descargarPdfSgcF12()"
+                    title="Descargar PDF (carta, horizontal, ajustar al ancho, márgenes normales)"
+                    aria-label="Descargar PDF de la notificación de cambios">
+                    <i class="fas" [ngClass]="sgcF12DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF12DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
+                  </button>
+                  <button
                     *ngIf="plantillaSlug === 'sgc-f-04' && sgcF04Vista === 'editor'"
                     type="button"
                     class="btn btn-sm sgc-btn-pdf-icon"
@@ -15401,12 +15412,133 @@
 
             <ng-container *ngSwitchCase="'sgc-f-12'">
               <form class="dg-f05-form" (ngSubmit)="$event.preventDefault()"
-                    (input)="onSgcF12Editado()" (change)="onSgcF12Editado()">
+                    (input)="onSgcF12Editado($event)" (change)="onSgcF12Editado($event)">
                 <div class="dg-f05-doc-wrap" [class.dg-f05-doc-wrap--loading]="sgcF12Cargando">
                   <div class="dg-f05-loading" *ngIf="sgcF12Cargando" role="status">
                     <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Cargando formato…
                   </div>
-                  <article class="dg-f05-doc">
+
+                  <article class="dg-f05-doc sgc-f-04-doc sgc-f-04-doc--archivero" *ngIf="sgcF12Vista === 'archivero'">
+                    <header class="dg-f05-doc__header sgc-f-12-doc__header">
+                      <div class="sgc-f-12-doc__header-main">
+                        <span class="dg-f05-doc__code">SGC-F-12</span>
+                        <h3 class="dg-f05-doc__title">Notificación de cambios al SGC</h3>
+                      </div>
+                      <div class="sgc-f-12-doc__header-meta">
+                        <label class="sgc-f-12-doc__meta-item">
+                          <span class="sgc-f-12-doc__meta-label">Revisión</span>
+                          <input class="sgc-f-12-doc__meta-input" type="text" name="sgcF12_revision_arch"
+                            [(ngModel)]="sgcF12Form.revision" autocomplete="off" readonly>
+                        </label>
+                        <label class="sgc-f-12-doc__meta-item">
+                          <span class="sgc-f-12-doc__meta-label">Fecha de revisión</span>
+                          <input class="sgc-f-12-doc__meta-input" type="date" name="sgcF12_fechaRev_arch"
+                            [(ngModel)]="sgcF12Form.fechaRevision" readonly>
+                        </label>
+                      </div>
+                    </header>
+
+                    <div class="sgc-f-04-archivero">
+                      <div class="sgc-f-04-archivero__intro">
+                        <div class="sgc-f-04-archivero__intro-main">
+                          <div class="sgc-f-04-archivero__intro-icon">
+                            <i class="fas fa-archive" aria-hidden="true"></i>
+                          </div>
+                          <div class="sgc-f-04-archivero__intro-text">
+                            <h4 class="sgc-f-04-archivero__title">Archivero de notificaciones</h4>
+                            <p class="sgc-f-04-archivero__hint">Cada notificación se guarda con folio y en su propia hoja del Excel.</p>
+                          </div>
+                        </div>
+                        <div class="sgc-f-04-archivero__toolbar">
+                          <label class="sgc-f-04-archivero__search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input class="dg-f05-field" type="search" name="sgcF12_busqueda"
+                              [(ngModel)]="sgcF12Busqueda" placeholder="Buscar folio, responsable o cambio…"
+                              autocomplete="off">
+                          </label>
+                          <button type="button" class="sgc-f-04-archivero__btn-nuevo" (click)="nuevaNotificacionSgcF12()">
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            Nueva notificación
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="sgc-f-04-archivero__stats">
+                        <span class="sgc-f-04-archivero__stat">
+                          {{ sgcF12Form.notificaciones.length }}
+                          {{ sgcF12Form.notificaciones.length === 1 ? 'notificación' : 'notificaciones' }}
+                        </span>
+                        <span class="sgc-f-04-archivero__stat sgc-f-04-archivero__stat--muted"
+                          *ngIf="sgcF12Busqueda.trim() && sgcF12NotificacionesVista.length !== sgcF12Form.notificaciones.length">
+                          · {{ sgcF12NotificacionesVista.length }} en vista
+                        </span>
+                      </div>
+
+                      <ul class="sgc-f-04-archivero__grid" *ngIf="sgcF12NotificacionesVista.length; else sgcF12ArchiveroVacio">
+                        <li class="sgc-f-04-book"
+                          *ngFor="let n of sgcF12NotificacionesVista; trackBy: trackByIdx"
+                          [class.sgc-f-04-book--pdf]="!!n.pdfFirmado?.driveFileId">
+                          <button type="button" class="sgc-f-04-book__tap"
+                            (click)="abrirNotificacionSgcF12(n)"
+                            [attr.aria-label]="'Abrir notificación ' + (n.folio || 'sin folio')">
+                            <span class="sgc-f-04-book__binding" aria-hidden="true">
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                            </span>
+                            <span class="sgc-f-04-book__page">
+                              <span class="sgc-f-04-book__corner" aria-hidden="true"></span>
+                              <span class="sgc-f-04-book__head">
+                                <span class="sgc-f-04-book__icon" [class.sgc-f-04-book__icon--pdf]="!!n.pdfFirmado?.driveFileId">
+                                  <i class="fas" [ngClass]="n.pdfFirmado?.driveFileId ? 'fa-file-pdf' : 'fa-exchange-alt'"></i>
+                                </span>
+                                <span class="sgc-f-04-book__estado" [class.sgc-f-04-book__estado--cerrado]="!!n.pdfFirmado?.driveFileId">
+                                  {{ n.pdfFirmado?.driveFileId ? 'Firmada' : 'En captura' }}
+                                </span>
+                              </span>
+                              <span class="sgc-f-04-book__origen">{{ n.responsableCambio?.trim() || 'Sin responsable' }}</span>
+                              <span class="sgc-f-04-book__folio">{{ n.folio || 'Sin folio' }}</span>
+                              <span class="sgc-f-04-book__lines" aria-hidden="true">
+                                <span></span><span></span><span></span>
+                              </span>
+                              <span class="sgc-f-04-book__foot">
+                                <span class="sgc-f-04-book__fecha" *ngIf="n.fecha">{{ formatearFechaDgF02(n.fecha) }}</span>
+                                <span class="sgc-f-04-book__fuente" *ngIf="n.queSeVaACambiar">{{ n.queSeVaACambiar }}</span>
+                              </span>
+                            </span>
+                          </button>
+                          <button type="button" class="sgc-f-04-book__del"
+                            (click)="eliminarNotificacionSgcF12(n, $event)" title="Eliminar notificación"
+                            aria-label="Eliminar notificación">
+                            <i class="fas fa-times" aria-hidden="true"></i>
+                          </button>
+                        </li>
+                      </ul>
+                      <ng-template #sgcF12ArchiveroVacio>
+                        <div class="sgc-f-04-archivero__empty">
+                          <i class="fas fa-archive" aria-hidden="true"></i>
+                          <p class="mb-0" *ngIf="sgcF12Busqueda.trim(); else sgcF12SinNotificaciones">
+                            No hay notificaciones que coincidan con la búsqueda.
+                          </p>
+                          <ng-template #sgcF12SinNotificaciones>
+                            <p class="mb-0">Aún no hay notificaciones. Crea la primera con «Nueva notificación».</p>
+                          </ng-template>
+                        </div>
+                      </ng-template>
+                    </div>
+                  </article>
+
+                  <article class="dg-f05-doc sgc-f-04-doc sgc-f-04-doc--editor" *ngIf="sgcF12Vista === 'editor' && sgcF12NotificacionActiva as not">
+                    <div class="sgc-f-04-editor-bar">
+                      <button type="button" class="sgc-f-04-editor-bar__back" (click)="volverArchiveroSgcF12()">
+                        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                        Volver al archivero
+                      </button>
+                      <span class="sgc-f-04-editor-bar__folio" *ngIf="not.folio">{{ not.folio }}</span>
+                    </div>
                     <header class="dg-f05-doc__header sgc-f-12-doc__header">
                       <div class="sgc-f-12-doc__header-main">
                         <span class="dg-f05-doc__code">SGC-F-12</span>
@@ -15429,42 +15561,42 @@
                       <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-exchange-alt" aria-hidden="true"></i></div>
                       <div>
                         <h4 class="sgc-f-11-matriz__title">Notificación de cambios</h4>
-                        <p class="sgc-f-11-matriz__hint">Describe qué se cambia en el SGC, su propósito y consecuencias, con el plan de trabajo para implementarlo.</p>
+                        <p class="sgc-f-11-matriz__hint">Describe qué se cambia en el SGC, su propósito y consecuencias, con el plan de trabajo para implementarlo. Folio {{ not.folio || 'sin folio' }}.</p>
                       </div>
                     </div>
                     <div class="sgc-f-12-form">
                       <div class="sgc-f-12-form__row">
                         <span class="sgc-f-12-form__label">1. Fecha</span>
                         <div class="sgc-f-12-form__control sgc-f-12-form__control--date">
-                          <input class="dg-f05-field dg-f05-field--date" type="date" name="sgcF12_fecha" [(ngModel)]="sgcF12Form.fecha">
+                          <input class="dg-f05-field dg-f05-field--date" type="date" name="sgcF12_fecha" [(ngModel)]="not.fecha">
                         </div>
                       </div>
                       <div class="sgc-f-12-form__row">
                         <span class="sgc-f-12-form__label">2. Responsable del cambio</span>
                         <div class="sgc-f-12-form__control">
                           <input class="dg-f05-field" type="text" name="sgcF12_resp"
-                            [(ngModel)]="sgcF12Form.responsableCambio" autocomplete="off">
+                            [(ngModel)]="not.responsableCambio" autocomplete="off">
                         </div>
                       </div>
                       <div class="sgc-f-12-form__row">
                         <span class="sgc-f-12-form__label">3. ¿Qué se va a cambiar?</span>
                         <div class="sgc-f-12-form__control">
                           <textarea class="dg-f05-field dg-f05-field--textarea" name="sgcF12_que"
-                            [(ngModel)]="sgcF12Form.queSeVaACambiar" [attr.rows]="filasTextoSgcF12(sgcF12Form.queSeVaACambiar)"></textarea>
+                            [(ngModel)]="not.queSeVaACambiar" [attr.rows]="filasTextoSgcF12(not.queSeVaACambiar)"></textarea>
                         </div>
                       </div>
                       <div class="sgc-f-12-form__row">
                         <span class="sgc-f-12-form__label">4. Propósito del cambio</span>
                         <div class="sgc-f-12-form__control">
                           <textarea class="dg-f05-field dg-f05-field--textarea" name="sgcF12_prop"
-                            [(ngModel)]="sgcF12Form.proposito" [attr.rows]="filasTextoSgcF12(sgcF12Form.proposito)"></textarea>
+                            [(ngModel)]="not.proposito" [attr.rows]="filasTextoSgcF12(not.proposito)"></textarea>
                         </div>
                       </div>
                       <div class="sgc-f-12-form__row">
                         <span class="sgc-f-12-form__label">5. Consecuencias del cambio</span>
                         <div class="sgc-f-12-form__control">
                           <textarea class="dg-f05-field dg-f05-field--textarea" name="sgcF12_cons"
-                            [(ngModel)]="sgcF12Form.consecuencias" [attr.rows]="filasTextoSgcF12(sgcF12Form.consecuencias)"></textarea>
+                            [(ngModel)]="not.consecuencias" [attr.rows]="filasTextoSgcF12(not.consecuencias)"></textarea>
                         </div>
                       </div>
                     </div>
@@ -15476,7 +15608,7 @@
                           <table class="dg-f05-table sgc-f-12-plan__table">
                             <thead><tr><th>Actividad</th><th>Asignación</th><th>Recursos</th><th>Fecha compromiso</th><th>Verificación</th><th class="dg-f05-table__act" aria-label="Acciones"></th></tr></thead>
                             <tbody>
-                              <tr *ngFor="let fila of sgcF12Form.filas; trackBy: trackByIdx; let i = index">
+                              <tr *ngFor="let fila of not.filas; trackBy: trackByIdx; let i = index">
                                 <td><textarea class="dg-f05-field dg-f05-field--textarea" [attr.rows]="filasTexto(fila.actividad)" [(ngModel)]="fila.actividad" [name]="'sgcF12_a' + i"></textarea></td>
                                 <td><textarea class="dg-f05-field dg-f05-field--textarea" [attr.rows]="filasTexto(fila.asignacion)" [(ngModel)]="fila.asignacion" [name]="'sgcF12_as' + i"></textarea></td>
                                 <td><textarea class="dg-f05-field dg-f05-field--textarea" [attr.rows]="filasTexto(fila.recursos)" [(ngModel)]="fila.recursos" [name]="'sgcF12_r' + i"></textarea></td>
@@ -15485,7 +15617,7 @@
                                 </td>
                                 <td><textarea class="dg-f05-field dg-f05-field--textarea" [attr.rows]="filasTexto(fila.verificacion)" [(ngModel)]="fila.verificacion" [name]="'sgcF12_v' + i"></textarea></td>
                                 <td class="dg-f05-table__act">
-                                  <button type="button" class="dg-f05-row-btn" (click)="quitarFilaSgcF12(i)" [disabled]="sgcF12Form.filas.length <= 1" title="Quitar fila">
+                                  <button type="button" class="dg-f05-row-btn" (click)="quitarFilaSgcF12(i)" [disabled]="not.filas.length <= 1" title="Quitar fila">
                                     <i class="fas fa-times" aria-hidden="true"></i>
                                   </button>
                                 </td>
@@ -15499,14 +15631,98 @@
                           </button>
                       </div>
                     </section>
-                    <footer class="dg-f05-signatures">
-                      <label class="dg-f05-signature"><span class="dg-f05-signature__label">Elaboró</span>
-                        <input class="dg-f05-field dg-f05-field--signature" type="text" name="sgcF12_elab" [(ngModel)]="sgcF12Form.elaboro"></label>
-                      <label class="dg-f05-signature"><span class="dg-f05-signature__label">Revisó</span>
-                        <input class="dg-f05-field dg-f05-field--signature" type="text" name="sgcF12_rev" [(ngModel)]="sgcF12Form.reviso"></label>
-                      <label class="dg-f05-signature"><span class="dg-f05-signature__label">Autorizó</span>
-                        <input class="dg-f05-field dg-f05-field--signature" type="text" name="sgcF12_aut" [(ngModel)]="sgcF12Form.autorizo"></label>
-                    </footer>
+
+                    <aside class="dg-f02-attach" aria-label="Documento firmado">
+                      <div class="dg-f02-attach__head">
+                        <div class="dg-f02-attach__icon-wrap">
+                          <i class="fas fa-file-signature" aria-hidden="true"></i>
+                        </div>
+                        <div>
+                          <h3 class="dg-f02-attach__title">Versión firmada</h3>
+                          <p class="dg-f02-attach__desc mb-0">
+                            Sube el PDF firmado. Cada carga se agrega al historial de esta notificación (no reemplaza versiones anteriores).
+                          </p>
+                        </div>
+                      </div>
+                      <label class="dg-f02-attach__dropzone" *ngIf="!not.pdfFirmado?.driveFileId"
+                        [class.dg-f02-attach__dropzone--busy]="sgcF12SubiendoPdf">
+                        <input type="file" class="dg-f02-attach__input" accept="application/pdf"
+                          (change)="onSeleccionarPdfSgcF12($event)" [disabled]="sgcF12SubiendoPdf">
+                        <span class="dg-f02-attach__dropzone-icon">
+                          <i class="fas" [ngClass]="sgcF12SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                        </span>
+                        <span class="dg-f02-attach__dropzone-title">
+                          {{ sgcF12SubiendoPdf ? 'Subiendo PDF…' : 'Arrastra o selecciona el PDF firmado' }}
+                        </span>
+                        <span class="dg-f02-attach__dropzone-hint">Formato PDF · máximo {{ etiquetaMaxPdfSgc }}</span>
+                      </label>
+                      <input #sgcF12InputActualizarPdf type="file" class="dg-f02-attach__input" accept="application/pdf"
+                        (change)="onSeleccionarPdfSgcF12($event)" [disabled]="sgcF12SubiendoPdf">
+                      <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="not.pdfFirmado as pdf">
+                        <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
+                        <div class="dg-f02-attach__file-info">
+                          <span class="dg-f02-attach__file-badge">Vigente</span>
+                          <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo || ('SGC-F-12 ' + (not.folio || 'notificacion') + '.pdf') }}</strong>
+                          <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                            <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                            Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}
+                          </small>
+                        </div>
+                        <div class="dg-f02-attach__file-actions" *ngIf="not.pdfFirmado?.driveFileId">
+                          <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                            (click)="toggleSgcF12PdfViewer(pdf)">
+                            <i class="fas fa-eye" aria-hidden="true"></i>
+                            Abrir
+                          </button>
+                          <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
+                            [disabled]="sgcF12SubiendoPdf"
+                            (click)="sgcF12InputActualizarPdf.click()">
+                            <i class="fas" [ngClass]="sgcF12SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                            {{ sgcF12SubiendoPdf ? 'Subiendo…' : 'Nueva versión' }}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="sgc-pdf-historial" *ngIf="not.pdfsHistorial?.length">
+                        <div class="sgc-pdf-historial__head">
+                          <div class="sgc-pdf-historial__icon" aria-hidden="true">
+                            <i class="fas fa-history"></i>
+                          </div>
+                          <div>
+                            <h4 class="sgc-pdf-historial__title">Historial de PDFs firmados</h4>
+                            <p class="sgc-pdf-historial__hint">Solo versiones firmadas de esta notificación.</p>
+                          </div>
+                        </div>
+                        <ul class="sgc-pdf-historial__list">
+                          <li class="sgc-pdf-historial__item" *ngFor="let hist of not.pdfsHistorial; let i = index">
+                            <div class="sgc-pdf-historial__item-main">
+                              <span class="sgc-pdf-historial__ver">{{ not.pdfsHistorial.length - i }}</span>
+                              <div class="sgc-pdf-historial__meta">
+                                <strong class="sgc-pdf-historial__name">{{ hist.nombreArchivo }}</strong>
+                                <small class="sgc-pdf-historial__date" *ngIf="hist.fechaSubida">
+                                  <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                                  {{ formatearFechaDgF02(hist.fechaSubida) }}
+                                </small>
+                              </div>
+                            </div>
+                            <div class="sgc-pdf-historial__actions">
+                              <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                                (click)="toggleSgcF12PdfViewer(hist)">
+                                <i class="fas fa-eye" aria-hidden="true"></i>
+                                Abrir
+                              </button>
+                              <button *ngIf="puedeBorrarPdfHistorialSgcF12" type="button"
+                                class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--danger"
+                                [disabled]="sgcF12BorrandoPdf"
+                                (click)="eliminarPdfHistorialSgcF12(hist)"
+                                title="Eliminar PDF del historial">
+                                <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                              </button>
+                            </div>
+                          </li>
+                        </ul>
+                      </div>
+                    </aside>
                   </article>
                 </div>
               </form>
@@ -17327,7 +17543,7 @@
         <span class="sgc-drive-editor-fullscreen__icon"><i class="fas fa-exchange-alt" aria-hidden="true"></i></span>
         <div>
           <strong class="sgc-drive-editor-fullscreen__title">{{ tituloEditorIntegrado }}</strong>
-          <small class="sgc-drive-editor-fullscreen__subtitle">SGC-F-12 · Notificación de cambios · Excel = historial visual · Corrige solo si hay errores de registro</small>
+          <small class="sgc-drive-editor-fullscreen__subtitle">SGC-F-12 · Notificación de cambios · Cada folio es una hoja del Excel</small>
         </div>
       </div>
       <div class="sgc-drive-editor-fullscreen__head-actions">
@@ -17348,6 +17564,39 @@
   </div>
 </div>
 
+<div class="sgc-drive-editor-fullscreen" *ngIf="mostrarSgcF12PdfViewer"
+  role="dialog" aria-modal="true" aria-label="Visor PDF SGC-F-12">
+  <div class="sgc-drive-editor-fullscreen__backdrop" (click)="cerrarVisorPdfSgcF12()"></div>
+  <div class="sgc-drive-editor-fullscreen__panel">
+    <div class="sgc-drive-editor-fullscreen__head">
+      <div class="sgc-drive-editor-fullscreen__title-wrap">
+        <span class="sgc-drive-editor-fullscreen__icon">
+          <i class="fas fa-file-pdf" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ sgcF12PdfViewerTitulo || 'SGC-F-12 notificación firmada.pdf' }}</strong>
+          <small class="sgc-drive-editor-fullscreen__subtitle">Vista previa del PDF · solo lectura</small>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-light" type="button" (click)="cerrarVisorPdfSgcF12()">
+        <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+      </button>
+    </div>
+    <div class="sgc-drive-editor-fullscreen__body">
+      <div class="sgc-drive-editor-fullscreen__loading" *ngIf="sgcF12PdfCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando PDF…</span>
+      </div>
+      <iframe *ngIf="sgcF12PdfEmbedUrlSafe"
+        class="sgc-drive-editor-fullscreen__iframe"
+        [src]="sgcF12PdfEmbedUrlSafe"
+        [title]="sgcF12PdfViewerTitulo || 'SGC-F-12 PDF firmado'"
+        (load)="onSgcF12PdfIframeLoad()"
+        allow="autoplay">
+      </iframe>
+    </div>
+  </div>
+</div>
 
 <div class="sgc-drive-editor-fullscreen" *ngIf="mostrarSgcF22Editor"
   role="dialog" aria-modal="true" aria-label="Editor integrado SGC-F-22">
