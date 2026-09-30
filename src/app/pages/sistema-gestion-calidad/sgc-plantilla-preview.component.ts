@@ -1415,6 +1415,50 @@ interface SgcF24FormData {
   cambioActivoId?: string | null;
 }
 
+interface AthF06PdfFirmado {
+  driveFileId: string;
+  nombreArchivo: string;
+  webViewLink?: string;
+  previewUrl?: string;
+  fechaSubida?: string | null;
+}
+
+interface AthF06Trabajador {
+  nombre: string;
+  puesto: string;
+}
+
+interface AthF06Necesidad {
+  capacitacion: string;
+  justificacion: string;
+  fechaRequerida: string;
+}
+
+interface AthF06Registro {
+  id: string;
+  folio: string;
+  fechaEmision: string;
+  nombreSolicitante: string;
+  puestoSolicitante: string;
+  area: string;
+  tipoIngreso: boolean;
+  tipoCambioPuesto: boolean;
+  tipoFormacion: boolean;
+  tipoExtraordinaria: boolean;
+  trabajadores: AthF06Trabajador[];
+  necesidades: AthF06Necesidad[];
+  comentarios: string;
+  pdfFirmado: AthF06PdfFirmado | null;
+}
+
+interface AthF06FormData {
+  fechaElaboracion: string;
+  revision: string;
+  fechaRevision: string;
+  registros: AthF06Registro[];
+  registroActivoId?: string | null;
+}
+
 interface AthF03PdfFirmado {
   driveFileId: string;
   nombreArchivo: string;
@@ -1652,6 +1696,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return this.plantillaSlug === 'dg-f-05' || this.plantillaSlug === 'sgc-f-07'
       || this.plantillaSlug === 'sgc-f-08' || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-03' || this.plantillaSlug === 'sgc-f-16'
       || this.plantillaSlug === 'sgc-f-24'
+      || this.plantillaSlug === 'ath-f-06'
       || this.plantillaSlug === 'sgc-f-27'
       || this.plantillaSlug === 'sgc-f-27-medicion'
       || this.plantillaSlug === 'sgc-f-29'
@@ -2415,6 +2460,29 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF24PdfCargando = false;
   sgcF24PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   private sgcF24EditorIframeListo = false;
+  athF06Form: AthF06FormData = this.crearAthF06FormVacio();
+  athF06Cargando = false;
+  athF06Guardando = false;
+  athF06Listo = false;
+  athF06CambiosPendientes = false;
+  athF06IgnorarAutoSave = false;
+  athF06UltimaSync: string | null = null;
+  athF06DriveFileId: string | null = null;
+  athF06EditorUrl: string | null = null;
+  athF06EditorEmbedUrlSafe: SafeResourceUrl | null = null;
+  mostrarAthF06Editor = false;
+  athF06ContenidoModificado = false;
+  athF06EditorCargando = false;
+  athF06ActualizandoPlantilla = false;
+  athF06Vista: 'archivero' | 'editor' = 'archivero';
+  athF06RegistroActivo: AthF06Registro | null = null;
+  athF06Busqueda = '';
+  athF06DescargandoPdf = false;
+  athF06SubiendoPdf = false;
+  mostrarAthF06PdfViewer = false;
+  athF06PdfCargando = false;
+  athF06PdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  private athF06EditorIframeListo = false;
   athF03Form: AthF03FormData = this.crearAthF03FormVacio();
   athF03Cargando = false;
   athF03Guardando = false;
@@ -3891,6 +3959,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (codigo === 'sgc-f-24') {
         this.cargarSgcF24DesdeServidor();
       }
+      if (codigo === 'ath-f-06') {
+        this.cargarAthF06DesdeServidor();
+      }
       if (codigo === 'ath-f-03') {
         this.cargarCatalogoColaboradoresAthF03();
         this.cargarAthF03DesdeServidor();
@@ -4053,8 +4124,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-06' || this.plantillaSlug === 'sgc-f-07'
       || this.plantillaSlug === 'sgc-f-08' || this.plantillaSlug === 'sgc-f-09'
       || this.plantillaSlug === 'sgc-f-10' || this.plantillaSlug === 'sgc-f-15'
-      || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-27-medicion' || this.plantillaSlug === 'dg-f-06'
-      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-03' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-27-medicion' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sp-f-07' || this.plantillaSlug === 'sgc-f-05'
+      || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'ath-f-06' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-27-medicion' || this.plantillaSlug === 'dg-f-06'
+      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-03' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'ath-f-06' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-27-medicion' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sp-f-07' || this.plantillaSlug === 'sgc-f-05'
       || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-03'
       || this.plantillaSlug === 'ath-f-13'
@@ -4098,7 +4169,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-02'
       || this.plantillaSlug === 'sgc-f-04'
       || this.plantillaSlug === 'sgc-f-22'
-      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-03' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-27-medicion' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sp-f-07' || this.plantillaSlug === 'sgc-f-05'
+      || this.plantillaSlug === 'sgc-f-14' || this.plantillaSlug === 'sgc-f-25' || this.plantillaSlug === 'sgc-f-03' || this.plantillaSlug === 'sgc-f-16' || this.plantillaSlug === 'sgc-f-24' || this.plantillaSlug === 'ath-f-06' || this.plantillaSlug === 'sgc-f-27' || this.plantillaSlug === 'sgc-f-27-medicion' || this.plantillaSlug === 'sgc-f-29' || this.plantillaSlug === 'sgc-f-28' || this.plantillaSlug === 'sp-f-02' || this.plantillaSlug === 'sp-f-07' || this.plantillaSlug === 'sgc-f-05'
       || this.plantillaSlug === 'ath-f-02'
       || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-09'
@@ -4130,6 +4201,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-03') return this.sgcF03Guardando;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16Guardando;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Guardando;
+    if (this.plantillaSlug === 'ath-f-06') return this.athF06Guardando;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03Guardando;
     if (this.plantillaSlug === 'ath-f-13') return this.athF13Guardando;
     if (this.plantillaSlug === 'ath-f-14') return this.athF14Guardando;
@@ -4168,6 +4240,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-03') return this.sgcF03UltimaSync;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16UltimaSync;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24UltimaSync;
+    if (this.plantillaSlug === 'ath-f-06') return this.athF06UltimaSync;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03UltimaSync;
     if (this.plantillaSlug === 'ath-f-13') return this.athF13UltimaSync;
     if (this.plantillaSlug === 'ath-f-14') return this.athF14UltimaSync;
@@ -4206,6 +4279,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-03') return this.sgcF03Cargando;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16Cargando;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24Cargando;
+    if (this.plantillaSlug === 'ath-f-06') return this.athF06Cargando;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03Cargando;
     if (this.plantillaSlug === 'ath-f-13') return this.athF13Cargando;
     if (this.plantillaSlug === 'ath-f-14') return this.athF14Cargando;
@@ -4244,6 +4318,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-03') return this.sgcF03ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24ActualizandoPlantilla;
+    if (this.plantillaSlug === 'ath-f-06') return this.athF06ActualizandoPlantilla;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03ActualizandoPlantilla;
     if (this.plantillaSlug === 'ath-f-13') return this.athF13ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27ActualizandoPlantilla;
@@ -4282,6 +4357,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-03') return this.sgcF03DriveFileId;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16DriveFileId;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24DriveFileId;
+    if (this.plantillaSlug === 'ath-f-06') return this.athF06DriveFileId;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03EntregaActiva?.driveFileId || this.athF03DriveFileId;
     if (this.plantillaSlug === 'ath-f-13') return this.athF13SolicitudActiva?.driveFileId || this.athF13DriveFileId;
     if (this.plantillaSlug === 'ath-f-14') return this.athF14DriveFileId;
@@ -4321,6 +4397,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-03') return this.sgcF03CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-16') return this.sgcF16CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-24') return this.sgcF24CambiosPendientes;
+    if (this.plantillaSlug === 'ath-f-06') return this.athF06CambiosPendientes;
     if (this.plantillaSlug === 'ath-f-03') return this.athF03CambiosPendientes;
     if (this.plantillaSlug === 'ath-f-13') return this.athF13CambiosPendientes;
     if (this.plantillaSlug === 'ath-f-14') return this.athF14CambiosPendientes;
@@ -4373,6 +4450,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-03') return this.mostrarSgcF03Editor;
     if (this.plantillaSlug === 'sgc-f-16') return this.mostrarSgcF16Editor;
     if (this.plantillaSlug === 'sgc-f-24') return this.mostrarSgcF24Editor;
+    if (this.plantillaSlug === 'ath-f-06') return this.mostrarAthF06Editor;
     if (this.plantillaSlug === 'ath-f-03') return this.mostrarAthF03Editor;
     if (this.plantillaSlug === 'ath-f-13') return this.mostrarAthF13Editor;
     if (this.plantillaSlug === 'ath-f-14') return this.mostrarAthF14Editor;
@@ -4729,6 +4807,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         false
       );
     }
+    if (slug === 'ath-f-06') {
+      this.sincronizarRegistroActivoEnFormAthF06();
+      return this.backendService.guardarAthF06Formato(
+        { ...this.athF06Form, registroActivoId: this.athF06RegistroActivo?.id || this.athF06Form.registroActivoId || null },
+        false
+      );
+    }
     if (slug === 'ath-f-03') {
       this.sincronizarEntregaActivaEnFormAthF03();
       return this.backendService.guardarAthF03Formato(
@@ -4912,6 +4997,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-24') {
       this.persistirSgcF24();
+      return;
+    }
+    if (this.plantillaSlug === 'ath-f-06') {
+      this.persistirAthF06();
       return;
     }
     if (this.plantillaSlug === 'ath-f-03') {
@@ -5243,6 +5332,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return 'Archivero de control de cambios. Registra proyecto, tipo, descripción, motivo y acciones; usa «Guardar información» para conservarlos en el sistema y en Drive.';
   }
 
+  get athF06IntroLead(): string {
+    if (this.plantillaSlug !== 'ath-f-06') {
+      return '';
+    }
+    return 'Archivero de detección de necesidades de capacitación. Registra solicitante, trabajadores y cursos; usa «Guardar información» para conservarlos en el sistema y en Drive. El PDF firmado se guarda en la carpeta del formato.';
+  }
+
   get athF03IntroLead(): string {
     if (this.plantillaSlug !== 'ath-f-03') {
       return '';
@@ -5391,6 +5487,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-24') {
       return this.sgcF24IntroLead;
+    }
+    if (this.plantillaSlug === 'ath-f-06') {
+      return this.athF06IntroLead;
     }
     if (this.plantillaSlug === 'ath-f-03') {
       return this.athF03IntroLead;
@@ -11601,6 +11700,492 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (!sincronizacionSilenciosa) {
         this.sgcF24Cargando = false;
       }
+    }, editorAbierto ? 0 : 350);
+  }
+
+  // ===================== ATH-F-06 · DNC =====================
+
+  private crearAthF06FormVacio(): AthF06FormData {
+    return {
+      fechaElaboracion: '',
+      revision: '00',
+      fechaRevision: '',
+      registros: [],
+      registroActivoId: null
+    };
+  }
+
+  private nuevoIdAthF06(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return `dnc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  private crearTrabajadorAthF06Vacio(): AthF06Trabajador {
+    return { nombre: '', puesto: '' };
+  }
+
+  private crearNecesidadAthF06Vacia(): AthF06Necesidad {
+    return { capacitacion: '', justificacion: '', fechaRequerida: '' };
+  }
+
+  private crearRegistroAthF06Vacio(): AthF06Registro {
+    return {
+      id: this.nuevoIdAthF06(),
+      folio: '',
+      fechaEmision: '',
+      nombreSolicitante: '',
+      puestoSolicitante: '',
+      area: '',
+      tipoIngreso: false,
+      tipoCambioPuesto: false,
+      tipoFormacion: false,
+      tipoExtraordinaria: false,
+      trabajadores: [this.crearTrabajadorAthF06Vacio()],
+      necesidades: [this.crearNecesidadAthF06Vacia()],
+      comentarios: '',
+      pdfFirmado: null
+    };
+  }
+
+  private sanitizarPdfAthF06(raw: any): AthF06PdfFirmado | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const driveFileId = String(raw.driveFileId || raw.drive_file_id || '').trim();
+    if (!driveFileId) return null;
+    return {
+      driveFileId,
+      nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'ATH-F-06 DNC firmado.pdf').trim(),
+      webViewLink: String(raw.webViewLink || '').trim(),
+      previewUrl: String(raw.previewUrl || '').trim() || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      fechaSubida: raw.fechaSubida || null
+    };
+  }
+
+  private normalizarRegistroAthF06(datos: any): AthF06Registro {
+    const base = this.crearRegistroAthF06Vacio();
+    const trabajadores = Array.isArray(datos?.trabajadores) && datos.trabajadores.length
+      ? datos.trabajadores.map((t: any) => ({
+        nombre: String(t?.nombre || ''),
+        puesto: String(t?.puesto || '')
+      }))
+      : [this.crearTrabajadorAthF06Vacio()];
+    const necesidades = Array.isArray(datos?.necesidades) && datos.necesidades.length
+      ? datos.necesidades.map((n: any) => ({
+        capacitacion: String(n?.capacitacion || ''),
+        justificacion: String(n?.justificacion || ''),
+        fechaRequerida: String(n?.fechaRequerida || '')
+      }))
+      : [this.crearNecesidadAthF06Vacia()];
+    return {
+      ...base,
+      id: String(datos?.id || base.id),
+      folio: String(datos?.folio || ''),
+      fechaEmision: String(datos?.fechaEmision || ''),
+      nombreSolicitante: String(datos?.nombreSolicitante || ''),
+      puestoSolicitante: String(datos?.puestoSolicitante || ''),
+      area: String(datos?.area || ''),
+      tipoIngreso: !!datos?.tipoIngreso,
+      tipoCambioPuesto: !!datos?.tipoCambioPuesto,
+      tipoFormacion: !!datos?.tipoFormacion,
+      tipoExtraordinaria: !!datos?.tipoExtraordinaria,
+      trabajadores,
+      necesidades,
+      comentarios: String(datos?.comentarios || ''),
+      pdfFirmado: this.sanitizarPdfAthF06(datos?.pdfFirmado)
+    };
+  }
+
+  private normalizarAthF06Form(datos: any): AthF06FormData {
+    const base = this.crearAthF06FormVacio();
+    const registros = Array.isArray(datos?.registros) ? datos.registros.map((r: any) => this.normalizarRegistroAthF06(r)) : [];
+    const registroActivoId = datos?.registroActivoId ? String(datos.registroActivoId) : null;
+    return {
+      ...base,
+      fechaElaboracion: String(datos?.fechaElaboracion || ''),
+      revision: String(datos?.revision || '00'),
+      fechaRevision: String(datos?.fechaRevision || ''),
+      registros,
+      registroActivoId: registroActivoId && registros.some((r) => r.id === registroActivoId)
+        ? registroActivoId
+        : (registros[0]?.id || null)
+    };
+  }
+
+  private sincronizarRegistroActivoEnFormAthF06(): void {
+    const activo = this.athF06RegistroActivo;
+    if (!activo) {
+      this.athF06Form.registroActivoId = null;
+      return;
+    }
+    const idx = (this.athF06Form.registros || []).findIndex((r) => r.id === activo.id);
+    if (idx >= 0) this.athF06Form.registros[idx] = activo;
+    else this.athF06Form.registros = [activo, ...(this.athF06Form.registros || [])];
+    this.athF06Form.registroActivoId = activo.id;
+  }
+
+  get athF06RegistrosVista(): AthF06Registro[] {
+    const q = this.athF06Busqueda.trim().toLowerCase();
+    const lista = [...(this.athF06Form.registros || [])].sort((a, b) => {
+      const fa = String(a.fechaEmision || '');
+      const fb = String(b.fechaEmision || '');
+      return fb.localeCompare(fa) || String(b.folio || '').localeCompare(String(a.folio || ''));
+    });
+    if (!q) return lista;
+    return lista.filter((r) =>
+      [r.folio, r.nombreSolicitante, r.puestoSolicitante, r.area, r.comentarios]
+        .some((v) => String(v || '').toLowerCase().includes(q))
+    );
+  }
+
+  registroFirmadoAthF06(registro: AthF06Registro | null | undefined): boolean {
+    return !!registro?.pdfFirmado?.driveFileId;
+  }
+
+  onAthF06Editado(): void {
+    this.programarAutosizeAthF06();
+    if (!this.athF06Listo || this.athF06IgnorarAutoSave) return;
+    this.athF06CambiosPendientes = true;
+  }
+
+  private programarAutosizeAthF06(): void {
+    window.setTimeout(() => this.autosizeTextareasAthF06(), 0);
+    window.setTimeout(() => this.autosizeTextareasAthF06(), 60);
+  }
+
+  private autosizeTextareasAthF06(): void {
+    const nodos = this.host.nativeElement.querySelectorAll<HTMLTextAreaElement>('textarea.ath-f06-autosize');
+    nodos.forEach((el) => this.autosizeTextarea(el));
+  }
+
+  generarFolioAthF06(): void {
+    if (!this.athF06RegistroActivo) return;
+    const baseFecha = this.athF06RegistroActivo.fechaEmision || new Date().toISOString().slice(0, 10);
+    const d = new Date(`${baseFecha}T12:00:00`);
+    const fecha = Number.isNaN(d.getTime()) ? new Date() : d;
+    const dd = String(fecha.getDate()).padStart(2, '0');
+    const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+    const aa = String(fecha.getFullYear()).slice(-2);
+    const fechaTag = `${dd}${mm}${aa}`;
+    if (!this.athF06RegistroActivo.fechaEmision) {
+      this.athF06RegistroActivo.fechaEmision = `${fecha.getFullYear()}-${mm}-${dd}`;
+    }
+    let maximo = 0;
+    (this.athF06Form.registros || []).forEach((r) => {
+      if (r.id === this.athF06RegistroActivo?.id) return;
+      const match = String(r.folio || '').match(/^DNC-(\d{6})-(\d{1,})$/i);
+      if (match && match[1] === fechaTag) {
+        const n = parseInt(match[2], 10);
+        if (Number.isFinite(n) && n > maximo) maximo = n;
+      }
+    });
+    this.athF06RegistroActivo.folio = `DNC-${fechaTag}-${String(maximo + 1).padStart(2, '0')}`;
+    this.onAthF06Editado();
+  }
+
+  nuevoRegistroAthF06(): void {
+    const registro = this.crearRegistroAthF06Vacio();
+    registro.fechaEmision = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+    this.athF06Form.registros = [registro, ...(this.athF06Form.registros || [])];
+    this.athF06RegistroActivo = registro;
+    this.athF06Form.registroActivoId = registro.id;
+    this.athF06Vista = 'editor';
+    this.generarFolioAthF06();
+    this.onAthF06Editado();
+  }
+
+  abrirRegistroAthF06(registro: AthF06Registro): void {
+    this.athF06RegistroActivo = registro;
+    this.athF06Form.registroActivoId = registro?.id || null;
+    this.athF06Vista = 'editor';
+    this.programarAutosizeAthF06();
+  }
+
+  volverArchiveroAthF06(): void {
+    this.sincronizarRegistroActivoEnFormAthF06();
+    this.athF06Vista = 'archivero';
+    this.athF06RegistroActivo = null;
+    this.athF06Form.registroActivoId = null;
+    if (this.mostrarAthF06PdfViewer) this.toggleAthF06PdfViewer();
+  }
+
+  eliminarRegistroAthF06(registro: AthF06Registro, event?: Event): void {
+    event?.stopPropagation();
+    if (!confirm(`¿Eliminar el DNC ${registro.folio || 'sin folio'}?`)) return;
+    this.athF06Form.registros = (this.athF06Form.registros || []).filter((r) => r.id !== registro.id);
+    if (this.athF06RegistroActivo?.id === registro.id) {
+      this.athF06RegistroActivo = null;
+      this.athF06Vista = 'archivero';
+    }
+    this.onAthF06Editado();
+  }
+
+  agregarTrabajadorAthF06(): void {
+    if (!this.athF06RegistroActivo) return;
+    this.athF06RegistroActivo.trabajadores = [
+      ...(this.athF06RegistroActivo.trabajadores || []),
+      this.crearTrabajadorAthF06Vacio()
+    ];
+    this.onAthF06Editado();
+  }
+
+  quitarTrabajadorAthF06(index: number): void {
+    if (!this.athF06RegistroActivo) return;
+    const lista = this.athF06RegistroActivo.trabajadores || [];
+    if (lista.length <= 1) {
+      this.athF06RegistroActivo.trabajadores = [this.crearTrabajadorAthF06Vacio()];
+    } else {
+      lista.splice(index, 1);
+    }
+    this.onAthF06Editado();
+  }
+
+  agregarNecesidadAthF06(): void {
+    if (!this.athF06RegistroActivo) return;
+    this.athF06RegistroActivo.necesidades = [
+      ...(this.athF06RegistroActivo.necesidades || []),
+      this.crearNecesidadAthF06Vacia()
+    ];
+    this.onAthF06Editado();
+  }
+
+  quitarNecesidadAthF06(index: number): void {
+    if (!this.athF06RegistroActivo) return;
+    const lista = this.athF06RegistroActivo.necesidades || [];
+    if (lista.length <= 1) {
+      this.athF06RegistroActivo.necesidades = [this.crearNecesidadAthF06Vacia()];
+    } else {
+      lista.splice(index, 1);
+    }
+    this.onAthF06Editado();
+  }
+
+  private cargarAthF06DesdeServidor(): void {
+    this.athF06Cargando = true;
+    this.athF06Listo = false;
+    this.athF06Vista = 'archivero';
+    this.athF06RegistroActivo = null;
+    this.backendService.cargarAthF06Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoAthF06(res),
+        error: () => {
+          this.athF06Cargando = false;
+          this.athF06Listo = true;
+        }
+      });
+  }
+
+  private persistirAthF06(): void {
+    if (!this.puedeGestionarPlantillasSgc || !this.athF06Listo || this.athF06Guardando) return;
+    this.sincronizarRegistroActivoEnFormAthF06();
+    this.athF06Guardando = true;
+    const editorAbierto = this.mostrarAthF06Editor;
+    const activa = this.athF06RegistroActivo;
+    this.backendService.guardarAthF06Formato(
+      { ...this.athF06Form, registroActivoId: activa?.id || null },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.athF06Guardando = false;
+          this.aplicarEstadoAthF06(res, editorAbierto, false, false);
+        },
+        error: () => {
+          this.athF06Guardando = false;
+        }
+      });
+  }
+
+  descargarPdfAthF06(): void {
+    if (this.athF06DescargandoPdf) return;
+    this.athF06DescargandoPdf = true;
+    this.backendService.descargarPdfAthF06()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.athF06DescargandoPdf = false;
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = 'ATH-F-06 DNC.pdf';
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.athF06DescargandoPdf = false;
+        }
+      });
+  }
+
+  onSeleccionarPdfAthF06(event: Event): void {
+    if (!this.athF06RegistroActivo) return;
+    const folio = this.athF06RegistroActivo.folio || 'sin-folio';
+    this.procesarPdfDocumento(
+      event,
+      `ATH-F-06 ${folio}.pdf`,
+      (base64, nombre) => this.subirPdfFirmadoAthF06(base64, nombre)
+    );
+  }
+
+  private subirPdfFirmadoAthF06(pdfBase64: string, nombreArchivo: string): void {
+    if (this.athF06SubiendoPdf || !this.athF06RegistroActivo) {
+      this.cerrarModalSubidaPdfSgc();
+      return;
+    }
+    this.athF06SubiendoPdf = true;
+    this.backendService.subirPdfFirmadoAthF06(pdfBase64, nombreArchivo, this.athF06RegistroActivo.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.athF06SubiendoPdf = false;
+          this.aplicarEstadoAthF06(res);
+          if (this.athF06RegistroActivo && res?.pdfFirmado) {
+            this.athF06RegistroActivo.pdfFirmado = this.sanitizarPdfAthF06(res.pdfFirmado);
+            this.sincronizarRegistroActivoEnFormAthF06();
+          }
+          this.finalizarSubidaPdfSgc(true, nombreArchivo);
+        },
+        error: () => {
+          this.athF06SubiendoPdf = false;
+          this.finalizarSubidaPdfSgc(false);
+        }
+      });
+  }
+
+  toggleAthF06PdfViewer(): void {
+    const id = this.athF06RegistroActivo?.pdfFirmado?.driveFileId;
+    if (!id) return;
+    const abrir = !this.mostrarAthF06PdfViewer;
+    this.mostrarAthF06PdfViewer = abrir;
+    if (abrir) {
+      this.athF06PdfCargando = true;
+      const url = this.athF06RegistroActivo?.pdfFirmado?.previewUrl
+        || `https://drive.google.com/file/d/${id}/preview`;
+      this.athF06PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    this.athF06PdfEmbedUrlSafe = null;
+    this.athF06PdfCargando = false;
+  }
+
+  onAthF06PdfIframeLoad(): void {
+    this.athF06PdfCargando = false;
+  }
+
+  toggleAthF06Editor(): void {
+    if (!this.athF06DriveFileId) return;
+    const abrir = !this.mostrarAthF06Editor;
+    this.mostrarAthF06Editor = abrir;
+    if (abrir) {
+      this.athF06EditorIframeListo = false;
+      this.athF06EditorCargando = true;
+      this.fijarEditorEmbedUrlAthF06(this.resolverUrlEditorDrive(this.athF06EditorUrl, this.athF06DriveFileId), true);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+  }
+
+  onAthF06IframeLoad(): void {
+    if (this.athF06EditorIframeListo) return;
+    this.athF06EditorIframeListo = true;
+    this.athF06EditorCargando = false;
+  }
+
+  actualizarPlantillaAthF06(): void {
+    if (!this.puedeGestionarPlantillasSgc || this.athF06ActualizandoPlantilla) return;
+    this.athF06ActualizandoPlantilla = true;
+    this.backendService.actualizarPlantillaAthF06()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.athF06ActualizandoPlantilla = false;
+          this.aplicarEstadoAthF06(res, false, false, true);
+        },
+        error: () => {
+          this.athF06ActualizandoPlantilla = false;
+        }
+      });
+  }
+
+  private fijarEditorEmbedUrlAthF06(url: string | null, forzar = false): void {
+    if (!forzar && this.mostrarAthF06Editor && this.athF06EditorEmbedUrlSafe && this.athF06EditorUrl === url) return;
+    if (!url) {
+      this.athF06EditorUrl = null;
+      this.athF06EditorEmbedUrlSafe = null;
+      return;
+    }
+    if (!forzar && this.athF06EditorUrl === url && this.athF06EditorEmbedUrlSafe) return;
+    this.athF06EditorUrl = url;
+    const embedUrl = this.urlIframeDriveSegunPermiso(url);
+    this.athF06EditorEmbedUrlSafe = embedUrl ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl) : null;
+  }
+
+  private sincronizarRegistroActivoAthF06(activoId: string | null, conservarEditorSiExiste: boolean): void {
+    if (!activoId) {
+      this.athF06RegistroActivo = null;
+      this.athF06Form.registroActivoId = null;
+      if (!conservarEditorSiExiste) this.athF06Vista = 'archivero';
+      return;
+    }
+    const encontrada = (this.athF06Form.registros || []).find((r) => r.id === activoId) || null;
+    this.athF06RegistroActivo = encontrada;
+    this.athF06Form.registroActivoId = encontrada?.id || null;
+    if (conservarEditorSiExiste && encontrada) {
+      this.athF06Vista = 'editor';
+    } else {
+      this.athF06Vista = 'archivero';
+      this.athF06RegistroActivo = null;
+      this.athF06Form.registroActivoId = null;
+    }
+  }
+
+  private aplicarEstadoAthF06(
+    res: any,
+    conservarEdicion = false,
+    sincronizacionSilenciosa = false,
+    forzarActualizacionDrive = false
+  ): void {
+    if (!res?.success) {
+      if (!sincronizacionSilenciosa) this.athF06Cargando = false;
+      this.athF06Listo = true;
+      return;
+    }
+    const editorAbierto = this.mostrarAthF06Editor && !forzarActualizacionDrive;
+    const bloquearFormulario = editorAbierto || conservarEdicion;
+    const activoId = this.athF06RegistroActivo?.id || null;
+    const conservarEditor = this.athF06Vista === 'editor' && !!activoId;
+    if (!bloquearFormulario && res.datos) {
+      this.athF06IgnorarAutoSave = true;
+      this.athF06Listo = false;
+      this.athF06Form = this.normalizarAthF06Form(res.datos);
+      this.sincronizarRegistroActivoAthF06(activoId, conservarEditor);
+    } else if (!editorAbierto && !conservarEdicion) {
+      this.athF06IgnorarAutoSave = true;
+      this.athF06Listo = false;
+    }
+    const nuevoDriveId = res.driveFileId || null;
+    if (forzarActualizacionDrive || !editorAbierto) {
+      if (nuevoDriveId) this.athF06DriveFileId = nuevoDriveId;
+      if (res.editorUrl && (forzarActualizacionDrive || !this.mostrarAthF06Editor)) {
+        this.fijarEditorEmbedUrlAthF06(res.editorUrl, forzarActualizacionDrive);
+      }
+    }
+    this.athF06UltimaSync = res.ultimaSyncDrive || null;
+    this.athF06ContenidoModificado = !!res.contenidoModificado;
+    window.setTimeout(() => {
+      this.athF06IgnorarAutoSave = false;
+      this.athF06Listo = true;
+      if (!bloquearFormulario) this.athF06CambiosPendientes = false;
+      if (!sincronizacionSilenciosa) this.athF06Cargando = false;
     }, editorAbierto ? 0 : 350);
   }
 
@@ -21890,6 +22475,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleSgcF24Editor();
       return;
     }
+    if (this.plantillaSlug === 'ath-f-06') {
+      this.toggleAthF06Editor();
+      return;
+    }
     if (this.plantillaSlug === 'ath-f-03') {
       this.toggleAthF03Editor();
       return;
@@ -22029,6 +22618,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-24') {
       this.actualizarPlantillaSgcF24();
+      return;
+    }
+    if (this.plantillaSlug === 'ath-f-06') {
+      this.actualizarPlantillaAthF06();
       return;
     }
     if (this.plantillaSlug === 'ath-f-03') {

@@ -1703,6 +1703,31 @@ async function insertarFilasGoogleSheet(spreadsheetId, sheetId, startIndex, numR
  * @param {number} startIndex - índice 0-based (fila inclusiva)
  * @param {number} numRows
  */
+/**
+ * Fusiona un rango (índices 0-based, fin exclusivo, igual que la API de Sheets).
+ */
+async function fusionarRangoGoogleSheet(spreadsheetId, sheetId, startRowIndex, endRowIndex, startColumnIndex, endColumnIndex) {
+    if (!spreadsheetId || sheetId == null) return null;
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    return sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+            requests: [{
+                mergeCells: {
+                    range: {
+                        sheetId: Number(sheetId),
+                        startRowIndex: Math.max(0, Math.floor(Number(startRowIndex) || 0)),
+                        endRowIndex: Math.max(0, Math.floor(Number(endRowIndex) || 0)),
+                        startColumnIndex: Math.max(0, Math.floor(Number(startColumnIndex) || 0)),
+                        endColumnIndex: Math.max(0, Math.floor(Number(endColumnIndex) || 0))
+                    },
+                    mergeType: 'MERGE_ALL'
+                }
+            }]
+        }
+    });
+}
+
 async function eliminarFilasGoogleSheet(spreadsheetId, sheetId, startIndex, numRows) {
     const filas = Math.max(0, Math.floor(Number(numRows) || 0));
     if (!spreadsheetId || sheetId == null || filas <= 0) {
@@ -11882,6 +11907,7 @@ module.exports = {
     duplicarHojaGoogleSheet,
     renombrarHojaGoogleSheet,
     insertarFilasGoogleSheet,
+    fusionarRangoGoogleSheet,
     eliminarFilasGoogleSheet,
     crearHojaGoogleSheet,
     eliminarHojasGoogleSheet,

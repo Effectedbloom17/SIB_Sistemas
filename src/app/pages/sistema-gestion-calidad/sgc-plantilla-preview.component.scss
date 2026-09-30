@@ -7588,6 +7588,243 @@ $dg-f04-amenazas-head: #fae0e0;
   }
 }
 
+/* ATH-F-06: datos generales como la plantilla (una fila de tres) */
+.ath-f06-datos {
+  border: 1px solid #c5cdd6;
+  background: #fff;
+
+  &__banner {
+    background: #f3f4f6;
+    color: #1f2937;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-align: center;
+    font-size: 0.82rem;
+    padding: 0.45rem 0.55rem;
+    border-bottom: 1px solid #c5cdd6;
+  }
+
+  &__row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  &__cell {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    margin: 0;
+    border-right: 1px solid #c5cdd6;
+
+    &:last-child {
+      border-right: none;
+    }
+
+    > span {
+      display: block;
+      text-align: center;
+      background: #f3f4f6;
+      border-bottom: 1px solid #c5cdd6;
+      padding: 0.45rem 0.4rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #1f2937;
+    }
+  }
+}
+
+.ath-f06-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+  width: 100%;
+  min-width: 0;
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    background: #fff;
+  }
+
+  &__banner {
+    background: #f3f4f6 !important;
+    color: #1f2937 !important;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  th,
+  td {
+    border: 1px solid #c5cdd6;
+    padding: 0.45rem 0.55rem;
+    text-align: center;
+    vertical-align: middle;
+    font-size: 0.82rem;
+    color: #1f2937;
+  }
+
+  thead th:not(.ath-f06-sheet__banner) {
+    background: #f3f4f6;
+    font-weight: 600;
+  }
+
+  &__input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: center;
+    font-size: 0.84rem;
+    color: #1f2937;
+    outline: none;
+    padding: 0.15rem 0.2rem;
+
+    &:focus {
+      background: rgba(21, 165, 150, 0.06);
+    }
+  }
+}
+
+.ath-f06-req {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.85rem 1.35rem;
+  padding: 0.15rem 0.25rem;
+  text-align: left;
+
+  &__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    font-size: 0.84rem;
+    color: #1f2937;
+    cursor: pointer;
+    white-space: nowrap;
+
+    input {
+      width: 0.95rem;
+      height: 0.95rem;
+      margin: 0;
+      accent-color: #0f766e;
+    }
+  }
+}
+
+.ath-f06-grid.dg-f05-table {
+  border: 1px solid #c5cdd6;
+  width: 100%;
+  min-width: 34rem;
+
+  col.ath-f06-grid__no { width: 2.6rem; }
+  col.ath-f06-grid__x { width: 2.4rem; }
+  col:nth-child(2),
+  col:nth-child(3) { width: auto; }
+
+  th,
+  td {
+    border: 1px solid #c5cdd6 !important;
+  }
+
+  thead th {
+    background: #f3f4f6;
+    color: #334155;
+    text-align: center;
+    white-space: normal;
+    letter-spacing: 0.02em;
+    line-height: 1.25;
+    padding: 0.5rem 0.45rem;
+  }
+
+  th.ath-f06-grid__no,
+  td.ath-f06-grid__no {
+    width: 2.6rem !important;
+    min-width: 2.6rem !important;
+    max-width: 2.6rem !important;
+    padding: 0.25rem 0.15rem !important;
+    text-align: center;
+    white-space: nowrap;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #64748b;
+  }
+
+  td.ath-f06-grid__no {
+    font-size: 0.68rem;
+    font-weight: 500;
+  }
+
+  .dg-f05-field,
+  .dg-f05-field--textarea {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    width: 100%;
+    min-width: 0;
+  }
+
+  textarea.ath-f06-autosize {
+    resize: none;
+    overflow: hidden;
+    min-height: 2.4rem;
+    line-height: 1.4;
+  }
+
+  &.ath-f06-grid--nec {
+    col:nth-child(1),
+    col:nth-child(2),
+    col:nth-child(3) { width: 32%; }
+    col.ath-f06-grid__x { width: 2.4rem; }
+
+    td {
+      vertical-align: top;
+    }
+  }
+}
+
+.ath-f06-comentarios {
+  display: block;
+  margin: 1.75rem 0 0.5rem;
+
+  td {
+    text-align: left;
+    padding: 0.35rem 0.45rem;
+  }
+
+  &__input {
+    display: block;
+    min-height: 6.5rem;
+    text-align: left;
+    resize: none;
+    overflow: hidden;
+    line-height: 1.45;
+  }
+}
+
+@media (max-width: 860px) {
+  .ath-f06-datos__row {
+    grid-template-columns: 1fr;
+  }
+
+  .ath-f06-datos__cell {
+    border-right: none;
+    border-bottom: 1px solid #c5cdd6;
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  .ath-f06-req__item {
+    white-space: normal;
+  }
+}
+
 /* ===== ATH-F-13 · Calendario dual de vacaciones ===== */
 .ath-f13-cal {
   margin: 0.35rem 0 0.85rem;

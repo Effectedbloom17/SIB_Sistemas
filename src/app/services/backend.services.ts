@@ -2988,6 +2988,40 @@ export class BackendServices {
         });
     }
 
+    cargarAthF06Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-06`);
+    }
+
+    guardarAthF06Formato(datos: unknown, editorActivo = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-06/guardar`, {
+            datos,
+            origen: 'sistema',
+            editorActivo
+        });
+    }
+
+    sincronizarAthF06DesdeDrive(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-06/sincronizar-drive`, {});
+    }
+
+    actualizarPlantillaAthF06(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-06/actualizar-plantilla`, {});
+    }
+
+    subirPdfFirmadoAthF06(pdfBase64: string, nombreArchivo: string, registroId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-06/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombre_archivo: nombreArchivo,
+            registroId
+        });
+    }
+
+    descargarPdfAthF06(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-06/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarAthF03Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-03`);
     }

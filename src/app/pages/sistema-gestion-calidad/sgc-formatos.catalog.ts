@@ -200,6 +200,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         previewMode: 'form'
       },
       {
+        codigo: 'ATH-F-06',
+        titulo: 'DNC',
+        nombre: 'ATH-F-06 DNC (sistema)',
+        driveFileId: '1ozFzD61H4fiskcLExEPF0TiNoLQqEfmtqsfkGPL4lxc',
+        previewSlug: 'ath-f-06',
+        previewMode: 'form'
+      },
+      {
         codigo: 'ATH-F-07',
         titulo: 'Programa de capacitación',
         nombre: 'ATH-F-07 Programa de Capacitación (sistema)',
