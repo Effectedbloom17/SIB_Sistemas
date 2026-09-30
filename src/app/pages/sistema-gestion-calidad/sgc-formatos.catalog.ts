@@ -224,6 +224,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         previewMode: 'form'
       },
       {
+        codigo: 'SGC-F-17',
+        titulo: 'Bitácora de calibración y verificación de equipos de medición',
+        nombre: 'SGC-F-17 Bitácora de calibración y verificación de equipos de medición.xlsx',
+        driveFileId: '1XzxX2gRHUSf0z2ToPp1YCvzD6IOzzRUlpsEsY62takk',
+        previewSlug: 'sgc-f-17',
+        previewMode: 'form'
+      },
+      {
         codigo: 'SGC-F-27',
         titulo: 'Reporte de verificación de equipos de medición',
         nombre: 'SGC-F-27 Reporte de verificación de equipos de medición.xlsx',

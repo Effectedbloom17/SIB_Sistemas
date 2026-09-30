@@ -25963,6 +25963,7 @@ const sgcF10Service = require('./sgcF10Service');
 const sgcF14Service = require('./sgcF14Service');
 const sgcF25Service = require('./sgcF25Service');
 const sgcF27MedicionService = require('./sgcF27MedicionService');
+const sgcF17Service = require('./sgcF17Service');
 const sgcF03Service = require('./sgcF03Service');
 const sgcF16Service = require('./sgcF16Service');
 const sgcF24Service = require('./sgcF24Service');
@@ -27497,7 +27498,7 @@ app.post('/api/sgc/formatos/sgc-f-27-medicion/guardar', requireAdminOrSgc, async
 app.post('/api/sgc/formatos/sgc-f-27-medicion/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const payload = await sgcF27MedicionService.sincronizarDesdeDrive(poolBiznagaSgc);
+        const payload = await sgcF27MedicionService.sincronizarDesdeDrive(poolBiznagaSgc, req.body || {});
         return res.json({
             success: true,
             message: 'SGC-F-27 sincronizado desde Drive.',
@@ -27539,13 +27540,12 @@ app.post('/api/sgc/formatos/sgc-f-27-medicion/asegurar-acceso', requireAdminOrSg
 app.get('/api/sgc/formatos/sgc-f-27-medicion/descargar-pdf', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const pdfBuffer = await sgcF27MedicionService.descargarPlantillaPdf(poolBiznagaSgc);
+        const pdf = await sgcF27MedicionService.descargarPlantillaPdf(poolBiznagaSgc, req.query?.reporteId);
+        const filename = String(pdf?.filename || 'SGC-F-27 Reporte de verificacion de equipos de medicion.pdf')
+            .replace(/"/g, '');
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader(
-            'Content-Disposition',
-            'attachment; filename="SGC-F-27 Reporte de verificacion de equipos de medicion.pdf"'
-        );
-        return res.send(pdfBuffer);
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.send(pdf.buffer);
     } catch (error) {
         handleError(res, error, 'No se pudo descargar el PDF de SGC-F-27 de verificación');
     }
@@ -27582,6 +27582,87 @@ app.post('/api/sgc/formatos/sgc-f-27-medicion/eliminar-pdf-historial', requireAd
         });
     } catch (error) {
         handleError(res, error, 'No se pudo eliminar el PDF del historial SGC-F-27');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-17', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF17Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato SGC-F-17');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-17/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF17Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'Formato SGC-F-17 guardado correctamente.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato SGC-F-17');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-17/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF17Service.sincronizarDesdeDrive(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'SGC-F-17 sincronizado desde Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo sincronizar SGC-F-17');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-17/actualizar-plantilla', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF17Service.actualizarPlantillaDesdeSistema(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Plantilla SGC-F-17 verificada.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo verificar la plantilla SGC-F-17');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-17/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcF17Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="SGC-F-17 Bitacora de calibracion y verificacion de equipos de medicion.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-17');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-17/asegurar-acceso', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF17Service.asegurarAccesoEditor(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Acceso al editor SGC-F-17 asegurado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo asegurar el acceso al editor SGC-F-17');
     }
 });
 

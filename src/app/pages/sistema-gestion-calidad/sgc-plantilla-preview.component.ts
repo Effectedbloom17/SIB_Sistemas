@@ -324,6 +324,7 @@ interface DgF02PdfFirmado {
   webViewLink: string | null;
   previewUrl?: string | null;
   fechaSubida: string;
+  secuencia?: number | null;
 }
 
 interface DgF01ImagenMapa {
@@ -903,6 +904,9 @@ interface SgcF27MedicionCalculo {
 }
 
 interface SgcF27MedicionFormData {
+  id: string;
+  folio: string;
+  nombreHoja: string;
   fechaElaboracion: string;
   revision: string;
   fechaRevision: string;
@@ -1654,6 +1658,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-24'
       || this.plantillaSlug === 'sgc-f-27'
       || this.plantillaSlug === 'sgc-f-27-medicion'
+      || this.plantillaSlug === 'sgc-f-17'
       || this.plantillaSlug === 'sgc-f-29'
       || this.plantillaSlug === 'sgc-f-28'
       || this.plantillaSlug === 'sp-f-02'
@@ -2287,6 +2292,43 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private sgcF14EvidenciasThumbsCargando = new Set<number>();
   private sgcF14EvidenciasThumbsDriveFail = new Set<number>();
 
+  readonly sgcF17Condiciones = ['Buen estado', 'Estado regular', 'Mal estado'];
+  readonly sgcF17AccionesMantenimiento = [
+    'Ninguna por ahora',
+    'Reparación (Correctivo)',
+    'Retirar de circulación',
+    'Limpieza',
+    'Mantenimiento preventivo'
+  ];
+  readonly sgcF17TiposMantenimiento = ['Interno', 'Externo', 'N/A'];
+  readonly sgcF17EquipoPatron = ['Sí', 'No'];
+  readonly sgcF17TiposControl = ['Calibración', 'Verificación'];
+  readonly sgcF17Resultados = ['Aprobado', 'No aprobado', 'N/A'];
+  readonly sgcF17AccionesInmediatas = ['Re-calibrar', 'Reparar', 'Deshechar y comprar nuevo', 'Ninguna'];
+  sgcF17Form = this.crearSgcF17FormVacio();
+  sgcF17Cargando = false;
+  sgcF17Guardando = false;
+  sgcF17Listo = false;
+  sgcF17CambiosPendientes = false;
+  sgcF17IgnorarAutoSave = false;
+  sgcF17UltimaSync: string | null = null;
+  sgcF17DriveFileId: string | null = null;
+  sgcF17EditorUrl: string | null = null;
+  sgcF17EditorEmbedUrlSafe: SafeResourceUrl | null = null;
+  mostrarSgcF17Editor = false;
+  sgcF17EditorCargando = false;
+  sgcF17ActualizandoPlantilla = false;
+  sgcF17DescargandoPdf = false;
+  sgcF17AutosizeTick = 0;
+  sgcF17EquipoActivo = 0;
+  sgcF17PreviewIndex: number | null = null;
+  sgcF17Pagina = 0;
+  sgcF17PorPagina = 16;
+  sgcF17PaginaDir = 1;
+  sgcF17PaginaToken = 0;
+  private sgcF17PagesEl?: ElementRef<HTMLElement>;
+  private sgcF17PagesObserver?: ResizeObserver;
+
   readonly sgcF25Categorias: { id: number; label: string }[] = [
     { id: 1, label: 'Requisito legal o reglamentario' },
     { id: 2, label: 'Consecuencia potencial no deseada asociada a los productos o servicios' },
@@ -2319,10 +2361,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF25DescargandoPdf = false;
   private sgcF25EditorIframeListo = false;
 
-  readonly sgcF27mEstatus = ['OK', 'Fuera de rango'];
   readonly sgcF27mResultados = ['Verificación aprobada', 'Verificación no aprobada'];
   readonly sgcF27mLimiteS = 0.5;
   sgcF27mForm: SgcF27MedicionFormData = this.crearSgcF27MedicionEjemplo();
+  sgcF27mVista: 'archivero' | 'editor' = 'archivero';
+  sgcF27mReportes: SgcF27MedicionFormData[] = [];
+  sgcF27mBusqueda = '';
+  sgcF27mAutosizeTick = 0;
   sgcF27mCargando = false;
   sgcF27mGuardando = false;
   sgcF27mListo = false;
@@ -3908,6 +3953,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (codigo === 'sgc-f-27-medicion') {
         this.cargarSgcF27MedicionDesdeServidor();
       }
+      if (codigo === 'sgc-f-17') {
+        this.cargarSgcF17DesdeServidor();
+      }
       if (codigo === 'sgc-f-29') {
         this.cargarSgcF29DesdeServidor();
       }
@@ -4017,6 +4065,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.marcarBodyAyudaDgF04(false);
     this.liberarMiniaturasEvidenciasSgcF29();
     this.liberarMiniaturasEvidenciasSgcF14();
+    this.sgcF17PagesObserver?.disconnect();
     this.cerrarVisorDocumentoFisicoSgcF02();
     this.destroy$.next();
     this.destroy$.complete();
@@ -4058,7 +4107,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'ath-f-08'
       || this.plantillaSlug === 'ath-f-03'
       || this.plantillaSlug === 'ath-f-13'
-      || this.plantillaSlug === 'ath-f-14';
+      || this.plantillaSlug === 'ath-f-14'
+      || this.plantillaSlug === 'sgc-f-17';
   }
 
   get esFormatoSlidesEmbed(): boolean {
@@ -4107,7 +4157,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'ath-f-03'
       || this.plantillaSlug === 'ath-f-13'
       || this.plantillaSlug === 'ath-f-14'
-      || this.plantillaSlug === 'dg-f-06';
+      || this.plantillaSlug === 'dg-f-06'
+      || this.plantillaSlug === 'sgc-f-17';
   }
 
   get driveSyncGuardando(): boolean {
@@ -4135,6 +4186,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'ath-f-14') return this.athF14Guardando;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27Guardando;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mGuardando;
+    if (this.plantillaSlug === 'sgc-f-17') return this.sgcF17Guardando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Guardando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Guardando;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02Guardando;
@@ -4173,6 +4225,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'ath-f-14') return this.athF14UltimaSync;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27UltimaSync;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mUltimaSync;
+    if (this.plantillaSlug === 'sgc-f-17') return this.sgcF17UltimaSync;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29UltimaSync;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28UltimaSync;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02UltimaSync;
@@ -4211,6 +4264,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'ath-f-14') return this.athF14Cargando;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27Cargando;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mCargando;
+    if (this.plantillaSlug === 'sgc-f-17') return this.sgcF17Cargando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Cargando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Cargando;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02Cargando;
@@ -4248,6 +4302,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'ath-f-13') return this.athF13ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mActualizandoPlantilla;
+    if (this.plantillaSlug === 'sgc-f-17') return this.sgcF17ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28ActualizandoPlantilla;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02ActualizandoPlantilla;
@@ -4287,6 +4342,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'ath-f-14') return this.athF14DriveFileId;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27DriveFileId;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mDriveFileId;
+    if (this.plantillaSlug === 'sgc-f-17') return this.sgcF17DriveFileId;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29DriveFileId;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28DriveFileId;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02DriveFileId;
@@ -4326,6 +4382,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'ath-f-14') return this.athF14CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mCambiosPendientes;
+    if (this.plantillaSlug === 'sgc-f-17') return this.sgcF17CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28CambiosPendientes;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02CambiosPendientes;
@@ -4378,6 +4435,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'ath-f-14') return this.mostrarAthF14Editor;
     if (this.plantillaSlug === 'sgc-f-27') return this.mostrarSgcF27Editor;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.mostrarSgcF27mEditor;
+    if (this.plantillaSlug === 'sgc-f-17') return this.mostrarSgcF17Editor;
     if (this.plantillaSlug === 'sgc-f-10') return this.mostrarSgcF10Editor;
     if (this.plantillaSlug === 'sgc-f-29') return this.mostrarSgcF29Editor;
     if (this.plantillaSlug === 'sgc-f-28') return this.mostrarSgcF28Editor;
@@ -4707,6 +4765,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (slug === 'sgc-f-14') {
       return this.backendService.guardarSgcF14Formato(this.sgcF14Form, false);
     }
+    if (slug === 'sgc-f-17') {
+      return this.backendService.guardarSgcF17Formato(this.sgcF17Form, false);
+    }
     if (slug === 'sgc-f-25') {
       if (!this.sgcF25Listo || this.sgcF25Cargando) {
         return null;
@@ -4896,6 +4957,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-14') {
       this.persistirSgcF14();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-17') {
+      this.persistirSgcF17();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-25') {
@@ -5340,6 +5405,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-14') {
       return this.sgcF14IntroLead;
+    }
+    if (this.plantillaSlug === 'sgc-f-17') {
+      return this.sgcF17IntroLead;
     }
     if (this.plantillaSlug === 'sgc-f-25') {
       return this.sgcF25IntroLead;
@@ -8987,6 +9055,347 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
   }
 
+  private crearFilaSgcF17Vacia() {
+    return {
+      queMide: '',
+      nombre: '',
+      responsable: '',
+      controlInterno: '',
+      marca: '',
+      modelo: '',
+      condiciones: '',
+      accionesMantenimiento: '',
+      tipoMantenimiento: '',
+      fechaMantenimiento: '',
+      equipoPatron: '',
+      tipoControl: '',
+      empresa: '',
+      numeroCertificado: '',
+      resultado: '',
+      accionesInmediatas: '',
+      fechaCalibracion: '',
+      fechaProxima: ''
+    };
+  }
+
+  private crearSgcF17FormVacio() {
+    return {
+      equipos: [this.crearFilaSgcF17Vacia()],
+      hojaVigente: '',
+      historial: [] as Array<{ mes: string; numero: string; nombreHoja: string; fecha: string | null }>
+    };
+  }
+
+  opcionSgcF17Fuera(valor: string, lista: readonly string[]): boolean {
+    const t = String(valor || '').trim();
+    return !!t && !lista.includes(t);
+  }
+
+  private cargarSgcF17DesdeServidor(): void {
+    this.sgcF17Cargando = true;
+    this.sgcF17Listo = false;
+    this.backendService.cargarSgcF17Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoSgcF17(res),
+        error: () => {
+          this.sgcF17Cargando = false;
+          this.sgcF17Listo = true;
+        }
+      });
+  }
+
+  onSgcF17Editado(): void {
+    if (!this.sgcF17Listo || this.sgcF17IgnorarAutoSave) {
+      return;
+    }
+    this.sgcF17CambiosPendientes = true;
+  }
+
+  @ViewChild('sgcF17Pages')
+  set sgcF17PagesRef(ref: ElementRef<HTMLElement> | undefined) {
+    if (ref === this.sgcF17PagesEl) {
+      return;
+    }
+    this.sgcF17PagesEl = ref;
+    this.observarPaginasSgcF17();
+  }
+
+  trackBySgcF17Token(_index: number, token: number): number {
+    return token;
+  }
+
+  indicesPaginaSgcF17(): number[] {
+    const inicio = this.sgcF17Pagina * this.sgcF17PorPagina;
+    const fin = Math.min(this.sgcF17Form.equipos.length, inicio + this.sgcF17PorPagina);
+    const indices: number[] = [];
+    for (let i = inicio; i < fin; i += 1) {
+      indices.push(i);
+    }
+    return indices;
+  }
+
+  totalPaginasSgcF17(): number {
+    return Math.max(1, Math.ceil(this.sgcF17Form.equipos.length / Math.max(1, this.sgcF17PorPagina)));
+  }
+
+  moverPaginaSgcF17(delta: number): void {
+    const siguiente = this.sgcF17Pagina + delta;
+    if (siguiente < 0 || siguiente >= this.totalPaginasSgcF17()) {
+      return;
+    }
+    this.sgcF17PaginaDir = delta < 0 ? -1 : 1;
+    this.sgcF17Pagina = siguiente;
+    this.sgcF17PaginaToken += 1;
+    this.sgcF17PreviewIndex = null;
+  }
+
+  mostrarVistaSgcF17(index: number): void {
+    if (index < 0 || index >= this.sgcF17Form.equipos.length) {
+      return;
+    }
+    this.sgcF17PreviewIndex = index;
+  }
+
+  ocultarVistaSgcF17(event?: Event): void {
+    const relacionado = (event as FocusEvent | MouseEvent | undefined)?.relatedTarget as Node | null;
+    const origen = event?.currentTarget as Node | null;
+    if (relacionado && origen?.contains(relacionado)) {
+      return;
+    }
+    this.sgcF17PreviewIndex = null;
+  }
+
+  equipoVistaSgcF17() {
+    if (this.sgcF17PreviewIndex === null) {
+      return null;
+    }
+    return this.sgcF17Form.equipos[this.sgcF17PreviewIndex] || null;
+  }
+
+  nombreVistaSgcF17(eq: { nombre?: string } | null): string {
+    const nombre = String(eq?.nombre || '').trim();
+    return nombre || 'Sin nombre';
+  }
+
+  textoVistaSgcF17(valor: unknown): string {
+    const texto = String(valor || '').trim();
+    return texto || '—';
+  }
+
+  fechaVistaSgcF17(valor: unknown): string {
+    const texto = String(valor || '').trim();
+    const partes = /^(\d{4})-(\d{2})-(\d{2})$/.exec(texto);
+    return partes ? `${partes[3]}/${partes[2]}/${partes[1]}` : this.textoVistaSgcF17(texto);
+  }
+
+  seleccionarEquipoSgcF17(index: number): void {
+    if (index < 0 || index >= this.sgcF17Form.equipos.length || index === this.sgcF17EquipoActivo) {
+      return;
+    }
+    this.sgcF17EquipoActivo = index;
+    this.sgcF17AutosizeTick += 1;
+  }
+
+  agregarFilaSgcF17(): void {
+    this.sgcF17Form.equipos.push(this.crearFilaSgcF17Vacia());
+    this.sgcF17EquipoActivo = this.sgcF17Form.equipos.length - 1;
+    this.ubicarPaginaSgcF17(this.sgcF17EquipoActivo);
+    this.sgcF17AutosizeTick += 1;
+    this.onSgcF17Editado();
+  }
+
+  quitarFilaSgcF17(index: number): void {
+    if (this.sgcF17Form.equipos.length <= 1) {
+      this.sgcF17Form.equipos.splice(0, 1, this.crearFilaSgcF17Vacia());
+      this.sgcF17EquipoActivo = 0;
+    } else {
+      this.sgcF17Form.equipos.splice(index, 1);
+      if (this.sgcF17EquipoActivo >= this.sgcF17Form.equipos.length) {
+        this.sgcF17EquipoActivo = this.sgcF17Form.equipos.length - 1;
+      }
+    }
+    if (this.sgcF17PreviewIndex !== null && this.sgcF17PreviewIndex >= this.sgcF17Form.equipos.length) {
+      this.sgcF17PreviewIndex = null;
+    }
+    this.ubicarPaginaSgcF17(this.sgcF17EquipoActivo);
+    this.sgcF17AutosizeTick += 1;
+    this.onSgcF17Editado();
+  }
+
+  private ubicarPaginaSgcF17(index: number): void {
+    const pagina = Math.floor(Math.max(0, index) / Math.max(1, this.sgcF17PorPagina));
+    if (pagina === this.sgcF17Pagina) {
+      return;
+    }
+    this.sgcF17PaginaDir = pagina > this.sgcF17Pagina ? 1 : -1;
+    this.sgcF17Pagina = pagina;
+    this.sgcF17PaginaToken += 1;
+  }
+
+  private observarPaginasSgcF17(): void {
+    this.sgcF17PagesObserver?.disconnect();
+    this.sgcF17PagesObserver = undefined;
+    const el = this.sgcF17PagesEl?.nativeElement;
+    if (!el || typeof ResizeObserver === 'undefined') {
+      this.medirPaginaSgcF17();
+      return;
+    }
+    this.sgcF17PagesObserver = new ResizeObserver(() => {
+      this.ngZone.run(() => this.medirPaginaSgcF17());
+    });
+    this.sgcF17PagesObserver.observe(el);
+    this.medirPaginaSgcF17();
+  }
+
+  private medirPaginaSgcF17(): void {
+    const ancho = this.sgcF17PagesEl?.nativeElement?.clientWidth || 0;
+    if (ancho < 48) {
+      return;
+    }
+    const porPagina = Math.max(6, Math.floor((ancho + 6) / 42));
+    if (porPagina === this.sgcF17PorPagina) {
+      return;
+    }
+    this.sgcF17PorPagina = porPagina;
+    const pagina = Math.floor(this.sgcF17EquipoActivo / porPagina);
+    this.sgcF17Pagina = Math.min(pagina, this.totalPaginasSgcF17() - 1);
+  }
+
+  descargarPdfSgcF17(): void {
+    if (this.sgcF17DescargandoPdf) {
+      return;
+    }
+    this.sgcF17DescargandoPdf = true;
+    this.backendService.descargarPdfSgcF17()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.sgcF17DescargandoPdf = false;
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = 'SGC-F-17 Bitacora de calibracion y verificacion de equipos de medicion.pdf';
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.sgcF17DescargandoPdf = false;
+        }
+      });
+  }
+
+  private persistirSgcF17(): void {
+    if (!this.puedeGestionarPlantillasSgc || !this.sgcF17Listo || this.sgcF17Guardando) {
+      return;
+    }
+    this.sgcF17Guardando = true;
+    const editorAbierto = this.mostrarSgcF17Editor;
+    this.backendService.guardarSgcF17Formato(this.sgcF17Form, false)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF17Guardando = false;
+          this.aplicarEstadoSgcF17(res, editorAbierto);
+        },
+        error: () => {
+          this.sgcF17Guardando = false;
+        }
+      });
+  }
+
+  toggleSgcF17Editor(): void {
+    if (!this.sgcF17DriveFileId) {
+      return;
+    }
+    const abrir = !this.mostrarSgcF17Editor;
+    this.mostrarSgcF17Editor = abrir;
+    if (abrir) {
+      this.sgcF17EditorCargando = true;
+      const url = this.resolverUrlEditorDrive(this.sgcF17EditorUrl, this.sgcF17DriveFileId);
+      this.sgcF17EditorEmbedUrlSafe = url
+        ? this.sanitizer.bypassSecurityTrustResourceUrl(url)
+        : null;
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      this.backendService.asegurarAccesoSgcF17()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            if (res?.driveFileId) {
+              this.sgcF17DriveFileId = res.driveFileId;
+            }
+          },
+          error: () => undefined
+        });
+      return;
+    }
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    if (this.puedeGestionarPlantillasSgc) {
+      this.sgcF17Guardando = true;
+      this.backendService.sincronizarSgcF17DesdeDrive()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.sgcF17Guardando = false;
+            this.aplicarEstadoSgcF17(res);
+          },
+          error: () => {
+            this.sgcF17Guardando = false;
+          }
+        });
+    }
+  }
+
+  onSgcF17IframeLoad(): void {
+    this.sgcF17EditorCargando = false;
+  }
+
+  private aplicarEstadoSgcF17(res: any, conservarEdicion = false): void {
+    if (!res?.success) {
+      this.sgcF17Cargando = false;
+      this.sgcF17Listo = true;
+      return;
+    }
+    if (!conservarEdicion && !this.mostrarSgcF17Editor && res.datos) {
+      this.sgcF17IgnorarAutoSave = true;
+      this.sgcF17Listo = false;
+      const equipos = Array.isArray(res.datos.equipos) && res.datos.equipos.length
+        ? res.datos.equipos
+        : [this.crearFilaSgcF17Vacia()];
+      this.sgcF17Form = {
+        equipos,
+        hojaVigente: String(res.datos.hojaVigente || ''),
+        historial: Array.isArray(res.datos.historial) ? res.datos.historial : []
+      };
+      if (this.sgcF17EquipoActivo >= equipos.length) {
+        this.sgcF17EquipoActivo = equipos.length - 1;
+      }
+      this.sgcF17AutosizeTick += 1;
+    }
+    if (res.driveFileId) {
+      this.sgcF17DriveFileId = res.driveFileId;
+    }
+    if (res.editorUrl) {
+      this.sgcF17EditorUrl = res.editorUrl;
+    }
+    this.sgcF17UltimaSync = res.ultimaSyncDrive || this.sgcF17UltimaSync;
+    this.sgcF17CambiosPendientes = false;
+    this.sgcF17Cargando = false;
+    this.sgcF17Listo = true;
+    setTimeout(() => {
+      this.sgcF17IgnorarAutoSave = false;
+    });
+  }
+
+  get sgcF17IntroLead(): string {
+    if (this.plantillaSlug !== 'sgc-f-17') {
+      return '';
+    }
+    return 'Registra equipos de medición, su mantenimiento y su calibración o verificación. Las listas fijas solo permiten las opciones del formato. Cada guardado con cambios crea una hoja nueva (01, 02, 03…) y el consecutivo se reinicia al cambiar de mes.';
+  }
+
   get sgcF14IntroLead(): string {
     if (this.plantillaSlug !== 'sgc-f-14') {
       return '';
@@ -9156,6 +9565,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   private crearSgcF27MedicionEjemplo(): SgcF27MedicionFormData {
     return {
+      id: '',
+      folio: '',
+      nombreHoja: '',
       fechaElaboracion: '2025-01-21',
       revision: '00',
       fechaRevision: '2025-01-21',
@@ -9238,7 +9650,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const activas = this.sgcF27mForm.corridas
       .map((c) => ({ c, calc: this.calcularCorridaSgcF27Medicion(c) }))
       .filter((item) => item.calc.desviacion != null);
-    const ok = activas.filter((item) => item.c.estatus === 'OK').length;
+    const ok = activas.filter((item) => this.estatusCorridaSgcF27Medicion(item.c) === 'OK').length;
     const altas = activas.filter((item) => (item.calc.desviacion || 0) > this.sgcF27mLimiteS);
     const cumple = activas.length > 0 && altas.length === 0 && ok >= 3;
     let detalle = `Estatus OK en ${ok} de ${activas.length} corridas.`;
@@ -9260,20 +9672,20 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF27mCambiosPendientes = true;
   }
 
+  estatusCorridaSgcF27Medicion(corrida: SgcF27MedicionCorrida): string {
+    const calc = this.calcularCorridaSgcF27Medicion(corrida);
+    if (calc.desviacion == null) {
+      return '';
+    }
+    return calc.desviacion <= this.sgcF27mLimiteS ? 'OK' : 'Fuera de rango';
+  }
+
   onMedicionSgcF27Medicion(index: number): void {
     const corrida = this.sgcF27mForm.corridas[index];
     if (!corrida) {
       return;
     }
-    const calc = this.calcularCorridaSgcF27Medicion(corrida);
-    corrida.estatus = calc.desviacion == null
-      ? ''
-      : (calc.fueraDeRango ? 'Fuera de rango' : 'OK');
-    this.aplicarResultadoSgcF27Medicion();
-    this.onSgcF27MedicionEditado();
-  }
-
-  onEstatusSgcF27Medicion(): void {
+    corrida.estatus = this.estatusCorridaSgcF27Medicion(corrida);
     this.aplicarResultadoSgcF27Medicion();
     this.onSgcF27MedicionEditado();
   }
@@ -9324,55 +9736,194 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!id) {
       return null;
     }
+    const secuencia = Number(raw?.secuencia);
     return {
       driveFileId: id,
       nombreArchivo: String(raw?.nombreArchivo || 'SGC-F-27 firmado.pdf'),
       webViewLink: raw?.webViewLink || null,
       previewUrl: raw?.previewUrl || `https://drive.google.com/file/d/${id}/preview`,
-      fechaSubida: raw?.fechaSubida || ''
+      fechaSubida: raw?.fechaSubida || '',
+      secuencia: Number.isFinite(secuencia) && secuencia > 0 ? secuencia : null
     };
   }
 
-  private aplicarEstadoSgcF27Medicion(res: any): void {
-    const datos = res?.datos || {};
-    const corridas = Array.isArray(datos.corridas) && datos.corridas.length
-      ? datos.corridas.map((c: any) => this.crearCorridaSgcF27Medicion(
+  private mapearReporteSgcF27Medicion(raw: any, index = 0): SgcF27MedicionFormData {
+    const corridas = Array.isArray(raw?.corridas) && raw.corridas.length
+      ? raw.corridas.map((c: any) => this.crearCorridaSgcF27Medicion(
         this.numeroSgcF27Medicion(c?.estandar),
         [0, 1, 2].map((i) => this.numeroSgcF27Medicion(c?.mediciones?.[i])),
         String(c?.estatus || '')
       ))
-      : this.crearSgcF27MedicionEjemplo().corridas;
-    const intervalos = Array.isArray(datos.intervalos)
-      ? datos.intervalos.map((v: unknown) => String(v || ''))
+      : [this.crearCorridaSgcF27Medicion()];
+    corridas.forEach((corrida) => {
+      corrida.estatus = this.estatusCorridaSgcF27Medicion(corrida);
+    });
+    const intervalos = Array.isArray(raw?.intervalos)
+      ? raw.intervalos.map((v: unknown) => String(v || ''))
       : [];
-    this.sgcF27mForm = {
-      fechaElaboracion: String(datos.fechaElaboracion || '2025-01-21'),
-      revision: String(datos.revision || '00'),
-      fechaRevision: String(datos.fechaRevision || '2025-01-21'),
-      nombreVerifica: String(datos.nombreVerifica || ''),
-      fechaVerificacion: String(datos.fechaVerificacion || ''),
-      instrumento: String(datos.instrumento || ''),
-      queMide: String(datos.queMide || ''),
-      patronNombre: String(datos.patronNombre || ''),
-      patronClave: String(datos.patronClave || ''),
-      patronUnidad: String(datos.patronUnidad || ''),
-      recursoId: String(datos.recursoId || ''),
-      recursoUnidad: String(datos.recursoUnidad || ''),
+    const folio = String(raw?.folio || String(index + 1).padStart(2, '0')).replace(/\D/g, '').padStart(2, '0').slice(-2);
+    return {
+      id: String(raw?.id || ''),
+      folio,
+      nombreHoja: String(raw?.nombreHoja || ''),
+      fechaElaboracion: String(raw?.fechaElaboracion || '2025-01-21'),
+      revision: String(raw?.revision || '00'),
+      fechaRevision: String(raw?.fechaRevision || '2025-01-21'),
+      nombreVerifica: String(raw?.nombreVerifica || ''),
+      fechaVerificacion: String(raw?.fechaVerificacion || ''),
+      instrumento: String(raw?.instrumento || ''),
+      queMide: String(raw?.queMide || ''),
+      patronNombre: String(raw?.patronNombre || ''),
+      patronClave: String(raw?.patronClave || ''),
+      patronUnidad: String(raw?.patronUnidad || ''),
+      recursoId: String(raw?.recursoId || ''),
+      recursoUnidad: String(raw?.recursoUnidad || ''),
       intervalos: intervalos.length ? intervalos : [''],
       corridas,
-      resultado: String(datos.resultado || ''),
-      accion: String(datos.accion || ''),
-      pdfFirmado: this.normalizarPdfSgcF27Medicion(datos.pdfFirmado),
-      pdfsHistorial: (Array.isArray(datos.pdfsHistorial) ? datos.pdfsHistorial : [])
+      resultado: String(raw?.resultado || ''),
+      accion: String(raw?.accion || ''),
+      pdfFirmado: this.normalizarPdfSgcF27Medicion(raw?.pdfFirmado),
+      pdfsHistorial: (Array.isArray(raw?.pdfsHistorial) ? raw.pdfsHistorial : [])
         .map((p: any) => this.normalizarPdfSgcF27Medicion(p))
         .filter((p: DgF02PdfFirmado | null): p is DgF02PdfFirmado => !!p)
     };
+  }
+
+  private clonarReporteSgcF27Medicion(reporte: SgcF27MedicionFormData): SgcF27MedicionFormData {
+    return JSON.parse(JSON.stringify(reporte));
+  }
+
+  private payloadSgcF27Medicion(): Record<string, unknown> {
+    const lista = this.sgcF27mReportes.map((reporte) => (
+      this.sgcF27mVista === 'editor' && reporte.id === this.sgcF27mForm.id
+        ? this.clonarReporteSgcF27Medicion(this.sgcF27mForm)
+        : reporte
+    ));
+    const activoEnLista = this.sgcF27mVista === 'editor' && lista.some((reporte) => reporte.id === this.sgcF27mForm.id);
+    const meta = (activoEnLista ? this.sgcF27mForm : lista[0]) || this.sgcF27mForm;
+    return {
+      fechaElaboracion: meta.fechaElaboracion || '2025-01-21',
+      revision: meta.revision || '00',
+      fechaRevision: meta.fechaRevision || '2025-01-21',
+      reportes: lista,
+      reporteActivoId: activoEnLista ? this.sgcF27mForm.id : null
+    };
+  }
+
+  etiquetaVersionPdfSgcF27Medicion(pdf: DgF02PdfFirmado, index: number): string {
+    const n = Number(pdf?.secuencia);
+    const valor = Number.isFinite(n) && n > 0
+      ? n
+      : Math.max(1, this.sgcF27mForm.pdfsHistorial.length - index);
+    return `-${String(valor).padStart(2, '0')}`;
+  }
+
+  get sgcF27mReportesVista(): SgcF27MedicionFormData[] {
+    const q = this.sgcF27mBusqueda.trim().toLowerCase();
+    const lista = [...this.sgcF27mReportes].sort((a, b) => (
+      (a.instrumento || 'Sin instrumento').localeCompare(b.instrumento || 'Sin instrumento', 'es')
+    ));
+    if (!q) {
+      return lista;
+    }
+    return lista.filter((reporte) => (
+      reporte.instrumento.toLowerCase().includes(q)
+      || reporte.recursoId.toLowerCase().includes(q)
+      || reporte.nombreVerifica.toLowerCase().includes(q)
+      || reporte.folio.includes(q.replace('-', ''))
+    ));
+  }
+
+  nuevaVerificacionSgcF27Medicion(): void {
+    const usados = new Set(this.sgcF27mReportes.map((reporte) => reporte.folio));
+    let n = 1;
+    while (usados.has(String(n).padStart(2, '0'))) {
+      n += 1;
+    }
+    const folio = String(n).padStart(2, '0');
+    const reporte: SgcF27MedicionFormData = {
+      id: (globalThis.crypto?.randomUUID?.() || `f27m-${Date.now()}`),
+      folio,
+      nombreHoja: '',
+      fechaElaboracion: '2025-01-21',
+      revision: '00',
+      fechaRevision: '2025-01-21',
+      nombreVerifica: '',
+      fechaVerificacion: '',
+      instrumento: '',
+      queMide: '',
+      patronNombre: '',
+      patronClave: '',
+      patronUnidad: '',
+      recursoId: '',
+      recursoUnidad: '',
+      intervalos: [''],
+      corridas: [this.crearCorridaSgcF27Medicion()],
+      resultado: '',
+      accion: '',
+      pdfFirmado: null,
+      pdfsHistorial: []
+    };
+    this.sgcF27mReportes = [reporte, ...this.sgcF27mReportes];
+    this.sgcF27mForm = this.clonarReporteSgcF27Medicion(reporte);
+    this.sgcF27mVista = 'editor';
+    this.sgcF27mListo = true;
+    this.sgcF27mAutosizeTick += 1;
+    this.onSgcF27MedicionEditado();
+    this.persistirSgcF27Medicion();
+  }
+
+  abrirReporteSgcF27Medicion(reporte: SgcF27MedicionFormData): void {
+    this.sgcF27mForm = this.clonarReporteSgcF27Medicion(reporte);
+    this.sgcF27mVista = 'editor';
+    this.sgcF27mAutosizeTick += 1;
+  }
+
+  volverArchiveroSgcF27Medicion(): void {
+    if (this.sgcF27mVista === 'editor' && this.sgcF27mForm.id) {
+      this.sgcF27mReportes = this.sgcF27mReportes.map((reporte) => (
+        reporte.id === this.sgcF27mForm.id ? this.clonarReporteSgcF27Medicion(this.sgcF27mForm) : reporte
+      ));
+    }
+    this.persistirSgcF27Medicion();
+    this.sgcF27mVista = 'archivero';
+  }
+
+  eliminarReporteSgcF27Medicion(reporte: SgcF27MedicionFormData): void {
+    const etiqueta = reporte.instrumento || reporte.recursoId || 'sin instrumento';
+    if (!confirm(`¿Eliminar la verificación «${etiqueta}»?`)) {
+      return;
+    }
+    this.sgcF27mReportes = this.sgcF27mReportes.filter((item) => item.id !== reporte.id);
+    if (this.sgcF27mForm.id === reporte.id) {
+      this.sgcF27mVista = 'archivero';
+    }
+    this.persistirSgcF27Medicion();
+  }
+
+  private aplicarEstadoSgcF27Medicion(res: any): void {
+    const datos = res?.datos || {};
+    const plano = !Array.isArray(datos.reportes)
+      && (datos.instrumento || datos.recursoId || datos.nombreVerifica
+        || (Array.isArray(datos.corridas) && datos.corridas.length)
+        || datos.pdfFirmado);
+    const crudos = Array.isArray(datos.reportes) ? datos.reportes : (plano ? [datos] : []);
+    this.sgcF27mReportes = crudos.map((reporte: any, index: number) => this.mapearReporteSgcF27Medicion(reporte, index));
+    if (this.sgcF27mVista === 'editor' && this.sgcF27mForm.id) {
+      const activo = this.sgcF27mReportes.find((reporte) => reporte.id === this.sgcF27mForm.id);
+      if (activo) {
+        this.sgcF27mForm = this.clonarReporteSgcF27Medicion(activo);
+      } else {
+        this.sgcF27mVista = 'archivero';
+      }
+    }
     this.sgcF27mDriveFileId = res?.driveFileId || this.sgcF27mDriveFileId;
     this.sgcF27mEditorUrl = res?.editorUrl || this.sgcF27mEditorUrl;
     this.sgcF27mUltimaSync = res?.ultimaSyncDrive || this.sgcF27mUltimaSync;
     this.sgcF27mCambiosPendientes = false;
     this.sgcF27mCargando = false;
     this.sgcF27mListo = true;
+    this.sgcF27mAutosizeTick += 1;
   }
 
   private cargarSgcF27MedicionDesdeServidor(): void {
@@ -9383,7 +9934,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (res) => this.aplicarEstadoSgcF27Medicion(res),
         error: () => {
-          this.sgcF27mForm = this.crearSgcF27MedicionEjemplo();
+          this.sgcF27mReportes = [];
+          this.sgcF27mVista = 'archivero';
           this.sgcF27mCargando = false;
           this.sgcF27mListo = true;
         }
@@ -9395,7 +9947,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     this.sgcF27mGuardando = true;
-    this.backendService.guardarSgcF27MedicionFormato(this.sgcF27mForm, false)
+    this.backendService.guardarSgcF27MedicionFormato(this.payloadSgcF27Medicion(), false)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
@@ -9414,7 +9966,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.sgcF27mDescargandoPdf = true;
     const pedirPdf = () => {
-      this.backendService.descargarPdfSgcF27Medicion()
+      this.backendService.descargarPdfSgcF27Medicion(this.sgcF27mForm.id)
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: (blob) => {
@@ -9422,7 +9974,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
             const url = URL.createObjectURL(blob);
             const enlace = document.createElement('a');
             enlace.href = url;
-            enlace.download = 'SGC-F-27 Reporte de verificacion de equipos de medicion.pdf';
+            const ref = (this.sgcF27mForm.instrumento || 'verificacion').replace(/[^\w.\- ]+/g, '').trim() || 'verificacion';
+            enlace.download = `SGC-F-27 ${ref}.pdf`;
             enlace.click();
             URL.revokeObjectURL(url);
           },
@@ -9435,7 +9988,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       pedirPdf();
       return;
     }
-    this.backendService.guardarSgcF27MedicionFormato(this.sgcF27mForm, false)
+    this.backendService.guardarSgcF27MedicionFormato(this.payloadSgcF27Medicion(), false)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
@@ -9478,7 +10031,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     document.body.style.overflow = '';
     if (this.puedeGestionarPlantillasSgc) {
       this.sgcF27mGuardando = true;
-      this.backendService.sincronizarSgcF27MedicionDesdeDrive()
+      this.backendService.sincronizarSgcF27MedicionDesdeDrive(this.sgcF27mForm.id)
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: (res) => {
@@ -9527,13 +10080,24 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     this.sgcF27mSubiendoPdf = true;
-    this.backendService.subirPdfFirmadoSgcF27Medicion(base64, nombre)
+    this.backendService.guardarSgcF27MedicionFormato(this.payloadSgcF27Medicion(), false)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: (res) => {
-          this.sgcF27mSubiendoPdf = false;
-          this.aplicarEstadoSgcF27Medicion(res);
-          this.finalizarSubidaPdfSgc(!!res?.success, nombre);
+        next: (guardado) => {
+          this.aplicarEstadoSgcF27Medicion(guardado);
+          this.backendService.subirPdfFirmadoSgcF27Medicion(base64, nombre, this.sgcF27mForm.id)
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+              next: (res) => {
+                this.sgcF27mSubiendoPdf = false;
+                this.aplicarEstadoSgcF27Medicion(res);
+                this.finalizarSubidaPdfSgc(!!res?.success, nombre);
+              },
+              error: () => {
+                this.sgcF27mSubiendoPdf = false;
+                this.finalizarSubidaPdfSgc(false);
+              }
+            });
         },
         error: () => {
           this.sgcF27mSubiendoPdf = false;
@@ -9544,6 +10108,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   eliminarPdfHistorialSgcF27Medicion(pdf: DgF02PdfFirmado): void {
     if (!pdf?.driveFileId || this.sgcF27mBorrandoPdf || !this.puedeBorrarPdfHistorialSgcF27Medicion) {
+      return;
+    }
+    if (!confirm(`¿Eliminar «${pdf.nombreArchivo || 'PDF'}» del historial?`)) {
       return;
     }
     this.sgcF27mBorrandoPdf = true;
@@ -21872,6 +22439,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-14') {
       this.toggleSgcF14Editor();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-17') {
+      this.toggleSgcF17Editor();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-25') {
