@@ -216,6 +216,22 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         previewMode: 'form'
       },
       {
+        codigo: 'ATH-F-02',
+        titulo: 'Descripción y perfil de puesto',
+        nombre: 'ATH-F-02 Descripción y perfil de puesto.xlsx',
+        driveFileId: '1uyxfaSKI_TzBwMeoWHK34pCOyAGusujC',
+        previewSlug: 'ath-f-02',
+        previewMode: 'form'
+      },
+      {
+        codigo: 'ATH-F-11',
+        titulo: 'Evaluación de desempeño',
+        nombre: 'ATH-F-11 Evaluación de desempeño (sistema)',
+        driveFileId: '10fvVzAiuTVoCva9QAYufIJmGbK1gMdZF3uBvW6Ohxyk',
+        previewSlug: 'ath-f-11',
+        previewMode: 'form'
+      },
+      {
         codigo: '1ATH-F-03',
         titulo: 'Entrega - Recepción de EPP',
         nombre: '1ATH-F-03 Entrega - Recepción de EPP',
@@ -354,14 +370,6 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
     heroIconClass: 'fas fa-chart-line',
     plantillas: [
       {
-        codigo: 'ATH-F-11',
-        titulo: 'Evaluación de desempeño',
-        nombre: 'ATH-F-11 Evaluación de desempeño (sistema)',
-        driveFileId: '10fvVzAiuTVoCva9QAYufIJmGbK1gMdZF3uBvW6Ohxyk',
-        previewSlug: 'ath-f-11',
-        previewMode: 'form'
-      },
-      {
         codigo: 'SGC-F-06',
         titulo: 'Lista y calificación de auditores',
         nombre: 'SGC-F-06 Lista y calificación de auditores.xlsx',
@@ -415,14 +423,6 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         nombre: 'DG-F-06 Cuadro de mando.xlsx',
         driveFileId: '1sjnun7HgBMf-o9iDRLvN5C7yH_5vJkKSf7mnaGxGGOI',
         previewSlug: 'dg-f-06',
-        previewMode: 'form'
-      },
-      {
-        codigo: 'ATH-F-02',
-        titulo: 'Descripción y perfil de puesto',
-        nombre: 'ATH-F-02 Descripción y perfil de puesto.xlsx',
-        driveFileId: '1uyxfaSKI_TzBwMeoWHK34pCOyAGusujC',
-        previewSlug: 'ath-f-02',
         previewMode: 'form'
       }
     ]

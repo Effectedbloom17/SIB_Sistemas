@@ -411,6 +411,8 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   proyectosGestion: ProyectoTableroItem[] = [];
   gestionCambiosPendientes = false;
+  /** Hay un borrador en este navegador que todavía no se guardó en el sistema. */
+  borradorGestionRecuperado = false;
   guardandoGestion = false;
   sincronizandoDrive = false;
   errorGestion = '';
@@ -566,7 +568,13 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.cerrarComboboxesRegistro(true);
   }
 
+  @HostListener('window:beforeunload')
+  onBeforeUnload(): void {
+    this.persistirBorradorGestion();
+  }
+
   ngOnDestroy(): void {
+    this.persistirBorradorGestion();
     if (this.detalleHoverTimer) {
       clearTimeout(this.detalleHoverTimer);
       this.detalleHoverTimer = null;
@@ -1775,11 +1783,22 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     const stats = this.statsGrupoGestion(grupo);
     return {
       responsable: this.responsablePrincipal(base) || 'Sin responsable',
-      fechaCompromiso: base?.fechaCompromiso || '',
+      fechaCompromiso: this.fechaCompromisoProyectoGestion(grupo),
       prioridad: base?.prioridad || '',
       estatus: this.estatusAgregadoActividades(grupo),
       avance: stats.avance
     };
+  }
+
+  /** Vencimiento del proyecto: la fecha más lejana entre actividades, no la de la primera fila. */
+  fechaCompromisoProyectoGestion(grupo: GrupoGestionProyecto | null | undefined): string {
+    let mejor = '';
+    for (const { proyecto } of grupo?.actividades || []) {
+      const iso = this.fechaInputGestion(proyecto?.fechaCompromiso);
+      if (!iso) continue;
+      if (!mejor || iso > mejor) mejor = iso;
+    }
+    return mejor;
   }
 
   /** El porcentaje de una actividad sale solo de su estatus. */
@@ -2890,6 +2909,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   seleccionarEstatusRegistro(valor: string): void {
     this.formRegistro.estatus = valor;
+    this.formRegistro.avance = this.avancePorEstatusActividad(valor);
   }
 
   etiquetaPrioridadRegistro(valor: string): string {
@@ -3605,6 +3625,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       this.gestionProyectoSeleccionadoClave = nuevaClave;
       this.gestionNivelVista = 'actividades';
       this.gestionCambiosPendientes = true;
+      this.persistirBorradorGestion();
       this.reconstruirGestionVista();
 
       this.mostrarRegistro = false;
@@ -3713,23 +3734,29 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       ? grupo.actividades.map((a) => a.indice)
       : [indiceFallback];
 
-    const camposProyecto: Partial<ProyectoTableroItem> = {
+    const camposCompartidos: Partial<ProyectoTableroItem> = {
       empresaId: actualizado.empresaId,
       empresaNombre: actualizado.empresaNombre,
       folio: actualizado.folio,
       nombreProyecto: actualizado.nombreProyecto,
       responsable: actualizado.responsable,
       responsableUsuarioIds: actualizado.responsableUsuarioIds,
-      fechaInicio: actualizado.fechaInicio,
-      fechaCompromiso: actualizado.fechaCompromiso,
-      prioridad: actualizado.prioridad,
-      estatus: actualizado.estatus
+      prioridad: actualizado.prioridad
     };
 
     for (const indice of indices) {
       const fila = this.proyectosGestion[indice];
       if (!fila) continue;
-      Object.assign(fila, camposProyecto);
+      Object.assign(fila, camposCompartidos);
+    }
+
+    // Fecha y estatus son de cada actividad. Copiarlos al resto reescribía la base.
+    const filaEditada = this.proyectosGestion[indiceFallback];
+    if (filaEditada) {
+      filaEditada.fechaInicio = actualizado.fechaInicio;
+      filaEditada.fechaCompromiso = actualizado.fechaCompromiso;
+      filaEditada.estatus = actualizado.estatus;
+      filaEditada.avance = actualizado.avance;
     }
   }
 
@@ -3763,6 +3790,11 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.proyectosGestion = this.proyectos.map((p) => ({ ...p }));
     this.gestionCambiosPendientes = false;
     this.errorGestion = '';
+    this.borradorGestionRecuperado = false;
+    if (this.restaurarBorradorGestionSiExiste()) {
+      this.gestionCambiosPendientes = true;
+      this.borradorGestionRecuperado = true;
+    }
     this.limpiarFiltrosActividadesGestion();
     this.reconstruirGestionVista();
   }
@@ -3771,6 +3803,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     if (this.esConsultaEmpresa) return;
     this.gestionCambiosPendientes = true;
     this.errorGestion = '';
+    this.persistirBorradorGestion();
   }
 
   private actividadGestionPorIndice(indice: number): ProyectoTableroItem | null {
@@ -3873,6 +3906,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       }
     ];
     this.gestionCambiosPendientes = true;
+    this.persistirBorradorGestion();
     this.reconstruirGestionVista();
   }
 
@@ -4495,6 +4529,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     if (!actividad.id) {
       this.proyectosGestion = this.proyectosGestion.filter((_, i) => i !== indice);
       this.gestionCambiosPendientes = true;
+      this.persistirBorradorGestion();
       this.reconstruirGestionVista();
       return;
     }
@@ -4597,6 +4632,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
             this.gestionGuardadoEnCola = false;
             return;
           }
+          this.limpiarBorradorGestion();
           this.gestionCambiosPendientes = false;
           if (!this.gestionComponenteDestruido) {
             this.aplicarDashboard(res);
@@ -4609,8 +4645,10 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
         error: (err) => {
           this.guardandoGestion = false;
           this.gestionGuardadoEnCola = false;
+          this.persistirBorradorGestion();
           if (!silencioso) {
-            this.errorGestion = err?.error?.message || 'No se pudieron guardar los proyectos.';
+            const detalle = err?.error?.message || 'No se pudieron guardar los proyectos.';
+            this.errorGestion = `${detalle} Los cambios siguen en este navegador.`;
           }
         }
       });
@@ -4618,6 +4656,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   descartarCambiosGestion(): void {
     // Recarga limpia desde BD para recuperar controles/datos si el estado local quedó inconsistente.
+    this.limpiarBorradorGestion();
     this.gestionCambiosPendientes = false;
     this.errorGestion = '';
     this.refrescarDesdeBd();
@@ -4638,7 +4677,10 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   setFechaCompromisoGestion(proyecto: ProyectoTableroItem, valor: string): void {
     if (!this.puedeEditarActividadGestion(proyecto, this.grupoGestionSeleccionado)) return;
-    proyecto.fechaCompromiso = this.fechaInputGestion(valor);
+    const normalizada = this.fechaInputGestion(valor);
+    const actual = this.fechaInputGestion(proyecto.fechaCompromiso);
+    if (normalizada === actual) return;
+    proyecto.fechaCompromiso = normalizada;
     this.marcarGestionCambios();
   }
 
@@ -5087,9 +5129,100 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     return Number.isNaN(fecha.getTime()) ? null : this.inicioDia(fecha);
   }
 
+  private claveBorradorGestion(): string {
+    const uid = this.auth.getUsuarioId() || 'anon';
+    const emp = this.empresaSeleccionadaId || 'todas';
+    return `cp-gestion-borrador-v1-${uid}-${emp}`;
+  }
+
+  private firmaGestion(lista: ProyectoTableroItem[]): string {
+    return JSON.stringify(lista.map((p) => ({
+      id: p.id || null,
+      empresaId: p.empresaId || null,
+      folio: String(p.folio || '').trim(),
+      nombreProyecto: String(p.nombreProyecto || '').trim(),
+      item: String(p.item || '').trim(),
+      actividadesAccion: String(p.actividadesAccion || '').trim(),
+      observaciones: String(p.observaciones || '').trim(),
+      responsable: String(p.responsable || '').trim(),
+      fechaInicio: this.fechaInputGestion(p.fechaInicio),
+      fechaCompromiso: this.fechaInputGestion(p.fechaCompromiso),
+      prioridad: String(p.prioridad || '').trim(),
+      estatus: String(p.estatus || '').trim(),
+      avance: Number(p.avance) || 0,
+      orden: Number(p.orden) || 0
+    })));
+  }
+
+  /** Copia local mientras se gestiona. Solo pasa a la base al presionar Guardar. */
+  private persistirBorradorGestion(): void {
+    if (this.esConsultaEmpresa || !this.gestionCambiosPendientes) return;
+    try {
+      localStorage.setItem(this.claveBorradorGestion(), JSON.stringify({
+        guardadoEn: new Date().toISOString(),
+        nivel: this.gestionNivelVista,
+        claveProyecto: this.gestionProyectoSeleccionadoClave,
+        actividades: this.proyectosGestion
+      }));
+    } catch {
+      /* el navegador puede rechazar la escritura */
+    }
+  }
+
+  private limpiarBorradorGestion(): void {
+    this.borradorGestionRecuperado = false;
+    try {
+      localStorage.removeItem(this.claveBorradorGestion());
+    } catch {
+      /* ignore */
+    }
+  }
+
+  private restaurarBorradorGestionSiExiste(): boolean {
+    if (this.esConsultaEmpresa) return false;
+    let parsed: any = null;
+    try {
+      const raw = localStorage.getItem(this.claveBorradorGestion());
+      parsed = raw ? JSON.parse(raw) : null;
+    } catch {
+      return false;
+    }
+    const actividades = Array.isArray(parsed?.actividades) ? parsed.actividades : [];
+    if (!actividades.length) return false;
+    const normalizadas = actividades.map((p: any) => this.normalizarProyecto(p));
+    if (this.firmaGestion(this.proyectosGestion) === this.firmaGestion(normalizadas)) {
+      this.limpiarBorradorGestion();
+      return false;
+    }
+    this.proyectosGestion = normalizadas;
+    if (parsed.nivel === 'actividades' || parsed.nivel === 'proyectos') {
+      this.gestionNivelVista = parsed.nivel;
+    }
+    if (parsed.claveProyecto) {
+      this.gestionProyectoSeleccionadoClave = String(parsed.claveProyecto);
+    }
+    return true;
+  }
+
   private parsearFechaIso(valor: unknown): Date | null {
     if (!valor) return null;
-    const fecha = new Date(String(valor));
+    if (valor instanceof Date) {
+      return Number.isNaN(valor.getTime()) ? null : this.inicioDia(valor);
+    }
+    const crudo = String(valor).trim();
+    const iso = crudo.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) {
+      const fecha = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+      return Number.isNaN(fecha.getTime()) ? null : this.inicioDia(fecha);
+    }
+    const dmy = crudo.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+    if (dmy) {
+      let year = Number(dmy[3]);
+      if (String(dmy[3]).length === 2) year += 2000;
+      const fecha = new Date(year, Number(dmy[2]) - 1, Number(dmy[1]));
+      return Number.isNaN(fecha.getTime()) ? null : this.inicioDia(fecha);
+    }
+    const fecha = new Date(crudo);
     return Number.isNaN(fecha.getTime()) ? null : this.inicioDia(fecha);
   }
 
@@ -5684,7 +5817,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     if (!crudo) return 0;
     let n = Number(crudo);
     if (!Number.isFinite(n)) return 0;
-    if (n > 0 && n <= 1) n = n * 100;
+    if (n > 0 && n < 1) n = n * 100;
     n = Math.round(n);
     if (n < 0) n = 0;
     if (n > 100) n = 100;

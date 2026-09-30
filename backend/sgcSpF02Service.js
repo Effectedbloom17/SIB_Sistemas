@@ -966,95 +966,171 @@ async function prepararBuffersImagenSpF02(imagenes) {
     return out;
 }
 
+async function componerTiraImagenesSpF02(buffers) {
+    const fuentes = (buffers || []).filter((b) => Buffer.isBuffer(b) && b.length).slice(0, MAX_IMAGENES_CAMPO);
+    if (!fuentes.length) return null;
+    if (fuentes.length === 1) return fuentes[0];
+
+    const altura = 280;
+    const gap = 8;
+    const piezas = [];
+    for (const buf of fuentes) {
+        const jpeg = await sharp(buf)
+            .rotate()
+            .resize({ height: altura, fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 86 })
+            .toBuffer();
+        const meta = await sharp(jpeg).metadata();
+        piezas.push({ jpeg, width: meta.width || 160, height: meta.height || altura });
+    }
+    const totalW = piezas.reduce((sum, p) => sum + p.width, 0) + gap * (piezas.length - 1);
+    const alto = Math.max(...piezas.map((p) => p.height));
+    let left = 0;
+    const overlays = piezas.map((p) => {
+        const top = Math.max(0, Math.round((alto - p.height) / 2));
+        const item = { input: p.jpeg, left, top };
+        left += p.width + gap;
+        return item;
+    });
+    return sharp({
+        create: {
+            width: Math.max(1, totalW),
+            height: Math.max(1, alto),
+            channels: 3,
+            background: { r: 255, g: 255, b: 255 }
+        }
+    }).composite(overlays).jpeg({ quality: 86 }).toBuffer();
+}
+
+async function resolverUrlVisibleImagenesSpF02(imagenes, carpetaFolio, etiqueta) {
+    const lista = (imagenes || []).filter((img) => img?.driveFileId).slice(0, MAX_IMAGENES_CAMPO);
+    if (!lista.length) return '';
+    for (const img of lista) {
+        await driveService.asignarPermisoLecturaPublica(img.driveFileId);
+    }
+    if (lista.length === 1) {
+        return urlPublicaImagenSpF02(lista[0].driveFileId);
+    }
+    try {
+        const buffers = await prepararBuffersImagenSpF02(lista);
+        const compuesto = await componerTiraImagenesSpF02(buffers.map((b) => b.buffer));
+        if (!compuesto) return urlPublicaImagenSpF02(lista[0].driveFileId);
+        const carpetaId = await resolverCarpetaImagenesRecorrido(carpetaFolio);
+        const nombre = `sp-f-02-tira-${String(etiqueta || 'foto').replace(/[^\w.-]+/g, '_')}.jpg`.slice(0, 90);
+        const subido = await driveService.subirArchivo(compuesto, nombre, 'image/jpeg', carpetaId);
+        if (subido?.id) {
+            await driveService.asignarPermisoLecturaPublica(subido.id);
+            return urlPublicaImagenSpF02(subido.id);
+        }
+    } catch (err) {
+        console.warn(`[SP-F-02] No se pudo armar la tira de imágenes (${etiqueta}):`, err.message);
+    }
+    return urlPublicaImagenSpF02(lista[0].driveFileId);
+}
+
 async function sincronizarImagenesItemsSpF02(spreadsheetId, sheetTitle, layout, items) {
     const itemsStart = Number(layout.itemsStart) || 11;
     const itemsEnd = Number(layout.itemsEnd) || itemsStart;
     const slots = Math.max(MIN_ITEM_SLOTS, itemsEnd - itemsStart + 1);
-
-    const areasMulti = [];
     const actualizacionesCeldas = [];
+
+    try {
+        await driveService.aplicarFormatoPostImagenesSpF02(spreadsheetId, sheetTitle, layout, { items });
+    } catch (err) {
+        console.warn('[SP-F-02] No se pudo preparar celdas de imagen:', err.message);
+    }
 
     for (let i = 0; i < slots; i++) {
         const row = itemsStart + i;
         const item = items[i];
 
         pushUpdate(actualizacionesCeldas, row, 1, '', sheetTitle);
-        pushUpdate(actualizacionesCeldas, row, 3, '', sheetTitle);
-        pushUpdate(actualizacionesCeldas, row, 10, '', sheetTitle);
-
-        if (!item) continue;
+        if (!item) {
+            pushUpdate(actualizacionesCeldas, row, 3, '', sheetTitle);
+            pushUpdate(actualizacionesCeldas, row, 10, '', sheetTitle);
+            pushUpdate(actualizacionesCeldas, row, 11, '', sheetTitle);
+            continue;
+        }
 
         const probImgs = (item.problemaImagenes || []).filter((img) => img?.driveFileId);
         const textoProb = String(item.problema || '').trim();
-        if (probImgs.length === 1 && !textoProb) {
+        const obsImgs = (item.observacionesImagenes || []).filter((img) => img?.driveFileId);
+        const textoObs = String(item.observaciones || '').trim();
+
+        if (!probImgs.length) {
+            pushUpdate(actualizacionesCeldas, row, 3, textoProb, sheetTitle);
+        } else if (!textoProb) {
+            const url = await resolverUrlVisibleImagenesSpF02(probImgs, sheetTitle, `${sheetTitle}-f${row}-problema`);
             pushUpdate(
                 actualizacionesCeldas,
                 row,
                 3,
-                driveService.formulaImagenSpF02(urlPublicaImagenSpF02(probImgs[0].driveFileId)),
+                url ? driveService.formulaImagenSpF02(url) : '',
                 sheetTitle
             );
-        } else if (probImgs.length >= 1) {
-            areasMulti.push({
+        } else {
+            const url = await resolverUrlVisibleImagenesSpF02(probImgs, sheetTitle, `${sheetTitle}-f${row}-problema`);
+            pushUpdate(actualizacionesCeldas, row, 3, textoProb, sheetTitle);
+            pushUpdate(
+                actualizacionesCeldas,
                 row,
-                campo: 'problema',
-                texto: item.problema || '',
-                imagenes: await prepararBuffersImagenSpF02(probImgs)
-            });
+                4,
+                url ? driveService.formulaImagenSpF02(url) : '',
+                sheetTitle
+            );
         }
 
-        const obsImgs = (item.observacionesImagenes || []).filter((img) => img?.driveFileId);
-        const textoObs = String(item.observaciones || '').trim();
-        if (obsImgs.length === 1 && !textoObs) {
+        if (!obsImgs.length) {
+            pushUpdate(actualizacionesCeldas, row, 10, textoObs, sheetTitle);
+            pushUpdate(actualizacionesCeldas, row, 11, '', sheetTitle);
+        } else if (!textoObs) {
+            const url = await resolverUrlVisibleImagenesSpF02(obsImgs, sheetTitle, `${sheetTitle}-f${row}-obs`);
             pushUpdate(
                 actualizacionesCeldas,
                 row,
                 10,
-                driveService.formulaImagenSpF02(urlPublicaImagenSpF02(obsImgs[0].driveFileId)),
+                url ? driveService.formulaImagenSpF02(url) : '',
                 sheetTitle
             );
-        } else if (obsImgs.length >= 1) {
-            areasMulti.push({
+            pushUpdate(actualizacionesCeldas, row, 11, '', sheetTitle);
+        } else {
+            const url = await resolverUrlVisibleImagenesSpF02(obsImgs, sheetTitle, `${sheetTitle}-f${row}-obs`);
+            pushUpdate(actualizacionesCeldas, row, 10, textoObs, sheetTitle);
+            pushUpdate(
+                actualizacionesCeldas,
                 row,
-                campo: 'observaciones',
-                texto: item.observaciones || '',
-                imagenes: await prepararBuffersImagenSpF02(obsImgs)
-            });
+                11,
+                url ? driveService.formulaImagenSpF02(url) : '',
+                sheetTitle
+            );
         }
     }
-
-    const xlsxExport = await driveService.exportarGoogleSheetComoXLSX(spreadsheetId);
-    const xlsxConImgs = await driveService.embeberImagenesSpF02EnXlsx(xlsxExport, sheetTitle, areasMulti, {
-        itemsStart,
-        itemsEnd
-    });
-    let driveId = await driveService.reemplazarGoogleSheetConXlsx(
-        spreadsheetId,
-        xlsxConImgs,
-        NOMBRE_ARCHIVO_DRIVE
-    );
-    if (!driveId) driveId = spreadsheetId;
 
     const formulasImage = actualizacionesCeldas.filter(
         (u) => Array.isArray(u.values?.[0]) && String(u.values[0][0] || '').startsWith('=IMAGE(')
     );
+    const esColumnaD = (u) => /!D\d+$/.test(String(u?.range || ''));
+    const celdasColD = actualizacionesCeldas.filter(esColumnaD);
+    const celdasResto = actualizacionesCeldas.filter((u) => !esColumnaD(u));
     if (formulasImage.length) {
         try {
-            await driveService.permitirAccesoUrlsExternasGoogleSheet(driveId);
+            await driveService.permitirAccesoUrlsExternasGoogleSheet(spreadsheetId);
         } catch (err) {
             console.warn('[SP-F-02] No se pudo habilitar URLs externas:', err.message);
         }
     }
-    if (actualizacionesCeldas.length) {
-        await driveService.actualizarCeldasGoogleSheet(driveId, actualizacionesCeldas);
-        if (formulasImage.length) {
-            console.log(`[SP-F-02] IMAGE() en ${formulasImage.length} celda(s)`);
+    if (celdasResto.length) {
+        await driveService.actualizarCeldasGoogleSheet(spreadsheetId, celdasResto);
+    }
+    if (celdasColD.length) {
+        try {
+            await driveService.actualizarCeldasGoogleSheet(spreadsheetId, celdasColD);
+        } catch (err) {
+            console.warn('[SP-F-02] No se pudo escribir la foto junto al hallazgo:', err.message);
         }
     }
-
-    if (driveId && driveId !== spreadsheetId) {
-        console.warn(`[SP-F-02] ID de Drive cambió tras reconversión: ${spreadsheetId} → ${driveId}`);
-        return driveId;
+    if (formulasImage.length) {
+        console.log(`[SP-F-02] IMAGE() en ${formulasImage.length} celda(s)`);
     }
     return spreadsheetId;
 }
@@ -1062,7 +1138,7 @@ async function sincronizarImagenesItemsSpF02(spreadsheetId, sheetTitle, layout, 
 function urlPublicaImagenSpF02(driveFileId) {
     const id = String(driveFileId || '').trim();
     if (!id) return '';
-    return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w1200`;
+    return `https://lh3.googleusercontent.com/d/${id}=w1200`;
 }
 
 async function resolverCarpetaImagenesRecorrido(folioRecorrido) {
@@ -1172,6 +1248,9 @@ async function subirImagenItem(body = {}) {
         mimeType,
         carpetaId
     );
+    if (resultado?.id) {
+        await driveService.asignarPermisoLecturaPublica(resultado.id);
+    }
 
     return {
         driveFileId: resultado.id,

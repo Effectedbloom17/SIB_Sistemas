@@ -828,15 +828,6 @@
                                   <span *ngIf="contarFuncionesAthF02(p) as nFn">{{ nFn }} {{ nFn === 1 ? 'función' : 'funciones' }}</span>
                                   <span *ngIf="resumenEscolaridadAthF02(p) as esc">{{ esc }}</span>
                                 </span>
-                                <span class="ath-f-02-book__dato" *ngIf="p.puestoAlQueReporta?.trim()">
-                                  Reporta a {{ p.puestoAlQueReporta }}
-                                </span>
-                                <span class="ath-f-02-book__dato" *ngIf="p.puestosQueLeReportan?.trim()">
-                                  Le reportan: {{ p.puestosQueLeReportan }}
-                                </span>
-                                <span class="ath-f-02-book__dato" *ngIf="resumenExperienciaAthF02(p) as exp">
-                                  Experiencia: {{ exp }}
-                                </span>
                               </span>
                               <span class="sgc-f-04-book__foot" *ngIf="p.pdfFirmado?.driveFileId">
                                 <span class="sgc-f-04-book__fuente">PDF firmado</span>
@@ -2635,9 +2626,9 @@
                                 <button type="button" class="ath-f-08-add-btn ath-f-08-add-btn--col"
                                   (click)="agregarCursoAthF08()"
                                   [disabled]="athF08Form.cursos.length >= athF08MaxCursos"
-                                  [title]="athF08Form.cursos.length >= athF08MaxCursos ? ('Máximo de ' + athF08MaxCursos + ' columnas') : 'Agregar columna de calificación'">
+                                  [attr.aria-label]="athF08Form.cursos.length >= athF08MaxCursos ? ('Máximo de ' + athF08MaxCursos + ' columnas') : 'Agregar columna'">
                                   <i class="fas fa-plus" aria-hidden="true"></i>
-                                  Agregar columna
+                                  <span class="ath-f-08-add-btn__label">Agregar columna</span>
                                 </button>
                               </th>
                               <th class="ath-f-08-matriz__col--metric ath-f-08-matriz__col--metric-start"

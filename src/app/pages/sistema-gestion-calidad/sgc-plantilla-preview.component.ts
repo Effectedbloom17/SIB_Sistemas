@@ -24062,19 +24062,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   resumenEscolaridadAthF02(perfil: AthF02Perfil | null | undefined): string {
-    return this.athF02EscNiveles
-      .filter((n) => perfil?.esc?.[n.key])
-      .map((n) => n.label)
-      .join(', ');
-  }
-
-  resumenExperienciaAthF02(perfil: AthF02Perfil | null | undefined): string {
-    const filas = (perfil?.experiencias || []).filter((e) => String(e?.enQue || '').trim() || String(e?.tiempo || '').trim());
-    if (!filas.length) {
-      return '';
-    }
-    const primera = [filas[0].enQue, filas[0].tiempo].map((v) => String(v || '').trim()).filter(Boolean).join(' · ');
-    return filas.length > 1 ? `${primera} (+${filas.length - 1})` : primera;
+    const formales = this.athF02EscNiveles.filter((n) => n.key !== 'otro' && perfil?.esc?.[n.key]);
+    const elegido = formales[formales.length - 1]
+      || (perfil?.esc?.otro ? this.athF02EscNiveles.find((n) => n.key === 'otro') : null);
+    return elegido?.label || '';
   }
 
   onAthF02EdadValorChange(): void {

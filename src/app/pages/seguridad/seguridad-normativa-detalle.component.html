@@ -46,8 +46,8 @@
         <span class="seg-stat-chip__lbl">Físicos</span>
       </div>
       <div class="seg-stat-strip__actions" *ngIf="puedeAdministrar">
-        <button type="button" class="btn btn-sm seg-btn-edit" (click)="editarNormativa()">
-          <i class="fas fa-pen" aria-hidden="true"></i> Editar
+        <button type="button" class="btn btn-sm seg-btn-edit" (click)="abrirFicha()">
+          <i class="fas fa-pen" aria-hidden="true"></i> Editar ficha
         </button>
         <button type="button" class="btn btn-sm seg-btn-danger" (click)="eliminarNormativa()">
           <i class="fas fa-trash-alt" aria-hidden="true"></i> Eliminar
@@ -75,7 +75,7 @@
           </p>
           <p class="seg-historial__detalle" *ngIf="h.detalle">{{ h.detalle }}</p>
           <p class="seg-historial__cambio" *ngIf="h.campo && h.valor_anterior !== h.valor_nuevo">
-            <span class="seg-historial__campo">{{ h.campo }}:</span>
+            <span class="seg-historial__campo">{{ etiquetaCampo(h.campo) }}:</span>
             <span class="seg-historial__antes">{{ h.valor_anterior || '—' }}</span>
             <i class="fas fa-arrow-right" aria-hidden="true"></i>
             <span class="seg-historial__despues">{{ h.valor_nuevo || '—' }}</span>
@@ -84,12 +84,30 @@
       </div>
     </section>
 
+    <section class="seg-ficha-card">
+      <div class="seg-ficha-card__media" [class.seg-ficha-card__media--empty]="!normativa.imagen_portada">
+        <img *ngIf="urlArchivo(normativa.imagen_portada) as src" [src]="src" [alt]="'Portada de ' + normativa.codigo">
+        <div class="seg-ficha-card__placeholder" *ngIf="!normativa.imagen_portada">
+          <i class="fas fa-image" aria-hidden="true"></i>
+          <span>Sin portada</span>
+        </div>
+      </div>
+      <div class="seg-ficha-card__copy">
+        <p class="seg-ficha-card__kicker">Archivo documental</p>
+        <p>Corrija aquí el texto cargado desde Excel y deje lista la imagen que verá la asignación de normas. El responsable se define al asignar, no en este archivo.</p>
+        <button type="button" class="btn btn-sm seg-btn-edit" *ngIf="puedeAdministrar" (click)="abrirFicha()">
+          <i class="fas fa-image" aria-hidden="true"></i>
+          {{ normativa.imagen_portada ? 'Cambiar portada' : 'Agregar portada' }}
+        </button>
+      </div>
+    </section>
+
     <header class="seg-det-toolbar">
       <div class="seg-search seg-search--wide">
         <i class="fas fa-search" aria-hidden="true"></i>
         <input type="search"
                class="form-control form-control-sm"
-               placeholder="Buscar por punto, descripción o responsable…"
+               placeholder="Buscar por punto, descripción o formato…"
                [(ngModel)]="busqueda"
                (ngModelChange)="aplicarFiltro()"
                aria-label="Buscar requisitos">
@@ -121,17 +139,27 @@
               <span class="seg-pill" *ngIf="r.periodicidad">
                 <i class="fas fa-clock" aria-hidden="true"></i> {{ r.periodicidad }}
               </span>
+              <span class="seg-pill seg-pill--formato" *ngIf="r.formato_nombre || r.formato_archivo">
+                <i class="fas fa-link" aria-hidden="true"></i> {{ r.formato_nombre || 'Formato guía' }}
+              </span>
             </div>
           </div>
           <div class="seg-clausula__toggle">
+            <button type="button"
+                    class="seg-clausula__edit"
+                    *ngIf="puedeAdministrar"
+                    (click)="abrirEditor(r, $event)"
+                    aria-label="Editar punto">
+              <i class="fas fa-pen" aria-hidden="true"></i>
+            </button>
             <i class="fas" [class.fa-chevron-down]="requisitoExpandido !== r.id" [class.fa-chevron-up]="requisitoExpandido === r.id" aria-hidden="true"></i>
           </div>
         </div>
 
         <div class="seg-clausula__detail" *ngIf="requisitoExpandido === r.id">
           <div class="seg-clausula__detail-actions" *ngIf="puedeAdministrar">
-            <button type="button" class="btn btn-sm seg-btn-edit" (click)="editarRequisito(r, $event)">
-              <i class="fas fa-pen" aria-hidden="true"></i> Editar requisito
+            <button type="button" class="btn btn-sm seg-btn-edit" (click)="abrirEditor(r, $event)">
+              <i class="fas fa-pen" aria-hidden="true"></i> Editar punto
             </button>
           </div>
           <div class="seg-clausula__detail-grid">
@@ -142,25 +170,23 @@
                 <span class="seg-detail-item__val">{{ r.numero_item }}</span>
               </div>
             </div>
-            <div class="seg-detail-item" *ngIf="r.responsable">
-              <i class="fas fa-user" aria-hidden="true"></i>
-              <div>
-                <span class="seg-detail-item__label">Responsable</span>
-                <span class="seg-detail-item__val">{{ r.responsable }}</span>
-              </div>
-            </div>
-            <div class="seg-detail-item" *ngIf="r.indicador_avance !== null">
-              <i class="fas fa-chart-line" aria-hidden="true"></i>
-              <div>
-                <span class="seg-detail-item__label">Avance</span>
-                <span class="seg-detail-item__val">{{ r.indicador_avance }}%</span>
-              </div>
-            </div>
             <div class="seg-detail-item seg-detail-item--full" *ngIf="r.evidencia_requerida">
               <i class="fas fa-paperclip" aria-hidden="true"></i>
               <div>
                 <span class="seg-detail-item__label">Evidencia requerida</span>
                 <span class="seg-detail-item__val">{{ r.evidencia_requerida }}</span>
+              </div>
+            </div>
+            <div class="seg-detail-item seg-detail-item--full" *ngIf="r.formato_nombre || r.formato_archivo">
+              <i class="fas fa-file-signature" aria-hidden="true"></i>
+              <div>
+                <span class="seg-detail-item__label">Formato guía</span>
+                <a class="seg-detail-item__val seg-detail-item__link"
+                   *ngIf="urlArchivo(r.formato_archivo) as href"
+                   [href]="href"
+                   target="_blank"
+                   rel="noopener">{{ r.formato_nombre || r.formato_nombre_archivo }}</a>
+                <span class="seg-detail-item__val" *ngIf="!r.formato_archivo">{{ r.formato_nombre }}</span>
               </div>
             </div>
             <div class="seg-detail-item seg-detail-item--full" *ngIf="r.observaciones">
@@ -175,4 +201,142 @@
       </article>
     </div>
   </div>
+</div>
+
+<div class="arch-overlay" *ngIf="ficha as f" (click)="cerrarFicha()">
+  <section class="arch-dialog arch-dialog--ficha" role="dialog" aria-modal="true" aria-labelledby="arch-ficha-titulo" (click)="$event.stopPropagation()">
+    <header class="arch-dialog__head">
+      <div class="arch-dialog__mark"><i class="fas fa-folder-open" aria-hidden="true"></i></div>
+      <div>
+        <p class="arch-dialog__kicker">{{ normativa?.codigo }}</p>
+        <h2 id="arch-ficha-titulo">Ficha documental</h2>
+      </div>
+      <button type="button" class="arch-dialog__close" (click)="cerrarFicha()" aria-label="Cerrar">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </header>
+    <div class="arch-dialog__body">
+      <label class="arch-field">
+        <span>Título de la norma</span>
+        <textarea rows="3" [(ngModel)]="f.titulo" [disabled]="guardandoFicha"></textarea>
+      </label>
+      <div class="arch-portada">
+        <div class="arch-portada__preview" [class.is-empty]="!f.preview">
+          <img *ngIf="f.preview" [src]="f.preview" alt="Vista previa de la portada">
+          <span *ngIf="!f.preview">Sin imagen seleccionada</span>
+        </div>
+        <div class="arch-portada__copy">
+          <strong>Imagen para la asignación</strong>
+          <p>Esta foto se muestra en la tarjeta al asignar la norma. JPG, PNG o WebP, máximo 6 MB.</p>
+          <div class="arch-portada__actions">
+            <label class="arch-filebtn">
+              <i class="fas fa-image" aria-hidden="true"></i> Seleccionar imagen
+              <input type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" (change)="onPortada($event)" [disabled]="guardandoFicha">
+            </label>
+            <button type="button" class="arch-textbtn" *ngIf="f.preview" (click)="quitarPortada()" [disabled]="guardandoFicha">Quitar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="arch-dialog__foot">
+      <button type="button" class="arch-btn arch-btn--ghost" (click)="cerrarFicha()" [disabled]="guardandoFicha">Cancelar</button>
+      <button type="button" class="arch-btn arch-btn--solid" (click)="guardarFicha()" [disabled]="guardandoFicha || !f.titulo.trim()">
+        {{ guardandoFicha ? 'Guardando…' : 'Guardar' }}
+      </button>
+    </footer>
+  </section>
+</div>
+
+<div class="arch-overlay" *ngIf="editor as ed" (click)="cerrarEditor()">
+  <section class="arch-dialog" role="dialog" aria-modal="true" aria-labelledby="arch-punto-titulo" (click)="$event.stopPropagation()">
+    <header class="arch-dialog__head">
+      <div class="arch-dialog__mark"><i class="fas fa-pen-nib" aria-hidden="true"></i></div>
+      <div>
+        <p class="arch-dialog__kicker">{{ normativa?.codigo }}</p>
+        <h2 id="arch-punto-titulo">Editar punto {{ ed.punto_norma || 'sin clave' }}</h2>
+      </div>
+      <button type="button" class="arch-dialog__close" (click)="cerrarEditor()" aria-label="Cerrar">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </header>
+    <div class="arch-dialog__body arch-dialog__body--split">
+      <div class="arch-col">
+        <label class="arch-field arch-field--punto">
+          <span>Punto de la norma</span>
+          <input type="text" [(ngModel)]="ed.punto_norma" [disabled]="guardandoPunto" maxlength="32">
+        </label>
+        <label class="arch-field">
+          <span>Descripción</span>
+          <textarea rows="8" [(ngModel)]="ed.descripcion" [disabled]="guardandoPunto" placeholder="Texto del requisito, tal como debe quedar en el archivo"></textarea>
+        </label>
+        <label class="arch-field">
+          <span>Evidencia requerida</span>
+          <textarea rows="3" [(ngModel)]="ed.evidencia_requerida" [disabled]="guardandoPunto" placeholder="Qué debe comprobarse en este punto"></textarea>
+        </label>
+      </div>
+      <div class="arch-col">
+        <div class="arch-field">
+          <span>Tipo de evidencia</span>
+          <div class="arch-pills" role="group" aria-label="Tipo de evidencia">
+            <button type="button"
+                    *ngFor="let tipo of tiposDisponibles(ed.tipo_evidencia)"
+                    [class.is-on]="ed.tipo_evidencia === tipo"
+                    (click)="ed.tipo_evidencia = ed.tipo_evidencia === tipo ? '' : tipo"
+                    [disabled]="guardandoPunto">{{ tipo }}</button>
+          </div>
+        </div>
+        <label class="arch-field">
+          <span>Periodicidad</span>
+          <input type="text" list="arch-periodicidad" [(ngModel)]="ed.periodicidad" [disabled]="guardandoPunto" placeholder="Anual, semestral…">
+          <datalist id="arch-periodicidad">
+            <option *ngFor="let per of periodicidades" [value]="per"></option>
+          </datalist>
+        </label>
+        <label class="arch-field">
+          <span>Observaciones</span>
+          <textarea rows="3" [(ngModel)]="ed.observaciones" [disabled]="guardandoPunto" placeholder="Aclaración del archivo, si el Excel vino incompleto"></textarea>
+        </label>
+        <section class="arch-formato">
+          <header>
+            <i class="fas fa-link" aria-hidden="true"></i>
+            <div>
+              <strong>Ligar formato</strong>
+              <p>Plantilla guía para este punto. Quien atienda la norma la tendrá ligada desde aquí.</p>
+            </div>
+          </header>
+          <label class="arch-field">
+            <span>Nombre del formato</span>
+            <input type="text" [(ngModel)]="ed.formato_nombre" [disabled]="guardandoPunto || ed.quitarFormato" maxlength="200" placeholder="Ej. Lista de verificación de extintores">
+          </label>
+          <div class="arch-formato__file" *ngIf="ed.archivo as nuevo">
+            <i class="fas fa-file-alt" aria-hidden="true"></i>
+            <span>{{ nuevo.name }}</span>
+            <button type="button" (click)="ed.archivo = null" [disabled]="guardandoPunto" aria-label="Quitar archivo nuevo">
+              <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="arch-formato__file" *ngIf="!ed.archivo && ed.formato_archivo && !ed.quitarFormato">
+            <i class="fas fa-file-signature" aria-hidden="true"></i>
+            <a [href]="urlArchivo(ed.formato_archivo)" target="_blank" rel="noopener">{{ ed.formato_nombre_archivo || ed.formato_nombre || 'Formato ligado' }}</a>
+            <button type="button" (click)="quitarFormatoEditor()" [disabled]="guardandoPunto" aria-label="Quitar formato ligado">
+              <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+          </div>
+          <p class="arch-formato__gone" *ngIf="ed.quitarFormato && !ed.archivo">La plantilla se quitará al guardar.</p>
+          <label class="arch-filebtn">
+            <i class="fas fa-paperclip" aria-hidden="true"></i>
+            {{ ed.archivo || (ed.formato_archivo && !ed.quitarFormato) ? 'Reemplazar archivo' : 'Adjuntar plantilla' }}
+            <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" (change)="onFormato($event)" [disabled]="guardandoPunto">
+          </label>
+          <button type="button" class="arch-textbtn" *ngIf="ed.quitarFormato && !ed.archivo" (click)="ed.quitarFormato = false">Conservar plantilla</button>
+        </section>
+      </div>
+    </div>
+    <footer class="arch-dialog__foot">
+      <button type="button" class="arch-btn arch-btn--ghost" (click)="cerrarEditor()" [disabled]="guardandoPunto">Cancelar</button>
+      <button type="button" class="arch-btn arch-btn--solid" (click)="guardarPunto()" [disabled]="guardandoPunto || !ed.punto_norma.trim() || !ed.descripcion.trim()">
+        {{ guardandoPunto ? 'Guardando…' : 'Guardar punto' }}
+      </button>
+    </footer>
+  </section>
 </div>

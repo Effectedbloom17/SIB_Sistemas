@@ -153,6 +153,7 @@ export const SGC_FORMATOS_DESCARGA_CATALOG: SgcFormatoDescarga[] = [
   fmt('ATH-F-06', 'DNC', '1HkeOY3KAPzrM6rJY_HziRjZ_TelTD-qg', 'capitulo-7', 'ATH-F-06 DNC.xlsx'),
   fmt('ATH-F-07', 'Programa de Capacitación', '1NTWlYRx86ZJNjpHl5Q1zHGMVFTv_bIFh', 'capitulo-7', 'ATH-F-07 Programa de Capacitación.doc'),
   fmt('ATH-F-08', 'Eficacia de la capacitación', '1hfLrMhj-8A3mK3NvDuuBMS8i3uJIRWXL', 'capitulo-7', 'ATH-F-08 Eficacia de la capacitación.xlsx'),
+  fmt('ATH-F-11', 'Evaluación de desempeño', '1f1bqkxu-Nzci72CGN1-j1vPX1xwWbJR9', 'capitulo-7', 'ATH-F-11 Evaluación de desempeño.docx'),
   fmt('ATH-F-13', 'Solicitud de vacaciones', '1jHJjnwgnv6FW7pH-gpxS5N1qQPyOe7PM', 'capitulo-7', 'ATH-F-13 Solicitud de vacaciones.docx'),
   fmt('ATH-F-14', 'Control de vacaciones', '1mFSPTBphwJaWHzoFnp5-9JZ2YaLhbqgM', 'capitulo-7', 'ATH-F-14 Control de vacaciones.xlsx'),
   fmt('EIN-F-01', 'Programa de mantenimiento a la infraestructura', '1MaXJjsd9IcjiNd70Z4zXmzouEP0pZG_k9l6izOkGSng', 'capitulo-7', 'EIN-F-01 Programa de mantenimiento a la infraestructura.xlsx'),
@@ -199,7 +200,6 @@ export const SGC_FORMATOS_DESCARGA_CATALOG: SgcFormatoDescarga[] = [
   fmt('SP-F-29', 'Control de resolutivos PIPC', '1W8A_7d-C8cvbDgkqE90n3JWN6iy1fgmu', 'capitulo-8', 'SP-F-29 Control de resolutivos PIPC.xlsx'),
 
   // ── Cap. 9 Evaluación del desempeño ──
-  fmt('ATH-F-11', 'Evaluación de desempeño', '1f1bqkxu-Nzci72CGN1-j1vPX1xwWbJR9', 'capitulo-9', 'ATH-F-11 Evaluación de desempeño.docx'),
   fmt('SGC-F-06', 'Lista y calificación de auditores internos', '1W4zLgVcXuxr3eVbIIgLykaQccRQlfrXx', 'capitulo-9', 'SGC-F-06 Lista y calificación de auditores internos.xlsx'),
   fmt('SGC-F-07', 'Programa de auditoría', '1Z9bR6NtFvaWj27BO9T-vtadCAv7pl-qe', 'capitulo-9', 'SGC-F-07 Programa de auditoría.xls'),
   fmt('SGC-F-08', 'Plan de auditoría', '1v5BKGVPnu-NI44ev8lG1j9zdy7bFJp5t', 'capitulo-9', 'SGC-F-08 Plan de auditoría.xlsx'),

@@ -2702,10 +2702,30 @@ export class BackendServices {
         return this.httpClient.put(`${this.baseUrl}/seguridad/normativas/${id}`, datos);
     }
 
+    subirImagenSeguridadNormativa(id: number, archivo: File): Observable<any> {
+        const formData = new FormData();
+        formData.append('imagen', archivo, archivo.name);
+        return this.httpClient.put(`${this.baseUrl}/seguridad/normativas/${id}/imagen`, formData);
+    }
+
+    quitarImagenSeguridadNormativa(id: number): Observable<any> {
+        return this.httpClient.delete(`${this.baseUrl}/seguridad/normativas/${id}/imagen`);
+    }
+
     actualizarSeguridadRequisito(normativaId: number, requisitoId: number, datos: Record<string, unknown>): Observable<any> {
         return this.httpClient.put(
             `${this.baseUrl}/seguridad/normativas/${normativaId}/requisitos/${requisitoId}`,
             datos
+        );
+    }
+
+    subirFormatoSeguridadRequisito(normativaId: number, requisitoId: number, archivo: File, formatoNombre?: string): Observable<any> {
+        const formData = new FormData();
+        formData.append('formato', archivo, archivo.name);
+        if (formatoNombre) formData.append('formato_nombre', formatoNombre);
+        return this.httpClient.post(
+            `${this.baseUrl}/seguridad/normativas/${normativaId}/requisitos/${requisitoId}/formato`,
+            formData
         );
     }
 

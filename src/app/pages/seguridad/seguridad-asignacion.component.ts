@@ -1,4 +1,4 @@
-import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
@@ -14,6 +14,7 @@ interface EmpresaOpcion {
   rfc?: string;
   ciudad?: string;
   estado?: string;
+  logo?: string | null;
 }
 
 interface EmpleadoOpcion {
@@ -44,6 +45,7 @@ interface PuntoNorma {
   descripcion: string;
   tipo_evidencia: string | null;
   periodicidad: string | null;
+  formato_nombre: string | null;
   cap: string;
   sec: string;
 }
@@ -54,15 +56,9 @@ interface CapituloVista {
   seleccionados: number;
 }
 
-interface SeccionVista {
-  clave: string;
-  puntos: PuntoNorma[];
-  seleccionados: number;
-  abierto: boolean;
-}
-
 interface PayloadAsignacion {
   paso: number;
+  vista?: string;
   normas: Array<{
     normativa_id: number;
     empleados: ResponsableAsignado[];
@@ -85,13 +81,22 @@ type EstadoGuardado = 'limpio' | 'pendiente' | 'guardando' | 'guardado' | 'error
 })
 export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   readonly categorias = SEG_NORMATIVAS_CATEGORIAS;
-  readonly pasos = ['Empresa', 'Normativas', 'Responsables', 'Puntos', 'Publicar'];
+  readonly pasos = ['Asignación', 'Puntos', 'Publicar'];
+
+  @ViewChild('empBox') empBox?: ElementRef<HTMLElement>;
+  @ViewChild('anclaEmpresa') anclaEmpresa?: ElementRef<HTMLElement>;
+  @ViewChild('anclaNormas') anclaNormas?: ElementRef<HTMLElement>;
+  @ViewChild('anclaResp') anclaResp?: ElementRef<HTMLElement>;
 
   paso = 0;
+  /** Paso más alto ya alcanzado en el borrador. No cambia la vista al elegir empresa. */
+  progreso = 0;
+  bloqueActivo: 'empresa' | 'normas' | 'resp' = 'empresa';
+  listaEmpresasAbierta = false;
+  empresaColapsada = false;
   empresas: EmpresaOpcion[] = [];
   empresasFiltradas: EmpresaOpcion[] = [];
   busquedaEmpresa = '';
-  mostrarDropdownEmpresa = false;
   empresa: EmpresaOpcion | null = null;
   cargandoEmpresas = true;
 
@@ -103,18 +108,18 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   normas: NormaAsignada[] = [];
   publicadasIds = new Set<number>();
 
-  empleados: EmpleadoOpcion[] = [];
-  cargandoEmpleados = false;
-  comboRespId: number | null = null;
-  busquedaResp: Record<number, string> = {};
+  usuarios: EmpleadoOpcion[] = [];
+  usuariosFiltrados: EmpleadoOpcion[] = [];
+  cargandoUsuarios = false;
+  busquedaUsuario = '';
+  normaFocoId: number | null = null;
 
   normaActivaId: number | null = null;
   puntosCache = new Map<number, PuntoNorma[]>();
   cargandoPuntos = false;
   errorPuntos: string | null = null;
   busquedaPunto = '';
-  capituloAbierto: string | null = null;
-  seccionesAbiertas = new Set<string>();
+  capitulosAbiertos = new Set<string>();
 
   estadoGuardado: EstadoGuardado = 'limpio';
   guardadoPor = '';
@@ -138,6 +143,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.cargarEmpresas();
     this.cargarCatalogo();
+    this.cargarUsuarios();
   }
 
   ngOnDestroy(): void {
@@ -145,6 +151,14 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     this.flush();
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  @HostListener('document:click', ['$event'])
+  cerrarBuscadorEmpresa(ev: MouseEvent): void {
+    const caja = this.empBox?.nativeElement;
+    const nodo = ev.target as Node | null;
+    if (!caja || !nodo || caja.contains(nodo)) return;
+    this.listaEmpresasAbierta = false;
   }
 
   @HostListener('window:beforeunload')
@@ -194,6 +208,28 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     return partes.map((p) => p.charAt(0)).join('').toUpperCase() || 'E';
   }
 
+  nombreCorto(nombre: string): string {
+    const partes = String(nombre || '').trim().split(/\s+/).filter(Boolean);
+    if (partes.length <= 2) return partes.join(' ');
+    return `${partes[0]} ${partes[1]}`;
+  }
+
+  iconoCategoria(id: string): string {
+    return this.categorias.find((c) => c.id === id)?.iconClass || 'fas fa-book';
+  }
+
+  urlPortada(item: SegNormativaResumen): string | null {
+    const ruta = item.imagen_portada;
+    if (!ruta) return null;
+    if (/^https?:/i.test(ruta)) return ruta;
+    const base = environment.apiUrl.replace(/\/api\/?$/, '');
+    return `${base}${ruta.startsWith('/') ? ruta : `/${ruta}`}`;
+  }
+
+  abrirBuscadorEmpresa(): void {
+    this.listaEmpresasAbierta = true;
+  }
+
   cargarEmpresas(): void {
     this.cargandoEmpresas = true;
     this.backend.obtenerEmpresas().pipe(takeUntil(this.destroy$)).subscribe({
@@ -205,7 +241,8 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
             nombre_empresa: String(e.nombre_empresa || '').trim(),
             rfc: e.rfc || '',
             ciudad: e.ciudad || '',
-            estado: e.estado || ''
+            estado: e.estado || '',
+            logo: e.logo || e.logo_url || null
           }))
           .filter((e: EmpresaOpcion) => e.empresa_id > 0 && e.nombre_empresa)
           .sort((a: EmpresaOpcion, b: EmpresaOpcion) => a.nombre_empresa.localeCompare(b.nombre_empresa, 'es'));
@@ -238,37 +275,53 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
 
   filtrarEmpresas(): void {
     const q = this.busquedaEmpresa.trim().toLowerCase();
-    const base = !q
-      ? this.empresas
+    this.empresasFiltradas = !q
+      ? [...this.empresas]
       : this.empresas.filter((e) =>
         e.nombre_empresa.toLowerCase().includes(q) ||
         (e.rfc || '').toLowerCase().includes(q) ||
         (e.ciudad || '').toLowerCase().includes(q)
       );
-    this.empresasFiltradas = base.slice(0, 40);
   }
 
-  mostrarEmpresas(): void {
-    this.mostrarDropdownEmpresa = true;
-    this.filtrarEmpresas();
-  }
-
-  ocultarDropdownEmpresa(): void {
-    setTimeout(() => { this.mostrarDropdownEmpresa = false; }, 180);
+  logoEmpresa(empresa: EmpresaOpcion): string | null {
+    return this.backend.resolverUrlDrivePreview(empresa.logo);
   }
 
   seleccionarEmpresa(empresa: EmpresaOpcion): void {
     if (this.empresa?.empresa_id === empresa.empresa_id) {
-      this.mostrarDropdownEmpresa = false;
+      this.listaEmpresasAbierta = false;
       return;
     }
     this.flush();
     this.empresa = empresa;
-    this.busquedaEmpresa = empresa.nombre_empresa;
-    this.mostrarDropdownEmpresa = false;
+    this.paso = 0;
+    this.listaEmpresasAbierta = false;
+    this.busquedaEmpresa = '';
+    this.filtrarEmpresas();
     this.reiniciarTrabajo();
-    this.cargarEmpleados(empresa.empresa_id);
+    this.empresaColapsada = true;
+    this.bloqueActivo = 'normas';
     this.cargarEstado(empresa.empresa_id);
+  }
+
+  irBloque(bloque: 'empresa' | 'normas' | 'resp'): void {
+    if (bloque === 'normas' && !this.empresa) return;
+    if (bloque === 'resp' && !this.normas.length) return;
+    this.bloqueActivo = bloque;
+    if (bloque === 'empresa') this.empresaColapsada = false;
+    this.desplazarAlBloque(bloque);
+  }
+
+  expandirEmpresa(): void {
+    this.empresaColapsada = false;
+    this.bloqueActivo = 'empresa';
+    this.desplazarAlBloque('empresa');
+  }
+
+  copiarDesdeFoco(): void {
+    const norma = this.normaEnFoco();
+    if (norma) this.copiarResponsables(norma);
   }
 
   limpiarEmpresa(): void {
@@ -277,14 +330,17 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     this.busquedaEmpresa = '';
     this.reiniciarTrabajo();
     this.paso = 0;
+    this.progreso = 0;
+    this.bloqueActivo = 'empresa';
+    this.empresaColapsada = false;
   }
 
   private reiniciarTrabajo(): void {
     this.normas = [];
     this.publicadasIds = new Set();
-    this.empleados = [];
+    this.normaFocoId = null;
     this.normaActivaId = null;
-    this.capituloAbierto = null;
+    this.capitulosAbiertos = new Set();
     this.busquedaPunto = '';
     this.avisoRecuperado = '';
     this.estadoGuardado = 'limpio';
@@ -293,29 +349,57 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     this.sucio = false;
   }
 
-  private cargarEmpleados(empresaId: number): void {
-    this.cargandoEmpleados = true;
-    this.backend.obtenerEmpleadosPorEmpresa(empresaId).pipe(takeUntil(this.destroy$)).subscribe({
+  private cargarUsuarios(): void {
+    this.cargandoUsuarios = true;
+    this.backend.obtenerUsuarios().pipe(takeUntil(this.destroy$)).subscribe({
       next: (res: any) => {
-        if (this.empresa?.empresa_id !== empresaId) return;
-        const lista = Array.isArray(res?.empleados) ? res.empleados : [];
-        this.empleados = lista
-          .filter((e: any) => e.activo === 1 || e.activo === true || e.activo === '1' || e.activo === undefined || e.activo === null)
-          .map((e: any) => ({
-            empleado_id: Number(e.empleado_id),
-            nombre: [e.nombre, e.apellido_paterno, e.apellido_materno].filter(Boolean).join(' ').trim(),
-            puesto: String(e.puesto || '').trim()
+        const lista = Array.isArray(res?.usuarios) ? res.usuarios : [];
+        this.usuarios = lista
+          .filter((u: any) => {
+            const rol = String(u?.rol || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+            return rol !== 'empresa' && rol !== 'usuario empresa';
+          })
+          .map((u: any) => ({
+            empleado_id: Number(u.id || u.usuario_id || 0),
+            nombre: [u.nombre, u.apellido, u.apellido_paterno, u.apellido_materno]
+              .map((p: any) => String(p || '').trim()).filter(Boolean).join(' ') || String(u.username || u.email || '').trim(),
+            puesto: String(u.rol || u.area_departamento || '').trim()
           }))
-          .filter((e: EmpleadoOpcion) => e.empleado_id > 0 && e.nombre)
+          .filter((u: EmpleadoOpcion) => u.empleado_id > 0 && !!u.nombre)
           .sort((a: EmpleadoOpcion, b: EmpleadoOpcion) => a.nombre.localeCompare(b.nombre, 'es'));
-        this.cargandoEmpleados = false;
+        this.filtrarUsuarios();
+        this.cargandoUsuarios = false;
+        this.limpiarResponsablesAjenos();
       },
       error: () => {
-        if (this.empresa?.empresa_id !== empresaId) return;
-        this.empleados = [];
-        this.cargandoEmpleados = false;
+        this.usuarios = [];
+        this.usuariosFiltrados = [];
+        this.cargandoUsuarios = false;
       }
     });
+  }
+
+  filtrarUsuarios(): void {
+    const q = this.busquedaUsuario.trim().toLowerCase();
+    this.usuariosFiltrados = !q
+      ? [...this.usuarios]
+      : this.usuarios.filter((u) =>
+        u.nombre.toLowerCase().includes(q) || u.puesto.toLowerCase().includes(q)
+      );
+  }
+
+  private limpiarResponsablesAjenos(): void {
+    if (!this.usuarios.length || !this.normas.length) return;
+    const validos = new Set(this.usuarios.map((u) => u.empleado_id));
+    let quito = false;
+    for (const norma of this.normas) {
+      const siguientes = norma.empleados.filter((e) => validos.has(e.empleado_id));
+      if (siguientes.length !== norma.empleados.length) {
+        norma.empleados = siguientes;
+        quito = true;
+      }
+    }
+    if (quito && !this.aplicando) this.marcarCambio();
   }
 
   private cargarEstado(empresaId: number): void {
@@ -330,6 +414,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
           this.aplicarPayload(local.payload);
           this.avisoRecuperado = 'Se recuperó el avance que no había llegado al servidor.';
           this.aplicando = false;
+          this.enfocarAsignacion();
           this.marcarCambio();
           return;
         }
@@ -345,6 +430,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
           this.avisoRecuperado = 'Esta empresa ya tiene normativas en gestión. Puede ajustarlas y volver a publicar.';
         }
         this.aplicando = false;
+        this.enfocarAsignacion();
       },
       error: () => {
         if (token !== this.cargaToken) return;
@@ -354,7 +440,10 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
           this.aplicarPayload(local.payload);
           this.aplicando = false;
           this.avisoRecuperado = 'Se recuperó el avance guardado en este equipo.';
+          this.enfocarAsignacion();
           if (local.pendienteServidor) this.marcarCambio();
+        } else {
+          this.enfocarAsignacion();
         }
       }
     });
@@ -400,14 +489,17 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
           if (!r.isConfirmed) return;
           this.normas = this.normas.filter((n) => n.normativa_id !== item.id);
           if (this.normaActivaId === item.id) this.normaActivaId = this.normas[0]?.normativa_id || null;
+          if (this.normaFocoId === item.id) this.normaFocoId = this.normas[0]?.normativa_id || null;
           this.marcarCambio();
         });
         return;
       }
       this.normas = this.normas.filter((n) => n.normativa_id !== item.id);
       if (this.normaActivaId === item.id) this.normaActivaId = this.normas[0]?.normativa_id || null;
+      if (this.normaFocoId === item.id) this.normaFocoId = this.normas[0]?.normativa_id || null;
     } else {
       this.normas = [...this.normas, this.nuevaNorma(item)];
+      this.normaFocoId = item.id;
     }
     this.marcarCambio();
   }
@@ -433,34 +525,30 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     };
   }
 
-  empleadosFiltrados(norma: NormaAsignada): EmpleadoOpcion[] {
-    const q = String(this.busquedaResp[norma.normativa_id] || '').trim().toLowerCase();
-    const tomados = new Set(norma.empleados.map((e) => e.empleado_id));
-    return this.empleados
-      .filter((e) => !tomados.has(e.empleado_id))
-      .filter((e) => !q || e.nombre.toLowerCase().includes(q) || e.puesto.toLowerCase().includes(q))
-      .slice(0, 25);
+  enfocarNorma(norma: NormaAsignada): void {
+    this.normaFocoId = norma.normativa_id;
   }
 
-  abrirResp(norma: NormaAsignada): void {
-    if (norma.empleados.length >= 2) return;
-    this.comboRespId = norma.normativa_id;
+  normaEnFoco(): NormaAsignada | null {
+    return this.normas.find((n) => n.normativa_id === this.normaFocoId) || this.normas[0] || null;
   }
 
-  cerrarResp(): void {
-    setTimeout(() => { this.comboRespId = null; }, 180);
+  usuarioAsignado(norma: NormaAsignada | null, usuarioId: number): boolean {
+    return !!norma?.empleados.some((e) => e.empleado_id === usuarioId);
   }
 
-  agregarResponsable(norma: NormaAsignada, empleado: EmpleadoOpcion): void {
-    if (norma.empleados.length >= 2) return;
-    if (norma.empleados.some((e) => e.empleado_id === empleado.empleado_id)) return;
-    norma.empleados = [...norma.empleados, {
-      empleado_id: empleado.empleado_id,
-      nombre: empleado.nombre,
-      puesto: empleado.puesto
+  alternarUsuario(usuario: EmpleadoOpcion): void {
+    const norma = this.normaEnFoco();
+    if (!norma) return;
+    if (this.usuarioAsignado(norma, usuario.empleado_id)) {
+      this.quitarResponsable(norma, usuario.empleado_id);
+      return;
+    }
+    norma.empleados = [{
+      empleado_id: usuario.empleado_id,
+      nombre: usuario.nombre,
+      puesto: usuario.puesto
     }];
-    this.busquedaResp[norma.normativa_id] = '';
-    this.comboRespId = null;
     this.marcarCambio();
   }
 
@@ -481,10 +569,12 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   abrirNormaPuntos(norma: NormaAsignada): void {
     this.normaActivaId = norma.normativa_id;
     this.busquedaPunto = '';
-    this.capituloAbierto = null;
-    this.seccionesAbiertas.clear();
+    this.capitulosAbiertos = new Set();
     this.errorPuntos = null;
-    if (this.puntosCache.has(norma.normativa_id)) return;
+    if (this.puntosCache.has(norma.normativa_id)) {
+      this.abrirPrimerCapitulo(norma);
+      return;
+    }
     this.cargandoPuntos = true;
     this.backend.listarPuntosSeguridadAsignacion(norma.normativa_id)
       .pipe(takeUntil(this.destroy$))
@@ -493,6 +583,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
           const puntos = (res?.puntos || []).map((p: any) => this.etiquetarPunto(p));
           this.puntosCache.set(norma.normativa_id, puntos);
           this.cargandoPuntos = false;
+          this.abrirPrimerCapitulo(norma);
         },
         error: (err: any) => {
           this.errorPuntos = err?.error?.message || 'No se pudieron cargar los puntos.';
@@ -510,6 +601,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
       descripcion: String(raw.descripcion || '').trim(),
       tipo_evidencia: raw.tipo_evidencia || null,
       periodicidad: raw.periodicidad || null,
+      formato_nombre: raw.formato_nombre || null,
       cap: partes[0] || 'General',
       sec: partes.length >= 2 ? `${partes[0]}.${partes[1]}` : (punto || 'General')
     };
@@ -547,46 +639,25 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     });
   }
 
-  seccionesCapitulo(norma: NormaAsignada): SeccionVista[] {
-    if (!this.capituloAbierto) return [];
-    const puntos = (this.puntosCache.get(norma.normativa_id) || [])
-      .filter((p) => p.cap === this.capituloAbierto);
-    const mapa = new Map<string, PuntoNorma[]>();
-    for (const p of puntos) {
-      if (!mapa.has(p.sec)) mapa.set(p.sec, []);
-      mapa.get(p.sec)!.push(p);
-    }
-    return Array.from(mapa.entries())
-      .sort((a, b) => a[0].localeCompare(b[0], 'es', { numeric: true }))
-      .map(([clave, lista]) => ({
-        clave,
-        puntos: lista,
-        seleccionados: lista.filter((p) => norma.requisito_ids.includes(p.id)).length,
-        abierto: this.seccionesAbiertas.has(clave)
-      }));
+  puntosDeCapitulo(norma: NormaAsignada, clave: string): PuntoNorma[] {
+    return (this.puntosCache.get(norma.normativa_id) || []).filter((p) => p.cap === clave);
   }
 
-  puntosDelCapitulo(norma: NormaAsignada): PuntoNorma[] {
-    if (!this.capituloAbierto) return [];
-    return (this.puntosCache.get(norma.normativa_id) || [])
-      .filter((p) => p.cap === this.capituloAbierto);
+  capituloAbierto(clave: string): boolean {
+    return this.capitulosAbiertos.has(clave);
   }
 
-  toggleSeccion(clave: string): void {
-    if (this.seccionesAbiertas.has(clave)) this.seccionesAbiertas.delete(clave);
-    else this.seccionesAbiertas.add(clave);
+  alternarCapitulo(clave: string): void {
+    const siguiente = new Set(this.capitulosAbiertos);
+    if (siguiente.has(clave)) siguiente.delete(clave);
+    else siguiente.add(clave);
+    this.capitulosAbiertos = siguiente;
   }
 
-  abrirCapitulo(clave: string): void {
-    this.capituloAbierto = clave;
-    const primera = (this.puntosCache.get(this.normaActivaId || 0) || [])
-      .find((p) => p.cap === clave);
-    this.seccionesAbiertas = new Set(primera ? [primera.sec] : []);
-  }
-
-  volverCapitulos(): void {
-    this.capituloAbierto = null;
-    this.seccionesAbiertas.clear();
+  private abrirPrimerCapitulo(norma: NormaAsignada): void {
+    const caps = this.capitulos(norma);
+    const primero = caps.find((c) => c.clave !== 'General') || caps[0];
+    this.capitulosAbiertos = new Set(primero ? [primero.clave] : []);
   }
 
   toggleGrupo(norma: NormaAsignada, puntos: PuntoNorma[]): void {
@@ -637,7 +708,8 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     return puntos.filter((p) =>
       p.punto_norma.toLowerCase().includes(q) ||
       p.descripcion.toLowerCase().includes(q) ||
-      (p.tipo_evidencia || '').toLowerCase().includes(q)
+      (p.tipo_evidencia || '').toLowerCase().includes(q) ||
+      (p.formato_nombre || '').toLowerCase().includes(q)
     ).slice(0, 80);
   }
 
@@ -648,7 +720,8 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     return puntos.filter((p) =>
       p.punto_norma.toLowerCase().includes(q) ||
       p.descripcion.toLowerCase().includes(q) ||
-      (p.tipo_evidencia || '').toLowerCase().includes(q)
+      (p.tipo_evidencia || '').toLowerCase().includes(q) ||
+      (p.formato_nombre || '').toLowerCase().includes(q)
     ).length;
   }
 
@@ -667,10 +740,12 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
       }
     }
     this.paso = destino;
+    this.progreso = Math.max(this.progreso, destino);
     this.persistirPaso();
-    if (destino === 3 && this.normas.length && !this.normaActivaId) {
-      this.abrirNormaPuntos(this.normas[0]);
+    if (destino === 1 && this.normas.length) {
+      this.abrirNormaPuntos(this.normaActiva || this.normas[0]);
     }
+    if (destino === 2) this.precargarPuntos();
   }
 
   siguiente(): void {
@@ -678,11 +753,13 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
       this.avisarPaso(this.paso);
       return;
     }
-    this.paso = Math.min(4, this.paso + 1);
+    this.paso = Math.min(2, this.paso + 1);
+    this.progreso = Math.max(this.progreso, this.paso);
     this.persistirPaso();
-    if (this.paso === 3 && this.normas.length) {
+    if (this.paso === 1 && this.normas.length) {
       this.abrirNormaPuntos(this.normaActiva || this.normas[0]);
     }
+    if (this.paso === 2) this.precargarPuntos();
   }
 
   anterior(): void {
@@ -695,24 +772,28 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   }
 
   private pasoValido(indice: number): boolean {
-    if (indice === 0) return !!this.empresa;
-    if (indice === 1) return this.normas.length > 0;
-    if (indice === 2) return this.normas.every((n) => n.empleados.length >= 1 && n.empleados.length <= 2);
-    if (indice === 3) return this.normas.every((n) => n.requisito_ids.length > 0);
+    if (indice === 0) {
+      return !!this.empresa
+        && this.normas.length > 0
+        && this.normas.every((n) => n.empleados.length === 1);
+    }
+    if (indice === 1) return this.normas.every((n) => n.requisito_ids.length > 0);
     return true;
   }
 
   private avisarPaso(indice: number): void {
-    const mensajes = [
-      'Seleccione la empresa a la que se aplicarán las normativas.',
-      'Seleccione al menos una normativa del catálogo.',
-      'Cada normativa necesita de 1 a 2 responsables. Una persona puede cubrir varias.',
-      'Marque al menos un punto en cada normativa seleccionada.'
-    ];
+    let text = 'Revise la selección.';
+    if (indice === 0) {
+      if (!this.empresa) text = 'Seleccione la empresa.';
+      else if (!this.normas.length) text = 'Seleccione al menos una normativa.';
+      else text = 'Cada normativa necesita un responsable. La misma persona puede quedar en varias.';
+    } else if (indice === 1) {
+      text = 'Marque al menos un punto en cada normativa seleccionada.';
+    }
     Swal.fire({
       icon: 'info',
-      title: 'Falta un paso',
-      text: mensajes[indice] || 'Revise la selección.',
+      title: 'Falta completar la asignación',
+      text,
       confirmButtonColor: '#b91c1c'
     });
   }
@@ -731,7 +812,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
 
   publicar(): void {
     if (!this.empresa || this.publicando) return;
-    for (let i = 0; i <= 3; i++) {
+      for (let i = 0; i <= 1; i++) {
       if (!this.pasoValido(i)) {
         this.paso = i;
         this.avisarPaso(i);
@@ -802,6 +883,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   private armarPayload(): PayloadAsignacion {
     return {
       paso: this.paso,
+      vista: 'compacta',
       normas: this.normas.map((n) => ({
         normativa_id: n.normativa_id,
         empleados: n.empleados.map((e) => ({ ...e })),
@@ -810,9 +892,51 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     };
   }
 
+  consultaResp: Record<number, string> = {};
+
+  escribirResp(norma: NormaAsignada, valor: string): void {
+    this.consultaResp = { ...this.consultaResp, [norma.normativa_id]: valor };
+    this.enfocarNorma(norma);
+  }
+
+  sugerenciasResp(norma: NormaAsignada): EmpleadoOpcion[] {
+    const q = (this.consultaResp[norma.normativa_id] || '').trim().toLowerCase();
+    if (!q) return [];
+    return this.usuarios.filter((u) =>
+      !norma.empleados.some((e) => e.empleado_id === u.empleado_id) &&
+      (u.nombre.toLowerCase().includes(q) || (u.puesto || '').toLowerCase().includes(q))
+    ).slice(0, 6);
+  }
+
+  elegirResponsable(norma: NormaAsignada, usuario: EmpleadoOpcion): void {
+    this.enfocarNorma(norma);
+    this.alternarUsuario(usuario);
+    this.consultaResp = { ...this.consultaResp, [norma.normativa_id]: '' };
+  }
+
+  private enfocarAsignacion(): void {
+    this.paso = 0;
+    if (this.normas.length && !this.normaFocoId) this.normaFocoId = this.normas[0].normativa_id;
+  }
+
+  private desplazarAlBloque(bloque: 'empresa' | 'normas' | 'resp'): void {
+    window.setTimeout(() => {
+      const ancla = bloque === 'empresa'
+        ? this.anclaEmpresa
+        : bloque === 'normas'
+          ? this.anclaNormas
+          : this.anclaResp;
+      const el = ancla?.nativeElement;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY - 16;
+      window.scrollTo({ top: Math.max(0, top), left: 0, behavior: 'smooth' });
+    }, 90);
+  }
+
   private aplicarPayload(payload: PayloadAsignacion | null | undefined): void {
     const normas = Array.isArray(payload?.normas) ? payload!.normas : [];
-    this.paso = Math.max(0, Math.min(4, Number(payload?.paso) || 0));
+    this.progreso = Math.max(this.progreso, this.pasoDesdePayload(payload));
+    this.paso = 0;
     this.normas = normas.map((item) => {
       const cat = this.catalogo.find((c) => c.id === Number(item.normativa_id));
       return {
@@ -821,7 +945,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
         titulo: cat?.titulo || 'Normativa del catálogo',
         categoria_id: cat?.categoria_id || '',
         total_requisitos: cat?.total_requisitos || item.requisito_ids?.length || 0,
-        empleados: (item.empleados || []).slice(0, 2).map((e) => ({
+        empleados: (item.empleados || []).slice(0, 1).map((e) => ({
           empleado_id: Number(e.empleado_id),
           nombre: e.nombre || `Empleado ${e.empleado_id}`,
           puesto: e.puesto || ''
@@ -829,8 +953,54 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
         requisito_ids: (item.requisito_ids || []).map((id) => Number(id)).filter((id) => id > 0)
       };
     }).filter((n) => n.normativa_id > 0);
-    if (this.paso >= 3 && this.normas.length) {
-      this.abrirNormaPuntos(this.normas[0]);
+    if (this.normas.length) this.normaFocoId = this.normas[0].normativa_id;
+    this.limpiarResponsablesAjenos();
+  }
+
+  private pasoDesdePayload(payload: PayloadAsignacion | null | undefined): number {
+    const n = Math.max(0, Number(payload?.paso) || 0);
+    if (payload?.vista === 'compacta') return Math.min(2, n);
+    if (n <= 2) return 0;
+    if (n === 3) return 1;
+    return 2;
+  }
+
+  resumenCorto(texto: string): string {
+    const limpio = String(texto || '').replace(/\s+/g, ' ').trim();
+    if (!limpio) return 'Sin descripción';
+    const frase = limpio.split(/(?<=\.)\s/)[0];
+    const base = frase.length < limpio.length && frase.length <= 140 ? frase : limpio;
+    return base.length > 120 ? `${base.slice(0, 117).trim()}…` : base;
+  }
+
+  resumenCapitulos(norma: NormaAsignada): Array<{ clave: string; puntos: PuntoNorma[] }> {
+    const marcados = new Set(norma.requisito_ids);
+    const puntos = (this.puntosCache.get(norma.normativa_id) || []).filter((p) => marcados.has(p.id));
+    const mapa = new Map<string, PuntoNorma[]>();
+    for (const punto of puntos) {
+      if (!mapa.has(punto.cap)) mapa.set(punto.cap, []);
+      mapa.get(punto.cap)!.push(punto);
+    }
+    return Array.from(mapa.entries())
+      .sort((a, b) => {
+        if (a[0] === 'General') return 1;
+        if (b[0] === 'General') return -1;
+        return a[0].localeCompare(b[0], 'es', { numeric: true });
+      })
+      .map(([clave, lista]) => ({ clave, puntos: lista }));
+  }
+
+  private precargarPuntos(): void {
+    for (const norma of this.normas) {
+      if (this.puntosCache.has(norma.normativa_id)) continue;
+      this.backend.listarPuntosSeguridadAsignacion(norma.normativa_id)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res: any) => {
+            const puntos = (res?.puntos || []).map((p: any) => this.etiquetarPunto(p));
+            this.puntosCache.set(norma.normativa_id, puntos);
+          }
+        });
     }
   }
 

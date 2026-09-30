@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import Swal from 'sweetalert2';
+import { environment } from 'src/environments/environment';
 import { BackendServices } from 'src/app/services/backend.services';
 
 interface Responsable {
@@ -26,6 +27,8 @@ interface PuntoGestion {
   descripcion: string;
   tipo_evidencia: string | null;
   periodicidad: string | null;
+  formato_nombre: string | null;
+  formato_archivo: string | null;
   cap: string;
   sec: string;
   documentos: DocumentoItem[];
@@ -202,6 +205,8 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
       descripcion: String(raw.descripcion || '').trim(),
       tipo_evidencia: raw.tipo_evidencia || null,
       periodicidad: raw.periodicidad || null,
+      formato_nombre: raw.formato_nombre || null,
+      formato_archivo: raw.formato_archivo || null,
       cap: partes[0] || 'General',
       sec: partes.length >= 2 ? `${partes[0]}.${partes[1]}` : (punto || 'General'),
       documentos: raw.documentos || []
@@ -282,6 +287,14 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
           });
         }
       });
+  }
+
+  urlPlantilla(punto: PuntoGestion): string | null {
+    const ruta = punto.formato_archivo;
+    if (!ruta) return null;
+    if (/^https?:/i.test(ruta)) return ruta;
+    const base = environment.apiUrl.replace(/\/api\/?$/, '');
+    return `${base}${ruta.startsWith('/') ? ruta : `/${ruta}`}`;
   }
 
   descargar(doc: DocumentoItem): void {

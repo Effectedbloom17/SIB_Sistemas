@@ -687,7 +687,8 @@
                 </div>
                 <div class="cp-gestion__actions" *ngIf="!esConsultaEmpresa">
                   <span class="cp-gestion__dirty" *ngIf="gestionCambiosPendientes">
-                    <i class="fas fa-circle"></i> Cambios sin guardar
+                    <i class="fas fa-circle"></i>
+                    {{ borradorGestionRecuperado ? 'Borrador local recuperado' : 'Cambios sin guardar' }}
                   </span>
                   <span class="cp-gestion__sync" *ngIf="sincronizandoDrive">
                     <i class="fas fa-spinner fa-spin"></i> Actualizando…

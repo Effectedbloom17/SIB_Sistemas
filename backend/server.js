@@ -759,6 +759,16 @@ const uploadSeguridadNormativa = multer({
     }
 });
 
+const uploadSeguridadPortada = multer({
+    storage: storageMemory,
+    limits: { fileSize: 6 * 1024 * 1024 }
+});
+
+const uploadSeguridadFormato = multer({
+    storage: storageMemory,
+    limits: { fileSize: 15 * 1024 * 1024 }
+});
+
 /** Evidencias de Gestión de Normativas (PDF, Office, imágenes y ZIP). */
 const uploadSeguridadAsignacionDoc = multer({
     storage: storageMemory,
@@ -25635,6 +25645,45 @@ app.put('/api/seguridad/normativas/:id', requireAdmin, async (req, res) => {
     }
 });
 
+app.put('/api/seguridad/normativas/:id/imagen', requireAdmin, uploadSeguridadPortada.single('imagen'), async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const id = parseInt(req.params.id, 10);
+        const normativa = await seguridadNormativasService.guardarImagenPortada(
+            poolNormativas,
+            id,
+            req.file,
+            req.user
+        );
+        res.json({ success: true, message: 'Portada actualizada.', normativa });
+    } catch (error) {
+        const status = error.status || 500;
+        if (status !== 500) {
+            return res.status(status).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'Error al guardar la portada');
+    }
+});
+
+app.delete('/api/seguridad/normativas/:id/imagen', requireAdmin, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const id = parseInt(req.params.id, 10);
+        const normativa = await seguridadNormativasService.quitarImagenPortada(
+            poolNormativas,
+            id,
+            req.user
+        );
+        res.json({ success: true, message: 'Portada retirada.', normativa });
+    } catch (error) {
+        const status = error.status || 500;
+        if (status !== 500) {
+            return res.status(status).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'Error al retirar la portada');
+    }
+});
+
 app.put('/api/seguridad/normativas/:id/requisitos/:reqId', requireAdmin, async (req, res) => {
     try {
         await poolNormativasReady;
@@ -25656,6 +25705,34 @@ app.put('/api/seguridad/normativas/:id/requisitos/:reqId', requireAdmin, async (
         handleError(res, error, 'Error al actualizar requisito');
     }
 });
+
+app.post(
+    '/api/seguridad/normativas/:id/requisitos/:reqId/formato',
+    requireAdmin,
+    uploadSeguridadFormato.single('formato'),
+    async (req, res) => {
+        try {
+            await poolNormativasReady;
+            const normativaId = parseInt(req.params.id, 10);
+            const requisitoId = parseInt(req.params.reqId, 10);
+            const requisito = await seguridadNormativasService.guardarFormatoRequisito(
+                poolNormativas,
+                normativaId,
+                requisitoId,
+                req.file,
+                req.body?.formato_nombre,
+                req.user
+            );
+            res.json({ success: true, message: 'Formato ligado.', requisito });
+        } catch (error) {
+            const status = error.status || 500;
+            if (status !== 500) {
+                return res.status(status).json({ success: false, message: error.message });
+            }
+            handleError(res, error, 'Error al ligar el formato');
+        }
+    }
+);
 
 app.delete('/api/seguridad/normativas/:id', requireAdmin, async (req, res) => {
     try {
@@ -33066,19 +33143,26 @@ app.get('/api/proteccion-civil/documentos/:documentoId/descargar', requireAdminO
 
         let fileBuffer;
         let contentType;
+        let nombreFinal = nombre_archivo || 'archivo';
 
         if (usarVistaPrevia && extensionesOffice.includes(ext)) {
             fileBuffer = await driveService.exportarArchivoPDF(driveId);
             contentType = 'application/pdf';
+            nombreFinal = nombreFinal.replace(/\.[^.]+$/, '') + '.pdf';
         } else {
-            fileBuffer = await driveService.descargarArchivo(driveId);
-            contentType = detectarMimeArchivoPC(fileBuffer, nombre_archivo);
+            const nativo = await driveService.descargarArchivoNativo(driveId, nombreFinal);
+            fileBuffer = nativo.buffer;
+            contentType = nativo.contentType || detectarMimeArchivoPC(fileBuffer, nombreFinal);
+            nombreFinal = nativo.filename || nombreFinal;
         }
 
-        const nombreSeguro = (nombre_archivo || 'archivo').replace(/["\r\n]/g, '').replace(/[^a-zA-Z0-9._\- ]/g, '_');
+        const nombreSeguro = String(nombreFinal || 'archivo')
+            .replace(/[\r\n"\\/:*?<>|]+/g, '_')
+            .replace(/[^a-zA-Z0-9._\- \u00C0-\u024F]+/g, '_')
+            || 'archivo';
 
         res.setHeader('Content-Type', contentType);
-        res.setHeader('Content-Disposition', `inline; filename="${nombreSeguro}"`);
+        res.setHeader('Content-Disposition', `${usarVistaPrevia ? 'inline' : 'attachment'}; filename="${nombreSeguro}"`);
         res.setHeader('Cache-Control', 'public, max-age=3600');
         res.send(Buffer.from(fileBuffer));
 

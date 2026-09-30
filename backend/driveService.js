@@ -612,7 +612,8 @@ async function asignarPermisoLecturaPublica(fileId) {
     try {
         await drive.permissions.create({
             fileId: id,
-            requestBody: { role: 'reader', type: 'anyone' }
+            supportsAllDrives: true,
+            requestBody: { role: 'reader', type: 'anyone', allowFileDiscovery: false }
         });
         return true;
     } catch (error) {
@@ -727,9 +728,11 @@ async function subirArchivo(fileData, nombreArchivo, mimeType, carpetaId = ROOT_
             try {
                 await drive.permissions.create({
                     fileId: response.data.id,
+                    supportsAllDrives: true,
                     requestBody: {
                         role: 'reader',
-                        type: 'anyone'
+                        type: 'anyone',
+                        allowFileDiscovery: false
                     }
                 });
             } catch (permError) {
@@ -767,15 +770,18 @@ async function subirArchivoNuevo(fileData, nombreArchivo, mimeType, carpetaId = 
             parents: [carpetaId]
         },
         media,
-        fields: 'id, name, mimeType, size, webViewLink, webContentLink'
+        fields: 'id, name, mimeType, size, webViewLink, webContentLink',
+        supportsAllDrives: true
     });
 
     try {
         await drive.permissions.create({
             fileId: response.data.id,
+            supportsAllDrives: true,
             requestBody: {
                 role: 'reader',
-                type: 'anyone'
+                type: 'anyone',
+                allowFileDiscovery: false
             }
         });
     } catch (permError) {
@@ -3111,6 +3117,170 @@ async function aplicarFormatoVisualSpF02(spreadsheetId, sheetTitle, layout, repo
     if (!requests.length) {
         return null;
     }
+    const CHUNK = 80;
+    for (let i = 0; i < requests.length; i += CHUNK) {
+        await sheetsApi.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: { requests: requests.slice(i, i + CHUNK) }
+        });
+    }
+    return true;
+}
+
+/**
+ * Fórmula IMAGE() de una sola celda. Un argumento, para que funcione
+ * con el separador de la hoja en español o en inglés.
+ */
+function formulaImagenSpF02(url) {
+    const limpia = String(url || '').trim().replace(/"/g, '');
+    if (!limpia) return '';
+    return `=IMAGE("${limpia}")`;
+}
+
+function altoFilaConImagenesSpF02(cantidad) {
+    const n = Number(cantidad) || 0;
+    if (n <= 0) return 50;
+    if (n === 1) return 150;
+    if (n === 2) return 170;
+    return 210;
+}
+
+/**
+ * Después de escribir las fotos del recorrido: sube el alto de la fila,
+ * separa C y D cuando hay texto y foto, y deja la imagen con espacio visible.
+ */
+async function aplicarFormatoPostImagenesSpF02(spreadsheetId, sheetTitle, layout, reporte = null) {
+    if (!spreadsheetId || !sheetTitle || !layout) return null;
+
+    const items = Array.isArray(reporte?.items) ? reporte.items : [];
+    const itemsStart = Number(layout.itemsStart) || 11;
+    const filasConFoto = [];
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const probN = (item?.problemaImagenes || []).filter((img) => img?.driveFileId).length;
+        const obsN = (item?.observacionesImagenes || []).filter((img) => img?.driveFileId).length;
+        const maxImg = Math.max(probN, obsN);
+        if (maxImg <= 0) continue;
+        filasConFoto.push({
+            row: itemsStart + i,
+            probN,
+            obsN,
+            maxImg,
+            textoProb: String(item?.problema || '').trim(),
+            textoObs: String(item?.observaciones || '').trim()
+        });
+    }
+    if (!filasConFoto.length) return null;
+
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const meta = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties(sheetId,title)'
+    });
+    const sheet = (meta.data.sheets || []).find(
+        (s) => (s.properties?.title || '').trim() === String(sheetTitle).trim()
+    );
+    const sheetId = sheet?.properties?.sheetId;
+    if (sheetId === undefined || sheetId === null) return null;
+
+    const requests = [];
+    const borde = { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } };
+    for (const fila of filasConFoto) {
+        requests.push({
+            updateDimensionProperties: {
+                range: {
+                    sheetId,
+                    dimension: 'ROWS',
+                    startIndex: fila.row - 1,
+                    endIndex: fila.row
+                },
+                properties: { pixelSize: altoFilaConImagenesSpF02(fila.maxImg) },
+                fields: 'pixelSize'
+            }
+        });
+
+        // Texto en C y foto en D: hay que abrir la fusión C:D solo en esa fila.
+        if (fila.probN >= 1 && fila.textoProb) {
+            requests.push({
+                unmergeCells: {
+                    range: {
+                        sheetId,
+                        startRowIndex: fila.row - 1,
+                        endRowIndex: fila.row,
+                        startColumnIndex: 2,
+                        endColumnIndex: 4
+                    }
+                }
+            });
+        }
+
+        const colFin = (fila.obsN >= 1 && fila.textoObs) ? 11 : 10;
+        requests.push({
+            repeatCell: {
+                range: {
+                    sheetId,
+                    startRowIndex: fila.row - 1,
+                    endRowIndex: fila.row,
+                    startColumnIndex: 1,
+                    endColumnIndex: colFin
+                },
+                cell: {
+                    userEnteredFormat: {
+                        verticalAlignment: 'MIDDLE',
+                        wrapStrategy: 'WRAP'
+                    }
+                },
+                fields: 'userEnteredFormat(verticalAlignment,wrapStrategy)'
+            }
+        });
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: fila.row - 1,
+                    endRowIndex: fila.row,
+                    startColumnIndex: 1,
+                    endColumnIndex: colFin
+                },
+                top: borde,
+                bottom: borde,
+                left: borde,
+                right: borde,
+                innerVertical: borde
+            }
+        });
+    }
+
+    if (filasConFoto.some((f) => f.probN >= 1 && f.textoProb)) {
+        requests.push({
+            updateDimensionProperties: {
+                range: {
+                    sheetId,
+                    dimension: 'COLUMNS',
+                    startIndex: 3,
+                    endIndex: 4
+                },
+                properties: { pixelSize: 180 },
+                fields: 'pixelSize'
+            }
+        });
+    }
+    if (filasConFoto.some((f) => f.obsN >= 1 && f.textoObs)) {
+        requests.push({
+            updateDimensionProperties: {
+                range: {
+                    sheetId,
+                    dimension: 'COLUMNS',
+                    startIndex: 10,
+                    endIndex: 11
+                },
+                properties: { pixelSize: 170 },
+                fields: 'pixelSize'
+            }
+        });
+    }
+
+    if (!requests.length) return null;
     const CHUNK = 80;
     for (let i = 0; i < requests.length; i += CHUNK) {
         await sheetsApi.spreadsheets.batchUpdate({
@@ -11900,6 +12070,8 @@ module.exports = {
     aplicarFormatoVisualSgcF22,
     aplicarFormatoVisualSgcF16,
     aplicarFormatoVisualSpF02,
+    formulaImagenSpF02,
+    aplicarFormatoPostImagenesSpF02,
     aplicarFormatoFilasSgcF14,
     aplicarFormatoFilasSgcF18,
     aplicarFormatoFilasSgcF25,

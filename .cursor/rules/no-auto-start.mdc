@@ -1,0 +1,12 @@
+---
+description: No arrancar el sistema; el usuario lo prende con npm start
+alwaysApply: true
+---
+
+# Arranque manual
+
+No ejecutes `npm start`, `npm run start`, `npm run start:all`, `npm run start:backend`, `npm run start:frontend` ni `node backend/server.js` / `ng serve` para prender el sistema.
+
+El usuario arranca backend y frontend a mano con `npm start`. Si un cambio de backend necesita reinicio, indícalo en el mensaje y espera a que él lo haga.
+
+No mates procesos de `npm start` que el usuario ya tenga corriendo, salvo que pida apagar el sistema.

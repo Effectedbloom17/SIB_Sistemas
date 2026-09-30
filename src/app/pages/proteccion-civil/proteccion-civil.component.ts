@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, HostListener, NgZone } from '@angular/cor
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import Swal from 'sweetalert2';
-import { firstValueFrom, Subject } from 'rxjs';
+import { firstValueFrom, Observable, Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import {
   ApexAxisChartSeries,
@@ -424,6 +424,11 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   nombreArchivoActual: string = '';
   cargandoVisualizador: boolean = false;
   documentoVisualizadorId: number | null = null;
+  /** Drive del archivo que se está viendo (no el último del requisito). */
+  driveFileIdVisualizador: string | null = null;
+  /** Adjunto concreto cuando el requisito tiene varios archivos. */
+  archivoVisualizadorId: number | null = null;
+  descargandoVisor = false;
   /** Si el visor muestra un ítem de Documentación Extra (no del checklist). */
   pcDocExtraVisualizadorId: number | null = null;
 
@@ -4358,7 +4363,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   // ACCIONES SOBRE DOCUMENTOS
   // =====================================================
 
-  visualizarDocumento(doc: DocumentoPC): void {
+  visualizarDocumento(doc: DocumentoPC, archivo?: ArchivoPC | null): void {
     if (!doc.archivo_url && !doc.nombre_archivo) {
       Swal.fire('Sin archivo', 'Este documento aún no tiene archivo cargado', 'info');
       return;
@@ -4367,16 +4372,20 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     this.nombreArchivoActual = doc.nombre_archivo || doc.nombre_documento;
     this.mostrarModalVisualizador = true;
     this.cargandoVisualizador = true;
+    this.descargandoVisor = false;
     this.documentoVisualizadorId = doc.documento_id;
+    this.archivoVisualizadorId = archivo?.archivo_id || null;
+    this.driveFileIdVisualizador = this.backendService.extraerDriveId(archivo?.drive_file_id || doc.archivo_url);
     document.body.classList.add('visor-fullscreen-open');
 
-    // Usar preview de Google Drive directamente con iframe (como el catálogo)
-    if (doc.archivo_url) {
-      this.urlArchivoActual = `https://drive.google.com/file/d/${doc.archivo_url}/preview`;
+    if (this.driveFileIdVisualizador) {
+      this.urlArchivoActual = this.getDrivePreviewUrlById(this.driveFileIdVisualizador);
       this.cargandoVisualizador = false;
     } else {
-      // Fallback: descargar como blob si no hay drive file ID
-      this.backendService.descargarArchivoProteccionCivil(doc.documento_id).subscribe(
+      this.backendService.descargarArchivoProteccionCivil(
+        doc.documento_id,
+        this.archivoVisualizadorId || undefined
+      ).subscribe(
         (blob: Blob) => {
           this.urlArchivoActual = URL.createObjectURL(blob);
           this.cargandoVisualizador = false;
@@ -4404,17 +4413,24 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     }
 
     this.documentoVisualizadorId = null;
+    this.archivoVisualizadorId = null;
+    this.driveFileIdVisualizador = this.backendService.extraerDriveId(doc.driveFileId);
     this.pcDocExtraVisualizadorId = doc.id;
     this.nombreArchivoActual = doc.nombreArchivo || doc.titulo || 'documento';
     this.mostrarModalVisualizador = true;
     this.cargandoVisualizador = true;
+    this.descargandoVisor = false;
     this.urlArchivoActual = '';
     document.body.classList.add('visor-fullscreen-open');
 
     this.backendService.prepararVistaPcDocumentacionExtra(empresaId, doc.id).subscribe({
       next: (res: any) => {
+        const driveIdVista = this.backendService.extraerDriveId(res?.documento?.driveFileId || doc.driveFileId);
+        if (driveIdVista) {
+          this.driveFileIdVisualizador = driveIdVista;
+        }
         const previewUrl = res?.previewUrl
-          || this.getDrivePreviewUrlById(res?.documento?.driveFileId || doc.driveFileId);
+          || this.getDrivePreviewUrlById(driveIdVista || doc.driveFileId);
         if (previewUrl) {
           this.urlArchivoActual = previewUrl;
           this.cargandoVisualizador = false;
@@ -4510,6 +4526,9 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     this.nombreArchivoActual = '';
     this.cargandoVisualizador = false;
     this.documentoVisualizadorId = null;
+    this.archivoVisualizadorId = null;
+    this.driveFileIdVisualizador = null;
+    this.descargandoVisor = false;
     this.pcDocExtraVisualizadorId = null;
     document.body.classList.remove('visor-fullscreen-open');
     if (this.route.snapshot.queryParamMap.has('documentoId')) {
@@ -4531,46 +4550,146 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   }
 
   descargarDesdeVisor(): void {
-    if (this.pcDocExtraVisualizadorId) {
-      const empresaId = this.getEmpresaIdActual();
-      if (!empresaId) {
-        return;
-      }
-      this.backendService.descargarPcDocumentacionExtra(empresaId, this.pcDocExtraVisualizadorId).subscribe({
-        next: (blob) => {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = this.nombreArchivoActual || 'documento';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        },
-        error: () => {
-          Swal.fire('Error', 'No se pudo descargar el archivo', 'error');
-        }
-      });
+    if (this.descargandoVisor) return;
+
+    const nombre = this.nombreArchivoActual || 'documento';
+    if (this.urlArchivoActual?.startsWith('blob:')) {
+      this.dispararDescargaVisor(this.urlArchivoActual, nombre);
       return;
     }
 
-    if (!this.documentoVisualizadorId) return;
-    this.backendService.descargarArchivoProteccionCivil(this.documentoVisualizadorId).subscribe(
-      (blob: Blob) => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = this.nombreArchivoActual || 'documento';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      },
-      (error) => {
-        console.error('Error al descargar:', error);
-        Swal.fire('Error', 'No se pudo descargar el archivo', 'error');
+    const driveId = this.driveFileIdVisualizador
+      || this.backendService.extraerDriveId(this.urlArchivoActual);
+    const peticiones: Array<() => Observable<Blob>> = [];
+
+    if (driveId) {
+      peticiones.push(() => this.backendService.descargarArchivoDrive(driveId, nombre));
+    }
+    if (this.pcDocExtraVisualizadorId) {
+      const empresaId = this.getEmpresaIdActual();
+      if (empresaId) {
+        const extraId = this.pcDocExtraVisualizadorId;
+        peticiones.push(() => this.backendService.descargarPcDocumentacionExtra(empresaId, extraId));
       }
-    );
+    } else if (this.documentoVisualizadorId) {
+      const documentoId = this.documentoVisualizadorId;
+      const archivoId = this.archivoVisualizadorId || undefined;
+      peticiones.push(() => this.backendService.descargarArchivoProteccionCivil(documentoId, archivoId));
+    }
+
+    if (!peticiones.length) {
+      this.avisarSobreVisor('Sin archivo', 'No hay un archivo disponible para descargar.');
+      return;
+    }
+
+    this.descargandoVisor = true;
+    this.intentarDescargaVisor(peticiones, 0, nombre, driveId);
+  }
+
+  private intentarDescargaVisor(
+    peticiones: Array<() => Observable<Blob>>,
+    indice: number,
+    nombre: string,
+    driveId: string
+  ): void {
+    if (indice >= peticiones.length) {
+      this.descargandoVisor = false;
+      if (!this.mostrarModalVisualizador) return;
+      this.ofrecerDescargaGoogleVisor(driveId, nombre);
+      return;
+    }
+
+    peticiones[indice]().subscribe({
+      next: (blob) => {
+        if (!this.mostrarModalVisualizador) {
+          this.descargandoVisor = false;
+          return;
+        }
+        if (!this.blobPareceArchivoVisor(blob)) {
+          this.intentarDescargaVisor(peticiones, indice + 1, nombre, driveId);
+          return;
+        }
+        this.descargandoVisor = false;
+        this.dispararDescargaVisor(blob, nombre);
+      },
+      error: (error) => {
+        console.error('Error al descargar desde el visor:', error);
+        this.intentarDescargaVisor(peticiones, indice + 1, nombre, driveId);
+      }
+    });
+  }
+
+  private blobPareceArchivoVisor(blob: Blob | null | undefined): boolean {
+    if (!blob || blob.size === 0) return false;
+    const tipo = String(blob.type || '').toLowerCase();
+    return !tipo.includes('json') && !tipo.includes('html') && !tipo.includes('text/plain');
+  }
+
+  private nombreDescargaVisor(nombre: string, blob?: Blob): string {
+    const base = String(nombre || 'documento').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'documento';
+    if (/\.[a-z0-9]{2,8}$/i.test(base)) return base;
+    const tipo = String(blob?.type || '').toLowerCase();
+    if (tipo.includes('pdf')) return `${base}.pdf`;
+    if (tipo.includes('png')) return `${base}.png`;
+    if (tipo.includes('jpeg') || tipo.includes('jpg')) return `${base}.jpg`;
+    if (tipo.includes('webp')) return `${base}.webp`;
+    if (tipo.includes('gif')) return `${base}.gif`;
+    return base;
+  }
+
+  private dispararDescargaVisor(origen: Blob | string, nombre: string): void {
+    const href = origen instanceof Blob ? URL.createObjectURL(origen) : origen;
+    const enlace = document.createElement('a');
+    enlace.href = href;
+    enlace.download = this.nombreDescargaVisor(nombre, origen instanceof Blob ? origen : undefined);
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    if (origen instanceof Blob) {
+      window.setTimeout(() => URL.revokeObjectURL(href), 2500);
+    }
+  }
+
+  private ofrecerDescargaGoogleVisor(driveId: string, nombre: string): void {
+    if (!driveId) {
+      this.avisarSobreVisor('No se pudo descargar', 'No se pudo obtener el PDF desde el servidor.');
+      return;
+    }
+    const url = `https://drive.google.com/uc?export=download&confirm=t&id=${encodeURIComponent(driveId)}`;
+    Swal.fire({
+      icon: 'info',
+      title: 'Descargar el PDF',
+      text: `El servidor no pudo entregar «${nombre}». Se abrirá la descarga directa de ese archivo.`,
+      confirmButtonText: 'Descargar PDF',
+      showCancelButton: true,
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#d97248',
+      didOpen: () => this.elevarSwalSobreVisor()
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      const enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.target = '_blank';
+      enlace.rel = 'noopener';
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+    });
+  }
+
+  private avisarSobreVisor(titulo: string, texto: string): void {
+    Swal.fire({
+      icon: 'error',
+      title: titulo,
+      text: texto,
+      confirmButtonColor: '#d97248',
+      didOpen: () => this.elevarSwalSobreVisor()
+    });
+  }
+
+  private elevarSwalSobreVisor(): void {
+    const contenedor = Swal.getContainer();
+    if (contenedor) contenedor.style.zIndex = '1000000';
   }
 
   cambiarEstatus(doc: DocumentoPC, nuevoEstatus: 'pendiente' | 'aprobado' | 'rechazado'): void {
@@ -5543,7 +5662,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       archivo_url: archivo.drive_file_id || null,
       nombre_archivo: archivo.nombre_archivo || doc.nombre_archivo,
       fecha_subida: archivo.fecha_subida || doc.fecha_subida
-    });
+    }, archivo);
   }
 
   // =====================================================

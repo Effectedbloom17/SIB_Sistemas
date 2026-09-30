@@ -20107,8 +20107,8 @@ $amef-slide-ratio: math.div(16, 9);
   }
 
   &__zone--add {
-    width: 9.2rem;
-    min-width: 9.2rem;
+    width: 2.75rem;
+    min-width: 2.75rem;
   }
 
   &__zone--metric {
@@ -20256,12 +20256,15 @@ $amef-slide-ratio: math.div(16, 9);
 
   &__col--add,
   &__cell--add {
-    width: 9.2rem;
-    min-width: 9.2rem;
+    width: 2.75rem;
+    min-width: 2.75rem;
     text-align: center;
     vertical-align: middle;
-    padding: 0.35rem 0.4rem !important;
+    padding: 0.25rem 0.3rem !important;
     background: transparent;
+    overflow: visible;
+    position: relative;
+    z-index: 4;
   }
 
   &__col--metric,
@@ -20386,11 +20389,62 @@ $amef-slide-ratio: math.div(16, 9);
   }
 
   &--col {
-    white-space: nowrap;
-    padding: 0.32rem 0.55rem;
-    font-size: 0.68rem;
+    position: relative;
+    z-index: 5;
+    justify-content: flex-start;
+    width: 1.9rem;
+    height: 1.9rem;
+    min-width: 1.9rem;
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+    border-radius: 999px;
+    outline: none;
     text-transform: none;
     letter-spacing: 0;
+    transition: width 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+      padding 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+      background 0.15s ease,
+      border-color 0.15s ease,
+      box-shadow 0.22s ease;
+
+    i {
+      flex: 0 0 1.9rem;
+      width: 1.9rem;
+      text-align: center;
+      font-size: 0.72rem;
+    }
+  }
+
+  &__label {
+    display: inline-block;
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+    transform: translateX(-6px);
+    transition: max-width 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.18s ease,
+      transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  &--col:hover:not(:disabled),
+  &--col:focus-visible:not(:disabled) {
+    width: 10.6rem;
+    padding-right: 0.8rem;
+    transform: none;
+    background: #fff;
+    box-shadow: 0 8px 18px rgba(15, 118, 110, 0.18);
+
+    .ath-f-08-add-btn__label {
+      max-width: 8.4rem;
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 }
 
@@ -27578,7 +27632,7 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
     }
 
     .sgc-f-04-book__tap {
-      min-height: 15.5rem;
+      min-height: 9.5rem;
       height: auto;
     }
 
@@ -27597,7 +27651,7 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
 
   .ath-f-02-book__objetivo {
     display: -webkit-box;
-    -webkit-line-clamp: 3;
+    -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     overflow: hidden;
     margin: 0;

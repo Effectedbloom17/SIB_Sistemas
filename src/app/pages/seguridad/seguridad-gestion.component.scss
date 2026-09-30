@@ -235,6 +235,15 @@ $crimson: #b91c1c;
       border-radius: 999px;
       padding: 0.05rem 0.4rem;
     }
+    .ges-plantilla {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #9a3412;
+      background: #fff7ed;
+      border-radius: 999px;
+      padding: 0.08rem 0.45rem;
+      text-decoration: none;
+    }
   }
   &__files { align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
 }

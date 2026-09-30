@@ -393,6 +393,9 @@ async function subirImagenItemRecorrido(pool, poolBiznaga, empresaId, documentoP
         procesada.mimeType,
         carpetaId
     );
+    if (resultado?.id) {
+        await driveService.asignarPermisoLecturaPublica(resultado.id);
+    }
 
     return {
         driveFileId: resultado.id,

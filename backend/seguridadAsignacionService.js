@@ -1,6 +1,6 @@
 // =====================================================
 // BIZNAGA R&T — Seguridad · Asignación y gestión de normativas por empresa
-// Borrador persistente, responsables (máx. 2 por norma) y evidencias por punto
+// Borrador persistente, un responsable por norma y evidencias por punto
 // =====================================================
 
 const fs = require('fs');
@@ -10,7 +10,7 @@ const { formatearPuntoNorma, contextoUsuario } = require('./seguridadNormativasS
 
 const MAX_NORMAS = 80;
 const MAX_PUNTOS_NORMA = 8000;
-const MAX_EMPLEADOS = 2;
+const MAX_EMPLEADOS = 1;
 const UPLOAD_DIR = path.resolve(__dirname, 'uploads', 'seguridad-asignacion');
 
 let tablasPromise = null;
@@ -32,17 +32,10 @@ function aIso(value) {
     return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-function nombreEmpleado(row) {
-    return [row.nombre, row.apellido_paterno, row.apellido_materno]
-        .map((p) => String(p || '').trim())
-        .filter(Boolean)
-        .join(' ')
-        .trim();
-}
-
 function sanitizarPayload(raw) {
     const origen = raw && typeof raw === 'object' ? raw : {};
     const paso = Math.max(0, Math.min(4, parseInt(origen.paso, 10) || 0));
+    const vista = origen.vista === 'compacta' ? 'compacta' : '';
     const lista = Array.isArray(origen.normas) ? origen.normas.slice(0, MAX_NORMAS) : [];
     const vistas = new Set();
     const normas = [];
@@ -86,7 +79,7 @@ function sanitizarPayload(raw) {
         });
     }
 
-    return { paso, normas };
+    return { paso, vista, normas };
 }
 
 async function asegurarTablas(pool) {
@@ -313,7 +306,8 @@ async function listarPuntos(pool, normativaId) {
     );
     if (!normas.length) throw httpError(404, 'Normativa no encontrada.');
     const [rows] = await pool.query(
-        `SELECT id, numero_item, punto_norma, descripcion, tipo_evidencia, periodicidad, orden
+        `SELECT id, numero_item, punto_norma, descripcion, tipo_evidencia, periodicidad,
+                formato_nombre, formato_archivo, orden
          FROM seg_normativa_requisito
          WHERE normativa_id = ?
          ORDER BY orden ASC, id ASC`,
@@ -326,35 +320,39 @@ async function listarPuntos(pool, normativaId) {
         descripcion: row.descripcion || '',
         tipo_evidencia: row.tipo_evidencia || null,
         periodicidad: row.periodicidad || null,
+        formato_nombre: row.formato_nombre || null,
+        formato_archivo: row.formato_archivo || null,
         orden: row.orden
     }));
 }
 
-async function validarEmpleados(poolMain, empresaId, empleados) {
-    if (!empleados.length || empleados.length > MAX_EMPLEADOS) {
-        throw httpError(400, 'Cada normativa debe tener entre 1 y 2 responsables.');
+async function validarResponsables(poolMain, responsables) {
+    if (!responsables.length || responsables.length > MAX_EMPLEADOS) {
+        throw httpError(400, 'Cada normativa debe tener un responsable.');
     }
-    const ids = empleados.map((e) => e.empleado_id);
+    const ids = responsables.map((e) => e.empleado_id);
     const [rows] = await poolMain.query(
-        `SELECT empleado_id, nombre, apellido_paterno, apellido_materno, puesto, activo
-         FROM empleado
-         WHERE empresa_id = ? AND empleado_id IN (?)`,
-        [empresaId, ids]
+        `SELECT u.id, u.nombre, u.apellido, r.nombre_rol
+         FROM usuario u
+         JOIN roles r ON r.rol_id = u.rol_id
+         WHERE u.id IN (?) AND u.activo = 1`,
+        [ids]
     );
     if (rows.length !== ids.length) {
-        throw httpError(400, 'Uno de los responsables no pertenece a la empresa seleccionada.');
+        throw httpError(400, 'Cada responsable debe ser un usuario activo del sistema.');
     }
-    const porId = new Map(rows.map((r) => [Number(r.empleado_id), r]));
-    return ids.map((empleadoId, index) => {
-        const row = porId.get(empleadoId);
-        const activo = row.activo === 1 || row.activo === true || row.activo === '1';
-        if (!activo) {
-            throw httpError(400, `El empleado ${nombreEmpleado(row) || empleadoId} no está activo.`);
+    const porId = new Map(rows.map((r) => [Number(r.id), r]));
+    return ids.map((usuarioId, index) => {
+        const row = porId.get(usuarioId);
+        const rol = String(row.nombre_rol || '').trim();
+        if (rol.toLowerCase() === 'empresa') {
+            throw httpError(400, 'El perfil de empresa no puede ser responsable de una normativa.');
         }
+        const nombre = [row.nombre, row.apellido].map((p) => String(p || '').trim()).filter(Boolean).join(' ');
         return {
-            empleado_id: empleadoId,
-            nombre: nombreEmpleado(row).slice(0, 200),
-            puesto: String(row.puesto || '').trim().slice(0, 120),
+            empleado_id: usuarioId,
+            nombre: (nombre || `Usuario ${usuarioId}`).slice(0, 200),
+            puesto: rol.slice(0, 120),
             orden: index + 1
         };
     });
@@ -388,7 +386,7 @@ async function publicar(pool, poolMain, body, usuario) {
 
     const preparados = [];
     for (const norma of payload.normas) {
-        const empleados = await validarEmpleados(poolMain, empresaId, norma.empleados);
+        const empleados = await validarResponsables(poolMain, norma.empleados);
         if (!norma.requisito_ids.length) {
             const codigo = normasDb.find((n) => n.id === norma.normativa_id)?.codigo || 'seleccionada';
             throw httpError(400, `Seleccione al menos un punto de ${codigo}.`);
@@ -583,7 +581,8 @@ async function obtenerGestion(pool, asignacionId) {
         [id]
     );
     const [puntos] = await pool.query(
-        `SELECT r.id, r.numero_item, r.punto_norma, r.descripcion, r.tipo_evidencia, r.periodicidad, r.orden
+        `SELECT r.id, r.numero_item, r.punto_norma, r.descripcion, r.tipo_evidencia, r.periodicidad,
+                r.formato_nombre, r.formato_archivo, r.orden
          FROM seg_asignacion_punto p
          JOIN seg_normativa_requisito r ON r.id = p.requisito_id
          WHERE p.asignacion_id = ?
@@ -614,6 +613,8 @@ async function obtenerGestion(pool, asignacionId) {
             descripcion: row.descripcion || '',
             tipo_evidencia: row.tipo_evidencia || null,
             periodicidad: row.periodicidad || null,
+            formato_nombre: row.formato_nombre || null,
+            formato_archivo: row.formato_archivo || null,
             orden: row.orden,
             documentos: docsMap.filter((d) => Number(d.requisito_id) === Number(row.id))
         })),
