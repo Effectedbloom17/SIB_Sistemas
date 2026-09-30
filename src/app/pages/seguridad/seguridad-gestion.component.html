@@ -143,6 +143,14 @@
         <strong>{{ punto.punto_norma || '—' }}</strong>
         <span>{{ punto.descripcion || 'Sin descripción' }}</span>
         <em *ngIf="punto.tipo_evidencia">{{ punto.tipo_evidencia }}</em>
+        <a class="ges-plantilla"
+           *ngIf="urlPlantilla(punto) as href"
+           [href]="href"
+           target="_blank"
+           rel="noopener"
+           [title]="punto.formato_nombre || 'Formato guía'">
+          <i class="fas fa-link" aria-hidden="true"></i> {{ punto.formato_nombre || 'Plantilla' }}
+        </a>
       </div>
       <div class="ges-punto__files">
         <ul>

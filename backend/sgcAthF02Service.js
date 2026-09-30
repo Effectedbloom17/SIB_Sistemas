@@ -1104,6 +1104,11 @@ function pushBloqueTexto(actualizaciones, config, texto, sheetTitle) {
     pushUpdate(actualizaciones, config.startRow, config.startCol, limpio, sheetTitle);
 }
 
+/** Fila fina (7 px) justo bajo la última función. La celda extra, arriba de Edad, mide 10 px. */
+const LINEA_BAJO_FUNCIONES_ALTO_PX = 7;
+const CELDA_EXTRA_ALTO_PX = 10;
+const LINEA_BAJO_FUNCIONES_COLS = 29;
+
 /** Deja una sola fila vacía debajo de la última función y borra el hueco hasta Edad. */
 function calcularCompactacionFunciones(cantidad) {
     const usadas = Math.max(0, Math.min(MAX_FUNCIONES, Math.floor(Number(cantidad) || 0)));
@@ -1113,6 +1118,115 @@ function calcularCompactacionFunciones(cantidad) {
     const numDelete = FUNCIONES_HUECO_FIN - deleteFrom1 + 1;
     if (numDelete <= 0) return { deleteFrom: 0, numDelete: 0 };
     return { deleteFrom: deleteFrom1 - 1, numDelete };
+}
+
+function pushBordesCaja(requests, sheetId, row1Based, { top, bottom, left, right }) {
+    const borde = { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } };
+    const ninguno = { style: 'NONE' };
+    const lado = (activo) => (activo ? borde : ninguno);
+    requests.push({
+        updateBorders: {
+            range: {
+                sheetId,
+                startRowIndex: row1Based - 1,
+                endRowIndex: row1Based,
+                startColumnIndex: 0,
+                endColumnIndex: LINEA_BAJO_FUNCIONES_COLS
+            },
+            top: lado(top),
+            bottom: lado(bottom),
+            left: lado(left),
+            right: lado(right),
+            innerHorizontal: ninguno,
+            innerVertical: ninguno
+        }
+    });
+}
+
+/** La fila de 7 px queda bajo la última función; la celda extra queda debajo de esa fila, arriba de Edad. */
+async function insertarLineaDivisoriaBajoFunciones(spreadsheetId, sheetId, cantidadFunciones) {
+    const usadas = Math.max(0, Math.min(MAX_FUNCIONES, Math.floor(Number(cantidadFunciones) || 0)));
+    if (!spreadsheetId || sheetId == null || !usadas) return;
+    const extraRow = CELLS.funciones.startRow + usadas;
+    await driveService.insertarFilasGoogleSheet(
+        spreadsheetId,
+        sheetId,
+        extraRow - 1,
+        1,
+        { inheritFromBefore: true }
+    );
+    const lineaRow = extraRow;
+    const celdaExtra = extraRow + 1;
+    const sheetsApi = google.sheets({ version: 'v4', auth: driveService.getAuthClient() });
+    const requests = [
+        {
+            updateDimensionProperties: {
+                range: {
+                    sheetId,
+                    dimension: 'ROWS',
+                    startIndex: lineaRow - 1,
+                    endIndex: lineaRow
+                },
+                properties: { pixelSize: LINEA_BAJO_FUNCIONES_ALTO_PX },
+                fields: 'pixelSize'
+            }
+        },
+        {
+            updateDimensionProperties: {
+                range: {
+                    sheetId,
+                    dimension: 'ROWS',
+                    startIndex: celdaExtra - 1,
+                    endIndex: celdaExtra
+                },
+                properties: { pixelSize: CELDA_EXTRA_ALTO_PX },
+                fields: 'pixelSize'
+            }
+        },
+        {
+            repeatCell: {
+                range: {
+                    sheetId,
+                    startRowIndex: lineaRow - 1,
+                    endRowIndex: lineaRow,
+                    startColumnIndex: 0,
+                    endColumnIndex: LINEA_BAJO_FUNCIONES_COLS
+                },
+                cell: {
+                    userEnteredFormat: {
+                        backgroundColor: { red: 1, green: 1, blue: 1 }
+                    }
+                },
+                fields: 'userEnteredFormat.backgroundColor'
+            }
+        }
+    ];
+    pushBordesCaja(requests, sheetId, lineaRow, { top: false, bottom: true, left: true, right: true });
+    pushBordesCaja(requests, sheetId, celdaExtra, { top: true, bottom: false, left: true, right: true });
+    // Sin el borde inferior de la celda extra, G:H, M:N y S:T de Edad pierden su línea superior.
+    const edadRow = celdaExtra + 1;
+    [
+        [7, 8],
+        [13, 14],
+        [19, 20]
+    ].forEach(([startCol, endCol]) => {
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: edadRow - 1,
+                    endRowIndex: edadRow,
+                    startColumnIndex: startCol - 1,
+                    endColumnIndex: endCol
+                },
+                top: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } }
+            }
+        });
+    });
+    await sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests }
+    });
 }
 
 function pushRelaciones(actualizaciones, startRow, endRow, relaciones, sheetTitle) {
@@ -1704,6 +1818,7 @@ async function escribirPerfilEnHoja(spreadsheetId, sheetTitle, perfil, meta) {
     }
     // El hueco de funciones está arriba de Edad: borrarlo al final desplaza el resto junto con sus datos.
     const compactacion = calcularCompactacionFunciones((p.funciones || []).length);
+    let huecoCompactado = compactacion.numDelete <= 0;
     if (sheetIdPerfil != null && compactacion.numDelete > 0) {
         try {
             await driveService.eliminarFilasGoogleSheet(
@@ -1712,8 +1827,20 @@ async function escribirPerfilEnHoja(spreadsheetId, sheetTitle, perfil, meta) {
                 compactacion.deleteFrom,
                 compactacion.numDelete
             );
+            huecoCompactado = true;
         } catch (err) {
             console.warn(`[ATH-F-02] No se pudo compactar funciones en "${sheetTitle}":`, err.message);
+        }
+    }
+    if (sheetIdPerfil != null && huecoCompactado) {
+        try {
+            await insertarLineaDivisoriaBajoFunciones(
+                spreadsheetId,
+                sheetIdPerfil,
+                (p.funciones || []).length
+            );
+        } catch (err) {
+            console.warn(`[ATH-F-02] No se pudo agregar la línea bajo funciones en "${sheetTitle}":`, err.message);
         }
     }
     return spreadsheetId;

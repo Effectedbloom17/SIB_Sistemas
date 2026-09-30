@@ -84,27 +84,52 @@ function normalizar(texto = '') {
         .trim();
 }
 
+function fechaIsoDesdePartes(anio, mes, dia) {
+    let y = Number(anio);
+    const m = Number(mes);
+    const d = Number(dia);
+    if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return '';
+    if (m < 1 || m > 12 || d < 1 || d > 31) return '';
+    // Un Date.getYear() de 2024 devuelve 124. MySQL lo guarda como 0124 y al consultar
+    // se ve "20 mar 124". Se restituye el siglo solo en ese rango.
+    if (y >= 100 && y < 300) y += 1900;
+    return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+/**
+ * Fecha calendario YYYY-MM-DD sin corrimiento de zona.
+ * `new Date('YYYY-MM-DD')` es medianoche UTC y en México resta un día;
+ * ese valor luego se volvía a guardar y la base quedaba modificada.
+ */
 function formatearFechaIso(fecha) {
-    if (!fecha) return '';
+    if (fecha == null || fecha === '') return '';
+
+    if (!(fecha instanceof Date)) {
+        const crudo = String(fecha).trim();
+        if (!crudo) return '';
+        const iso = crudo.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (iso) return fechaIsoDesdePartes(iso[1], iso[2], iso[3]);
+        const dmy = crudo.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+        if (dmy) {
+            let year = dmy[3];
+            if (year.length === 2) year = `20${year}`;
+            return fechaIsoDesdePartes(year, dmy[2], dmy[1]);
+        }
+    }
+
     const d = fecha instanceof Date ? fecha : new Date(fecha);
-    if (!Number.isNaN(d.getTime())) {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${day}`;
+    if (Number.isNaN(d.getTime())) return '';
+
+    // Solo una medianoche UTC (fecha sin hora) se lee en UTC. El DATE de MySQL
+    // llega como medianoche local y debe conservar el día local.
+    const medianocheUtc = d.getUTCHours() === 0
+        && d.getUTCMinutes() === 0
+        && d.getUTCSeconds() === 0
+        && d.getUTCMilliseconds() === 0;
+    if (medianocheUtc && d.getHours() !== 0) {
+        return fechaIsoDesdePartes(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
     }
-    const crudo = String(fecha).trim();
-    const iso = crudo.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-    const dmy = crudo.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
-    if (dmy) {
-        const day = dmy[1].padStart(2, '0');
-        const month = dmy[2].padStart(2, '0');
-        let year = dmy[3];
-        if (year.length === 2) year = `20${year}`;
-        return `${year}-${month}-${day}`;
-    }
-    return crudo.slice(0, 10);
+    return fechaIsoDesdePartes(d.getFullYear(), d.getMonth() + 1, d.getDate());
 }
 
 function fechaHoyIso() {
@@ -116,7 +141,8 @@ function parsearAvance(valor) {
     if (!crudo) return 0;
     let n = Number(crudo);
     if (!Number.isFinite(n)) return 0;
-    if (n > 0 && n <= 1) n *= 100;
+    // Solo fracciones reales (0.75). El entero 1 es 1 %, no 100 %.
+    if (n > 0 && n < 1) n *= 100;
     n = Math.round(n);
     if (n < 0) n = 0;
     if (n > 100) n = 100;
@@ -143,6 +169,19 @@ function estatusDesdeAvance(avance) {
     if (n >= 75) return 'En revisión';
     if (n > 0) return 'En proceso';
     return 'No iniciado';
+}
+
+/** El estatus elegido manda. Los alias de la interfaz no se reinterpretan con el porcentaje. */
+function canonizarEstatus(valor) {
+    const limpio = String(valor || '').trim();
+    if (!limpio) return '';
+    const n = normalizar(limpio);
+    if (n === 'concluido' || n === 'listo' || n === 'finalizado' || n === 'hecho') return 'Concluido';
+    if (n === 'en revision' || n === 'revision') return 'En revisión';
+    if (n === 'en proceso' || n === 'en curso' || n === 'en progreso') return 'En proceso';
+    if (n === 'no iniciado' || n === 'pendiente' || n === 'sin iniciar' || n === 'por hacer') return 'No iniciado';
+    const encontrado = ESTATUS_VALIDOS.find((op) => normalizar(op) === n);
+    return encontrado || limpio;
 }
 
 function normalizarPrioridad(valor) {
@@ -238,7 +277,10 @@ function serializeResponsableUsuarioIds(valor) {
 }
 
 function mapRowToActividad(row) {
-    const avance = parsearAvance(row.avance);
+    const estatusGuardado = canonizarEstatus(row.estatus);
+    const avance = estatusGuardado && ESTATUS_VALIDOS.includes(estatusGuardado)
+        ? avanceDesdeEstatus(estatusGuardado)
+        : parsearAvance(row.avance);
     return {
         id: row.control_proyecto_id,
         empresaId: row.empresa_id ? Number(row.empresa_id) : null,
@@ -256,7 +298,7 @@ function mapRowToActividad(row) {
         entregables: String(row.entregables || '').trim(),
         observaciones: String(row.observaciones || '').trim(),
         prioridad: String(row.prioridad || '').trim(),
-        estatus: String(row.estatus || '').trim() || estatusDesdeAvance(avance),
+        estatus: estatusGuardado || estatusDesdeAvance(avance),
         avance,
         orden: Number.isFinite(Number(row.orden)) ? Number(row.orden) : 0,
         activo: row.activo == null ? true : Boolean(Number(row.activo)),
@@ -271,8 +313,10 @@ function mapRowToActividad(row) {
 }
 
 function sanitizarActividad(item) {
-    const avance = normalizarIndicadorAvance(item?.avance);
-    const estatusEntrada = normalizarOpcion(item?.estatus, ESTATUS_VALIDOS);
+    const estatusEntrada = canonizarEstatus(item?.estatus);
+    const avance = estatusEntrada && ESTATUS_VALIDOS.includes(estatusEntrada)
+        ? avanceDesdeEstatus(estatusEntrada)
+        : normalizarIndicadorAvance(item?.avance);
     const idsEntrada = item?.responsableUsuarioIds
         ?? item?.responsable_usuario_ids
         ?? item?.responsableUsuarioId

@@ -759,6 +759,16 @@ const uploadSeguridadNormativa = multer({
     }
 });
 
+const uploadSeguridadPortada = multer({
+    storage: storageMemory,
+    limits: { fileSize: 6 * 1024 * 1024 }
+});
+
+const uploadSeguridadFormato = multer({
+    storage: storageMemory,
+    limits: { fileSize: 15 * 1024 * 1024 }
+});
+
 /** Evidencias de Gestión de Normativas (PDF, Office, imágenes y ZIP). */
 const uploadSeguridadAsignacionDoc = multer({
     storage: storageMemory,
@@ -25635,6 +25645,45 @@ app.put('/api/seguridad/normativas/:id', requireAdmin, async (req, res) => {
     }
 });
 
+app.put('/api/seguridad/normativas/:id/imagen', requireAdmin, uploadSeguridadPortada.single('imagen'), async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const id = parseInt(req.params.id, 10);
+        const normativa = await seguridadNormativasService.guardarImagenPortada(
+            poolNormativas,
+            id,
+            req.file,
+            req.user
+        );
+        res.json({ success: true, message: 'Portada actualizada.', normativa });
+    } catch (error) {
+        const status = error.status || 500;
+        if (status !== 500) {
+            return res.status(status).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'Error al guardar la portada');
+    }
+});
+
+app.delete('/api/seguridad/normativas/:id/imagen', requireAdmin, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const id = parseInt(req.params.id, 10);
+        const normativa = await seguridadNormativasService.quitarImagenPortada(
+            poolNormativas,
+            id,
+            req.user
+        );
+        res.json({ success: true, message: 'Portada retirada.', normativa });
+    } catch (error) {
+        const status = error.status || 500;
+        if (status !== 500) {
+            return res.status(status).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'Error al retirar la portada');
+    }
+});
+
 app.put('/api/seguridad/normativas/:id/requisitos/:reqId', requireAdmin, async (req, res) => {
     try {
         await poolNormativasReady;
@@ -25656,6 +25705,34 @@ app.put('/api/seguridad/normativas/:id/requisitos/:reqId', requireAdmin, async (
         handleError(res, error, 'Error al actualizar requisito');
     }
 });
+
+app.post(
+    '/api/seguridad/normativas/:id/requisitos/:reqId/formato',
+    requireAdmin,
+    uploadSeguridadFormato.single('formato'),
+    async (req, res) => {
+        try {
+            await poolNormativasReady;
+            const normativaId = parseInt(req.params.id, 10);
+            const requisitoId = parseInt(req.params.reqId, 10);
+            const requisito = await seguridadNormativasService.guardarFormatoRequisito(
+                poolNormativas,
+                normativaId,
+                requisitoId,
+                req.file,
+                req.body?.formato_nombre,
+                req.user
+            );
+            res.json({ success: true, message: 'Formato ligado.', requisito });
+        } catch (error) {
+            const status = error.status || 500;
+            if (status !== 500) {
+                return res.status(status).json({ success: false, message: error.message });
+            }
+            handleError(res, error, 'Error al ligar el formato');
+        }
+    }
+);
 
 app.delete('/api/seguridad/normativas/:id', requireAdmin, async (req, res) => {
     try {
@@ -25963,6 +26040,7 @@ const sgcF10Service = require('./sgcF10Service');
 const sgcF14Service = require('./sgcF14Service');
 const sgcF25Service = require('./sgcF25Service');
 const sgcF27MedicionService = require('./sgcF27MedicionService');
+const sgcF17Service = require('./sgcF17Service');
 const sgcF03Service = require('./sgcF03Service');
 const sgcF16Service = require('./sgcF16Service');
 const sgcF24Service = require('./sgcF24Service');
@@ -27498,7 +27576,7 @@ app.post('/api/sgc/formatos/sgc-f-27-medicion/guardar', requireAdminOrSgc, async
 app.post('/api/sgc/formatos/sgc-f-27-medicion/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const payload = await sgcF27MedicionService.sincronizarDesdeDrive(poolBiznagaSgc);
+        const payload = await sgcF27MedicionService.sincronizarDesdeDrive(poolBiznagaSgc, req.body || {});
         return res.json({
             success: true,
             message: 'SGC-F-27 sincronizado desde Drive.',
@@ -27540,13 +27618,12 @@ app.post('/api/sgc/formatos/sgc-f-27-medicion/asegurar-acceso', requireAdminOrSg
 app.get('/api/sgc/formatos/sgc-f-27-medicion/descargar-pdf', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const pdfBuffer = await sgcF27MedicionService.descargarPlantillaPdf(poolBiznagaSgc);
+        const pdf = await sgcF27MedicionService.descargarPlantillaPdf(poolBiznagaSgc, req.query?.reporteId);
+        const filename = String(pdf?.filename || 'SGC-F-27 Reporte de verificacion de equipos de medicion.pdf')
+            .replace(/"/g, '');
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader(
-            'Content-Disposition',
-            'attachment; filename="SGC-F-27 Reporte de verificacion de equipos de medicion.pdf"'
-        );
-        return res.send(pdfBuffer);
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.send(pdf.buffer);
     } catch (error) {
         handleError(res, error, 'No se pudo descargar el PDF de SGC-F-27 de verificación');
     }
@@ -27583,6 +27660,87 @@ app.post('/api/sgc/formatos/sgc-f-27-medicion/eliminar-pdf-historial', requireAd
         });
     } catch (error) {
         handleError(res, error, 'No se pudo eliminar el PDF del historial SGC-F-27');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-17', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF17Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato SGC-F-17');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-17/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF17Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'Formato SGC-F-17 guardado correctamente.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato SGC-F-17');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-17/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF17Service.sincronizarDesdeDrive(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'SGC-F-17 sincronizado desde Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo sincronizar SGC-F-17');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-17/actualizar-plantilla', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF17Service.actualizarPlantillaDesdeSistema(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Plantilla SGC-F-17 verificada.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo verificar la plantilla SGC-F-17');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-17/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcF17Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="SGC-F-17 Bitacora de calibracion y verificacion de equipos de medicion.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-17');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-17/asegurar-acceso', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF17Service.asegurarAccesoEditor(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Acceso al editor SGC-F-17 asegurado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo asegurar el acceso al editor SGC-F-17');
     }
 });
 
@@ -33068,19 +33226,26 @@ app.get('/api/proteccion-civil/documentos/:documentoId/descargar', requireAdminO
 
         let fileBuffer;
         let contentType;
+        let nombreFinal = nombre_archivo || 'archivo';
 
         if (usarVistaPrevia && extensionesOffice.includes(ext)) {
             fileBuffer = await driveService.exportarArchivoPDF(driveId);
             contentType = 'application/pdf';
+            nombreFinal = nombreFinal.replace(/\.[^.]+$/, '') + '.pdf';
         } else {
-            fileBuffer = await driveService.descargarArchivo(driveId);
-            contentType = detectarMimeArchivoPC(fileBuffer, nombre_archivo);
+            const nativo = await driveService.descargarArchivoNativo(driveId, nombreFinal);
+            fileBuffer = nativo.buffer;
+            contentType = nativo.contentType || detectarMimeArchivoPC(fileBuffer, nombreFinal);
+            nombreFinal = nativo.filename || nombreFinal;
         }
 
-        const nombreSeguro = (nombre_archivo || 'archivo').replace(/["\r\n]/g, '').replace(/[^a-zA-Z0-9._\- ]/g, '_');
+        const nombreSeguro = String(nombreFinal || 'archivo')
+            .replace(/[\r\n"\\/:*?<>|]+/g, '_')
+            .replace(/[^a-zA-Z0-9._\- \u00C0-\u024F]+/g, '_')
+            || 'archivo';
 
         res.setHeader('Content-Type', contentType);
-        res.setHeader('Content-Disposition', `inline; filename="${nombreSeguro}"`);
+        res.setHeader('Content-Disposition', `${usarVistaPrevia ? 'inline' : 'attachment'}; filename="${nombreSeguro}"`);
         res.setHeader('Cache-Control', 'public, max-age=3600');
         res.send(Buffer.from(fileBuffer));
 

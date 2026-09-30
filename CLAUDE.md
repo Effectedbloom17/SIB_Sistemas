@@ -1,5 +1,13 @@
 # Instrucciones del Proyecto BIZNAGA R&T
 
+## Arranque manual
+
+El sistema no se inicia solo. Backend y frontend se prenden **siempre a mano** con `npm start`.
+
+- No ejecutes `npm start`, `npm run start`, `npm run start:all`, `npm run start:backend`, `npm run start:frontend`, `node backend/server.js` ni `ng serve` para encender el sistema.
+- Si un cambio del backend necesita reinicio, indícalo y espera a que el usuario lo haga.
+- No detengas un `npm start` que el usuario ya tenga corriendo, salvo que pida apagar el sistema.
+
 ## Versionado Automatico
 
 Al finalizar cada sesion de trabajo donde se hagan cambios al codigo, actualizar la version en `package.json` campo `"version"` siguiendo semver:

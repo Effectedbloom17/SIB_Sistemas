@@ -5,6 +5,13 @@
 
 const ExcelJS = require('exceljs');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+const DIR_PORTADAS = path.join(__dirname, 'uploads', 'normativas', 'portadas');
+const DIR_FORMATOS = path.join(__dirname, 'uploads', 'normativas', 'formatos');
+const EXT_IMAGEN = { '.jpg': '.jpg', '.jpeg': '.jpg', '.png': '.png', '.webp': '.webp' };
+const EXT_FORMATO = { '.pdf': '.pdf', '.doc': '.doc', '.docx': '.docx', '.xls': '.xls', '.xlsx': '.xlsx' };
 
 const FILA_INICIO_DATOS = 5;
 const COL = {
@@ -287,6 +294,39 @@ async function addColumnIfNotExists(pool, table, column, definition) {
     await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
 }
 
+function asegurarCarpeta(dir) {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+function extensionPermitida(nombre, mapa) {
+    const ext = path.extname(String(nombre || '')).toLowerCase();
+    return mapa[ext] || null;
+}
+
+function nombreVisible(nombre) {
+    const limpio = String(nombre || '').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+    return limpio.slice(0, 180) || 'formato';
+}
+
+function rutaPublica(abs) {
+    const rel = path.relative(path.join(__dirname, 'uploads'), abs).split(path.sep).join('/');
+    return `/uploads/${rel}`;
+}
+
+function absolutoSeguro(publicPath) {
+    if (!publicPath || typeof publicPath !== 'string' || !publicPath.startsWith('/uploads/normativas/')) return null;
+    const abs = path.resolve(__dirname, publicPath.replace(/^\//, ''));
+    const base = path.resolve(__dirname, 'uploads', 'normativas');
+    if (abs !== base && !abs.startsWith(base + path.sep)) return null;
+    return abs;
+}
+
+function borrarArchivoSeguro(publicPath) {
+    const abs = absolutoSeguro(publicPath);
+    if (!abs) return;
+    if (fs.existsSync(abs)) fs.unlinkSync(abs);
+}
+
 async function normalizarPuntosExistentes(pool) {
     const [rows] = await pool.query(
         `SELECT id, punto_norma FROM seg_normativa_requisito WHERE punto_norma IS NOT NULL`
@@ -402,7 +442,11 @@ async function asegurarTablas(pool) {
     `);
 
     await addColumnIfNotExists(pool, 'seg_normativa', 'importado_perfil', 'VARCHAR(80) NULL');
+    await addColumnIfNotExists(pool, 'seg_normativa', 'imagen_portada', 'VARCHAR(255) NULL');
     await addColumnIfNotExists(pool, 'seg_normativa_requisito', 'descripcion_html', 'MEDIUMTEXT NULL');
+    await addColumnIfNotExists(pool, 'seg_normativa_requisito', 'formato_nombre', 'VARCHAR(200) NULL');
+    await addColumnIfNotExists(pool, 'seg_normativa_requisito', 'formato_archivo', 'VARCHAR(255) NULL');
+    await addColumnIfNotExists(pool, 'seg_normativa_requisito', 'formato_nombre_archivo', 'VARCHAR(180) NULL');
 
     await normalizarPuntosExistentes(pool);
 }
@@ -456,6 +500,7 @@ function mapNormativaRow(row) {
         importado_por: row.importado_por,
         importado_perfil: row.importado_perfil || null,
         importado_en: row.importado_en,
+        imagen_portada: row.imagen_portada || null,
         updated_at: row.updated_at
     };
 }
@@ -488,6 +533,9 @@ function mapRequisitoRow(row) {
         indicador_avance: row.indicador_avance,
         evidencia_requerida: row.evidencia_requerida,
         observaciones: row.observaciones,
+        formato_nombre: row.formato_nombre || null,
+        formato_archivo: row.formato_archivo || null,
+        formato_nombre_archivo: row.formato_nombre_archivo || null,
         orden: row.orden
     };
 }
@@ -524,7 +572,7 @@ async function listarCatalogo(pool, { busqueda = '', categoriaId = '' } = {}) {
     const [rows] = await pool.query(
         `SELECT n.id, n.codigo, n.titulo, n.autoridad, n.anio, n.numero, n.categoria_id,
                 n.estado, n.total_requisitos, n.importado_por, n.importado_perfil,
-                n.importado_en, n.updated_at
+                n.importado_en, n.imagen_portada, n.updated_at
          FROM seg_normativa n
          ${where}
          ORDER BY n.numero ASC, n.codigo ASC`,
@@ -536,7 +584,8 @@ async function listarCatalogo(pool, { busqueda = '', categoriaId = '' } = {}) {
 async function obtenerNormativa(pool, id) {
     const [rows] = await pool.query(
         `SELECT id, codigo, titulo, autoridad, anio, numero, categoria_id, estado,
-                total_requisitos, importado_por, importado_perfil, importado_en, updated_at
+                total_requisitos, importado_por, importado_perfil, importado_en,
+                imagen_portada, updated_at
          FROM seg_normativa WHERE id = ? LIMIT 1`,
         [id]
     );
@@ -552,9 +601,9 @@ async function listarRequisitos(pool, normativaId, { busqueda = '' } = {}) {
     const params = [normativaId];
     let where = 'WHERE normativa_id = ?';
     if (busqueda) {
-        where += ' AND (punto_norma LIKE ? OR descripcion LIKE ? OR responsable LIKE ?)';
+        where += ' AND (punto_norma LIKE ? OR descripcion LIKE ? OR evidencia_requerida LIKE ? OR formato_nombre LIKE ?)';
         const q = `%${busqueda.trim()}%`;
-        params.push(q, q, q);
+        params.push(q, q, q, q);
     }
     const [rows] = await pool.query(
         `SELECT * FROM seg_normativa_requisito ${where} ORDER BY orden ASC, id ASC`,
@@ -604,8 +653,19 @@ async function importarDesdeExcel(pool, buffer, { nombreArchivo = 'plantilla.xls
 
         const esReimport = !!existentes.length;
         let normativaId;
+        let formatosPrevios = new Map();
         if (esReimport) {
             normativaId = existentes[0].id;
+            const [previos] = await conn.query(
+                `SELECT punto_norma, formato_nombre, formato_archivo, formato_nombre_archivo
+                 FROM seg_normativa_requisito
+                 WHERE normativa_id = ?
+                   AND (formato_archivo IS NOT NULL OR (formato_nombre IS NOT NULL AND formato_nombre != ''))`,
+                [normativaId]
+            );
+            formatosPrevios = new Map(
+                previos.map((row) => [formatearPuntoNorma(row.punto_norma), row])
+            );
             await conn.query(
                 `UPDATE seg_normativa SET titulo = ?, autoridad = ?, anio = ?, numero = ?,
                     categoria_id = ?, total_requisitos = ?, hash_plantilla = ?,
@@ -645,6 +705,23 @@ async function importarDesdeExcel(pool, buffer, { nombreArchivo = 'plantilla.xls
                     req.evidencia_requerida, req.observaciones, req.orden
                 ]
             );
+        }
+
+        if (esReimport && formatosPrevios.size) {
+            const [nuevos] = await conn.query(
+                'SELECT id, punto_norma FROM seg_normativa_requisito WHERE normativa_id = ?',
+                [normativaId]
+            );
+            for (const row of nuevos) {
+                const previo = formatosPrevios.get(formatearPuntoNorma(row.punto_norma));
+                if (!previo) continue;
+                await conn.query(
+                    `UPDATE seg_normativa_requisito
+                     SET formato_nombre = ?, formato_archivo = ?, formato_nombre_archivo = ?
+                     WHERE id = ?`,
+                    [previo.formato_nombre, previo.formato_archivo, previo.formato_nombre_archivo, row.id]
+                );
+            }
         }
 
         await conn.query(
@@ -724,35 +801,60 @@ async function actualizarRequisito(pool, normativaId, requisitoId, datos, usuari
         throw err;
     }
     const prev = rows[0];
-    const campos = {
-        descripcion: datos.descripcion !== undefined ? String(datos.descripcion).trim() : prev.descripcion,
-        descripcion_html: datos.descripcion_html !== undefined
-            ? datos.descripcion_html
-            : (datos.descripcion !== undefined ? escapeHtml(datos.descripcion) : prev.descripcion_html),
-        tipo_evidencia: datos.tipo_evidencia !== undefined ? (String(datos.tipo_evidencia).trim() || null) : prev.tipo_evidencia,
-        periodicidad: datos.periodicidad !== undefined ? (String(datos.periodicidad).trim() || null) : prev.periodicidad,
-        responsable: datos.responsable !== undefined ? (String(datos.responsable).trim() || null) : prev.responsable,
-        evidencia_requerida: datos.evidencia_requerida !== undefined ? (String(datos.evidencia_requerida).trim() || null) : prev.evidencia_requerida,
-        observaciones: datos.observaciones !== undefined ? (String(datos.observaciones).trim() || null) : prev.observaciones
+    const texto = (valor, anterior) => {
+        if (valor === undefined) return anterior;
+        if (valor === null) return null;
+        const limpio = String(valor).trim();
+        return limpio || null;
     };
+    const punto = datos.punto_norma !== undefined
+        ? (formatearPuntoNorma(datos.punto_norma) || texto(datos.punto_norma, null))
+        : prev.punto_norma;
+    const quitarFormato = datos.quitar_formato === true || datos.quitar_formato === 'true';
+    const campos = {
+        punto_norma: punto,
+        descripcion: datos.descripcion !== undefined ? String(datos.descripcion).trim() : prev.descripcion,
+        descripcion_html: datos.descripcion !== undefined
+            ? escapeHtml(datos.descripcion).replace(/\n/g, '<br>')
+            : prev.descripcion_html,
+        tipo_evidencia: texto(datos.tipo_evidencia, prev.tipo_evidencia),
+        periodicidad: texto(datos.periodicidad, prev.periodicidad),
+        evidencia_requerida: texto(datos.evidencia_requerida, prev.evidencia_requerida),
+        observaciones: texto(datos.observaciones, prev.observaciones),
+        formato_nombre: quitarFormato ? null : texto(datos.formato_nombre, prev.formato_nombre),
+        formato_archivo: quitarFormato ? null : prev.formato_archivo,
+        formato_nombre_archivo: quitarFormato ? null : prev.formato_nombre_archivo
+    };
+    if (!campos.descripcion) {
+        const err = new Error('La descripción es obligatoria');
+        err.status = 400;
+        throw err;
+    }
+    if (!campos.punto_norma) {
+        const err = new Error('El punto de la norma es obligatorio');
+        err.status = 400;
+        throw err;
+    }
 
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
         await conn.query(
             `UPDATE seg_normativa_requisito SET
-                descripcion = ?, descripcion_html = ?, tipo_evidencia = ?, periodicidad = ?,
-                responsable = ?, evidencia_requerida = ?, observaciones = ?
+                punto_norma = ?, descripcion = ?, descripcion_html = ?, tipo_evidencia = ?,
+                periodicidad = ?, evidencia_requerida = ?, observaciones = ?,
+                formato_nombre = ?, formato_archivo = ?, formato_nombre_archivo = ?
              WHERE id = ? AND normativa_id = ?`,
             [
-                campos.descripcion, campos.descripcion_html, campos.tipo_evidencia,
-                campos.periodicidad, campos.responsable, campos.evidencia_requerida,
-                campos.observaciones, requisitoId, normativaId
+                campos.punto_norma, campos.descripcion, campos.descripcion_html, campos.tipo_evidencia,
+                campos.periodicidad, campos.evidencia_requerida, campos.observaciones,
+                campos.formato_nombre, campos.formato_archivo, campos.formato_nombre_archivo,
+                requisitoId, normativaId
             ]
         );
 
-        const punto = formatearPuntoNorma(prev.punto_norma);
-        for (const key of Object.keys(campos)) {
+        const etiqueta = campos.punto_norma || requisitoId;
+        for (const key of ['punto_norma', 'descripcion', 'tipo_evidencia', 'periodicidad', 'evidencia_requerida', 'observaciones', 'formato_nombre']) {
             const antes = prev[key];
             const despues = campos[key];
             if (String(antes || '') !== String(despues || '')) {
@@ -763,10 +865,22 @@ async function actualizarRequisito(pool, normativaId, requisitoId, datos, usuari
                     campo: key,
                     valorAnterior: antes,
                     valorNuevo: despues,
-                    detalle: `Punto ${punto || requisitoId}`,
+                    detalle: `Punto ${etiqueta}`,
                     usuario
                 });
             }
+        }
+        if (quitarFormato && prev.formato_archivo) {
+            await registrarHistorial(conn, {
+                normativaId,
+                requisitoId,
+                accion: 'edicion_requisito',
+                campo: 'formato_archivo',
+                valorAnterior: prev.formato_nombre_archivo || prev.formato_archivo,
+                valorNuevo: null,
+                detalle: `Plantilla retirada del punto ${etiqueta}`,
+                usuario
+            });
         }
 
         await conn.commit();
@@ -777,17 +891,150 @@ async function actualizarRequisito(pool, normativaId, requisitoId, datos, usuari
         conn.release();
     }
 
+    if (quitarFormato) borrarArchivoSeguro(prev.formato_archivo);
+
+    const [updated] = await pool.query('SELECT * FROM seg_normativa_requisito WHERE id = ?', [requisitoId]);
+    return mapRequisitoRow(updated[0]);
+}
+
+async function guardarImagenPortada(pool, id, archivo, usuario) {
+    const normativa = await obtenerNormativa(pool, id);
+    const ext = extensionPermitida(archivo?.originalname, EXT_IMAGEN);
+    if (!archivo?.buffer || !ext) {
+        const err = new Error('Use una imagen JPG, PNG o WebP.');
+        err.status = 400;
+        throw err;
+    }
+    asegurarCarpeta(DIR_PORTADAS);
+    const nombre = `normativa-${id}${ext}`;
+    const abs = path.join(DIR_PORTADAS, nombre);
+    fs.writeFileSync(abs, archivo.buffer);
+    for (const otra of ['.jpg', '.png', '.webp']) {
+        if (otra === ext) continue;
+        const vieja = path.join(DIR_PORTADAS, `normativa-${id}${otra}`);
+        if (fs.existsSync(vieja)) fs.unlinkSync(vieja);
+    }
+    const publica = rutaPublica(abs);
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+        await conn.query('UPDATE seg_normativa SET imagen_portada = ? WHERE id = ?', [publica, id]);
+        await registrarHistorial(conn, {
+            normativaId: id,
+            accion: 'edicion_normativa',
+            campo: 'imagen_portada',
+            valorAnterior: normativa.imagen_portada,
+            valorNuevo: publica,
+            detalle: `Portada de ${normativa.codigo}`,
+            usuario
+        });
+        await conn.commit();
+    } catch (e) {
+        await conn.rollback();
+        throw e;
+    } finally {
+        conn.release();
+    }
+    return obtenerNormativa(pool, id);
+}
+
+async function quitarImagenPortada(pool, id, usuario) {
+    const normativa = await obtenerNormativa(pool, id);
+    if (!normativa.imagen_portada) return normativa;
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+        await conn.query('UPDATE seg_normativa SET imagen_portada = NULL WHERE id = ?', [id]);
+        await registrarHistorial(conn, {
+            normativaId: id,
+            accion: 'edicion_normativa',
+            campo: 'imagen_portada',
+            valorAnterior: normativa.imagen_portada,
+            valorNuevo: null,
+            detalle: `Portada retirada de ${normativa.codigo}`,
+            usuario
+        });
+        await conn.commit();
+    } catch (e) {
+        await conn.rollback();
+        throw e;
+    } finally {
+        conn.release();
+    }
+    borrarArchivoSeguro(normativa.imagen_portada);
+    return obtenerNormativa(pool, id);
+}
+
+async function guardarFormatoRequisito(pool, normativaId, requisitoId, archivo, formatoNombre, usuario) {
+    const [rows] = await pool.query(
+        'SELECT * FROM seg_normativa_requisito WHERE id = ? AND normativa_id = ? LIMIT 1',
+        [requisitoId, normativaId]
+    );
+    if (!rows.length) {
+        const err = new Error('Requisito no encontrado');
+        err.status = 404;
+        throw err;
+    }
+    const ext = extensionPermitida(archivo?.originalname, EXT_FORMATO);
+    if (!archivo?.buffer || !ext) {
+        const err = new Error('El formato guía debe ser PDF, Word o Excel.');
+        err.status = 400;
+        throw err;
+    }
+    const prev = rows[0];
+    asegurarCarpeta(DIR_FORMATOS);
+    const nombreDisco = `req-${requisitoId}-${Date.now()}${ext}`;
+    const abs = path.join(DIR_FORMATOS, nombreDisco);
+    fs.writeFileSync(abs, archivo.buffer);
+    const publica = rutaPublica(abs);
+    const visible = nombreVisible(archivo.originalname);
+    const nombre = String(formatoNombre || '').trim() || prev.formato_nombre || visible.replace(/\.[^.]+$/, '');
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+        await conn.query(
+            `UPDATE seg_normativa_requisito
+             SET formato_nombre = ?, formato_archivo = ?, formato_nombre_archivo = ?
+             WHERE id = ? AND normativa_id = ?`,
+            [nombre.slice(0, 200), publica, visible, requisitoId, normativaId]
+        );
+        await registrarHistorial(conn, {
+            normativaId,
+            requisitoId,
+            accion: 'edicion_requisito',
+            campo: 'formato_archivo',
+            valorAnterior: prev.formato_nombre_archivo,
+            valorNuevo: visible,
+            detalle: `Plantilla ligada al punto ${formatearPuntoNorma(prev.punto_norma) || requisitoId}`,
+            usuario
+        });
+        await conn.commit();
+    } catch (e) {
+        await conn.rollback();
+        borrarArchivoSeguro(publica);
+        throw e;
+    } finally {
+        conn.release();
+    }
+    if (prev.formato_archivo && prev.formato_archivo !== publica) borrarArchivoSeguro(prev.formato_archivo);
     const [updated] = await pool.query('SELECT * FROM seg_normativa_requisito WHERE id = ?', [requisitoId]);
     return mapRequisitoRow(updated[0]);
 }
 
 async function eliminarNormativa(pool, id) {
+    const normativa = await obtenerNormativa(pool, id);
+    const [reqs] = await pool.query(
+        'SELECT formato_archivo FROM seg_normativa_requisito WHERE normativa_id = ?',
+        [id]
+    );
     const [result] = await pool.query('DELETE FROM seg_normativa WHERE id = ?', [id]);
     if (!result.affectedRows) {
         const err = new Error('Normativa no encontrada');
         err.status = 404;
         throw err;
     }
+    borrarArchivoSeguro(normativa.imagen_portada);
+    for (const req of reqs) borrarArchivoSeguro(req.formato_archivo);
     return { eliminada: true };
 }
 
@@ -840,6 +1087,9 @@ module.exports = {
     importarDesdeExcel,
     actualizarNormativa,
     actualizarRequisito,
+    guardarImagenPortada,
+    quitarImagenPortada,
+    guardarFormatoRequisito,
     eliminarNormativa,
     parsearPlantillaExcel,
     formatearPuntoNorma,

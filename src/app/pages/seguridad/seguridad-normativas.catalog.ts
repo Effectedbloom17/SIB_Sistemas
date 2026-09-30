@@ -20,6 +20,7 @@ export interface SegNormativaResumen {
   total_requisitos: number;
   importado_por: string | null;
   importado_perfil?: string | null;
+  imagen_portada?: string | null;
   importado_en: string | null;
   updated_at: string | null;
 }

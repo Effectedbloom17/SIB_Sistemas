@@ -2702,10 +2702,30 @@ export class BackendServices {
         return this.httpClient.put(`${this.baseUrl}/seguridad/normativas/${id}`, datos);
     }
 
+    subirImagenSeguridadNormativa(id: number, archivo: File): Observable<any> {
+        const formData = new FormData();
+        formData.append('imagen', archivo, archivo.name);
+        return this.httpClient.put(`${this.baseUrl}/seguridad/normativas/${id}/imagen`, formData);
+    }
+
+    quitarImagenSeguridadNormativa(id: number): Observable<any> {
+        return this.httpClient.delete(`${this.baseUrl}/seguridad/normativas/${id}/imagen`);
+    }
+
     actualizarSeguridadRequisito(normativaId: number, requisitoId: number, datos: Record<string, unknown>): Observable<any> {
         return this.httpClient.put(
             `${this.baseUrl}/seguridad/normativas/${normativaId}/requisitos/${requisitoId}`,
             datos
+        );
+    }
+
+    subirFormatoSeguridadRequisito(normativaId: number, requisitoId: number, archivo: File, formatoNombre?: string): Observable<any> {
+        const formData = new FormData();
+        formData.append('formato', archivo, archivo.name);
+        if (formatoNombre) formData.append('formato_nombre', formatoNombre);
+        return this.httpClient.post(
+            `${this.baseUrl}/seguridad/normativas/${normativaId}/requisitos/${requisitoId}/formato`,
+            formData
         );
     }
 
@@ -2791,6 +2811,32 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-05/registro`, { registro });
     }
 
+    cargarSgcF17Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-17`);
+    }
+
+    guardarSgcF17Formato(datos: unknown, editorActivo = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-17/guardar`, {
+            datos,
+            origen: 'sistema',
+            editorActivo
+        });
+    }
+
+    sincronizarSgcF17DesdeDrive(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-17/sincronizar-drive`, {});
+    }
+
+    asegurarAccesoSgcF17(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-17/asegurar-acceso`, {});
+    }
+
+    descargarPdfSgcF17(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-17/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarSgcF14Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-14`);
     }
@@ -2859,8 +2905,10 @@ export class BackendServices {
         });
     }
 
-    sincronizarSgcF27MedicionDesdeDrive(): Observable<any> {
-        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-27-medicion/sincronizar-drive`, {});
+    sincronizarSgcF27MedicionDesdeDrive(reporteId?: string | null): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-27-medicion/sincronizar-drive`, {
+            reporteId: reporteId || null
+        });
     }
 
     actualizarPlantillaSgcF27Medicion(): Observable<any> {
@@ -2871,16 +2919,18 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-27-medicion/asegurar-acceso`, {});
     }
 
-    descargarPdfSgcF27Medicion(): Observable<Blob> {
-        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-27-medicion/descargar-pdf`, {
+    descargarPdfSgcF27Medicion(reporteId?: string | null): Observable<Blob> {
+        const params = reporteId ? `?reporteId=${encodeURIComponent(reporteId)}` : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-27-medicion/descargar-pdf${params}`, {
             responseType: 'blob'
         });
     }
 
-    subirPdfFirmadoSgcF27Medicion(pdfBase64: string, nombreArchivo: string): Observable<any> {
+    subirPdfFirmadoSgcF27Medicion(pdfBase64: string, nombreArchivo: string, reporteId?: string | null): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-27-medicion/subir-pdf-firmado`, {
             pdf_base64: pdfBase64,
-            nombreArchivo
+            nombreArchivo,
+            reporteId: reporteId || null
         });
     }
 

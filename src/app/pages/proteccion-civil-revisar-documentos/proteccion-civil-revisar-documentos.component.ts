@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, HostListener, Input, Output, EventEmitter
 import { ActivatedRoute } from '@angular/router';
 import { Router } from '@angular/router';
 import Swal from 'sweetalert2';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Observable } from 'rxjs';
 import { BackendServices } from '../../services/backend.services';
 
 type EstadoSubRequisito = 'pendiente' | 'aprobado' | 'rechazado' | 'revision';
@@ -83,6 +83,8 @@ export class ProteccionCivilRevisarDocumentosComponent implements OnInit, OnDest
   nombreVisorLocal = '';
   cargandoVisorLocal = false;
   documentoVisorLocalId: number | null = null;
+  driveFileIdVisorLocal: string | null = null;
+  descargandoVisorLocal = false;
 
   // Stepper: documento padre seleccionado
   documentoSeleccionadoId: string | null = null;
@@ -602,12 +604,14 @@ export class ProteccionCivilRevisarDocumentosComponent implements OnInit, OnDest
   private abrirVisorLocal(solicitud: PcVisorDocumentoRequest): void {
     this.nombreVisorLocal = solicitud.nombre_archivo || solicitud.nombre_documento || '';
     this.documentoVisorLocalId = solicitud.documento_id;
+    this.driveFileIdVisorLocal = this.backendService.extraerDriveId(solicitud.archivo_url);
+    this.descargandoVisorLocal = false;
     this.mostrarVisorLocal = true;
     this.cargandoVisorLocal = true;
     document.body.classList.add('visor-fullscreen-open');
 
-    if (solicitud.archivo_url) {
-      this.urlVisorLocal = this.getDrivePreviewUrl(solicitud.archivo_url);
+    if (this.driveFileIdVisorLocal) {
+      this.urlVisorLocal = this.getDrivePreviewUrl(this.driveFileIdVisorLocal);
       this.cargandoVisorLocal = false;
       return;
     }
@@ -635,26 +639,123 @@ export class ProteccionCivilRevisarDocumentosComponent implements OnInit, OnDest
     this.nombreVisorLocal = '';
     this.cargandoVisorLocal = false;
     this.documentoVisorLocalId = null;
+    this.driveFileIdVisorLocal = null;
+    this.descargandoVisorLocal = false;
     document.body.classList.remove('visor-fullscreen-open');
   }
 
   descargarDesdeVisorLocal(): void {
-    if (!this.documentoVisorLocalId) return;
-    this.backendService.descargarArchivoProteccionCivil(this.documentoVisorLocalId).subscribe(
-      (blob: Blob) => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = this.nombreVisorLocal || 'documento';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      },
-      () => {
-        Swal.fire('Error', 'No se pudo descargar el archivo', 'error');
+    if (this.descargandoVisorLocal) return;
+    const nombre = this.nombreVisorLocal || 'documento';
+    if (this.urlVisorLocal?.startsWith('blob:')) {
+      this.dispararDescargaVisorLocal(this.urlVisorLocal, nombre);
+      return;
+    }
+
+    const driveId = this.driveFileIdVisorLocal || this.backendService.extraerDriveId(this.urlVisorLocal);
+    const peticiones: Array<() => Observable<Blob>> = [];
+    if (driveId) {
+      peticiones.push(() => this.backendService.descargarArchivoDrive(driveId, nombre));
+    }
+    if (this.documentoVisorLocalId) {
+      const documentoId = this.documentoVisorLocalId;
+      peticiones.push(() => this.backendService.descargarArchivoProteccionCivil(documentoId));
+    }
+    if (!peticiones.length) {
+      this.avisarSobreVisorLocal('Sin archivo', 'No hay un archivo disponible para descargar.');
+      return;
+    }
+    this.descargandoVisorLocal = true;
+    this.intentarDescargaVisorLocal(peticiones, 0, nombre, driveId);
+  }
+
+  private intentarDescargaVisorLocal(
+    peticiones: Array<() => Observable<Blob>>,
+    indice: number,
+    nombre: string,
+    driveId: string
+  ): void {
+    if (indice >= peticiones.length) {
+      this.descargandoVisorLocal = false;
+      if (!this.mostrarVisorLocal) return;
+      if (!driveId) {
+        this.avisarSobreVisorLocal('No se pudo descargar', 'No se pudo obtener el PDF desde el servidor.');
+        return;
       }
-    );
+      const url = `https://drive.google.com/uc?export=download&confirm=t&id=${encodeURIComponent(driveId)}`;
+      Swal.fire({
+        icon: 'info',
+        title: 'Descargar el PDF',
+        text: `El servidor no pudo entregar «${nombre}». Se abrirá la descarga directa de ese archivo.`,
+        confirmButtonText: 'Descargar PDF',
+        showCancelButton: true,
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#d97248',
+        didOpen: () => this.elevarSwalSobreVisorLocal()
+      }).then((result) => {
+        if (!result.isConfirmed) return;
+        const enlace = document.createElement('a');
+        enlace.href = url;
+        enlace.target = '_blank';
+        enlace.rel = 'noopener';
+        document.body.appendChild(enlace);
+        enlace.click();
+        enlace.remove();
+      });
+      return;
+    }
+
+    peticiones[indice]().subscribe({
+      next: (blob) => {
+        if (!this.mostrarVisorLocal) {
+          this.descargandoVisorLocal = false;
+          return;
+        }
+        const tipo = String(blob?.type || '').toLowerCase();
+        const invalido = !blob || blob.size === 0 || tipo.includes('json') || tipo.includes('html');
+        if (invalido) {
+          this.intentarDescargaVisorLocal(peticiones, indice + 1, nombre, driveId);
+          return;
+        }
+        this.descargandoVisorLocal = false;
+        this.dispararDescargaVisorLocal(blob, nombre);
+      },
+      error: (error) => {
+        console.error('Error al descargar desde el visor:', error);
+        this.intentarDescargaVisorLocal(peticiones, indice + 1, nombre, driveId);
+      }
+    });
+  }
+
+  private dispararDescargaVisorLocal(origen: Blob | string, nombre: string): void {
+    const href = origen instanceof Blob ? URL.createObjectURL(origen) : origen;
+    const base = String(nombre || 'documento').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'documento';
+    const tipo = origen instanceof Blob ? origen.type : '';
+    const archivo = /\.[a-z0-9]{2,8}$/i.test(base) || !tipo.includes('pdf') ? base : `${base}.pdf`;
+    const enlace = document.createElement('a');
+    enlace.href = href;
+    enlace.download = archivo;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    if (origen instanceof Blob) {
+      window.setTimeout(() => URL.revokeObjectURL(href), 2500);
+    }
+  }
+
+  private avisarSobreVisorLocal(titulo: string, texto: string): void {
+    Swal.fire({
+      icon: 'error',
+      title: titulo,
+      text: texto,
+      confirmButtonColor: '#d97248',
+      didOpen: () => this.elevarSwalSobreVisorLocal()
+    });
+  }
+
+  private elevarSwalSobreVisorLocal(): void {
+    const contenedor = Swal.getContainer();
+    if (contenedor) contenedor.style.zIndex = '1000000';
   }
 
   togglePanelRechazo(): void {

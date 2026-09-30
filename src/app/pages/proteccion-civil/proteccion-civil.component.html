@@ -3556,13 +3556,16 @@
       </div>
       <div class="pc-revision-visor__head-actions">
         <button type="button"
-                class="btn btn-sm btn-outline-light mr-2"
+                class="pc-visor-btn pc-visor-btn--download"
                 (click)="descargarDesdeVisor()"
-                title="Descargar archivo">
-          <i class="fas fa-download mr-1" aria-hidden="true"></i> Descargar
+                [disabled]="descargandoVisor"
+                title="Descargar el PDF que se está viendo">
+          <i class="fas" [ngClass]="descargandoVisor ? 'fa-spinner fa-spin' : 'fa-download'" aria-hidden="true"></i>
+          <span>{{ descargandoVisor ? 'Descargando…' : 'Descargar' }}</span>
         </button>
-        <button type="button" class="btn btn-sm btn-light" (click)="cerrarVisualizador()">
-          <i class="fas fa-times mr-1" aria-hidden="true"></i> Volver al listado
+        <button type="button" class="pc-visor-btn pc-visor-btn--back" (click)="cerrarVisualizador()">
+          <i class="fas fa-arrow-left" aria-hidden="true"></i>
+          <span>Volver al listado</span>
         </button>
       </div>
     </div>
