@@ -2970,6 +2970,49 @@ export class BackendServices {
         });
     }
 
+    cargarSgcF19Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-19`);
+    }
+
+    guardarSgcF19Formato(datos: unknown, editorActivo = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-19/guardar`, {
+            datos,
+            origen: 'sistema',
+            editorActivo
+        });
+    }
+
+    sincronizarSgcF19DesdeDrive(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-19/sincronizar-drive`, {});
+    }
+
+    actualizarPlantillaSgcF19(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-19/actualizar-plantilla`, {});
+    }
+
+    asegurarAccesoSgcF19(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-19/asegurar-acceso`, {});
+    }
+
+    descargarPdfSgcF19(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-19/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
+    subirPdfFirmadoSgcF19(pdfBase64: string, nombreArchivo: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-19/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombre_archivo: nombreArchivo
+        });
+    }
+
+    eliminarPdfHistorialSgcF19(driveFileId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-19/eliminar-pdf-historial`, {
+            driveFileId
+        });
+    }
+
     cargarSgcF16Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-16`);
     }
@@ -3000,6 +3043,40 @@ export class BackendServices {
 
     descargarPdfSgcF16(): Observable<Blob> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-16/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
+    cargarSgcF20Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-20`);
+    }
+
+    guardarSgcF20Formato(datos: unknown, editorActivo = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-20/guardar`, {
+            datos,
+            origen: 'sistema',
+            editorActivo
+        });
+    }
+
+    sincronizarSgcF20DesdeDrive(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-20/sincronizar-drive`, {});
+    }
+
+    actualizarPlantillaSgcF20(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-20/actualizar-plantilla`, {});
+    }
+
+    subirPdfFirmadoSgcF20(pdfBase64: string, nombreArchivo: string, fichaId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-20/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombre_archivo: nombreArchivo,
+            fichaId
+        });
+    }
+
+    descargarPdfSgcF20(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-20/descargar-pdf`, {
             responseType: 'blob'
         });
     }
