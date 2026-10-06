@@ -753,7 +753,7 @@
                             </span>
                           </div>
                         </div>
-                        <h3 class="cp-gestion-proj__name">{{ grupo.nombreProyecto }}</h3>
+                        <h3 class="cp-gestion-proj__name" [title]="grupo.nombreProyecto">{{ grupo.nombreProyecto }}</h3>
                         <div class="cp-gestion-proj__meta">
                           <span><i class="fas fa-user"></i> {{ r.responsable }}</span>
                           <span><i class="fas fa-calendar"></i> {{ r.fechaCompromiso ? formatearFechaProyecto(r.fechaCompromiso) : 'Sin fecha' }}</span>
