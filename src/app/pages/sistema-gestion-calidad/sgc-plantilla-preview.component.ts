@@ -3,7 +3,7 @@ import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-brows
 import { ActivatedRoute, Router } from '@angular/router';
 import DOMPurify from 'dompurify';
 import { HttpEventType } from '@angular/common/http';
-import { Observable, Subject, Subscription, forkJoin, of, timer } from 'rxjs';
+import { Observable, Subject, Subscription, firstValueFrom, forkJoin, of, timer } from 'rxjs';
 import { catchError, switchMap, takeUntil, timeout } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
@@ -154,6 +154,9 @@ interface AthF09Cotizacion {
   folioBase: string;
   folioAnterior?: string | null;
   empresa: string;
+  claveEmpresa?: string | null;
+  empresaId?: number | null;
+  proyectoCreado?: boolean;
   aceptada: boolean;
   driveFileId: string | null;
   nombreArchivo: string | null;
@@ -975,6 +978,39 @@ interface SgcF03FormData {
   registros: SgcF03Registro[];
 }
 
+interface SgcF19Registro {
+  conocimiento: string;
+  tipoFuente: string;
+  puesto: string;
+  disponibleEn: string;
+}
+
+interface SgcF19FormData {
+  fechaElaboracion: string;
+  revision: string;
+  fechaRevision: string;
+  registros: SgcF19Registro[];
+  pdfFirmado: DgF02PdfFirmado | null;
+  pdfsHistorial: DgF02PdfFirmado[];
+}
+
+interface SgcF20Ficha {
+  id: string;
+  folio: string;
+  tipoFuente: string;
+  descripcion: string;
+  fechaCaptura: string;
+  pdfFirmado: DgF02PdfFirmado | null;
+}
+
+interface SgcF20FormData {
+  fechaElaboracion: string;
+  revision: string;
+  fechaRevision: string;
+  fichas: SgcF20Ficha[];
+  fichaActivaId: string | null;
+}
+
 interface SgcF14EvidenciaDoc {
   id: number;
   proyectoId: string;
@@ -1579,6 +1615,19 @@ interface AthF14Fila {
   fechaVacaciones: string;
 }
 
+interface SpF04Fila {
+  numero: number;
+  numeroCotizacion: string;
+  numeroProyecto: string;
+  empresa: string;
+  nombreProyecto: string;
+  responsable: string;
+  observaciones: string;
+  estatus: string;
+  avance: number;
+  folio: string;
+}
+
 interface AthF14Guardado {
   nombreCompleto: string;
   fechaIngreso: string;
@@ -1730,6 +1779,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-27'
       || this.plantillaSlug === 'sgc-f-27-medicion'
       || this.plantillaSlug === 'sgc-f-17'
+      || this.plantillaSlug === 'sgc-f-19'
+      || this.plantillaSlug === 'sgc-f-20'
       || this.plantillaSlug === 'sgc-f-29'
       || this.plantillaSlug === 'sgc-f-28'
       || this.plantillaSlug === 'sp-f-02'
@@ -1740,7 +1791,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'ath-f-11'
       || this.plantillaSlug === 'ath-f-03'
       || this.plantillaSlug === 'ath-f-13'
-      || this.plantillaSlug === 'ath-f-14';
+      || this.plantillaSlug === 'ath-f-14'
+      || this.plantillaSlug === 'sp-f-04';
   }
 
   @HostBinding('class.sgc-preview--ath-f-02')
@@ -1910,6 +1962,32 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF09SubiendoPdf = false;
   athF09DescargandoPdf = false;
   athF09SiguienteFolio = 'SC-26-001';
+  athF09AltaAbierta = false;
+  athF09AltaError = '';
+  athF09ResponsableAbierto = false;
+  athF09ResponsableBusqueda = '';
+  athF09AltaFolio = '';
+  athF09AltaNombre = '';
+  athF09AltaResponsable = '';
+  athF09AltaResponsableId: number | null = null;
+  athF09AltaPrioridad = 'Media';
+  athF09AltaEstatus = 'No iniciado';
+  athF09AltaInicio = '';
+  athF09AltaCompromiso = '';
+  athF09Usuarios: Array<{ id: number; nombre: string }> = [];
+  readonly athF09Prioridades = [
+    { value: 'Muy Prioritaria', shortLabel: 'Muy prioritaria', hint: 'Crítica', icon: 'fa-angle-double-up', tone: 'critical' },
+    { value: 'Prioritaria', shortLabel: 'Prioritaria', hint: 'Alta', icon: 'fa-arrow-up', tone: 'high' },
+    { value: 'Media', shortLabel: 'Media', hint: 'Estándar', icon: 'fa-equals', tone: 'medium' },
+    { value: 'Baja', shortLabel: 'Baja', hint: 'Flexible', icon: 'fa-arrow-down', tone: 'low' },
+    { value: 'Muy baja', shortLabel: 'Muy baja', hint: 'Mínima', icon: 'fa-angle-double-down', tone: 'lowest' }
+  ];
+  readonly athF09Estatus = [
+    { value: 'No iniciado', shortLabel: 'No iniciado', hint: 'Pendiente', icon: 'fa-circle', tone: 'todo' },
+    { value: 'En proceso', shortLabel: 'En proceso', hint: 'Activo', icon: 'fa-play-circle', tone: 'progress' },
+    { value: 'En revisión', shortLabel: 'En revisión', hint: 'Revisión', icon: 'fa-search', tone: 'review' },
+    { value: 'Concluido', shortLabel: 'Concluido', hint: 'Cerrado', icon: 'fa-check-circle', tone: 'done' }
+  ];
   private athF09EditorIframeListo = false;
   private athF09PdfPendiente: { base64: string; nombre: string } | null = null;
 
@@ -2480,6 +2558,63 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF03ActualizandoPlantilla = false;
   sgcF03DescargandoPdf = false;
   private sgcF03EditorIframeListo = false;
+  sgcF19Form: SgcF19FormData = this.crearSgcF19FormVacio();
+  sgcF19Busqueda = '';
+  sgcF19Cargando = false;
+  sgcF19Guardando = false;
+  sgcF19Listo = false;
+  sgcF19CambiosPendientes = false;
+  sgcF19IgnorarAutoSave = false;
+  sgcF19UltimaSync: string | null = null;
+  sgcF19DriveFileId: string | null = null;
+  sgcF19EditorUrl: string | null = null;
+  sgcF19EditorEmbedUrlSafe: SafeResourceUrl | null = null;
+  mostrarSgcF19Editor = false;
+  sgcF19ContenidoModificado = false;
+  sgcF19EditorCargando = false;
+  sgcF19ActualizandoPlantilla = false;
+  sgcF19DescargandoPdf = false;
+  sgcF19SubiendoPdf = false;
+  sgcF19BorrandoPdf = false;
+  mostrarSgcF19PdfViewer = false;
+  sgcF19PdfCargando = false;
+  sgcF19PdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  sgcF19PdfViewerActual: DgF02PdfFirmado | null = null;
+  private sgcF19EditorIframeListo = false;
+  sgcF20Form: SgcF20FormData = this.crearSgcF20FormVacio();
+  sgcF20Busqueda = '';
+  sgcF20Cargando = false;
+  sgcF20Guardando = false;
+  sgcF20Listo = false;
+  sgcF20CambiosPendientes = false;
+  sgcF20IgnorarAutoSave = false;
+  sgcF20UltimaSync: string | null = null;
+  sgcF20DriveFileId: string | null = null;
+  sgcF20EditorUrl: string | null = null;
+  sgcF20EditorEmbedUrlSafe: SafeResourceUrl | null = null;
+  mostrarSgcF20Editor = false;
+  sgcF20ContenidoModificado = false;
+  sgcF20EditorCargando = false;
+  sgcF20ActualizandoPlantilla = false;
+  sgcF20Vista: 'archivero' | 'editor' = 'archivero';
+  sgcF20FichaActiva: SgcF20Ficha | null = null;
+  sgcF20DescargandoPdf = false;
+  sgcF20SubiendoPdf = false;
+  mostrarSgcF20PdfViewer = false;
+  sgcF20PdfCargando = false;
+  sgcF20PdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  private sgcF20EditorIframeListo = false;
+  readonly tiposFuenteSgcF20: string[] = [
+    'Propiedad intelectual (Interna)',
+    'Conocimientos adquiridos con la experiencia (Interna)',
+    'Lecciones aprendidas de los fracasos y de proyectos de éxito (Interna)',
+    'Capturar y compartir conocimientos y experiencia no documentados (Interna)',
+    'Resultados de mejora en los procesos, productos y servicios (Interna)',
+    'Normas (Externo)',
+    'Academia (Externo)',
+    'Conferencias (Externo)',
+    'Recopilación de conocimientos provenientes de clientes o proveedores externos (Externo)'
+  ];
   readonly sgcF16Estatus: string[] = ['Pendiente', 'En proceso', 'Cumplido'];
   sgcF16Form: SgcF16FormData = this.crearSgcF16FormVacio();
   sgcF16Cargando = false;
@@ -2608,21 +2743,41 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF13PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   private athF13EditorIframeListo = false;
   athF13ColaboradoresCatalogo: Array<{ nombreCompleto: string; puesto: string; areaDepartamento: string }> = [];
+  private athF13PerfilActivo: { nombreCompleto: string; puesto: string; areaDepartamento: string } | null = null;
   athF13NombreComboAbierto = false;
   athF13NombreComboQuery = '';
   athF13AutosizeTick = 0;
+  athF13Acceso: { permitido: boolean; esGestor: boolean; registrado: boolean; nombreRegistrado: string } = {
+    permitido: false,
+    esGestor: false,
+    registrado: false,
+    nombreRegistrado: ''
+  };
   /** Mes izquierdo del calendario dual (día 1 del mes, local). */
   athF13CalMesBase: Date = this.crearMesBaseAthF13(new Date());
   /** Evita bucles al recalcular días ↔ fechas. */
   private athF13SyncFechasLock = false;
   readonly athF13CalDiasSemana = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-  private athF13DiasPorNombre = new Map<string, number>();
+  private athF13SaldoPorNombre = new Map<string, { diasDisponibles: number; fechaIngreso: string }>();
   athF13AvisoAjuste = '';
   athF14Filas: AthF14Fila[] = [];
   athF14DriveFileId = '1Fxn1FNWcByT3RcinuVmmf4IgPR4g1AVksYF149-YvBc';
   athF14EditorUrl: string | null = null;
   athF14EditorEmbedUrlSafe: SafeResourceUrl | null = null;
   mostrarAthF14Editor = false;
+  spF04Filas: SpF04Fila[] = [];
+  spF04Detalle: SpF04Fila | null = null;
+  spF04Busqueda = '';
+  spF04FiltroEstatus: 'todos' | 'Abierto' | 'Cerrado' = 'todos';
+  spF04Cargando = false;
+  spF04Error = '';
+  spF04Aviso = '';
+  spF04DriveFileId = '';
+  spF04EditorUrl = '';
+  spF04UltimaSync: string | null = null;
+  spF04DescargandoPdf = false;
+  mostrarSpF04Editor = false;
+  private spF04EditorSrcCache: SafeResourceUrl | null = null;
   athF14EditorCargando = false;
   private athF14EditorIframeListo = false;
   private athF14EditorSrcCache: SafeResourceUrl | null = null;
@@ -2635,6 +2790,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF14UltimaSync: string | null = null;
   athF14Busqueda = '';
   athF14Error = '';
+  athF14Catalogo: AthF11EmpleadoCatalogo[] = [];
+  athF14PickerAbierto = false;
+  athF14PickerQuery = '';
+  athF14RecienAgregado = '';
   private athF14SolicitudesPorNombre = new Map<string, AthF13Solicitud[]>();
   sgcF27Form: SgcF27FormData = this.crearSgcF27FormVacio();
   sgcF27Cargando = false;
@@ -3354,7 +3513,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return this.authService.puedeGestionarPlantillasSgcCapitulos(this.plantillaSlug);
   }
 
-  /** AF-F-02: editar texto completo — solo root o Ing. Sergio (calidad / sergio56). */
+  /** DG-F-04: fecha de elaboración — solo super administrador (root) o Calidad (Sergio). */
+  get puedeEditarFechaElaboracionDgF04(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
   get puedeEditarDocumentoCompletoAfF02(): boolean {
     return this.esPrivilegioRootOCalidadAfF02();
   }
@@ -4033,6 +4195,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (codigo === 'sgc-f-03') {
         this.cargarSgcF03DesdeServidor();
       }
+      if (codigo === 'sgc-f-19') {
+        this.cargarSgcF19DesdeServidor();
+      }
+      if (codigo === 'sgc-f-20') {
+        this.cargarSgcF20DesdeServidor();
+      }
       if (codigo === 'sgc-f-16') {
         this.cargarCatalogoPersonasSgcF16();
         this.cargarSgcF16DesdeServidor();
@@ -4053,6 +4221,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }
       if (codigo === 'ath-f-14') {
         this.cargarAthF14();
+      }
+      if (codigo === 'sp-f-04') {
+        this.cargarSpF04();
       }
       if (codigo === 'sgc-f-27') {
         this.cargarSgcF27DesdeServidor();
@@ -4169,6 +4340,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.sgcF01EditorCerrarTimer = null;
     }
     this.marcarBodyEditorSgcF01(false);
+    if (this.mostrarSpF04Editor) {
+      this.mostrarSpF04Editor = false;
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+    }
     this.marcarBodyAyudaDgF04(false);
     this.liberarMiniaturasEvidenciasSgcF29();
     this.liberarMiniaturasEvidenciasSgcF14();
@@ -4215,7 +4391,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'ath-f-03'
       || this.plantillaSlug === 'ath-f-13'
       || this.plantillaSlug === 'ath-f-14'
-      || this.plantillaSlug === 'sgc-f-17';
+      || this.plantillaSlug === 'sp-f-04'
+      || this.plantillaSlug === 'sgc-f-17'
+      || this.plantillaSlug === 'sgc-f-19'
+      || this.plantillaSlug === 'sgc-f-20';
   }
 
   get esFormatoSlidesEmbed(): boolean {
@@ -4264,8 +4443,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'ath-f-03'
       || this.plantillaSlug === 'ath-f-13'
       || this.plantillaSlug === 'ath-f-14'
+      || this.plantillaSlug === 'sp-f-04'
       || this.plantillaSlug === 'dg-f-06'
-      || this.plantillaSlug === 'sgc-f-17';
+      || this.plantillaSlug === 'sgc-f-17'
+      || this.plantillaSlug === 'sgc-f-19'
+      || this.plantillaSlug === 'sgc-f-20';
   }
 
   get driveSyncGuardando(): boolean {
@@ -4295,6 +4477,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27Guardando;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mGuardando;
     if (this.plantillaSlug === 'sgc-f-17') return this.sgcF17Guardando;
+    if (this.plantillaSlug === 'sgc-f-19') return this.sgcF19Guardando;
+    if (this.plantillaSlug === 'sgc-f-20') return this.sgcF20Guardando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Guardando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Guardando;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02Guardando;
@@ -4332,9 +4516,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'ath-f-03') return this.athF03UltimaSync;
     if (this.plantillaSlug === 'ath-f-13') return this.athF13UltimaSync;
     if (this.plantillaSlug === 'ath-f-14') return this.athF14UltimaSync;
+    if (this.plantillaSlug === 'sp-f-04') return this.spF04UltimaSync;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27UltimaSync;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mUltimaSync;
     if (this.plantillaSlug === 'sgc-f-17') return this.sgcF17UltimaSync;
+    if (this.plantillaSlug === 'sgc-f-19') return this.sgcF19UltimaSync;
+    if (this.plantillaSlug === 'sgc-f-20') return this.sgcF20UltimaSync;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29UltimaSync;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28UltimaSync;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02UltimaSync;
@@ -4372,9 +4559,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'ath-f-03') return this.athF03Cargando;
     if (this.plantillaSlug === 'ath-f-13') return this.athF13Cargando;
     if (this.plantillaSlug === 'ath-f-14') return this.athF14Cargando;
+    if (this.plantillaSlug === 'sp-f-04') return this.spF04Cargando;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27Cargando;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mCargando;
     if (this.plantillaSlug === 'sgc-f-17') return this.sgcF17Cargando;
+    if (this.plantillaSlug === 'sgc-f-19') return this.sgcF19Cargando;
+    if (this.plantillaSlug === 'sgc-f-20') return this.sgcF20Cargando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Cargando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Cargando;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02Cargando;
@@ -4414,6 +4604,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-17') return this.sgcF17ActualizandoPlantilla;
+    if (this.plantillaSlug === 'sgc-f-19') return this.sgcF19ActualizandoPlantilla;
+    if (this.plantillaSlug === 'sgc-f-20') return this.sgcF20ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29ActualizandoPlantilla;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28ActualizandoPlantilla;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02ActualizandoPlantilla;
@@ -4452,9 +4644,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'ath-f-03') return this.athF03EntregaActiva?.driveFileId || this.athF03DriveFileId;
     if (this.plantillaSlug === 'ath-f-13') return this.athF13SolicitudActiva?.driveFileId || this.athF13DriveFileId;
     if (this.plantillaSlug === 'ath-f-14') return this.athF14DriveFileId;
+    if (this.plantillaSlug === 'sp-f-04') return this.spF04DriveFileId || null;
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27DriveFileId;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mDriveFileId;
     if (this.plantillaSlug === 'sgc-f-17') return this.sgcF17DriveFileId;
+    if (this.plantillaSlug === 'sgc-f-19') return this.sgcF19DriveFileId;
+    if (this.plantillaSlug === 'sgc-f-20') return this.sgcF20DriveFileId;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29DriveFileId;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28DriveFileId;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02DriveFileId;
@@ -4496,6 +4691,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-27') return this.sgcF27CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.sgcF27mCambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-17') return this.sgcF17CambiosPendientes;
+    if (this.plantillaSlug === 'sgc-f-19') return this.sgcF19CambiosPendientes;
+    if (this.plantillaSlug === 'sgc-f-20') return this.sgcF20CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28CambiosPendientes;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02CambiosPendientes;
@@ -4547,9 +4744,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'ath-f-03') return this.mostrarAthF03Editor;
     if (this.plantillaSlug === 'ath-f-13') return this.mostrarAthF13Editor;
     if (this.plantillaSlug === 'ath-f-14') return this.mostrarAthF14Editor;
+    if (this.plantillaSlug === 'sp-f-04') return this.mostrarSpF04Editor;
     if (this.plantillaSlug === 'sgc-f-27') return this.mostrarSgcF27Editor;
     if (this.plantillaSlug === 'sgc-f-27-medicion') return this.mostrarSgcF27mEditor;
     if (this.plantillaSlug === 'sgc-f-17') return this.mostrarSgcF17Editor;
+    if (this.plantillaSlug === 'sgc-f-19') return this.mostrarSgcF19Editor;
+    if (this.plantillaSlug === 'sgc-f-20') return this.mostrarSgcF20Editor;
     if (this.plantillaSlug === 'sgc-f-10') return this.mostrarSgcF10Editor;
     if (this.plantillaSlug === 'sgc-f-29') return this.mostrarSgcF29Editor;
     if (this.plantillaSlug === 'sgc-f-28') return this.mostrarSgcF28Editor;
@@ -4657,9 +4857,27 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
    * Esc cierra overlays (tips/combos) y, si no hay, el editor integrado / visor PDF.
    * Nota: si el foco está dentro del iframe de Drive, el teclado no llega a la app.
    */
+  @HostListener('document:keydown.arrowleft', ['$event'])
+  @HostListener('document:keydown.arrowright', ['$event'])
+  onFlechasResumenSpF04(event: KeyboardEvent): void {
+    if (!this.spF04Detalle || Swal.isVisible()) return;
+    const destino = event.target as HTMLElement | null;
+    if (destino && (destino.tagName === 'INPUT' || destino.tagName === 'TEXTAREA' || destino.isContentEditable)) {
+      return;
+    }
+    event.preventDefault();
+    this.moverResumenSpF04(event.key === 'ArrowRight' ? 1 : -1);
+  }
+
   @HostListener('document:keydown.escape', ['$event'])
   onEscapeCerrarOverlaysSgc(event: KeyboardEvent): void {
     if (Swal.isVisible()) {
+      return;
+    }
+
+    if (this.spF04Detalle) {
+      event.preventDefault();
+      this.cerrarResumenSpF04();
       return;
     }
 
@@ -4897,6 +5115,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (slug === 'sgc-f-16') {
       return this.backendService.guardarSgcF16Formato(this.sgcF16Form, false);
     }
+    if (slug === 'sgc-f-20') {
+      this.sincronizarFichaActivaEnFormSgcF20();
+      return this.backendService.guardarSgcF20Formato(
+        { ...this.sgcF20Form, fichaActivaId: this.sgcF20FichaActiva?.id || this.sgcF20Form.fichaActivaId || null },
+        false
+      );
+    }
     if (slug === 'sgc-f-24') {
       this.sincronizarCambioActivoEnFormSgcF24();
       return this.backendService.guardarSgcF24Formato(
@@ -5036,7 +5261,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   guardarInformacionDriveSync(): void {
-    if (!this.puedeGestionarPlantillasSgc) {
+    if (!this.puedeGestionarPlantillasSgc
+      && !(this.plantillaSlug === 'ath-f-14' && this.puedeEditarAthF14)
+      && !(this.plantillaSlug === 'ath-f-13' && this.athF13PuedeSolicitar)) {
       return;
     }
     // El sistema es la fuente de verdad: siempre empuja formulario → Excel (nunca pull).
@@ -5084,6 +5311,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.persistirSgcF17();
       return;
     }
+    if (this.plantillaSlug === 'sgc-f-19') {
+      this.persistirSgcF19();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-20') {
+      this.persistirSgcF20();
+      return;
+    }
     if (this.plantillaSlug === 'sgc-f-25') {
       this.persistirSgcF25();
       return;
@@ -5114,6 +5349,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'ath-f-14') {
       this.persistirAthF14();
+      return;
+    }
+    if (this.plantillaSlug === 'sp-f-04') {
       return;
     }
     if (this.plantillaSlug === 'sgc-f-27') {
@@ -5426,6 +5664,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return 'Captura la visita con fecha, hora, lugar y asunto. Registra asistentes, agenda y compromisos; usa «Guardar información» para conservarlos en el sistema y en Drive.';
   }
 
+  get sgcF20IntroLead(): string {
+    if (this.plantillaSlug !== 'sgc-f-20') {
+      return '';
+    }
+    return 'Archivero de fichas de conocimiento. Cada ficha registra el tipo de fuente, la descripción y la fecha de captura. El PDF firmado se guarda en la carpeta de firmados.';
+  }
+
   get sgcF24IntroLead(): string {
     if (this.plantillaSlug !== 'sgc-f-24') {
       return '';
@@ -5541,6 +5786,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-17') {
       return this.sgcF17IntroLead;
     }
+    if (this.plantillaSlug === 'sgc-f-19') {
+      return this.sgcF19IntroLead;
+    }
     if (this.plantillaSlug === 'sgc-f-25') {
       return this.sgcF25IntroLead;
     }
@@ -5592,6 +5840,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-24') {
       return this.sgcF24IntroLead;
     }
+    if (this.plantillaSlug === 'sgc-f-20') {
+      return this.sgcF20IntroLead;
+    }
     if (this.plantillaSlug === 'ath-f-06') {
       return this.athF06IntroLead;
     }
@@ -5603,6 +5854,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'ath-f-14') {
       return this.athF14IntroLead;
+    }
+    if (this.plantillaSlug === 'sp-f-04') {
+      return 'Listado de proyectos generados al subir el PDF firmado de la cotización. El nombre, los responsables y las observaciones salen de Control de Proyectos. El estatus permanece Abierto hasta que el avance del proyecto llega a 100%.';
     }
     if (this.plantillaSlug === 'sgc-f-27') {
       return this.sgcF27IntroLead;
@@ -10769,6 +11023,320 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return 'Registra a quién se entrega cada documento controlado, cuántas copias y cómo se recupera. Usa «Guardar información» para sincronizar con el Excel de Drive.';
   }
 
+  // ===================== SGC-F-19 · Listado de conocimientos =====================
+
+  crearSgcF19FormVacio(): SgcF19FormData {
+    return {
+      fechaElaboracion: '2025-01-20',
+      revision: '00',
+      fechaRevision: '2025-01-20',
+      registros: [],
+      pdfFirmado: null,
+      pdfsHistorial: []
+    };
+  }
+
+  private crearRegistroSgcF19Vacio(): SgcF19Registro {
+    return { conocimiento: '', tipoFuente: '', puesto: '', disponibleEn: '' };
+  }
+
+  private normalizarSgcF19Form(base: any): SgcF19FormData {
+    const vacio = this.crearSgcF19FormVacio();
+    const raw = base && typeof base === 'object' ? base : {};
+    const registros = Array.isArray(raw.registros) ? raw.registros : [];
+    const pdfs = Array.isArray(raw.pdfsHistorial) ? raw.pdfsHistorial : [];
+    return {
+      fechaElaboracion: String(raw.fechaElaboracion || vacio.fechaElaboracion).slice(0, 10),
+      revision: String(raw.revision || '00').trim().padStart(2, '0'),
+      fechaRevision: String(raw.fechaRevision || vacio.fechaRevision).slice(0, 10),
+      registros: registros.map((r: any) => ({
+        conocimiento: String(r?.conocimiento || '').trim(),
+        tipoFuente: String(r?.tipoFuente || '').trim(),
+        puesto: String(r?.puesto || '').trim(),
+        disponibleEn: String(r?.disponibleEn || '').trim()
+      })).filter((r: SgcF19Registro) => r.conocimiento || r.tipoFuente || r.puesto || r.disponibleEn),
+      pdfFirmado: raw.pdfFirmado?.driveFileId ? raw.pdfFirmado : null,
+      pdfsHistorial: pdfs.filter((p: DgF02PdfFirmado) => !!p?.driveFileId)
+    };
+  }
+
+  get sgcF19RegistrosVista(): SgcF19Registro[] {
+    const q = String(this.sgcF19Busqueda || '').trim().toLowerCase();
+    if (!q) return this.sgcF19Form.registros;
+    return this.sgcF19Form.registros.filter((r) =>
+      [r.conocimiento, r.tipoFuente, r.puesto, r.disponibleEn].join(' ').toLowerCase().includes(q)
+    );
+  }
+
+  get sgcF19HistorialPdfsVista(): DgF02PdfFirmado[] {
+    const hist = Array.isArray(this.sgcF19Form?.pdfsHistorial) ? this.sgcF19Form.pdfsHistorial : [];
+    const actualId = this.sgcF19Form?.pdfFirmado?.driveFileId || null;
+    return hist.filter((p) => p?.driveFileId && p.driveFileId !== actualId);
+  }
+
+  get puedeBorrarPdfHistorialSgcF19(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
+
+  filasTextoSgcF19(texto: string, charsPorLinea = 22): number {
+    return Math.max(2, this.filasTextoAjustadas(texto, charsPorLinea, 8));
+  }
+
+  formatearFechaDisplaySgcF19(iso: string): string {
+    const t = String(iso || '').slice(0, 10);
+    const m = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return t || '—';
+    return `${m[3]}/${m[2]}/${m[1]}`;
+  }
+
+  private cargarSgcF19DesdeServidor(): void {
+    this.sgcF19Cargando = true;
+    this.sgcF19Listo = false;
+    this.backendService.cargarSgcF19Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoSgcF19(res),
+        error: () => {
+          this.sgcF19Cargando = false;
+          this.sgcF19Listo = true;
+        }
+      });
+  }
+
+  onSgcF19Editado(): void {
+    if (!this.sgcF19Listo || this.sgcF19IgnorarAutoSave) return;
+    this.sgcF19CambiosPendientes = true;
+  }
+
+  agregarFilaSgcF19(): void {
+    this.sgcF19Form.registros.push(this.crearRegistroSgcF19Vacio());
+    this.onSgcF19Editado();
+  }
+
+  quitarFilaSgcF19(item: SgcF19Registro): void {
+    const index = this.sgcF19Form.registros.indexOf(item);
+    if (index < 0) return;
+    this.sgcF19Form.registros.splice(index, 1);
+    this.onSgcF19Editado();
+  }
+
+  private persistirSgcF19(): void {
+    if (!this.puedeGestionarPlantillasSgc || !this.sgcF19Listo || this.sgcF19Guardando) return;
+    this.sgcF19Guardando = true;
+    const editorAbierto = this.mostrarSgcF19Editor;
+    this.backendService.guardarSgcF19Formato(this.sgcF19Form, editorAbierto)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF19Guardando = false;
+          this.aplicarEstadoSgcF19(res, editorAbierto, false, false);
+        },
+        error: () => {
+          this.sgcF19Guardando = false;
+        }
+      });
+  }
+
+  descargarPdfSgcF19(): void {
+    if (this.sgcF19DescargandoPdf) return;
+    this.sgcF19DescargandoPdf = true;
+    this.backendService.descargarPdfSgcF19()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.sgcF19DescargandoPdf = false;
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = 'SGC-F-19 Listado de conocimientos de la organizacion.pdf';
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.sgcF19DescargandoPdf = false;
+        }
+      });
+  }
+
+  onSeleccionarPdfSgcF19(event: Event): void {
+    this.procesarPdfDocumento(
+      event,
+      'SGC-F-19 Listado de conocimientos.pdf',
+      (base64, nombre) => this.subirPdfSgcF19(base64, nombre)
+    );
+  }
+
+  private subirPdfSgcF19(base64: string, nombre: string): void {
+    if (this.sgcF19SubiendoPdf) {
+      this.cerrarModalSubidaPdfSgc();
+      return;
+    }
+    this.sgcF19SubiendoPdf = true;
+    this.backendService.subirPdfFirmadoSgcF19(base64, nombre)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF19SubiendoPdf = false;
+          this.aplicarEstadoSgcF19(res, false, false, false);
+          this.finalizarSubidaPdfSgc(true, nombre);
+        },
+        error: () => {
+          this.sgcF19SubiendoPdf = false;
+          this.finalizarSubidaPdfSgc(false, nombre);
+        }
+      });
+  }
+
+  toggleSgcF19PdfViewer(pdf?: DgF02PdfFirmado | null): void {
+    const objetivo = pdf || this.sgcF19Form.pdfFirmado;
+    const id = objetivo?.driveFileId;
+    if (!id) return;
+    const mismoAbierto = this.mostrarSgcF19PdfViewer
+      && this.sgcF19PdfViewerActual?.driveFileId === id;
+    const abrir = !mismoAbierto;
+    this.mostrarSgcF19PdfViewer = abrir;
+    if (abrir) {
+      this.sgcF19PdfViewerActual = objetivo;
+      this.sgcF19PdfCargando = true;
+      const url = objetivo.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+      this.sgcF19PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    this.sgcF19PdfEmbedUrlSafe = null;
+    this.sgcF19PdfCargando = false;
+    this.sgcF19PdfViewerActual = null;
+  }
+
+  onSgcF19PdfIframeLoad(): void {
+    this.sgcF19PdfCargando = false;
+  }
+
+  eliminarPdfHistorialSgcF19(hist: DgF02PdfFirmado): void {
+    if (!this.puedeBorrarPdfHistorialSgcF19 || !hist?.driveFileId || this.sgcF19BorrandoPdf) return;
+    if (!confirm(`¿Eliminar «${hist.nombreArchivo || 'PDF'}» del historial?`)) return;
+    this.sgcF19BorrandoPdf = true;
+    this.backendService.eliminarPdfHistorialSgcF19(hist.driveFileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF19BorrandoPdf = false;
+          this.aplicarEstadoSgcF19(res);
+        },
+        error: () => {
+          this.sgcF19BorrandoPdf = false;
+        }
+      });
+  }
+
+  toggleSgcF19Editor(): void {
+    if (!this.sgcF19DriveFileId) return;
+    const abrir = !this.mostrarSgcF19Editor;
+    this.mostrarSgcF19Editor = abrir;
+    if (abrir) {
+      this.sgcF19EditorIframeListo = false;
+      this.sgcF19EditorCargando = true;
+      this.fijarEditorEmbedUrlSgcF19(
+        this.resolverUrlEditorDrive(this.sgcF19EditorUrl, this.sgcF19DriveFileId),
+        true
+      );
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      this.backendService.asegurarAccesoSgcF19()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            if (res?.driveFileId) this.sgcF19DriveFileId = res.driveFileId;
+            if (res?.editorUrl && !this.sgcF19EditorUrl) this.sgcF19EditorUrl = res.editorUrl;
+          },
+          error: () => { /* ignore */ }
+        });
+      return;
+    }
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+  }
+
+  onSgcF19IframeLoad(): void {
+    if (this.sgcF19EditorIframeListo) return;
+    this.sgcF19EditorIframeListo = true;
+    this.sgcF19EditorCargando = false;
+  }
+
+  actualizarPlantillaSgcF19(): void {
+    if (!this.puedeGestionarPlantillasSgc || this.sgcF19ActualizandoPlantilla) return;
+    this.sgcF19ActualizandoPlantilla = true;
+    this.backendService.actualizarPlantillaSgcF19()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF19ActualizandoPlantilla = false;
+          this.aplicarEstadoSgcF19(res, false, false, true);
+        },
+        error: () => {
+          this.sgcF19ActualizandoPlantilla = false;
+        }
+      });
+  }
+
+  private fijarEditorEmbedUrlSgcF19(url: string | null, forzar = false): void {
+    if (!forzar && this.mostrarSgcF19Editor && this.sgcF19EditorEmbedUrlSafe && this.sgcF19EditorUrl === url) return;
+    if (!url) {
+      this.sgcF19EditorUrl = null;
+      this.sgcF19EditorEmbedUrlSafe = null;
+      return;
+    }
+    if (!forzar && this.sgcF19EditorUrl === url && this.sgcF19EditorEmbedUrlSafe) return;
+    this.sgcF19EditorUrl = url;
+    const embedUrl = this.urlIframeDriveSegunPermiso(url);
+    this.sgcF19EditorEmbedUrlSafe = embedUrl
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
+      : null;
+  }
+
+  private aplicarEstadoSgcF19(
+    res: any,
+    conservarEdicion = false,
+    sincronizacionSilenciosa = false,
+    forzarActualizacionDrive = false
+  ): void {
+    if (!res?.success) {
+      if (!sincronizacionSilenciosa) this.sgcF19Cargando = false;
+      this.sgcF19Listo = true;
+      return;
+    }
+    const editorAbierto = this.mostrarSgcF19Editor && !forzarActualizacionDrive;
+    const bloquearFormulario = editorAbierto || conservarEdicion;
+    if (!bloquearFormulario && res.datos) {
+      this.sgcF19IgnorarAutoSave = true;
+      this.sgcF19Listo = false;
+      this.sgcF19Form = this.normalizarSgcF19Form(res.datos);
+    }
+    const nuevoDriveId = res.driveFileId || null;
+    if (forzarActualizacionDrive || !editorAbierto) {
+      if (nuevoDriveId) this.sgcF19DriveFileId = nuevoDriveId;
+      if (res.editorUrl && (forzarActualizacionDrive || !this.mostrarSgcF19Editor)) {
+        this.fijarEditorEmbedUrlSgcF19(res.editorUrl, forzarActualizacionDrive);
+      }
+    }
+    this.sgcF19UltimaSync = res.ultimaSyncDrive || null;
+    this.sgcF19ContenidoModificado = !!res.contenidoModificado;
+    window.setTimeout(() => {
+      this.sgcF19IgnorarAutoSave = false;
+      this.sgcF19Listo = true;
+      if (!bloquearFormulario) this.sgcF19CambiosPendientes = false;
+      if (!sincronizacionSilenciosa) this.sgcF19Cargando = false;
+    }, editorAbierto ? 0 : 350);
+  }
+
+  get sgcF19IntroLead(): string {
+    if (this.plantillaSlug !== 'sgc-f-19') return '';
+    return 'Listado de conocimientos de la organización (ISO 7.1.6). Captura cada conocimiento y sube el PDF firmado; se guarda en la carpeta de firmados del SGC.';
+  }
+
   // ===================== SGC-F-16 · Minuta =====================
 
   private crearSgcF16FormVacio(): SgcF16FormData {
@@ -12373,6 +12941,418 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }, editorAbierto ? 0 : 350);
   }
 
+  // ===================== SGC-F-20 · Ficha de conocimientos =====================
+
+  private crearSgcF20FormVacio(): SgcF20FormData {
+    return {
+      fechaElaboracion: '2025-01-20',
+      revision: '00',
+      fechaRevision: '2025-01-20',
+      fichas: [],
+      fichaActivaId: null
+    };
+  }
+
+  private nuevoIdSgcF20(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return `fc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  private crearFichaSgcF20Vacia(): SgcF20Ficha {
+    return {
+      id: this.nuevoIdSgcF20(),
+      folio: '',
+      tipoFuente: '',
+      descripcion: '',
+      fechaCaptura: '',
+      pdfFirmado: null
+    };
+  }
+
+  private sanitizarPdfSgcF20(raw: any): DgF02PdfFirmado | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const driveFileId = String(raw.driveFileId || raw.drive_file_id || '').trim();
+    if (!driveFileId) return null;
+    return {
+      driveFileId,
+      nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'SGC-F-20 Ficha de conocimientos.pdf').trim(),
+      webViewLink: String(raw.webViewLink || raw.web_view_link || '').trim(),
+      previewUrl: String(raw.previewUrl || '').trim() || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      fechaSubida: raw.fechaSubida || null
+    };
+  }
+
+  private normalizarFichaSgcF20(datos: any): SgcF20Ficha {
+    const base = this.crearFichaSgcF20Vacia();
+    return {
+      id: String(datos?.id || '').trim() || this.nuevoIdSgcF20(),
+      folio: String(datos?.folio || '').trim().toUpperCase(),
+      tipoFuente: String(datos?.tipoFuente || datos?.tipo_fuente || '').trim(),
+      descripcion: String(datos?.descripcion || '').trim(),
+      fechaCaptura: String(datos?.fechaCaptura || datos?.fecha_captura || '').slice(0, 10),
+      pdfFirmado: this.sanitizarPdfSgcF20(datos?.pdfFirmado || datos?.pdf_firmado)
+    };
+  }
+
+  private normalizarSgcF20Form(datos: any): SgcF20FormData {
+    const base = this.crearSgcF20FormVacio();
+    const fichas = (Array.isArray(datos?.fichas) ? datos.fichas : [])
+      .map((f: any) => this.normalizarFichaSgcF20(f))
+      .filter((f: SgcF20Ficha) => f.tipoFuente || f.descripcion || f.fechaCaptura || f.folio || f.pdfFirmado);
+    const activa = String(datos?.fichaActivaId || '').trim();
+    return {
+      fechaElaboracion: String(datos?.fechaElaboracion || base.fechaElaboracion),
+      revision: String(datos?.revision || base.revision),
+      fechaRevision: String(datos?.fechaRevision || base.fechaRevision).slice(0, 10),
+      fichas,
+      fichaActivaId: fichas.some((f) => f.id === activa) ? activa : (fichas[0]?.id || null)
+    };
+  }
+
+  private sincronizarFichaActivaEnFormSgcF20(): void {
+    const activa = this.sgcF20FichaActiva;
+    if (!activa) {
+      this.sgcF20Form.fichaActivaId = null;
+      return;
+    }
+    const idx = (this.sgcF20Form.fichas || []).findIndex((f) => f.id === activa.id);
+    if (idx >= 0) {
+      this.sgcF20Form.fichas[idx] = activa;
+    } else {
+      this.sgcF20Form.fichas = [activa, ...(this.sgcF20Form.fichas || [])];
+    }
+    this.sgcF20Form.fichaActivaId = activa.id;
+  }
+
+  get sgcF20FichasVista(): SgcF20Ficha[] {
+    const q = this.sgcF20Busqueda.trim().toLowerCase();
+    const lista = this.sgcF20Form.fichas || [];
+    if (!q) return lista;
+    return lista.filter((f) => [f.folio, f.tipoFuente, f.descripcion, f.fechaCaptura]
+      .join(' ')
+      .toLowerCase()
+      .includes(q));
+  }
+
+  opcionesTipoFuenteSgcF20(ficha: SgcF20Ficha | null): string[] {
+    const actual = String(ficha?.tipoFuente || '').trim();
+    if (actual && !this.tiposFuenteSgcF20.includes(actual)) {
+      return [actual, ...this.tiposFuenteSgcF20];
+    }
+    return this.tiposFuenteSgcF20;
+  }
+
+  fichaFirmadaSgcF20(ficha: SgcF20Ficha | null): boolean {
+    return !!ficha?.pdfFirmado?.driveFileId;
+  }
+
+  onSgcF20Editado(): void {
+    if (!this.sgcF20Listo || this.sgcF20IgnorarAutoSave) return;
+    this.sgcF20CambiosPendientes = true;
+  }
+
+  generarFolioSgcF20(): void {
+    if (!this.sgcF20FichaActiva || this.sgcF20FichaActiva.folio) return;
+    const baseFecha = this.sgcF20FichaActiva.fechaCaptura || new Date().toISOString().slice(0, 10);
+    const d = new Date(`${baseFecha}T12:00:00`);
+    const fecha = Number.isNaN(d.getTime()) ? new Date() : d;
+    const dd = String(fecha.getDate()).padStart(2, '0');
+    const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+    const aa = String(fecha.getFullYear()).slice(-2);
+    const fechaTag = `${dd}${mm}${aa}`;
+    if (!this.sgcF20FichaActiva.fechaCaptura) {
+      this.sgcF20FichaActiva.fechaCaptura = `${fecha.getFullYear()}-${mm}-${dd}`;
+    }
+    let maximo = 0;
+    (this.sgcF20Form.fichas || []).forEach((f) => {
+      if (f.id === this.sgcF20FichaActiva?.id) return;
+      const match = String(f.folio || '').match(/^FC-(\d{6})-(\d{1,})$/i);
+      if (match && match[1] === fechaTag) {
+        const n = parseInt(match[2], 10);
+        if (Number.isFinite(n) && n > maximo) maximo = n;
+      }
+    });
+    this.sgcF20FichaActiva.folio = `FC-${fechaTag}-${String(maximo + 1).padStart(2, '0')}`;
+    this.onSgcF20Editado();
+  }
+
+  nuevaFichaSgcF20(): void {
+    const ficha = this.crearFichaSgcF20Vacia();
+    ficha.fechaCaptura = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+    this.sgcF20Form.fichas = [ficha, ...(this.sgcF20Form.fichas || [])];
+    this.sgcF20FichaActiva = ficha;
+    this.sgcF20Form.fichaActivaId = ficha.id;
+    this.sgcF20Vista = 'editor';
+    this.generarFolioSgcF20();
+    this.onSgcF20Editado();
+  }
+
+  abrirFichaSgcF20(ficha: SgcF20Ficha): void {
+    this.sgcF20FichaActiva = ficha;
+    this.sgcF20Form.fichaActivaId = ficha?.id || null;
+    this.sgcF20Vista = 'editor';
+  }
+
+  volverArchiveroSgcF20(): void {
+    this.sincronizarFichaActivaEnFormSgcF20();
+    this.sgcF20Vista = 'archivero';
+    this.sgcF20FichaActiva = null;
+    this.sgcF20Form.fichaActivaId = null;
+    if (this.mostrarSgcF20PdfViewer) this.toggleSgcF20PdfViewer();
+  }
+
+  eliminarFichaSgcF20(ficha: SgcF20Ficha, event?: Event): void {
+    event?.stopPropagation();
+    if (!confirm(`¿Eliminar la ficha ${ficha.folio || 'sin folio'}?`)) return;
+    this.sgcF20Form.fichas = (this.sgcF20Form.fichas || []).filter((f) => f.id !== ficha.id);
+    if (this.sgcF20FichaActiva?.id === ficha.id) this.volverArchiveroSgcF20();
+    this.onSgcF20Editado();
+  }
+
+  private cargarSgcF20DesdeServidor(): void {
+    this.sgcF20Cargando = true;
+    this.sgcF20Listo = false;
+    this.sgcF20Vista = 'archivero';
+    this.sgcF20FichaActiva = null;
+    this.backendService.cargarSgcF20Formato()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarEstadoSgcF20(res),
+        error: () => {
+          this.sgcF20Cargando = false;
+          this.sgcF20Listo = true;
+        }
+      });
+  }
+
+  private persistirSgcF20(): void {
+    if (!this.puedeGestionarPlantillasSgc || !this.sgcF20Listo || this.sgcF20Guardando) return;
+    this.sincronizarFichaActivaEnFormSgcF20();
+    this.sgcF20Guardando = true;
+    const editorAbierto = this.mostrarSgcF20Editor;
+    const activa = this.sgcF20FichaActiva;
+    this.backendService.guardarSgcF20Formato(
+      { ...this.sgcF20Form, fichaActivaId: activa?.id || null },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF20Guardando = false;
+          this.aplicarEstadoSgcF20(res, editorAbierto, false, false);
+        },
+        error: () => {
+          this.sgcF20Guardando = false;
+        }
+      });
+  }
+
+  descargarPdfSgcF20(): void {
+    if (this.sgcF20DescargandoPdf || !this.sgcF20FichaActiva) return;
+    this.sincronizarFichaActivaEnFormSgcF20();
+    this.sgcF20DescargandoPdf = true;
+    const folio = this.sgcF20FichaActiva.folio || 'ficha';
+    this.backendService.guardarSgcF20Formato(
+      { ...this.sgcF20Form, fichaActivaId: this.sgcF20FichaActiva.id },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.aplicarEstadoSgcF20(res, true, false, false);
+          this.backendService.descargarPdfSgcF20()
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+              next: (blob) => {
+                this.sgcF20DescargandoPdf = false;
+                const url = URL.createObjectURL(blob);
+                const enlace = document.createElement('a');
+                enlace.href = url;
+                enlace.download = `SGC-F-20 ${folio}.pdf`;
+                enlace.click();
+                URL.revokeObjectURL(url);
+              },
+              error: () => {
+                this.sgcF20DescargandoPdf = false;
+              }
+            });
+        },
+        error: () => {
+          this.sgcF20DescargandoPdf = false;
+        }
+      });
+  }
+
+  onSeleccionarPdfSgcF20(event: Event): void {
+    if (!this.sgcF20FichaActiva) return;
+    const folio = this.sgcF20FichaActiva.folio || 'sin-folio';
+    this.procesarPdfDocumento(
+      event,
+      `SGC-F-20 ${folio}.pdf`,
+      (base64, nombre) => this.subirPdfFirmadoSgcF20(base64, nombre)
+    );
+  }
+
+  private subirPdfFirmadoSgcF20(pdfBase64: string, nombreArchivo: string): void {
+    if (this.sgcF20SubiendoPdf || !this.sgcF20FichaActiva) return;
+    this.sgcF20SubiendoPdf = true;
+    this.backendService.subirPdfFirmadoSgcF20(pdfBase64, nombreArchivo, this.sgcF20FichaActiva.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF20SubiendoPdf = false;
+          this.aplicarEstadoSgcF20(res, true);
+          if (this.sgcF20FichaActiva && res?.pdfFirmado) {
+            this.sgcF20FichaActiva.pdfFirmado = this.sanitizarPdfSgcF20(res.pdfFirmado);
+            this.sincronizarFichaActivaEnFormSgcF20();
+          }
+        },
+        error: () => {
+          this.sgcF20SubiendoPdf = false;
+        }
+      });
+  }
+
+  toggleSgcF20PdfViewer(): void {
+    const id = this.sgcF20FichaActiva?.pdfFirmado?.driveFileId;
+    if (!id) return;
+    const abrir = !this.mostrarSgcF20PdfViewer;
+    this.mostrarSgcF20PdfViewer = abrir;
+    if (abrir) {
+      this.sgcF20PdfCargando = true;
+      const url = this.sgcF20FichaActiva?.pdfFirmado?.previewUrl
+        || `https://drive.google.com/file/d/${id}/preview`;
+      this.sgcF20PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    this.sgcF20PdfEmbedUrlSafe = null;
+    this.sgcF20PdfCargando = false;
+  }
+
+  onSgcF20PdfIframeLoad(): void {
+    this.sgcF20PdfCargando = false;
+  }
+
+  toggleSgcF20Editor(): void {
+    if (!this.sgcF20DriveFileId) return;
+    const abrir = !this.mostrarSgcF20Editor;
+    this.mostrarSgcF20Editor = abrir;
+    if (abrir) {
+      this.sgcF20EditorIframeListo = false;
+      this.sgcF20EditorCargando = true;
+      this.fijarEditorEmbedUrlSgcF20(this.resolverUrlEditorDrive(this.sgcF20EditorUrl, this.sgcF20DriveFileId), true);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+  }
+
+  onSgcF20IframeLoad(): void {
+    if (this.sgcF20EditorIframeListo) return;
+    this.sgcF20EditorIframeListo = true;
+    this.sgcF20EditorCargando = false;
+  }
+
+  actualizarPlantillaSgcF20(): void {
+    if (!this.puedeGestionarPlantillasSgc || this.sgcF20ActualizandoPlantilla) return;
+    this.sgcF20ActualizandoPlantilla = true;
+    this.backendService.actualizarPlantillaSgcF20()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF20ActualizandoPlantilla = false;
+          this.aplicarEstadoSgcF20(res, false, false, true);
+        },
+        error: () => {
+          this.sgcF20ActualizandoPlantilla = false;
+        }
+      });
+  }
+
+  private fijarEditorEmbedUrlSgcF20(url: string | null, forzar = false): void {
+    if (!forzar && this.mostrarSgcF20Editor && this.sgcF20EditorEmbedUrlSafe && this.sgcF20EditorUrl === url) return;
+    if (!url) {
+      this.sgcF20EditorUrl = null;
+      this.sgcF20EditorEmbedUrlSafe = null;
+      return;
+    }
+    if (!forzar && this.sgcF20EditorUrl === url && this.sgcF20EditorEmbedUrlSafe) return;
+    this.sgcF20EditorUrl = url;
+    const embedUrl = this.urlIframeDriveSegunPermiso(url);
+    this.sgcF20EditorEmbedUrlSafe = embedUrl
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
+      : null;
+  }
+
+  private sincronizarFichaActivaSgcF20(activoId: string | null, conservarEditorSiExiste: boolean): void {
+    if (!activoId) {
+      this.sgcF20FichaActiva = null;
+      this.sgcF20Form.fichaActivaId = null;
+      if (!conservarEditorSiExiste) this.sgcF20Vista = 'archivero';
+      return;
+    }
+    const encontrada = (this.sgcF20Form.fichas || []).find((f) => f.id === activoId) || null;
+    this.sgcF20FichaActiva = encontrada;
+    this.sgcF20Form.fichaActivaId = encontrada?.id || null;
+    if (conservarEditorSiExiste && encontrada) {
+      this.sgcF20Vista = 'editor';
+    } else {
+      this.sgcF20Vista = 'archivero';
+      this.sgcF20FichaActiva = null;
+      this.sgcF20Form.fichaActivaId = null;
+    }
+  }
+
+  private aplicarEstadoSgcF20(
+    res: any,
+    conservarEdicion = false,
+    sincronizacionSilenciosa = false,
+    forzarActualizacionDrive = false
+  ): void {
+    if (!res?.success) {
+      if (!sincronizacionSilenciosa) this.sgcF20Cargando = false;
+      this.sgcF20Listo = true;
+      return;
+    }
+    const editorAbierto = this.mostrarSgcF20Editor && !forzarActualizacionDrive;
+    const bloquearFormulario = editorAbierto || conservarEdicion;
+    const activoId = this.sgcF20FichaActiva?.id || null;
+    const conservarEditor = this.sgcF20Vista === 'editor' && !!activoId;
+    if (!bloquearFormulario && res.datos) {
+      this.sgcF20IgnorarAutoSave = true;
+      this.sgcF20Listo = false;
+      this.sgcF20Form = this.normalizarSgcF20Form(res.datos);
+      this.sincronizarFichaActivaSgcF20(activoId, conservarEditor);
+    }
+    const nuevoDriveId = res.driveFileId || null;
+    if (forzarActualizacionDrive || !editorAbierto) {
+      if (nuevoDriveId) this.sgcF20DriveFileId = nuevoDriveId;
+      if (res.editorUrl && (forzarActualizacionDrive || !this.mostrarSgcF20Editor)) {
+        this.fijarEditorEmbedUrlSgcF20(res.editorUrl, forzarActualizacionDrive);
+      }
+    }
+    this.sgcF20UltimaSync = res.ultimaSyncDrive || null;
+    this.sgcF20ContenidoModificado = !!res.contenidoModificado;
+    if (Array.isArray(res?.datos?.tiposFuente) && res.datos.tiposFuente.length) {
+      const extras = (res.datos.tiposFuente as string[]).filter((t) => t && !this.tiposFuenteSgcF20.includes(t));
+      extras.forEach((t) => this.tiposFuenteSgcF20.push(t));
+    }
+    window.setTimeout(() => {
+      this.sgcF20IgnorarAutoSave = false;
+      this.sgcF20Listo = true;
+      if (!bloquearFormulario) this.sgcF20CambiosPendientes = false;
+      if (!sincronizacionSilenciosa) this.sgcF20Cargando = false;
+    }, editorAbierto ? 0 : 350);
+  }
+
   // ===================== ATH-F-06 · DNC =====================
 
   private crearAthF06FormVacio(): AthF06FormData {
@@ -13561,8 +14541,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: ({ usuarios, formato, guardado }) => {
-          this.athF14Filas = this.construirFilasAthF14(usuarios, formato);
-          this.aplicarGuardadosAthF14(guardado?.datos?.filas);
+          this.prepararCatalogoYSolicitudesAthF14(usuarios, formato);
+          this.athF14Filas = this.filasDesdeGuardadoAthF14(guardado?.datos?.filas);
           if (guardado?.driveFileId) this.athF14DriveFileId = guardado.driveFileId;
           if (guardado?.editorUrl) this.athF14EditorUrl = guardado.editorUrl;
           this.athF14UltimaSync = guardado?.ultimaSyncDrive || null;
@@ -13595,6 +14575,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   onFechaIngresoAthF14(fila: AthF14Fila, valor: string): void {
+    if (!this.puedeEditarAthF14) return;
     fila.fechaIngreso = String(valor || '').trim();
     fila.diasDisponibles = this.diasDisponiblesLftAthF14(fila.fechaIngreso);
     this.recalcularDerivadosAthF14(fila);
@@ -13602,9 +14583,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   onDiasDisponiblesAthF14(fila: AthF14Fila, valor: string): void {
+    if (!this.puedeEditarAthF14) return;
     const n = parseInt(String(valor ?? '').replace(/[^\d]/g, ''), 10);
     fila.diasDisponibles = Number.isFinite(n) ? n : 0;
-    fila.diasRestantes = fila.diasDisponibles - fila.diasTomados;
+    fila.diasRestantes = Math.max(0, fila.diasDisponibles - fila.diasTomados);
     this.onAthF14Editado();
   }
 
@@ -13626,6 +14608,175 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     document.documentElement.style.overflow = this.mostrarAthF14Editor ? 'hidden' : '';
     document.body.style.overflow = this.mostrarAthF14Editor ? 'hidden' : '';
+  }
+
+  get spF04FilasVista(): SpF04Fila[] {
+    const q = this.normalizarTextoAthF11(this.spF04Busqueda);
+    return this.spF04Filas.filter((fila) => {
+      if (this.spF04FiltroEstatus !== 'todos' && fila.estatus !== this.spF04FiltroEstatus) {
+        return false;
+      }
+      if (!q) return true;
+      return [
+        fila.numeroCotizacion,
+        fila.numeroProyecto,
+        fila.empresa,
+        fila.nombreProyecto,
+        fila.responsable,
+        fila.observaciones,
+        fila.estatus,
+        fila.folio
+      ].some((valor) => this.normalizarTextoAthF11(valor).includes(q));
+    });
+  }
+
+  get spF04Abiertos(): number {
+    return this.spF04Filas.filter((fila) => fila.estatus !== 'Cerrado').length;
+  }
+
+  get spF04Cerrados(): number {
+    return this.spF04Filas.filter((fila) => fila.estatus === 'Cerrado').length;
+  }
+
+  abrirResumenSpF04(fila: SpF04Fila): void {
+    this.spF04Detalle = fila;
+    setTimeout(() => {
+      const dialog = this.host.nativeElement.querySelector('.sp-f-04-modal__dialog') as HTMLElement | null;
+      dialog?.focus();
+    }, 0);
+  }
+
+  cerrarResumenSpF04(): void {
+    this.spF04Detalle = null;
+  }
+
+  moverResumenSpF04(delta: number): void {
+    const lista = this.spF04FilasVista;
+    if (lista.length < 2) return;
+    const indice = this.indiceResumenSpF04();
+    if (indice < 0) return;
+    const siguiente = (indice + delta + lista.length) % lista.length;
+    this.spF04Detalle = lista[siguiente];
+  }
+
+  private indiceResumenSpF04(): number {
+    const det = this.spF04Detalle;
+    if (!det) return -1;
+    return this.spF04FilasVista.findIndex((fila) =>
+      fila.folio === det.folio && fila.empresa === det.empresa && fila.nombreProyecto === det.nombreProyecto
+    );
+  }
+
+  irAlProyectoSpF04(): void {
+    const fila = this.spF04Detalle;
+    if (!fila) return;
+    const folio = (fila.folio || fila.numeroProyecto || fila.nombreProyecto || '').trim();
+    if (!folio) return;
+    this.spF04Detalle = null;
+    this.router.navigate(['/control-proyectos'], {
+      queryParams: {
+        vista: 'gestion',
+        folio,
+        empresa: fila.empresa || null
+      }
+    });
+  }
+
+  cargarSpF04(forzar = false): void {
+    this.spF04Cargando = true;
+    this.spF04Error = '';
+    const peticion = forzar
+      ? this.backendService.actualizarSpF04Formato()
+      : this.backendService.cargarSpF04Formato();
+    peticion.pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res) => {
+        const filas = Array.isArray(res?.datos?.filas) ? res.datos.filas : [];
+        this.spF04Filas = filas.map((fila: SpF04Fila) => ({
+          numero: Number(fila?.numero) || 0,
+          numeroCotizacion: String(fila?.numeroCotizacion || ''),
+          numeroProyecto: String(fila?.numeroProyecto || ''),
+          empresa: String(fila?.empresa || ''),
+          nombreProyecto: String(fila?.nombreProyecto || ''),
+          responsable: String(fila?.responsable || ''),
+          observaciones: String(fila?.observaciones || ''),
+          estatus: fila?.estatus === 'Cerrado' ? 'Cerrado' : 'Abierto',
+          avance: Number(fila?.avance) || 0,
+          folio: String(fila?.folio || '')
+        }));
+        this.spF04DriveFileId = String(res?.driveFileId || '');
+        this.spF04EditorUrl = String(res?.editorUrl || '');
+        this.spF04UltimaSync = res?.ultimaSyncDrive || null;
+        this.spF04Aviso = String(res?.aviso || '');
+        this.spF04Cargando = false;
+        if (!res?.success && !res?.datos) {
+          this.spF04Error = 'No se pudo armar el control de proyectos. Reinicia el backend e inténtalo de nuevo.';
+        }
+        if (this.mostrarSpF04Editor && this.spF04EditorUrl) {
+          this.spF04EditorSrcCache = this.sanitizer.bypassSecurityTrustResourceUrl(this.spF04EditorUrl);
+        }
+      },
+      error: () => {
+        this.spF04Filas = [];
+        this.spF04Cargando = false;
+        this.spF04Error = 'No se pudo cargar SP-F-04. Reinicia el backend para publicar este formato.';
+      }
+    });
+  }
+
+  trackBySpF04(_index: number, fila: SpF04Fila): string {
+    return fila.folio || String(fila.numero);
+  }
+
+  descargarPdfSpF04(): void {
+    if (this.spF04DescargandoPdf || this.spF04Cargando) return;
+    this.spF04DescargandoPdf = true;
+    this.backendService.descargarPdfSpF04()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.spF04DescargandoPdf = false;
+          if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo generar el PDF',
+              text: 'Reinicia el backend e inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = 'SP-F-04 Control de Proyectos Biznaga 2026.pdf';
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.spF04DescargandoPdf = false;
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo generar el PDF',
+            text: 'Reinicia el backend e inténtalo de nuevo.',
+            confirmButtonText: 'Entendido'
+          });
+        }
+      });
+  }
+
+  get spF04EditorSrc(): SafeResourceUrl | null {
+    return this.mostrarSpF04Editor ? this.spF04EditorSrcCache : null;
+  }
+
+  toggleSpF04Editor(): void {
+    if (!this.spF04DriveFileId) return;
+    this.mostrarSpF04Editor = !this.mostrarSpF04Editor;
+    if (this.mostrarSpF04Editor) {
+      const url = this.spF04EditorUrl
+        || `https://docs.google.com/spreadsheets/d/${encodeURIComponent(this.spF04DriveFileId)}/edit?usp=sharing&embedded=true&single=true`;
+      this.spF04EditorSrcCache = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    }
+    document.documentElement.style.overflow = this.mostrarSpF04Editor ? 'hidden' : '';
+    document.body.style.overflow = this.mostrarSpF04Editor ? 'hidden' : '';
   }
 
   onAthF14IframeLoad(): void {
@@ -13689,7 +14840,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           }
         });
     };
-    if (this.athF14CambiosPendientes && this.athF14Listo && this.puedeGestionarPlantillasSgc) {
+    if (this.athF14CambiosPendientes && this.athF14Listo && this.puedeEditarAthF14) {
       this.athF14Guardando = true;
       this.athF14Error = '';
       this.backendService.guardarAthF14Formato({ filas: this.athF14Filas })
@@ -13711,8 +14862,76 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     iniciar();
   }
 
+  get puedeEditarAthF14(): boolean {
+    if (this.authService.esRoot()) return true;
+    const username = String(this.authService.getUsername() || '').toLowerCase().trim();
+    return username === 'supersu' || username === 'mafer295' || username === 'marisol12';
+  }
+
+  get athF14Candidatos(): AthF11EmpleadoCatalogo[] {
+    const ocupados = new Set(this.athF14Filas.map((fila) => this.normalizarTextoAthF11(fila.nombreCompleto)));
+    const q = this.normalizarTextoAthF11(this.athF14PickerQuery);
+    return this.athF14Catalogo.filter((emp) => {
+      const key = this.normalizarTextoAthF11(emp.nombreCompleto);
+      if (!key || ocupados.has(key)) return false;
+      if (!q) return true;
+      return this.normalizarTextoAthF11(`${emp.nombreCompleto} ${emp.puesto} ${emp.areaDepartamento}`).includes(q);
+    });
+  }
+
+  esFilaNuevaAthF14(fila: AthF14Fila): boolean {
+    return !!fila && this.athF14RecienAgregado === this.normalizarTextoAthF11(fila.nombreCompleto);
+  }
+
+  inicialesAthF14(nombre: string): string {
+    const partes = String(nombre || '').trim().split(/\s+/).filter(Boolean);
+    const letras = partes.slice(0, 2).map((p) => p.charAt(0).toUpperCase());
+    return letras.join('') || '·';
+  }
+
+  togglePickerAthF14(): void {
+    if (!this.puedeEditarAthF14) return;
+    this.athF14PickerAbierto = !this.athF14PickerAbierto;
+    if (this.athF14PickerAbierto) this.athF14PickerQuery = '';
+  }
+
+  agregarUsuarioAthF14(emp: AthF11EmpleadoCatalogo): void {
+    if (!this.puedeEditarAthF14 || !emp?.nombreCompleto) return;
+    const key = this.normalizarTextoAthF11(emp.nombreCompleto);
+    if (this.athF14Filas.some((fila) => this.normalizarTextoAthF11(fila.nombreCompleto) === key)) return;
+    const fila = this.filaAthF14DesdeSolicitudes(
+      emp.nombreCompleto,
+      this.athF14SolicitudesPorNombre.get(key) || []
+    );
+    this.athF14Filas = [...this.athF14Filas, fila];
+    this.athF14RecienAgregado = key;
+    this.athF14PickerQuery = '';
+    this.onAthF14Editado();
+    window.setTimeout(() => {
+      if (this.athF14RecienAgregado === key) this.athF14RecienAgregado = '';
+    }, 720);
+  }
+
+  quitarUsuarioAthF14(fila: AthF14Fila): void {
+    if (!this.puedeEditarAthF14 || !fila) return;
+    void Swal.fire({
+      icon: 'warning',
+      title: 'Quitar colaborador',
+      text: `¿Quitar a ${fila.nombreCompleto} del control de vacaciones?`,
+      showCancelButton: true,
+      confirmButtonText: 'Quitar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0f766e'
+    }).then((resultado) => {
+      if (!resultado.isConfirmed) return;
+      const key = this.normalizarTextoAthF11(fila.nombreCompleto);
+      this.athF14Filas = this.athF14Filas.filter((item) => this.normalizarTextoAthF11(item.nombreCompleto) !== key);
+      this.onAthF14Editado();
+    });
+  }
+
   private persistirAthF14(): void {
-    if (!this.puedeGestionarPlantillasSgc || !this.athF14Listo || this.athF14Guardando) return;
+    if (!this.puedeEditarAthF14 || !this.athF14Listo || this.athF14Guardando) return;
     this.athF14Guardando = true;
     this.athF14Error = '';
     this.backendService.guardarAthF14Formato({ filas: this.athF14Filas })
@@ -13730,7 +14949,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
-  private construirFilasAthF14(resUsuarios: any, resFormato: any): AthF14Fila[] {
+  private prepararCatalogoYSolicitudesAthF14(resUsuarios: any, resFormato: any): void {
     const usuarios: any[] = Array.isArray(resUsuarios?.usuarios) ? resUsuarios.usuarios : [];
     const solicitudesRaw = resFormato?.datos?.solicitudes;
     const solicitudes: AthF13Solicitud[] = Array.isArray(solicitudesRaw)
@@ -13746,7 +14965,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.athF14SolicitudesPorNombre = porNombre;
 
-    const filas: AthF14Fila[] = [];
+    const catalogo: AthF11EmpleadoCatalogo[] = [];
     const vistos = new Set<string>();
     for (const usuario of usuarios) {
       if (this.esPerfilEmpresaAthF11(usuario)) continue;
@@ -13754,9 +14973,36 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       const key = this.normalizarTextoAthF11(emp.nombreCompleto);
       if (!key || vistos.has(key)) continue;
       vistos.add(key);
-      filas.push(this.filaAthF14DesdeSolicitudes(emp.nombreCompleto, porNombre.get(key) || []));
+      catalogo.push(emp);
     }
-    return filas.sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto, 'es'));
+    this.athF14Catalogo = catalogo.sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto, 'es'));
+  }
+
+  private filasDesdeGuardadoAthF14(filasGuardadas: unknown): AthF14Fila[] {
+    const lista = Array.isArray(filasGuardadas) ? filasGuardadas as AthF14Guardado[] : [];
+    const filas: AthF14Fila[] = [];
+    const vistos = new Set<string>();
+    for (const item of lista) {
+      const nombre = String(item?.nombreCompleto || '').trim();
+      const key = this.normalizarTextoAthF11(nombre);
+      if (!key || vistos.has(key)) continue;
+      vistos.add(key);
+      const catalogo = this.athF14Catalogo.find((emp) => this.normalizarTextoAthF11(emp.nombreCompleto) === key);
+      const fechaIngreso = String(item?.fechaIngreso || '').trim();
+      const dias = Number(item?.diasDisponibles);
+      const fila: AthF14Fila = {
+        nombreCompleto: catalogo?.nombreCompleto || nombre,
+        fechaIngreso,
+        antiguedad: '',
+        diasDisponibles: Number.isFinite(dias) && dias >= 0 ? Math.floor(dias) : this.diasDisponiblesLftAthF14(fechaIngreso),
+        diasTomados: 0,
+        diasRestantes: 0,
+        fechaVacaciones: ''
+      };
+      this.recalcularDerivadosAthF14(fila);
+      filas.push(fila);
+    }
+    return filas;
   }
 
   private filaAthF14DesdeSolicitudes(nombreCompleto: string, solicitudes: AthF13Solicitud[]): AthF14Fila {
@@ -13778,31 +15024,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return fila;
   }
 
-  private aplicarGuardadosAthF14(filasGuardadas: unknown): void {
-    const lista = Array.isArray(filasGuardadas) ? filasGuardadas as AthF14Guardado[] : [];
-    if (!lista.length) return;
-    const mapa = new Map<string, AthF14Guardado>();
-    for (const item of lista) {
-      const key = this.normalizarTextoAthF11(item?.nombreCompleto || '');
-      if (!key) continue;
-      mapa.set(key, item);
-    }
-    for (const fila of this.athF14Filas) {
-      const guardado = mapa.get(this.normalizarTextoAthF11(fila.nombreCompleto));
-      if (!guardado) continue;
-      fila.fechaIngreso = String(guardado.fechaIngreso || '').trim();
-      const dias = Number(guardado.diasDisponibles);
-      fila.diasDisponibles = Number.isFinite(dias) && dias >= 0 ? dias : 0;
-      this.recalcularDerivadosAthF14(fila);
-    }
-  }
-
   private recalcularDerivadosAthF14(fila: AthF14Fila, solicitudes?: AthF13Solicitud[]): void {
     const lista = solicitudes || this.athF14SolicitudesPorNombre.get(this.normalizarTextoAthF11(fila.nombreCompleto)) || [];
     const periodo = this.periodoVigenteAthF14(fila.fechaIngreso);
     const delPeriodo = lista.filter((s) => this.solicitudEnPeriodoAthF14(s, periodo));
     fila.diasTomados = delPeriodo.reduce((suma, s) => suma + this.diasSolicitadosNumeroAthF14(s), 0);
-    fila.diasRestantes = fila.diasDisponibles - fila.diasTomados;
+    fila.diasRestantes = Math.max(0, fila.diasDisponibles - fila.diasTomados);
     fila.antiguedad = this.etiquetaAntiguedadAthF14(fila.fechaIngreso);
     fila.fechaVacaciones = delPeriodo
       .slice()
@@ -14158,13 +15385,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   onDiasSolicitadosAthF13Change(valor: string): void {
     if (!this.athF13SolicitudActiva) return;
     const digits = String(valor || '').replace(/[^\d]/g, '');
-    const tope = this.diasDisponiblesAthF13Activo;
+    const tope = this.topeDiasAthF13Activo;
     const n = parseInt(digits, 10);
     if (tope != null && Number.isFinite(n) && n > tope) {
       this.athF13SolicitudActiva.diasSolicitados = tope > 0 ? String(tope) : '';
       this.athF13AvisoAjuste = tope > 0
-        ? `No es posible solicitar más de ${tope} días disponibles.`
-        : 'Este colaborador no tiene días disponibles.';
+        ? `No es posible solicitar más de ${tope} días restantes.`
+        : 'Este colaborador no tiene días restantes.';
       if (tope < 1) {
         this.athF13SolicitudActiva.fechaTermino = '';
         this.athF13SolicitudActiva.fechaReincorporacion = '';
@@ -14302,29 +15529,52 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.onAthF13Editado();
   }
 
-  get diasDisponiblesAthF13Activo(): number | null {
-    const nombre = this.normalizarTextoAthF13(this.athF13SolicitudActiva?.nombreCompleto || '');
+  /** Máximo que esta solicitud puede pedir: disponibles del control menos lo ya tomado por las demás. */
+  get topeDiasAthF13Activo(): number | null {
+    const sol = this.athF13SolicitudActiva;
+    const nombre = this.normalizarTextoAthF13(sol?.nombreCompleto || '');
     if (!nombre) return null;
-    if (this.athF13DiasPorNombre.has(nombre)) return this.athF13DiasPorNombre.get(nombre) ?? 0;
-    const fecha = String(this.athF13SolicitudActiva?.fechaIngreso || '').trim();
-    if (!fecha) return null;
-    return this.diasDisponiblesLftAthF14(fecha);
+    const base = this.athF13SaldoPorNombre.get(nombre);
+    const fechaIngreso = base?.fechaIngreso || String(sol?.fechaIngreso || '').trim();
+    const disponibles = base
+      ? base.diasDisponibles
+      : (fechaIngreso ? this.diasDisponiblesLftAthF14(fechaIngreso) : null);
+    if (disponibles == null) return null;
+    const tomadosOtros = this.diasTomadosOtrosAthF13(nombre, fechaIngreso, sol?.id || null);
+    return Math.max(0, disponibles - tomadosOtros);
+  }
+
+  /** Saldo que quedaría en el control después de los días de esta solicitud. */
+  get diasRestantesAthF13Activo(): number | null {
+    const tope = this.topeDiasAthF13Activo;
+    if (tope == null) return null;
+    const dias = parseInt(String(this.athF13SolicitudActiva?.diasSolicitados || ''), 10);
+    const usados = Number.isFinite(dias) && dias > 0 ? dias : 0;
+    return Math.max(0, tope - usados);
   }
 
   get solicitudAthF13ExcedeDisponibles(): boolean {
-    const tope = this.diasDisponiblesAthF13Activo;
+    const tope = this.topeDiasAthF13Activo;
     const dias = parseInt(String(this.athF13SolicitudActiva?.diasSolicitados || ''), 10);
     return tope != null && Number.isFinite(dias) && dias > tope;
   }
 
   get mensajeDiasAthF13(): string {
-    const tope = this.diasDisponiblesAthF13Activo;
+    const tope = this.topeDiasAthF13Activo;
     if (this.solicitudAthF13ExcedeDisponibles && tope != null) {
       return tope > 0
-        ? `No es posible exceder los ${tope} días disponibles de este colaborador.`
-        : 'Este colaborador no tiene días disponibles.';
+        ? `No es posible exceder los ${tope} días restantes de este colaborador.`
+        : 'Este colaborador no tiene días restantes.';
     }
     return this.athF13AvisoAjuste;
+  }
+
+  private diasTomadosOtrosAthF13(nombreClave: string, fechaIngreso: string, excluirId: string | null): number {
+    const periodo = this.periodoVigenteAthF14(fechaIngreso);
+    return (this.athF13Form?.solicitudes || [])
+      .filter((s) => s.id !== excluirId && this.normalizarTextoAthF13(s.nombreCompleto) === nombreClave)
+      .filter((s) => this.solicitudEnPeriodoAthF14(s, periodo))
+      .reduce((suma, s) => suma + this.diasSolicitadosNumeroAthF14(s), 0);
   }
 
   private cargarDiasDisponiblesAthF13(): void {
@@ -14333,24 +15583,28 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (res) => {
           const filas = Array.isArray(res?.datos?.filas) ? res.datos.filas : [];
-          const mapa = new Map<string, number>();
+          const mapa = new Map<string, { diasDisponibles: number; fechaIngreso: string }>();
           for (const fila of filas) {
             const clave = this.normalizarTextoAthF13(fila?.nombreCompleto || '');
             if (!clave) continue;
             const n = Number(fila?.diasDisponibles);
-            mapa.set(clave, Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
+            mapa.set(clave, {
+              diasDisponibles: Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0,
+              fechaIngreso: String(fila?.fechaIngreso || '').trim()
+            });
           }
-          this.athF13DiasPorNombre = mapa;
+          this.athF13SaldoPorNombre = mapa;
+          this.refrescarIdentidadSolicitudAbiertaAthF13();
         },
         error: () => {
-          this.athF13DiasPorNombre = new Map();
+          this.athF13SaldoPorNombre = new Map();
         }
       });
   }
 
   private ajustarRangoAlSaldoAthF13(): void {
     const sol = this.athF13SolicitudActiva;
-    const tope = this.diasDisponiblesAthF13Activo;
+    const tope = this.topeDiasAthF13Activo;
     if (!sol || tope == null) {
       this.athF13AvisoAjuste = '';
       return;
@@ -14364,7 +15618,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       sol.fechaTermino = '';
       sol.diasSolicitados = '';
       sol.fechaReincorporacion = '';
-      this.athF13AvisoAjuste = 'Este colaborador no tiene días disponibles.';
+      this.athF13AvisoAjuste = 'Este colaborador no tiene días restantes.';
       return;
     }
     if (sol.fechaInicio) {
@@ -14374,7 +15628,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         : '';
     }
     sol.diasSolicitados = String(tope);
-    this.athF13AvisoAjuste = `No es posible exceder los ${tope} días disponibles. El periodo se ajustó a ese saldo.`;
+    this.athF13AvisoAjuste = `No es posible exceder los ${tope} días restantes. El periodo se ajustó a ese saldo.`;
   }
 
   get athF13ResumenRango(): string {
@@ -14392,6 +15646,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         next: (res: any) => {
           const usuarios: any[] = Array.isArray(res?.usuarios) ? res.usuarios : [];
           const mapa = new Map<string, { nombreCompleto: string; puesto: string; areaDepartamento: string }>();
+          const username = String(this.authService.getUsername() || '').toLowerCase().trim();
+          const usuarioId = String(this.authService.getUsuario()?.id || '');
+          let perfil: { nombreCompleto: string; puesto: string; areaDepartamento: string } | null = null;
           for (const u of usuarios) {
             if (this.esPerfilEmpresaAthF11(u)) continue;
             const item = this.mapearEmpleadoCatalogoAthF11(u);
@@ -14404,9 +15661,20 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
                 areaDepartamento: item.areaDepartamento
               });
             }
+            const esActivo = (username && String(u?.username || '').toLowerCase().trim() === username)
+              || (usuarioId && String(u?.id || u?.usuario_id || '') === usuarioId);
+            if (esActivo) {
+              perfil = {
+                nombreCompleto: item.nombreCompleto,
+                puesto: item.puesto,
+                areaDepartamento: item.areaDepartamento
+              };
+            }
           }
+          this.athF13PerfilActivo = perfil;
           this.athF13ColaboradoresCatalogo = Array.from(mapa.values())
             .sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto, 'es'));
+          this.refrescarIdentidadSolicitudAbiertaAthF13();
         },
         error: () => {
           this.athF13ColaboradoresCatalogo = [];
@@ -14489,7 +15757,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.athF13SolicitudActiva.areaDepartamento = emp.areaDepartamento || '';
     this.athF13NombreComboQuery = emp.nombreCompleto;
     this.athF13NombreComboAbierto = false;
-    this.athF13AvisoAjuste = '';
+    this.ajustarRangoAlSaldoAthF13();
     this.onAthF13Editado();
   }
 
@@ -14498,7 +15766,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.athF13SolicitudActiva.nombreCompleto = String(nombre || '').trim();
     this.athF13NombreComboQuery = this.athF13SolicitudActiva.nombreCompleto;
     this.athF13NombreComboAbierto = false;
-    this.athF13AvisoAjuste = '';
+    this.ajustarRangoAlSaldoAthF13();
     this.onAthF13Editado();
   }
 
@@ -14534,9 +15802,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   nuevaSolicitudAthF13(): void {
+    if (!this.athF13PuedeSolicitar) return;
     const solicitud = this.crearSolicitudAthF13Vacia();
     solicitud.lugarFecha = '';
     solicitud.fechaInicio = '';
+    this.asignarColaboradorPropioAthF13(solicitud);
     this.athF13Form.solicitudes = [solicitud, ...(this.athF13Form.solicitudes || [])];
     this.athF13SolicitudActiva = solicitud;
     this.athF13Form.solicitudActivaId = solicitud.id;
@@ -14554,6 +15824,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.athF13Form.solicitudActivaId = solicitud?.id || null;
     this.athF13Vista = 'editor';
     this.athF13DriveFileId = solicitud?.driveFileId || null;
+    this.completarCamposVaciosIdentidadAthF13(solicitud);
     this.alinearCalendarioAthF13AFechas();
     this.athF13AutosizeTick += 1;
     this.athF13AvisoAjuste = '';
@@ -14597,9 +15868,101 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
+  get athF13PuedeSolicitar(): boolean {
+    return !!this.athF13Acceso?.permitido;
+  }
+
+  get athF13EsGestorVacaciones(): boolean {
+    return !!this.athF13Acceso?.esGestor;
+  }
+
+  private aplicarAccesoAthF13(res: any): void {
+    const acceso = res?.acceso;
+    if (!acceso || typeof acceso !== 'object') return;
+    this.athF13Acceso = {
+      permitido: !!acceso.permitido,
+      esGestor: !!acceso.esGestor,
+      registrado: !!acceso.registrado,
+      nombreRegistrado: String(acceso.nombreRegistrado || '').trim()
+    };
+  }
+
+  private claveNombreAthF13(nombre: string): string {
+    return String(nombre || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/^(ing|mtro|mtra|dr|dra|doc|lic|prof|arq|c)\.?\s+/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private perfilActivoAthF13(): { nombreCompleto: string; puesto: string; areaDepartamento: string } {
+    if (this.athF13PerfilActivo?.nombreCompleto) return this.athF13PerfilActivo;
+    const nombre = this.athF13Acceso.nombreRegistrado
+      || this.quitarCargoAthF11(this.authService.getNombreCompleto() || '');
+    const emp = this.athF13ColaboradoresCatalogo.find(
+      (e) => this.claveNombreAthF13(e.nombreCompleto) === this.claveNombreAthF13(nombre)
+    );
+    return {
+      nombreCompleto: emp?.nombreCompleto || this.athF13Acceso.nombreRegistrado || nombre,
+      puesto: emp?.puesto || '',
+      areaDepartamento: emp?.areaDepartamento || ''
+    };
+  }
+
+  private fechaIngresoDeNombreAthF13(nombre: string): string {
+    const saldo = this.athF13SaldoPorNombre.get(this.normalizarTextoAthF13(nombre));
+    return saldo?.fechaIngreso || '';
+  }
+
+  private asignarColaboradorPropioAthF13(solicitud: AthF13Solicitud): void {
+    const perfil = this.perfilActivoAthF13();
+    if (perfil.nombreCompleto) solicitud.nombreCompleto = perfil.nombreCompleto;
+    solicitud.puesto = perfil.puesto || '';
+    solicitud.areaDepartamento = perfil.areaDepartamento || '';
+    solicitud.fechaIngreso = this.fechaIngresoDeNombreAthF13(solicitud.nombreCompleto);
+  }
+
+  private completarCamposVaciosIdentidadAthF13(solicitud: AthF13Solicitud | null | undefined): void {
+    if (!solicitud) return;
+    if (!solicitud.nombreCompleto) {
+      this.asignarColaboradorPropioAthF13(solicitud);
+      return;
+    }
+    const clave = this.normalizarTextoAthF13(solicitud.nombreCompleto);
+    const emp = this.athF13ColaboradoresCatalogo.find(
+      (e) => this.normalizarTextoAthF13(e.nombreCompleto) === clave
+    );
+    if (!solicitud.puesto && emp?.puesto) solicitud.puesto = emp.puesto;
+    if (!solicitud.areaDepartamento && emp?.areaDepartamento) solicitud.areaDepartamento = emp.areaDepartamento;
+    if (!solicitud.fechaIngreso) {
+      const ingreso = this.fechaIngresoDeNombreAthF13(solicitud.nombreCompleto);
+      if (ingreso) solicitud.fechaIngreso = ingreso;
+    }
+  }
+
+  private refrescarIdentidadSolicitudAbiertaAthF13(): void {
+    const sol = this.athF13SolicitudActiva;
+    if (!sol) return;
+    const antes = `${sol.nombreCompleto}|${sol.puesto}|${sol.areaDepartamento}|${sol.fechaIngreso}`;
+    if (!sol.driveFileId && !sol.puesto && !sol.areaDepartamento) {
+      this.asignarColaboradorPropioAthF13(sol);
+    } else {
+      this.completarCamposVaciosIdentidadAthF13(sol);
+    }
+    const despues = `${sol.nombreCompleto}|${sol.puesto}|${sol.areaDepartamento}|${sol.fechaIngreso}`;
+    if (antes !== despues && this.athF13Listo && !this.athF13IgnorarAutoSave) this.onAthF13Editado();
+  }
+
   private persistirAthF13(): void {
-    if (!this.puedeGestionarPlantillasSgc || !this.athF13Listo || this.athF13Guardando) return;
+    if (!this.athF13PuedeSolicitar || !this.athF13Listo || this.athF13Guardando) return;
     if (this.solicitudAthF13ExcedeDisponibles) return;
+    if (!this.athF13EsGestorVacaciones && this.athF13Acceso.nombreRegistrado) {
+      const nombre = this.athF13Acceso.nombreRegistrado;
+      if (this.athF13SolicitudActiva) this.athF13SolicitudActiva.nombreCompleto = nombre;
+      (this.athF13Form.solicitudes || []).forEach((s) => { s.nombreCompleto = nombre; });
+    }
     this.sincronizarSolicitudActivaEnFormAthF13();
     this.athF13Guardando = true;
     const editorAbierto = this.mostrarAthF13Editor;
@@ -14839,6 +16202,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     sincronizacionSilenciosa = false,
     forzarActualizacionDrive = false
   ): void {
+    this.aplicarAccesoAthF13(res);
     if (!res?.success) {
       if (!sincronizacionSilenciosa) this.athF13Cargando = false;
       this.athF13Listo = true;
@@ -19582,15 +20946,32 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return maximo + 1;
   }
 
-  /** Total de no conformidades con estatus abierto (para el resumen del panel). */
+  /** NC de la bitácora cuya fuente es Auditoría interna (con o sin acento). */
+  private esAuditoriaInternaSgcF05(registro: SgcF05RegistroItem): boolean {
+    const fuente = String(registro?.fuente || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    return fuente.includes('auditoria interna');
+  }
+
+  private get sgcF05RegistrosAuditoriaInterna(): SgcF05RegistroItem[] {
+    return this.sgcF05Form.registros.filter((r) => this.esAuditoriaInternaSgcF05(r));
+  }
+
+  /** Abiertas solo de Auditoría interna (indicadores superiores). */
   get sgcF05TotalAbiertas(): number {
-    return this.sgcF05Form.registros
+    return this.sgcF05RegistrosAuditoriaInterna
       .filter((r) => String(r.estatus || '').toLowerCase() === 'abierta').length;
   }
 
   get sgcF05TotalCerradas(): number {
-    return this.sgcF05Form.registros
+    return this.sgcF05RegistrosAuditoriaInterna
       .filter((r) => String(r.estatus || '').toLowerCase() === 'cerrada').length;
+  }
+
+  get sgcF05TotalAuditoriaInterna(): number {
+    return this.sgcF05RegistrosAuditoriaInterna.length;
   }
 
   /** Registros visibles según el filtro de estatus y el buscador, conservando su índice real. */
@@ -19599,8 +20980,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return this.sgcF05Form.registros
       .map((registro, index) => ({ registro, index }))
       .filter(({ registro }) => {
-        if (this.sgcF05FiltroEstatus && registro.estatus !== this.sgcF05FiltroEstatus) {
-          return false;
+        if (this.sgcF05FiltroEstatus) {
+          if (registro.estatus !== this.sgcF05FiltroEstatus || !this.esAuditoriaInternaSgcF05(registro)) {
+            return false;
+          }
         }
         if (!q) {
           return true;
@@ -23133,6 +24516,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.toggleSgcF17Editor();
       return;
     }
+    if (this.plantillaSlug === 'sgc-f-19') {
+      this.toggleSgcF19Editor();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-20') {
+      this.toggleSgcF20Editor();
+      return;
+    }
     if (this.plantillaSlug === 'sgc-f-25') {
       this.toggleSgcF25Editor();
       return;
@@ -23163,6 +24554,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'ath-f-14') {
       this.toggleAthF14Editor();
+      return;
+    }
+    if (this.plantillaSlug === 'sp-f-04') {
+      this.toggleSpF04Editor();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-27') {
@@ -23284,6 +24679,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.plantillaSlug === 'sgc-f-03') {
       this.actualizarPlantillaSgcF03();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-19') {
+      this.actualizarPlantillaSgcF19();
+      return;
+    }
+    if (this.plantillaSlug === 'sgc-f-20') {
+      this.actualizarPlantillaSgcF20();
       return;
     }
     if (this.plantillaSlug === 'sgc-f-16') {
@@ -25210,10 +26613,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return (base[0] || palabras[0] || '').slice(0, 3).padEnd(3, 'X');
   }
 
-  folioAceptadoAthF09(folioBase: string, empresa: string): string {
+  folioAceptadoAthF09(folioBase: string, empresa: string, clave?: string | null): string {
     const base = this.normalizarFolioBaseAthF09(folioBase);
     if (!base) return '';
-    const ini = this.extraerInicialesEmpresaAthF09(empresa);
+    const ini = String(clave || '').trim().toUpperCase() || this.extraerInicialesEmpresaAthF09(empresa);
     return ini ? `${ini}-${base}` : base;
   }
 
@@ -25236,7 +26639,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (tienePdf && conPrefijo && empresa) {
       c.aceptada = true;
       if (c.folioBase && !conPrefijo) {
-        const esperado = this.folioAceptadoAthF09(c.folioBase, empresa);
+        const esperado = this.folioAceptadoAthF09(c.folioBase, empresa, c.claveEmpresa);
         if (esperado) c.folio = esperado;
       }
     } else {
@@ -25305,7 +26708,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     });
     if (aceptada) {
       if (!this.folioTienePrefijoEmpresaAthF09(folioFinal) && folioBaseFinal) {
-        folioFinal = this.folioAceptadoAthF09(folioBaseFinal, empresa) || folioFinal;
+        folioFinal = this.folioAceptadoAthF09(folioBaseFinal, empresa, raw.claveEmpresa) || folioFinal;
       }
     } else if (folioBaseFinal) {
       folioFinal = folioBaseFinal;
@@ -25316,6 +26719,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       folioBase: folioBaseFinal,
       folioAnterior: raw.folioAnterior || null,
       empresa,
+      claveEmpresa: String(raw.claveEmpresa || (raw as any).clave_empresa || '').trim().toUpperCase() || null,
+      empresaId: Number(raw.empresaId || (raw as any).empresa_id) > 0
+        ? Number(raw.empresaId || (raw as any).empresa_id)
+        : null,
+      proyectoCreado: raw.proyectoCreado === true || (raw as any).proyecto_creado === true,
       aceptada,
       driveFileId: String(raw.driveFileId || (raw as any).drive_file_id || '').trim() || null,
       nombreArchivo: String(raw.nombreArchivo || (raw as any).nombre_archivo || '').trim() || null,
@@ -25354,6 +26762,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       folio: folioBase,
       folioBase,
       empresa: '',
+      claveEmpresa: null,
+      empresaId: null,
+      proyectoCreado: false,
       aceptada: false,
       driveFileId: null,
       nombreArchivo: null,
@@ -25468,8 +26879,71 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.onAthF09Editado();
   }
 
+  athF09EmpresaAbierta = false;
+  athF09EmpresasCatalogo: Array<{ id: number; nombre: string }> = [];
+  private athF09EmpresaDesdeLista = false;
+
+  get athF09EmpresasFiltradas(): Array<{ id: number; nombre: string }> {
+    const q = String(this.athF09CotizacionActiva?.empresa || '').trim().toLowerCase();
+    if (q.length < 1) return [];
+    return this.athF09EmpresasCatalogo
+      .filter((e) => e.nombre.toLowerCase().includes(q))
+      .slice(0, 6);
+  }
+
+  abrirSugerenciasEmpresaAthF09(): void {
+    this.athF09EmpresaAbierta = true;
+    this.cargarEmpresasCatalogoAthF09();
+  }
+
+  cerrarSugerenciasEmpresaAthF09(): void {
+    setTimeout(() => {
+      this.athF09EmpresaAbierta = false;
+    }, 160);
+  }
+
+  elegirEmpresaAthF09(empresa: { id: number; nombre: string }): void {
+    if (!this.athF09CotizacionActiva) return;
+    this.athF09EmpresaDesdeLista = true;
+    this.athF09CotizacionActiva.empresa = empresa.nombre;
+    this.athF09CotizacionActiva.empresaId = empresa.id;
+    this.athF09EmpresaAbierta = false;
+    this.onAthF09EmpresaChange();
+  }
+
+  private cargarEmpresasCatalogoAthF09(): void {
+    if (this.athF09EmpresasCatalogo.length) return;
+    this.backendService.obtenerEmpresas()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          const lista = Array.isArray(res?.empresas) ? res.empresas : Array.isArray(res) ? res : [];
+          this.athF09EmpresasCatalogo = lista
+            .map((e: any) => ({
+              id: Number(e?.empresa_id || e?.empresaId || 0),
+              nombre: String(e?.nombre_empresa || e?.nombreEmpresa || e?.nombre || '').trim()
+            }))
+            .filter((e: { id: number; nombre: string }) => e.id > 0 && !!e.nombre)
+            .sort((a: { nombre: string }, b: { nombre: string }) => a.nombre.localeCompare(b.nombre, 'es'));
+        },
+        error: () => {
+          this.athF09EmpresasCatalogo = [];
+        }
+      });
+  }
+
   onAthF09EmpresaChange(): void {
     if (!this.athF09CotizacionActiva) return;
+    const escrito = String(this.athF09CotizacionActiva.empresa || '').trim().toLowerCase();
+    const registrada = this.athF09EmpresasCatalogo.find((e) => e.nombre.toLowerCase() === escrito);
+    this.athF09CotizacionActiva.empresaId = registrada ? registrada.id : null;
+    if (!registrada) {
+      this.athF09CotizacionActiva.claveEmpresa = null;
+    }
+    if (this.athF09EmpresaDesdeLista) {
+      this.athF09EmpresaDesdeLista = false;
+      this.athF09EmpresaAbierta = false;
+    }
     this.actualizarEstatusAutomaticoAthF09();
     this.sincronizarCotizacionActivaEnFormAthF09();
     this.onAthF09Editado();
@@ -25514,63 +26988,368 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private async confirmarFolioYSubirPdfAthF09(pdfBase64: string, nombreArchivo: string): Promise<void> {
+    this.cerrarModalSubidaPdfSgc();
     if (!this.athF09CotizacionActiva) return;
     const cot = this.athF09CotizacionActiva;
-    const folioBase = cot.folioBase || this.normalizarFolioBaseAthF09(cot.folio);
-    const sugerido = this.folioAceptadoAthF09(folioBase, cot.empresa) || folioBase;
-
-    const resultado = await Swal.fire({
-      icon: 'question',
-      title: 'Cotización aceptada',
-      html:
-        '<p>Al subir el PDF firmado se registrará la <strong>aceptación</strong> de la cotización.</p>'
-        + '<p class="mb-0">Confirma o ajusta el folio del proyecto:</p>',
-      input: 'text',
-      inputValue: sugerido,
-      inputAttributes: { autocapitalize: 'characters', 'aria-label': 'Folio del proyecto' },
-      showCancelButton: true,
-      confirmButtonText: 'Subir PDF y actualizar folio',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#15a596',
-      cancelButtonColor: '#6b7280',
-      reverseButtons: true,
-      inputValidator: (value) => {
-        if (!String(value || '').trim()) {
-          return 'Indica el folio del proyecto';
-        }
-        return null;
-      }
-    });
-
-    if (!resultado.isConfirmed) return;
-    this.subirPdfFirmadoAthF09(pdfBase64, nombreArchivo, String(resultado.value || '').trim().toUpperCase());
+    if (!String(cot.empresa || '').trim()) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Empresa requerida',
+        text: 'Indica la empresa o cliente de la cotización antes de subir el PDF firmado.',
+        confirmButtonColor: '#15a596'
+      });
+      return;
+    }
+    const claveLista = await this.prepararClaveEmpresaAthF09();
+    if (!claveLista || !cot.claveEmpresa) return;
+    if (cot.proyectoCreado) {
+      this.subirPdfFirmadoAthF09(pdfBase64, nombreArchivo, this.folioProyectoAthF09(cot), null);
+      return;
+    }
+    this.athF09PdfPendiente = { base64: pdfBase64, nombre: nombreArchivo };
+    this.athF09AltaFolio = this.folioProyectoAthF09(cot);
+    this.athF09AltaNombre = '';
+    this.athF09AltaResponsable = '';
+    this.athF09AltaResponsableId = null;
+    this.athF09ResponsableBusqueda = '';
+    this.athF09AltaPrioridad = 'Media';
+    this.athF09AltaEstatus = 'No iniciado';
+    this.athF09AltaInicio = '';
+    this.athF09AltaCompromiso = '';
+    this.athF09AltaError = '';
+    this.athF09ResponsableAbierto = false;
+    this.athF09AltaAbierta = true;
+    this.cargarUsuariosAltaAthF09();
   }
 
-  private subirPdfFirmadoAthF09(pdfBase64: string, nombreArchivo: string, folioPropuesto: string): void {
+  get athF09ResponsablesFiltrados(): Array<{ id: number; nombre: string }> {
+    const q = this.athF09ResponsableBusqueda.trim().toLowerCase();
+    const lista = this.athF09Usuarios;
+    if (!q) return lista;
+    return lista.filter((u) => u.nombre.toLowerCase().includes(q));
+  }
+
+  etiquetaPrioridadAltaAthF09(valor: string): string {
+    const item = this.athF09Prioridades.find((p) => p.value === valor);
+    return item ? `${item.shortLabel} — ${item.hint}` : valor;
+  }
+
+  etiquetaEstatusAltaAthF09(valor: string): string {
+    const item = this.athF09Estatus.find((p) => p.value === valor);
+    return item ? `${item.shortLabel} — ${item.hint}` : valor;
+  }
+
+  cerrarAltaProyectoAthF09(): void {
+    if (this.athF09SubiendoPdf) return;
+    this.athF09AltaAbierta = false;
+    this.athF09PdfPendiente = null;
+    this.athF09ResponsableAbierto = false;
+  }
+
+  seleccionarResponsableAltaAthF09(usuario: { id: number; nombre: string }): void {
+    this.athF09AltaResponsable = usuario.nombre;
+    this.athF09AltaResponsableId = usuario.id;
+    this.athF09ResponsableBusqueda = usuario.nombre;
+    this.athF09ResponsableAbierto = false;
+  }
+
+  confirmarAltaProyectoAthF09(): void {
+    const pendiente = this.athF09PdfPendiente;
+    const cot = this.athF09CotizacionActiva;
+    if (!pendiente || !cot) return;
+    const nombre = this.athF09AltaNombre.trim();
+    if (!nombre) {
+      this.athF09AltaError = 'El nombre del proyecto es obligatorio.';
+      return;
+    }
+    if (this.athF09AltaInicio && this.athF09AltaCompromiso && this.athF09AltaCompromiso < this.athF09AltaInicio) {
+      this.athF09AltaError = 'La fecha compromiso no puede ser anterior a la fecha de inicio.';
+      return;
+    }
+    this.athF09AltaError = '';
+    const avance = this.avancePorEstatusAthF09(this.athF09AltaEstatus);
+    this.subirPdfFirmadoAthF09(pendiente.base64, pendiente.nombre, this.athF09AltaFolio, {
+      nombreProyecto: nombre,
+      responsable: this.athF09AltaResponsable.trim(),
+      responsableUsuarioIds: this.athF09AltaResponsableId ? [this.athF09AltaResponsableId] : [],
+      prioridad: this.athF09AltaPrioridad,
+      estatus: this.athF09AltaEstatus,
+      fechaInicio: this.athF09AltaInicio || undefined,
+      fechaCompromiso: this.athF09AltaCompromiso || undefined,
+      avance
+    });
+  }
+
+  private avancePorEstatusAthF09(estatus: string): number {
+    const n = String(estatus || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    if (n === 'concluido') return 100;
+    if (n === 'en revision') return 75;
+    if (n === 'en proceso') return 50;
+    return 0;
+  }
+
+  private folioProyectoAthF09(cot: AthF09Cotizacion): string {
+    const base = cot.folioBase || this.normalizarFolioBaseAthF09(cot.folio);
+    return this.folioAceptadoAthF09(base, cot.empresa, cot.claveEmpresa) || base;
+  }
+
+  private cargarUsuariosAltaAthF09(): void {
+    if (this.athF09Usuarios.length) return;
+    this.backendService.obtenerUsuarios()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          const lista = Array.isArray(res?.usuarios) ? res.usuarios : [];
+          this.athF09Usuarios = lista
+            .filter((u: any) => {
+              const rol = String(u?.rol || u?.rol_nombre || '').trim().toLowerCase();
+              return rol !== 'empresa' && rol !== 'usuario empresa';
+            })
+            .map((u: any) => {
+              const id = Number(u?.id || u?.usuario_id || 0);
+              const nombre = [u?.nombre, u?.apellido_paterno || u?.apellido, u?.apellido_materno]
+                .map((p) => String(p || '').trim())
+                .filter(Boolean)
+                .join(' ') || String(u?.username || '').trim();
+              return { id, nombre };
+            })
+            .filter((u: { id: number; nombre: string }) => u.id > 0 && !!u.nombre)
+            .sort((a: { nombre: string }, b: { nombre: string }) => a.nombre.localeCompare(b.nombre, 'es'));
+        },
+        error: () => {
+          this.athF09Usuarios = [];
+        }
+      });
+  }
+
+  private escaparHtmlAthF09(valor: string): string {
+    return String(valor || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  private aplicarClaveCotizacionAthF09(
+    cot: AthF09Cotizacion,
+    clave: string,
+    empresaId?: number | null
+  ): void {
+    cot.claveEmpresa = String(clave || '').trim().toUpperCase();
+    if (empresaId) cot.empresaId = empresaId;
+    this.sincronizarCotizacionActivaEnFormAthF09();
+  }
+
+  private async persistirClaveEmpresaAthF09(
+    empresa: string,
+    clave: string,
+    empresaId?: number | null
+  ): Promise<{ ok: boolean; clave?: string; empresaId?: number | null; colision?: { clave: string; empresa: string }; mensaje?: string }> {
+    try {
+      const res = await firstValueFrom(this.backendService.guardarClaveEmpresaAthF09({
+        empresa,
+        clave,
+        empresaId: empresaId || null
+      }));
+      return { ok: true, clave: res?.clave || clave, empresaId: res?.empresaId ?? empresaId ?? null };
+    } catch (error: any) {
+      if (error?.status === 409 && error?.error?.colision) {
+        return { ok: false, colision: error.error.colision, mensaje: error.error.message };
+      }
+      return { ok: false, mensaje: error?.error?.message || 'No se pudo guardar el identificador.' };
+    }
+  }
+
+  private async solicitarIdentificadorDistintoAthF09(
+    empresa: string,
+    ocupada: { clave: string; empresa: string },
+    empresaId?: number | null
+  ): Promise<string | null> {
+    let colision = ocupada;
+    while (true) {
+      const resultado = await Swal.fire({
+        icon: 'warning',
+        title: 'Identificador en uso',
+        html: `El número de proyecto <strong>${this.escaparHtmlAthF09(colision.clave)}</strong> ya existe para la empresa <strong>${this.escaparHtmlAthF09(colision.empresa)}</strong>. Ingrese un identificador diferente.`,
+        input: 'text',
+        inputAttributes: { maxlength: '3', autocapitalize: 'characters', 'aria-label': 'Identificador de proyecto' },
+        showCancelButton: true,
+        confirmButtonText: 'Usar identificador',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#15a596',
+        cancelButtonColor: '#6b7280',
+        reverseButtons: true,
+        inputValidator: (value) => {
+          const clave = String(value || '').trim().toUpperCase();
+          if (!/^[A-Z0-9]{3}$/.test(clave)) return 'Usa exactamente 3 letras o números';
+          return null;
+        }
+      });
+      if (!resultado.isConfirmed) return null;
+      const clave = String(resultado.value || '').trim().toUpperCase();
+      const guardado = await this.persistirClaveEmpresaAthF09(empresa, clave, empresaId);
+      if (guardado.ok) return guardado.clave || clave;
+      if (guardado.colision) {
+        colision = guardado.colision;
+        continue;
+      }
+      await Swal.fire({
+        icon: 'error',
+        title: 'No se pudo guardar',
+        text: guardado.mensaje || 'Intenta de nuevo.',
+        confirmButtonColor: '#15a596'
+      });
+      return null;
+    }
+  }
+
+  private async prepararClaveEmpresaAthF09(): Promise<boolean> {
+    const cot = this.athF09CotizacionActiva;
+    if (!cot) return true;
+    const empresa = String(cot.empresa || '').trim();
+    if (!empresa) {
+      cot.claveEmpresa = null;
+      cot.empresaId = null;
+      return true;
+    }
+    try {
+      const res = await firstValueFrom(this.backendService.resolverClaveEmpresaAthF09(empresa));
+      if (res?.clave && res.requiereConfirmacion === false) {
+        this.aplicarClaveCotizacionAthF09(cot, res.clave, res.empresaId);
+        return true;
+      }
+      if (res?.colision?.clave && res?.colision?.empresa) {
+        const clave = await this.solicitarIdentificadorDistintoAthF09(empresa, res.colision, res.empresaId);
+        if (!clave) return false;
+        this.aplicarClaveCotizacionAthF09(cot, clave, res.empresaId);
+        return true;
+      }
+      const propuesta = String(res?.propuesta || this.extraerInicialesEmpresaAthF09(empresa)).toUpperCase();
+      if (res?.existe) {
+        const guardado = await this.persistirClaveEmpresaAthF09(empresa, propuesta, res.empresaId);
+        if (!guardado.ok) {
+          if (guardado.colision) {
+            const clave = await this.solicitarIdentificadorDistintoAthF09(empresa, guardado.colision, res.empresaId);
+            if (!clave) return false;
+            this.aplicarClaveCotizacionAthF09(cot, clave, res.empresaId);
+            return true;
+          }
+          await Swal.fire({
+            icon: 'error',
+            title: 'No se pudo guardar el identificador',
+            text: guardado.mensaje || 'Intenta de nuevo.',
+            confirmButtonColor: '#15a596'
+          });
+          return false;
+        }
+        this.aplicarClaveCotizacionAthF09(cot, guardado.clave || propuesta, guardado.empresaId);
+        return true;
+      }
+      const confirmado = await Swal.fire({
+        icon: 'question',
+        title: 'Número de proyecto',
+        html: `¿Desea agregar <strong>${this.escaparHtmlAthF09(propuesta)}</strong> a la empresa <strong>${this.escaparHtmlAthF09(empresa)}</strong> como número de proyecto?`,
+        showCancelButton: true,
+        confirmButtonText: 'Sí, agregar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#15a596',
+        cancelButtonColor: '#6b7280',
+        reverseButtons: true
+      });
+      if (!confirmado.isConfirmed) return false;
+      const guardado = await this.persistirClaveEmpresaAthF09(empresa, propuesta, null);
+      if (!guardado.ok) {
+        if (guardado.colision) {
+          const clave = await this.solicitarIdentificadorDistintoAthF09(empresa, guardado.colision, null);
+          if (!clave) return false;
+          this.aplicarClaveCotizacionAthF09(cot, clave, guardado.empresaId);
+          return true;
+        }
+        await Swal.fire({
+          icon: 'error',
+          title: 'No se pudo guardar el identificador',
+          text: guardado.mensaje || 'Intenta de nuevo.',
+          confirmButtonColor: '#15a596'
+        });
+        return false;
+      }
+      this.aplicarClaveCotizacionAthF09(cot, guardado.clave || propuesta, guardado.empresaId);
+      return true;
+    } catch {
+      await Swal.fire({
+        icon: 'error',
+        title: 'No se pudo consultar la empresa',
+        text: 'Revisa la conexión e intenta de nuevo.',
+        confirmButtonColor: '#15a596'
+      });
+      return false;
+    }
+  }
+
+  private subirPdfFirmadoAthF09(
+    pdfBase64: string,
+    nombreArchivo: string,
+    folioPropuesto: string,
+    proyecto: {
+      nombreProyecto: string;
+      responsable?: string;
+      responsableUsuarioIds?: number[];
+      prioridad?: string;
+      estatus?: string;
+      fechaInicio?: string;
+      fechaCompromiso?: string;
+      avance?: number;
+    } | null
+  ): void {
     if (this.athF09SubiendoPdf || !this.athF09CotizacionActiva) return;
+    const cot = this.athF09CotizacionActiva;
     this.athF09SubiendoPdf = true;
+    this.abrirModalSubidaPdfSgc();
     this.backendService.subirPdfFirmadoAthF09(
       pdfBase64,
       nombreArchivo,
-      this.athF09CotizacionActiva.id,
-      folioPropuesto
+      cot.id,
+      folioPropuesto,
+      {
+        claveEmpresa: cot.claveEmpresa,
+        empresaId: cot.empresaId,
+        empresa: cot.empresa,
+        proyecto
+      }
     )
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
           this.athF09SubiendoPdf = false;
+          this.athF09AltaAbierta = false;
+          this.athF09PdfPendiente = null;
           this.aplicarEstadoAthF09(res);
           if (this.athF09CotizacionActiva && res?.pdfFirmado) {
             this.athF09CotizacionActiva.pdfFirmado = this.sanitizarPdfAthF09(res.pdfFirmado);
             if (res.folioActualizado) {
               this.athF09CotizacionActiva.folio = res.folioActualizado;
             }
+            if (res.proyectoCreado) {
+              this.athF09CotizacionActiva.proyectoCreado = true;
+            }
             this.actualizarEstatusAutomaticoAthF09();
             this.sincronizarCotizacionActivaEnFormAthF09();
           }
+          if (res?.proyectoError) {
+            this.cerrarModalSubidaPdfSgc();
+            void Swal.fire({
+              icon: 'warning',
+              title: 'PDF subido',
+              text: `La cotización quedó aceptada, pero el proyecto no se registró: ${res.proyectoError}`,
+              confirmButtonColor: '#15a596'
+            });
+            return;
+          }
+          this.finalizarSubidaPdfSgc(!!res?.success, nombreArchivo);
         },
         error: () => {
           this.athF09SubiendoPdf = false;
+          this.finalizarSubidaPdfSgc(false);
         }
       });
   }
@@ -25668,7 +27447,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private persistirAthF09(): void {
+    void this.persistirAthF09ConClave();
+  }
+
+  private async persistirAthF09ConClave(): Promise<void> {
     if (this.athF09Guardando || !this.athF09Listo) return;
+    const claveLista = await this.prepararClaveEmpresaAthF09();
+    if (!claveLista) return;
+    if (this.athF09CotizacionActiva && String(this.athF09CotizacionActiva.empresa || '').trim() && !this.athF09CotizacionActiva.claveEmpresa) {
+      return;
+    }
     this.athF09Guardando = true;
     this.sincronizarCotizacionActivaEnFormAthF09();
     if (this.athF09CotizacionActiva) {
@@ -25729,9 +27517,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (this.athF09Guardando) {
-      return;
-    }
+    void this.guardarPendienteYDescargarAthF09(cotizacionId, lanzarDescarga);
+  }
+
+  private async guardarPendienteYDescargarAthF09(cotizacionId: string, lanzarDescarga: () => void): Promise<void> {
+    if (this.athF09Guardando) return;
+    const claveLista = await this.prepararClaveEmpresaAthF09();
+    if (!claveLista) return;
+    this.sincronizarCotizacionActivaEnFormAthF09();
     this.athF09Guardando = true;
     this.backendService.guardarAthF09Formato(
       { ...this.athF09Form, cotizacionActivaId: cotizacionId },
@@ -30152,8 +31945,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       allowOutsideClick: false,
       allowEscapeKey: false,
       showConfirmButton: false,
-      customClass: { popup: 'swal2-sgc-pdf-upload' },
-      didOpen: () => Swal.showLoading()
+      customClass: { popup: 'swal2-sgc-pdf-upload', container: 'swal2-sgc-pdf-upload-container' },
+      didOpen: () => {
+        const contenedor = Swal.getContainer();
+        if (contenedor) contenedor.style.zIndex = '1400';
+        Swal.showLoading();
+      }
     });
   }
 

@@ -12,6 +12,12 @@ export interface SgcFormatoDescarga {
   categoriaId: string;
   nombreArchivo: string;
   tipo: SgcFormatoTipo;
+  /** Archivo Word adicional, cuando el formato también se entrega en docx. */
+  archivoWord?: { driveFileId: string; nombreArchivo: string };
+  /** En el visor solo se ofrece la descarga del Excel original. */
+  descargaSoloExcel?: boolean;
+  /** En el visor solo se ofrece la descarga del Word original. */
+  descargaSoloWord?: boolean;
   /** Versión activa (1 = original; 2+ tras reemplazos). */
   versionActual?: number;
   fechaUltimaActualizacion?: string | null;
@@ -171,6 +177,30 @@ export const SGC_FORMATOS_DESCARGA_CATALOG: SgcFormatoDescarga[] = [
   fmt('SGC-I-00', 'Instructivo', '15qngMa_qY-Id-PoqpY14_wZN9gdnTQMk', 'capitulo-7', 'SGC-I-00 Instructivo.doc'),
 
   // ── Cap. 8 Operación ──
+  {
+    ...fmt(
+      'SGC-PO-02',
+      'Política de protección de propiedad del cliente o proveedor',
+      '1hoJjDLHi38rGRxw_tpI5ECANsgqnzLfV',
+      'capitulo-8',
+      'POLÍTICA DE PROTECCIÓN DE PROPIEDAD DEL CLIENTE O PROVEEDOR_BIZNAGA 2025.pdf'
+    ),
+    archivoWord: {
+      driveFileId: '1gKafE8WkITga0w0h1Qty14N4MI3fBUkt',
+      nombreArchivo: 'SGC-PO-02 Política de protección de propiedad del cliente o proveedor_Biznaga.docx'
+    }
+  },
+  { ...fmt('SP-F-31', 'Análisis de seguridad en el trabajo', '1b51Xhp8dZNCX1WM5J4K-FrGZqKnm2dVx', 'capitulo-8', 'SP-F-31 Analisis de seguridad en el trabajo.xlsx'), descargaSoloExcel: true },
+  { ...fmt('SP-F-32 al 35', 'Permisos de trabajo', '1KatKCeUBuqlGCbvhnB-36w9511bvf17p', 'capitulo-8', 'SP-F-32 al 35 Permisos de trabajo.xlsx'), descargaSoloExcel: true },
+  { ...fmt('SP-F-36 al 37', 'Check list maquinaria en general y grúa', '1QuRU695ZgvCb1DUvGPrzUcDY-zR6n3aA', 'capitulo-8', 'SP-F-36 al 37 Check list Maquinaria maquinaria en general y grúa.xlsx'), descargaSoloExcel: true },
+  { ...fmt('SP-F-38', 'Check list oxicorte', '1UU71DiQbNFBIHmDXLekaYhnCwquLaeC4', 'capitulo-8', 'SP-F-38 Check list oxicorte.xlsx'), descargaSoloExcel: true },
+  { ...fmt('SP-F-39 al 42', 'Bitácora de mantenimiento sanitarios, herramienta y EPP', '1qA9aISIEGIzHWZo0qU8S9A11T9MyXurb', 'capitulo-8', 'SP-F-39 al 42 Bitacora de mantenimiento sanitarios, herramienta y EPP.xls'), descargaSoloExcel: true },
+  { ...fmt('SP-F-43', 'Inspección pre uso de arnés', '1F50-r3jBMhRRnrMnmxmy1KES-ueZY6qf', 'capitulo-8', 'SP-F-43 Inspección pre uso de arnés.xlsx'), descargaSoloExcel: true },
+  { ...fmt('SP-F-44', 'Inventario de productos químicos', '1MXyXhr2W_mxmqYlb6uwzRxV1sh3Ry61h', 'capitulo-8', 'SP-F-44 Inventario de productos químicos.xlsx'), descargaSoloExcel: true },
+  { ...fmt('SP-F-45', 'Formato de supervisión EPP', '11dIdsvSnnpN5Dj0RItD1OxMUqcLUoXhg', 'capitulo-8', 'SP-F-45 Formato de supervisión EPP.xlsx'), descargaSoloExcel: true },
+  { ...fmt('SP-F-46', 'Check equipos y herramientas', '13a36AC2lPBTmRGbIyfIJ0LmroHrJ9yqs', 'capitulo-8', 'SP-F-46 Chek Equipos y herramientas.xlsx'), descargaSoloExcel: true },
+  { ...fmt('SP-F-47', 'Reporte diario de la jornada laboral', '1DglNr5OMvG0PhA_YZVYB07bQ36T43vcA', 'capitulo-8', 'SP-F-47 Reporte diario de la jornada laboral.xlsx'), descargaSoloExcel: true },
+  { ...fmt('SP-F-48', 'Investigación incidente-accidente', '1k2_RN9f8R_PCPl-3foWswPav3n0gyC96', 'capitulo-8', 'SP-F-48 Investigación Incidente-accidente.docx'), descargaSoloWord: true },
   fmt('ATH-F-09', 'Cotización Rev 2', '1TIBbSYCxnwFo3YJOb2HcPpkvvYJH2Mmd', 'capitulo-8', 'ATH-F-09 Cotización Rev 2.docx'),
   fmt('ATH-F-09', 'Cotización', '1KmEUSe8Nx0swgs0MpPn7cCOq6PfKMggR', 'capitulo-8', 'ATH-F-09 Cotización.docx'),
   fmt('SGC-F-22', 'Reporte de daño o perdida de propiedad del cliente o proveedor', '1asICBqzuBkhpvD4tXdfB1VIkFNPyhiOGNv6SxaEcYMw', 'capitulo-8', 'SGC-F-22 Reporte de daño o perdida de propiedad del cliente o proveedor.xlsx'),

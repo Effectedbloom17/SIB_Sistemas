@@ -1,5 +1,6 @@
 import { Component, HostListener, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import * as QRCode from 'qrcode';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
 import { SgcDashboardCacheService } from 'src/app/services/sgc-dashboard-cache.service';
@@ -231,6 +232,12 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   mostrarFormQueja = false;
   guardandoQueja = false;
   mostrarComentariosSatisfaccion = false;
+  readonly encuestaSatisfaccionUrl = 'https://forms.gle/DQjgZ84iMETprXJN6';
+  qrEncuestaSatisfaccion = '';
+  errorQrEncuesta = '';
+  mostrarQrEncuestaSatisfaccion = false;
+  enlaceEncuestaCopiado = false;
+  private enlaceEncuestaCopiadoTimer: ReturnType<typeof setTimeout> | null = null;
   mostrarComentariosSatCap = false;
   mostrarPreguntasSatCap = false;
   mostrarPreguntasSatisfaccion = false;
@@ -339,6 +346,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
 
     this.aniosDisponibles = [this.anioActual, this.anioActual - 1, this.anioActual - 2, this.anioActual - 3];
     this.cargarDashboard();
+    this.generarQrEncuestaSatisfaccion();
     this.iniciarCarrusel();
 
     if (this.route.snapshot.fragment === 'sgc-capitulos-panel' || this.capituloDashSlug) {
@@ -366,6 +374,9 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.detenerCarrusel();
+    if (this.enlaceEncuestaCopiadoTimer) {
+      clearTimeout(this.enlaceEncuestaCopiadoTimer);
+    }
   }
 
   iniciarCarrusel(): void {
@@ -380,6 +391,8 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
           this.hayProyectoAvanceSeleccionado ||
           this.mostrarPreguntasSatCap ||
           this.mostrarPreguntasSatisfaccion ||
+          this.mostrarQrEncuestaSatisfaccion ||
+          this.mostrarComentariosSatisfaccion ||
           this.filtroMesSatCapAbierto ||
           this.filtroMesSatClienteAbierto ||
           this.filtroEmpresaSatClienteAbierto
@@ -856,6 +869,19 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     return Number(this.eficacia?.totalNcBitacora) || 0;
   }
 
+  /** Abiertas de SGC-F-05 cuya fuente es Auditoría interna. */
+  get ncAbiertasAuditoriaDisplay(): number {
+    return Number(this.eficacia?.ncAbiertasAuditoriaInterna) || 0;
+  }
+
+  get ncCerradasAuditoriaDisplay(): number {
+    return Number(this.eficacia?.ncCerradasAuditoriaInterna) || 0;
+  }
+
+  get totalNcAuditoriaDisplay(): number {
+    return Number(this.eficacia?.totalNcAuditoriaInterna) || 0;
+  }
+
   get hayQuejasSugerencias(): boolean {
     return !!this.quejasSugerencias && (this.quejasSugerencias.total || 0) > 0;
   }
@@ -968,14 +994,14 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       (total, capitulo) => total + capitulo.plantillas.length,
       0
     );
-    // Bitácora SGC-F-05: prioriza NC abiertas para el semáforo del KPI.
-    const ncAbiertasKpi = Number(auditorias.ncAbiertas) || 0;
-    const ncCerradasKpi = Number(auditorias.ncCerradas) || 0;
-    const totalNcBitacora = Number(auditorias.totalNcBitacora) || 0;
-    const noConformidades = totalNcBitacora > 0 ? ncAbiertasKpi : this.ncActualesDisplay;
+    // Resultados de auditorías: abiertas, cerradas y total de la bitácora
+    // SGC-F-05, solo fuente Auditoría interna.
+    const ncAbiertasAud = Number(auditorias.ncAbiertasAuditoriaInterna) || 0;
+    const ncCerradasAud = Number(auditorias.ncCerradasAuditoriaInterna) || 0;
+    const totalNcAud = Number(auditorias.totalNcAuditoriaInterna) || 0;
     const quejasAbiertas = Number(q.abiertas || 0);
     const estadoAuditorias: SgcKpiCard['estado'] =
-      noConformidades <= 2 ? 'verde' : noConformidades <= 4 ? 'amarillo' : 'rojo';
+      ncAbiertasAud <= 2 ? 'verde' : ncAbiertasAud <= 4 ? 'amarillo' : 'rojo';
 
     this.kpiCardsSuperiores = [
       {
@@ -988,10 +1014,8 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       },
       {
         titulo: 'Resultados de auditorías',
-        valor: totalNcBitacora > 0 ? `${ncAbiertasKpi} abiertas` : `${noConformidades} NC`,
-        subtitulo: totalNcBitacora > 0
-          ? `${ncCerradasKpi} cerradas · ${totalNcBitacora} en SGC-F-05`
-          : `No. ${this.auditoriaActualNoDisplay} · ${auditorias.totalAuditorias || 0} informes SGC-F-10`,
+        valor: `${totalNcAud} NC`,
+        subtitulo: `${ncCerradasAud} cerradas · ${ncAbiertasAud} abiertas`,
         icono: 'fa-clipboard-check',
         color: estadoAuditorias === 'verde'
           ? this.palette.verde
@@ -3019,6 +3043,62 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
 
   get totalComentariosSatisfaccion(): number {
     return this.comentariosSatisfaccion.length;
+  }
+
+  private async generarQrEncuestaSatisfaccion(): Promise<void> {
+    try {
+      this.qrEncuestaSatisfaccion = await QRCode.toDataURL(this.encuestaSatisfaccionUrl, {
+        width: 320,
+        margin: 1,
+        color: { dark: '#0f766e', light: '#ffffff' },
+        errorCorrectionLevel: 'M'
+      });
+    } catch (err) {
+      console.error('[sgc] QR encuesta satisfacción:', err);
+      this.errorQrEncuesta = 'No se pudo generar el código QR.';
+    }
+  }
+
+  abrirQrEncuestaSatisfaccion(): void {
+    this.mostrarQrEncuestaSatisfaccion = true;
+  }
+
+  cerrarQrEncuestaSatisfaccion(): void {
+    this.mostrarQrEncuestaSatisfaccion = false;
+  }
+
+  abrirEncuestaSatisfaccion(): void {
+    window.open(this.encuestaSatisfaccionUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  async copiarEnlaceEncuestaSatisfaccion(): Promise<void> {
+    const url = this.encuestaSatisfaccionUrl;
+    let copiado = false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        copiado = true;
+      }
+    } catch {
+      copiado = false;
+    }
+    if (!copiado) {
+      const area = document.createElement('textarea');
+      area.value = url;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.left = '-9999px';
+      document.body.appendChild(area);
+      area.select();
+      copiado = document.execCommand('copy');
+      document.body.removeChild(area);
+    }
+    if (!copiado) return;
+    this.enlaceEncuestaCopiado = true;
+    if (this.enlaceEncuestaCopiadoTimer) clearTimeout(this.enlaceEncuestaCopiadoTimer);
+    this.enlaceEncuestaCopiadoTimer = setTimeout(() => {
+      this.enlaceEncuestaCopiado = false;
+    }, 2000);
   }
 
   abrirComentariosSatisfaccion(): void {

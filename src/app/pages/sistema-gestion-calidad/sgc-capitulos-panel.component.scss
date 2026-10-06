@@ -890,6 +890,57 @@ $sgc-surface: #f8fafc;
 
   i { font-size: 0.62rem; }
 }
+
+.sgc-cap-doc__downloads {
+  position: relative;
+  z-index: 1;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-right: 0.75rem;
+  flex-shrink: 0;
+}
+
+.sgc-cap-doc__dl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: 4.4rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.32rem 0.7rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  cursor: pointer;
+  line-height: 1;
+
+  i { font-size: 0.72rem; }
+
+  &:disabled {
+    opacity: 0.65;
+    cursor: wait;
+  }
+
+  &--pdf { background: #b91c1c; }
+  &--word { background: #1d4ed8; }
+
+  &:hover:not(:disabled) { filter: brightness(1.08); }
+}
+
+.sgc-cap-doc__error {
+  margin: 0.6rem 0 0;
+  font-size: 0.78rem;
+  color: #b91c1c;
+}
+
+.sgc-cap-hit--descarga {
+  cursor: default;
+}
+
 .sgc-cap-hits {
   display: grid;
   grid-template-columns: 1fr;

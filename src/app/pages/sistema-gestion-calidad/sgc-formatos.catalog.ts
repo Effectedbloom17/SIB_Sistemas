@@ -15,6 +15,10 @@ export interface PlantillaFormato {
   imagenVistaAssetPath?: string;
   /** ID del JPG en Drive que se reemplaza al subir una nueva imagen. */
   imagenVistaDriveFileId?: string;
+  /** Descarga directa en PDF (sin abrir formulario). */
+  descargaPdf?: { driveFileId: string; nombre: string };
+  /** Descarga directa en Word (sin abrir formulario). */
+  descargaWord?: { driveFileId: string; nombre: string };
 }
 
 export interface CapituloFormatoConfig {
@@ -256,6 +260,22 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         previewMode: 'form'
       },
       {
+        codigo: 'SGC-F-19',
+        titulo: 'Listado de conocimientos de la organización',
+        nombre: 'SGC-F-19 Listado de conocimientos de la organización (sistema)',
+        driveFileId: '1ExqXpnX4J617v1V2JimjEzg1VN_sV0XJOHQnaCxTLMA',
+        previewSlug: 'sgc-f-19',
+        previewMode: 'form'
+      },
+      {
+        codigo: 'SGC-F-20',
+        titulo: 'Ficha de conocimientos',
+        nombre: 'SGC-F-20 Ficha de conocimientos (sistema)',
+        driveFileId: '1we0bWgQpKUKybvveOrqmmrWdtfwFFIdbFMjWQs1Oxm4',
+        previewSlug: 'sgc-f-20',
+        previewMode: 'form'
+      },
+      {
         codigo: 'SGC-F-27',
         titulo: 'Reporte de verificación de equipos de medición',
         nombre: 'SGC-F-27 Reporte de verificación de equipos de medición.xlsx',
@@ -294,6 +314,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         nombre: 'ATH-F-09 Cotización Rev 2.docx',
         driveFileId: '1hvmnBHHyGmNDnHEaAmXiwNup3m5PL2yu',
         previewSlug: 'ath-f-09',
+        previewMode: 'form'
+      },
+      {
+        codigo: 'SP-F-04',
+        titulo: 'Control de Proyectos Biznaga 2026',
+        nombre: 'SP-F-04 Control de Proyectos Biznaga 2026',
+        driveFileId: '1efmyxhAYxuN-H0BxGpUlSsYb3uhutWKDYBTHh8SfnMo',
+        previewSlug: 'sp-f-04',
         previewMode: 'form'
       },
       {

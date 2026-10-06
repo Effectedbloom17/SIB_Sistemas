@@ -1146,6 +1146,14 @@ function etiquetaFuenteNc(fuente) {
     return raw.length > 28 ? `${raw.slice(0, 26)}…` : raw;
 }
 
+function esFuenteAuditoriaInterna(fuente) {
+    const norm = String(fuente || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+    return norm.includes('auditoria interna');
+}
+
 /**
  * Contadores Abierta/Cerrada desde la bitácora SGC-F-05.
  * Alimenta el indicador de eficacia y el histograma apilado de NC.
@@ -1155,6 +1163,9 @@ async function contadoresNcDesdeF05(poolSgc) {
         totalNcBitacora: 0,
         ncAbiertas: 0,
         ncCerradas: 0,
+        totalNcAuditoriaInterna: 0,
+        ncAbiertasAuditoriaInterna: 0,
+        ncCerradasAuditoriaInterna: 0,
         fuenteBitacora: 'SGC-F-05',
         histograma: {
             categorias: [],
@@ -1174,11 +1185,15 @@ async function contadoresNcDesdeF05(poolSgc) {
             : [];
         let abiertas = 0;
         let cerradas = 0;
+        let abiertasAuditoria = 0;
+        let cerradasAuditoria = 0;
+        let totalAuditoria = 0;
         const porFuente = new Map();
         const registrosCerrados = [];
         for (const r of lista) {
             const est = String(r.estatus || '').trim().toLowerCase();
             const esCerrada = est === 'cerrada';
+            const esAbierta = est === 'abierta';
             if (esCerrada) {
                 cerradas += 1;
                 registrosCerrados.push({
@@ -1188,6 +1203,11 @@ async function contadoresNcDesdeF05(poolSgc) {
                 });
             } else {
                 abiertas += 1;
+            }
+            if (esFuenteAuditoriaInterna(r.fuente)) {
+                totalAuditoria += 1;
+                if (esCerrada) cerradasAuditoria += 1;
+                else if (esAbierta) abiertasAuditoria += 1;
             }
 
             const fuente = etiquetaFuenteNc(r.fuente);
@@ -1209,6 +1229,9 @@ async function contadoresNcDesdeF05(poolSgc) {
             totalNcBitacora: lista.length,
             ncAbiertas: abiertas,
             ncCerradas: cerradas,
+            totalNcAuditoriaInterna: totalAuditoria,
+            ncAbiertasAuditoriaInterna: abiertasAuditoria,
+            ncCerradasAuditoriaInterna: cerradasAuditoria,
             fuenteBitacora: 'SGC-F-05',
             histograma: {
                 categorias,
@@ -1459,6 +1482,9 @@ async function obtenerEficacia(poolSgc, anio) {
         totalNcBitacora: bitacoraNc.totalNcBitacora,
         ncAbiertas: bitacoraNc.ncAbiertas,
         ncCerradas: bitacoraNc.ncCerradas,
+        totalNcAuditoriaInterna: bitacoraNc.totalNcAuditoriaInterna,
+        ncAbiertasAuditoriaInterna: bitacoraNc.ncAbiertasAuditoriaInterna,
+        ncCerradasAuditoriaInterna: bitacoraNc.ncCerradasAuditoriaInterna,
         fuenteBitacora: bitacoraNc.fuenteBitacora,
         histogramaNc: bitacoraNc.histograma,
         auditorias

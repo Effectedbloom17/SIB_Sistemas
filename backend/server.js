@@ -2858,6 +2858,14 @@ function esGestorCalidadSgc(req) {
     return username === 'sergio56' || username === 'calidad';
 }
 
+/** DG-F-04: solo super administrador (root) o Calidad pueden cambiar la fecha de elaboración. */
+function puedeEditarFechaElaboracionDgF04(req) {
+    const userRoles = Array.isArray(req.user?.roles)
+        ? req.user.roles.map((r) => String(r).toLowerCase())
+        : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+    return userRoles.includes('root') || esGestorCalidadSgc(req);
+}
+
 function extraerFormatoCodigoSgcDeRuta(req) {
     const raw = String(req.originalUrl || req.url || req.path || '');
     const pathOnly = raw.split('?')[0];
@@ -2876,6 +2884,24 @@ async function requireAdminOrSgc(req, res, next) {
         const userRoles = Array.isArray(req.user?.roles)
             ? req.user.roles.map((r) => String(r).toLowerCase())
             : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const method = String(req.method || 'GET').toUpperCase();
+        const isMutating = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+        const formatoCodigo = extraerFormatoCodigoSgcDeRuta(req);
+
+        // ATH-F-13 va antes del pase de administradores: solo el control de vacaciones
+        // (y root / supersu / mafer295 / marisol12) puede usarlo.
+        if (formatoCodigo === 'ath-f-13' && !userRoles.includes('empresa')) {
+            await poolBiznagaSgcReady;
+            const acceso = await sgcAthF14Service.resolverAccesoSolicitud(poolBiznagaSgc, req.user);
+            req.athF13Acceso = acceso;
+            if (isMutating && !acceso.permitido) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Solo las personas registradas en el control de vacaciones pueden solicitar vacaciones.'
+                });
+            }
+            return next();
+        }
 
         if (userRoles.includes('root') || userRoles.includes('administrador') || userRoles.includes('sgc')) {
             return next();
@@ -2886,9 +2912,6 @@ async function requireAdminOrSgc(req, res, next) {
 
         const userId = Number(req.user?.id || req.user?.usuario_id || 0);
         const username = String(req.user?.username || '').toLowerCase().trim();
-        const method = String(req.method || 'GET').toUpperCase();
-        const isMutating = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
-        const formatoCodigo = extraerFormatoCodigoSgcDeRuta(req);
 
         // Todos los perfiles internos pueden consultar el Centro SGC y sus formatos.
         // La escritura continúa limitada a los gestores y delegados del formato.
@@ -26120,11 +26143,14 @@ const sgcF25Service = require('./sgcF25Service');
 const sgcF27MedicionService = require('./sgcF27MedicionService');
 const sgcF17Service = require('./sgcF17Service');
 const sgcF03Service = require('./sgcF03Service');
+const sgcF19Service = require('./sgcF19Service');
+const sgcF20Service = require('./sgcF20Service');
 const sgcF16Service = require('./sgcF16Service');
 const sgcF24Service = require('./sgcF24Service');
 const sgcAthF03Service = require('./sgcAthF03Service');
 const sgcAthF13Service = require('./sgcAthF13Service');
 const sgcAthF14Service = require('./sgcAthF14Service');
+const sgcSpF04Service = require('./sgcSpF04Service');
 const sgcAthF06Service = require('./sgcAthF06Service');
 const sgcF27Service = require('./sgcF27Service');
 const sgcF29Service = require('./sgcF29Service');
@@ -27044,7 +27070,9 @@ app.get('/api/sgc/formatos/dg-f-04', requireAdminOrSgc, async (req, res) => {
 app.post('/api/sgc/formatos/dg-f-04/guardar', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const payload = await sgcDgF04Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        const payload = await sgcDgF04Service.guardarFormato(poolBiznagaSgc, req.body || {}, {
+            respetarFechaElaboracion: puedeEditarFechaElaboracionDgF04(req)
+        });
         return res.json({
             success: true,
             message: 'Formato DG-F-04 guardado y sincronizado con Drive.',
@@ -28034,6 +28062,220 @@ app.post('/api/sgc/formatos/sgc-f-03/asegurar-acceso', requireAdminOrSgc, async 
     }
 });
 
+app.get('/api/sgc/formatos/sgc-f-19', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
+        const payload = await sgcF19Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato SGC-F-19');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-19/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF19Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: 'Formato SGC-F-19 guardado correctamente.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato SGC-F-19');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-19/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF19Service.sincronizarDesdeDrive(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'SGC-F-19 sincronizado desde Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo sincronizar SGC-F-19');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-19/actualizar-plantilla', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF19Service.actualizarPlantillaDesdeSistema(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Plantilla SGC-F-19 verificada.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo verificar la plantilla SGC-F-19');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-19/asegurar-acceso', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF19Service.asegurarAccesoEditor(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Acceso al editor SGC-F-19 asegurado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo asegurar el acceso al editor SGC-F-19');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-19/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcF19Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="SGC-F-19 Listado de conocimientos de la organizacion.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-19');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-19/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF19Service.subirPdfFirmado(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'PDF firmado de SGC-F-19 almacenado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo subir el PDF firmado de SGC-F-19');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-19/eliminar-pdf-historial', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const puedeBorrarHistorial = userRoles.includes('root') || esGestorCalidadSgc(req);
+        const payload = await sgcF19Service.eliminarPdfHistorial(poolBiznagaSgc, req.body || {}, {
+            puedeBorrarHistorial
+        });
+        return res.json({
+            success: true,
+            message: 'PDF eliminado del historial.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo eliminar el PDF del historial SGC-F-19');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-20', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
+        const payload = await sgcF20Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato SGC-F-20');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-20/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF20Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: 'Formato SGC-F-20 guardado correctamente.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato SGC-F-20');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-20/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF20Service.sincronizarDesdeDrive(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'SGC-F-20 sincronizado desde Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo sincronizar SGC-F-20');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-20/actualizar-plantilla', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF20Service.actualizarPlantillaDesdeSistema(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Plantilla SGC-F-20 verificada.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo verificar la plantilla SGC-F-20');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-20/asegurar-acceso', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF20Service.asegurarAccesoEditor(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Acceso al editor SGC-F-20 asegurado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo asegurar el acceso al editor SGC-F-20');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-20/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcF20Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="SGC-F-20 Ficha de conocimientos.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-20');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-20/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF20Service.subirPdfFirmado(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'PDF firmado de SGC-F-20 almacenado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo subir el PDF firmado de SGC-F-20');
+    }
+});
+
 app.get('/api/sgc/formatos/sgc-f-03/descargar-pdf', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
@@ -28322,7 +28564,7 @@ app.get('/api/sgc/formatos/ath-f-13', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
         await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
-        const payload = await sgcAthF13Service.cargarFormato(poolBiznagaSgc);
+        const payload = await sgcAthF13Service.cargarFormato(poolBiznagaSgc, req.athF13Acceso || null);
         return res.json({ success: true, ...payload });
     } catch (error) {
         handleError(res, error, 'No se pudo cargar el formato ATH-F-13');
@@ -28332,7 +28574,7 @@ app.get('/api/sgc/formatos/ath-f-13', requireAdminOrSgc, async (req, res) => {
 app.post('/api/sgc/formatos/ath-f-13/guardar', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const payload = await sgcAthF13Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        const payload = await sgcAthF13Service.guardarFormato(poolBiznagaSgc, req.body || {}, req.athF13Acceso || null);
         sgcDashboardService.invalidarCacheDashboard();
         return res.json({
             success: true,
@@ -28367,6 +28609,61 @@ app.post('/api/sgc/formatos/ath-f-14/guardar', requireAdminOrSgc, async (req, re
         });
     } catch (error) {
         handleError(res, error, 'No se pudo guardar el formato ATH-F-14');
+    }
+});
+
+app.get('/api/sgc/formatos/sp-f-04', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
+        const payload = await sgcSpF04Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato SP-F-04');
+    }
+});
+
+app.post('/api/sgc/formatos/sp-f-04/actualizar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
+        const payload = await sgcSpF04Service.cargarFormato(poolBiznagaSgc, { forzar: true });
+        return res.json({
+            success: true,
+            message: 'Control de proyectos actualizado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo actualizar el formato SP-F-04');
+    }
+});
+
+app.get('/api/sgc/formatos/sp-f-04/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdfBuffer = await sgcSpF04Service.descargarPlantillaPdf(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="SP-F-04 Control de Proyectos Biznaga 2026.pdf"'
+        );
+        return res.send(pdfBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SP-F-04');
+    }
+});
+
+app.post('/api/sgc/formatos/sp-f-04/actualizar-plantilla', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcSpF04Service.actualizarPlantillaDesdeSistema(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Plantilla SP-F-04 actualizada.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo actualizar la plantilla SP-F-04');
     }
 });
 
@@ -28497,7 +28794,7 @@ app.post('/api/sgc/formatos/ath-f-13/actualizar-plantilla', requireRole('root'),
 app.post('/api/sgc/formatos/ath-f-13/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const payload = await sgcAthF13Service.subirPdfFirmado(poolBiznagaSgc, req.body || {});
+        const payload = await sgcAthF13Service.subirPdfFirmado(poolBiznagaSgc, req.body || {}, req.athF13Acceso || null);
         return res.json({
             success: true,
             message: 'PDF firmado de ATH-F-13 subido a Drive.',
@@ -28517,7 +28814,7 @@ app.post('/api/sgc/formatos/ath-f-13/eliminar-pdf-historial', requireAdminOrSgc,
         const puedeBorrarHistorial = userRoles.includes('root') || esGestorCalidadSgc(req);
         const payload = await sgcAthF13Service.eliminarPdfHistorial(poolBiznagaSgc, req.body || {}, {
             puedeBorrarHistorial
-        });
+        }, req.athF13Acceso || null);
         return res.json({
             success: true,
             message: 'PDF eliminado del historial de ATH-F-13.',
@@ -28531,7 +28828,7 @@ app.post('/api/sgc/formatos/ath-f-13/eliminar-pdf-historial', requireAdminOrSgc,
 app.get('/api/sgc/formatos/ath-f-13/descargar-pdf', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const pdfBuffer = await sgcAthF13Service.descargarPdfSolicitud(poolBiznagaSgc, req.query.solicitudId);
+        const pdfBuffer = await sgcAthF13Service.descargarPdfSolicitud(poolBiznagaSgc, req.query.solicitudId, req.athF13Acceso || null);
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader(
             'Content-Disposition',
@@ -29310,10 +29607,45 @@ app.post('/api/sgc/formatos/ath-f-09/actualizar-plantilla', requireRole('root'),
     }
 });
 
+app.post('/api/sgc/formatos/ath-f-09/resolver-clave-empresa', requireAdminOrSgc, async (req, res) => {
+    try {
+        const payload = await sgcAthF09Service.resolverClaveEmpresa(pool, req.body?.empresa || req.body?.nombre || '');
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        if (error.statusCode === 400) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo consultar el identificador de la empresa');
+    }
+});
+
+app.post('/api/sgc/formatos/ath-f-09/guardar-clave-empresa', requireAdminOrSgc, async (req, res) => {
+    try {
+        const payload = await sgcAthF09Service.guardarClaveEmpresa(pool, req.body || {});
+        return res.json({
+            success: true,
+            message: 'Identificador de proyecto guardado.',
+            ...payload
+        });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 409) {
+            return res.status(error.statusCode).json({
+                success: false,
+                message: error.message,
+                colision: error.colision || null
+            });
+        }
+        handleError(res, error, 'No se pudo guardar el identificador de la empresa');
+    }
+});
+
 app.post('/api/sgc/formatos/ath-f-09/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const payload = await sgcAthF09Service.subirPdfFirmado(poolBiznagaSgc, req.body || {});
+        const payload = await sgcAthF09Service.subirPdfFirmado(poolBiznagaSgc, req.body || {}, {
+            usuarioNombre: obtenerNombreUsuarioAccion(req),
+            fechaHora: obtenerFechaHoraMexicoMySQL()
+        });
         sgcDashboardService.invalidarCacheDashboard();
         return res.json({
             success: true,

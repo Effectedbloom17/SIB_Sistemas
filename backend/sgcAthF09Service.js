@@ -10,6 +10,7 @@ const {
     obtenerRegistroSgcPersistido
 } = require('./sgcDgF05Service');
 const excelHistorial = require('./sgcExcelHistorialService');
+const controlProyectos = require('./sgcControlProyectosService');
 
 const CODIGO_FORMATO = 'ATH-F-09';
 const TEMPLATE_DRIVE_ID = '1hvmnBHHyGmNDnHEaAmXiwNup3m5PL2yu';
@@ -127,12 +128,190 @@ function extraerInicialesEmpresa(nombre) {
     return primera.slice(0, 3).padEnd(3, 'X');
 }
 
-function folioAceptadoDesdeBase(folioBase, empresa) {
-    const base = normalizarFolioBase(folioBase) || normalizarFolioBase(folioBase);
+function normalizarClaveProyecto(clave) {
+    return String(clave || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+}
+
+function normalizarNombreEmpresa(nombre) {
+    return String(nombre || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function folioAceptadoDesdeBase(folioBase, empresa, claveGuardada = '') {
+    const base = normalizarFolioBase(folioBase);
     if (!base) return '';
-    const iniciales = extraerInicialesEmpresa(empresa);
+    const iniciales = normalizarClaveProyecto(claveGuardada) || extraerInicialesEmpresa(empresa);
     if (!iniciales) return base;
     return `${iniciales}-${base}`;
+}
+
+let esquemaClaveProyectoListo = false;
+
+async function asegurarEsquemaClaveProyecto(pool) {
+    if (esquemaClaveProyectoListo) return;
+    try {
+        await pool.query('ALTER TABLE empresa ADD COLUMN clave_proyecto VARCHAR(4) NULL');
+    } catch (error) {
+        if (error.code !== 'ER_DUP_FIELDNAME') throw error;
+    }
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS empresa_clave_proyecto (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            empresa_id INT NULL,
+            nombre_empresa VARCHAR(255) NOT NULL,
+            nombre_normalizado VARCHAR(255) NOT NULL,
+            clave VARCHAR(4) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_empresa_clave_nombre (nombre_normalizado)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    esquemaClaveProyectoListo = true;
+}
+
+async function listarReferenciasClave(pool) {
+    await asegurarEsquemaClaveProyecto(pool);
+    const [empresas] = await pool.query(
+        `SELECT empresa_id, nombre_empresa, clave_proyecto
+         FROM empresa
+         WHERE activo = 1`
+    );
+    const [alias] = await pool.query(
+        `SELECT id, empresa_id, nombre_empresa, nombre_normalizado, clave
+         FROM empresa_clave_proyecto`
+    );
+    return {
+        empresas: Array.isArray(empresas) ? empresas : [],
+        alias: Array.isArray(alias) ? alias : []
+    };
+}
+
+function ocupanteDeClave(clave, excluirNorm, empresas, alias) {
+    const objetivo = normalizarClaveProyecto(clave);
+    if (!objetivo) return null;
+    for (const empresa of empresas) {
+        const norm = normalizarNombreEmpresa(empresa.nombre_empresa);
+        if (norm === excluirNorm) continue;
+        const propia = normalizarClaveProyecto(empresa.clave_proyecto)
+            || extraerInicialesEmpresa(empresa.nombre_empresa);
+        if (propia === objetivo) return String(empresa.nombre_empresa || '').trim();
+    }
+    for (const fila of alias) {
+        const norm = fila.nombre_normalizado || normalizarNombreEmpresa(fila.nombre_empresa);
+        if (norm === excluirNorm) continue;
+        if (normalizarClaveProyecto(fila.clave) === objetivo) {
+            return String(fila.nombre_empresa || '').trim();
+        }
+    }
+    return null;
+}
+
+function errorClaveEnUso(clave, empresa) {
+    const err = new Error(
+        `El número de proyecto ${clave} ya existe para la empresa ${empresa}.`
+    );
+    err.statusCode = 409;
+    err.colision = { clave, empresa };
+    return err;
+}
+
+async function resolverClaveEmpresa(pool, nombreRaw) {
+    const nombre = String(nombreRaw || '').trim();
+    const norm = normalizarNombreEmpresa(nombre);
+    if (!norm) {
+        const err = new Error('Indica el nombre de la empresa.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const { empresas, alias } = await listarReferenciasClave(pool);
+    const empresa = empresas.find((e) => normalizarNombreEmpresa(e.nombre_empresa) === norm) || null;
+    const aliasFila = alias.find((a) => (
+        a.nombre_normalizado || normalizarNombreEmpresa(a.nombre_empresa)
+    ) === norm) || null;
+    const claveGuardada = normalizarClaveProyecto(empresa?.clave_proyecto)
+        || normalizarClaveProyecto(aliasFila?.clave);
+    const empresaId = Number(empresa?.empresa_id || aliasFila?.empresa_id || 0) || null;
+    const nombreOficial = String(empresa?.nombre_empresa || aliasFila?.nombre_empresa || nombre).trim();
+    if (claveGuardada) {
+        return {
+            existe: !!empresa || !!aliasFila,
+            empresaId,
+            nombre: nombreOficial,
+            clave: claveGuardada,
+            propuesta: claveGuardada,
+            colision: null,
+            requiereConfirmacion: false
+        };
+    }
+    const propuesta = extraerInicialesEmpresa(nombre);
+    const dueno = ocupanteDeClave(propuesta, norm, empresas, alias);
+    return {
+        existe: !!empresa,
+        empresaId,
+        nombre: nombreOficial,
+        clave: null,
+        propuesta,
+        colision: dueno ? { clave: propuesta, empresa: dueno } : null,
+        requiereConfirmacion: !empresa
+    };
+}
+
+async function guardarClaveEmpresa(pool, body = {}) {
+    const nombre = String(body.nombre || body.empresa || '').trim();
+    const norm = normalizarNombreEmpresa(nombre);
+    const clave = normalizarClaveProyecto(body.clave);
+    if (!norm) {
+        const err = new Error('Indica el nombre de la empresa.');
+        err.statusCode = 400;
+        throw err;
+    }
+    if (!/^[A-Z0-9]{3}$/.test(clave)) {
+        const err = new Error('El identificador del proyecto debe tener 3 letras o números.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const { empresas, alias } = await listarReferenciasClave(pool);
+    const dueno = ocupanteDeClave(clave, norm, empresas, alias);
+    if (dueno) throw errorClaveEnUso(clave, dueno);
+
+    const empresa = empresas.find((e) => normalizarNombreEmpresa(e.nombre_empresa) === norm) || null;
+    const empresaIdBody = Number(body.empresaId || body.empresa_id || 0);
+    const empresaId = Number(empresa?.empresa_id || 0)
+        || (Number.isInteger(empresaIdBody) && empresaIdBody > 0 ? empresaIdBody : null);
+    const aliasFila = alias.find((a) => (
+        a.nombre_normalizado || normalizarNombreEmpresa(a.nombre_empresa)
+    ) === norm) || null;
+
+    if (aliasFila?.id) {
+        await pool.query(
+            `UPDATE empresa_clave_proyecto
+             SET empresa_id = ?, nombre_empresa = ?, clave = ?
+             WHERE id = ?`,
+            [empresaId, nombre, clave, aliasFila.id]
+        );
+    } else {
+        await pool.query(
+            `INSERT INTO empresa_clave_proyecto (empresa_id, nombre_empresa, nombre_normalizado, clave)
+             VALUES (?, ?, ?, ?)`,
+            [empresaId, nombre, norm, clave]
+        );
+    }
+    if (empresaId) {
+        await pool.query(
+            'UPDATE empresa SET clave_proyecto = ? WHERE empresa_id = ?',
+            [clave, empresaId]
+        );
+    }
+    return {
+        clave,
+        empresaId,
+        nombre,
+        existe: !!empresa
+    };
 }
 
 function parsearConsecutivoFolio(folio) {
@@ -263,12 +442,16 @@ function sanitizarCotizacion(raw) {
     const folioIngresado = normalizarFolioCompleto(base.folio);
     const folioBase = normalizarFolioBase(base.folioBase || folioIngresado) || '';
     const empresa = String(base.empresa || '').trim();
+    const claveEmpresa = normalizarClaveProyecto(base.claveEmpresa || base.clave_empresa) || null;
+    const empresaIdNum = Number(base.empresaId || base.empresa_id);
+    const empresaId = Number.isInteger(empresaIdNum) && empresaIdNum > 0 ? empresaIdNum : null;
+    const proyectoCreado = base.proyectoCreado === true || base.proyecto_creado === true;
     const pdfFirmado = sanitizarPdfFirmado(base.pdfFirmado || base.pdf_firmado);
     let folio = folioIngresado || folioBase;
     const aceptada = inferirAceptadaCotizacion({ folio, empresa, pdfFirmado });
     if (aceptada) {
         if (!folioTienePrefijoEmpresa(folio) && folioBase) {
-            folio = folioAceptadoDesdeBase(folioBase, empresa) || folio;
+            folio = folioAceptadoDesdeBase(folioBase, empresa, claveEmpresa) || folio;
         }
     } else if (folioBase) {
         folio = folioBase;
@@ -281,6 +464,9 @@ function sanitizarCotizacion(raw) {
         folioBase: folioBase || normalizarFolioBase(folio),
         folioAnterior: String(base.folioAnterior || base.folio_anterior || '').trim() || null,
         empresa,
+        claveEmpresa,
+        empresaId,
+        proyectoCreado,
         aceptada,
         driveFileId: String(base.driveFileId || base.drive_file_id || '').trim() || null,
         nombreArchivo: String(base.nombreArchivo || base.nombre_archivo || '').trim() || null,
@@ -642,7 +828,7 @@ async function procesarCotizacionesEnGuardado(datosEntrada, datosPrevios) {
         }
         if (!item.folio && item.folioBase) {
             item.folio = item.aceptada
-                ? folioAceptadoDesdeBase(item.folioBase, item.empresa)
+                ? folioAceptadoDesdeBase(item.folioBase, item.empresa, item.claveEmpresa)
                 : item.folioBase;
         }
 
@@ -743,7 +929,7 @@ async function publicarPdfEnDrive(pdfBuffer, folio) {
     );
 }
 
-async function subirPdfFirmado(pool, body) {
+async function subirPdfFirmado(pool, body, opciones = {}) {
     const pdfBase64 = String(body?.pdf_base64 || body?.pdfBase64 || '').trim();
     if (!pdfBase64) throw new Error('No se recibió el PDF (pdf_base64 requerido).');
     const cotizacionId = String(body?.cotizacionId || body?.cotizacion_id || '').trim();
@@ -765,15 +951,28 @@ async function subirPdfFirmado(pool, body) {
     }
 
     const actual = { ...cotizaciones[idx] };
+    const claveBody = normalizarClaveProyecto(body?.claveEmpresa || body?.clave_empresa);
+    if (claveBody) actual.claveEmpresa = claveBody;
+    const empresaIdBody = Number(body?.empresaId || body?.empresa_id);
+    if (Number.isInteger(empresaIdBody) && empresaIdBody > 0) actual.empresaId = empresaIdBody;
+    const empresaBody = String(body?.empresa || '').trim();
+    if (empresaBody) actual.empresa = empresaBody;
     const folioAnterior = actual.folio;
     if (!actual.folioBase) {
         actual.folioBase = normalizarFolioBase(actual.folio) || generarSiguienteFolioBase(cotizaciones);
     }
 
+    const datosProyecto = body?.proyecto && typeof body.proyecto === 'object' ? body.proyecto : null;
+    if (datosProyecto && !String(datosProyecto.nombreProyecto || '').trim()) {
+        const err = new Error('El nombre del proyecto es obligatorio.');
+        err.statusCode = 400;
+        throw err;
+    }
+
     if (aceptar) {
         actual.aceptada = true;
         const folioNuevo = folioPropuesto
-            || folioAceptadoDesdeBase(actual.folioBase, actual.empresa)
+            || folioAceptadoDesdeBase(actual.folioBase, actual.empresa, actual.claveEmpresa)
             || actual.folio;
         actual.folio = folioNuevo;
     }
@@ -791,6 +990,49 @@ async function subirPdfFirmado(pool, body) {
         actual.driveFileId = doc.driveFileId;
         actual.nombreArchivo = doc.nombreArchivo;
         actual.borrador = false;
+    }
+
+    let proyectoError = null;
+    if (datosProyecto && !actual.proyectoCreado) {
+        try {
+            let yaExiste = false;
+            try {
+                const [existentes] = await pool.query(
+                    `SELECT control_proyecto_id FROM sgc_control_proyectos
+                     WHERE activo = 1 AND LOWER(TRIM(COALESCE(folio, ''))) = LOWER(TRIM(?))
+                     LIMIT 1`,
+                    [actual.folio]
+                );
+                yaExiste = Array.isArray(existentes) && existentes.length > 0;
+            } catch (error) {
+                if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+            }
+            if (!yaExiste) {
+                const estatus = String(datosProyecto.estatus || 'No iniciado').trim() || 'No iniciado';
+                await controlProyectos.crearProyecto(pool, {
+                    empresaId: actual.empresaId || datosProyecto.empresaId || null,
+                    empresaNombre: actual.empresa,
+                    folio: actual.folio,
+                    nombreProyecto: String(datosProyecto.nombreProyecto || '').trim(),
+                    responsable: String(datosProyecto.responsable || '').trim(),
+                    responsableUsuarioIds: Array.isArray(datosProyecto.responsableUsuarioIds)
+                        ? datosProyecto.responsableUsuarioIds
+                        : [],
+                    fechaInicio: datosProyecto.fechaInicio || null,
+                    fechaCompromiso: datosProyecto.fechaCompromiso || null,
+                    prioridad: datosProyecto.prioridad || 'Media',
+                    estatus,
+                    avance: datosProyecto.avance
+                }, {
+                    usuarioNombre: opciones.usuarioNombre,
+                    fechaHora: opciones.fechaHora
+                });
+            }
+            actual.proyectoCreado = true;
+        } catch (error) {
+            proyectoError = error?.message || 'No se pudo registrar el proyecto.';
+            actual.proyectoCreado = false;
+        }
     }
 
     cotizaciones[idx] = actual;
@@ -815,7 +1057,9 @@ async function subirPdfFirmado(pool, body) {
         ...respuesta,
         pdfFirmado: actual.pdfFirmado,
         folioActualizado: actual.folio,
-        aceptada: actual.aceptada
+        aceptada: actual.aceptada,
+        proyectoCreado: !!actual.proyectoCreado,
+        proyectoError
     };
 }
 
@@ -913,5 +1157,7 @@ module.exports = {
     generarSiguienteFolioBase,
     folioAceptadoDesdeBase,
     extraerInicialesEmpresa,
-    resolverCotizacionActiva
+    resolverCotizacionActiva,
+    resolverClaveEmpresa,
+    guardarClaveEmpresa
 };

@@ -467,13 +467,37 @@
         </div>
       </div>
       <div class="sgc-fmt-visor__actions">
-        <button *ngIf="puedeDescargarPdfVisor"
+        <button *ngIf="puedeDescargarPdfVisor && documentoActivo.descargaSoloExcel"
+                type="button"
+                class="sgc-fmt-visor__download"
+                (click)="descargar(documentoActivo, $event)"
+                [disabled]="descargandoId === documentoActivo.id">
+          <i class="fas" [ngClass]="descargandoId === documentoActivo.id ? 'fa-spinner fa-spin' : 'fa-file-excel'" aria-hidden="true"></i>
+          Descargar en Excel
+        </button>
+        <button *ngIf="puedeDescargarPdfVisor && documentoActivo.descargaSoloWord"
+                type="button"
+                class="sgc-fmt-visor__download"
+                (click)="descargar(documentoActivo, $event)"
+                [disabled]="descargandoId === documentoActivo.id">
+          <i class="fas" [ngClass]="descargandoId === documentoActivo.id ? 'fa-spinner fa-spin' : 'fa-file-word'" aria-hidden="true"></i>
+          Descargar en Word
+        </button>
+        <button *ngIf="puedeDescargarPdfVisor && !documentoActivo.descargaSoloExcel && !documentoActivo.descargaSoloWord"
                 type="button"
                 class="sgc-fmt-visor__download"
                 (click)="descargarPdfVisor()"
                 [disabled]="!previewBlob">
-          <i class="fas fa-file-download" aria-hidden="true"></i>
+          <i class="fas fa-file-pdf" aria-hidden="true"></i>
           Descargar en PDF
+        </button>
+        <button *ngIf="puedeDescargarPdfVisor && documentoActivo.archivoWord"
+                type="button"
+                class="sgc-fmt-visor__download"
+                (click)="descargarWordVisor($event)"
+                [disabled]="descargandoId === documentoActivo.archivoWord.driveFileId">
+          <i class="fas" [ngClass]="descargandoId === documentoActivo.archivoWord.driveFileId ? 'fa-spinner fa-spin' : 'fa-file-word'" aria-hidden="true"></i>
+          Descargar en Word
         </button>
         <button type="button"
                 class="sgc-fmt-visor__close"

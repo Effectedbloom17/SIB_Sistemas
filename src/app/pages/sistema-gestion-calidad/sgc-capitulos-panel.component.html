@@ -84,21 +84,14 @@
 
           <ul *ngIf="formatosFiltrados.length > 0" class="sgc-cap-hits list-unstyled mb-0">
             <li *ngFor="let f of formatosFiltrados; trackBy: trackByFormato">
-              <button type="button"
+              <button *ngIf="tieneDescargas(f); else hitEnlace"
+                      type="button"
                       class="sgc-cap-hit"
                       (click)="irAFormato(f)">
                 <span class="sgc-cap-hit__deco" aria-hidden="true"></span>
                 <span class="sgc-cap-hit__accent" aria-hidden="true"></span>
-                <span class="sgc-cap-hit__icon"
-                      [class.sgc-cap-hit__icon--excel]="tipoPlantilla(f.nombre) === 'excel'"
-                      [class.sgc-cap-hit__icon--word]="tipoPlantilla(f.nombre) === 'word'"
-                      [class.sgc-cap-hit__icon--pdf]="tipoPlantilla(f.nombre) === 'pdf'">
-                  <i class="fas" [ngClass]="{
-                    'fa-file-excel': tipoPlantilla(f.nombre) === 'excel',
-                    'fa-file-word': tipoPlantilla(f.nombre) === 'word',
-                    'fa-file-pdf': tipoPlantilla(f.nombre) === 'pdf',
-                    'fa-file-alt': tipoPlantilla(f.nombre) === 'otro'
-                  }" aria-hidden="true"></i>
+                <span class="sgc-cap-hit__icon sgc-cap-hit__icon--pdf">
+                  <i class="fas fa-file-pdf" aria-hidden="true"></i>
                 </span>
                 <span class="sgc-cap-hit__body">
                   <span class="sgc-cap-hit__code">{{ f.codigo }}</span>
@@ -107,8 +100,46 @@
                     Cap. {{ f.capituloNumero }} · {{ f.capituloTitulo }}
                   </span>
                 </span>
-                <span class="sgc-cap-hit__go"><i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+                <span class="sgc-cap-doc__downloads" (click)="$event.stopPropagation()">
+                  <button type="button" class="sgc-cap-doc__dl sgc-cap-doc__dl--pdf"
+                    [disabled]="!!descargandoClave"
+                    (click)="descargarPlantilla(f, 'pdf', $event)">
+                    {{ descargandoClave === f.codigo + '-pdf' ? '…' : 'PDF' }}
+                  </button>
+                  <button type="button" class="sgc-cap-doc__dl sgc-cap-doc__dl--word"
+                    [disabled]="!!descargandoClave"
+                    (click)="descargarPlantilla(f, 'word', $event)">
+                    {{ descargandoClave === f.codigo + '-word' ? '…' : 'Word' }}
+                  </button>
+                </span>
               </button>
+              <ng-template #hitEnlace>
+                <button type="button"
+                        class="sgc-cap-hit"
+                        (click)="irAFormato(f)">
+                  <span class="sgc-cap-hit__deco" aria-hidden="true"></span>
+                  <span class="sgc-cap-hit__accent" aria-hidden="true"></span>
+                  <span class="sgc-cap-hit__icon"
+                        [class.sgc-cap-hit__icon--excel]="tipoPlantilla(f.nombre) === 'excel'"
+                        [class.sgc-cap-hit__icon--word]="tipoPlantilla(f.nombre) === 'word'"
+                        [class.sgc-cap-hit__icon--pdf]="tipoPlantilla(f.nombre) === 'pdf'">
+                    <i class="fas" [ngClass]="{
+                      'fa-file-excel': tipoPlantilla(f.nombre) === 'excel',
+                      'fa-file-word': tipoPlantilla(f.nombre) === 'word',
+                      'fa-file-pdf': tipoPlantilla(f.nombre) === 'pdf',
+                      'fa-file-alt': tipoPlantilla(f.nombre) === 'otro'
+                    }" aria-hidden="true"></i>
+                  </span>
+                  <span class="sgc-cap-hit__body">
+                    <span class="sgc-cap-hit__code">{{ f.codigo }}</span>
+                    <span class="sgc-cap-hit__title">{{ f.titulo }}</span>
+                    <span class="sgc-cap-hit__chapter">
+                      Cap. {{ f.capituloNumero }} · {{ f.capituloTitulo }}
+                    </span>
+                  </span>
+                  <span class="sgc-cap-hit__go"><i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+                </button>
+              </ng-template>
             </li>
           </ul>
         </div>
@@ -143,6 +174,40 @@
 
           <ul class="sgc-cap-doc-list list-unstyled mb-0">
             <li *ngFor="let p of plantillasPaginadas; trackBy: trackByCodigo">
+              <a *ngIf="tieneDescargas(p); else docEnlace"
+                 [routerLink]="['/sistema-gestion-calidad', c.slug, 'plantilla', p.previewSlug]"
+                 class="sgc-cap-doc sgc-cap-doc--pdf sgc-cap-doc--descarga"
+                 [title]="p.titulo">
+                <span class="sgc-cap-doc__deco" aria-hidden="true"></span>
+                <span class="sgc-cap-doc__accent" aria-hidden="true"></span>
+                <span class="sgc-cap-doc__icon" aria-hidden="true">
+                  <i class="fas fa-file-pdf"></i>
+                </span>
+                <span class="sgc-cap-doc__body">
+                  <span class="sgc-cap-doc__meta">
+                    <span class="sgc-cap-doc__code">{{ p.codigo }}</span>
+                  </span>
+                  <span class="sgc-cap-doc__name">{{ p.titulo }}</span>
+                  <span class="sgc-cap-doc__desc">{{ metaFormato(p) }}</span>
+                </span>
+                <span class="sgc-cap-doc__downloads">
+                  <button type="button" class="sgc-cap-doc__dl sgc-cap-doc__dl--pdf"
+                    [disabled]="!!descargandoClave"
+                    (click)="descargarPlantilla(p, 'pdf', $event)"
+                    [attr.aria-label]="'Descargar ' + p.codigo + ' en PDF'">
+                    <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                    {{ descargandoClave === p.codigo + '-pdf' ? '…' : 'PDF' }}
+                  </button>
+                  <button type="button" class="sgc-cap-doc__dl sgc-cap-doc__dl--word"
+                    [disabled]="!!descargandoClave"
+                    (click)="descargarPlantilla(p, 'word', $event)"
+                    [attr.aria-label]="'Descargar ' + p.codigo + ' en Word'">
+                    <i class="fas fa-file-word" aria-hidden="true"></i>
+                    {{ descargandoClave === p.codigo + '-word' ? '…' : 'Word' }}
+                  </button>
+                </span>
+              </a>
+              <ng-template #docEnlace>
               <a *ngIf="p.previewSlug; else sinVista"
                  [routerLink]="['/sistema-gestion-calidad', c.slug, 'plantilla', p.previewSlug]"
                  class="sgc-cap-doc"
@@ -189,8 +254,10 @@
                   </span>
                 </div>
               </ng-template>
+              </ng-template>
             </li>
           </ul>
+          <p class="sgc-cap-doc__error" *ngIf="errorDescarga" role="alert">{{ errorDescarga }}</p>
 
           <div class="sgc-cap-docs__pager" *ngIf="mostrarPaginacionDocs">
             <button type="button"
