@@ -182,6 +182,7 @@ interface GrupoGestionProyecto {
   clave: string;
   folio: string;
   nombreProyecto: string;
+  empresaId?: number | null;
   empresaNombre: string;
   actividades: Array<{ proyecto: ProyectoTableroItem; indice: number }>;
 }
@@ -302,10 +303,17 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   private detalleHoverOpenTimer: ReturnType<typeof setTimeout> | null = null;
   private exitoAdjuntosTimer: ReturnType<typeof setTimeout> | null = null;
 
-  /** Panel lateral de metadatos / historial de una actividad. */
+  /** Panel lateral de metadatos / historial. */
   panelActividadAbierto = false;
-  panelActividadTab: 'detalles' | 'actividad' = 'detalles';
+  /** Modo del panel: actividad (detalles+historial) o solo historial de proyecto. */
+  panelModo: 'actividad' | 'proyecto' = 'actividad';
+  panelActividadTab: 'detalles' | 'historial' = 'detalles';
+  panelHistorialAlcance: 'actividad' | 'proyecto' = 'actividad';
   panelActividadItem: { proyecto: ProyectoTableroItem; indice: number } | null = null;
+  panelProyectoNombre = '';
+  panelProyectoFolio = '';
+  /** Grupo usado al abrir historial de proyecto (para recargar tras restaurar). */
+  panelHistorialGrupo: GrupoGestionProyecto | null = null;
   panelActividadHistorial: Array<{
     id: number;
     campo: string;
@@ -315,6 +323,71 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     modificadoPor: string | null;
     modificadoEn: string | null;
   }> = [];
+  panelActividadVersiones: Array<{
+    versionToken: string;
+    versionKey?: string;
+    controlProyectoId?: number | null;
+    controlProyectoIds?: number[];
+    folio?: string | null;
+    nombreProyecto?: string | null;
+    actividadNombre?: string | null;
+    alcance?: 'actividad' | 'proyecto';
+    modificadoPor: string | null;
+    modificadoEn: string | null;
+    snapshot?: any;
+    historialIds?: number[];
+    esLegacy?: boolean;
+    actividadesAfectadas?: Array<{
+      controlProyectoId?: number | null;
+      actividadNombre?: string | null;
+      versionToken?: string;
+      historialIds?: number[];
+      snapshot?: any;
+      cambios?: Array<{
+        id?: number;
+        campo: string;
+        etiqueta: string;
+        valorAnterior: string | null;
+        valorNuevo: string | null;
+      }>;
+    }>;
+    cambios: Array<{
+      id?: number;
+      campo: string;
+      etiqueta: string;
+      valorAnterior: string | null;
+      valorNuevo: string | null;
+      controlProyectoId?: number | null;
+      actividadNombre?: string | null;
+    }>;
+    esActual?: boolean;
+  }> = [];
+  /** Lista agrupada por mes cacheada (evita recrear en cada CD y rompe selección). */
+  panelVersionesAgrupadasMes: Array<{
+    mes: string;
+    versiones: Array<{
+      versionToken: string;
+      versionKey?: string;
+      controlProyectoId?: number | null;
+      controlProyectoIds?: number[];
+      actividadNombre?: string | null;
+      alcance?: 'actividad' | 'proyecto';
+      modificadoPor: string | null;
+      modificadoEn: string | null;
+      snapshot?: any;
+      historialIds?: number[];
+      esLegacy?: boolean;
+      actividadesAfectadas?: any[];
+      cambios: any[];
+      esActual?: boolean;
+      indiceGlobal: number;
+    }>;
+  }> = [];
+  panelVersionSeleccionadaToken: string | null = null;
+  /** Índice en la lista ordenada (0 = versión actual). Evita el bug de tokens nulos. */
+  panelVersionSeleccionadaIndice = 0;
+  panelHistorialRetencionDias = 14;
+  restaurandoVersion = false;
   cargandoPanelActividad = false;
   errorPanelActividad = '';
 
@@ -825,6 +898,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
           clave,
           folio: proyecto.folio || '',
           nombreProyecto: proyecto.nombreProyecto || 'Proyecto sin nombre',
+          empresaId: proyecto.empresaId ?? null,
           empresaNombre: proyecto.empresaNombre || '',
           actividades: []
         });
@@ -1193,11 +1267,72 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   abrirPanelActividad(event: Event, item: { proyecto: ProyectoTableroItem; indice: number }): void {
     event.stopPropagation();
+    this.panelModo = 'actividad';
+    this.panelHistorialAlcance = 'actividad';
     this.panelActividadItem = item;
     this.panelActividadTab = 'detalles';
+    this.panelProyectoNombre = String(item?.proyecto?.nombreProyecto || '').trim();
+    this.panelProyectoFolio = String(item?.proyecto?.folio || '').trim();
     this.panelActividadAbierto = true;
     this.errorPanelActividad = '';
     this.panelActividadHistorial = [];
+    this.panelActividadVersiones = [];
+    this.panelVersionesAgrupadasMes = [];
+    this.panelVersionSeleccionadaToken = null;
+    this.panelVersionSeleccionadaIndice = 0;
+    this.cargarDetallePanelActividad(item);
+  }
+
+  abrirHistorialProyectoGestion(grupo: GrupoGestionProyecto, event?: Event): void {
+    event?.stopPropagation();
+    const primera = grupo?.actividades?.[0];
+    if (!primera) return;
+    this.panelModo = 'proyecto';
+    this.panelHistorialAlcance = 'proyecto';
+    this.panelActividadItem = { proyecto: primera.proyecto, indice: primera.indice };
+    this.panelActividadTab = 'historial';
+    this.panelProyectoNombre = String(grupo.nombreProyecto || primera.proyecto?.nombreProyecto || '').trim();
+    this.panelProyectoFolio = String(grupo.folio || primera.proyecto?.folio || '').trim();
+    this.panelHistorialGrupo = grupo;
+    this.panelActividadAbierto = true;
+    this.errorPanelActividad = '';
+    this.panelActividadHistorial = [];
+    this.panelActividadVersiones = [];
+    this.panelVersionesAgrupadasMes = [];
+    this.panelVersionSeleccionadaToken = null;
+    this.panelVersionSeleccionadaIndice = 0;
+    this.cargarHistorialProyectoPanel(grupo);
+  }
+
+  /** Abre el historial de una actividad concreta (menú de 3 puntos). */
+  abrirHistorialActividadGestion(
+    event: Event,
+    item: { proyecto: ProyectoTableroItem; indice: number }
+  ): void {
+    event.stopPropagation();
+    this.cerrarMenuAccionesFila();
+    if (!item?.proyecto?.id) {
+      this.errorGestion = 'Guarda la actividad antes de consultar su historial de versiones.';
+      return;
+    }
+    this.panelModo = 'actividad';
+    this.panelHistorialAlcance = 'actividad';
+    this.panelActividadItem = item;
+    this.panelActividadTab = 'historial';
+    this.panelProyectoNombre = String(item.proyecto?.nombreProyecto || '').trim();
+    this.panelProyectoFolio = String(item.proyecto?.folio || '').trim();
+    this.panelHistorialGrupo = null;
+    this.panelActividadAbierto = true;
+    this.errorPanelActividad = '';
+    this.panelActividadHistorial = [];
+    this.panelActividadVersiones = [];
+    this.panelVersionesAgrupadasMes = [];
+    this.panelVersionSeleccionadaToken = null;
+    this.panelVersionSeleccionadaIndice = 0;
+    this.cargarDetallePanelActividad(item);
+  }
+
+  cargarDetallePanelActividad(item: { proyecto: ProyectoTableroItem; indice: number }): void {
     const id = Number(item?.proyecto?.id || 0);
     if (!Number.isInteger(id) || id <= 0) {
       this.cargandoPanelActividad = false;
@@ -1223,6 +1358,9 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
             }
           }
           this.panelActividadHistorial = Array.isArray(res.historial) ? res.historial : [];
+          // Historial de actividad: solo esta actividad; más reciente arriba = versión actual.
+          this.aplicarVersionesHistorialPanel(Array.isArray(res.versiones) ? res.versiones : []);
+          this.panelHistorialRetencionDias = Number(res.retencionDias) || 14;
         },
         error: (err) => {
           this.cargandoPanelActividad = false;
@@ -1231,16 +1369,361 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       });
   }
 
+  cargarHistorialProyectoPanel(grupo: GrupoGestionProyecto): void {
+    this.cargandoPanelActividad = true;
+    this.backend.historialControlProyectos({
+      empresaId: grupo.empresaId || this.empresaSeleccionadaId,
+      folio: grupo.folio || '',
+      nombreProyecto: grupo.nombreProyecto || ''
+    })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.cargandoPanelActividad = false;
+          if (!res?.success) {
+            this.errorPanelActividad = res?.message || 'No se pudo cargar el historial del proyecto.';
+            return;
+          }
+          this.panelActividadHistorial = Array.isArray(res.historial) ? res.historial : [];
+          // Vista de proyecto: lotes multi-actividad (mismo guardado).
+          this.aplicarVersionesHistorialPanel(Array.isArray(res.versiones) ? res.versiones : []);
+          this.panelHistorialRetencionDias = Number(res.retencionDias) || 14;
+        },
+        error: (err) => {
+          this.cargandoPanelActividad = false;
+          this.errorPanelActividad = err?.error?.message || 'No se pudo cargar el historial del proyecto.';
+        }
+      });
+  }
+
+  /** Ordena, indexa y cachea el listado de versiones para que la selección sea estable. */
+  private aplicarVersionesHistorialPanel(versionesRaw: typeof this.panelActividadVersiones | any[]): void {
+    this.panelActividadVersiones = this.ordenarVersionesHistorial(versionesRaw || []);
+    this.panelVersionesAgrupadasMes = this.construirVersionesAgrupadasPorMes(this.panelActividadVersiones);
+    this.panelVersionSeleccionadaIndice = 0;
+    this.panelVersionSeleccionadaToken =
+      this.panelActividadVersiones[0]?.versionKey
+      || this.panelActividadVersiones[0]?.versionToken
+      || null;
+  }
+
   cerrarPanelActividad(): void {
     this.panelActividadAbierto = false;
     this.panelActividadItem = null;
+    this.panelModo = 'actividad';
+    this.panelHistorialAlcance = 'actividad';
+    this.panelProyectoNombre = '';
+    this.panelProyectoFolio = '';
+    this.panelHistorialGrupo = null;
     this.panelActividadHistorial = [];
+    this.panelActividadVersiones = [];
+    this.panelVersionesAgrupadasMes = [];
+    this.panelVersionSeleccionadaToken = null;
+    this.panelVersionSeleccionadaIndice = 0;
     this.errorPanelActividad = '';
     this.cargandoPanelActividad = false;
+    this.restaurandoVersion = false;
   }
 
-  seleccionarTabPanelActividad(tab: 'detalles' | 'actividad'): void {
+  seleccionarTabPanelActividad(tab: 'detalles' | 'historial'): void {
+    if (this.panelModo === 'proyecto' && tab === 'detalles') return;
     this.panelActividadTab = tab;
+    if (tab === 'historial' && this.panelActividadItem && !this.panelActividadVersiones.length && !this.cargandoPanelActividad) {
+      if (this.panelHistorialAlcance === 'proyecto' && (this.panelHistorialGrupo || this.grupoGestionSeleccionado)) {
+        this.cargarHistorialProyectoPanel(this.panelHistorialGrupo || this.grupoGestionSeleccionado!);
+      } else {
+        this.cargarDetallePanelActividad(this.panelActividadItem);
+      }
+    }
+  }
+
+  seleccionarVersionHistorial(tokenOrKey: string | null, indice?: number | string, event?: Event): void {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    const idxNum = typeof indice === 'string' ? Number(indice) : indice;
+    if (typeof idxNum === 'number' && Number.isFinite(idxNum) && idxNum >= 0) {
+      const i = Math.floor(idxNum);
+      if (i >= this.panelActividadVersiones.length) return;
+      this.panelVersionSeleccionadaIndice = i;
+      const v = this.panelActividadVersiones[i];
+      this.panelVersionSeleccionadaToken = v?.versionKey || v?.versionToken || tokenOrKey || null;
+      return;
+    }
+    const key = String(tokenOrKey || '').trim();
+    if (!key) return;
+    const idx = this.panelActividadVersiones.findIndex(
+      (v) => v.versionKey === key || v.versionToken === key
+    );
+    if (idx < 0) return;
+    this.panelVersionSeleccionadaIndice = idx;
+    this.panelVersionSeleccionadaToken = key;
+  }
+
+  trackByVersionHistorial(_index: number, v: { versionKey?: string; versionToken?: string; indiceGlobal?: number }): string {
+    return `${v.indiceGlobal ?? _index}-${v.versionKey || v.versionToken || ''}`;
+  }
+
+  get versionHistorialSeleccionada(): typeof this.panelActividadVersiones[number] | null {
+    const lista = this.panelActividadVersiones;
+    if (!lista.length) return null;
+    const i = Number(this.panelVersionSeleccionadaIndice);
+    if (Number.isInteger(i) && i >= 0 && i < lista.length) {
+      return lista[i];
+    }
+    if (this.panelVersionSeleccionadaToken) {
+      const found = lista.find(
+        (v) => v.versionKey === this.panelVersionSeleccionadaToken
+          || v.versionToken === this.panelVersionSeleccionadaToken
+      );
+      if (found) return found;
+    }
+    return lista[0];
+  }
+
+  /** Ordena versiones por fecha real (más reciente primero). Evita el bug de Date.toString(). */
+  private ordenarVersionesHistorial(
+    versiones: typeof this.panelActividadVersiones
+  ): typeof this.panelActividadVersiones {
+    const ts = (valor: string | null | undefined): number => {
+      if (!valor) return 0;
+      const crudo = String(valor).trim();
+      const mysql = crudo.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+      if (mysql) {
+        return Date.UTC(
+          Number(mysql[1]),
+          Number(mysql[2]) - 1,
+          Number(mysql[3]),
+          Number(mysql[4]),
+          Number(mysql[5]),
+          Number(mysql[6] || 0)
+        );
+      }
+      const t = new Date(crudo).getTime();
+      return Number.isNaN(t) ? 0 : t;
+    };
+    return [...(versiones || [])].sort((a, b) => {
+      const diff = ts(b.modificadoEn) - ts(a.modificadoEn);
+      if (diff !== 0) return diff;
+      const maxId = (v: typeof a) => Math.max(0, ...(v.historialIds || [0]));
+      return maxId(b) - maxId(a);
+    }).map((v, i) => {
+      const key = String(v.versionKey || v.versionToken || `v-${i}-${ts(v.modificadoEn)}`).trim() || `v-${i}`;
+      return {
+        ...v,
+        versionKey: key,
+        versionToken: String(v.versionToken || key),
+        esActual: i === 0,
+        alcance: v.alcance || (this.panelModo === 'proyecto' ? 'proyecto' : 'actividad'),
+        actividadesAfectadas: Array.isArray(v.actividadesAfectadas) ? v.actividadesAfectadas : undefined,
+        controlProyectoIds: Array.isArray(v.controlProyectoIds) ? v.controlProyectoIds : undefined
+      };
+    });
+  }
+
+  private construirVersionesAgrupadasPorMes(
+    ordenadas: typeof this.panelActividadVersiones
+  ): typeof this.panelVersionesAgrupadasMes {
+    const grupos = new Map<string, typeof this.panelVersionesAgrupadasMes[number]['versiones']>();
+    const ordenMeses: string[] = [];
+    (ordenadas || []).forEach((v, indiceGlobal) => {
+      const mes = this.etiquetaMesHistorial(v.modificadoEn);
+      if (!grupos.has(mes)) {
+        grupos.set(mes, []);
+        ordenMeses.push(mes);
+      }
+      grupos.get(mes)!.push({ ...v, indiceGlobal });
+    });
+    return ordenMeses.map((mes) => ({ mes, versiones: grupos.get(mes)! }));
+  }
+
+  /** @deprecated Usar panelVersionesAgrupadasMes (cache). Se mantiene por compatibilidad. */
+  versionesHistorialAgrupadasPorMes(): typeof this.panelVersionesAgrupadasMes {
+    return this.panelVersionesAgrupadasMes.length
+      ? this.panelVersionesAgrupadasMes
+      : this.construirVersionesAgrupadasPorMes(this.panelActividadVersiones);
+  }
+
+  private etiquetaMesHistorial(valor: string | null | undefined): string {
+    if (!valor) return 'Sin fecha';
+    const d = new Date(valor);
+    if (Number.isNaN(d.getTime())) return 'Sin fecha';
+    try {
+      const etiqueta = new Intl.DateTimeFormat('es-MX', {
+        timeZone: 'America/Mexico_City',
+        month: 'long',
+        year: 'numeric'
+      }).format(d);
+      return etiqueta.charAt(0).toUpperCase() + etiqueta.slice(1);
+    } catch {
+      return 'Sin fecha';
+    }
+  }
+
+  indiceVersionHistorial(version: typeof this.panelActividadVersiones[number] | null): number {
+    if (!version) return -1;
+    const i = Number(this.panelVersionSeleccionadaIndice);
+    if (Number.isInteger(i) && i >= 0 && i < this.panelActividadVersiones.length) {
+      const sel = this.panelActividadVersiones[i];
+      if (sel === version) return i;
+      const keySel = sel?.versionKey || sel?.versionToken;
+      const keyVer = version.versionKey || version.versionToken;
+      if (keySel && keyVer && keySel === keyVer) return i;
+    }
+    const key = version.versionKey || version.versionToken;
+    return this.panelActividadVersiones.findIndex(
+      (v) => (v.versionKey || v.versionToken) === key
+    );
+  }
+
+  etiquetaVersionHistorial(version: typeof this.panelActividadVersiones[number] | null, indiceLista = 0): string {
+    if (!version) return 'Versión';
+    const idx = Number.isInteger(indiceLista) && indiceLista >= 0
+      ? indiceLista
+      : this.indiceVersionHistorial(version);
+    if (idx === 0) return 'Versión actual';
+    if (idx === 1) return '1 versión atrás';
+    return `${idx} versiones atrás`;
+  }
+
+  puedeRestaurarVersionHistorial(version: typeof this.panelActividadVersiones[number] | null): boolean {
+    if (!version) return false;
+    const idx = this.indiceVersionHistorial(version);
+    // La versión actual es el estado vigente: solo se recuperan anteriores.
+    if (idx === 0) return false;
+    const tieneCambios = Array.isArray(version.cambios) && version.cambios.length > 0;
+    const tieneIds = Array.isArray(version.historialIds) && version.historialIds.length > 0;
+    const tieneActs = Array.isArray(version.actividadesAfectadas) && version.actividadesAfectadas.length > 0;
+    if (!version.snapshot && !tieneCambios && !tieneIds && !tieneActs) return false;
+    if (this.esConsultaEmpresa || this.restaurandoVersion) return false;
+
+    if (this.panelModo === 'proyecto' || version.alcance === 'proyecto') {
+      if (this.tienePermisoUniversalGestion) return true;
+      const ids = (version.controlProyectoIds && version.controlProyectoIds.length
+        ? version.controlProyectoIds
+        : (version.actividadesAfectadas || []).map((a) => Number(a.controlProyectoId || 0))
+      ).filter((n) => n > 0);
+      if (!ids.length) return false;
+      return ids.some((id) => {
+        const act = this.proyectosGestion.find((p) => Number(p.id) === id);
+        return act ? this.puedeEditarActividadGestion(act) : false;
+      });
+    }
+
+    if (!version.controlProyectoId) return false;
+    const id = Number(version.controlProyectoId);
+    const act = this.proyectosGestion.find((p) => Number(p.id) === id)
+      || this.panelActividadItem?.proyecto;
+    if (!act) return this.tienePermisoUniversalGestion;
+    return this.puedeEditarActividadGestion(act);
+  }
+
+  /** ¿La fila debe mostrar el menú de acciones (historial / evidencias / desactivar)? */
+  mostrarMenuAccionesFila(proyecto: ProyectoTableroItem | null | undefined): boolean {
+    if (this.esConsultaEmpresa) return false;
+    if (!proyecto) return false;
+    if (proyecto.id) return true;
+    return this.puedeEliminarActividadGestion(proyecto) || this.esSuperAdministrador;
+  }
+
+  restaurarVersionHistorial(version: typeof this.panelActividadVersiones[number] | null): void {
+    if (!version || !this.puedeRestaurarVersionHistorial(version)) return;
+    const idx = this.indiceVersionHistorial(version);
+    const etiqueta = this.etiquetaVersionHistorial(version, idx);
+    const esProyecto = this.panelModo === 'proyecto' || version.alcance === 'proyecto';
+    const nActs = Math.max(
+      1,
+      Number(version.controlProyectoIds?.length || 0),
+      Number(version.actividadesAfectadas?.length || 0)
+    );
+    const ok = window.confirm(
+      esProyecto
+        ? `¿Recuperar ${etiqueta.toLowerCase()} del proyecto?\n\n`
+          + `Fecha: ${this.formatearFechaHoraMexico(version.modificadoEn)}\n`
+          + `Se aplicará el estado de esa versión en ${nActs} actividad${nActs === 1 ? '' : 'es'}`
+          + (nActs > 1 ? ' (todas las afectadas del lote)' : '')
+          + ' y quedará como la versión actual.\n'
+          + 'El estado de ahora también se guardará en el historial por si necesitas volver.'
+        : `¿Recuperar ${etiqueta.toLowerCase()}?\n\n`
+          + `Fecha: ${this.formatearFechaHoraMexico(version.modificadoEn)}\n`
+          + 'Se aplicará el estado de esa versión a la actividad '
+          + 'y quedará como la versión actual. '
+          + 'El estado de ahora también se guardará en el historial por si necesitas volver.'
+    );
+    if (!ok) return;
+    this.restaurandoVersion = true;
+    this.errorPanelActividad = '';
+
+    const alTerminar = (res: any) => {
+      this.restaurandoVersion = false;
+      if (!res?.success) {
+        this.errorPanelActividad = res?.message || 'No se pudo restaurar la versión.';
+        return;
+      }
+      // Evitar que el borrador local pise los datos recién restaurados desde BD.
+      this.limpiarBorradorGestion();
+      this.gestionCambiosPendientes = false;
+      this.borradorGestionRecuperado = false;
+
+      if (Array.isArray(res?.errores) && res.errores.length) {
+        this.errorPanelActividad = res.message
+          || `Se restauraron ${res.actividadesConCambios || res.restauradasOk || 0} actividades, `
+            + `pero ${res.errores.length} fallaron.`;
+      }
+      this.aplicarDashboard(res);
+      this.sincronizarGestionDesdeProyectos();
+      if (this.panelHistorialAlcance === 'proyecto' && (this.panelHistorialGrupo || this.grupoGestionSeleccionado)) {
+        this.cargarHistorialProyectoPanel(this.panelHistorialGrupo || this.grupoGestionSeleccionado!);
+      } else if (this.panelActividadItem) {
+        const id = Number(this.panelActividadItem.proyecto.id || version.controlProyectoId);
+        const filaIdx = this.proyectosGestion.findIndex((p) => Number(p.id) === id);
+        if (filaIdx >= 0) {
+          this.panelActividadItem = { proyecto: this.proyectosGestion[filaIdx], indice: filaIdx };
+        }
+        this.cargarDetallePanelActividad(this.panelActividadItem);
+      }
+    };
+
+    if (esProyecto) {
+      const actividadesLote = (version.actividadesAfectadas || []).map((a) => ({
+        controlProyectoId: a.controlProyectoId || undefined,
+        versionToken: a.versionToken || undefined,
+        historialIds: a.historialIds || [],
+        cambios: a.cambios || []
+      }));
+      this.backend.restaurarVersionProyectoControlProyectos({
+        versionToken: version.versionToken,
+        versionKey: version.versionKey,
+        historialIds: version.historialIds || [],
+        actividades: actividadesLote,
+        empresaId: this.empresaSeleccionadaId,
+        folio: this.panelProyectoFolio || version.folio || undefined,
+        nombreProyecto: this.panelProyectoNombre || version.nombreProyecto || undefined
+      } as any)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: alTerminar,
+          error: (err) => {
+            this.restaurandoVersion = false;
+            this.errorPanelActividad = err?.error?.message || 'No se pudo restaurar la versión del proyecto.';
+          }
+        });
+      return;
+    }
+
+    this.backend.restaurarVersionControlProyectos(
+      version.controlProyectoId!,
+      version.versionToken,
+      this.empresaSeleccionadaId,
+      version.historialIds || []
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: alTerminar,
+        error: (err) => {
+          this.restaurandoVersion = false;
+          this.errorPanelActividad = err?.error?.message || 'No se pudo restaurar la versión.';
+        }
+      });
   }
 
   formatearFechaHoraMexico(valor: string | null | undefined): string {
@@ -1265,9 +1748,107 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     }
   }
 
+  formatearFechaCortaHistorial(valor: string | null | undefined): string {
+    if (!valor) return '—';
+    const fecha = new Date(valor);
+    if (Number.isNaN(fecha.getTime())) return String(valor);
+    try {
+      return new Intl.DateTimeFormat('es-MX', {
+        timeZone: 'America/Mexico_City',
+        day: 'numeric',
+        month: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).format(fecha);
+    } catch {
+      return String(valor);
+    }
+  }
+
   textoValorHistorial(valor: string | null | undefined): string {
     const t = String(valor ?? '').trim();
     return t || '(vacío)';
+  }
+
+  resumenCambiosVersion(version: typeof this.panelActividadVersiones[number] | null): string {
+    if (!version) return 'Sin cambios registrados';
+    const nActs = Array.isArray(version.actividadesAfectadas)
+      ? version.actividadesAfectadas.length
+      : (version.controlProyectoIds?.length || 0);
+    if ((version.alcance === 'proyecto' || this.panelModo === 'proyecto') && nActs > 1) {
+      return `${nActs} actividades afectadas`;
+    }
+    if (!version.cambios?.length) {
+      if (nActs === 1 && version.actividadesAfectadas?.[0]?.actividadNombre) {
+        return String(version.actividadesAfectadas[0].actividadNombre);
+      }
+      return 'Sin cambios registrados';
+    }
+    const etiquetas = version.cambios.map((c) => c.etiqueta || c.campo).filter(Boolean);
+    if (etiquetas.length <= 3) return etiquetas.join(', ');
+    return `${etiquetas.slice(0, 3).join(', ')} +${etiquetas.length - 3}`;
+  }
+
+  cambiosVersionAgrupadosPorActividad(
+    version: typeof this.panelActividadVersiones[number] | null
+  ): Array<{
+    actividadNombre: string;
+    controlProyectoId?: number | null;
+    cambios: typeof this.panelActividadVersiones[number]['cambios'];
+  }> {
+    if (!version) return [];
+
+    // Preferir el desglose por actividad del backend (una tarjeta por actividad).
+    if (Array.isArray(version.actividadesAfectadas) && version.actividadesAfectadas.length) {
+      return version.actividadesAfectadas
+        .map((a) => {
+          const actId = Number(a.controlProyectoId || 0) || null;
+          const cambios = Array.isArray(a.cambios) && a.cambios.length
+            ? (a.cambios as any)
+            : (version.cambios || []).filter((c) => Number(c.controlProyectoId || 0) === Number(actId || 0));
+          return {
+            controlProyectoId: actId,
+            actividadNombre: String(a.actividadNombre || (actId ? `Actividad #${actId}` : 'Actividad')).trim()
+              || (actId ? `Actividad #${actId}` : 'Actividad'),
+            cambios
+          };
+        })
+        .filter((g) => g.cambios.length > 0)
+        .sort((a, b) => {
+          const na = a.actividadNombre.localeCompare(b.actividadNombre, 'es', { sensitivity: 'base', numeric: true });
+          if (na !== 0) return na;
+          return Number(a.controlProyectoId || 0) - Number(b.controlProyectoId || 0);
+        });
+    }
+
+    if (!version.cambios?.length) return [];
+
+    // Fallback: agrupar por id de actividad (no por nombre, para no mezclar homónimos).
+    const mapa = new Map<string, {
+      actividadNombre: string;
+      controlProyectoId?: number | null;
+      cambios: typeof this.panelActividadVersiones[number]['cambios'];
+    }>();
+    for (const c of version.cambios) {
+      const actId = Number(c.controlProyectoId || 0) || 0;
+      const key = actId > 0 ? `id-${actId}` : `nom-${String(c.actividadNombre || version.actividadNombre || 'Actividad').trim()}`;
+      if (!mapa.has(key)) {
+        mapa.set(key, {
+          controlProyectoId: actId || null,
+          actividadNombre: String(
+            c.actividadNombre || version.actividadNombre || (actId ? `Actividad #${actId}` : 'Actividad')
+          ).trim() || 'Actividad',
+          cambios: []
+        });
+      }
+      mapa.get(key)!.cambios.push(c);
+    }
+    return Array.from(mapa.values()).sort((a, b) => {
+      const na = a.actividadNombre.localeCompare(b.actividadNombre, 'es', { sensitivity: 'base', numeric: true });
+      if (na !== 0) return na;
+      return Number(a.controlProyectoId || 0) - Number(b.controlProyectoId || 0);
+    });
   }
 
   autoAjustarTextareaObs(event: Event): void {
@@ -2116,31 +2697,38 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     return false;
   }
 
-  /** Dueño/autor del proyecto (responsable de cabecera). */
+  /** Dueño/autor del proyecto (responsable de cabecera o de alguna actividad). */
   esDuenoProyectoGestion(grupo: GrupoGestionProyecto | null | undefined): boolean {
     if (this.tienePermisoUniversalGestion) return true;
     if (this.auth.esUsuarioEmpresa()) return false;
-    const base = grupo?.actividades?.[0]?.proyecto;
-    if (!base) return false;
-    return this.usuarioEsResponsableDe(base);
+    if (!grupo?.actividades?.length) return false;
+    return grupo.actividades.some(({ proyecto }) => this.usuarioEsResponsableDe(proyecto));
   }
 
   /**
-   * Cualquier usuario interno puede gestionar proyectos y actividades.
-   * Perfiles empresa: solo lectura.
-   */
-  puedeEditarProyectoGestion(_grupo?: GrupoGestionProyecto | null): boolean {
-    return !this.auth.esUsuarioEmpresa();
-  }
-
-  /**
-   * Cualquier usuario interno puede editar actividades de cualquier proyecto.
+   * Solo el responsable de la actividad (o admin/root) puede editarla.
+   * Evita que un guardado masivo pise proyectos/actividades ajenos.
    */
   puedeEditarActividadGestion(
-    _actividad?: ProyectoTableroItem | null,
+    actividad?: ProyectoTableroItem | null,
     _grupo?: GrupoGestionProyecto | null
   ): boolean {
-    return !this.auth.esUsuarioEmpresa();
+    if (this.auth.esUsuarioEmpresa()) return false;
+    if (this.tienePermisoUniversalGestion) return true;
+    if (!actividad) return false;
+    // Actividad nueva aún no persistida: quien la creó en esta sesión puede editarla.
+    if (!actividad.id) return true;
+    return this.usuarioEsResponsableDe(actividad);
+  }
+
+  /**
+   * Puede gestionar el proyecto si es responsable de al menos una actividad, o admin/root.
+   */
+  puedeEditarProyectoGestion(grupo?: GrupoGestionProyecto | null): boolean {
+    if (this.auth.esUsuarioEmpresa()) return false;
+    if (this.tienePermisoUniversalGestion) return true;
+    if (!grupo?.actividades?.length) return true;
+    return grupo.actividades.some(({ proyecto }) => this.usuarioEsResponsableDe(proyecto));
   }
 
   /**
@@ -3791,6 +4379,8 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.gestionCambiosPendientes = false;
     this.errorGestion = '';
     this.borradorGestionRecuperado = false;
+    // Baseline = estado de BD; el borrador local se aplica después para marcar dirty.
+    this.capturarBaselineGestion();
     if (this.restaurarBorradorGestionSiExiste()) {
       this.gestionCambiosPendientes = true;
       this.borradorGestionRecuperado = true;
@@ -3817,9 +4407,54 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     );
   }
 
-  /** Al guardar: cualquier usuario interno puede persistir cambios de gestión. */
+  /** Al guardar: solo actividades que el usuario puede editar (responsable o admin). */
   private puedeEditarActividadAlGuardar(actividad: ProyectoTableroItem): boolean {
     return this.puedeEditarActividadGestion(actividad);
+  }
+
+  /** Firma de una actividad para detectar cambios reales antes de enviar al backend. */
+  private firmaActividadGestion(p: ProyectoTableroItem): string {
+    return JSON.stringify({
+      id: p.id || null,
+      empresaId: p.empresaId || null,
+      folio: String(p.folio || '').trim(),
+      nombreProyecto: String(p.nombreProyecto || '').trim(),
+      item: String(p.item || '').trim(),
+      actividadesAccion: String(p.actividadesAccion || '').trim(),
+      condicionRequerimiento: String(p.condicionRequerimiento || '').trim(),
+      referenciaNormativa: String(p.referenciaNormativa || '').trim(),
+      observaciones: String(p.observaciones || '').trim(),
+      entregables: String(p.entregables || '').trim(),
+      responsable: String(p.responsable || '').trim(),
+      responsableUsuarioIds: this.parseResponsableUsuarioIds(p.responsableUsuarioIds),
+      fechaInicio: this.fechaInputGestion(p.fechaInicio),
+      fechaCompromiso: this.fechaInputGestion(p.fechaCompromiso),
+      prioridad: String(p.prioridad || '').trim(),
+      estatus: String(p.estatus || '').trim(),
+      avance: Number(p.avance) || 0,
+      orden: Number(p.orden) || 0
+    });
+  }
+
+  private gestionBaselinePorId = new Map<number, string>();
+
+  private capturarBaselineGestion(): void {
+    this.gestionBaselinePorId.clear();
+    for (const p of this.proyectosGestion) {
+      const id = Number(p?.id || 0);
+      if (Number.isInteger(id) && id > 0) {
+        this.gestionBaselinePorId.set(id, this.firmaActividadGestion(p));
+      }
+    }
+  }
+
+  /** ¿La actividad cambió respecto al último sync con BD? */
+  private actividadGestionTieneCambios(p: ProyectoTableroItem): boolean {
+    if (!p?.id) return true;
+    const id = Number(p.id);
+    const base = this.gestionBaselinePorId.get(id);
+    if (!base) return true;
+    return base !== this.firmaActividadGestion(p);
   }
 
   get proyectosGestionVisibles(): ProyectoTableroItem[] {
@@ -4392,6 +5027,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   private guardarGestionYContinuar(onOk: () => void): void {
     const payload = this.proyectosGestion
       .filter((p) => this.puedeEditarActividadAlGuardar(p))
+      .filter((p) => this.actividadGestionTieneCambios(p))
       .map((p) => {
         this.sincronizarIdsResponsables(p);
         return {
@@ -4426,7 +5062,13 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
         || p.id
       );
 
-    // Payload vacío = soft-delete de lo que ya no está en la lista (p. ej. última actividad).
+    if (!payload.length) {
+      this.gestionCambiosPendientes = false;
+      this.limpiarBorradorGestion();
+      onOk();
+      return;
+    }
+
     this.guardandoGestion = true;
     this.errorGestion = '';
     this.backend.guardarControlProyectos(payload, this.empresaSeleccionadaId)
@@ -4457,9 +5099,17 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     campo: 'nombreProyecto' | 'responsable' | 'prioridad' | 'estatus' | 'fechaInicio' | 'fechaCompromiso',
     valor: string
   ): void {
-    for (const { indice } of grupo.actividades) {
+    // Solo identidad/responsables del proyecto se propagan a todas las actividades.
+    // estatus y fechas son por actividad: no se sobrescriben en bloque.
+    const camposCompartidos = new Set(['nombreProyecto', 'responsable', 'prioridad']);
+    if (!camposCompartidos.has(campo)) {
+      this.errorGestion = 'Estatus y fechas de compromiso se editan por actividad, no a nivel proyecto.';
+      return;
+    }
+    for (const { indice, proyecto } of grupo.actividades) {
       const fila = this.proyectosGestion[indice];
       if (!fila) continue;
+      if (!this.puedeEditarActividadGestion(proyecto || fila, grupo)) continue;
       fila[campo] = valor;
       if (campo === 'responsable') {
         fila.responsableUsuarioIds = this.resolverUsuarioIdsPorResponsables(valor);
@@ -4572,6 +5222,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     }
     const payload = this.proyectosGestion
       .filter((p) => this.puedeEditarActividadAlGuardar(p))
+      .filter((p) => this.actividadGestionTieneCambios(p))
       .map((p) => {
         this.sincronizarIdsResponsables(p);
         return {
@@ -4610,6 +5261,13 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       if (!silencioso) {
         this.errorGestion = 'Agrega al menos una actividad (nombre, condición o acción) para guardar.';
       }
+      return;
+    }
+
+    // Nada dirty y el usuario puede editar: no reenviar el portafolio completo.
+    if (!payload.length) {
+      this.gestionCambiosPendientes = false;
+      this.limpiarBorradorGestion();
       return;
     }
 

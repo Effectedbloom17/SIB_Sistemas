@@ -4,8 +4,8 @@
 
 const { repararPadresPipcHuerfanos } = require('./pcPipcAsignacionService');
 
-const PC_OPS_PASOS = ['asignar', 'directorio', 'recorrido', 'documentacion', 'oficio', 'observaciones', 'resolutivo', 'finalizar'];
-const PC_OPS_PASOS_OBLIGATORIOS_FINAL = ['asignar', 'directorio', 'documentacion', 'oficio', 'resolutivo'];
+const PC_OPS_PASOS = ['asignar', 'directorio', 'recorrido', 'documentacion', 'oficio', 'observaciones', 'recorrido_doc', 'resolutivo', 'finalizar'];
+const PC_OPS_PASOS_OBLIGATORIOS_FINAL = ['asignar', 'directorio', 'documentacion', 'oficio', 'recorrido_doc', 'resolutivo'];
 
 /** Claves legacy (compatibilidad con ciclos antiguos). */
 const PC_WORKFLOW_CLAVES_LEGACY = {
@@ -14,7 +14,8 @@ const PC_WORKFLOW_CLAVES_LEGACY = {
     ops_observacion_2: 'Observación 2',
     ops_resolutivo_pipc: 'Resolutivo PIPC',
     ops_resolutivo_factibilidad: 'Resolutivo Factibilidad',
-    ops_resolutivo_otms: 'Resolutivo OTMS'
+    ops_resolutivo_otms: 'Resolutivo OTMS',
+    ops_recorrido_doc: 'Recorrido PC'
 };
 
 /** @deprecated Usar claves dinámicas ops_oficio_{id} / ops_obs_{id} / ops_resolutivo_{id} */
@@ -38,6 +39,18 @@ function parseFechasWorkflow(raw) {
         return {};
     }
 }
+
+function parseNotasWorkflow(raw) {
+    if (!raw) return {};
+    try {
+        const obj = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        return obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {};
+    } catch {
+        return {};
+    }
+}
+
+const CLAVE_RECORRIDO_DOC = 'ops_recorrido_doc';
 
 function claveOficioPipc(padreId) {
     return `ops_oficio_${padreId}`;
@@ -72,9 +85,14 @@ const RESOLUTIVO_TIPOS = [
  * fecha_obs_123 → ops_obs_123
  * fecha_resolutivo_pipc_123 → ops_resolutivo_pipc_123
  * (legacy) fecha_resolutivo_123 → ops_resolutivo_pipc_123
+ * fecha_recorrido_doc → ops_recorrido_doc
  */
 function parseCampoFechaWorkflowDinamico(campo) {
     const c = String(campo || '');
+    if (c === 'fecha_recorrido_doc') {
+        return { padreId: null, claveWorkflow: CLAVE_RECORRIDO_DOC };
+    }
+
     let m = c.match(/^fecha_oficio_(\d+)$/);
     if (m) return { padreId: Number(m[1]), claveWorkflow: claveOficioPipc(m[1]) };
 
@@ -339,6 +357,10 @@ function evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura = null, f
     // Directorio: se puede completar el nodo aunque falten asociaciones en Gestión de Directorios.
     const directorioCompletable = true;
 
+    // Nodo «Recorrido» post-resolutivo: documento + fecha; observaciones de texto son opcionales.
+    const recorridoDocOk =
+        tieneArchivoWorkflow(archivosWorkflow, CLAVE_RECORRIDO_DOC) && !!fechasWf[CLAVE_RECORRIDO_DOC];
+
     const puedeCompletar = {
         asignar: asignarCompleto,
         directorio: directorioCompletable,
@@ -347,6 +369,7 @@ function evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura = null, f
         oficio: oficioOk,
         observaciones: obsValidoPorPipc,
         resolutivo: resolutivoOk,
+        recorrido_doc: recorridoDocOk,
         finalizar: PC_OPS_PASOS_OBLIGATORIOS_FINAL.every((p) => pasos.includes(p))
             && (pasos.includes('observaciones') || obsVacio)
     };
@@ -546,6 +569,12 @@ async function ensureCentroOperacionesFechasColumns(poolProteccionCivil, addColu
         'pc_centro_operaciones',
         'fechas_workflow',
         'JSON NULL AFTER fecha_vencimiento_otms'
+    );
+    await addColumnIfNotExists(
+        poolProteccionCivil,
+        'pc_centro_operaciones',
+        'notas_workflow',
+        'JSON NULL AFTER fechas_workflow'
     );
 }
 
@@ -782,6 +811,7 @@ async function ensureWorkflowDocuments(poolProteccionCivil, empresaId, allDocs =
 
 function buildCicloResponse(ciclo, reglas, extras = {}) {
     const fechasWf = parseFechasWorkflow(ciclo.fechas_workflow);
+    const notasWf = parseNotasWorkflow(ciclo.notas_workflow);
     const responsableId = Number(ciclo.responsable_pipc_usuario_id || 0) || null;
     return {
         operacion_id: ciclo.operacion_id,
@@ -794,6 +824,7 @@ function buildCicloResponse(ciclo, reglas, extras = {}) {
         fecha_aprobacion_factibilidad: ciclo.fecha_aprobacion_factibilidad || null,
         fecha_aprobacion_otms: ciclo.fecha_aprobacion_otms || null,
         fechas_workflow: fechasWf,
+        notas_workflow: notasWf,
         ciclo_cerrado: !!ciclo.ciclo_cerrado_at
     };
 }
@@ -1085,6 +1116,39 @@ function registerPcCentroOperacionesRoutes(app, deps) {
         }
     });
 
+    app.put('/api/proteccion-civil/empresas/:empresaId/centro-operaciones/notas', requireAdminOrPC, verificarServicioProteccionCivilEmpresa, async (req, res) => {
+        try {
+            const pool = await resolvePool(deps);
+            const empresaId = Number(req.params.empresaId);
+            const clave = String(req.body?.clave || '').trim();
+            const valor = String(req.body?.valor ?? '');
+            const clavesPermitidas = new Set([CLAVE_RECORRIDO_DOC]);
+            if (!clavesPermitidas.has(clave)) {
+                return res.status(400).json({ success: false, message: 'Clave de nota no válida' });
+            }
+
+            let ciclo = await obtenerCicloActivo(pool, empresaId);
+            if (!ciclo) ciclo = await crearCicloActivo(pool, empresaId);
+
+            const notasWf = parseNotasWorkflow(ciclo.notas_workflow);
+            const valorNorm = valor.trim();
+            if (valorNorm) {
+                notasWf[clave] = valorNorm;
+            } else {
+                delete notasWf[clave];
+            }
+
+            await pool.query(
+                `UPDATE pc_centro_operaciones SET notas_workflow = ?, fecha_actualizacion = NOW() WHERE operacion_id = ?`,
+                [JSON.stringify(notasWf), ciclo.operacion_id]
+            );
+
+            res.json({ success: true, message: 'Nota guardada', notas_workflow: notasWf });
+        } catch (error) {
+            handleError(res, error, 'Error al guardar nota del centro de operaciones');
+        }
+    });
+
     app.post(
         '/api/proteccion-civil/empresas/:empresaId/centro-operaciones/sincronizar-resolutivos',
         requireAdminOrPC,
@@ -1148,6 +1212,8 @@ function registerPcCentroOperacionesRoutes(app, deps) {
                     success: false,
                     message: paso === 'directorio'
                         ? 'Asocia al menos un directorio a cada PIPC en «Gestión de Directorios» antes de completar este paso.'
+                        : paso === 'recorrido_doc'
+                            ? 'Sube el documento de Recorrido PC y registra la fecha de ingreso para completar este paso.'
                         : 'Aún no se cumplen los requisitos para completar este paso'
                 });
             }
@@ -1334,6 +1400,8 @@ function construirDetallePasosPipc({
     const resolutivoOk = slotsRes.includes('complete') && !slotsRes.includes('incomplete');
     const recorridoOk = pasos.includes('recorrido');
     const directorioOk = pasos.includes('directorio');
+    const recorridoDocOk =
+        tieneArchivoWorkflow(archivosWorkflow, CLAVE_RECORRIDO_DOC) && !!fechasWf[CLAVE_RECORRIDO_DOC];
 
     const pasosDetalle = [
         {
@@ -1372,6 +1440,13 @@ function construirDetallePasosPipc({
             pct: obsOk ? 100 : 0
         },
         {
+            id: 'recorrido_doc',
+            label: 'Recorrido PC',
+            estado: recorridoDocOk || pasos.includes('recorrido_doc') ? 'ok' : 'pendiente',
+            detalle: null,
+            pct: recorridoDocOk || pasos.includes('recorrido_doc') ? 100 : 0
+        },
+        {
             id: 'resolutivo',
             label: 'Resolutivo',
             estado: resolutivoOk ? 'ok' : 'pendiente',
@@ -1381,7 +1456,7 @@ function construirDetallePasosPipc({
     ];
 
     // Paso actual: no cuenta observaciones ni asignar
-    const ordenActual = ['directorio', 'recorrido', 'documentacion', 'oficio', 'resolutivo'];
+    const ordenActual = ['directorio', 'recorrido', 'documentacion', 'oficio', 'recorrido_doc', 'resolutivo'];
     let pasoActual = 'Finalizado';
     let pasoActualId = 'finalizar';
     for (const id of ordenActual) {
@@ -1393,7 +1468,7 @@ function construirDetallePasosPipc({
         }
     }
 
-    const requeridos = ['directorio', 'documentacion', 'oficio', 'resolutivo'];
+    const requeridos = ['directorio', 'documentacion', 'oficio', 'recorrido_doc', 'resolutivo'];
     const doneReq = requeridos.filter((id) => pasosDetalle.find((p) => p.id === id)?.estado === 'ok').length;
     const progresoPct = Math.round((doneReq / requeridos.length) * 100);
 
@@ -1457,6 +1532,7 @@ module.exports = {
     listarPipcAsignadosActivos,
     claveResolutivoTipoPipc,
     parseFechasWorkflow,
+    parseNotasWorkflow,
     ensureCentroOperacionesTable,
     ensureCentroOperacionesFechasColumns,
     ensureResponsablePipcColumn,

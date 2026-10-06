@@ -122,54 +122,45 @@
         <div class="seg-clausula__head"
              role="button"
              tabindex="0"
-             (click)="toggleExpandir(r.id)"
-             (keydown.enter)="toggleExpandir(r.id)"
-             [attr.aria-expanded]="requisitoExpandido === r.id">
+             (click)="seleccionarPunto(r)"
+             (keydown.enter)="seleccionarPunto(r)"
+             [attr.aria-expanded]="!puedeAdministrar && requisitoExpandido === r.id">
           <div class="seg-clausula__rail">
             <span class="seg-clausula__index">{{ i + 1 }}</span>
             <span class="seg-clausula__punto">{{ r.punto_norma || '—' }}</span>
           </div>
           <div class="seg-clausula__content">
-            <div class="seg-clausula__texto seg-rich-text" [innerHTML]="textoRequisitoHtml(r)"></div>
-            <div class="seg-clausula__meta">
-              <span class="seg-pill seg-pill--tipo" *ngIf="r.tipo_evidencia">
-                <i class="fas" [ngClass]="iconoTipo(r.tipo_evidencia)" aria-hidden="true"></i>
-                {{ r.tipo_evidencia }}
-              </span>
-              <span class="seg-pill" *ngIf="r.periodicidad">
-                <i class="fas fa-clock" aria-hidden="true"></i> {{ r.periodicidad }}
-              </span>
-              <span class="seg-pill seg-pill--formato" *ngIf="r.formato_nombre || r.formato_archivo">
-                <i class="fas fa-link" aria-hidden="true"></i> {{ r.formato_nombre || 'Formato guía' }}
-              </span>
+            <div class="seg-clausula__texto seg-rich-text"
+                 [innerHTML]="textoRequisitoHtml(r)"
+                 (mouseover)="verReferencia($event, r.imagenes)"
+                 (mouseleave)="ocultarReferencia()"
+                 (click)="abrirReferencia($event, r.imagenes)"></div>
+            <div class="seg-clausula__meta" *ngIf="r.formato_nombre || r.formato_archivo">
+              <button type="button"
+                      class="seg-pill seg-pill--formato"
+                      *ngIf="r.formato_archivo || r.formato_nombre"
+                      (click)="abrirVisorFormato($event, r.formato_nombre_archivo || r.formato_nombre, r.formato_archivo)">
+                <i class="fas fa-eye" aria-hidden="true"></i> {{ r.formato_nombre || 'Ver formato' }}
+              </button>
+            </div>
+            <div class="seg-clausula__refs" *ngIf="r.imagenes?.length">
+              <img *ngFor="let img of r.imagenes"
+                   [src]="urlArchivo(img.ruta)"
+                   [alt]="img.nombre">
             </div>
           </div>
           <div class="seg-clausula__toggle">
-            <button type="button"
-                    class="seg-clausula__edit"
-                    *ngIf="puedeAdministrar"
-                    (click)="abrirEditor(r, $event)"
-                    aria-label="Editar punto">
-              <i class="fas fa-pen" aria-hidden="true"></i>
-            </button>
-            <i class="fas" [class.fa-chevron-down]="requisitoExpandido !== r.id" [class.fa-chevron-up]="requisitoExpandido === r.id" aria-hidden="true"></i>
+            <i class="fas fa-pen" *ngIf="puedeAdministrar" aria-hidden="true"></i>
+            <i class="fas"
+               *ngIf="!puedeAdministrar"
+               [class.fa-chevron-down]="requisitoExpandido !== r.id"
+               [class.fa-chevron-up]="requisitoExpandido === r.id"
+               aria-hidden="true"></i>
           </div>
         </div>
 
-        <div class="seg-clausula__detail" *ngIf="requisitoExpandido === r.id">
-          <div class="seg-clausula__detail-actions" *ngIf="puedeAdministrar">
-            <button type="button" class="btn btn-sm seg-btn-edit" (click)="abrirEditor(r, $event)">
-              <i class="fas fa-pen" aria-hidden="true"></i> Editar punto
-            </button>
-          </div>
+        <div class="seg-clausula__detail" *ngIf="!puedeAdministrar && requisitoExpandido === r.id">
           <div class="seg-clausula__detail-grid">
-            <div class="seg-detail-item" *ngIf="r.numero_item">
-              <i class="fas fa-hashtag" aria-hidden="true"></i>
-              <div>
-                <span class="seg-detail-item__label">Ítem</span>
-                <span class="seg-detail-item__val">{{ r.numero_item }}</span>
-              </div>
-            </div>
             <div class="seg-detail-item seg-detail-item--full" *ngIf="r.evidencia_requerida">
               <i class="fas fa-paperclip" aria-hidden="true"></i>
               <div>
@@ -181,11 +172,12 @@
               <i class="fas fa-file-signature" aria-hidden="true"></i>
               <div>
                 <span class="seg-detail-item__label">Formato guía</span>
-                <a class="seg-detail-item__val seg-detail-item__link"
-                   *ngIf="urlArchivo(r.formato_archivo) as href"
-                   [href]="href"
-                   target="_blank"
-                   rel="noopener">{{ r.formato_nombre || r.formato_nombre_archivo }}</a>
+                <button type="button"
+                        class="seg-detail-item__val seg-detail-item__link"
+                        *ngIf="r.formato_archivo"
+                        (click)="abrirVisorFormato($event, r.formato_nombre_archivo || r.formato_nombre, r.formato_archivo)">
+                  {{ r.formato_nombre || r.formato_nombre_archivo }}
+                </button>
                 <span class="seg-detail-item__val" *ngIf="!r.formato_archivo">{{ r.formato_nombre }}</span>
               </div>
             </div>
@@ -248,33 +240,53 @@
 </div>
 
 <div class="arch-overlay" *ngIf="editor as ed" (click)="cerrarEditor()">
-  <section class="arch-dialog" role="dialog" aria-modal="true" aria-labelledby="arch-punto-titulo" (click)="$event.stopPropagation()">
+  <section class="arch-dialog arch-dialog--punto" role="dialog" aria-modal="true" aria-labelledby="arch-punto-titulo" (click)="$event.stopPropagation()">
     <header class="arch-dialog__head">
       <div class="arch-dialog__mark"><i class="fas fa-pen-nib" aria-hidden="true"></i></div>
       <div>
-        <p class="arch-dialog__kicker">{{ normativa?.codigo }}</p>
-        <h2 id="arch-punto-titulo">Editar punto {{ ed.punto_norma || 'sin clave' }}</h2>
+        <h2 id="arch-punto-titulo">Editar punto {{ ed.punto_norma || 'sin clave' }} de la normativa {{ normativa?.codigo }}</h2>
       </div>
       <button type="button" class="arch-dialog__close" (click)="cerrarEditor()" aria-label="Cerrar">
         <i class="fas fa-times" aria-hidden="true"></i>
       </button>
     </header>
+    <div class="arch-dialog__panel">
+      <div class="arch-dialog__deco" aria-hidden="true"></div>
     <div class="arch-dialog__body arch-dialog__body--split">
-      <div class="arch-col">
-        <label class="arch-field arch-field--punto">
-          <span>Punto de la norma</span>
-          <input type="text" [(ngModel)]="ed.punto_norma" [disabled]="guardandoPunto" maxlength="32">
-        </label>
-        <label class="arch-field">
+      <div class="arch-col arch-col--desc">
+        <div class="arch-field arch-field--desc">
           <span>Descripción</span>
-          <textarea rows="8" [(ngModel)]="ed.descripcion" [disabled]="guardandoPunto" placeholder="Texto del requisito, tal como debe quedar en el archivo"></textarea>
-        </label>
-        <label class="arch-field">
-          <span>Evidencia requerida</span>
-          <textarea rows="3" [(ngModel)]="ed.evidencia_requerida" [disabled]="guardandoPunto" placeholder="Qué debe comprobarse en este punto"></textarea>
-        </label>
+          <div #prosa
+               class="arch-prose"
+               role="textbox"
+               aria-multiline="true"
+               aria-label="Descripción"
+               [attr.contenteditable]="guardandoPunto ? 'false' : 'true'"
+               (input)="onProsaInput(prosa)"
+               (paste)="onProsaPaste($event)"
+               (blur)="formatearProsa(prosa)"
+               (mouseover)="verReferencia($event)"
+               (mouseleave)="ocultarReferencia()"
+               (click)="abrirReferencia($event)"
+               (dragstart)="alArrastrarReferencia($event)"
+               (dragover)="alPasarReferencia($event)"
+               (drop)="alSoltarReferencia($event)"></div>
+        </div>
       </div>
       <div class="arch-col">
+        <div class="arch-pair">
+          <label class="arch-field arch-field--punto">
+            <span>Punto de la norma</span>
+            <input type="text" [(ngModel)]="ed.punto_norma" [disabled]="guardandoPunto" maxlength="32">
+          </label>
+          <label class="arch-field">
+            <span>Periodicidad</span>
+            <input type="text" list="arch-periodicidad" [(ngModel)]="ed.periodicidad" [disabled]="guardandoPunto" placeholder="Anual, semestral…">
+            <datalist id="arch-periodicidad">
+              <option *ngFor="let per of periodicidades" [value]="per"></option>
+            </datalist>
+          </label>
+        </div>
         <div class="arch-field">
           <span>Tipo de evidencia</span>
           <div class="arch-pills" role="group" aria-label="Tipo de evidencia">
@@ -286,38 +298,52 @@
           </div>
         </div>
         <label class="arch-field">
-          <span>Periodicidad</span>
-          <input type="text" list="arch-periodicidad" [(ngModel)]="ed.periodicidad" [disabled]="guardandoPunto" placeholder="Anual, semestral…">
-          <datalist id="arch-periodicidad">
-            <option *ngFor="let per of periodicidades" [value]="per"></option>
-          </datalist>
-        </label>
-        <label class="arch-field">
           <span>Observaciones</span>
-          <textarea rows="3" [(ngModel)]="ed.observaciones" [disabled]="guardandoPunto" placeholder="Aclaración del archivo, si el Excel vino incompleto"></textarea>
+          <textarea rows="4" [(ngModel)]="ed.observaciones" [disabled]="guardandoPunto" placeholder="Aclaración del archivo, si el Excel vino incompleto"></textarea>
         </label>
+        <section class="arch-refs">
+          <header>
+            <i class="fas fa-image" aria-hidden="true"></i>
+            <div>
+              <strong>Imágenes de referencia</strong>
+            </div>
+          </header>
+          <div class="arch-refs__grid">
+            <figure *ngFor="let img of imagenesVisibles(ed)">
+              <img [src]="img.preview" [alt]="img.nombre" *ngIf="img.preview">
+              <span *ngIf="!img.preview" class="arch-refs__wait"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i></span>
+              <button type="button" (click)="quitarImagenEditor(img)" [disabled]="guardandoPunto" [attr.aria-label]="'Quitar ' + img.nombre">
+                <i class="fas fa-times" aria-hidden="true"></i>
+              </button>
+            </figure>
+            <label class="arch-refs__add" *ngIf="imagenesVisibles(ed).length < 8">
+              <i class="fas fa-plus" aria-hidden="true"></i>
+              <span>Subir</span>
+              <input type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple (change)="onImagenes($event)" [disabled]="guardandoPunto">
+            </label>
+          </div>
+        </section>
         <section class="arch-formato">
           <header>
             <i class="fas fa-link" aria-hidden="true"></i>
             <div>
               <strong>Ligar formato</strong>
-              <p>Plantilla guía para este punto. Quien atienda la norma la tendrá ligada desde aquí.</p>
             </div>
           </header>
-          <label class="arch-field">
-            <span>Nombre del formato</span>
-            <input type="text" [(ngModel)]="ed.formato_nombre" [disabled]="guardandoPunto || ed.quitarFormato" maxlength="200" placeholder="Ej. Lista de verificación de extintores">
-          </label>
           <div class="arch-formato__file" *ngIf="ed.archivo as nuevo">
-            <i class="fas fa-file-alt" aria-hidden="true"></i>
-            <span>{{ nuevo.name }}</span>
-            <button type="button" (click)="ed.archivo = null" [disabled]="guardandoPunto" aria-label="Quitar archivo nuevo">
+            <button type="button" class="arch-formato__open" (click)="abrirVisorFormato($event, nuevo.name, null, nuevo)">
+              <i class="fas fa-eye" aria-hidden="true"></i>
+              <span>{{ nuevo.name }}</span>
+            </button>
+            <button type="button" (click)="quitarArchivoNuevo()" [disabled]="guardandoPunto" aria-label="Quitar archivo nuevo">
               <i class="fas fa-times" aria-hidden="true"></i>
             </button>
           </div>
           <div class="arch-formato__file" *ngIf="!ed.archivo && ed.formato_archivo && !ed.quitarFormato">
-            <i class="fas fa-file-signature" aria-hidden="true"></i>
-            <a [href]="urlArchivo(ed.formato_archivo)" target="_blank" rel="noopener">{{ ed.formato_nombre_archivo || ed.formato_nombre || 'Formato ligado' }}</a>
+            <button type="button" class="arch-formato__open" (click)="abrirVisorFormato($event, ed.formato_nombre_archivo || ed.formato_nombre, ed.formato_archivo)">
+              <i class="fas fa-eye" aria-hidden="true"></i>
+              <span>{{ ed.formato_nombre_archivo || ed.formato_nombre || 'Formato ligado' }}</span>
+            </button>
             <button type="button" (click)="quitarFormatoEditor()" [disabled]="guardandoPunto" aria-label="Quitar formato ligado">
               <i class="fas fa-times" aria-hidden="true"></i>
             </button>
@@ -338,5 +364,22 @@
         {{ guardandoPunto ? 'Guardando…' : 'Guardar punto' }}
       </button>
     </footer>
+    </div>
   </section>
+</div>
+
+<div class="ref-pop" *ngIf="previewRef as vista" [style.left.px]="vista.x" [style.top.px]="vista.y">
+  <img [src]="vista.src" [alt]="vista.nombre">
+  <span>{{ vista.nombre }}</span>
+  <small>Arrastra para colocarla en el texto</small>
+</div>
+
+<div class="ref-luz" *ngIf="luzRef as amplia" (click)="cerrarLuz()">
+  <figure (click)="$event.stopPropagation()">
+    <img [src]="amplia.src" [alt]="amplia.nombre">
+    <figcaption>{{ amplia.nombre }}</figcaption>
+    <button type="button" (click)="cerrarLuz()" aria-label="Cerrar imagen">
+      <i class="fas fa-times" aria-hidden="true"></i>
+    </button>
+  </figure>
 </div>

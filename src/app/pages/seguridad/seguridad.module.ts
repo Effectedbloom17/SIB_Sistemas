@@ -39,7 +39,19 @@ const routes: Routes = [
     data: { roles: [] }
   },
   {
+    path: 'gestion/empresa/:empresaId',
+    component: SeguridadGestionComponent,
+    canActivate: [RoleGuard],
+    data: { roles: [] }
+  },
+  {
     path: 'gestion/:id',
+    component: SeguridadGestionComponent,
+    canActivate: [RoleGuard],
+    data: { roles: [] }
+  },
+  {
+    path: 'gestion/:id/punto/:requisitoId',
     component: SeguridadGestionComponent,
     canActivate: [RoleGuard],
     data: { roles: [] }

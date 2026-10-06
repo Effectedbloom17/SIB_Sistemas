@@ -1944,6 +1944,10 @@ export class BackendServices {
         return this.httpClient.put(`${this.baseUrl}/proteccion-civil/empresas/${empresaId}/centro-operaciones/fechas`, { campo, valor });
     }
 
+    guardarNotaCentroOperacionesPC(empresaId: number, clave: string, valor: string): Observable<any> {
+        return this.httpClient.put(`${this.baseUrl}/proteccion-civil/empresas/${empresaId}/centro-operaciones/notas`, { clave, valor });
+    }
+
     guardarResponsablePipcEmpresa(empresaId: number, usuarioId: number | null): Observable<any> {
         return this.httpClient.put(
             `${this.baseUrl}/proteccion-civil/empresas/${empresaId}/centro-operaciones/responsable-pipc`,
@@ -2729,6 +2733,21 @@ export class BackendServices {
         );
     }
 
+    subirImagenesReferenciaSeguridad(normativaId: number, requisitoId: number, archivos: File[]): Observable<any> {
+        const formData = new FormData();
+        archivos.forEach((archivo) => formData.append('imagenes', archivo, archivo.name));
+        return this.httpClient.post(
+            `${this.baseUrl}/seguridad/normativas/${normativaId}/requisitos/${requisitoId}/imagenes`,
+            formData
+        );
+    }
+
+    quitarImagenReferenciaSeguridad(normativaId: number, requisitoId: number, imagenId: number): Observable<any> {
+        return this.httpClient.delete(
+            `${this.baseUrl}/seguridad/normativas/${normativaId}/requisitos/${requisitoId}/imagenes/${imagenId}`
+        );
+    }
+
     obtenerEstadoSeguridadAsignacion(empresaId: number): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion/estado?empresa_id=${empresaId}`);
     }
@@ -2755,14 +2774,30 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion`);
     }
 
+    listarEmpresasGestionSeguridad(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion/empresas`);
+    }
+
+    obtenerEmpresaGestionSeguridad(empresaId: number, categoriaId?: string | null): Observable<any> {
+        const params: any = {};
+        if (categoriaId) params.categoria_id = categoriaId;
+        return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion/empresas/${empresaId}`, { params });
+    }
+
     obtenerGestionSeguridadAsignacion(id: number): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion/${id}`);
     }
 
-    subirDocumentoSeguridadAsignacion(asignacionId: number, archivo: File, requisitoId: number | null): Observable<any> {
+    subirDocumentoSeguridadAsignacion(
+        asignacionId: number,
+        archivo: File,
+        requisitoId: number | null,
+        anio?: number
+    ): Observable<any> {
         const formData = new FormData();
         formData.append('archivo', archivo, archivo.name);
         if (requisitoId) formData.append('requisito_id', String(requisitoId));
+        if (anio) formData.append('anio', String(anio));
         return this.httpClient.post(`${this.baseUrl}/seguridad/asignacion/${asignacionId}/documentos`, formData);
     }
 
@@ -3922,6 +3957,52 @@ export class BackendServices {
 
     detalleActividadControlProyectos(actividadId: number | string): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/control-proyectos/actividades/${actividadId}/detalle`);
+    }
+
+    historialControlProyectos(params: {
+        empresaId?: number | string | null;
+        folio?: string;
+        nombreProyecto?: string;
+        actividadId?: number | string | null;
+    } = {}): Observable<any> {
+        const q = new URLSearchParams();
+        if (params.empresaId != null && params.empresaId !== '') q.set('empresaId', String(params.empresaId));
+        if (params.folio) q.set('folio', String(params.folio));
+        if (params.nombreProyecto) q.set('nombreProyecto', String(params.nombreProyecto));
+        if (params.actividadId != null && params.actividadId !== '') q.set('actividadId', String(params.actividadId));
+        const qs = q.toString();
+        return this.httpClient.get(`${this.baseUrl}/control-proyectos/historial${qs ? `?${qs}` : ''}`);
+    }
+
+    restaurarVersionControlProyectos(
+        actividadId: number | string,
+        versionToken: string,
+        empresaId?: number | null,
+        historialIds?: number[]
+    ): Observable<any> {
+        return this.httpClient.post(
+            `${this.baseUrl}/control-proyectos/actividades/${encodeURIComponent(String(actividadId))}/restaurar-version`,
+            { versionToken, empresaId, historialIds: historialIds || [] }
+        );
+    }
+
+    restaurarVersionProyectoControlProyectos(body: {
+        versionToken?: string;
+        versionKey?: string;
+        historialIds?: number[];
+        actividades?: Array<{
+            controlProyectoId?: number | string;
+            versionToken?: string;
+            historialIds?: number[];
+        }>;
+        empresaId?: number | null;
+        folio?: string;
+        nombreProyecto?: string;
+    }): Observable<any> {
+        return this.httpClient.post(
+            `${this.baseUrl}/control-proyectos/restaurar-version-proyecto`,
+            body || {}
+        );
     }
 
     listarControlProyectosEliminados(empresaId?: number | string): Observable<any> {

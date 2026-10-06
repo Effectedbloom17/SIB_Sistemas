@@ -302,6 +302,44 @@
   border-bottom-color: rgba(255, 255, 255, 0.1);
 }
 
+.pdf-cv--seguridad {
+  background: #faf7f7;
+  color: #7f1d1d;
+}
+
+.pdf-cv--seguridad .pdf-cv__loading,
+.pdf-cv--seguridad .pdf-cv__error {
+  background: linear-gradient(145deg, #fff8f8, #fee2e2);
+  color: #7f1d1d;
+}
+
+.pdf-cv--seguridad .pdf-cv__spinner {
+  background: rgba(185, 28, 28, 0.14);
+  color: #b91c1c;
+}
+
+.pdf-cv--seguridad .pdf-cv__loading small {
+  color: #9f1239;
+}
+
+.pdf-cv--seguridad .pdf-cv__bar {
+  background: rgba(127, 29, 29, 0.14);
+
+  span {
+    background: linear-gradient(90deg, #7f1d1d, #dc2626 55%, #fca5a5);
+  }
+}
+
+.pdf-cv--seguridad .pdf-cv__pct {
+  color: #b91c1c;
+}
+
+.pdf-cv--seguridad .pdf-cv__toolbar {
+  background: #4c0519;
+  color: rgba(255, 255, 255, 0.92);
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
 .pdf-cv__hint {
   margin-top: 0.25rem;
   color: #fbbf24 !important;

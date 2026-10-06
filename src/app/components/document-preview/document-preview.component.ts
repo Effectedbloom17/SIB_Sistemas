@@ -69,10 +69,9 @@ export class DocumentPreviewComponent implements OnInit, OnDestroy {
     }
   }
 
-  getPdfCanvasTema(): 'oscuro' | 'claro' | 'oliva' | 'naranja' {
-    if (this.state.tema === 'pc') {
-      return 'naranja';
-    }
+  getPdfCanvasTema(): 'oscuro' | 'claro' | 'oliva' | 'naranja' | 'seguridad' {
+    if (this.state.tema === 'pc') return 'naranja';
+    if (this.state.tema === 'seguridad') return 'seguridad';
     return 'oscuro';
   }
 }

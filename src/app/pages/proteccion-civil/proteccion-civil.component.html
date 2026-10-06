@@ -1458,7 +1458,7 @@
                   {{ opsPasoSeleccionadoData?.nombre }}
                 </h4>
                 <small class="pc-ops-paso-desc" *ngIf="opsPasoSeleccionadoData?.descripcion"
-                       [class.pc-ops-paso-desc--naranja]="pasoOperacionesSeleccionado === 'oficio' || pasoOperacionesSeleccionado === 'observaciones' || pasoOperacionesSeleccionado === 'resolutivo'">{{ opsPasoSeleccionadoData?.descripcion }}</small>
+                       [class.pc-ops-paso-desc--naranja]="pasoOperacionesSeleccionado === 'oficio' || pasoOperacionesSeleccionado === 'observaciones' || pasoOperacionesSeleccionado === 'resolutivo' || pasoOperacionesSeleccionado === 'recorrido_doc'">{{ opsPasoSeleccionadoData?.descripcion }}</small>
               </div>
               <div class="pc-ops-panel-head__aside">
                 <div class="pc-ops-documentacion-tabs"
@@ -1925,6 +1925,107 @@
                 </div>
             </div>
 
+            <!-- Recorrido PC (entre Observaciones y Resolutivo): documento + fecha + observaciones texto -->
+            <div *ngIf="pasoOperacionesSeleccionado === 'recorrido_doc'"
+                 class="pc-ops-nodo-archivo-fecha pc-animate-section pc-animate-section--delay-1"
+                 [class.pc-ops-step--locked]="isOpsPasoCompletado('recorrido_doc')">
+              <div class="pc-ops-upload-alert" *ngIf="estaSubiendoEnPasoWorkflow() && !isOpsPasoCompletado('recorrido_doc')" role="status" aria-live="polite">
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                <span>Se está subiendo el archivo, espere unos segundos...</span>
+              </div>
+              <div class="pc-ops-lock-banner" *ngIf="isOpsPasoCompletado('recorrido_doc')">
+                <span class="pc-ops-lock-banner__icon" aria-hidden="true"><i class="fas fa-lock"></i></span>
+                <div class="pc-ops-lock-banner__body">
+                  <strong>Recorrido PC completado</strong>
+                  <span>Consulta el documento, la fecha y las observaciones registradas. Desbloquea el paso para modificar la información.</span>
+                </div>
+                <button type="button" class="pc-ops-lock-banner__action" (click)="desbloquearPasoOperaciones('recorrido_doc')">
+                  <i class="fas fa-unlock-alt" aria-hidden="true"></i> Desbloquear
+                </button>
+              </div>
+              <div class="pc-ops-workflow-layout">
+                <aside class="pc-ops-workflow-sidebar">
+                  <label class="pc-ops-field-label">Documento de recorrido</label>
+                  <label class="pc-upload-zone pc-upload-zone--compact mb-2"
+                         *ngIf="!tieneWorkflowArchivo(opsRecorridoDocClave) && !isOpsPasoCompletado('recorrido_doc')">
+                    <input type="file" class="pc-upload-zone__input"
+                           [attr.accept]="acceptedPcFileTypes"
+                           (change)="onArchivoWorkflowSeleccionado($event, opsRecorridoDocClave)">
+                    <span class="pc-upload-zone__icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                    <span class="pc-upload-zone__title">Subir documento</span>
+                    <span class="pc-upload-zone__hint">PDF, imágenes u Office</span>
+                  </label>
+                  <div class="pc-ops-workflow-file-actions mb-2"
+                       *ngIf="tieneWorkflowArchivo(opsRecorridoDocClave) && !isOpsPasoCompletado('recorrido_doc')">
+                    <label class="btn btn-sm btn-primary mb-0 pc-ops-workflow-action-btn">
+                      <i class="fas fa-sync-alt mr-1"></i> Reemplazar
+                      <input type="file" hidden [attr.accept]="acceptedPcFileTypes"
+                             (change)="onArchivoWorkflowSeleccionado($event, opsRecorridoDocClave)">
+                    </label>
+                    <button type="button"
+                            class="btn btn-sm btn-outline-danger mb-0 pc-ops-workflow-action-btn"
+                            [disabled]="estaSubiendoEnPasoWorkflow()"
+                            (click)="eliminarArchivoWorkflow(opsRecorridoDocClave)">
+                      <i class="fas fa-trash-alt mr-1"></i> Eliminar
+                    </button>
+                  </div>
+
+                  <label class="pc-ops-field-label">Fecha de ingreso <span class="text-danger">*</span></label>
+                  <input type="date" class="form-control form-control-sm mb-3"
+                         [disabled]="isOpsPasoCompletado('recorrido_doc')"
+                         [ngModel]="getFechaWorkflow(opsRecorridoDocClave)"
+                         (ngModelChange)="opsFechasWorkflow[opsRecorridoDocClave] = $event"
+                         (change)="guardarFechaCentroOps('fecha_recorrido_doc', getFechaWorkflow(opsRecorridoDocClave))">
+
+                  <label class="pc-ops-field-label">Observaciones</label>
+                  <textarea class="form-control form-control-sm"
+                            rows="5"
+                            placeholder="Escribe observaciones si existen (opcional)"
+                            [disabled]="isOpsPasoCompletado('recorrido_doc')"
+                            [ngModel]="getNotaWorkflow(opsRecorridoDocClave)"
+                            (ngModelChange)="opsNotasWorkflow[opsRecorridoDocClave] = $event"
+                            (blur)="guardarNotaCentroOps(opsRecorridoDocClave, getNotaWorkflow(opsRecorridoDocClave))"></textarea>
+                  <small class="pc-ops-hint-naranja d-block mt-2">Documento y fecha son obligatorios. Las observaciones son opcionales.</small>
+                </aside>
+                <main class="pc-ops-workflow-preview">
+                  <button type="button" class="pc-doc-tile pc-doc-tile--ops"
+                          *ngIf="tieneWorkflowArchivo(opsRecorridoDocClave); else recorridoDocPreviewEmpty"
+                          (click)="visualizarWorkflowArchivo(opsRecorridoDocClave)">
+                    <div class="pc-doc-tile__preview">
+                      <div class="pc-doc-tile__pdf-wrap" *ngIf="getWorkflowPreviewUrl(opsRecorridoDocClave)">
+                        <iframe class="pc-doc-tile__pdf-embed"
+                                [src]="getWorkflowPreviewUrl(opsRecorridoDocClave) | safe"
+                                [title]="nombreArchivoLegible(opsArchivosWorkflow[opsRecorridoDocClave]?.nombre_archivo) || 'Recorrido PC'"
+                                tabindex="-1"></iframe>
+                      </div>
+                      <div class="pc-doc-tile__hover" aria-hidden="true">
+                        <i class="fas fa-expand"></i><span>Ver documento</span>
+                      </div>
+                    </div>
+                    <div class="pc-doc-tile__meta">
+                      <strong class="pc-doc-tile__name">{{ nombreArchivoLegible(opsArchivosWorkflow[opsRecorridoDocClave]?.nombre_archivo) }}</strong>
+                      <small *ngIf="opsArchivosWorkflow[opsRecorridoDocClave]?.fecha_subida" class="pc-doc-tile__date">
+                        {{ opsArchivosWorkflow[opsRecorridoDocClave]?.fecha_subida }}
+                      </small>
+                    </div>
+                  </button>
+                  <ng-template #recorridoDocPreviewEmpty>
+                    <div class="pc-ops-preview-empty">
+                      <i class="fas fa-file-alt fa-2x mb-2 pc-ops-hint-naranja"></i>
+                      <p class="pc-ops-hint-naranja mb-0 small">Sube un documento para ver la vista previa aquí.</p>
+                    </div>
+                  </ng-template>
+                </main>
+              </div>
+              <div class="d-flex justify-content-end mt-2" *ngIf="!isOpsPasoCompletado('recorrido_doc')">
+                <button type="button" class="btn pc-ops-btn-primary"
+                        [disabled]="!opsPuedeCompletar.recorrido_doc || estaSubiendoEnPasoWorkflow()"
+                        (click)="completarPasoOperaciones('recorrido_doc')">
+                  <i class="fas fa-check mr-1"></i>Completar paso
+                </button>
+              </div>
+            </div>
+
             <!-- Resolutivo: por cada PIPC → PIPC / Factibilidad / OTMS -->
             <div *ngIf="pasoOperacionesSeleccionado === 'resolutivo'"
                  class="pc-ops-nodo-resolutivo pc-animate-section pc-animate-section--delay-1"
@@ -2016,7 +2117,7 @@
               <i class="fas fa-flag-checkered fa-3x mb-3"></i>
               <p class="text-muted mb-3">
                 Al finalizar se cierra el ciclo PIPC actual. Podrás asignar una nueva plantilla a la empresa.
-                <br><small>Pasos obligatorios: Asignar, Documentación, Oficio de Ingreso y Resolutivo. Observaciones es opcional.</small>
+                <br><small>Pasos obligatorios: Asignar, Documentación, Oficio de Ingreso, Recorrido PC y Resolutivo. Observaciones es opcional.</small>
               </p>
               <button type="button" class="btn pc-ops-btn-primary btn-lg" (click)="cerrarCicloCentroOperaciones()">
                 <i class="fas fa-flag-checkered mr-2"></i>Finalizar Protección Civil

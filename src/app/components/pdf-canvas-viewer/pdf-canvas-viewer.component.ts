@@ -34,7 +34,7 @@ export class PdfCanvasViewerComponent implements OnChanges, AfterViewInit, OnDes
   @Input() progresoServidor = 0;
   @Input() etiquetaServidor = 'Preparando vista previa…';
   @Input() lento = false;
-  @Input() tema: 'oscuro' | 'claro' | 'oliva' | 'naranja' = 'oscuro';
+  @Input() tema: 'oscuro' | 'claro' | 'oliva' | 'naranja' | 'seguridad' = 'oscuro';
   @Output() listo = new EventEmitter<void>();
   @Output() fallo = new EventEmitter<string>();
 

@@ -25734,6 +25734,56 @@ app.post(
     }
 );
 
+app.post(
+    '/api/seguridad/normativas/:id/requisitos/:reqId/imagenes',
+    requireAdmin,
+    uploadSeguridadPortada.array('imagenes', 8),
+    async (req, res) => {
+        try {
+            await poolNormativasReady;
+            const normativaId = parseInt(req.params.id, 10);
+            const requisitoId = parseInt(req.params.reqId, 10);
+            const requisito = await seguridadNormativasService.guardarImagenesReferencia(
+                poolNormativas,
+                normativaId,
+                requisitoId,
+                req.files,
+                req.user
+            );
+            res.json({ success: true, message: 'Imágenes de referencia guardadas.', requisito });
+        } catch (error) {
+            const status = error.status || 500;
+            if (status !== 500) {
+                return res.status(status).json({ success: false, message: error.message });
+            }
+            handleError(res, error, 'Error al guardar las imágenes de referencia');
+        }
+    }
+);
+
+app.delete('/api/seguridad/normativas/:id/requisitos/:reqId/imagenes/:imagenId', requireAdmin, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const normativaId = parseInt(req.params.id, 10);
+        const requisitoId = parseInt(req.params.reqId, 10);
+        const imagenId = parseInt(req.params.imagenId, 10);
+        const requisito = await seguridadNormativasService.quitarImagenReferencia(
+            poolNormativas,
+            normativaId,
+            requisitoId,
+            imagenId,
+            req.user
+        );
+        res.json({ success: true, message: 'Imagen retirada.', requisito });
+    } catch (error) {
+        const status = error.status || 500;
+        if (status !== 500) {
+            return res.status(status).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'Error al retirar la imagen de referencia');
+    }
+});
+
 app.delete('/api/seguridad/normativas/:id', requireAdmin, async (req, res) => {
     try {
         await poolNormativasReady;
@@ -25818,6 +25868,9 @@ app.get('/api/seguridad/asignacion/documentos/:docId', authMiddleware, denyEmpre
     try {
         await poolNormativasReady;
         const doc = await seguridadAsignacionService.leerDocumento(poolNormativas, req.params.docId);
+        if (!doc.path && doc.drive_web_view_link) {
+            return res.redirect(doc.drive_web_view_link);
+        }
         res.setHeader('Content-Type', doc.mime);
         res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(doc.nombre)}`);
         fs.createReadStream(doc.path).pipe(res);
@@ -25833,6 +25886,30 @@ app.delete('/api/seguridad/asignacion/documentos/:docId', authMiddleware, denyEm
         res.json({ success: true, message: 'Documento eliminado.' });
     } catch (error) {
         responderErrorSeguridadAsignacion(res, error, 'Error al eliminar el documento');
+    }
+});
+
+app.get('/api/seguridad/asignacion/empresas', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const empresas = await seguridadAsignacionService.listarEmpresasGestion(poolNormativas);
+        res.json({ success: true, empresas });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al listar empresas en gestión');
+    }
+});
+
+app.get('/api/seguridad/asignacion/empresas/:empresaId', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const detalle = await seguridadAsignacionService.obtenerEmpresaGestion(
+            poolNormativas,
+            req.params.empresaId,
+            req.query.categoria_id
+        );
+        res.json({ success: true, ...detalle });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al abrir la empresa en gestión');
     }
 });
 
@@ -25872,9 +25949,10 @@ app.post(
                 req.params.id,
                 req.file,
                 req.body?.requisito_id,
-                req.user
+                req.user,
+                req.body?.anio
             );
-            res.json({ success: true, message: 'Documento cargado.', documento });
+            res.json({ success: true, message: 'Documento cargado en el sistema y en Google Drive.', documento });
         } catch (error) {
             responderErrorSeguridadAsignacion(res, error, 'Error al subir el documento');
         }
@@ -26259,11 +26337,17 @@ app.get('/api/control-proyectos/proyectos', async (req, res) => {
 app.post('/api/control-proyectos/proyectos/guardar', denyEmpresa, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
+        const roles = obtenerRolesUsuarioJwt(req.user);
         await sgcControlProyectosService.guardarFormato(poolBiznagaSgc, {
             datos: { proyectos: Array.isArray(req.body?.proyectos) ? req.body.proyectos : [] },
             empresaId: req.body?.empresaId,
             usuarioNombre: obtenerNombreUsuarioAccion(req),
             fechaHora: obtenerFechaHoraMexicoMySQL(),
+            usuarioId: Number(req.user?.id || 0) || null,
+            roles,
+            esPrivilegioUniversal: roles.some((r) =>
+                ['root', 'administrador', 'super_admin', 'superadmin'].includes(String(r).toLowerCase())
+            ),
             editorActivo: false,
             origen: 'sistema'
         });
@@ -26277,6 +26361,9 @@ app.post('/api/control-proyectos/proyectos/guardar', denyEmpresa, async (req, re
             ...payload
         });
     } catch (error) {
+        if (error.statusCode === 403) {
+            return res.status(403).json({ success: false, message: error.message });
+        }
         handleError(res, error, 'No se pudieron guardar los proyectos');
     }
 });
@@ -26390,6 +26477,126 @@ app.get('/api/control-proyectos/actividades/:id/detalle', async (req, res) => {
             return res.status(error.statusCode).json({ success: false, message: error.message });
         }
         handleError(res, error, 'No se pudo cargar el detalle de la actividad');
+    }
+});
+
+app.get('/api/control-proyectos/historial', async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const empresaIdQuery = req.query.empresaId != null && req.query.empresaId !== ''
+            ? Number(req.query.empresaId)
+            : null;
+        if (esPerfilEmpresa(req)) {
+            const empresaId = Number(req.user?.empresa_id || 0);
+            if (!empresaId) {
+                return res.status(403).json({ success: false, message: 'Perfil empresa sin empresa asignada' });
+            }
+            if (empresaIdQuery && empresaIdQuery !== empresaId) {
+                return res.status(403).json({ success: false, message: 'No puedes consultar historial de otra empresa' });
+            }
+        }
+        const payload = await sgcControlProyectosService.obtenerHistorialProyecto(poolBiznagaSgc, {
+            empresaId: esPerfilEmpresa(req) ? Number(req.user?.empresa_id || 0) : empresaIdQuery,
+            folio: req.query.folio,
+            nombreProyecto: req.query.nombreProyecto,
+            actividadId: req.query.actividadId
+        });
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 404) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo cargar el historial de versiones');
+    }
+});
+
+app.post('/api/control-proyectos/actividades/:id/restaurar-version', denyEmpresa, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const roles = obtenerRolesUsuarioJwt(req.user);
+        const resultado = await sgcControlProyectosService.restaurarVersionActividad(
+            poolBiznagaSgc,
+            req.params.id,
+            req.body?.versionToken,
+            {
+                usuarioNombre: obtenerNombreUsuarioAccion(req),
+                fechaHora: obtenerFechaHoraMexicoMySQL(),
+                usuarioId: Number(req.user?.id || 0) || null,
+                roles,
+                esPrivilegioUniversal: roles.some((r) =>
+                    ['root', 'administrador', 'super_admin', 'superadmin'].includes(String(r).toLowerCase())
+                ),
+                historialIds: Array.isArray(req.body?.historialIds) ? req.body.historialIds : []
+            }
+        );
+        sgcDashboardService.invalidarCacheDashboard();
+        const dashboard = await sgcControlProyectosService.obtenerDashboard(poolBiznagaSgc, {
+            empresaId: req.body?.empresaId
+        });
+        return res.json({
+            success: true,
+            message: 'Versión restaurada correctamente.',
+            ...resultado,
+            ...dashboard
+        });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 403 || error.statusCode === 404) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo restaurar la versión');
+    }
+});
+
+app.post('/api/control-proyectos/restaurar-version-proyecto', denyEmpresa, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const roles = obtenerRolesUsuarioJwt(req.user);
+        const resultado = await sgcControlProyectosService.restaurarVersionProyecto(
+            poolBiznagaSgc,
+            {
+                versionToken: req.body?.versionToken,
+                versionKey: req.body?.versionKey,
+                historialIds: Array.isArray(req.body?.historialIds) ? req.body.historialIds : [],
+                actividades: Array.isArray(req.body?.actividades) ? req.body.actividades : [],
+                empresaId: req.body?.empresaId,
+                folio: req.body?.folio,
+                nombreProyecto: req.body?.nombreProyecto,
+                usuarioNombre: obtenerNombreUsuarioAccion(req),
+                fechaHora: obtenerFechaHoraMexicoMySQL(),
+                usuarioId: Number(req.user?.id || 0) || null,
+                roles,
+                esPrivilegioUniversal: roles.some((r) =>
+                    ['root', 'administrador', 'super_admin', 'superadmin'].includes(String(r).toLowerCase())
+                )
+            }
+        );
+        sgcDashboardService.invalidarCacheDashboard();
+        const dashboard = await sgcControlProyectosService.obtenerDashboard(poolBiznagaSgc, {
+            empresaId: req.body?.empresaId
+        });
+        const n = Number(resultado.restauradasOk || 0);
+        const conCambios = Number(resultado.actividadesConCambios ?? n);
+        const fallidas = Array.isArray(resultado.errores) ? resultado.errores.length : 0;
+        let message = conCambios === 1
+            ? 'Se aplicó la versión anterior en 1 actividad.'
+            : `Se aplicó la versión anterior en ${conCambios} actividades.`;
+        if (fallidas > 0) {
+            message += ` (${fallidas} no se pudieron restaurar)`;
+        }
+        if (conCambios === 0 && n > 0) {
+            message = 'La versión elegida ya coincidía con el estado actual de las actividades.';
+        }
+        return res.json({
+            success: true,
+            message,
+            ...resultado,
+            ...dashboard
+        });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 403 || error.statusCode === 404) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo restaurar la versión del proyecto');
     }
 });
 
@@ -31508,6 +31715,7 @@ app.get('/api/proteccion-civil/pipc-terminados-recientes', requireAdminOrPC, asy
                     { id: 'documentacion', label: 'Subir Documentación', estado: 'ok', detalle: null, pct: 100 },
                     { id: 'oficio', label: 'Oficio de Ingreso', estado: 'ok', detalle: null, pct: 100 },
                     { id: 'observaciones', label: 'Observaciones', estado: 'ok', detalle: null, pct: 100 },
+                    { id: 'recorrido_doc', label: 'Recorrido PC', estado: 'ok', detalle: null, pct: 100 },
                     { id: 'resolutivo', label: 'Resolutivo', estado: 'ok', detalle: null, pct: 100 }
                 ]
             };
