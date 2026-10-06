@@ -3199,6 +3199,20 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-14`);
     }
 
+    cargarSpF04Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sp-f-04`);
+    }
+
+    actualizarSpF04Formato(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sp-f-04/actualizar`, {});
+    }
+
+    descargarPdfSpF04(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sp-f-04/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
     guardarAthF14Formato(datos: unknown): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-14/guardar`, {
             datos,
@@ -3700,17 +3714,48 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-09/actualizar-plantilla`, {});
     }
 
+    resolverClaveEmpresaAthF09(empresa: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-09/resolver-clave-empresa`, { empresa });
+    }
+
+    guardarClaveEmpresaAthF09(payload: {
+        empresa: string;
+        clave: string;
+        empresaId?: number | null;
+    }): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-09/guardar-clave-empresa`, payload);
+    }
+
     subirPdfFirmadoAthF09(
         pdfBase64: string,
         nombreArchivo: string,
         cotizacionId: string,
-        folioPropuesto?: string
+        folioPropuesto?: string,
+        extras?: {
+            claveEmpresa?: string | null;
+            empresaId?: number | null;
+            empresa?: string;
+            proyecto?: {
+                nombreProyecto: string;
+                responsable?: string;
+                responsableUsuarioIds?: number[];
+                prioridad?: string;
+                estatus?: string;
+                fechaInicio?: string;
+                fechaCompromiso?: string;
+                avance?: number;
+            } | null;
+        }
     ): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-09/subir-pdf-firmado`, {
             pdf_base64: pdfBase64,
             nombre_archivo: nombreArchivo,
             cotizacionId,
-            folioPropuesto: folioPropuesto || null
+            folioPropuesto: folioPropuesto || null,
+            claveEmpresa: extras?.claveEmpresa || null,
+            empresaId: extras?.empresaId || null,
+            empresa: extras?.empresa || null,
+            proyecto: extras?.proyecto || null
         });
     }
 

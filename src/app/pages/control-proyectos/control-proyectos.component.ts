@@ -1,6 +1,6 @@
 import { Component, ElementRef, HostBinding, HostListener, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { EChartsOption } from 'echarts';
@@ -478,14 +478,24 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     'no iniciado': '#f59e0b'
   };
 
+  private folioQueryPendiente = '';
+  private empresaQueryPendiente = '';
+
   constructor(
     private backend: BackendServices,
     private auth: AuthService,
     private documentPreview: DocumentPreviewService,
-    private router: Router
+    private router: Router,
+    private route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
+    const folioQuery = (this.route.snapshot.queryParamMap.get('folio') || '').trim();
+    if (folioQuery) {
+      this.folioQueryPendiente = folioQuery;
+      this.empresaQueryPendiente = (this.route.snapshot.queryParamMap.get('empresa') || '').trim();
+      this.vistaActiva = 'gestion';
+    }
     if (this.esConsultaEmpresa) {
       this.vistaActiva = 'gestion';
       const empresaId = Number(this.auth.getEmpresaId() || 0);
@@ -1981,6 +1991,27 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     indice = 0
   ): string {
     return `${proyecto.empresaId || 'sin-empresa'}|${this.normalizar(proyecto.folio || proyecto.nombreProyecto || `idx-${indice}`)}`;
+  }
+
+  private abrirProyectoDesdeQuery(): void {
+    const folio = this.normalizar(this.folioQueryPendiente);
+    if (!folio) return;
+    const empresa = this.normalizar(this.empresaQueryPendiente);
+    const porFolio = this.gestionAgrupadaLista.filter((g) => this.normalizar(g.folio) === folio);
+    const grupo = (empresa
+      ? porFolio.find((g) => this.normalizar(g.empresaNombre) === empresa)
+      : undefined) || porFolio[0]
+      || this.gestionAgrupadaLista.find((g) => this.normalizar(g.nombreProyecto) === folio);
+    this.folioQueryPendiente = '';
+    this.empresaQueryPendiente = '';
+    if (!grupo) return;
+    this.seleccionarProyectoGestion(grupo.clave);
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { vista: null, folio: null, empresa: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
   }
 
   private asegurarSeleccionProyectoGestion(): void {
@@ -4782,6 +4813,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.refrescarChartsDashboard();
     if (this.vistaActiva === 'gestion') {
       this.sincronizarGestionDesdeProyectos();
+      this.abrirProyectoDesdeQuery();
       if (this.esConsultaEmpresa && this.gestionNivelVista === 'actividades') {
         setTimeout(() => this.irAHoy(), 120);
       }

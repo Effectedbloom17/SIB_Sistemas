@@ -542,11 +542,61 @@ function construirRespuesta(registro, datos) {
     };
 }
 
-async function cargarFormato(pool) {
+function claveNombreVacaciones(nombre) {
+    return String(nombre || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/^(ing|mtro|mtra|dr|dra|doc|lic|prof|arq|c)\.?\s+/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function solicitudEsDeUsuario(solicitud, acceso) {
+    if (!acceso || acceso.esGestor) return true;
+    const nombre = claveNombreVacaciones(acceso.nombreRegistrado);
+    return !!nombre && claveNombreVacaciones(solicitud?.nombreCompleto) === nombre;
+}
+
+function filtrarDatosPorAcceso(datos, acceso) {
+    const base = sanitizarDatos(datos);
+    if (!acceso || acceso.esGestor) return base;
+    if (!acceso.permitido) {
+        return { ...base, solicitudes: [], solicitudActivaId: null };
+    }
+    const solicitudes = base.solicitudes.filter((s) => solicitudEsDeUsuario(s, acceso));
+    const activa = solicitudes.some((s) => s.id === base.solicitudActivaId)
+        ? base.solicitudActivaId
+        : (solicitudes[0]?.id || null);
+    return { ...base, solicitudes, solicitudActivaId: activa };
+}
+
+/**
+ * Quien no administra el control solo puede guardar sus propias solicitudes.
+ * Las de los demás se conservan tal cual.
+ */
+function fusionarSolicitudesPorAcceso(entrada, previos, acceso) {
+    const datos = sanitizarDatos(entrada);
+    if (!acceso || acceso.esGestor) return datos;
+    const nombre = String(acceso.nombreRegistrado || '').trim();
+    const propias = datos.solicitudes
+        .filter((s) => !s.nombreCompleto || solicitudEsDeUsuario(s, acceso))
+        .map((s) => ({ ...s, nombreCompleto: nombre || s.nombreCompleto }));
+    const ajenas = (previos?.solicitudes || []).filter((s) => !solicitudEsDeUsuario(s, acceso));
+    return sanitizarDatos({ ...datos, solicitudes: [...ajenas, ...propias] });
+}
+
+async function cargarFormato(pool, acceso = null) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
-    const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
-    return construirRespuesta(registro, datos);
+    const datos = filtrarDatosPorAcceso(
+        (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO),
+        acceso
+    );
+    return {
+        ...construirRespuesta(registro, datos),
+        acceso: acceso || null
+    };
 }
 
 function solicitudTieneCaptura(solicitud) {
@@ -559,7 +609,7 @@ function solicitudTieneCaptura(solicitud) {
     );
 }
 
-async function procesarSolicitudesEnGuardado(datosEntrada, datosPrevios) {
+async function procesarSolicitudesEnGuardado(datosEntrada, datosPrevios, acceso = null) {
     const previas = new Map((datosPrevios?.solicitudes || []).map((s) => [s.id, s]));
     const salida = [];
     const idsNuevos = new Set();
@@ -568,6 +618,10 @@ async function procesarSolicitudesEnGuardado(datosEntrada, datosPrevios) {
         const item = sanitizarSolicitud(raw);
         idsNuevos.add(item.id);
         const prev = previas.get(item.id);
+        if (acceso && !acceso.esGestor && !solicitudEsDeUsuario(item, acceso)) {
+            salida.push(prev ? sanitizarSolicitud(prev) : item);
+            continue;
+        }
         if (!item.driveFileId && prev?.driveFileId) item.driveFileId = prev.driveFileId;
         if (!item.pdfFirmado && prev?.pdfFirmado) item.pdfFirmado = prev.pdfFirmado;
         if (!item.pdfsHistorial?.length && prev?.pdfsHistorial?.length) {
@@ -583,6 +637,7 @@ async function procesarSolicitudesEnGuardado(datosEntrada, datosPrevios) {
 
     for (const prev of previas.values()) {
         if (!idsNuevos.has(prev.id) && prev.driveFileId) {
+            if (acceso && !acceso.esGestor && !solicitudEsDeUsuario(prev, acceso)) continue;
             await eliminarDocumentoTrabajo(prev.driveFileId);
         }
     }
@@ -590,16 +645,105 @@ async function procesarSolicitudesEnGuardado(datosEntrada, datosPrevios) {
     return sanitizarDatos({ ...datosEntrada, solicitudes: salida });
 }
 
-async function guardarFormato(pool, body) {
+function parseIsoLocalVacaciones(iso) {
+    const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    const fecha = new Date(+m[1], +m[2] - 1, +m[3]);
+    return Number.isNaN(fecha.getTime()) ? null : fecha;
+}
+
+function aIsoLocalVacaciones(fecha) {
+    const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+    const dd = String(fecha.getDate()).padStart(2, '0');
+    return `${fecha.getFullYear()}-${mm}-${dd}`;
+}
+
+function periodoVigenteVacaciones(fechaIngreso, hoy = new Date()) {
+    const ingreso = parseIsoLocalVacaciones(fechaIngreso);
+    if (!ingreso) return null;
+    const hoyDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    let anio = hoyDia.getFullYear();
+    const aniversario = new Date(anio, ingreso.getMonth(), ingreso.getDate());
+    if (hoyDia < aniversario) anio -= 1;
+    if (anio < ingreso.getFullYear()) return null;
+    return {
+        inicio: aIsoLocalVacaciones(new Date(anio, ingreso.getMonth(), ingreso.getDate())),
+        fin: aIsoLocalVacaciones(new Date(anio + 1, ingreso.getMonth(), ingreso.getDate()))
+    };
+}
+
+function solicitudCuentaEnPeriodo(solicitud, periodo) {
+    if (!periodo) return true;
+    const inicio = String(solicitud?.fechaInicio || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio)) return true;
+    return inicio >= periodo.inicio && inicio < periodo.fin;
+}
+
+function diasDeSolicitud(solicitud) {
+    const n = parseInt(String(solicitud?.diasSolicitados || '').trim(), 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function tomadosPorPersona(solicitudes, ingresoPorNombre) {
+    const mapa = new Map();
+    for (const solicitud of solicitudes || []) {
+        const key = claveNombreVacaciones(solicitud?.nombreCompleto);
+        if (!key) continue;
+        const ingreso = ingresoPorNombre.get(key) || solicitud?.fechaIngreso || '';
+        if (!solicitudCuentaEnPeriodo(solicitud, periodoVigenteVacaciones(ingreso))) continue;
+        mapa.set(key, (mapa.get(key) || 0) + diasDeSolicitud(solicitud));
+    }
+    return mapa;
+}
+
+async function validarSaldoRestante(pool, datosNuevos, datosPrevios) {
+    const registro = await obtenerRegistroSgcPersistido(pool, 'ATH-F-14');
+    let json = registro?.datos_json;
+    if (typeof json === 'string') {
+        try { json = JSON.parse(json); } catch { json = null; }
+    }
+    const filas = Array.isArray(json?.filas) ? json.filas : [];
+    const disponibles = new Map();
+    const ingresos = new Map();
+    for (const fila of filas) {
+        const key = claveNombreVacaciones(fila?.nombreCompleto);
+        if (!key) continue;
+        const n = parseInt(String(fila?.diasDisponibles ?? ''), 10);
+        disponibles.set(key, Number.isFinite(n) && n >= 0 ? n : 0);
+        ingresos.set(key, String(fila?.fechaIngreso || '').trim());
+    }
+    const antes = tomadosPorPersona(datosPrevios?.solicitudes, ingresos);
+    const despues = tomadosPorPersona(datosNuevos?.solicitudes, ingresos);
+    for (const [key, tomados] of despues) {
+        if (!disponibles.has(key)) continue;
+        const tope = disponibles.get(key);
+        const previo = antes.get(key) || 0;
+        if (tomados > tope && tomados > previo) {
+            const nombre = (datosNuevos.solicitudes || []).find(
+                (s) => claveNombreVacaciones(s?.nombreCompleto) === key
+            )?.nombreCompleto || 'El colaborador';
+            const restantes = Math.max(0, tope - previo);
+            throw new Error(
+                `${nombre} solo tiene ${restantes} día${restantes === 1 ? '' : 's'} restante${restantes === 1 ? '' : 's'} en el control de vacaciones.`
+            );
+        }
+    }
+}
+
+async function guardarFormato(pool, body, acceso = null) {
+    if (acceso && !acceso.permitido) {
+        throw new Error('Solo las personas registradas en el control de vacaciones pueden solicitar vacaciones.');
+    }
     await asegurarTablaSgcFormatoDatos(pool);
     const registroPrevio = await obtenerRegistroDb(pool);
     const datosPrevios = (await leerDatosRegistro(registroPrevio)) || sanitizarDatos(DATOS_DEFECTO);
-    const datosEntrada = sanitizarDatos(body?.datos || body);
+    const datosEntrada = fusionarSolicitudesPorAcceso(body?.datos || body, datosPrevios, acceso);
+    await validarSaldoRestante(pool, datosEntrada, datosPrevios);
 
     let fechaOriginal = formatearFechaIso(registroPrevio?.fecha_elaboracion_original);
     if (!fechaOriginal) fechaOriginal = datosEntrada.fechaElaboracion || fechaHoyIso();
 
-    const datosProcesados = await procesarSolicitudesEnGuardado(datosEntrada, datosPrevios);
+    const datosProcesados = await procesarSolicitudesEnGuardado(datosEntrada, datosPrevios, acceso);
     const contenidoModificado = JSON.stringify(datosProcesados) !== JSON.stringify(datosPrevios);
     const fechaModificacion = contenidoModificado
         ? excelHistorial.fechaAhoraMexicoIso()
@@ -615,7 +759,23 @@ async function guardarFormato(pool, body) {
     });
 
     const registro = await obtenerRegistroDb(pool);
-    return construirRespuesta(registro, datosProcesados);
+    return responderConAcceso(registro, datosProcesados, acceso);
+}
+
+function responderConAcceso(registro, datos, acceso, extra = {}) {
+    const visibles = filtrarDatosPorAcceso(datos, acceso);
+    return {
+        ...construirRespuesta(registro, visibles),
+        acceso: acceso || null,
+        ...extra
+    };
+}
+
+function assertSolicitudPropia(solicitud, acceso) {
+    if (!acceso) return;
+    if (!acceso.permitido || (!acceso.esGestor && !solicitudEsDeUsuario(solicitud, acceso))) {
+        throw new Error('Solo puedes gestionar tus propias solicitudes de vacaciones.');
+    }
 }
 
 async function sincronizarDesdeDrive(pool) {
@@ -656,7 +816,7 @@ async function publicarPdfEnDrive(pdfBuffer, solicitud, historial = []) {
     );
 }
 
-async function subirPdfFirmado(pool, body) {
+async function subirPdfFirmado(pool, body, acceso = null) {
     const pdfBase64 = String(body?.pdf_base64 || body?.pdfBase64 || '').trim();
     if (!pdfBase64) throw new Error('No se recibió el PDF (pdf_base64 requerido).');
     const solicitudId = String(body?.solicitudId || body?.solicitud_id || '').trim();
@@ -675,6 +835,7 @@ async function subirPdfFirmado(pool, body) {
     }
 
     const actual = { ...solicitudes[idx] };
+    assertSolicitudPropia(actual, acceso);
     const historialPrevio = sanitizarPdfsHistorial(actual.pdfsHistorial);
     const driveResult = await publicarPdfEnDrive(pdfBuffer, actual, historialPrevio);
     const pdfFirmado = sanitizarPdfFirmado({
@@ -704,13 +865,10 @@ async function subirPdfFirmado(pool, body) {
         ultimaSyncDrive: excelHistorial.fechaAhoraMexicoIso()
     });
     const registro = await obtenerRegistroDb(pool);
-    return {
-        ...construirRespuesta(registro, datosGuardar),
-        pdfFirmado: actual.pdfFirmado
-    };
+    return responderConAcceso(registro, datosGuardar, acceso, { pdfFirmado: actual.pdfFirmado });
 }
 
-async function eliminarPdfHistorial(pool, body, opciones = {}) {
+async function eliminarPdfHistorial(pool, body, opciones = {}, acceso = null) {
     if (!opciones.puedeBorrarHistorial) {
         throw new Error('No autorizado para eliminar PDFs del historial.');
     }
@@ -731,6 +889,7 @@ async function eliminarPdfHistorial(pool, body, opciones = {}) {
     });
 
     const actual = { ...solicitudes[idx] };
+    assertSolicitudPropia(actual, acceso);
     const hist = sanitizarPdfsHistorial(actual.pdfsHistorial)
         .filter((p) => p.driveFileId !== driveFileId);
     let pdfFirmado = actual.pdfFirmado;
@@ -753,10 +912,10 @@ async function eliminarPdfHistorial(pool, body, opciones = {}) {
         ultimaSyncDrive: excelHistorial.fechaAhoraMexicoIso()
     });
     const registro = await obtenerRegistroDb(pool);
-    return construirRespuesta(registro, datosGuardar);
+    return responderConAcceso(registro, datosGuardar, acceso);
 }
 
-async function descargarPdfSolicitud(pool, solicitudId) {
+async function descargarPdfSolicitud(pool, solicitudId, acceso = null) {
     const registro = await obtenerRegistroDb(pool);
     const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
     const id = String(solicitudId || datos.solicitudActivaId || '').trim();
@@ -764,6 +923,7 @@ async function descargarPdfSolicitud(pool, solicitudId) {
     if (!solicitud?.driveFileId) {
         throw new Error('Guarda la solicitud antes de generar el PDF.');
     }
+    assertSolicitudPropia(solicitud, acceso);
     assertNoMutarPlantilla(solicitud.driveFileId, 'exportar');
     return driveService.exportarArchivoPDF(solicitud.driveFileId);
 }
