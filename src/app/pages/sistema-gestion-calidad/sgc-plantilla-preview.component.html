@@ -4324,9 +4324,13 @@
                       </label>
                       <label class="dg-f05-meta-field">
                         <span class="dg-f05-meta-field__label">Fecha de elaboración</span>
-                        <input class="dg-f05-field dg-f05-field--readonly" type="date"
-                          name="dgF04_fecha" [(ngModel)]="dgF04Form.fechaElaboracion" readonly
-                          [title]="dgF04ContenidoModificado ? 'Actualizada tras la última modificación' : 'Fecha original del formato'">
+                        <input class="dg-f05-field" type="date"
+                          name="dgF04_fecha" [(ngModel)]="dgF04Form.fechaElaboracion"
+                          [readonly]="!puedeEditarFechaElaboracionDgF04"
+                          [class.dg-f05-field--readonly]="!puedeEditarFechaElaboracionDgF04"
+                          [title]="puedeEditarFechaElaboracionDgF04
+                            ? 'Puedes cambiar la fecha. Se guarda en la base y en el Excel.'
+                            : 'Solo el super administrador y Calidad pueden editar esta fecha.'">
                       </label>
                     </div>
 
@@ -8976,12 +8980,13 @@
                             <p class="sgc-f05-toolbar__hint">Se alimenta automáticamente desde SGC-F-04. Consulta aquí el seguimiento; usa «Actualizar plantilla» o el editor integrado para Excel.</p>
                           </div>
                         </div>
-                        <div class="sgc-f05-stats" *ngIf="sgcF05Form.registros.length">
+                        <div class="sgc-f05-stats" *ngIf="sgcF05Form.registros.length" aria-label="No conformidades de auditoría interna">
+                          <span class="sgc-f05-stats__alcance">Auditoría interna</span>
                           <button type="button"
                             class="sgc-f05-stat sgc-f05-stat--abiertas"
                             [class.sgc-f05-stat--activo]="sgcF05FiltroEstatus === 'Abierta'"
                             (click)="fijarFiltroSgcF05('Abierta')"
-                            title="Filtrar abiertas">
+                            title="Filtrar abiertas de auditoría interna">
                             <span class="sgc-f05-stat__valor">{{ sgcF05TotalAbiertas }}</span>
                             <span class="sgc-f05-stat__label">Abiertas</span>
                           </button>
@@ -8989,12 +8994,12 @@
                             class="sgc-f05-stat sgc-f05-stat--cerradas"
                             [class.sgc-f05-stat--activo]="sgcF05FiltroEstatus === 'Cerrada'"
                             (click)="fijarFiltroSgcF05('Cerrada')"
-                            title="Filtrar cerradas">
+                            title="Filtrar cerradas de auditoría interna">
                             <span class="sgc-f05-stat__valor">{{ sgcF05TotalCerradas }}</span>
                             <span class="sgc-f05-stat__label">Cerradas</span>
                           </button>
-                          <div class="sgc-f05-stat sgc-f05-stat--total" aria-hidden="true">
-                            <span class="sgc-f05-stat__valor">{{ sgcF05Form.registros.length }}</span>
+                          <div class="sgc-f05-stat sgc-f05-stat--total">
+                            <span class="sgc-f05-stat__valor">{{ sgcF05TotalAuditoriaInterna }}</span>
                             <span class="sgc-f05-stat__label">Total</span>
                           </div>
                         </div>

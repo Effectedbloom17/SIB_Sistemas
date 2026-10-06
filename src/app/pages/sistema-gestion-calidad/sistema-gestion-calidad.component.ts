@@ -856,6 +856,19 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     return Number(this.eficacia?.totalNcBitacora) || 0;
   }
 
+  /** Abiertas de SGC-F-05 cuya fuente es Auditoría interna. */
+  get ncAbiertasAuditoriaDisplay(): number {
+    return Number(this.eficacia?.ncAbiertasAuditoriaInterna) || 0;
+  }
+
+  get ncCerradasAuditoriaDisplay(): number {
+    return Number(this.eficacia?.ncCerradasAuditoriaInterna) || 0;
+  }
+
+  get totalNcAuditoriaDisplay(): number {
+    return Number(this.eficacia?.totalNcAuditoriaInterna) || 0;
+  }
+
   get hayQuejasSugerencias(): boolean {
     return !!this.quejasSugerencias && (this.quejasSugerencias.total || 0) > 0;
   }
@@ -968,14 +981,14 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       (total, capitulo) => total + capitulo.plantillas.length,
       0
     );
-    // Bitácora SGC-F-05: prioriza NC abiertas para el semáforo del KPI.
-    const ncAbiertasKpi = Number(auditorias.ncAbiertas) || 0;
-    const ncCerradasKpi = Number(auditorias.ncCerradas) || 0;
-    const totalNcBitacora = Number(auditorias.totalNcBitacora) || 0;
-    const noConformidades = totalNcBitacora > 0 ? ncAbiertasKpi : this.ncActualesDisplay;
+    // Resultados de auditorías: abiertas, cerradas y total de la bitácora
+    // SGC-F-05, solo fuente Auditoría interna.
+    const ncAbiertasAud = Number(auditorias.ncAbiertasAuditoriaInterna) || 0;
+    const ncCerradasAud = Number(auditorias.ncCerradasAuditoriaInterna) || 0;
+    const totalNcAud = Number(auditorias.totalNcAuditoriaInterna) || 0;
     const quejasAbiertas = Number(q.abiertas || 0);
     const estadoAuditorias: SgcKpiCard['estado'] =
-      noConformidades <= 2 ? 'verde' : noConformidades <= 4 ? 'amarillo' : 'rojo';
+      ncAbiertasAud <= 2 ? 'verde' : ncAbiertasAud <= 4 ? 'amarillo' : 'rojo';
 
     this.kpiCardsSuperiores = [
       {
@@ -988,10 +1001,8 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       },
       {
         titulo: 'Resultados de auditorías',
-        valor: totalNcBitacora > 0 ? `${ncAbiertasKpi} abiertas` : `${noConformidades} NC`,
-        subtitulo: totalNcBitacora > 0
-          ? `${ncCerradasKpi} cerradas · ${totalNcBitacora} en SGC-F-05`
-          : `No. ${this.auditoriaActualNoDisplay} · ${auditorias.totalAuditorias || 0} informes SGC-F-10`,
+        valor: `${totalNcAud} NC`,
+        subtitulo: `${ncCerradasAud} cerradas · ${ncAbiertasAud} abiertas`,
         icono: 'fa-clipboard-check',
         color: estadoAuditorias === 'verde'
           ? this.palette.verde

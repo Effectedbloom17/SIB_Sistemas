@@ -956,6 +956,14 @@ function datosSonEquivalentes(a, b) {
     return contenidoEsEquivalente(a, b);
 }
 
+/** Fecha que ve la pantalla: la de la última modificación, o la original si el formato no ha cambiado. */
+function fechaElaboracionVisible(contenidoModificado, fechaModificacion, fechaOriginal) {
+    const mod = formatearFechaIso(fechaModificacion);
+    const original = formatearFechaIso(fechaOriginal);
+    if (contenidoModificado && mod) return mod;
+    return original || '';
+}
+
 function contenidoEsEquivalente(a, b) {
     const copia = (datos) => {
         const base = sanitizarDatos(datos);
@@ -1104,6 +1112,27 @@ async function guardarFormato(pool, body, options = {}) {
     }
 
     const huboCambio = !datosPrevios || !contenidoEsEquivalente(datosPrevios, datosEntrada);
+    // Solo root o Calidad pueden fijar la fecha. El resto conserva la que ya está en BD/Excel.
+    const fechaManual = options.respetarFechaElaboracion
+        ? formatearFechaIso(datosEntrada.fechaElaboracion)
+        : '';
+    const fechaVisiblePrevia = fechaElaboracionVisible(contenidoModificado, fechaModificacion, fechaOriginal);
+    const fechaParaHoja = fechaManual || fechaVisiblePrevia;
+
+    const fijarFechaElaboracionGuardada = () => {
+        if (fechaManual) {
+            if (contenidoModificado) {
+                fechaModificacion = fechaManual;
+            } else {
+                fechaOriginal = fechaManual;
+            }
+        }
+        datosGuardar.fechaElaboracion = fechaElaboracionVisible(
+            contenidoModificado,
+            fechaModificacion,
+            fechaOriginal
+        ) || fechaParaHoja;
+    };
 
     if (!huboCambio && registroPrevio?.drive_file_id) {
         const datosSinCambio = excelHistorial.adjuntarMetaHoja(
@@ -1123,9 +1152,8 @@ async function guardarFormato(pool, body, options = {}) {
         try {
             const infoDrive = await driveService.obtenerInfoArchivo(driveId).catch(() => null);
             if (infoDrive?.mimeType === 'application/vnd.google-apps.spreadsheet') {
-                const fechaCambio = fechaHoyIso();
                 const datosHistorial = origen !== 'consulta'
-                    ? { ...datosEntrada, fechaElaboracion: fechaCambio }
+                    ? { ...datosEntrada, fechaElaboracion: fechaParaHoja }
                     : datosEntrada;
                 const hist = await aplicarHistorialDgF04({
                     spreadsheetId: driveId,
@@ -1138,14 +1166,12 @@ async function guardarFormato(pool, body, options = {}) {
 
                 if (hist.aplicado && origen !== 'consulta') {
                     contenidoModificado = true;
-                    fechaModificacion = hist.tipoCambio === 'formato'
-                        ? (datosGuardar.fechaRevision || excelHistorial.fechaAhoraMexicoIso())
-                        : fechaCambio;
+                    if (!fechaManual && hist.tipoCambio === 'formato') {
+                        fechaModificacion = datosGuardar.fechaRevision || excelHistorial.fechaAhoraMexicoIso();
+                    }
                 }
 
-                datosGuardar.fechaElaboracion = contenidoModificado && fechaModificacion
-                    ? fechaModificacion
-                    : fechaOriginal;
+                fijarFechaElaboracionGuardada();
 
                 if (!hist.aplicado) {
                     const buffer = await descargarBufferDrive(driveId);
@@ -1189,9 +1215,7 @@ async function guardarFormato(pool, body, options = {}) {
         }
     }
 
-    datosGuardar.fechaElaboracion = contenidoModificado && fechaModificacion
-        ? fechaModificacion
-        : fechaOriginal;
+    fijarFechaElaboracionGuardada();
 
     const buffer = await escribirDatosEnPlantilla(datosGuardar);
     const archivoDrive = await subirOReemplazarEnDrive(buffer, driveId);

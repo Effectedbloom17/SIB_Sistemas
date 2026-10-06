@@ -2858,6 +2858,14 @@ function esGestorCalidadSgc(req) {
     return username === 'sergio56' || username === 'calidad';
 }
 
+/** DG-F-04: solo super administrador (root) o Calidad pueden cambiar la fecha de elaboración. */
+function puedeEditarFechaElaboracionDgF04(req) {
+    const userRoles = Array.isArray(req.user?.roles)
+        ? req.user.roles.map((r) => String(r).toLowerCase())
+        : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+    return userRoles.includes('root') || esGestorCalidadSgc(req);
+}
+
 function extraerFormatoCodigoSgcDeRuta(req) {
     const raw = String(req.originalUrl || req.url || req.path || '');
     const pathOnly = raw.split('?')[0];
@@ -26839,7 +26847,9 @@ app.get('/api/sgc/formatos/dg-f-04', requireAdminOrSgc, async (req, res) => {
 app.post('/api/sgc/formatos/dg-f-04/guardar', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const payload = await sgcDgF04Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        const payload = await sgcDgF04Service.guardarFormato(poolBiznagaSgc, req.body || {}, {
+            respetarFechaElaboracion: puedeEditarFechaElaboracionDgF04(req)
+        });
         return res.json({
             success: true,
             message: 'Formato DG-F-04 guardado y sincronizado con Drive.',

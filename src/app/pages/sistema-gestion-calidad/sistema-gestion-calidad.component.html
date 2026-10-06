@@ -891,9 +891,10 @@
                     <span class="sgc-section-label">Objetivo · Eficacia del SGC</span>
                     <h2 class="sgc-section-title mb-0">Resultados de auditorías</h2>
                     <p class="sgc-analytics-desc mb-0" *ngIf="hayAuditorias || hayNcBitacora">
-                      {{ ncAbiertasDisplay }} abierta{{ ncAbiertasDisplay !== 1 ? 's' : '' }}
-                      · {{ ncCerradasDisplay }} cerrada{{ ncCerradasDisplay !== 1 ? 's' : '' }}
-                      (SGC-F-05)
+                      {{ ncAbiertasAuditoriaDisplay }} abierta{{ ncAbiertasAuditoriaDisplay !== 1 ? 's' : '' }}
+                      · {{ ncCerradasAuditoriaDisplay }} cerrada{{ ncCerradasAuditoriaDisplay !== 1 ? 's' : '' }}
+                      · {{ totalNcAuditoriaDisplay }} no conformidad{{ totalNcAuditoriaDisplay !== 1 ? 'es' : '' }}
+                      (Auditoría interna · SGC-F-05)
                       <ng-container *ngIf="hayAuditorias">
                         · {{ eficacia?.totalCerradas || 0 }} auditoría{{ (eficacia?.totalCerradas || 0) !== 1 ? 's' : '' }} cerrada{{ (eficacia?.totalCerradas || 0) !== 1 ? 's' : '' }}
                         · {{ nivelActualEtiquetaDisplay }}
@@ -913,9 +914,9 @@
                     <i class="fas fa-chart-bar mr-1"></i> Ver histograma
                   </button>
                   <div class="sgc-avance-hero-kpi sgc-avance-hero-kpi--aud" *ngIf="!cargandoDashboard && (hayAuditorias || hayNcBitacora)">
-                    <span class="sgc-avance-hero-kpi__val">{{ ncAbiertasDisplay }}</span>
+                    <span class="sgc-avance-hero-kpi__val">{{ ncAbiertasAuditoriaDisplay }}</span>
                     <span class="sgc-avance-hero-kpi__lbl">NC abiertas</span>
-                    <span class="sgc-avance-hero-kpi__sub">{{ ncCerradasDisplay }} cerrada{{ ncCerradasDisplay !== 1 ? 's' : '' }}</span>
+                    <span class="sgc-avance-hero-kpi__sub">{{ ncCerradasAuditoriaDisplay }} cerrada{{ ncCerradasAuditoriaDisplay !== 1 ? 's' : '' }} · {{ totalNcAuditoriaDisplay }} NC</span>
                   </div>
                 </div>
               </div>

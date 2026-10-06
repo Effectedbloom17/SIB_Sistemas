@@ -15,6 +15,10 @@ export interface PlantillaFormato {
   imagenVistaAssetPath?: string;
   /** ID del JPG en Drive que se reemplaza al subir una nueva imagen. */
   imagenVistaDriveFileId?: string;
+  /** Descarga directa en PDF (sin abrir formulario). */
+  descargaPdf?: { driveFileId: string; nombre: string };
+  /** Descarga directa en Word (sin abrir formulario). */
+  descargaWord?: { driveFileId: string; nombre: string };
 }
 
 export interface CapituloFormatoConfig {

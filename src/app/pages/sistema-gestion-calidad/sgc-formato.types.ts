@@ -25,4 +25,6 @@ export interface FormatoBusquedaItem {
   titulo: string;
   nombre: string;
   previewSlug?: string;
+  descargaPdf?: { driveFileId: string; nombre: string };
+  descargaWord?: { driveFileId: string; nombre: string };
 }

@@ -13690,6 +13690,18 @@ $dg-f02-layout-max: 46.5rem;
   align-items: stretch;
   gap: 0.45rem;
   flex-wrap: wrap;
+
+  &__alcance {
+    align-self: center;
+    max-width: 5.4rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-align: right;
+    color: #0f766e;
+  }
 }
 
 .sgc-f05-stat {

@@ -918,6 +918,20 @@ export class SgcFormatosDescargaComponent implements OnInit, OnDestroy {
     this.visorError = mensaje || 'No se pudo preparar la vista previa. Puedes descargar el formato.';
   }
 
+  descargarWordVisor(event?: Event): void {
+    const word = this.documentoActivo?.archivoWord;
+    if (!this.puedeDescargarPdfVisor || !word || !this.documentoActivo) {
+      return;
+    }
+    void this.descargar({
+      ...this.documentoActivo,
+      id: word.driveFileId,
+      driveFileId: word.driveFileId,
+      nombreArchivo: word.nombreArchivo,
+      tipo: 'word'
+    }, event);
+  }
+
   descargarPdfVisor(): void {
     if (!this.puedeDescargarPdfVisor || !this.documentoActivo) {
       return;

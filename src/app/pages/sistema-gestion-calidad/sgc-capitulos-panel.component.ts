@@ -10,6 +10,7 @@ import {
 } from './sgc-formatos.catalog';
 import { FormatoBusquedaItem, TarjetaCapituloSgc } from './sgc-formato.types';
 import { SgcListaMaestraVigenciaService } from './sgc-lista-maestra-vigencia.service';
+import { BackendServices } from 'src/app/services/backend.services';
 
 export const SGC_CAPITULO_VISUAL: Record<number, {
   iconClass: string;
@@ -78,6 +79,8 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
   configSeleccionado: CapituloFormatoConfig | null = null;
   paginaDocs = 1;
   readonly DOCS_POR_PAGINA = 6;
+  descargandoClave: string | null = null;
+  errorDescarga = '';
 
   private readonly destroy$ = new Subject<void>();
   private querySubActiva = false;
@@ -88,7 +91,8 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
   constructor(
     private router: Router,
     private route: ActivatedRoute,
-    private vigenciaSgc: SgcListaMaestraVigenciaService
+    private vigenciaSgc: SgcListaMaestraVigenciaService,
+    private backend: BackendServices
   ) {
     this.rebuildCapitulos();
   }
@@ -192,6 +196,47 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
     return p.previewMode === 'form' ? 'Formulario interactivo' : 'Vista integrada';
   }
 
+  tieneDescargas(p: { descargaPdf?: { driveFileId: string }; descargaWord?: { driveFileId: string } }): boolean {
+    return !!(p.descargaPdf?.driveFileId && p.descargaWord?.driveFileId);
+  }
+
+  descargarPlantilla(
+    p: { codigo: string; descargaPdf?: { driveFileId: string; nombre: string }; descargaWord?: { driveFileId: string; nombre: string } },
+    tipo: 'pdf' | 'word',
+    event?: Event
+  ): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const archivo = tipo === 'pdf' ? p.descargaPdf : p.descargaWord;
+    if (!archivo?.driveFileId || this.descargandoClave) {
+      return;
+    }
+    const clave = `${p.codigo}-${tipo}`;
+    this.descargandoClave = clave;
+    this.errorDescarga = '';
+    this.backend.descargarArchivoDrive(archivo.driveFileId, archivo.nombre).subscribe({
+      next: (blob) => {
+        const tipoBlob = String(blob?.type || '');
+        if (tipoBlob.includes('json') || tipoBlob.includes('html')) {
+          this.errorDescarga = 'No se pudo descargar el archivo. Comprueba que esté compartido con la cuenta del sistema.';
+          this.descargandoClave = null;
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const enlace = document.createElement('a');
+        enlace.href = url;
+        enlace.download = archivo.nombre;
+        enlace.click();
+        URL.revokeObjectURL(url);
+        this.descargandoClave = null;
+      },
+      error: () => {
+        this.errorDescarga = 'No se pudo descargar el archivo.';
+        this.descargandoClave = null;
+      }
+    });
+  }
+
   get plantillasCentro(): PlantillaFormato[] {
     return this.vigenciaSgc.filtrarPlantillasCentro(this.configSeleccionado?.plantillas || []);
   }
@@ -279,7 +324,9 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
         codigo: p.codigo,
         titulo: p.titulo,
         nombre: p.nombre,
-        previewSlug: p.previewSlug
+        previewSlug: p.previewSlug,
+        descargaPdf: p.descargaPdf,
+        descargaWord: p.descargaWord
       }));
     });
 

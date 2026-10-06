@@ -3446,7 +3446,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return this.authService.puedeGestionarPlantillasSgcCapitulos(this.plantillaSlug);
   }
 
-  /** AF-F-02: editar texto completo — solo root o Ing. Sergio (calidad / sergio56). */
+  /** DG-F-04: fecha de elaboración — solo super administrador (root) o Calidad (Sergio). */
+  get puedeEditarFechaElaboracionDgF04(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
   get puedeEditarDocumentoCompletoAfF02(): boolean {
     return this.esPrivilegioRootOCalidadAfF02();
   }
@@ -20452,15 +20455,32 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return maximo + 1;
   }
 
-  /** Total de no conformidades con estatus abierto (para el resumen del panel). */
+  /** NC de la bitácora cuya fuente es Auditoría interna (con o sin acento). */
+  private esAuditoriaInternaSgcF05(registro: SgcF05RegistroItem): boolean {
+    const fuente = String(registro?.fuente || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    return fuente.includes('auditoria interna');
+  }
+
+  private get sgcF05RegistrosAuditoriaInterna(): SgcF05RegistroItem[] {
+    return this.sgcF05Form.registros.filter((r) => this.esAuditoriaInternaSgcF05(r));
+  }
+
+  /** Abiertas solo de Auditoría interna (indicadores superiores). */
   get sgcF05TotalAbiertas(): number {
-    return this.sgcF05Form.registros
+    return this.sgcF05RegistrosAuditoriaInterna
       .filter((r) => String(r.estatus || '').toLowerCase() === 'abierta').length;
   }
 
   get sgcF05TotalCerradas(): number {
-    return this.sgcF05Form.registros
+    return this.sgcF05RegistrosAuditoriaInterna
       .filter((r) => String(r.estatus || '').toLowerCase() === 'cerrada').length;
+  }
+
+  get sgcF05TotalAuditoriaInterna(): number {
+    return this.sgcF05RegistrosAuditoriaInterna.length;
   }
 
   /** Registros visibles según el filtro de estatus y el buscador, conservando su índice real. */
@@ -20469,8 +20489,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return this.sgcF05Form.registros
       .map((registro, index) => ({ registro, index }))
       .filter(({ registro }) => {
-        if (this.sgcF05FiltroEstatus && registro.estatus !== this.sgcF05FiltroEstatus) {
-          return false;
+        if (this.sgcF05FiltroEstatus) {
+          if (registro.estatus !== this.sgcF05FiltroEstatus || !this.esAuditoriaInternaSgcF05(registro)) {
+            return false;
+          }
         }
         if (!q) {
           return true;
