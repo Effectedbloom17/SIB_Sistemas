@@ -5,6 +5,7 @@ import { takeUntil } from 'rxjs/operators';
 import { AuthService } from 'src/app/services/auth.service';
 import {
   CapituloFormatoConfig,
+  formatoSgcVisibleParaUsuario,
   PlantillaFormato,
   SGC_CAPITULOS_CATALOG
 } from './sgc-formatos.catalog';
@@ -48,7 +49,9 @@ export class SgcFormatoDetalleComponent implements OnInit, OnDestroy {
   }
 
   get plantillasVisibles(): PlantillaFormato[] {
-    return this.vigenciaSgc.filtrarPlantillasCentro(this.config?.plantillas || []);
+    const esSu = this.authService.esSuperusuario();
+    return this.vigenciaSgc.filtrarPlantillasCentro(this.config?.plantillas || [])
+      .filter((p) => formatoSgcVisibleParaUsuario(p.codigo, esSu));
   }
 
   ngOnDestroy(): void {

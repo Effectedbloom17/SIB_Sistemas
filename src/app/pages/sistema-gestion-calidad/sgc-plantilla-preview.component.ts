@@ -17,6 +17,7 @@ import { DG_F07_PROCESOS, DgF07ProcesoDef } from './sgc-dg-f07.procesos';
 import {
   CapituloFormatoConfig,
   PlantillaFormato,
+  formatoSgcVisibleParaUsuario,
   SGC_CAPITULOS_CATALOG
 } from './sgc-formatos.catalog';
 import {
@@ -381,6 +382,7 @@ interface SgcF11Analisis {
   fechaElaboracion: string;
   proceso: string;
   equipoTrabajo: string;
+  edicionBloqueada: boolean;
   filas: SgcF11Fila[];
 }
 
@@ -1020,6 +1022,18 @@ interface SgcF20FormData {
   fechaRevision: string;
   fichas: SgcF20Ficha[];
   fichaActivaId: string | null;
+}
+
+interface SgcF11EvidenciaDoc {
+  id: number;
+  proyectoId: string;
+  titulo: string;
+  nombreArchivo: string;
+  mimeType: string;
+  tamanoBytes: number | null;
+  driveFileId?: string | null;
+  webViewLink: string | null;
+  fechaSubida: string;
 }
 
 interface SgcF14EvidenciaDoc {
@@ -2125,6 +2139,23 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     analisis: [],
     analisisActivoId: null
   };
+  sgcF11EvidenciasModalAbierto = false;
+  sgcF11EvidenciasAnalisis: SgcF11Analisis | null = null;
+  sgcF11EvidenciasCargando = false;
+  sgcF11EvidenciasSubiendo = false;
+  sgcF11EvidenciasProgreso = 0;
+  sgcF11EvidenciasProgresoEtiqueta = '';
+  sgcF11EvidenciasDocs: SgcF11EvidenciaDoc[] = [];
+  sgcF11EvidenciasFiltro: 'todo' | 'pdf' | 'docs' | 'img' = 'todo';
+  sgcF11EvidenciasBusqueda = '';
+  sgcF11EvidenciasConteos: Record<string, number> = {};
+  sgcF11EvidenciasVista: 'grid' | 'lista' = 'grid';
+  sgcF11EvidCarpetasMenu = false;
+  sgcF11EvidenciasDragDepth = 0;
+  sgcF11EvidenciasThumbs: Record<number, string> = {};
+  private sgcF11EvidenciasThumbsCargando = new Set<number>();
+  private sgcF11EvidenciasThumbsDriveFail = new Set<number>();
+  @ViewChild('sgcF11CarpetaInput') sgcF11CarpetaInput?: ElementRef<HTMLInputElement>;
   sgcF12Form: SgcF12FormData = this.crearSgcF12Vacio();
   sgcF01Form: SgcF01FormData = this.crearSgcF01Vacio();
   sgcF01Busqueda = '';
@@ -3920,6 +3951,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.sgcF14EvidCarpetasMenu) {
       this.sgcF14EvidCarpetasMenu = false;
     }
+    if (this.sgcF11EvidCarpetasMenu) {
+      this.sgcF11EvidCarpetasMenu = false;
+    }
     if (this.sgcF29EvidCarpetasMenu) {
       this.sgcF29EvidCarpetasMenu = false;
     }
@@ -4179,7 +4213,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         return;
       }
       const plantillaEncontrada = this.buscarPlantillaPorPreviewSlug(cfg, codigo);
-      if (!plantillaEncontrada) {
+      if (!plantillaEncontrada || !formatoSgcVisibleParaUsuario(plantillaEncontrada.codigo, this.authService.esSuperusuario())) {
         void this.router.navigate(['/sistema-gestion-calidad', capitulo]);
         return;
       }
@@ -4382,6 +4416,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    document.querySelector('.sgc-f-11-guia')?.remove();
     this.detenerTemporizadorInactividadSgc();
     this.guardarAlSalirSgc();
     this.revocarDgF01PreviewUrl();
@@ -18437,11 +18472,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private async generarMiniaturaLocalEvidencia(
-    formato: 'f14' | 'f29',
-    doc: SgcF29EvidenciaDoc | SgcF14EvidenciaDoc
+    formato: 'f14' | 'f29' | 'f11',
+    doc: SgcF29EvidenciaDoc | SgcF14EvidenciaDoc | SgcF11EvidenciaDoc
   ): Promise<void> {
-    const cargando = formato === 'f14' ? this.sgcF14EvidenciasThumbsCargando : this.sgcF29EvidenciasThumbsCargando;
-    const thumbs = formato === 'f14' ? this.sgcF14EvidenciasThumbs : this.sgcF29EvidenciasThumbs;
+    const cargando = formato === 'f11'
+      ? this.sgcF11EvidenciasThumbsCargando
+      : (formato === 'f14' ? this.sgcF14EvidenciasThumbsCargando : this.sgcF29EvidenciasThumbsCargando);
+    const thumbs = formato === 'f11'
+      ? this.sgcF11EvidenciasThumbs
+      : (formato === 'f14' ? this.sgcF14EvidenciasThumbs : this.sgcF29EvidenciasThumbs);
     if (!doc?.id || thumbs[doc.id] || cargando.has(doc.id)) {
       return;
     }
@@ -18459,12 +18498,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (cabeza.trimStart().startsWith('{') || cabeza.trimStart().startsWith('<')) {
         return;
       }
-      const esImg = formato === 'f14'
-        ? this.esImagenEvidenciaSgcF14(doc as SgcF14EvidenciaDoc)
-        : this.esImagenEvidenciaSgcF29(doc as SgcF29EvidenciaDoc);
-      const esPdf = formato === 'f14'
-        ? this.esPdfEvidenciaSgcF14(doc as SgcF14EvidenciaDoc)
-        : this.esPdfEvidenciaSgcF29(doc as SgcF29EvidenciaDoc);
+      const esImg = formato === 'f29'
+        ? this.esImagenEvidenciaSgcF29(doc as SgcF29EvidenciaDoc)
+        : this.esImagenEvidenciaSgcF14(doc as SgcF14EvidenciaDoc);
+      const esPdf = formato === 'f29'
+        ? this.esPdfEvidenciaSgcF29(doc as SgcF29EvidenciaDoc)
+        : this.esPdfEvidenciaSgcF14(doc as SgcF14EvidenciaDoc);
 
       let url: string | null = null;
       if (esImg) {
@@ -18487,7 +18526,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }
       const finalUrl = url;
       this.ngZone.run(() => {
-        if (formato === 'f14') {
+        if (formato === 'f11') {
+          this.sgcF11EvidenciasThumbs = { ...this.sgcF11EvidenciasThumbs, [doc.id]: finalUrl };
+        } else if (formato === 'f14') {
           this.sgcF14EvidenciasThumbs = { ...this.sgcF14EvidenciasThumbs, [doc.id]: finalUrl };
         } else {
           this.sgcF29EvidenciasThumbs = { ...this.sgcF29EvidenciasThumbs, [doc.id]: finalUrl };
@@ -18502,13 +18543,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   /** Descarga evidencia autenticada; si falla, usa Drive. */
   private descargarBlobEvidenciaConFallback(
-    formato: 'f14' | 'f29',
+    formato: 'f14' | 'f29' | 'f11',
     evidenciaId: number,
     driveFileId: string
   ): Promise<Blob> {
-    const primaria$ = formato === 'f14'
-      ? this.backendService.descargarArchivoEvidenciaSgcF14(evidenciaId)
-      : this.backendService.descargarArchivoEvidenciaSgcF29(evidenciaId);
+    const primaria$ = formato === 'f11'
+      ? this.backendService.descargarArchivoEvidenciaSgcF11(evidenciaId)
+      : (formato === 'f14'
+        ? this.backendService.descargarArchivoEvidenciaSgcF14(evidenciaId)
+        : this.backendService.descargarArchivoEvidenciaSgcF29(evidenciaId));
 
     return new Promise<Blob>((resolve, reject) => {
       primaria$.pipe(takeUntil(this.destroy$), timeout(45000)).subscribe({
@@ -30819,14 +30862,108 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF23PdfCargando = false;
   }
 
+  readonly sgcF11Escala = ['1', '2', '3', '4'];
+  sgcF11GuiaAbierta: 'severidad' | 'ocurrencia' | 'deteccion' | null = null;
+  sgcF11GuiaTop = 0;
+  sgcF11GuiaLeft = 0;
+  private sgcF11GuiaTimer: number | null = null;
+  readonly sgcF11Guias: Record<'severidad' | 'ocurrencia' | 'deteccion', {
+    titulo: string;
+    resumen: string;
+    filas: Array<{ nivel: string; nombre: string; texto: string }>;
+  }> = {
+    severidad: {
+      titulo: 'Severidad',
+      resumen: 'Gravedad del efecto para la organización',
+      filas: [
+        { nivel: '1', nombre: 'Muy baja', texto: 'Los efectos de la falla son insignificantes para la organización' },
+        { nivel: '2', nombre: 'Baja', texto: 'Los efectos de la falla son tolerables para la organización' },
+        { nivel: '3', nombre: 'Media', texto: 'Los efectos de la falla son importantes para la organización' },
+        { nivel: '4', nombre: 'Alta', texto: 'Los efectos de la falla son muy graves para la organización' }
+      ]
+    },
+    ocurrencia: {
+      titulo: 'Ocurrencia',
+      resumen: 'Frecuencia con la que se presenta la falla',
+      filas: [
+        { nivel: '1', nombre: 'Nula', texto: 'Es un riesgo potencial (no se ha presentado, pero podría pasar)' },
+        { nivel: '2', nombre: 'Baja', texto: 'Ha pasado menos de 5 veces en un mes' },
+        { nivel: '3', nombre: 'Media', texto: 'Ha pasado de 5 a 10 veces en un mes' },
+        { nivel: '4', nombre: 'Alta', texto: 'Ha pasado más de 10 veces en un mes' }
+      ]
+    },
+    deteccion: {
+      titulo: 'Detección',
+      resumen: 'Facilidad para descubrir la falla a tiempo',
+      filas: [
+        { nivel: '1', nombre: 'Muy fácil', texto: 'Se puede detectar rápidamente sin ningún problema' },
+        { nivel: '2', nombre: 'Moderada', texto: 'Se puede detectar, pero toma tiempo' },
+        { nivel: '3', nombre: 'Difícil', texto: 'Implica realizar muchas acciones para su detección oportuna' },
+        { nivel: '4', nombre: 'No detectable', texto: 'No hay forma de detectar la falla, hasta que sucede' }
+      ]
+    }
+  };
+
+  abrirGuiaSgcF11(clave: 'severidad' | 'ocurrencia' | 'deteccion', event: Event): void {
+    if (this.sgcF11GuiaTimer != null) {
+      window.clearTimeout(this.sgcF11GuiaTimer);
+      this.sgcF11GuiaTimer = null;
+    }
+    const el = event.currentTarget as HTMLElement | null;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const margen = 12;
+    const panel = document.querySelector('.main-content');
+    const panelRect = panel?.getBoundingClientRect();
+    const sidebar = document.querySelector('.sidebar-custom');
+    const sideRect = sidebar?.getBoundingClientRect();
+    const sidebarRight = sideRect && sideRect.width > 40 && sideRect.right > 0 ? sideRect.right : 0;
+    const minLeft = Math.max(margen, (panelRect?.left ?? 0) + margen, sidebarRight + margen);
+    const maxRight = Math.min(window.innerWidth - margen, (panelRect?.right ?? window.innerWidth) - margen);
+    const ancho = Math.min(380, Math.max(240, maxRight - minLeft));
+    let left = rect.left + (rect.width / 2) - (ancho / 2);
+    left = Math.max(minLeft, Math.min(left, maxRight - ancho));
+    const alto = 250;
+    let top = rect.bottom + 10;
+    if (top + alto > window.innerHeight - margen) {
+      top = Math.max(margen, rect.top - alto - 10);
+    }
+    this.sgcF11GuiaLeft = left;
+    this.sgcF11GuiaTop = top;
+    this.sgcF11GuiaAbierta = clave;
+    window.setTimeout(() => this.portalGuiaSgcF11(), 0);
+  }
+
+  private portalGuiaSgcF11(): void {
+    const el = document.querySelector('.sgc-f-11-guia');
+    if (el && el.parentElement !== document.body) {
+      document.body.appendChild(el);
+    }
+  }
+
+  cerrarGuiaSgcF11(): void {
+    if (this.sgcF11GuiaTimer != null) {
+      window.clearTimeout(this.sgcF11GuiaTimer);
+    }
+    this.sgcF11GuiaTimer = window.setTimeout(() => {
+      this.sgcF11GuiaAbierta = null;
+      this.sgcF11GuiaTimer = null;
+    }, 90);
+  }
+
+  private escalaAmefSgcF11(valor: unknown): string {
+    const n = parseInt(String(valor ?? '').trim(), 10);
+    return n >= 1 && n <= 4 ? String(n) : '';
+  }
+
   calcularRpnAmef(ocurrencia: string, severidad: string, deteccion: string): string {
-    const o = parseInt(String(ocurrencia || '').trim(), 10);
-    const s = parseInt(String(severidad || '').trim(), 10);
-    const d = parseInt(String(deteccion || '').trim(), 10);
-    if (Number.isNaN(o) || Number.isNaN(s) || Number.isNaN(d)) {
+    const o = this.escalaAmefSgcF11(ocurrencia);
+    const s = this.escalaAmefSgcF11(severidad);
+    const d = this.escalaAmefSgcF11(deteccion);
+    if (!o || !s || !d) {
       return '';
     }
-    return String(o * s * d);
+    return String(Number(o) * Number(s) * Number(d));
   }
 
   /** Normaliza RPN para evitar [object Object] en celdas con fórmula de Excel. */
@@ -30843,6 +30980,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     );
     if (calculado) {
       return calculado;
+    }
+    const factoresCompletos = [ocurrencia, severidad, deteccion].every((parte) => !!this.escalaAmefSgcF11(parte));
+    if (!factoresCompletos) {
+      return '0';
     }
     if (valor === null || valor === undefined) {
       return '';
@@ -30865,9 +31006,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return Number.isFinite(n) ? String(n) : '';
   }
 
-  formatearRpnDisplay(valor: unknown, ocurrencia = '', severidad = '', deteccion = ''): string | null {
-    const rpn = this.normalizarValorRpn(valor, ocurrencia, severidad, deteccion);
-    return rpn || null;
+  formatearRpnDisplay(valor: unknown, ocurrencia = '', severidad = '', deteccion = ''): string {
+    return this.normalizarValorRpn(valor, ocurrencia, severidad, deteccion) || '0';
   }
 
   esRpnAlto(rpn: string): boolean {
@@ -30878,7 +31018,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   contarRpnAltoSgcF11(): number {
     return (this.sgcF11Form?.filas || []).filter((fila) => {
       const rpn = this.formatearRpnDisplay(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion);
-      return rpn ? this.esRpnAlto(rpn) : false;
+      return this.esRpnAlto(rpn);
     }).length;
   }
 
@@ -30935,6 +31075,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   agregarFilaSgcF11(): void {
+    if (this.sgcF11Form.edicionBloqueada) return;
     this.sgcF11Form.filas.push(this.crearFilaSgcF11Vacia());
     this.renumerarFilasSgcF11();
     this.onSgcF11Editado();
@@ -30942,7 +31083,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   quitarFilaSgcF11(index: number): void {
-    if (this.sgcF11Form.filas.length <= 1) {
+    if (this.sgcF11Form.edicionBloqueada || this.sgcF11Form.filas.length <= 1) {
       return;
     }
     this.sgcF11Form.filas.splice(index, 1);
@@ -30955,6 +31096,422 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     this.sgcF11CambiosPendientes = true;
+  }
+
+  alternarBloqueoSgcF11(): void {
+    this.sgcF11Form.edicionBloqueada = !this.sgcF11Form.edicionBloqueada;
+    this.volcarEditorEnAnalisisSgcF11();
+    this.onSgcF11Editado();
+  }
+
+  get sgcF11EvidenciasAnalisisActivo(): SgcF11Analisis | null {
+    const id = this.sgcF11Archivo.analisisActivoId;
+    return (this.sgcF11Archivo.analisis || []).find((row) => row.id === id) || null;
+  }
+
+  nombreArchiveroSgcF11(item?: { proceso?: string } | null): string {
+    return String(item?.proceso || '').trim() || 'Sin proceso';
+  }
+
+  abrirEvidenciasEditorSgcF11(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.volcarEditorEnAnalisisSgcF11();
+    const id = this.sgcF11Archivo.analisisActivoId;
+    const item = (this.sgcF11Archivo.analisis || []).find((row) => row.id === id) || null;
+    if (!item) return;
+    this.abrirEvidenciasSgcF11(item);
+  }
+
+  abrirEvidenciasSgcF11(item: SgcF11Analisis, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!item?.id) return;
+    this.sgcF11EvidenciasAnalisis = item;
+    this.sgcF11EvidenciasModalAbierto = true;
+    this.sgcF11EvidenciasFiltro = 'todo';
+    this.sgcF11EvidenciasBusqueda = '';
+    this.sgcF11EvidCarpetasMenu = false;
+    this.cargarEvidenciasSgcF11();
+  }
+
+  cerrarEvidenciasSgcF11(): void {
+    this.liberarMiniaturasEvidenciasSgcF11();
+    this.sgcF11EvidenciasModalAbierto = false;
+    this.sgcF11EvidenciasAnalisis = null;
+    this.sgcF11EvidenciasDocs = [];
+    this.sgcF11EvidenciasCargando = false;
+    this.sgcF11EvidenciasSubiendo = false;
+    this.sgcF11EvidenciasProgreso = 0;
+    this.sgcF11EvidenciasProgresoEtiqueta = '';
+    this.sgcF11EvidCarpetasMenu = false;
+  }
+
+  conteoTipoEvidenciaSgcF11(tipo: 'todo' | 'pdf' | 'docs' | 'img'): number {
+    const docs = this.sgcF11EvidenciasDocs || [];
+    if (tipo === 'todo') return docs.length;
+    return docs.filter((d) => {
+      const mime = String(d.mimeType || '').toLowerCase();
+      if (tipo === 'pdf') return mime.includes('pdf');
+      if (tipo === 'img') return mime.startsWith('image/');
+      return !mime.includes('pdf') && !mime.startsWith('image/');
+    }).length;
+  }
+
+  conteoEvidenciasAnalisisSgcF11(item?: { id?: string } | null): number {
+    const clave = String(item?.id || '').trim();
+    if (!clave) return 0;
+    return this.sgcF11EvidenciasConteos[clave] || 0;
+  }
+
+  get sgcF11EvidenciasDocsFiltrados(): SgcF11EvidenciaDoc[] {
+    const q = this.sgcF11EvidenciasBusqueda.trim().toLowerCase();
+    return (this.sgcF11EvidenciasDocs || []).filter((d) => {
+      if (q && !String(d.nombreArchivo || d.titulo || '').toLowerCase().includes(q)) return false;
+      const mime = String(d.mimeType || '').toLowerCase();
+      if (this.sgcF11EvidenciasFiltro === 'pdf') return mime.includes('pdf');
+      if (this.sgcF11EvidenciasFiltro === 'img') return mime.startsWith('image/');
+      if (this.sgcF11EvidenciasFiltro === 'docs') return !mime.includes('pdf') && !mime.startsWith('image/');
+      return true;
+    });
+  }
+
+  get sgcF11EvidenciasTotalBytes(): number {
+    return (this.sgcF11EvidenciasDocs || []).reduce((s, d) => s + (d.tamanoBytes || 0), 0);
+  }
+
+  private refrescarConteosEvidenciasSgcF11(): void {
+    const ids = (this.sgcF11Archivo.analisis || []).map((item) => String(item.id || '').trim()).filter(Boolean);
+    if (!ids.length) {
+      this.sgcF11EvidenciasConteos = {};
+      return;
+    }
+    this.backendService.contarEvidenciasSgcF11(ids)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF11EvidenciasConteos = res?.conteos || {};
+        },
+        error: () => { /* silencioso */ }
+      });
+  }
+
+  private cargarEvidenciasSgcF11(): void {
+    const item = this.sgcF11EvidenciasAnalisis;
+    const analisisId = String(item?.id || '').trim();
+    if (!analisisId) return;
+    this.sgcF11EvidenciasCargando = true;
+    this.backendService.listarEvidenciasSgcF11(analisisId, {
+      nombre_proyecto: this.nombreArchiveroSgcF11(item)
+    }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res) => {
+        this.sgcF11EvidenciasCargando = false;
+        this.sgcF11EvidenciasDocs = Array.isArray(res?.documentos)
+          ? res.documentos.map((d: any) => this.normalizarDocEvidenciaLista(d))
+          : [];
+        this.sgcF11EvidenciasConteos = {
+          ...this.sgcF11EvidenciasConteos,
+          [analisisId]: this.sgcF11EvidenciasDocs.length
+        };
+        void this.precargarMiniaturasEvidenciasSgcF11(this.sgcF11EvidenciasDocs);
+      },
+      error: () => {
+        this.sgcF11EvidenciasCargando = false;
+        this.sgcF11EvidenciasDocs = [];
+      }
+    });
+  }
+
+  onEvidenciasInputSgcF11(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = input?.files ? Array.from(input.files) : [];
+    input.value = '';
+    void this.subirArchivosEvidenciaSgcF11(files);
+  }
+
+  onEvidenciasCarpetaInputSgcF11(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = input?.files ? Array.from(input.files) : [];
+    input.value = '';
+    this.sgcF11EvidCarpetasMenu = false;
+    void this.subirArchivosEvidenciaSgcF11(files, true);
+  }
+
+  toggleMenuCarpetasEvidenciaSgcF11(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.sgcF14EvidCarpetasMenu = false;
+    this.sgcF29EvidCarpetasMenu = false;
+    this.sgcF11EvidCarpetasMenu = !this.sgcF11EvidCarpetasMenu;
+  }
+
+  abrirSelectorCarpetaEvidenciaSgcF11(): void {
+    this.sgcF11EvidCarpetasMenu = false;
+    this.sgcF11CarpetaInput?.nativeElement?.click();
+  }
+
+  async crearCarpetaEvidenciaSgcF11(): Promise<void> {
+    this.sgcF11EvidCarpetasMenu = false;
+    const item = this.sgcF11EvidenciasAnalisis;
+    if (!item?.id) return;
+    const destino = this.nombreArchiveroSgcF11(item);
+    const { value: nombre } = await Swal.fire({
+      title: 'Nueva carpeta',
+      input: 'text',
+      inputLabel: 'Nombre de la carpeta dentro de las evidencias de este análisis',
+      inputPlaceholder: 'Ej. Planos, Actas, Fotos…',
+      showCancelButton: true,
+      confirmButtonText: 'Crear',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0f766e',
+      inputValidator: (value) => {
+        const n = String(value || '').trim();
+        if (!n) return 'Escribe un nombre para la carpeta.';
+        if (/[/\\?%*:|"<>]/.test(n)) return 'El nombre no puede contener caracteres especiales.';
+        return null;
+      }
+    });
+    if (!nombre) return;
+    this.backendService.crearCarpetaEvidenciaSgcF11({
+      proyecto_id: item.id,
+      nombre_proyecto: destino,
+      nombre: String(nombre).trim()
+    }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res) => {
+        void Swal.fire({
+          icon: 'success',
+          title: 'Carpeta creada',
+          text: `«${String(nombre).trim()}» quedó dentro de «${destino}» en Google Drive.`,
+          confirmButtonColor: '#0f766e',
+          showCancelButton: !!res?.carpeta?.webViewLink,
+          cancelButtonText: 'Abrir en Drive',
+          confirmButtonText: 'Listo'
+        }).then((r) => {
+          if (r.dismiss === Swal.DismissReason.cancel && res?.carpeta?.webViewLink) {
+            window.open(res.carpeta.webViewLink, '_blank', 'noopener');
+          }
+        });
+      },
+      error: (err) => {
+        void Swal.fire({
+          icon: 'error',
+          title: 'No se pudo crear',
+          text: err?.error?.message || err?.message || 'Intenta de nuevo.'
+        });
+      }
+    });
+  }
+
+  onEvidenciasDropSgcF11(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.sgcF11EvidenciasDragDepth = 0;
+    const files = event.dataTransfer?.files ? Array.from(event.dataTransfer.files) : [];
+    void this.subirArchivosEvidenciaSgcF11(files);
+  }
+
+  onEvidenciasDragOverSgcF11(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  onEvidenciasDragEnterSgcF11(event: DragEvent): void {
+    event.preventDefault();
+    this.sgcF11EvidenciasDragDepth++;
+  }
+
+  onEvidenciasDragLeaveSgcF11(event: DragEvent): void {
+    event.preventDefault();
+    this.sgcF11EvidenciasDragDepth = Math.max(0, this.sgcF11EvidenciasDragDepth - 1);
+  }
+
+  private async subirArchivosEvidenciaSgcF11(files: File[], desdeCarpeta = false): Promise<void> {
+    const item = this.sgcF11EvidenciasAnalisis;
+    if (!item?.id || !files.length || this.sgcF11EvidenciasSubiendo) return;
+    if (files.length > 20) {
+      void Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: 'Se subirán los primeros 20 archivos',
+        showConfirmButton: false,
+        timer: 2400
+      });
+    }
+    const lote = files.slice(0, 20);
+    const destino = this.nombreArchiveroSgcF11(item);
+    this.sgcF11EvidenciasSubiendo = true;
+    this.sgcF11EvidenciasProgreso = 2;
+    this.sgcF11EvidenciasProgresoEtiqueta = desdeCarpeta
+      ? `Preparando carpeta (${lote.length} archivo${lote.length === 1 ? '' : 's'})…`
+      : (lote.length === 1 ? `Preparando ${lote[0].name}…` : `Preparando ${lote.length} archivos…`);
+    try {
+      const archivos: Array<{
+        nombre_archivo: string;
+        mime_type?: string;
+        archivo_base64: string;
+        subcarpeta?: string;
+      }> = [];
+      for (let i = 0; i < lote.length; i++) {
+        const file = lote[i];
+        this.sgcF11EvidenciasProgresoEtiqueta = `Leyendo ${file.name}…`;
+        const base64 = await this.archivoABase64SgcF14(file, (pct) => {
+          const base = (i / lote.length) * 45;
+          const span = 45 / lote.length;
+          this.sgcF11EvidenciasProgreso = Math.max(2, Math.round(base + (pct / 100) * span));
+        });
+        if (!base64) continue;
+        const subcarpeta = desdeCarpeta ? this.subcarpetaDesdeArchivoEvidencia(file) : undefined;
+        archivos.push({
+          nombre_archivo: file.name,
+          mime_type: file.type || undefined,
+          archivo_base64: base64,
+          ...(subcarpeta ? { subcarpeta } : {})
+        });
+      }
+      if (!archivos.length) {
+        this.sgcF11EvidenciasSubiendo = false;
+        this.sgcF11EvidenciasProgreso = 0;
+        this.sgcF11EvidenciasProgresoEtiqueta = '';
+        return;
+      }
+      this.sgcF11EvidenciasProgreso = Math.max(this.sgcF11EvidenciasProgreso, 48);
+      this.sgcF11EvidenciasProgresoEtiqueta = 'Subiendo a Google Drive…';
+      this.backendService.subirEvidenciasLoteSgcF11Eventos({
+        proyecto_id: item.id,
+        nombre_proyecto: destino,
+        archivos
+      }).pipe(takeUntil(this.destroy$)).subscribe({
+        next: (event) => {
+          if (event.type === HttpEventType.UploadProgress) {
+            const total = event.total || 0;
+            if (total > 0) {
+              const httpPct = 48 + Math.round((event.loaded / total) * 47);
+              this.sgcF11EvidenciasProgreso = Math.min(95, Math.max(this.sgcF11EvidenciasProgreso, httpPct));
+              this.sgcF11EvidenciasProgresoEtiqueta = 'Subiendo a Google Drive…';
+            }
+            return;
+          }
+          if (event.type === HttpEventType.Response) {
+            this.sgcF11EvidenciasProgreso = 100;
+            this.sgcF11EvidenciasProgresoEtiqueta = 'Listo';
+            this.sgcF11EvidenciasSubiendo = false;
+            this.cargarEvidenciasSgcF11();
+            void Swal.fire({
+              icon: 'success',
+              title: archivos.length === 1 ? 'Documento subido' : `${archivos.length} documentos subidos`,
+              text: `Guardado en Drive → «${destino}»`,
+              confirmButtonColor: '#0f766e',
+              confirmButtonText: 'Listo'
+            });
+            setTimeout(() => {
+              this.sgcF11EvidenciasProgreso = 0;
+              this.sgcF11EvidenciasProgresoEtiqueta = '';
+            }, 400);
+          }
+        },
+        error: () => {
+          this.sgcF11EvidenciasSubiendo = false;
+          this.sgcF11EvidenciasProgreso = 0;
+          this.sgcF11EvidenciasProgresoEtiqueta = '';
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo subir',
+            text: 'Revisa el archivo e intenta de nuevo.',
+            confirmButtonColor: '#15a596'
+          });
+        }
+      });
+    } catch {
+      this.sgcF11EvidenciasSubiendo = false;
+      this.sgcF11EvidenciasProgreso = 0;
+      this.sgcF11EvidenciasProgresoEtiqueta = '';
+    }
+  }
+
+  eliminarEvidenciaSgcF11(doc: SgcF11EvidenciaDoc, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!doc?.id || this.sgcF11EvidenciasSubiendo) return;
+    this.backendService.eliminarEvidenciaSgcF11(doc.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.revocarMiniaturaEvidenciaSgcF11(doc.id);
+          this.cargarEvidenciasSgcF11();
+        },
+        error: () => { /* silencioso */ }
+      });
+  }
+
+  miniaturaEvidenciaSgcF11(doc: SgcF11EvidenciaDoc): string | null {
+    if (!doc?.id) return null;
+    if (this.sgcF11EvidenciasThumbs[doc.id]) return this.sgcF11EvidenciasThumbs[doc.id];
+    const driveId = String(doc.driveFileId || '').trim();
+    if (driveId && !this.sgcF11EvidenciasThumbsDriveFail.has(doc.id)
+      && (this.esPdfEvidenciaSgcF14(doc as any) || this.esImagenEvidenciaSgcF14(doc as any))) {
+      return this.urlThumbnailDriveEvidencia(driveId);
+    }
+    return null;
+  }
+
+  abrirArchivoEvidenciaSgcF11(doc: SgcF11EvidenciaDoc, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!doc?.id) return;
+    const nombre = doc.nombreArchivo || doc.titulo || 'evidencia';
+    let tipoHint: 'pdf' | 'imagen' | 'office' | 'otro' = 'otro';
+    if (this.esPdfEvidenciaSgcF14(doc as any)) tipoHint = 'pdf';
+    else if (this.esImagenEvidenciaSgcF14(doc as any)) tipoHint = 'imagen';
+    else if (doc.driveFileId) tipoHint = 'office';
+    this.documentPreview.abrir({
+      nombre,
+      archivo_nombre: nombre,
+      archivo_url: doc.driveFileId || undefined,
+      sgcF11EvidenciaId: doc.id,
+      tipoHint,
+      etiqueta: this.etiquetaTipoEvidenciaSgcF14(doc.mimeType)
+    });
+  }
+
+  onErrorMiniaturaEvidenciaSgcF11(doc: SgcF11EvidenciaDoc): void {
+    if (!doc?.id) return;
+    this.sgcF11EvidenciasThumbsDriveFail.add(doc.id);
+    this.revocarMiniaturaEvidenciaSgcF11(doc.id);
+    void this.generarMiniaturaLocalEvidencia('f11', doc);
+  }
+
+  private liberarMiniaturasEvidenciasSgcF11(): void {
+    Object.values(this.sgcF11EvidenciasThumbs).forEach((url) => {
+      try { URL.revokeObjectURL(url); } catch { /* ignore */ }
+    });
+    this.sgcF11EvidenciasThumbs = {};
+    this.sgcF11EvidenciasThumbsCargando.clear();
+    this.sgcF11EvidenciasThumbsDriveFail.clear();
+  }
+
+  private revocarMiniaturaEvidenciaSgcF11(id: number): void {
+    const url = this.sgcF11EvidenciasThumbs[id];
+    if (url) {
+      try { URL.revokeObjectURL(url); } catch { /* ignore */ }
+      const copia = { ...this.sgcF11EvidenciasThumbs };
+      delete copia[id];
+      this.sgcF11EvidenciasThumbs = copia;
+    }
+    this.sgcF11EvidenciasThumbsCargando.delete(id);
+  }
+
+  private async precargarMiniaturasEvidenciasSgcF11(docs: SgcF11EvidenciaDoc[]): Promise<void> {
+    const pendientes = (docs || []).filter((d) =>
+      d?.id
+      && !this.sgcF11EvidenciasThumbs[d.id]
+      && !this.sgcF11EvidenciasThumbsCargando.has(d.id)
+      && (this.esPdfEvidenciaSgcF14(d as any) || this.esImagenEvidenciaSgcF14(d as any))
+      && (!String(d.driveFileId || '').trim() || this.sgcF11EvidenciasThumbsDriveFail.has(d.id))
+    );
+    for (const doc of pendientes.slice(0, 24)) {
+      await this.generarMiniaturaLocalEvidencia('f11', doc);
+    }
   }
 
   get sgcF11AnalisisVista(): SgcF11Analisis[] {
@@ -30985,6 +31542,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       fechaElaboracion: item.fechaElaboracion || this.sgcF11Form.fechaElaboracion,
       proceso: item.proceso || '',
       equipoTrabajo: item.equipoTrabajo || '',
+      edicionBloqueada: !!item.edicionBloqueada,
       filas: this.normalizarFilasSgcF11(
         (item.filas && item.filas.length ? item.filas : [this.crearFilaSgcF11Vacia()]).map((fila) => ({ ...fila }))
       )
@@ -31069,6 +31627,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       fechaElaboracion: this.sgcF11Form.fechaElaboracion || '',
       proceso: '',
       equipoTrabajo: '',
+      edicionBloqueada: false,
       filas
     };
   }
@@ -31093,6 +31652,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       fechaElaboracion: this.sgcF11Form.fechaElaboracion || '',
       proceso: this.sgcF11Form.proceso || '',
       equipoTrabajo: this.sgcF11Form.equipoTrabajo || '',
+      edicionBloqueada: !!this.sgcF11Form.edicionBloqueada,
       filas: this.sgcF11Form.filas.map((fila) => ({ ...fila }))
     };
     const idx = this.sgcF11Archivo.analisis.findIndex((item) => item.id === id);
@@ -33057,6 +33617,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
             elaboro: activo.elaboro,
             proceso: activo.proceso,
             equipoTrabajo: activo.equipoTrabajo,
+            edicionBloqueada: !!activo.edicionBloqueada,
             fechaElaboracion: activo.fechaElaboracion || this.sgcF11Form.fechaElaboracion,
             filas: this.normalizarFilasSgcF11(activo.filas.map((fila) => ({ ...fila })))
           };
@@ -33088,6 +33649,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         this.sgcF11Cargando = false;
       }
       this.autosizeTextareasSgcF11();
+      this.refrescarConteosEvidenciasSgcF11();
     }, editorAbierto ? 0 : 350);
   }
 
@@ -34668,16 +35230,23 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private normalizarFilaSgcF11(fila: SgcF11Fila): SgcF11Fila {
+    const ocurrencia = this.escalaAmefSgcF11(fila.ocurrencia);
+    const severidad = this.escalaAmefSgcF11(fila.severidad);
+    const deteccion = this.escalaAmefSgcF11(fila.deteccion);
+    const ocurrenciaPost = this.escalaAmefSgcF11(fila.ocurrenciaPost);
+    const severidadPost = this.escalaAmefSgcF11(fila.severidadPost);
+    const deteccionPost = this.escalaAmefSgcF11(fila.deteccionPost);
     return {
       ...fila,
+      ocurrencia,
+      severidad,
+      deteccion,
+      ocurrenciaPost,
+      severidadPost,
+      deteccionPost,
       fechaCompromiso: this.normalizarFechaIsoSgcF12(fila.fechaCompromiso),
-      rpn: this.normalizarValorRpn(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion),
-      rpnPost: this.normalizarValorRpn(
-        fila.rpnPost,
-        fila.ocurrenciaPost,
-        fila.severidadPost,
-        fila.deteccionPost
-      )
+      rpn: this.normalizarValorRpn(fila.rpn, ocurrencia, severidad, deteccion),
+      rpnPost: this.normalizarValorRpn(fila.rpnPost, ocurrenciaPost, severidadPost, deteccionPost)
     };
   }
 
@@ -34753,6 +35322,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       fechaElaboracion: String(item?.fechaElaboracion || ''),
       proceso: String(item?.proceso || ''),
       equipoTrabajo: String(item?.equipoTrabajo || ''),
+      edicionBloqueada: !!item?.edicionBloqueada,
       filas
     };
   }
@@ -34767,6 +35337,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       fechaElaboracion: '2025-01-16',
       proceso: 'VENTAS',
       equipoTrabajo: '',
+      edicionBloqueada: false,
       filas: [this.crearFilaSgcF11Vacia()] as SgcF11Fila[]
     };
   }

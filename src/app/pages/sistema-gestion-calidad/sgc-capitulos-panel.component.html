@@ -160,7 +160,7 @@
           </p>
         </div>
 
-        <div *ngIf="c.plantillas.length > 0; else sinFormatos" class="sgc-cap-docs">
+        <div *ngIf="plantillasCentro.length > 0; else sinFormatos" class="sgc-cap-docs">
           <div class="sgc-cap-docs__head">
             <div>
               <h4 class="sgc-cap-docs__title">Documentos del capítulo</h4>
@@ -169,7 +169,7 @@
                 <span *ngIf="mostrarPaginacionDocs"> · Sección {{ paginaDocs }} de {{ totalPaginasDocs }}</span>
               </p>
             </div>
-            <span class="sgc-cap-docs__count">{{ c.plantillas.length }}</span>
+            <span class="sgc-cap-docs__count">{{ plantillasCentro.length }}</span>
           </div>
 
           <ul class="sgc-cap-doc-list list-unstyled mb-0">

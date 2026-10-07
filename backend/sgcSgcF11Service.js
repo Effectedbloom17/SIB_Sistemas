@@ -250,24 +250,29 @@ function formatearFechaDisplay(iso) {
     return `${d.padStart(2, '0')}-${m.padStart(2, '0')}-${y.slice(-2)}`;
 }
 
+function escalaAmef(valor) {
+    const n = parseInt(String(valor || '').trim(), 10);
+    return n >= 1 && n <= 4 ? String(n) : '';
+}
+
 function calcularRpn(ocurrencia, severidad, deteccion) {
-    const o = parseFloat(String(ocurrencia || '').trim());
-    const s = parseFloat(String(severidad || '').trim());
-    const d = parseFloat(String(deteccion || '').trim());
-    if (Number.isFinite(o) && Number.isFinite(s) && Number.isFinite(d)) {
-        return String(Math.round(o * s * d));
+    const o = escalaAmef(ocurrencia);
+    const s = escalaAmef(severidad);
+    const d = escalaAmef(deteccion);
+    if (!o || !s || !d) {
+        return '0';
     }
-    return String(ocurrencia || severidad || deteccion ? '' : '').trim();
+    return String(Number(o) * Number(s) * Number(d));
 }
 
 function sanitizarFila(raw) {
     const base = raw && typeof raw === 'object' ? raw : {};
-    const ocurrencia = String(base.ocurrencia || '').trim();
-    const severidad = String(base.severidad || '').trim();
-    const deteccion = String(base.deteccion || '').trim();
-    const ocurrenciaPost = String(base.ocurrenciaPost || '').trim();
-    const severidadPost = String(base.severidadPost || '').trim();
-    const deteccionPost = String(base.deteccionPost || '').trim();
+    const ocurrencia = escalaAmef(base.ocurrencia);
+    const severidad = escalaAmef(base.severidad);
+    const deteccion = escalaAmef(base.deteccion);
+    const ocurrenciaPost = escalaAmef(base.ocurrenciaPost);
+    const severidadPost = escalaAmef(base.severidadPost);
+    const deteccionPost = escalaAmef(base.deteccionPost);
     const rpnCalc = calcularRpn(ocurrencia, severidad, deteccion);
     const rpnPostCalc = calcularRpn(ocurrenciaPost, severidadPost, deteccionPost);
 
@@ -282,7 +287,7 @@ function sanitizarFila(raw) {
         controlesPreventivos: String(base.controlesPreventivos || '').trim(),
         controlesDeteccion: String(base.controlesDeteccion || '').trim(),
         deteccion,
-        rpn: rpnCalc || String(base.rpn || '').trim(),
+        rpn: rpnCalc,
         acciones: String(base.acciones || '').trim(),
         responsable: String(base.responsable || '').trim(),
         fechaCompromiso: String(base.fechaCompromiso || '').trim(),
@@ -290,7 +295,7 @@ function sanitizarFila(raw) {
         severidadPost,
         ocurrenciaPost,
         deteccionPost,
-        rpnPost: rpnPostCalc || String(base.rpnPost || '').trim()
+        rpnPost: rpnPostCalc
     };
 }
 
@@ -320,6 +325,7 @@ function sanitizarAnalisis(raw) {
         fechaElaboracion: formatearFechaIso(base.fechaElaboracion) || '',
         proceso: String(base.proceso || '').trim(),
         equipoTrabajo: String(base.equipoTrabajo || '').trim(),
+        edicionBloqueada: base.edicionBloqueada === true || base.edicionBloqueada === 1 || base.edicionBloqueada === '1',
         filas
     };
 }

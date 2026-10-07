@@ -19,6 +19,17 @@ export interface PlantillaFormato {
   descargaPdf?: { driveFileId: string; nombre: string };
   /** Descarga directa en Word (sin abrir formulario). */
   descargaWord?: { driveFileId: string; nombre: string };
+  /** Sigue en el sistema, pero solo lo ve el Administrador SU (rol root). */
+  soloSuperusuario?: boolean;
+}
+
+/** Códigos que permanecen en el sistema y solo ve el Administrador SU. */
+export const SGC_FORMATOS_SOLO_SUPERUSUARIO = new Set(['SGC-DI-06']);
+
+export function formatoSgcVisibleParaUsuario(codigo: string | undefined, esSuperusuario: boolean): boolean {
+  const c = String(codigo || '').trim().toUpperCase();
+  if (!c || esSuperusuario) return true;
+  return !SGC_FORMATOS_SOLO_SUPERUSUARIO.has(c);
 }
 
 export interface CapituloFormatoConfig {
@@ -158,7 +169,8 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         nombre: 'Metodología AMEF.pptx',
         driveFileId: '1xZV8qrebRvCovN1cXOXO3EcCZhCjs-Ck',
         previewSlug: 'metodologia-amef',
-        previewMode: 'form'
+        previewMode: 'form',
+        soloSuperusuario: true
       }
     ]
   },

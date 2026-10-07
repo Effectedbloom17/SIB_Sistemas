@@ -13953,7 +13953,7 @@
                     <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
                     Cargando formato…
                   </div>
-                  <article class="dg-f05-doc sgc-f-04-doc sgc-f-11-doc sgc-f-04-doc--archivero" *ngIf="sgcF11Vista === 'archivero'">
+                  <article class="dg-f05-doc sgc-f-04-doc sgc-f-11-doc sgc-f-04-doc--archivero" *ngIf="sgcF11Vista === 'archivero' && !sgcF11EvidenciasModalAbierto">
                     <header class="dg-f05-doc__header">
                       <span class="dg-f05-doc__code">SGC-F-11</span>
                       <h3 class="dg-f05-doc__title">Análisis de Modo y Efecto de Falla (AMEF)</h3>
@@ -14011,6 +14011,13 @@
                               </span>
                             </span>
                           </button>
+                          <button type="button" class="sgc-f-11-evid-btn"
+                            [class.is-on]="conteoEvidenciasAnalisisSgcF11(item) > 0"
+                            (click)="abrirEvidenciasSgcF11(item, $event)"
+                            title="Evidencias de este análisis">
+                            <i class="fas fa-folder-open" aria-hidden="true"></i>
+                            <em>{{ conteoEvidenciasAnalisisSgcF11(item) }}</em>
+                          </button>
                           <button type="button" class="sgc-f-04-book__del" (click)="eliminarAnalisisSgcF11(item, $event)" title="Eliminar análisis">
                             <i class="fas fa-times" aria-hidden="true"></i>
                           </button>
@@ -14024,13 +14031,34 @@
                     </div>
                   </article>
 
-                  <article class="dg-f05-doc sgc-f-11-doc" *ngIf="sgcF11Vista === 'editor'">
+                  <article class="dg-f05-doc sgc-f-11-doc" *ngIf="sgcF11Vista === 'editor' && !sgcF11EvidenciasModalAbierto"
+                    [class.sgc-f-11-doc--bloqueado]="sgcF11Form.edicionBloqueada">
                     <div class="sgc-f-04-editor-bar">
                       <button type="button" class="sgc-f-04-editor-bar__back" (click)="volverArchiveroSgcF11()">
                         <i class="fas fa-arrow-left" aria-hidden="true"></i>
                         Volver al archivero
                       </button>
-                      <span class="sgc-f-04-editor-bar__folio" *ngIf="sgcF11Form.proceso">{{ sgcF11Form.proceso }}</span>
+                      <div class="sgc-f-11-editor-tools">
+                        <span class="sgc-f-04-editor-bar__folio" *ngIf="sgcF11Form.proceso">{{ sgcF11Form.proceso }}</span>
+                        <button type="button" class="sgc-f-11-evid-btn sgc-f-11-evid-btn--bar"
+                          [class.is-on]="conteoEvidenciasAnalisisSgcF11(sgcF11EvidenciasAnalisisActivo) > 0"
+                          (click)="abrirEvidenciasEditorSgcF11($event)"
+                          title="Repositorio de evidencias de este análisis">
+                          <i class="fas fa-folder-open" aria-hidden="true"></i>
+                          Evidencias
+                          <em>{{ conteoEvidenciasAnalisisSgcF11(sgcF11EvidenciasAnalisisActivo) }}</em>
+                        </button>
+                        <button type="button" class="sgc-f-11-lock"
+                          [class.sgc-f-11-lock--on]="sgcF11Form.edicionBloqueada"
+                          (click)="alternarBloqueoSgcF11()"
+                          [attr.aria-pressed]="sgcF11Form.edicionBloqueada"
+                          [title]="sgcF11Form.edicionBloqueada
+                            ? 'La edición está bloqueada. Siguen abiertos Sev., Oc. y Det. del plan de acción; el RPN se recalcula.'
+                            : 'Bloquear la edición de este análisis. Sev., Oc., Det. y RPN del plan de acción quedan abiertos.'">
+                          <i class="fas" [class.fa-lock]="sgcF11Form.edicionBloqueada" [class.fa-lock-open]="!sgcF11Form.edicionBloqueada" aria-hidden="true"></i>
+                          {{ sgcF11Form.edicionBloqueada ? 'Edición bloqueada' : 'Bloquear edición' }}
+                        </button>
+                      </div>
                     </div>
                     <header class="dg-f05-doc__header">
                       <span class="dg-f05-doc__code">SGC-F-11</span>
@@ -14069,7 +14097,7 @@
                         <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-table" aria-hidden="true"></i></div>
                         <div>
                           <h4 class="sgc-f-11-matriz__title">Matriz AMEF</h4>
-                          <p class="sgc-f-11-matriz__hint">Análisis de riesgo y plan de acción en dos bloques; cada fila corresponde a la misma operación. Desplaza horizontalmente si hace falta para ver todas las columnas.</p>
+                          <p class="sgc-f-11-matriz__hint">Análisis de riesgo y plan de acción en dos bloques; cada fila corresponde a la misma operación. El plan de acción usa todo el ancho. Si bloqueas la edición, solo quedan abiertos Sev., Oc. y Det. posteriores.</p>
                         </div>
                       </div>
                     </div>
@@ -14079,17 +14107,20 @@
                       <label class="dg-f05-meta-field">
                         <span class="dg-f05-meta-field__label">Área</span>
                         <input class="dg-f05-field" type="text" name="sgcF11_area"
-                          [(ngModel)]="sgcF11Form.area" autocomplete="off">
+                          [(ngModel)]="sgcF11Form.area" autocomplete="off"
+                          [readonly]="sgcF11Form.edicionBloqueada">
                       </label>
                       <label class="dg-f05-meta-field">
                         <span class="dg-f05-meta-field__label">Departamento</span>
                         <input class="dg-f05-field" type="text" name="sgcF11_depto"
-                          [(ngModel)]="sgcF11Form.departamento" autocomplete="off">
+                          [(ngModel)]="sgcF11Form.departamento" autocomplete="off"
+                          [readonly]="sgcF11Form.edicionBloqueada">
                       </label>
                       <label class="dg-f05-meta-field">
                         <span class="dg-f05-meta-field__label">Elaboró</span>
                         <input class="dg-f05-field" type="text" name="sgcF11_elab"
-                          [(ngModel)]="sgcF11Form.elaboro" autocomplete="off">
+                          [(ngModel)]="sgcF11Form.elaboro" autocomplete="off"
+                          [readonly]="sgcF11Form.edicionBloqueada">
                       </label>
                       <label class="dg-f05-meta-field">
                         <span class="dg-f05-meta-field__label">Fecha elaboración</span>
@@ -14099,12 +14130,14 @@
                       <label class="dg-f05-meta-field dg-f05-meta-field--wide">
                         <span class="dg-f05-meta-field__label">Proceso</span>
                         <input class="dg-f05-field" type="text" name="sgcF11_proceso"
-                          [(ngModel)]="sgcF11Form.proceso" autocomplete="off">
+                          [(ngModel)]="sgcF11Form.proceso" autocomplete="off"
+                          [readonly]="sgcF11Form.edicionBloqueada">
                       </label>
                       <label class="dg-f05-meta-field dg-f05-meta-field--wide">
                         <span class="dg-f05-meta-field__label">Equipo de trabajo</span>
                         <input class="dg-f05-field" type="text" name="sgcF11_equipo"
-                          [(ngModel)]="sgcF11Form.equipoTrabajo" autocomplete="off">
+                          [(ngModel)]="sgcF11Form.equipoTrabajo" autocomplete="off"
+                          [readonly]="sgcF11Form.edicionBloqueada">
                       </label>
                     </div>
 
@@ -14138,12 +14171,30 @@
                                 <th>Etapa</th>
                                 <th>Modo de falla</th>
                                 <th>Causas</th>
-                                <th class="sgc-f-11-table__col--num">Oc.</th>
+                                <th class="sgc-f-11-table__col--num">
+                                  <span class="sgc-f-11-guia-trigger" tabindex="0"
+                                    (mouseenter)="abrirGuiaSgcF11('ocurrencia', $event)"
+                                    (mouseleave)="cerrarGuiaSgcF11()"
+                                    (focus)="abrirGuiaSgcF11('ocurrencia', $event)"
+                                    (blur)="cerrarGuiaSgcF11()">Oc.</span>
+                                </th>
                                 <th>Efecto</th>
-                                <th class="sgc-f-11-table__col--num">Sev.</th>
+                                <th class="sgc-f-11-table__col--num">
+                                  <span class="sgc-f-11-guia-trigger" tabindex="0"
+                                    (mouseenter)="abrirGuiaSgcF11('severidad', $event)"
+                                    (mouseleave)="cerrarGuiaSgcF11()"
+                                    (focus)="abrirGuiaSgcF11('severidad', $event)"
+                                    (blur)="cerrarGuiaSgcF11()">Sev.</span>
+                                </th>
                                 <th>Controles preventivos</th>
                                 <th>Controles detección</th>
-                                <th class="sgc-f-11-table__col--num">Det.</th>
+                                <th class="sgc-f-11-table__col--num">
+                                  <span class="sgc-f-11-guia-trigger" tabindex="0"
+                                    (mouseenter)="abrirGuiaSgcF11('deteccion', $event)"
+                                    (mouseleave)="cerrarGuiaSgcF11()"
+                                    (focus)="abrirGuiaSgcF11('deteccion', $event)"
+                                    (blur)="cerrarGuiaSgcF11()">Det.</span>
+                                </th>
                                 <th class="sgc-f-11-table__col--num">RPN</th>
                               </tr>
                             </thead>
@@ -14154,57 +14205,72 @@
                                 <td class="sgc-f-11-td">
                                   <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
                                     rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.etapa" [name]="'sgcF11_et' + i"></textarea>
+                                    [(ngModel)]="fila.etapa" [name]="'sgcF11_et' + i"
+                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
                                 </td>
                                 <td class="sgc-f-11-td">
                                   <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
                                     rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.modoFalla" [name]="'sgcF11_mf' + i"></textarea>
+                                    [(ngModel)]="fila.modoFalla" [name]="'sgcF11_mf' + i"
+                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
                                 </td>
                                 <td class="sgc-f-11-td">
                                   <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
                                     rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.causas" [name]="'sgcF11_ca' + i"></textarea>
+                                    [(ngModel)]="fila.causas" [name]="'sgcF11_ca' + i"
+                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
                                 </td>
                                 <td class="sgc-f-11-td sgc-f-11-td--num">
-                                  <input class="dg-f05-field sgc-f-11-table__num" type="text"
+                                  <select class="dg-f05-field sgc-f-11-table__escala"
                                     [(ngModel)]="fila.ocurrencia" [name]="'sgcF11_oc' + i"
-                                    (input)="onSgcF11FilaRpnEditada(fila)">
+                                    [disabled]="sgcF11Form.edicionBloqueada"
+                                    (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
+                                    <option value=""></option>
+                                    <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
+                                  </select>
                                 </td>
                                 <td class="sgc-f-11-td">
                                   <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
                                     rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.efecto" [name]="'sgcF11_ef' + i"></textarea>
+                                    [(ngModel)]="fila.efecto" [name]="'sgcF11_ef' + i"
+                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
                                 </td>
                                 <td class="sgc-f-11-td sgc-f-11-td--num">
-                                  <input class="dg-f05-field sgc-f-11-table__num" type="text"
+                                  <select class="dg-f05-field sgc-f-11-table__escala"
                                     [(ngModel)]="fila.severidad" [name]="'sgcF11_sev' + i"
-                                    (input)="onSgcF11FilaRpnEditada(fila)">
+                                    [disabled]="sgcF11Form.edicionBloqueada"
+                                    (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
+                                    <option value=""></option>
+                                    <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
+                                  </select>
                                 </td>
                                 <td class="sgc-f-11-td">
                                   <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
                                     rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.controlesPreventivos" [name]="'sgcF11_cp' + i"></textarea>
+                                    [(ngModel)]="fila.controlesPreventivos" [name]="'sgcF11_cp' + i"
+                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
                                 </td>
                                 <td class="sgc-f-11-td">
                                   <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
                                     rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.controlesDeteccion" [name]="'sgcF11_cd' + i"></textarea>
+                                    [(ngModel)]="fila.controlesDeteccion" [name]="'sgcF11_cd' + i"
+                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
                                 </td>
                                 <td class="sgc-f-11-td sgc-f-11-td--num">
-                                  <input class="dg-f05-field sgc-f-11-table__num" type="text"
+                                  <select class="dg-f05-field sgc-f-11-table__escala"
                                     [(ngModel)]="fila.deteccion" [name]="'sgcF11_det' + i"
-                                    (input)="onSgcF11FilaRpnEditada(fila)">
+                                    [disabled]="sgcF11Form.edicionBloqueada"
+                                    (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
+                                    <option value=""></option>
+                                    <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
+                                  </select>
                                 </td>
                                 <td class="sgc-f-11-td sgc-f-11-td--num">
-                                  <span *ngIf="formatearRpnDisplay(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion) as rpnVal; else rpnVacioAnalisis"
-                                    class="sgc-f-11-table__rpn-badge"
-                                    [class.sgc-f-11-table__rpn-badge--alto]="esRpnAlto(rpnVal)">
-                                    {{ rpnVal }}
+                                  <span class="sgc-f-11-table__rpn-badge"
+                                    [class.sgc-f-11-table__rpn-badge--vacio]="formatearRpnDisplay(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion) === '0'"
+                                    [class.sgc-f-11-table__rpn-badge--alto]="esRpnAlto(formatearRpnDisplay(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion))">
+                                    {{ formatearRpnDisplay(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion) }}
                                   </span>
-                                  <ng-template #rpnVacioAnalisis>
-                                    <span class="sgc-f-11-table__rpn-badge sgc-f-11-table__rpn-badge--vacio" title="Sin RPN" aria-label="Sin RPN">—</span>
-                                  </ng-template>
                                 </td>
                               </tr>
                             </tbody>
@@ -14215,12 +14281,12 @@
                       <section class="sgc-f-11-split-block sgc-f-11-split-block--acciones" aria-labelledby="sgc-f-11-block-acciones">
                         <header class="sgc-f-11-split-block__head" id="sgc-f-11-block-acciones">
                           <span class="sgc-f-11-split-block__badge sgc-f-11-split-block__badge--acciones">2</span>
-                          <div>
+                          <div class="sgc-f-11-split-block__copy">
                             <strong class="sgc-f-11-split-block__title">Plan de acción y seguimiento</strong>
-                            <span class="sgc-f-11-split-block__subtitle">Acciones correctivas y RPN posterior</span>
+                            <span class="sgc-f-11-split-block__subtitle">{{ sgcF11Form.edicionBloqueada ? 'Solo Sev., Oc. y Det. posteriores siguen abiertos. El RPN se recalcula.' : 'Acciones correctivas y RPN posterior' }}</span>
                           </div>
                         </header>
-                        <div class="dg-f05-table-wrap sgc-f-11-table-wrap" tabindex="0">
+                        <div class="dg-f05-table-wrap sgc-f-11-table-wrap sgc-f-11-table-wrap--full" tabindex="0">
                           <table class="dg-f05-table sgc-f-11-table sgc-f-11-table--acciones">
                             <colgroup>
                               <col class="sgc-f-11-col--idx">
@@ -14241,10 +14307,28 @@
                                 <th>Responsable</th>
                                 <th>Fecha compromiso</th>
                                 <th>Resultado</th>
-                                <th class="sgc-f-11-table__col--num">Sev.</th>
-                                <th class="sgc-f-11-table__col--num">Oc.</th>
-                                <th class="sgc-f-11-table__col--num">Det.</th>
-                                <th class="sgc-f-11-table__col--num">RPN</th>
+                                <th class="sgc-f-11-table__col--num sgc-f-11-table__col--seguimiento">
+                                  <span class="sgc-f-11-guia-trigger" tabindex="0"
+                                    (mouseenter)="abrirGuiaSgcF11('severidad', $event)"
+                                    (mouseleave)="cerrarGuiaSgcF11()"
+                                    (focus)="abrirGuiaSgcF11('severidad', $event)"
+                                    (blur)="cerrarGuiaSgcF11()">Sev.</span>
+                                </th>
+                                <th class="sgc-f-11-table__col--num sgc-f-11-table__col--seguimiento">
+                                  <span class="sgc-f-11-guia-trigger" tabindex="0"
+                                    (mouseenter)="abrirGuiaSgcF11('ocurrencia', $event)"
+                                    (mouseleave)="cerrarGuiaSgcF11()"
+                                    (focus)="abrirGuiaSgcF11('ocurrencia', $event)"
+                                    (blur)="cerrarGuiaSgcF11()">Oc.</span>
+                                </th>
+                                <th class="sgc-f-11-table__col--num sgc-f-11-table__col--seguimiento">
+                                  <span class="sgc-f-11-guia-trigger" tabindex="0"
+                                    (mouseenter)="abrirGuiaSgcF11('deteccion', $event)"
+                                    (mouseleave)="cerrarGuiaSgcF11()"
+                                    (focus)="abrirGuiaSgcF11('deteccion', $event)"
+                                    (blur)="cerrarGuiaSgcF11()">Det.</span>
+                                </th>
+                                <th class="sgc-f-11-table__col--num sgc-f-11-table__col--seguimiento">RPN</th>
                                 <th class="dg-f05-table__act" aria-label="Acciones"></th>
                               </tr>
                             </thead>
@@ -14255,50 +14339,60 @@
                                 <td class="sgc-f-11-td">
                                   <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
                                     rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.acciones" [name]="'sgcF11_ac' + i"></textarea>
+                                    [(ngModel)]="fila.acciones" [name]="'sgcF11_ac' + i"
+                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
                                 </td>
                                 <td class="sgc-f-11-td">
                                   <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
                                     rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.responsable" [name]="'sgcF11_res' + i"></textarea>
+                                    [(ngModel)]="fila.responsable" [name]="'sgcF11_res' + i"
+                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
                                 </td>
                                 <td class="sgc-f-11-table__fecha sgc-f-11-td sgc-f-11-td--num">
                                   <input class="dg-f05-field dg-f05-field--date" type="date"
-                                    [(ngModel)]="fila.fechaCompromiso" [name]="'sgcF11_fc' + i">
+                                    [(ngModel)]="fila.fechaCompromiso" [name]="'sgcF11_fc' + i"
+                                    [readonly]="sgcF11Form.edicionBloqueada">
                                 </td>
                                 <td class="sgc-f-11-td">
                                   <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
                                     rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.resultado" [name]="'sgcF11_re' + i"></textarea>
+                                    [(ngModel)]="fila.resultado" [name]="'sgcF11_re' + i"
+                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
                                 </td>
-                                <td class="sgc-f-11-td sgc-f-11-td--num">
-                                  <input class="dg-f05-field sgc-f-11-table__num" type="text"
+                                <td class="sgc-f-11-td sgc-f-11-td--num sgc-f-11-td--seguimiento">
+                                  <select class="dg-f05-field sgc-f-11-table__escala"
                                     [(ngModel)]="fila.severidadPost" [name]="'sgcF11_sp' + i"
-                                    (input)="onSgcF11FilaRpnEditada(fila)">
+                                    (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
+                                    <option value=""></option>
+                                    <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
+                                  </select>
                                 </td>
-                                <td class="sgc-f-11-td sgc-f-11-td--num">
-                                  <input class="dg-f05-field sgc-f-11-table__num" type="text"
+                                <td class="sgc-f-11-td sgc-f-11-td--num sgc-f-11-td--seguimiento">
+                                  <select class="dg-f05-field sgc-f-11-table__escala"
                                     [(ngModel)]="fila.ocurrenciaPost" [name]="'sgcF11_opo' + i"
-                                    (input)="onSgcF11FilaRpnEditada(fila)">
+                                    (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
+                                    <option value=""></option>
+                                    <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
+                                  </select>
                                 </td>
-                                <td class="sgc-f-11-td sgc-f-11-td--num">
-                                  <input class="dg-f05-field sgc-f-11-table__num" type="text"
+                                <td class="sgc-f-11-td sgc-f-11-td--num sgc-f-11-td--seguimiento">
+                                  <select class="dg-f05-field sgc-f-11-table__escala"
                                     [(ngModel)]="fila.deteccionPost" [name]="'sgcF11_dpo' + i"
-                                    (input)="onSgcF11FilaRpnEditada(fila)">
+                                    (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
+                                    <option value=""></option>
+                                    <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
+                                  </select>
                                 </td>
-                                <td class="sgc-f-11-td sgc-f-11-td--num">
-                                  <span *ngIf="formatearRpnDisplay(fila.rpnPost, fila.ocurrenciaPost, fila.severidadPost, fila.deteccionPost) as rpnPostVal; else rpnVacioPost"
-                                    class="sgc-f-11-table__rpn-badge sgc-f-11-table__rpn-badge--post"
-                                    [class.sgc-f-11-table__rpn-badge--alto]="esRpnAlto(rpnPostVal)">
-                                    {{ rpnPostVal }}
+                                <td class="sgc-f-11-td sgc-f-11-td--num sgc-f-11-td--seguimiento">
+                                  <span class="sgc-f-11-table__rpn-badge sgc-f-11-table__rpn-badge--post"
+                                    [class.sgc-f-11-table__rpn-badge--vacio]="formatearRpnDisplay(fila.rpnPost, fila.ocurrenciaPost, fila.severidadPost, fila.deteccionPost) === '0'"
+                                    [class.sgc-f-11-table__rpn-badge--alto]="esRpnAlto(formatearRpnDisplay(fila.rpnPost, fila.ocurrenciaPost, fila.severidadPost, fila.deteccionPost))">
+                                    {{ formatearRpnDisplay(fila.rpnPost, fila.ocurrenciaPost, fila.severidadPost, fila.deteccionPost) }}
                                   </span>
-                                  <ng-template #rpnVacioPost>
-                                    <span class="sgc-f-11-table__rpn-badge sgc-f-11-table__rpn-badge--vacio" title="Sin RPN" aria-label="Sin RPN">—</span>
-                                  </ng-template>
                                 </td>
                                 <td class="dg-f05-table__act">
                                   <button type="button" class="dg-f05-row-btn" (click)="quitarFilaSgcF11(i)"
-                                    [disabled]="sgcF11Form.filas.length <= 1" title="Quitar fila">
+                                    [disabled]="sgcF11Form.edicionBloqueada || sgcF11Form.filas.length <= 1" title="Quitar fila">
                                     <i class="fas fa-times" aria-hidden="true"></i>
                                   </button>
                                 </td>
@@ -14309,12 +14403,247 @@
                       </section>
 
                       <div class="dg-f05-table-foot">
-                        <button type="button" class="dg-f05-add-btn" (click)="agregarFilaSgcF11()">
+                        <button type="button" class="dg-f05-add-btn" (click)="agregarFilaSgcF11()"
+                          [disabled]="sgcF11Form.edicionBloqueada">
                           <i class="fas fa-plus" aria-hidden="true"></i> Agregar fila AMEF
                         </button>
                       </div>
                     </div>
+                    <div class="sgc-f-11-guia" *ngIf="sgcF11GuiaAbierta as clave"
+                      role="tooltip"
+                      [style.top.px]="sgcF11GuiaTop"
+                      [style.left.px]="sgcF11GuiaLeft">
+                      <header class="sgc-f-11-guia__head">
+                        <span class="sgc-f-11-guia__badge">{{ clave === 'severidad' ? 'Sev.' : (clave === 'ocurrencia' ? 'Oc.' : 'Det.') }}</span>
+                        <span class="sgc-f-11-guia__titles">
+                          <em>Guía de calificación</em>
+                          <strong>{{ sgcF11Guias[clave].titulo }}</strong>
+                          <span>{{ sgcF11Guias[clave].resumen }}</span>
+                        </span>
+                      </header>
+                      <ol class="sgc-f-11-guia__list">
+                        <li *ngFor="let item of sgcF11Guias[clave].filas" [attr.data-nivel]="item.nivel">
+                          <span class="sgc-f-11-guia__nivel">{{ item.nivel }}</span>
+                          <span class="sgc-f-11-guia__copy">
+                            <strong>{{ item.nombre }}</strong>
+                            <span>{{ item.texto }}</span>
+                          </span>
+                        </li>
+                      </ol>
+                    </div>
                   </article>
+
+                  <div class="sgc-f29-evid-page" *ngIf="sgcF11EvidenciasModalAbierto" role="region"
+                    aria-label="Evidencias del análisis">
+                    <header class="sgc-f29-evid-page__head">
+                      <button type="button" class="sgc-f29-evid-page__back"
+                        (click)="cerrarEvidenciasSgcF11()"
+                        title="Volver al análisis"
+                        aria-label="Volver al análisis">
+                        <span class="sgc-f29-evid-page__back-glow" aria-hidden="true"></span>
+                        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                        <span class="sgc-f29-evid-page__back-label">Volver</span>
+                      </button>
+                      <div class="sgc-f29-evid-page__titles">
+                        <p class="sgc-f29-evid-page__eyebrow">SGC-F-11 · Evidencias</p>
+                        <h3 class="sgc-f29-evid-page__title">
+                          {{ nombreArchiveroSgcF11(sgcF11EvidenciasAnalisis) }}
+                        </h3>
+                      </div>
+                      <label class="sgc-f29-evid-icon-btn sgc-f29-evid-icon-btn--light"
+                        [class.is-busy]="sgcF11EvidenciasSubiendo"
+                        title="Subir documento"
+                        aria-label="Subir documento">
+                        <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+                        <span class="sgc-f29-evid-icon-btn__label">
+                          {{ sgcF11EvidenciasSubiendo ? (sgcF11EvidenciasProgreso + '%') : 'Subir' }}
+                        </span>
+                        <input type="file" hidden multiple
+                          accept=".pdf,.csv,.xls,.xlsx,.doc,.docx,.ppt,.pptx,image/*"
+                          [disabled]="sgcF11EvidenciasSubiendo"
+                          (change)="onEvidenciasInputSgcF11($event)">
+                      </label>
+                    </header>
+
+                    <div class="sgc-f29-evid-page__body">
+                      <aside class="sgc-f29-evid-side">
+                        <div class="sgc-f29-evid-storage">
+                          <div class="sgc-f29-evid-storage__head">
+                            <span>Almacenamiento</span>
+                            <strong>{{ formatearTamanoSgcF14(sgcF11EvidenciasTotalBytes) }}</strong>
+                          </div>
+                          <p class="mb-0">{{ sgcF11EvidenciasDocs.length }} documento{{ sgcF11EvidenciasDocs.length !== 1 ? 's' : '' }}</p>
+                        </div>
+                        <nav class="sgc-f29-evid-filters" aria-label="Filtros">
+                          <p class="sgc-f29-evid-filters__title">Repositorio</p>
+                          <button type="button" [class.is-active]="sgcF11EvidenciasFiltro === 'todo'"
+                            (click)="sgcF11EvidenciasFiltro = 'todo'">
+                            <i class="fas fa-folder-open" aria-hidden="true"></i> Todo
+                            <em>{{ conteoTipoEvidenciaSgcF11('todo') }}</em>
+                          </button>
+                          <button type="button" [class.is-active]="sgcF11EvidenciasFiltro === 'pdf'"
+                            (click)="sgcF11EvidenciasFiltro = 'pdf'">
+                            <i class="fas fa-file-pdf" aria-hidden="true"></i> PDF
+                            <em>{{ conteoTipoEvidenciaSgcF11('pdf') }}</em>
+                          </button>
+                          <button type="button" [class.is-active]="sgcF11EvidenciasFiltro === 'docs'"
+                            (click)="sgcF11EvidenciasFiltro = 'docs'">
+                            <i class="fas fa-file-alt" aria-hidden="true"></i> Documentos
+                            <em>{{ conteoTipoEvidenciaSgcF11('docs') }}</em>
+                          </button>
+                          <button type="button" [class.is-active]="sgcF11EvidenciasFiltro === 'img'"
+                            (click)="sgcF11EvidenciasFiltro = 'img'">
+                            <i class="fas fa-file-image" aria-hidden="true"></i> Imágenes
+                            <em>{{ conteoTipoEvidenciaSgcF11('img') }}</em>
+                          </button>
+                        </nav>
+                        <label class="sgc-f29-evid-icon-btn sgc-f29-evid-icon-btn--teal sgc-f29-evid-icon-btn--block"
+                          [class.is-busy]="sgcF11EvidenciasSubiendo"
+                          title="Subir documento"
+                          aria-label="Subir documento">
+                          <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+                          <span class="sgc-f29-evid-icon-btn__label">
+                            {{ sgcF11EvidenciasSubiendo ? (sgcF11EvidenciasProgreso + '%') : 'Subir' }}
+                          </span>
+                          <input type="file" hidden multiple
+                            accept=".pdf,.csv,.xls,.xlsx,.doc,.docx,.ppt,.pptx,image/*"
+                            [disabled]="sgcF11EvidenciasSubiendo"
+                            (change)="onEvidenciasInputSgcF11($event)">
+                        </label>
+                      </aside>
+
+                      <section class="sgc-f29-evid-main">
+                        <div class="sgc-f14-evid-meta" *ngIf="sgcF11EvidenciasAnalisis as f" aria-label="Datos del análisis">
+                          <span class="sgc-f14-evid-meta__chip sgc-f14-evid-meta__chip--folio">
+                            <i class="fas fa-project-diagram" aria-hidden="true"></i>
+                            <strong>{{ nombreArchiveroSgcF11(f) }}</strong>
+                          </span>
+                          <span class="sgc-f14-evid-meta__chip" *ngIf="f.area">
+                            <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                            <strong>{{ f.area }}</strong>
+                          </span>
+                          <span class="sgc-f14-evid-meta__chip" *ngIf="f.departamento">
+                            <i class="fas fa-building" aria-hidden="true"></i>
+                            <strong>{{ f.departamento }}</strong>
+                          </span>
+                        </div>
+                        <div class="sgc-f29-evid-toolbar">
+                          <div class="sgc-f29-evid-search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input type="search" placeholder="Buscar archivos…"
+                              [(ngModel)]="sgcF11EvidenciasBusqueda" name="sgcF11EvidBusq">
+                          </div>
+                          <div class="sgc-f29-evid-folder" [class.is-open]="sgcF11EvidCarpetasMenu">
+                            <button type="button"
+                              class="sgc-f29-evid-folder__btn"
+                              [disabled]="sgcF11EvidenciasSubiendo"
+                              title="Crear o subir carpeta"
+                              aria-label="Crear carpeta"
+                              (click)="toggleMenuCarpetasEvidenciaSgcF11($event)">
+                              <i class="fas fa-folder-plus" aria-hidden="true"></i>
+                              Crear Carpeta
+                            </button>
+                            <div class="sgc-f29-evid-folder__menu" *ngIf="sgcF11EvidCarpetasMenu"
+                              (click)="$event.stopPropagation()">
+                              <button type="button" (click)="abrirSelectorCarpetaEvidenciaSgcF11()">
+                                <i class="fas fa-folder-open" aria-hidden="true"></i>
+                                Subir carpeta
+                              </button>
+                              <button type="button" (click)="crearCarpetaEvidenciaSgcF11()">
+                                <i class="fas fa-plus" aria-hidden="true"></i>
+                                Crear carpeta
+                              </button>
+                            </div>
+                            <input #sgcF11CarpetaInput type="file" hidden multiple
+                              [attr.webkitdirectory]="''"
+                              [attr.directory]="''"
+                              (change)="onEvidenciasCarpetaInputSgcF11($event)">
+                          </div>
+                          <div class="sgc-f29-evid-view-toggle" role="group" aria-label="Vista">
+                            <button type="button" [class.is-active]="sgcF11EvidenciasVista === 'grid'"
+                              (click)="sgcF11EvidenciasVista = 'grid'" title="Cuadrícula">
+                              <i class="fas fa-th" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" [class.is-active]="sgcF11EvidenciasVista === 'lista'"
+                              (click)="sgcF11EvidenciasVista = 'lista'" title="Lista">
+                              <i class="fas fa-list" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div class="sgc-f29-evid-drop"
+                          [class.is-drag]="sgcF11EvidenciasDragDepth > 0"
+                          (dragenter)="onEvidenciasDragEnterSgcF11($event)"
+                          (dragleave)="onEvidenciasDragLeaveSgcF11($event)"
+                          (dragover)="onEvidenciasDragOverSgcF11($event)"
+                          (drop)="onEvidenciasDropSgcF11($event)">
+
+                          <div class="sgc-f29-evid-upload-alert" *ngIf="sgcF11EvidenciasSubiendo" role="status" aria-live="polite">
+                            <div class="sgc-f29-evid-upload-alert__icon" aria-hidden="true">
+                              <i class="fas fa-cloud-upload-alt"></i>
+                            </div>
+                            <div class="sgc-f29-evid-upload-alert__body">
+                              <strong>{{ sgcF11EvidenciasProgresoEtiqueta || 'Subiendo documento…' }}</strong>
+                              <div class="sgc-f29-evid-upload-alert__bar">
+                                <span [style.width.%]="sgcF11EvidenciasProgreso"></span>
+                              </div>
+                              <em>{{ sgcF11EvidenciasProgreso }}%</em>
+                            </div>
+                          </div>
+
+                          <div class="sgc-f29-evid-loading" *ngIf="sgcF11EvidenciasCargando">
+                            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Cargando evidencias…
+                          </div>
+                          <ng-container *ngIf="!sgcF11EvidenciasCargando">
+                            <div class="sgc-f29-evid-empty" *ngIf="!sgcF11EvidenciasDocsFiltrados.length && !sgcF11EvidenciasSubiendo">
+                              <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+                              <p>Arrastra archivos aquí o usa «Subir».</p>
+                              <span>PDF, CSV, Excel, Word, PowerPoint e imágenes. Se guardan en la carpeta «{{ nombreArchiveroSgcF11(sgcF11EvidenciasAnalisis) }}».</span>
+                            </div>
+                            <div class="sgc-f29-evid-files"
+                              [class.sgc-f29-evid-files--lista]="sgcF11EvidenciasVista === 'lista'"
+                              *ngIf="sgcF11EvidenciasDocsFiltrados.length">
+                              <p class="sgc-f29-evid-files__count">
+                                {{ sgcF11EvidenciasDocsFiltrados.length }} archivo{{ sgcF11EvidenciasDocsFiltrados.length !== 1 ? 's' : '' }}
+                              </p>
+                              <article class="sgc-f29-evid-preview"
+                                *ngFor="let doc of sgcF11EvidenciasDocsFiltrados"
+                                (click)="abrirArchivoEvidenciaSgcF11(doc, $event)">
+                                <div class="sgc-f29-evid-preview__frame">
+                                  <img *ngIf="miniaturaEvidenciaSgcF11(doc) as thumb"
+                                    class="sgc-f29-evid-preview__thumb"
+                                    [src]="thumb"
+                                    [alt]="doc.nombreArchivo || doc.titulo"
+                                    loading="lazy"
+                                    referrerpolicy="no-referrer"
+                                    (error)="onErrorMiniaturaEvidenciaSgcF11(doc)">
+                                  <div class="sgc-f29-evid-preview__placeholder" *ngIf="!miniaturaEvidenciaSgcF11(doc)" aria-hidden="true">
+                                    <i class="fas" [ngClass]="iconoMimeEvidenciaSgcF14(doc.mimeType)"></i>
+                                  </div>
+                                  <span class="sgc-f29-evid-preview__badge"
+                                    [class.is-pdf]="esPdfEvidenciaSgcF14(doc)"
+                                    [class.is-img]="esImagenEvidenciaSgcF14(doc)">
+                                    {{ etiquetaTipoEvidenciaSgcF14(doc.mimeType) }}
+                                  </span>
+                                  <div class="sgc-f29-evid-preview__overlay" aria-hidden="true">
+                                    <span><i class="fas fa-eye"></i> Abrir</span>
+                                  </div>
+                                </div>
+                                <div class="sgc-f29-evid-preview__body">
+                                  <h4 [title]="doc.nombreArchivo || doc.titulo">{{ doc.nombreArchivo || doc.titulo }}</h4>
+                                  <p>{{ formatearTamanoSgcF14(doc.tamanoBytes) }}</p>
+                                </div>
+                                <button type="button" class="sgc-f29-evid-preview__del"
+                                  (click)="eliminarEvidenciaSgcF11(doc, $event)" title="Eliminar">
+                                  <i class="fas fa-trash" aria-hidden="true"></i>
+                                </button>
+                              </article>
+                            </div>
+                          </ng-container>
+                        </div>
+                      </section>
+                    </div>
+                  </div>
                 </div>
               </form>
             </ng-container>
