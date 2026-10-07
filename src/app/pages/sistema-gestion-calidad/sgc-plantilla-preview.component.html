@@ -10190,7 +10190,7 @@
                   <article class="dg-f05-doc sgc-f-16-doc" *ngIf="athF03Vista === 'archivero'">
                     <header class="dg-f05-doc__header">
                       <div>
-                        <span class="dg-f05-doc__code">1ATH-F-03</span>
+                        <span class="dg-f05-doc__code">ATH-F-03</span>
                         <h3 class="dg-f05-doc__title">Entrega - Recepción de EPP</h3>
                       </div>
                       <div class="sgc-f-16-doc__rev">
@@ -10296,6 +10296,105 @@
                         </div>
                       </ng-template>
                     </div>
+
+                    <section class="ath-f03-archivos" aria-labelledby="ath-f03-archivos-titulo">
+                      <div class="ath-f03-archivos__head">
+                        <div class="ath-f03-archivos__intro">
+                          <span class="ath-f03-archivos__icon" aria-hidden="true">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                          </span>
+                          <div>
+                            <h4 class="ath-f03-archivos__title" id="ath-f03-archivos-titulo">Archivos</h4>
+                            <p class="ath-f03-archivos__hint">Sube documentos de apoyo. Cada archivo se guarda en la carpeta de Drive de este formato.</p>
+                          </div>
+                        </div>
+                        <a class="ath-f03-archivos__drive" [href]="athF03CarpetaArchivosUrl" target="_blank" rel="noopener">
+                          <i class="fab fa-google-drive" aria-hidden="true"></i>
+                          Abrir carpeta
+                        </a>
+                      </div>
+
+                      <label class="ath-f03-archivos__drop"
+                        [class.is-drag]="athF03ArchivosDrag"
+                        [class.is-busy]="athF03SubiendoArchivos"
+                        (dragenter)="onArchivosDragEnterAthF03($event)"
+                        (dragover)="onArchivosDragOverAthF03($event)"
+                        (dragleave)="onArchivosDragLeaveAthF03($event)"
+                        (drop)="onArchivosDropAthF03($event)">
+                        <i class="fas" [ngClass]="athF03SubiendoArchivos ? 'fa-spinner fa-spin' : 'fa-file-upload'" aria-hidden="true"></i>
+                        <strong>{{ athF03SubiendoArchivos ? 'Subiendo archivos…' : 'Arrastra archivos o haz clic para subirlos' }}</strong>
+                        <span>PDF, Word, Excel, imágenes u otros. Hasta 25 MB por archivo.</span>
+                        <input type="file" multiple [disabled]="athF03SubiendoArchivos"
+                          (change)="onArchivosInputAthF03($event)">
+                      </label>
+
+                      <p class="ath-f03-archivos__error" *ngIf="athF03ArchivosError" role="alert">{{ athF03ArchivosError }}</p>
+
+                      <div class="sgc-f-02-fisicos__list-wrap ath-f03-archivos__grid" *ngIf="athF03Archivos.length; else athF03SinArchivos">
+                        <p class="sgc-f-02-fisicos__count">{{ athF03Archivos.length }} archivo{{ athF03Archivos.length === 1 ? '' : 's' }}</p>
+                        <div class="sgc-f-02-fisicos__cards" role="list">
+                          <article class="sgc-f-02-doccard" *ngFor="let archivo of athF03Archivos"
+                            role="listitem" tabindex="0"
+                            (click)="verArchivoAthF03(archivo)"
+                            (keyup.enter)="verArchivoAthF03(archivo)"
+                            [attr.aria-label]="'Ver ' + archivo.nombreArchivo">
+                            <div class="sgc-f-02-doccard__preview">
+                              <div class="sgc-f-02-doccard__frame">
+                                <img *ngIf="!miniaturaArchivoAthF03Fallida(archivo)"
+                                  class="sgc-f-02-doccard__thumb"
+                                  [src]="urlMiniaturaArchivoAthF03(archivo)"
+                                  [alt]="'Vista previa de ' + archivo.nombreArchivo"
+                                  loading="lazy"
+                                  (error)="onErrorMiniaturaArchivoAthF03(archivo)">
+                                <div *ngIf="miniaturaArchivoAthF03Fallida(archivo)" class="sgc-f-02-doccard__placeholder"
+                                  [class.sgc-f-02-doccard__placeholder--img]="tipoArchivoAthF03(archivo) === 'imagen'">
+                                  <i class="fas" [ngClass]="iconoArchivoAthF03(archivo)" aria-hidden="true"></i>
+                                </div>
+                                <div class="sgc-f-02-doccard__shine" aria-hidden="true"></div>
+                              </div>
+                              <span class="sgc-f-02-doccard__type"
+                                [class.sgc-f-02-doccard__type--img]="tipoArchivoAthF03(archivo) === 'imagen'">{{ etiquetaTipoArchivoAthF03(archivo) }}</span>
+                              <div class="sgc-f-02-doccard__overlay">
+                                <span class="sgc-f-02-doccard__open">
+                                  <i class="fas fa-expand" aria-hidden="true"></i>
+                                  Ver documento
+                                </span>
+                                <button type="button" class="sgc-f-02-doccard__replace"
+                                  title="Reemplazar archivo"
+                                  [disabled]="athF03SubiendoArchivos"
+                                  (click)="iniciarReemplazoArchivoAthF03(archivo, $event)">
+                                  <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                                  Reemplazar
+                                </button>
+                              </div>
+                            </div>
+                            <div class="sgc-f-02-doccard__body">
+                              <strong class="sgc-f-02-doccard__name" [title]="archivo.nombreArchivo">{{ archivo.nombreArchivo }}</strong>
+                              <div class="sgc-f-02-doccard__meta">
+                                <span *ngIf="archivo.tamano">{{ formatearTamanoAthF03(archivo.tamano) }}</span>
+                                <span *ngIf="archivo.fechaModificacion">{{ archivo.fechaModificacion | date:'dd/MM/yyyy HH:mm' }}</span>
+                              </div>
+                              <div class="sgc-f-02-doccard__footer">
+                                <button type="button" class="sgc-f-02-doccard__del"
+                                  title="Eliminar archivo"
+                                  [disabled]="athF03SubiendoArchivos"
+                                  (click)="eliminarArchivoAthF03(archivo, $event)">
+                                  <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                                </button>
+                                <span class="sgc-f-02-doccard__action" aria-hidden="true">
+                                  <i class="fas fa-arrow-right"></i>
+                                </span>
+                              </div>
+                            </div>
+                          </article>
+                        </div>
+                      </div>
+                      <ng-template #athF03SinArchivos>
+                        <p class="ath-f03-archivos__vacio" *ngIf="!athF03SubiendoArchivos">Aún no hay archivos en esta carpeta.</p>
+                      </ng-template>
+                      <input #athF03ReemplazarInput type="file" class="sr-only"
+                        (change)="onReemplazarArchivoAthF03($event)">
+                    </section>
                   </article>
 
                   <article class="dg-f05-doc sgc-f-16-doc" *ngIf="athF03Vista === 'editor' && athF03EntregaActiva as ent">
@@ -10309,7 +10408,7 @@
 
                     <header class="dg-f05-doc__header">
                       <div>
-                        <span class="dg-f05-doc__code">1ATH-F-03</span>
+                        <span class="dg-f05-doc__code">ATH-F-03</span>
                         <h3 class="dg-f05-doc__title">Entrega - Recepción de EPP</h3>
                       </div>
                       <div class="sgc-f-16-doc__rev">
@@ -17453,7 +17552,7 @@
         </span>
         <div>
           <strong class="sgc-drive-editor-fullscreen__title">{{ tituloEditorIntegrado }}</strong>
-          <small class="sgc-drive-editor-fullscreen__subtitle">1ATH-F-03 · Entrega - Recepción de EPP</small>
+          <small class="sgc-drive-editor-fullscreen__subtitle">ATH-F-03 · Entrega - Recepción de EPP</small>
         </div>
       </div>
       <div class="sgc-drive-editor-fullscreen__head-actions">
@@ -18573,6 +18672,62 @@
         (load)="onSgcF04PdfIframeLoad()"
         allow="autoplay">
       </iframe>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-f-02-visor" *ngIf="athF03ArchivoVista"
+  role="dialog" aria-modal="true"
+  [attr.aria-label]="'Vista de ' + athF03ArchivoVista.nombreArchivo">
+  <div class="sgc-f-02-visor__backdrop" (click)="cerrarVistaArchivoAthF03()"></div>
+  <div class="sgc-f-02-visor__panel">
+    <header class="sgc-f-02-visor__head">
+      <div class="sgc-f-02-visor__title-wrap">
+        <span class="sgc-f-02-visor__icon" aria-hidden="true">
+          <i class="fas" [ngClass]="iconoArchivoAthF03(athF03ArchivoVista)"></i>
+        </span>
+        <div class="sgc-f-02-visor__titles">
+          <strong class="sgc-f-02-visor__code">ATH-F-03 · Archivos</strong>
+          <small class="sgc-f-02-visor__subtitle" [title]="athF03ArchivoVista.nombreArchivo">{{ athF03ArchivoVista.nombreArchivo }}</small>
+        </div>
+      </div>
+      <div class="sgc-f-02-visor__actions">
+        <button type="button" class="btn btn-sm btn-outline-warning sgc-f-02-visor__btn"
+          (click)="iniciarReemplazoArchivoAthF03(athF03ArchivoVista)">
+          <i class="fas fa-sync-alt mr-1" aria-hidden="true"></i>
+          Reemplazar
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-light sgc-f-02-visor__btn"
+          (click)="abrirArchivoAthF03EnDrive()">
+          <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i>
+          Abrir en Drive
+        </button>
+        <button type="button" class="btn btn-sm btn-light sgc-f-02-visor__btn"
+          (click)="cerrarVistaArchivoAthF03()">
+          <i class="fas fa-times mr-1" aria-hidden="true"></i>
+          Cerrar
+        </button>
+      </div>
+    </header>
+    <div class="sgc-f-02-visor__body">
+      <app-pdf-canvas-viewer
+        *ngIf="!athF03ArchivoVistaError"
+        [blob]="athF03ArchivoVistaBlob"
+        [preparando]="!athF03ArchivoVistaBlob && !athF03ArchivoVistaError"
+        [progresoServidor]="athF03ArchivoVistaProgreso"
+        [etiquetaServidor]="athF03ArchivoVistaEtiqueta"
+        [lento]="athF03ArchivoVistaLento"
+        tema="oscuro"
+        (fallo)="onArchivoVistaAthF03Error($event)">
+      </app-pdf-canvas-viewer>
+      <div *ngIf="athF03ArchivoVistaError" class="sgc-f-02-visor__fallback">
+        <i class="fas fa-exclamation-triangle fa-2x mb-3" aria-hidden="true"></i>
+        <p class="mb-2">{{ athF03ArchivoVistaError }}</p>
+        <button type="button" class="btn btn-light btn-sm" (click)="abrirArchivoAthF03EnDrive()">
+          <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i>
+          Abrir en Google Drive
+        </button>
+      </div>
     </div>
   </div>
 </div>

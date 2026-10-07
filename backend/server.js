@@ -28607,6 +28607,50 @@ app.post('/api/sgc/formatos/ath-f-03/eliminar-pdf-historial', requireAdminOrSgc,
     }
 });
 
+const uploadAthF03Archivos = multer({
+    storage: storageMemory,
+    defParamCharset: 'utf8',
+    limits: { fileSize: 25 * 1024 * 1024, files: 15 }
+});
+
+app.post('/api/sgc/formatos/ath-f-03/archivos', requireAdminOrSgc, (req, res) => {
+    uploadAthF03Archivos.array('archivos', 15)(req, res, async (err) => {
+        if (err) {
+            const mensaje = err.code === 'LIMIT_FILE_SIZE'
+                ? 'Cada archivo puede pesar hasta 25 MB.'
+                : (err.message || 'No se pudo recibir el archivo.');
+            return res.status(400).json({ success: false, message: mensaje });
+        }
+        try {
+            await poolBiznagaSgcReady;
+            const archivos = await sgcAthF03Service.subirArchivosEpp(req.files || []);
+            return res.json({
+                success: true,
+                message: 'Archivos guardados en Drive.',
+                archivos,
+                carpetaArchivosUrl: sgcAthF03Service.CARPETA_ARCHIVOS_URL
+            });
+        } catch (error) {
+            handleError(res, error, 'No se pudieron subir los archivos de ATH-F-03');
+        }
+    });
+});
+
+app.post('/api/sgc/formatos/ath-f-03/archivos/eliminar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const archivos = await sgcAthF03Service.eliminarArchivoEpp(req.body?.driveFileId);
+        return res.json({
+            success: true,
+            message: 'Archivo eliminado de Drive.',
+            archivos,
+            carpetaArchivosUrl: sgcAthF03Service.CARPETA_ARCHIVOS_URL
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo eliminar el archivo de ATH-F-03');
+    }
+});
+
 app.get('/api/sgc/formatos/ath-f-03/descargar-pdf', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;

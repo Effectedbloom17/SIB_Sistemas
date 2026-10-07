@@ -3234,6 +3234,16 @@ export class BackendServices {
         });
     }
 
+    subirArchivosAthF03(formData: FormData): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-03/archivos`, formData);
+    }
+
+    eliminarArchivoAthF03(driveFileId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/ath-f-03/archivos/eliminar`, {
+            driveFileId
+        });
+    }
+
     cargarAthF13Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/ath-f-13`);
     }

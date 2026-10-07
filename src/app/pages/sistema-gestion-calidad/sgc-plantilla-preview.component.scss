@@ -33438,3 +33438,140 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
     transition: none;
   }
 }
+
+.ath-f03-archivos {
+  margin-top: 1rem;
+  padding: 0.95rem 1rem 1rem;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(21, 165, 150, 0.18);
+  border-radius: 14px;
+}
+
+.ath-f03-archivos__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.8rem;
+}
+
+.ath-f03-archivos__intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.ath-f03-archivos__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  color: $sgc-teal-dark;
+  background: rgba(21, 165, 150, 0.12);
+  border: 1px solid rgba(21, 165, 150, 0.22);
+  border-radius: 10px;
+}
+
+.ath-f03-archivos__title {
+  margin: 0 0 0.15rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0a3d38;
+}
+
+.ath-f03-archivos__hint,
+.ath-f03-archivos__vacio {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  color: $dg-f05-muted;
+}
+
+.ath-f03-archivos__drive {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+  padding: 0.4rem 0.7rem;
+  color: #0f766e;
+  background: #fff;
+  border: 1px solid rgba(21, 165, 150, 0.35);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.ath-f03-archivos__drive:hover {
+  background: rgba(21, 165, 150, 0.08);
+  color: #0f766e;
+  text-decoration: none;
+}
+
+.ath-f03-archivos__drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 1.15rem 1rem;
+  text-align: center;
+  color: #0f766e;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1.5px dashed rgba(21, 165, 150, 0.45);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.ath-f03-archivos__drop i {
+  font-size: 1.25rem;
+}
+
+.ath-f03-archivos__drop strong {
+  color: #0a3d38;
+  font-size: 0.86rem;
+}
+
+.ath-f03-archivos__drop span {
+  color: $dg-f05-muted;
+  font-size: 0.72rem;
+}
+
+.ath-f03-archivos__drop input {
+  display: none;
+}
+
+.ath-f03-archivos__drop.is-drag,
+.ath-f03-archivos__drop:hover {
+  background: rgba(21, 165, 150, 0.08);
+  border-color: #15a596;
+}
+
+.ath-f03-archivos__drop.is-busy {
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.ath-f03-archivos__error {
+  margin: 0.65rem 0 0;
+  color: #b91c1c;
+  font-size: 0.78rem;
+}
+
+.ath-f03-archivos__grid {
+  margin-top: 0.85rem;
+}
+
+.ath-f03-archivos__vacio {
+  margin: 0.7rem 0 0;
+}
+
+@media (max-width: 720px) {
+  .ath-f03-archivos__head {
+    flex-direction: column;
+  }
+}

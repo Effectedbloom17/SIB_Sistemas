@@ -1580,6 +1580,15 @@ interface AthF03FormData {
   entregaActivaId?: string | null;
 }
 
+interface AthF03Archivo {
+  driveFileId: string;
+  nombreArchivo: string;
+  mimeType: string;
+  tamano: number;
+  webViewLink: string;
+  fechaModificacion: string | null;
+}
+
 interface AthF13PdfFirmado {
   driveFileId: string;
   nombreArchivo: string;
@@ -2735,6 +2744,23 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF03ColaboradoresCatalogo: Array<{ nombreCompleto: string; puesto: string; areaDepartamento: string }> = [];
   athF03NombreComboAbierto = false;
   athF03NombreComboQuery = '';
+  athF03Archivos: AthF03Archivo[] = [];
+  athF03CarpetaArchivosUrl = 'https://drive.google.com/drive/folders/1ifjL5ve5giu4Qb8CUnbolF7M9Np0M2oO';
+  athF03SubiendoArchivos = false;
+  athF03ArchivosDrag = false;
+  athF03ArchivosError = '';
+  athF03ReemplazarId: string | null = null;
+  athF03ArchivoVista: AthF03Archivo | null = null;
+  athF03ArchivoVistaBlob: Blob | null = null;
+  athF03ArchivoVistaError: string | null = null;
+  athF03ArchivoVistaProgreso = 0;
+  athF03ArchivoVistaEtiqueta = '';
+  athF03ArchivoVistaLento = false;
+  private athF03ArchivoVistaSeq = 0;
+  private athF03ArchivoVistaSub?: Subscription;
+  private athF03ArchivosDragDepth = 0;
+  private athF03MiniaturasError = new Set<string>();
+  @ViewChild('athF03ReemplazarInput') athF03ReemplazarInput?: ElementRef<HTMLInputElement>;
   athF13Form: AthF13FormData = this.crearAthF13FormVacio();
   athF13Cargando = false;
   athF13Guardando = false;
@@ -14111,6 +14137,319 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return this.formatearFechaCortaSgcF16(iso);
   }
 
+  formatearTamanoAthF03(bytes: number | null | undefined): string {
+    const n = Number(bytes) || 0;
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10 * 1024 ? 1 : 0)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  formatearFechaArchivoAthF03(iso: string | null | undefined): string {
+    const crudo = String(iso || '').trim();
+    if (!crudo) return '';
+    const fecha = new Date(crudo);
+    if (Number.isNaN(fecha.getTime())) return crudo.slice(0, 10);
+    return fecha.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
+  iconoArchivoAthF03(archivo: AthF03Archivo): string {
+    const tipo = this.tipoArchivoAthF03(archivo);
+    if (tipo === 'pdf') return 'fa-file-pdf';
+    if (tipo === 'imagen') return 'fa-file-image';
+    const nombre = String(archivo?.nombreArchivo || '').toLowerCase();
+    const mime = String(archivo?.mimeType || '').toLowerCase();
+    if (mime.includes('sheet') || mime.includes('excel') || /\.(xls|xlsx|csv)$/.test(nombre)) return 'fa-file-excel';
+    if (mime.includes('word') || mime.includes('document') || /\.(doc|docx)$/.test(nombre)) return 'fa-file-word';
+    if (mime.includes('presentation') || /\.(ppt|pptx)$/.test(nombre)) return 'fa-file-powerpoint';
+    return 'fa-file-alt';
+  }
+
+  tipoArchivoAthF03(archivo: AthF03Archivo): 'pdf' | 'imagen' | 'doc' {
+    const mime = String(archivo?.mimeType || '').toLowerCase();
+    const nombre = String(archivo?.nombreArchivo || '').toLowerCase();
+    if (mime.includes('pdf') || nombre.endsWith('.pdf')) return 'pdf';
+    if (mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp)$/.test(nombre)) return 'imagen';
+    return 'doc';
+  }
+
+  etiquetaTipoArchivoAthF03(archivo: AthF03Archivo): string {
+    const tipo = this.tipoArchivoAthF03(archivo);
+    if (tipo === 'pdf') return 'PDF';
+    if (tipo === 'imagen') return 'IMG';
+    const nombre = String(archivo?.nombreArchivo || '').toLowerCase();
+    const mime = String(archivo?.mimeType || '').toLowerCase();
+    if (mime.includes('sheet') || mime.includes('excel') || /\.(xls|xlsx|csv)$/.test(nombre)) return 'XLS';
+    if (mime.includes('presentation') || /\.(ppt|pptx)$/.test(nombre)) return 'PPT';
+    if (mime.includes('word') || /\.(doc|docx)$/.test(nombre)) return 'DOC';
+    return 'DOC';
+  }
+
+  urlMiniaturaArchivoAthF03(archivo: AthF03Archivo): string {
+    if (!archivo?.driveFileId) return '';
+    return `https://drive.google.com/thumbnail?id=${encodeURIComponent(archivo.driveFileId)}&sz=w480`;
+  }
+
+  miniaturaArchivoAthF03Fallida(archivo: AthF03Archivo): boolean {
+    return !!archivo?.driveFileId && this.athF03MiniaturasError.has(archivo.driveFileId);
+  }
+
+  onErrorMiniaturaArchivoAthF03(archivo: AthF03Archivo): void {
+    if (archivo?.driveFileId) this.athF03MiniaturasError.add(archivo.driveFileId);
+  }
+
+  verArchivoAthF03(archivo: AthF03Archivo): void {
+    if (!archivo?.driveFileId) return;
+    const seq = ++this.athF03ArchivoVistaSeq;
+    this.athF03ArchivoVistaSub?.unsubscribe();
+    this.athF03ArchivoVista = archivo;
+    this.athF03ArchivoVistaError = null;
+    this.athF03ArchivoVistaBlob = null;
+    this.athF03ArchivoVistaProgreso = 4;
+    this.athF03ArchivoVistaEtiqueta = 'Solicitando documento…';
+    this.athF03ArchivoVistaLento = false;
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+
+    this.athF03ArchivoVistaSub = this.pdfPreviewLoader.observar(
+      this.backendService.imprimirArchivoDriveComoPDFEventos(
+        archivo.driveFileId,
+        archivo.nombreArchivo || 'archivo.pdf'
+      ),
+      'Preparando vista previa del documento…'
+    ).pipe(takeUntil(this.destroy$)).subscribe((state) => {
+      if (seq !== this.athF03ArchivoVistaSeq) return;
+      this.athF03ArchivoVistaProgreso = state.pct;
+      this.athF03ArchivoVistaEtiqueta = state.etiqueta;
+      this.athF03ArchivoVistaLento = state.lento;
+      if (state.error) {
+        this.athF03ArchivoVistaError = state.error;
+        return;
+      }
+      if (state.blob) this.athF03ArchivoVistaBlob = state.blob;
+    });
+  }
+
+  cerrarVistaArchivoAthF03(): void {
+    this.athF03ArchivoVistaSeq += 1;
+    this.athF03ArchivoVistaSub?.unsubscribe();
+    this.athF03ArchivoVistaSub = undefined;
+    this.athF03ArchivoVista = null;
+    this.athF03ArchivoVistaBlob = null;
+    this.athF03ArchivoVistaError = null;
+    this.athF03ArchivoVistaProgreso = 0;
+    this.athF03ArchivoVistaLento = false;
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+  }
+
+  abrirArchivoAthF03EnDrive(): void {
+    const archivo = this.athF03ArchivoVista;
+    const url = archivo?.webViewLink || (archivo?.driveFileId ? `https://drive.google.com/file/d/${archivo.driveFileId}/view` : '');
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  onArchivoVistaAthF03Error(mensaje?: string): void {
+    this.athF03ArchivoVistaError = mensaje || 'No se pudo mostrar el documento. Puedes abrirlo en Google Drive.';
+  }
+
+  iniciarReemplazoArchivoAthF03(archivo: AthF03Archivo, event?: Event): void {
+    event?.stopPropagation();
+    event?.preventDefault();
+    if (!archivo?.driveFileId || this.athF03SubiendoArchivos) return;
+    this.athF03ReemplazarId = archivo.driveFileId;
+    const input = this.athF03ReemplazarInput?.nativeElement;
+    if (!input) return;
+    input.value = '';
+    input.click();
+  }
+
+  onReemplazarArchivoAthF03(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const archivoNuevo = input?.files?.[0] || null;
+    const driveFileId = this.athF03ReemplazarId;
+    this.athF03ReemplazarId = null;
+    if (input) input.value = '';
+    if (!archivoNuevo || !driveFileId) return;
+    if (archivoNuevo.size > 25 * 1024 * 1024) {
+      this.athF03ArchivosError = `«${archivoNuevo.name}» supera los 25 MB.`;
+      return;
+    }
+    const actual = this.athF03Archivos.find((item) => item.driveFileId === driveFileId);
+    void Swal.fire({
+      icon: 'question',
+      title: '¿Reemplazar archivo?',
+      html: `Se quitará <strong>${actual?.nombreArchivo || 'el archivo actual'}</strong> y se subirá <strong>${archivoNuevo.name}</strong>.`,
+      showCancelButton: true,
+      confirmButtonText: 'Reemplazar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0f766e'
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      const form = new FormData();
+      form.append('archivos', archivoNuevo, archivoNuevo.name);
+      this.athF03SubiendoArchivos = true;
+      this.athF03ArchivosError = '';
+      this.backendService.eliminarArchivoAthF03(driveFileId)
+        .pipe(
+          switchMap((res) => {
+            if (!res?.success) {
+              throw new Error(res?.message || 'No se pudo quitar el archivo anterior.');
+            }
+            return this.backendService.subirArchivosAthF03(form);
+          }),
+          takeUntil(this.destroy$)
+        )
+        .subscribe({
+          next: (res) => {
+            this.athF03SubiendoArchivos = false;
+            if (!res?.success) {
+              this.athF03ArchivosError = res?.message || 'No se pudo subir el reemplazo.';
+              return;
+            }
+            if (this.athF03ArchivoVista?.driveFileId === driveFileId) this.cerrarVistaArchivoAthF03();
+            this.athF03MiniaturasError.delete(driveFileId);
+            this.aplicarArchivosAthF03(res);
+          },
+          error: (err) => {
+            this.athF03SubiendoArchivos = false;
+            this.athF03ArchivosError = err?.error?.message || err?.message || 'No se pudo reemplazar el archivo.';
+            this.backendService.cargarAthF03Formato()
+              .pipe(takeUntil(this.destroy$))
+              .subscribe({ next: (res) => this.aplicarArchivosAthF03(res) });
+          }
+        });
+    });
+  }
+
+  onArchivosDragEnterAthF03(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.athF03ArchivosDragDepth += 1;
+    this.athF03ArchivosDrag = true;
+  }
+
+  onArchivosDragOverAthF03(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+  }
+
+  onArchivosDragLeaveAthF03(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.athF03ArchivosDragDepth = Math.max(0, this.athF03ArchivosDragDepth - 1);
+    if (this.athF03ArchivosDragDepth === 0) this.athF03ArchivosDrag = false;
+  }
+
+  onArchivosDropAthF03(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.athF03ArchivosDragDepth = 0;
+    this.athF03ArchivosDrag = false;
+    const archivos = Array.from(event.dataTransfer?.files || []);
+    this.subirSeleccionArchivosAthF03(archivos);
+  }
+
+  onArchivosInputAthF03(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const archivos = Array.from(input?.files || []);
+    this.subirSeleccionArchivosAthF03(archivos);
+    if (input) input.value = '';
+  }
+
+  eliminarArchivoAthF03(archivo: AthF03Archivo, event?: Event): void {
+    event?.stopPropagation();
+    event?.preventDefault();
+    if (!archivo?.driveFileId || this.athF03SubiendoArchivos) return;
+    void Swal.fire({
+      icon: 'warning',
+      title: 'Eliminar archivo',
+      text: `Se borrará «${archivo.nombreArchivo}» de Drive.`,
+      showCancelButton: true,
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#c2410c',
+      cancelButtonColor: '#64748b'
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      this.athF03SubiendoArchivos = true;
+      this.athF03ArchivosError = '';
+      this.backendService.eliminarArchivoAthF03(archivo.driveFileId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.athF03SubiendoArchivos = false;
+            if (!res?.success) {
+              this.athF03ArchivosError = res?.message || 'No se pudo eliminar el archivo.';
+              return;
+            }
+            if (this.athF03ArchivoVista?.driveFileId === archivo.driveFileId) this.cerrarVistaArchivoAthF03();
+            this.athF03MiniaturasError.delete(archivo.driveFileId);
+            this.aplicarArchivosAthF03(res);
+          },
+          error: (err) => {
+            this.athF03SubiendoArchivos = false;
+            this.athF03ArchivosError = err?.error?.message || 'No se pudo eliminar el archivo.';
+          }
+        });
+    });
+  }
+
+  private subirSeleccionArchivosAthF03(archivos: File[]): void {
+    const validos = (archivos || []).filter((archivo) => archivo && archivo.size > 0);
+    if (!validos.length || this.athF03SubiendoArchivos) return;
+    const pesado = validos.find((archivo) => archivo.size > 25 * 1024 * 1024);
+    if (pesado) {
+      this.athF03ArchivosError = `«${pesado.name}» supera los 25 MB.`;
+      return;
+    }
+    const form = new FormData();
+    validos.forEach((archivo) => form.append('archivos', archivo, archivo.name));
+    this.athF03SubiendoArchivos = true;
+    this.athF03ArchivosError = '';
+    this.backendService.subirArchivosAthF03(form)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.athF03SubiendoArchivos = false;
+          if (!res?.success) {
+            this.athF03ArchivosError = res?.message || 'No se pudieron subir los archivos.';
+            return;
+          }
+          this.aplicarArchivosAthF03(res);
+        },
+        error: (err) => {
+          this.athF03SubiendoArchivos = false;
+          this.athF03ArchivosError = err?.error?.message || 'No se pudieron subir los archivos a Drive.';
+        }
+      });
+  }
+
+  private normalizarArchivoAthF03(raw: any): AthF03Archivo | null {
+    const driveFileId = String(raw?.driveFileId || raw?.id || '').trim();
+    if (!driveFileId) return null;
+    return {
+      driveFileId,
+      nombreArchivo: String(raw?.nombreArchivo || raw?.name || 'archivo').trim() || 'archivo',
+      mimeType: String(raw?.mimeType || '').trim(),
+      tamano: Number(raw?.tamano || raw?.size || 0) || 0,
+      webViewLink: String(raw?.webViewLink || '').trim() || `https://drive.google.com/file/d/${driveFileId}/view`,
+      fechaModificacion: raw?.fechaModificacion || raw?.modifiedTime || null
+    };
+  }
+
+  private aplicarArchivosAthF03(res: any): void {
+    if (Array.isArray(res?.archivos)) {
+      this.athF03Archivos = res.archivos
+        .map((archivo: any) => this.normalizarArchivoAthF03(archivo))
+        .filter((archivo: AthF03Archivo | null): archivo is AthF03Archivo => !!archivo);
+      this.athF03ArchivosError = res?.archivosError ? String(res.archivosError) : '';
+      this.athF03MiniaturasError.clear();
+    }
+    if (res?.carpetaArchivosUrl) this.athF03CarpetaArchivosUrl = String(res.carpetaArchivosUrl);
+  }
+
   onAthF03Editado(): void {
     if (!this.athF03Listo || this.athF03IgnorarAutoSave) return;
     this.athF03CambiosPendientes = true;
@@ -14608,6 +14947,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
     this.athF03UltimaSync = res.ultimaSyncDrive || null;
     this.athF03ContenidoModificado = !!res.contenidoModificado;
+    this.aplicarArchivosAthF03(res);
 
     window.setTimeout(() => {
       this.athF03IgnorarAutoSave = false;

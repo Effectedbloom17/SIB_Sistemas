@@ -15,6 +15,8 @@ const CODIGO_FORMATO = 'ATH-F-03';
 const TEMPLATE_DRIVE_ID = '1wb0UqwXAF2-f-0qmX2RnBroD9mRF8UZg-qQetBhEElE';
 const CARPETA_DRIVE_ID = '1sR2OcTU77AydynwgijT4R-pyb7R0CGsj';
 const CARPETA_PDF_FIRMADOS_ID = '1KxlovhD8lMwRPZvNeRCqtfAGQWVX_3aF';
+const CARPETA_ARCHIVOS_ID = '1ifjL5ve5giu4Qb8CUnbolF7M9Np0M2oO';
+const CARPETA_ARCHIVOS_URL = `https://drive.google.com/drive/folders/${CARPETA_ARCHIVOS_ID}`;
 const GOOGLE_DOC_MIME = 'application/vnd.google-apps.document';
 const SLOTS_EPP_PLANTILLA = 5;
 const MAX_EQUIPOS = 20;
@@ -462,11 +464,82 @@ function construirRespuesta(registro, datos) {
     };
 }
 
+function nombreArchivoSubido(nombre) {
+    const base = String(nombre || 'archivo')
+        .replace(/\\/g, '/')
+        .split('/')
+        .pop()
+        .replace(/[\\/:*?"<>|\u0000-\u001F]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return (base || 'archivo').slice(0, 180);
+}
+
+function mapearArchivoDrive(file) {
+    const id = String(file?.id || '').trim();
+    if (!id) return null;
+    return {
+        driveFileId: id,
+        nombreArchivo: String(file.name || 'archivo').trim() || 'archivo',
+        mimeType: String(file.mimeType || '').trim(),
+        tamano: Number(file.size || 0) || 0,
+        webViewLink: String(file.webViewLink || '').trim() || `https://drive.google.com/file/d/${id}/view`,
+        fechaModificacion: file.modifiedTime || null
+    };
+}
+
+async function listarArchivosEpp() {
+    const files = await driveService.listarArchivosCarpeta(CARPETA_ARCHIVOS_ID);
+    return (Array.isArray(files) ? files : [])
+        .map(mapearArchivoDrive)
+        .filter(Boolean)
+        .sort((a, b) => String(b.fechaModificacion || '').localeCompare(String(a.fechaModificacion || '')));
+}
+
+async function adjuntarListadoArchivos(respuesta) {
+    const salida = { ...respuesta, carpetaArchivosUrl: CARPETA_ARCHIVOS_URL };
+    try {
+        salida.archivos = await listarArchivosEpp();
+    } catch (err) {
+        console.warn('[ATH-F-03] No se listaron archivos de Drive:', err.message);
+        salida.archivos = [];
+        salida.archivosError = 'No se pudieron consultar los archivos en Drive.';
+    }
+    return salida;
+}
+
 async function cargarFormato(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
     const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
-    return construirRespuesta(registro, datos);
+    return adjuntarListadoArchivos(construirRespuesta(registro, datos));
+}
+
+async function subirArchivosEpp(archivos) {
+    const lista = Array.isArray(archivos) ? archivos : [];
+    if (!lista.length) throw new Error('Selecciona al menos un archivo.');
+    let subidos = 0;
+    for (const file of lista) {
+        const buffer = file?.buffer;
+        if (!buffer || !buffer.length) continue;
+        const nombre = nombreArchivoSubido(file.originalname);
+        const mime = String(file.mimetype || 'application/octet-stream').trim() || 'application/octet-stream';
+        await driveService.subirArchivoNuevo(buffer, nombre, mime, CARPETA_ARCHIVOS_ID);
+        subidos += 1;
+    }
+    if (!subidos) throw new Error('Los archivos están vacíos.');
+    return listarArchivosEpp();
+}
+
+async function eliminarArchivoEpp(driveFileId) {
+    const id = String(driveFileId || '').trim();
+    if (!id) throw new Error('Falta el archivo a eliminar.');
+    const actuales = await listarArchivosEpp();
+    if (!actuales.some((archivo) => archivo.driveFileId === id)) {
+        throw new Error('Ese archivo no está en la carpeta de ATH-F-03.');
+    }
+    await driveService.eliminarArchivo(id);
+    return listarArchivosEpp();
 }
 
 function entregaTieneCaptura(entrega) {
@@ -684,11 +757,14 @@ async function descargarPdfEntrega(pool, entregaId) {
 }
 
 module.exports = {
+    CARPETA_ARCHIVOS_URL,
     cargarFormato,
     guardarFormato,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
     subirPdfFirmado,
     eliminarPdfHistorial,
-    descargarPdfEntrega
+    descargarPdfEntrega,
+    subirArchivosEpp,
+    eliminarArchivoEpp
 };
