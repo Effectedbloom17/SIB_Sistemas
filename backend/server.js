@@ -30283,6 +30283,23 @@ app.post('/api/sgc/formatos/sgc-f-11/sincronizar-drive', requireAdminOrSgc, asyn
     }
 });
 
+app.get('/api/sgc/formatos/sgc-f-11/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const resultado = await sgcSgcF11Service.descargarPdf(poolBiznagaSgc, {
+            analisisId: req.query.analisisId || req.query.id || null
+        });
+        const nombre = String(resultado.nombreArchivo || 'SGC-F-11 AMEF.pdf')
+            .replace(/[^\w.\- áéíóúÁÉÍÓÚñÑ()]/gi, '_')
+            .trim() || 'SGC-F-11 AMEF.pdf';
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${nombre.replace(/"/g, '')}"`);
+        return res.send(resultado.buffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-11');
+    }
+});
+
 app.post('/api/sgc/formatos/sgc-f-11/actualizar-plantilla', requireRole('root'), async (req, res) => {
     try {
         await poolBiznagaSgcReady;

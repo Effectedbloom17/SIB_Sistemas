@@ -1670,6 +1670,35 @@ async function duplicarHojaGoogleSheet(spreadsheetId, sourceSheetTitle, newTitle
 }
 
 /**
+ * Deja una hoja como la primera pestaña visible del libro.
+ */
+async function moverHojaAlInicioGoogleSheet(spreadsheetId, sheetTitle) {
+    const titulo = String(sheetTitle || '').trim();
+    if (!spreadsheetId || !titulo) {
+        return null;
+    }
+    const hojas = await obtenerMetadatosHojasGoogleSheet(spreadsheetId);
+    const hoja = hojas.find((h) => h.title === titulo)
+        || hojas.find((h) => h.title.toLowerCase() === titulo.toLowerCase());
+    if (!hoja || hoja.index === 0) {
+        return hoja || null;
+    }
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    await sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+            requests: [{
+                updateSheetProperties: {
+                    properties: { sheetId: hoja.sheetId, index: 0 },
+                    fields: 'index'
+                }
+            }]
+        }
+    });
+    return hoja;
+}
+
+/**
  * Inserta filas en una hoja (índices 0-based, endIndex exclusivo).
  * @param {string} spreadsheetId
  * @param {number} sheetId
@@ -2202,6 +2231,21 @@ async function aplicarFormatoVisualSgcF11(spreadsheetId, options = {}) {
         if (col < colStart || col > colEnd) continue;
         requests.push(formatRange(dataStartRow, dataEndRow, col, col, 'CENTER'));
     }
+
+    // Quita las notas de encabezado (se imprimen como una hoja extra de comentarios).
+    requests.push({
+        repeatCell: {
+            range: {
+                sheetId,
+                startRowIndex: Math.max(0, headerRow - 1),
+                endRowIndex: headerRow,
+                startColumnIndex: Math.max(0, colStart - 1),
+                endColumnIndex: colEnd
+            },
+            cell: { note: '' },
+            fields: 'note'
+        }
+    });
 
     // Altura de filas de datos = 150; no tocar filas del encabezado
     requests.push({
@@ -12075,6 +12119,7 @@ module.exports = {
     resolverNombreHojaUnico,
     obtenerDimensionesHojaGoogleSheet,
     duplicarHojaGoogleSheet,
+    moverHojaAlInicioGoogleSheet,
     renombrarHojaGoogleSheet,
     insertarFilasGoogleSheet,
     fusionarRangoGoogleSheet,

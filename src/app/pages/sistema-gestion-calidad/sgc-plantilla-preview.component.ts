@@ -373,6 +373,17 @@ interface SgcPo01Form {
   pdfFirmado: DgF02PdfFirmado | null;
 }
 
+interface SgcF11Analisis {
+  id: string;
+  area: string;
+  departamento: string;
+  elaboro: string;
+  fechaElaboracion: string;
+  proceso: string;
+  equipoTrabajo: string;
+  filas: SgcF11Fila[];
+}
+
 interface SgcF11Fila {
   operacion: string;
   etapa: string;
@@ -2098,6 +2109,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   afF02AutosizeTick = 0;
   sgcF23Form = this.crearSgcF23Vacio();
   sgcF11Form = this.crearSgcF11Vacio();
+  sgcF11Vista: 'archivero' | 'editor' = 'archivero';
+  sgcF11Busqueda = '';
+  sgcF11DescargandoPdf = false;
+  sgcF11Archivo: { analisis: SgcF11Analisis[]; analisisActivoId: string | null } = {
+    analisis: [],
+    analisisActivoId: null
+  };
   sgcF12Form: SgcF12FormData = this.crearSgcF12Vacio();
   sgcF01Form: SgcF01FormData = this.crearSgcF01Vacio();
   sgcF01Busqueda = '';
@@ -5297,7 +5315,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }, false);
     }
     if (slug === 'sgc-f-11') {
-      return this.backendService.guardarSgcF11Formato(this.sgcF11Form, false);
+      return this.backendService.guardarSgcF11Formato(this.prepararPayloadSgcF11ParaGuardar(), false);
     }
     if (slug === 'sgc-f-12') {
       return this.backendService.guardarSgcF12Formato(this.sgcF12Form, false);
@@ -30599,6 +30617,152 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF11CambiosPendientes = true;
   }
 
+  get sgcF11AnalisisVista(): SgcF11Analisis[] {
+    const q = this.sgcF11Busqueda.trim().toLowerCase();
+    const lista = this.sgcF11Archivo.analisis || [];
+    if (!q) return lista;
+    return lista.filter((item) =>
+      [item.proceso, item.area, item.departamento, item.elaboro, item.equipoTrabajo]
+        .some((valor) => String(valor || '').toLowerCase().includes(q))
+    );
+  }
+
+  nuevoAnalisisSgcF11(): void {
+    const item = this.crearAnalisisSgcF11Vacio();
+    this.sgcF11Archivo.analisis = [item, ...this.sgcF11Archivo.analisis];
+    this.abrirAnalisisSgcF11(item);
+    this.onSgcF11Editado();
+  }
+
+  abrirAnalisisSgcF11(item: SgcF11Analisis): void {
+    this.sgcF11Archivo.analisisActivoId = item.id;
+    this.sgcF11IgnorarAutoSave = true;
+    this.sgcF11Form = {
+      ...this.sgcF11Form,
+      area: item.area || '',
+      departamento: item.departamento || '',
+      elaboro: item.elaboro || '',
+      fechaElaboracion: item.fechaElaboracion || this.sgcF11Form.fechaElaboracion,
+      proceso: item.proceso || '',
+      equipoTrabajo: item.equipoTrabajo || '',
+      filas: this.normalizarFilasSgcF11(
+        (item.filas && item.filas.length ? item.filas : [this.crearFilaSgcF11Vacia()]).map((fila) => ({ ...fila }))
+      )
+    };
+    this.renumerarFilasSgcF11();
+    this.sgcF11Vista = 'editor';
+    window.setTimeout(() => {
+      this.sgcF11IgnorarAutoSave = false;
+      this.autosizeTextareasSgcF11();
+    }, 0);
+  }
+
+  volverArchiveroSgcF11(): void {
+    this.volcarEditorEnAnalisisSgcF11();
+    this.sgcF11Vista = 'archivero';
+  }
+
+  eliminarAnalisisSgcF11(item: SgcF11Analisis, event?: Event): void {
+    event?.stopPropagation();
+    const nombre = item.proceso?.trim() || 'sin proceso';
+    if (!confirm(`¿Eliminar el análisis «${nombre}»?`)) {
+      return;
+    }
+    this.sgcF11Archivo.analisis = this.sgcF11Archivo.analisis.filter((row) => row.id !== item.id);
+    if (this.sgcF11Archivo.analisisActivoId === item.id) {
+      this.sgcF11Archivo.analisisActivoId = null;
+      this.sgcF11Vista = 'archivero';
+    }
+    this.onSgcF11Editado();
+  }
+
+  descargarPdfSgcF11(): void {
+    if (this.sgcF11DescargandoPdf || this.sgcF11Vista !== 'editor') {
+      return;
+    }
+    this.volcarEditorEnAnalisisSgcF11();
+    const analisisId = this.sgcF11Archivo.analisisActivoId;
+    const nombre = String(this.sgcF11Form.proceso || 'AMEF').trim() || 'AMEF';
+    const nombreArchivo = `SGC-F-11 AMEF ${nombre}.pdf`.replace(/[\\/:*?"<>|]+/g, '_');
+    this.sgcF11DescargandoPdf = true;
+    this.backendService.descargarPdfSgcF11(analisisId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.sgcF11DescargandoPdf = false;
+          if (!blob || blob.size < 64 || (blob.type && blob.type.includes('json'))) {
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo generar el PDF',
+              text: 'Guarda la información y vuelve a intentar.',
+              confirmButtonText: 'Entendido'
+            });
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = nombreArchivo;
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.sgcF11DescargandoPdf = false;
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo generar el PDF',
+            text: 'Guarda la información y vuelve a intentar.',
+            confirmButtonText: 'Entendido'
+          });
+        }
+      });
+  }
+
+  private crearAnalisisSgcF11Vacio(): SgcF11Analisis {
+    const filas = [this.crearFilaSgcF11Vacia(), this.crearFilaSgcF11Vacia(), this.crearFilaSgcF11Vacia()]
+      .map((fila, index) => ({ ...fila, operacion: String(index + 1) }));
+    return {
+      id: this.nuevoIdSgcF11(),
+      area: '',
+      departamento: '',
+      elaboro: '',
+      fechaElaboracion: this.sgcF11Form.fechaElaboracion || '',
+      proceso: '',
+      equipoTrabajo: '',
+      filas
+    };
+  }
+
+  private nuevoIdSgcF11(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return `amef-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  private volcarEditorEnAnalisisSgcF11(): void {
+    if (this.sgcF11Vista !== 'editor') return;
+    const id = this.sgcF11Archivo.analisisActivoId;
+    if (!id) return;
+    this.renumerarFilasSgcF11();
+    const actualizado: SgcF11Analisis = {
+      id,
+      area: this.sgcF11Form.area || '',
+      departamento: this.sgcF11Form.departamento || '',
+      elaboro: this.sgcF11Form.elaboro || '',
+      fechaElaboracion: this.sgcF11Form.fechaElaboracion || '',
+      proceso: this.sgcF11Form.proceso || '',
+      equipoTrabajo: this.sgcF11Form.equipoTrabajo || '',
+      filas: this.sgcF11Form.filas.map((fila) => ({ ...fila }))
+    };
+    const idx = this.sgcF11Archivo.analisis.findIndex((item) => item.id === id);
+    if (idx >= 0) {
+      this.sgcF11Archivo.analisis[idx] = actualizado;
+    } else {
+      this.sgcF11Archivo.analisis = [actualizado, ...this.sgcF11Archivo.analisis];
+    }
+  }
+
   toggleSgcF11Editor(): void {
     if (!this.sgcF11DriveFileId) {
       return;
@@ -32476,10 +32640,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!this.sgcF11Listo || this.sgcF11Guardando) {
       return;
     }
+    this.volcarEditorEnAnalisisSgcF11();
     this.renumerarFilasSgcF11();
     this.sgcF11Guardando = true;
     const editorAbierto = this.mostrarSgcF11Editor;
-    const editorActivo = false;
     const payload = this.prepararPayloadSgcF11ParaGuardar();
     this.backendService.guardarSgcF11Formato(payload, false)
       .pipe(takeUntil(this.destroy$))
@@ -32532,20 +32696,33 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.sgcF11IgnorarAutoSave = true;
       this.sgcF11Listo = false;
       const d = res.datos;
+      const analisis = this.normalizarAnalisisSgcF11(d);
+      this.sgcF11Archivo = {
+        analisis,
+        analisisActivoId: d.analisisActivoId || analisis[0]?.id || null
+      };
       this.sgcF11Form = {
+        ...this.sgcF11Form,
         revision: d.revision ?? this.sgcF11Form.revision,
         fechaRevision: d.fechaRevision ?? this.sgcF11Form.fechaRevision,
-        area: d.area ?? this.sgcF11Form.area,
-        departamento: d.departamento ?? this.sgcF11Form.departamento,
-        elaboro: d.elaboro ?? this.sgcF11Form.elaboro,
-        fechaElaboracion: d.fechaElaboracion ?? this.sgcF11Form.fechaElaboracion,
-        proceso: d.proceso ?? this.sgcF11Form.proceso,
-        equipoTrabajo: d.equipoTrabajo ?? this.sgcF11Form.equipoTrabajo,
-        filas: Array.isArray(d.filas)
-          ? this.normalizarFilasSgcF11(d.filas as SgcF11Fila[])
-          : this.sgcF11Form.filas
+        fechaElaboracion: d.fechaElaboracion ?? this.sgcF11Form.fechaElaboracion
       };
-      this.renumerarFilasSgcF11();
+      if (this.sgcF11Vista === 'editor') {
+        const activo = analisis.find((item) => item.id === this.sgcF11Archivo.analisisActivoId) || analisis[0];
+        if (activo) {
+          this.sgcF11Form = {
+            ...this.sgcF11Form,
+            area: activo.area,
+            departamento: activo.departamento,
+            elaboro: activo.elaboro,
+            proceso: activo.proceso,
+            equipoTrabajo: activo.equipoTrabajo,
+            fechaElaboracion: activo.fechaElaboracion || this.sgcF11Form.fechaElaboracion,
+            filas: this.normalizarFilasSgcF11(activo.filas.map((fila) => ({ ...fila })))
+          };
+          this.renumerarFilasSgcF11();
+        }
+      }
     } else if (!editorAbierto && !conservarEdicion) {
       this.sgcF11IgnorarAutoSave = true;
       this.sgcF11Listo = false;
@@ -34183,10 +34360,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return `${d}/${m}/${y}`;
   }
 
-  private prepararPayloadSgcF11ParaGuardar(): typeof this.sgcF11Form {
-    return {
-      ...this.sgcF11Form,
-      filas: this.sgcF11Form.filas.map((fila) => ({
+  private prepararPayloadSgcF11ParaGuardar(): {
+    revision: string;
+    fechaRevision: string;
+    fechaElaboracion: string;
+    analisis: SgcF11Analisis[];
+    analisisActivoId: string | null;
+  } {
+    this.volcarEditorEnAnalisisSgcF11();
+    const analisis = this.sgcF11Archivo.analisis.map((item) => ({
+      ...item,
+      filas: item.filas.map((fila) => ({
         ...fila,
         rpn: this.normalizarValorRpn(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion),
         rpnPost: this.normalizarValorRpn(
@@ -34197,6 +34381,39 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         ),
         fechaCompromiso: this.fechaCompromisoParaExcel(fila.fechaCompromiso)
       }))
+    }));
+    return {
+      revision: this.sgcF11Form.revision,
+      fechaRevision: this.sgcF11Form.fechaRevision,
+      fechaElaboracion: this.sgcF11Form.fechaElaboracion,
+      analisis,
+      analisisActivoId: this.sgcF11Archivo.analisisActivoId
+    };
+  }
+
+  private normalizarAnalisisSgcF11(datos: any): SgcF11Analisis[] {
+    if (Array.isArray(datos?.analisis)) {
+      return datos.analisis.map((item: any) => this.normalizarUnAnalisisSgcF11(item));
+    }
+    if (datos && (datos.proceso || datos.area || Array.isArray(datos.filas))) {
+      return [this.normalizarUnAnalisisSgcF11(datos)];
+    }
+    return [];
+  }
+
+  private normalizarUnAnalisisSgcF11(item: any): SgcF11Analisis {
+    const filas = Array.isArray(item?.filas) && item.filas.length
+      ? this.normalizarFilasSgcF11(item.filas)
+      : [this.crearFilaSgcF11Vacia()];
+    return {
+      id: String(item?.id || this.nuevoIdSgcF11()),
+      area: String(item?.area || ''),
+      departamento: String(item?.departamento || ''),
+      elaboro: String(item?.elaboro || ''),
+      fechaElaboracion: String(item?.fechaElaboracion || ''),
+      proceso: String(item?.proceso || ''),
+      equipoTrabajo: String(item?.equipoTrabajo || ''),
+      filas
     };
   }
 
