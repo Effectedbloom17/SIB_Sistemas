@@ -7,7 +7,8 @@ import {
   CapituloFormatoConfig,
   formatoSgcVisibleParaUsuario,
   PlantillaFormato,
-  SGC_CAPITULOS_CATALOG
+  SGC_CAPITULOS_CATALOG,
+  tipoIconoPlantilla
 } from './sgc-formatos.catalog';
 import { SgcListaMaestraVigenciaService } from './sgc-lista-maestra-vigencia.service';
 
@@ -78,22 +79,12 @@ export class SgcFormatoDetalleComponent implements OnInit, OnDestroy {
     }
   }
 
-  tipoPlantilla(nombre: string): TipoPlantillaExt {
-    const n = nombre.toLowerCase();
-    if (n.endsWith('.xlsx') || n.endsWith('.xls')) {
-      return 'excel';
-    }
-    if (n.endsWith('.docx') || n.endsWith('.doc')) {
-      return 'word';
-    }
-    if (n.endsWith('.pdf')) {
-      return 'pdf';
-    }
-    return 'otro';
+  tipoPlantilla(p: PlantillaFormato): TipoPlantillaExt {
+    return tipoIconoPlantilla(p);
   }
 
   metaFormato(p: PlantillaFormato): string {
-    const tipo = this.tipoPlantilla(p.nombre);
+    const tipo = this.tipoPlantilla(p);
     const tipoLabel =
       tipo === 'excel' ? 'Hoja de cálculo' :
       tipo === 'word' ? 'Documento Word' :
@@ -103,7 +94,7 @@ export class SgcFormatoDetalleComponent implements OnInit, OnDestroy {
   }
 
   tipoBadge(p: PlantillaFormato): string {
-    const tipo = this.tipoPlantilla(p.nombre);
+    const tipo = this.tipoPlantilla(p);
     if (tipo === 'excel') return 'Excel';
     if (tipo === 'word') return 'Word';
     if (tipo === 'pdf') return 'PDF';

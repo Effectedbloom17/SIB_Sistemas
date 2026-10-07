@@ -7,7 +7,8 @@ import {
   formatoSgcVisibleParaUsuario,
   PlantillaFormato,
   SGC_CAPITULOS_CATALOG,
-  SGC_CAPITULOS_ORDEN
+  SGC_CAPITULOS_ORDEN,
+  tipoIconoPlantilla
 } from './sgc-formatos.catalog';
 import { AuthService } from 'src/app/services/auth.service';
 import { FormatoBusquedaItem, TarjetaCapituloSgc } from './sgc-formato.types';
@@ -187,12 +188,8 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
     );
   }
 
-  tipoPlantilla(nombre: string): 'excel' | 'word' | 'pdf' | 'otro' {
-    const n = nombre.toLowerCase();
-    if (n.endsWith('.xlsx') || n.endsWith('.xls')) return 'excel';
-    if (n.endsWith('.docx') || n.endsWith('.doc')) return 'word';
-    if (n.endsWith('.pdf')) return 'pdf';
-    return 'otro';
+  tipoPlantilla(p: { nombre?: string; icono?: 'excel' | 'word' | 'pdf' | null }): 'excel' | 'word' | 'pdf' | 'otro' {
+    return tipoIconoPlantilla(p);
   }
 
   metaFormato(p: PlantillaFormato): string {
@@ -283,7 +280,7 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
   }
 
   tipoBadge(p: PlantillaFormato): string {
-    const tipo = this.tipoPlantilla(p.nombre);
+    const tipo = this.tipoPlantilla(p);
     if (tipo === 'excel') return 'Excel';
     if (tipo === 'word') return 'Word';
     if (tipo === 'pdf') return 'PDF';
@@ -333,6 +330,7 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
         codigo: p.codigo,
         titulo: p.titulo,
         nombre: p.nombre,
+        icono: p.icono,
         previewSlug: p.previewSlug,
         descargaPdf: p.descargaPdf,
         descargaWord: p.descargaWord

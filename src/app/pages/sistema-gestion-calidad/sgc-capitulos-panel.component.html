@@ -120,14 +120,14 @@
                   <span class="sgc-cap-hit__deco" aria-hidden="true"></span>
                   <span class="sgc-cap-hit__accent" aria-hidden="true"></span>
                   <span class="sgc-cap-hit__icon"
-                        [class.sgc-cap-hit__icon--excel]="tipoPlantilla(f.nombre) === 'excel'"
-                        [class.sgc-cap-hit__icon--word]="tipoPlantilla(f.nombre) === 'word'"
-                        [class.sgc-cap-hit__icon--pdf]="tipoPlantilla(f.nombre) === 'pdf'">
+                        [class.sgc-cap-hit__icon--excel]="tipoPlantilla(f) === 'excel'"
+                        [class.sgc-cap-hit__icon--word]="tipoPlantilla(f) === 'word'"
+                        [class.sgc-cap-hit__icon--pdf]="tipoPlantilla(f) === 'pdf'">
                     <i class="fas" [ngClass]="{
-                      'fa-file-excel': tipoPlantilla(f.nombre) === 'excel',
-                      'fa-file-word': tipoPlantilla(f.nombre) === 'word',
-                      'fa-file-pdf': tipoPlantilla(f.nombre) === 'pdf',
-                      'fa-file-alt': tipoPlantilla(f.nombre) === 'otro'
+                      'fa-file-excel': tipoPlantilla(f) === 'excel',
+                      'fa-file-word': tipoPlantilla(f) === 'word',
+                      'fa-file-pdf': tipoPlantilla(f) === 'pdf',
+                      'fa-file-alt': tipoPlantilla(f) === 'otro'
                     }" aria-hidden="true"></i>
                   </span>
                   <span class="sgc-cap-hit__body">
@@ -211,18 +211,18 @@
               <a *ngIf="p.previewSlug; else sinVista"
                  [routerLink]="['/sistema-gestion-calidad', c.slug, 'plantilla', p.previewSlug]"
                  class="sgc-cap-doc"
-                 [class.sgc-cap-doc--excel]="tipoPlantilla(p.nombre) === 'excel'"
-                 [class.sgc-cap-doc--word]="tipoPlantilla(p.nombre) === 'word'"
-                 [class.sgc-cap-doc--pdf]="tipoPlantilla(p.nombre) === 'pdf'"
+                 [class.sgc-cap-doc--excel]="tipoPlantilla(p) === 'excel'"
+                 [class.sgc-cap-doc--word]="tipoPlantilla(p) === 'word'"
+                 [class.sgc-cap-doc--pdf]="tipoPlantilla(p) === 'pdf'"
                  [title]="p.titulo">
                 <span class="sgc-cap-doc__deco" aria-hidden="true"></span>
                 <span class="sgc-cap-doc__accent" aria-hidden="true"></span>
                 <span class="sgc-cap-doc__icon" aria-hidden="true">
                   <i class="fas" [ngClass]="{
-                    'fa-file-excel': tipoPlantilla(p.nombre) === 'excel',
-                    'fa-file-word': tipoPlantilla(p.nombre) === 'word',
-                    'fa-file-pdf': tipoPlantilla(p.nombre) === 'pdf',
-                    'fa-file-alt': tipoPlantilla(p.nombre) === 'otro'
+                    'fa-file-excel': tipoPlantilla(p) === 'excel',
+                    'fa-file-word': tipoPlantilla(p) === 'word',
+                    'fa-file-pdf': tipoPlantilla(p) === 'pdf',
+                    'fa-file-alt': tipoPlantilla(p) === 'otro'
                   }"></i>
                 </span>
                 <span class="sgc-cap-doc__body">
@@ -238,8 +238,8 @@
               </a>
               <ng-template #sinVista>
                 <div class="sgc-cap-doc sgc-cap-doc--disabled"
-                     [class.sgc-cap-doc--excel]="tipoPlantilla(p.nombre) === 'excel'"
-                     [class.sgc-cap-doc--word]="tipoPlantilla(p.nombre) === 'word'">
+                     [class.sgc-cap-doc--excel]="tipoPlantilla(p) === 'excel'"
+                     [class.sgc-cap-doc--word]="tipoPlantilla(p) === 'word'">
                   <span class="sgc-cap-doc__deco" aria-hidden="true"></span>
                   <span class="sgc-cap-doc__accent" aria-hidden="true"></span>
                   <span class="sgc-cap-doc__icon" aria-hidden="true">

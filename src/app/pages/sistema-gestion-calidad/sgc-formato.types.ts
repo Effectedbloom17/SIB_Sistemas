@@ -24,6 +24,7 @@ export interface FormatoBusquedaItem {
   codigo: string;
   titulo: string;
   nombre: string;
+  icono?: 'excel' | 'word' | 'pdf';
   previewSlug?: string;
   descargaPdf?: { driveFileId: string; nombre: string };
   descargaWord?: { driveFileId: string; nombre: string };
