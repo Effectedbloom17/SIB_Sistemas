@@ -14643,11 +14643,20 @@ $dg-f02-layout-max: 46.5rem;
   }
 }
 
+.sgc-f-11-matriz__lead {
+  padding: 0.85rem 0.85rem 0;
+  background: #fff;
+
+  .sgc-f-11-matriz__intro {
+    margin-bottom: 0;
+  }
+}
+
 .dg-f05-doc__meta--sgc-f11-datos {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.65rem 0.85rem;
-  padding: 0.7rem 0.85rem 0.85rem;
+  padding: 0.75rem 0.85rem 0.9rem;
   background: #fff;
   border-bottom: 1px solid $dg-f05-border;
 
@@ -14672,6 +14681,22 @@ $dg-f02-layout-max: 46.5rem;
 
   .dg-f05-field {
     width: 100%;
+    min-height: 2.15rem;
+    padding: 0.4rem 0.55rem;
+    background: #eef2f6;
+    border: 1px solid #d5dee8;
+    border-radius: 6px;
+
+    &:focus {
+      background: #fff;
+      border-color: rgba(15, 118, 110, 0.45);
+      box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.1);
+    }
+
+    &--readonly {
+      background: #e4eaf0;
+      color: #334155;
+    }
   }
 
   @media (max-width: 991.98px) {
@@ -14955,13 +14980,13 @@ $dg-f02-layout-max: 46.5rem;
     overflow-y: hidden !important;
     resize: none;
     text-align: left;
-    border: 1px solid transparent;
+    border: 1px solid #d5dee8;
     border-radius: 6px !important;
-    background: transparent;
+    background: #eef2f6;
     box-shadow: none;
 
     &:focus {
-      border-color: rgba(15, 118, 110, 0.35);
+      border-color: rgba(15, 118, 110, 0.45);
       background: #fff;
       box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.1);
     }
@@ -14980,7 +15005,15 @@ $dg-f02-layout-max: 46.5rem;
       min-width: 0;
       margin: 0 auto;
       text-align: center;
+      border: 1px solid #d5dee8;
       border-radius: 6px !important;
+      background: #eef2f6;
+
+      &:focus {
+        background: #fff;
+        border-color: rgba(15, 118, 110, 0.45);
+        box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.1);
+      }
     }
   }
 
@@ -14993,8 +15026,15 @@ $dg-f02-layout-max: 46.5rem;
     padding-left: 0.2rem;
     padding-right: 0.2rem;
     font-weight: 700;
+    border: 1px solid #d5dee8;
     border-radius: 6px !important;
-    background: #fff;
+    background: #eef2f6;
+
+    &:focus {
+      background: #fff;
+      border-color: rgba(15, 118, 110, 0.45);
+      box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.1);
+    }
   }
 
   &__rpn-badge {

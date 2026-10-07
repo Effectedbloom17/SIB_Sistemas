@@ -578,6 +578,17 @@
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF04DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
                   </button>
                   <button
+                    *ngIf="plantillaSlug === 'sgc-f-11' && sgcF11Vista === 'editor'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF11DescargandoPdf"
+                    (click)="descargarPdfSgcF11()"
+                    title="Descargar PDF (A4, horizontal, ajustar al ancho, márgenes estrechos, solo la hoja del análisis)"
+                    aria-label="Descargar PDF del AMEF">
+                    <i class="fas" [ngClass]="sgcF11DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF11DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
+                  </button>
+                  <button
                     *ngIf="plantillaSlug === 'sgc-f-22' && sgcF22Vista === 'editor'"
                     type="button"
                     class="btn btn-sm sgc-btn-pdf-icon"
@@ -13823,7 +13834,85 @@
                     <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
                     Cargando formato…
                   </div>
-                  <article class="dg-f05-doc sgc-f-11-doc">
+                  <article class="dg-f05-doc sgc-f-04-doc sgc-f-11-doc sgc-f-04-doc--archivero" *ngIf="sgcF11Vista === 'archivero'">
+                    <header class="dg-f05-doc__header">
+                      <span class="dg-f05-doc__code">SGC-F-11</span>
+                      <h3 class="dg-f05-doc__title">Análisis de Modo y Efecto de Falla (AMEF)</h3>
+                    </header>
+                    <div class="sgc-f-04-archivero">
+                      <div class="sgc-f-04-archivero__intro">
+                        <div class="sgc-f-04-archivero__intro-main">
+                          <div class="sgc-f-04-archivero__intro-icon">
+                            <i class="fas fa-table" aria-hidden="true"></i>
+                          </div>
+                          <div class="sgc-f-04-archivero__intro-text">
+                            <h4 class="sgc-f-04-archivero__title">Archivero AMEF</h4>
+                            <p class="sgc-f-04-archivero__hint">Cada análisis tiene su propia hoja en Excel. Ábrelo para capturar la matriz o crea uno nuevo.</p>
+                          </div>
+                        </div>
+                        <div class="sgc-f-04-archivero__toolbar">
+                          <label class="sgc-f-04-archivero__search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input class="dg-f05-field" type="search" name="sgcF11_busqueda"
+                              [(ngModel)]="sgcF11Busqueda" placeholder="Buscar proceso, área o departamento…"
+                              autocomplete="off" (input)="$event.stopPropagation()">
+                          </label>
+                          <button type="button" class="sgc-f-04-archivero__btn-nuevo" (click)="nuevoAnalisisSgcF11()">
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            Nuevo análisis
+                          </button>
+                        </div>
+                      </div>
+                      <div class="sgc-f-04-archivero__stats">
+                        <span class="sgc-f-04-archivero__stat">
+                          <i class="fas fa-folder-open" aria-hidden="true"></i>
+                          {{ sgcF11Archivo.analisis.length }} análisis
+                        </span>
+                      </div>
+                      <ul class="sgc-f-04-archivero__grid" *ngIf="sgcF11AnalisisVista.length; else sgcF11ArchiveroVacio">
+                        <li class="sgc-f-04-book" *ngFor="let item of sgcF11AnalisisVista; trackBy: trackByIdx">
+                          <button type="button" class="sgc-f-04-book__tap" (click)="abrirAnalisisSgcF11(item)"
+                            [attr.aria-label]="'Abrir análisis ' + (item.proceso || 'sin proceso')">
+                            <span class="sgc-f-04-book__binding" aria-hidden="true">
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                            </span>
+                            <span class="sgc-f-04-book__page">
+                              <span class="sgc-f-04-book__corner" aria-hidden="true"></span>
+                              <span class="sgc-f-04-book__head">
+                                <span class="sgc-f-04-book__icon"><i class="fas fa-project-diagram"></i></span>
+                              </span>
+                              <span class="sgc-f-04-book__origen">{{ item.area?.trim() || 'Sin área' }}</span>
+                              <span class="sgc-f-04-book__folio">{{ item.proceso?.trim() || 'Sin proceso' }}</span>
+                              <span class="sgc-f-04-book__lines" aria-hidden="true"><span></span><span></span><span></span></span>
+                              <span class="sgc-f-04-book__foot">
+                                <span class="sgc-f-04-book__fuente">{{ item.departamento?.trim() || 'Sin departamento' }}</span>
+                                <span class="sgc-f-04-book__fecha">{{ item.filas.length }} filas</span>
+                              </span>
+                            </span>
+                          </button>
+                          <button type="button" class="sgc-f-04-book__del" (click)="eliminarAnalisisSgcF11(item, $event)" title="Eliminar análisis">
+                            <i class="fas fa-times" aria-hidden="true"></i>
+                          </button>
+                        </li>
+                      </ul>
+                      <ng-template #sgcF11ArchiveroVacio>
+                        <div class="sgc-f-04-archivero__empty">
+                          <p>Todavía no hay análisis. Crea el primero con «Nuevo análisis».</p>
+                        </div>
+                      </ng-template>
+                    </div>
+                  </article>
+
+                  <article class="dg-f05-doc sgc-f-11-doc" *ngIf="sgcF11Vista === 'editor'">
+                    <div class="sgc-f-04-editor-bar">
+                      <button type="button" class="sgc-f-04-editor-bar__back" (click)="volverArchiveroSgcF11()">
+                        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                        Volver al archivero
+                      </button>
+                      <span class="sgc-f-04-editor-bar__folio" *ngIf="sgcF11Form.proceso">{{ sgcF11Form.proceso }}</span>
+                    </div>
                     <header class="dg-f05-doc__header">
                       <span class="dg-f05-doc__code">SGC-F-11</span>
                       <h3 class="dg-f05-doc__title">Análisis de Modo y Efecto de Falla (AMEF)</h3>
@@ -13854,6 +13943,16 @@
                           name="sgcF11_fechaRev" [(ngModel)]="sgcF11Form.fechaRevision" readonly
                           title="Fecha según lista maestra de documentos">
                       </label>
+                    </div>
+
+                    <div class="sgc-f-11-matriz__lead">
+                      <div class="sgc-f-11-matriz__intro">
+                        <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-table" aria-hidden="true"></i></div>
+                        <div>
+                          <h4 class="sgc-f-11-matriz__title">Matriz AMEF</h4>
+                          <p class="sgc-f-11-matriz__hint">Análisis de riesgo y plan de acción en dos bloques; cada fila corresponde a la misma operación. Desplaza horizontalmente si hace falta para ver todas las columnas.</p>
+                        </div>
+                      </div>
                     </div>
 
                     <!-- Metadatos del análisis (estilo estándar SGC) -->
@@ -13891,14 +13990,6 @@
                     </div>
 
                     <div class="dg-f05-table-panel sgc-f-11-matriz">
-                      <div class="sgc-f-11-matriz__intro">
-                        <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-table" aria-hidden="true"></i></div>
-                        <div>
-                          <h4 class="sgc-f-11-matriz__title">Matriz AMEF</h4>
-                          <p class="sgc-f-11-matriz__hint">Análisis de riesgo y plan de acción en dos bloques; cada fila corresponde a la misma operación. Desplaza horizontalmente si hace falta para ver todas las columnas.</p>
-                        </div>
-                      </div>
-
                       <section class="sgc-f-11-split-block" aria-labelledby="sgc-f-11-block-analisis">
                         <header class="sgc-f-11-split-block__head" id="sgc-f-11-block-analisis">
                           <span class="sgc-f-11-split-block__badge">1</span>

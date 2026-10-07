@@ -4455,6 +4455,13 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-11/actualizar-plantilla`, {});
     }
 
+    descargarPdfSgcF11(analisisId?: string | null): Observable<Blob> {
+        const qs = analisisId ? `?analisisId=${encodeURIComponent(analisisId)}` : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-11/descargar-pdf${qs}`, {
+            responseType: 'blob'
+        });
+    }
+
     cargarSgcF01Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-01`);
     }
