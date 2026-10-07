@@ -27272,6 +27272,51 @@ app.post('/api/sgc/formatos/dg-f-07/guardar', requireAdminOrSgc, async (req, res
     }
 });
 
+app.post('/api/sgc/formatos/dg-f-07/visibilidad', requireAdminOrSgc, async (req, res) => {
+    try {
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const esSuperAdmin = userRoles.includes('root');
+        const esSergio = esGestorCalidadSgc(req);
+        if (!esSuperAdmin && !esSergio) {
+            return res.status(403).json({
+                success: false,
+                message: 'Solo Sergio puede desactivar un proceso y el super administrador puede activarlo o desactivarlo.'
+            });
+        }
+
+        const activo = req.body?.activo === true || req.body?.activo === 'true';
+        const desactivar = req.body?.activo === false || req.body?.activo === 'false';
+        if (!activo && !desactivar) {
+            return res.status(400).json({
+                success: false,
+                message: 'Indica si el proceso queda activo o desactivado.'
+            });
+        }
+        if (activo && !esSuperAdmin) {
+            return res.status(403).json({
+                success: false,
+                message: 'Sergio solo puede desactivar un proceso. El super administrador es quien puede activarlo de nuevo.'
+            });
+        }
+
+        await poolBiznagaSgcReady;
+        const payload = await sgcDgF07Service.actualizarVisibilidadProceso(
+            poolBiznagaSgc,
+            req.body?.slug,
+            activo
+        );
+        return res.json({
+            success: true,
+            message: activo ? 'Proceso activado.' : 'Proceso desactivado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo actualizar la visibilidad del proceso DG-F-07');
+    }
+});
+
 app.post('/api/sgc/formatos/dg-f-07/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;

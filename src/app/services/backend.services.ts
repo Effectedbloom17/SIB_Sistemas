@@ -4252,6 +4252,13 @@ export class BackendServices {
         });
     }
 
+    actualizarVisibilidadDgF07(slug: string, activo: boolean): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/dg-f-07/visibilidad`, {
+            slug,
+            activo
+        });
+    }
+
     sincronizarDgF07DesdeDrive(): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/dg-f-07/sincronizar-drive`, {});
     }

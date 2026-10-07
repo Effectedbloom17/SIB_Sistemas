@@ -13624,7 +13624,7 @@
             <ng-container *ngSwitchCase="'dg-f-07'">
               <form class="dg-f05-form" (ngSubmit)="$event.preventDefault()"
                     (input)="onDgF07Editado()" (change)="onDgF07Editado()"
-                    *ngIf="dgF07FormMontado && dgF07FormActivo as proc">
+                    *ngIf="dgF07FormMontado">
                 <div class="dg-f07-doc-wrap" [class.dg-f07-doc-wrap--loading]="dgF07Cargando">
                   <div class="dg-f05-loading" *ngIf="dgF07Cargando" role="status">
                     <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
@@ -13647,7 +13647,7 @@
                           [attr.aria-expanded]="dgF07PanelBusquedaAbierto && !!dgF07Busqueda.trim()">
                       </label>
                       <p class="dg-f07-nav__hint" *ngIf="dgF07PanelBusquedaAbierto && !dgF07Busqueda.trim()" role="status">
-                        Escribe el nombre de la hoja (p. ej. «auditoría», «gestión de calidad»). {{ dgF07Procesos.length }} procesos disponibles.
+                        Escribe el nombre de la hoja (p. ej. «auditoría», «gestión de calidad»). {{ dgF07ProcesosVisibles.length }} procesos disponibles.
                       </p>
                       <div class="dg-f07-nav__results-panel"
                            *ngIf="dgF07PanelBusquedaAbierto && dgF07Busqueda.trim()">
@@ -13676,6 +13676,8 @@
                                 <span class="dg-f07-nav__result-label">{{ p.etiqueta }}</span>
                                 <span class="dg-f07-nav__result-meta">{{ p.nombreProceso }}</span>
                               </span>
+                              <span class="dg-f07-nav__result-badge dg-f07-nav__result-badge--off"
+                                    *ngIf="!procesoDgF07Activo(p.slug)">Desactivado</span>
                               <span class="dg-f07-nav__result-badge"
                                     *ngIf="p.slug === dgF07ProcesoActivoSlug">Actual</span>
                               <i class="fas fa-chevron-right dg-f07-nav__result-arrow" aria-hidden="true"></i>
@@ -13695,11 +13697,13 @@
                     </div>
 
                     <div class="dg-f07-nav__scroll" #dgF07TabsScroll>
-                      <button *ngFor="let p of dgF07Procesos; trackBy: trackByDgF07Slug"
+                      <button *ngFor="let p of dgF07ProcesosVisibles; trackBy: trackByDgF07Slug"
                               type="button"
                               role="tab"
                               class="dg-f07-nav__tab"
+                              [ngClass]="claseColorProcesoDgF07(p.slug)"
                               [class.dg-f07-nav__tab--active]="p.slug === dgF07ProcesoActivoSlug"
+                              [class.dg-f07-nav__tab--off]="!procesoDgF07Activo(p.slug)"
                               [attr.aria-selected]="p.slug === dgF07ProcesoActivoSlug"
                               (click)="seleccionarProcesoDgF07(p.slug)">
                         {{ p.etiqueta }}
@@ -13707,18 +13711,31 @@
                     </div>
                   </nav>
 
-                  <article class="dg-f05-doc dg-f07-doc">
+                  <article class="dg-f05-doc dg-f07-doc" *ngIf="dgF07FormActivo as proc">
                     <header class="dg-f05-doc__header">
                       <span class="dg-f05-doc__code">DG-F-07</span>
                       <h3 class="dg-f05-doc__title">Caracterización de procesos</h3>
                     </header>
 
-                    <div class="sgc-f-11-matriz__intro">
+                    <div class="sgc-f-11-matriz__intro dg-f07-intro">
                       <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-sitemap" aria-hidden="true"></i></div>
                       <div>
                         <h4 class="sgc-f-11-matriz__title">Caracterización del proceso</h4>
                         <p class="sgc-f-11-matriz__hint">Objetivo, entradas y salidas, recursos, criterios y métodos e indicadores que describen cada proceso.</p>
                       </div>
+                      <ng-container *ngIf="dgF07ProcesoActivoDef as actual">
+                        <button *ngIf="puedeDesactivarProcesoDgF07(actual.slug) || puedeActivarProcesoDgF07(actual.slug)"
+                                type="button"
+                                class="dg-f07-vis-btn"
+                                [class.dg-f07-vis-btn--on]="!procesoDgF07Activo(actual.slug)"
+                                [disabled]="dgF07VisibilidadGuardandoSlug === actual.slug"
+                                (click)="alternarVisibilidadProcesoDgF07(actual, $event)">
+                          <i class="fas fa-spinner fa-spin" *ngIf="dgF07VisibilidadGuardandoSlug === actual.slug" aria-hidden="true"></i>
+                          <i class="fas fa-eye-slash" *ngIf="dgF07VisibilidadGuardandoSlug !== actual.slug && procesoDgF07Activo(actual.slug)" aria-hidden="true"></i>
+                          <i class="fas fa-eye" *ngIf="dgF07VisibilidadGuardandoSlug !== actual.slug && !procesoDgF07Activo(actual.slug)" aria-hidden="true"></i>
+                          {{ procesoDgF07Activo(actual.slug) ? 'Desactivar' : 'Activar' }}
+                        </button>
+                      </ng-container>
                     </div>
 
                     <div class="dg-f07-doc__body">
@@ -13811,6 +13828,9 @@
                       </section>
                     </div>
                   </article>
+                  <p class="dg-f07-nav__empty-state" *ngIf="!dgF07Cargando && !dgF07FormActivo" role="status">
+                    No hay procesos activos. El super administrador puede volver a activarlos.
+                  </p>
                 </div>
               </form>
             </ng-container>

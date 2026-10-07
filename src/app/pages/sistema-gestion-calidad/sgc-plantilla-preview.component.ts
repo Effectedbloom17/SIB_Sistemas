@@ -3412,6 +3412,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   ];
   readonly dgF07Procesos = DG_F07_PROCESOS;
   dgF07ProcesoActivoSlug = DG_F07_PROCESOS[0]?.slug ?? '';
+  dgF07ProcesosDesactivados = new Set<string>();
+  dgF07VisibilidadGuardandoSlug: string | null = null;
   dgF07Forms: Record<string, DgF07ProcesoForm> = this.crearDgF07Forms();
   dgF07Busqueda = '';
   dgF07PanelBusquedaAbierto = false;
@@ -4373,12 +4375,85 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return this.dgF07Forms[this.dgF07ProcesoActivoSlug] ?? null;
   }
 
+  /** Super administrador (root): activa y desactiva procesos de DG-F-07. */
+  get esSuperAdminDgF07(): boolean {
+    return this.authService.esRoot();
+  }
+
+  /** Perfil Calidad (Sergio): solo puede desactivar procesos de DG-F-07. */
+  get esSergioDgF07(): boolean {
+    const username = String(this.authService.getUsername() || '').toLowerCase().trim();
+    return username === 'sergio56' || username === 'calidad';
+  }
+
+  procesoDgF07Activo(slug: string): boolean {
+    return !this.dgF07ProcesosDesactivados.has(slug);
+  }
+
+  puedeVerProcesoDgF07(slug: string): boolean {
+    return this.esSuperAdminDgF07 || this.procesoDgF07Activo(slug);
+  }
+
+  puedeDesactivarProcesoDgF07(slug: string): boolean {
+    return this.procesoDgF07Activo(slug) && (this.esSuperAdminDgF07 || this.esSergioDgF07);
+  }
+
+  puedeActivarProcesoDgF07(slug: string): boolean {
+    return !this.procesoDgF07Activo(slug) && this.esSuperAdminDgF07;
+  }
+
+  get dgF07ProcesosVisibles(): DgF07ProcesoDef[] {
+    return this.dgF07Procesos.filter((p) => this.puedeVerProcesoDgF07(p.slug));
+  }
+
+  get dgF07ProcesoActivoDef(): DgF07ProcesoDef | null {
+    return this.dgF07Procesos.find((p) => p.slug === this.dgF07ProcesoActivoSlug) ?? null;
+  }
+
+  private readonly dgF07ColorMapa = new Map<string, 'gestion' | 'clave' | 'contexto' | 'soporte'>([
+    ['planeacion-estrategica', 'gestion'],
+    ['liderazgo', 'gestion'],
+    ['seg-med-an-y-eval', 'gestion'],
+    ['satisfaccion-del-cliente', 'gestion'],
+    ['auditoria-interna', 'gestion'],
+    ['nc-y-ac', 'gestion'],
+    ['revision-por-la-dir', 'gestion'],
+    ['mejora-continua', 'gestion'],
+    ['cotizacion', 'clave'],
+    ['contrato', 'clave'],
+    ['pago-y-facturacion', 'clave'],
+    ['planeacion', 'clave'],
+    ['consul-estrategica', 'clave'],
+    ['cap-empresarial', 'clave'],
+    ['tramites', 'clave'],
+    ['medicion-tierras-fisicas', 'clave'],
+    ['verificacion-ruido', 'clave'],
+    ['verificacion-iluminacion', 'clave'],
+    ['salud-ocupacional', 'clave'],
+    ['proteccion-civil', 'clave'],
+    ['control-de-documentos', 'contexto'],
+    ['comunicacion', 'contexto'],
+    ['ambiente-para-la-opera', 'contexto'],
+    ['toma-de-conciencia', 'contexto'],
+    ['conocimientos-de-la-org', 'contexto'],
+    ['recursos-de-medicion', 'contexto'],
+    ['proveeduria-externa', 'soporte'],
+    ['reclutamiento-sel-y-cont', 'soporte'],
+    ['competencia-y-cap', 'soporte'],
+    ['manto-infraestructura', 'soporte']
+  ]);
+
+  claseColorProcesoDgF07(slug: string): string {
+    const grupo = this.dgF07ColorMapa.get(slug);
+    return grupo ? `dg-f07-nav__tab--${grupo}` : '';
+  }
+
   get dgF07ProcesosBusqueda(): DgF07ProcesoDef[] {
     const q = this.normalizarBusquedaDgF07(this.dgF07Busqueda);
     if (!q) {
       return [];
     }
-    return this.dgF07Procesos.filter(p => this.coincideBusquedaDgF07(p, q));
+    return this.dgF07ProcesosVisibles.filter(p => this.coincideBusquedaDgF07(p, q));
   }
 
   get esFormatoTablaSgc(): boolean {
@@ -24074,10 +24149,89 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   seleccionarProcesoDgF07(slug: string): void {
+    if (!this.puedeVerProcesoDgF07(slug)) {
+      return;
+    }
     this.dgF07ProcesoActivoSlug = slug;
     this.dgF07Busqueda = '';
     this.dgF07PanelBusquedaAbierto = false;
     window.setTimeout(() => this.scrollDgF07TabActivo(), 0);
+  }
+
+  async alternarVisibilidadProcesoDgF07(proceso: DgF07ProcesoDef, event: Event): Promise<void> {
+    event.preventDefault();
+    event.stopPropagation();
+    const activo = this.procesoDgF07Activo(proceso.slug);
+    if (activo && !this.puedeDesactivarProcesoDgF07(proceso.slug)) {
+      return;
+    }
+    if (!activo && !this.puedeActivarProcesoDgF07(proceso.slug)) {
+      return;
+    }
+    if (this.dgF07VisibilidadGuardandoSlug) {
+      return;
+    }
+
+    const confirmacion = await Swal.fire({
+      icon: 'question',
+      title: activo ? 'Desactivar proceso' : 'Activar proceso',
+      text: activo
+        ? `«${proceso.etiqueta}» dejará de mostrarse. Solo el super administrador puede volver a activarlo.`
+        : `«${proceso.etiqueta}» volverá a mostrarse para quien trabaje el formato.`,
+      showCancelButton: true,
+      confirmButtonText: activo ? 'Desactivar' : 'Activar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: activo ? '#b45309' : '#15a596'
+    });
+    if (!confirmacion.isConfirmed) {
+      return;
+    }
+
+    this.dgF07VisibilidadGuardandoSlug = proceso.slug;
+    this.backendService.actualizarVisibilidadDgF07(proceso.slug, !activo)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.dgF07VisibilidadGuardandoSlug = null;
+          if (!res?.success) {
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo actualizar',
+              text: res?.message || 'Intente de nuevo.',
+              confirmButtonColor: '#15a596'
+            });
+            return;
+          }
+          this.aplicarProcesosDesactivadosDgF07(res.procesosDesactivados);
+        },
+        error: (err) => {
+          this.dgF07VisibilidadGuardandoSlug = null;
+          const mensaje = err?.error?.message || 'Intente de nuevo.';
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo actualizar',
+            text: mensaje,
+            confirmButtonColor: '#15a596'
+          });
+        }
+      });
+  }
+
+  private aplicarProcesosDesactivadosDgF07(lista: unknown): void {
+    const slugs = new Set(
+      (Array.isArray(lista) ? lista : [])
+        .map((item) => String(item || '').trim())
+        .filter((slug) => this.dgF07Procesos.some((p) => p.slug === slug))
+    );
+    this.dgF07ProcesosDesactivados = slugs;
+    this.asegurarProcesoVisibleDgF07();
+  }
+
+  private asegurarProcesoVisibleDgF07(): void {
+    if (this.dgF07ProcesoActivoSlug && this.puedeVerProcesoDgF07(this.dgF07ProcesoActivoSlug)) {
+      return;
+    }
+    this.dgF07ProcesoActivoSlug = this.dgF07ProcesosVisibles[0]?.slug ?? '';
   }
 
   abrirBusquedaDgF07(): void {
@@ -25351,6 +25505,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.dgF07Listo = false;
       this.dgF07FormMontado = false;
       this.dgF07Forms = this.procesosDesdeServidorDgF07(res.datos.procesos);
+    }
+
+    if (res.datos && Object.prototype.hasOwnProperty.call(res.datos, 'procesosDesactivados')) {
+      this.aplicarProcesosDesactivadosDgF07(res.datos.procesosDesactivados);
     }
 
     const nuevoDriveId = res.driveFileId || null;

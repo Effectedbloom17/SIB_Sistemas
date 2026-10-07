@@ -140,6 +140,19 @@ function sanitizarProceso(raw) {
     };
 }
 
+function sanitizarProcesosDesactivados(raw) {
+    const lista = Array.isArray(raw) ? raw : [];
+    const vistos = new Set();
+    const salida = [];
+    for (const item of lista) {
+        const slug = String(item || '').trim();
+        if (!SHEET_BY_SLUG[slug] || vistos.has(slug)) continue;
+        vistos.add(slug);
+        salida.push(slug);
+    }
+    return salida;
+}
+
 function sanitizarDatos(raw) {
     const base = raw && typeof raw === 'object' ? raw : {};
     const fuente = base.procesos && typeof base.procesos === 'object' ? base.procesos : base;
@@ -147,7 +160,23 @@ function sanitizarDatos(raw) {
     for (const { slug } of PROCESOS_MAP) {
         procesos[slug] = sanitizarProceso(fuente[slug] || {});
     }
-    return { procesos };
+    const resultado = { procesos };
+    if (Object.prototype.hasOwnProperty.call(base, 'procesosDesactivados')) {
+        resultado.procesosDesactivados = sanitizarProcesosDesactivados(base.procesosDesactivados);
+    }
+    return resultado;
+}
+
+function leerProcesosDesactivadosDeRegistro(registro) {
+    if (!registro?.datos_json) return [];
+    try {
+        const parsed = typeof registro.datos_json === 'string'
+            ? JSON.parse(registro.datos_json)
+            : registro.datos_json;
+        return sanitizarProcesosDesactivados(parsed?.procesosDesactivados);
+    } catch {
+        return [];
+    }
 }
 
 function parsearProcesoDesdeHoja(ws) {
@@ -533,9 +562,11 @@ async function crearHistorialMensualDrive(spreadsheetId, datos) {
 
 function construirRespuesta(registro, datos, archivoDrive) {
     const driveId = archivoDrive?.id || registro?.drive_file_id || null;
+    const datosRespuesta = datos && typeof datos === 'object' ? { ...datos } : {};
+    datosRespuesta.procesosDesactivados = leerProcesosDesactivadosDeRegistro(registro);
     return {
         codigo: CODIGO_FORMATO,
-        datos,
+        datos: datosRespuesta,
         fechaElaboracionOriginal: null,
         fechaModificacionContenido: null,
         contenidoModificado: !!registro?.contenido_modificado,
@@ -551,7 +582,46 @@ async function obtenerRegistroDb(pool) {
 }
 
 async function guardarRegistroDb(pool, payload) {
-    await persistirRegistroSgc(pool, CODIGO_FORMATO, payload);
+    const incoming = payload?.datos && typeof payload.datos === 'object' ? payload.datos : {};
+    let procesosDesactivados;
+    if (Object.prototype.hasOwnProperty.call(incoming, 'procesosDesactivados')) {
+        procesosDesactivados = sanitizarProcesosDesactivados(incoming.procesosDesactivados);
+    } else {
+        const registro = await obtenerRegistroDb(pool);
+        procesosDesactivados = leerProcesosDesactivadosDeRegistro(registro);
+    }
+    const datos = sanitizarDatos(incoming);
+    datos.procesosDesactivados = procesosDesactivados;
+    await persistirRegistroSgc(pool, CODIGO_FORMATO, { ...payload, datos });
+}
+
+async function actualizarVisibilidadProceso(pool, slug, activo) {
+    const slugLimpio = String(slug || '').trim();
+    if (!SHEET_BY_SLUG[slugLimpio]) {
+        const error = new Error('Proceso no reconocido.');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const registro = await obtenerRegistroDb(pool);
+    const datos = await leerDatosRegistro(registro) || sanitizarDatos({});
+    const desactivados = new Set(leerProcesosDesactivadosDeRegistro(registro));
+    if (activo) {
+        desactivados.delete(slugLimpio);
+    } else {
+        desactivados.add(slugLimpio);
+    }
+    const procesosDesactivados = sanitizarProcesosDesactivados([...desactivados]);
+
+    await guardarRegistroDb(pool, {
+        driveFileId: registro?.drive_file_id || null,
+        datos: { ...datos, procesosDesactivados },
+        fechaElaboracionOriginal: registro?.fecha_elaboracion_original || null,
+        fechaModificacionContenido: registro?.fecha_modificacion_contenido || null,
+        contenidoModificado: !!registro?.contenido_modificado
+    });
+
+    return { procesosDesactivados };
 }
 
 async function resolverDriveFileId(registro) {
@@ -577,7 +647,9 @@ async function leerDatosRegistro(registro) {
 }
 
 function datosSonEquivalentes(a, b) {
-    return JSON.stringify(sanitizarDatos(a)) === JSON.stringify(sanitizarDatos(b));
+    const sa = sanitizarDatos(a);
+    const sb = sanitizarDatos(b);
+    return JSON.stringify(sa.procesos) === JSON.stringify(sb.procesos);
 }
 
 function procesoTieneContenido(proceso) {
@@ -929,6 +1001,7 @@ module.exports = {
     SHEET_BY_SLUG,
     cargarFormato,
     guardarFormato,
+    actualizarVisibilidadProceso,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
     descargarPlantillaPdf,
