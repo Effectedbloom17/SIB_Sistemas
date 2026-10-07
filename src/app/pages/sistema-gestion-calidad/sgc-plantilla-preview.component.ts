@@ -3379,11 +3379,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private dgF01ImagenRespaldoUrl: string | null = null;
   dgF01HistorialPdfs: DgF02PdfFirmado[] = [];
   mostrarDgF01PdfViewer = false;
-  dgF01PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   dgF01PdfCargando = false;
   dgF01PdfViewerTitulo = 'DG-F-01 Mapa de procesos.pdf';
-  dgF01PdfVistaUrlSafe: SafeResourceUrl | null = null;
+  dgF01PdfEmbedBlob: Blob | null = null;
+  dgF01PdfEmbedError: string | null = null;
+  dgF01PdfVistaBlob: Blob | null = null;
   dgF01PdfVistaCargando = false;
+  dgF01PdfVistaError: string | null = null;
+  private dgF01PdfVistaId: string | null = null;
+  private dgF01PdfEmbedId: string | null = null;
+  private dgF01PdfVistaSeq = 0;
+  private dgF01PdfEmbedSeq = 0;
 
   dgF02Cargando = false;
   dgF02Guardando = false;
@@ -22560,60 +22566,132 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   toggleDgF01PdfViewer(pdf?: DgF02PdfFirmado | null): void {
     if (this.mostrarDgF01PdfViewer && !pdf) {
-      document.documentElement.style.overflow = '';
-      document.body.style.overflow = '';
-      this.mostrarDgF01PdfViewer = false;
-      this.dgF01PdfEmbedUrlSafe = null;
-      this.dgF01PdfCargando = false;
+      this.cerrarVisorPdfDgF01();
       return;
     }
 
     const objetivo = pdf || this.dgF01Form.pdfFirmado;
-    const id = objetivo?.driveFileId;
+    const id = String(objetivo?.driveFileId || '').trim();
     if (!id) {
       return;
     }
 
-    const mismoArchivo = this.mostrarDgF01PdfViewer
-      && this.dgF01PdfViewerTitulo === (objetivo?.nombreArchivo || 'DG-F-01 Mapa de procesos.pdf');
-    if (mismoArchivo) {
-      document.documentElement.style.overflow = '';
-      document.body.style.overflow = '';
-      this.mostrarDgF01PdfViewer = false;
-      this.dgF01PdfEmbedUrlSafe = null;
-      this.dgF01PdfCargando = false;
+    if (this.mostrarDgF01PdfViewer && this.dgF01PdfEmbedId === id) {
+      this.cerrarVisorPdfDgF01();
       return;
     }
 
     this.mostrarDgF01PdfViewer = true;
-    this.dgF01PdfCargando = true;
     this.dgF01PdfViewerTitulo = objetivo?.nombreArchivo || 'DG-F-01 Mapa de procesos.pdf';
-    const url = `https://drive.google.com/file/d/${id}/preview`;
-    this.dgF01PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    this.dgF01PdfEmbedError = null;
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
-  }
 
-  onDgF01PdfIframeLoad(): void {
-    this.dgF01PdfCargando = false;
-  }
-
-  onDgF01PdfVistaLoad(): void {
-    this.dgF01PdfVistaCargando = false;
-  }
-
-  private actualizarVistaPdfDgF01(): void {
-    const id = this.dgF01Form.pdfFirmado?.driveFileId;
-    if (!id) {
-      this.dgF01PdfVistaUrlSafe = null;
-      this.dgF01PdfVistaCargando = false;
+    if (id === this.dgF01PdfVistaId && this.dgF01PdfVistaBlob) {
+      this.dgF01PdfEmbedId = id;
+      this.dgF01PdfEmbedBlob = this.dgF01PdfVistaBlob;
+      this.dgF01PdfCargando = false;
       return;
     }
 
-    const preview = this.dgF01Form.pdfFirmado?.previewUrl
-      || `https://drive.google.com/file/d/${id}/preview`;
-    this.dgF01PdfVistaCargando = true;
-    this.dgF01PdfVistaUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(preview);
+    this.cargarPdfDgF01(id, 'visor');
+  }
+
+  onDgF01PdfVistaFallo(mensaje: string): void {
+    this.dgF01PdfVistaError = mensaje || 'No se pudo mostrar el PDF firmado.';
+    this.dgF01PdfVistaCargando = false;
+  }
+
+  onDgF01PdfEmbedFallo(mensaje: string): void {
+    this.dgF01PdfEmbedError = mensaje || 'No se pudo mostrar el PDF firmado.';
+    this.dgF01PdfCargando = false;
+  }
+
+  private cerrarVisorPdfDgF01(): void {
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    this.mostrarDgF01PdfViewer = false;
+    this.dgF01PdfEmbedBlob = null;
+    this.dgF01PdfEmbedId = null;
+    this.dgF01PdfEmbedError = null;
+    this.dgF01PdfCargando = false;
+    this.dgF01PdfEmbedSeq++;
+  }
+
+  private actualizarVistaPdfDgF01(): void {
+    const id = String(this.dgF01Form.pdfFirmado?.driveFileId || '').trim();
+    if (!id) {
+      this.dgF01PdfVistaSeq++;
+      this.dgF01PdfVistaBlob = null;
+      this.dgF01PdfVistaId = null;
+      this.dgF01PdfVistaCargando = false;
+      this.dgF01PdfVistaError = null;
+      return;
+    }
+    if (id === this.dgF01PdfVistaId && (this.dgF01PdfVistaBlob || this.dgF01PdfVistaCargando)) {
+      return;
+    }
+    this.cargarPdfDgF01(id, 'vista');
+  }
+
+  private cargarPdfDgF01(driveFileId: string, destino: 'vista' | 'visor'): void {
+    const seq = destino === 'vista' ? ++this.dgF01PdfVistaSeq : ++this.dgF01PdfEmbedSeq;
+    if (destino === 'vista') {
+      this.dgF01PdfVistaId = driveFileId;
+      this.dgF01PdfVistaBlob = null;
+      this.dgF01PdfVistaError = null;
+      this.dgF01PdfVistaCargando = true;
+    } else {
+      this.dgF01PdfEmbedId = driveFileId;
+      this.dgF01PdfEmbedBlob = null;
+      this.dgF01PdfEmbedError = null;
+      this.dgF01PdfCargando = true;
+    }
+
+    this.backendService.obtenerPdfDgF01(driveFileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          const vigente = destino === 'vista' ? seq === this.dgF01PdfVistaSeq : seq === this.dgF01PdfEmbedSeq;
+          if (!vigente) {
+            return;
+          }
+          const tipo = String(blob?.type || '');
+          if (tipo.includes('json') || tipo.includes('html')) {
+            this.marcarFalloPdfDgF01(destino, 'No se pudo abrir el PDF firmado.');
+            return;
+          }
+          const pdfBlob = tipo.includes('pdf')
+            ? blob
+            : new Blob([blob], { type: 'application/pdf' });
+          if (destino === 'vista') {
+            this.dgF01PdfVistaBlob = pdfBlob;
+            this.dgF01PdfVistaCargando = false;
+          } else {
+            this.dgF01PdfEmbedBlob = pdfBlob;
+            this.dgF01PdfCargando = false;
+          }
+        },
+        error: () => {
+          const vigente = destino === 'vista' ? seq === this.dgF01PdfVistaSeq : seq === this.dgF01PdfEmbedSeq;
+          if (!vigente) {
+            return;
+          }
+          this.marcarFalloPdfDgF01(destino, 'No se pudo cargar el PDF firmado. Reinicia el sistema e inténtalo de nuevo.');
+        }
+      });
+  }
+
+  private marcarFalloPdfDgF01(destino: 'vista' | 'visor', mensaje: string): void {
+    if (destino === 'vista') {
+      this.dgF01PdfVistaBlob = null;
+      this.dgF01PdfVistaError = mensaje;
+      this.dgF01PdfVistaCargando = false;
+      return;
+    }
+    this.dgF01PdfEmbedBlob = null;
+    this.dgF01PdfEmbedError = mensaje;
+    this.dgF01PdfCargando = false;
   }
 
   toggleDgF02PdfViewer(pdf?: DgF02PdfFirmado | null): void {

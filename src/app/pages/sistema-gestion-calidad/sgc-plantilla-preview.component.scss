@@ -1122,6 +1122,15 @@ $dg-f02-doc-border: rgba(148, 163, 184, 0.28);
   background: #fff;
 }
 
+.dg-f01-pdf-empty--fill {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: #f8fafc;
+}
+
 .dg-f01-pdf-empty {
   display: flex;
   flex-direction: column;

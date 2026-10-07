@@ -3032,21 +3032,22 @@
                     </div>
 
                     <div class="dg-f01-body">
-                      <div class="dg-f01-pdf-viewer" *ngIf="dgF01PdfVistaUrlSafe as pdfUrl">
-                        <div class="dg-f01-pdf-loading" *ngIf="dgF01PdfVistaCargando" role="status">
-                          <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                          <span>Cargando PDF…</span>
+                      <div class="dg-f01-pdf-viewer" *ngIf="dgF01Form.pdfFirmado?.driveFileId">
+                        <app-pdf-canvas-viewer
+                          *ngIf="!dgF01PdfVistaError"
+                          [blob]="dgF01PdfVistaBlob"
+                          [preparando]="dgF01PdfVistaCargando && !dgF01PdfVistaBlob"
+                          etiquetaServidor="Cargando mapa de procesos…"
+                          tema="claro"
+                          (fallo)="onDgF01PdfVistaFallo($event)">
+                        </app-pdf-canvas-viewer>
+                        <div class="dg-f01-pdf-empty dg-f01-pdf-empty--fill" *ngIf="dgF01PdfVistaError" role="alert">
+                          <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                          <p class="mb-0">{{ dgF01PdfVistaError }}</p>
                         </div>
-                        <iframe
-                          class="dg-f01-pdf-iframe"
-                          [src]="pdfUrl"
-                          [title]="dgF01Form.pdfFirmado?.nombreArchivo || 'DG-F-01 Mapa de procesos.pdf'"
-                          loading="lazy"
-                          (load)="onDgF01PdfVistaLoad()">
-                        </iframe>
                       </div>
 
-                      <div class="dg-f01-pdf-empty" *ngIf="!dgF01Cargando && !dgF01PdfVistaUrlSafe" role="status">
+                      <div class="dg-f01-pdf-empty" *ngIf="!dgF01Cargando && !dgF01Form.pdfFirmado?.driveFileId" role="status">
                         <i class="fas fa-file-pdf" aria-hidden="true"></i>
                         <p class="mb-0">Aún no hay un PDF firmado. Súbelo en «Versión firmada» para verlo aquí.</p>
                       </div>
@@ -17970,17 +17971,17 @@
       </button>
     </div>
     <div class="sgc-drive-editor-fullscreen__body">
-      <div class="sgc-drive-editor-fullscreen__loading" *ngIf="dgF01PdfCargando">
-        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-        <span>Cargando PDF…</span>
+      <app-pdf-canvas-viewer
+        *ngIf="!dgF01PdfEmbedError"
+        [blob]="dgF01PdfEmbedBlob"
+        [preparando]="dgF01PdfCargando && !dgF01PdfEmbedBlob"
+        etiquetaServidor="Cargando mapa de procesos…"
+        tema="oliva"
+        (fallo)="onDgF01PdfEmbedFallo($event)">
+      </app-pdf-canvas-viewer>
+      <div class="sgc-drive-editor-fullscreen__loading" *ngIf="dgF01PdfEmbedError">
+        <span>{{ dgF01PdfEmbedError }}</span>
       </div>
-      <iframe *ngIf="dgF01PdfEmbedUrlSafe"
-        class="sgc-drive-editor-fullscreen__iframe"
-        [src]="dgF01PdfEmbedUrlSafe"
-        [title]="dgF01PdfViewerTitulo"
-        (load)="onDgF01PdfIframeLoad()"
-        allow="autoplay">
-      </iframe>
     </div>
   </div>
 </div>

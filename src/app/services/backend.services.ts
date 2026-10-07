@@ -2434,6 +2434,14 @@ export class BackendServices {
         });
     }
 
+    obtenerPdfDgF01(driveFileId?: string | null): Observable<Blob> {
+        const id = String(driveFileId || '').trim();
+        const query = id ? `?driveFileId=${encodeURIComponent(id)}` : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/dg-f-01/pdf${query}`, {
+            responseType: 'blob'
+        });
+    }
+
     obtenerImagenDgF01Mapa(version?: number | string | null): Observable<Blob> {
         const query = version != null && version !== '' ? `?v=${encodeURIComponent(String(version))}` : '';
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/dg-f-01/imagen${query}`, {

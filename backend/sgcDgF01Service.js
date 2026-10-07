@@ -708,6 +708,47 @@ async function subirPdfFirmado(pool, body) {
     return { ...construirRespuesta(registro, datosGuardar, historialPdfs), pdfFirmado };
 }
 
+/** PDF del formato, descargado con la cuenta de Drive del sistema (el iframe de Drive pide acceso). */
+async function obtenerPdfFirmadoBuffer(pool, driveFileIdSolicitado) {
+    const registro = await obtenerRegistroDb(pool);
+    const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+    const historialDrive = await listarPdfsHistorialDrive().catch(() => []);
+    const candidatos = [
+        datos.pdfFirmado,
+        ...(Array.isArray(datos.pdfsHistorial) ? datos.pdfsHistorial : []),
+        ...historialDrive
+    ].filter(Boolean);
+
+    const permitidos = new Map();
+    candidatos.forEach((pdf) => {
+        const id = String(pdf.driveFileId || '').trim();
+        if (id && !permitidos.has(id)) {
+            permitidos.set(id, pdf);
+        }
+    });
+
+    const solicitado = String(driveFileIdSolicitado || '').trim();
+    const id = solicitado || String(datos.pdfFirmado?.driveFileId || historialDrive[0]?.driveFileId || '').trim();
+    if (!id || !permitidos.has(id)) {
+        const error = new Error('No hay un PDF firmado disponible para este formato.');
+        error.statusCode = 404;
+        throw error;
+    }
+
+    const buffer = await driveService.descargarArchivo(id);
+    if (!buffer || buffer.length < 5 || buffer.slice(0, 5).toString('ascii') !== '%PDF-') {
+        const error = new Error('El archivo en Drive no es un PDF válido.');
+        error.statusCode = 422;
+        throw error;
+    }
+
+    const meta = permitidos.get(id);
+    const nombre = String(meta?.nombreArchivo || NOMBRE_PDF_ARCHIVO)
+        .replace(/[\\/]/g, '-')
+        .replace(/"/g, '');
+    return { buffer, nombreArchivo: nombre || NOMBRE_PDF_ARCHIVO };
+}
+
 async function eliminarPdfHistorial(pool, body, opciones = {}) {
     if (!opciones.puedeBorrarHistorial) {
         throw new Error('No autorizado para eliminar PDFs del historial.');
@@ -761,5 +802,6 @@ module.exports = {
     subirPdfFirmado,
     eliminarPdfHistorial,
     obtenerImagenMapaBuffer,
+    obtenerPdfFirmadoBuffer,
     sanitizarDatos
 };

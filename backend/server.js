@@ -26759,6 +26759,23 @@ app.get('/api/sgc/formatos/dg-f-01', requireAdminOrSgc, async (req, res) => {
     }
 });
 
+app.get('/api/sgc/formatos/dg-f-01/pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
+        const { buffer, nombreArchivo } = await sgcDgF01Service.obtenerPdfFirmadoBuffer(
+            poolBiznagaSgc,
+            req.query.driveFileId
+        );
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${nombreArchivo}"`);
+        res.setHeader('Cache-Control', 'private, max-age=60');
+        return res.send(buffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo obtener el PDF firmado del mapa de procesos DG-F-01');
+    }
+});
+
 app.get('/api/sgc/formatos/dg-f-01/imagen', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
