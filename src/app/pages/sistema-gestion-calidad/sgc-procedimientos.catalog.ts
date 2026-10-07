@@ -56,7 +56,7 @@ export const SGC_PROCEDIMIENTOS_CATEGORIAS: SgcProcedimientoCategoria[] = [
   {
     id: 'sp',
     prefijo: 'SP',
-    titulo: 'Servicios Profesionales',
+    titulo: 'Seguimiento a Proyectos',
     descripcion: 'Consultoría, capacitación, trámites, protección civil y salud integral.',
     iconClass: 'fas fa-briefcase',
     colorInicio: '#d97706',

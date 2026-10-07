@@ -753,7 +753,7 @@
                             </span>
                           </div>
                         </div>
-                        <h3 class="cp-gestion-proj__name">{{ grupo.nombreProyecto }}</h3>
+                        <h3 class="cp-gestion-proj__name" [title]="grupo.nombreProyecto">{{ grupo.nombreProyecto }}</h3>
                         <div class="cp-gestion-proj__meta">
                           <span><i class="fas fa-user"></i> {{ r.responsable }}</span>
                           <span><i class="fas fa-calendar"></i> {{ r.fechaCompromiso ? formatearFechaProyecto(r.fechaCompromiso) : 'Sin fecha' }}</span>
@@ -833,6 +833,17 @@
                       </div>
                     </ng-container>
                     <div class="cp-gestion-detail-panel__actions" *ngIf="!esConsultaEmpresa">
+                      <button
+                        type="button"
+                        class="cp-icon-action"
+                        (click)="abrirHistorialProyectoGestion(grupo, $event)"
+                        [disabled]="guardandoGestion || guardandoActividadGestion"
+                        aria-label="Historial de versiones del proyecto"
+                        title="Historial y recuperar versión anterior"
+                      >
+                        <i class="fas fa-history"></i>
+                        <span class="cp-icon-action__label">Historial</span>
+                      </button>
                       <button
                         type="button"
                         class="cp-icon-action cp-icon-action--danger"
@@ -1105,7 +1116,7 @@
                               <td class="cp-gestion-act-table__act-cell">
                                 <div
                                   class="cp-gestion-flyout"
-                                  *ngIf="esSuperAdministrador || puedeEliminarActividadGestion(item.proyecto)"
+                                  *ngIf="mostrarMenuAccionesFila(item.proyecto)"
                                   [class.is-open]="menuAccionesFilaAbierto(item.indice)"
                                   (mouseenter)="abrirMenuAccionesFila(item.indice, $event)"
                                   (mouseleave)="cerrarMenuAccionesFila(item.indice)"
@@ -1128,6 +1139,17 @@
                                     (mouseenter)="abrirMenuAccionesFila(item.indice)"
                                     (mouseleave)="cerrarMenuAccionesFila(item.indice)"
                                   >
+                                    <button
+                                      type="button"
+                                      class="cp-gestion-flyout__btn"
+                                      role="menuitem"
+                                      *ngIf="item.proyecto.id"
+                                      (click)="abrirHistorialActividadGestion($event, item)"
+                                      title="Historial y recuperar versión anterior de esta actividad"
+                                    >
+                                      <i class="fas fa-history" aria-hidden="true"></i>
+                                      <span>Historial</span>
+                                    </button>
                                     <button
                                       type="button"
                                       class="cp-gestion-flyout__btn"
@@ -2224,20 +2246,34 @@
   role="dialog"
   aria-modal="true"
   aria-labelledby="cp-actividad-panel-title"
+  [class.cp-actividad-panel--proyecto]="panelModo === 'proyecto'"
 >
   <header class="cp-actividad-panel__head">
     <div class="cp-actividad-panel__head-text">
-      <p class="cp-actividad-panel__eyebrow">Actividad gestionada</p>
+      <p class="cp-actividad-panel__eyebrow">
+        {{ panelModo === 'proyecto' ? 'Historial del proyecto' : 'Actividad gestionada' }}
+      </p>
       <h2 id="cp-actividad-panel-title" class="cp-actividad-panel__title">
-        {{ panel.proyecto.actividadesAccion || 'Actividad sin nombre' }}
+        <ng-container *ngIf="panelModo === 'proyecto'; else tituloActividadPanel">
+          {{ panelProyectoNombre || 'Proyecto' }}
+        </ng-container>
+        <ng-template #tituloActividadPanel>
+          {{ panel.proyecto.actividadesAccion || 'Actividad sin nombre' }}
+        </ng-template>
       </h2>
+      <p class="cp-actividad-panel__head-meta" *ngIf="panelModo === 'proyecto' && panelProyectoFolio">
+        Folio {{ panelProyectoFolio }}
+      </p>
+      <p class="cp-actividad-panel__head-meta" *ngIf="panelModo === 'actividad' && panelProyectoNombre">
+        {{ panelProyectoNombre }}
+      </p>
     </div>
     <button type="button" class="cp-actividad-panel__close" (click)="cerrarPanelActividad()" aria-label="Cerrar panel">
       <i class="fas fa-times"></i>
     </button>
   </header>
 
-  <nav class="cp-actividad-panel__tabs" aria-label="Secciones del detalle">
+  <nav class="cp-actividad-panel__tabs" aria-label="Secciones del detalle" *ngIf="panelModo === 'actividad'">
     <button
       type="button"
       [class.is-active]="panelActividadTab === 'detalles'"
@@ -2247,10 +2283,10 @@
     </button>
     <button
       type="button"
-      [class.is-active]="panelActividadTab === 'actividad'"
-      (click)="seleccionarTabPanelActividad('actividad')"
+      [class.is-active]="panelActividadTab === 'historial'"
+      (click)="seleccionarTabPanelActividad('historial')"
     >
-      Actividad
+      Historial de versiones
     </button>
   </nav>
 
@@ -2260,117 +2296,227 @@
     </p>
     <p class="cp-actividad-panel__error" *ngIf="errorPanelActividad">{{ errorPanelActividad }}</p>
 
-    <ng-container *ngIf="!cargandoPanelActividad && panelActividadTab === 'detalles'">
-      <section class="cp-actividad-panel__section">
-        <h3 class="cp-actividad-panel__section-title">
-          <i class="fas fa-user-clock" aria-hidden="true"></i>
-          Auditoría
-        </h3>
-        <div class="cp-actividad-panel__cards">
-          <article class="cp-actividad-panel__card">
-            <span class="cp-actividad-panel__card-icon" aria-hidden="true"><i class="fas fa-user-plus"></i></span>
-            <div>
-              <p class="cp-actividad-panel__card-label">Creada por</p>
-              <p class="cp-actividad-panel__card-value">{{ panel.proyecto.creadoPor || panel.proyecto.modificadoPor || '—' }}</p>
-              <p class="cp-actividad-panel__card-sub">{{ formatearFechaHoraMexico(panel.proyecto.createdAt) }}</p>
-            </div>
-          </article>
-          <article class="cp-actividad-panel__card">
-            <span class="cp-actividad-panel__card-icon is-amber" aria-hidden="true"><i class="fas fa-pen"></i></span>
-            <div>
-              <p class="cp-actividad-panel__card-label">Última modificación</p>
-              <p class="cp-actividad-panel__card-value">{{ panel.proyecto.modificadoPor || '—' }}</p>
-              <p class="cp-actividad-panel__card-sub">{{ formatearFechaHoraMexico(panel.proyecto.modificadoEn || panel.proyecto.updatedAt) }}</p>
-            </div>
-          </article>
+    <ng-container *ngIf="!cargandoPanelActividad && panelModo === 'actividad' && panelActividadTab === 'detalles'">
+      <section class="cp-det-hero" [attr.data-estatus-tone]="toneEstatusActividadGestion(panel.proyecto.estatus)">
+        <div class="cp-det-hero__status">
+          <span class="cp-det-hero__pill">
+            <i class="fas" [ngClass]="iconoEstatusGestion(panel.proyecto.estatus)" aria-hidden="true"></i>
+            {{ etiquetaEstatusActividadGestion(panel.proyecto.estatus) }}
+          </span>
+          <span class="cp-det-hero__avance">{{ panel.proyecto.avance || 0 }}%</span>
+        </div>
+        <div class="cp-det-hero__bar" aria-hidden="true">
+          <span [style.width.%]="panel.proyecto.avance || 0"></span>
+        </div>
+        <p class="cp-det-hero__name">{{ panel.proyecto.actividadesAccion || 'Sin descripción de actividad' }}</p>
+      </section>
+
+      <section class="cp-det-grid">
+        <article class="cp-det-fact">
+          <span class="cp-det-fact__icon" aria-hidden="true"><i class="fas fa-user"></i></span>
+          <div>
+            <p class="cp-det-fact__label">Responsable</p>
+            <p class="cp-det-fact__value">{{ panel.proyecto.responsable || 'Sin asignar' }}</p>
+          </div>
+        </article>
+        <article class="cp-det-fact">
+          <span class="cp-det-fact__icon is-date" aria-hidden="true"><i class="fas fa-calendar-day"></i></span>
+          <div>
+            <p class="cp-det-fact__label">Vencimiento</p>
+            <p class="cp-det-fact__value">
+              {{ panel.proyecto.fechaCompromiso ? formatearFechaProyecto(panel.proyecto.fechaCompromiso) : 'Sin fecha' }}
+            </p>
+          </div>
+        </article>
+        <article class="cp-det-fact">
+          <span class="cp-det-fact__icon is-flag" aria-hidden="true"><i class="fas fa-flag"></i></span>
+          <div>
+            <p class="cp-det-fact__label">Prioridad</p>
+            <p class="cp-det-fact__value">{{ panel.proyecto.prioridad || 'Sin prioridad' }}</p>
+          </div>
+        </article>
+        <article class="cp-det-fact">
+          <span class="cp-det-fact__icon is-start" aria-hidden="true"><i class="fas fa-play"></i></span>
+          <div>
+            <p class="cp-det-fact__label">Inicio</p>
+            <p class="cp-det-fact__value">
+              {{ panel.proyecto.fechaInicio ? formatearFechaProyecto(panel.proyecto.fechaInicio) : '—' }}
+            </p>
+          </div>
+        </article>
+      </section>
+
+      <section class="cp-det-audit">
+        <h3 class="cp-det-section-title">Auditoría</h3>
+        <div class="cp-det-audit__row">
+          <div class="cp-det-audit__cell">
+            <span class="cp-det-audit__label">Creada por</span>
+            <strong>{{ panel.proyecto.creadoPor || panel.proyecto.modificadoPor || '—' }}</strong>
+            <time>{{ formatearFechaHoraMexico(panel.proyecto.createdAt) }}</time>
+          </div>
+          <div class="cp-det-audit__cell">
+            <span class="cp-det-audit__label">Última modificación</span>
+            <strong>{{ panel.proyecto.modificadoPor || '—' }}</strong>
+            <time>{{ formatearFechaHoraMexico(panel.proyecto.modificadoEn || panel.proyecto.updatedAt) }}</time>
+          </div>
         </div>
       </section>
 
-      <section class="cp-actividad-panel__section">
-        <h3 class="cp-actividad-panel__section-title">
-          <i class="fas fa-tasks" aria-hidden="true"></i>
-          Estado actual
-        </h3>
-        <div class="cp-actividad-panel__chips">
-          <div class="cp-actividad-panel__chip">
-            <span>Responsable</span>
-            <strong>{{ panel.proyecto.responsable || 'Sin asignar' }}</strong>
-          </div>
-          <div class="cp-actividad-panel__chip">
-            <span>Estatus</span>
-            <strong>{{ etiquetaEstatusActividadGestion(panel.proyecto.estatus) }}</strong>
-          </div>
-          <div class="cp-actividad-panel__chip">
-            <span>Vencimiento</span>
-            <strong>{{ panel.proyecto.fechaCompromiso ? formatearFechaProyecto(panel.proyecto.fechaCompromiso) : '—' }}</strong>
-          </div>
-          <div class="cp-actividad-panel__chip">
-            <span>Avance</span>
-            <strong>{{ panel.proyecto.avance || 0 }}%</strong>
-          </div>
-        </div>
-      </section>
-
-      <section class="cp-actividad-panel__section" *ngIf="panel.proyecto.observaciones || panel.proyecto.referenciaNormativa || panel.proyecto.entregables">
-        <h3 class="cp-actividad-panel__section-title">
-          <i class="fas fa-align-left" aria-hidden="true"></i>
-          Contenido
-        </h3>
-        <div class="cp-actividad-panel__block" *ngIf="panel.proyecto.observaciones">
+      <section
+        class="cp-det-content"
+        *ngIf="panel.proyecto.observaciones || panel.proyecto.referenciaNormativa || panel.proyecto.entregables"
+      >
+        <h3 class="cp-det-section-title">Contenido</h3>
+        <div class="cp-det-content__block" *ngIf="panel.proyecto.observaciones">
           <h4>Observaciones</h4>
           <p>{{ panel.proyecto.observaciones }}</p>
         </div>
-        <div class="cp-actividad-panel__block" *ngIf="panel.proyecto.referenciaNormativa">
+        <div class="cp-det-content__block" *ngIf="panel.proyecto.referenciaNormativa">
           <h4>Referencia</h4>
           <p>{{ panel.proyecto.referenciaNormativa }}</p>
         </div>
-        <div class="cp-actividad-panel__block" *ngIf="panel.proyecto.entregables">
+        <div class="cp-det-content__block" *ngIf="panel.proyecto.entregables">
           <h4>Entregables</h4>
           <p>{{ panel.proyecto.entregables }}</p>
         </div>
       </section>
     </ng-container>
 
-    <ng-container *ngIf="!cargandoPanelActividad && panelActividadTab === 'actividad'">
-      <p class="cp-actividad-panel__hint">
-        Registro de cambios. Solo aparecen campos que ya tuvieron un valor distinto.
-      </p>
-      <ul class="cp-actividad-panel__timeline" *ngIf="panelActividadHistorial.length; else sinHistorial">
-        <li *ngFor="let h of panelActividadHistorial">
-          <div class="cp-actividad-panel__timeline-rail" aria-hidden="true">
-            <span class="cp-actividad-panel__timeline-dot"></span>
-          </div>
-          <article class="cp-actividad-panel__timeline-card">
-            <header>
-              <span class="cp-actividad-panel__timeline-badge">{{ h.etiqueta || h.campo }}</span>
-              <time>{{ formatearFechaHoraMexico(h.modificadoEn) }}</time>
-            </header>
-            <p class="cp-actividad-panel__timeline-user">
-              <i class="fas fa-user-edit"></i>
-              <span>{{ h.modificadoPor || 'Usuario' }}</span>
+    <ng-container *ngIf="!cargandoPanelActividad && (panelActividadTab === 'historial' || panelModo === 'proyecto')">
+      <div class="cp-version-hist">
+        <header class="cp-version-hist__head">
+          <div>
+            <h3 class="cp-version-hist__title">
+              {{ panelModo === 'proyecto' ? 'Historial de versiones del proyecto' : 'Historial de versiones de la actividad' }}
+            </h3>
+            <p class="cp-version-hist__sub">
+              {{ panelModo === 'proyecto'
+                ? 'Cambios guardados en este proyecto (pueden incluir varias actividades)'
+                : 'Solo esta actividad' }}
+              · se conservan {{ panelHistorialRetencionDias }} días
             </p>
-            <div class="cp-actividad-panel__diff">
-              <div class="cp-actividad-panel__diff-col is-old">
-                <span class="cp-actividad-panel__diff-label">Antes</span>
-                <p>{{ textoValorHistorial(h.valorAnterior) }}</p>
+          </div>
+        </header>
+
+        <div class="cp-version-hist__layout" *ngIf="panelActividadVersiones.length; else sinVersionesHist">
+          <aside class="cp-version-hist__list" aria-label="Lista de versiones">
+            <ng-container *ngFor="let grupoMes of panelVersionesAgrupadasMes">
+              <p class="cp-version-hist__month">{{ grupoMes.mes }}</p>
+              <button
+                type="button"
+                class="cp-version-hist__item"
+                *ngFor="let v of grupoMes.versiones; trackBy: trackByVersionHistorial"
+                [class.is-active]="panelVersionSeleccionadaIndice === v.indiceGlobal"
+                (click)="seleccionarVersionHistorial(v.versionKey || v.versionToken, v.indiceGlobal, $event)"
+                (mousedown)="$event.stopPropagation()"
+              >
+                <span class="cp-version-hist__dot" aria-hidden="true"></span>
+                <span class="cp-version-hist__item-body">
+                  <strong>{{ formatearFechaCortaHistorial(v.modificadoEn) }}</strong>
+                  <span
+                    class="cp-version-hist__badge"
+                    [class.cp-version-hist__badge--actual]="v.indiceGlobal === 0"
+                  >{{ etiquetaVersionHistorial(v, v.indiceGlobal) }}</span>
+                  <span class="cp-version-hist__user">{{ v.modificadoPor || 'Usuario' }}</span>
+                  <span class="cp-version-hist__preview">{{ resumenCambiosVersion(v) }}</span>
+                </span>
+              </button>
+            </ng-container>
+          </aside>
+
+          <section class="cp-version-hist__detail" *ngIf="versionHistorialSeleccionada as sel">
+            <header class="cp-version-hist__detail-head">
+              <div>
+                <p class="cp-version-hist__detail-when">{{ formatearFechaHoraMexico(sel.modificadoEn) }}</p>
+                <p class="cp-version-hist__detail-who">
+                  <i class="fas fa-user-edit" aria-hidden="true"></i>
+                  {{ sel.modificadoPor || 'Usuario' }}
+                </p>
+                <p class="cp-version-hist__detail-act">
+                  {{ etiquetaVersionHistorial(sel, panelVersionSeleccionadaIndice) }}
+                  <ng-container *ngIf="panelModo === 'proyecto' && (sel.actividadesAfectadas?.length || 0) > 1">
+                    · {{ sel.actividadesAfectadas?.length }} actividades
+                  </ng-container>
+                </p>
               </div>
-              <div class="cp-actividad-panel__diff-arrow" aria-hidden="true">
-                <i class="fas fa-long-arrow-alt-right"></i>
-              </div>
-              <div class="cp-actividad-panel__diff-col is-new">
-                <span class="cp-actividad-panel__diff-label">Ahora</span>
-                <p>{{ textoValorHistorial(h.valorNuevo) }}</p>
-              </div>
-            </div>
-          </article>
-        </li>
-      </ul>
-      <ng-template #sinHistorial>
-        <div class="cp-actividad-panel__empty">
-          <i class="fas fa-history"></i>
-          <p>Aún no hay versiones registradas para esta actividad.</p>
+              <button
+                type="button"
+                class="cp-btn cp-btn--primary cp-version-hist__restore"
+                *ngIf="puedeRestaurarVersionHistorial(sel)"
+                (click)="restaurarVersionHistorial(sel)"
+                [disabled]="restaurandoVersion"
+                [title]="panelModo === 'proyecto'
+                  ? 'Regresa todas las actividades afectadas a este guardado'
+                  : 'Regresa la actividad al estado anterior a este guardado'"
+              >
+                <i class="fas" [ngClass]="restaurandoVersion ? 'fa-spinner fa-spin' : 'fa-undo'"></i>
+                Recuperar esta versión
+              </button>
+            </header>
+
+            <p class="cp-version-hist__hint" *ngIf="panelVersionSeleccionadaIndice === 0; else hintAnterior">
+              Esta es la <strong>versión actual</strong> (el guardado más reciente).
+              Selecciona una versión anterior de la lista (1, 2, 3… atrás) para consultarla
+              y, si quieres, recuperarla.
+            </p>
+            <ng-template #hintAnterior>
+              <p class="cp-version-hist__hint">
+                Estás viendo
+                <strong>{{ etiquetaVersionHistorial(sel, panelVersionSeleccionadaIndice) }}</strong>.
+                Pulsa <em>Recuperar esta versión</em> para volver a ese estado
+                <ng-container *ngIf="panelModo === 'proyecto'">
+                  en {{ (sel.actividadesAfectadas?.length || sel.controlProyectoIds?.length || 1) }}
+                  actividad{{ (sel.actividadesAfectadas?.length || 1) === 1 ? '' : 'es' }}
+                </ng-container>.
+              </p>
+            </ng-template>
+
+            <ng-container *ngFor="let grupoAct of cambiosVersionAgrupadosPorActividad(sel)">
+              <article
+                class="cp-version-hist__act-card"
+                [class.cp-version-hist__act-card--multi]="grupoAct.cambios.length > 1"
+              >
+                <header class="cp-version-hist__act-card-head" *ngIf="panelModo === 'proyecto'">
+                  <i class="fas fa-tasks" aria-hidden="true"></i>
+                  <span [title]="grupoAct.actividadNombre">{{ grupoAct.actividadNombre }}</span>
+                  <em *ngIf="grupoAct.cambios.length > 1">{{ grupoAct.cambios.length }} campos</em>
+                </header>
+                <ul class="cp-version-hist__changes">
+                  <li *ngFor="let c of grupoAct.cambios">
+                    <span class="cp-version-hist__field">{{ c.etiqueta || c.campo }}</span>
+                    <div class="cp-actividad-panel__diff">
+                      <div class="cp-actividad-panel__diff-col is-old">
+                        <span class="cp-actividad-panel__diff-label">Antes</span>
+                        <p>{{ textoValorHistorial(c.valorAnterior) }}</p>
+                      </div>
+                      <div class="cp-actividad-panel__diff-arrow" aria-hidden="true">
+                        <i class="fas fa-long-arrow-alt-right"></i>
+                      </div>
+                      <div class="cp-actividad-panel__diff-col is-new">
+                        <span class="cp-actividad-panel__diff-label">Después</span>
+                        <p>{{ textoValorHistorial(c.valorNuevo) }}</p>
+                      </div>
+                    </div>
+                  </li>
+                </ul>
+              </article>
+            </ng-container>
+          </section>
         </div>
-      </ng-template>
+
+        <ng-template #sinVersionesHist>
+          <div class="cp-actividad-panel__empty">
+            <i class="fas fa-history"></i>
+            <p>
+              Aún no hay versiones registradas
+              {{ panelModo === 'proyecto' ? ' para este proyecto' : ' para esta actividad' }}.
+            </p>
+            <p class="cp-version-hist__empty-sub">
+              Cada guardado con cambios reales crea una versión recuperable durante {{ panelHistorialRetencionDias }} días.
+            </p>
+          </div>
+        </ng-template>
+      </div>
     </ng-container>
   </div>
 </aside>

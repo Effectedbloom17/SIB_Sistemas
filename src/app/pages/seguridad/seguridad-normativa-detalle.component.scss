@@ -215,10 +215,6 @@
   }
 }
 
-.seg-clausula__detail-actions {
-  margin-bottom: 0.65rem;
-}
-
 .seg-hero-loading {
   font-size: 0.9rem;
   opacity: 0.9;
@@ -387,6 +383,22 @@
     gap: 0.4rem;
   }
 
+  &__refs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.65rem;
+
+    img {
+      width: 54px;
+      height: 40px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid #efe4e4;
+      background: #fff;
+    }
+  }
+
   &__toggle {
     display: flex;
     align-items: center;
@@ -399,20 +411,9 @@
     padding-right: 0.45rem;
   }
 
-  &__edit {
-    width: 1.7rem;
-    height: 1.7rem;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: $seg-crimson-800;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    &:hover {
-      background: $seg-crimson-50;
-    }
+  &__toggle .fa-pen {
+    color: $seg-crimson-700;
+    font-size: 0.86rem;
   }
 
   &__detail {
@@ -447,6 +448,9 @@
   display: inline-flex;
   align-items: center;
   gap: 0.32rem;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
   font-size: 0.7rem;
   font-weight: 600;
   padding: 0.22rem 0.55rem;
@@ -613,6 +617,108 @@
 
   &--ficha { width: min(640px, 100%); }
 
+  &--punto {
+    width: min(900px, 96vw);
+    min-height: min(80vh, 860px);
+    max-height: 92vh;
+    background: #fff;
+
+    .arch-dialog__head {
+      background: linear-gradient(145deg, #4c0519 0%, #7f1d1d 58%, #9f1239 100%);
+      border-bottom: 0;
+
+      h2 {
+        color: #fff;
+        font-size: 1.02rem;
+        line-height: 1.35;
+      }
+
+      .arch-dialog__mark {
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        box-shadow: none;
+      }
+    }
+
+    .arch-dialog__close {
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.26);
+        color: #fff;
+      }
+    }
+
+    .arch-dialog__body,
+    .arch-dialog__foot {
+      position: relative;
+      z-index: 1;
+      background: transparent;
+    }
+
+    .arch-dialog__body--split {
+      grid-template-columns: 1.4fr 1fr;
+      align-items: stretch;
+    }
+  }
+
+  &__panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  &__deco {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      background-color: #7f1d1d;
+      opacity: 0.13;
+    }
+
+    &::before {
+      top: 0;
+      left: 0;
+      width: min(460px, 58%);
+      height: min(360px, 72%);
+      mask-image: url('/assets/img/img_deco/Fondo_com_sup_izq.png');
+      -webkit-mask-image: url('/assets/img/img_deco/Fondo_com_sup_izq.png');
+      mask-repeat: no-repeat;
+      -webkit-mask-repeat: no-repeat;
+      mask-size: contain;
+      -webkit-mask-size: contain;
+      mask-position: top left;
+      -webkit-mask-position: top left;
+    }
+
+    &::after {
+      right: 0;
+      bottom: 0;
+      width: min(420px, 52%);
+      height: min(340px, 68%);
+      mask-image: url('/assets/img/img_deco/Fondo_com_inf_der.png');
+      -webkit-mask-image: url('/assets/img/img_deco/Fondo_com_inf_der.png');
+      mask-repeat: no-repeat;
+      -webkit-mask-repeat: no-repeat;
+      mask-size: contain;
+      -webkit-mask-size: contain;
+      mask-position: bottom right;
+      -webkit-mask-position: bottom right;
+    }
+  }
+
   &__head {
     display: flex;
     align-items: center;
@@ -684,6 +790,18 @@
 
 .arch-col { min-width: 0; }
 
+.arch-col--desc {
+  display: flex;
+  flex-direction: column;
+}
+
+.arch-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+  align-items: start;
+}
+
 .arch-field {
   display: flex;
   flex-direction: column;
@@ -717,9 +835,156 @@
   }
 
   &--punto input {
-    max-width: 140px;
     font-weight: 700;
     letter-spacing: 0.02em;
+  }
+
+  &--desc {
+    flex: 1;
+    min-height: 0;
+    margin-bottom: 0;
+  }
+}
+
+.arch-prose {
+  flex: 1;
+  min-height: calc(80vh - 230px);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(127, 29, 29, 0.22);
+  box-shadow: none;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  padding: 1.05rem 1.15rem 1.2rem;
+  font-size: 0.96rem;
+  line-height: 1.7;
+  color: #292524;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  outline: none;
+
+  &:focus {
+    border-color: rgba(127, 29, 29, 0.45);
+    box-shadow: 0 0 0 3px rgba(127, 29, 29, 0.08);
+    outline: none;
+  }
+
+  &:empty::before {
+    content: 'Texto del requisito, tal como debe quedar en el archivo';
+    color: #a8a29e;
+  }
+
+  strong {
+    font-weight: 700;
+    color: #7f1d1d;
+  }
+}
+
+:host ::ng-deep .seg-ref {
+  display: inline;
+  color: #1d4ed8;
+  font-style: italic;
+  font-weight: 650;
+  cursor: grab;
+  border-bottom: 1px dotted rgba(29, 78, 216, 0.7);
+  user-select: none;
+
+  &:hover {
+    color: #1e3a8a;
+  }
+
+  &:hover::after {
+    content: ' · arrastrar';
+    font-style: italic;
+    font-size: 0.78em;
+    font-weight: 600;
+    color: #64748b;
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+.ref-pop {
+  position: fixed;
+  z-index: 1200;
+  width: 228px;
+  padding: 0.4rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+  pointer-events: none;
+
+  img {
+    width: 100%;
+    height: 140px;
+    object-fit: contain;
+    display: block;
+    border-radius: 10px;
+    background: #f8fafc;
+  }
+
+  span {
+    display: block;
+    margin-top: 0.3rem;
+    color: #1e3a8a;
+    font-size: 0.72rem;
+    font-style: italic;
+    line-height: 1.3;
+  }
+
+  small {
+    display: block;
+    margin-top: 0.15rem;
+    color: #64748b;
+    font-size: 0.68rem;
+    font-weight: 600;
+  }
+}
+
+.ref-luz {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(15, 23, 42, 0.72);
+
+  figure {
+    position: relative;
+    margin: 0;
+    max-width: min(960px, 94vw);
+  }
+
+  img {
+    display: block;
+    max-width: 100%;
+    max-height: 82vh;
+    border-radius: 14px;
+    background: #fff;
+  }
+
+  figcaption {
+    margin-top: 0.45rem;
+    color: #fff;
+    font-style: italic;
+    text-align: center;
+  }
+
+  button {
+    position: absolute;
+    top: -0.7rem;
+    right: -0.7rem;
+    width: 2rem;
+    height: 2rem;
+    border: 0;
+    border-radius: 999px;
+    background: #fff;
+    color: #1f2937;
   }
 }
 
@@ -783,32 +1048,119 @@
   &__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; }
 }
 
+.arch-refs,
 .arch-formato {
-  padding: 0.75rem;
+  padding: 0.8rem;
   border-radius: 14px;
-  border: 1px solid #fed7aa;
-  background: linear-gradient(180deg, #fff7ed 0%, #fff 70%);
+  border: 1px solid #efe4e4;
+  background: rgba(255, 255, 255, 0.92);
 
   header {
     display: flex;
     gap: 0.6rem;
+    align-items: center;
     margin-bottom: 0.7rem;
 
     > i {
-      width: 1.8rem;
-      height: 1.8rem;
-      border-radius: 8px;
-      background: #ffedd5;
-      color: #c2410c;
+      width: 1.85rem;
+      height: 1.85rem;
+      border-radius: 9px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
     }
 
-    strong { display: block; color: #9a3412; font-size: 0.88rem; }
-    p { margin: 0.15rem 0 0; color: #9a3412; font-size: 0.75rem; line-height: 1.35; opacity: 0.85; }
+    strong { display: block; font-size: 0.88rem; }
   }
+}
+
+.arch-refs {
+  margin-bottom: 0.75rem;
+
+  header > i {
+    background: #f8ecec;
+    color: #7f1d1d;
+  }
+
+  header strong { color: #7f1d1d; }
+
+  &__grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  figure {
+    position: relative;
+    width: 76px;
+    height: 76px;
+    margin: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #eadfdf;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    button {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 1.25rem;
+      height: 1.25rem;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(28, 25, 23, 0.72);
+      color: #fff;
+      font-size: 0.62rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+
+  &__wait {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #a8a29e;
+  }
+
+  &__add {
+    width: 76px;
+    height: 76px;
+    margin: 0;
+    border-radius: 12px;
+    border: 1px dashed rgba(127, 29, 29, 0.35);
+    background: #fff;
+    color: #7f1d1d;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    cursor: pointer;
+
+    input { display: none; }
+  }
+}
+
+.arch-formato {
+  header > i {
+    background: #fff7ed;
+    color: #c2410c;
+  }
+
+  header strong { color: #9a3412; }
 
   &__file {
     display: flex;
@@ -830,11 +1182,33 @@
       color: inherit;
     }
 
-    button {
+    button:not(.arch-formato__open) {
       margin-left: auto;
       border: 0;
       background: transparent;
       color: #9a3412;
+    }
+  }
+
+  &__open {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-weight: 650;
+    text-align: left;
+    cursor: pointer;
+
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   }
 
@@ -942,8 +1316,14 @@
   }
 
   .arch-dialog__body--split,
+  .arch-pair,
   .seg-ficha-card,
   .arch-portada {
     grid-template-columns: 1fr;
+  }
+
+  .arch-field--desc textarea,
+  .arch-prose {
+    min-height: 220px;
   }
 }

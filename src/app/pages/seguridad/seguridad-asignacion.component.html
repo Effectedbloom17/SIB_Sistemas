@@ -29,96 +29,80 @@
           </button>
         </li>
       </ol>
-      <div class="asig-save" [class.is-error]="estadoGuardado === 'error'" [class.is-ok]="estadoGuardado === 'guardado'" [title]="textoGuardado">
-        <i class="fas"
-           [class.fa-check-circle]="estadoGuardado === 'guardado'"
-           [class.fa-circle-notch]="estadoGuardado === 'guardando' || estadoGuardado === 'pendiente'"
-           [class.fa-spin]="estadoGuardado === 'guardando' || estadoGuardado === 'pendiente'"
-           [class.fa-exclamation-circle]="estadoGuardado === 'error'"
-           [class.fa-save]="estadoGuardado === 'limpio'"
-           aria-hidden="true"></i>
+      <div class="asig-marks">
+        <div class="asig-banner" *ngIf="avisoRecuperado" [title]="avisoRecuperado">
+          <i class="fas fa-history" aria-hidden="true"></i>
+        </div>
+        <div class="asig-save" [class.is-error]="estadoGuardado === 'error'" [class.is-ok]="estadoGuardado === 'guardado'" [title]="textoGuardado">
+          <i class="fas"
+             [class.fa-check-circle]="estadoGuardado === 'guardado'"
+             [class.fa-circle-notch]="estadoGuardado === 'guardando' || estadoGuardado === 'pendiente'"
+             [class.fa-spin]="estadoGuardado === 'guardando' || estadoGuardado === 'pendiente'"
+             [class.fa-exclamation-circle]="estadoGuardado === 'error'"
+             [class.fa-save]="estadoGuardado === 'limpio'"
+             aria-hidden="true"></i>
+        </div>
       </div>
-    </div>
-
-    <div class="asig-banner" *ngIf="avisoRecuperado" [title]="avisoRecuperado">
-      <i class="fas fa-history" aria-hidden="true"></i>
     </div>
 
     <section class="asig-step compose" *ngIf="paso === 0">
       <div class="board">
         <div class="board-main">
-          <div class="board-top">
-            <div class="emp-box" #empBox>
-              <div class="emp-line">
-                <header class="board-kicker">
-                  <span>1</span>
-                  <i class="fas fa-building" aria-hidden="true"></i>
-                  Empresa
-                </header>
-                <div class="emp-search">
-                  <div class="asig-filter">
-                    <i class="fas fa-search" aria-hidden="true"></i>
-                    <input type="search"
-                           [(ngModel)]="busquedaEmpresa"
-                           (focus)="abrirBuscadorEmpresa()"
-                           (input)="filtrarEmpresas(); abrirBuscadorEmpresa()"
-                           placeholder="Nombre o RFC…"
-                           aria-label="Buscar empresa"
-                           [attr.aria-expanded]="listaEmpresasAbierta">
-                  </div>
-                  <div class="emp-drop" *ngIf="listaEmpresasAbierta">
-                    <p class="asig-hint" *ngIf="cargandoEmpresas"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i></p>
-                    <button type="button"
-                            class="pick"
-                            *ngFor="let emp of empresasFiltradas"
-                            [class.is-on]="empresa?.empresa_id === emp.empresa_id"
-                            (click)="seleccionarEmpresa(emp)">
-                      <span class="pick__mark">
-                        <img *ngIf="logoEmpresa(emp) as logo" [src]="logo" [alt]="emp.nombre_empresa">
-                        <span *ngIf="!logoEmpresa(emp)">{{ iniciales(emp.nombre_empresa) }}</span>
-                      </span>
-                      <span class="pick__txt">
-                        <strong>{{ emp.nombre_empresa }}</strong>
-                        <small>{{ emp.ciudad || emp.rfc || emp.estado }}</small>
-                      </span>
-                      <i class="fas fa-check pick__ok" aria-hidden="true"></i>
-                    </button>
-                    <p class="asig-empty" *ngIf="!cargandoEmpresas && empresasFiltradas.length === 0">Sin resultados</p>
-                  </div>
-                </div>
-                <article class="emp-picked" *ngIf="empresa">
-                  <span class="emp-picked__mark">
-                    <img *ngIf="logoEmpresa(empresa) as logo" [src]="logo" [alt]="empresa.nombre_empresa">
-                    <span *ngIf="!logoEmpresa(empresa)">{{ iniciales(empresa.nombre_empresa) }}</span>
-                  </span>
-                  <span class="emp-picked__txt">
-                    <strong>{{ empresa.nombre_empresa }}</strong>
-                    <small>{{ empresa.ciudad || empresa.rfc || empresa.estado || 'Empresa seleccionada' }}</small>
-                  </span>
-                  <button type="button" class="emp-picked__x" (click)="limpiarEmpresa()" aria-label="Quitar empresa">
-                    <i class="fas fa-times" aria-hidden="true"></i>
-                  </button>
-                </article>
-              </div>
-            </div>
-
-            <div class="norm-filters" [class.is-wait]="!empresa">
+        <div class="board-top">
+          <div class="emp-box" #empBox>
+            <div class="emp-line">
               <header class="board-kicker">
-                <span>2</span>
-                <i class="fas fa-book" aria-hidden="true"></i>
-                Normativas
-                <em *ngIf="normas.length">{{ normas.length }}</em>
+                <span>1</span>
+                <i class="fas fa-building" aria-hidden="true"></i>
+                Empresa
               </header>
-              <div class="chip-row" role="group" aria-label="Grupo de normativas">
-                <button type="button" class="seg-chip" [class.seg-chip--active]="!categoriaActiva" (click)="categoriaActiva = ''; aplicarFiltroNormas()">
-                  Todas <span class="seg-chip__count">{{ catalogo.length }}</span>
-                </button>
-                <button type="button" class="seg-chip" *ngFor="let cat of categorias" [class.seg-chip--active]="categoriaActiva === cat.id" (click)="seleccionarCategoria(cat.id)" [title]="cat.titulo">
-                  {{ cat.prefijo }} <span class="seg-chip__count">{{ contarPorCategoria(cat.id) }}</span>
-                </button>
+              <div class="emp-search">
+                <div class="asig-filter">
+                  <i class="fas fa-search" aria-hidden="true"></i>
+                  <input type="search"
+                         [(ngModel)]="busquedaEmpresa"
+                         (focus)="abrirBuscadorEmpresa()"
+                         (input)="filtrarEmpresas(); abrirBuscadorEmpresa()"
+                         placeholder="Nombre o RFC…"
+                         aria-label="Buscar empresa"
+                         [attr.aria-expanded]="listaEmpresasAbierta">
+                </div>
+                <div class="emp-drop" *ngIf="listaEmpresasAbierta">
+                  <p class="asig-hint" *ngIf="cargandoEmpresas"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i></p>
+                  <button type="button"
+                          class="pick"
+                          *ngFor="let emp of empresasFiltradas"
+                          [class.is-on]="empresa?.empresa_id === emp.empresa_id"
+                          (click)="seleccionarEmpresa(emp)">
+                    <span class="pick__mark">
+                      <img *ngIf="logoEmpresa(emp) as logo" [src]="logo" [alt]="emp.nombre_empresa">
+                      <span *ngIf="!logoEmpresa(emp)">{{ iniciales(emp.nombre_empresa) }}</span>
+                    </span>
+                    <span class="pick__txt">
+                      <strong>{{ emp.nombre_empresa }}</strong>
+                      <small>{{ emp.ciudad || emp.rfc || emp.estado }}</small>
+                    </span>
+                    <i class="fas fa-check pick__ok" aria-hidden="true"></i>
+                  </button>
+                  <p class="asig-empty" *ngIf="!cargandoEmpresas && empresasFiltradas.length === 0">Sin resultados</p>
+                </div>
               </div>
             </div>
+            <article class="emp-picked" *ngIf="empresa">
+              <span class="emp-picked__mark">
+                <img *ngIf="logoEmpresa(empresa) as logo" [src]="logo" [alt]="empresa.nombre_empresa">
+                <span *ngIf="!logoEmpresa(empresa)">{{ iniciales(empresa.nombre_empresa) }}</span>
+              </span>
+              <span class="emp-picked__txt">
+                <strong>{{ empresa.nombre_empresa }}</strong>
+                <small>{{ empresa.ciudad || empresa.rfc || empresa.estado || 'Empresa seleccionada' }}</small>
+              </span>
+              <button type="button" class="emp-picked__x" (click)="limpiarEmpresa()" aria-label="Quitar empresa">
+                <i class="fas fa-times" aria-hidden="true"></i>
+              </button>
+            </article>
           </div>
+        </div>
 
           <div class="board-list" [class.is-wait]="!empresa">
             <div class="norm-seek">
@@ -126,9 +110,14 @@
                 <i class="fas fa-search" aria-hidden="true"></i>
                 <input type="search" [(ngModel)]="busquedaNorma" (ngModelChange)="aplicarFiltroNormas()" placeholder="Clave o título…" aria-label="Buscar normativas">
               </div>
-              <button type="button" class="asig-iconbtn" (click)="seleccionarVisibles()" [disabled]="!empresa || !catalogoFiltrado.length" title="Marcar visibles" aria-label="Marcar visibles">
-                <i class="fas fa-check-double" aria-hidden="true"></i>
-              </button>
+              <div class="chip-row" [class.is-wait]="!empresa" role="group" aria-label="Grupo de normativas">
+                <button type="button" class="seg-chip" [class.seg-chip--active]="!categoriaActiva" (click)="categoriaActiva = ''; aplicarFiltroNormas()">
+                  Todas <span class="seg-chip__count">{{ catalogo.length }}</span>
+                </button>
+                <button type="button" class="seg-chip" *ngFor="let cat of categorias" [class.seg-chip--active]="categoriaActiva === cat.id" (click)="seleccionarCategoria(cat.id)" [title]="cat.titulo">
+                  {{ cat.prefijo }} <span class="seg-chip__count">{{ contarPorCategoria(cat.id) }}</span>
+                </button>
+              </div>
             </div>
             <p class="asig-hint norm-seek__wait" *ngIf="cargandoCatalogo"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i></p>
             <div class="ncard-grid" *ngIf="!cargandoCatalogo">
@@ -162,9 +151,6 @@
             <span class="board-col__n">3</span>
             <i class="fas fa-user-friends" aria-hidden="true"></i>
             <h2>Responsables</h2>
-            <button type="button" class="asig-iconbtn" *ngIf="normas.length > 1 && normaEnFoco()?.empleados?.length" (click)="copiarDesdeFoco()" title="Copiar a las demás" aria-label="Copiar a las demás">
-              <i class="fas fa-clone" aria-hidden="true"></i>
-            </button>
           </header>
           <div class="board-col__body board-col__body--stack">
             <div class="board-empty" *ngIf="!normas.length">
@@ -215,136 +201,291 @@
     </section>
 
     <!-- Puntos -->
-    <section class="asig-step asig-step--puntos" *ngIf="paso === 1">
-      <header class="asig-step__head">
-        <h2>Puntos</h2>
-      </header>
-
-      <div class="asig-puntos">
-        <aside class="asig-rail" aria-label="Normativas seleccionadas">
+    <section class="asig-step puntos" *ngIf="paso === 1">
+      <div class="puntos-shell">
+        <aside class="puntos-nav" aria-label="Normativas seleccionadas">
+          <p class="puntos-nav__label">Normativas</p>
           <button type="button"
-                  class="asig-rail__item"
+                  class="puntos-nav__item"
                   *ngFor="let norma of normas"
                   [class.is-active]="norma.normativa_id === normaActivaId"
+                  [class.is-full]="porcentajePuntos(norma) >= 100"
+                  [class.is-empty]="!norma.requisito_ids.length"
+                  [attr.aria-current]="norma.normativa_id === normaActivaId ? 'true' : null"
                   (click)="abrirNormaPuntos(norma)">
-            <span class="asig-rail__code">{{ norma.codigo }}</span>
-            <span class="asig-rail__bar">
-              <span [style.width.%]="norma.total_requisitos ? (norma.requisito_ids.length / norma.total_requisitos) * 100 : 0"></span>
+            <span class="puntos-nav__media" [class.has-photo]="!!portadaNorma(norma)" [attr.data-cat]="norma.categoria_id">
+              <img *ngIf="portadaNorma(norma) as foto" class="puntos-nav__photo" [src]="foto" [alt]="norma.codigo">
+              <i class="puntos-nav__icon" [ngClass]="iconoCategoria(norma.categoria_id)" aria-hidden="true"></i>
+              <span class="puntos-nav__check" aria-hidden="true"><i class="fas fa-check"></i></span>
+              <span class="puntos-nav__pts" [class.is-full]="porcentajePuntos(norma) >= 100">
+                <i class="fas fa-list-ol" aria-hidden="true"></i>
+                {{ norma.requisito_ids.length }}/{{ totalPuntosNorma(norma) }}
+              </span>
             </span>
-            <span class="asig-rail__meta" [class.is-warn]="!norma.requisito_ids.length">
-              <i class="fas fa-check" aria-hidden="true"></i> {{ norma.requisito_ids.length }}
+            <span class="puntos-nav__body">
+              <strong>{{ norma.codigo }}</strong>
+              <em>{{ norma.titulo }}</em>
+              <span class="puntos-nav__track" aria-hidden="true">
+                <span [style.width.%]="porcentajePuntos(norma)"></span>
+              </span>
             </span>
           </button>
         </aside>
 
-        <div class="asig-puntos__main" *ngIf="normaActiva as norma">
-          <div class="asig-puntos__head">
-            <div>
-              <h3>{{ norma.codigo }}</h3>
-              <p>{{ norma.titulo }}</p>
-            </div>
-            <div class="asig-puntos__actions">
-              <button type="button" class="asig-iconbtn" (click)="seleccionarTodosPuntos(norma)" [disabled]="!puntosActivos.length" title="Marcar todos" aria-label="Marcar todos"><i class="fas fa-check-double"></i></button>
-              <button type="button" class="asig-iconbtn" (click)="limpiarPuntos(norma)" [disabled]="!norma.requisito_ids.length" title="Quitar marcas" aria-label="Quitar marcas"><i class="fas fa-eraser"></i></button>
-            </div>
-          </div>
-
-          <div class="seg-search asig-search">
-            <i class="fas fa-search" aria-hidden="true"></i>
-            <input type="search"
-                   [(ngModel)]="busquedaPunto"
-                   placeholder="Buscar punto, texto o tipo de evidencia…"
-                   aria-label="Buscar puntos">
-          </div>
-
-          <div class="asig-loading" *ngIf="cargandoPuntos"><i class="fas fa-spinner fa-spin"></i> Cargando puntos…</div>
-          <p class="asig-empty" *ngIf="errorPuntos">{{ errorPuntos }}</p>
-
-          <ng-container *ngIf="!cargandoPuntos && !errorPuntos">
-            <div class="asig-resultados" *ngIf="busquedaPunto.trim().length >= 2; else mapaCapitulos">
-              <div class="asig-resultados__bar">
-                <span>{{ totalCoincidencias(norma) }} coincidencias</span>
-                <button type="button" class="asig-link" (click)="toggleGrupo(norma, resultadosBusqueda(norma))">Marcar estas</button>
+        <div class="puntos-work" *ngIf="normaActiva as norma">
+          <div class="puntos-sticky">
+            <header class="puntos-head">
+              <div class="puntos-head__id">
+                <span class="puntos-kicker">Selecciona los puntos que aplican</span>
+                <h2>{{ norma.codigo }}</h2>
+                <p>{{ resumenPunto(norma.titulo) }}</p>
               </div>
-              <p class="asig-hint" *ngIf="totalCoincidencias(norma) > 80">Se muestran las primeras 80. Afine la búsqueda para ver el resto.</p>
-              <button type="button"
-                      class="pto"
-                      *ngFor="let punto of resultadosBusqueda(norma)"
-                      [class.is-on]="estaPunto(norma, punto.id)"
-                      (click)="togglePunto(norma, punto.id)">
-                <span class="pto__box" aria-hidden="true"><i class="fas fa-check"></i></span>
-                <span class="pto__num">{{ punto.punto_norma || '—' }}</span>
-                <span class="pto__txt">{{ resumenCorto(punto.descripcion) }}</span>
-                <span class="pto__tag" *ngIf="punto.tipo_evidencia">{{ punto.tipo_evidencia }}</span>
-                <span class="pto__tag pto__tag--fmt" *ngIf="punto.formato_nombre" [title]="punto.formato_nombre">Plantilla</span>
+              <div class="puntos-meter" [class.is-full]="porcentajePuntos(norma) >= 100" [attr.aria-label]="norma.requisito_ids.length + ' de ' + totalPuntosNorma(norma) + ' puntos'">
+                <strong>{{ norma.requisito_ids.length }}</strong>
+                <span>de {{ totalPuntosNorma(norma) }}</span>
+              </div>
+            </header>
+
+            <div class="puntos-toolbar">
+              <label class="puntos-search">
+                <i class="fas fa-search" aria-hidden="true"></i>
+                <input type="search"
+                       [(ngModel)]="busquedaPunto"
+                       placeholder="Buscar por número, texto o evidencia"
+                       aria-label="Buscar puntos">
+              </label>
+              <div class="puntos-filtros" *ngIf="tonosDisponibles().length > 1" role="group" aria-label="Filtrar por tipo de evidencia">
+                <button type="button" [class.is-on]="!filtroEvidencia" (click)="filtroEvidencia = ''">Todos</button>
+                <button type="button" *ngIf="tonosDisponibles().includes('documental')" [class.is-on]="filtroEvidencia === 'documental'" (click)="filtroEvidencia = 'documental'">Documental</button>
+                <button type="button" *ngIf="tonosDisponibles().includes('fisico')" [class.is-on]="filtroEvidencia === 'fisico'" (click)="filtroEvidencia = 'fisico'">Físico</button>
+              </div>
+              <button type="button" class="puntos-action" (click)="seleccionarTodosPuntos(norma)" [disabled]="!puntosActivos.length">
+                <i class="fas fa-check-double" aria-hidden="true"></i> Todos
               </button>
-              <p class="asig-empty" *ngIf="totalCoincidencias(norma) === 0">Nada coincide con esa búsqueda.</p>
+              <button type="button" class="puntos-action puntos-action--quiet" (click)="limpiarPuntos(norma)" [disabled]="!norma.requisito_ids.length">
+                <i class="fas fa-eraser" aria-hidden="true"></i> Limpiar
+              </button>
+            </div>
+          </div>
+
+          <div class="puntos-loading" *ngIf="cargandoPuntos"><i class="fas fa-spinner fa-spin"></i> Cargando puntos…</div>
+          <p class="puntos-empty" *ngIf="errorPuntos">{{ errorPuntos }}</p>
+
+          <div class="puntos-stage" *ngIf="!cargandoPuntos && !errorPuntos">
+            <div class="pto-board" *ngIf="busquedaPunto.trim().length >= 2; else mapaCapitulos">
+              <div class="pto-band__head">
+                <h3>{{ puntosFiltrados(resultadosBusqueda(norma)).length }} coincidencias</h3>
+                <button type="button" class="puntos-action puntos-action--quiet" (click)="toggleGrupo(norma, puntosFiltrados(resultadosBusqueda(norma)))" [disabled]="!puntosFiltrados(resultadosBusqueda(norma)).length">
+                  {{ grupoMarcado(norma, puntosFiltrados(resultadosBusqueda(norma))) ? 'Quitar coincidencias' : 'Marcar coincidencias' }}
+                </button>
+              </div>
+              <p class="puntos-note" *ngIf="totalCoincidencias(norma) > 80">Se muestran las primeras 80. Afine la búsqueda para ver el resto.</p>
+              <div class="pto-pills">
+                <ng-container *ngFor="let punto of puntosFiltrados(resultadosBusqueda(norma)); trackBy: trackByPuntoId">
+                  <ng-container *ngTemplateOutlet="fichaPunto; context: { $implicit: punto, norma: norma }"></ng-container>
+                </ng-container>
+              </div>
+              <p class="puntos-empty" *ngIf="puntosFiltrados(resultadosBusqueda(norma)).length === 0">Nada coincide con esa búsqueda.</p>
             </div>
 
             <ng-template #mapaCapitulos>
-              <div class="cap-list">
-                <section class="cap-block" *ngFor="let cap of capitulos(norma)" [class.is-open]="capituloAbierto(cap.clave)">
-                  <div class="cap-block__head">
-                    <button type="button" (click)="alternarCapitulo(cap.clave)">
-                      <i class="fas" [class.fa-chevron-down]="capituloAbierto(cap.clave)" [class.fa-chevron-right]="!capituloAbierto(cap.clave)"></i>
-                      Capítulo {{ cap.clave }}
-                      <small>{{ cap.seleccionados }} de {{ cap.total }}</small>
-                    </button>
-                    <button type="button" class="asig-link" (click)="toggleGrupo(norma, puntosDeCapitulo(norma, cap.clave))">
-                      {{ cap.seleccionados === cap.total ? 'Quitar capítulo' : 'Marcar capítulo' }}
-                    </button>
-                  </div>
-                  <div class="cap-block__body" *ngIf="capituloAbierto(cap.clave)">
-                    <button type="button"
-                            class="pto"
-                            *ngFor="let punto of puntosDeCapitulo(norma, cap.clave)"
-                            [class.is-on]="estaPunto(norma, punto.id)"
-                            (click)="togglePunto(norma, punto.id)">
-                      <span class="pto__box" aria-hidden="true"><i class="fas fa-check"></i></span>
-                      <span class="pto__num">{{ punto.punto_norma || '—' }}</span>
-                      <span class="pto__txt">{{ resumenCorto(punto.descripcion) }}</span>
-                      <span class="pto__tag" *ngIf="punto.tipo_evidencia">{{ punto.tipo_evidencia }}</span>
-                <span class="pto__tag pto__tag--fmt" *ngIf="punto.formato_nombre" [title]="punto.formato_nombre">Plantilla</span>
-                    </button>
-                  </div>
-                </section>
-                <p class="asig-empty" *ngIf="capitulos(norma).length === 0">Esta normativa todavía no tiene puntos en el catálogo.</p>
+              <div class="pto-board">
+                <nav class="pto-jump" *ngIf="capitulos(norma).length > 1" aria-label="Ir a un capítulo">
+                  <button type="button"
+                          *ngFor="let cap of capitulos(norma); trackBy: trackByCapClave"
+                          [class.is-on]="puntoEnfoque?.cap === cap.clave"
+                          (click)="irACapitulo(cap.clave)">
+                    {{ cap.clave }}
+                    <small>{{ cap.seleccionados }}/{{ cap.total }}</small>
+                  </button>
+                </nav>
+                <ng-container *ngFor="let cap of capitulos(norma); trackBy: trackByCapClave">
+                  <section class="pto-band" *ngIf="puntosCapituloVisibles(norma, cap.clave).length" [id]="'pto-cap-' + cap.clave">
+                    <header class="pto-band__head">
+                      <h3>Capítulo {{ cap.clave }}</h3>
+                      <span>{{ cap.seleccionados }}<small>/{{ cap.total }}</small></span>
+                      <button type="button" class="puntos-action puntos-action--quiet" (click)="toggleGrupo(norma, puntosCapituloVisibles(norma, cap.clave))">
+                        {{ grupoMarcado(norma, puntosCapituloVisibles(norma, cap.clave)) ? 'Quitar' : 'Marcar' }}
+                      </button>
+                    </header>
+                    <div class="pto-pills">
+                      <ng-container *ngFor="let punto of puntosCapituloVisibles(norma, cap.clave); trackBy: trackByPuntoId">
+                        <ng-container *ngTemplateOutlet="fichaPunto; context: { $implicit: punto, norma: norma }"></ng-container>
+                      </ng-container>
+                    </div>
+                  </section>
+                </ng-container>
+                <p class="puntos-empty" *ngIf="capitulos(norma).length === 0">Esta normativa todavía no tiene puntos en el catálogo.</p>
+                <p class="puntos-empty" *ngIf="capitulos(norma).length && filtroEvidencia && !hayPuntosVisibles(norma)">Ningún punto de esta normativa es de ese tipo de evidencia.</p>
               </div>
             </ng-template>
-          </ng-container>
+
+            <ng-template #fichaPunto let-punto let-normaPill="norma">
+              <button type="button"
+                      class="pto-pill"
+                      [class.is-on]="estaPunto(normaPill || norma, punto.id)"
+                      [class.is-hot]="puntoEnfoque?.id === punto.id && (puntoFijadoId == null || puntoFijadoId === punto.id)"
+                      [class.is-pin]="puntoFijadoId === punto.id"
+                      [class.is-peek]="puntoHoverId === punto.id && puntoFijadoId != null && puntoFijadoId !== punto.id"
+                      [class.has-img]="!!punto.imagenes?.length"
+                      [attr.aria-pressed]="estaPunto(normaPill || norma, punto.id)"
+                      [attr.aria-label]="(punto.punto_norma || 'Punto') + '. ' + resumenPunto(punto.descripcion)"
+                      (mouseenter)="onPillEnter(punto)"
+                      (mouseleave)="onPillLeave()"
+                      (pointerdown)="pulsarPunto(normaPill || norma, punto, $event)">
+                {{ punto.punto_norma || '—' }}
+              </button>
+            </ng-template>
+
+            <aside class="pto-ficha" [class.is-sheet]="!usaHover" *ngIf="usaHover || fichaMovil" aria-live="polite">
+              <button type="button" class="pto-ficha__veil" *ngIf="!usaHover" (click)="cerrarFicha()" aria-label="Cerrar detalle"></button>
+              <div class="pto-ficha__panel" [class.is-on]="puntoEnfoque && estaPunto(norma, puntoEnfoque.id)">
+                <ng-container *ngIf="puntoEnfoque as foco; else fichaVacia">
+                  <div class="pto-ficha__anim" *ngFor="let tick of [fichaAnim]">
+                    <header class="pto-ficha__head">
+                      <div class="pto-ficha__id">
+                        <div class="pto-ficha__topline">
+                          <span class="pto-ficha__eyebrow">{{ puntoFijadoId === foco.id ? 'Punto fijado' : 'Detalle del punto' }}</span>
+                          <p class="pto-ficha__meta" *ngIf="foco.tipo_evidencia || foco.periodicidad">
+                            <span *ngIf="foco.tipo_evidencia">{{ foco.tipo_evidencia }}</span>
+                            <span *ngIf="foco.periodicidad">{{ foco.periodicidad }}</span>
+                          </p>
+                          <button type="button" class="pto-ficha__x" *ngIf="!usaHover" (click)="cerrarFicha()" aria-label="Cerrar">
+                            <i class="fas fa-times" aria-hidden="true"></i>
+                          </button>
+                        </div>
+                        <div class="pto-ficha__numline">
+                          <strong>{{ foco.punto_norma || '—' }}</strong>
+                          <span class="pto-ficha__state" *ngIf="estaPunto(norma, foco.id)">Incluido</span>
+                        </div>
+                      </div>
+                    </header>
+                    <button type="button" class="pto-ficha__mark" [class.is-off]="estaPunto(norma, foco.id)" (click)="togglePunto(norma, foco.id)">
+                      {{ estaPunto(norma, foco.id) ? 'Quitar' : 'Asignar' }}
+                    </button>
+                    <section class="pto-ficha__block">
+                      <h4>Descripción</h4>
+                      <div class="pto-ficha__text" [innerHTML]="lecturaHtml" (click)="alClicDescripcion($event)"></div>
+                    </section>
+                    <section class="pto-ficha__block" *ngIf="foco.evidencia_requerida">
+                      <h4>Evidencia</h4>
+                      <p>{{ foco.evidencia_requerida }}</p>
+                    </section>
+                    <section class="pto-ficha__block" *ngIf="imagenesSobrantes.length">
+                      <h4>Imágenes</h4>
+                      <div class="pto-ficha__imgs">
+                        <button type="button"
+                                class="pto-ficha__shot"
+                                *ngFor="let img of imagenesSobrantes"
+                                (click)="imagenAbierta = urlArchivo(img.ruta)">
+                          <img [src]="urlArchivo(img.ruta)" [alt]="img.nombre || foco.punto_norma">
+                        </button>
+                      </div>
+                    </section>
+                  </div>
+                </ng-container>
+                <ng-template #fichaVacia>
+                  <div class="pto-ficha__empty">
+                    <span>Lectura</span>
+                    <p>Pasa el mouse para previsualizar. Haz clic para fijarlo y usa Asignar para incluirlo.</p>
+                  </div>
+                </ng-template>
+              </div>
+            </aside>
+
+            <div class="pto-zoom" *ngIf="imagenAbierta as foto" (click)="imagenAbierta = null">
+              <img [src]="foto" alt="Imagen del punto">
+            </div>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Publicar -->
-    <section class="asig-step" *ngIf="paso === 2">
+    <!-- Resumen -->
+    <section class="asig-step resumen" *ngIf="paso === 2">
       <header class="asig-step__head">
-        <h2>Publicar</h2>
+        <h2>Resumen</h2>
+        <p>Revisa las normativas y los puntos que se enviarán a gestión. Pulsa un bloque para ver el detalle.</p>
       </header>
-      <div class="pub-list">
-        <article class="pub-card" *ngFor="let norma of normas">
-          <header class="pub-card__head">
-            <div>
-              <strong>{{ norma.codigo }}</strong>
-              <p>{{ norma.titulo }}</p>
+      <div class="pub-sum">
+        <span><b>{{ normas.length }}</b> normativas</span>
+        <span><b>{{ totalPuntosMarcados() }}</b> puntos</span>
+        <span><b>{{ totalCapitulosMarcados() }}</b> capítulos</span>
+        <span class="is-warn" *ngIf="normasSinResponsable()"><b>{{ normasSinResponsable() }}</b> sin responsable</span>
+      </div>
+
+      <div class="resumen-grid">
+        <button type="button"
+                class="rcard"
+                *ngFor="let norma of normas; let i = index"
+                [style.animation-delay.ms]="(i < 12 ? i : 12) * 40"
+                [class.is-on]="resumenNormaId === norma.normativa_id"
+                [attr.aria-pressed]="resumenNormaId === norma.normativa_id"
+                (mouseenter)="ubicarTipCard(norma, $event)"
+                (mouseleave)="soltarTipCard()"
+                (click)="abrirResumen(norma)">
+          <span class="rcard__media" [class.has-photo]="!!portadaNorma(norma)" [attr.data-cat]="norma.categoria_id">
+            <img *ngIf="portadaNorma(norma) as foto" class="rcard__photo" [src]="foto" [alt]="norma.codigo">
+            <i class="rcard__icon" [ngClass]="iconoCategoria(norma.categoria_id)" aria-hidden="true"></i>
+            <span class="rcard__pts"><i class="fas fa-list-ol" aria-hidden="true"></i> {{ norma.requisito_ids.length }}</span>
+          </span>
+          <span class="rcard__body">
+            <strong>{{ norma.codigo }}</strong>
+            <em>{{ norma.titulo }}</em>
+            <small *ngIf="norma.empleados[0] as emp">{{ emp.nombre }}</small>
+            <small class="is-warn" *ngIf="!norma.empleados.length">Sin responsable</small>
+          </span>
+        </button>
+      </div>
+
+      <aside class="resumen-detail" *ngIf="normaResumen as foco" aria-live="polite">
+        <header class="resumen-detail__head">
+          <span class="resumen-detail__eyebrow">Detalle de asignación</span>
+          <div class="resumen-detail__titleline">
+            <h3>{{ foco.codigo }}</h3>
+            <div class="resumen-panel__meta">
+              <span><b>{{ foco.requisito_ids.length }}</b> puntos</span>
+              <span><b>{{ resumenGrupos.length }}</b> capítulos</span>
+              <span *ngIf="foco.empleados[0] as emp"><i class="fas fa-user" aria-hidden="true"></i> {{ emp.nombre }}</span>
+              <span class="is-warn" *ngIf="!foco.empleados.length">Sin responsable</span>
             </div>
-            <span class="pub-card__count"><i class="fas fa-list-ol" aria-hidden="true"></i> {{ norma.requisito_ids.length }}</span>
-          </header>
-          <div class="pub-card__people">
-            <span *ngFor="let emp of norma.empleados">{{ emp.nombre }}<small>{{ emp.puesto }}</small></span>
-            <span class="is-warn" *ngIf="!norma.empleados.length">Sin responsable</span>
           </div>
-          <div class="pub-cap" *ngFor="let grupo of resumenCapitulos(norma)">
-            <h4>Capítulo {{ grupo.clave }} <small>{{ grupo.puntos.length }}</small></h4>
-            <ul>
-              <li *ngFor="let punto of grupo.puntos">
-                <b>{{ punto.punto_norma || '—' }}</b>
-                {{ resumenCorto(punto.descripcion) }}
-              </li>
-            </ul>
-          </div>
-          <p class="asig-hint" *ngIf="!resumenCapitulos(norma).length">Los puntos seleccionados se están cargando…</p>
-        </article>
+          <p>{{ foco.titulo }}</p>
+        </header>
+
+        <div class="resumen-caps">
+          <section class="resumen-cap" *ngFor="let grupo of resumenGrupos; trackBy: trackResumenCap">
+            <header>
+              <strong>Capítulo {{ grupo.clave }}</strong>
+              <small>{{ grupo.puntos.length }}</small>
+            </header>
+            <div class="resumen-cap__nums">
+              <button type="button"
+                      class="resumen-pt"
+                      *ngFor="let punto of grupo.puntos; trackBy: trackResumenPunto"
+                      [class.is-on]="resumenPuntoId === punto.id"
+                      (click)="seleccionarPuntoResumen(punto, $event)"
+                      (mouseenter)="previsualizarPuntoResumen(punto, $event)"
+                      (mouseleave)="soltarPuntoResumen()">
+                {{ punto.punto_norma || '—' }}
+              </button>
+            </div>
+          </section>
+          <p class="asig-hint" *ngIf="!resumenGrupos.length">
+            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Cargando puntos seleccionados…
+          </p>
+        </div>
+      </aside>
+
+      <div class="resumen-float-tip"
+           *ngIf="resumenFloatTip as tip"
+           [style.top.px]="tip.top"
+           [style.left.px]="tip.left"
+           [style.width.px]="tip.width"
+           [style.--flecha.px]="tip.flecha"
+           role="tooltip">
+        <strong>{{ tip.titulo }}</strong>
+        <em>{{ tip.texto }}</em>
       </div>
     </section>
 

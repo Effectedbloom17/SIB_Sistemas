@@ -395,6 +395,14 @@
                     </div>
                     <button
                       type="button"
+                      class="sgc-sat-comentarios-btn"
+                      (click)="abrirQrEncuestaSatisfaccion()"
+                      title="Mostrar código QR de la encuesta"
+                      aria-label="Mostrar código QR de la encuesta de satisfacción">
+                      <i class="fas fa-qrcode"></i>
+                    </button>
+                    <button
+                      type="button"
                       class="sgc-sat-comentarios-btn sgc-sat-comentarios-btn--preguntas"
                       (click)="abrirPreguntasSatisfaccion()"
                       [disabled]="!hayDatosSatisfaccion"
@@ -502,9 +510,9 @@
                       </div>
                     </div>
                   </div>
-                  <div *ngIf="!cargandoDashboard && !hayDatosSatisfaccion" class="sgc-dash-empty">
-                    <i class="fas fa-poll fa-2x mb-2"></i>
-                    <p class="mb-0">Sin respuestas de la encuesta de satisfacción del cliente para {{ etiquetaCicloSatisfaccion }}.</p>
+                  <div *ngIf="!cargandoDashboard && !hayDatosSatisfaccion" class="sgc-sat-qr-empty">
+                    <ng-container *ngTemplateOutlet="panelQrEncuesta"></ng-container>
+                    <p class="sgc-sat-qr-empty__note">Sin respuestas de la encuesta de satisfacción del cliente para {{ etiquetaCicloSatisfaccion }}.</p>
                   </div>
                 </div>
               </div>
@@ -1483,6 +1491,54 @@
         <i class="fas" [ngClass]="guardandoProveedor ? 'fa-spinner fa-spin' : 'fa-save'"></i>
         {{ guardandoProveedor ? 'Guardando...' : 'Guardar evaluación' }}
       </button>
+    </div>
+  </div>
+</div>
+
+<ng-template #panelQrEncuesta>
+  <div class="sgc-sat-qr-card">
+    <div class="sgc-sat-qr" *ngIf="qrEncuestaSatisfaccion; else qrEncuestaPendiente">
+      <img [src]="qrEncuestaSatisfaccion" alt="Código QR de la encuesta de satisfacción del cliente" />
+    </div>
+    <ng-template #qrEncuestaPendiente>
+      <div class="sgc-sat-qr sgc-sat-qr--empty">
+        <i class="fas fa-qrcode"></i>
+        <p>{{ errorQrEncuesta || 'Generando código QR…' }}</p>
+      </div>
+    </ng-template>
+    <div class="sgc-sat-qr-card__copy">
+      <span class="sgc-sat-qr-card__kicker">SGC-F-26 · Encuesta vigente</span>
+      <h3 class="sgc-sat-qr-card__title">Cuestionario de satisfacción del cliente</h3>
+      <p class="sgc-sat-qr-card__text">Escanea el código para que el cliente conteste la encuesta. También puedes abrir el formulario o copiar el enlace.</p>
+      <div class="sgc-sat-qr-card__actions">
+        <button type="button" class="sgc-btn-primary" (click)="abrirEncuestaSatisfaccion()">
+          <i class="fas fa-external-link-alt"></i>
+          Abrir encuesta
+        </button>
+        <button type="button" class="sgc-btn-ghost" (click)="copiarEnlaceEncuestaSatisfaccion()">
+          <i class="fas" [ngClass]="enlaceEncuestaCopiado ? 'fa-check' : 'fa-link'"></i>
+          {{ enlaceEncuestaCopiado ? 'Enlace copiado' : 'Copiar enlace' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</ng-template>
+
+<div class="sgc-modal-overlay" *ngIf="mostrarQrEncuestaSatisfaccion" (click)="cerrarQrEncuestaSatisfaccion()">
+  <div class="sgc-modal sgc-modal--qr-encuesta" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="sgc-qr-encuesta-titulo">
+    <header class="sgc-modal__hero">
+      <div class="sgc-modal__hero-bg" aria-hidden="true"></div>
+      <div class="sgc-modal__hero-content">
+        <div class="sgc-modal__badge sgc-modal__badge--sat-cliente"><i class="fas fa-qrcode"></i><span>SGC-F-26</span></div>
+        <div class="sgc-modal__hero-text">
+          <h2 class="sgc-modal__title" id="sgc-qr-encuesta-titulo">Encuesta para el cliente</h2>
+          <p class="sgc-modal__subtitle">Escanea el código QR para contestar el cuestionario de satisfacción.</p>
+        </div>
+        <button type="button" class="sgc-modal__close" (click)="cerrarQrEncuestaSatisfaccion()" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+      </div>
+    </header>
+    <div class="sgc-modal__body sgc-modal__body--qr">
+      <ng-container *ngTemplateOutlet="panelQrEncuesta"></ng-container>
     </div>
   </div>
 </div>

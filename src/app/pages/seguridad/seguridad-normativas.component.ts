@@ -5,6 +5,7 @@ import { takeUntil } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
+import { environment } from 'src/environments/environment';
 import {
   SEG_NORMATIVAS_CATEGORIAS,
   SegNormativaCategoria,
@@ -100,6 +101,18 @@ export class SeguridadNormativasComponent implements OnInit, OnDestroy {
 
   categoriaLabel(id: string): string {
     return this.categorias.find((c) => c.id === id)?.prefijo || id;
+  }
+
+  iconoCategoria(id: string): string {
+    return this.categorias.find((c) => c.id === id)?.iconClass || 'fas fa-book';
+  }
+
+  urlPortada(item: SegNormativaResumen): string | null {
+    const ruta = item.imagen_portada;
+    if (!ruta) return null;
+    if (/^https?:/i.test(ruta)) return ruta;
+    const base = environment.apiUrl.replace(/\/api\/?$/, '');
+    return `${base}${ruta.startsWith('/') ? ruta : `/${ruta}`}`;
   }
 
   abrirDetalle(normativa: SegNormativaResumen): void {

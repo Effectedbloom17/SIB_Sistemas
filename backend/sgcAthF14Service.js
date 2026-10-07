@@ -160,8 +160,46 @@ function claveNombre(nombre) {
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
+        .replace(/^(ing|mtro|mtra|dr|dra|doc|lic|prof|arq|c)\.?\s+/i, '')
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+const GESTORES_CONTROL_VACACIONES = new Set(['supersu', 'mafer295', 'marisol12']);
+
+function nombreDesdeUsuario(user) {
+    const nombre = String(user?.nombre || '')
+        .replace(/^(Ing\.?|Mtro\.?|Mtra\.?|Dr\.?|Dra\.?|Doc\.?|Lic\.?|Prof\.?|Arq\.?|C\.)\s+/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const apellido = String(user?.apellido || user?.apellido_paterno || '').trim();
+    const materno = String(user?.apellido_materno || '').trim();
+    return [nombre, apellido, materno].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * ATH-F-13 solo lo usan quienes están en este control.
+ * root y los tres registradores (supersu, mafer295, marisol12) conservan la vista completa.
+ */
+async function resolverAccesoSolicitud(pool, user) {
+    const roles = Array.isArray(user?.roles)
+        ? user.roles.map((r) => String(r).toLowerCase())
+        : (user?.rol ? [String(user.rol).toLowerCase()] : []);
+    const username = String(user?.username || '').toLowerCase().trim();
+    const esGestor = roles.includes('root') || GESTORES_CONTROL_VACACIONES.has(username);
+    const registro = await obtenerRegistroSgcPersistido(pool, CODIGO_FORMATO);
+    const datos = sanitizarDatos(registro?.datos_json || { filas: [] });
+    const nombreUsuario = nombreDesdeUsuario(user);
+    const key = claveNombre(nombreUsuario);
+    const fila = key
+        ? datos.filas.find((f) => claveNombre(f.nombreCompleto) === key)
+        : null;
+    return {
+        esGestor,
+        registrado: !!fila,
+        permitido: esGestor || !!fila,
+        nombreRegistrado: fila?.nombreCompleto || ''
+    };
 }
 
 function filaParaHoja(fila) {
@@ -175,7 +213,7 @@ function filaParaHoja(fila) {
         etiquetaAntiguedad(base.fechaIngreso),
         base.diasDisponibles,
         diasTomados,
-        base.diasDisponibles - diasTomados,
+        Math.max(0, base.diasDisponibles - diasTomados),
         vacaciones
     ];
 }
@@ -331,5 +369,7 @@ module.exports = {
     cargarFormato,
     guardarFormato,
     descargarPlantillaPdf,
-    sanitizarDatos
+    sanitizarDatos,
+    claveNombre,
+    resolverAccesoSolicitud
 };

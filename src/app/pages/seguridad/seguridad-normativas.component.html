@@ -88,7 +88,7 @@
       <div class="seg-empty">
         <i class="fas fa-folder-open" aria-hidden="true"></i>
         <h3>Sin normativas registradas</h3>
-        <p *ngIf="puedeImportar">Importe la plantilla Excel (formato NOM-001-STPS-2008) para comenzar.</p>
+        <p *ngIf="puedeImportar">Importe la plantilla Excel de la NOM (p. ej. NOM-001-STPS-2008 o NOM-023-STPS-2012) para comenzar.</p>
         <p *ngIf="!puedeImportar">El catálogo aún no tiene normativas cargadas.</p>
         <button *ngIf="puedeImportar" type="button" class="btn seg-btn-import-lg" [disabled]="importando" (click)="abrirSelectorImportar()">
           <i class="fas fa-file-excel" aria-hidden="true"></i> Importar primera normativa
@@ -96,52 +96,27 @@
       </div>
     </div>
 
-    <div class="seg-catalog-table-wrap" *ngIf="!cargando && !error && normativasFiltradas.length">
-      <table class="seg-catalog-table">
-        <thead>
-          <tr>
-            <th class="col-codigo">Clave</th>
-            <th class="col-titulo">Normativa</th>
-            <th class="col-grupo d-none d-lg-table-cell">Grupo</th>
-            <th class="col-req text-center">Req.</th>
-            <th class="col-fecha d-none d-md-table-cell">Actualización</th>
-            <th class="col-accion"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let n of normativasFiltradas; trackBy: trackById"
-              class="seg-catalog-row"
-              tabindex="0"
-              (click)="abrirDetalle(n)"
-              (keydown.enter)="abrirDetalle(n)">
-            <td class="col-codigo">
-              <span class="seg-codigo-badge">{{ n.codigo }}</span>
-            </td>
-            <td class="col-titulo">
-              <span class="seg-titulo-text" [title]="n.titulo">{{ n.titulo }}</span>
-              <span class="seg-titulo-meta d-lg-none">NOM {{ categoriaLabel(n.categoria_id) }}</span>
-            </td>
-            <td class="col-grupo d-none d-lg-table-cell">
-              <span class="seg-grupo-tag">NOM {{ categoriaLabel(n.categoria_id) }}</span>
-            </td>
-            <td class="col-req text-center">
-              <span class="seg-req-count">{{ n.total_requisitos }}</span>
-            </td>
-            <td class="col-fecha d-none d-md-table-cell">
-              <span class="seg-fecha" *ngIf="n.importado_en">{{ n.importado_en | date:'dd/MM/yy' }}</span>
-              <span class="seg-fecha seg-fecha--muted" *ngIf="!n.importado_en">—</span>
-            </td>
-            <td class="col-accion text-right">
-              <button type="button" class="btn btn-sm seg-btn-ver" (click)="abrirDetalle(n); $event.stopPropagation()">
-                Ver <i class="fas fa-chevron-right" aria-hidden="true"></i>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <footer class="seg-catalog-footer">
-        <span>{{ normativasFiltradas.length }} de {{ totalNormativas }} normativas</span>
-      </footer>
+    <div class="cat-grid" *ngIf="!cargando && !error && normativasFiltradas.length">
+      <button type="button"
+              class="cat-card"
+              *ngFor="let n of normativasFiltradas; let i = index; trackBy: trackById"
+              [style.animation-delay.ms]="(i < 12 ? i : 12) * 55"
+              (click)="abrirDetalle(n)">
+        <span class="cat-card__media" [class.has-photo]="!!n.imagen_portada" [attr.data-cat]="n.categoria_id">
+          <img *ngIf="urlPortada(n) as foto" class="cat-card__photo" [src]="foto" [alt]="n.codigo">
+          <i class="cat-card__icon" [ngClass]="iconoCategoria(n.categoria_id)" aria-hidden="true"></i>
+          <span class="cat-card__pts"><i class="fas fa-list-ol" aria-hidden="true"></i> {{ n.total_requisitos || 0 }}</span>
+        </span>
+        <span class="cat-card__body">
+          <strong>{{ n.codigo }}</strong>
+          <em>{{ n.titulo }}</em>
+          <span class="cat-card__meta">
+            <span>NOM {{ categoriaLabel(n.categoria_id) }}</span>
+            <span *ngIf="n.importado_en">{{ n.importado_en | date:'dd/MM/yy' }}</span>
+          </span>
+        </span>
+      </button>
+      <p class="cat-grid__foot">{{ normativasFiltradas.length }} de {{ totalNormativas }} normativas</p>
     </div>
   </div>
 </div>

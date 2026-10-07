@@ -49,6 +49,23 @@
   background: #4a2318;
 }
 
+.doc-visor--seguridad .doc-visor__backdrop {
+  background: rgba(76, 5, 25, 0.92);
+}
+
+.doc-visor--seguridad .doc-visor__head {
+  background: linear-gradient(135deg, #7f1d1d 0%, #b91c1c 55%, #dc2626 100%);
+}
+
+.doc-visor--seguridad .doc-visor__spinner {
+  background: rgba(185, 28, 28, 0.18);
+  color: #fecaca;
+}
+
+.doc-visor--seguridad .doc-visor__toolbar {
+  background: #4c0519;
+}
+
 .doc-visor__panel {
   position: relative;
   z-index: 1;

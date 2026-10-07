@@ -114,6 +114,7 @@ const PASOS_PIPC_FICHA_BASE: ReadonlyArray<Omit<PasoPipcDetalle, 'estado' | 'det
   { id: 'documentacion', label: 'Subir Documentación', estado: 'pendiente', detalle: null, pct: 0 },
   { id: 'oficio', label: 'Oficio de Ingreso', estado: 'pendiente', detalle: null, pct: 0 },
   { id: 'observaciones', label: 'Observaciones', estado: 'pendiente', detalle: null, pct: 0 },
+  { id: 'recorrido_doc', label: 'Recorrido PC', estado: 'pendiente', detalle: null, pct: 0 },
   { id: 'resolutivo', label: 'Resolutivo', estado: 'pendiente', detalle: null, pct: 0 }
 ];
 
@@ -239,7 +240,7 @@ interface ResolutivoAtencionCard {
   color: string;
 }
 
-type PasoCentroOperacionesId = 'asignar' | 'directorio' | 'recorrido' | 'documentacion' | 'oficio' | 'observaciones' | 'resolutivo' | 'finalizar';
+type PasoCentroOperacionesId = 'asignar' | 'directorio' | 'recorrido' | 'documentacion' | 'oficio' | 'observaciones' | 'resolutivo' | 'recorrido_doc' | 'finalizar';
 
 type PcWorkflowClave = string;
 
@@ -338,6 +339,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   opsDirectoriosCargando = false;
   opsDescargandoDirectorioId: number | null = null;
   opsFechasWorkflow: Record<string, string> = {};
+  opsNotasWorkflow: Record<string, string> = {};
   opsRefreshAsignaciones = 0;
   opsRefreshRecorrido = 0;
   opsCargandoEstado = false;
@@ -353,8 +355,10 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   opsFechaAprobacionOtms = '';
   opsSubiendoWorkflow: PcWorkflowClave | null = null;
   opsGuardandoFecha: string | null = null;
+  opsGuardandoNota: string | null = null;
   opsOficioPreviewClave: PcWorkflowClave | null = null;
   opsObsPreviewClave: PcWorkflowClave | null = null;
+  readonly opsRecorridoDocClave: PcWorkflowClave = 'ops_recorrido_doc';
   readonly opsResolutivoTipos: PcResolutivoTipoUi[] = [
     { tipo: 'pipc', label: 'PIPC', claveKey: 'clave_resolutivo_pipc' },
     { tipo: 'factibilidad', label: 'Factibilidad', claveKey: 'clave_resolutivo_factibilidad' },
@@ -2395,24 +2399,26 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     { id: 'documentacion', nombre: 'Subir documentación', descripcion: '', icono: 'fa-cloud-upload-alt', orden: 4 },
     { id: 'oficio', nombre: 'Oficio de Ingreso', descripcion: 'Oficio y fecha por cada PIPC asignado', icono: 'fa-file-signature', orden: 5 },
     { id: 'observaciones', nombre: 'Observaciones', descripcion: 'Opcional: 2 oficios y fecha por PIPC', icono: 'fa-comment-dots', orden: 6 },
-    { id: 'resolutivo', nombre: 'Resolutivo', descripcion: 'PIPC, Factibilidad y OTMS por cada PIPC', icono: 'fa-gavel', orden: 7 },
-    { id: 'finalizar', nombre: 'Finalizar', descripcion: 'Cierra el ciclo y permite nueva asignación', icono: 'fa-flag-checkered', orden: 8 }
+    { id: 'recorrido_doc', nombre: 'Recorrido PC', descripcion: 'Documento, fecha de ingreso y observaciones opcionales', icono: 'fa-walking', orden: 7 },
+    { id: 'resolutivo', nombre: 'Resolutivo', descripcion: 'PIPC, Factibilidad y OTMS por cada PIPC', icono: 'fa-gavel', orden: 8 },
+    { id: 'finalizar', nombre: 'Finalizar', descripcion: 'Cierra el ciclo y permite nueva asignación', icono: 'fa-flag-checkered', orden: 9 }
   ];
 
   /** En PIPC Activos la asignación vive en otra pantalla; el flujo empieza en Directorio. */
   private readonly pasosOcultosEnPipcActivos = new Set<PasoCentroOperacionesId>(['asignar']);
 
-  /** Pasos que sí cuentan para el 100% del trámite. Recorrido y observaciones son opcionales. */
-  private readonly pcPasosRequeridosTramite: PasoCentroOperacionesId[] = ['asignar', 'directorio', 'documentacion', 'oficio', 'resolutivo'];
+  /** Pasos que sí cuentan para el 100% del trámite. Reporte de recorrido y observaciones son opcionales. */
+  private readonly pcPasosRequeridosTramite: PasoCentroOperacionesId[] = ['asignar', 'directorio', 'documentacion', 'oficio', 'recorrido_doc', 'resolutivo'];
   private readonly pcPasosTramitePendientes: Array<{ id: PasoCentroOperacionesId; label: string; opcional: boolean }> = [
     { id: 'directorio', label: 'Directorio', opcional: false },
     { id: 'recorrido', label: 'Reporte de Recorrido', opcional: true },
     { id: 'oficio', label: 'Oficio de Ingreso', opcional: false },
     { id: 'observaciones', label: 'Observaciones', opcional: true },
+    { id: 'recorrido_doc', label: 'Recorrido PC', opcional: false },
     { id: 'resolutivo', label: 'Resolutivo', opcional: false }
   ];
   private readonly pcPasosProcesoIds: PasoCentroOperacionesId[] = [
-    'asignar', 'directorio', 'recorrido', 'documentacion', 'oficio', 'observaciones', 'resolutivo', 'finalizar'
+    'asignar', 'directorio', 'recorrido', 'documentacion', 'oficio', 'observaciones', 'recorrido_doc', 'resolutivo', 'finalizar'
   ];
 
   get pasosCentroOperaciones(): PasoCentroOperaciones[] {
@@ -2601,6 +2607,13 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
           if (fechasWf && typeof fechasWf === 'object') {
             for (const [k, v] of Object.entries(fechasWf)) {
               this.opsFechasWorkflow[k] = this.formatFechaInput(v as string);
+            }
+          }
+          this.opsNotasWorkflow = {};
+          const notasWf = resp.ciclo?.notas_workflow || {};
+          if (notasWf && typeof notasWf === 'object') {
+            for (const [k, v] of Object.entries(notasWf)) {
+              this.opsNotasWorkflow[k] = String(v || '');
             }
           }
           this.opsArchivosWorkflow = resp.archivos_workflow || {};
@@ -2796,6 +2809,35 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     return this.opsFechasWorkflow[clave] || '';
   }
 
+  getNotaWorkflow(clave: string): string {
+    return this.opsNotasWorkflow[clave] || '';
+  }
+
+  guardarNotaCentroOps(clave: string, valor: string): void {
+    if (!this.empresaSeleccionada) return;
+    const valorNorm = String(valor || '');
+    this.opsNotasWorkflow[clave] = valorNorm;
+    this.opsGuardandoNota = clave;
+    this.backendService.guardarNotaCentroOperacionesPC(
+      this.empresaSeleccionada.empresa_id,
+      clave,
+      valorNorm
+    ).subscribe({
+      next: () => {
+        this.opsGuardandoNota = null;
+      },
+      error: (err) => {
+        this.opsGuardandoNota = null;
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: err?.error?.message || 'No se pudo guardar la nota.',
+          confirmButtonColor: '#d97248'
+        });
+      }
+    });
+  }
+
   claveResolutivoDePipc(pipc: PcPipcAsignadoOps, tipoUi: PcResolutivoTipoUi): string {
     return pipc[tipoUi.claveKey];
   }
@@ -2835,6 +2877,9 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
         if (m) this.opsFechasWorkflow[`ops_obs_${m[1]}`] = valorNorm;
         m = campo.match(/^fecha_resolutivo_(pipc|factibilidad|otms)_(\d+)$/);
         if (m) this.opsFechasWorkflow[`ops_resolutivo_${m[1]}_${m[2]}`] = valorNorm;
+        if (campo === 'fecha_recorrido_doc') {
+          this.opsFechasWorkflow[this.opsRecorridoDocClave] = valorNorm;
+        }
 
         this.cargarCentroOperaciones(this.empresaSeleccionada!.empresa_id);
         const syncFecha =
@@ -2988,6 +3033,9 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   }
 
   private etiquetaWorkflowArchivo(clave: PcWorkflowClave): string {
+    if (clave === this.opsRecorridoDocClave) {
+      return 'Recorrido PC';
+    }
     const pipc = this.opsPipcAsignados.find(
       (p) =>
         p.clave_oficio === clave ||
@@ -3133,14 +3181,14 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   async cerrarCicloCentroOperaciones(): Promise<void> {
     if (!this.empresaSeleccionada) return;
 
-    const faltantes = ['asignar', 'documentacion', 'oficio', 'resolutivo'].filter(
+    const faltantes = ['asignar', 'documentacion', 'oficio', 'recorrido_doc', 'resolutivo'].filter(
       (p) => !this.isOpsPasoCompletado(p as PasoCentroOperacionesId)
     );
     if (faltantes.length) {
       await Swal.fire({
         icon: 'warning',
         title: 'No se puede finalizar',
-        html: '<p>Completa los pasos obligatorios: Asignar, Subir documentación, Oficio de Ingreso y Resolutivo.</p>',
+        html: '<p>Completa los pasos obligatorios: Asignar, Subir documentación, Oficio de Ingreso, Recorrido PC y Resolutivo.</p>',
         confirmButtonColor: '#d97248'
       });
       return;
@@ -3307,7 +3355,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
         this.pasoOperacionesSeleccionado =
           paso === 'documentacion' || this.documentoIdPendienteVisor
             ? 'documentacion'
-            : (paso === 'directorio' || paso === 'recorrido' || paso === 'oficio' || paso === 'observaciones' || paso === 'resolutivo' || paso === 'finalizar'
+            : (paso === 'directorio' || paso === 'recorrido' || paso === 'oficio' || paso === 'observaciones' || paso === 'resolutivo' || paso === 'recorrido_doc' || paso === 'finalizar'
               ? paso as PasoCentroOperacionesId
               : 'directorio');
         this.vistaActual = 'menuDocumentos';
@@ -5759,6 +5807,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       { id: 'recorrido', label: 'Reporte de Recorrido' },
       { id: 'documentacion', label: 'Subir Documentación' },
       { id: 'oficio', label: 'Oficio de Ingreso' },
+      { id: 'recorrido_doc', label: 'Recorrido PC' },
       { id: 'resolutivo', label: 'Resolutivo' }
     ];
     for (const paso of orden) {
@@ -5968,6 +6017,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     oficio: 'fa-file-signature',
     observaciones: 'fa-comment-dots',
     resolutivo: 'fa-gavel',
+    recorrido_doc: 'fa-walking',
     finalizar: 'fa-flag-checkered'
   };
 
@@ -6001,9 +6051,9 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     return this.getPasosDetalleHover(empresa).filter((p) => ids.has(String(p.id)));
   }
 
-  /** Centro: oficio + observaciones + resolutivo (columna der del panel). */
+  /** Centro: oficio + observaciones + recorrido PC + resolutivo (columna der del panel). */
   getPasosHoverColumnaDer(empresa: EmpresaPC | PipcTerminadoReciente | any): PasoPipcDetalle[] {
-    const ids = new Set(['oficio', 'observaciones', 'resolutivo']);
+    const ids = new Set(['oficio', 'observaciones', 'recorrido_doc', 'resolutivo']);
     return this.getPasosDetalleHover(empresa).filter((p) => ids.has(String(p.id)));
   }
 

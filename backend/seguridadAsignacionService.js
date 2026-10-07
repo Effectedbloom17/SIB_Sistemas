@@ -1,17 +1,29 @@
 // =====================================================
 // BIZNAGA R&T — Seguridad · Asignación y gestión de normativas por empresa
 // Borrador persistente, un responsable por norma y evidencias por punto
+// Evidencias → Drive: Sistema / {Empresa} / Normativas {Año} / {NOM} / {Punto}
 // =====================================================
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { formatearPuntoNorma, contextoUsuario } = require('./seguridadNormativasService');
+const driveService = require('./driveService');
 
 const MAX_NORMAS = 80;
 const MAX_PUNTOS_NORMA = 8000;
 const MAX_EMPLEADOS = 1;
 const UPLOAD_DIR = path.resolve(__dirname, 'uploads', 'seguridad-asignacion');
+/** Carpeta raíz «Sistema» en Drive (evidencias de gestión de normativas). */
+const CARPETA_SISTEMA_DRIVE_ID = '1Jq-rhvJByXIhN0xclZVfmGmlbd8t073y';
+
+const CATEGORIAS_META = {
+    'nom-001-010': { prefijo: '001–010', titulo: 'Instalaciones y materiales', descripcion: 'Edificios, incendio, maquinaria, sustancias.' },
+    'nom-011-020': { prefijo: '011–020', titulo: 'Agentes y organización', descripcion: 'Ruido, radiaciones, EPP, químicos.' },
+    'nom-021-030': { prefijo: '021–030', titulo: 'Electricidad y procesos', descripcion: 'Electricidad, iluminación, soldadura.' },
+    'nom-031-040': { prefijo: '031–040', titulo: 'Construcción y factores humanos', descripcion: 'Construcción, espacios confinados, ergonomía.' },
+    otras: { prefijo: 'OTRAS', titulo: 'Otras normativas', descripcion: 'Normas de otras dependencias.' }
+};
 
 let tablasPromise = null;
 
@@ -91,6 +103,20 @@ async function asegurarTablas(pool) {
         });
     }
     return tablasPromise;
+}
+
+async function columnExists(pool, table, column) {
+    const [rows] = await pool.query(
+        `SELECT 1 FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1`,
+        [table, column]
+    );
+    return rows.length > 0;
+}
+
+async function addColumnIfNotExists(pool, table, column, definition) {
+    if (await columnExists(pool, table, column)) return;
+    await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
 }
 
 async function crearTablas(pool) {
@@ -174,6 +200,38 @@ async function crearTablas(pool) {
             REFERENCES seg_asignacion (id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+
+    await addColumnIfNotExists(pool, 'seg_asignacion_documento', 'drive_file_id', 'VARCHAR(128) NULL');
+    await addColumnIfNotExists(pool, 'seg_asignacion_documento', 'drive_folder_id', 'VARCHAR(128) NULL');
+    await addColumnIfNotExists(pool, 'seg_asignacion_documento', 'drive_web_view_link', 'VARCHAR(512) NULL');
+    await addColumnIfNotExists(pool, 'seg_asignacion_documento', 'anio', 'SMALLINT UNSIGNED NULL');
+}
+
+function pct(conEvidencia, total) {
+    const t = Number(total) || 0;
+    if (!t) return 0;
+    return Math.round(((Number(conEvidencia) || 0) / t) * 100);
+}
+
+function nombreCarpetaDrive(valor, fallback = 'Sin nombre') {
+    const limpio = String(valor || '')
+        .replace(/[\\/:*?"<>|#]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 120);
+    return limpio || fallback;
+}
+
+function metaCategoria(categoriaId) {
+    const id = String(categoriaId || 'otras');
+    const meta = CATEGORIAS_META[id] || CATEGORIAS_META.otras;
+    return { categoria_id: id, ...meta };
+}
+
+function estadoPunto(documentos) {
+    const n = Array.isArray(documentos) ? documentos.length : 0;
+    if (n >= 1) return 'cumple';
+    return 'no_cumple';
 }
 
 async function guardarBorrador(pool, empresaId, payload, usuario) {
@@ -305,25 +363,67 @@ async function listarPuntos(pool, normativaId) {
         [id]
     );
     if (!normas.length) throw httpError(404, 'Normativa no encontrada.');
-    const [rows] = await pool.query(
-        `SELECT id, numero_item, punto_norma, descripcion, tipo_evidencia, periodicidad,
-                formato_nombre, formato_archivo, orden
-         FROM seg_normativa_requisito
-         WHERE normativa_id = ?
-         ORDER BY orden ASC, id ASC`,
-        [id]
-    );
+    let rows;
+    try {
+        [rows] = await pool.query(
+            `SELECT id, numero_item, punto_norma, descripcion, descripcion_html, tipo_evidencia, periodicidad,
+                    evidencia_requerida, formato_nombre, formato_archivo, orden
+             FROM seg_normativa_requisito
+             WHERE normativa_id = ?
+             ORDER BY orden ASC, id ASC`,
+            [id]
+        );
+    } catch (err) {
+        if (err?.code !== 'ER_BAD_FIELD_ERROR') throw err;
+        [rows] = await pool.query(
+            `SELECT id, numero_item, punto_norma, descripcion, tipo_evidencia, periodicidad,
+                    evidencia_requerida, formato_nombre, formato_archivo, orden
+             FROM seg_normativa_requisito
+             WHERE normativa_id = ?
+             ORDER BY orden ASC, id ASC`,
+            [id]
+        );
+    }
+    const imagenes = await listarImagenesPunto(pool, id);
     return rows.map((row) => ({
         id: row.id,
         numero_item: row.numero_item,
         punto_norma: formatearPuntoNorma(row.punto_norma) || '',
         descripcion: row.descripcion || '',
+        descripcion_html: row.descripcion_html || null,
         tipo_evidencia: row.tipo_evidencia || null,
         periodicidad: row.periodicidad || null,
+        evidencia_requerida: row.evidencia_requerida || null,
         formato_nombre: row.formato_nombre || null,
         formato_archivo: row.formato_archivo || null,
-        orden: row.orden
+        orden: row.orden,
+        imagenes: imagenes.get(row.id) || []
     }));
+}
+
+async function listarImagenesPunto(pool, normativaId) {
+    const mapa = new Map();
+    try {
+        const [imgs] = await pool.query(
+            `SELECT id, requisito_id, ruta, nombre
+             FROM seg_normativa_requisito_imagen
+             WHERE normativa_id = ?
+             ORDER BY orden ASC, id ASC`,
+            [normativaId]
+        );
+        for (const img of imgs) {
+            const lista = mapa.get(img.requisito_id) || [];
+            lista.push({
+                id: img.id,
+                ruta: img.ruta,
+                nombre: img.nombre || ''
+            });
+            mapa.set(img.requisito_id, lista);
+        }
+    } catch (err) {
+        if (err?.code !== 'ER_NO_SUCH_TABLE') throw err;
+    }
+    return mapa;
 }
 
 async function validarResponsables(poolMain, responsables) {
@@ -475,6 +575,8 @@ async function publicar(pool, poolMain, body, usuario) {
 }
 
 function mapAsignacionLista(row) {
+    const puntosAsignados = Number(row.puntos_asignados) || 0;
+    const puntosConEvidencia = Number(row.puntos_con_evidencia) || 0;
     return {
         id: row.id,
         empresa_id: row.empresa_id,
@@ -482,15 +584,79 @@ function mapAsignacionLista(row) {
         normativa_id: row.normativa_id,
         codigo: row.codigo,
         titulo: row.titulo,
-        categoria_id: row.categoria_id,
+        categoria_id: row.categoria_id || 'otras',
+        autoridad: row.autoridad || null,
         total_catalogo: row.total_requisitos,
-        puntos_asignados: Number(row.puntos_asignados) || 0,
+        puntos_asignados: puntosAsignados,
         documentos: Number(row.documentos) || 0,
-        puntos_con_evidencia: Number(row.puntos_con_evidencia) || 0,
+        puntos_con_evidencia: puntosConEvidencia,
+        avance: pct(puntosConEvidencia, puntosAsignados),
+        imagen_portada: row.imagen_portada || null,
         publicado_por: row.publicado_por,
         publicado_en: aIso(row.publicado_en),
         updated_at: aIso(row.updated_at)
     };
+}
+
+function agruparEmpresas(asignaciones) {
+    const mapa = new Map();
+    for (const item of asignaciones) {
+        let emp = mapa.get(item.empresa_id);
+        if (!emp) {
+            emp = {
+                empresa_id: item.empresa_id,
+                empresa_nombre: item.empresa_nombre,
+                puntos_asignados: 0,
+                puntos_con_evidencia: 0,
+                documentos: 0,
+                normativas: 0,
+                categoriasMap: new Map()
+            };
+            mapa.set(item.empresa_id, emp);
+        }
+        emp.puntos_asignados += item.puntos_asignados;
+        emp.puntos_con_evidencia += item.puntos_con_evidencia;
+        emp.documentos += item.documentos;
+        emp.normativas += 1;
+
+        const catId = item.categoria_id || 'otras';
+        let cat = emp.categoriasMap.get(catId);
+        if (!cat) {
+            cat = {
+                ...metaCategoria(catId),
+                puntos_asignados: 0,
+                puntos_con_evidencia: 0,
+                documentos: 0,
+                normativas: 0
+            };
+            emp.categoriasMap.set(catId, cat);
+        }
+        cat.puntos_asignados += item.puntos_asignados;
+        cat.puntos_con_evidencia += item.puntos_con_evidencia;
+        cat.documentos += item.documentos;
+        cat.normativas += 1;
+    }
+
+    return Array.from(mapa.values())
+        .map((emp) => {
+            const categorias = Array.from(emp.categoriasMap.values())
+                .map((c) => ({
+                    ...c,
+                    avance: pct(c.puntos_con_evidencia, c.puntos_asignados)
+                }))
+                .sort((a, b) => a.categoria_id.localeCompare(b.categoria_id, 'es'));
+            return {
+                empresa_id: emp.empresa_id,
+                empresa_nombre: emp.empresa_nombre,
+                puntos_asignados: emp.puntos_asignados,
+                puntos_con_evidencia: emp.puntos_con_evidencia,
+                documentos: emp.documentos,
+                normativas: emp.normativas,
+                avance: pct(emp.puntos_con_evidencia, emp.puntos_asignados),
+                categorias
+            };
+        })
+        .sort((a, b) => a.empresa_nombre.localeCompare(b.empresa_nombre, 'es'));
 }
 
 async function listarGestion(pool, empresaId) {
@@ -505,7 +671,7 @@ async function listarGestion(pool, empresaId) {
     const [rows] = await pool.query(
         `SELECT a.id, a.empresa_id, a.empresa_nombre, a.normativa_id, a.publicado_por,
                 a.publicado_en, a.updated_at,
-                n.codigo, n.titulo, n.categoria_id, n.total_requisitos,
+                n.codigo, n.titulo, n.categoria_id, n.autoridad, n.total_requisitos, n.imagen_portada,
                 (SELECT COUNT(*) FROM seg_asignacion_punto p WHERE p.asignacion_id = a.id) AS puntos_asignados,
                 (SELECT COUNT(*) FROM seg_asignacion_documento d WHERE d.asignacion_id = a.id) AS documentos,
                 (SELECT COUNT(DISTINCT d.requisito_id) FROM seg_asignacion_documento d
@@ -540,6 +706,30 @@ async function listarGestion(pool, empresaId) {
     }));
 }
 
+async function listarEmpresasGestion(pool) {
+    const asignaciones = await listarGestion(pool);
+    return agruparEmpresas(asignaciones);
+}
+
+async function obtenerEmpresaGestion(pool, empresaId, categoriaId) {
+    const id = entero(empresaId);
+    if (!id) throw httpError(400, 'Empresa inválida.');
+    const asignaciones = await listarGestion(pool, id);
+    if (!asignaciones.length) throw httpError(404, 'No hay normativas asignadas para esta empresa.');
+
+    const [empresa] = agruparEmpresas(asignaciones);
+    const catFiltro = categoriaId ? String(categoriaId).trim() : '';
+    const normas = catFiltro
+        ? asignaciones.filter((a) => a.categoria_id === catFiltro)
+        : asignaciones;
+
+    return {
+        empresa,
+        categorias: empresa.categorias,
+        asignaciones: normas
+    };
+}
+
 function mapDocumento(row) {
     return {
         id: row.id,
@@ -549,7 +739,11 @@ function mapDocumento(row) {
         mime: row.mime,
         tamano: row.tamano,
         subido_por: row.subido_por,
-        creado_en: aIso(row.creado_en)
+        creado_en: aIso(row.creado_en),
+        drive_file_id: row.drive_file_id || null,
+        drive_folder_id: row.drive_folder_id || null,
+        drive_web_view_link: row.drive_web_view_link || null,
+        anio: row.anio != null ? Number(row.anio) : null
     };
 }
 
@@ -560,7 +754,7 @@ async function obtenerGestion(pool, asignacionId) {
     const [rows] = await pool.query(
         `SELECT a.id, a.empresa_id, a.empresa_nombre, a.normativa_id, a.publicado_por,
                 a.publicado_en, a.updated_at,
-                n.codigo, n.titulo, n.categoria_id, n.total_requisitos,
+                n.codigo, n.titulo, n.categoria_id, n.autoridad, n.total_requisitos, n.imagen_portada,
                 (SELECT COUNT(*) FROM seg_asignacion_punto p WHERE p.asignacion_id = a.id) AS puntos_asignados,
                 (SELECT COUNT(*) FROM seg_asignacion_documento d WHERE d.asignacion_id = a.id) AS documentos,
                 (SELECT COUNT(DISTINCT d.requisito_id) FROM seg_asignacion_documento d
@@ -573,6 +767,9 @@ async function obtenerGestion(pool, asignacionId) {
     );
     if (!rows.length) throw httpError(404, 'La asignación no está disponible.');
 
+    const normativaId = rows[0].normativa_id;
+    const imagenesMap = await listarImagenesPunto(pool, normativaId);
+
     const [resps] = await pool.query(
         `SELECT empleado_id, empleado_nombre, empleado_puesto, orden
          FROM seg_asignacion_responsable
@@ -580,17 +777,38 @@ async function obtenerGestion(pool, asignacionId) {
          ORDER BY orden ASC, id ASC`,
         [id]
     );
-    const [puntos] = await pool.query(
-        `SELECT r.id, r.numero_item, r.punto_norma, r.descripcion, r.tipo_evidencia, r.periodicidad,
-                r.formato_nombre, r.formato_archivo, r.orden
-         FROM seg_asignacion_punto p
-         JOIN seg_normativa_requisito r ON r.id = p.requisito_id
-         WHERE p.asignacion_id = ?
-         ORDER BY r.orden ASC, r.id ASC`,
-        [id]
-    );
+    let puntos;
+    try {
+        [puntos] = await pool.query(
+            `SELECT r.id, r.numero_item, r.punto_norma, r.descripcion, r.descripcion_html,
+                    r.tipo_evidencia, r.periodicidad, r.evidencia_requerida,
+                    r.formato_nombre, r.formato_archivo, r.formato_nombre_archivo, r.orden,
+                    (SELECT MAX(d.creado_en) FROM seg_asignacion_documento d
+                      WHERE d.asignacion_id = ? AND d.requisito_id = r.id) AS ultima_evidencia
+             FROM seg_asignacion_punto p
+             JOIN seg_normativa_requisito r ON r.id = p.requisito_id
+             WHERE p.asignacion_id = ?
+             ORDER BY r.orden ASC, r.id ASC`,
+            [id, id]
+        );
+    } catch (err) {
+        if (err?.code !== 'ER_BAD_FIELD_ERROR') throw err;
+        [puntos] = await pool.query(
+            `SELECT r.id, r.numero_item, r.punto_norma, r.descripcion,
+                    r.tipo_evidencia, r.periodicidad, r.evidencia_requerida,
+                    r.formato_nombre, r.formato_archivo, r.orden,
+                    (SELECT MAX(d.creado_en) FROM seg_asignacion_documento d
+                      WHERE d.asignacion_id = ? AND d.requisito_id = r.id) AS ultima_evidencia
+             FROM seg_asignacion_punto p
+             JOIN seg_normativa_requisito r ON r.id = p.requisito_id
+             WHERE p.asignacion_id = ?
+             ORDER BY r.orden ASC, r.id ASC`,
+            [id, id]
+        );
+    }
     const [docs] = await pool.query(
-        `SELECT id, asignacion_id, requisito_id, nombre_original, mime, tamano, subido_por, creado_en
+        `SELECT id, asignacion_id, requisito_id, nombre_original, mime, tamano, subido_por, creado_en,
+                drive_file_id, drive_folder_id, drive_web_view_link, anio
          FROM seg_asignacion_documento
          WHERE asignacion_id = ?
          ORDER BY creado_en DESC, id DESC`,
@@ -600,24 +818,34 @@ async function obtenerGestion(pool, asignacionId) {
     return {
         asignacion: {
             ...mapAsignacionLista(rows[0]),
+            categoria: metaCategoria(rows[0].categoria_id),
             responsables: resps.map((r) => ({
                 empleado_id: r.empleado_id,
                 nombre: r.empleado_nombre,
                 puesto: r.empleado_puesto || ''
             }))
         },
-        puntos: puntos.map((row) => ({
-            id: row.id,
-            numero_item: row.numero_item,
-            punto_norma: formatearPuntoNorma(row.punto_norma) || '',
-            descripcion: row.descripcion || '',
-            tipo_evidencia: row.tipo_evidencia || null,
-            periodicidad: row.periodicidad || null,
-            formato_nombre: row.formato_nombre || null,
-            formato_archivo: row.formato_archivo || null,
-            orden: row.orden,
-            documentos: docsMap.filter((d) => Number(d.requisito_id) === Number(row.id))
-        })),
+        puntos: puntos.map((row) => {
+            const documentos = docsMap.filter((d) => Number(d.requisito_id) === Number(row.id));
+            return {
+                id: row.id,
+                numero_item: row.numero_item,
+                punto_norma: formatearPuntoNorma(row.punto_norma) || '',
+                descripcion: row.descripcion || '',
+                descripcion_html: row.descripcion_html || null,
+                tipo_evidencia: row.tipo_evidencia || null,
+                periodicidad: row.periodicidad || null,
+                evidencia_requerida: row.evidencia_requerida || null,
+                formato_nombre: row.formato_nombre || null,
+                formato_archivo: row.formato_archivo || null,
+                formato_nombre_archivo: row.formato_nombre_archivo || null,
+                orden: row.orden,
+                ultima_evidencia: aIso(row.ultima_evidencia),
+                estado: estadoPunto(documentos),
+                imagenes: imagenesMap.get(row.id) || [],
+                documentos
+            };
+        }),
         documentos_generales: docsMap.filter((d) => !d.requisito_id)
     };
 }
@@ -631,28 +859,63 @@ function rutaAbsoluta(relativa) {
     return full;
 }
 
-async function guardarDocumento(pool, asignacionId, file, requisitoId, usuario) {
+async function asegurarRutaDriveEvidencia({ empresaNombre, anio, codigoNorma, puntoNorma, requisitoId }) {
+    if (!driveService.driveDisponible || !driveService.driveDisponible()) {
+        throw httpError(503, 'Google Drive no está autenticado. Revisa la conexión de Drive.');
+    }
+    const carpetaEmpresa = await driveService.obtenerOCrearCarpeta(
+        nombreCarpetaDrive(empresaNombre, 'Empresa'),
+        CARPETA_SISTEMA_DRIVE_ID
+    );
+    const carpetaAnio = await driveService.obtenerOCrearCarpeta(
+        `Normativas ${anio}`,
+        carpetaEmpresa
+    );
+    const carpetaNorma = await driveService.obtenerOCrearCarpeta(
+        nombreCarpetaDrive(codigoNorma, 'Normativa'),
+        carpetaAnio
+    );
+    const etiquetaPunto = puntoNorma
+        ? nombreCarpetaDrive(puntoNorma, `Punto ${requisitoId || ''}`)
+        : nombreCarpetaDrive(`Punto ${requisitoId || 'general'}`, 'Punto');
+    const carpetaPunto = await driveService.obtenerOCrearCarpeta(etiquetaPunto, carpetaNorma);
+    return carpetaPunto;
+}
+
+async function guardarDocumento(pool, asignacionId, file, requisitoId, usuario, anioOpcional) {
     await asegurarTablas(pool);
     const id = entero(asignacionId);
     if (!id) throw httpError(400, 'Asignación inválida.');
     if (!file?.buffer) throw httpError(400, 'Adjunte un archivo.');
 
     const [asigs] = await pool.query(
-        `SELECT id FROM seg_asignacion WHERE id = ? AND estado = 'activa' LIMIT 1`,
+        `SELECT a.id, a.empresa_nombre, n.codigo
+         FROM seg_asignacion a
+         JOIN seg_normativa n ON n.id = a.normativa_id
+         WHERE a.id = ? AND a.estado = 'activa'
+         LIMIT 1`,
         [id]
     );
     if (!asigs.length) throw httpError(404, 'La asignación no está disponible.');
 
     const reqId = requisitoId ? entero(requisitoId) : null;
     if (requisitoId && !reqId) throw httpError(400, 'Punto inválido.');
+
+    let puntoNorma = '';
     if (reqId) {
         const [pts] = await pool.query(
-            `SELECT 1 FROM seg_asignacion_punto WHERE asignacion_id = ? AND requisito_id = ? LIMIT 1`,
+            `SELECT r.punto_norma
+             FROM seg_asignacion_punto p
+             JOIN seg_normativa_requisito r ON r.id = p.requisito_id
+             WHERE p.asignacion_id = ? AND p.requisito_id = ?
+             LIMIT 1`,
             [id, reqId]
         );
         if (!pts.length) throw httpError(400, 'Ese punto no forma parte de la normativa asignada.');
+        puntoNorma = formatearPuntoNorma(pts[0].punto_norma) || String(reqId);
     }
 
+    const anio = entero(anioOpcional) || new Date().getFullYear();
     const original = String(file.originalname || 'archivo').slice(0, 240);
     const ext = path.extname(original).toLowerCase().replace(/[^.a-z0-9]/g, '').slice(0, 10);
     const nombreDisco = `${crypto.randomBytes(16).toString('hex')}${ext}`;
@@ -661,11 +924,38 @@ async function guardarDocumento(pool, asignacionId, file, requisitoId, usuario) 
     await fs.promises.mkdir(path.dirname(destino), { recursive: true });
     await fs.promises.writeFile(destino, file.buffer);
 
+    let driveFileId = null;
+    let driveFolderId = null;
+    let driveWebViewLink = null;
+    try {
+        driveFolderId = await asegurarRutaDriveEvidencia({
+            empresaNombre: asigs[0].empresa_nombre,
+            anio,
+            codigoNorma: asigs[0].codigo,
+            puntoNorma: reqId ? puntoNorma : 'Documentos generales',
+            requisitoId: reqId
+        });
+        const subido = await driveService.subirArchivoNuevo(
+            file.buffer,
+            original,
+            String(file.mimetype || 'application/octet-stream'),
+            driveFolderId
+        );
+        driveFileId = subido?.id || null;
+        driveWebViewLink = subido?.webViewLink
+            || (driveFileId ? `https://drive.google.com/file/d/${driveFileId}/view` : null);
+    } catch (err) {
+        await fs.promises.unlink(destino).catch(() => {});
+        const msg = err?.message || 'No se pudo subir el archivo a Google Drive.';
+        throw httpError(err?.status || err?.statusCode || 502, msg);
+    }
+
     const ctx = contextoUsuario(usuario);
     const [ins] = await pool.query(
         `INSERT INTO seg_asignacion_documento
-         (asignacion_id, requisito_id, nombre_original, ruta_relativa, mime, tamano, subido_por)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+         (asignacion_id, requisito_id, nombre_original, ruta_relativa, mime, tamano, subido_por,
+          drive_file_id, drive_folder_id, drive_web_view_link, anio)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             id,
             reqId,
@@ -673,11 +963,16 @@ async function guardarDocumento(pool, asignacionId, file, requisitoId, usuario) 
             relativa.replace(/\\/g, '/'),
             String(file.mimetype || '').slice(0, 120),
             file.size || file.buffer.length,
-            ctx.nombre
+            ctx.nombre,
+            driveFileId,
+            driveFolderId,
+            driveWebViewLink,
+            anio
         ]
     );
     const [rows] = await pool.query(
-        `SELECT id, asignacion_id, requisito_id, nombre_original, mime, tamano, subido_por, creado_en
+        `SELECT id, asignacion_id, requisito_id, nombre_original, mime, tamano, subido_por, creado_en,
+                drive_file_id, drive_folder_id, drive_web_view_link, anio
          FROM seg_asignacion_documento WHERE id = ? LIMIT 1`,
         [ins.insertId]
     );
@@ -689,7 +984,7 @@ async function leerDocumento(pool, documentoId) {
     const id = entero(documentoId);
     if (!id) throw httpError(400, 'Documento inválido.');
     const [rows] = await pool.query(
-        `SELECT d.id, d.nombre_original, d.ruta_relativa, d.mime, a.estado
+        `SELECT d.id, d.nombre_original, d.ruta_relativa, d.mime, d.drive_file_id, d.drive_web_view_link, a.estado
          FROM seg_asignacion_documento d
          JOIN seg_asignacion a ON a.id = d.asignacion_id
          WHERE d.id = ? LIMIT 1`,
@@ -698,13 +993,29 @@ async function leerDocumento(pool, documentoId) {
     if (!rows.length || rows[0].estado !== 'activa') {
         throw httpError(404, 'Documento no encontrado.');
     }
-    const absoluta = rutaAbsoluta(rows[0].ruta_relativa);
-    if (!fs.existsSync(absoluta)) throw httpError(404, 'El archivo ya no está en el servidor.');
-    return {
-        path: absoluta,
-        nombre: rows[0].nombre_original,
-        mime: rows[0].mime || 'application/octet-stream'
-    };
+    const row = rows[0];
+    if (row.ruta_relativa) {
+        const absoluta = rutaAbsoluta(row.ruta_relativa);
+        if (fs.existsSync(absoluta)) {
+            return {
+                path: absoluta,
+                nombre: row.nombre_original,
+                mime: row.mime || 'application/octet-stream',
+                drive_web_view_link: row.drive_web_view_link || null
+            };
+        }
+    }
+    if (row.drive_web_view_link || row.drive_file_id) {
+        return {
+            path: null,
+            nombre: row.nombre_original,
+            mime: row.mime || 'application/octet-stream',
+            drive_web_view_link: row.drive_web_view_link
+                || `https://drive.google.com/file/d/${row.drive_file_id}/view`,
+            drive_file_id: row.drive_file_id
+        };
+    }
+    throw httpError(404, 'El archivo ya no está en el servidor ni en Drive.');
 }
 
 async function eliminarDocumento(pool, documentoId) {
@@ -712,13 +1023,22 @@ async function eliminarDocumento(pool, documentoId) {
     const id = entero(documentoId);
     if (!id) throw httpError(400, 'Documento inválido.');
     const [rows] = await pool.query(
-        'SELECT id, ruta_relativa FROM seg_asignacion_documento WHERE id = ? LIMIT 1',
+        'SELECT id, ruta_relativa, drive_file_id FROM seg_asignacion_documento WHERE id = ? LIMIT 1',
         [id]
     );
     if (!rows.length) throw httpError(404, 'Documento no encontrado.');
     await pool.query('DELETE FROM seg_asignacion_documento WHERE id = ?', [id]);
-    const absoluta = rutaAbsoluta(rows[0].ruta_relativa);
-    await fs.promises.unlink(absoluta).catch(() => {});
+    if (rows[0].ruta_relativa) {
+        const absoluta = rutaAbsoluta(rows[0].ruta_relativa);
+        await fs.promises.unlink(absoluta).catch(() => {});
+    }
+    if (rows[0].drive_file_id) {
+        try {
+            await driveService.eliminarArchivo(rows[0].drive_file_id);
+        } catch (err) {
+            console.warn('[seguridad] No se eliminó el archivo de Drive:', err?.message || err);
+        }
+    }
 }
 
 async function archivarAsignacion(pool, asignacionId) {
@@ -740,9 +1060,12 @@ module.exports = {
     listarPuntos,
     publicar,
     listarGestion,
+    listarEmpresasGestion,
+    obtenerEmpresaGestion,
     obtenerGestion,
     guardarDocumento,
     leerDocumento,
     eliminarDocumento,
-    archivarAsignacion
+    archivarAsignacion,
+    CARPETA_SISTEMA_DRIVE_ID
 };

@@ -20,6 +20,7 @@ function clasificarApartadoPorClave(clave) {
     if (c.startsWith('ops_oficio')) return 'oficios';
     if (c.includes('observacion') || c.startsWith('ops_obs')) return 'observaciones';
     if (c.startsWith('ops_resolutivo')) return 'resolutivos';
+    if (c.startsWith('ops_recorrido')) return 'extra';
     return 'documentacion';
 }
 
@@ -28,6 +29,7 @@ function clasificarApartadoPorNombre(nombre) {
     if (n.includes('oficio')) return 'oficios';
     if (n.includes('observacion') || n.includes('observación')) return 'observaciones';
     if (n.includes('resolutivo')) return 'resolutivos';
+    if (n === 'recorrido' || n.startsWith('recorrido ')) return 'extra';
     if (n.includes('documentación extra') || n.includes('documentacion extra') || n.includes('extra/')) {
         return 'extra';
     }

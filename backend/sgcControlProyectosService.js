@@ -7,9 +7,20 @@
  * Una fila en `sgc_control_proyectos` representa una actividad. El proyecto se
  * agrupa por empresa + folio/nombre, para conservar datos históricos sin una
  * migración riesgosa de varias tablas.
+ *
+ * Cortafuegos:
+ * - Solo se actualiza una actividad si hay cambios reales (por id).
+ * - Un usuario solo puede modificar actividades de las que es responsable
+ *   (salvo admin/root).
+ * - Cada cambio guarda la versión anterior en sgc_control_proyectos_historial
+ *   (retención 14 días).
  */
+const crypto = require('crypto');
 const CODIGO_FORMATO = 'CONTROL-PROYECTOS';
 const REV_FORMATO = '02';
+/** Días que se conservan las versiones en historial antes de purgar. */
+const RETENCION_HISTORIAL_DIAS = 14;
+const ROLES_PRIVILEGIO_UNIVERSAL = new Set(['root', 'administrador', 'super_admin', 'superadmin']);
 
 const PRIORIDADES_VALIDAS = ['Muy Prioritaria', 'Prioritaria', 'Media', 'Baja', 'Muy baja', 'Ninguna'];
 const PRIORIDADES_LEGACY = {
@@ -395,6 +406,11 @@ async function asegurarTablaHistorial(pool) {
         CREATE TABLE IF NOT EXISTS sgc_control_proyectos_historial (
             historial_id INT AUTO_INCREMENT PRIMARY KEY,
             control_proyecto_id INT NOT NULL,
+            version_token VARCHAR(64) NULL,
+            empresa_id INT NULL,
+            folio VARCHAR(80) NULL,
+            nombre_proyecto VARCHAR(255) NULL,
+            snapshot_json LONGTEXT NULL,
             campo VARCHAR(80) NOT NULL,
             etiqueta VARCHAR(120) NOT NULL DEFAULT '',
             valor_anterior TEXT NULL,
@@ -402,9 +418,47 @@ async function asegurarTablaHistorial(pool) {
             modificado_por VARCHAR(255) NULL,
             modificado_en DATETIME NOT NULL,
             INDEX idx_cp_hist_actividad (control_proyecto_id),
-            INDEX idx_cp_hist_fecha (modificado_en)
+            INDEX idx_cp_hist_fecha (modificado_en),
+            INDEX idx_cp_hist_version (version_token),
+            INDEX idx_cp_hist_folio (folio)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+
+    const columnasExtraHistorial = [
+        { name: 'version_token', sql: 'VARCHAR(64) NULL' },
+        { name: 'empresa_id', sql: 'INT NULL' },
+        { name: 'folio', sql: 'VARCHAR(80) NULL' },
+        { name: 'nombre_proyecto', sql: 'VARCHAR(255) NULL' },
+        { name: 'snapshot_json', sql: 'LONGTEXT NULL' }
+    ];
+    for (const col of columnasExtraHistorial) {
+        try {
+            await pool.query(`ALTER TABLE sgc_control_proyectos_historial ADD COLUMN ${col.name} ${col.sql}`);
+        } catch (error) {
+            if (error.code !== 'ER_DUP_FIELDNAME') throw error;
+        }
+    }
+
+    try {
+        await pool.query('CREATE INDEX idx_cp_hist_version ON sgc_control_proyectos_historial (version_token)');
+    } catch (_error) { /* índice ya existe */ }
+    try {
+        await pool.query('CREATE INDEX idx_cp_hist_folio ON sgc_control_proyectos_historial (folio)');
+    } catch (_error) { /* índice ya existe */ }
+
+    await purgarHistorialAntiguo(pool);
+}
+
+async function purgarHistorialAntiguo(pool) {
+    try {
+        await pool.query(
+            `DELETE FROM sgc_control_proyectos_historial
+             WHERE modificado_en < DATE_SUB(NOW(), INTERVAL ? DAY)`,
+            [RETENCION_HISTORIAL_DIAS]
+        );
+    } catch (error) {
+        console.warn('[control-proyectos] No se pudo purgar historial antiguo:', error.message);
+    }
 }
 
 const CAMPOS_HISTORIAL = [
@@ -417,7 +471,9 @@ const CAMPOS_HISTORIAL = [
     { key: 'observaciones', col: 'observaciones', etiqueta: 'Observaciones' },
     { key: 'prioridad', col: 'prioridad', etiqueta: 'Prioridad' },
     { key: 'estatus', col: 'estatus', etiqueta: 'Estatus' },
-    { key: 'avance', col: 'avance', etiqueta: 'Avance' }
+    { key: 'avance', col: 'avance', etiqueta: 'Avance' },
+    { key: 'nombreProyecto', col: 'nombre_proyecto', etiqueta: 'Proyecto' },
+    { key: 'orden', col: 'orden', etiqueta: 'Orden' }
 ];
 
 function valorHistorialComparable(valor) {
@@ -425,24 +481,464 @@ function valorHistorialComparable(valor) {
     return String(valor).trim();
 }
 
-async function registrarCambiosHistorial(pool, id, anterior, nuevo, auditoria = {}) {
-    if (!id || !anterior || !nuevo) return;
-    const usuario = normalizarUsuarioAuditoria(auditoria.usuarioNombre);
-    const ahora = auditoria.fechaHora || fechaHoraMexicoMySQL();
-    const filas = [];
+function snapshotActividadParaHistorial(actividad) {
+    if (!actividad) return null;
+    return {
+        id: actividad.id || null,
+        empresaId: actividad.empresaId || null,
+        empresaNombre: actividad.empresaNombre || '',
+        folio: actividad.folio || '',
+        nombreProyecto: actividad.nombreProyecto || '',
+        item: actividad.item || '',
+        condicionRequerimiento: actividad.condicionRequerimiento || '',
+        actividadesAccion: actividad.actividadesAccion || '',
+        referenciaNormativa: actividad.referenciaNormativa || '',
+        responsable: actividad.responsable || '',
+        responsableUsuarioIds: Array.isArray(actividad.responsableUsuarioIds)
+            ? actividad.responsableUsuarioIds
+            : parseResponsableUsuarioIds(actividad.responsableUsuarioIds),
+        fechaInicio: actividad.fechaInicio || '',
+        fechaCompromiso: actividad.fechaCompromiso || '',
+        entregables: actividad.entregables || '',
+        observaciones: actividad.observaciones || '',
+        prioridad: actividad.prioridad || '',
+        estatus: actividad.estatus || '',
+        avance: Number(actividad.avance) || 0,
+        orden: Number(actividad.orden) || 0
+    };
+}
+
+function detectarCambiosActividad(anterior, nuevo) {
+    if (!anterior || !nuevo) return [];
+    const cambios = [];
     for (const campo of CAMPOS_HISTORIAL) {
         const prev = valorHistorialComparable(anterior[campo.key]);
         const next = valorHistorialComparable(nuevo[campo.key]);
         if (prev === next) continue;
-        filas.push([id, campo.key, campo.etiqueta, prev || null, next || null, usuario, ahora]);
+        cambios.push({
+            key: campo.key,
+            etiqueta: campo.etiqueta,
+            valorAnterior: prev || null,
+            valorNuevo: next || null
+        });
     }
-    if (!filas.length) return;
+    return cambios;
+}
+
+function esPrivilegioUniversal(roles = []) {
+    return (Array.isArray(roles) ? roles : [])
+        .some((r) => ROLES_PRIVILEGIO_UNIVERSAL.has(String(r || '').toLowerCase()));
+}
+
+/**
+ * Un usuario solo puede tocar actividades de las que es responsable (por ID).
+ * Admin/root tienen privilegio universal. Actividades nuevas (sin id en BD) se permiten.
+ */
+function usuarioPuedeModificarFila(filaBd, opciones = {}) {
+    if (opciones.esPrivilegioUniversal || esPrivilegioUniversal(opciones.roles)) return true;
+    const uid = Number(opciones.usuarioId || 0);
+    if (!Number.isInteger(uid) || uid <= 0) return false;
+    const ids = parseResponsableUsuarioIds(
+        filaBd?.responsable_usuario_ids ?? filaBd?.responsableUsuarioIds
+    );
+    if (ids.includes(uid)) return true;
+    // Fallback por nombre si aún no hay IDs sincronizados.
+    if (!ids.length && opciones.usuarioNombre) {
+        const yo = normalizar(opciones.usuarioNombre);
+        if (!yo || yo === 'usuario') return false;
+        return parseResponsables(filaBd?.responsable).some((r) => {
+            const nr = normalizar(r);
+            return nr === yo || nr.includes(yo) || yo.includes(nr);
+        });
+    }
+    return false;
+}
+
+function nuevoVersionToken() {
+    return `${Date.now().toString(36)}-${crypto.randomBytes(6).toString('hex')}`;
+}
+
+async function registrarCambiosHistorial(pool, id, anterior, nuevo, auditoria = {}, meta = {}) {
+    if (!id || !anterior || !nuevo) return null;
+    const cambios = detectarCambiosActividad(anterior, nuevo);
+    if (!cambios.length) return null;
+
+    const usuario = normalizarUsuarioAuditoria(auditoria.usuarioNombre);
+    const ahora = auditoria.fechaHora || fechaHoraMexicoMySQL();
+    const versionToken = meta.versionToken || nuevoVersionToken();
+    const snapshot = JSON.stringify(snapshotActividadParaHistorial(anterior));
+    const empresaId = anterior.empresaId || nuevo.empresaId || meta.empresaId || null;
+    const folio = String(anterior.folio || nuevo.folio || meta.folio || '').trim() || null;
+    const nombreProyecto = String(anterior.nombreProyecto || nuevo.nombreProyecto || meta.nombreProyecto || '').trim() || null;
+
+    const filas = cambios.map((cambio, indice) => ([
+        id,
+        versionToken,
+        empresaId,
+        folio,
+        nombreProyecto,
+        indice === 0 ? snapshot : null,
+        cambio.key,
+        cambio.etiqueta,
+        cambio.valorAnterior,
+        cambio.valorNuevo,
+        usuario,
+        ahora
+    ]));
+
     await pool.query(
         `INSERT INTO sgc_control_proyectos_historial
-            (control_proyecto_id, campo, etiqueta, valor_anterior, valor_nuevo, modificado_por, modificado_en)
-         VALUES ${filas.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ')}`,
+            (control_proyecto_id, version_token, empresa_id, folio, nombre_proyecto, snapshot_json,
+             campo, etiqueta, valor_anterior, valor_nuevo, modificado_por, modificado_en)
+         VALUES ${filas.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}`,
         filas.flat()
     );
+    return versionToken;
+}
+
+function mapearFilasHistorial(rows = []) {
+    return (rows || []).map((h) => ({
+        id: h.historial_id,
+        controlProyectoId: h.control_proyecto_id,
+        versionToken: h.version_token || null,
+        empresaId: h.empresa_id ? Number(h.empresa_id) : null,
+        folio: h.folio || null,
+        nombreProyecto: h.nombre_proyecto || null,
+        campo: h.campo,
+        etiqueta: h.etiqueta || h.campo,
+        valorAnterior: h.valor_anterior,
+        valorNuevo: h.valor_nuevo,
+        snapshotJson: h.snapshot_json || null,
+        modificadoPor: h.modificado_por,
+        modificadoEn: h.modificado_en
+    }));
+}
+
+function timestampHistorialMs(valor) {
+    if (valor == null || valor === '') return 0;
+    if (valor instanceof Date) {
+        const t = valor.getTime();
+        return Number.isNaN(t) ? 0 : t;
+    }
+    const crudo = String(valor).trim();
+    if (!crudo) return 0;
+    // YYYY-MM-DD HH:mm:ss (MySQL / México) → comparable de forma estable
+    const mysql = crudo.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+    if (mysql) {
+        return Date.UTC(
+            Number(mysql[1]),
+            Number(mysql[2]) - 1,
+            Number(mysql[3]),
+            Number(mysql[4]),
+            Number(mysql[5]),
+            Number(mysql[6] || 0)
+        );
+    }
+    const t = new Date(crudo).getTime();
+    return Number.isNaN(t) ? 0 : t;
+}
+
+/**
+ * Clave de agrupación por actividad.
+ * El version_token puede ser compartido entre varias actividades del mismo
+ * guardado de proyecto; aquí se separa por control_proyecto_id para no mezclarlas.
+ */
+function claveVersionHistorial(h) {
+    const actId = Number(h.controlProyectoId || 0) || 0;
+    if (h.versionToken) {
+        return `act-${actId}-tok-${String(h.versionToken)}`;
+    }
+    // Legacy: mismo segundo + usuario + actividad = una sola versión (varios campos).
+    return `legacy-${timestampHistorialMs(h.modificadoEn)}-${String(h.modificadoPor || '').trim()}-${actId}`;
+}
+
+function agruparHistorialEnVersiones(filas = [], extras = {}) {
+    const ordenadas = [...filas].sort((a, b) => {
+        const tb = timestampHistorialMs(b.modificadoEn);
+        const ta = timestampHistorialMs(a.modificadoEn);
+        if (tb !== ta) return tb - ta; // más reciente primero
+        return Number(b.id || 0) - Number(a.id || 0);
+    });
+
+    const mapa = new Map();
+    for (const h of ordenadas) {
+        const key = claveVersionHistorial(h);
+        if (!mapa.has(key)) {
+            let snapshot = null;
+            if (h.snapshotJson) {
+                try {
+                    snapshot = typeof h.snapshotJson === 'string'
+                        ? JSON.parse(h.snapshotJson)
+                        : h.snapshotJson;
+                } catch (_error) {
+                    snapshot = null;
+                }
+            }
+            // versionToken real (compartible en lote); versionKey único por actividad.
+            const tokenReal = h.versionToken ? String(h.versionToken) : key;
+            mapa.set(key, {
+                versionToken: tokenReal,
+                versionKey: key,
+                esLegacy: !h.versionToken,
+                historialIds: [],
+                controlProyectoId: h.controlProyectoId,
+                empresaId: h.empresaId,
+                folio: h.folio,
+                nombreProyecto: h.nombreProyecto,
+                actividadNombre: extras.actividadNombre || null,
+                modificadoPor: h.modificadoPor,
+                modificadoEn: h.modificadoEn,
+                snapshot,
+                cambios: [],
+                esActual: false,
+                alcance: 'actividad',
+                actividadesAfectadas: []
+            });
+        }
+        const version = mapa.get(key);
+        if (!version.snapshot && h.snapshotJson) {
+            try {
+                version.snapshot = typeof h.snapshotJson === 'string'
+                    ? JSON.parse(h.snapshotJson)
+                    : h.snapshotJson;
+            } catch (_error) { /* ignore */ }
+        }
+        if (h.id) version.historialIds.push(Number(h.id));
+        version.cambios.push({
+            id: h.id,
+            campo: h.campo,
+            etiqueta: h.etiqueta || h.campo,
+            valorAnterior: h.valorAnterior,
+            valorNuevo: h.valorNuevo,
+            controlProyectoId: h.controlProyectoId || null
+        });
+    }
+
+    const lista = Array.from(mapa.values()).sort((a, b) => {
+        const tb = timestampHistorialMs(b.modificadoEn);
+        const ta = timestampHistorialMs(a.modificadoEn);
+        if (tb !== ta) return tb - ta;
+        const maxId = (v) => Math.max(0, ...(v.historialIds || [0]));
+        const byId = maxId(b) - maxId(a);
+        if (byId !== 0) return byId;
+        return Number(a.controlProyectoId || 0) - Number(b.controlProyectoId || 0);
+    });
+    lista.forEach((v, i) => {
+        v.esActual = i === 0;
+        v.versionKey = v.versionKey || `v-${i}`;
+        // Conservar token real; no pisarlo con versionKey compuesto act-N-tok-...
+        if (!v.versionToken || String(v.versionToken).startsWith('act-')) {
+            v.versionToken = v.esLegacy ? v.versionKey : String(v.versionToken || v.versionKey);
+        }
+        v.alcance = 'actividad';
+        if (v.controlProyectoId) {
+            v.actividadesAfectadas = [{
+                controlProyectoId: v.controlProyectoId,
+                actividadNombre: v.actividadNombre || null,
+                versionToken: v.versionToken,
+                historialIds: [...(v.historialIds || [])],
+                snapshot: v.snapshot || null,
+                cambios: [...(v.cambios || [])]
+            }];
+        }
+    });
+    return lista;
+}
+
+/**
+ * Clave de lote de proyecto cuando no hay token compartido entre actividades.
+ * Une guardados del mismo segundo + usuario + folio (legado / auto-guardado).
+ */
+function claveLoteProyecto(version) {
+    const tsSec = Math.floor(timestampHistorialMs(version?.modificadoEn) / 1000);
+    const user = String(version?.modificadoPor || '').trim().toLowerCase();
+    const folio = String(version?.folio || '').trim().toLowerCase();
+    const nombre = String(version?.nombreProyecto || '').trim().toLowerCase();
+    return `lote-${tsSec}-${user}-${folio}-${nombre}`;
+}
+
+function agruparVersionesEnLotesProyecto(versionesActividad = []) {
+    // Tokens que aparecen en más de una actividad = lote batch explícito.
+    const conteoToken = new Map();
+    for (const v of versionesActividad) {
+        const t = String(v?.versionToken || '').trim();
+        if (!t || v?.esLegacy || t.startsWith('legacy-') || t.startsWith('lote-')) continue;
+        conteoToken.set(t, (conteoToken.get(t) || 0) + 1);
+    }
+    const tokensCompartidos = new Set(
+        [...conteoToken.entries()].filter(([, n]) => n > 1).map(([t]) => t)
+    );
+
+    const mapa = new Map();
+    for (const v of versionesActividad) {
+        const token = String(v?.versionToken || '').trim();
+        const key = tokensCompartidos.has(token)
+            ? `tok-${token}`
+            : claveLoteProyecto(v);
+        if (!mapa.has(key)) {
+            mapa.set(key, {
+                versionToken: String(v.versionToken || key),
+                versionKey: key,
+                esLegacy: Boolean(v.esLegacy) || key.startsWith('lote-'),
+                historialIds: [],
+                controlProyectoId: null,
+                controlProyectoIds: [],
+                empresaId: v.empresaId || null,
+                folio: v.folio || null,
+                nombreProyecto: v.nombreProyecto || null,
+                actividadNombre: null,
+                modificadoPor: v.modificadoPor || null,
+                modificadoEn: v.modificadoEn || null,
+                snapshot: null,
+                cambios: [],
+                esActual: false,
+                alcance: 'proyecto',
+                actividadesAfectadas: []
+            });
+        }
+        const lote = mapa.get(key);
+        const actId = Number(v.controlProyectoId || 0) || null;
+        if (actId && !lote.controlProyectoIds.includes(actId)) {
+            lote.controlProyectoIds.push(actId);
+        }
+        const ids = (v.historialIds || []).map((n) => Number(n)).filter((n) => n > 0);
+        lote.historialIds.push(...ids);
+        if (timestampHistorialMs(v.modificadoEn) > timestampHistorialMs(lote.modificadoEn)) {
+            lote.modificadoEn = v.modificadoEn;
+            lote.modificadoPor = v.modificadoPor || lote.modificadoPor;
+        }
+        if (v.versionToken && !String(v.versionToken).startsWith('legacy-') && !String(v.versionToken).startsWith('lote-')) {
+            if (!lote.versionToken || String(lote.versionToken).startsWith('lote-') || String(lote.versionToken).startsWith('legacy-')) {
+                lote.versionToken = String(v.versionToken);
+            }
+        }
+        lote.actividadesAfectadas.push({
+            controlProyectoId: actId,
+            actividadNombre: v.actividadNombre || (actId ? `Actividad #${actId}` : 'Actividad'),
+            versionToken: String(v.versionToken || v.versionKey || ''),
+            historialIds: ids,
+            snapshot: v.snapshot || null,
+            cambios: Array.isArray(v.cambios) ? v.cambios.map((c) => ({ ...c })) : []
+        });
+        for (const c of v.cambios || []) {
+            lote.cambios.push({
+                ...c,
+                controlProyectoId: actId,
+                actividadNombre: v.actividadNombre || (actId ? `Actividad #${actId}` : 'Actividad')
+            });
+        }
+    }
+
+    const lista = Array.from(mapa.values()).sort((a, b) => {
+        const tb = timestampHistorialMs(b.modificadoEn);
+        const ta = timestampHistorialMs(a.modificadoEn);
+        if (tb !== ta) return tb - ta;
+        const maxId = (v) => Math.max(0, ...(v.historialIds || [0]));
+        return maxId(b) - maxId(a);
+    });
+    lista.forEach((v, i) => {
+        v.esActual = i === 0;
+        v.versionKey = v.versionKey || v.versionToken || `proyecto-v-${i}`;
+        if (!v.versionToken || String(v.versionToken).startsWith('lote-') || String(v.versionToken).startsWith('act-')) {
+            const tokenCompartido = (v.actividadesAfectadas || [])
+                .map((a) => String(a.versionToken || '').trim())
+                .find((t) => t && !t.startsWith('lote-') && !t.startsWith('legacy-') && !t.startsWith('act-'));
+            v.versionToken = tokenCompartido || v.versionKey;
+        }
+        v.controlProyectoId = v.controlProyectoIds.length === 1 ? v.controlProyectoIds[0] : null;
+        v.actividadesAfectadas = (v.actividadesAfectadas || []).slice().sort((a, b) => {
+            const na = String(a.actividadNombre || '').localeCompare(
+                String(b.actividadNombre || ''),
+                'es',
+                { sensitivity: 'base', numeric: true }
+            );
+            if (na !== 0) return na;
+            return Number(a.controlProyectoId || 0) - Number(b.controlProyectoId || 0);
+        });
+        v.actividadNombre = v.actividadesAfectadas.length === 1
+            ? v.actividadesAfectadas[0].actividadNombre
+            : (v.actividadesAfectadas.length > 1
+                ? `${v.actividadesAfectadas.length} actividades`
+                : null);
+    });
+    return lista;
+}
+
+/**
+ * Reconstruye el estado de una actividad respecto a una versión del historial.
+ *
+ * - deshacerObjetivo=false: deja el estado "después" de la versión elegida
+ *   (lo que se ve en el historial como DESPUÉS) y deshace solo lo más nuevo.
+ * - deshacerObjetivo=true: deshace también el guardado elegido (estado ANTES).
+ */
+function reconstruirSnapshotHastaVersion(
+    estadoActual,
+    versionesDesc,
+    versionTokenObjetivo,
+    historialIdsObjetivo = [],
+    opciones = {}
+) {
+    const deshacerObjetivo = Boolean(opciones.deshacerObjetivo);
+    const objetivoIds = new Set(
+        (Array.isArray(historialIdsObjetivo) ? historialIdsObjetivo : [])
+            .map((n) => Number(n))
+            .filter((n) => Number.isInteger(n) && n > 0)
+    );
+    const token = String(versionTokenObjetivo || '').trim()
+        .replace(/^act-\d+-tok-/, '');
+    const estado = snapshotActividadParaHistorial(estadoActual);
+    let encontrada = false;
+
+    const aplicarValor = (campoKey, valor) => {
+        if (campoKey === 'avance') {
+            estado.avance = Number(valor) || 0;
+        } else {
+            estado[campoKey] = valor == null ? '' : valor;
+        }
+    };
+
+    for (const version of versionesDesc) {
+        const idsVersion = (version.historialIds || []).map((n) => Number(n));
+        const tokenVersion = String(version.versionToken || '')
+            .replace(/^act-\d+-tok-/, '');
+        const esObjetivo = (token && (
+                tokenVersion === token
+                || String(version.versionToken) === token
+                || String(version.versionKey || '') === token
+            ))
+            || (objetivoIds.size > 0 && idsVersion.some((id) => objetivoIds.has(id)));
+
+        if (esObjetivo && !deshacerObjetivo) {
+            encontrada = true;
+            // Forzar el estado "después" mostrado en el historial.
+            for (const cambio of version.cambios || []) {
+                const campo = CAMPOS_HISTORIAL.find((c) => c.key === cambio.campo);
+                if (!campo) continue;
+                aplicarValor(campo.key, cambio.valorNuevo);
+            }
+            break;
+        }
+
+        if (esObjetivo && deshacerObjetivo && version.snapshot && typeof version.snapshot === 'object') {
+            return {
+                snapshot: { ...version.snapshot, id: estadoActual.id },
+                encontrada: true
+            };
+        }
+
+        for (const cambio of version.cambios || []) {
+            const campo = CAMPOS_HISTORIAL.find((c) => c.key === cambio.campo);
+            if (!campo) continue;
+            aplicarValor(campo.key, cambio.valorAnterior);
+        }
+
+        if (esObjetivo) {
+            encontrada = true;
+            break;
+        }
+    }
+
+    return { snapshot: estado, encontrada };
 }
 
 async function asegurarTablaControlProyectos(pool) {
@@ -598,20 +1094,46 @@ async function actualizarActividad(pool, actividadRaw, orden, auditoria = {}, op
     const p = sanitizarActividad(actividadRaw);
     const id = idActividadValido(p.id);
     if (!id) return null;
+    p.orden = Number.isInteger(orden) && orden > 0 ? orden : p.orden;
 
     const usuario = normalizarUsuarioAuditoria(auditoria.usuarioNombre);
     const ahora = auditoria.fechaHora || fechaHoraMexicoMySQL();
 
     const [prevRows] = await pool.query(
-        `SELECT control_proyecto_id, actividades_accion, referencia_normativa, responsable,
-                fecha_inicio, fecha_compromiso, entregables, observaciones, prioridad, estatus, avance,
-                creado_por, created_at
+        `SELECT control_proyecto_id, empresa_id, empresa_nombre, folio, nombre_proyecto, item,
+                condicion_requerimiento, actividades_accion, referencia_normativa, responsable,
+                responsable_usuario_ids, fecha_inicio, fecha_compromiso, entregables, observaciones,
+                prioridad, estatus, avance, orden, creado_por, created_at
          FROM sgc_control_proyectos
          WHERE control_proyecto_id = ?
          LIMIT 1`,
         [id]
     );
-    const anterior = prevRows[0] ? mapRowToActividad(prevRows[0]) : null;
+    if (!prevRows[0]) return null;
+    const anterior = mapRowToActividad(prevRows[0]);
+
+    // Cortafuegos de ownership: un usuario no puede tocar actividades ajenas.
+    if (opciones.verificarOwnership !== false) {
+        if (!usuarioPuedeModificarFila(prevRows[0], opciones)) {
+            const err = new Error('No tienes permiso para modificar esta actividad: solo el responsable asignado (o un administrador) puede editarla.');
+            err.statusCode = 403;
+            err.code = 'CP_OWNERSHIP_DENIED';
+            throw err;
+        }
+    }
+
+    const cambios = detectarCambiosActividad(anterior, p);
+    if (!cambios.length) {
+        // Sin cambios reales: no tocar BD ni auditoría (evita el sellado masivo de modificado_en).
+        return {
+            ...anterior,
+            id,
+            orden: anterior.orden || orden,
+            responsableUsuarioIds: parseResponsableUsuarioIds(anterior.responsableUsuarioIds),
+            activo: true,
+            sinCambios: true
+        };
+    }
 
     await pool.query(
         `UPDATE sgc_control_proyectos
@@ -657,7 +1179,7 @@ async function actualizarActividad(pool, actividadRaw, orden, auditoria = {}, op
             p.prioridad,
             p.estatus,
             p.avance,
-            orden,
+            p.orden,
             usuario,
             ahora,
             id
@@ -665,10 +1187,18 @@ async function actualizarActividad(pool, actividadRaw, orden, auditoria = {}, op
     );
 
     if (Array.isArray(opciones.deferHistorial)) {
-        opciones.deferHistorial.push({ id, anterior, nuevo: p, auditoria: { usuarioNombre: usuario, fechaHora: ahora } });
+        opciones.deferHistorial.push({
+            id,
+            anterior,
+            nuevo: p,
+            auditoria: { usuarioNombre: usuario, fechaHora: ahora }
+        });
     } else {
         try {
-            await registrarCambiosHistorial(pool, id, anterior, p, { usuarioNombre: usuario, fechaHora: ahora });
+            await registrarCambiosHistorial(pool, id, anterior, p, {
+                usuarioNombre: usuario,
+                fechaHora: ahora
+            });
         } catch (histErr) {
             console.warn('[control-proyectos] No se pudo registrar historial:', histErr.message);
         }
@@ -677,18 +1207,20 @@ async function actualizarActividad(pool, actividadRaw, orden, auditoria = {}, op
     return {
         ...p,
         id,
-        orden,
+        orden: p.orden,
         responsableUsuarioIds: parseResponsableUsuarioIds(p.responsableUsuarioIds),
         activo: true,
         modificadoPor: usuario,
         modificadoEn: ahora,
         creadoPor: anterior?.creadoPor || null,
-        createdAt: anterior?.createdAt || null
+        createdAt: anterior?.createdAt || null,
+        sinCambios: false
     };
 }
 
 async function obtenerDetalleActividad(pool, actividadId) {
     await asegurarTablaControlProyectos(pool);
+    await purgarHistorialAntiguo(pool);
     const id = idActividadValido(actividadId);
     if (!id) {
         const err = new Error('Actividad no válida');
@@ -714,24 +1246,417 @@ async function obtenerDetalleActividad(pool, actividadId) {
     }
     const actividad = mapRowToActividad(rows[0]);
     const [hist] = await pool.query(
-        `SELECT historial_id, campo, etiqueta, valor_anterior, valor_nuevo, modificado_por, modificado_en
+        `SELECT historial_id, control_proyecto_id, version_token, empresa_id, folio, nombre_proyecto,
+                snapshot_json, campo, etiqueta, valor_anterior, valor_nuevo, modificado_por, modificado_en
          FROM sgc_control_proyectos_historial
          WHERE control_proyecto_id = ?
          ORDER BY modificado_en DESC, historial_id DESC
-         LIMIT 80`,
+         LIMIT 200`,
         [id]
     );
+    const historial = mapearFilasHistorial(hist);
+    const versiones = agruparHistorialEnVersiones(historial, {
+        actividadNombre: actividad.actividadesAccion || actividad.item || 'Actividad'
+    });
     return {
         actividad,
-        historial: (hist || []).map((h) => ({
-            id: h.historial_id,
-            campo: h.campo,
-            etiqueta: h.etiqueta || h.campo,
-            valorAnterior: h.valor_anterior,
-            valorNuevo: h.valor_nuevo,
-            modificadoPor: h.modificado_por,
-            modificadoEn: h.modificado_en
-        }))
+        historial,
+        versiones,
+        retencionDias: RETENCION_HISTORIAL_DIAS
+    };
+}
+
+async function obtenerHistorialProyecto(pool, filtros = {}) {
+    await asegurarTablaControlProyectos(pool);
+    await purgarHistorialAntiguo(pool);
+
+    const empresaId = normalizarEmpresaId(filtros.empresaId);
+    const folio = String(filtros.folio || '').trim();
+    const nombreProyecto = String(filtros.nombreProyecto || '').trim();
+    const actividadId = idActividadValido(filtros.actividadId);
+
+    if (!folio && !nombreProyecto && !actividadId) {
+        const err = new Error('Indica folio, nombre de proyecto o actividad para consultar el historial.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const whereParts = [];
+    const params = [];
+
+    if (actividadId) {
+        whereParts.push('control_proyecto_id = ?');
+        params.push(actividadId);
+    } else {
+        if (empresaId) {
+            whereParts.push('(empresa_id = ? OR empresa_id IS NULL)');
+            params.push(empresaId);
+        }
+        if (folio) {
+            whereParts.push('LOWER(TRIM(COALESCE(folio, \'\'))) = LOWER(TRIM(?))');
+            params.push(folio);
+        }
+        if (nombreProyecto) {
+            whereParts.push('LOWER(TRIM(COALESCE(nombre_proyecto, \'\'))) = LOWER(TRIM(?))');
+            params.push(nombreProyecto);
+        }
+    }
+
+    const [hist] = await pool.query(
+        `SELECT historial_id, control_proyecto_id, version_token, empresa_id, folio, nombre_proyecto,
+                snapshot_json, campo, etiqueta, valor_anterior, valor_nuevo, modificado_por, modificado_en
+         FROM sgc_control_proyectos_historial
+         WHERE ${whereParts.join(' AND ')}
+         ORDER BY modificado_en DESC, historial_id DESC
+         LIMIT 400`,
+        params
+    );
+
+    const historial = mapearFilasHistorial(hist);
+    const versionesActividad = agruparHistorialEnVersiones(historial);
+
+    // Enriquecer con nombre de actividad actual cuando exista.
+    const idsActs = [...new Set(versionesActividad.map((v) => v.controlProyectoId).filter(Boolean))];
+    const nombresPorId = new Map();
+    if (idsActs.length) {
+        const placeholders = idsActs.map(() => '?').join(', ');
+        const [acts] = await pool.query(
+            `SELECT control_proyecto_id, actividades_accion, item
+             FROM sgc_control_proyectos
+             WHERE control_proyecto_id IN (${placeholders})`,
+            idsActs
+        );
+        for (const a of acts || []) {
+            nombresPorId.set(
+                Number(a.control_proyecto_id),
+                String(a.actividades_accion || a.item || 'Actividad').trim() || 'Actividad'
+            );
+        }
+    }
+    for (const v of versionesActividad) {
+        v.actividadNombre = nombresPorId.get(Number(v.controlProyectoId))
+            || v.actividadNombre
+            || `Actividad #${v.controlProyectoId}`;
+        if (Array.isArray(v.actividadesAfectadas)) {
+            for (const a of v.actividadesAfectadas) {
+                a.actividadNombre = nombresPorId.get(Number(a.controlProyectoId))
+                    || a.actividadNombre
+                    || `Actividad #${a.controlProyectoId}`;
+            }
+        }
+        if (Array.isArray(v.cambios)) {
+            for (const c of v.cambios) {
+                c.actividadNombre = v.actividadNombre;
+            }
+        }
+    }
+
+    // Historial de proyecto: un lote = un guardado que pudo tocar N actividades.
+    const versiones = actividadId
+        ? versionesActividad
+        : agruparVersionesEnLotesProyecto(versionesActividad);
+
+    return {
+        historial,
+        versiones,
+        retencionDias: RETENCION_HISTORIAL_DIAS,
+        folio: folio || (versiones[0]?.folio || null),
+        nombreProyecto: nombreProyecto || (versiones[0]?.nombreProyecto || null),
+        alcance: actividadId ? 'actividad' : 'proyecto'
+    };
+}
+
+/**
+ * Restaura una actividad al estado anterior a una versión del historial.
+ * Funciona con la versión más reciente o con cualquiera más antigua (2ª, 3ª, N).
+ * Acepta versionToken real o legacy, y/o historialIds del grupo.
+ */
+async function restaurarVersionActividad(pool, actividadId, versionToken, opciones = {}) {
+    await asegurarTablaControlProyectos(pool);
+    const id = idActividadValido(actividadId);
+    const token = String(versionToken || '').trim().replace(/^act-\d+-tok-/, '');
+    const historialIds = (Array.isArray(opciones.historialIds) ? opciones.historialIds : [])
+        .map((n) => Number(n))
+        .filter((n) => Number.isInteger(n) && n > 0);
+    const cambiosObjetivo = Array.isArray(opciones.cambiosObjetivo) ? opciones.cambiosObjetivo : [];
+
+    if (!id || (!token && !historialIds.length && !cambiosObjetivo.length)) {
+        const err = new Error('Actividad o versión no válida.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const [actRows] = await pool.query(
+        `SELECT control_proyecto_id, empresa_id, empresa_nombre, folio, nombre_proyecto, item,
+                condicion_requerimiento, actividades_accion, referencia_normativa, responsable,
+                responsable_usuario_ids, fecha_inicio, fecha_compromiso, entregables, observaciones,
+                prioridad, estatus, avance, orden
+         FROM sgc_control_proyectos
+         WHERE control_proyecto_id = ?
+         LIMIT 1`,
+        [id]
+    );
+    if (!actRows[0]) {
+        const err = new Error('Actividad no encontrada.');
+        err.statusCode = 404;
+        throw err;
+    }
+    const actual = mapRowToActividad(actRows[0]);
+
+    const [hist] = await pool.query(
+        `SELECT historial_id, control_proyecto_id, version_token, empresa_id, folio, nombre_proyecto,
+                snapshot_json, campo, etiqueta, valor_anterior, valor_nuevo, modificado_por, modificado_en
+         FROM sgc_control_proyectos_historial
+         WHERE control_proyecto_id = ?
+         ORDER BY modificado_en DESC, historial_id DESC
+         LIMIT 400`,
+        [id]
+    );
+    const filas = mapearFilasHistorial(hist);
+    const versiones = agruparHistorialEnVersiones(filas);
+    if (!versiones.length && !cambiosObjetivo.length) {
+        const err = new Error('No hay versiones en el historial para esta actividad.');
+        err.statusCode = 404;
+        throw err;
+    }
+
+    let snapshot = null;
+    let encontrada = false;
+
+    if (versiones.length && (token || historialIds.length)) {
+        const reconstruido = reconstruirSnapshotHastaVersion(
+            actual,
+            versiones,
+            token,
+            historialIds,
+            { deshacerObjetivo: Boolean(opciones.deshacerObjetivo) }
+        );
+        snapshot = reconstruido.snapshot;
+        encontrada = reconstruido.encontrada;
+    }
+
+    // Fallback: aplicar directamente los valores "después" enviados desde el lote.
+    if (!encontrada && cambiosObjetivo.length) {
+        const estado = snapshotActividadParaHistorial(actual);
+        // Deshacer cambios más nuevos que el primer historialId del objetivo, si hay.
+        if (versiones.length && historialIds.length) {
+            const minObjetivo = Math.min(...historialIds);
+            for (const version of versiones) {
+                const idsVersion = (version.historialIds || []).map((n) => Number(n));
+                const esObjetivo = idsVersion.some((hid) => historialIds.includes(hid));
+                if (esObjetivo) break;
+                const maxId = Math.max(0, ...idsVersion);
+                if (maxId > 0 && maxId < minObjetivo) break;
+                for (const cambio of version.cambios || []) {
+                    const campo = CAMPOS_HISTORIAL.find((c) => c.key === cambio.campo);
+                    if (!campo) continue;
+                    if (campo.key === 'avance') estado.avance = Number(cambio.valorAnterior) || 0;
+                    else estado[campo.key] = cambio.valorAnterior == null ? '' : cambio.valorAnterior;
+                }
+            }
+        }
+        for (const cambio of cambiosObjetivo) {
+            const campo = CAMPOS_HISTORIAL.find((c) => c.key === cambio.campo);
+            if (!campo) continue;
+            if (campo.key === 'avance') estado.avance = Number(cambio.valorNuevo) || 0;
+            else estado[campo.key] = cambio.valorNuevo == null ? '' : cambio.valorNuevo;
+        }
+        snapshot = estado;
+        encontrada = true;
+    }
+
+    if (!encontrada || !snapshot) {
+        const err = new Error('No se encontró esa versión en el historial (puede haber expirado tras 14 días).');
+        err.statusCode = 404;
+        throw err;
+    }
+
+    const auditoria = {
+        usuarioNombre: normalizarUsuarioAuditoria(opciones.usuarioNombre),
+        fechaHora: opciones.fechaHora || fechaHoraMexicoMySQL()
+    };
+
+    const restaurada = await actualizarActividad(
+        pool,
+        {
+            ...snapshot,
+            id,
+            control_proyecto_id: id
+        },
+        Number(snapshot.orden) || actual.orden || 0,
+        auditoria,
+        {
+            usuarioId: opciones.usuarioId,
+            roles: opciones.roles,
+            esPrivilegioUniversal: opciones.esPrivilegioUniversal,
+            usuarioNombre: auditoria.usuarioNombre,
+            verificarOwnership: true
+        }
+    );
+
+    return {
+        actividad: restaurada,
+        versionToken: token || null,
+        historialIds,
+        restauradoPor: auditoria.usuarioNombre,
+        restauradoEn: auditoria.fechaHora
+    };
+}
+
+/**
+ * Restaura un lote de proyecto: deja el estado "después" de esa versión
+ * como el actual en todas las actividades afectadas (y deshace lo más nuevo).
+ * El lote se resuelve siempre desde el historial del proyecto (fuente de verdad).
+ */
+async function restaurarVersionProyecto(pool, opciones = {}) {
+    await asegurarTablaControlProyectos(pool);
+
+    const token = String(opciones.versionToken || '').trim();
+    const versionKey = String(opciones.versionKey || '').trim();
+    const historialIds = (Array.isArray(opciones.historialIds) ? opciones.historialIds : [])
+        .map((n) => Number(n))
+        .filter((n) => Number.isInteger(n) && n > 0);
+    const actividadesPayload = Array.isArray(opciones.actividades) ? opciones.actividades : [];
+    const empresaId = normalizarEmpresaId(opciones.empresaId);
+    const folio = String(opciones.folio || '').trim();
+    const nombreProyecto = String(opciones.nombreProyecto || '').trim();
+
+    const normalizarTokenActividad = (raw) => {
+        let t = String(raw || '').trim();
+        const composed = t.match(/^act-\d+-tok-(.+)$/);
+        if (composed) t = composed[1];
+        if (!t || t.startsWith('lote-') || t.startsWith('legacy-') || t.startsWith('proyecto-v-')) {
+            return '';
+        }
+        return t;
+    };
+
+    if (!folio && !nombreProyecto && !historialIds.length && !token && !versionKey && !actividadesPayload.length) {
+        const err = new Error('Indica la versión del proyecto a recuperar.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    // Fuente de verdad: rearmar el lote desde BD para no perder actividades.
+    const histPayload = await obtenerHistorialProyecto(pool, {
+        empresaId,
+        folio,
+        nombreProyecto
+    });
+    const versiones = Array.isArray(histPayload.versiones) ? histPayload.versiones : [];
+    const idsSet = new Set(historialIds);
+    const payloadActIds = new Set(
+        actividadesPayload
+            .map((a) => idActividadValido(a.controlProyectoId || a.id))
+            .filter(Boolean)
+    );
+
+    let lote = versiones.find((v) => {
+        if (versionKey && (v.versionKey === versionKey || v.versionToken === versionKey)) return true;
+        if (token && (v.versionToken === token || v.versionKey === token)) return true;
+        if (idsSet.size) {
+            const ids = v.historialIds || [];
+            const hits = ids.filter((id) => idsSet.has(Number(id))).length;
+            if (hits > 0 && hits >= Math.min(idsSet.size, ids.length)) return true;
+            if (hits > 0 && idsSet.size >= 2 && hits >= 2) return true;
+        }
+        return false;
+    });
+
+    if (!lote && payloadActIds.size) {
+        lote = versiones.find((v) => {
+            const ids = new Set((v.controlProyectoIds || []).map((n) => Number(n)));
+            let hits = 0;
+            for (const id of payloadActIds) {
+                if (ids.has(id)) hits += 1;
+            }
+            return hits >= Math.max(1, Math.min(payloadActIds.size, ids.size));
+        }) || null;
+    }
+
+    let objetivos = [];
+    if (lote && Array.isArray(lote.actividadesAfectadas) && lote.actividadesAfectadas.length) {
+        objetivos = lote.actividadesAfectadas
+            .map((a) => ({
+                controlProyectoId: idActividadValido(a.controlProyectoId),
+                versionToken: normalizarTokenActividad(a.versionToken),
+                historialIds: (Array.isArray(a.historialIds) ? a.historialIds : [])
+                    .map((n) => Number(n))
+                    .filter((n) => Number.isInteger(n) && n > 0),
+                // Valores "después" del historial: se aplican sí o sí.
+                cambios: Array.isArray(a.cambios) ? a.cambios : []
+            }))
+            .filter((a) => a.controlProyectoId && (a.versionToken || a.historialIds.length || a.cambios.length));
+    } else {
+        objetivos = actividadesPayload
+            .map((a) => ({
+                controlProyectoId: idActividadValido(a.controlProyectoId || a.id),
+                versionToken: normalizarTokenActividad(a.versionToken || token),
+                historialIds: (Array.isArray(a.historialIds) ? a.historialIds : [])
+                    .map((n) => Number(n))
+                    .filter((n) => Number.isInteger(n) && n > 0),
+                cambios: Array.isArray(a.cambios) ? a.cambios : []
+            }))
+            .filter((a) => a.controlProyectoId && (a.versionToken || a.historialIds.length || a.cambios.length));
+    }
+
+    if (!objetivos.length) {
+        const err = new Error('No se encontró esa versión del proyecto o no tiene actividades recuperables.');
+        err.statusCode = 404;
+        throw err;
+    }
+
+    const fechaHoraLote = opciones.fechaHora || fechaHoraMexicoMySQL();
+    const restauradas = [];
+    const errores = [];
+
+    for (const obj of objetivos) {
+        try {
+            const r = await restaurarVersionActividad(
+                pool,
+                obj.controlProyectoId,
+                obj.versionToken,
+                {
+                    ...opciones,
+                    fechaHora: fechaHoraLote,
+                    historialIds: obj.historialIds,
+                    // Aplicar el estado "después" de esa versión (la que se ve en el panel).
+                    deshacerObjetivo: false,
+                    cambiosObjetivo: obj.cambios
+                }
+            );
+            restauradas.push({
+                controlProyectoId: obj.controlProyectoId,
+                actividad: r.actividad,
+                sinCambios: Boolean(r.actividad?.sinCambios)
+            });
+        } catch (error) {
+            errores.push({
+                controlProyectoId: obj.controlProyectoId,
+                message: error?.message || 'No se pudo restaurar'
+            });
+        }
+    }
+
+    if (!restauradas.length) {
+        const err = new Error(errores[0]?.message || 'No se pudo restaurar ninguna actividad del lote.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const conCambios = restauradas.filter((r) => !r.sinCambios).length;
+
+    return {
+        restauradas,
+        errores,
+        totalActividades: objetivos.length,
+        restauradasOk: restauradas.length,
+        actividadesConCambios: conCambios,
+        versionToken: (lote && lote.versionToken) || token || versionKey || null,
+        versionKey: (lote && lote.versionKey) || versionKey || null,
+        historialIds: (lote && lote.historialIds) || historialIds,
+        restauradoPor: normalizarUsuarioAuditoria(opciones.usuarioNombre),
+        restauradoEn: fechaHoraLote
     };
 }
 
@@ -761,8 +1686,9 @@ async function softDeleteActividades(pool, ids, auditoria = {}) {
 
 /**
  * Guarda el listado activo sin borrar filas de BD.
- * - Actualiza por id las actividades que siguen en el payload
+ * - Actualiza por id las actividades que siguen en el payload **y tienen cambios reales**
  * - Inserta las nuevas
+ * - Un usuario solo puede actualizar actividades de las que es responsable (salvo admin/root)
  * La ausencia de una actividad en el payload nunca se interpreta como eliminación.
  * Reintenta ante deadlock y bloquea filas en orden de id para evitar ciclos de locks.
  */
@@ -773,6 +1699,12 @@ async function reemplazarActividades(pool, actividadesRaw, opciones = {}) {
     const auditoria = {
         usuarioNombre: normalizarUsuarioAuditoria(opciones.usuarioNombre),
         fechaHora: opciones.fechaHora || fechaHoraMexicoMySQL()
+    };
+    const ownershipOpts = {
+        usuarioId: Number(opciones.usuarioId || 0) || null,
+        roles: Array.isArray(opciones.roles) ? opciones.roles : [],
+        esPrivilegioUniversal: Boolean(opciones.esPrivilegioUniversal) || esPrivilegioUniversal(opciones.roles),
+        usuarioNombre: auditoria.usuarioNombre
     };
 
     const maxAttempts = 4;
@@ -788,24 +1720,36 @@ async function reemplazarActividades(pool, actividadesRaw, opciones = {}) {
                 /* algunos entornos no permiten cambiar el timeout de sesión */
             }
 
-            const whereParts = ['activo = 1'];
-            const params = [];
-            if (empresaId) {
-                whereParts.push('empresa_id = ?');
-                params.push(empresaId);
-            }
+            // Solo bloquear las filas que el payload pretende tocar (evita sellar el portafolio entero).
+            const idsPayload = actividades
+                .map((a) => idActividadValido(a.id))
+                .filter(Boolean)
+                .sort((a, b) => a - b);
 
-            const [existentes] = await conn.query(
-                `SELECT control_proyecto_id
-                 FROM sgc_control_proyectos
-                 WHERE ${whereParts.join(' AND ')}
-                 ORDER BY control_proyecto_id ASC
-                 FOR UPDATE`,
-                params
-            );
-            const idsExistentes = new Set(
-                existentes.map((row) => Number(row.control_proyecto_id)).filter((id) => Number.isInteger(id) && id > 0)
-            );
+            let idsExistentes = new Set();
+            const filasPorId = new Map();
+            if (idsPayload.length) {
+                const placeholders = idsPayload.map(() => '?').join(', ');
+                const whereParts = [`control_proyecto_id IN (${placeholders})`, 'activo = 1'];
+                const params = [...idsPayload];
+                if (empresaId) {
+                    whereParts.push('empresa_id = ?');
+                    params.push(empresaId);
+                }
+                const [existentes] = await conn.query(
+                    `SELECT control_proyecto_id, responsable, responsable_usuario_ids
+                     FROM sgc_control_proyectos
+                     WHERE ${whereParts.join(' AND ')}
+                     ORDER BY control_proyecto_id ASC
+                     FOR UPDATE`,
+                    params
+                );
+                for (const row of existentes) {
+                    const id = Number(row.control_proyecto_id);
+                    idsExistentes.add(id);
+                    filasPorId.set(id, row);
+                }
+            }
 
             // Orden estable por proyecto (respeta orden del payload / drag-and-drop).
             const contadorPorProyecto = new Map();
@@ -835,13 +1779,26 @@ async function reemplazarActividades(pool, actividadesRaw, opciones = {}) {
 
             const resultadoPorPayload = new Array(actividades.length);
             const pendientesHistorial = [];
+            const omitidasOwnership = [];
+            let actualizadas = 0;
+            let sinCambios = 0;
 
             for (const { actividad, orden, indicePayload } of paraActualizar) {
+                const id = idActividadValido(actividad.id);
+                const filaBd = filasPorId.get(id);
+                if (filaBd && !usuarioPuedeModificarFila(filaBd, ownershipOpts)) {
+                    omitidasOwnership.push(id);
+                    continue;
+                }
                 const actualizada = await actualizarActividad(conn, actividad, orden, auditoria, {
-                    deferHistorial: pendientesHistorial
+                    deferHistorial: pendientesHistorial,
+                    verificarOwnership: false,
+                    ...ownershipOpts
                 });
                 if (actualizada) {
                     resultadoPorPayload[indicePayload] = actualizada;
+                    if (actualizada.sinCambios) sinCambios += 1;
+                    else actualizadas += 1;
                 }
             }
 
@@ -850,18 +1807,44 @@ async function reemplazarActividades(pool, actividadesRaw, opciones = {}) {
                 resultadoPorPayload[indicePayload] = creada;
             }
 
+            // Un solo version_token por proyecto en el lote → historial de proyecto multi-actividad.
+            const tokenPorProyecto = new Map();
             for (const pendiente of pendientesHistorial) {
+                const folioP = String(pendiente.anterior?.folio || pendiente.nuevo?.folio || '').trim().toLowerCase();
+                const nombreP = String(pendiente.anterior?.nombreProyecto || pendiente.nuevo?.nombreProyecto || '').trim().toLowerCase();
+                const empresaP = Number(pendiente.anterior?.empresaId || pendiente.nuevo?.empresaId || 0) || 0;
+                const clave = `${empresaP}|${folioP}|${nombreP}`;
+                if (!tokenPorProyecto.has(clave)) {
+                    tokenPorProyecto.set(clave, nuevoVersionToken());
+                }
                 await registrarCambiosHistorial(
                     conn,
                     pendiente.id,
                     pendiente.anterior,
                     pendiente.nuevo,
-                    pendiente.auditoria
+                    pendiente.auditoria,
+                    { versionToken: tokenPorProyecto.get(clave) }
                 );
             }
 
+            await purgarHistorialAntiguo(conn);
             await conn.commit();
-            return resultadoPorPayload.filter(Boolean);
+
+            if (omitidasOwnership.length) {
+                console.warn(
+                    `[control-proyectos] Guardado: se omitieron ${omitidasOwnership.length} actividad(es) por ownership:`,
+                    omitidasOwnership.join(', ')
+                );
+            }
+
+            const resultado = resultadoPorPayload.filter(Boolean);
+            resultado._meta = {
+                actualizadas,
+                sinCambios,
+                insertadas: paraInsertar.length,
+                omitidasOwnership: omitidasOwnership.length
+            };
+            return resultado;
         } catch (error) {
             try {
                 await conn.rollback();
@@ -1081,18 +2064,23 @@ function resumir(actividades) {
 
 function construirRespuestaFormato(actividades) {
     const fechaElaboracion = fechaHoyIso();
+    const lista = Array.isArray(actividades) ? atividadesSinMeta(actividades) : [];
     return {
         codigo: CODIGO_FORMATO,
         revision: REV_FORMATO,
         titulo: 'Control de Proyectos',
         datos: {
             fechaElaboracion,
-            proyectos: actividadesParaFormato(actividades)
+            proyectos: actividadesParaFormato(lista)
         },
         fechaElaboracionOriginal: fechaElaboracion,
         fechaModificacionContenido: fechaElaboracion,
         contenidoModificado: false
     };
+}
+
+function atividadesSinMeta(actividades) {
+    return actividades.filter((item) => item && typeof item === 'object' && !Array.isArray(item));
 }
 
 async function cargarFormato(pool, filtros = {}) {
@@ -1106,7 +2094,10 @@ async function guardarFormato(pool, body = {}) {
     const actividades = await reemplazarActividades(pool, actividadesEntrada, {
         empresaId: body?.empresaId,
         usuarioNombre: body?.usuarioNombre,
-        fechaHora: body?.fechaHora
+        fechaHora: body?.fechaHora,
+        usuarioId: body?.usuarioId,
+        roles: body?.roles,
+        esPrivilegioUniversal: body?.esPrivilegioUniversal
     });
     return construirRespuestaFormato(actividades);
 }
@@ -1315,6 +2306,7 @@ module.exports = {
     PRIORIDADES_VALIDAS,
     ESTATUS_VALIDOS,
     INDICADORES_AVANCE,
+    RETENCION_HISTORIAL_DIAS,
     asegurarTablaControlProyectos,
     obtenerProyectos: obtenerActividades,
     crearProyecto,
@@ -1329,5 +2321,9 @@ module.exports = {
     restaurarActividades,
     restaurarProyecto,
     obtenerDetalleActividad,
+    obtenerHistorialProyecto,
+    restaurarVersionActividad,
+    restaurarVersionProyecto,
+    purgarHistorialAntiguo,
     fechaHoraMexicoMySQL
 };

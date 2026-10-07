@@ -317,6 +317,14 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         previewMode: 'form'
       },
       {
+        codigo: 'SP-F-04',
+        titulo: 'Control de Proyectos Biznaga 2026',
+        nombre: 'SP-F-04 Control de Proyectos Biznaga 2026',
+        driveFileId: '1efmyxhAYxuN-H0BxGpUlSsYb3uhutWKDYBTHh8SfnMo',
+        previewSlug: 'sp-f-04',
+        previewMode: 'form'
+      },
+      {
         codigo: 'SGC-F-22',
         titulo: 'Reporte de daño o perdida de propiedad del cliente o proveedor',
         nombre: 'SGC-F-22 Reporte de daño o perdida de propiedad del cliente o proveedor.xlsx',

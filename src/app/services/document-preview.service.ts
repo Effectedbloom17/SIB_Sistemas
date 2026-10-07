@@ -1,10 +1,10 @@
 import { Injectable } from '@angular/core';
-import { HttpEvent } from '@angular/common/http';
+import { HttpClient, HttpEvent } from '@angular/common/http';
 import { BehaviorSubject, Observable, Subscription } from 'rxjs';
 import { BackendServices } from './backend.services';
 import { PdfPreviewLoaderService } from './pdf-preview-loader.service';
 
-export type DocumentPreviewTema = 'default' | 'rrhh' | 'pc';
+export type DocumentPreviewTema = 'default' | 'rrhh' | 'pc' | 'seguridad';
 
 export interface DocumentPreviewData {
   nombre: string;
@@ -31,6 +31,10 @@ export interface DocumentPreviewData {
   sgcF14EvidenciaId?: number;
   /** Fuerza el tipo si el nombre no trae extensión clara. */
   tipoHint?: 'pdf' | 'imagen' | 'office' | 'otro';
+  /** Archivo ya disponible en el sistema (uploads). */
+  urlLocal?: string;
+  /** Archivo elegido y todavía no guardado. */
+  archivoBlob?: Blob;
 }
 
 export interface PreviewState {
@@ -72,7 +76,8 @@ export class DocumentPreviewService {
 
   constructor(
     private backendServices: BackendServices,
-    private pdfPreviewLoader: PdfPreviewLoaderService
+    private pdfPreviewLoader: PdfPreviewLoaderService,
+    private http: HttpClient
   ) {}
 
   private getDefaultState(): PreviewState {
@@ -111,6 +116,7 @@ export class DocumentPreviewService {
     const tema: DocumentPreviewTema =
       doc.tema === 'rrhh' ? 'rrhh'
       : doc.tema === 'pc' ? 'pc'
+      : doc.tema === 'seguridad' ? 'seguridad'
       : 'default';
 
     let tipo: PreviewState['tipo'] = 'otro';
@@ -149,6 +155,18 @@ export class DocumentPreviewService {
 
     this.cargaSub?.unsubscribe();
     this.pdfFallbackNivel = 0;
+
+    if (doc.archivoBlob) {
+      this.emit();
+      void this.consumirBlobLocal(doc.archivoBlob, tipo);
+      return;
+    }
+
+    if (doc.urlLocal) {
+      this.emit();
+      this.cargarArchivoLocal(doc.urlLocal, tipo);
+      return;
+    }
 
     // Preview URL explícita (p. ej. Google Sheets embebido). No aplicar a PDF/imagen SGC.
     if (doc.previewUrl && tipo === 'office') {
@@ -377,6 +395,50 @@ export class DocumentPreviewService {
       },
       error: () => this.marcarErrorCarga()
     });
+  }
+
+  private cargarArchivoLocal(url: string, tipo: PreviewState['tipo']): void {
+    this.currentState.etiquetaCarga = 'Descargando documento…';
+    this.emit();
+    if (tipo === 'pdf') {
+      this.cargarPdfConProgreso(
+        this.http.get(url, { responseType: 'blob', observe: 'events', reportProgress: true }),
+        { etiqueta: 'Descargando documento…' }
+      );
+      return;
+    }
+    this.cargaSub?.unsubscribe();
+    this.cargaSub = this.http.get(url, { responseType: 'blob' }).subscribe({
+      next: (blob) => { void this.consumirBlobLocal(blob, tipo); },
+      error: () => this.marcarErrorCarga()
+    });
+  }
+
+  private async consumirBlobLocal(blob: Blob, tipo: PreviewState['tipo']): Promise<void> {
+    try {
+      if (tipo === 'pdf') {
+        const typed = blob.type && blob.type.includes('pdf')
+          ? blob
+          : new Blob([await blob.arrayBuffer()], { type: 'application/pdf' });
+        this.aplicarPdfBlob(typed);
+        return;
+      }
+      if (tipo === 'imagen') {
+        await this.aplicarImagenBlob(blob);
+        return;
+      }
+      const typed = new Blob([await blob.arrayBuffer()], { type: blob.type || 'application/octet-stream' });
+      if (this.currentState.urlDocumento && this.currentState.urlDocumento.startsWith('blob:')) {
+        URL.revokeObjectURL(this.currentState.urlDocumento);
+      }
+      this.currentState.urlDocumento = URL.createObjectURL(typed);
+      this.currentState.tipo = 'otro';
+      this.currentState.cargando = false;
+      this.currentState.error = false;
+      this.emit();
+    } catch {
+      this.marcarErrorCarga();
+    }
   }
 
   private async aplicarImagenBlob(blob: Blob): Promise<void> {
