@@ -2818,8 +2818,25 @@ $text-muted: #8898aa;
   color: #c9653f !important;
 }
 
-.pc-ops-nodo-finalizar .fa-flag-checkered {
+.pc-ops-nodo-finalizar > .fa-flag-checkered {
   color: #d97248 !important;
+}
+
+.pc-ops-finalizar-texto {
+  color: #d97248;
+  font-weight: 500;
+  max-width: 32rem;
+  margin-left: auto;
+  margin-right: auto;
+
+  small {
+    color: #e8956d;
+    font-weight: 400;
+  }
+}
+
+.pc-ops-nodo-finalizar .pc-ops-btn-primary .fa-flag-checkered {
+  color: #fff !important;
 }
 
 .pc-ops-documentacion-body {

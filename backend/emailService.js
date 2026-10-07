@@ -4,6 +4,7 @@
 // =====================================================
 
 require('dotenv').config({ debug: false, quiet: true });
+const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const startupLog = require('./startupLog');
 
@@ -115,6 +116,47 @@ function enqueueSend(task) {
     const run = sendQueue.then(runQueuedTask, runQueuedTask);
     sendQueue = run.catch(() => undefined);
     return run;
+}
+
+/**
+ * Extrae el dominio de una dirección o cabecera From ("Nombre" <user@dom.com>).
+ */
+function obtenerDominioDesdeDireccion(valor = '') {
+    const texto = String(valor || '');
+    const match = texto.match(/@([a-z0-9.-]+\.[a-z]{2,})/i);
+    return match?.[1]?.toLowerCase() || 'biznaga.com.mx';
+}
+
+/**
+ * Message-ID y cabeceras que mejoran entregabilidad (evita filtros que anteponen ***SPAM***).
+ */
+function enriquecerOpcionesAntiSpam(mailOptions = {}) {
+    const opciones = { ...mailOptions };
+    const dominio = obtenerDominioDesdeDireccion(opciones.from || EMAIL_FROM_ADDRESS);
+    const id = crypto.randomBytes(16).toString('hex');
+
+    if (!opciones.messageId) {
+        opciones.messageId = `<${id}@${dominio}>`;
+    }
+
+    opciones.headers = {
+        ...(opciones.headers && typeof opciones.headers === 'object' ? opciones.headers : {}),
+        'X-Mailer': 'Biznaga Risk&Tech',
+        'X-Auto-Response-Suppress': 'OOF, AutoReply'
+    };
+
+    // Asegura parte de texto cuando solo hay HTML (relación HTML/texto alta penaliza spam).
+    if (opciones.html && !opciones.text) {
+        opciones.text = String(opciones.html)
+            .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+            .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 8000);
+    }
+
+    return opciones;
 }
 
 function esLimiteConexionesSmtp(error) {
@@ -352,7 +394,7 @@ async function enviarCorreo({ to, subject, html, text, attachments, replyTo, fro
         ? html.replace(/#f0f4ec/gi, '#d7d9da')
         : html;
 
-    const mailOptions = {
+    const mailOptions = enriquecerOpcionesAntiSpam({
         from: from || `"${EMAIL_FROM_NAME}" <${EMAIL_FROM_ADDRESS}>`,
         to,
         cc: cc || undefined,
@@ -364,7 +406,7 @@ async function enviarCorreo({ to, subject, html, text, attachments, replyTo, fro
         attachments: Array.isArray(attachments) && attachments.length > 0 ? attachments : undefined,
         inReplyTo: inReplyTo || undefined,
         references: references || undefined
-    };
+    });
 
     const procesarInfo = (info) => {
         const accepted = Array.isArray(info.accepted) ? info.accepted : [];
@@ -1426,7 +1468,7 @@ async function enviarCorreoPerfil({
     const transporter = nodemailer.createTransport(transportConfig);
 
     try {
-        const info = await transporter.sendMail({
+        const mailOptions = enriquecerOpcionesAntiSpam({
             from: `"${nombreRemitente || correoRemitente}" <${correoRemitente}>`,
             to,
             cc: cc || undefined,
@@ -1438,6 +1480,8 @@ async function enviarCorreoPerfil({
             inReplyTo: inReplyTo || undefined,
             references: references || undefined
         });
+
+        const info = await transporter.sendMail(mailOptions);
 
         console.log(`[EMAIL] Correo perfil OK (${correoRemitente} via ${smtpHost}) → ${to} | ID: ${info.messageId}`);
         return {

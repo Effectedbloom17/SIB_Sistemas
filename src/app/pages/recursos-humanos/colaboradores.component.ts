@@ -259,6 +259,16 @@ export class ColaboradoresComponent implements OnInit, OnDestroy {
     return puesto === this.orgDireccion.puesto;
   }
 
+  /** Dirección General y gerencias: tarjeta horizontal de jefatura. */
+  esPuestoJefatura(puesto?: string | null): boolean {
+    const p = String(puesto || '').trim();
+    return (
+      p === this.orgDireccion.puesto ||
+      p === 'Gerente de Administración y Talento Humano' ||
+      p === 'Gerente de Estrategias e Innovación'
+    );
+  }
+
   get personasCarpetaAbierta(): ColaboradorItem[] {
     if (!this.carpetaPuestoAbierta) return [];
     return this.personasEn(this.carpetaPuestoAbierta);
@@ -337,6 +347,12 @@ export class ColaboradoresComponent implements OnInit, OnDestroy {
 
   columnaVisible(col: OrganigramaColumna): boolean {
     return col.nodos.some((nodo) => this.personasEn(nodo.puesto).length > 0 || this.mostrarVacante(nodo.puesto));
+  }
+
+  /** Nodos bajo el jefe de rama cuando la columna usa rejilla (ATH-F-01 Estrategias). */
+  hijosColumna(col: OrganigramaColumna): OrganigramaColumna['nodos'] {
+    if (!col?.hijosEnRejilla || !col.nodos?.length) return [];
+    return col.nodos.slice(1);
   }
 
   tieneExpedienteDrive(colaborador?: ColaboradorItem | null): boolean {

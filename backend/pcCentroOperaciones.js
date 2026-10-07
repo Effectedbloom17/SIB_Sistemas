@@ -296,8 +296,10 @@ function evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura = null, f
             const a1 = tieneArchivoWorkflow(archivosWorkflow, p.clave_obs_1);
             const a2 = tieneArchivoWorkflow(archivosWorkflow, p.clave_obs_2);
             const fecha = !!fechasWf[p.clave_fecha_obs];
-            const vacio = !a1 && !a2 && !fecha;
-            const completo = a1 && a2 && fecha;
+            const tieneArchivo = a1 || a2;
+            const vacio = !tieneArchivo && !fecha;
+            // Basta un oficio (obs 1 u obs 2) + fecha; el segundo archivo es opcional.
+            const completo = tieneArchivo && fecha;
             const parcial = !vacio && !completo;
             return { a1, a2, fecha, vacio, completo, parcial };
         });
@@ -308,7 +310,8 @@ function evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura = null, f
         const obs1 = archivosWorkflow.ops_observacion_1?.archivo_url;
         const obs2 = archivosWorkflow.ops_observacion_2?.archivo_url;
         const obsFecha = !!ciclo?.fecha_oficio_observaciones;
-        obsCompleto = !!(obs1 && obs2 && obsFecha);
+        // Basta un oficio + fecha; el segundo archivo es opcional.
+        obsCompleto = !!(obs1 || obs2) && obsFecha;
         obsVacio = !obs1 && !obs2 && !obsFecha;
         obsValidoPorPipc = obsVacio || obsCompleto;
     }
@@ -1275,6 +1278,20 @@ function registerPcCentroOperacionesRoutes(app, deps) {
         try {
             const pool = await resolvePool(deps);
             const empresaId = Number(req.params.empresaId);
+            const forzar = !!req.body?.forzar;
+
+            if (forzar) {
+                const userRoles = Array.isArray(req.user?.roles)
+                    ? req.user.roles.map((r) => String(r).toLowerCase())
+                    : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+                if (!userRoles.includes('root')) {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Solo super administradores pueden forzar el finalizado del ciclo'
+                    });
+                }
+            }
+
             let ciclo = await obtenerCicloActivo(pool, empresaId);
             if (!ciclo) ciclo = await crearCicloActivo(pool, empresaId);
 
@@ -1294,7 +1311,7 @@ function registerPcCentroOperacionesRoutes(app, deps) {
             );
             const reglas = evaluarReglas(ciclo, allDocs, archivosWorkflow, pipcCobertura, fechasWf, null, directorioEstado);
 
-            if (!reglas.puede_completar.finalizar) {
+            if (!forzar && !reglas.puede_completar.finalizar) {
                 return res.status(400).json({
                     success: false,
                     message: 'Completa los pasos obligatorios antes de finalizar el ciclo'
@@ -1323,7 +1340,10 @@ function registerPcCentroOperacionesRoutes(app, deps) {
 
             res.json({
                 success: true,
-                message: 'Ciclo de Protección Civil cerrado. El expediente quedó en Historial PC y ya puedes iniciar una nueva asignación.',
+                message: forzar
+                    ? 'Ciclo forzado a finalizado. El expediente quedó en Historial PC y ya puedes iniciar una nueva asignación.'
+                    : 'Ciclo de Protección Civil cerrado. El expediente quedó en Historial PC y ya puedes iniciar una nueva asignación.',
+                forzado: forzar,
                 pasos_completados: pasos,
                 historial_resumen: historialResumen
             });
@@ -1391,7 +1411,8 @@ function construirDetallePasosPipc({
     const a2 = tieneArchivoWorkflow(archivosWorkflow, pipc.clave_obs_2);
     const fechaObs = !!fechasWf[pipc.clave_fecha_obs];
     const obsVacio = !a1 && !a2 && !fechaObs;
-    const obsOk = a1 && a2 && fechaObs;
+    // Basta un oficio + fecha; el segundo archivo es opcional.
+    const obsOk = (a1 || a2) && fechaObs;
 
     const slotsRes = RESOLUTIVO_TIPOS.map((rt) => {
         const clave = claveResolutivoTipoPipc(pipc.documento_id, rt.tipo);

@@ -274,11 +274,9 @@ module.exports = function createCorreoRoutes(deps) {
     }
 
     function obtenerLimiteMensajeBytes() {
-        const usarBrevo = typeof esEnvioCorreoViaBrevo === 'function'
-            && esEnvioCorreoViaBrevo()
-            && emailService?.isEnabled?.();
-        const mb = usarBrevo ? CORREO_LIMITE_MENSAJE_MB_BREVO : CORREO_LIMITE_MENSAJE_MB_CPANEL;
-        return Math.round(mb * 1024 * 1024);
+        // Tope cPanel: el envío prioriza SMTP del buzón. Si se usara el tope Brevo,
+        // adjuntos grandes quedarían inline y forzarían el relay (peor entregabilidad / ***SPAM***).
+        return Math.round(CORREO_LIMITE_MENSAJE_MB_CPANEL * 1024 * 1024);
     }
 
     function extensionArchivoCorreo(nombre = '') {
@@ -1327,40 +1325,82 @@ module.exports = function createCorreoRoutes(deps) {
                 references: references || undefined
             };
 
-            // Preferir el relay global (Brevo u otro SMTP configurado).
-            // Los archivos que superen el umbral van como enlace de Google Drive.
-            if (emailService.isEnabled()) {
-                resultadoEnvio = await enviarViaSmtpGlobal(payloadEnvio);
-                intentos.push({ origen: usarBrevoParaEnvio ? 'brevo' : 'sistema', ...resultadoEnvio });
-                if (resultadoEnvio.success) {
-                    origenEnvio = usarBrevoParaEnvio ? 'brevo' : 'sistema';
-                } else {
-                    console.warn(
-                        `[CORREO] SMTP global falló (${usarBrevoParaEnvio ? 'brevo' : 'sistema'}): ${resultadoEnvio.error || 'sin detalle'}. Reintentando por perfil...`
-                    );
-                }
-            } else {
-                console.warn('[CORREO] SMTP global deshabilitado; enviando por SMTP del buzón (perfil).');
-            }
+            // Prioridad: SMTP del buzón (mail.biznaga.com.mx) para alinear SPF/DKIM
+            // con From @biznaga.com.mx y evitar que el receptor anteponga "***SPAM***".
+            // Brevo/relay global solo si el mensaje supera el tope cPanel o falla el buzón.
+            // Los archivos grandes ya van como enlace de Google Drive antes de este punto.
+            const mimeEstimado = estimarBytesMimeAdjuntos(adjuntosCorreo)
+                + Buffer.byteLength(String(html || ''), 'utf8')
+                + Buffer.byteLength(String(text || ''), 'utf8')
+                + 8192;
+            const limiteCpanelBytes = Math.round(CORREO_LIMITE_MENSAJE_MB_CPANEL * 1024 * 1024);
+            const limiteBrevoBytes = Math.round(CORREO_LIMITE_MENSAJE_MB_BREVO * 1024 * 1024);
+            const requiereRelayPorTamano = Boolean(
+                usarBrevoParaEnvio
+                && emailService.isEnabled()
+                && mimeEstimado > limiteCpanelBytes
+                && mimeEstimado <= limiteBrevoBytes
+            );
 
-            if (!resultadoEnvio?.success) {
+            const probarSmtpPerfil = async () => {
                 const resultadoPerfil = await enviarViaSmtpPerfil({
                     ...payloadEnvio,
                     nombrePerfil
                 });
                 intentos.push({ origen: 'perfil', ...resultadoPerfil });
-
                 if (resultadoPerfil.success) {
                     resultadoEnvio = resultadoPerfil;
                     origenEnvio = 'perfil';
                 } else if (!resultadoEnvio) {
                     resultadoEnvio = resultadoPerfil;
                 } else {
-                    // Conservar el error más útil (perfil suele ser el último intento real).
                     resultadoEnvio = {
                         ...resultadoEnvio,
                         error: resultadoPerfil.error || resultadoEnvio.error
                     };
+                }
+                return resultadoPerfil;
+            };
+
+            const probarSmtpGlobal = async () => {
+                if (!emailService.isEnabled()) {
+                    return { success: false, error: 'Servicio SMTP global no disponible' };
+                }
+                const resultadoGlobal = await enviarViaSmtpGlobal(payloadEnvio);
+                const etiqueta = usarBrevoParaEnvio ? 'brevo' : 'sistema';
+                intentos.push({ origen: etiqueta, ...resultadoGlobal });
+                if (resultadoGlobal.success) {
+                    resultadoEnvio = resultadoGlobal;
+                    origenEnvio = etiqueta;
+                } else if (!resultadoEnvio) {
+                    resultadoEnvio = resultadoGlobal;
+                } else {
+                    resultadoEnvio = {
+                        ...resultadoEnvio,
+                        error: resultadoGlobal.error || resultadoEnvio.error
+                    };
+                }
+                return resultadoGlobal;
+            };
+
+            if (requiereRelayPorTamano) {
+                console.warn(
+                    `[CORREO] MIME estimado ${Math.round(mimeEstimado / (1024 * 1024))} MB supera tope cPanel; enviando por relay global.`
+                );
+                await probarSmtpGlobal();
+                if (!resultadoEnvio?.success) {
+                    console.warn('[CORREO] Relay global falló con mensaje grande; reintentando por SMTP del buzón...');
+                    await probarSmtpPerfil();
+                }
+            } else {
+                await probarSmtpPerfil();
+                if (!resultadoEnvio?.success && emailService.isEnabled()) {
+                    console.warn(
+                        `[CORREO] SMTP del buzón falló (${resultadoEnvio?.error || 'sin detalle'}). Reintentando por relay global...`
+                    );
+                    await probarSmtpGlobal();
+                } else if (!resultadoEnvio?.success && !emailService.isEnabled()) {
+                    console.warn('[CORREO] SMTP del buzón falló y no hay relay global disponible.');
                 }
             }
 

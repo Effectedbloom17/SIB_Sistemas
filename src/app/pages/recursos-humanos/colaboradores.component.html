@@ -119,10 +119,26 @@
                   <div class="org-bar" aria-hidden="true"></div>
                   <div class="org-body">
                     <ng-container *ngFor="let col of orgColumnas">
-                      <div class="org-col" *ngIf="columnaVisible(col)">
+                      <div class="org-col"
+                           *ngIf="columnaVisible(col)"
+                           [class.org-col--branch-grid]="col.hijosEnRejilla">
                         <div class="org-col__line" aria-hidden="true"></div>
-                        <ng-container *ngFor="let nodo of col.nodos">
-                          <ng-container *ngTemplateOutlet="nodoOrg; context: { $implicit: nodo.puesto }"></ng-container>
+                        <ng-container *ngIf="!col.hijosEnRejilla">
+                          <ng-container *ngFor="let nodo of col.nodos">
+                            <ng-container *ngTemplateOutlet="nodoOrg; context: { $implicit: nodo.puesto }"></ng-container>
+                          </ng-container>
+                        </ng-container>
+                        <ng-container *ngIf="col.hijosEnRejilla">
+                          <ng-container *ngIf="col.nodos[0] as lead">
+                            <ng-container *ngTemplateOutlet="nodoOrg; context: { $implicit: lead.puesto }"></ng-container>
+                          </ng-container>
+                          <div class="org-col__branch-join" aria-hidden="true"></div>
+                          <div class="org-col__grid" aria-label="Ejecutivos de la rama">
+                            <span class="org-col__fork" aria-hidden="true"></span>
+                            <ng-container *ngFor="let nodo of hijosColumna(col)">
+                              <ng-container *ngTemplateOutlet="nodoOrg; context: { $implicit: nodo.puesto }"></ng-container>
+                            </ng-container>
+                          </div>
                         </ng-container>
                       </div>
                     </ng-container>
@@ -403,11 +419,19 @@
 
           <ng-template #nodoOrg let-puesto>
             <ng-container *ngIf="personasEn(puesto) as personas">
-              <div class="org-node" *ngIf="personas.length || mostrarVacante(puesto)">
+              <div class="org-node"
+                   *ngIf="personas.length || mostrarVacante(puesto)"
+                   [class.org-node--boss]="esPuestoJefatura(puesto)"
+                   [class.org-node--direccion]="esPuestoDireccion(puesto)">
+                <span class="org-node__badge" *ngIf="esPuestoJefatura(puesto)">
+                  <span class="org-node__badge-glow" aria-hidden="true"></span>
+                  <span class="org-node__badge-text">{{ puesto }}</span>
+                </span>
                 <button *ngIf="personas.length > 1"
                         type="button"
                         class="org-person org-person--folder"
-                        [class.org-person--lead]="esPuestoDireccion(puesto)"
+                        [class.org-person--boss]="esPuestoJefatura(puesto)"
+                        [class.org-person--direccion]="esPuestoDireccion(puesto)"
                         (click)="abrirCarpetaPuesto(puesto, $event)"
                         [attr.aria-label]="'Ver ' + personas.length + ' colaboradores en ' + puesto">
                   <span class="org-person__avatar" aria-hidden="true">
@@ -424,13 +448,18 @@
                     <span class="org-person__pointer"></span>
                     <span class="org-folder-badge">{{ personas.length }}</span>
                   </span>
-                  <span class="org-person__role">{{ puesto }}</span>
-                  <span class="org-person__name">{{ personas.length }} personas</span>
+                  <span class="org-person__meta">
+                    <span class="org-person__role" *ngIf="!esPuestoJefatura(puesto)">{{ puesto }}</span>
+                    <span class="org-person__name">{{ personas.length }} personas</span>
+                  </span>
                 </button>
                 <ng-container *ngIf="personas.length === 1">
                   <ng-container *ngTemplateOutlet="tarjetaOrg; context: { $implicit: personas[0], puesto: puesto }"></ng-container>
                 </ng-container>
-                <div class="org-person org-person--vacante" *ngIf="mostrarVacante(puesto)" [class.org-person--lead]="esPuestoDireccion(puesto)">
+                <div class="org-person org-person--vacante"
+                     *ngIf="mostrarVacante(puesto)"
+                     [class.org-person--boss]="esPuestoJefatura(puesto)"
+                     [class.org-person--direccion]="esPuestoDireccion(puesto)">
                   <span class="org-person__avatar" aria-hidden="true">
                     <span class="org-person__halo"></span>
                     <span class="org-person__ring"></span>
@@ -439,8 +468,10 @@
                     </span>
                     <span class="org-person__pointer"></span>
                   </span>
-                  <span class="org-person__role">{{ puesto }}</span>
-                  <span class="org-person__name">Vacante</span>
+                  <span class="org-person__meta">
+                    <span class="org-person__role" *ngIf="!esPuestoJefatura(puesto)">{{ puesto }}</span>
+                    <span class="org-person__name">Vacante</span>
+                  </span>
                 </div>
               </div>
             </ng-container>
@@ -449,7 +480,8 @@
           <ng-template #tarjetaOrg let-c let-puesto="puesto">
             <button type="button"
                     class="org-person"
-                    [class.org-person--lead]="esPuestoDireccion(puestoDe(c) || puesto)"
+                    [class.org-person--boss]="esPuestoJefatura(puestoDe(c) || puesto)"
+                    [class.org-person--direccion]="esPuestoDireccion(puestoDe(c) || puesto)"
                     [class.is-hover]="hoverColaborador?.id === c.id"
                     (click)="seleccionar(c)"
                     (mouseenter)="mostrarFicha(c, $event)"
@@ -466,8 +498,10 @@
                 </span>
                 <span class="org-person__pointer" aria-hidden="true"></span>
               </span>
-              <span class="org-person__role">{{ puestoDe(c) || puesto || 'Sin puesto' }}</span>
-              <span class="org-person__name">{{ c.nombre }}</span>
+              <span class="org-person__meta">
+                <span class="org-person__role" *ngIf="!esPuestoJefatura(puestoDe(c) || puesto)">{{ puestoDe(c) || puesto || 'Sin puesto' }}</span>
+                <span class="org-person__name">{{ c.nombre }}</span>
+              </span>
             </button>
           </ng-template>
 
@@ -539,8 +573,10 @@
           </span>
           <span class="org-person__pointer" aria-hidden="true"></span>
         </span>
-        <span class="org-person__role">{{ puestoDe(c) || carpetaPuestoAbierta }}</span>
-        <span class="org-person__name">{{ c.nombre }}</span>
+        <span class="org-person__meta">
+          <span class="org-person__role">{{ puestoDe(c) || carpetaPuestoAbierta }}</span>
+          <span class="org-person__name">{{ c.nombre }}</span>
+        </span>
       </button>
     </div>
   </div>

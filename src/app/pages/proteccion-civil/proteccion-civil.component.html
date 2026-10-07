@@ -1795,7 +1795,7 @@
                 <span>Se está subiendo el archivo, espere unos segundos...</span>
               </div>
               <p class="pc-ops-hint-naranja small mb-3" *ngIf="opsPipcAsignados.length > 0">
-                Este paso es opcional. Por cada PIPC puedes subir dos oficios y registrar su fecha, omitir solo ese PIPC, u omitir todo el paso.
+                Este paso es opcional. Por cada PIPC basta un oficio y su fecha (el segundo archivo es opcional); también puedes omitir solo ese PIPC o todo el paso.
               </p>
               <p class="pc-ops-hint-naranja small mb-3" *ngIf="opsPipcAsignados.length === 0">
                 Este paso es opcional. Primero asigna al menos un PIPC para generar los apartados de carga.
@@ -1846,7 +1846,7 @@
                       </div>
 
                       <div class="mb-3">
-                        <label class="pc-ops-field-label pc-ops-field-label--sub">Observaciones 2</label>
+                        <label class="pc-ops-field-label pc-ops-field-label--sub">Observaciones 2 <span class="text-muted font-weight-normal">(opcional)</span></label>
                         <label class="btn btn-outline-primary btn-sm btn-block mb-2"
                                *ngIf="!tieneWorkflowArchivo(pipc.clave_obs_2) && !isOpsPasoCompletado('observaciones')">
                           <i class="fas fa-upload mr-1"></i> Subir archivo 2
@@ -2115,13 +2115,20 @@
             <!-- Finalizar -->
             <div *ngIf="pasoOperacionesSeleccionado === 'finalizar'" class="pc-ops-nodo-finalizar pc-animate-section pc-animate-section--delay-1 text-center py-4">
               <i class="fas fa-flag-checkered fa-3x mb-3"></i>
-              <p class="text-muted mb-3">
-                Al finalizar se cierra el ciclo PIPC actual. Podrás asignar una nueva plantilla a la empresa.
-                <br><small>Pasos obligatorios: Asignar, Documentación, Oficio de Ingreso, Recorrido PC y Resolutivo. Observaciones es opcional.</small>
+              <p class="pc-ops-finalizar-texto mb-3">
+                Cierra el ciclo PIPC y permite asignar una nueva plantilla.
+                <br><small>Obligatorios: Asignar, Documentación, Oficio, Recorrido PC y Resolutivo.</small>
               </p>
-              <button type="button" class="btn pc-ops-btn-primary btn-lg" (click)="cerrarCicloCentroOperaciones()">
-                <i class="fas fa-flag-checkered mr-2"></i>Finalizar Protección Civil
-              </button>
+              <div class="d-flex flex-wrap justify-content-center align-items-center" style="gap: 0.75rem;">
+                <button type="button" class="btn pc-ops-btn-primary btn-lg" (click)="cerrarCicloCentroOperaciones()">
+                  <i class="fas fa-flag-checkered mr-2"></i>Finalizar PIPC
+                </button>
+                <button *ngIf="esRootUser" type="button" class="btn pc-ops-btn-outline btn-lg"
+                        (click)="forzarCerrarCicloCentroOperaciones()"
+                        title="Cierra el ciclo ignorando pasos incompletos">
+                  <i class="fas fa-bolt mr-2"></i>Forzar finalizado
+                </button>
+              </div>
             </div>
           </div>
         </div>

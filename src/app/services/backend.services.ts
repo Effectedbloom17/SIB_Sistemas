@@ -1970,8 +1970,11 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/proteccion-civil/empresas/${empresaId}/centro-operaciones/desbloquear-paso`, { paso });
     }
 
-    cerrarCicloCentroOperacionesPC(empresaId: number): Observable<any> {
-        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/empresas/${empresaId}/centro-operaciones/cerrar-ciclo`, {});
+    cerrarCicloCentroOperacionesPC(empresaId: number, opciones: { forzar?: boolean } = {}): Observable<any> {
+        return this.httpClient.post(
+            `${this.baseUrl}/proteccion-civil/empresas/${empresaId}/centro-operaciones/cerrar-ciclo`,
+            { forzar: !!opciones.forzar }
+        );
     }
 
     obtenerRecorridoPC(empresaId: number): Observable<any> {
