@@ -2398,7 +2398,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     { id: 'recorrido', nombre: 'Reporte de Recorrido', descripcion: 'Opcional: SP-F-02 por cada PIPC asignado', icono: 'fa-route', orden: 3 },
     { id: 'documentacion', nombre: 'Subir documentación', descripcion: '', icono: 'fa-cloud-upload-alt', orden: 4 },
     { id: 'oficio', nombre: 'Oficio de Ingreso', descripcion: 'Oficio y fecha por cada PIPC asignado', icono: 'fa-file-signature', orden: 5 },
-    { id: 'observaciones', nombre: 'Observaciones', descripcion: 'Opcional: 2 oficios y fecha por PIPC', icono: 'fa-comment-dots', orden: 6 },
+    { id: 'observaciones', nombre: 'Observaciones', descripcion: 'Opcional: al menos 1 oficio y fecha por PIPC', icono: 'fa-comment-dots', orden: 6 },
     { id: 'recorrido_doc', nombre: 'Recorrido PC', descripcion: 'Documento, fecha de ingreso y observaciones opcionales', icono: 'fa-walking', orden: 7 },
     { id: 'resolutivo', nombre: 'Resolutivo', descripcion: 'PIPC, Factibilidad y OTMS por cada PIPC', icono: 'fa-gavel', orden: 8 },
     { id: 'finalizar', nombre: 'Finalizar', descripcion: 'Cierra el ciclo y permite nueva asignación', icono: 'fa-flag-checkered', orden: 9 }
@@ -3179,34 +3179,55 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   }
 
   async cerrarCicloCentroOperaciones(): Promise<void> {
-    if (!this.empresaSeleccionada) return;
+    await this.ejecutarCierreCicloCentroOperaciones(false);
+  }
 
-    const faltantes = ['asignar', 'documentacion', 'oficio', 'recorrido_doc', 'resolutivo'].filter(
-      (p) => !this.isOpsPasoCompletado(p as PasoCentroOperacionesId)
-    );
-    if (faltantes.length) {
+  async forzarCerrarCicloCentroOperaciones(): Promise<void> {
+    if (!this.esRootUser) {
       await Swal.fire({
-        icon: 'warning',
-        title: 'No se puede finalizar',
-        html: '<p>Completa los pasos obligatorios: Asignar, Subir documentación, Oficio de Ingreso, Recorrido PC y Resolutivo.</p>',
+        icon: 'error',
+        title: 'Sin permiso',
+        text: 'Solo super administradores pueden forzar el finalizado.',
         confirmButtonColor: '#d97248'
       });
       return;
     }
+    await this.ejecutarCierreCicloCentroOperaciones(true);
+  }
+
+  private async ejecutarCierreCicloCentroOperaciones(forzar: boolean): Promise<void> {
+    if (!this.empresaSeleccionada) return;
+
+    if (!forzar) {
+      const faltantes = ['asignar', 'documentacion', 'oficio', 'recorrido_doc', 'resolutivo'].filter(
+        (p) => !this.isOpsPasoCompletado(p as PasoCentroOperacionesId)
+      );
+      if (faltantes.length) {
+        await Swal.fire({
+          icon: 'warning',
+          title: 'No se puede finalizar',
+          html: '<p>Completa los pasos obligatorios: Asignar, Subir documentación, Oficio de Ingreso, Recorrido PC y Resolutivo.</p>',
+          confirmButtonColor: '#d97248'
+        });
+        return;
+      }
+    }
 
     const result = await Swal.fire({
-      title: '¿Finalizar ciclo PIPC?',
-      text: 'El expediente se guardará en Historial PC y podrás iniciar un nuevo trámite para esta empresa.',
-      icon: 'question',
+      title: forzar ? '¿Forzar finalizado del PIPC?' : '¿Finalizar ciclo PIPC?',
+      html: forzar
+        ? '<p>Se cerrará el ciclo <strong>ignorando pasos incompletos</strong>. El expediente irá a Historial PC.</p>'
+        : '<p>El expediente se guardará en Historial PC y podrás iniciar un nuevo trámite para esta empresa.</p>',
+      icon: forzar ? 'warning' : 'question',
       showCancelButton: true,
-      confirmButtonColor: '#2dce89',
+      confirmButtonColor: forzar ? '#d97248' : '#2dce89',
       cancelButtonColor: '#6c757d',
-      confirmButtonText: 'Sí, finalizar'
+      confirmButtonText: forzar ? 'Sí, forzar' : 'Sí, finalizar'
     });
 
     if (!result.isConfirmed) return;
 
-    this.backendService.cerrarCicloCentroOperacionesPC(this.empresaSeleccionada.empresa_id).subscribe({
+    this.backendService.cerrarCicloCentroOperacionesPC(this.empresaSeleccionada.empresa_id, { forzar }).subscribe({
       next: async (resp: any) => {
         if (resp?.success) {
           await Swal.fire({

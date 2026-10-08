@@ -43,6 +43,7 @@ const empresaRepositorioService = require('./empresaRepositorioService');
 const createSgcF29EvidenciaRouter = require('./sgcF29EvidenciaRoutes');
 const sgcF29EvidenciaService = require('./sgcF29EvidenciaService');
 const createSgcF14EvidenciaRouter = require('./sgcF14EvidenciaRoutes');
+const createSgcF11EvidenciaRouter = require('./sgcF11EvidenciaRoutes');
 const { initChatSocket } = require('./chatSocket');
 const http = require('http');
 const rrhhResidentesService = require('./rrhhResidentesService');
@@ -2950,6 +2951,20 @@ async function requireAdminOrSgc(req, res, next) {
     } catch (error) {
         return handleError(res, error, 'Error al verificar permisos SGC');
     }
+}
+
+/** Solo el Administrador SU (rol root). */
+function requireSoloRoot(req, res, next) {
+    const userRoles = Array.isArray(req.user?.roles)
+        ? req.user.roles.map((r) => String(r).toLowerCase())
+        : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+    if (userRoles.includes('root')) {
+        return next();
+    }
+    return res.status(403).json({
+        success: false,
+        message: 'Este formato solo está disponible para el Administrador SU'
+    });
 }
 
 /** Solo Super administrador (root) o Calidad (sergio56 / calidad). */
@@ -30288,6 +30303,20 @@ app.get('/api/sgc/formatos/sgc-f-23/descargar-plantilla-pdf', requireAdminOrSgc,
     }
 });
 
+app.use('/api/sgc/formatos/sgc-f-11/evidencias', async (req, res, next) => {
+    try {
+        await poolBiznagaSgcReady;
+        next();
+    } catch (error) {
+        handleError(res, error, 'Base de datos SGC no disponible');
+    }
+}, createSgcF11EvidenciaRouter({
+    getPoolSgc: () => poolBiznagaSgc,
+    requireAdminOrSgc,
+    handleError,
+    obtenerNombreUsuarioAccion
+}));
+
 app.get('/api/sgc/formatos/sgc-f-11', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
@@ -30947,7 +30976,7 @@ app.get('/api/sgc/formatos/dg-f-03/descargar-plantilla-pdf', requireAdminOrSgc, 
     }
 });
 
-app.get('/api/sgc/formatos/metodologia-amef', requireAdminOrSgc, async (req, res) => {
+app.get('/api/sgc/formatos/metodologia-amef', requireSoloRoot, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
         await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
@@ -30958,7 +30987,7 @@ app.get('/api/sgc/formatos/metodologia-amef', requireAdminOrSgc, async (req, res
     }
 });
 
-app.post('/api/sgc/formatos/metodologia-amef/guardar', requireAdminOrSgc, async (req, res) => {
+app.post('/api/sgc/formatos/metodologia-amef/guardar', requireSoloRoot, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
         const payload = await sgcMetodologiaAmefService.guardarFormato(poolBiznagaSgc, req.body || {});
@@ -30972,7 +31001,7 @@ app.post('/api/sgc/formatos/metodologia-amef/guardar', requireAdminOrSgc, async 
     }
 });
 
-app.post('/api/sgc/formatos/metodologia-amef/importar-plantilla', requireAdminOrSgc, async (req, res) => {
+app.post('/api/sgc/formatos/metodologia-amef/importar-plantilla', requireSoloRoot, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
         const payload = await sgcMetodologiaAmefService.importarDesdePlantilla(poolBiznagaSgc);

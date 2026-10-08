@@ -29,6 +29,8 @@ export interface DocumentPreviewData {
   sgcF29EvidenciaId?: number;
   /** Evidencia SGC-F-14: descarga autenticada por id de documento. */
   sgcF14EvidenciaId?: number;
+  /** Evidencia SGC-F-11: descarga autenticada por id de documento. */
+  sgcF11EvidenciaId?: number;
   /** Fuerza el tipo si el nombre no trae extensión clara. */
   tipoHint?: 'pdf' | 'imagen' | 'office' | 'otro';
   /** Archivo ya disponible en el sistema (uploads). */
@@ -57,6 +59,8 @@ export interface PreviewState {
   sgcF29EvidenciaId: number;
   /** Descarga autenticada evidencias SGC-F-14 */
   sgcF14EvidenciaId: number;
+  /** Descarga autenticada evidencias SGC-F-11 */
+  sgcF11EvidenciaId: number;
   pdfBlob: Blob | null;
   progreso: number;
   etiquetaCarga: string;
@@ -98,6 +102,7 @@ export class DocumentPreviewService {
       rrhhColaboradorFileId: '',
       sgcF29EvidenciaId: 0,
       sgcF14EvidenciaId: 0,
+      sgcF11EvidenciaId: 0,
       pdfBlob: null,
       progreso: 0,
       etiquetaCarga: 'Preparando vista previa…',
@@ -147,6 +152,7 @@ export class DocumentPreviewService {
       rrhhColaboradorFileId: String(doc.rrhhColaboradorFileId || '').trim(),
       sgcF29EvidenciaId: Number(doc.sgcF29EvidenciaId) || 0,
       sgcF14EvidenciaId: Number(doc.sgcF14EvidenciaId) || 0,
+      sgcF11EvidenciaId: Number(doc.sgcF11EvidenciaId) || 0,
       pdfBlob: null,
       progreso: 4,
       etiquetaCarga: 'Solicitando documento…',
@@ -184,11 +190,14 @@ export class DocumentPreviewService {
     // Evidencias SGC-F-14 / F-29: descarga autenticada (mismo camino confiable que procedimientos).
     const evidF14Id = this.currentState.sgcF14EvidenciaId || 0;
     const evidF29Id = this.currentState.sgcF29EvidenciaId || 0;
-    if (evidF14Id > 0 || evidF29Id > 0) {
+    const evidF11Id = this.currentState.sgcF11EvidenciaId || 0;
+    if (evidF14Id > 0 || evidF29Id > 0 || evidF11Id > 0) {
       this.emit();
+      const formato = evidF11Id > 0 ? 'f11' : (evidF14Id > 0 ? 'f14' : 'f29');
+      const evidenciaId = evidF11Id > 0 ? evidF11Id : (evidF14Id > 0 ? evidF14Id : evidF29Id);
       this.cargarEvidenciaSgc({
-        formato: evidF14Id > 0 ? 'f14' : 'f29',
-        evidenciaId: evidF14Id > 0 ? evidF14Id : evidF29Id,
+        formato,
+        evidenciaId,
         driveFileId,
         tipo,
         nombre: this.currentState.nombre
@@ -307,7 +316,7 @@ export class DocumentPreviewService {
    * No usa iframe de Drive (falla con archivos privados).
    */
   private cargarEvidenciaSgc(opts: {
-    formato: 'f14' | 'f29';
+    formato: 'f14' | 'f29' | 'f11';
     evidenciaId: number;
     driveFileId: string;
     tipo: PreviewState['tipo'];
@@ -316,9 +325,11 @@ export class DocumentPreviewService {
     const { formato, evidenciaId, driveFileId, tipo, nombre } = opts;
 
     if (tipo === 'pdf') {
-      const evidReq$ = formato === 'f14'
-        ? this.backendServices.descargarArchivoEvidenciaSgcF14Eventos(evidenciaId)
-        : this.backendServices.descargarArchivoEvidenciaSgcF29Eventos(evidenciaId);
+      const evidReq$ = formato === 'f11'
+        ? this.backendServices.descargarArchivoEvidenciaSgcF11Eventos(evidenciaId)
+        : (formato === 'f14'
+          ? this.backendServices.descargarArchivoEvidenciaSgcF14Eventos(evidenciaId)
+          : this.backendServices.descargarArchivoEvidenciaSgcF29Eventos(evidenciaId));
       const drivePdfReq$ = driveFileId
         ? this.backendServices.imprimirArchivoDriveComoPDFEventos(driveFileId, nombre || 'evidencia.pdf')
         : null;
@@ -350,13 +361,15 @@ export class DocumentPreviewService {
   }
 
   private cargarImagenEvidenciaSgc(
-    formato: 'f14' | 'f29',
+    formato: 'f14' | 'f29' | 'f11',
     evidenciaId: number,
     driveFileId: string
   ): void {
-    const req$ = formato === 'f14'
-      ? this.backendServices.descargarArchivoEvidenciaSgcF14(evidenciaId)
-      : this.backendServices.descargarArchivoEvidenciaSgcF29(evidenciaId);
+    const req$ = formato === 'f11'
+      ? this.backendServices.descargarArchivoEvidenciaSgcF11(evidenciaId)
+      : (formato === 'f14'
+        ? this.backendServices.descargarArchivoEvidenciaSgcF14(evidenciaId)
+        : this.backendServices.descargarArchivoEvidenciaSgcF29(evidenciaId));
 
     this.cargaSub?.unsubscribe();
     this.cargaSub = req$.subscribe({
@@ -668,6 +681,23 @@ export class DocumentPreviewService {
           setTimeout(() => URL.revokeObjectURL(url), 100);
         },
         error: () => console.error('Error descargando evidencia SGC-F-29')
+      });
+      return;
+    }
+
+    if (state.sgcF11EvidenciaId > 0) {
+      this.backendServices.descargarArchivoEvidenciaSgcF11(state.sgcF11EvidenciaId).subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = state.nombre;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(url), 100);
+        },
+        error: () => console.error('Error descargando evidencia SGC-F-11')
       });
       return;
     }

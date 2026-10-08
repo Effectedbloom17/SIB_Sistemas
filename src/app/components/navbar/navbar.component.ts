@@ -21,6 +21,7 @@ import {
   SGC_FORMATOS_DESCARGA_CATALOG,
   SGC_FORMATOS_CATEGORIAS
 } from 'src/app/pages/sistema-gestion-calidad/sgc-formatos-descarga.catalog';
+import { formatoSgcVisibleParaUsuario } from 'src/app/pages/sistema-gestion-calidad/sgc-formatos.catalog';
 import {
   SGC_PROCEDIMIENTOS_CATALOG,
   SGC_PROCEDIMIENTOS_CATEGORIAS
@@ -675,7 +676,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
     ];
 
     const categoriasSgc = new Map(SGC_FORMATOS_CATEGORIAS.map((c) => [c.id, c]));
-    const formatosSgc: BusquedaSistemaItem[] = (SGC_FORMATOS_DESCARGA_CATALOG || []).map((fmt) => {
+    const esSu = this.authService.esSuperusuario();
+    const formatosSgc: BusquedaSistemaItem[] = (SGC_FORMATOS_DESCARGA_CATALOG || [])
+      .filter((fmt) => formatoSgcVisibleParaUsuario(fmt.codigo, esSu))
+      .map((fmt) => {
       const cat = categoriasSgc.get(fmt.categoriaId);
       const icono = fmt.tipo === 'excel'
         ? 'fa-file-excel'

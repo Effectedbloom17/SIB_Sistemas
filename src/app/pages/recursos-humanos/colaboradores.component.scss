@@ -71,7 +71,7 @@ $rrhh-surface: #fff7fb;
 }
 
 .rrhh-shell--org {
-  overflow: visible;
+  overflow: hidden;
   background: rgba(255, 255, 255, 0.97);
   border: 1px solid rgba(244, 114, 182, 0.22);
   box-shadow: 0 14px 36px rgba(88, 16, 48, 0.08);
@@ -83,6 +83,7 @@ $rrhh-surface: #fff7fb;
   .rrhh-shell-body {
     padding: 0;
     background: #fff;
+    overflow: hidden;
   }
 }
 
@@ -332,7 +333,7 @@ $rrhh-surface: #fff7fb;
   border: 0;
   border-radius: 0;
   background: transparent;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .colab-workspace.is-expediente .colab-repo {
@@ -343,7 +344,7 @@ $rrhh-surface: #fff7fb;
   border-bottom: 0;
   min-height: calc(100vh - 210px);
   background: linear-gradient(180deg, #fff8fb 0%, #fff 58%);
-  overflow: visible;
+  overflow: hidden;
   animation: colab-view-in 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -459,15 +460,21 @@ $rrhh-surface: #fff7fb;
 }
 
 .org-chart {
+  box-sizing: border-box;
   min-width: 0;
   width: 100%;
-  padding: 2.1rem 0.4rem 1.6rem;
+  max-width: 100%;
+  padding: 1.25rem 0.55rem 1.1rem;
+  overflow: hidden;
 }
 
 .org-chart__tree {
   position: relative;
   isolation: isolate;
-  overflow: visible;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 
   > *:not(.org-chart__deco) {
     position: relative;
@@ -478,10 +485,10 @@ $rrhh-surface: #fff7fb;
 .org-chart__deco {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 42%;
   z-index: 0;
-  width: min(680px, 62vw);
-  height: min(680px, 62vw);
+  width: min(520px, 58%);
+  height: min(520px, 58%);
   transform: translate(-50%, -50%);
   pointer-events: none;
   filter: blur(1.5px);
@@ -493,7 +500,7 @@ $rrhh-surface: #fff7fb;
   height: 92%;
   margin: 4% auto 0;
   background-color: $rrhh-pink-mid;
-  opacity: 0.12;
+  opacity: 0.1;
   mask-image: url('/assets/img/img_deco/Fondo_cent_2.png');
   -webkit-mask-image: url('/assets/img/img_deco/Fondo_cent_2.png');
   mask-repeat: no-repeat;
@@ -507,14 +514,15 @@ $rrhh-surface: #fff7fb;
 .org-tier--top {
   display: flex;
   justify-content: center;
-  padding-top: 0.55rem;
+  padding-top: 0.35rem;
+  margin-bottom: 0.1rem;
 }
 
 .org-spine {
   width: 0;
-  height: 1.05rem;
+  height: 0.95rem;
   margin: 0 auto;
-  border-left: 1.5px dashed rgba(157, 23, 77, 0.32);
+  border-left: 1.5px dashed rgba(157, 23, 77, 0.38);
   position: relative;
 
   &::after {
@@ -526,29 +534,32 @@ $rrhh-surface: #fff7fb;
     height: 6px;
     border-radius: 50%;
     background: $rrhh-pink-mid;
+    box-shadow: 0 0 0 2px rgba(252, 231, 240, 0.9);
   }
 }
 
 .org-bar {
   height: 0;
-  margin: 0 3.2%;
-  border-top: 1.5px dashed rgba(157, 23, 77, 0.32);
+  margin: 0 calc(100% / 12);
+  border-top: 1.5px dashed rgba(157, 23, 77, 0.38);
 }
 
 .org-body {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(7.6rem, 1fr));
-  grid-template-rows: auto repeat(4, minmax(0, auto));
-  justify-items: stretch;
-  align-items: stretch;
-  gap: 0 0.2rem;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: stretch;
+  gap: 0 0.18rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .org-col__line {
   width: 0;
   height: 0.85rem;
   margin: 0 auto;
-  border-left: 1.5px dashed rgba(157, 23, 77, 0.32);
+  border-left: 1.5px dashed rgba(157, 23, 77, 0.38);
   position: relative;
   flex-shrink: 0;
 
@@ -561,29 +572,128 @@ $rrhh-surface: #fff7fb;
     height: 6px;
     border-radius: 50%;
     background: $rrhh-pink-mid;
+    box-shadow: 0 0 0 2px rgba(252, 231, 240, 0.9);
   }
 }
 
 .org-col {
-  display: grid;
-  grid-template-rows: subgrid;
-  grid-row: 1 / span 5;
-  justify-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 1 0;
   min-width: 0;
+  max-width: 100%;
+}
+
+/**
+ * Rama Estrategias: gerente + ejecutivos en rejilla 2 cols.
+ * Los nodos usan el mismo tamaño estándar que el resto del organigrama.
+ */
+.org-col--branch-grid {
+  flex: 1.85 1 0;
+  min-width: 0;
+}
+
+.org-col__branch-join {
+  width: 0;
+  height: 0.55rem;
+  margin: 0 auto;
+  border-left: 1.5px dashed rgba(157, 23, 77, 0.38);
+  flex-shrink: 0;
+}
+
+.org-col__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto repeat(3, auto);
+  grid-auto-flow: dense;
+  justify-items: center;
+  align-items: start;
+  column-gap: 0.35rem;
+  row-gap: 0;
+  width: 100%;
+  max-width: 100%;
+  position: relative;
+  min-width: 0;
+  box-sizing: border-box;
+  padding-top: 0;
+}
+
+.org-col__fork {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  position: relative;
+  width: 100%;
+  height: 0.7rem;
+  pointer-events: none;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 25%;
+    right: 25%;
+    border-top: 1.5px dashed rgba(157, 23, 77, 0.38);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 25%;
+    right: 25%;
+    height: 0.7rem;
+    background:
+      linear-gradient(rgba(157, 23, 77, 0.38), rgba(157, 23, 77, 0.38)) left top / 1.5px 100% no-repeat,
+      linear-gradient(rgba(157, 23, 77, 0.38), rgba(157, 23, 77, 0.38)) right top / 1.5px 100% no-repeat;
+  }
+}
+
+.org-col__grid > .org-node {
+  padding-top: 0.45rem;
+  height: auto;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+
+  &:nth-child(2) { grid-column: 1; grid-row: 2; }
+  &:nth-child(3) { grid-column: 1; grid-row: 3; }
+  &:nth-child(4) { grid-column: 1; grid-row: 4; }
+  &:nth-child(5) { grid-column: 2; grid-row: 2; }
+  &:nth-child(6) { grid-column: 2; grid-row: 3; }
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 0;
+    height: 0.45rem;
+    border-left: 1.5px dashed rgba(157, 23, 77, 0.38);
+    transform: translateX(-50%);
+    display: block;
+  }
+
+  .org-person {
+    max-width: 118px;
+  }
 }
 
 .org-node {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
   width: 100%;
-  height: 100%;
+  height: auto;
   position: relative;
   z-index: 1;
-  padding-top: 0.7rem;
+  padding-top: 0.55rem;
   min-width: 0;
+  gap: 0.35rem;
 
   .org-col__line + & {
-    padding-top: 0.2rem;
+    padding-top: 0.1rem;
   }
 
   & + .org-node::before {
@@ -592,10 +702,93 @@ $rrhh-surface: #fff7fb;
     top: 0;
     left: 50%;
     width: 0;
-    height: 0.7rem;
-    border-left: 1.5px dashed rgba(157, 23, 77, 0.32);
+    height: 0.55rem;
+    border-left: 1.5px dashed rgba(157, 23, 77, 0.38);
     transform: translateX(-50%);
   }
+}
+
+.org-node--boss {
+  width: 100%;
+  max-width: 100%;
+  gap: 0.42rem;
+  animation: org-boss-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.org-node--direccion {
+  animation-duration: 0.65s;
+}
+
+/**
+ * Chip de jefatura (DG + gerencias): fuera del cuadro.
+ * Degradado suave + brillo difuminado + tipografía más grande.
+ */
+.org-node__badge {
+  position: relative;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: min(100%, 13.8rem);
+  margin: 0.05rem 0 0.1rem;
+  padding: 0.42rem 0.85rem;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.42) 0%, transparent 48%),
+    linear-gradient(160deg, #9d174d 0%, #be185d 38%, #db2777 72%, #ec4899 100%);
+  background-size: 140% 140%;
+  box-shadow:
+    0 10px 24px rgba(157, 23, 77, 0.28),
+    0 0 0 1px rgba(157, 23, 77, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  animation: org-boss-badge 5s ease-in-out infinite;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease;
+}
+
+.org-node__badge-glow {
+  position: absolute;
+  inset: -40% -20%;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 22% 30%, rgba(255, 255, 255, 0.55), transparent 42%),
+    radial-gradient(circle at 78% 70%, rgba(251, 113, 133, 0.45), transparent 48%);
+  animation: org-boss-glow 4.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.org-node__badge-text {
+  position: relative;
+  z-index: 1;
+  color: #fff;
+  font-size: 0.64rem;
+  font-weight: 760;
+  letter-spacing: 0.06em;
+  line-height: 1.25;
+  text-align: center;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(88, 16, 48, 0.35);
+}
+
+.org-node--direccion .org-node__badge {
+  max-width: min(100%, 15.5rem);
+  padding: 0.5rem 1.05rem;
+}
+
+.org-node--direccion .org-node__badge-text {
+  font-size: 0.76rem;
+  letter-spacing: 0.07em;
+}
+
+.org-node--boss:hover .org-node__badge,
+.org-node--boss:focus-within .org-node__badge {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow:
+    0 14px 30px rgba(157, 23, 77, 0.34),
+    0 0 0 1px rgba(255, 255, 255, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
 }
 
 .org-person {
@@ -605,17 +798,20 @@ $rrhh-surface: #fff7fb;
   flex-direction: column;
   align-items: center;
   width: 100%;
-  height: 100%;
-  max-width: 158px;
+  height: auto;
+  max-width: 118px;
   border: 0;
   background: transparent;
-  padding: 0.05rem 0.2rem 0.2rem;
+  padding: 0.1rem 0.2rem 0.15rem;
+  border-radius: 0;
   text-align: center;
   cursor: pointer;
   color: inherit;
   z-index: 1;
   overflow: visible;
   box-shadow: none;
+  box-sizing: border-box;
+  transition: transform 0.22s ease;
 
   &:hover,
   &:focus-visible,
@@ -627,7 +823,7 @@ $rrhh-surface: #fff7fb;
   &:hover .org-person__avatar,
   &:focus-visible .org-person__avatar,
   &.is-hover .org-person__avatar {
-    transform: translateY(-4px) scale(1.04);
+    transform: translateY(-2px) scale(1.03);
   }
 
   &:hover .org-person__face,
@@ -636,9 +832,186 @@ $rrhh-surface: #fff7fb;
     box-shadow:
       0 0 0 2px $rrhh-pink-dark,
       0 0 0 4px #fff,
-      0 0 0 6px $rrhh-pink-3,
-      0 0 0 8px #fff,
-      0 0 0 10px rgba(157, 23, 77, 0.45);
+      0 0 0 6px rgba(244, 114, 182, 0.55);
+  }
+}
+
+.org-person__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+/** Jefatura: solo foto + nombre (el puesto va en .org-node__badge). */
+.org-person--boss {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.28rem;
+  max-width: 118px;
+  padding: 0.1rem 0.15rem 0.15rem;
+  text-align: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  animation: org-boss-avatar-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+
+  .org-person__meta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .org-person__avatar {
+    width: 3.55rem;
+    height: 3.55rem;
+    margin: 0;
+  }
+
+  .org-person__face {
+    border-radius: 0.85rem;
+    box-shadow:
+      0 0 0 2px #fff,
+      0 0 0 3.5px rgba(219, 39, 119, 0.32),
+      0 8px 16px rgba(88, 16, 48, 0.12);
+  }
+
+  .org-person__name {
+    margin: 0;
+    padding: 0 0.1rem;
+    font-size: 0.6rem;
+    font-weight: 650;
+    color: $rrhh-ink;
+    letter-spacing: 0.01em;
+    -webkit-line-clamp: 2;
+    animation: org-boss-fade 0.55s ease 0.16s both;
+  }
+
+  &:hover .org-person__avatar,
+  &:focus-visible .org-person__avatar,
+  &.is-hover .org-person__avatar {
+    transform: translateY(-3px) scale(1.05);
+  }
+
+  &:hover,
+  &:focus-visible,
+  &.is-hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  &:hover .org-person__face,
+  &:focus-visible .org-person__face,
+  &.is-hover .org-person__face {
+    box-shadow:
+      0 0 0 2px #fff,
+      0 0 0 3.5px $rrhh-pink-mid,
+      0 10px 20px rgba(157, 23, 77, 0.18);
+  }
+}
+
+.org-person--direccion {
+  max-width: 132px;
+
+  .org-person__avatar {
+    width: 4.15rem;
+    height: 4.15rem;
+  }
+
+  .org-person__name {
+    font-size: 0.68rem;
+  }
+}
+
+.org-col--branch-grid > .org-node--boss .org-person--boss,
+.org-col > .org-node--boss .org-person--boss {
+  max-width: 118px;
+}
+
+.org-tier--top .org-node--boss {
+  animation-delay: 0.05s;
+}
+
+.org-body > .org-col:nth-child(1) > .org-node--boss {
+  animation-delay: 0.18s;
+}
+
+.org-body > .org-col.org-col--branch-grid > .org-node--boss {
+  animation-delay: 0.28s;
+}
+
+@keyframes org-boss-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes org-boss-avatar-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes org-boss-fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes org-boss-badge {
+  0%, 100% {
+    background-position: 0% 45%;
+    box-shadow:
+      0 10px 24px rgba(157, 23, 77, 0.26),
+      0 0 0 1px rgba(157, 23, 77, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+  50% {
+    background-position: 100% 55%;
+    box-shadow:
+      0 12px 28px rgba(219, 39, 119, 0.34),
+      0 0 0 1px rgba(255, 255, 255, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  }
+}
+
+@keyframes org-boss-glow {
+  0%, 100% {
+    opacity: 0.75;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate3d(6%, -4%, 0) scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .org-node--boss,
+  .org-person--boss,
+  .org-person--boss .org-person__name,
+  .org-node__badge,
+  .org-node__badge-glow {
+    animation: none !important;
   }
 }
 
@@ -648,10 +1021,10 @@ $rrhh-surface: #fff7fb;
 
 .org-person__avatar {
   position: relative;
-  width: 4.1rem;
-  height: 4.1rem;
+  width: 3.35rem;
+  height: 3.35rem;
   flex-shrink: 0;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.28rem;
   transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -664,7 +1037,7 @@ $rrhh-surface: #fff7fb;
 .org-person__face {
   position: absolute;
   inset: 0;
-  border-radius: 0.85rem;
+  border-radius: 0.7rem;
   overflow: hidden;
   background: #fce7f0;
   display: flex;
@@ -684,40 +1057,46 @@ $rrhh-surface: #fff7fb;
   justify-content: center;
   background: linear-gradient(160deg, #fce7f0, #f3d0de);
   color: $rrhh-pink-dark;
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   font-weight: 650;
 
   i {
-    font-size: 1.05rem;
+    font-size: 0.92rem;
     color: $rrhh-pink-mid;
   }
 }
 
 .org-person__role {
-  display: block;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   flex: 0 0 auto;
   width: 100%;
   margin: 0;
-  padding: 0 0.08rem;
-  font-size: 0.6rem;
+  padding: 0 0.04rem;
+  font-size: 0.52rem;
   font-weight: 700;
   font-style: normal;
-  letter-spacing: 0.05em;
-  line-height: 1.22;
+  letter-spacing: 0.03em;
+  line-height: 1.18;
   color: $rrhh-pink-dark;
   text-transform: uppercase;
 }
 
 .org-person__name {
-  display: block;
-  margin: 0.12rem 0.08rem 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0.08rem 0.04rem 0;
   max-width: 100%;
-  font-size: 0.62rem;
+  font-size: 0.55rem;
   font-weight: 400;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   text-transform: none;
   color: $rrhh-muted;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .org-folder-grid {
@@ -2014,10 +2393,78 @@ $rrhh-surface: #fff7fb;
   50% { transform: scale(1.06); opacity: 1; }
 }
 
+@media (max-width: 1280px) {
+  .org-person,
+  .org-col__grid .org-person {
+    max-width: 108px;
+  }
+
+  .org-person__avatar {
+    width: 3.05rem;
+    height: 3.05rem;
+  }
+
+  .org-person--boss .org-person__avatar {
+    width: 3.2rem;
+    height: 3.2rem;
+  }
+
+  .org-person--direccion {
+    max-width: 120px;
+
+    .org-person__avatar {
+      width: 3.7rem;
+      height: 3.7rem;
+    }
+  }
+
+  .org-node__badge {
+    max-width: min(100%, 12.2rem);
+    padding: 0.36rem 0.7rem;
+  }
+
+  .org-node__badge-text {
+    font-size: 0.56rem;
+  }
+
+  .org-node--direccion .org-node__badge {
+    max-width: min(100%, 13.8rem);
+    padding: 0.42rem 0.85rem;
+  }
+
+  .org-node--direccion .org-node__badge-text {
+    font-size: 0.66rem;
+  }
+
+  .org-col--branch-grid {
+    flex: 1.7 1 0;
+  }
+}
+
 @media (max-width: 1100px) {
   .colab-repo__head { flex-direction: column; }
 
-  .org-chart { min-width: 0; }
+  .org-chart {
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .org-chart__tree {
+    min-width: 720px;
+    overflow: visible;
+  }
+
+  .org-col--branch-grid {
+    flex: 1.5 1 0;
+    min-width: 0;
+  }
+
+  .org-col__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-auto-flow: column;
+  }
 
   .org-stage__top {
     grid-template-columns: 1fr;

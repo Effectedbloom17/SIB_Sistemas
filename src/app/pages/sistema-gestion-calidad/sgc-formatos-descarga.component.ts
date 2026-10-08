@@ -6,6 +6,7 @@ import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
 import { PdfPreviewLoaderService } from 'src/app/services/pdf-preview-loader.service';
+import { formatoSgcVisibleParaUsuario } from './sgc-formatos.catalog';
 import {
   SGC_FORMATOS_CATEGORIAS,
   SGC_FORMATOS_DESCARGA_CATALOG,
@@ -74,7 +75,8 @@ export class SgcFormatosDescargaComponent implements OnInit, OnDestroy {
   ) {}
 
   get totalDocumentos(): number {
-    return this.documentos.length;
+    const esSu = this.auth.esSuperusuario();
+    return this.documentos.filter((d) => formatoSgcVisibleParaUsuario(d.codigo, esSu)).length;
   }
 
   /** Solo root o Calidad (sergio56 / calidad — Ing. Sergio Luis Guzmán Vigueras). */
@@ -510,7 +512,8 @@ export class SgcFormatosDescargaComponent implements OnInit, OnDestroy {
   aplicarFiltro(): void {
     const q = this.busqueda.trim().toLowerCase();
     this.buscando = q.length > 0;
-    let list = this.documentos.slice();
+    const esSu = this.auth.esSuperusuario();
+    let list = this.documentos.filter((d) => formatoSgcVisibleParaUsuario(d.codigo, esSu));
     if (!this.buscando) {
       list = list.filter(d => d.categoriaId === this.categoriaSeleccionada.id);
     }
@@ -534,7 +537,8 @@ export class SgcFormatosDescargaComponent implements OnInit, OnDestroy {
   }
 
   contarPorCategoria(catId: string): number {
-    return this.documentos.filter(d => d.categoriaId === catId).length;
+    const esSu = this.auth.esSuperusuario();
+    return this.documentos.filter(d => d.categoriaId === catId && formatoSgcVisibleParaUsuario(d.codigo, esSu)).length;
   }
 
   nombreCategoria(catId: string): string {
@@ -795,6 +799,9 @@ export class SgcFormatosDescargaComponent implements OnInit, OnDestroy {
   }
 
   async abrirVisor(doc: SgcFormatoDescarga): Promise<void> {
+    if (!formatoSgcVisibleParaUsuario(doc.codigo, this.auth.esSuperusuario())) {
+      return;
+    }
     const seq = ++this.visorSeq;
     this.visorSub?.unsubscribe();
     this.liberarPreviewBlob();
@@ -880,7 +887,8 @@ export class SgcFormatosDescargaComponent implements OnInit, OnDestroy {
     const doc = this.documentos.find(
       (d) => d.codigo.toLowerCase() === codigo.toLowerCase()
     );
-    if (!doc) {
+    if (!doc || !formatoSgcVisibleParaUsuario(doc.codigo, this.auth.esSuperusuario())) {
+      this.codigoPendienteVisor = null;
       return;
     }
     if (this.mostrarVisor && this.documentoActivo?.codigo.toLowerCase() === codigo.toLowerCase()) {

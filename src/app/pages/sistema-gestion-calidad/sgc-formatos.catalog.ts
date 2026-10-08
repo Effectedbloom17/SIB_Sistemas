@@ -1,3 +1,5 @@
+export type IconoPlantillaSgc = 'excel' | 'word' | 'pdf';
+
 /** Plantilla en carpeta Google Drive (nombre debe coincidir con el archivo en Drive). */
 export interface PlantillaFormato {
   /** Código del formato (p. ej. DG-F-04, ATH-F-02). */
@@ -6,6 +8,11 @@ export interface PlantillaFormato {
   titulo: string;
   /** Nombre del archivo en Drive. */
   nombre: string;
+  /**
+   * Icono de la tarjeta cuando el formato no tiene carátula.
+   * Si no se indica, se infiere de la extensión de `nombre`.
+   */
+  icono?: IconoPlantillaSgc;
   driveFileId?: string;
   /** Ruta relativa: /sistema-gestion-calidad/{slug}/plantilla/{previewSlug} */
   previewSlug?: string;
@@ -19,6 +26,31 @@ export interface PlantillaFormato {
   descargaPdf?: { driveFileId: string; nombre: string };
   /** Descarga directa en Word (sin abrir formulario). */
   descargaWord?: { driveFileId: string; nombre: string };
+  /** Sigue en el sistema, pero solo lo ve el Administrador SU (rol root). */
+  soloSuperusuario?: boolean;
+}
+
+/** Códigos que permanecen en el sistema y solo ve el Administrador SU. */
+export const SGC_FORMATOS_SOLO_SUPERUSUARIO = new Set(['SGC-DI-06']);
+
+export function tipoIconoPlantilla(p: {
+  nombre?: string;
+  icono?: IconoPlantillaSgc | null;
+}): IconoPlantillaSgc | 'otro' {
+  if (p?.icono === 'excel' || p?.icono === 'word' || p?.icono === 'pdf') {
+    return p.icono;
+  }
+  const n = String(p?.nombre || '').toLowerCase();
+  if (n.endsWith('.xlsx') || n.endsWith('.xls')) return 'excel';
+  if (n.endsWith('.docx') || n.endsWith('.doc')) return 'word';
+  if (n.endsWith('.pdf')) return 'pdf';
+  return 'otro';
+}
+
+export function formatoSgcVisibleParaUsuario(codigo: string | undefined, esSuperusuario: boolean): boolean {
+  const c = String(codigo || '').trim().toUpperCase();
+  if (!c || esSuperusuario) return true;
+  return !SGC_FORMATOS_SOLO_SUPERUSUARIO.has(c);
 }
 
 export interface CapituloFormatoConfig {
@@ -158,7 +190,8 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         nombre: 'Metodología AMEF.pptx',
         driveFileId: '1xZV8qrebRvCovN1cXOXO3EcCZhCjs-Ck',
         previewSlug: 'metodologia-amef',
-        previewMode: 'form'
+        previewMode: 'form',
+        soloSuperusuario: true
       }
     ]
   },
@@ -183,6 +216,7 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         codigo: 'SGC-F-02',
         titulo: 'Solicitud de cambios a documentos',
         nombre: 'SGC-F-02 Solicitud de cambios a documentos',
+        icono: 'excel',
         driveFileId: '1HIOltlUF0O9zxZ6tedSSCZgzuG0eSw45iHe3IKdF9xQ',
         previewSlug: 'sgc-f-02',
         previewMode: 'form'
@@ -191,6 +225,7 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         codigo: 'SGC-F-03',
         titulo: 'Lista de distribución de documentos',
         nombre: 'SGC-F-03 Lista de distribución de documentos REV 00 (sistema)',
+        icono: 'excel',
         driveFileId: '1XpcTc_ZzNMf747KGejC3D4NM67hwHTIpPJ3--mRKtsA',
         previewSlug: 'sgc-f-03',
         previewMode: 'form'
@@ -207,6 +242,7 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         codigo: 'ATH-F-06',
         titulo: 'DNC',
         nombre: 'ATH-F-06 DNC (sistema)',
+        icono: 'excel',
         driveFileId: '1ozFzD61H4fiskcLExEPF0TiNoLQqEfmtqsfkGPL4lxc',
         previewSlug: 'ath-f-06',
         previewMode: 'form'
@@ -215,6 +251,7 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         codigo: 'ATH-F-07',
         titulo: 'Programa de capacitación',
         nombre: 'ATH-F-07 Programa de Capacitación (sistema)',
+        icono: 'word',
         driveFileId: '1r2jJZXzF6-9z2upxZW03U9fR54vJOg52Oo0JTvag4Jc',
         previewSlug: 'ath-f-07',
         previewMode: 'form'
@@ -223,6 +260,7 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         codigo: 'ATH-F-08',
         titulo: 'Eficacia de la capacitación',
         nombre: 'ATH-F-08 Eficacia de la capacitación',
+        icono: 'excel',
         driveFileId: '1-tq5eEeFmUPk8cJXOmPEXpycthXTXwe6kwK_-M-7kww',
         previewSlug: 'ath-f-08',
         previewMode: 'form'
@@ -239,6 +277,7 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         codigo: 'ATH-F-11',
         titulo: 'Evaluación de desempeño',
         nombre: 'ATH-F-11 Evaluación de desempeño (sistema)',
+        icono: 'word',
         driveFileId: '10fvVzAiuTVoCva9QAYufIJmGbK1gMdZF3uBvW6Ohxyk',
         previewSlug: 'ath-f-11',
         previewMode: 'form'
@@ -247,6 +286,7 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         codigo: 'ATH-F-03',
         titulo: 'Entrega - Recepción de EPP',
         nombre: 'ATH-F-03 Entrega - Recepción de EPP',
+        icono: 'word',
         driveFileId: '1wb0UqwXAF2-f-0qmX2RnBroD9mRF8UZg-qQetBhEElE',
         previewSlug: 'ath-f-03',
         previewMode: 'form'
@@ -263,6 +303,7 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         codigo: 'SGC-F-19',
         titulo: 'Listado de conocimientos de la organización',
         nombre: 'SGC-F-19 Listado de conocimientos de la organización (sistema)',
+        icono: 'excel',
         driveFileId: '1ExqXpnX4J617v1V2JimjEzg1VN_sV0XJOHQnaCxTLMA',
         previewSlug: 'sgc-f-19',
         previewMode: 'form'
@@ -271,6 +312,7 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         codigo: 'SGC-F-20',
         titulo: 'Ficha de conocimientos',
         nombre: 'SGC-F-20 Ficha de conocimientos (sistema)',
+        icono: 'excel',
         driveFileId: '1we0bWgQpKUKybvveOrqmmrWdtfwFFIdbFMjWQs1Oxm4',
         previewSlug: 'sgc-f-20',
         previewMode: 'form'
@@ -295,6 +337,7 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         codigo: 'ATH-F-14',
         titulo: 'Control de vacaciones',
         nombre: 'ATH-F-14 Control de vacaciones (Sistema)',
+        icono: 'excel',
         driveFileId: '1Fxn1FNWcByT3RcinuVmmf4IgPR4g1AVksYF149-YvBc',
         previewSlug: 'ath-f-14',
         previewMode: 'form'
@@ -320,6 +363,7 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         codigo: 'SP-F-04',
         titulo: 'Control de Proyectos Biznaga 2026',
         nombre: 'SP-F-04 Control de Proyectos Biznaga 2026',
+        icono: 'excel',
         driveFileId: '1efmyxhAYxuN-H0BxGpUlSsYb3uhutWKDYBTHh8SfnMo',
         previewSlug: 'sp-f-04',
         previewMode: 'form'

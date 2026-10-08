@@ -1,4 +1,4 @@
-/** Puestos oficiales del Organigrama Biznaga (ATH-F-01) y su distribución visual. */
+/** Puestos oficiales del Organigrama Biznaga (ATH-F-01 Rev. 03) y su distribución visual. */
 
 export interface OrganigramaGrupo {
   grupo: string;
@@ -13,6 +13,11 @@ export interface OrganigramaColumna {
   id: string;
   nodos: OrganigramaNodo[];
   area?: string;
+  /**
+   * Si es true, `nodos[0]` es el jefe de rama y `nodos[1..]` se muestran
+   * en rejilla (pares bajo el jefe), no en cadena vertical.
+   */
+  hijosEnRejilla?: boolean;
 }
 
 export interface OrganigramaRama {
@@ -31,6 +36,12 @@ export const ORGANIGRAMA_BIZNAGA_GRUPOS: OrganigramaGrupo[] = [
     puestos: [
       'Gerente de Administración y Talento Humano',
       'Ejecutivo de Administración',
+      'Residente'
+    ]
+  },
+  {
+    grupo: 'Reportan a Dirección',
+    puestos: [
       'Especialista Ambiental',
       'Ejecutivo Ambiental',
       'Ejecutivo de salud ocupacional',
@@ -39,17 +50,18 @@ export const ORGANIGRAMA_BIZNAGA_GRUPOS: OrganigramaGrupo[] = [
       'Instructor',
       'Especialista de seguridad industrial',
       'Ejecutivo de seguridad industrial',
-      'Supervisor de seguridad industrial',
-      'Residente'
+      'Supervisor de seguridad industrial'
     ]
   },
   {
     grupo: 'Estrategias e Innovación',
     puestos: [
       'Gerente de Estrategias e Innovación',
-      'Ejecutivo de ventas',
+      'Ejecutivo de Arquitectura',
       'Ejecutivo de Tecnologías de la Información',
-      'Ejecutivo de diseño e Innovación'
+      'Ejecutivo de ventas',
+      'Ejecutivo de diseño e Innovación',
+      'Ejecutivo Eléctrico y mantenimiento'
     ]
   }
 ];
@@ -72,11 +84,14 @@ export const ORGANIGRAMA_PUESTO_ALIAS: Record<string, string> = {
   'ejecutivo de seguridad industrial': 'Ejecutivo de seguridad industrial',
   'supervisor de seguridad industrial': 'Supervisor de seguridad industrial',
   'gerente de estrategias e innovación': 'Gerente de Estrategias e Innovación',
+  'ejecutivo de arquitectura': 'Ejecutivo de Arquitectura',
   'ejecutivo de ventas': 'Ejecutivo de ventas',
   'ejecutivo de tecnologias de la informacion': 'Ejecutivo de Tecnologías de la Información',
   'ejecutivo de tecnologías de la información': 'Ejecutivo de Tecnologías de la Información',
   'ejecutivo de diseño e innovacion': 'Ejecutivo de diseño e Innovación',
   'ejecutivo de diseño e innovación': 'Ejecutivo de diseño e Innovación',
+  'ejecutivo electrico y mantenimiento': 'Ejecutivo Eléctrico y mantenimiento',
+  'ejecutivo eléctrico y mantenimiento': 'Ejecutivo Eléctrico y mantenimiento',
   'residente': 'Residente'
 };
 
@@ -94,9 +109,11 @@ export const AREA_POR_PUESTO: Record<string, string> = {
   'Ejecutivo de seguridad industrial': 'Seguridad industrial',
   'Supervisor de seguridad industrial': 'Seguridad industrial',
   'Gerente de Estrategias e Innovación': 'Estrategias e Innovación',
+  'Ejecutivo de Arquitectura': 'Estrategias e Innovación',
   'Ejecutivo de ventas': 'Estrategias e Innovación',
   'Ejecutivo de Tecnologías de la Información': 'Estrategias e Innovación',
   'Ejecutivo de diseño e Innovación': 'Estrategias e Innovación',
+  'Ejecutivo Eléctrico y mantenimiento': 'Estrategias e Innovación',
   'Residente': 'Administración y Talento Humano'
 };
 
@@ -105,8 +122,9 @@ export const ORGANIGRAMA_DIRECCION: OrganigramaNodo = {
 };
 
 /**
- * Tres bloques del ATH-F-01:
- * izquierda = Gerencia ATH, centro = reportan a Dirección, derecha = Gerencia de Estrategias.
+ * Tres bloques del ATH-F-01 Rev. 03:
+ * izquierda = Gerencia ATH, centro = reportan a Dirección, derecha = Gerencia de Estrategias
+ * (5 ejecutivos en rejilla bajo el gerente).
  */
 export const ORGANIGRAMA_COLUMNAS: OrganigramaColumna[] = [
   {
@@ -153,11 +171,15 @@ export const ORGANIGRAMA_COLUMNAS: OrganigramaColumna[] = [
   {
     id: 'estrategia',
     area: 'Estrategias e Innovación',
+    hijosEnRejilla: true,
     nodos: [
       { puesto: 'Gerente de Estrategias e Innovación' },
-      { puesto: 'Ejecutivo de ventas' },
+      // Orden columna-mayor ATH-F-01: izq Arquitectura→TI→ventas | der diseño→eléctrico
+      { puesto: 'Ejecutivo de Arquitectura' },
       { puesto: 'Ejecutivo de Tecnologías de la Información' },
-      { puesto: 'Ejecutivo de diseño e Innovación' }
+      { puesto: 'Ejecutivo de ventas' },
+      { puesto: 'Ejecutivo de diseño e Innovación' },
+      { puesto: 'Ejecutivo Eléctrico y mantenimiento' }
     ]
   }
 ];

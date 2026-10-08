@@ -65,18 +65,18 @@
                 <a *ngIf="p.previewSlug; else sinVista"
                    [routerLink]="['/sistema-gestion-calidad', c.slug, 'plantilla', p.previewSlug]"
                    class="sgc-doc-card"
-                   [class.sgc-doc-card--excel]="tipoPlantilla(p.nombre) === 'excel'"
-                   [class.sgc-doc-card--word]="tipoPlantilla(p.nombre) === 'word'"
-                   [class.sgc-doc-card--pdf]="tipoPlantilla(p.nombre) === 'pdf'"
+                   [class.sgc-doc-card--excel]="tipoPlantilla(p) === 'excel'"
+                   [class.sgc-doc-card--word]="tipoPlantilla(p) === 'word'"
+                   [class.sgc-doc-card--pdf]="tipoPlantilla(p) === 'pdf'"
                    [title]="metaFormato(p)">
                   <div class="sgc-doc-card__accent" aria-hidden="true"></div>
                   <div class="sgc-doc-card__icon-wrap">
                     <span class="sgc-doc-card__icon">
                       <i class="fas" [ngClass]="{
-                        'fa-file-excel': tipoPlantilla(p.nombre) === 'excel',
-                        'fa-file-word': tipoPlantilla(p.nombre) === 'word',
-                        'fa-file-pdf': tipoPlantilla(p.nombre) === 'pdf',
-                        'fa-file-alt': tipoPlantilla(p.nombre) === 'otro'
+                        'fa-file-excel': tipoPlantilla(p) === 'excel',
+                        'fa-file-word': tipoPlantilla(p) === 'word',
+                        'fa-file-pdf': tipoPlantilla(p) === 'pdf',
+                        'fa-file-alt': tipoPlantilla(p) === 'otro'
                       }" aria-hidden="true"></i>
                     </span>
                   </div>
@@ -95,8 +95,8 @@
                 </a>
                 <ng-template #sinVista>
                   <div class="sgc-doc-card sgc-doc-card--disabled"
-                       [class.sgc-doc-card--excel]="tipoPlantilla(p.nombre) === 'excel'"
-                       [class.sgc-doc-card--word]="tipoPlantilla(p.nombre) === 'word'">
+                       [class.sgc-doc-card--excel]="tipoPlantilla(p) === 'excel'"
+                       [class.sgc-doc-card--word]="tipoPlantilla(p) === 'word'">
                     <div class="sgc-doc-card__accent" aria-hidden="true"></div>
                     <div class="sgc-doc-card__icon-wrap">
                       <span class="sgc-doc-card__icon">

@@ -4,10 +4,13 @@ import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import {
   CapituloFormatoConfig,
+  formatoSgcVisibleParaUsuario,
   PlantillaFormato,
   SGC_CAPITULOS_CATALOG,
-  SGC_CAPITULOS_ORDEN
+  SGC_CAPITULOS_ORDEN,
+  tipoIconoPlantilla
 } from './sgc-formatos.catalog';
+import { AuthService } from 'src/app/services/auth.service';
 import { FormatoBusquedaItem, TarjetaCapituloSgc } from './sgc-formato.types';
 import { SgcListaMaestraVigenciaService } from './sgc-lista-maestra-vigencia.service';
 import { BackendServices } from 'src/app/services/backend.services';
@@ -92,7 +95,8 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
     private router: Router,
     private route: ActivatedRoute,
     private vigenciaSgc: SgcListaMaestraVigenciaService,
-    private backend: BackendServices
+    private backend: BackendServices,
+    private authService: AuthService
   ) {
     this.rebuildCapitulos();
   }
@@ -184,12 +188,8 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
     );
   }
 
-  tipoPlantilla(nombre: string): 'excel' | 'word' | 'pdf' | 'otro' {
-    const n = nombre.toLowerCase();
-    if (n.endsWith('.xlsx') || n.endsWith('.xls')) return 'excel';
-    if (n.endsWith('.docx') || n.endsWith('.doc')) return 'word';
-    if (n.endsWith('.pdf')) return 'pdf';
-    return 'otro';
+  tipoPlantilla(p: { nombre?: string; icono?: 'excel' | 'word' | 'pdf' | null }): 'excel' | 'word' | 'pdf' | 'otro' {
+    return tipoIconoPlantilla(p);
   }
 
   metaFormato(p: PlantillaFormato): string {
@@ -238,7 +238,13 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
   }
 
   get plantillasCentro(): PlantillaFormato[] {
-    return this.vigenciaSgc.filtrarPlantillasCentro(this.configSeleccionado?.plantillas || []);
+    return this.plantillasVisiblesDe(this.configSeleccionado?.plantillas || []);
+  }
+
+  private plantillasVisiblesDe(plantillas: PlantillaFormato[]): PlantillaFormato[] {
+    const esSu = this.authService.esSuperusuario();
+    return this.vigenciaSgc.filtrarPlantillasCentro(plantillas)
+      .filter((p) => formatoSgcVisibleParaUsuario(p.codigo, esSu));
   }
 
   get plantillasPaginadas(): PlantillaFormato[] {
@@ -274,7 +280,7 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
   }
 
   tipoBadge(p: PlantillaFormato): string {
-    const tipo = this.tipoPlantilla(p.nombre);
+    const tipo = this.tipoPlantilla(p);
     if (tipo === 'excel') return 'Excel';
     if (tipo === 'word') return 'Word';
     if (tipo === 'pdf') return 'PDF';
@@ -300,7 +306,7 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
   private rebuildCapitulos(): void {
     this.capitulos = SGC_CAPITULOS_ORDEN.map(c => {
       const visual = SGC_CAPITULO_VISUAL[c.numero];
-      const plantillas = this.vigenciaSgc.filtrarPlantillasCentro(c.plantillas || []);
+      const plantillas = this.plantillasVisiblesDe(c.plantillas || []);
       return {
         slug: c.slug,
         numero: c.numero,
@@ -315,7 +321,7 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
 
     this.todosLosFormatos = SGC_CAPITULOS_ORDEN.flatMap(c => {
       const visual = SGC_CAPITULO_VISUAL[c.numero];
-      return this.vigenciaSgc.filtrarPlantillasCentro(c.plantillas || []).map(p => ({
+      return this.plantillasVisiblesDe(c.plantillas || []).map(p => ({
         capituloSlug: c.slug,
         capituloNumero: c.numero,
         capituloTitulo: c.titulo,
@@ -324,6 +330,7 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
         codigo: p.codigo,
         titulo: p.titulo,
         nombre: p.nombre,
+        icono: p.icono,
         previewSlug: p.previewSlug,
         descargaPdf: p.descargaPdf,
         descargaWord: p.descargaWord

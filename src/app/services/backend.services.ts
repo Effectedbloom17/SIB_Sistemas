@@ -1970,8 +1970,11 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/proteccion-civil/empresas/${empresaId}/centro-operaciones/desbloquear-paso`, { paso });
     }
 
-    cerrarCicloCentroOperacionesPC(empresaId: number): Observable<any> {
-        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/empresas/${empresaId}/centro-operaciones/cerrar-ciclo`, {});
+    cerrarCicloCentroOperacionesPC(empresaId: number, opciones: { forzar?: boolean } = {}): Observable<any> {
+        return this.httpClient.post(
+            `${this.baseUrl}/proteccion-civil/empresas/${empresaId}/centro-operaciones/cerrar-ciclo`,
+            { forzar: !!opciones.forzar }
+        );
     }
 
     obtenerRecorridoPC(empresaId: number): Observable<any> {
@@ -3523,6 +3526,74 @@ export class BackendServices {
         return this.httpClient.get(
             `${this.baseUrl}/sgc/formatos/sgc-f-14/evidencias/documento/${id}/archivo`,
             { responseType: 'blob' }
+        );
+    }
+
+    listarEvidenciasSgcF11(
+        analisisId: string,
+        opts?: { nombre_proyecto?: string }
+    ): Observable<any> {
+        const params: Record<string, string> = {};
+        if (opts?.nombre_proyecto) params.nombre_proyecto = opts.nombre_proyecto;
+        return this.httpClient.get(
+            `${this.baseUrl}/sgc/formatos/sgc-f-11/evidencias/${encodeURIComponent(analisisId)}`,
+            { params }
+        );
+    }
+
+    contarEvidenciasSgcF11(ids: string[]): Observable<any> {
+        const q = (ids || []).filter(Boolean).join(',');
+        return this.httpClient.get(
+            `${this.baseUrl}/sgc/formatos/sgc-f-11/evidencias/conteos`,
+            { params: { ids: q } }
+        );
+    }
+
+    subirEvidenciasLoteSgcF11Eventos(payload: {
+        proyecto_id: string;
+        nombre_proyecto?: string;
+        archivos: Array<{
+            nombre_archivo: string;
+            mime_type?: string;
+            archivo_base64: string;
+            subcarpeta?: string;
+        }>;
+    }): Observable<HttpEvent<any>> {
+        return this.httpClient.post(
+            `${this.baseUrl}/sgc/formatos/sgc-f-11/evidencias/subir-lote`,
+            payload,
+            { observe: 'events', reportProgress: true }
+        );
+    }
+
+    crearCarpetaEvidenciaSgcF11(payload: {
+        proyecto_id: string;
+        nombre_proyecto?: string;
+        nombre: string;
+    }): Observable<any> {
+        return this.httpClient.post(
+            `${this.baseUrl}/sgc/formatos/sgc-f-11/evidencias/carpeta`,
+            payload
+        );
+    }
+
+    eliminarEvidenciaSgcF11(id: number): Observable<any> {
+        return this.httpClient.delete(
+            `${this.baseUrl}/sgc/formatos/sgc-f-11/evidencias/documento/${id}`
+        );
+    }
+
+    descargarArchivoEvidenciaSgcF11(id: number): Observable<Blob> {
+        return this.httpClient.get(
+            `${this.baseUrl}/sgc/formatos/sgc-f-11/evidencias/documento/${id}/archivo`,
+            { responseType: 'blob' }
+        );
+    }
+
+    descargarArchivoEvidenciaSgcF11Eventos(id: number): Observable<HttpEvent<Blob>> {
+        return this.httpClient.get(
+            `${this.baseUrl}/sgc/formatos/sgc-f-11/evidencias/documento/${id}/archivo`,
+            { responseType: 'blob', observe: 'events', reportProgress: true }
         );
     }
 
