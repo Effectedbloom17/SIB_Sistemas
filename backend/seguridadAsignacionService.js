@@ -234,6 +234,15 @@ function estadoPunto(documentos) {
     return 'no_cumple';
 }
 
+/** Responsable del punto de norma: Cliente | Empresa (vacío → Empresa). */
+function normalizarResponsableGestion(valor) {
+    const txt = String(valor || '').trim().toLowerCase();
+    if (!txt) return 'Empresa';
+    if (txt === 'c' || txt === 'cliente' || /^cliente\b/.test(txt)) return 'Cliente';
+    if (txt === 'e' || txt === 'empresa' || /^empresa\b/.test(txt)) return 'Empresa';
+    return 'Empresa';
+}
+
 async function guardarBorrador(pool, empresaId, payload, usuario) {
     await asegurarTablas(pool);
     const id = entero(empresaId);
@@ -610,6 +619,9 @@ function agruparEmpresas(asignaciones) {
                 puntos_con_evidencia: 0,
                 documentos: 0,
                 normativas: 0,
+                normativas_cerradas: 0,
+                normativas_abiertas: 0,
+                ultima_gestion: null,
                 categoriasMap: new Map()
             };
             mapa.set(item.empresa_id, emp);
@@ -618,6 +630,12 @@ function agruparEmpresas(asignaciones) {
         emp.puntos_con_evidencia += item.puntos_con_evidencia;
         emp.documentos += item.documentos;
         emp.normativas += 1;
+        if (Number(item.avance) >= 100) emp.normativas_cerradas += 1;
+        else emp.normativas_abiertas += 1;
+        const fechaItem = item.updated_at || item.publicado_en || null;
+        if (fechaItem && (!emp.ultima_gestion || String(fechaItem) > String(emp.ultima_gestion))) {
+            emp.ultima_gestion = fechaItem;
+        }
 
         const catId = item.categoria_id || 'otras';
         let cat = emp.categoriasMap.get(catId);
@@ -652,6 +670,9 @@ function agruparEmpresas(asignaciones) {
                 puntos_con_evidencia: emp.puntos_con_evidencia,
                 documentos: emp.documentos,
                 normativas: emp.normativas,
+                normativas_cerradas: emp.normativas_cerradas,
+                normativas_abiertas: emp.normativas_abiertas,
+                ultima_gestion: emp.ultima_gestion,
                 avance: pct(emp.puntos_con_evidencia, emp.puntos_asignados),
                 categorias
             };
@@ -781,7 +802,7 @@ async function obtenerGestion(pool, asignacionId) {
     try {
         [puntos] = await pool.query(
             `SELECT r.id, r.numero_item, r.punto_norma, r.descripcion, r.descripcion_html,
-                    r.tipo_evidencia, r.periodicidad, r.evidencia_requerida,
+                    r.tipo_evidencia, r.periodicidad, r.evidencia_requerida, r.responsable,
                     r.formato_nombre, r.formato_archivo, r.formato_nombre_archivo, r.orden,
                     (SELECT MAX(d.creado_en) FROM seg_asignacion_documento d
                       WHERE d.asignacion_id = ? AND d.requisito_id = r.id) AS ultima_evidencia
@@ -836,6 +857,7 @@ async function obtenerGestion(pool, asignacionId) {
                 tipo_evidencia: row.tipo_evidencia || null,
                 periodicidad: row.periodicidad || null,
                 evidencia_requerida: row.evidencia_requerida || null,
+                responsable: normalizarResponsableGestion(row.responsable),
                 formato_nombre: row.formato_nombre || null,
                 formato_archivo: row.formato_archivo || null,
                 formato_nombre_archivo: row.formato_nombre_archivo || null,

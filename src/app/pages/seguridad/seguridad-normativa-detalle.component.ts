@@ -19,7 +19,7 @@ interface SegRequisito {
   tipo_evidencia: string | null;
   periodicidad: string | null;
   evidencia_requerida: string | null;
-  observaciones: string | null;
+  responsable: string | null;
   formato_nombre: string | null;
   formato_archivo: string | null;
   formato_nombre_archivo: string | null;
@@ -49,7 +49,7 @@ interface EditorPunto {
   tipo_evidencia: string;
   periodicidad: string;
   evidencia_requerida: string;
-  observaciones: string;
+  responsable: string;
   formato_nombre: string;
   formato_archivo: string | null;
   formato_nombre_archivo: string | null;
@@ -110,6 +110,16 @@ export class SeguridadNormativaDetalleComponent implements OnInit, OnDestroy {
   luzRef: { src: string; nombre: string } | null = null;
   private refArrastrada: HTMLElement | null = null;
   readonly tiposBase = ['DOCUMENTAL', 'FISICO', 'DOCUMENTAL Y FISICO'];
+  readonly tiposEvidenciaOpts: { valor: string; etiqueta: string; icono: string; hint: string }[] = [
+    { valor: 'DOCUMENTAL', etiqueta: 'Documental', icono: 'fa-file-alt', hint: 'Evidencia en archivo' },
+    { valor: 'FISICO', etiqueta: 'Físico', icono: 'fa-cube', hint: 'Evidencia en sitio' },
+    { valor: 'DOCUMENTAL Y FISICO', etiqueta: 'Ambos', icono: 'fa-layer-group', hint: 'Documento y físico' }
+  ];
+  readonly responsablesOpts: { valor: 'Empresa' | 'Cliente'; etiqueta: string; icono: string; hint: string }[] = [
+    { valor: 'Empresa', etiqueta: 'Empresa', icono: 'fa-building', hint: 'A cargo de Biznaga' },
+    { valor: 'Cliente', etiqueta: 'Cliente', icono: 'fa-handshake', hint: 'A cargo del cliente' }
+  ];
+  readonly responsablesPunto = ['Empresa', 'Cliente'] as const;
   readonly periodicidades = ['ANUAL', 'SEMESTRAL', 'TRIMESTRAL', 'MENSUAL', 'UNICA', 'PERMANENTE'];
 
   @ViewChild('prosa') prosa?: ElementRef<HTMLElement>;
@@ -196,6 +206,7 @@ export class SeguridadNormativaDetalleComponent implements OnInit, OnDestroy {
       (r.punto_norma || '').toLowerCase().includes(q) ||
       (r.descripcion || '').toLowerCase().includes(q) ||
       (r.evidencia_requerida || '').toLowerCase().includes(q) ||
+      (r.responsable || '').toLowerCase().includes(q) ||
       (r.formato_nombre || '').toLowerCase().includes(q)
     );
   }
@@ -355,7 +366,7 @@ export class SeguridadNormativaDetalleComponent implements OnInit, OnDestroy {
       tipo_evidencia: 'Tipo de evidencia',
       periodicidad: 'Periodicidad',
       evidencia_requerida: 'Evidencia requerida',
-      observaciones: 'Observaciones',
+      responsable: 'Responsable',
       formato_nombre: 'Formato guía',
       formato_archivo: 'Archivo de formato',
       imagen_portada: 'Portada',
@@ -398,6 +409,46 @@ export class SeguridadNormativaDetalleComponent implements OnInit, OnDestroy {
   tiposDisponibles(actual: string): string[] {
     const extra = actual && !this.tiposBase.includes(actual) ? [actual] : [];
     return [...this.tiposBase, ...extra];
+  }
+
+  /** Homologa valor de Excel/BD: "c" → Cliente; vacío → Empresa. */
+  etiquetaResponsable(valor: string | null | undefined): string {
+    const t = String(valor || '').trim().toLowerCase();
+    if (t === 'c' || t === 'cliente') return 'Cliente';
+    return 'Empresa';
+  }
+
+  /** Campos obligatorios incompletos (periodicidad es opcional). */
+  faltantesPunto(r: SegRequisito): string[] {
+    const faltan: string[] = [];
+    if (!String(r.tipo_evidencia || '').trim()) faltan.push('tipo de evidencia');
+    if (!String(r.responsable || '').trim()) faltan.push('responsable');
+    return faltan;
+  }
+
+  puntoIncompleto(r: SegRequisito): boolean {
+    return this.faltantesPunto(r).length > 0;
+  }
+
+  tituloAlertaPunto(r: SegRequisito): string {
+    const faltan = this.faltantesPunto(r);
+    if (!faltan.length) return '';
+    return faltan.length === 1
+      ? `Falta ${faltan[0]}`
+      : `Faltan ${faltan.join(' y ')}`;
+  }
+
+  iconoTipoEvidencia(valor: string | null | undefined): string {
+    const t = String(valor || '').trim().toUpperCase();
+    const opt = this.tiposEvidenciaOpts.find((o) => o.valor === t);
+    return opt?.icono || 'fa-file-alt';
+  }
+
+  etiquetaTipoEvidencia(valor: string | null | undefined): string {
+    const t = String(valor || '').trim();
+    if (!t) return '';
+    const opt = this.tiposEvidenciaOpts.find((o) => o.valor === t.toUpperCase());
+    return opt?.etiqueta || t;
   }
 
   abrirFicha(): void {
@@ -496,7 +547,7 @@ export class SeguridadNormativaDetalleComponent implements OnInit, OnDestroy {
       tipo_evidencia: r.tipo_evidencia || '',
       periodicidad: r.periodicidad || '',
       evidencia_requerida: r.evidencia_requerida || '',
-      observaciones: r.observaciones || '',
+      responsable: this.etiquetaResponsable(r.responsable),
       formato_nombre: r.formato_nombre || '',
       formato_archivo: r.formato_archivo,
       formato_nombre_archivo: r.formato_nombre_archivo,
@@ -778,7 +829,7 @@ export class SeguridadNormativaDetalleComponent implements OnInit, OnDestroy {
       tipo_evidencia: ed.tipo_evidencia.trim() || null,
       periodicidad: ed.periodicidad.trim() || null,
       evidencia_requerida: ed.evidencia_requerida.trim() || null,
-      observaciones: ed.observaciones.trim() || null,
+      responsable: this.etiquetaResponsable(ed.responsable),
       formato_nombre: quitar ? null : (ed.formato_nombre.trim() || null),
       quitar_formato: quitar
     }).pipe(takeUntil(this.destroy$)).subscribe({

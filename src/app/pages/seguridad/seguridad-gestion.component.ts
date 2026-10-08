@@ -48,6 +48,10 @@ interface EmpresaResumen {
   puntos_con_evidencia: number;
   documentos: number;
   normativas: number;
+  normativas_cerradas?: number;
+  normativas_abiertas?: number;
+  /** Última publicación o cambio en la gestión de normativas de la empresa. */
+  ultima_gestion?: string | null;
   categorias: CategoriaAvance[];
   logo?: string | null;
 }
@@ -77,6 +81,7 @@ interface PuntoGestion {
   tipo_evidencia: string | null;
   periodicidad: string | null;
   evidencia_requerida?: string | null;
+  responsable: 'Empresa' | 'Cliente';
   formato_nombre: string | null;
   formato_archivo: string | null;
   formato_nombre_archivo?: string | null;
@@ -84,6 +89,35 @@ interface PuntoGestion {
   estado: 'cumple' | 'parcial' | 'no_cumple';
   imagenes: ImagenPuntoLite[];
   documentos: DocumentoItem[];
+}
+
+interface ResumenResponsables {
+  cerrados_empresa: number;
+  abiertos_empresa: number;
+  cerrados_cliente: number;
+  abiertos_cliente: number;
+}
+
+interface ResumenGeneralEmpresa {
+  normativas: number;
+  puntos: number;
+  puntos_cerrados: number;
+  cerradas: number;
+  abiertas: number;
+  archivos: number;
+  avance: number;
+}
+
+interface ResumenNormativaFoco {
+  avance: number;
+  puntos_total: number;
+  cerrados: number;
+  abiertos: number;
+  cerrados_empresa: number;
+  cerrados_cliente: number;
+  abiertos_empresa: number;
+  abiertos_cliente: number;
+  archivos: number;
 }
 
 interface DetalleGestion {
@@ -117,10 +151,32 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     new Date().getFullYear() + 1
   ];
 
+  /** Empresa seleccionada en el tablero (abre el panel de detalle en su fila). */
+  empresaSeleccionada: EmpresaResumen | null = null;
+  /** Asignaciones de la empresa abierta en el tablero (vista empresas). */
+  asignacionesTablero: AsignacionResumen[] = [];
+  cargandoTablero = false;
+  /** Desglose Empresa/Cliente del tablero (modo General). */
+  resumenTableroResp: ResumenResponsables = {
+    cerrados_empresa: 0,
+    abiertos_empresa: 0,
+    cerrados_cliente: 0,
+    abiertos_cliente: 0
+  };
+  /** Reinicia la animación del anillo al seleccionar empresa. */
+  tableroRingAnim = 0;
+  readonly empCols = 3;
+
   empresa: EmpresaResumen | null = null;
   categoriasEmpresa: CategoriaAvance[] = [];
   asignaciones: AsignacionResumen[] = [];
   categoriaFiltro: string | null = null;
+
+  /** `general` = resumen de todas; `normativa` = detalle de la seleccionada. */
+  panelModo: 'general' | 'normativa' = 'general';
+
+  /** Normativa seleccionada en el picker (null = General). */
+  normativaFoco: AsignacionResumen | null = null;
 
   detalle: DetalleGestion | null = null;
   cargandoDetalle = false;
@@ -147,7 +203,9 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe(() => this.sincronizarRuta());
     this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe(() => {
-      if (this.vista === 'empresa') this.aplicarCategoriaQuery();
+      if (this.vista !== 'empresa') return;
+      this.aplicarCategoriaQuery();
+      if (!this.cargando && this.asignaciones.length) this.sincronizarNormativaFoco();
     });
   }
 
@@ -163,6 +221,63 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
       e.empresa_nombre.toLowerCase().includes(q)
       || e.categorias.some((c) => c.titulo.toLowerCase().includes(q) || c.prefijo.toLowerCase().includes(q))
     );
+  }
+
+  alCambiarBusquedaEmpresa(): void {
+    if (!this.empresaSeleccionada) return;
+    const id = this.empresaSeleccionada.empresa_id;
+    if (!this.empresasFiltradas.some((e) => e.empresa_id === id)) {
+      this.cerrarTableroEmpresa();
+    }
+  }
+
+  private cerrarTableroEmpresa(): void {
+    this.empresaSeleccionada = null;
+    this.asignacionesTablero = [];
+    this.cargandoTablero = false;
+    this.resumenTableroResp = {
+      cerrados_empresa: 0,
+      abiertos_empresa: 0,
+      cerrados_cliente: 0,
+      abiertos_cliente: 0
+    };
+    this.panelModo = 'general';
+    this.normativaFoco = null;
+    if (this.vista === 'empresas') {
+      this.detalle = null;
+      this.cargandoDetalle = false;
+    }
+  }
+
+  get indiceEmpresaSeleccionada(): number {
+    if (!this.empresaSeleccionada) return -1;
+    return this.empresasFiltradas.findIndex((e) => e.empresa_id === this.empresaSeleccionada!.empresa_id);
+  }
+
+  /** Empresas de filas anteriores a la de la selección. */
+  get empresasAntesFila(): EmpresaResumen[] {
+    const i = this.indiceEmpresaSeleccionada;
+    if (i < 0) return [];
+    const rowStart = Math.floor(i / this.empCols) * this.empCols;
+    return this.empresasFiltradas.slice(0, rowStart);
+  }
+
+  /** Otras empresas de la misma fila (sin la seleccionada). */
+  get peersFilaSeleccion(): EmpresaResumen[] {
+    const i = this.indiceEmpresaSeleccionada;
+    if (i < 0) return [];
+    const rowStart = Math.floor(i / this.empCols) * this.empCols;
+    return this.empresasFiltradas
+      .slice(rowStart, rowStart + this.empCols)
+      .filter((e) => e.empresa_id !== this.empresaSeleccionada!.empresa_id);
+  }
+
+  /** Empresas de filas posteriores a la de la selección. */
+  get empresasDespuesFila(): EmpresaResumen[] {
+    const i = this.indiceEmpresaSeleccionada;
+    if (i < 0) return [];
+    const rowStart = Math.floor(i / this.empCols) * this.empCols;
+    return this.empresasFiltradas.slice(rowStart + this.empCols);
   }
 
   get puntosFiltrados(): PuntoGestion[] {
@@ -262,11 +377,17 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
             ...emp,
             logo: this.logosEmpresa.get(emp.empresa_id) || null
           }));
+          if (this.empresaSeleccionada) {
+            const still = this.empresas.find((e) => e.empresa_id === this.empresaSeleccionada!.empresa_id);
+            if (still) this.empresaSeleccionada = still;
+            else this.cerrarTableroEmpresa();
+          }
           this.cargando = false;
         },
         error: (err: any) => {
           this.error = err?.error?.message || 'No se pudo cargar la gestión de empresas.';
           this.empresas = [];
+          this.cerrarTableroEmpresa();
           this.cargando = false;
         }
       });
@@ -275,6 +396,10 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
   cargarEmpresa(empresaId: number): void {
     this.cargando = true;
     this.error = null;
+    this.asignaciones = [];
+    this.normativaFoco = null;
+    this.detalle = null;
+    this.panelModo = 'general';
     forkJoin({
       det: this.backend.obtenerEmpresaGestionSeguridad(empresaId),
       empresas: this.backend.obtenerEmpresas().pipe(catchError(() => of({ empresas: [] })))
@@ -296,14 +421,121 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
           this.categoriasEmpresa = res?.categorias || [];
           this.asignaciones = res?.asignaciones || [];
           this.cargando = false;
+          this.panelModo = 'general';
+          this.normativaFoco = null;
         },
         error: (err: any) => {
           this.error = err?.error?.message || 'No se encontró la empresa.';
           this.empresa = null;
           this.asignaciones = [];
+          this.normativaFoco = null;
+          this.detalle = null;
+          this.panelModo = 'general';
           this.cargando = false;
         }
       });
+  }
+
+  private sincronizarNormativaFoco(): void {
+    if (this.panelModo === 'general') {
+      this.normativaFoco = null;
+      return;
+    }
+    const lista = this.asignacionesFiltradasEmpresa;
+    if (!lista.length) {
+      this.seleccionarPanelGeneral();
+      return;
+    }
+    const actual = this.normativaFoco
+      ? lista.find((a) => a.id === this.normativaFoco!.id)
+      : null;
+    if (!actual) {
+      this.seleccionarNormativaFoco(lista[0]);
+      return;
+    }
+    this.normativaFoco = actual;
+  }
+
+  resumenGeneralDe(emp: EmpresaResumen | null): ResumenGeneralEmpresa {
+    if (!emp) {
+      return { normativas: 0, puntos: 0, puntos_cerrados: 0, cerradas: 0, abiertas: 0, archivos: 0, avance: 0 };
+    }
+    const cerradas = emp.normativas_cerradas ?? this.asignaciones.filter((a) => a.avance >= 100).length;
+    const abiertas = emp.normativas_abiertas ?? Math.max(0, emp.normativas - cerradas);
+    return {
+      normativas: emp.normativas,
+      puntos: emp.puntos_asignados,
+      puntos_cerrados: emp.puntos_con_evidencia,
+      cerradas,
+      abiertas,
+      archivos: emp.documentos,
+      avance: emp.avance
+    };
+  }
+
+  get resumenGeneralEmpresa(): ResumenGeneralEmpresa {
+    if (this.vista === 'empresa' && this.empresa) {
+      const cerradas = this.asignaciones.filter((a) => a.avance >= 100).length;
+      return {
+        normativas: this.empresa.normativas,
+        puntos: this.empresa.puntos_asignados,
+        puntos_cerrados: this.empresa.puntos_con_evidencia,
+        cerradas,
+        abiertas: Math.max(0, this.asignaciones.length - cerradas),
+        archivos: this.empresa.documentos,
+        avance: this.empresa.avance
+      };
+    }
+    return this.resumenGeneralDe(this.empresaSeleccionada);
+  }
+
+  get resumenNormativaFoco(): ResumenNormativaFoco | null {
+    const foco = this.normativaFoco;
+    if (!foco) return null;
+    const pts = this.detalle?.asignacion?.id === foco.id ? this.detalle.puntos : [];
+    if (!pts.length) {
+      return {
+        avance: foco.avance,
+        puntos_total: foco.puntos_asignados,
+        cerrados: foco.puntos_con_evidencia,
+        abiertos: Math.max(0, foco.puntos_asignados - foco.puntos_con_evidencia),
+        cerrados_empresa: 0,
+        cerrados_cliente: 0,
+        abiertos_empresa: 0,
+        abiertos_cliente: 0,
+        archivos: foco.documentos
+      };
+    }
+    let cerradosEmpresa = 0;
+    let cerradosCliente = 0;
+    let abiertosEmpresa = 0;
+    let abiertosCliente = 0;
+    for (const p of pts) {
+      const esCliente = p.responsable === 'Cliente';
+      const cerrado = p.estado === 'cumple';
+      if (cerrado) {
+        if (esCliente) cerradosCliente += 1;
+        else cerradosEmpresa += 1;
+      } else if (esCliente) {
+        abiertosCliente += 1;
+      } else {
+        abiertosEmpresa += 1;
+      }
+    }
+    const cerrados = cerradosEmpresa + cerradosCliente;
+    const abiertos = abiertosEmpresa + abiertosCliente;
+    const total = pts.length;
+    return {
+      avance: total ? Math.round((cerrados / total) * 100) : foco.avance,
+      puntos_total: total,
+      cerrados,
+      abiertos,
+      cerrados_empresa: cerradosEmpresa,
+      cerrados_cliente: cerradosCliente,
+      abiertos_empresa: abiertosEmpresa,
+      abiertos_cliente: abiertosCliente,
+      archivos: foco.documentos
+    };
   }
 
   cargarDetalle(id: number, requisitoId?: number): void {
@@ -351,6 +583,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
       tipo_evidencia: p.tipo_evidencia || null,
       periodicidad: p.periodicidad || null,
       evidencia_requerida: p.evidencia_requerida || null,
+      responsable: p.responsable === 'Cliente' ? 'Cliente' : 'Empresa',
       formato_nombre: p.formato_nombre || null,
       formato_archivo: p.formato_archivo || null,
       formato_nombre_archivo: p.formato_nombre_archivo || null,
@@ -410,6 +643,116 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     });
   }
 
+  alCambiarBusquedaNorma(): void {
+    if (this.vista === 'empresa') this.sincronizarNormativaFoco();
+  }
+
+  seleccionarEmpresaTablero(emp: EmpresaResumen, event?: Event): void {
+    event?.stopPropagation();
+    if (this.empresaSeleccionada?.empresa_id === emp.empresa_id) {
+      this.cerrarTableroEmpresa();
+      return;
+    }
+    this.empresaSeleccionada = emp;
+    this.panelModo = 'general';
+    this.normativaFoco = null;
+    this.detalle = null;
+    this.tableroRingAnim += 1;
+    this.cargarAsignacionesTablero(emp.empresa_id);
+  }
+
+  private cargarAsignacionesTablero(empresaId: number): void {
+    this.cargandoTablero = true;
+    this.asignacionesTablero = [];
+    this.resumenTableroResp = {
+      cerrados_empresa: 0,
+      abiertos_empresa: 0,
+      cerrados_cliente: 0,
+      abiertos_cliente: 0
+    };
+    this.backend.obtenerEmpresaGestionSeguridad(empresaId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          if (this.empresaSeleccionada?.empresa_id !== empresaId) return;
+          this.asignacionesTablero = res?.asignaciones || [];
+          if (res?.empresa) {
+            this.empresaSeleccionada = {
+              ...this.empresaSeleccionada!,
+              ...res.empresa,
+              logo: this.logosEmpresa.get(empresaId) || this.empresaSeleccionada!.logo || null
+            };
+          }
+          this.cargandoTablero = false;
+          this.cargarResumenResponsablesTablero(empresaId, this.asignacionesTablero);
+        },
+        error: () => {
+          if (this.empresaSeleccionada?.empresa_id !== empresaId) return;
+          this.asignacionesTablero = [];
+          this.cargandoTablero = false;
+        }
+      });
+  }
+
+  private cargarResumenResponsablesTablero(empresaId: number, normas: AsignacionResumen[]): void {
+    if (!normas.length) return;
+    const peticiones = normas.map((n) =>
+      this.backend.obtenerGestionSeguridadAsignacion(n.id).pipe(catchError(() => of(null)))
+    );
+    forkJoin(peticiones)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (resultados: any[]) => {
+          if (this.empresaSeleccionada?.empresa_id !== empresaId) return;
+          const acc: ResumenResponsables = {
+            cerrados_empresa: 0,
+            abiertos_empresa: 0,
+            cerrados_cliente: 0,
+            abiertos_cliente: 0
+          };
+          for (const res of resultados) {
+            for (const p of res?.puntos || []) {
+              const esCliente = String(p.responsable || '') === 'Cliente';
+              const cerrado = p.estado === 'cumple' || (Array.isArray(p.documentos) && p.documentos.length > 0);
+              if (cerrado) {
+                if (esCliente) acc.cerrados_cliente += 1;
+                else acc.cerrados_empresa += 1;
+              } else if (esCliente) {
+                acc.abiertos_cliente += 1;
+              } else {
+                acc.abiertos_empresa += 1;
+              }
+            }
+          }
+          this.resumenTableroResp = acc;
+        }
+      });
+  }
+
+  trackByEmpresaId(_: number, emp: EmpresaResumen): number {
+    return emp.empresa_id;
+  }
+
+  seleccionarPanelGeneral(): void {
+    this.panelModo = 'general';
+    this.normativaFoco = null;
+    this.detalle = null;
+    this.cargandoDetalle = false;
+  }
+
+  seleccionarNormativaFoco(item: AsignacionResumen): void {
+    this.panelModo = 'normativa';
+    this.normativaFoco = item;
+    if (this.detalle?.asignacion?.id === item.id) return;
+    this.cargarDetalle(item.id);
+  }
+
+  /** Lista de normativas del panel expandido (tablero) o de la vista empresa. */
+  get normativasPanel(): AsignacionResumen[] {
+    if (this.vista === 'empresas') return this.asignacionesTablero;
+    return this.asignaciones;
+  }
+
   trackByAsignacionId(_: number, item: AsignacionResumen): number {
     return item.id;
   }
@@ -457,6 +800,21 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     return SEG_NORMATIVAS_CATEGORIAS.find((c) => c.id === id)?.iconClass || 'fas fa-book';
   }
 
+  /** Porcentaje de cierre: cerrados / (cerrados + abiertos). */
+  pctCerradosAbiertos(cerrados: number, abiertos: number): number {
+    const c = Number(cerrados) || 0;
+    const a = Number(abiertos) || 0;
+    const total = c + a;
+    return total ? Math.round((c / total) * 100) : 0;
+  }
+
+  /** Etiqueta corta para chips: NOM-001-STPS-2008 → NOM-001 */
+  codigoCorto(codigo: string): string {
+    const raw = String(codigo || '').trim();
+    const m = raw.match(/^(NOM-\d+(?:-\d+)?)/i);
+    return m ? m[1].toUpperCase() : (raw || 'NOM');
+  }
+
   colorAvance(pct: number): string {
     if (pct >= 80) return 'ok';
     if (pct >= 40) return 'mid';
@@ -501,25 +859,44 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     };
   }
 
+  resumenBloque(puntos: PuntoGestion[]): string {
+    const cumple = puntos.filter((p) => p.estado === 'cumple').length;
+    const parcial = puntos.filter((p) => p.estado === 'parcial').length;
+    const pend = puntos.length - cumple - parcial;
+    if (cumple === puntos.length && puntos.length) return 'Completo';
+    if (!cumple && !parcial) return 'Pendiente';
+    return `${cumple} ok · ${parcial} parcial · ${pend} pend.`;
+  }
+
   etiquetaEstado(estado: string): string {
     if (estado === 'cumple') return 'Cumple';
     if (estado === 'parcial') return 'Parcial';
     return 'No cumple';
   }
 
-  fechaCorta(iso: string | null): string {
+  fechaCorta(iso: string | null | undefined): string {
     if (!iso) return '—';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '—';
     return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
+  fechaGestionEmpresa(emp: EmpresaResumen | null | undefined): string {
+    return this.fechaCorta(emp?.ultima_gestion);
+  }
+
   abrirEmpresa(emp: EmpresaResumen): void {
+    this.empresaSeleccionada = emp;
     this.router.navigate(['/seguridad/gestion/empresa', emp.empresa_id]);
   }
 
   abrirNormativa(item: AsignacionResumen): void {
     this.router.navigate(['/seguridad/gestion', item.id]);
+  }
+
+  abrirNormativaFoco(): void {
+    if (!this.normativaFoco) return;
+    this.abrirNormativa(this.normativaFoco);
   }
 
   abrirPunto(punto: PuntoGestion): void {

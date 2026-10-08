@@ -244,6 +244,17 @@ function parsearFecha(value) {
     return null;
 }
 
+/**
+ * Responsable del punto en plantilla Excel:
+ * - "c" / "cliente" → Cliente
+ * - vacío u otro → Empresa
+ */
+function normalizarResponsablePunto(value) {
+    const txt = limpiarTexto(value).toLowerCase();
+    if (txt === 'c' || txt === 'cliente' || /^cliente\b/.test(txt)) return 'Cliente';
+    return 'Empresa';
+}
+
 function parsearAplica(value) {
     const txt = limpiarTexto(value).toLowerCase();
     if (!txt) return null;
@@ -633,7 +644,7 @@ function parsearFilaRequisito(ws, rowNum, estructura) {
         accion_corr_realizar: parsearAccionMarcada(leerColumna(row, cols.CORR_REALIZAR)),
         fecha_inicio: parsearFecha(leerColumna(row, cols.FECHA_INICIO)),
         fecha_terminacion: parsearFecha(leerColumna(row, cols.FECHA_TERMINACION)),
-        responsable: limpiarTexto(leerColumna(row, cols.RESPONSABLE)) || null,
+        responsable: normalizarResponsablePunto(leerColumna(row, cols.RESPONSABLE)),
         indicador_avance: parsearIndicador(leerColumna(row, cols.INDICADOR_AVANCE)),
         evidencia_requerida: limpiarTexto(leerColumna(row, cols.EVIDENCIA_REQUERIDA)) || null,
         observaciones: limpiarTexto(leerColumna(row, cols.OBSERVACIONES)) || null,
@@ -776,6 +787,19 @@ async function normalizarPuntosExistentes(pool) {
     }
 }
 
+/** Homologa valores legacy de Excel ("c", null) a Cliente / Empresa. */
+async function normalizarResponsablesExistentes(pool) {
+    await pool.query(`
+        UPDATE seg_normativa_requisito
+        SET responsable = CASE
+            WHEN responsable IS NOT NULL
+                 AND LOWER(TRIM(responsable)) IN ('c', 'cliente') THEN 'Cliente'
+            ELSE 'Empresa'
+        END
+        WHERE IFNULL(responsable, '') NOT IN ('Cliente', 'Empresa')
+    `);
+}
+
 async function asegurarTablas(pool) {
     if (!pool?.query) throw new Error('Pool de normativas no disponible');
 
@@ -902,6 +926,7 @@ async function asegurarTablas(pool) {
     `);
 
     await normalizarPuntosExistentes(pool);
+    await normalizarResponsablesExistentes(pool);
 }
 
 async function registrarHistorial(conn, {
@@ -982,7 +1007,7 @@ function mapRequisitoRow(row) {
         },
         fecha_inicio: row.fecha_inicio,
         fecha_terminacion: row.fecha_terminacion,
-        responsable: row.responsable,
+        responsable: normalizarResponsablePunto(row.responsable),
         indicador_avance: row.indicador_avance,
         evidencia_requerida: row.evidencia_requerida,
         observaciones: row.observaciones,
@@ -1294,6 +1319,9 @@ async function actualizarRequisito(pool, normativaId, requisitoId, datos, usuari
         tipo_evidencia: texto(datos.tipo_evidencia, prev.tipo_evidencia),
         periodicidad: texto(datos.periodicidad, prev.periodicidad),
         evidencia_requerida: texto(datos.evidencia_requerida, prev.evidencia_requerida),
+        responsable: datos.responsable !== undefined
+            ? normalizarResponsablePunto(datos.responsable)
+            : normalizarResponsablePunto(prev.responsable),
         observaciones: texto(datos.observaciones, prev.observaciones),
         formato_nombre: quitarFormato ? null : texto(datos.formato_nombre, prev.formato_nombre),
         formato_archivo: quitarFormato ? null : prev.formato_archivo,
@@ -1316,19 +1344,19 @@ async function actualizarRequisito(pool, normativaId, requisitoId, datos, usuari
         await conn.query(
             `UPDATE seg_normativa_requisito SET
                 punto_norma = ?, descripcion = ?, descripcion_html = ?, tipo_evidencia = ?,
-                periodicidad = ?, evidencia_requerida = ?, observaciones = ?,
+                periodicidad = ?, evidencia_requerida = ?, responsable = ?, observaciones = ?,
                 formato_nombre = ?, formato_archivo = ?, formato_nombre_archivo = ?
              WHERE id = ? AND normativa_id = ?`,
             [
                 campos.punto_norma, campos.descripcion, campos.descripcion_html, campos.tipo_evidencia,
-                campos.periodicidad, campos.evidencia_requerida, campos.observaciones,
+                campos.periodicidad, campos.evidencia_requerida, campos.responsable, campos.observaciones,
                 campos.formato_nombre, campos.formato_archivo, campos.formato_nombre_archivo,
                 requisitoId, normativaId
             ]
         );
 
         const etiqueta = campos.punto_norma || requisitoId;
-        for (const key of ['punto_norma', 'descripcion', 'tipo_evidencia', 'periodicidad', 'evidencia_requerida', 'observaciones', 'formato_nombre']) {
+        for (const key of ['punto_norma', 'descripcion', 'tipo_evidencia', 'periodicidad', 'evidencia_requerida', 'responsable', 'formato_nombre']) {
             const antes = prev[key];
             const despues = campos[key];
             if (String(antes || '') !== String(despues || '')) {
@@ -1695,6 +1723,7 @@ module.exports = {
     eliminarNormativa,
     parsearPlantillaExcel,
     formatearPuntoNorma,
+    normalizarResponsablePunto,
     contextoUsuario,
     categoriaDesdeNumero
 };

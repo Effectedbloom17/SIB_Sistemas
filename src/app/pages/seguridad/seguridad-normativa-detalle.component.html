@@ -94,7 +94,7 @@
       </div>
       <div class="seg-ficha-card__copy">
         <p class="seg-ficha-card__kicker">Archivo documental</p>
-        <p>Corrija aquí el texto cargado desde Excel y deje lista la imagen que verá la asignación de normas. El responsable se define al asignar, no en este archivo.</p>
+        <p>Corrija aquí el texto cargado desde Excel y deje lista la imagen que verá la asignación de normas. En cada punto indique si el responsable es Empresa o Cliente; la persona encargada se define al asignar.</p>
         <button type="button" class="btn btn-sm seg-btn-edit" *ngIf="puedeAdministrar" (click)="abrirFicha()">
           <i class="fas fa-image" aria-hidden="true"></i>
           {{ normativa.imagen_portada ? 'Cambiar portada' : 'Agregar portada' }}
@@ -118,7 +118,8 @@
     <div class="seg-clausulas-list">
       <article *ngFor="let r of requisitosFiltrados; let i = index; trackBy: trackById"
                class="seg-clausula"
-               [class.seg-clausula--open]="requisitoExpandido === r.id">
+               [class.seg-clausula--open]="requisitoExpandido === r.id"
+               [class.seg-clausula--alerta]="puntoIncompleto(r)">
         <div class="seg-clausula__head"
              role="button"
              tabindex="0"
@@ -128,6 +129,12 @@
           <div class="seg-clausula__rail">
             <span class="seg-clausula__index">{{ i + 1 }}</span>
             <span class="seg-clausula__punto">{{ r.punto_norma || '—' }}</span>
+            <span class="seg-clausula__warn"
+                  *ngIf="puntoIncompleto(r)"
+                  [attr.title]="tituloAlertaPunto(r)"
+                  [attr.aria-label]="tituloAlertaPunto(r)">
+              <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+            </span>
           </div>
           <div class="seg-clausula__content">
             <div class="seg-clausula__texto seg-rich-text"
@@ -135,7 +142,36 @@
                  (mouseover)="verReferencia($event, r.imagenes)"
                  (mouseleave)="ocultarReferencia()"
                  (click)="abrirReferencia($event, r.imagenes)"></div>
-            <div class="seg-clausula__meta" *ngIf="r.formato_nombre || r.formato_archivo">
+            <div class="seg-clausula__meta">
+              <span class="seg-chip"
+                    [class.seg-chip--empresa]="etiquetaResponsable(r.responsable) === 'Empresa'"
+                    [class.seg-chip--cliente]="etiquetaResponsable(r.responsable) === 'Cliente'">
+                <i class="fas"
+                   [class.fa-building]="etiquetaResponsable(r.responsable) === 'Empresa'"
+                   [class.fa-handshake]="etiquetaResponsable(r.responsable) === 'Cliente'"
+                   aria-hidden="true"></i>
+                {{ etiquetaResponsable(r.responsable) }}
+              </span>
+              <span class="seg-chip seg-chip--tipo" *ngIf="r.tipo_evidencia">
+                <i class="fas" [ngClass]="iconoTipoEvidencia(r.tipo_evidencia)" aria-hidden="true"></i>
+                {{ etiquetaTipoEvidencia(r.tipo_evidencia) }}
+              </span>
+              <span class="seg-chip seg-chip--periodo" *ngIf="r.periodicidad">
+                <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                {{ r.periodicidad }}
+              </span>
+              <span class="seg-chip seg-chip--faltante"
+                    *ngIf="faltantesPunto(r).includes('tipo de evidencia')"
+                    title="Sin tipo de evidencia">
+                <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+                Sin evidencia
+              </span>
+              <span class="seg-chip seg-chip--faltante"
+                    *ngIf="faltantesPunto(r).includes('responsable')"
+                    title="Sin responsable">
+                <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+                Sin responsable
+              </span>
               <button type="button"
                       class="seg-pill seg-pill--formato"
                       *ngIf="r.formato_archivo || r.formato_nombre"
@@ -181,11 +217,11 @@
                 <span class="seg-detail-item__val" *ngIf="!r.formato_archivo">{{ r.formato_nombre }}</span>
               </div>
             </div>
-            <div class="seg-detail-item seg-detail-item--full" *ngIf="r.observaciones">
-              <i class="fas fa-sticky-note" aria-hidden="true"></i>
+            <div class="seg-detail-item">
+              <i class="fas fa-user-tie" aria-hidden="true"></i>
               <div>
-                <span class="seg-detail-item__label">Observaciones</span>
-                <span class="seg-detail-item__val">{{ r.observaciones }}</span>
+                <span class="seg-detail-item__label">Responsable</span>
+                <span class="seg-detail-item__val">{{ etiquetaResponsable(r.responsable) }}</span>
               </div>
             </div>
           </div>
@@ -289,18 +325,47 @@
         </div>
         <div class="arch-field">
           <span>Tipo de evidencia</span>
-          <div class="arch-pills" role="group" aria-label="Tipo de evidencia">
+          <div class="arch-choice arch-choice--3" role="group" aria-label="Tipo de evidencia">
             <button type="button"
-                    *ngFor="let tipo of tiposDisponibles(ed.tipo_evidencia)"
-                    [class.is-on]="ed.tipo_evidencia === tipo"
-                    (click)="ed.tipo_evidencia = ed.tipo_evidencia === tipo ? '' : tipo"
-                    [disabled]="guardandoPunto">{{ tipo }}</button>
+                    class="arch-choice__opt"
+                    *ngFor="let opt of tiposEvidenciaOpts"
+                    [class.is-on]="ed.tipo_evidencia === opt.valor"
+                    (click)="ed.tipo_evidencia = ed.tipo_evidencia === opt.valor ? '' : opt.valor"
+                    [disabled]="guardandoPunto"
+                    [attr.title]="opt.hint">
+              <i class="fas" [ngClass]="opt.icono" aria-hidden="true"></i>
+              <strong>{{ opt.etiqueta }}</strong>
+              <small>{{ opt.hint }}</small>
+            </button>
+            <button type="button"
+                    class="arch-choice__opt"
+                    *ngIf="ed.tipo_evidencia && !tiposBase.includes(ed.tipo_evidencia)"
+                    [class.is-on]="true"
+                    disabled>
+              <i class="fas fa-tag" aria-hidden="true"></i>
+              <strong>{{ ed.tipo_evidencia }}</strong>
+              <small>Valor importado</small>
+            </button>
           </div>
         </div>
-        <label class="arch-field">
-          <span>Observaciones</span>
-          <textarea rows="4" [(ngModel)]="ed.observaciones" [disabled]="guardandoPunto" placeholder="Aclaración del archivo, si el Excel vino incompleto"></textarea>
-        </label>
+        <div class="arch-field">
+          <span>Responsable</span>
+          <div class="arch-choice arch-choice--2" role="group" aria-label="Responsable del punto">
+            <button type="button"
+                    class="arch-choice__opt"
+                    *ngFor="let opt of responsablesOpts"
+                    [class.is-on]="ed.responsable === opt.valor"
+                    [class.is-empresa]="opt.valor === 'Empresa'"
+                    [class.is-cliente]="opt.valor === 'Cliente'"
+                    (click)="ed.responsable = opt.valor"
+                    [disabled]="guardandoPunto"
+                    [attr.title]="opt.hint">
+              <i class="fas" [ngClass]="opt.icono" aria-hidden="true"></i>
+              <strong>{{ opt.etiqueta }}</strong>
+              <small>{{ opt.hint }}</small>
+            </button>
+          </div>
+        </div>
         <section class="arch-refs">
           <header>
             <i class="fas fa-image" aria-hidden="true"></i>
