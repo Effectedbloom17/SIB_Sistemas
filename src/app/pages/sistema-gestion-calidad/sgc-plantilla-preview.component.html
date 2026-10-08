@@ -1197,6 +1197,10 @@
                             <strong class="ath-f-02-section__title">Experiencia</strong>
                             <span class="ath-f-02-section__subtitle">Áreas y tiempo de experiencia requerida</span>
                           </div>
+                          <p class="ath-f-02-exp-aviso" *ngIf="athF02FaltaTiempoExperiencia()">
+                            <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+                            Si el tiempo no llegó con el Excel, escríbelo en Tiempo. Si es el mismo para varias áreas, con llenar una fila basta: en el PDF esas celdas se combinan.
+                          </p>
                         </header>
                         <div class="ath-f-02-section__body">
                           <div class="ath-f-02-exp-list">

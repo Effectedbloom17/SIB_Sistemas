@@ -65,8 +65,8 @@ const ESC_MARKS = {
     especialidad: { row: 58, col: 7 },
     espText: { row: 58, col: 13 },
     maestria: { row: 60, col: 7 },
-    // Texto "En:" de maestría en M60 (master del merge M:Q).
-    maestText: { row: 60, col: 13 },
+    // Texto "En:" de maestría. El merge real de la plantilla es N60:Q60, no la columna M.
+    maestText: { row: 60, col: 14 },
     // Casilla de Otro en S60. La palabra "Otro" vive en el merge T60:U60 y no se debe borrar.
     otro: { row: 60, col: 19 }
 };
@@ -92,13 +92,15 @@ const ESC_MARK_CELLS = [
     ESC_MARKS.maestria,
     ESC_MARKS.otro
 ];
-const MAESTRIA_EN_MERGE = { row: 60, startCol: 13, endCol: 17 };
+const MAESTRIA_EN_MERGE = { row: 60, startCol: 14, endCol: 17 };
 /** Ancho de columna M en píxeles (diálogo de Google Sheets). */
 const COL_M_PIXEL_SIZE = 65;
 
 const EXP_HEADER_ROW = 64;
 const EXP_DATA_ROWS = [65, 66, 67, 68];
 const EXP_LEFT = { enQueStart: 1, enQueEnd: 15, tiempoCol: 16 };
+/** Tiempo ocupa P:AC en cada fila de experiencia. */
+const EXP_TIEMPO_END_COL = 29;
 
 const REQ_ROWS = {
     computadora: 92,
@@ -262,9 +264,20 @@ function normalizarSaltos(texto) {
         .trim();
 }
 
+/**
+ * Un hueco largo de espacios (texto justificado o copiado de Word) empuja
+ * la siguiente palabra al margen derecho del PDF. Esa palabra pasa a la línea siguiente.
+ */
+function compactarHuecosVisuales(texto) {
+    return String(texto || '')
+        .split('\n')
+        .map((linea) => linea.replace(/[ \t\u00a0]{3,}/g, '\n').trim())
+        .join('\n');
+}
+
 /** Quita el mismo párrafo repetido 2 o 3 veces (efecto de leer una celda combinada por cada fila). */
 function colapsarTextoRepetido(texto) {
-    const limpio = normalizarSaltos(texto);
+    const limpio = compactarHuecosVisuales(normalizarSaltos(texto));
     if (!limpio) return '';
     const compactar = (s) => String(s || '').replace(/\s+/g, ' ').trim();
     const lineas = limpio.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -466,7 +479,7 @@ function sanitizarFunciones(raw) {
             if (typeof item === 'string') return normalizarSaltos(item.replace(/^\d+\.\s*/, ''));
             return normalizarSaltos(item?.texto || item?.descripcion || '');
         })
-        .filter(Boolean)
+        .filter((texto) => texto && !esEtiquetaEstructural(texto))
         .slice(0, MAX_FUNCIONES);
 }
 
@@ -531,6 +544,8 @@ function sanitizarPerfil(raw) {
     let edadMaxima = edadIndistinto
         ? ''
         : String(base.edadMaxima || base.edad_maxima || '').trim();
+    if (!esNumeroEdad(edadMinima)) edadMinima = '';
+    if (!esNumeroEdad(edadMaxima)) edadMaxima = '';
     let edad = edadIndistinto ? 'indistinto' : '';
     const experiencia = sanitizarExpItem(
         base.experiencia
@@ -782,7 +797,7 @@ function leerRango(ws, config) {
     return '';
 }
 
-function esContinuacionDeMerge(ws, row, col) {
+function rangoMergeEn(ws, row, col) {
     const merges = ws && ws._merges ? ws._merges : {};
     for (const key of Object.keys(merges)) {
         const raw = merges[key];
@@ -791,9 +806,22 @@ function esContinuacionDeMerge(ws, row, col) {
         const bottom = Number(m && m.bottom);
         const left = Number(m && m.left);
         const right = Number(m && m.right);
-        if (row > top && row <= bottom && col >= left && col <= right) return true;
+        if (row >= top && row <= bottom && col >= left && col <= right) {
+            return { top, bottom, left, right };
+        }
     }
-    return false;
+    return null;
+}
+
+function esContinuacionDeMerge(ws, row, col) {
+    const rango = rangoMergeEn(ws, row, col);
+    return !!(rango && row > rango.top);
+}
+
+function textoMaestroMerge(ws, row, col) {
+    const rango = rangoMergeEn(ws, row, col);
+    if (!rango) return '';
+    return leerCelda(ws, rango.top, col);
 }
 
 function leerBloqueFilas(ws, config) {
@@ -809,10 +837,200 @@ function leerBloqueFilas(ws, config) {
     return colapsarTextoRepetido(lineas.join('\n'));
 }
 
-function leerEdadDesdeHoja(ws) {
-    const minCell = leerCelda(ws, EDAD_ROW, EDAD_MARKS.minima);
-    const maxCell = leerCelda(ws, EDAD_ROW, EDAD_MARKS.maxima);
-    const indCell = leerCelda(ws, EDAD_ROW, EDAD_MARKS.indistinto);
+function normalizarEtiqueta(texto) {
+    return String(texto || '')
+        .replace(/^\d+\.\s*/, '')
+        .replace(/[¿?¡!]/g, '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[:.;,]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+/** Títulos de sección. Si el Excel trae menos filas vacías, no deben colarse como funciones. */
+const ETIQUETAS_QUE_NO_SON_FUNCION = new Set([
+    'identificacion',
+    'titulo del puesto',
+    'area o departamento',
+    'lineas de autoridad y responsabilidad',
+    'puesto al que le reporta',
+    'puestos que le reportan',
+    'objetivo del puesto',
+    'funciones',
+    'edad',
+    'sexo',
+    'estado civil',
+    'escolaridad',
+    'primaria',
+    'secundaria',
+    'bachillerato',
+    'tecnico',
+    'tsu',
+    'licenciatura',
+    'especialidad',
+    'maestria',
+    'otro',
+    'minima',
+    'maxima',
+    'indistinto',
+    'masculino',
+    'femenino',
+    'soltero',
+    'casado',
+    'experiencia',
+    'en que',
+    'tiempo',
+    'formacion y competencias tecnicas',
+    'habilidades blandas requeridas',
+    'habilidades blandas',
+    'conocimiento y manejo de equipo para la operacion',
+    'requerimientos para el desempeno de sus funciones',
+    'computadora u ordenador',
+    'computadora',
+    'software',
+    'informacion',
+    'herramientas o equipos',
+    'herramientas',
+    'uniformes',
+    'otros',
+    'cual',
+    'cuales',
+    'cantidad',
+    'relaciones o interacciones',
+    'internas',
+    'externas',
+    'descripcion del motivo de la interaccion',
+    'elaboro',
+    'reviso',
+    'autorizo'
+]);
+
+function esEtiquetaEstructural(texto) {
+    const n = normalizarEtiqueta(texto);
+    if (!n || n.length > 90) return false;
+    return ETIQUETAS_QUE_NO_SON_FUNCION.has(n);
+}
+
+function textosFila(ws, row) {
+    const textos = [];
+    for (let col = 1; col <= 29; col++) {
+        const t = normalizarEtiqueta(leerCelda(ws, row, col));
+        if (t) textos.push(t);
+    }
+    return textos;
+}
+
+/**
+ * Localiza una etiqueta aunque el bloque se haya corrido hacia arriba
+ * (Excel con menos filas vacías entre funciones y Edad).
+ * Si se pasan compañeras, la misma fila debe contener alguna (evita confundir
+ * una función llamada "Edad" con la sección Edad / Mínima / Máxima).
+ */
+function buscarFilaEtiqueta(ws, etiquetas, opts = {}) {
+    const lista = (Array.isArray(etiquetas) ? etiquetas : [etiquetas]).map(normalizarEtiqueta);
+    const objetivos = new Set(lista);
+    const companeras = new Set((opts.companeras || []).map(normalizarEtiqueta));
+    const desde = Math.max(1, opts.desde || 1);
+    const hasta = Math.min(opts.hasta || 220, Math.max(ws?.rowCount || 0, opts.hasta || 220));
+    for (let row = desde; row <= hasta; row++) {
+        const textos = textosFila(ws, row);
+        const hit = textos.some((t) => objetivos.has(t) || lista.some((o) => o.length >= 24 && t.startsWith(o)));
+        if (!hit) continue;
+        if (companeras.size && !textos.some((t) => companeras.has(t))) continue;
+        return row;
+    }
+    return null;
+}
+
+function leerCampoEnFila(ws, row, startCol, endCol, etiquetasIgnorar = []) {
+    if (!row) return '';
+    const ignorar = new Set(etiquetasIgnorar.map(normalizarEtiqueta));
+    for (let col = startCol; col <= endCol; col++) {
+        const texto = leerCelda(ws, row, col);
+        if (!texto) continue;
+        if (ignorar.has(normalizarEtiqueta(texto))) continue;
+        if (esEtiquetaEstructural(texto)) continue;
+        return texto;
+    }
+    return '';
+}
+
+function anclasAthF02(ws) {
+    const funciones = buscarFilaEtiqueta(ws, 'funciones', { desde: 12, hasta: 30 });
+    const edad = buscarFilaEtiqueta(ws, 'edad', {
+        desde: (funciones || 17) + 1,
+        companeras: ['minima', 'maxima', 'indistinto']
+    });
+    const sexo = buscarFilaEtiqueta(ws, 'sexo', {
+        desde: (edad || 40) + 1,
+        companeras: ['masculino', 'femenino', 'indistinto']
+    });
+    const estadoCivil = buscarFilaEtiqueta(ws, 'estado civil', {
+        desde: (sexo || edad || 40) + 1,
+        companeras: ['soltero', 'casado', 'indistinto']
+    });
+    const escolaridad = buscarFilaEtiqueta(ws, 'escolaridad', {
+        desde: (estadoCivil || sexo || 40) + 1,
+        companeras: ['primaria', 'secundaria', 'bachillerato', 'tecnico']
+    });
+    const despuesEsc = (escolaridad || 54) + 1;
+    const nivel2 = buscarFilaEtiqueta(ws, ['tsu', 'licenciatura'], { desde: despuesEsc, hasta: despuesEsc + 12 });
+    const especialidad = buscarFilaEtiqueta(ws, 'especialidad', { desde: despuesEsc, hasta: despuesEsc + 14 });
+    const maestria = buscarFilaEtiqueta(ws, 'maestria', { desde: despuesEsc, hasta: despuesEsc + 16 });
+    const experiencia = buscarFilaEtiqueta(ws, 'experiencia', { desde: (maestria || especialidad || despuesEsc) + 1 });
+    const formacion = buscarFilaEtiqueta(ws, 'formacion y competencias tecnicas', {
+        desde: (experiencia || 60) + 1
+    });
+    const habilidades = buscarFilaEtiqueta(ws, ['habilidades blandas requeridas', 'habilidades blandas'], {
+        desde: (formacion || experiencia || 70) + 1
+    });
+    const conocimiento = buscarFilaEtiqueta(ws, 'conocimiento y manejo de equipo para la operacion', {
+        desde: (habilidades || formacion || 79) + 1
+    });
+    const requerimientos = buscarFilaEtiqueta(ws, 'requerimientos para el desempeno de sus funciones', {
+        desde: (conocimiento || habilidades || 85) + 1
+    });
+    const relaciones = buscarFilaEtiqueta(ws, 'relaciones o interacciones', {
+        desde: (requerimientos || conocimiento || 90) + 1
+    });
+    const desdeReq = (requerimientos || 90) + 1;
+    const hastaReq = desdeReq + 28;
+    return {
+        funciones,
+        edad,
+        sexo,
+        estadoCivil,
+        escolaridad,
+        nivel2,
+        especialidad,
+        maestria,
+        experiencia,
+        formacion,
+        habilidades,
+        conocimiento,
+        requerimientos,
+        relaciones,
+        computadora: buscarFilaEtiqueta(ws, ['computadora u ordenador', 'computadora'], { desde: desdeReq, hasta: hastaReq }),
+        software: buscarFilaEtiqueta(ws, 'software', { desde: desdeReq, hasta: hastaReq }),
+        informacion: buscarFilaEtiqueta(ws, 'informacion', { desde: desdeReq, hasta: hastaReq }),
+        herramientas: buscarFilaEtiqueta(ws, ['herramientas o equipos', 'herramientas'], { desde: desdeReq, hasta: hastaReq }),
+        uniformes: buscarFilaEtiqueta(ws, 'uniformes', { desde: desdeReq, hasta: hastaReq }),
+        otros: buscarFilaEtiqueta(ws, 'otros', { desde: desdeReq, hasta: hastaReq })
+    };
+}
+
+function esNumeroEdad(texto) {
+    return /^\d{1,3}$/.test(normalizarEtiqueta(texto));
+}
+
+function leerEdadDesdeHoja(ws, row = EDAD_ROW) {
+    const fila = row || EDAD_ROW;
+    const minCell = leerCelda(ws, fila, EDAD_MARKS.minima);
+    const maxCell = leerCelda(ws, fila, EDAD_MARKS.maxima);
+    const indCell = leerCelda(ws, fila, EDAD_MARKS.indistinto);
     const indistinto = leerMarca(indCell) || (leerMarca(minCell) && leerMarca(maxCell));
     if (indistinto) {
         return {
@@ -824,8 +1042,8 @@ function leerEdadDesdeHoja(ws) {
     }
     return {
         edadIndistinto: false,
-        edadMinima: leerMarca(minCell) ? '' : minCell,
-        edadMaxima: leerMarca(maxCell) ? '' : maxCell,
+        edadMinima: leerMarca(minCell) || !esNumeroEdad(minCell) ? '' : minCell,
+        edadMaxima: leerMarca(maxCell) || !esNumeroEdad(maxCell) ? '' : maxCell,
         edad: ''
     };
 }
@@ -833,8 +1051,8 @@ function leerEdadDesdeHoja(ws) {
 function pushEdad(actualizaciones, perfil, sheetTitle) {
     const p = sanitizarPerfil(perfil);
     if (p.edadIndistinto) {
-        pushUpdate(actualizaciones, EDAD_ROW, EDAD_MARKS.minima, 'X', sheetTitle);
-        pushUpdate(actualizaciones, EDAD_ROW, EDAD_MARKS.maxima, 'X', sheetTitle);
+        pushUpdate(actualizaciones, EDAD_ROW, EDAD_MARKS.minima, '', sheetTitle);
+        pushUpdate(actualizaciones, EDAD_ROW, EDAD_MARKS.maxima, '', sheetTitle);
         pushUpdate(actualizaciones, EDAD_ROW, EDAD_MARKS.indistinto, 'X', sheetTitle);
     } else {
         pushUpdate(actualizaciones, EDAD_ROW, EDAD_MARKS.minima, p.edadMinima || '', sheetTitle);
@@ -850,31 +1068,101 @@ function leerOpcionMarcada(ws, row, marks) {
     return '';
 }
 
-function leerEscolaridadDesdeHoja(ws) {
+function textoEscolaridad(texto) {
+    const limpio = normalizarSaltos(texto);
+    if (!limpio || esEtiquetaEstructural(limpio) || /^en:?$/i.test(limpio)) return '';
+    return limpio;
+}
+
+function leerEscolaridadDesdeHoja(ws, filas = {}) {
+    const rowNivel1 = filas.escolaridad || ESC_ROWS.nivel1;
+    const rowNivel2 = filas.nivel2 || ESC_ROWS.nivel2;
+    const rowEsp = filas.especialidad || ESC_ROWS.especialidad;
+    const rowMae = filas.maestria || ESC_ROWS.maestria;
+    const marks = {
+        primaria: { row: rowNivel1, col: ESC_MARKS.primaria.col },
+        secundaria: { row: rowNivel1, col: ESC_MARKS.secundaria.col },
+        bachillerato: { row: rowNivel1, col: ESC_MARKS.bachillerato.col },
+        tecnico: { row: rowNivel1, col: ESC_MARKS.tecnico.col },
+        tsu: { row: rowNivel2, col: ESC_MARKS.tsu.col },
+        licenciatura: { row: rowNivel2, col: ESC_MARKS.licenciatura.col },
+        licText: { row: rowNivel2, col: ESC_MARKS.licText.col },
+        especialidad: { row: rowEsp, col: ESC_MARKS.especialidad.col },
+        espText: { row: rowEsp, col: ESC_MARKS.espText.col },
+        maestria: { row: rowMae, col: ESC_MARKS.maestria.col },
+        maestText: { row: rowMae, col: ESC_MARKS.maestText.col },
+        otro: { row: rowMae, col: ESC_MARKS.otro.col }
+    };
+    const etiquetas = {
+        bachillerato: { row: rowNivel1, col: ESC_ETIQUETAS.bachillerato.col },
+        tecnico: { row: rowNivel1, col: ESC_ETIQUETAS.tecnico.col },
+        otro: { row: rowMae, col: ESC_ETIQUETAS.otro.col }
+    };
     const esc = sanitizarEscolaridad({});
-    Object.entries(ESC_MARKS).forEach(([key, pos]) => {
-        if (typeof pos === 'object' && pos.row && pos.col) {
-            if (['licText', 'espText', 'maestText'].includes(key)) {
-                // Fallback a columna N (legacy) si M está vacío.
-                let texto = leerCelda(ws, pos.row, pos.col);
-                if (!texto && (key === 'espText' || key === 'maestText')) {
-                    texto = leerCelda(ws, pos.row, 14);
-                }
-                esc[key] = texto;
-            } else {
-                esc[key] = leerMarca(leerCelda(ws, pos.row, pos.col));
-            }
+    Object.entries(marks).forEach(([key, pos]) => {
+        if (!pos?.row || !pos?.col) return;
+        if (['licText', 'espText', 'maestText'].includes(key)) {
+            let texto = textoEscolaridad(leerCelda(ws, pos.row, pos.col));
+            if (!texto && key === 'espText') texto = textoEscolaridad(leerCelda(ws, pos.row, 14));
+            if (!texto && key === 'maestText') texto = textoEscolaridad(leerCelda(ws, pos.row, 13));
+            esc[key] = texto;
+        } else {
+            esc[key] = leerMarca(leerCelda(ws, pos.row, pos.col));
         }
     });
     // Versiones previas escribían la X encima de la etiqueta y borraban el texto.
-    Object.entries(ESC_ETIQUETAS).forEach(([key, pos]) => {
+    Object.entries(etiquetas).forEach(([key, pos]) => {
         if (leerMarca(leerCelda(ws, pos.row, pos.col))) esc[key] = true;
     });
-    const tsuEn = leerCelda(ws, ESC_TSU_EN.row, ESC_TSU_EN.col);
-    if (tsuEn && !/^en:?$/i.test(tsuEn)) esc.tsuEn = tsuEn;
-    const otroEn = leerCelda(ws, ESC_OTRO_EN.row, ESC_OTRO_EN.col);
-    if (otroEn && !/^otro$/i.test(otroEn) && !leerMarca(otroEn)) esc.otroDetalle = otroEn;
+    const tsuEn = textoEscolaridad(leerCelda(ws, rowNivel2, ESC_TSU_EN.col));
+    if (tsuEn) esc.tsuEn = tsuEn;
+    const otroEn = textoEscolaridad(leerCelda(ws, rowMae, ESC_OTRO_EN.col));
+    if (otroEn && !leerMarca(otroEn)) esc.otroDetalle = otroEn;
     return sanitizarEscolaridad(esc);
+}
+
+function filasExperienciaDesdeAnclas(ws, anclas = {}) {
+    const inicio = anclas.experiencia || (EXP_HEADER_ROW - 1);
+    const fin = (anclas.formacion || (inicio + MAX_EXP_FILAS + 3)) - 1;
+    const rows = [];
+    for (let row = inicio + 1; row <= fin; row++) {
+        const enQue = leerRango(ws, {
+            startRow: row,
+            endRow: row,
+            startCol: EXP_LEFT.enQueStart,
+            endCol: EXP_LEFT.enQueEnd
+        });
+        const tiempo = leerCelda(ws, row, EXP_LEFT.tiempoCol);
+        const nEn = normalizarEtiqueta(enQue);
+        const nTiempo = normalizarEtiqueta(tiempo);
+        if (!enQue && !tiempo) continue;
+        if (nEn === 'en que' || nEn === 'experiencia' || (nTiempo === 'tiempo' && !enQue)) continue;
+        if (esEtiquetaEstructural(enQue)) continue;
+        rows.push(row);
+        if (rows.length >= MAX_EXP_FILAS) break;
+    }
+    if (anclas.experiencia || anclas.formacion) return rows;
+    return rows.length ? rows : EXP_DATA_ROWS;
+}
+
+function leerBloqueEntre(ws, desde, hasta) {
+    if (!desde || !hasta || hasta < desde) return '';
+    return leerBloqueFilas(ws, {
+        startRow: desde,
+        endRow: hasta,
+        startCol: 1,
+        endCol: 15
+    });
+}
+
+function tiempoExperienciaValido(enQue, tiempo, ws, row) {
+    const t = normalizarSaltos(tiempo);
+    if (!t) return '';
+    if (ws && esContinuacionDeMerge(ws, row, EXP_LEFT.tiempoCol)) return '';
+    const desc = normalizarSaltos(enQue);
+    if (desc && (t === desc || desc.includes(t))) return '';
+    if (t.length > 40) return '';
+    return t;
 }
 
 function leerExperienciaLado(ws, rows, layout) {
@@ -886,12 +1174,41 @@ function leerExperienciaLado(ws, rows, layout) {
             startCol: layout.enQueStart,
             endCol: layout.enQueEnd
         });
-        const tiempo = leerCelda(ws, row, layout.tiempoCol);
+        let crudo = leerCelda(ws, row, layout.tiempoCol);
+        if (ws && esContinuacionDeMerge(ws, row, layout.tiempoCol)) {
+            crudo = textoMaestroMerge(ws, row, layout.tiempoCol);
+        }
+        const tiempo = tiempoExperienciaValido(enQue, crudo);
         if (enQue || tiempo) {
             out[idx] = sanitizarExpItem({ enQue, tiempo });
         }
     });
     return out.filter(Boolean);
+}
+
+/** Si varias áreas comparten un solo tiempo, el PDF combina esa columna como en el Excel. */
+function bloquesTiempoExperiencia(experiencias) {
+    const filas = EXP_DATA_ROWS.map((row, idx) => {
+        const item = sanitizarExpItem((experiencias || [])[idx] || {});
+        return {
+            row,
+            enQue: String(item.enQue || '').trim(),
+            tiempo: tiempoExperienciaValido(item.enQue, item.tiempo)
+        };
+    });
+    const conTexto = filas.filter((fila) => fila.enQue || fila.tiempo);
+    if (conTexto.length < 2) return [];
+    const distintos = [...new Set(conTexto.map((fila) => fila.tiempo).filter(Boolean))];
+    if (distintos.length !== 1) return [];
+    const start = conTexto[0].row;
+    const end = conTexto[conTexto.length - 1].row;
+    if (end <= start) return [];
+    const firstIdx = EXP_DATA_ROWS.indexOf(start);
+    const lastIdx = EXP_DATA_ROWS.indexOf(end);
+    const seguidas = EXP_DATA_ROWS.slice(firstIdx, lastIdx + 1)
+        .every((row) => conTexto.some((fila) => fila.row === row));
+    if (!seguidas) return [];
+    return [{ startRow: start, endRow: end, tiempo: distintos[0] }];
 }
 
 function esTextoEstructuralRelacion(texto) {
@@ -944,42 +1261,49 @@ function pieFormatoActualizaciones(sheetTitle, layout) {
     return actualizaciones;
 }
 
-function detectarLayoutRelacionesDesdeHoja(ws) {
+function detectarLayoutRelacionesDesdeHoja(ws, desde = 40) {
+    let internasHeader = null;
     let externasHeader = null;
     let firmasLabel = null;
-    const maxScan = Math.min(200, (ws.rowCount || 160));
-    for (let row = REL_INTERNAS_HEADER_ROW; row <= maxScan; row++) {
-        const a = leerCelda(ws, row, 1);
-        const p = leerCelda(ws, row, 16);
-        const aNorm = String(a || '').trim().toLowerCase()
-            .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        if (aNorm === 'externas') externasHeader = row;
-        if (aNorm === 'elaboro' || aNorm === 'elaboró') firmasLabel = row;
-        if (/autorizo|autorizó|reviso|revisó/i.test(String(p || a || ''))) {
-            if (!firmasLabel && /elaboro|elaboró|reviso|revisó|autorizo|autorizó/i.test(aNorm)) {
-                firmasLabel = row;
-            }
+    const maxScan = Math.min(240, Math.max(ws?.rowCount || 0, 160));
+    for (let row = Math.max(1, desde || 1); row <= maxScan; row++) {
+        const aNorm = normalizarEtiqueta(leerCelda(ws, row, 1));
+        if (aNorm === 'internas' && !internasHeader) internasHeader = row;
+        if (aNorm === 'externas' && internasHeader && row > internasHeader && !externasHeader) {
+            externasHeader = row;
+        }
+        if (aNorm === 'elaboro' && externasHeader && row > externasHeader && !firmasLabel) {
+            firmasLabel = row;
         }
     }
-    if (!externasHeader) {
+    if (!internasHeader || !externasHeader) {
         return calcularLayoutRelaciones(0, 0);
     }
-    const internasEnd = externasHeader - 1;
-    const internasCount = Math.max(REL_BASE_COUNT, internasEnd - REL_INTERNAS_DATA_START + 1);
-    const extraInternas = Math.max(0, internasCount - REL_BASE_COUNT);
+    const internasStart = internasHeader + 1;
+    const internasEnd = Math.max(internasStart, externasHeader - 1);
     const externasStart = externasHeader + 1;
     let externasEnd = externasStart + REL_BASE_COUNT - 1;
     if (firmasLabel) {
-        externasEnd = Math.max(externasStart, firmasLabel - FIRMAS_BOX_ROWS - 1);
+        const antesDeFirmas = firmasLabel - FIRMAS_BOX_ROWS - 1;
+        externasEnd = antesDeFirmas >= externasStart
+            ? antesDeFirmas
+            : Math.max(externasStart, firmasLabel - 1);
     }
-    const externasCount = Math.max(REL_BASE_COUNT, externasEnd - externasStart + 1);
-    const extraExternas = Math.max(0, externasCount - REL_BASE_COUNT);
-    return calcularLayoutRelaciones(extraInternas, extraExternas);
+    return {
+        internasHeader,
+        internasStart,
+        internasEnd,
+        externasHeader,
+        externasStart,
+        externasEnd,
+        firmasLabel
+    };
 }
 
-function leerRequerimientosDesdeHoja(ws) {
+function leerRequerimientosDesdeHoja(ws, filas = {}) {
     const out = {};
-    Object.entries(REQ_ROWS).forEach(([key, row]) => {
+    Object.entries(REQ_ROWS).forEach(([key, rowFija]) => {
+        const row = filas[key] || rowFija;
         const marcaL = leerMarca(leerCelda(ws, row, REQ_MARK_COL));
         const celdaA = leerCelda(ws, row, REQ_LABEL_COL);
         // Legacy: a veces la X se escribió sobre la etiqueta en A.
@@ -993,6 +1317,7 @@ function leerRequerimientosDesdeHoja(ws) {
         if (!detalle) {
             detalle = leerCelda(ws, row, REQ_DETAIL_COL_LEGACY);
         }
+        if (esEtiquetaEstructural(detalle) || esTextoEstructuralRelacion(detalle)) detalle = '';
         out[key] = sanitizarRequerimiento({
             activo: marcaL || marcaA,
             detalle
@@ -1001,17 +1326,20 @@ function leerRequerimientosDesdeHoja(ws) {
     return out;
 }
 
-function parsearFuncionesDesdeHoja(ws) {
+function parsearFuncionesDesdeHoja(ws, anclas = {}) {
     const funciones = [];
-    for (let row = CELLS.funciones.startRow; row <= CELLS.funciones.endRow; row++) {
+    const inicio = anclas.funciones ? anclas.funciones + 1 : CELLS.funciones.startRow;
+    const fin = anclas.edad ? anclas.edad - 1 : CELLS.funciones.endRow;
+    for (let row = inicio; row <= fin; row++) {
         const texto = leerRango(ws, {
             startRow: row,
             endRow: row,
             startCol: CELLS.funciones.startCol,
             endCol: CELLS.funciones.endCol
         });
-        if (!texto) continue;
+        if (!texto || esEtiquetaEstructural(texto)) continue;
         funciones.push(normalizarSaltos(texto.replace(/^\d+\.\s*/, '')));
+        if (funciones.length >= MAX_FUNCIONES) break;
     }
     return funciones;
 }
@@ -1026,30 +1354,47 @@ function layoutDesdePerfil(perfil) {
     );
 }
 
+function bloqueAnclado(ws, inicioHeader, finHeader, fallback) {
+    if (inicioHeader && finHeader && finHeader > inicioHeader + 1) {
+        return leerBloqueEntre(ws, inicioHeader + 1, finHeader - 1);
+    }
+    return leerBloqueFilas(ws, fallback);
+}
+
 function parsearDatosDesdeHoja(ws) {
     const revText = leerCelda(ws, REVISION_CELL.row, REVISION_CELL.col);
     const fechaRevText = leerCelda(ws, FECHA_REV_CELL.row, FECHA_REV_CELL.col);
-    const edadData = leerEdadDesdeHoja(ws);
-    const layout = detectarLayoutRelacionesDesdeHoja(ws);
+    const anclas = anclasAthF02(ws);
+    const edadData = leerEdadDesdeHoja(ws, anclas.edad || EDAD_ROW);
+    const layout = detectarLayoutRelacionesDesdeHoja(
+        ws,
+        anclas.relaciones || anclas.requerimientos || anclas.conocimiento || 40
+    );
+    const objetivoHeader = buscarFilaEtiqueta(ws, 'objetivo del puesto', {
+        desde: 8,
+        hasta: anclas.funciones || 20
+    });
     const perfil = sanitizarPerfil({
-        puesto: leerRango(ws, CELLS.puesto),
-        areaDepartamento: leerRango(ws, CELLS.areaDepartamento),
-        puestoAlQueReporta: leerRango(ws, CELLS.puestoAlQueReporta)
-            || leerRango(ws, { row: 11, startCol: 7, endCol: 14 }),
-        puestosQueLeReportan: leerRango(ws, CELLS.puestosQueLeReportan)
-            || leerRango(ws, { row: 11, startCol: 16, endCol: 20 }),
-        objetivo: leerBloqueFilas(ws, CELLS.objetivo),
-        funciones: parsearFuncionesDesdeHoja(ws),
+        puesto: leerCampoEnFila(ws, CELLS.puesto.row, CELLS.puesto.startCol, CELLS.puesto.endCol, ['titulo del puesto', 'puesto'])
+            || leerRango(ws, CELLS.puesto),
+        areaDepartamento: leerCampoEnFila(ws, CELLS.areaDepartamento.row, CELLS.areaDepartamento.startCol, CELLS.areaDepartamento.endCol, ['area o departamento'])
+            || leerRango(ws, CELLS.areaDepartamento),
+        puestoAlQueReporta: leerCampoEnFila(ws, CELLS.puestoAlQueReporta.row, 7, 14, ['puesto al que le reporta'])
+            || leerCampoEnFila(ws, 11, 7, 14, ['puesto al que le reporta']),
+        puestosQueLeReportan: leerCampoEnFila(ws, CELLS.puestosQueLeReportan.row, 16, 29, ['puestos que le reportan'])
+            || leerCampoEnFila(ws, 11, 16, 29, ['puestos que le reportan']),
+        objetivo: bloqueAnclado(ws, objetivoHeader, anclas.funciones, CELLS.objetivo),
+        funciones: parsearFuncionesDesdeHoja(ws, anclas),
         ...edadData,
-        sexo: leerOpcionMarcada(ws, SEXO_ROW, SEXO_MARKS),
-        estadoCivil: leerOpcionMarcada(ws, ESTADO_CIVIL_ROW, ESTADO_CIVIL_MARKS),
-        esc: leerEscolaridadDesdeHoja(ws),
-        experienciaIzq: leerExperienciaLado(ws, EXP_DATA_ROWS, EXP_LEFT),
+        sexo: leerOpcionMarcada(ws, anclas.sexo || SEXO_ROW, SEXO_MARKS),
+        estadoCivil: leerOpcionMarcada(ws, anclas.estadoCivil || ESTADO_CIVIL_ROW, ESTADO_CIVIL_MARKS),
+        esc: leerEscolaridadDesdeHoja(ws, anclas),
+        experienciaIzq: leerExperienciaLado(ws, filasExperienciaDesdeAnclas(ws, anclas), EXP_LEFT),
         experienciaDer: [],
-        formacionCompetenciasTecnicas: leerBloqueFilas(ws, CELLS.formacion),
-        habilidadesBlandas: leerBloqueFilas(ws, CELLS.habilidades),
-        conocimientoEquipoOperacion: leerBloqueFilas(ws, CELLS.conocimiento),
-        requerimientos: leerRequerimientosDesdeHoja(ws),
+        formacionCompetenciasTecnicas: bloqueAnclado(ws, anclas.formacion, anclas.habilidades, CELLS.formacion),
+        habilidadesBlandas: bloqueAnclado(ws, anclas.habilidades, anclas.conocimiento, CELLS.habilidades),
+        conocimientoEquipoOperacion: bloqueAnclado(ws, anclas.conocimiento, anclas.requerimientos, CELLS.conocimiento),
+        requerimientos: leerRequerimientosDesdeHoja(ws, anclas),
         relacionesInternas: leerRelacionesDesdeHoja(ws, {
             startRow: layout.internasStart,
             endRow: layout.internasEnd,
@@ -1085,13 +1430,13 @@ function pushEscolaridad(actualizaciones, esc, sheetTitle) {
     Object.entries(ESC_MARKS).forEach(([key, pos]) => {
         if (!pos?.row || !pos?.col) return;
         if (['licText', 'espText', 'maestText'].includes(key)) {
-            pushUpdate(actualizaciones, pos.row, pos.col, limpio[key] || '', sheetTitle);
+            pushUpdate(actualizaciones, pos.row, pos.col, textoEscolaridad(limpio[key]), sheetTitle);
         } else {
             pushUpdate(actualizaciones, pos.row, pos.col, marcaCheckbox(!!limpio[key]), sheetTitle);
         }
     });
-    pushUpdate(actualizaciones, ESC_TSU_EN.row, ESC_TSU_EN.col, limpio.tsuEn || '', sheetTitle);
-    pushUpdate(actualizaciones, ESC_OTRO_EN.row, ESC_OTRO_EN.col, limpio.otroDetalle || '', sheetTitle);
+    pushUpdate(actualizaciones, ESC_TSU_EN.row, ESC_TSU_EN.col, textoEscolaridad(limpio.tsuEn), sheetTitle);
+    pushUpdate(actualizaciones, ESC_OTRO_EN.row, ESC_OTRO_EN.col, textoEscolaridad(limpio.otroDetalle), sheetTitle);
     Object.values(ESC_ETIQUETAS).forEach((pos) => {
         pushUpdate(actualizaciones, pos.row, pos.col, pos.texto, sheetTitle);
     });
@@ -1277,10 +1622,19 @@ function perfilAActualizacionesSheet(perfil, meta, sheetTitle, layout) {
     const expList = Array.isArray(p.experiencias) && p.experiencias.length
         ? p.experiencias
         : (Array.isArray(p.experienciaIzq) ? p.experienciaIzq : []);
+    const tiempoCompartido = new Map();
+    bloquesTiempoExperiencia(expList).forEach((bloque) => {
+        for (let row = bloque.startRow; row <= bloque.endRow; row++) {
+            tiempoCompartido.set(row, row === bloque.startRow ? bloque.tiempo : '');
+        }
+    });
     EXP_DATA_ROWS.forEach((row, idx) => {
         const item = sanitizarExpItem(expList[idx] || EXP_ITEM_DEFECTO());
+        const tiempo = tiempoCompartido.has(row)
+            ? tiempoCompartido.get(row)
+            : tiempoExperienciaValido(item.enQue, item.tiempo);
         pushUpdate(actualizaciones, row, EXP_LEFT.enQueStart, item.enQue || '', sheetTitle);
-        pushUpdate(actualizaciones, row, EXP_LEFT.tiempoCol, item.tiempo || '', sheetTitle);
+        pushUpdate(actualizaciones, row, EXP_LEFT.tiempoCol, tiempo, sheetTitle);
     });
 
     pushBloqueTexto(actualizaciones, CELLS.formacion, p.formacionCompetenciasTecnicas, sheetTitle);
@@ -1747,6 +2101,42 @@ async function aplicarFormatoPerfilAthF02(spreadsheetId, sheetTitle, layout, per
         { row: ESTADO_CIVIL_ROW, col: ESTADO_CIVIL_MARKS.casado },
         { row: ESTADO_CIVIL_ROW, col: ESTADO_CIVIL_MARKS.indistinto }
     ];
+    const funcionesPdf = Array.isArray(p.funciones) ? p.funciones : [];
+    funcionesPdf.forEach((texto, idx) => {
+        const limpio = String(texto || '').trim();
+        if (!limpio) return;
+        const row = CELLS.funciones.startRow + idx;
+        const conNumero = `${idx + 1}. ${limpio}`;
+        const lineas = lineasVisuales(conNumero, 92);
+        pushWrap(requests, sheetId, row, row, 1, 29);
+        pushAltoFilas(requests, sheetId, row, row, 8 + lineas * 16);
+    });
+
+    bloquesTiempoExperiencia(p.experiencias || p.experienciaIzq).forEach((bloque) => {
+        const rango = {
+            sheetId,
+            startRowIndex: bloque.startRow - 1,
+            endRowIndex: bloque.endRow,
+            startColumnIndex: EXP_LEFT.tiempoCol - 1,
+            endColumnIndex: EXP_TIEMPO_END_COL
+        };
+        requests.push({ unmergeCells: { range: rango } });
+        requests.push({ mergeCells: { range: rango, mergeType: 'MERGE_ALL' } });
+        requests.push({
+            repeatCell: {
+                range: rango,
+                cell: {
+                    userEnteredFormat: {
+                        horizontalAlignment: 'CENTER',
+                        verticalAlignment: 'MIDDLE',
+                        wrapStrategy: 'WRAP'
+                    }
+                },
+                fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy)'
+            }
+        });
+    });
+
     centros.forEach((pos) => {
         requests.push({
             repeatCell: {

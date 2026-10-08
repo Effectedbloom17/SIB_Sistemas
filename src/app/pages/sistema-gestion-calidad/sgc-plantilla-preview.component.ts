@@ -26514,6 +26514,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.programarAutosizeAthF02();
   }
 
+  athF02FaltaTiempoExperiencia(): boolean {
+    const lista = this.athF02PerfilActivo?.experiencias || [];
+    return lista.some((fila) => !!(fila?.enQue || '').trim() && !(fila?.tiempo || '').trim());
+  }
+
   agregarExperienciaAthF02(): void {
     if (!this.athF02PerfilActivo) {
       return;
