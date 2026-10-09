@@ -623,6 +623,103 @@ async function moverDocumento(pool, empresaId, id, carpetaRelativaDestino) {
     return obtenerDocumento(pool, empresaRow.empresa_id, id);
 }
 
+/**
+ * Renombra un documento en el índice local y en Google Drive.
+ * Body acepta nombre_archivo / nombreArchivo.
+ */
+async function renombrarDocumento(pool, empresaId, id, body) {
+    const empresaRow = await obtenerEmpresaRow(pool, empresaId);
+    const doc = await obtenerDocumento(pool, empresaRow.empresa_id, id);
+    if (!doc) {
+        const error = new Error('Documento no encontrado.');
+        error.status = 404;
+        throw error;
+    }
+
+    const logoDriveId = extraerDriveId(empresaRow.logo);
+    if (esArchivoLogo(doc.nombreArchivo, doc.driveFileId, logoDriveId)) {
+        throw new Error('El logo de la empresa no se puede renombrar desde el repositorio.');
+    }
+
+    const nombreActual = String(doc.nombreArchivo || '').trim();
+    const extActual = (() => {
+        const m = nombreActual.match(/(\.[A-Za-z0-9]{1,10})$/);
+        return m ? m[1] : '';
+    })();
+
+    let nombreNuevo = nombreSeguroArchivo(body?.nombre_archivo || body?.nombreArchivo);
+    if (!nombreNuevo) {
+        throw new Error('Nombre de archivo inválido.');
+    }
+
+    // Conservar siempre la extensión original (.pdf, .jpg, .xlsx, …).
+    if (extActual) {
+        const extEsc = extActual.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        let base = nombreNuevo.replace(new RegExp(`${extEsc}$`, 'i'), '').trim();
+        base = base.replace(/\.[A-Za-z0-9]{1,10}$/, '').trim();
+        base = nombreSeguroArchivo(base);
+        if (!base) {
+            throw new Error('Nombre de archivo inválido.');
+        }
+        nombreNuevo = `${base}${extActual}`;
+    }
+
+    if (esArchivoLogo(nombreNuevo, doc.driveFileId, logoDriveId)) {
+        throw new Error('Ese nombre está reservado para el logo de la empresa.');
+    }
+
+    if (nombreNuevo === nombreActual) {
+        return doc;
+    }
+
+    let nombreDrive = nombreNuevo;
+    if (doc.driveFileId) {
+        const resultado = await driveService.renombrarArchivoPorId(doc.driveFileId, nombreNuevo);
+        nombreDrive = resultado?.name || nombreNuevo;
+    }
+
+    const tituloActual = String(doc.titulo || '').trim();
+    const nuevoTitulo = !tituloActual || tituloActual === nombreActual
+        ? nombreNuevo
+        : tituloActual;
+    const mimeType = resolverMimeType(nombreNuevo, doc.mimeType);
+
+    await pool.query(
+        `UPDATE empresa_repositorio
+         SET nombre_archivo = ?,
+             nombre_archivo_drive = ?,
+             titulo = ?,
+             mime_type = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND empresa_id = ?`,
+        [nombreNuevo, nombreDrive, nuevoTitulo, mimeType, id, empresaRow.empresa_id]
+    );
+
+    try {
+        asegurarCacheDir();
+        const cacheViejo = rutaCacheDocumento(doc.id, nombreActual);
+        const cacheNuevo = rutaCacheDocumento(doc.id, nombreNuevo);
+        if (cacheViejo !== cacheNuevo && fs.existsSync(cacheViejo)) {
+            fs.renameSync(cacheViejo, cacheNuevo);
+        } else if (!fs.existsSync(cacheNuevo)) {
+            const idStr = String(Number(doc.id));
+            const match = fs.readdirSync(CACHE_DIR).find(
+                (f) => path.basename(f, path.extname(f)) === idStr
+            );
+            if (match) {
+                const origen = path.join(CACHE_DIR, match);
+                if (origen !== cacheNuevo) {
+                    fs.renameSync(origen, cacheNuevo);
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('[EMP-REPO] No se pudo actualizar caché local al renombrar:', err.message);
+    }
+
+    return obtenerDocumento(pool, empresaRow.empresa_id, id);
+}
+
 async function eliminarCarpeta(pool, empresaId, rutaRelativa) {
     await asegurarTablas(pool);
     const empresaRow = await obtenerEmpresaRow(pool, empresaId);
@@ -1002,6 +1099,7 @@ module.exports = {
     subirDocumentosLote,
     crearCarpeta,
     moverDocumento,
+    renombrarDocumento,
     eliminarCarpeta,
     descargarBufferDocumento,
     obtenerMiniaturaDocumento,

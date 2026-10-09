@@ -1459,6 +1459,155 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
     this.descargarDocumento(doc);
   }
 
+  async renombrarDocumento(doc: EmpresaRepoItem, event?: Event): Promise<void> {
+    event?.stopPropagation();
+    if (!this.puedeAdministrar) {
+      return;
+    }
+
+    const nombreActual = String(doc.nombreArchivo || '').trim();
+    const { base: baseActual, ext } = this.partirNombreArchivo(nombreActual);
+    const icono = this.iconoTipo(doc.mimeType, nombreActual);
+    const extHtml = ext
+      ? `<span class="repo-rename-field__ext" title="La extensión no se puede cambiar">
+           <i class="fas fa-lock" aria-hidden="true"></i>${this.escapeHtml(ext)}
+         </span>`
+      : '';
+
+    const { value: nombre } = await Swal.fire({
+      title: 'Renombrar archivo',
+      width: 560,
+      padding: 0,
+      showCancelButton: true,
+      reverseButtons: true,
+      focusConfirm: false,
+      confirmButtonText: '<i class="fas fa-check mr-1" aria-hidden="true"></i> Guardar nombre',
+      cancelButtonText: 'Cancelar',
+      customClass: {
+        container: 'swal2-repo-rename-container',
+        popup: 'swal2-repo-rename',
+        confirmButton: 'swal2-repo-rename__btn-ok',
+        cancelButton: 'swal2-repo-rename__btn-cancel'
+      },
+      html: `
+        <div class="repo-rename-card">
+          <header class="repo-rename-card__head">
+            <span class="repo-rename-card__icon" aria-hidden="true">
+              <i class="fas ${icono}"></i>
+            </span>
+            <div class="repo-rename-card__titles">
+              <p class="repo-rename-card__eyebrow">Repositorio empresarial</p>
+              <h3 class="repo-rename-card__title">Renombrar archivo</h3>
+              <p class="repo-rename-card__sub">El cambio también se verá en Drive.</p>
+            </div>
+          </header>
+          <div class="repo-rename-card__body">
+            <label class="repo-rename-card__label" for="swal-repo-rename-base">Nuevo nombre</label>
+            <div class="repo-rename-field">
+              <input id="swal-repo-rename-base"
+                     class="repo-rename-field__input"
+                     type="text"
+                     value="${this.escapeHtml(baseActual)}"
+                     placeholder="Nombre del archivo"
+                     autocomplete="off"
+                     spellcheck="false">
+              ${extHtml}
+            </div>
+          </div>
+        </div>
+      `,
+      didOpen: () => {
+        const input = document.getElementById('swal-repo-rename-base') as HTMLInputElement | null;
+        if (!input) {
+          return;
+        }
+        input.focus();
+        input.select();
+        input.addEventListener('keydown', (ev: KeyboardEvent) => {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            Swal.clickConfirm();
+          }
+        });
+      },
+      preConfirm: () => {
+        const input = document.getElementById('swal-repo-rename-base') as HTMLInputElement | null;
+        let base = String(input?.value || '').trim();
+        if (ext) {
+          const extEsc = ext.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          base = base.replace(new RegExp(`${extEsc}$`, 'i'), '').trim();
+          base = base.replace(/\.[A-Za-z0-9]{1,10}$/, '').trim();
+        }
+        if (!base) {
+          Swal.showValidationMessage('Escribe un nombre para el archivo.');
+          return false;
+        }
+        if (/[/\\?%*:|"<>]/.test(base)) {
+          Swal.showValidationMessage('El nombre no puede contener caracteres especiales.');
+          return false;
+        }
+        const nombreFinal = `${base}${ext}`;
+        if (nombreFinal === nombreActual) {
+          Swal.showValidationMessage('El nombre es el mismo que el actual.');
+          return false;
+        }
+        return nombreFinal;
+      }
+    });
+
+    if (!nombre) {
+      return;
+    }
+
+    const nombreNuevo = String(nombre).trim();
+    try {
+      const resp: any = await firstValueFrom(
+        this.backend
+          .renombrarEmpresaRepositorio(this.empresaId, doc.id, nombreNuevo)
+          .pipe(takeUntil(this.destroy$))
+      );
+      const actualizado = resp?.documento;
+      if (actualizado && this.documentoActivo?.id === doc.id) {
+        this.documentoActivo = {
+          ...this.documentoActivo,
+          ...actualizado,
+          nombreArchivo: actualizado.nombreArchivo || nombreNuevo
+        };
+      }
+      this.cargarLista();
+      await Swal.fire({
+        icon: 'success',
+        title: 'Nombre actualizado',
+        html: `<p class="mb-1">El archivo ahora se llama <strong>${this.escapeHtml(nombreNuevo)}</strong>.</p>
+               <div class="fm-alert-destino"><i class="fab fa-google-drive"></i> También se actualizó en Drive</div>`,
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#38512F',
+        timer: 3200,
+        timerProgressBar: true,
+        customClass: { popup: 'swal2-fm-alert swal2-fm-alert--repo' }
+      });
+    } catch (err: any) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'No se pudo renombrar',
+        text: err?.error?.message || err?.message || 'No se pudo renombrar el documento.',
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#38512F',
+        customClass: { popup: 'swal2-fm-alert swal2-fm-alert--repo' }
+      });
+    }
+  }
+
+  /** Separa nombre base y extensión (.pdf, .jpg, …) para proteger la terminación al renombrar. */
+  private partirNombreArchivo(nombre: string): { base: string; ext: string } {
+    const full = String(nombre || '').trim();
+    const match = full.match(/^(.*?)(\.[A-Za-z0-9]{1,10})$/);
+    if (match && match[1]) {
+      return { base: match[1], ext: match[2] };
+    }
+    return { base: full, ext: '' };
+  }
+
   eliminarDocumento(doc: EmpresaRepoItem, event?: Event): void {
     event?.stopPropagation();
     if (!this.puedeAdministrar) {

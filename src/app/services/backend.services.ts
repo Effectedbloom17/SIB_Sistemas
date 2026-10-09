@@ -375,6 +375,12 @@ export class BackendServices {
         });
     }
 
+    renombrarEmpresaRepositorio(empresaId: number, id: number, nombre_archivo: string): Observable<any> {
+        return this.httpClient.put(`${this.baseUrl}/empresas/${empresaId}/repositorio/${id}/renombrar`, {
+            nombre_archivo
+        });
+    }
+
     subirEmpresaRepositorio(empresaId: number, payload: {
         nombre_archivo: string;
         mime_type?: string;

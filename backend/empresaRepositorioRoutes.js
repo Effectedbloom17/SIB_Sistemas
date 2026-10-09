@@ -67,7 +67,8 @@ function createEmpresaRepositorioRouter({
             msg.includes('no está vacía') ||
             msg.includes('subcarpetas') ||
             msg.includes('Máximo') ||
-            msg.includes('logo')
+            msg.includes('logo') ||
+            msg.includes('reservado')
         ) {
             return res.status(400).json({ success: false, message: msg });
         }
@@ -163,6 +164,22 @@ function createEmpresaRepositorioRouter({
             return res.json({ success: true, message: 'Documento movido.', documento });
         } catch (error) {
             return responderError(res, error, 'No se pudo mover el documento');
+        }
+    });
+
+    router.put('/:id/renombrar', requireAdmin, async (req, res) => {
+        try {
+            const empresaId = parseEmpresaId(req);
+            const id = parseDocId(req);
+            const documento = await empresaRepositorioService.renombrarDocumento(
+                poolOrThrow(),
+                empresaId,
+                id,
+                req.body || {}
+            );
+            return res.json({ success: true, message: 'Documento renombrado.', documento });
+        } catch (error) {
+            return responderError(res, error, 'No se pudo renombrar el documento');
         }
     });
 

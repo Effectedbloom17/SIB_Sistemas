@@ -414,6 +414,9 @@
                         <button type="button" class="sgc-extra-tile__btn" title="Descargar" (click)="descargarDocumento(doc, $event)">
                           <i class="fas fa-download" aria-hidden="true"></i>
                         </button>
+                        <button *ngIf="puedeAdministrar" type="button" class="sgc-extra-tile__btn" title="Renombrar" (click)="renombrarDocumento(doc, $event)">
+                          <i class="fas fa-i-cursor" aria-hidden="true"></i>
+                        </button>
                         <button *ngIf="puedeAdministrar" type="button" class="sgc-extra-tile__btn sgc-extra-tile__btn--danger" title="Eliminar" (click)="eliminarDocumento(doc, $event)">
                           <i class="fas fa-trash-alt" aria-hidden="true"></i>
                         </button>
@@ -483,6 +486,9 @@
                           </button>
                           <button type="button" class="repo-table__btn" title="Descargar" (click)="descargarDocumento(doc, $event)">
                             <i class="fas fa-download" aria-hidden="true"></i>
+                          </button>
+                          <button *ngIf="puedeAdministrar" type="button" class="repo-table__btn" title="Renombrar" (click)="renombrarDocumento(doc, $event)">
+                            <i class="fas fa-i-cursor" aria-hidden="true"></i>
                           </button>
                           <button *ngIf="puedeAdministrar" type="button" class="repo-table__btn repo-table__btn--danger" title="Eliminar" (click)="eliminarDocumento(doc, $event)">
                             <i class="fas fa-trash-alt" aria-hidden="true"></i>
@@ -633,6 +639,12 @@
                 class="btn btn-sm btn-light mr-2"
                 (click)="abrirEditorIntegrado()">
           <i class="fas fa-pen mr-1" aria-hidden="true"></i> Abrir editor integrado
+        </button>
+        <button *ngIf="puedeAdministrar"
+                type="button"
+                class="btn btn-sm btn-outline-light mr-2"
+                (click)="renombrarDocumento(documentoActivo)">
+          <i class="fas fa-i-cursor mr-1" aria-hidden="true"></i> Renombrar
         </button>
         <button type="button" class="btn btn-sm btn-outline-light mr-2" (click)="descargarActivo()">
           <i class="fas fa-download mr-1" aria-hidden="true"></i> Descargar
