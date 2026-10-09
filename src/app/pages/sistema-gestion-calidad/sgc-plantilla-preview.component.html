@@ -7475,7 +7475,8 @@
                                     <i class="fas fa-grip-vertical"></i>
                                   </span>
                                   <span class="sgc-f-28-crithead__no">{{ ci + 1 }}</span>
-                                  <select class="sgc-f-28-crithead__tipo-select"
+                                  <select *ngIf="crit.tipo !== 'otro'"
+                                    class="sgc-f-28-crithead__tipo-select"
                                     [name]="'sgcF28_crit_tipo_'+crit.id"
                                     [ngModel]="crit.tipo"
                                     [ngModelOptions]="{standalone: true}"
@@ -7484,6 +7485,30 @@
                                     (click)="$event.stopPropagation()">
                                     <option *ngFor="let t of sgcF28TiposCriterio" [value]="t.tipo">{{ t.etiqueta }}</option>
                                   </select>
+                                  <div *ngIf="crit.tipo === 'otro'" class="sgc-f-28-crithead__otro-slot">
+                                    <textarea class="sgc-f-28-crithead__etiqueta-input"
+                                      [name]="'sgcF28_crit_eti_'+crit.id"
+                                      [attr.rows]="filasTextoAjustadas(crit.etiqueta, 18, 6)"
+                                      [(ngModel)]="crit.etiqueta"
+                                      [ngModelOptions]="{standalone: true}"
+                                      placeholder="Nombre del criterio"
+                                      maxlength="500"
+                                      (mousedown)="$event.stopPropagation()"
+                                      (click)="$event.stopPropagation()"
+                                      (keydown.enter)="$event.stopPropagation()"
+                                      (ngModelChange)="onEtiquetaCriterioSgcF28Change(crit)"></textarea>
+                                    <select class="sgc-f-28-crithead__tipo-reselect"
+                                      [name]="'sgcF28_crit_tipo_'+crit.id"
+                                      [ngModel]="crit.tipo"
+                                      [ngModelOptions]="{standalone: true}"
+                                      (ngModelChange)="onTipoCriterioSgcF28Change(crit, $event)"
+                                      (mousedown)="$event.stopPropagation()"
+                                      (click)="$event.stopPropagation()"
+                                      title="Cambiar tipo de criterio"
+                                      aria-label="Cambiar tipo de criterio">
+                                      <option *ngFor="let t of sgcF28TiposCriterio" [value]="t.tipo">{{ t.etiqueta }}</option>
+                                    </select>
+                                  </div>
                                   <button type="button" class="sgc-f-28-crithead__del"
                                     (click)="eliminarCriterioSgcF28(ci); $event.stopPropagation()"
                                     (mousedown)="$event.stopPropagation()"

@@ -169,9 +169,6 @@
                   </li>
                 </ul>
               </div>
-              <button type="button" class="ges-emp-card__close" (click)="seleccionarEmpresaTablero(sel); $event.stopPropagation()" aria-label="Cerrar detalle">
-                <i class="fas fa-times"></i> Cerrar
-              </button>
             </article>
 
             <div class="ges-expand-body">
@@ -180,30 +177,40 @@
                 <ng-container *ngIf="resumenGeneralDe(sel) as rg">
                   <header class="ges-expand-main__head">
                     <h3>{{ sel.empresa_nombre }}</h3>
-                    <p>Resumen del avance de todas las normativas asignadas</p>
                   </header>
 
-                  <div class="ges-norma-chips" role="group" aria-label="Normativas">
-                    <div class="ges-loading ges-loading--inline" *ngIf="cargandoTablero">
-                      <i class="fas fa-spinner fa-spin"></i>
+                  <div class="ges-norma-picker">
+                    <div class="seg-search ges-search ges-search--chips">
+                      <i class="fas fa-search" aria-hidden="true"></i>
+                      <input type="search"
+                             [(ngModel)]="busquedaTableroNorma"
+                             placeholder="Buscar normativa asignada…"
+                             aria-label="Buscar normativas asignadas">
                     </div>
-                    <ng-container *ngIf="!cargandoTablero">
-                      <button type="button"
-                              class="ges-norma-chip"
-                              [class.is-active]="panelModo === 'general'"
-                              (click)="seleccionarPanelGeneral()">
-                        General
-                      </button>
-                      <button type="button"
-                              class="ges-norma-chip"
-                              *ngFor="let item of normativasPanel; trackBy: trackByAsignacionId"
-                              [class.is-active]="panelModo === 'normativa' && normativaFoco?.id === item.id"
-                              [title]="item.codigo"
-                              (click)="seleccionarNormativaFoco(item)">
-                        {{ codigoCorto(item.codigo) }}
-                      </button>
-                      <p class="ges-empty ges-empty--inline" *ngIf="!normativasPanel.length">Sin normativas asignadas.</p>
-                    </ng-container>
+                    <div class="ges-norma-chips" role="group" aria-label="Normativas">
+                      <div class="ges-loading ges-loading--inline" *ngIf="cargandoTablero">
+                        <i class="fas fa-spinner fa-spin"></i>
+                      </div>
+                      <ng-container *ngIf="!cargandoTablero">
+                        <button type="button"
+                                class="ges-norma-chip"
+                                [class.is-active]="panelModo === 'general'"
+                                (click)="seleccionarPanelGeneral()">
+                          General
+                        </button>
+                        <button type="button"
+                                class="ges-norma-chip"
+                                *ngFor="let item of normativasPanel; trackBy: trackByAsignacionId"
+                                [title]="item.codigo"
+                                [class.is-active]="panelModo === 'normativa' && normativaFoco?.id === item.id"
+                                (click)="seleccionarNormativaFoco(item)">
+                          {{ codigoCorto(item.codigo) }}
+                        </button>
+                        <p class="ges-empty ges-empty--inline" *ngIf="!normativasPanel.length">
+                          {{ busquedaTableroNorma.trim() ? 'Ninguna normativa coincide.' : 'Sin normativas asignadas.' }}
+                        </p>
+                      </ng-container>
+                    </div>
                   </div>
 
                   <div class="ges-tile-row" aria-label="Indicadores generales">
@@ -264,30 +271,40 @@
                 <div class="ges-expand-main" *ngIf="normativaFoco as foco">
                   <header class="ges-expand-main__head">
                     <h3>{{ foco.codigo }}</h3>
-                    <p>{{ foco.titulo }}</p>
                   </header>
 
-                  <div class="ges-norma-chips" role="group" aria-label="Normativas">
-                    <div class="ges-loading ges-loading--inline" *ngIf="cargandoTablero">
-                      <i class="fas fa-spinner fa-spin"></i>
+                  <div class="ges-norma-picker">
+                    <div class="seg-search ges-search ges-search--chips">
+                      <i class="fas fa-search" aria-hidden="true"></i>
+                      <input type="search"
+                             [(ngModel)]="busquedaTableroNorma"
+                             placeholder="Buscar normativa asignada…"
+                             aria-label="Buscar normativas asignadas">
                     </div>
-                    <ng-container *ngIf="!cargandoTablero">
-                      <button type="button"
-                              class="ges-norma-chip"
-                              [class.is-active]="panelModo === 'general'"
-                              (click)="seleccionarPanelGeneral()">
-                        General
-                      </button>
-                      <button type="button"
-                              class="ges-norma-chip"
-                              *ngFor="let item of normativasPanel; trackBy: trackByAsignacionId"
-                              [class.is-active]="panelModo === 'normativa' && normativaFoco?.id === item.id"
-                              [title]="item.codigo"
-                              (click)="seleccionarNormativaFoco(item)">
-                        {{ codigoCorto(item.codigo) }}
-                      </button>
-                      <p class="ges-empty ges-empty--inline" *ngIf="!normativasPanel.length">Sin normativas asignadas.</p>
-                    </ng-container>
+                    <div class="ges-norma-chips" role="group" aria-label="Normativas">
+                      <div class="ges-loading ges-loading--inline" *ngIf="cargandoTablero">
+                        <i class="fas fa-spinner fa-spin"></i>
+                      </div>
+                      <ng-container *ngIf="!cargandoTablero">
+                        <button type="button"
+                                class="ges-norma-chip"
+                                [class.is-active]="panelModo === 'general'"
+                                (click)="seleccionarPanelGeneral()">
+                          General
+                        </button>
+                        <button type="button"
+                                class="ges-norma-chip"
+                                *ngFor="let item of normativasPanel; trackBy: trackByAsignacionId"
+                                [title]="item.codigo"
+                                [class.is-active]="panelModo === 'normativa' && normativaFoco?.id === item.id"
+                                (click)="seleccionarNormativaFoco(item)">
+                          {{ codigoCorto(item.codigo) }}
+                        </button>
+                        <p class="ges-empty ges-empty--inline" *ngIf="!normativasPanel.length">
+                          {{ busquedaTableroNorma.trim() ? 'Ninguna normativa coincide.' : 'Sin normativas asignadas.' }}
+                        </p>
+                      </ng-container>
+                    </div>
                   </div>
 
                   <div class="ges-loading ges-loading--pulse ges-loading--inline" *ngIf="cargandoDetalle">
@@ -350,14 +367,31 @@
                 </div>
               </ng-template>
 
-              <!-- Derecha: gráfico + CTA gestionar -->
+              <!-- Derecha: cerrar + gráfico + CTA gestionar -->
               <aside class="ges-expand-aside">
+                <button type="button"
+                        class="ges-expand-aside__close"
+                        (click)="seleccionarEmpresaTablero(sel); $event.stopPropagation()"
+                        aria-label="Cerrar detalle">
+                  <i class="fas fa-times" aria-hidden="true"></i>
+                  <span>Cerrar</span>
+                </button>
                 <div class="ges-expand-aside__chart">
-                  <div class="ges-ring ges-ring--hero ges-ring--fly"
-                       *ngFor="let k of [tableroRingAnim]"
-                       [ngStyle]="anilloStyle(panelModo === 'normativa' && normativaFoco ? normativaFoco.avance : sel.avance)">
-                    <span>{{ panelModo === 'normativa' && normativaFoco ? normativaFoco.avance : sel.avance }}%</span>
-                    <em>{{ panelModo === 'normativa' ? 'completado' : 'avance general' }}</em>
+                  <div class="ges-meter-card ges-meter-card--fly" *ngFor="let k of [tableroRingAnim]">
+                    <div class="ges-meter-card__head">
+                      <strong>{{ panelModo === 'normativa' && normativaFoco ? normativaFoco.avance : sel.avance }}%</strong>
+                      <em>{{ panelModo === 'normativa' ? 'Completado' : 'Avance general' }}</em>
+                    </div>
+                    <div class="ges-meter" [attr.data-tone]="colorAvance(panelModo === 'normativa' && normativaFoco ? normativaFoco.avance : sel.avance)">
+                      <span class="ges-meter__track">
+                        <span class="ges-meter__fill"
+                              [style.width.%]="panelModo === 'normativa' && normativaFoco ? normativaFoco.avance : sel.avance"></span>
+                      </span>
+                    </div>
+                    <div class="ges-ring ges-ring--soft ges-ring--md"
+                         [ngStyle]="anilloStyle(panelModo === 'normativa' && normativaFoco ? normativaFoco.avance : sel.avance)">
+                      <span>{{ panelModo === 'normativa' && normativaFoco ? normativaFoco.avance : sel.avance }}%</span>
+                    </div>
                   </div>
                 </div>
 
@@ -431,15 +465,27 @@
             </div>
           </div>
           <div class="ges-panel-row__side">
-            <div class="ges-ring ges-ring--xl" [ngStyle]="anilloStyle(emp.avance)" [attr.data-tone]="colorAvance(emp.avance)">
-              <span>{{ emp.avance }}%</span>
-              <em>avance general</em>
+            <div class="ges-meter-card ges-meter-card--panel">
+              <div class="ges-meter-card__head">
+                <strong>{{ emp.avance }}%</strong>
+                <em>Avance general</em>
+              </div>
+              <div class="ges-meter" [attr.data-tone]="colorAvance(emp.avance)">
+                <span class="ges-meter__track">
+                  <span class="ges-meter__fill" [style.width.%]="emp.avance"></span>
+                </span>
+              </div>
+              <div class="ges-ring ges-ring--soft ges-ring--lg"
+                   [ngStyle]="anilloStyle(emp.avance)"
+                   [attr.data-tone]="colorAvance(emp.avance)">
+                <span>{{ emp.avance }}%</span>
+              </div>
             </div>
             <div class="ges-panel-row__bars" *ngIf="categoriasEmpresa.length">
               <h4>Grupos NOM</h4>
               <div class="ges-viz__row" *ngFor="let cat of categoriasEmpresa">
                 <span>{{ cat.prefijo }}</span>
-                <span class="ges-bar ges-bar--thick"><span class="ges-bar-fill" [style.width.%]="cat.avance" [attr.data-tone]="colorAvance(cat.avance)"></span></span>
+                <span class="ges-bar"><span class="ges-bar-fill" [style.width.%]="cat.avance" [attr.data-tone]="colorAvance(cat.avance)"></span></span>
                 <strong>{{ cat.avance }}%</strong>
               </div>
             </div>
@@ -451,7 +497,6 @@
               <div class="ges-panel-row__title">
                 <div class="ges-general-badge ges-general-badge--norma">Normativa</div>
                 <h2>{{ foco.codigo }}</h2>
-                <p>{{ foco.titulo }}</p>
               </div>
               <div class="ges-loading ges-loading--pulse ges-loading--inline" *ngIf="cargandoDetalle">
                 <i class="fas fa-spinner fa-spin"></i> Cargando normativa…
@@ -478,9 +523,21 @@
               </ng-container>
             </div>
             <div class="ges-panel-row__side" *ngIf="!cargandoDetalle && resumenNormativaFoco as rn">
-              <div class="ges-ring ges-ring--xl" [ngStyle]="anilloStyle(rn.avance)" [attr.data-tone]="colorAvance(rn.avance)">
-                <span>{{ rn.avance }}%</span>
-                <em>completado</em>
+              <div class="ges-meter-card ges-meter-card--panel">
+                <div class="ges-meter-card__head">
+                  <strong>{{ rn.avance }}%</strong>
+                  <em>Completado</em>
+                </div>
+                <div class="ges-meter" [attr.data-tone]="colorAvance(rn.avance)">
+                  <span class="ges-meter__track">
+                    <span class="ges-meter__fill" [style.width.%]="rn.avance"></span>
+                  </span>
+                </div>
+                <div class="ges-ring ges-ring--soft ges-ring--lg"
+                     [ngStyle]="anilloStyle(rn.avance)"
+                     [attr.data-tone]="colorAvance(rn.avance)">
+                  <span>{{ rn.avance }}%</span>
+                </div>
               </div>
               <button type="button" class="btn ges-btn" (click)="abrirNormativaFoco()">
                 Gestionar requisitos <i class="fas fa-arrow-right"></i>
@@ -499,7 +556,7 @@
           <div class="seg-search ges-search ges-search--inline">
             <i class="fas fa-search"></i>
             <input type="search" [(ngModel)]="busquedaNorma" (ngModelChange)="alCambiarBusquedaNorma()"
-                   placeholder="Buscar NOM, título o responsable…" aria-label="Buscar normativas asignadas">
+                   placeholder="Buscar NOM o responsable…" aria-label="Buscar normativas asignadas">
           </div>
         </div>
         <div class="seg-chips ges-picker__chips" role="group">
@@ -515,21 +572,26 @@
         </div>
         <div class="ges-picker__rail">
           <button type="button"
-                  class="ges-picker__item ges-picker__item--general"
+                  class="ges-picker__item ges-picker__item--general ges-picker__item--code-only"
                   [class.is-active]="panelModo === 'general'"
                   (click)="seleccionarPanelGeneral()">
             <span class="ges-picker__code">General</span>
-            <span class="ges-picker__title">Resumen de todas las normativas</span>
-            <span class="ges-ring ges-ring--sm" [ngStyle]="anilloStyle(emp.avance)"><span>{{ emp.avance }}%</span></span>
+            <span class="ges-picker__pct" [attr.data-tone]="colorAvance(emp.avance)">{{ emp.avance }}%</span>
+            <span class="ges-meter ges-meter--mini" [attr.data-tone]="colorAvance(emp.avance)">
+              <span class="ges-meter__track"><span class="ges-meter__fill" [style.width.%]="emp.avance"></span></span>
+            </span>
           </button>
           <button type="button"
-                  class="ges-picker__item"
+                  class="ges-picker__item ges-picker__item--code-only"
                   *ngFor="let item of asignacionesFiltradasEmpresa; trackBy: trackByAsignacionId"
                   [class.is-active]="panelModo === 'normativa' && normativaFoco?.id === item.id"
+                  [title]="item.codigo"
                   (click)="seleccionarNormativaFoco(item)">
             <span class="ges-picker__code">{{ item.codigo }}</span>
-            <span class="ges-picker__title">{{ item.titulo }}</span>
-            <span class="ges-ring ges-ring--sm" [ngStyle]="anilloStyle(item.avance)"><span>{{ item.avance }}%</span></span>
+            <span class="ges-picker__pct" [attr.data-tone]="colorAvance(item.avance)">{{ item.avance }}%</span>
+            <span class="ges-meter ges-meter--mini" [attr.data-tone]="colorAvance(item.avance)">
+              <span class="ges-meter__track"><span class="ges-meter__fill" [style.width.%]="item.avance"></span></span>
+            </span>
           </button>
         </div>
         <p class="ges-empty ges-empty--inline" *ngIf="!asignacionesFiltradasEmpresa.length">
@@ -567,8 +629,16 @@
           </p>
         </div>
         <div class="ges-norm-head__aside">
-          <div class="ges-ring ges-ring--lg" [ngStyle]="anilloStyle(det.asignacion.avance)">
-            <span>{{ det.asignacion.avance }}%</span>
+          <div class="ges-meter-card ges-meter-card--inline">
+            <div class="ges-meter-card__head">
+              <strong>{{ det.asignacion.avance }}%</strong>
+              <em>Avance</em>
+            </div>
+            <div class="ges-meter" [attr.data-tone]="colorAvance(det.asignacion.avance)">
+              <span class="ges-meter__track">
+                <span class="ges-meter__fill" [style.width.%]="det.asignacion.avance"></span>
+              </span>
+            </div>
           </div>
           <button type="button" class="btn ges-btn-ghost ges-btn-ghost--sm" (click)="archivar()">Retirar</button>
         </div>
@@ -580,35 +650,93 @@
         <span class="ges-estado-chip" data-estado="no_cumple"><i class="fas fa-exclamation-circle"></i> {{ conteoEstadosPuntos().no_cumple }} pendiente</span>
         <div class="seg-search ges-search ges-search--grow ges-search--inline">
           <i class="fas fa-search"></i>
-          <input type="search" [(ngModel)]="busquedaPunto" placeholder="Buscar requisito…" aria-label="Buscar puntos">
+          <input type="search" [(ngModel)]="busquedaPunto" placeholder="Buscar requisito, acción o responsable…" aria-label="Buscar puntos">
         </div>
+        <span class="ges-estado-strip__count">{{ puntosFiltrados.length }} requisito(s)</span>
       </div>
 
-      <div class="ges-req-list ges-req-list--caps">
-        <section class="ges-cap-block ges-enter" *ngFor="let bloque of bloquesCapitulo; let bi = index" [style.animation-delay]="retrasoEntrada(bi, 25)">
-          <header class="ges-cap-block__head">
-            <h3>{{ bloque.clave }}</h3>
-            <span>{{ bloque.puntos.length }} requisito(s)</span>
-          </header>
-          <button type="button"
-                  class="ges-req-row"
-                  *ngFor="let punto of bloque.puntos; let i = index"
-                  (click)="abrirPunto(punto)">
-            <span class="ges-req-row__num">{{ punto.punto_norma || '—' }}</span>
-            <div class="ges-req-row__main">
-              <p>{{ punto.descripcion || 'Sin descripción' }}</p>
-              <span class="ges-req-row__tags">
-                <em *ngIf="punto.tipo_evidencia">{{ punto.tipo_evidencia }}</em>
-                <em *ngIf="punto.formato_archivo"><i class="fas fa-file-alt"></i> Formato</em>
-              </span>
-            </div>
-            <span class="ges-status" [attr.data-estado]="punto.estado">{{ etiquetaEstado(punto.estado) }}</span>
-            <span class="ges-req-row__fecha">{{ fechaCorta(punto.ultima_evidencia) }}</span>
-            <span class="ges-req-row__docs" *ngIf="punto.documentos.length"><i class="fas fa-paperclip"></i> {{ punto.documentos.length }}</span>
-            <i class="fas fa-chevron-right ges-req-row__go"></i>
-          </button>
-        </section>
-        <p class="ges-empty ges-empty--inline" *ngIf="puntosFiltrados.length === 0">Ningún punto coincide.</p>
+      <p class="ges-plantilla-hint ges-enter" [style.animation-delay]="'90ms'">
+        <i class="fas fa-table" aria-hidden="true"></i>
+        Matriz alineada a la plantilla: Item, Aplica, DOCUMENTAL/FÍSICO, Periodicidad, acciones preventiva/correctiva (100–0), fechas, responsable, avance, evidencia y observaciones.
+      </p>
+
+      <div class="ges-matriz-wrap ges-enter" [style.animation-delay]="'100ms'">
+        <table class="ges-matriz" *ngIf="puntosFiltrados.length; else sinPuntosMatriz">
+          <thead>
+            <tr>
+              <th rowspan="2" class="ges-matriz__sticky">Item</th>
+              <th rowspan="2" class="ges-matriz__sticky ges-matriz__sticky--2">Punto</th>
+              <th rowspan="2" class="ges-matriz__col-desc">Descripción del requisito</th>
+              <th rowspan="2">Aplica</th>
+              <th rowspan="2">Doc. / Físico</th>
+              <th rowspan="2">Periodicidad</th>
+              <th colspan="3" class="ges-matriz__group ges-matriz__group--prev">Tipo de acción preventiva</th>
+              <th colspan="3" class="ges-matriz__group ges-matriz__group--corr">Tipo de acción correctiva</th>
+              <th rowspan="2">Fecha inicio</th>
+              <th rowspan="2">Fecha terminación</th>
+              <th rowspan="2">Responsable</th>
+              <th rowspan="2">Indicador de avance</th>
+              <th rowspan="2" class="ges-matriz__col-evid">Evidencia documental o fotografía requerida</th>
+              <th rowspan="2" class="ges-matriz__col-obs">Observaciones</th>
+              <th rowspan="2">Estatus</th>
+            </tr>
+            <tr>
+              <th class="ges-matriz__score">Conservar<br><em>100</em></th>
+              <th class="ges-matriz__score">Mejorar<br><em>80</em></th>
+              <th class="ges-matriz__score">Actualizar<br><em>60</em></th>
+              <th class="ges-matriz__score">Complementar<br><em>40</em></th>
+              <th class="ges-matriz__score">Corregir<br><em>20</em></th>
+              <th class="ges-matriz__score">Realizar<br><em>0</em></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let punto of puntosFiltrados"
+                class="ges-matriz__row"
+                [attr.data-estado]="punto.estado"
+                (click)="abrirPunto(punto)"
+                tabindex="0"
+                (keydown.enter)="abrirPunto(punto)">
+              <td class="ges-matriz__sticky">{{ punto.numero_item ?? '—' }}</td>
+              <td class="ges-matriz__sticky ges-matriz__sticky--2 ges-matriz__punto">{{ punto.punto_norma || '—' }}</td>
+              <td class="ges-matriz__col-desc">
+                <p>{{ punto.descripcion || 'Sin descripción' }}</p>
+              </td>
+              <td>
+                <span class="ges-aplica" [attr.data-aplica]="punto.aplica === true ? 'si' : (punto.aplica === false ? 'no' : 'nd')">
+                  {{ etiquetaAplica(punto.aplica) }}
+                </span>
+              </td>
+              <td>{{ punto.tipo_evidencia || '—' }}</td>
+              <td>{{ punto.periodicidad || '—' }}</td>
+              <td class="ges-matriz__check" [class.is-on]="punto.acciones.preventiva.conservar"><i class="fas" [class.fa-check]="punto.acciones.preventiva.conservar" [class.fa-minus]="!punto.acciones.preventiva.conservar"></i></td>
+              <td class="ges-matriz__check" [class.is-on]="punto.acciones.preventiva.mejorar"><i class="fas" [class.fa-check]="punto.acciones.preventiva.mejorar" [class.fa-minus]="!punto.acciones.preventiva.mejorar"></i></td>
+              <td class="ges-matriz__check" [class.is-on]="punto.acciones.preventiva.actualizar"><i class="fas" [class.fa-check]="punto.acciones.preventiva.actualizar" [class.fa-minus]="!punto.acciones.preventiva.actualizar"></i></td>
+              <td class="ges-matriz__check" [class.is-on]="punto.acciones.correctiva.complementar"><i class="fas" [class.fa-check]="punto.acciones.correctiva.complementar" [class.fa-minus]="!punto.acciones.correctiva.complementar"></i></td>
+              <td class="ges-matriz__check" [class.is-on]="punto.acciones.correctiva.corregir"><i class="fas" [class.fa-check]="punto.acciones.correctiva.corregir" [class.fa-minus]="!punto.acciones.correctiva.corregir"></i></td>
+              <td class="ges-matriz__check" [class.is-on]="punto.acciones.correctiva.realizar"><i class="fas" [class.fa-check]="punto.acciones.correctiva.realizar" [class.fa-minus]="!punto.acciones.correctiva.realizar"></i></td>
+              <td>{{ fechaIsoCorta(punto.fecha_inicio) }}</td>
+              <td>{{ fechaIsoCorta(punto.fecha_terminacion) }}</td>
+              <td>
+                <span class="ges-tag ges-tag--resp" [attr.data-resp]="punto.responsable">{{ punto.responsable }}</span>
+              </td>
+              <td class="ges-matriz__avance">
+                <span class="ges-meter ges-meter--mini" [attr.data-tone]="colorAvance(avancePunto(punto))">
+                  <span class="ges-meter__track"><span class="ges-meter__fill" [style.width.%]="avancePunto(punto)"></span></span>
+                </span>
+                <strong>{{ avancePunto(punto) }}%</strong>
+              </td>
+              <td class="ges-matriz__col-evid">{{ punto.evidencia_requerida || '—' }}</td>
+              <td class="ges-matriz__col-obs">{{ punto.observaciones || '—' }}</td>
+              <td>
+                <span class="ges-status" [attr.data-estado]="punto.estado">{{ etiquetaEstado(punto.estado) }}</span>
+                <small *ngIf="punto.documentos.length" class="ges-matriz__docs"><i class="fas fa-paperclip"></i> {{ punto.documentos.length }}</small>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <ng-template #sinPuntosMatriz>
+          <p class="ges-empty ges-empty--inline">Ningún punto coincide.</p>
+        </ng-template>
       </div>
     </ng-container>
   </div>
@@ -629,20 +757,101 @@
 
         <header class="ges-punto-banner ges-enter" [attr.data-estado]="punto.estado">
           <div>
-            <span class="ges-punto-banner__clave">Requisito {{ punto.punto_norma || '—' }}</span>
+            <span class="ges-punto-banner__clave">
+              <span *ngIf="punto.numero_item != null">Item {{ punto.numero_item }} · </span>
+              Punto {{ punto.punto_norma || '—' }}
+            </span>
             <h2>{{ det.asignacion.codigo }}</h2>
-            <p *ngIf="punto.tipo_evidencia || punto.periodicidad">
-              <span *ngIf="punto.tipo_evidencia">{{ punto.tipo_evidencia }}</span>
+            <p>
+              <span class="ges-aplica" [attr.data-aplica]="punto.aplica === true ? 'si' : (punto.aplica === false ? 'no' : 'nd')">
+                {{ etiquetaAplica(punto.aplica) }}
+              </span>
+              <span *ngIf="punto.tipo_evidencia"> · {{ punto.tipo_evidencia }}</span>
               <span *ngIf="punto.periodicidad"> · {{ punto.periodicidad }}</span>
             </p>
           </div>
-          <span class="ges-status ges-status--lg" [attr.data-estado]="punto.estado">{{ etiquetaEstado(punto.estado) }}</span>
+          <div class="ges-punto-banner__aside">
+            <div class="ges-meter-card ges-meter-card--inline">
+              <div class="ges-meter-card__head">
+                <strong>{{ avancePunto(punto) }}%</strong>
+                <em>Indicador</em>
+              </div>
+              <div class="ges-meter" [attr.data-tone]="colorAvance(avancePunto(punto))">
+                <span class="ges-meter__track">
+                  <span class="ges-meter__fill" [style.width.%]="avancePunto(punto)"></span>
+                </span>
+              </div>
+            </div>
+            <span class="ges-status ges-status--lg" [attr.data-estado]="punto.estado">{{ etiquetaEstado(punto.estado) }}</span>
+          </div>
         </header>
+
+        <section class="ges-punto-facts ges-enter" [style.animation-delay]="'40ms'">
+          <article class="ges-fact">
+            <span>Aplica / No aplica</span>
+            <strong>{{ etiquetaAplica(punto.aplica) }}</strong>
+          </article>
+          <article class="ges-fact">
+            <span>DOCUMENTAL / FÍSICO</span>
+            <strong>{{ punto.tipo_evidencia || '—' }}</strong>
+          </article>
+          <article class="ges-fact">
+            <span>Periodicidad</span>
+            <strong>{{ punto.periodicidad || '—' }}</strong>
+          </article>
+          <article class="ges-fact" [attr.data-grupo]="tipoAccionGrupo(punto)">
+            <span>Tipo de acción</span>
+            <strong>{{ etiquetaAccionActiva(punto) }}</strong>
+          </article>
+          <article class="ges-fact">
+            <span>Fecha de inicio</span>
+            <strong>{{ fechaIsoCorta(punto.fecha_inicio) }}</strong>
+          </article>
+          <article class="ges-fact">
+            <span>Fecha de terminación</span>
+            <strong>{{ fechaIsoCorta(punto.fecha_terminacion) }}</strong>
+          </article>
+          <article class="ges-fact">
+            <span>Responsable</span>
+            <strong>{{ punto.responsable }}</strong>
+          </article>
+          <article class="ges-fact ges-fact--wide">
+            <span>Indicador de avance</span>
+            <div class="ges-fact__avance">
+              <span class="ges-meter" [attr.data-tone]="colorAvance(avancePunto(punto))">
+                <span class="ges-meter__track"><span class="ges-meter__fill" [style.width.%]="avancePunto(punto)"></span></span>
+              </span>
+              <strong>{{ avancePunto(punto) }}%</strong>
+            </div>
+          </article>
+          <article class="ges-fact ges-fact--full" *ngIf="punto.evidencia_requerida">
+            <span>Evidencia documental o fotografía requerida</span>
+            <strong>{{ punto.evidencia_requerida }}</strong>
+          </article>
+          <article class="ges-fact ges-fact--full" *ngIf="punto.observaciones">
+            <span>Observaciones</span>
+            <strong>{{ punto.observaciones }}</strong>
+          </article>
+          <div class="ges-fact-acciones" aria-label="Acciones preventiva y correctiva">
+            <div class="ges-fact-acciones__grupo">
+              <h4>Preventiva</h4>
+              <span [class.is-on]="punto.acciones.preventiva.conservar">Conservar <em>100</em></span>
+              <span [class.is-on]="punto.acciones.preventiva.mejorar">Mejorar <em>80</em></span>
+              <span [class.is-on]="punto.acciones.preventiva.actualizar">Actualizar <em>60</em></span>
+            </div>
+            <div class="ges-fact-acciones__grupo ges-fact-acciones__grupo--corr">
+              <h4>Correctiva</h4>
+              <span [class.is-on]="punto.acciones.correctiva.complementar">Complementar <em>40</em></span>
+              <span [class.is-on]="punto.acciones.correctiva.corregir">Corregir <em>20</em></span>
+              <span [class.is-on]="punto.acciones.correctiva.realizar">Realizar <em>0</em></span>
+            </div>
+          </div>
+        </section>
 
         <div class="ges-punto-grid ges-enter" [style.animation-delay]="'60ms'">
           <section class="ges-punto-col">
             <article class="ges-box ges-box--flat ges-box--lectura">
-              <h3><i class="fas fa-align-left"></i> Descripción</h3>
+              <h3><i class="fas fa-align-left"></i> Descripción del requisito</h3>
               <div class="pto-ficha__text ges-lectura"
                    *ngIf="lecturaHtml; else descPlano"
                    [innerHTML]="lecturaHtml"

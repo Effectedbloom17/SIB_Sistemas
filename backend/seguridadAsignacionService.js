@@ -802,7 +802,11 @@ async function obtenerGestion(pool, asignacionId) {
     try {
         [puntos] = await pool.query(
             `SELECT r.id, r.numero_item, r.punto_norma, r.descripcion, r.descripcion_html,
-                    r.tipo_evidencia, r.periodicidad, r.evidencia_requerida, r.responsable,
+                    r.aplica, r.tipo_evidencia, r.periodicidad,
+                    r.accion_prev_conservar, r.accion_prev_mejorar, r.accion_prev_actualizar,
+                    r.accion_corr_complementar, r.accion_corr_corregir, r.accion_corr_realizar,
+                    r.fecha_inicio, r.fecha_terminacion, r.responsable, r.indicador_avance,
+                    r.evidencia_requerida, r.observaciones,
                     r.formato_nombre, r.formato_archivo, r.formato_nombre_archivo, r.orden,
                     (SELECT MAX(d.creado_en) FROM seg_asignacion_documento d
                       WHERE d.asignacion_id = ? AND d.requisito_id = r.id) AS ultima_evidencia
@@ -816,7 +820,7 @@ async function obtenerGestion(pool, asignacionId) {
         if (err?.code !== 'ER_BAD_FIELD_ERROR') throw err;
         [puntos] = await pool.query(
             `SELECT r.id, r.numero_item, r.punto_norma, r.descripcion,
-                    r.tipo_evidencia, r.periodicidad, r.evidencia_requerida,
+                    r.tipo_evidencia, r.periodicidad, r.evidencia_requerida, r.responsable,
                     r.formato_nombre, r.formato_archivo, r.orden,
                     (SELECT MAX(d.creado_en) FROM seg_asignacion_documento d
                       WHERE d.asignacion_id = ? AND d.requisito_id = r.id) AS ultima_evidencia
@@ -850,14 +854,31 @@ async function obtenerGestion(pool, asignacionId) {
             const documentos = docsMap.filter((d) => Number(d.requisito_id) === Number(row.id));
             return {
                 id: row.id,
-                numero_item: row.numero_item,
+                numero_item: row.numero_item != null ? Number(row.numero_item) : null,
                 punto_norma: formatearPuntoNorma(row.punto_norma) || '',
                 descripcion: row.descripcion || '',
                 descripcion_html: row.descripcion_html || null,
+                aplica: row.aplica == null ? null : !!Number(row.aplica),
                 tipo_evidencia: row.tipo_evidencia || null,
                 periodicidad: row.periodicidad || null,
-                evidencia_requerida: row.evidencia_requerida || null,
+                acciones: {
+                    preventiva: {
+                        conservar: !!Number(row.accion_prev_conservar || 0),
+                        mejorar: !!Number(row.accion_prev_mejorar || 0),
+                        actualizar: !!Number(row.accion_prev_actualizar || 0)
+                    },
+                    correctiva: {
+                        complementar: !!Number(row.accion_corr_complementar || 0),
+                        corregir: !!Number(row.accion_corr_corregir || 0),
+                        realizar: !!Number(row.accion_corr_realizar || 0)
+                    }
+                },
+                fecha_inicio: row.fecha_inicio || null,
+                fecha_terminacion: row.fecha_terminacion || null,
                 responsable: normalizarResponsableGestion(row.responsable),
+                indicador_avance: row.indicador_avance != null ? Number(row.indicador_avance) : null,
+                evidencia_requerida: row.evidencia_requerida || null,
+                observaciones: row.observaciones || null,
                 formato_nombre: row.formato_nombre || null,
                 formato_archivo: row.formato_archivo || null,
                 formato_nombre_archivo: row.formato_nombre_archivo || null,

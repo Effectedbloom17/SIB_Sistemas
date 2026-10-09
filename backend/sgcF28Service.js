@@ -33,7 +33,8 @@ const TIPOS_CRITERIO = [
     'metodo_pago',
     'requiere_cotizacion_previa',
     'modelo',
-    'material'
+    'material',
+    'otro'
 ];
 
 const ETIQUETAS_TIPO = {
@@ -45,7 +46,8 @@ const ETIQUETAS_TIPO = {
     metodo_pago: 'Método de Pago',
     requiere_cotizacion_previa: 'Requiere Cotización Previa',
     modelo: 'Modelo',
-    material: 'Material'
+    material: 'Material',
+    otro: 'Otro'
 };
 
 const MONEDAS = ['MXN', 'USD', 'EUR', '-'];
@@ -569,6 +571,7 @@ function datosAActualizacionesSheet(datos, sheetTitle, layout) {
         const crit = criterios[i];
         pushUpdate(actualizaciones, row, 1, String(i + 1), sheetTitle);
         if (crit) {
+            // Conservar \n del usuario (Otro); el wrap visual lo aplica el formato WRAP de col. B.
             pushUpdate(actualizaciones, row, 2, crit.etiqueta || ETIQUETAS_TIPO[crit.tipo] || '', sheetTitle);
             for (let j = 0; j < MAX_PROVEEDORES; j++) {
                 const col = PROVEEDOR_COLS[j];
@@ -847,20 +850,63 @@ async function aplicarFormatoCeldasComparativa(spreadsheetId, sheetTitle, layout
             }
         });
 
-        // Criterios por fila (tipografía / alto según líneas con \n)
+        // Columna B (criterios / Resultado / Observaciones): Ajuste de texto + vertical Medio
+        requests.push({
+            repeatCell: {
+                range: {
+                    sheetId,
+                    startRowIndex: CRITERIO_START_ROW - 1,
+                    endRowIndex: obsRow + 2,
+                    startColumnIndex: 1,
+                    endColumnIndex: 2
+                },
+                cell: {
+                    userEnteredFormat: {
+                        horizontalAlignment: 'CENTER',
+                        verticalAlignment: 'MIDDLE',
+                        wrapStrategy: 'WRAP',
+                        textFormat: { fontFamily: 'Century Gothic', fontSize: 10 }
+                    }
+                },
+                fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)'
+            }
+        });
+        requests.push({
+            updateDimensionProperties: {
+                range: {
+                    sheetId,
+                    dimension: 'COLUMNS',
+                    startIndex: 1,
+                    endIndex: 2
+                },
+                properties: { pixelSize: 160 },
+                fields: 'pixelSize'
+            }
+        });
+
+        // Criterios por fila (tipografía / alto según líneas con \n, incl. etiqueta col. B)
         const criterios = comparativa?.criterios || [];
+        const ANCHO_ETIQUETA_COL_B = 18;
         for (let i = 0; i < nCrit; i++) {
             const crit = criterios[i];
             const tipo = crit?.tipo;
             const rowIndex = CRITERIO_START_ROW - 1 + i;
             const fontSize = tipo === 'liga_compra' ? 9 : 10;
+            const etiquetaTxt = softWrapTextoExcel(
+                crit?.etiqueta || ETIQUETAS_TIPO[tipo] || '',
+                ANCHO_ETIQUETA_COL_B
+            );
             let pixelSize;
             if (tipo === 'imagen') {
                 pixelSize = 120;
             } else if (tipo === 'precio') {
-                pixelSize = 36;
+                pixelSize = Math.max(36, estimarAltoFilaPx(contarLineasTexto(etiquetaTxt), {
+                    min: 36,
+                    max: 120,
+                    porLinea: 16
+                }));
             } else {
-                let maxLineas = 1;
+                let maxLineas = contarLineasTexto(etiquetaTxt);
                 for (let j = 0; j < MAX_PROVEEDORES; j++) {
                     const txt = valorCriterioATexto(crit, crit?.valores?.[j]);
                     maxLineas = Math.max(maxLineas, contarLineasTexto(txt));

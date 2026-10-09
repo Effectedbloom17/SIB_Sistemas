@@ -991,6 +991,7 @@ function mapRequisitoRow(row) {
         punto_norma: formatearPuntoNorma(row.punto_norma),
         descripcion: row.descripcion,
         descripcion_html: row.descripcion_html || null,
+        aplica: row.aplica == null ? null : !!Number(row.aplica),
         tipo_evidencia: row.tipo_evidencia,
         periodicidad: row.periodicidad,
         acciones: {

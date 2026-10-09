@@ -1098,7 +1098,8 @@ type SgcF28CriterioTipo =
   | 'metodo_pago'
   | 'requiere_cotizacion_previa'
   | 'modelo'
-  | 'material';
+  | 'material'
+  | 'otro';
 
 type SgcF28Moneda = 'MXN' | 'USD' | 'EUR' | '-';
 type SgcF28Resultado = '' | 'Viable' | 'Descartado';
@@ -3130,7 +3131,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     { tipo: 'metodo_pago', etiqueta: 'Método de Pago' },
     { tipo: 'requiere_cotizacion_previa', etiqueta: 'Requiere Cotización Previa' },
     { tipo: 'modelo', etiqueta: 'Modelo' },
-    { tipo: 'material', etiqueta: 'Material' }
+    { tipo: 'material', etiqueta: 'Material' },
+    { tipo: 'otro', etiqueta: 'Otro' }
   ];
   readonly sgcF28Monedas: Array<{ valor: SgcF28Moneda; etiqueta: string }> = [
     { valor: 'MXN', etiqueta: 'MXN ($)' },
@@ -18954,6 +18956,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         return 'https://tienda.com/producto';
       case 'precio':
         return '0.00';
+      case 'otro':
+        return 'Escribe el valor…';
       default:
         return 'Escribe el valor…';
     }
@@ -18969,7 +18973,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       metodo_pago: 'fa-credit-card',
       requiere_cotizacion_previa: 'fa-file-alt',
       modelo: 'fa-cube',
-      material: 'fa-th'
+      material: 'fa-th',
+      otro: 'fa-pen'
     };
     return map[tipo] || 'fa-tag';
   }
@@ -19266,13 +19271,24 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     const etiquetaDefaultPrev = this.etiquetaTipoSgcF28(tipoPrev);
     const etiquetaEraDefault = !crit.etiqueta
-      || crit.etiqueta.trim().toLowerCase() === etiquetaDefaultPrev.toLowerCase();
+      || crit.etiqueta.trim().toLowerCase() === etiquetaDefaultPrev.toLowerCase()
+      || (tipoPrev === 'otro' && !crit.etiqueta.trim());
     crit.tipo = tipoNuevo;
-    if (etiquetaEraDefault) {
+    if (tipoNuevo === 'otro') {
+      // Nombre libre: vaciar si venía del default del tipo anterior.
+      crit.etiqueta = etiquetaEraDefault ? '' : crit.etiqueta;
+    } else if (etiquetaEraDefault || tipoPrev === 'otro') {
       crit.etiqueta = this.etiquetaTipoSgcF28(tipoNuevo);
     }
     crit.valores = Array.from({ length: 5 }, () => this.crearValorSgcF28(tipoNuevo));
     this.registrarCatalogoCriterioSgcF28(crit);
+    this.onSgcF28Editado();
+  }
+
+  onEtiquetaCriterioSgcF28Change(crit: SgcF28Criterio): void {
+    if (crit?.tipo === 'otro') {
+      this.registrarCatalogoCriterioSgcF28(crit);
+    }
     this.onSgcF28Editado();
   }
 

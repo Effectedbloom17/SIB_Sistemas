@@ -73,14 +73,26 @@ interface AsignacionResumen {
   categoria?: CategoriaAvance;
 }
 
+interface AccionesPunto {
+  preventiva: { conservar: boolean; mejorar: boolean; actualizar: boolean };
+  correctiva: { complementar: boolean; corregir: boolean; realizar: boolean };
+}
+
 interface PuntoGestion {
   id: number;
+  numero_item: number | null;
   punto_norma: string;
   descripcion: string;
   descripcion_html?: string | null;
+  aplica: boolean | null;
   tipo_evidencia: string | null;
   periodicidad: string | null;
+  acciones: AccionesPunto;
+  fecha_inicio: string | null;
+  fecha_terminacion: string | null;
   evidencia_requerida?: string | null;
+  observaciones: string | null;
+  indicador_avance: number | null;
   responsable: 'Empresa' | 'Cliente';
   formato_nombre: string | null;
   formato_archivo: string | null;
@@ -90,6 +102,16 @@ interface PuntoGestion {
   imagenes: ImagenPuntoLite[];
   documentos: DocumentoItem[];
 }
+
+/** Pesos de la plantilla Excel (acción preventiva / correctiva). */
+const ACCION_PESOS = {
+  conservar: 100,
+  mejorar: 80,
+  actualizar: 60,
+  complementar: 40,
+  corregir: 20,
+  realizar: 0
+} as const;
 
 interface ResumenResponsables {
   cerrados_empresa: number;
@@ -144,6 +166,8 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
   empresas: EmpresaResumen[] = [];
   busqueda = '';
   busquedaNorma = '';
+  /** Filtro de chips de normativas en el panel expandido del tablero. */
+  busquedaTableroNorma = '';
   anioEvidencia = new Date().getFullYear();
   readonly aniosEvidencia = [
     new Date().getFullYear() - 1,
@@ -235,6 +259,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     this.empresaSeleccionada = null;
     this.asignacionesTablero = [];
     this.cargandoTablero = false;
+    this.busquedaTableroNorma = '';
     this.resumenTableroResp = {
       cerrados_empresa: 0,
       abiertos_empresa: 0,
@@ -288,6 +313,11 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
       p.punto_norma.toLowerCase().includes(q)
       || p.descripcion.toLowerCase().includes(q)
       || (p.tipo_evidencia || '').toLowerCase().includes(q)
+      || (p.periodicidad || '').toLowerCase().includes(q)
+      || (p.observaciones || '').toLowerCase().includes(q)
+      || (p.evidencia_requerida || '').toLowerCase().includes(q)
+      || String(p.numero_item ?? '').includes(q)
+      || p.responsable.toLowerCase().includes(q)
     );
   }
 
@@ -575,14 +605,37 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
   }
 
   private mapearPunto(p: any): PuntoGestion {
+    const accionesRaw = p?.acciones || {};
+    const prev = accionesRaw.preventiva || {};
+    const corr = accionesRaw.correctiva || {};
     return {
       id: Number(p.id),
+      numero_item: p.numero_item != null && p.numero_item !== '' ? Number(p.numero_item) : null,
       punto_norma: String(p.punto_norma || '').trim(),
       descripcion: String(p.descripcion || '').trim(),
       descripcion_html: p.descripcion_html || null,
+      aplica: p.aplica == null ? null : !!p.aplica,
       tipo_evidencia: p.tipo_evidencia || null,
       periodicidad: p.periodicidad || null,
+      acciones: {
+        preventiva: {
+          conservar: !!prev.conservar,
+          mejorar: !!prev.mejorar,
+          actualizar: !!prev.actualizar
+        },
+        correctiva: {
+          complementar: !!corr.complementar,
+          corregir: !!corr.corregir,
+          realizar: !!corr.realizar
+        }
+      },
+      fecha_inicio: p.fecha_inicio || null,
+      fecha_terminacion: p.fecha_terminacion || null,
       evidencia_requerida: p.evidencia_requerida || null,
+      observaciones: p.observaciones || null,
+      indicador_avance: p.indicador_avance != null && p.indicador_avance !== ''
+        ? Number(p.indicador_avance)
+        : null,
       responsable: p.responsable === 'Cliente' ? 'Cliente' : 'Empresa',
       formato_nombre: p.formato_nombre || null,
       formato_archivo: p.formato_archivo || null,
@@ -749,8 +802,13 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
 
   /** Lista de normativas del panel expandido (tablero) o de la vista empresa. */
   get normativasPanel(): AsignacionResumen[] {
-    if (this.vista === 'empresas') return this.asignacionesTablero;
-    return this.asignaciones;
+    const lista = this.vista === 'empresas' ? this.asignacionesTablero : this.asignaciones;
+    const q = this.busquedaTableroNorma.trim().toLowerCase();
+    if (!q) return lista;
+    return lista.filter((a) =>
+      a.codigo.toLowerCase().includes(q)
+      || this.codigoCorto(a.codigo).toLowerCase().includes(q)
+    );
   }
 
   trackByAsignacionId(_: number, item: AsignacionResumen): number {
@@ -823,17 +881,76 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
 
   colorAnillo(pct: number): string {
     const t = this.colorAvance(pct);
-    if (t === 'ok') return '#0d9488';
-    if (t === 'mid') return '#ea580c';
-    return '#dc2626';
+    if (t === 'ok') return '#0f766e';
+    if (t === 'mid') return '#c2410c';
+    return '#b91c1c';
   }
 
+  /** Anillo fino (menos invasivo) con pista suave. */
   anilloStyle(pct: number): { [key: string]: string } {
     const n = Math.max(0, Math.min(100, Number(pct) || 0));
     const color = this.colorAnillo(pct);
     return {
-      background: `conic-gradient(${color} ${n * 3.6}deg, rgba(226, 232, 240, 0.95) 0deg)`
+      background: `conic-gradient(${color} ${n * 3.6}deg, rgba(226, 232, 240, 0.55) 0deg)`
     };
+  }
+
+  etiquetaAplica(aplica: boolean | null | undefined): string {
+    if (aplica === true) return 'Aplica';
+    if (aplica === false) return 'No aplica';
+    return '—';
+  }
+
+  /** Indicador de avance del punto (plantilla o derivado del estado/evidencias). */
+  avancePunto(punto: PuntoGestion): number {
+    if (punto.indicador_avance != null && !Number.isNaN(Number(punto.indicador_avance))) {
+      return Math.max(0, Math.min(100, Number(punto.indicador_avance)));
+    }
+    if (punto.estado === 'cumple') return 100;
+    if (punto.estado === 'parcial') return 50;
+    const peso = this.pesoAccionSeleccionada(punto);
+    return peso != null ? peso : 0;
+  }
+
+  pesoAccionSeleccionada(punto: PuntoGestion): number | null {
+    const a = punto.acciones;
+    if (a?.preventiva?.conservar) return ACCION_PESOS.conservar;
+    if (a?.preventiva?.mejorar) return ACCION_PESOS.mejorar;
+    if (a?.preventiva?.actualizar) return ACCION_PESOS.actualizar;
+    if (a?.correctiva?.complementar) return ACCION_PESOS.complementar;
+    if (a?.correctiva?.corregir) return ACCION_PESOS.corregir;
+    if (a?.correctiva?.realizar) return ACCION_PESOS.realizar;
+    return null;
+  }
+
+  etiquetaAccionActiva(punto: PuntoGestion): string {
+    const a = punto.acciones;
+    if (a?.preventiva?.conservar) return 'Conservar · 100';
+    if (a?.preventiva?.mejorar) return 'Mejorar · 80';
+    if (a?.preventiva?.actualizar) return 'Actualizar · 60';
+    if (a?.correctiva?.complementar) return 'Complementar · 40';
+    if (a?.correctiva?.corregir) return 'Corregir · 20';
+    if (a?.correctiva?.realizar) return 'Realizar · 0';
+    return 'Sin acción';
+  }
+
+  tipoAccionGrupo(punto: PuntoGestion): 'preventiva' | 'correctiva' | null {
+    const a = punto.acciones;
+    if (a?.preventiva?.conservar || a?.preventiva?.mejorar || a?.preventiva?.actualizar) {
+      return 'preventiva';
+    }
+    if (a?.correctiva?.complementar || a?.correctiva?.corregir || a?.correctiva?.realizar) {
+      return 'correctiva';
+    }
+    return null;
+  }
+
+  fechaIsoCorta(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    const raw = String(iso).slice(0, 10);
+    const d = new Date(raw.includes('T') ? raw : `${raw}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   /** Retraso escalonado para animaciones de entrada (ms). */
