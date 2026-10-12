@@ -2,6 +2,7 @@ import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Routes } from '@angular/router';
+import { NgApexchartsModule } from 'ng-apexcharts';
 import { RoleGuard } from 'src/app/guards/role.guard';
 import { SeguridadNormativasComponent } from './seguridad-normativas.component';
 import { SeguridadNormativaDetalleComponent } from './seguridad-normativa-detalle.component';
@@ -62,6 +63,7 @@ const routes: Routes = [
   imports: [
     CommonModule,
     FormsModule,
+    NgApexchartsModule,
     RouterModule.forChild(routes)
   ],
   declarations: [

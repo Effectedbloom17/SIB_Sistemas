@@ -1,5 +1,14 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import {
+  AfterViewInit,
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  QueryList,
+  ViewChildren
+} from '@angular/core';
+import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subject, forkJoin, of } from 'rxjs';
 import { catchError, takeUntil } from 'rxjs/operators';
@@ -78,15 +87,22 @@ interface AccionesPunto {
   correctiva: { complementar: boolean; corregir: boolean; realizar: boolean };
 }
 
+interface AccionScoreOpcion {
+  score: 100 | 80 | 60 | 40 | 20 | 0;
+  etiqueta: string;
+  grupo: 'preventiva' | 'correctiva';
+  detalle: string;
+}
+
 interface PuntoGestion {
   id: number;
   numero_item: number | null;
   punto_norma: string;
   descripcion: string;
   descripcion_html?: string | null;
-  aplica: boolean | null;
   tipo_evidencia: string | null;
   periodicidad: string | null;
+  accion_score: number | null;
   acciones: AccionesPunto;
   fecha_inicio: string | null;
   fecha_terminacion: string | null;
@@ -103,15 +119,15 @@ interface PuntoGestion {
   documentos: DocumentoItem[];
 }
 
-/** Pesos de la plantilla Excel (acción preventiva / correctiva). */
-const ACCION_PESOS = {
-  conservar: 100,
-  mejorar: 80,
-  actualizar: 60,
-  complementar: 40,
-  corregir: 20,
-  realizar: 0
-} as const;
+/** Opciones de acción (plantilla Excel). */
+const ACCIONES_SCORE: AccionScoreOpcion[] = [
+  { score: 100, etiqueta: 'Conservar', grupo: 'preventiva', detalle: 'Acción preventiva · mantener lo existente' },
+  { score: 80, etiqueta: 'Mejorar', grupo: 'preventiva', detalle: 'Acción preventiva · mejorar condiciones' },
+  { score: 60, etiqueta: 'Actualizar', grupo: 'preventiva', detalle: 'Acción preventiva · actualizar documentación o instalaciones' },
+  { score: 40, etiqueta: 'Complementar', grupo: 'correctiva', detalle: 'Acción correctiva · complementar lo faltante' },
+  { score: 20, etiqueta: 'Corregir', grupo: 'correctiva', detalle: 'Acción correctiva · corregir hallazgos' },
+  { score: 0, etiqueta: 'Realizar', grupo: 'correctiva', detalle: 'Acción correctiva · realizar desde cero' }
+];
 
 interface ResumenResponsables {
   cerrados_empresa: number;
@@ -158,7 +174,8 @@ type VistaGestion = 'empresas' | 'empresa' | 'normativa' | 'punto';
   templateUrl: './seguridad-gestion.component.html',
   styleUrls: ['./seguridad.shared.scss', './seguridad-gestion.component.scss']
 })
-export class SeguridadGestionComponent implements OnInit, OnDestroy {
+export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestroy {
+  @ViewChildren('reqCard') reqCards!: QueryList<ElementRef<HTMLElement>>;
   vista: VistaGestion = 'empresas';
   cargando = true;
   error: string | null = null;
@@ -202,16 +219,59 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
   /** Normativa seleccionada en el picker (null = General). */
   normativaFoco: AsignacionResumen | null = null;
 
+  /** Gráficos del panel superior (vista empresa). */
+  chartAvance: any = {};
+  chartEstado: any = {};
+  chartDesempeno: any = {};
+  chartsListos = false;
+
   detalle: DetalleGestion | null = null;
   cargandoDetalle = false;
+  /** Scroll a restaurar al elegir normativa/general (evita salto al top). */
+  private scrollAncla: number | null = null;
   busquedaPunto = '';
+  /** Filtro Cumple / Pendiente (sin parcial). */
+  filtroEstadoPunto: 'todos' | 'cumple' | 'pendiente' = 'todos';
+  /** Filtro por responsable del requisito. */
+  filtroResponsablePunto: 'todos' | 'Empresa' | 'Cliente' = 'todos';
+  /** Capítulos colapsados (clave ausente = abierto). */
+  private capitulosCerrados = new Set<string>();
+  private capitulosInicializados = false;
   puntoActivo: PuntoGestion | null = null;
   subiendo = false;
+  guardandoPunto = false;
   lecturaHtml: SafeHtml | null = null;
   imagenesSobrantes: ImagenPuntoLite[] = [];
   imagenAbierta: string | null = null;
+  /** Borrador de observaciones en la ficha del punto. */
+  observacionesDraft = '';
+  /** Miniaturas blob locales (evidencias sin Drive / fallback). */
+  private thumbsBlob = new Map<number, string>();
+  /** Cache de URLs seguras para iframes (evita recargas en cada CD). */
+  private previewUrlCache = new Map<string, SafeResourceUrl>();
+  /** Miniatura blob del formato guía (PDF) para preview estable. */
+  private formatoPreviewBlob: string | null = null;
+  /** Drive thumbnails que fallaron → fallback a iframe. */
+  private driveThumbFallidos = new Set<number>();
+  /** Observa puntos al entrar/salir del viewport (slide desde la izquierda). */
+  private puntosIo: IntersectionObserver | null = null;
 
   readonly categorias = SEG_NORMATIVAS_CATEGORIAS;
+  readonly accionesScore = ACCIONES_SCORE;
+  readonly mesesInicio = [
+    { valor: 1, etiqueta: 'Enero' }, { valor: 2, etiqueta: 'Febrero' },
+    { valor: 3, etiqueta: 'Marzo' }, { valor: 4, etiqueta: 'Abril' },
+    { valor: 5, etiqueta: 'Mayo' }, { valor: 6, etiqueta: 'Junio' },
+    { valor: 7, etiqueta: 'Julio' }, { valor: 8, etiqueta: 'Agosto' },
+    { valor: 9, etiqueta: 'Septiembre' }, { valor: 10, etiqueta: 'Octubre' },
+    { valor: 11, etiqueta: 'Noviembre' }, { valor: 12, etiqueta: 'Diciembre' }
+  ];
+  readonly aniosInicio: number[] = (() => {
+    const y = new Date().getFullYear();
+    const lista: number[] = [];
+    for (let i = y - 3; i <= y + 2; i++) lista.push(i);
+    return lista;
+  })();
   private logosEmpresa = new Map<number, string | null>();
 
   private readonly destroy$ = new Subject<void>();
@@ -221,7 +281,8 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private router: Router,
     private sanitizer: DomSanitizer,
-    private preview: DocumentPreviewService
+    private preview: DocumentPreviewService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -233,7 +294,18 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     });
   }
 
+  ngAfterViewInit(): void {
+    this.inicializarObserverPuntos();
+    this.reqCards?.changes.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.vincularObserverPuntos();
+    });
+  }
+
   ngOnDestroy(): void {
+    this.limpiarThumbsBlob();
+    this.limpiarFormatoPreviewBlob();
+    this.puntosIo?.disconnect();
+    this.puntosIo = null;
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -307,7 +379,15 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
 
   get puntosFiltrados(): PuntoGestion[] {
     const q = this.busquedaPunto.trim().toLowerCase();
-    const lista = this.detalle?.puntos || [];
+    let lista = this.detalle?.puntos || [];
+    if (this.filtroEstadoPunto === 'cumple') {
+      lista = lista.filter((p) => p.estado === 'cumple');
+    } else if (this.filtroEstadoPunto === 'pendiente') {
+      lista = lista.filter((p) => p.estado !== 'cumple');
+    }
+    if (this.filtroResponsablePunto === 'Empresa' || this.filtroResponsablePunto === 'Cliente') {
+      lista = lista.filter((p) => p.responsable === this.filtroResponsablePunto);
+    }
     if (!q) return lista;
     return lista.filter((p) =>
       p.punto_norma.toLowerCase().includes(q)
@@ -318,6 +398,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
       || (p.evidencia_requerida || '').toLowerCase().includes(q)
       || String(p.numero_item ?? '').includes(q)
       || p.responsable.toLowerCase().includes(q)
+      || this.etiquetaAccionActiva(p).toLowerCase().includes(q)
     );
   }
 
@@ -335,7 +416,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     );
   }
 
-  get bloquesCapitulo(): { clave: string; puntos: PuntoGestion[] }[] {
+  get bloquesCapitulo(): { clave: string; titulo: string; puntos: PuntoGestion[] }[] {
     const mapa = new Map<string, PuntoGestion[]>();
     for (const p of this.puntosFiltrados) {
       const clave = p.punto_norma.split('.').filter(Boolean)[0] || 'General';
@@ -348,7 +429,50 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
         if (b[0] === 'General') return -1;
         return a[0].localeCompare(b[0], 'es', { numeric: true });
       })
-      .map(([clave, puntos]) => ({ clave, puntos }));
+      .map(([clave, puntos]) => ({
+        clave,
+        titulo: clave === 'General' ? 'General' : `Capítulo ${clave}`,
+        puntos
+      }));
+  }
+
+  private inicializarCapitulosColapsados(): void {
+    if (this.capitulosInicializados) return;
+    this.capitulosInicializados = true;
+    const claves = new Set<string>();
+    for (const p of this.detalle?.puntos || []) {
+      claves.add(p.punto_norma.split('.').filter(Boolean)[0] || 'General');
+    }
+    const ordenadas = Array.from(claves).sort((a, b) => {
+      if (a === 'General') return 1;
+      if (b === 'General') return -1;
+      return a.localeCompare(b, 'es', { numeric: true });
+    });
+    ordenadas.forEach((clave, i) => {
+      if (i > 0) this.capitulosCerrados.add(clave);
+    });
+  }
+
+  capituloAbierto(clave: string): boolean {
+    return !this.capitulosCerrados.has(clave);
+  }
+
+  toggleCapitulo(clave: string, event?: Event): void {
+    event?.stopPropagation();
+    if (this.capitulosCerrados.has(clave)) this.capitulosCerrados.delete(clave);
+    else this.capitulosCerrados.add(clave);
+  }
+
+  seleccionarFiltroEstado(estado: 'todos' | 'cumple' | 'pendiente'): void {
+    this.filtroEstadoPunto = this.filtroEstadoPunto === estado ? 'todos' : estado;
+  }
+
+  seleccionarFiltroResponsable(resp: 'todos' | 'Empresa' | 'Cliente'): void {
+    this.filtroResponsablePunto = this.filtroResponsablePunto === resp ? 'todos' : resp;
+  }
+
+  contarPorResponsable(tipo: 'Empresa' | 'Cliente'): number {
+    return (this.detalle?.puntos || []).filter((p) => p.responsable === tipo).length;
   }
 
   private sincronizarRuta(): void {
@@ -453,6 +577,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
           this.cargando = false;
           this.panelModo = 'general';
           this.normativaFoco = null;
+          this.actualizarGraficosEmpresa();
         },
         error: (err: any) => {
           this.error = err?.error?.message || 'No se encontró la empresa.';
@@ -461,6 +586,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
           this.normativaFoco = null;
           this.detalle = null;
           this.panelModo = 'general';
+          this.chartsListos = false;
           this.cargando = false;
         }
       });
@@ -570,36 +696,60 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
 
   cargarDetalle(id: number, requisitoId?: number): void {
     this.cargando = false;
-    this.cargandoDetalle = true;
+    // En vista empresa el panel ya tiene gráficos: no hace falta estado de carga disruptivo.
+    this.cargandoDetalle = this.vista !== 'empresa';
     this.error = null;
     this.backend.obtenerGestionSeguridadAsignacion(id)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res: any) => {
+          this.capitulosInicializados = false;
+          this.capitulosCerrados.clear();
           this.detalle = {
             asignacion: res.asignacion,
             puntos: (res?.puntos || []).map((p: any) => this.mapearPunto(p)),
             documentos_generales: res?.documentos_generales || []
           };
+          this.inicializarCapitulosColapsados();
+          this.precargarThumbsEvidencias(this.detalle.puntos);
           if (requisitoId) {
             this.puntoActivo = this.detalle.puntos.find((p) => p.id === requisitoId) || null;
             if (!this.puntoActivo) {
               this.error = 'No se encontró el punto de la normativa.';
               this.lecturaHtml = null;
+              this.observacionesDraft = '';
+              this.limpiarFormatoPreviewBlob();
             } else {
+              this.observacionesDraft = this.puntoActivo.observaciones || '';
               this.prepararLecturaPunto(this.puntoActivo);
             }
           } else {
             this.puntoActivo = null;
             this.lecturaHtml = null;
+            this.observacionesDraft = '';
+            this.limpiarFormatoPreviewBlob();
+            // Lista de puntos: reenganchar animación al entrar al viewport.
+            setTimeout(() => this.vincularObserverPuntos(), 0);
           }
           this.cargandoDetalle = false;
+          if (this.vista === 'empresa') {
+            this.actualizarGraficosEmpresa();
+            this.liberarScrollAncla();
+          } else {
+            this.scrollAncla = null;
+          }
         },
         error: (err: any) => {
           this.error = err?.error?.message || 'No se encontró la normativa asignada.';
           this.detalle = null;
           this.puntoActivo = null;
           this.cargandoDetalle = false;
+          if (this.vista === 'empresa') {
+            this.actualizarGraficosEmpresa();
+            this.liberarScrollAncla();
+          } else {
+            this.scrollAncla = null;
+          }
         }
       });
   }
@@ -608,16 +758,12 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     const accionesRaw = p?.acciones || {};
     const prev = accionesRaw.preventiva || {};
     const corr = accionesRaw.correctiva || {};
-    return {
-      id: Number(p.id),
-      numero_item: p.numero_item != null && p.numero_item !== '' ? Number(p.numero_item) : null,
-      punto_norma: String(p.punto_norma || '').trim(),
-      descripcion: String(p.descripcion || '').trim(),
-      descripcion_html: p.descripcion_html || null,
-      aplica: p.aplica == null ? null : !!p.aplica,
-      tipo_evidencia: p.tipo_evidencia || null,
-      periodicidad: p.periodicidad || null,
-      acciones: {
+    const score = p.accion_score != null && p.accion_score !== ''
+      ? Number(p.accion_score)
+      : null;
+    const acciones = score != null && !Number.isNaN(score)
+      ? this.accionesDesdeScore(score)
+      : {
         preventiva: {
           conservar: !!prev.conservar,
           mejorar: !!prev.mejorar,
@@ -628,9 +774,19 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
           corregir: !!corr.corregir,
           realizar: !!corr.realizar
         }
-      },
+      };
+    return {
+      id: Number(p.id),
+      numero_item: p.numero_item != null && p.numero_item !== '' ? Number(p.numero_item) : null,
+      punto_norma: String(p.punto_norma || '').trim(),
+      descripcion: String(p.descripcion || '').trim(),
+      descripcion_html: p.descripcion_html || null,
+      tipo_evidencia: p.tipo_evidencia || null,
+      periodicidad: p.periodicidad || null,
+      accion_score: score != null && !Number.isNaN(score) ? score : this.pesoDesdeAcciones(acciones),
+      acciones,
       fecha_inicio: p.fecha_inicio || null,
-      fecha_terminacion: p.fecha_terminacion || null,
+      fecha_terminacion: p.fecha_terminacion || p.ultima_evidencia || null,
       evidencia_requerida: p.evidencia_requerida || null,
       observaciones: p.observaciones || null,
       indicador_avance: p.indicador_avance != null && p.indicador_avance !== ''
@@ -651,6 +807,48 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
         : [],
       documentos: p.documentos || []
     };
+  }
+
+  private accionesDesdeScore(score: number): AccionesPunto {
+    return {
+      preventiva: {
+        conservar: score === 100,
+        mejorar: score === 80,
+        actualizar: score === 60
+      },
+      correctiva: {
+        complementar: score === 40,
+        corregir: score === 20,
+        realizar: score === 0
+      }
+    };
+  }
+
+  private pesoDesdeAcciones(a: AccionesPunto): number | null {
+    if (a?.preventiva?.conservar) return 100;
+    if (a?.preventiva?.mejorar) return 80;
+    if (a?.preventiva?.actualizar) return 60;
+    if (a?.correctiva?.complementar) return 40;
+    if (a?.correctiva?.corregir) return 20;
+    if (a?.correctiva?.realizar) return 0;
+    return null;
+  }
+
+  private aplicarDetalleActualizado(res: any, requisitoId?: number): void {
+    this.detalle = {
+      asignacion: res.asignacion,
+      puntos: (res?.puntos || []).map((p: any) => this.mapearPunto(p)),
+      documentos_generales: res?.documentos_generales || []
+    };
+    this.precargarThumbsEvidencias(this.detalle.puntos);
+    const id = requisitoId || this.puntoActivo?.id;
+    if (id) {
+      this.puntoActivo = this.detalle.puntos.find((p) => p.id === id) || null;
+      if (this.puntoActivo) {
+        this.observacionesDraft = this.puntoActivo.observaciones || '';
+        this.prepararLecturaPunto(this.puntoActivo);
+      }
+    }
   }
 
   logoEmpresa(empresaId: number): string | null {
@@ -787,17 +985,318 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
   }
 
   seleccionarPanelGeneral(): void {
+    this.anclarScroll();
     this.panelModo = 'general';
     this.normativaFoco = null;
     this.detalle = null;
     this.cargandoDetalle = false;
+    if (this.vista === 'empresa') this.actualizarGraficosEmpresa();
+    this.liberarScrollAncla();
   }
 
   seleccionarNormativaFoco(item: AsignacionResumen): void {
+    this.anclarScroll();
     this.panelModo = 'normativa';
     this.normativaFoco = item;
-    if (this.detalle?.asignacion?.id === item.id) return;
+    // Actualiza con resumen inmediato para no colapsar el layout ni saltar el scroll.
+    if (this.vista === 'empresa') this.actualizarGraficosEmpresa();
+    if (this.detalle?.asignacion?.id === item.id) {
+      this.liberarScrollAncla();
+      return;
+    }
+    // Restaura ya el scroll del refresco síncrono; el ancla se libera al terminar la carga.
+    if (this.scrollAncla != null) {
+      const y = this.scrollAncla;
+      requestAnimationFrame(() => window.scrollTo({ top: y, left: 0, behavior: 'auto' }));
+    }
     this.cargarDetalle(item.id);
+  }
+
+  /** Guarda el scroll actual antes de refrescar el panel de gráficos. */
+  private anclarScroll(): void {
+    this.scrollAncla = window.scrollY || document.documentElement.scrollTop || 0;
+  }
+
+  /** Restaura el scroll anclado (doble rAF por si ApexCharts ajusta altura). */
+  private liberarScrollAncla(): void {
+    if (this.scrollAncla == null) return;
+    const y = this.scrollAncla;
+    this.scrollAncla = null;
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: y, left: 0, behavior: 'auto' });
+      requestAnimationFrame(() => window.scrollTo({ top: y, left: 0, behavior: 'auto' }));
+    });
+  }
+
+  /** Reconstruye los 3 gráficos del encabezado (vista empresa). */
+  actualizarGraficosEmpresa(): void {
+    if (this.vista !== 'empresa' || !this.empresa) {
+      this.chartsListos = false;
+      return;
+    }
+    if (this.panelModo === 'normativa' && this.normativaFoco) {
+      this.construirGraficosNormativa();
+    } else {
+      this.construirGraficosGeneral();
+    }
+    this.chartsListos = true;
+  }
+
+  private construirGraficosGeneral(): void {
+    const rg = this.resumenGeneralEmpresa;
+    const avance = rg.avance || 0;
+    const cerradas = rg.cerradas || 0;
+    const abiertas = rg.abiertas || 0;
+    this.chartAvance = {
+      series: [avance],
+      chart: { type: 'radialBar', height: 220, sparkline: { enabled: true }, fontFamily: 'inherit' },
+      plotOptions: {
+        radialBar: {
+          startAngle: -120,
+          endAngle: 120,
+          hollow: { size: '58%' },
+          track: { background: '#e2e8f0', strokeWidth: '100%' },
+          dataLabels: {
+            name: { show: true, fontSize: '11px', color: '#64748b', offsetY: 18, fontWeight: 600 },
+            value: {
+              show: true,
+              fontSize: '26px',
+              fontWeight: 800,
+              color: '#1e293b',
+              offsetY: -10,
+              formatter: (val: number) => `${Math.round(val)}%`
+            }
+          }
+        }
+      },
+      colors: [this.colorAnillo(avance)],
+      labels: ['Avance general'],
+      stroke: { lineCap: 'round' }
+    };
+
+    const estadoSeries = [cerradas, abiertas];
+    const estadoTotal = cerradas + abiertas;
+    this.chartEstado = {
+      series: estadoTotal ? estadoSeries : [0, 1],
+      chart: { type: 'donut', height: 220, fontFamily: 'inherit' },
+      labels: ['Cerradas', 'Abiertas'],
+      colors: ['#0f766e', '#b91c1c'],
+      legend: {
+        position: 'bottom',
+        fontSize: '11px',
+        fontWeight: 600,
+        markers: { width: 8, height: 8, radius: 2 }
+      },
+      dataLabels: {
+        enabled: !!estadoTotal,
+        formatter: (val: number) => `${Math.round(val)}%`,
+        style: { fontSize: '11px', fontWeight: 700 },
+        dropShadow: { enabled: false }
+      },
+      plotOptions: {
+        pie: {
+          donut: {
+            size: '68%',
+            labels: {
+              show: true,
+              total: {
+                show: true,
+                label: 'Normativas',
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#64748b',
+                formatter: () => String(rg.normativas || 0)
+              }
+            }
+          }
+        }
+      },
+      stroke: { width: 2, colors: ['#fff'] },
+      tooltip: {
+        y: {
+          formatter: (_val: number, opts: any) => {
+            if (!estadoTotal) return '0';
+            return `${opts.w.config.series[opts.seriesIndex]} normativa(s)`;
+          }
+        }
+      }
+    };
+
+    const normas = this.asignaciones.slice().sort((a, b) =>
+      a.codigo.localeCompare(b.codigo, 'es', { numeric: true })
+    );
+    const cats = this.categoriasEmpresa.length
+      ? this.categoriasEmpresa
+      : [];
+    const usarGrupos = cats.length > 0 && normas.length > 6;
+    const categorias = usarGrupos
+      ? cats.map((c) => c.prefijo)
+      : (normas.length ? normas.map((n) => this.codigoCorto(n.codigo)) : ['Sin datos']);
+    const datos = usarGrupos
+      ? cats.map((c) => c.avance)
+      : (normas.length ? normas.map((n) => n.avance) : [0]);
+
+    this.chartDesempeno = {
+      series: [{ name: 'Avance', data: datos }],
+      chart: {
+        type: usarGrupos ? 'bar' : 'area',
+        height: 220,
+        toolbar: { show: false },
+        fontFamily: 'inherit',
+        zoom: { enabled: false }
+      },
+      colors: ['#9f1239'],
+      dataLabels: { enabled: false },
+      stroke: { curve: 'smooth', width: usarGrupos ? 0 : 2.5 },
+      fill: usarGrupos
+        ? { type: 'solid', opacity: 1 }
+        : {
+          type: 'gradient',
+          gradient: {
+            shadeIntensity: 0.45,
+            opacityFrom: 0.45,
+            opacityTo: 0.05,
+            stops: [0, 90, 100]
+          }
+        },
+      plotOptions: usarGrupos
+        ? { bar: { borderRadius: 4, columnWidth: '55%', distributed: true } }
+        : {},
+      xaxis: {
+        categories: categorias,
+        labels: {
+          style: { fontSize: '10px', colors: '#64748b', fontWeight: 600 },
+          rotate: categorias.length > 4 ? -35 : 0,
+          hideOverlappingLabels: true
+        },
+        axisBorder: { show: false },
+        axisTicks: { show: false }
+      },
+      yaxis: {
+        min: 0,
+        max: 100,
+        tickAmount: 4,
+        labels: {
+          style: { fontSize: '10px', colors: '#94a3b8' },
+          formatter: (v: number) => `${Math.round(v)}%`
+        }
+      },
+      grid: { borderColor: '#f1f5f9', strokeDashArray: 3 },
+      legend: { show: false },
+      tooltip: { y: { formatter: (v: number) => `${Math.round(v)}%` } }
+    };
+  }
+
+  private construirGraficosNormativa(): void {
+    const rn = this.resumenNormativaFoco;
+    const avance = rn?.avance ?? this.normativaFoco?.avance ?? 0;
+    const cerrados = rn?.cerrados ?? 0;
+    const abiertos = rn?.abiertos ?? 0;
+    const totalPts = rn?.puntos_total ?? this.normativaFoco?.puntos_asignados ?? 0;
+
+    this.chartAvance = {
+      series: [avance],
+      chart: { type: 'radialBar', height: 220, sparkline: { enabled: true }, fontFamily: 'inherit' },
+      plotOptions: {
+        radialBar: {
+          startAngle: -120,
+          endAngle: 120,
+          hollow: { size: '58%' },
+          track: { background: '#e2e8f0', strokeWidth: '100%' },
+          dataLabels: {
+            name: { show: true, fontSize: '11px', color: '#64748b', offsetY: 18, fontWeight: 600 },
+            value: {
+              show: true,
+              fontSize: '26px',
+              fontWeight: 800,
+              color: '#1e293b',
+              offsetY: -10,
+              formatter: (val: number) => `${Math.round(val)}%`
+            }
+          }
+        }
+      },
+      colors: [this.colorAnillo(avance)],
+      labels: ['Avance NOM'],
+      stroke: { lineCap: 'round' }
+    };
+
+    const ptsTotal = cerrados + abiertos;
+    this.chartEstado = {
+      series: ptsTotal ? [cerrados, abiertos] : [0, 1],
+      chart: { type: 'donut', height: 220, fontFamily: 'inherit' },
+      labels: ['Cerrados', 'Abiertos'],
+      colors: ['#0f766e', '#c2410c'],
+      legend: {
+        position: 'bottom',
+        fontSize: '11px',
+        fontWeight: 600,
+        markers: { width: 8, height: 8, radius: 2 }
+      },
+      dataLabels: {
+        enabled: !!ptsTotal,
+        formatter: (val: number) => `${Math.round(val)}%`,
+        style: { fontSize: '11px', fontWeight: 700 },
+        dropShadow: { enabled: false }
+      },
+      plotOptions: {
+        pie: {
+          donut: {
+            size: '68%',
+            labels: {
+              show: true,
+              total: {
+                show: true,
+                label: 'Puntos',
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#64748b',
+                formatter: () => String(totalPts)
+              }
+            }
+          }
+        }
+      },
+      stroke: { width: 2, colors: ['#fff'] }
+    };
+
+    const ce = rn?.cerrados_empresa ?? 0;
+    const ae = rn?.abiertos_empresa ?? 0;
+    const cc = rn?.cerrados_cliente ?? 0;
+    const ac = rn?.abiertos_cliente ?? 0;
+    this.chartDesempeno = {
+      series: [
+        { name: 'Cerrados', data: [ce, cc] },
+        { name: 'Abiertos', data: [ae, ac] }
+      ],
+      chart: {
+        type: 'bar',
+        height: 220,
+        stacked: true,
+        toolbar: { show: false },
+        fontFamily: 'inherit'
+      },
+      colors: ['#0f766e', '#b91c1c'],
+      plotOptions: {
+        bar: { horizontal: true, borderRadius: 4, barHeight: '55%' }
+      },
+      dataLabels: { enabled: false },
+      xaxis: {
+        categories: ['Empresa', 'Cliente'],
+        labels: { style: { fontSize: '11px', colors: '#64748b', fontWeight: 600 } },
+        axisBorder: { show: false },
+        axisTicks: { show: false }
+      },
+      yaxis: { labels: { style: { fontSize: '11px', colors: '#475569', fontWeight: 700 } } },
+      grid: { borderColor: '#f1f5f9', strokeDashArray: 3 },
+      legend: {
+        position: 'bottom',
+        fontSize: '11px',
+        fontWeight: 600,
+        markers: { width: 8, height: 8, radius: 2 }
+      },
+      tooltip: { y: { formatter: (v: number) => `${v} pts` } }
+    };
   }
 
   /** Lista de normativas del panel expandido (tablero) o de la vista empresa. */
@@ -820,6 +1319,73 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     this.lecturaHtml = this.sanitizer.bypassSecurityTrustHtml(html);
     this.imagenesSobrantes = sobrantes;
     this.imagenAbierta = null;
+    this.precargarFormatoPreview(punto);
+  }
+
+  private inicializarObserverPuntos(): void {
+    if (typeof IntersectionObserver === 'undefined') {
+      this.marcarPuntosVisiblesSinIo();
+      return;
+    }
+    this.puntosIo?.disconnect();
+    this.puntosIo = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const el = entry.target as HTMLElement;
+          if (entry.isIntersecting) {
+            el.classList.add('is-inview');
+          } else {
+            el.classList.remove('is-inview');
+          }
+        }
+      },
+      { threshold: 0.12, rootMargin: '40px 0px -4% 0px' }
+    );
+    this.vincularObserverPuntos();
+  }
+
+  private marcarPuntosVisiblesSinIo(): void {
+    const cards = this.reqCards?.toArray() || [];
+    for (const ref of cards) {
+      ref?.nativeElement?.classList.add('is-inview');
+    }
+  }
+
+  private vincularObserverPuntos(): void {
+    const cards = this.reqCards?.toArray() || [];
+    if (!this.puntosIo) {
+      this.marcarPuntosVisiblesSinIo();
+      return;
+    }
+    this.puntosIo.disconnect();
+    for (const ref of cards) {
+      const el = ref?.nativeElement;
+      if (!el) continue;
+      el.classList.remove('is-inview');
+      this.puntosIo.observe(el);
+    }
+  }
+
+  private limpiarFormatoPreviewBlob(): void {
+    if (this.formatoPreviewBlob) {
+      try { URL.revokeObjectURL(this.formatoPreviewBlob); } catch { /* ignore */ }
+      this.formatoPreviewBlob = null;
+    }
+  }
+
+  private precargarFormatoPreview(punto: PuntoGestion): void {
+    this.limpiarFormatoPreviewBlob();
+    if (!this.esFormatoPdf(punto)) return;
+    const url = this.urlPlantilla(punto);
+    if (!url || /drive\.google\.com/i.test(url)) return;
+    fetch(url, { credentials: 'include' })
+      .then((r) => (r.ok ? r.blob() : Promise.reject()))
+      .then((blob) => {
+        const typed = blob.type ? blob : new Blob([blob], { type: 'application/pdf' });
+        this.formatoPreviewBlob = URL.createObjectURL(typed);
+        this.cdr.markForCheck();
+      })
+      .catch(() => { /* fallback a URL directa */ });
   }
 
   alClicDescripcion(ev: MouseEvent): void {
@@ -845,13 +1411,98 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     event.stopPropagation();
     const url = this.urlPlantilla(punto);
     if (!url) return;
+    const nombre = this.nombreFormatoVisible(punto);
+    const ext = (punto.formato_archivo || nombre).split('.').pop()?.toLowerCase() || '';
+    const tipoHint = ['pdf'].includes(ext)
+      ? 'pdf' as const
+      : (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)
+        ? 'imagen' as const
+        : (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext) ? 'office' as const : undefined));
     this.preview.abrir({
-      nombre: this.nombreFormatoVisible(punto),
-      archivo_nombre: this.nombreFormatoVisible(punto),
+      nombre,
+      archivo_nombre: nombre,
       etiqueta: 'FORMATO',
       tema: 'seguridad',
-      urlLocal: url
+      urlLocal: url,
+      tipoHint
     });
+  }
+
+  /** URL embebible (Drive preview o archivo local) para miniatura. */
+  urlPreviewEmbebido(url: string | null | undefined): SafeResourceUrl | null {
+    if (!url) return null;
+    const key = `local:${url}`;
+    let safe = this.previewUrlCache.get(key);
+    if (!safe) {
+      safe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      this.previewUrlCache.set(key, safe);
+    }
+    return safe;
+  }
+
+  /** Ajusta PDF embebido a ancho de página (evita zoom excesivo / franja negra). */
+  private urlPdfFit(url: string): string {
+    const base = url.split('#')[0];
+    return `${base}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`;
+  }
+
+  urlPreviewDrive(fileId: string | null | undefined): SafeResourceUrl | null {
+    if (!fileId) return null;
+    const key = `drive:${fileId}`;
+    let safe = this.previewUrlCache.get(key);
+    if (!safe) {
+      safe = this.sanitizer.bypassSecurityTrustResourceUrl(
+        `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/preview`
+      );
+      this.previewUrlCache.set(key, safe);
+    }
+    return safe;
+  }
+
+  /** Miniatura de Drive (más fiable que iframe escalado). */
+  previewThumbDrive(doc: DocumentoItem): string | null {
+    if (!doc.drive_file_id || this.driveThumbFallidos.has(doc.id)) return null;
+    return `https://drive.google.com/thumbnail?id=${encodeURIComponent(doc.drive_file_id)}&sz=w1000`;
+  }
+
+  onDriveThumbError(doc: DocumentoItem, event: Event): void {
+    this.driveThumbFallidos.add(doc.id);
+    this.onThumbError(event);
+    this.cdr.markForCheck();
+  }
+
+  urlPreviewFormato(punto: PuntoGestion): SafeResourceUrl | null {
+    if (this.formatoPreviewBlob) {
+      return this.urlPreviewEmbebido(this.urlPdfFit(this.formatoPreviewBlob));
+    }
+    const url = this.urlPlantilla(punto);
+    if (!url) return null;
+    if (this.esFormatoPdf(punto)) {
+      return this.urlPreviewEmbebido(this.urlPdfFit(url));
+    }
+    return this.urlPreviewEmbebido(url);
+  }
+
+  esFormatoPdf(punto: PuntoGestion): boolean {
+    const nombre = punto.formato_archivo || punto.formato_nombre_archivo || '';
+    return String(nombre).toLowerCase().endsWith('.pdf');
+  }
+
+  esPdfDocumento(doc: DocumentoItem): boolean {
+    return this.etiquetaTipoArchivo(doc.nombre_original) === 'PDF';
+  }
+
+  /** Preview local (blob) de evidencia PDF vía iframe FitH. */
+  previewBlobPdfEvidencia(doc: DocumentoItem): SafeResourceUrl | null {
+    const blob = this.thumbsBlob.get(doc.id);
+    if (!blob || !this.esPdfDocumento(doc)) return null;
+    return this.urlPreviewEmbebido(this.urlPdfFit(blob));
+  }
+
+  esFormatoOffice(punto: PuntoGestion): boolean {
+    const ext = String(punto.formato_archivo || punto.formato_nombre_archivo || '')
+      .split('.').pop()?.toLowerCase() || '';
+    return ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext);
   }
 
   iconoCategoria(id: string): string {
@@ -895,54 +1546,139 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     };
   }
 
-  etiquetaAplica(aplica: boolean | null | undefined): string {
-    if (aplica === true) return 'Aplica';
-    if (aplica === false) return 'No aplica';
-    return '—';
-  }
-
-  /** Indicador de avance del punto (plantilla o derivado del estado/evidencias). */
+  /**
+   * Avance del punto por cumplimiento (evidencias).
+   * El nivel de acción (100–0) no interviene aquí: solo se guarda.
+   */
   avancePunto(punto: PuntoGestion): number {
-    if (punto.indicador_avance != null && !Number.isNaN(Number(punto.indicador_avance))) {
-      return Math.max(0, Math.min(100, Number(punto.indicador_avance)));
-    }
     if (punto.estado === 'cumple') return 100;
     if (punto.estado === 'parcial') return 50;
-    const peso = this.pesoAccionSeleccionada(punto);
-    return peso != null ? peso : 0;
+    return 0;
+  }
+
+  etiquetaTipoArchivo(nombre: string | null | undefined): string {
+    const ext = String(nombre || '').split('.').pop()?.toLowerCase() || '';
+    if (['xls', 'xlsx', 'csv'].includes(ext)) return 'EXCEL';
+    if (['doc', 'docx'].includes(ext)) return 'WORD';
+    if (['ppt', 'pptx'].includes(ext)) return 'PPT';
+    if (ext === 'pdf') return 'PDF';
+    if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)) return 'IMAGEN';
+    if (ext === 'zip') return 'ZIP';
+    return ext ? ext.toUpperCase() : 'ARCHIVO';
+  }
+
+  /** Vista embebida Drive (iframe) para evidencias. */
+  previewDriveEvidencia(doc: DocumentoItem): SafeResourceUrl | null {
+    return this.urlPreviewDrive(doc.drive_file_id || undefined);
+  }
+
+  /** Blob URL cacheada (fallback si no hay Drive). */
+  thumbBlobEvidencia(doc: DocumentoItem): string | null {
+    return this.thumbsBlob.get(doc.id) || null;
+  }
+
+  private limpiarThumbsBlob(): void {
+    for (const url of this.thumbsBlob.values()) {
+      try { URL.revokeObjectURL(url); } catch { /* ignore */ }
+    }
+    this.thumbsBlob.clear();
+  }
+
+  private precargarThumbsEvidencias(puntos: PuntoGestion[]): void {
+    this.limpiarThumbsBlob();
+    this.driveThumbFallidos.clear();
+    for (const p of puntos) {
+      for (const doc of p.documentos || []) {
+        if (doc.drive_file_id) continue;
+        const tipo = this.etiquetaTipoArchivo(doc.nombre_original);
+        if (tipo !== 'PDF' && tipo !== 'IMAGEN') continue;
+        this.backend.descargarDocumentoSeguridadAsignacion(doc.id)
+          .pipe(takeUntil(this.destroy$), catchError(() => of(null)))
+          .subscribe((blob) => {
+            if (!blob) return;
+            const mime = tipo === 'PDF'
+              ? 'application/pdf'
+              : (blob.type || 'image/jpeg');
+            const typed = blob.type ? blob : new Blob([blob], { type: mime });
+            this.thumbsBlob.set(doc.id, URL.createObjectURL(typed));
+          });
+      }
+    }
+  }
+
+  onThumbError(event: Event): void {
+    const el = event.target as HTMLElement | null;
+    if (el) el.style.display = 'none';
+  }
+
+  abrirVisorEvidencia(doc: DocumentoItem, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const nombre = doc.nombre_original || 'Evidencia';
+    const ext = nombre.split('.').pop()?.toLowerCase() || '';
+    const office = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext);
+    const tipoHint = office
+      ? 'office' as const
+      : (ext === 'pdf' ? 'pdf' as const : (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) ? 'imagen' as const : undefined));
+
+    // Preferir blob autenticado (más fiable que iframe anónimo de Drive).
+    this.backend.descargarDocumentoSeguridadAsignacion(doc.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.preview.abrir({
+            nombre,
+            archivo_nombre: nombre,
+            archivoBlob: blob,
+            archivo_url: doc.drive_file_id || undefined,
+            previewUrl: doc.drive_file_id
+              ? `https://drive.google.com/file/d/${doc.drive_file_id}/preview`
+              : undefined,
+            etiqueta: 'EVIDENCIA',
+            tema: 'seguridad',
+            tipoHint
+          });
+        },
+        error: () => {
+          if (doc.drive_file_id) {
+            this.preview.abrir({
+              nombre,
+              archivo_nombre: nombre,
+              archivo_url: doc.drive_file_id,
+              previewUrl: `https://drive.google.com/file/d/${doc.drive_file_id}/preview`,
+              etiqueta: 'EVIDENCIA',
+              tema: 'seguridad',
+              tipoHint
+            });
+            return;
+          }
+          Swal.fire({
+            icon: 'error',
+            title: 'No se pudo abrir',
+            text: 'Intente descargar el archivo.',
+            confirmButtonColor: '#b91c1c'
+          });
+        }
+      });
   }
 
   pesoAccionSeleccionada(punto: PuntoGestion): number | null {
-    const a = punto.acciones;
-    if (a?.preventiva?.conservar) return ACCION_PESOS.conservar;
-    if (a?.preventiva?.mejorar) return ACCION_PESOS.mejorar;
-    if (a?.preventiva?.actualizar) return ACCION_PESOS.actualizar;
-    if (a?.correctiva?.complementar) return ACCION_PESOS.complementar;
-    if (a?.correctiva?.corregir) return ACCION_PESOS.corregir;
-    if (a?.correctiva?.realizar) return ACCION_PESOS.realizar;
-    return null;
+    if (punto.accion_score != null) return Number(punto.accion_score);
+    return this.pesoDesdeAcciones(punto.acciones);
+  }
+
+  opcionAccion(score: number | null | undefined): AccionScoreOpcion | null {
+    if (score == null) return null;
+    return ACCIONES_SCORE.find((o) => o.score === Number(score)) || null;
   }
 
   etiquetaAccionActiva(punto: PuntoGestion): string {
-    const a = punto.acciones;
-    if (a?.preventiva?.conservar) return 'Conservar · 100';
-    if (a?.preventiva?.mejorar) return 'Mejorar · 80';
-    if (a?.preventiva?.actualizar) return 'Actualizar · 60';
-    if (a?.correctiva?.complementar) return 'Complementar · 40';
-    if (a?.correctiva?.corregir) return 'Corregir · 20';
-    if (a?.correctiva?.realizar) return 'Realizar · 0';
-    return 'Sin acción';
+    const op = this.opcionAccion(this.pesoAccionSeleccionada(punto));
+    return op ? `${op.etiqueta} · ${op.score}` : 'Sin acción';
   }
 
   tipoAccionGrupo(punto: PuntoGestion): 'preventiva' | 'correctiva' | null {
-    const a = punto.acciones;
-    if (a?.preventiva?.conservar || a?.preventiva?.mejorar || a?.preventiva?.actualizar) {
-      return 'preventiva';
-    }
-    if (a?.correctiva?.complementar || a?.correctiva?.corregir || a?.correctiva?.realizar) {
-      return 'correctiva';
-    }
-    return null;
+    return this.opcionAccion(this.pesoAccionSeleccionada(punto))?.grupo || null;
   }
 
   fechaIsoCorta(iso: string | null | undefined): string {
@@ -951,6 +1687,95 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     const d = new Date(raw.includes('T') ? raw : `${raw}T12:00:00`);
     if (Number.isNaN(d.getTime())) return '—';
     return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  /** Solo mes y año (fecha de inicio). */
+  fechaMesAnio(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    const raw = String(iso).slice(0, 10);
+    const d = new Date(raw.includes('T') ? raw : `${raw}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+  }
+
+  mesInicioDe(punto: PuntoGestion): number | null {
+    if (!punto.fecha_inicio) return null;
+    const m = String(punto.fecha_inicio).slice(5, 7);
+    const n = Number(m);
+    return n >= 1 && n <= 12 ? n : null;
+  }
+
+  anioInicioDe(punto: PuntoGestion): number | null {
+    if (!punto.fecha_inicio) return null;
+    const y = Number(String(punto.fecha_inicio).slice(0, 4));
+    return y > 0 ? y : null;
+  }
+
+  seleccionarAccion(punto: PuntoGestion, score: number, event?: Event): void {
+    event?.stopPropagation();
+    if (!this.detalle || this.guardandoPunto) return;
+    if (punto.accion_score === score) return;
+    this.guardarCamposPunto(punto.id, { accion_score: score });
+  }
+
+  alCambiarInicioMes(punto: PuntoGestion, mes: number | string): void {
+    const m = Number(mes);
+    const y = this.anioInicioDe(punto) || new Date().getFullYear();
+    if (!m) {
+      this.guardarCamposPunto(punto.id, { fecha_inicio: null });
+      return;
+    }
+    this.guardarCamposPunto(punto.id, {
+      fecha_inicio: `${y}-${String(m).padStart(2, '0')}`
+    });
+  }
+
+  alCambiarInicioAnio(punto: PuntoGestion, anio: number | string): void {
+    const y = Number(anio);
+    const m = this.mesInicioDe(punto) || (new Date().getMonth() + 1);
+    if (!y) {
+      this.guardarCamposPunto(punto.id, { fecha_inicio: null });
+      return;
+    }
+    this.guardarCamposPunto(punto.id, {
+      fecha_inicio: `${y}-${String(m).padStart(2, '0')}`
+    });
+  }
+
+  guardarObservaciones(): void {
+    if (!this.puntoActivo || !this.detalle || this.guardandoPunto) return;
+    const texto = (this.observacionesDraft || '').trim();
+    if (texto === (this.puntoActivo.observaciones || '').trim()) return;
+    this.guardarCamposPunto(this.puntoActivo.id, { observaciones: texto || null });
+  }
+
+  private guardarCamposPunto(
+    requisitoId: number,
+    datos: {
+      accion_score?: number | null;
+      fecha_inicio?: string | null;
+      observaciones?: string | null;
+    }
+  ): void {
+    if (!this.detalle) return;
+    this.guardandoPunto = true;
+    this.backend.actualizarPuntoGestionSeguridad(this.detalle.asignacion.id, requisitoId, datos)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          this.guardandoPunto = false;
+          this.aplicarDetalleActualizado(res, requisitoId);
+        },
+        error: (err: any) => {
+          this.guardandoPunto = false;
+          Swal.fire({
+            icon: 'error',
+            title: 'No se guardó',
+            text: err?.error?.message || 'Intente de nuevo.',
+            confirmButtonColor: '#b91c1c'
+          });
+        }
+      });
   }
 
   /** Retraso escalonado para animaciones de entrada (ms). */
@@ -967,12 +1792,12 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     return { empresas, normativas, avance };
   }
 
-  conteoEstadosPuntos(): { cumple: number; parcial: number; no_cumple: number } {
+  conteoEstadosPuntos(): { cumple: number; pendiente: number } {
     const pts = this.detalle?.puntos || [];
+    const cumple = pts.filter((p) => p.estado === 'cumple').length;
     return {
-      cumple: pts.filter((p) => p.estado === 'cumple').length,
-      parcial: pts.filter((p) => p.estado === 'parcial').length,
-      no_cumple: pts.filter((p) => p.estado === 'no_cumple').length
+      cumple,
+      pendiente: Math.max(0, pts.length - cumple)
     };
   }
 
@@ -987,7 +1812,6 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
 
   etiquetaEstado(estado: string): string {
     if (estado === 'cumple') return 'Cumple';
-    if (estado === 'parcial') return 'Parcial';
     return 'No cumple';
   }
 
@@ -1027,11 +1851,15 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
       return;
     }
     if (this.vista === 'normativa' && this.detalle) {
-      this.router.navigate(['/seguridad/gestion/empresa', this.detalle.asignacion.empresa_id], {
-        queryParams: this.detalle.asignacion.categoria_id
-          ? { categoria: this.detalle.asignacion.categoria_id }
-          : {}
-      });
+      // No forzar filtro de categoría: al regresar deben verse todas las normativas.
+      this.categoriaFiltro = null;
+      this.busquedaNorma = '';
+      this.panelModo = 'general';
+      this.normativaFoco = null;
+      this.router.navigate(
+        ['/seguridad/gestion/empresa', this.detalle.asignacion.empresa_id],
+        { queryParams: {} }
+      );
       return;
     }
     this.router.navigate(['/seguridad/gestion']);

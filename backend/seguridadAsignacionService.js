@@ -205,6 +205,65 @@ async function crearTablas(pool) {
     await addColumnIfNotExists(pool, 'seg_asignacion_documento', 'drive_folder_id', 'VARCHAR(128) NULL');
     await addColumnIfNotExists(pool, 'seg_asignacion_documento', 'drive_web_view_link', 'VARCHAR(512) NULL');
     await addColumnIfNotExists(pool, 'seg_asignacion_documento', 'anio', 'SMALLINT UNSIGNED NULL');
+
+    await addColumnIfNotExists(pool, 'seg_asignacion_punto', 'accion_score', 'TINYINT UNSIGNED NULL');
+    await addColumnIfNotExists(pool, 'seg_asignacion_punto', 'fecha_inicio', 'DATE NULL');
+    await addColumnIfNotExists(pool, 'seg_asignacion_punto', 'indicador_avance', 'TINYINT UNSIGNED NULL');
+    await addColumnIfNotExists(pool, 'seg_asignacion_punto', 'observaciones', 'TEXT NULL');
+}
+
+const ACCION_SCORE_META = {
+    100: { grupo: 'preventiva', clave: 'conservar', etiqueta: 'Conservar' },
+    80: { grupo: 'preventiva', clave: 'mejorar', etiqueta: 'Mejorar' },
+    60: { grupo: 'preventiva', clave: 'actualizar', etiqueta: 'Actualizar' },
+    40: { grupo: 'correctiva', clave: 'complementar', etiqueta: 'Complementar' },
+    20: { grupo: 'correctiva', clave: 'corregir', etiqueta: 'Corregir' },
+    0: { grupo: 'correctiva', clave: 'realizar', etiqueta: 'Realizar' }
+};
+
+function accionesDesdeScore(score) {
+    const vacio = {
+        preventiva: { conservar: false, mejorar: false, actualizar: false },
+        correctiva: { complementar: false, corregir: false, realizar: false }
+    };
+    if (score == null || !Object.prototype.hasOwnProperty.call(ACCION_SCORE_META, Number(score))) {
+        return vacio;
+    }
+    const meta = ACCION_SCORE_META[Number(score)];
+    vacio[meta.grupo][meta.clave] = true;
+    return vacio;
+}
+
+function scoreDesdeAccionesCatalogo(row) {
+    if (Number(row.accion_prev_conservar)) return 100;
+    if (Number(row.accion_prev_mejorar)) return 80;
+    if (Number(row.accion_prev_actualizar)) return 60;
+    if (Number(row.accion_corr_complementar)) return 40;
+    if (Number(row.accion_corr_corregir)) return 20;
+    if (Number(row.accion_corr_realizar)) return 0;
+    return null;
+}
+
+function normalizarAccionScore(valor) {
+    if (valor == null || valor === '') return null;
+    const n = Number(valor);
+    if (![0, 20, 40, 60, 80, 100].includes(n)) {
+        throw httpError(400, 'La acción debe ser 100, 80, 60, 40, 20 o 0.');
+    }
+    return n;
+}
+
+function normalizarFechaInicioMes(valor) {
+    if (valor == null || valor === '') return null;
+    const raw = String(valor).trim();
+    const m = raw.match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+    if (!m) throw httpError(400, 'La fecha de inicio debe ser mes y año (AAAA-MM).');
+    const anio = Number(m[1]);
+    const mes = Number(m[2]);
+    if (mes < 1 || mes > 12 || anio < 2000 || anio > 2100) {
+        throw httpError(400, 'Mes o año de inicio inválido.');
+    }
+    return `${m[1]}-${m[2]}-01`;
 }
 
 function pct(conEvidencia, total) {
@@ -805,9 +864,13 @@ async function obtenerGestion(pool, asignacionId) {
                     r.aplica, r.tipo_evidencia, r.periodicidad,
                     r.accion_prev_conservar, r.accion_prev_mejorar, r.accion_prev_actualizar,
                     r.accion_corr_complementar, r.accion_corr_corregir, r.accion_corr_realizar,
-                    r.fecha_inicio, r.fecha_terminacion, r.responsable, r.indicador_avance,
-                    r.evidencia_requerida, r.observaciones,
+                    r.fecha_inicio AS cat_fecha_inicio, r.responsable, r.indicador_avance AS cat_indicador,
+                    r.evidencia_requerida, r.observaciones AS cat_observaciones,
                     r.formato_nombre, r.formato_archivo, r.formato_nombre_archivo, r.orden,
+                    p.accion_score AS ges_accion_score,
+                    p.fecha_inicio AS ges_fecha_inicio,
+                    p.indicador_avance AS ges_indicador,
+                    p.observaciones AS ges_observaciones,
                     (SELECT MAX(d.creado_en) FROM seg_asignacion_documento d
                       WHERE d.asignacion_id = ? AND d.requisito_id = r.id) AS ultima_evidencia
              FROM seg_asignacion_punto p
@@ -852,16 +915,14 @@ async function obtenerGestion(pool, asignacionId) {
         },
         puntos: puntos.map((row) => {
             const documentos = docsMap.filter((d) => Number(d.requisito_id) === Number(row.id));
-            return {
-                id: row.id,
-                numero_item: row.numero_item != null ? Number(row.numero_item) : null,
-                punto_norma: formatearPuntoNorma(row.punto_norma) || '',
-                descripcion: row.descripcion || '',
-                descripcion_html: row.descripcion_html || null,
-                aplica: row.aplica == null ? null : !!Number(row.aplica),
-                tipo_evidencia: row.tipo_evidencia || null,
-                periodicidad: row.periodicidad || null,
-                acciones: {
+            const ultima = aIso(row.ultima_evidencia);
+            const scoreGes = row.ges_accion_score != null ? Number(row.ges_accion_score) : null;
+            const score = scoreGes != null && !Number.isNaN(scoreGes)
+                ? scoreGes
+                : scoreDesdeAccionesCatalogo(row);
+            const acciones = score != null
+                ? accionesDesdeScore(score)
+                : {
                     preventiva: {
                         conservar: !!Number(row.accion_prev_conservar || 0),
                         mejorar: !!Number(row.accion_prev_mejorar || 0),
@@ -872,19 +933,37 @@ async function obtenerGestion(pool, asignacionId) {
                         corregir: !!Number(row.accion_corr_corregir || 0),
                         realizar: !!Number(row.accion_corr_realizar || 0)
                     }
-                },
-                fecha_inicio: row.fecha_inicio || null,
-                fecha_terminacion: row.fecha_terminacion || null,
+                };
+            const fechaInicio = row.ges_fecha_inicio || row.cat_fecha_inicio || null;
+            const observaciones = row.ges_observaciones != null
+                ? row.ges_observaciones
+                : (row.cat_observaciones || null);
+            const estado = estadoPunto(documentos);
+            /** Avance por cumplimiento (evidencias), no por nivel de acción. */
+            const indicador = estado === 'cumple' ? 100 : (estado === 'parcial' ? 50 : 0);
+            return {
+                id: row.id,
+                numero_item: row.numero_item != null ? Number(row.numero_item) : null,
+                punto_norma: formatearPuntoNorma(row.punto_norma) || '',
+                descripcion: row.descripcion || '',
+                descripcion_html: row.descripcion_html || null,
+                tipo_evidencia: row.tipo_evidencia || null,
+                periodicidad: row.periodicidad || null,
+                accion_score: score,
+                acciones,
+                fecha_inicio: fechaInicio,
+                /** Fecha de terminación = día en que se subió la evidencia. */
+                fecha_terminacion: ultima,
                 responsable: normalizarResponsableGestion(row.responsable),
-                indicador_avance: row.indicador_avance != null ? Number(row.indicador_avance) : null,
+                indicador_avance: indicador,
                 evidencia_requerida: row.evidencia_requerida || null,
-                observaciones: row.observaciones || null,
+                observaciones,
                 formato_nombre: row.formato_nombre || null,
                 formato_archivo: row.formato_archivo || null,
                 formato_nombre_archivo: row.formato_nombre_archivo || null,
                 orden: row.orden,
-                ultima_evidencia: aIso(row.ultima_evidencia),
-                estado: estadoPunto(documentos),
+                ultima_evidencia: ultima,
+                estado,
                 imagenes: imagenesMap.get(row.id) || [],
                 documentos
             };
@@ -1095,6 +1174,64 @@ async function archivarAsignacion(pool, asignacionId) {
     if (!res.affectedRows) throw httpError(404, 'La asignación no está disponible.');
 }
 
+async function actualizarPuntoGestion(pool, asignacionId, requisitoId, datos = {}) {
+    await asegurarTablas(pool);
+    const asigId = entero(asignacionId);
+    const reqId = entero(requisitoId);
+    if (!asigId || !reqId) throw httpError(400, 'Asignación o requisito inválido.');
+
+    const [asig] = await pool.query(
+        `SELECT id FROM seg_asignacion WHERE id = ? AND estado = 'activa' LIMIT 1`,
+        [asigId]
+    );
+    if (!asig.length) throw httpError(404, 'La normativa no está en gestión activa.');
+
+    const [pto] = await pool.query(
+        `SELECT id FROM seg_asignacion_punto
+         WHERE asignacion_id = ? AND requisito_id = ? LIMIT 1`,
+        [asigId, reqId]
+    );
+    if (!pto.length) throw httpError(404, 'El punto no pertenece a esta asignación.');
+
+    const campos = [];
+    const vals = [];
+
+    if (Object.prototype.hasOwnProperty.call(datos, 'accion_score')) {
+        const score = normalizarAccionScore(datos.accion_score);
+        campos.push('accion_score = ?');
+        vals.push(score);
+    }
+    if (Object.prototype.hasOwnProperty.call(datos, 'fecha_inicio')) {
+        campos.push('fecha_inicio = ?');
+        vals.push(normalizarFechaInicioMes(datos.fecha_inicio));
+    }
+    if (Object.prototype.hasOwnProperty.call(datos, 'observaciones')) {
+        const obs = datos.observaciones == null ? null : String(datos.observaciones).trim().slice(0, 4000);
+        campos.push('observaciones = ?');
+        vals.push(obs || null);
+    }
+    if (Object.prototype.hasOwnProperty.call(datos, 'indicador_avance')
+        && !Object.prototype.hasOwnProperty.call(datos, 'accion_score')) {
+        const ind = datos.indicador_avance == null || datos.indicador_avance === ''
+            ? null
+            : Math.max(0, Math.min(100, Number(datos.indicador_avance)));
+        if (ind != null && Number.isNaN(ind)) throw httpError(400, 'Indicador de avance inválido.');
+        campos.push('indicador_avance = ?');
+        vals.push(ind);
+    }
+
+    if (!campos.length) throw httpError(400, 'No hay campos para actualizar.');
+
+    vals.push(asigId, reqId);
+    await pool.query(
+        `UPDATE seg_asignacion_punto SET ${campos.join(', ')}
+         WHERE asignacion_id = ? AND requisito_id = ?`,
+        vals
+    );
+
+    return obtenerGestion(pool, asigId);
+}
+
 module.exports = {
     asegurarTablas,
     guardarBorrador,
@@ -1110,5 +1247,6 @@ module.exports = {
     leerDocumento,
     eliminarDocumento,
     archivarAsignacion,
+    actualizarPuntoGestion,
     CARPETA_SISTEMA_DRIVE_ID
 };

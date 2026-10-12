@@ -25974,6 +25974,21 @@ app.get('/api/seguridad/asignacion/:id', authMiddleware, denyEmpresa, async (req
     }
 });
 
+app.put('/api/seguridad/asignacion/:id/puntos/:requisitoId', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const detalle = await seguridadAsignacionService.actualizarPuntoGestion(
+            poolNormativas,
+            req.params.id,
+            req.params.requisitoId,
+            req.body || {}
+        );
+        res.json({ success: true, message: 'Punto actualizado.', ...detalle });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al actualizar el punto');
+    }
+});
+
 app.post(
     '/api/seguridad/asignacion/:id/documentos',
     authMiddleware,

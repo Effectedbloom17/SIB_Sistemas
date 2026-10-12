@@ -2805,6 +2805,22 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion/${id}`);
     }
 
+    actualizarPuntoGestionSeguridad(
+        asignacionId: number,
+        requisitoId: number,
+        datos: {
+            accion_score?: number | null;
+            fecha_inicio?: string | null;
+            observaciones?: string | null;
+            indicador_avance?: number | null;
+        }
+    ): Observable<any> {
+        return this.httpClient.put(
+            `${this.baseUrl}/seguridad/asignacion/${asignacionId}/puntos/${requisitoId}`,
+            datos
+        );
+    }
+
     subirDocumentoSeguridadAsignacion(
         asignacionId: number,
         archivo: File,
