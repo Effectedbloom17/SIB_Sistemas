@@ -28237,6 +28237,38 @@ app.get('/api/sgc/formatos/sgc-f-19/descargar-pdf', requireAdminOrSgc, async (re
     }
 });
 
+app.post('/api/sgc/formatos/sgc-f-19/importar-excel', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF19Service.importarExcelListado(poolBiznagaSgc, req.body || {});
+        const total = Array.isArray(payload.importados) ? payload.importados.length : 0;
+        return res.json({
+            success: true,
+            message: total === 1
+                ? 'Conocimiento importado y guardado en el listado.'
+                : `${total} conocimientos importados y guardados en el listado.`,
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo importar el Excel de SGC-F-19');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-19/descargar-excel', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const xlsxBuffer = await sgcF19Service.descargarPlantillaXlsx(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="SGC-F-19 Listado de conocimientos de la organizacion.xlsx"'
+        );
+        return res.send(xlsxBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo exportar el Excel de SGC-F-19');
+    }
+});
+
 app.post('/api/sgc/formatos/sgc-f-19/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
@@ -28351,6 +28383,38 @@ app.get('/api/sgc/formatos/sgc-f-20/descargar-pdf', requireAdminOrSgc, async (re
         return res.send(pdfBuffer);
     } catch (error) {
         handleError(res, error, 'No se pudo descargar el PDF de SGC-F-20');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-20/importar-excel', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF20Service.importarExcelFichas(poolBiznagaSgc, req.body || {});
+        const total = Array.isArray(payload.importados) ? payload.importados.length : 0;
+        return res.json({
+            success: true,
+            message: total === 1
+                ? 'Ficha importada y guardada en Excel.'
+                : `${total} fichas importadas y guardadas en Excel.`,
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo importar el Excel de SGC-F-20');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-20/descargar-excel', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const xlsxBuffer = await sgcF20Service.descargarPlantillaXlsx(poolBiznagaSgc);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader(
+            'Content-Disposition',
+            'attachment; filename="SGC-F-20 Ficha de conocimientos.xlsx"'
+        );
+        return res.send(xlsxBuffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo exportar el Excel de SGC-F-20');
     }
 });
 

@@ -3068,6 +3068,19 @@ export class BackendServices {
         });
     }
 
+    importarExcelSgcF19(excelBase64: string, nombreArchivo: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-19/importar-excel`, {
+            excelBase64,
+            nombreArchivo
+        });
+    }
+
+    descargarExcelSgcF19(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-19/descargar-excel`, {
+            responseType: 'blob'
+        });
+    }
+
     subirPdfFirmadoSgcF19(pdfBase64: string, nombreArchivo: string): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-19/subir-pdf-firmado`, {
             pdf_base64: pdfBase64,
@@ -3145,6 +3158,19 @@ export class BackendServices {
 
     descargarPdfSgcF20(): Observable<Blob> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-20/descargar-pdf`, {
+            responseType: 'blob'
+        });
+    }
+
+    importarExcelSgcF20(excelBase64: string, nombreArchivo: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-20/importar-excel`, {
+            excelBase64,
+            nombreArchivo
+        });
+    }
+
+    descargarExcelSgcF20(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-20/descargar-excel`, {
             responseType: 'blob'
         });
     }

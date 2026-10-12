@@ -5,6 +5,7 @@
  * La plantilla maestra no se edita: la primera carga la copia al capítulo 7.
  */
 const { google } = require('googleapis');
+const ExcelJS = require('exceljs');
 const driveService = require('./driveService');
 const { asegurarTablaSgcFormatoDatos, persistirRegistroSgc, obtenerRegistroSgcPersistido } = require('./sgcDgF05Service');
 const excelHistorial = require('./sgcExcelHistorialService');
@@ -797,6 +798,211 @@ async function descargarPlantillaPdf(pool) {
     return pdfBuffer;
 }
 
+function textoPlanoCelda(valor) {
+    if (valor == null) return '';
+    if (valor instanceof Date && !Number.isNaN(valor.getTime())) {
+        const y = valor.getUTCFullYear();
+        const mo = String(valor.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(valor.getUTCDate()).padStart(2, '0');
+        return `${y}-${mo}-${day}`;
+    }
+    if (typeof valor === 'number' && valor > 20000 && valor < 80000) {
+        const utc = new Date(Date.UTC(1899, 11, 30) + Math.round(valor) * 86400000);
+        const y = utc.getUTCFullYear();
+        const mo = String(utc.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(utc.getUTCDate()).padStart(2, '0');
+        return `${y}-${mo}-${day}`;
+    }
+    if (typeof valor === 'object') {
+        if (Array.isArray(valor.richText)) {
+            return valor.richText.map((parte) => parte?.text || '').join('');
+        }
+        if (valor.result != null) return textoPlanoCelda(valor.result);
+        if (valor.text != null) return String(valor.text);
+    }
+    return String(valor);
+}
+
+function valorCelda(ws, direccion) {
+    return textoPlanoCelda(ws.getCell(direccion)?.value);
+}
+
+function normalizarTipoFuente(valor) {
+    const t = texto(valor);
+    if (!t) return '';
+    const exacto = TIPOS_FUENTE.find((item) => item.toLowerCase() === t.toLowerCase());
+    return exacto || t;
+}
+
+function claveFichaImportada(ficha) {
+    const descripcion = texto(ficha?.descripcion).toLowerCase();
+    if (!descripcion) return '';
+    return `${texto(ficha?.tipoFuente).toLowerCase()}|${descripcion}`;
+}
+
+function siguienteFolioFicha(fichas, fechaIso) {
+    const iso = formatearFechaIso(fechaIso) || fechaHoyIso();
+    const [y, m, d] = iso.split('-');
+    const tag = `${d}${m}${y.slice(2)}`;
+    let maximo = 0;
+    for (const ficha of fichas || []) {
+        const match = String(ficha?.folio || '').match(/^FC-(\d{6})-(\d+)$/i);
+        if (match && match[1] === tag) {
+            maximo = Math.max(maximo, parseInt(match[2], 10) || 0);
+        }
+    }
+    return `FC-${tag}-${String(maximo + 1).padStart(2, '0')}`;
+}
+
+function parsearFichaDesdeHojaExcel(ws) {
+    const nombre = texto(ws?.name);
+    if (!ws || /^hoja\s*2$/i.test(nombre)) return null;
+    const tipoFuente = normalizarTipoFuente(valorCelda(ws, 'C9'));
+    const descripcion = textoLargo(valorCelda(ws, 'A12'));
+    const fechaCaptura = formatearFechaIso(valorCelda(ws, 'D30'));
+    const placeholder = tipoFuente === TIPOS_FUENTE[0] && !descripcion && !fechaCaptura;
+    if (placeholder || (!descripcion && !fechaCaptura)) return null;
+    if (/^tipo de fuente$/i.test(descripcion)) return null;
+    const revTexto = texto(valorCelda(ws, 'D2'));
+    const revFechaTexto = texto(valorCelda(ws, 'D3'));
+    return {
+        tipoFuente,
+        descripcion,
+        fechaCaptura,
+        revision: /rev|\d/i.test(revTexto) ? extraerRevision(revTexto) : '',
+        fechaRevision: formatearFechaIso(revFechaTexto)
+    };
+}
+
+async function leerFichasDesdeExcelBuffer(buffer) {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer);
+    const encontradas = [];
+    const vistas = new Set();
+    for (const ws of wb.worksheets || []) {
+        if (!ws || ws.state === 'hidden' || ws.state === 'veryHidden') continue;
+        const ficha = parsearFichaDesdeHojaExcel(ws);
+        if (!ficha) continue;
+        const clave = claveFichaImportada(ficha);
+        if (clave && vistas.has(clave)) continue;
+        if (clave) vistas.add(clave);
+        encontradas.push(ficha);
+    }
+    return encontradas;
+}
+
+async function importarExcelFichas(pool, body = {}) {
+    const crudo = String(body.excelBase64 || body.excel_base64 || '').trim();
+    const limpio = crudo.replace(/^data:.*;base64,/i, '').replace(/\s+/g, '');
+    if (!limpio) {
+        const error = new Error('Selecciona un archivo Excel (.xlsx) del formato SGC-F-20.');
+        error.statusCode = 400;
+        throw error;
+    }
+    let buffer;
+    try {
+        buffer = Buffer.from(limpio, 'base64');
+    } catch {
+        const error = new Error('No se pudo leer el archivo Excel.');
+        error.statusCode = 400;
+        throw error;
+    }
+    if (!buffer.length || buffer[0] !== 0x50 || buffer[1] !== 0x4b) {
+        const error = new Error('El archivo debe ser un Excel .xlsx con el formato SGC-F-20.');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    let encontradas;
+    try {
+        encontradas = await leerFichasDesdeExcelBuffer(buffer);
+    } catch (err) {
+        const error = new Error('No se pudo leer el Excel. Usa el formato SGC-F-20 (.xlsx).');
+        error.statusCode = 400;
+        throw error;
+    }
+    if (!encontradas.length) {
+        const error = new Error(
+            'El Excel no tiene una ficha con descripción o fecha. Llena el formato SGC-F-20 y vuelve a importarlo.'
+        );
+        error.statusCode = 400;
+        throw error;
+    }
+
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+    const fichas = [...(datos.fichas || [])];
+    const importados = [];
+    let revision = datos.revision;
+    let fechaRevision = datos.fechaRevision;
+
+    for (const item of encontradas) {
+        if (item.revision) revision = item.revision;
+        if (item.fechaRevision) fechaRevision = item.fechaRevision;
+        const clave = claveFichaImportada(item);
+        const idx = clave ? fichas.findIndex((f) => claveFichaImportada(f) === clave) : -1;
+        if (idx >= 0) {
+            const previo = fichas[idx];
+            fichas[idx] = sanitizarFicha({
+                ...previo,
+                tipoFuente: item.tipoFuente || previo.tipoFuente,
+                descripcion: item.descripcion || previo.descripcion,
+                fechaCaptura: item.fechaCaptura || previo.fechaCaptura,
+                pdfFirmado: previo.pdfFirmado
+            });
+            importados.push({
+                id: fichas[idx].id,
+                folio: fichas[idx].folio,
+                descripcion: fichas[idx].descripcion,
+                accion: 'actualizado'
+            });
+            continue;
+        }
+        const creado = sanitizarFicha({
+            tipoFuente: item.tipoFuente,
+            descripcion: item.descripcion,
+            fechaCaptura: item.fechaCaptura || fechaHoyIso(),
+            folio: siguienteFolioFicha(fichas, item.fechaCaptura || fechaHoyIso()),
+            pdfFirmado: null
+        });
+        fichas.unshift(creado);
+        importados.push({
+            id: creado.id,
+            folio: creado.folio,
+            descripcion: creado.descripcion,
+            accion: 'creado'
+        });
+    }
+
+    const respuesta = await guardarFormato(pool, {
+        datos: {
+            ...datos,
+            revision,
+            fechaRevision,
+            fichas,
+            fichaActivaId: importados[0]?.id || datos.fichaActivaId
+        },
+        origen: 'sistema'
+    });
+    return { ...respuesta, importados };
+}
+
+async function descargarPlantillaXlsx(pool) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const driveFileId = await asegurarCopiaSistema(pool, registro);
+    const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+    try {
+        await escribirEnHoja(driveFileId, SHEET_TITLE, datos);
+    } catch (err) {
+        console.warn('[SGC-F-20] No se pudo escribir la hoja antes del Excel:', err.message);
+    }
+    const xlsxBuffer = await driveService.exportarGoogleSheetComoXLSX(driveFileId);
+    if (!xlsxBuffer || !xlsxBuffer.length) throw new Error('La exportación a Excel de SGC-F-20 quedó vacía.');
+    return xlsxBuffer;
+}
+
 function nombrePdfHistorial(folio = '', fechaIso = fechaHoyIso()) {
     const iso = formatearFechaIso(fechaIso) || fechaHoyIso();
     const mm = iso.slice(5, 7);
@@ -865,6 +1071,8 @@ module.exports = {
     actualizarPlantillaDesdeSistema,
     asegurarAccesoEditor,
     descargarPlantillaPdf,
+    descargarPlantillaXlsx,
+    importarExcelFichas,
     subirPdfFirmado,
     sanitizarDatos,
     TIPOS_FUENTE,

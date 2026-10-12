@@ -4,6 +4,7 @@
  * La plantilla maestra no se edita: la primera carga la copia al capítulo 7.
  */
 const { google } = require('googleapis');
+const ExcelJS = require('exceljs');
 const driveService = require('./driveService');
 const { asegurarTablaSgcFormatoDatos, persistirRegistroSgc, obtenerRegistroSgcPersistido } = require('./sgcDgF05Service');
 const excelHistorial = require('./sgcExcelHistorialService');
@@ -100,6 +101,40 @@ function registroTieneDatos(registro) {
     return !!(registro.conocimiento || registro.tipoFuente || registro.puesto || registro.disponibleEn);
 }
 
+function textoComparable(valor) {
+    return texto(valor)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+}
+
+function esEtiquetaFirma(valor) {
+    const t = textoComparable(valor);
+    if (!t) return false;
+    if (/^elaboro\b/.test(t)) return true;
+    if (t.startsWith('reviso y aprobo')) return true;
+    if (t === 'directora general' || t === 'director general') return true;
+    if (t === 'coordinador del sgc') return true;
+    return false;
+}
+
+function limpiarRegistroVisible(registro) {
+    const limpio = sanitizarRegistro(registro);
+    if (esEtiquetaFirma(limpio.tipoFuente)) limpio.tipoFuente = '';
+    if (esEtiquetaFirma(limpio.puesto)) limpio.puesto = '';
+    if (esEtiquetaFirma(limpio.disponibleEn)) limpio.disponibleEn = '';
+    return limpio;
+}
+
+function registroEsPieDeFirma(registro) {
+    if (!registroTieneDatos(registro)) return true;
+    if (esEtiquetaFirma(registro.conocimiento)) return true;
+    if (texto(registro.conocimiento)) return false;
+    return esEtiquetaFirma(registro.tipoFuente)
+        || esEtiquetaFirma(registro.puesto)
+        || esEtiquetaFirma(registro.disponibleEn);
+}
+
 function sanitizarPdfFirmado(raw) {
     if (!raw || typeof raw !== 'object') return null;
     const driveFileId = texto(raw.driveFileId || raw.drive_file_id);
@@ -128,10 +163,22 @@ function sanitizarPdfsHistorial(raw) {
 
 function sanitizarDatos(raw) {
     const base = raw && typeof raw === 'object' ? raw : {};
-    const registros = (Array.isArray(base.registros) ? base.registros : [])
-        .map(sanitizarRegistro)
-        .filter(registroTieneDatos)
-        .slice(0, MAX_FILAS);
+    const vistos = new Set();
+    const registros = [];
+    for (const crudo of (Array.isArray(base.registros) ? base.registros : [])) {
+        const registro = limpiarRegistroVisible(crudo);
+        if (registroEsPieDeFirma(registro) || !texto(registro.conocimiento)) continue;
+        const clave = [
+            registro.conocimiento,
+            registro.tipoFuente,
+            registro.puesto,
+            registro.disponibleEn
+        ].map((valor) => texto(valor).toLowerCase()).join('|');
+        if (vistos.has(clave)) continue;
+        vistos.add(clave);
+        registros.push(registro);
+        if (registros.length >= MAX_FILAS) break;
+    }
     return {
         fechaElaboracion: formatearFechaIso(base.fechaElaboracion) || DATOS_DEFECTO.fechaElaboracion,
         fechaRevision: formatearFechaIso(base.fechaRevision) || DATOS_DEFECTO.fechaRevision,
@@ -720,6 +767,21 @@ async function descargarPlantillaPdf(pool) {
     return pdfBuffer;
 }
 
+async function descargarPlantillaXlsx(pool) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const driveFileId = await asegurarCopiaSistema(pool, registro);
+    const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+    try {
+        await escribirEnHoja(driveFileId, SHEET_TITLE, datos);
+    } catch (err) {
+        console.warn('[SGC-F-19] No se pudo volcar la hoja antes del Excel:', err.message);
+    }
+    const xlsxBuffer = await driveService.exportarGoogleSheetComoXLSX(driveFileId);
+    if (!xlsxBuffer || !xlsxBuffer.length) throw new Error('La exportación a Excel de SGC-F-19 quedó vacía.');
+    return xlsxBuffer;
+}
+
 function nombrePdfHistorial(fechaIso, historial) {
     const iso = formatearFechaIso(fechaIso) || fechaHoyIso();
     const mm = iso.slice(5, 7);
@@ -808,6 +870,202 @@ async function eliminarPdfHistorial(pool, body, opciones = {}) {
     return construirRespuesta(registro, datosGuardar, archivoDrive);
 }
 
+function textoPlanoCelda(valor) {
+    if (valor == null) return '';
+    if (valor instanceof Date) return '';
+    if (typeof valor === 'object') {
+        if (Array.isArray(valor.richText)) {
+            return valor.richText.map((parte) => parte?.text || '').join('');
+        }
+        if (valor.result != null) return textoPlanoCelda(valor.result);
+        if (valor.text != null) return String(valor.text);
+    }
+    return String(valor);
+}
+
+function valorCeldaExcel(cell) {
+    if (!cell) return '';
+    try {
+        return texto(textoPlanoCelda(cell.value));
+    } catch {
+        return '';
+    }
+}
+
+function filaExcel(ws, numeroFila, columnas = COLUMNAS_HOJA) {
+    const fila = [];
+    for (let columna = 1; columna <= columnas; columna += 1) {
+        fila.push(valorCeldaExcel(ws.getCell(numeroFila, columna)));
+    }
+    return fila;
+}
+
+function filaEsPieExcel(celdas) {
+    return (celdas || []).some((celda) => /^elaboro\b/.test(textoComparable(celda)));
+}
+
+function esEncabezadoListado(fila) {
+    const unidos = fila.join(' ').toLowerCase();
+    return unidos.includes('conocimiento')
+        && (unidos.includes('fuente') || unidos.includes('puesto') || unidos.includes('disponible'));
+}
+
+function indiceColumna(fila, ...palabras) {
+    return fila.findIndex((celda) => palabras.some((palabra) => celda.toLowerCase().includes(palabra)));
+}
+
+function parsearHojaListado(ws) {
+    const maxFila = Math.min(Math.max(ws?.rowCount || 0, DATA_START_ROW), MAX_FILAS + 20);
+    let inicio = DATA_START_ROW;
+    let columnas = { conocimiento: 0, tipoFuente: 4, puesto: 6, disponibleEn: 8 };
+    for (let fila = 1; fila <= Math.min(maxFila, 12); fila += 1) {
+        const celdas = filaExcel(ws, fila);
+        if (!esEncabezadoListado(celdas)) continue;
+        inicio = fila + 1;
+        const conocimiento = indiceColumna(celdas, 'conocimiento');
+        const tipoFuente = indiceColumna(celdas, 'fuente');
+        const puesto = indiceColumna(celdas, 'puesto');
+        const disponibleEn = indiceColumna(celdas, 'disponible');
+        if (conocimiento >= 0) columnas.conocimiento = conocimiento;
+        if (tipoFuente >= 0) columnas.tipoFuente = tipoFuente;
+        if (puesto >= 0) columnas.puesto = puesto;
+        if (disponibleEn >= 0) columnas.disponibleEn = disponibleEn;
+        break;
+    }
+
+    const registros = [];
+    for (let fila = inicio; fila <= maxFila; fila += 1) {
+        const celdas = filaExcel(ws, fila);
+        if (filaEsPieExcel(celdas)) break;
+        const registro = limpiarRegistroVisible({
+            conocimiento: celdas[columnas.conocimiento] || '',
+            tipoFuente: celdas[columnas.tipoFuente] || '',
+            puesto: celdas[columnas.puesto] || '',
+            disponibleEn: celdas[columnas.disponibleEn] || ''
+        });
+        if (registroEsPieDeFirma(registro) || !texto(registro.conocimiento)) continue;
+        if (/^conocimiento$/i.test(registro.conocimiento)
+            && !registro.tipoFuente && !registro.puesto && !registro.disponibleEn) continue;
+        registros.push(registro);
+    }
+
+    const revRaw = texto(textoPlanoCelda(ws.getCell(2, 9)?.value));
+    const fechaRaw = texto(textoPlanoCelda(ws.getCell(3, 9)?.value));
+    const revMatch = revRaw.match(/(\d+)/);
+    return {
+        registros,
+        revision: revMatch ? revMatch[1].padStart(2, '0').slice(-2) : '',
+        fechaRevision: formatearFechaIso(fechaRaw)
+    };
+}
+
+async function leerRegistrosDesdeExcelBuffer(buffer) {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer);
+    for (const ws of wb.worksheets || []) {
+        if (!ws || ws.state === 'hidden' || ws.state === 'veryHidden') continue;
+        const parsed = parsearHojaListado(ws);
+        if (parsed.registros.length) return parsed;
+    }
+    return null;
+}
+
+function claveRegistroImportado(registro) {
+    return [
+        registro?.conocimiento,
+        registro?.tipoFuente,
+        registro?.puesto,
+        registro?.disponibleEn
+    ].map((valor) => texto(valor).toLowerCase()).join('|');
+}
+
+async function importarExcelListado(pool, body = {}) {
+    const crudo = String(body.excelBase64 || body.excel_base64 || '').trim();
+    const limpio = crudo.replace(/^data:.*;base64,/i, '').replace(/\s+/g, '');
+    if (!limpio) {
+        const error = new Error('Selecciona un archivo Excel (.xlsx) del formato SGC-F-19.');
+        error.statusCode = 400;
+        throw error;
+    }
+    let buffer;
+    try {
+        buffer = Buffer.from(limpio, 'base64');
+    } catch {
+        const error = new Error('No se pudo leer el archivo Excel.');
+        error.statusCode = 400;
+        throw error;
+    }
+    if (!buffer.length || buffer[0] !== 0x50 || buffer[1] !== 0x4b) {
+        const error = new Error('El archivo debe ser un Excel .xlsx con el formato SGC-F-19.');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    let encontrado;
+    try {
+        encontrado = await leerRegistrosDesdeExcelBuffer(buffer);
+    } catch (err) {
+        console.error('[SGC-F-19] No se pudo leer el Excel:', err);
+        const error = new Error('No se pudo leer el Excel. Usa el formato SGC-F-19 (.xlsx).');
+        error.statusCode = 400;
+        throw error;
+    }
+    if (!encontrado?.registros?.length) {
+        const error = new Error(
+            'El Excel no tiene conocimientos. Llena el listado SGC-F-19 y vuelve a importarlo.'
+        );
+        error.statusCode = 400;
+        throw error;
+    }
+
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+    const registros = [...(datos.registros || [])];
+    const importados = [];
+
+    for (const item of encontrado.registros) {
+        const clave = claveRegistroImportado(item);
+        const idx = clave ? registros.findIndex((fila) => claveRegistroImportado(fila) === clave) : -1;
+        if (idx >= 0) {
+            registros[idx] = sanitizarRegistro({
+                ...registros[idx],
+                tipoFuente: item.tipoFuente || registros[idx].tipoFuente,
+                puesto: item.puesto || registros[idx].puesto,
+                disponibleEn: item.disponibleEn || registros[idx].disponibleEn
+            });
+            importados.push({
+                conocimiento: registros[idx].conocimiento,
+                tipoFuente: registros[idx].tipoFuente,
+                puesto: registros[idx].puesto,
+                disponibleEn: registros[idx].disponibleEn,
+                accion: 'actualizado'
+            });
+            continue;
+        }
+        const creado = sanitizarRegistro(item);
+        registros.push(creado);
+        importados.push({
+            conocimiento: creado.conocimiento,
+            tipoFuente: creado.tipoFuente,
+            puesto: creado.puesto,
+            disponibleEn: creado.disponibleEn,
+            accion: 'creado'
+        });
+    }
+
+    const respuesta = await guardarFormato(pool, {
+        datos: {
+            ...datos,
+            revision: encontrado.revision || datos.revision,
+            fechaRevision: encontrado.fechaRevision || datos.fechaRevision,
+            registros
+        },
+        origen: 'sistema'
+    });
+    return { ...respuesta, importados };
+}
+
 module.exports = {
     cargarFormato,
     guardarFormato,
@@ -815,6 +1073,8 @@ module.exports = {
     actualizarPlantillaDesdeSistema,
     asegurarAccesoEditor,
     descargarPlantillaPdf,
+    descargarPlantillaXlsx,
+    importarExcelListado,
     subirPdfFirmado,
     eliminarPdfHistorial,
     sanitizarDatos,

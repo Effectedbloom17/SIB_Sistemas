@@ -478,6 +478,28 @@ $sgc-muted: #6c757d;
   }
 }
 
+.sgc-btn-excel {
+  display: inline-flex;
+  align-items: center;
+  background: #fff;
+  color: #1d6f42 !important;
+  border: 1px solid rgba(33, 115, 70, 0.45);
+  border-radius: 999px;
+  font-weight: 600;
+  padding: 0.4rem 1rem;
+  box-shadow: 0 1px 2px rgba(29, 111, 66, 0.08);
+
+  &:hover:not(:disabled) {
+    background: #e8f6ee;
+    color: #145c36 !important;
+    border-color: rgba(20, 92, 54, 0.55);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+  }
+}
+
 .sgc-btn-historico {
   background: #1e3a5f;
   color: #fff !important;
@@ -19159,6 +19181,14 @@ $dg-f02-layout-max: 46.5rem;
   color: #0a3d38;
   line-height: 1.25;
   word-break: break-word;
+}
+
+.sgc-f20-book__resumen {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
 }
 
 .sgc-f-04-book__lines {

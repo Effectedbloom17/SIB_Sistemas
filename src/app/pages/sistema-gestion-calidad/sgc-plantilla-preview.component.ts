@@ -2633,6 +2633,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF19EditorCargando = false;
   sgcF19ActualizandoPlantilla = false;
   sgcF19DescargandoPdf = false;
+  sgcF19Importando = false;
   sgcF19SubiendoPdf = false;
   sgcF19BorrandoPdf = false;
   mostrarSgcF19PdfViewer = false;
@@ -2658,6 +2659,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF20Vista: 'archivero' | 'editor' = 'archivero';
   sgcF20FichaActiva: SgcF20Ficha | null = null;
   sgcF20DescargandoPdf = false;
+  sgcF20Importando = false;
   sgcF20SubiendoPdf = false;
   mostrarSgcF20PdfViewer = false;
   sgcF20PdfCargando = false;
@@ -11202,21 +11204,48 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return { conocimiento: '', tipoFuente: '', puesto: '', disponibleEn: '' };
   }
 
+  private esEtiquetaFirmaSgcF19(valor: string): boolean {
+    const t = String(valor || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!t) return false;
+    if (/^elaboro\b/.test(t)) return true;
+    if (t.startsWith('reviso y aprobo')) return true;
+    if (t === 'directora general' || t === 'director general') return true;
+    if (t === 'coordinador del sgc') return true;
+    return false;
+  }
+
   private normalizarSgcF19Form(base: any): SgcF19FormData {
     const vacio = this.crearSgcF19FormVacio();
     const raw = base && typeof base === 'object' ? base : {};
     const registros = Array.isArray(raw.registros) ? raw.registros : [];
     const pdfs = Array.isArray(raw.pdfsHistorial) ? raw.pdfsHistorial : [];
+    const vistos = new Set<string>();
+    const limpios = registros.map((r: any) => {
+      const conocimiento = String(r?.conocimiento || '').trim();
+      let tipoFuente = String(r?.tipoFuente || '').trim();
+      let puesto = String(r?.puesto || '').trim();
+      let disponibleEn = String(r?.disponibleEn || '').trim();
+      if (this.esEtiquetaFirmaSgcF19(tipoFuente)) tipoFuente = '';
+      if (this.esEtiquetaFirmaSgcF19(puesto)) puesto = '';
+      if (this.esEtiquetaFirmaSgcF19(disponibleEn)) disponibleEn = '';
+      return { conocimiento, tipoFuente, puesto, disponibleEn };
+    }).filter((r: SgcF19Registro) => {
+      if (!r.conocimiento || this.esEtiquetaFirmaSgcF19(r.conocimiento)) return false;
+      const clave = [r.conocimiento, r.tipoFuente, r.puesto, r.disponibleEn].join('|').toLowerCase();
+      if (vistos.has(clave)) return false;
+      vistos.add(clave);
+      return true;
+    });
     return {
       fechaElaboracion: String(raw.fechaElaboracion || vacio.fechaElaboracion).slice(0, 10),
       revision: String(raw.revision || '00').trim().padStart(2, '0'),
       fechaRevision: String(raw.fechaRevision || vacio.fechaRevision).slice(0, 10),
-      registros: registros.map((r: any) => ({
-        conocimiento: String(r?.conocimiento || '').trim(),
-        tipoFuente: String(r?.tipoFuente || '').trim(),
-        puesto: String(r?.puesto || '').trim(),
-        disponibleEn: String(r?.disponibleEn || '').trim()
-      })).filter((r: SgcF19Registro) => r.conocimiento || r.tipoFuente || r.puesto || r.disponibleEn),
+      registros: limpios,
       pdfFirmado: raw.pdfFirmado?.driveFileId ? raw.pdfFirmado : null,
       pdfsHistorial: pdfs.filter((p: DgF02PdfFirmado) => !!p?.driveFileId)
     };
@@ -11318,6 +11347,121 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           this.sgcF19DescargandoPdf = false;
         }
       });
+  }
+
+  onImportarExcelSgcF19(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    input.value = '';
+    if (!archivo || this.sgcF19Importando) return;
+    const nombre = String(archivo.name || '');
+    if (!/\.xlsx$/i.test(nombre)) {
+      void Swal.fire({
+        icon: 'warning',
+        title: 'Archivo no válido',
+        text: 'Selecciona un Excel .xlsx con el formato SGC-F-19.',
+        confirmButtonColor: '#15a596'
+      });
+      return;
+    }
+    if (archivo.size > 25 * 1024 * 1024) {
+      void Swal.fire({
+        icon: 'warning',
+        title: 'Archivo muy grande',
+        text: 'El Excel no puede superar 25 MB.',
+        confirmButtonColor: '#15a596'
+      });
+      return;
+    }
+
+    const lector = new FileReader();
+    lector.onload = () => {
+      const resultado = lector.result;
+      if (typeof resultado !== 'string') return;
+      const base64 = resultado.split(',')[1] || '';
+      if (!base64) {
+        void Swal.fire({
+          icon: 'error',
+          title: 'No se pudo leer el archivo',
+          text: 'Vuelve a seleccionar el Excel.',
+          confirmButtonColor: '#15a596'
+        });
+        return;
+      }
+      this.sgcF19Importando = true;
+      this.backendService.importarExcelSgcF19(base64, nombre)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.sgcF19Importando = false;
+            const importados = Array.isArray(res?.importados) ? res.importados : [];
+            this.sgcF19Busqueda = '';
+            this.aplicarEstadoSgcF19(res, false, false, true);
+            if (Array.isArray(res?.datos?.registros)) {
+              this.sgcF19IgnorarAutoSave = true;
+              this.sgcF19Form = this.normalizarSgcF19Form(res.datos);
+            }
+            this.sgcF19CambiosPendientes = false;
+            void Swal.fire({
+              icon: 'success',
+              title: 'Excel importado',
+              html: this.htmlImportacionSgcF19(importados),
+              confirmButtonText: 'Ver en el listado',
+              confirmButtonColor: '#15a596'
+            }).then(() => this.enfocarListadoImportadoSgcF19());
+          },
+          error: (err) => {
+            this.sgcF19Importando = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se importó el Excel',
+              text: err?.error?.message || 'No se pudo recuperar la información del listado.',
+              confirmButtonColor: '#15a596'
+            });
+          }
+        });
+    };
+    lector.onerror = () => {
+      void Swal.fire({
+        icon: 'error',
+        title: 'No se pudo leer el archivo',
+        text: 'Vuelve a seleccionar el Excel.',
+        confirmButtonColor: '#15a596'
+      });
+    };
+    lector.readAsDataURL(archivo);
+  }
+
+  private htmlImportacionSgcF19(importados: Array<{ conocimiento?: string; tipoFuente?: string; puesto?: string; disponibleEn?: string; accion?: string }>): string {
+    const escapar = (valor: string) => String(valor || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    const creados = importados.filter((item) => item.accion === 'creado').length;
+    const actualizados = importados.filter((item) => item.accion === 'actualizado').length;
+    const partes: string[] = [];
+    if (creados) partes.push(`${creados} nuevo${creados === 1 ? '' : 's'}`);
+    if (actualizados) partes.push(`${actualizados} actualizado${actualizados === 1 ? '' : 's'}`);
+    const resumen = partes.length ? partes.join(' y ') : `${importados.length}`;
+    const filas = importados.slice(0, 8).map((item) => {
+      const titulo = escapar(String(item.conocimiento || 'Sin conocimiento').trim());
+      const detalle = [item.tipoFuente, item.puesto, item.disponibleEn]
+        .map((parte) => String(parte || '').trim())
+        .filter((parte) => !!parte)
+        .map(escapar)
+        .join(' · ');
+      return `<li style="margin:0 0 .45rem;text-align:left"><strong>${titulo}</strong>${detalle ? `<br><span style="color:#64748b">${detalle}</span>` : ''}</li>`;
+    }).join('');
+    const extra = importados.length > 8
+      ? `<li style="text-align:left;color:#64748b">y ${importados.length - 8} más</li>`
+      : '';
+    return `<p style="margin:0 0 .75rem">Se importaron ${resumen}. Quedaron en la tabla <strong>Conocimientos</strong>, debajo del buscador.</p><ul style="margin:0;padding-left:1.1rem">${filas}${extra}</ul>`;
+  }
+
+  private enfocarListadoImportadoSgcF19(): void {
+    window.setTimeout(() => {
+      document.querySelector('.sgc-f19-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
   }
 
   onSeleccionarPdfSgcF19(event: Event): void {
@@ -13188,6 +13332,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF20Form.fichaActivaId = activa.id;
   }
 
+  resumenTarjetaSgcF20(ficha: SgcF20Ficha): string {
+    const texto = String(ficha?.descripcion || '').replace(/\s+/g, ' ').trim();
+    return texto || 'Sin descripción';
+  }
+
   get sgcF20FichasVista(): SgcF20Ficha[] {
     const q = this.sgcF20Busqueda.trim().toLowerCase();
     const lista = this.sgcF20Form.fichas || [];
@@ -13309,6 +13458,112 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           this.sgcF20Guardando = false;
         }
       });
+  }
+
+  onImportarExcelSgcF20(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    input.value = '';
+    if (!archivo || this.sgcF20Importando) return;
+    const nombre = String(archivo.name || '');
+    if (!/\.xlsx$/i.test(nombre)) {
+      void Swal.fire({
+        icon: 'warning',
+        title: 'Archivo no válido',
+        text: 'Selecciona un Excel .xlsx con el formato SGC-F-20.',
+        confirmButtonColor: '#15a596'
+      });
+      return;
+    }
+    if (archivo.size > 25 * 1024 * 1024) {
+      void Swal.fire({
+        icon: 'warning',
+        title: 'Archivo muy grande',
+        text: 'El Excel no puede superar 25 MB.',
+        confirmButtonColor: '#15a596'
+      });
+      return;
+    }
+
+    const lector = new FileReader();
+    lector.onload = () => {
+      const resultado = lector.result;
+      if (typeof resultado !== 'string') return;
+      const base64 = resultado.split(',')[1] || '';
+      if (!base64) {
+        void Swal.fire({
+          icon: 'error',
+          title: 'No se pudo leer el archivo',
+          text: 'Vuelve a seleccionar el Excel.',
+          confirmButtonColor: '#15a596'
+        });
+        return;
+      }
+      this.sgcF20Importando = true;
+      this.backendService.importarExcelSgcF20(base64, nombre)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.sgcF20Importando = false;
+            const importados = Array.isArray(res?.importados) ? res.importados : [];
+            this.aplicarEstadoSgcF20(res, false, false, true);
+            this.sgcF20CambiosPendientes = false;
+            if (importados.length === 1) {
+              const ficha = (this.sgcF20Form.fichas || []).find((f) => f.id === importados[0].id);
+              if (ficha) this.abrirFichaSgcF20(ficha);
+            } else {
+              this.volverArchiveroSgcF20();
+            }
+            void Swal.fire({
+              icon: 'success',
+              title: 'Excel importado',
+              text: this.mensajeImportacionSgcF20(importados),
+              confirmButtonColor: '#15a596'
+            });
+          },
+          error: (err) => {
+            this.sgcF20Importando = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se importó el Excel',
+              text: err?.error?.message || 'No se pudo recuperar la información del formato.',
+              confirmButtonColor: '#15a596'
+            });
+          }
+        });
+    };
+    lector.onerror = () => {
+      void Swal.fire({
+        icon: 'error',
+        title: 'No se pudo leer el archivo',
+        text: 'Vuelve a seleccionar el Excel.',
+        confirmButtonColor: '#15a596'
+      });
+    };
+    lector.readAsDataURL(archivo);
+  }
+
+  private mensajeImportacionSgcF20(importados: Array<{ folio?: string; descripcion?: string; accion?: string }>): string {
+    const creados = importados.filter((item) => item.accion === 'creado');
+    const actualizados = importados.filter((item) => item.accion === 'actualizado');
+    const etiqueta = (item: { folio?: string; descripcion?: string }) => {
+      const texto = String(item.descripcion || '').trim();
+      return item.folio || (texto ? texto.slice(0, 60) : 'sin descripción');
+    };
+    if (creados.length === 1 && !actualizados.length) {
+      return `Se creó la ficha «${etiqueta(creados[0])}» y se guardó en el archivero.`;
+    }
+    if (actualizados.length === 1 && !creados.length) {
+      return `Se actualizó la ficha «${etiqueta(actualizados[0])}» con los datos del Excel.`;
+    }
+    const partes: string[] = [];
+    if (creados.length) {
+      partes.push(`${creados.length} ficha${creados.length === 1 ? '' : 's'} nueva${creados.length === 1 ? '' : 's'}`);
+    }
+    if (actualizados.length) {
+      partes.push(`${actualizados.length} actualizada${actualizados.length === 1 ? '' : 's'}`);
+    }
+    return `Se importaron ${partes.join(' y ')}. La información quedó guardada en el archivero.`;
   }
 
   descargarPdfSgcF20(): void {

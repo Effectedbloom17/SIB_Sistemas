@@ -525,6 +525,20 @@
                   <button
                     *ngIf="plantillaSlug === 'sgc-f-19'"
                     type="button"
+                    class="btn btn-sm sgc-btn-excel"
+                    [disabled]="sgcF19Cargando || sgcF19Guardando || sgcF19Importando"
+                    (click)="sgcF19ExcelInput.click()"
+                    title="Subir un Excel del listado de conocimientos"
+                    aria-label="Importar Excel del listado de conocimientos">
+                    <i class="fas mr-1" [ngClass]="sgcF19Importando ? 'fa-spinner fa-spin' : 'fa-file-excel'" aria-hidden="true"></i>
+                    {{ sgcF19Importando ? 'Importando…' : 'Importar Excel' }}
+                  </button>
+                  <input #sgcF19ExcelInput class="sgc-f-04-archivero__file" type="file"
+                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    (change)="onImportarExcelSgcF19($event)">
+                  <button
+                    *ngIf="plantillaSlug === 'sgc-f-19'"
+                    type="button"
                     class="btn btn-sm sgc-btn-pdf-icon"
                     [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF19DescargandoPdf"
                     (click)="descargarPdfSgcF19()"
@@ -11604,10 +11618,24 @@
                               [(ngModel)]="sgcF20Busqueda" placeholder="Buscar folio, fuente o descripción…"
                               autocomplete="off">
                           </label>
-                          <button type="button" class="sgc-f-04-archivero__btn-nuevo" (click)="nuevaFichaSgcF20()">
-                            <i class="fas fa-plus" aria-hidden="true"></i>
-                            Nueva ficha
-                          </button>
+                          <div class="sgc-f-04-archivero__actions">
+                            <button type="button" class="sgc-f-04-archivero__btn-nuevo"
+                              (click)="nuevaFichaSgcF20()"
+                              [disabled]="sgcF20Importando">
+                              <i class="fas fa-plus" aria-hidden="true"></i>
+                              Nueva ficha
+                            </button>
+                            <button type="button" class="sgc-f-04-archivero__btn-importar"
+                              (click)="sgcF20ExcelInput.click()"
+                              [disabled]="sgcF20Importando || sgcF20Cargando || sgcF20Guardando"
+                              title="Subir un Excel del formato SGC-F-20">
+                              <i class="fas" [ngClass]="sgcF20Importando ? 'fa-spinner fa-spin' : 'fa-file-excel'" aria-hidden="true"></i>
+                              {{ sgcF20Importando ? 'Importando…' : 'Importar Excel' }}
+                            </button>
+                            <input #sgcF20ExcelInput class="sgc-f-04-archivero__file" type="file"
+                              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                              (change)="onImportarExcelSgcF20($event)">
+                          </div>
                         </div>
                       </div>
 
@@ -11644,7 +11672,7 @@
                                 </span>
                               </span>
                               <span class="sgc-f-04-book__origen">{{ ficha.tipoFuente?.trim() || 'Sin tipo de fuente' }}</span>
-                              <span class="sgc-f-04-book__folio">{{ (ficha.descripcion?.trim() || 'Sin descripción').slice(0, 90) }}</span>
+                              <span class="sgc-f-04-book__folio sgc-f20-book__resumen">{{ resumenTarjetaSgcF20(ficha) }}</span>
                               <span class="sgc-f-04-book__lines" aria-hidden="true">
                                 <span></span><span></span><span></span>
                               </span>
