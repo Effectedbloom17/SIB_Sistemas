@@ -19,7 +19,8 @@ import {
   sincronizarCasosDesdeForms
 } from './ein-f02-solicitud.catalog';
 
-const MAX_EVIDENCIAS = 2;
+/** Alineado con el límite de multer en backend (`evidencias`, 12). */
+const MAX_EVIDENCIAS = 12;
 
 @Component({
   selector: 'app-ein-f04-reporte',
@@ -56,6 +57,8 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
   lightboxAbierto = false;
   lightboxUrl = '';
   lightboxNombre = '';
+  /** Incrementar al abrir/editar para que el textarea de descripción se ajuste al contenido. */
+  descripcionAutosizeTick = 0;
 
   readonly meta = EIN_F04_META;
   readonly tipos: EinF04TipoMantenimiento[] = ['Preventivo', 'Correctivo'];
@@ -169,6 +172,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     this.limpiarFotosPendientes();
     this.seleccionada = sol;
     this.vista = 'editor';
+    this.descripcionAutosizeTick += 1;
     this.asegurarSnapshotDrive(sol);
   }
 

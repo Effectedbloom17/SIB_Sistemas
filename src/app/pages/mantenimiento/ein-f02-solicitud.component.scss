@@ -1451,6 +1451,12 @@
     &:focus { background: #f8fafc; }
   }
 
+  textarea.mt-doc__textarea-auto {
+    overflow: hidden;
+    resize: none;
+    max-height: none;
+  }
+
   &--manual h3 {
     background: #dbe3ec;
   }

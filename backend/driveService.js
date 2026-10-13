@@ -10233,6 +10233,146 @@ async function generarControlEntregaDocumentosDesdeTemplate(params = {}) {
     };
 }
 
+const DOCX_MIME_EIN_F04 = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+/**
+ * Convierte imágenes del body DOCX a flotantes «Delante del texto» (wp:anchor + wrapNone + behindDoc=0).
+ * La API de Docs solo inserta inline («Entre líneas»); este paso OOXML es el puente.
+ */
+function convertirDocxImagenesDelanteDelTexto(bufferDocx) {
+    const AdmZip = require('adm-zip');
+    if (!bufferDocx || !Buffer.isBuffer(bufferDocx)) {
+        return bufferDocx;
+    }
+    const zip = new AdmZip(bufferDocx);
+    const entry = zip.getEntry('word/document.xml');
+    if (!entry) {
+        return bufferDocx;
+    }
+
+    let xml = entry.getData().toString('utf8');
+    const original = xml;
+    let inlineIdx = 0;
+
+    // Anclas existentes → delante del texto
+    xml = xml.replace(/<wp:anchor\b([^>]*)>/g, (full, attrs) => {
+        let next = String(attrs || '');
+        if (/\bbehindDoc\s*=/.test(next)) {
+            next = next.replace(/\bbehindDoc\s*=\s*"[^"]*"/, 'behindDoc="0"');
+        } else {
+            next += ' behindDoc="0"';
+        }
+        return `<wp:anchor${next}>`;
+    });
+    xml = xml.replace(
+        /<wp:wrapSquare\b[^>]*\/>|<wp:wrapSquare\b[^>]*>[\s\S]*?<\/wp:wrapSquare>|<wp:wrapTight\b[^>]*\/>|<wp:wrapTight\b[^>]*>[\s\S]*?<\/wp:wrapTight>|<wp:wrapThrough\b[^>]*\/>|<wp:wrapThrough\b[^>]*>[\s\S]*?<\/wp:wrapThrough>|<wp:wrapTopAndBottom\b[^>]*\/>|<wp:wrapTopAndBottom\b[^>]*>[\s\S]*?<\/wp:wrapTopAndBottom>/g,
+        '<wp:wrapNone/>'
+    );
+
+    // Inline → ancla delante del texto (offsets horizontales para no apilarse)
+    xml = xml.replace(/<wp:inline\b([^>]*)>([\s\S]*?)<\/wp:inline>/g, (_full, _attrs, inner) => {
+        const leftEmu = inlineIdx * 2200000; // ~1.7" entre fotos
+        const relativeHeight = 251658240 + inlineIdx;
+        inlineIdx += 1;
+        let body = String(inner || '');
+        if (!/<wp:wrapNone\b/.test(body)) {
+            if (/<wp:docPr\b/.test(body)) {
+                body = body.replace(/<wp:docPr\b/, '<wp:wrapNone/><wp:docPr');
+            } else {
+                body = `<wp:wrapNone/>${body}`;
+            }
+        }
+        return (
+            `<wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" `
+            + `relativeHeight="${relativeHeight}" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">`
+            + `<wp:simplePos x="0" y="0"/>`
+            + `<wp:positionH relativeFrom="column"><wp:posOffset>${leftEmu}</wp:posOffset></wp:positionH>`
+            + `<wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>`
+            + body
+            + `</wp:anchor>`
+        );
+    });
+
+    if (xml === original) {
+        return bufferDocx;
+    }
+    zip.updateFile('word/document.xml', Buffer.from(xml, 'utf8'));
+    return zip.toBuffer();
+}
+
+/**
+ * Exporta el Google Doc EIN-F-04, fuerza «Delante del texto» en evidencias y reimporta.
+ * Conserva el mismo fileId cuando Drive acepta el update in-place.
+ */
+async function aplicarImagenesDelanteDelTextoEinF04(drive, documentId, nombreArchivo = '') {
+    if (!drive || !documentId) {
+        return documentId;
+    }
+    const { Readable } = require('stream');
+    const GOOGLE_DOC_MIME = 'application/vnd.google-apps.document';
+
+    try {
+        const exported = await drive.files.export(
+            { fileId: documentId, mimeType: DOCX_MIME_EIN_F04 },
+            { responseType: 'arraybuffer' }
+        );
+        const docxMod = convertirDocxImagenesDelanteDelTexto(Buffer.from(exported.data || []));
+        if (!docxMod || !docxMod.length) {
+            return documentId;
+        }
+
+        // Intento in-place (mantiene el mismo ID del reporte).
+        try {
+            const updated = await drive.files.update({
+                fileId: documentId,
+                media: { mimeType: DOCX_MIME_EIN_F04, body: Readable.from(docxMod) },
+                supportsAllDrives: true,
+                fields: 'id,mimeType'
+            });
+            const mime = String(updated?.data?.mimeType || '');
+            // Solo damos por bueno el in-place si sigue siendo Google Doc nativo.
+            if (mime === GOOGLE_DOC_MIME) {
+                return documentId;
+            }
+            // Si quedó como .docx nativo u otro MIME, convertimos a Google Doc abajo.
+        } catch (updErr) {
+            console.warn('[WARN] update in-place EIN-F-04 delante-texto:', updErr?.message || updErr);
+        }
+
+        const meta = await drive.files.get({
+            fileId: documentId,
+            fields: 'parents,name',
+            supportsAllDrives: true
+        });
+        const parents = Array.isArray(meta?.data?.parents) ? meta.data.parents : [];
+        const creado = await drive.files.create({
+            requestBody: {
+                name: meta?.data?.name || nombreArchivo || 'EIN-F-04',
+                mimeType: GOOGLE_DOC_MIME,
+                parents: parents.length ? parents : undefined
+            },
+            media: { mimeType: DOCX_MIME_EIN_F04, body: Readable.from(docxMod) },
+            fields: 'id,webViewLink,mimeType',
+            supportsAllDrives: true
+        });
+        const nuevoId = creado?.data?.id;
+        if (!nuevoId) {
+            return documentId;
+        }
+        try {
+            await drive.files.update({
+                fileId: documentId,
+                requestBody: { trashed: true },
+                supportsAllDrives: true
+            });
+        } catch (_) { /* ignore */ }
+        return nuevoId;
+    } catch (err) {
+        console.warn('[WARN] aplicarImagenesDelanteDelTextoEinF04:', err?.message || err);
+        return documentId;
+    }
+}
+
 /**
  * EIN-F-04 Reporte de mantenimiento — copia plantilla y autollena con datos de la solicitud.
  * Plantilla: 1v7p3hSL-PhDYh7DsCM0vSprGTIiVcXAo
@@ -10747,10 +10887,10 @@ async function generarReporteMantenimientoEinF04(params = {}) {
 
     /**
      * Evidencia fotográfica:
-     * - La plantilla suele traer imágenes posicionadas con «Ajustar texto» (WRAP_TEXT).
-     *   deleteContentRange NO las elimina → si además insertamos inline, salen duplicadas.
-     * - Preferimos replaceImage sobre esos placeholders para conservar el ajuste de texto.
-     * - Solo insertamos inline si faltan placeholders.
+     * - Preferimos replaceImage sobre placeholders (mejor si ya son «Delante del texto»).
+     * - deleteContentRange NO elimina posicionadas → si además insertamos inline, salen duplicadas.
+     * - Solo insertamos inline si faltan placeholders; al final un paso DOCX fuerza
+     *   «Delante del texto» (IN_FRONT_OF_TEXT) porque la API de Docs no lo permite al insertar.
      */
     const buscarCeldasEvidencia = (bodyContent) => {
         const normalizedNeedles = [
@@ -10829,7 +10969,9 @@ async function generarReporteMantenimientoEinF04(params = {}) {
         keysEv.add(key);
         evidenciasUnicas.push(e);
     }
-    const fotos = evidenciasUnicas.slice(0, 2);
+    // Todas las evidencias únicas (el front permite hasta 12; la plantilla tiene 2 placeholders
+    // y el resto se inserta inline debajo).
+    const fotos = evidenciasUnicas;
 
     {
         const doc3 = await docsApi.documents.get({ documentId });
@@ -10859,10 +11001,11 @@ async function generarReporteMantenimientoEinF04(params = {}) {
             const layout = String(
                 positionedObjects?.[objectId]?.positionedObjectProperties?.positioning?.layout || ''
             ).toUpperCase();
-            // WRAP_TEXT = «Ajustar texto» en la UI de Docs.
-            if (layout.includes('WRAP')) return 0;
-            if (layout.includes('BREAK')) return 1;
-            return 2;
+            // Preferir «Delante del texto» para que al reemplazar se conserve ese ajuste.
+            if (layout.includes('FRONT')) return 0;
+            if (layout.includes('WRAP')) return 1;
+            if (layout.includes('BREAK')) return 2;
+            return 3;
         };
 
         const positionedIds = [...imgsContent.positionedIds, ...imgsHeader.positionedIds]
@@ -10872,7 +11015,7 @@ async function generarReporteMantenimientoEinF04(params = {}) {
         const inlineEntries = [...imgsContent.inlineEntries, ...imgsHeader.inlineEntries]
             .filter((entry, idx, arr) => entry?.id && arr.findIndex((x) => x.id === entry.id) === idx);
 
-        // Placeholders: primero posicionadas (conservan Ajustar texto), luego inline.
+        // Placeholders: primero posicionadas (idealmente «Delante del texto»), luego inline.
         const placeholders = [
             ...positionedIds.map((id) => ({ id, tipo: 'positioned' })),
             ...inlineEntries.map((entry) => ({
@@ -11028,6 +11171,18 @@ async function generarReporteMantenimientoEinF04(params = {}) {
             }
         }
         } // fin else sección evidencia encontrada
+    }
+
+    // Forzar «Delante del texto» en evidencias (Docs API solo inserta «Entre líneas»).
+    if (fotos.length) {
+        const idTrasAjuste = await aplicarImagenesDelanteDelTextoEinF04(drive, documentId, nombreArchivo);
+        if (idTrasAjuste && idTrasAjuste !== documentId) {
+            documentId = idTrasAjuste;
+            if (copyResp?.data) {
+                copyResp.data.id = documentId;
+                copyResp.data.webViewLink = `https://docs.google.com/document/d/${documentId}/edit`;
+            }
+        }
     }
 
     return {

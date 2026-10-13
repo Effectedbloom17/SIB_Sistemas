@@ -48,7 +48,9 @@ function serializarSeguro(raiz: Node, escapar: (t: string) => string): string {
     if ((tag === 'P' || tag === 'DIV') && out && !out.endsWith('<br>')) out += '<br>';
     out += serializarSeguro(nodo, escapar);
   });
-  return out.replace(/(^|<br>)(\s*)([a-zA-Z]\))/g, '$1$2<strong>$3</strong>');
+  return out
+    .replace(/(^|<br>)(\s*)([a-zA-Z]\))/g, '$1$2<strong>$3</strong>')
+    .replace(/(^|<br>)(\s*)(\d+\))/g, '$1$2<strong>$3</strong>');
 }
 
 function nodoImagen(

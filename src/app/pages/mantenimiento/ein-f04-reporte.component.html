@@ -143,10 +143,6 @@
                   <i class="fas fa-clipboard-list"></i>
                 </div>
                 <div class="mt-problema-ref__intro">
-                  <span class="mt-problema-ref__badge">
-                    <i class="fab fa-google" aria-hidden="true"></i>
-                    Ayuda visual · Google Forms
-                  </span>
                   <h3 class="mt-problema-ref__title">Descripción del problema</h3>
                 </div>
               </div>
@@ -224,7 +220,14 @@
 
               <section class="mt-doc__block">
                 <h3>Breve descripción del mantenimiento realizado</h3>
-                <textarea rows="4" [(ngModel)]="sol.descripcionMantenimientoRealizado" (ngModelChange)="onCampoChange()"
+                <textarea
+                  rows="4"
+                  class="mt-doc__textarea-auto"
+                  appAutoResize
+                  [appAutoResizeMinHeight]="120"
+                  [appAutoResizeRefresh]="descripcionAutosizeTick"
+                  [(ngModel)]="sol.descripcionMantenimientoRealizado"
+                  (ngModelChange)="onCampoChange()"
                   placeholder="Describe la acción de mantenimiento realizada…"></textarea>
               </section>
 
@@ -265,7 +268,7 @@
                     <div class="text-center">
                       <i class="fas fa-cloud-upload-alt fa-2x mb-2 evidencias-drop-zone__icon"></i>
                       <p class="mb-1 font-weight-600 small">
-                        {{ fotosPendientes.length ? (fotosPendientes.length + ' foto(s) listas') : 'Arrastra hasta 2 fotos o haz clic' }}
+                        {{ fotosPendientes.length ? (fotosPendientes.length + ' foto(s) listas') : 'Arrastra varias fotos o haz clic' }}
                       </p>
                     </div>
                   </div>
