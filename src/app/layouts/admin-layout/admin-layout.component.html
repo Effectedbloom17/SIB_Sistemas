@@ -13,3 +13,47 @@
 
 <!-- Modal global de previsualización de documentos -->
 <app-document-preview></app-document-preview>
+
+<section
+  class="cp-aviso-cambio"
+  [class.is-saliendo]="avisoSaliendo"
+  *ngIf="avisoCambioActual as aviso"
+  role="dialog"
+  aria-labelledby="cpAvisoCambioTitulo"
+  (animationend)="alTerminarAnimacionAviso($event)">
+  <img class="cp-aviso-cambio__mascota" src="assets/img/mascota-biznaga.png" alt="">
+  <div class="cp-aviso-cambio__body">
+    <p class="cp-aviso-cambio__kicker">Solicitud de cambio</p>
+    <h3 id="cpAvisoCambioTitulo">{{ tituloAvisoCambio(aviso) }}</h3>
+    <p class="cp-aviso-cambio__lead">{{ leadAvisoCambio(aviso) }}</p>
+    <div class="cp-aviso-cambio__personas">
+      <div>
+        <span>Solicitó</span>
+        <strong>{{ aviso.solicitadoPor || 'Un usuario' }}</strong>
+      </div>
+      <div *ngIf="aviso.tipo === 'respuesta' && resolutorAviso(aviso) as quien">
+        <span>{{ etiquetaResolutor(aviso) }}</span>
+        <strong>{{ quien }}</strong>
+      </div>
+    </div>
+    <p class="cp-aviso-cambio__proyecto" [title]="aviso.nombreProyecto">
+      <span class="cp-aviso-cambio__proyecto-etiqueta">
+        Proyecto
+        <ng-container *ngIf="aviso.folio">
+          <span class="cp-aviso-cambio__sep" aria-hidden="true">|</span>
+          <span class="cp-aviso-cambio__folio">{{ aviso.folio }}</span>
+        </ng-container>
+      </span>
+      <strong>{{ proyectoAviso(aviso) }}</strong>
+    </p>
+    <p class="cp-aviso-cambio__extra" *ngIf="avisosCambio.length > 1">
+      Hay {{ avisosCambio.length - 1 }} solicitud{{ avisosCambio.length - 1 === 1 ? '' : 'es' }} más en espera.
+    </p>
+  </div>
+  <div class="cp-aviso-cambio__actions">
+    <button type="button" class="cp-aviso-cambio__cerrar" (click)="cerrarAvisoCambio()">Cerrar</button>
+    <button type="button" class="cp-aviso-cambio__revisar" (click)="revisarAvisoCambio()">
+      {{ aviso.tipo === 'respuesta' ? 'Consultar estatus' : 'Revisar solicitud' }}
+    </button>
+  </div>
+</section>

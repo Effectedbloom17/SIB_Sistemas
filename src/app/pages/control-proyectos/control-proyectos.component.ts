@@ -9,7 +9,7 @@ import { BackendServices } from 'src/app/services/backend.services';
 import { AuthService } from 'src/app/services/auth.service';
 import { DocumentPreviewService } from 'src/app/services/document-preview.service';
 
-type VistaControlProyectos = 'dashboard' | 'gestion' | 'tablero' | 'cronograma' | 'actividades' | 'eliminados';
+type VistaControlProyectos = 'dashboard' | 'gestion' | 'solicitudes' | 'tablero' | 'cronograma' | 'actividades' | 'eliminados';
 type ColumnaTableroId = 'por-hacer' | 'en-curso' | 'revision' | 'listo';
 type EscalaCronograma = 'semanas' | 'meses' | 'trimestres';
 
@@ -18,6 +18,7 @@ interface MenuOpcion {
   label: string;
   icon: string;
   soloRoot?: boolean;
+  soloAprobador?: boolean;
 }
 
 interface ProyectoEliminadoGrupo {
@@ -187,6 +188,33 @@ interface GrupoGestionProyecto {
   actividades: Array<{ proyecto: ProyectoTableroItem; indice: number }>;
 }
 
+interface AccionCambioFila {
+  descripcion: string;
+  responsable: string;
+  responsableUsuarioId: number | null;
+  fechaCompromiso: string;
+}
+
+type EstatusCambioProyecto = 'borrador' | 'en_espera' | 'aprobado' | 'no_aprobado';
+
+interface CambioProyectoFila {
+  id: number | null;
+  tipoRequisitos: boolean;
+  tipoDiseno: boolean;
+  tipoProduccion: boolean;
+  descripcion: string;
+  motivo: string;
+  creadoEn: string;
+  creadoPor: string;
+  solicitadoUsuarioId: number | null;
+  estatus: EstatusCambioProyecto;
+  solicitadoEn: string;
+  editadoEn: string;
+  resueltoPor: string;
+  resueltoEn: string;
+  accionesFilas: AccionCambioFila[];
+}
+
 @Component({
   selector: 'app-control-proyectos',
   templateUrl: './control-proyectos.component.html',
@@ -198,12 +226,13 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   @ViewChild('timelineScroll') timelineScroll?: ElementRef<HTMLDivElement>;
 
   @HostBinding('class.cp-modal-open') get modalRegistroAbierto(): boolean {
-    return this.mostrarRegistro || this.panelActividadAbierto;
+    return this.mostrarRegistro || this.panelActividadAbierto || this.cambiosProyectoAbierto;
   }
 
   readonly menuOpciones: MenuOpcion[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
     { id: 'gestion', label: 'Gestión', icon: 'fa-edit' },
+    { id: 'solicitudes', label: 'Solicitudes de cambio', icon: 'fa-file-signature', soloAprobador: true },
     { id: 'tablero', label: 'Tablero', icon: 'fa-columns' },
     { id: 'cronograma', label: 'Cronograma', icon: 'fa-stream' },
     { id: 'actividades', label: 'Actividades', icon: 'fa-list' },
@@ -434,6 +463,24 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   readonly gestionActTamanoPagina = 25;
   guardandoActividadGestion = false;
   menuAgregarActividadAbierto = false;
+  cambiosProyectoAbierto = false;
+  cambiosProyectoSoloLectura = false;
+  cargandoCambiosProyecto = false;
+  guardandoCambiosProyecto = false;
+  private cambiosProyectoSnapshot = '';
+  cambiosAutosizeTick = 0;
+  cambiosProyectoTitulo = '';
+  cambiosProyectoFolio = '';
+  errorCambiosProyecto = '';
+  exitoCambiosProyecto = '';
+  cambiosProyectoFilas: CambioProyectoFila[] = [];
+  cambiosProyectoActivo = 0;
+  cambiosProyectoPagina = 0;
+  readonly cambiosPorPagina = 8;
+  cambiosProyectoPreview: number | null = null;
+  cambiosProyectoVista: 'editor' | 'resumen' = 'editor';
+  cambiosIntentoEnvio = false;
+  private cambiosProyectoMeta: { empresaId: number | null; folio: string; nombreProyecto: string } | null = null;
   menuPrioridadGestionIndice: number | null = null;
   menuPrioridadGestionStyle: { top: string; left: string } | null = null;
   menuEstatusGestionIndice: number | null = null;
@@ -552,6 +599,18 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   };
 
   private folioQueryPendiente = '';
+  private cambioRevisionPendiente: { cambioId: number; empresaId: number } | null = null;
+  solicitudesCambio: Array<CambioProyectoFila & { empresaId: number | null; folio: string; nombreProyecto: string }> = [];
+  cargandoSolicitudesCambio = false;
+  errorSolicitudesCambio = '';
+  filtroSolicitudesCambio: 'todas' | 'pendientes' | 'atendidas' = 'todas';
+  filtroSolicitudesAbierto = false;
+  solicitudBandejaIndice = 0;
+  solicitudBandejaPreview: number | null = null;
+  quitarCambioDescubierto = false;
+  corrigiendoCambioIndice = -1;
+  private correccionClon: CambioProyectoFila | null = null;
+  private cambiosAlCargar: { vista: 'editor' | 'resumen'; cambioId: number } | null = null;
   private empresaQueryPendiente = '';
 
   constructor(
@@ -564,11 +623,37 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     const folioQuery = (this.route.snapshot.queryParamMap.get('folio') || '').trim();
-    if (folioQuery) {
+    const cambioFolio = (this.route.snapshot.queryParamMap.get('cambioFolio') || '').trim();
+    if (cambioFolio) {
+      this.prepararRevisionCambioDesdeQuery(this.route.snapshot.queryParamMap);
+    } else if (folioQuery) {
       this.folioQueryPendiente = folioQuery;
       this.empresaQueryPendiente = (this.route.snapshot.queryParamMap.get('empresa') || '').trim();
       this.vistaActiva = 'gestion';
     }
+    this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe((params) => {
+      if (params.get('solicitudes') === '1' && this.puedeResolverCambiosProyecto) {
+        this.vistaActiva = 'solicitudes';
+        this.cargarSolicitudesCambio();
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { solicitudes: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true
+        });
+        return;
+      }
+      const folio = (params.get('cambioFolio') || '').trim();
+      const cambioId = Number(params.get('cambioId') || 0);
+      if (!folio) return;
+      const mismoPendiente = folio === this.folioQueryPendiente
+        && cambioId === (this.cambioRevisionPendiente?.cambioId || 0);
+      if (mismoPendiente) return;
+      this.prepararRevisionCambioDesdeQuery(params);
+      if (this.cargando) return;
+      if (!this.gestionAgrupadaLista.length) this.sincronizarGestionDesdeProyectos();
+      this.abrirProyectoDesdeQuery();
+    });
     if (this.esConsultaEmpresa) {
       this.vistaActiva = 'gestion';
       const empresaId = Number(this.auth.getEmpresaId() || 0);
@@ -590,6 +675,15 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.cerrarMenuPrioridadGestion();
     this.cerrarMenuEstatusGestion();
     this.cerrarMenuResponsablesGestion();
+    this.filtroSolicitudesAbierto = false;
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  onAtajoQuitarCambio(event: KeyboardEvent): void {
+    if (!this.cambiosProyectoAbierto || !this.esSuperAdministrador) return;
+    if (!event.ctrlKey || !event.altKey || !event.shiftKey || event.code !== 'KeyQ') return;
+    event.preventDefault();
+    this.quitarCambioDescubierto = !this.quitarCambioDescubierto;
   }
 
   @HostListener('window:resize')
@@ -631,6 +725,12 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   @HostListener('document:keydown.escape', ['$event'])
   onDocumentEscape(event: KeyboardEvent): void {
+    if (this.cambiosProyectoAbierto) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.cerrarCambiosProyecto();
+      return;
+    }
     if (this.panelActividadAbierto) {
       event.preventDefault();
       event.stopPropagation();
@@ -692,6 +792,9 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     if (vista === 'eliminados' && !this.esSuperAdministrador) {
       return;
     }
+    if (vista === 'solicitudes' && !this.puedeResolverCambiosProyecto) {
+      return;
+    }
 
     if (this.vistaActiva === 'gestion' && vista !== 'gestion') {
       this.autoGuardarGestionSiPendiente();
@@ -716,6 +819,9 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     }
     if (vista === 'eliminados') {
       this.cargarEliminados();
+    }
+    if (vista === 'solicitudes') {
+      this.cargarSolicitudesCambio();
     }
   }
 
@@ -1312,6 +1418,851 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.panelVersionSeleccionadaToken = null;
     this.panelVersionSeleccionadaIndice = 0;
     this.cargarHistorialProyectoPanel(grupo);
+  }
+
+  abrirCambiosProyecto(
+    grupo: GrupoGestionProyecto,
+    event?: Event,
+    opciones?: { vista?: 'editor' | 'resumen'; cambioId?: number }
+  ): void {
+    event?.stopPropagation();
+    if (!grupo || !this.puedeUsarCambiosProyecto) return;
+    this.cambiosProyectoMeta = {
+      empresaId: grupo.empresaId ?? null,
+      folio: String(grupo.folio || '').trim(),
+      nombreProyecto: String(grupo.nombreProyecto || '').trim()
+    };
+    this.cambiosProyectoTitulo = this.cambiosProyectoMeta.nombreProyecto || 'Proyecto';
+    this.cambiosProyectoFolio = this.cambiosProyectoMeta.folio;
+    this.cambiosProyectoSoloLectura = false;
+    this.cambiosProyectoAbierto = true;
+    this.cambiosProyectoSnapshot = '';
+    this.errorCambiosProyecto = '';
+    this.exitoCambiosProyecto = '';
+    this.cambiosProyectoFilas = [];
+    this.cambiosProyectoActivo = 0;
+    this.cambiosProyectoPagina = 0;
+    this.cambiosProyectoPreview = null;
+    this.cambiosProyectoVista = opciones?.vista || 'editor';
+    this.quitarCambioDescubierto = false;
+    this.corrigiendoCambioIndice = -1;
+    this.correccionClon = null;
+    this.cambiosAlCargar = {
+      vista: opciones?.vista || 'editor',
+      cambioId: Number(opciones?.cambioId || 0)
+    };
+    this.cargarCambiosProyecto();
+  }
+
+  cerrarCambiosProyecto(): void {
+    if (this.guardandoCambiosProyecto) return;
+    if (this.cambiosProyectoPendientes && !this.cambiosProyectoSoloLectura) {
+      Swal.fire({
+        title: '¿Descartar los cambios?',
+        text: 'Hay filas del control de cambios sin guardar.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Descartar',
+        cancelButtonText: 'Seguir editando',
+        confirmButtonColor: '#b45309'
+      }).then((resultado) => {
+        if (resultado.isConfirmed) {
+          this.cambiosProyectoAbierto = false;
+          this.quitarCambioDescubierto = false;
+          this.corrigiendoCambioIndice = -1;
+          this.correccionClon = null;
+          this.cambiosProyectoSnapshot = this.serializarCambiosProyecto(this.cambiosProyectoFilas);
+        }
+      });
+      return;
+    }
+    this.cambiosProyectoAbierto = false;
+    this.quitarCambioDescubierto = false;
+    this.corrigiendoCambioIndice = -1;
+    this.correccionClon = null;
+  }
+
+  cargarCambiosProyecto(): void {
+    const meta = this.cambiosProyectoMeta;
+    if (!meta) return;
+    this.cargandoCambiosProyecto = true;
+    this.errorCambiosProyecto = '';
+    this.backend.listarCambiosControlProyecto(meta)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          this.cargandoCambiosProyecto = false;
+          const lista = Array.isArray(res?.cambios) ? res.cambios : [];
+          this.aplicarFilasCambiosProyecto(
+            lista.length
+              ? lista.map((fila: any) => this.mapearCambioProyecto(fila))
+              : (this.cambiosProyectoSoloLectura ? [] : [this.filaCambioVacia()])
+          );
+          this.ubicarCambioCargado();
+        },
+        error: (err) => {
+          this.cargandoCambiosProyecto = false;
+          this.aplicarFilasCambiosProyecto(this.cambiosProyectoSoloLectura ? [] : [this.filaCambioVacia()]);
+          this.errorCambiosProyecto = err?.error?.message || 'No se pudo cargar el control de cambios.';
+        }
+      });
+  }
+
+  agregarFilaCambioProyecto(): void {
+    if (this.cambiosProyectoSoloLectura || this.hayBorradorCambio()) return;
+    this.cancelarCorreccionCambio();
+    this.cambiosProyectoFilas = [...this.cambiosProyectoFilas, this.filaCambioVacia()];
+    this.cambiosProyectoActivo = this.cambiosProyectoFilas.length - 1;
+    this.ubicarPaginaCambios(this.cambiosProyectoActivo);
+    this.cambiosProyectoVista = 'editor';
+    this.cambiosProyectoPreview = null;
+    this.cambiosAutosizeTick += 1;
+    this.exitoCambiosProyecto = '';
+  }
+
+  quitarFilaCambioProyecto(indice: number): void {
+    if (this.cambiosProyectoSoloLectura) return;
+    const siguiente = this.cambiosProyectoFilas.filter((_, i) => i !== indice);
+    this.cambiosProyectoFilas = siguiente.length ? siguiente : [this.filaCambioVacia()];
+    if (this.cambiosProyectoActivo > indice) {
+      this.cambiosProyectoActivo -= 1;
+    }
+    if (this.cambiosProyectoActivo >= this.cambiosProyectoFilas.length) {
+      this.cambiosProyectoActivo = this.cambiosProyectoFilas.length - 1;
+    }
+    this.ubicarPaginaCambios(this.cambiosProyectoActivo);
+    this.cambiosProyectoVista = 'editor';
+    this.cambiosProyectoPreview = null;
+    this.cambiosAutosizeTick += 1;
+    this.exitoCambiosProyecto = '';
+  }
+
+  indicesPaginaCambios(): number[] {
+    const inicio = this.cambiosProyectoPagina * this.cambiosPorPagina;
+    const fin = Math.min(this.cambiosProyectoFilas.length, inicio + this.cambiosPorPagina);
+    const indices: number[] = [];
+    for (let i = inicio; i < fin; i += 1) indices.push(i);
+    return indices;
+  }
+
+  totalPaginasCambios(): number {
+    return Math.max(1, Math.ceil(this.cambiosProyectoFilas.length / this.cambiosPorPagina));
+  }
+
+  moverPaginaCambios(delta: number): void {
+    const siguiente = this.cambiosProyectoPagina + delta;
+    if (siguiente < 0 || siguiente >= this.totalPaginasCambios()) return;
+    this.cambiosProyectoPagina = siguiente;
+    this.cambiosProyectoPreview = null;
+  }
+
+  seleccionarCambioProyecto(indice: number): void {
+    if (indice < 0 || indice >= this.cambiosProyectoFilas.length) return;
+    if (this.corrigiendoCambioIndice >= 0 && indice !== this.corrigiendoCambioIndice) {
+      this.cancelarCorreccionCambio();
+    }
+    this.cambiosProyectoActivo = indice;
+    this.ubicarPaginaCambios(indice);
+    this.cambiosProyectoVista = 'editor';
+    this.cambiosProyectoPreview = null;
+    this.cambiosIntentoEnvio = false;
+    this.cambiosAutosizeTick += 1;
+  }
+
+  mostrarVistaCambioProyecto(indice: number): void {
+    if (indice < 0 || indice >= this.cambiosProyectoFilas.length) return;
+    this.cambiosProyectoPreview = indice;
+  }
+
+  ocultarVistaCambioProyecto(event?: Event): void {
+    const relacionado = (event as FocusEvent | MouseEvent | undefined)?.relatedTarget as Node | null;
+    const origen = event?.currentTarget as Node | null;
+    if (relacionado && origen?.contains(relacionado)) return;
+    this.cambiosProyectoPreview = null;
+  }
+
+  cambioActivoProyecto(): CambioProyectoFila | null {
+    return this.cambiosProyectoFilas[this.cambiosProyectoActivo] || null;
+  }
+
+  cambioPreviewProyecto(): CambioProyectoFila | null {
+    if (this.cambiosProyectoPreview == null) return null;
+    return this.cambiosProyectoFilas[this.cambiosProyectoPreview] || null;
+  }
+
+  abrirResumenCambiosProyecto(): void {
+    if (this.cambiosProyectoVista === 'resumen') {
+      this.volverEditorCambiosProyecto();
+      return;
+    }
+    this.ubicarResumenVisible(this.cambiosProyectoActivo);
+    this.cambiosProyectoVista = 'resumen';
+    this.cambiosProyectoPreview = null;
+  }
+
+  numeroCambioResaltado(indice: number): boolean {
+    if (indice !== this.cambiosProyectoActivo) return false;
+    if (this.cambiosProyectoVista === 'editor') return true;
+    return this.cambiosProyectoFilas[indice]?.estatus !== 'borrador';
+  }
+
+  elegirNumeroCambioProyecto(indice: number): void {
+    const fila = this.cambiosProyectoFilas[indice];
+    if (!fila) return;
+    if (this.cambiosProyectoVista === 'resumen') {
+      if (fila.estatus === 'borrador') return;
+      this.cambiosProyectoActivo = indice;
+      this.ubicarPaginaCambios(indice);
+      this.cambiosProyectoPreview = null;
+      return;
+    }
+    this.seleccionarCambioProyecto(indice);
+  }
+
+  cambioResumenVisible(): CambioProyectoFila | null {
+    const fila = this.cambiosProyectoFilas[this.cambiosProyectoActivo];
+    if (!fila || fila.estatus === 'borrador') return null;
+    return fila;
+  }
+
+  puedeNavegarResumenCambios(): boolean {
+    return this.indicesCambiosEnResumen().length > 1;
+  }
+
+  moverResumenCambio(delta: number): void {
+    const indices = this.indicesCambiosEnResumen();
+    if (indices.length < 2) return;
+    const posicion = indices.indexOf(this.cambiosProyectoActivo);
+    const base = posicion >= 0 ? posicion : 0;
+    const siguiente = indices[(base + delta + indices.length) % indices.length];
+    this.cambiosProyectoActivo = siguiente;
+    this.ubicarPaginaCambios(siguiente);
+    this.cambiosProyectoPreview = null;
+  }
+
+  volverEditorCambiosProyecto(): void {
+    this.cambiosProyectoVista = 'editor';
+    this.cambiosProyectoPreview = null;
+    this.cambiosAutosizeTick += 1;
+  }
+
+  etiquetasTipoCambio(fila: CambioProyectoFila): Array<{ clave: string; texto: string }> {
+    const tipos: Array<{ clave: string; texto: string }> = [];
+    if (fila.tipoRequisitos) {
+      tipos.push({ clave: 'req', texto: 'En los requisitos para los productos y servicios' });
+    }
+    if (fila.tipoDiseno) {
+      tipos.push({ clave: 'dis', texto: 'En el diseño y desarrollo' });
+    }
+    if (fila.tipoProduccion) {
+      tipos.push({ clave: 'prod', texto: 'En la producción o provisión del servicio' });
+    }
+    return tipos;
+  }
+
+  agregarAccionCambio(fila: CambioProyectoFila): void {
+    if (this.cambiosProyectoSoloLectura) return;
+    fila.accionesFilas = [...fila.accionesFilas, this.accionCambioVacia()];
+    this.exitoCambiosProyecto = '';
+  }
+
+  quitarAccionCambio(fila: CambioProyectoFila, indice: number): void {
+    if (this.cambiosProyectoSoloLectura) return;
+    const siguiente = fila.accionesFilas.filter((_, i) => i !== indice);
+    fila.accionesFilas = siguiente.length ? siguiente : [this.accionCambioVacia()];
+    this.exitoCambiosProyecto = '';
+  }
+
+  sincronizarResponsableAccion(accion: AccionCambioFila): void {
+    const nombre = String(accion.responsable || '').trim().toLowerCase();
+    const usuario = this.usuariosInternos.find((u) => u.nombreCompleto.trim().toLowerCase() === nombre);
+    accion.responsableUsuarioId = usuario ? usuario.id : null;
+    this.exitoCambiosProyecto = '';
+  }
+
+  accionesResumenCambio(fila: CambioProyectoFila): AccionCambioFila[] {
+    return (fila?.accionesFilas || []).filter((accion) => this.accionCambioTieneDatos(accion));
+  }
+
+  lineasMotivoCambio(fila: CambioProyectoFila): string[] {
+    const lineas = String(fila?.motivo || '')
+      .split(/\r?\n/)
+      .map((linea) => linea.trim())
+      .filter(Boolean);
+    return lineas.length ? lineas : ['—'];
+  }
+
+  fechaSolicitudCambio(fila: CambioProyectoFila): string {
+    if (fila?.solicitadoEn) return this.formatearFechaHoraAuditoria(fila.solicitadoEn);
+    if ((fila?.estatus || 'borrador') === 'borrador') return '—';
+    return fila?.creadoEn ? this.formatearFechaProyecto(fila.creadoEn) : '—';
+  }
+
+  solicitoCambio(fila: CambioProyectoFila): string {
+    const guardado = String(fila?.creadoPor || '').trim();
+    if (guardado) return guardado;
+    if (!fila?.id) return this.nombrePerfilGestion || '—';
+    return '—';
+  }
+
+  fechaCorreccionCambio(fila: CambioProyectoFila): string {
+    return fila?.editadoEn ? this.formatearFechaHoraAuditoria(fila.editadoEn) : '';
+  }
+
+  fechaResolucionCambio(fila: CambioProyectoFila): string {
+    return fila?.resueltoEn ? this.formatearFechaHoraAuditoria(fila.resueltoEn) : '';
+  }
+
+  etiquetaEstatusCambio(fila: CambioProyectoFila | null | undefined): string {
+    if (fila?.estatus === 'en_espera') return 'En espera';
+    if (fila?.estatus === 'aprobado') return 'Cambio aprobado';
+    if (fila?.estatus === 'no_aprobado') return 'Cambio no aprobado';
+    return '';
+  }
+
+  iconoEstatusCambio(fila: CambioProyectoFila | null | undefined): string {
+    if (fila?.estatus === 'en_espera') return 'fa-clock';
+    if (fila?.estatus === 'aprobado') return 'fa-check';
+    if (fila?.estatus === 'no_aprobado') return 'fa-times';
+    return 'fa-circle';
+  }
+
+  claseNumeroCambio(fila: CambioProyectoFila | null | undefined): string {
+    if (fila?.estatus === 'en_espera') return 'cp-cambios-num--espera';
+    if (fila?.estatus === 'aprobado') return 'cp-cambios-num--aprobado';
+    if (fila?.estatus === 'no_aprobado') return 'cp-cambios-num--rechazado';
+    return '';
+  }
+
+  cambioSePuedeEditar(fila: CambioProyectoFila | null | undefined): boolean {
+    if (!fila || this.cambiosProyectoSoloLectura) return false;
+    if ((fila.estatus || 'borrador') === 'borrador') return !fila.id || this.esAutorCambio(fila);
+    const indice = this.cambiosProyectoFilas.indexOf(fila);
+    return fila.estatus === 'en_espera'
+      && indice === this.corrigiendoCambioIndice
+      && this.esAutorCambio(fila);
+  }
+
+  esAutorCambio(fila: CambioProyectoFila | null | undefined): boolean {
+    if (!fila) return false;
+    const miId = Number(this.auth.getUsuarioId() || 0);
+    if (fila.solicitadoUsuarioId && miId && fila.solicitadoUsuarioId === miId) return true;
+    const autor = this.normalizar(fila.creadoPor);
+    if (!autor) return !fila.id;
+    const completo = this.normalizar(this.nombrePerfilGestion);
+    const usuario = this.auth.usuarioActualValue;
+    const corto = this.normalizar([usuario?.nombre, usuario?.apellido].filter(Boolean).join(' '));
+    const username = this.normalizar(this.auth.getUsername());
+    return autor === completo || (!!corto && autor === corto) || (!!username && autor === username);
+  }
+
+  hayBorradorCambio(): boolean {
+    return this.cambiosProyectoFilas.some((fila) => (fila.estatus || 'borrador') === 'borrador');
+  }
+
+  puedeCorregirCambioActivo(): boolean {
+    const fila = this.cambioActivoProyecto();
+    return !!fila
+      && fila.estatus === 'en_espera'
+      && this.esAutorCambio(fila)
+      && this.corrigiendoCambioIndice !== this.cambiosProyectoActivo
+      && !this.cambiosProyectoSoloLectura;
+  }
+
+  get cambiosSolicitadosCount(): number {
+    return this.cambiosProyectoFilas.filter((fila) => fila.estatus !== 'borrador').length;
+  }
+
+  puedeSolicitarCambioActivo(): boolean {
+    const fila = this.cambioActivoProyecto();
+    if (!fila || this.cambiosProyectoSoloLectura || this.cambiosProyectoVista !== 'editor') return false;
+    if ((fila.estatus || 'borrador') === 'borrador') return true;
+    return this.corrigiendoCambioIndice === this.cambiosProyectoActivo;
+  }
+
+  get puedeResolverCambiosProyecto(): boolean {
+    const username = String(this.auth.getUsername() || '').toLowerCase().trim();
+    return this.esSuperAdministrador
+      || username === 'marisol12'
+      || username === 'leonel58'
+      || username === 'root';
+  }
+
+  corregirCambioActivo(): void {
+    const fila = this.cambioActivoProyecto();
+    if (!fila || fila.estatus !== 'en_espera' || !this.esAutorCambio(fila)) return;
+    this.correccionClon = JSON.parse(JSON.stringify(fila));
+    this.corrigiendoCambioIndice = this.cambiosProyectoActivo;
+    this.cambiosProyectoVista = 'editor';
+    this.cambiosProyectoPreview = null;
+    this.cambiosAutosizeTick += 1;
+    this.exitoCambiosProyecto = '';
+    this.errorCambiosProyecto = '';
+  }
+
+  cancelarCorreccionCambio(): void {
+    if (this.corrigiendoCambioIndice >= 0 && this.correccionClon) {
+      const filas = [...this.cambiosProyectoFilas];
+      filas[this.corrigiendoCambioIndice] = this.correccionClon;
+      this.cambiosProyectoFilas = filas;
+      this.cambiosProyectoSnapshot = this.serializarCambiosProyecto(filas);
+    }
+    this.corrigiendoCambioIndice = -1;
+    this.correccionClon = null;
+  }
+
+  resolverCambioProyecto(fila: CambioProyectoFila, decision: 'aprobado' | 'no_aprobado'): void {
+    const deBandeja = this.solicitudDeBandeja(fila);
+    const meta = deBandeja
+      ? { empresaId: deBandeja.empresaId, folio: deBandeja.folio, nombreProyecto: deBandeja.nombreProyecto }
+      : this.cambiosProyectoMeta;
+    if (!meta || !fila?.id || !this.puedeResolverCambiosProyecto || fila.estatus !== 'en_espera') return;
+    const aprobar = decision === 'aprobado';
+    Swal.fire({
+      title: aprobar
+        ? '¿Estás seguro de que quieres aprobar este cambio?'
+        : '¿Estás seguro de que quieres no aprobar este cambio?',
+      text: 'La respuesta queda registrada y ya no podrá modificarse.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: aprobar ? 'Aprobar' : 'No aprobar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: aprobar ? '#15803d' : '#b91c1c'
+    }).then((resultado) => {
+      if (!resultado.isConfirmed) return;
+      this.guardandoCambiosProyecto = true;
+      this.errorCambiosProyecto = '';
+      this.exitoCambiosProyecto = '';
+      this.backend.resolverCambioControlProyecto({
+        ...meta,
+        cambioId: Number(fila.id),
+        decision
+      }).pipe(takeUntil(this.destroy$)).subscribe({
+        next: (res: any) => {
+          this.guardandoCambiosProyecto = false;
+          if (!res?.success) {
+            this.errorCambiosProyecto = res?.message || 'No se pudo resolver la solicitud.';
+            this.errorSolicitudesCambio = this.errorCambiosProyecto;
+            return;
+          }
+          if (deBandeja) {
+            this.cargarSolicitudesCambio();
+            return;
+          }
+          const lista = Array.isArray(res?.cambios) ? res.cambios : [];
+          this.aplicarFilasCambiosProyecto(lista.map((item: any) => this.mapearCambioProyecto(item)));
+          this.cambiosProyectoVista = 'resumen';
+          this.exitoCambiosProyecto = aprobar ? 'Cambio aprobado.' : 'Cambio no aprobado.';
+        },
+        error: (err) => {
+          this.guardandoCambiosProyecto = false;
+          this.errorCambiosProyecto = err?.error?.message || 'No se pudo resolver la solicitud.';
+        }
+      });
+    });
+  }
+
+  resumenTiposCambio(fila: CambioProyectoFila): string {
+    const tipos = [
+      fila.tipoRequisitos ? 'Requisitos' : '',
+      fila.tipoDiseno ? 'Diseño' : '',
+      fila.tipoProduccion ? 'Producción' : ''
+    ].filter(Boolean);
+    return tipos.length ? tipos.join(' · ') : 'Sin tipo';
+  }
+
+  guardarCambiosProyecto(): void {
+    const meta = this.cambiosProyectoMeta;
+    const activo = this.cambioActivoProyecto();
+    if (!meta || !activo || !this.puedeUsarCambiosProyecto || this.cambiosProyectoSoloLectura || this.guardandoCambiosProyecto) return;
+    if (!this.puedeSolicitarCambioActivo()) return;
+    const corrigiendo = this.corrigiendoCambioIndice === this.cambiosProyectoActivo;
+    if (corrigiendo && this.correccionClon && this.serializarCambiosProyecto([activo]) === this.serializarCambiosProyecto([this.correccionClon])) {
+      this.cancelarCorreccionCambio();
+      this.exitoCambiosProyecto = 'No hubo correcciones que registrar.';
+      this.errorCambiosProyecto = '';
+      return;
+    }
+    if (!this.solicitudCambioCompleta(activo)) {
+      this.cambiosIntentoEnvio = true;
+      this.errorCambiosProyecto = 'Completa los campos marcados antes de enviar la solicitud.';
+      this.exitoCambiosProyecto = '';
+      setTimeout(() => document.querySelector('.cp-cambios-invalido')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+      return;
+    }
+    this.cambiosIntentoEnvio = false;
+    const filas = this.cambiosProyectoFilas.filter((fila) => this.filaCambioTieneDatos(fila));
+    this.guardandoCambiosProyecto = true;
+    this.errorCambiosProyecto = '';
+    this.exitoCambiosProyecto = '';
+    this.backend.guardarCambiosControlProyecto({
+      ...meta,
+      cambios: filas.map((fila) => ({
+        id: fila.id,
+        tipoRequisitos: fila.tipoRequisitos,
+        tipoDiseno: fila.tipoDiseno,
+        tipoProduccion: fila.tipoProduccion,
+        descripcion: fila.descripcion,
+        motivo: fila.motivo,
+        accionesFilas: fila.accionesFilas,
+        solicitar: fila === activo && (fila.estatus || 'borrador') === 'borrador',
+        corregir: fila === activo && corrigiendo
+      }))
+    }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res: any) => {
+        this.guardandoCambiosProyecto = false;
+        if (!res?.success) {
+          this.errorCambiosProyecto = res?.message || 'No se pudo solicitar el cambio.';
+          return;
+        }
+        const lista = Array.isArray(res?.cambios) ? res.cambios : [];
+        this.corrigiendoCambioIndice = -1;
+        this.correccionClon = null;
+        this.aplicarFilasCambiosProyecto(
+          lista.length ? lista.map((fila: any) => this.mapearCambioProyecto(fila)) : [this.filaCambioVacia()]
+        );
+        if (!corrigiendo) {
+          const vacio = this.cambiosProyectoFilas.findIndex((fila) => !fila.id && (fila.estatus || 'borrador') === 'borrador');
+          if (vacio >= 0) {
+            this.cambiosProyectoActivo = vacio;
+            this.ubicarPaginaCambios(vacio);
+            this.cambiosProyectoVista = 'editor';
+          }
+        }
+        this.exitoCambiosProyecto = corrigiendo
+          ? 'Corrección registrada. La solicitud sigue en espera.'
+          : 'Solicitud enviada. Quedó en espera de revisión.';
+      },
+      error: (err) => {
+        this.guardandoCambiosProyecto = false;
+        this.errorCambiosProyecto = err?.error?.message || 'No se pudo guardar el control de cambios.';
+      }
+    });
+  }
+
+  get solicitudesPendientes(): Array<CambioProyectoFila & { empresaId: number | null; folio: string; nombreProyecto: string }> {
+    return this.solicitudesCambio.filter((fila) => fila.estatus === 'en_espera');
+  }
+
+  get solicitudesAtendidas(): Array<CambioProyectoFila & { empresaId: number | null; folio: string; nombreProyecto: string }> {
+    return this.solicitudesCambio.filter((fila) => fila.estatus === 'aprobado' || fila.estatus === 'no_aprobado');
+  }
+
+  get solicitudesFiltradas(): Array<CambioProyectoFila & { empresaId: number | null; folio: string; nombreProyecto: string }> {
+    if (this.filtroSolicitudesCambio === 'pendientes') return this.solicitudesPendientes;
+    if (this.filtroSolicitudesCambio === 'atendidas') return this.solicitudesAtendidas;
+    return this.solicitudesCambio;
+  }
+
+  get solicitudBandejaActiva(): (CambioProyectoFila & { empresaId: number | null; folio: string; nombreProyecto: string }) | null {
+    const lista = this.solicitudesFiltradas;
+    if (!lista.length) return null;
+    const indice = ((this.solicitudBandejaIndice % lista.length) + lista.length) % lista.length;
+    return lista[indice];
+  }
+
+  etiquetaFiltroSolicitudes(): string {
+    if (this.filtroSolicitudesCambio === 'pendientes') return 'Pendientes';
+    if (this.filtroSolicitudesCambio === 'atendidas') return 'Atendidas';
+    return 'Todas';
+  }
+
+  seleccionarFiltroSolicitudes(filtro: 'todas' | 'pendientes' | 'atendidas'): void {
+    this.filtroSolicitudesCambio = filtro;
+    this.solicitudBandejaIndice = 0;
+    this.solicitudBandejaPreview = null;
+    this.filtroSolicitudesAbierto = false;
+  }
+
+  mostrarVistaSolicitudBandeja(indice: number): void {
+    if (indice < 0 || indice >= this.solicitudesFiltradas.length) return;
+    this.solicitudBandejaPreview = indice;
+  }
+
+  ocultarVistaSolicitudBandeja(event?: Event): void {
+    const relacionado = (event as FocusEvent | MouseEvent | undefined)?.relatedTarget as Node | null;
+    const origen = event?.currentTarget as Node | null;
+    if (relacionado && origen?.contains(relacionado)) return;
+    this.solicitudBandejaPreview = null;
+  }
+
+  solicitudBandejaPreviewFila(): (CambioProyectoFila & { empresaId: number | null; folio: string; nombreProyecto: string }) | null {
+    if (this.solicitudBandejaPreview == null) return null;
+    return this.solicitudesFiltradas[this.solicitudBandejaPreview] || null;
+  }
+
+  seleccionarSolicitudBandeja(indice: number): void {
+    if (indice < 0 || indice >= this.solicitudesFiltradas.length) return;
+    this.solicitudBandejaIndice = indice;
+  }
+
+  moverSolicitudBandeja(delta: number): void {
+    const total = this.solicitudesFiltradas.length;
+    if (!total) return;
+    this.solicitudBandejaIndice = (this.solicitudBandejaIndice + delta + total) % total;
+  }
+
+  cargarSolicitudesCambio(): void {
+    if (!this.puedeResolverCambiosProyecto) return;
+    this.cargandoSolicitudesCambio = true;
+    this.errorSolicitudesCambio = '';
+    this.backend.listarBandejaCambiosControlProyecto()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          this.cargandoSolicitudesCambio = false;
+          const lista = Array.isArray(res?.solicitudes) ? res.solicitudes : [];
+          this.solicitudesCambio = lista.map((fila: any) => ({
+            ...this.mapearCambioProyecto(fila),
+            empresaId: fila?.empresaId == null ? null : Number(fila.empresaId),
+            folio: String(fila?.folio || ''),
+            nombreProyecto: String(fila?.nombreProyecto || '')
+          }));
+          if (this.solicitudBandejaIndice >= this.solicitudesFiltradas.length) {
+            this.solicitudBandejaIndice = 0;
+          }
+        },
+        error: (err) => {
+          this.cargandoSolicitudesCambio = false;
+          this.errorSolicitudesCambio = err?.error?.message || 'No se pudieron cargar las solicitudes.';
+        }
+      });
+  }
+
+  guardarRegistroCambiosRoot(): void {
+    const meta = this.cambiosProyectoMeta;
+    if (!meta || !this.esSuperAdministrador || !this.quitarCambioDescubierto || this.guardandoCambiosProyecto) return;
+    const filas = this.cambiosProyectoFilas.filter((fila) => fila.id || this.filaCambioTieneDatos(fila));
+    this.guardandoCambiosProyecto = true;
+    this.errorCambiosProyecto = '';
+    this.exitoCambiosProyecto = '';
+    this.backend.guardarCambiosControlProyecto({
+      ...meta,
+      cambios: filas.map((fila) => ({
+        id: fila.id,
+        tipoRequisitos: fila.tipoRequisitos,
+        tipoDiseno: fila.tipoDiseno,
+        tipoProduccion: fila.tipoProduccion,
+        descripcion: fila.descripcion,
+        motivo: fila.motivo,
+        accionesFilas: fila.accionesFilas
+      }))
+    }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res: any) => {
+        this.guardandoCambiosProyecto = false;
+        if (!res?.success) {
+          this.errorCambiosProyecto = res?.message || 'No se pudo guardar el registro.';
+          return;
+        }
+        const lista = Array.isArray(res?.cambios) ? res.cambios : [];
+        this.aplicarFilasCambiosProyecto(lista.map((fila: any) => this.mapearCambioProyecto(fila)));
+        this.exitoCambiosProyecto = 'Registro actualizado.';
+      },
+      error: (err) => {
+        this.guardandoCambiosProyecto = false;
+        this.errorCambiosProyecto = err?.error?.message || 'No se pudo guardar el registro.';
+      }
+    });
+  }
+
+  private solicitudDeBandeja(fila: CambioProyectoFila): { empresaId: number | null; folio: string; nombreProyecto: string } | null {
+    const extra = fila as CambioProyectoFila & { folio?: string; nombreProyecto?: string; empresaId?: number | null };
+    if (!extra.folio && !extra.nombreProyecto) return null;
+    return {
+      empresaId: extra.empresaId ?? null,
+      folio: String(extra.folio || ''),
+      nombreProyecto: String(extra.nombreProyecto || '')
+    };
+  }
+
+  trackByCambioProyecto(indice: number, fila: CambioProyectoFila): number | string {
+    return fila.id || `nuevo-${indice}`;
+  }
+
+  private mapearCambioProyecto(raw: any): CambioProyectoFila {
+    const lista = Array.isArray(raw?.accionesFilas) ? raw.accionesFilas : [];
+    const accionesFilas = lista
+      .map((item: any) => this.mapearAccionCambio(item))
+      .filter((item: AccionCambioFila) => this.accionCambioTieneDatos(item));
+    return {
+      id: Number(raw?.id) > 0 ? Number(raw.id) : null,
+      tipoRequisitos: !!raw?.tipoRequisitos,
+      tipoDiseno: !!raw?.tipoDiseno,
+      tipoProduccion: !!raw?.tipoProduccion,
+      descripcion: String(raw?.descripcion || ''),
+      motivo: String(raw?.motivo || ''),
+      creadoEn: String(raw?.creadoEn || '').slice(0, 10),
+      creadoPor: String(raw?.creadoPor || ''),
+      solicitadoUsuarioId: Number(raw?.solicitadoUsuarioId) > 0 ? Number(raw.solicitadoUsuarioId) : null,
+      estatus: this.estatusCambioProyecto(raw?.estatus),
+      solicitadoEn: String(raw?.solicitadoEn || ''),
+      editadoEn: String(raw?.editadoEn || ''),
+      resueltoPor: String(raw?.resueltoPor || ''),
+      resueltoEn: String(raw?.resueltoEn || ''),
+      accionesFilas: accionesFilas.length ? accionesFilas : [this.accionCambioVacia()]
+    };
+  }
+
+  private mapearAccionCambio(raw: any): AccionCambioFila {
+    const responsableId = Number(raw?.responsableUsuarioId || 0);
+    return {
+      descripcion: String(raw?.descripcion || ''),
+      responsable: String(raw?.responsable || ''),
+      responsableUsuarioId: Number.isInteger(responsableId) && responsableId > 0 ? responsableId : null,
+      fechaCompromiso: String(raw?.fechaCompromiso || '').slice(0, 10)
+    };
+  }
+
+  private aplicarFilasCambiosProyecto(filas: CambioProyectoFila[]): void {
+    const lista = [...filas];
+    const hayBorradorLocal = lista.some((fila) => !fila.id && (fila.estatus || 'borrador') === 'borrador' && !this.filaCambioTieneDatos(fila));
+    if (!this.cambiosProyectoSoloLectura && !hayBorradorLocal) {
+      lista.push(this.filaCambioVacia());
+    }
+    this.cambiosProyectoFilas = lista;
+    if (this.cambiosProyectoActivo >= lista.length) {
+      this.cambiosProyectoActivo = Math.max(0, lista.length - 1);
+    }
+    this.ubicarPaginaCambios(this.cambiosProyectoActivo);
+    this.cambiosProyectoPreview = null;
+    this.cambiosProyectoSnapshot = this.serializarCambiosProyecto(lista);
+    this.cambiosAutosizeTick += 1;
+  }
+
+  get cambiosProyectoPendientes(): boolean {
+    return this.serializarCambiosProyecto(this.cambiosProyectoFilas) !== this.cambiosProyectoSnapshot;
+  }
+
+  private serializarCambiosProyecto(filas: CambioProyectoFila[]): string {
+    return JSON.stringify(filas.map((fila) => ({
+      id: fila.id,
+      tipoRequisitos: !!fila.tipoRequisitos,
+      tipoDiseno: !!fila.tipoDiseno,
+      tipoProduccion: !!fila.tipoProduccion,
+      descripcion: fila.descripcion || '',
+      motivo: fila.motivo || '',
+      accionesFilas: (fila.accionesFilas || []).map((accion) => ({
+        descripcion: accion.descripcion || '',
+        responsable: accion.responsable || '',
+        responsableUsuarioId: accion.responsableUsuarioId || null,
+        fechaCompromiso: accion.fechaCompromiso || ''
+      }))
+    })));
+  }
+
+  private ubicarPaginaCambios(indice: number): void {
+    const pagina = Math.floor(Math.max(0, indice) / this.cambiosPorPagina);
+    this.cambiosProyectoPagina = Math.min(pagina, this.totalPaginasCambios() - 1);
+  }
+
+  private estatusCambioProyecto(valor: unknown): EstatusCambioProyecto {
+    const estatus = String(valor || '');
+    if (estatus === 'en_espera' || estatus === 'aprobado' || estatus === 'no_aprobado') return estatus;
+    return 'borrador';
+  }
+
+  private ubicarCambioCargado(): void {
+    const destino = this.cambiosAlCargar;
+    this.cambiosAlCargar = null;
+    if (!destino) return;
+    if (destino.cambioId) {
+      const indice = this.cambiosProyectoFilas.findIndex((fila) => fila.id === destino.cambioId);
+      if (indice >= 0) {
+        this.cambiosProyectoActivo = indice;
+        this.ubicarPaginaCambios(indice);
+      }
+    }
+    if (destino.vista === 'resumen') this.ubicarResumenVisible(this.cambiosProyectoActivo);
+    this.cambiosProyectoVista = destino.vista;
+  }
+
+  private indicesCambiosEnResumen(): number[] {
+    const indices: number[] = [];
+    this.cambiosProyectoFilas.forEach((fila, indice) => {
+      if (fila.estatus !== 'borrador') indices.push(indice);
+    });
+    return indices;
+  }
+
+  private ubicarResumenVisible(preferido: number): void {
+    const indices = this.indicesCambiosEnResumen();
+    if (!indices.length) return;
+    const indice = indices.includes(preferido) ? preferido : indices[0];
+    this.cambiosProyectoActivo = indice;
+    this.ubicarPaginaCambios(indice);
+  }
+
+  private filaCambioVacia(): CambioProyectoFila {
+    return {
+      id: null,
+      tipoRequisitos: false,
+      tipoDiseno: false,
+      tipoProduccion: false,
+      descripcion: '',
+      motivo: '',
+      creadoEn: '',
+      creadoPor: this.nombrePerfilGestion,
+      solicitadoUsuarioId: null,
+      estatus: 'borrador',
+      solicitadoEn: '',
+      editadoEn: '',
+      resueltoPor: '',
+      resueltoEn: '',
+      accionesFilas: [this.accionCambioVacia()]
+    };
+  }
+
+  private accionCambioVacia(): AccionCambioFila {
+    return {
+      descripcion: '',
+      responsable: '',
+      responsableUsuarioId: null,
+      fechaCompromiso: ''
+    };
+  }
+
+  campoCambioInvalido(clave: string): boolean {
+    if (!this.cambiosIntentoEnvio) return false;
+    const fila = this.cambioActivoProyecto();
+    if (!fila || !this.puedeSolicitarCambioActivo()) return false;
+    return this.clavesCambioIncompletas(fila).includes(clave);
+  }
+
+  private solicitudCambioCompleta(fila: CambioProyectoFila): boolean {
+    return this.clavesCambioIncompletas(fila).length === 0;
+  }
+
+  private clavesCambioIncompletas(fila: CambioProyectoFila): string[] {
+    const faltantes: string[] = [];
+    if (!fila.tipoRequisitos && !fila.tipoDiseno && !fila.tipoProduccion) faltantes.push('tipo');
+    if (!String(fila.descripcion || '').trim()) faltantes.push('descripcion');
+    if (!String(fila.motivo || '').trim()) faltantes.push('motivo');
+    (fila.accionesFilas || []).forEach((accion, indice) => {
+      if (!String(accion.descripcion || '').trim()) faltantes.push(`accion-${indice}`);
+      if (!String(accion.responsable || '').trim()) faltantes.push(`responsable-${indice}`);
+      if (!String(accion.fechaCompromiso || '').trim()) faltantes.push(`fecha-${indice}`);
+    });
+    return faltantes;
+  }
+
+  private accionCambioTieneDatos(accion: AccionCambioFila): boolean {
+    return !!(
+      String(accion?.descripcion || '').trim()
+      || String(accion?.responsable || '').trim()
+      || accion?.responsableUsuarioId
+      || String(accion?.fechaCompromiso || '').trim()
+    );
+  }
+
+  private filaCambioTieneDatos(fila: CambioProyectoFila): boolean {
+    return !!(
+      fila.tipoRequisitos
+      || fila.tipoDiseno
+      || fila.tipoProduccion
+      || String(fila.descripcion || '').trim()
+      || String(fila.motivo || '').trim()
+      || (fila.accionesFilas || []).some((accion) => this.accionCambioTieneDatos(accion))
+    );
   }
 
   /** Abre el historial de una actividad concreta (menú de 3 puntos). */
@@ -2574,22 +3525,54 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     return `${proyecto.empresaId || 'sin-empresa'}|${this.normalizar(proyecto.folio || proyecto.nombreProyecto || `idx-${indice}`)}`;
   }
 
+  private prepararRevisionCambioDesdeQuery(params: { get(name: string): string | null }): void {
+    const folio = (params.get('cambioFolio') || '').trim();
+    if (!folio) return;
+    const cambioId = Number(params.get('cambioId') || 0);
+    const empresaId = Number(params.get('cambioEmpresaId') || 0);
+    this.folioQueryPendiente = folio;
+    this.cambioRevisionPendiente = {
+      cambioId: Number.isInteger(cambioId) && cambioId > 0 ? cambioId : 0,
+      empresaId: Number.isInteger(empresaId) && empresaId > 0 ? empresaId : 0
+    };
+    this.vistaActiva = 'gestion';
+  }
+
   private abrirProyectoDesdeQuery(): void {
     const folio = this.normalizar(this.folioQueryPendiente);
-    if (!folio) return;
+    if (!folio || !this.gestionAgrupadaLista.length) return;
     const empresa = this.normalizar(this.empresaQueryPendiente);
+    const revision = this.cambioRevisionPendiente;
     const porFolio = this.gestionAgrupadaLista.filter((g) => this.normalizar(g.folio) === folio);
-    const grupo = (empresa
-      ? porFolio.find((g) => this.normalizar(g.empresaNombre) === empresa)
-      : undefined) || porFolio[0]
+    const grupo = (revision?.empresaId
+      ? porFolio.find((g) => Number(g.empresaId) === revision.empresaId)
+      : undefined)
+      || (empresa
+        ? porFolio.find((g) => this.normalizar(g.empresaNombre) === empresa)
+        : undefined)
+      || porFolio[0]
       || this.gestionAgrupadaLista.find((g) => this.normalizar(g.nombreProyecto) === folio);
     this.folioQueryPendiente = '';
     this.empresaQueryPendiente = '';
+    this.cambioRevisionPendiente = null;
     if (!grupo) return;
     this.seleccionarProyectoGestion(grupo.clave);
+    if (revision) {
+      this.abrirCambiosProyecto(grupo, undefined, {
+        vista: 'resumen',
+        cambioId: revision.cambioId
+      });
+    }
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { vista: null, folio: null, empresa: null },
+      queryParams: {
+        vista: null,
+        folio: null,
+        empresa: null,
+        cambioFolio: null,
+        cambioEmpresaId: null,
+        cambioId: null
+      },
       queryParamsHandling: 'merge',
       replaceUrl: true
     });
@@ -2791,6 +3774,11 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     return this.auth.esUsuarioEmpresa();
   }
 
+  /** Control de cambios del proyecto: administradores, instructores y root. */
+  get puedeUsarCambiosProyecto(): boolean {
+    return this.auth.tieneAlgunRol(['root', 'administrador', 'instructor']);
+  }
+
   get totalGruposGestionSinFiltro(): number {
     const keys = new Set<string>();
     this.proyectosGestion.forEach((proyecto, indice) => {
@@ -2807,7 +3795,11 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     if (this.esConsultaEmpresa) {
       return this.menuOpciones.filter((op) => op.id === 'gestion');
     }
-    return this.menuOpciones.filter((op) => !op.soloRoot || this.esSuperAdministrador);
+    return this.menuOpciones.filter((op) => {
+      if (op.soloRoot && !this.esSuperAdministrador) return false;
+      if (op.soloAprobador && !this.puedeResolverCambiosProyecto) return false;
+      return true;
+    });
   }
 
   get nombrePerfilGestion(): string {

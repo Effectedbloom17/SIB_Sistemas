@@ -8687,6 +8687,14 @@
                               </label>
                             </div>
                             <div class="sgc-f-29-libreta__detalle-actions">
+                              <button type="button" class="sgc-f-29-libreta__hide"
+                                *ngIf="puedeOcultarProveedorSgcF29"
+                                (click)="ocultarGrupoSgcF29(activo, $event)"
+                                [disabled]="!activo.proveedor?.trim() || sgcF29VisibilidadEnCurso === activo.clave"
+                                title="Ocultar proveedor">
+                                <i class="fas fa-eye-slash" aria-hidden="true"></i>
+                                <span>Ocultar</span>
+                              </button>
                               <button type="button" class="sgc-f-29-libreta__add-eval"
                                 (click)="reevaluarGrupoSgcF29(activo, $event)"
                                 [disabled]="!activo.proveedor?.trim() || !puedeAgregarEvaluacionSgcF29"
@@ -8734,7 +8742,7 @@
                                       <span class="sgc-f-29-field-outline__label">Fecha</span>
                                       <input type="date" class="sgc-f-29-field-outline__input"
                                         [(ngModel)]="row.fecha" [name]="'sgcF29_fecha_p' + idx"
-                                        (ngModelChange)="onSgcF29Editado()"
+                                        (ngModelChange)="onCampoEvalSgcF29(idx)"
                                         (click)="$event.stopPropagation()">
                                     </label>
                                     <label class="sgc-f-29-field-outline sgc-f-29-field-outline--grow">
@@ -8742,9 +8750,14 @@
                                       <input type="text" class="sgc-f-29-field-outline__input"
                                         placeholder="Opcional · Ej. Contrato 2"
                                         [(ngModel)]="row.referencia" [name]="'sgcF29_ref_p' + idx"
-                                        (ngModelChange)="onSgcF29Editado()"
+                                        (ngModelChange)="onCampoEvalSgcF29(idx)"
                                         (click)="$event.stopPropagation()">
                                     </label>
+                                    <div class="sgc-f-29-field-outline sgc-f-29-field-outline--evaluador"
+                                      [attr.title]="row.evaluador || 'Sin registro'">
+                                      <span class="sgc-f-29-field-outline__label">Evaluador</span>
+                                      <span class="sgc-f-29-field-outline__static">{{ row.evaluador || 'Sin registro' }}</span>
+                                    </div>
                                     <div class="sgc-f-29-gauge"
                                       [class.is-empty]="!row.calificacion"
                                       [attr.title]="'Calificación ' + (row.calificacion ? row.calificacion + '%' : '—')">
@@ -8810,6 +8823,32 @@
                           </section>
                         </ng-template>
                       </div>
+
+                      <section class="sgc-f-29-ocultos" *ngIf="puedeRestaurarProveedorSgcF29 && sgcF29GruposOcultos.length"
+                        aria-label="Proveedores ocultos">
+                        <header class="sgc-f-29-ocultos__head">
+                          <div>
+                            <h4>Proveedores ocultos</h4>
+                            <p>Solo tú puedes verlos y restaurarlos. No entran en los gráficos hasta que vuelvan.</p>
+                          </div>
+                          <em>{{ sgcF29GruposOcultos.length }}</em>
+                        </header>
+                        <ul class="sgc-f-29-ocultos__list">
+                          <li *ngFor="let grupo of sgcF29GruposOcultos; trackBy: trackByIdx">
+                            <span class="sgc-f-29-ocultos__name">{{ grupo.proveedor || 'Sin nombre' }}</span>
+                            <span class="sgc-f-29-ocultos__meta">
+                              {{ grupo.indices.length }} eval. ·
+                              {{ promedioGrupoSgcF29(grupo.indices) ? (promedioGrupoSgcF29(grupo.indices) + '%') : '—' }}
+                            </span>
+                            <button type="button" class="sgc-f-29-ocultos__restore"
+                              (click)="restaurarGrupoSgcF29(grupo, $event)"
+                              [disabled]="sgcF29VisibilidadEnCurso === grupo.clave">
+                              <i class="fas fa-undo" aria-hidden="true"></i>
+                              Restaurar
+                            </button>
+                          </li>
+                        </ul>
+                      </section>
 
                       <div class="dg-f05-table-foot sgc-f-29-foot">
                         <p class="sgc-f-29-foot__hint mb-0">
@@ -14070,8 +14109,8 @@
                           </button>
                           <button type="button" class="sgc-f-11-evid-btn"
                             [class.is-on]="conteoEvidenciasAnalisisSgcF11(item) > 0"
-                            (click)="abrirEvidenciasSgcF11(item, $event)"
-                            title="Evidencias de este análisis">
+                            (click)="abrirAnalisisSgcF11(item); $event.stopPropagation()"
+                            title="Cada punto del análisis tiene su carpeta de evidencias">
                             <i class="fas fa-folder-open" aria-hidden="true"></i>
                             <em>{{ conteoEvidenciasAnalisisSgcF11(item) }}</em>
                           </button>
@@ -14098,12 +14137,12 @@
                       <div class="sgc-f-11-editor-tools">
                         <span class="sgc-f-04-editor-bar__folio" *ngIf="sgcF11Form.proceso">{{ sgcF11Form.proceso }}</span>
                         <button type="button" class="sgc-f-11-evid-btn sgc-f-11-evid-btn--bar"
-                          [class.is-on]="conteoEvidenciasAnalisisSgcF11(sgcF11EvidenciasAnalisisActivo) > 0"
+                          *ngIf="conteoEvidenciasGeneralesSgcF11(sgcF11EvidenciasAnalisisActivo) > 0"
                           (click)="abrirEvidenciasEditorSgcF11($event)"
-                          title="Repositorio de evidencias de este análisis">
+                          title="Archivos subidos antes, todavía en la carpeta general del análisis">
                           <i class="fas fa-folder-open" aria-hidden="true"></i>
-                          Evidencias
-                          <em>{{ conteoEvidenciasAnalisisSgcF11(sgcF11EvidenciasAnalisisActivo) }}</em>
+                          Generales
+                          <em>{{ conteoEvidenciasGeneralesSgcF11(sgcF11EvidenciasAnalisisActivo) }}</em>
                         </button>
                         <button type="button" class="sgc-f-11-lock"
                           [class.sgc-f-11-lock--on]="sgcF11Form.edicionBloqueada"
@@ -14154,7 +14193,7 @@
                         <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-table" aria-hidden="true"></i></div>
                         <div>
                           <h4 class="sgc-f-11-matriz__title">Matriz AMEF</h4>
-                          <p class="sgc-f-11-matriz__hint">Análisis de riesgo y plan de acción en dos bloques; cada fila corresponde a la misma operación. El plan de acción usa todo el ancho. Si bloqueas la edición, solo quedan abiertos Sev., Oc. y Det. posteriores.</p>
+                          <p class="sgc-f-11-matriz__hint">Análisis de riesgo y plan de acción en dos bloques; cada fila corresponde a la misma operación. Docs abre solo las evidencias de ese punto. Si bloqueas la edición, solo quedan abiertos Sev., Oc. y Det. posteriores.</p>
                         </div>
                       </div>
                     </div>
@@ -14221,6 +14260,7 @@
                               <col class="sgc-f-11-col--text">
                               <col class="sgc-f-11-col--num">
                               <col class="sgc-f-11-col--rpn">
+                              <col class="sgc-f-11-col--evid">
                             </colgroup>
                             <thead>
                               <tr>
@@ -14253,6 +14293,7 @@
                                     (blur)="cerrarGuiaSgcF11()">Det.</span>
                                 </th>
                                 <th class="sgc-f-11-table__col--num">RPN</th>
+                                <th class="sgc-f-11-table__col--evid" title="Evidencias de este punto">Docs</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -14329,6 +14370,16 @@
                                     {{ formatearRpnDisplay(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion) }}
                                   </span>
                                 </td>
+                                <td class="sgc-f-11-td sgc-f-11-td--evid">
+                                  <button type="button" class="sgc-f-11-evid-chip"
+                                    [class.is-on]="conteoEvidenciasFilaSgcF11(fila) > 0"
+                                    (click)="abrirEvidenciasFilaSgcF11(i, $event)"
+                                    [attr.aria-label]="'Evidencias del punto ' + (i + 1)"
+                                    [title]="etiquetaVisiblePuntoSgcF11(fila, i)">
+                                    <i class="fas fa-folder-open" aria-hidden="true"></i>
+                                    <em>{{ conteoEvidenciasFilaSgcF11(fila) }}</em>
+                                  </button>
+                                </td>
                               </tr>
                             </tbody>
                           </table>
@@ -14355,6 +14406,7 @@
                               <col class="sgc-f-11-col--num">
                               <col class="sgc-f-11-col--num">
                               <col class="sgc-f-11-col--rpn">
+                              <col class="sgc-f-11-col--evid">
                               <col class="sgc-f-11-col--act">
                             </colgroup>
                             <thead>
@@ -14386,6 +14438,7 @@
                                     (blur)="cerrarGuiaSgcF11()">Det.</span>
                                 </th>
                                 <th class="sgc-f-11-table__col--num sgc-f-11-table__col--seguimiento">RPN</th>
+                                <th class="sgc-f-11-table__col--evid" title="Evidencias de este punto">Docs</th>
                                 <th class="dg-f05-table__act" aria-label="Acciones"></th>
                               </tr>
                             </thead>
@@ -14447,6 +14500,16 @@
                                     {{ formatearRpnDisplay(fila.rpnPost, fila.ocurrenciaPost, fila.severidadPost, fila.deteccionPost) }}
                                   </span>
                                 </td>
+                                <td class="sgc-f-11-td sgc-f-11-td--evid">
+                                  <button type="button" class="sgc-f-11-evid-chip"
+                                    [class.is-on]="conteoEvidenciasFilaSgcF11(fila) > 0"
+                                    (click)="abrirEvidenciasFilaSgcF11(i, $event)"
+                                    [attr.aria-label]="'Evidencias del punto ' + (i + 1)"
+                                    [title]="etiquetaVisiblePuntoSgcF11(fila, i)">
+                                    <i class="fas fa-folder-open" aria-hidden="true"></i>
+                                    <em>{{ conteoEvidenciasFilaSgcF11(fila) }}</em>
+                                  </button>
+                                </td>
                                 <td class="dg-f05-table__act">
                                   <button type="button" class="dg-f05-row-btn" (click)="quitarFilaSgcF11(i)"
                                     [disabled]="sgcF11Form.edicionBloqueada || sgcF11Form.filas.length <= 1" title="Quitar fila">
@@ -14464,6 +14527,10 @@
                           [disabled]="sgcF11Form.edicionBloqueada">
                           <i class="fas fa-plus" aria-hidden="true"></i> Agregar fila AMEF
                         </button>
+                        <p class="sgc-f-14-evid-hint mb-0">
+                          <i class="fas fa-info-circle" aria-hidden="true"></i>
+                          Cada punto guarda sus evidencias por separado. Docs abre solo la carpeta de esa fila.
+                        </p>
                       </div>
                     </div>
                     <div class="sgc-f-11-guia" *ngIf="sgcF11GuiaAbierta as clave"
@@ -14491,7 +14558,7 @@
                   </article>
 
                   <div class="sgc-f29-evid-page" *ngIf="sgcF11EvidenciasModalAbierto" role="region"
-                    aria-label="Evidencias del análisis">
+                    [attr.aria-label]="sgcF11EvidenciasFila ? 'Evidencias del punto' : 'Evidencias generales del análisis'">
                     <header class="sgc-f29-evid-page__head">
                       <button type="button" class="sgc-f29-evid-page__back"
                         (click)="cerrarEvidenciasSgcF11()"
@@ -14502,9 +14569,9 @@
                         <span class="sgc-f29-evid-page__back-label">Volver</span>
                       </button>
                       <div class="sgc-f29-evid-page__titles">
-                        <p class="sgc-f29-evid-page__eyebrow">SGC-F-11 · Evidencias</p>
+                        <p class="sgc-f29-evid-page__eyebrow">SGC-F-11 · {{ sgcF11EvidenciasFila ? 'Evidencias del punto' : 'Evidencias generales' }}</p>
                         <h3 class="sgc-f29-evid-page__title">
-                          {{ nombreArchiveroSgcF11(sgcF11EvidenciasAnalisis) }}
+                          {{ tituloEvidenciasSgcF11 }}
                         </h3>
                       </div>
                       <label class="sgc-f29-evid-icon-btn sgc-f29-evid-icon-btn--light"
@@ -14570,18 +14637,22 @@
                       </aside>
 
                       <section class="sgc-f29-evid-main">
-                        <div class="sgc-f14-evid-meta" *ngIf="sgcF11EvidenciasAnalisis as f" aria-label="Datos del análisis">
+                        <div class="sgc-f14-evid-meta" *ngIf="sgcF11EvidenciasAnalisis as f" aria-label="Datos del punto">
                           <span class="sgc-f14-evid-meta__chip sgc-f14-evid-meta__chip--folio">
+                            <i class="fas fa-folder-open" aria-hidden="true"></i>
+                            <strong>{{ tituloEvidenciasSgcF11 }}</strong>
+                          </span>
+                          <span class="sgc-f14-evid-meta__chip">
                             <i class="fas fa-project-diagram" aria-hidden="true"></i>
                             <strong>{{ nombreArchiveroSgcF11(f) }}</strong>
+                          </span>
+                          <span class="sgc-f14-evid-meta__chip" *ngIf="sgcF11EvidenciasFila?.etapa">
+                            <i class="fas fa-stream" aria-hidden="true"></i>
+                            <strong>{{ sgcF11EvidenciasFila?.etapa }}</strong>
                           </span>
                           <span class="sgc-f14-evid-meta__chip" *ngIf="f.area">
                             <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
                             <strong>{{ f.area }}</strong>
-                          </span>
-                          <span class="sgc-f14-evid-meta__chip" *ngIf="f.departamento">
-                            <i class="fas fa-building" aria-hidden="true"></i>
-                            <strong>{{ f.departamento }}</strong>
                           </span>
                         </div>
                         <div class="sgc-f29-evid-toolbar">
@@ -14655,7 +14726,7 @@
                             <div class="sgc-f29-evid-empty" *ngIf="!sgcF11EvidenciasDocsFiltrados.length && !sgcF11EvidenciasSubiendo">
                               <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
                               <p>Arrastra archivos aquí o usa «Subir».</p>
-                              <span>PDF, CSV, Excel, Word, PowerPoint e imágenes. Se guardan en la carpeta «{{ nombreArchiveroSgcF11(sgcF11EvidenciasAnalisis) }}».</span>
+                              <span>PDF, CSV, Excel, Word, PowerPoint e imágenes. Se guardan en «{{ carpetaVisibleEvidenciasSgcF11 }}».</span>
                             </div>
                             <div class="sgc-f29-evid-files"
                               [class.sgc-f29-evid-files--lista]="sgcF11EvidenciasVista === 'lista'"

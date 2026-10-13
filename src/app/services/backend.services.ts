@@ -3406,6 +3406,17 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-29`);
     }
 
+    listarProveedoresOcultosSgcF29(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-29/ocultos`);
+    }
+
+    establecerVisibilidadProveedorSgcF29(proveedor: string, oculto: boolean): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/visibilidad`, {
+            proveedor,
+            oculto
+        });
+    }
+
     guardarSgcF29Formato(datos: unknown, editorActivo = false): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/guardar`, {
             datos,
@@ -3579,10 +3590,11 @@ export class BackendServices {
 
     listarEvidenciasSgcF11(
         analisisId: string,
-        opts?: { nombre_proyecto?: string }
+        opts?: { nombre_proyecto?: string; carpeta_padre?: string }
     ): Observable<any> {
         const params: Record<string, string> = {};
         if (opts?.nombre_proyecto) params.nombre_proyecto = opts.nombre_proyecto;
+        if (opts?.carpeta_padre) params.carpeta_padre = opts.carpeta_padre;
         return this.httpClient.get(
             `${this.baseUrl}/sgc/formatos/sgc-f-11/evidencias/${encodeURIComponent(analisisId)}`,
             { params }
@@ -3600,6 +3612,7 @@ export class BackendServices {
     subirEvidenciasLoteSgcF11Eventos(payload: {
         proyecto_id: string;
         nombre_proyecto?: string;
+        carpeta_padre?: string;
         archivos: Array<{
             nombre_archivo: string;
             mime_type?: string;
@@ -3617,6 +3630,7 @@ export class BackendServices {
     crearCarpetaEvidenciaSgcF11(payload: {
         proyecto_id: string;
         nombre_proyecto?: string;
+        carpeta_padre?: string;
         nombre: string;
     }): Observable<any> {
         return this.httpClient.post(
@@ -4281,6 +4295,65 @@ export class BackendServices {
             ids,
             empresaId
         });
+    }
+
+    listarCambiosControlProyecto(meta: {
+        empresaId?: number | null;
+        folio?: string;
+        nombreProyecto?: string;
+    }): Observable<any> {
+        const params = new URLSearchParams();
+        if (meta?.empresaId) params.set('empresaId', String(meta.empresaId));
+        if (meta?.folio) params.set('folio', meta.folio);
+        if (meta?.nombreProyecto) params.set('nombreProyecto', meta.nombreProyecto);
+        const query = params.toString();
+        return this.httpClient.get(`${this.baseUrl}/control-proyectos/cambios${query ? `?${query}` : ''}`);
+    }
+
+    guardarCambiosControlProyecto(body: {
+        empresaId?: number | null;
+        folio?: string;
+        nombreProyecto?: string;
+        cambios: Array<{
+            id?: number | null;
+            tipoRequisitos?: boolean;
+            tipoDiseno?: boolean;
+            tipoProduccion?: boolean;
+            descripcion?: string;
+            motivo?: string;
+            accionesFilas?: Array<{
+                descripcion?: string;
+                responsable?: string;
+                responsableUsuarioId?: number | null;
+                fechaCompromiso?: string;
+            }>;
+            solicitar?: boolean;
+            corregir?: boolean;
+        }>;
+    }): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/control-proyectos/cambios/guardar`, body || { cambios: [] });
+    }
+
+    resolverCambioControlProyecto(body: {
+        empresaId?: number | null;
+        folio?: string;
+        nombreProyecto?: string;
+        cambioId: number;
+        decision: 'aprobado' | 'no_aprobado';
+    }): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/control-proyectos/cambios/resolver`, body);
+    }
+
+    listarBandejaCambiosControlProyecto(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/control-proyectos/cambios/bandeja`);
+    }
+
+    listarAvisosCambiosControlProyecto(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/control-proyectos/cambios/avisos`);
+    }
+
+    descartarAvisoCambioControlProyecto(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/control-proyectos/cambios/avisos/${id}/descartar`, {});
     }
 
     restaurarControlProyectosEliminados(body: {

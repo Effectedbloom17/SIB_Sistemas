@@ -129,7 +129,8 @@ const PROVEEDOR_DEFECTO = {
     pagoTransferencia: '',
     servicio: '',
     calidad: '',
-    calificacion: ''
+    calificacion: '',
+    evaluador: ''
 };
 
 function generarIdEvaluacion() {
@@ -259,6 +260,16 @@ function calcularCalificacion(item) {
     return String(Math.round(vals.reduce((a, b) => a + b, 0) / vals.length));
 }
 
+function textoEvaluador(item) {
+    return String(item?.evaluador || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+}
+
+function proveedorEstaOculto(item) {
+    return item?.oculto === true
+        || item?.oculto === 1
+        || String(item?.oculto || '').toLowerCase() === 'true';
+}
+
 function sanitizarProveedor(item) {
     const idExistente = String(item?.id || '').trim().slice(0, 64);
     const base = {
@@ -272,7 +283,9 @@ function sanitizarProveedor(item) {
         pagoTransferencia: parsearPuntaje(item?.pagoTransferencia),
         servicio: parsearPuntaje(item?.servicio),
         calidad: parsearPuntaje(item?.calidad),
-        calificacion: parsearPuntaje(item?.calificacion)
+        calificacion: parsearPuntaje(item?.calificacion),
+        oculto: proveedorEstaOculto(item),
+        evaluador: textoEvaluador(item)
     };
     const auto = calcularCalificacion(base);
     if (auto) base.calificacion = auto;
@@ -324,10 +337,88 @@ function fusionarIdsProveedores(anteriores, nuevos) {
     });
 }
 
+/**
+ * La visibilidad no se pierde al guardar el formato ni al leer la hoja.
+ * Ocultar (oculto: true) sí se acepta desde el cliente.
+ * Restaurar solo lo hace establecerVisibilidadProveedor.
+ * Las filas ocultas que no vienen en la hoja se reincorporan.
+ */
+function conservarOcultos(anteriores, nuevos) {
+    const prev = Array.isArray(anteriores) ? anteriores : [];
+    const next = Array.isArray(nuevos) ? nuevos : [];
+    const prevPorId = new Map();
+    for (const p of prev) {
+        const id = String(p?.id || '').trim();
+        if (id) prevPorId.set(id, p);
+    }
+    const usados = new Set();
+    const salida = next.map((fila) => {
+        const id = String(fila?.id || '').trim();
+        const anterior = id ? prevPorId.get(id) : null;
+        if (id) usados.add(id);
+        const oculto = proveedorEstaOculto(anterior) || proveedorEstaOculto(fila);
+        return { ...fila, oculto };
+    });
+    for (const p of prev) {
+        if (!proveedorEstaOculto(p)) continue;
+        const id = String(p?.id || '').trim();
+        if (id && usados.has(id)) continue;
+        salida.push({ ...p, oculto: true });
+    }
+    return salida;
+}
+
+/** El nombre no vive en la hoja. Si el guardado o Drive no lo traen, se conserva el anterior. */
+function conservarEvaluador(anteriores, nuevos) {
+    const prev = Array.isArray(anteriores) ? anteriores : [];
+    const next = Array.isArray(nuevos) ? nuevos : [];
+    const prevPorId = new Map();
+    for (const p of prev) {
+        const id = String(p?.id || '').trim();
+        if (id) prevPorId.set(id, p);
+    }
+    return next.map((fila) => {
+        const id = String(fila?.id || '').trim();
+        const anterior = id ? prevPorId.get(id) : null;
+        return {
+            ...fila,
+            evaluador: textoEvaluador(fila) || textoEvaluador(anterior)
+        };
+    });
+}
+
 function asegurarIdsProveedores(lista) {
     return (Array.isArray(lista) ? lista : []).map((fila) => (
         fila?.id ? fila : { ...fila, id: generarIdEvaluacion() }
     ));
+}
+
+/** Las filas ocultas no ocupan cupo de la hoja; siguen guardadas en el JSON. */
+function recortarProveedoresVisibles(lista) {
+    const salida = [];
+    let visibles = 0;
+    for (const fila of (Array.isArray(lista) ? lista : [])) {
+        if (proveedorEstaOculto(fila)) {
+            salida.push({ ...fila, oculto: true });
+            continue;
+        }
+        if (visibles >= MAX_FILAS) continue;
+        visibles += 1;
+        salida.push({ ...fila, oculto: false });
+    }
+    return salida;
+}
+
+/** La hoja oficial solo muestra proveedores visibles. */
+function datosParaHoja(datos) {
+    const d = sanitizarDatos({
+        ...datos,
+        fechaEvaluacion: fechaEvaluacionRegistro(datos)
+    });
+    return {
+        ...d,
+        proveedores: (d.proveedores || []).filter((p) => !proveedorEstaOculto(p))
+    };
 }
 
 function esProveedorVacio(item) {
@@ -359,11 +450,12 @@ function sanitizarDatos(raw) {
         fechaRevision: formatearFechaIso(base.fechaRevision) || DATOS_DEFECTO.fechaRevision,
         periodoEvaluacion: limpiarMetaPeriodo(base.periodoEvaluacion),
         fechaEvaluacion: formatearFechaIso(base.fechaEvaluacion) || '',
-        proveedores: asegurarIdsProveedores(
-            proveedores
-                .map(sanitizarProveedor)
-                .filter((p) => !esProveedorVacio(p) && !pareceNotaPlantilla(p.proveedor))
-                .slice(0, MAX_FILAS)
+        proveedores: recortarProveedoresVisibles(
+            asegurarIdsProveedores(
+                proveedores
+                    .map(sanitizarProveedor)
+                    .filter((p) => !esProveedorVacio(p) && !pareceNotaPlantilla(p.proveedor))
+            )
         )
     };
 }
@@ -554,10 +646,7 @@ function escribirMetaEnHoja(ws, datos) {
 }
 
 function escribirDatosEnHoja(ws, datos) {
-    const d = sanitizarDatos({
-        ...datos,
-        fechaEvaluacion: fechaEvaluacionRegistro(datos)
-    });
+    const d = datosParaHoja(datos);
     escribirMetaEnHoja(ws, d);
     escribirEncabezadosTabla(ws);
     escribirProveedoresEnHoja(ws, d.proveedores);
@@ -579,10 +668,7 @@ function rangoSheet(celda, sheetTitle) {
 }
 
 function datosAActualizacionesSheet(datos, sheetTitle) {
-    const d = sanitizarDatos({
-        ...datos,
-        fechaEvaluacion: fechaEvaluacionRegistro(datos)
-    });
+    const d = datosParaHoja(datos);
     const actualizaciones = [];
     const fechaTxt = fechaParaSheet(d.fechaEvaluacion) || '';
     actualizaciones.push({
@@ -731,7 +817,7 @@ async function descargarBufferDrive(fileId) {
 
 async function aplicarFormatoVisualSgcF29(spreadsheetId, sheetTitle, datos) {
     if (!spreadsheetId || !sheetTitle) return;
-    const d = sanitizarDatos(datos);
+    const d = datosParaHoja(datos);
     const numFilas = d.proveedores.length;
     try {
         await driveService.aplicarFormatoFilasSgcF29(
@@ -1074,11 +1160,11 @@ async function guardarRegistroDb(pool, payload) {
     await persistirRegistroSgc(pool, CODIGO_FORMATO, payload);
 }
 
-async function obtenerResumenProveedores(pool) {
+async function obtenerResumenProveedores(pool, opciones = {}) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
     const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
-    const lista = (datos.proveedores || []).map((p, idx) => {
+    let lista = (datos.proveedores || []).map((p, idx) => {
         const calif = p.calificacion !== '' ? Number(p.calificacion) : null;
         return {
             id: p.id || '',
@@ -1093,9 +1179,12 @@ async function obtenerResumenProveedores(pool) {
             servicio: p.servicio !== '' ? Number(p.servicio) : null,
             calidad: p.calidad !== '' ? Number(p.calidad) : null,
             calificacion: Number.isFinite(calif) ? calif : null,
-            aprobado: Number.isFinite(calif) ? calif >= 80 : false
+            aprobado: Number.isFinite(calif) ? calif >= 80 : false,
+            oculto: proveedorEstaOculto(p)
         };
     });
+    const incluirOcultos = !!opciones.soloOcultos;
+    lista = lista.filter((p) => (incluirOcultos ? p.oculto : !p.oculto));
     const conCalif = lista.filter((p) => p.calificacion !== null);
     const promedio = conCalif.length
         ? Math.round(conCalif.reduce((s, p) => s + p.calificacion, 0) / conCalif.length)
@@ -1323,13 +1412,21 @@ async function guardarFormato(pool, body, options = {}) {
         }
     }
     const rawBody = body?.datos || body || {};
+    const fusionados = fusionarIdsProveedores(
+        datosPrevios?.proveedores || [],
+        Array.isArray(rawBody.proveedores) ? rawBody.proveedores : []
+    );
+    const proveedoresVisibles = options.aplicarVisibilidadCliente
+        ? fusionados
+        : conservarOcultos(datosPrevios?.proveedores || [], fusionados);
+    const proveedoresEntrada = conservarEvaluador(
+        datosPrevios?.proveedores || [],
+        proveedoresVisibles
+    );
     const datosEntrada = sanitizarDatos({
         ...rawBody,
         fechaEvaluacion: fechaEvaluacionRegistro(rawBody),
-        proveedores: fusionarIdsProveedores(
-            datosPrevios?.proveedores || [],
-            Array.isArray(rawBody.proveedores) ? rawBody.proveedores : []
-        )
+        proveedores: proveedoresEntrada
     });
     const origen = String(body?.origen || 'sistema').toLowerCase();
 
@@ -1453,9 +1550,15 @@ async function sincronizarDesdeDrive(pool) {
 
     const datosDrive = sanitizarDatos({
         ...leidos,
-        proveedores: fusionarIdsProveedores(
+        proveedores: conservarEvaluador(
             datosPrevios?.proveedores || [],
-            Array.isArray(leidos?.proveedores) ? leidos.proveedores : []
+            conservarOcultos(
+                datosPrevios?.proveedores || [],
+                fusionarIdsProveedores(
+                    datosPrevios?.proveedores || [],
+                    Array.isArray(leidos?.proveedores) ? leidos.proveedores : []
+                )
+            )
         )
     });
 
@@ -1540,10 +1643,48 @@ async function actualizarPlantillaDesdeSistema(pool) {
     return construirRespuesta(registroActualizado, datos, archivoDrive);
 }
 
+async function listarProveedoresOcultos(pool) {
+    const resumen = await obtenerResumenProveedores(pool, { soloOcultos: true });
+    return {
+        total: resumen.total,
+        totalProveedoresUnicos: resumen.totalProveedoresUnicos,
+        proveedoresAgrupados: resumen.proveedoresAgrupados || []
+    };
+}
+
+async function establecerVisibilidadProveedor(pool, nombre, oculto) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+    const clave = String(nombre || '').trim().toLowerCase();
+    if (!clave) {
+        const err = new Error('Indica el proveedor.');
+        err.statusCode = 400;
+        throw err;
+    }
+    let encontrados = 0;
+    const proveedores = (datos.proveedores || []).map((p) => {
+        if (String(p?.proveedor || '').trim().toLowerCase() !== clave) return p;
+        encontrados += 1;
+        return { ...p, oculto: !!oculto };
+    });
+    if (!encontrados) {
+        const err = new Error('No se encontró el proveedor.');
+        err.statusCode = 404;
+        throw err;
+    }
+    return guardarFormato(pool, {
+        datos: { ...datos, proveedores },
+        origen: 'sistema'
+    }, { aplicarVisibilidadCliente: true });
+}
+
 module.exports = {
     cargarFormato,
     guardarFormato,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
-    obtenerResumenProveedores
+    obtenerResumenProveedores,
+    listarProveedoresOcultos,
+    establecerVisibilidadProveedor
 };

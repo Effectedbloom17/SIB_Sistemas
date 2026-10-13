@@ -106,7 +106,8 @@ function createSgcF11EvidenciaRouter({
                 req.params.proyectoId,
                 {
                     folio: req.query?.folio,
-                    nombre_proyecto: req.query?.nombre_proyecto || req.query?.nombreProyecto
+                    nombre_proyecto: req.query?.nombre_proyecto || req.query?.nombreProyecto,
+                    carpeta_padre: req.query?.carpeta_padre || req.query?.carpetaPadre
                 }
             );
             return res.json({ success: true, ...resultado });

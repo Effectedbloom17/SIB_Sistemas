@@ -1,6 +1,8 @@
 /**
- * Evidencias de análisis SGC-F-11 (AMEF), una carpeta por archivo del archivero.
- * Archivos en Drive: {CARPETA_DRIVE_EVIDENCIAS} / {nombre del archivero} / [subcarpeta opcional]
+ * Evidencias SGC-F-11 (AMEF).
+ * Cada punto de la matriz tiene su carpeta:
+ *   {raíz} / {nombre del análisis} / {carpeta del punto} / [subcarpeta opcional]
+ * Las evidencias anteriores al cambio siguen en la carpeta general del análisis.
  * Índice en biznaga_sgc.sgc_f11_evidencia
  */
 const crypto = require('crypto');
@@ -222,6 +224,41 @@ async function resolverCarpetaProyecto(nombreProyecto, subcarpeta) {
     return carpetaProyecto;
 }
 
+/**
+ * Carpeta de un punto: raíz / {análisis} / {punto} / [subcarpeta].
+ */
+async function resolverCarpetaPunto(carpetaPadre, nombrePunto, subcarpeta) {
+    const padreId = await driveService.obtenerOCrearCarpeta(
+        sanitizarNombreCarpeta(carpetaPadre || 'Sin-proceso'),
+        CARPETA_DRIVE_EVIDENCIAS
+    );
+    const puntoId = await driveService.obtenerOCrearCarpeta(
+        sanitizarNombreCarpeta(nombrePunto || 'Punto'),
+        padreId
+    );
+    const sub = sanitizarNombreCarpeta(subcarpeta || '');
+    if (sub && sub !== 'Sin-nombre') {
+        return driveService.obtenerOCrearCarpeta(sub, puntoId);
+    }
+    return puntoId;
+}
+
+async function buscarCarpetaPuntoExistente(carpetaPadre, nombrePunto) {
+    const padreNombre = sanitizarNombreCarpeta(carpetaPadre || '');
+    const puntoNombre = sanitizarNombreCarpeta(nombrePunto || '');
+    if (!padreNombre || padreNombre === 'Sin-nombre' || !puntoNombre || puntoNombre === 'Sin-nombre') {
+        return null;
+    }
+    try {
+        const padreId = await driveService.buscarCarpeta(padreNombre, CARPETA_DRIVE_EVIDENCIAS);
+        if (!padreId) return null;
+        return await driveService.buscarCarpeta(puntoNombre, padreId);
+    } catch (err) {
+        console.warn('[SGC-F11-EVID] No se pudo buscar carpeta del punto:', err.message);
+        return null;
+    }
+}
+
 async function buscarCarpetaProyectoExistente(nombreProyecto) {
     const nombre = sanitizarNombreCarpeta(nombreProyecto || '');
     if (!nombre || nombre === 'Sin-nombre') return null;
@@ -231,6 +268,15 @@ async function buscarCarpetaProyectoExistente(nombreProyecto) {
         console.warn('[SGC-F11-EVID] No se pudo buscar carpeta de proyecto:', err.message);
         return null;
     }
+}
+
+/** Lista solo los archivos en la raíz de una carpeta (no entra a subcarpetas de cada punto). */
+async function listarArchivosDriveSoloRaiz(carpetaId) {
+    if (!carpetaId) return [];
+    const raiz = await driveService.listarArchivosCarpeta(carpetaId);
+    return (raiz || [])
+        .filter((f) => f?.id)
+        .map((f) => ({ ...f, carpetaDriveId: carpetaId }));
 }
 
 /** Lista archivos en la carpeta del proyecto y 1 nivel de subcarpetas. */
@@ -304,7 +350,8 @@ async function sincronizarEvidenciasDesdeDrive(pool, {
         return { clave, importados: 0, carpetaDriveId: null };
     }
 
-    const archivosDrive = await listarArchivosDriveProyecto(carpetaId);
+    // Solo la raíz: las subcarpetas son los puntos y no deben mezclarse aquí.
+    const archivosDrive = await listarArchivosDriveSoloRaiz(carpetaId);
     if (!archivosDrive.length) {
         return { clave, importados: 0, carpetaDriveId: carpetaId };
     }
@@ -335,9 +382,6 @@ async function sincronizarEvidenciasDesdeDrive(pool, {
                      drive_file_id, carpeta_drive_id, web_view_link, mime_type, tamano_bytes, subido_por)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE
-                    proyecto_id = VALUES(proyecto_id),
-                    folio = COALESCE(VALUES(folio), folio),
-                    nombre_proyecto = COALESCE(VALUES(nombre_proyecto), nombre_proyecto),
                     updated_at = CURRENT_TIMESTAMP`,
                 [
                     clave,
@@ -363,6 +407,67 @@ async function sincronizarEvidenciasDesdeDrive(pool, {
     return { clave, importados, carpetaDriveId: carpetaId };
 }
 
+/** Importa a este punto solo los archivos de su subcarpeta, sin reasignar otros puntos. */
+async function sincronizarPuntoDesdeDrive(pool, { proyectoId, nombrePunto, carpetaPadre }) {
+    await asegurarTablas(pool);
+    const clave = normalizarProyectoId(proyectoId);
+    const carpetaId = await buscarCarpetaPuntoExistente(carpetaPadre, nombrePunto);
+    if (!carpetaId) {
+        return { clave, importados: 0, carpetaDriveId: null };
+    }
+    const archivosDrive = await listarArchivosDriveProyecto(carpetaId);
+    if (!archivosDrive.length) {
+        return { clave, importados: 0, carpetaDriveId: carpetaId };
+    }
+    const driveIds = archivosDrive.map((a) => a.id).filter(Boolean);
+    const existentes = new Set();
+    if (driveIds.length) {
+        const placeholders = driveIds.map(() => '?').join(',');
+        const [rows] = await pool.query(
+            `SELECT drive_file_id FROM sgc_f11_evidencia WHERE drive_file_id IN (${placeholders})`,
+            driveIds
+        );
+        for (const row of rows) {
+            if (row.drive_file_id) existentes.add(row.drive_file_id);
+        }
+    }
+    const nombreLimpio = sanitizarTexto(nombrePunto, 255);
+    let importados = 0;
+    for (const archivo of archivosDrive) {
+        if (!archivo?.id || existentes.has(archivo.id)) continue;
+        const nombreArchivo = nombreSeguroArchivo(archivo.name || 'documento');
+        const mimeType = resolverMimeType(nombreArchivo, archivo.mimeType);
+        const tamano = archivo.size != null ? Number(archivo.size) : null;
+        try {
+            await pool.query(
+                `INSERT INTO sgc_f11_evidencia
+                    (proyecto_id, folio, nombre_proyecto, titulo, nombre_archivo, nombre_archivo_drive,
+                     drive_file_id, carpeta_drive_id, web_view_link, mime_type, tamano_bytes, subido_por)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE updated_at = CURRENT_TIMESTAMP`,
+                [
+                    clave,
+                    clave,
+                    nombreLimpio || null,
+                    nombreArchivo,
+                    nombreArchivo,
+                    archivo.name || nombreArchivo,
+                    archivo.id,
+                    archivo.carpetaDriveId || carpetaId,
+                    archivo.webViewLink || `https://drive.google.com/file/d/${archivo.id}/view`,
+                    mimeType,
+                    Number.isFinite(tamano) ? tamano : null,
+                    'sync-drive'
+                ]
+            );
+            importados += 1;
+        } catch (err) {
+            console.warn('[SGC-F11-EVID] No se pudo registrar archivo del punto:', err.message);
+        }
+    }
+    return { clave, importados, carpetaDriveId: carpetaId };
+}
+
 async function crearCarpetaEvidencia(pool, body) {
     const folio = sanitizarTexto(body?.folio, 255);
     const proyectoId = resolverClaveProyecto(folio, body?.proyecto_id || body?.proyectoId);
@@ -371,11 +476,14 @@ async function crearCarpetaEvidencia(pool, body) {
     if (!nombre || nombre === 'Sin-nombre') {
         throw Object.assign(new Error('Indica un nombre válido para la carpeta.'), { status: 400 });
     }
+    const carpetaPadre = sanitizarTexto(body?.carpeta_padre || body?.carpetaPadre, 255);
     const nombreCarpetaProyecto = nombreProyecto || folio;
     if (!nombreCarpetaProyecto) {
         throw Object.assign(new Error('Indica el nombre del análisis.'), { status: 400 });
     }
-    const carpetaDriveId = await resolverCarpetaProyecto(nombreCarpetaProyecto, nombre);
+    const carpetaDriveId = carpetaPadre
+        ? await resolverCarpetaPunto(carpetaPadre, nombreCarpetaProyecto, nombre)
+        : await resolverCarpetaProyecto(nombreCarpetaProyecto, nombre);
     return {
         proyectoId,
         nombreProyecto: nombreCarpetaProyecto,
@@ -392,32 +500,42 @@ async function listarEvidencias(pool, proyectoId, opciones = {}) {
         opciones.nombre_proyecto || opciones.nombreProyecto,
         255
     );
+    const carpetaPadre = sanitizarTexto(opciones.carpeta_padre || opciones.carpetaPadre, 255);
     const clave = resolverClaveProyecto(folio, proyectoId);
+    const porPunto = !!carpetaPadre;
 
     let syncInfo = { importados: 0, carpetaDriveId: null };
     try {
-        syncInfo = await sincronizarEvidenciasDesdeDrive(pool, {
-            proyectoId,
-            folio,
-            nombreProyecto
-        });
+        syncInfo = porPunto
+            ? await sincronizarPuntoDesdeDrive(pool, {
+                proyectoId: clave,
+                nombrePunto: nombreProyecto,
+                carpetaPadre
+            })
+            : await sincronizarEvidenciasDesdeDrive(pool, {
+                proyectoId,
+                folio,
+                nombreProyecto
+            });
     } catch (err) {
         console.warn('[SGC-F11-EVID] Sync Drive→BD omitida:', err.message);
     }
 
     const whereParts = ['proyecto_id = ?'];
     const params = [clave];
-    if (proyectoId && String(proyectoId).trim() !== clave) {
-        whereParts.push('proyecto_id = ?');
-        params.push(String(proyectoId).trim());
-    }
-    if (folio) {
-        whereParts.push('folio = ?');
-        params.push(folio);
-    }
-    if (nombreProyecto) {
-        whereParts.push('nombre_proyecto = ?');
-        params.push(nombreProyecto);
+    if (!porPunto) {
+        if (proyectoId && String(proyectoId).trim() !== clave) {
+            whereParts.push('proyecto_id = ?');
+            params.push(String(proyectoId).trim());
+        }
+        if (folio) {
+            whereParts.push('folio = ?');
+            params.push(folio);
+        }
+        if (nombreProyecto) {
+            whereParts.push('nombre_proyecto = ?');
+            params.push(nombreProyecto);
+        }
     }
 
     const [rows] = await pool.query(
@@ -528,6 +646,7 @@ async function subirEvidencia(pool, body, usuario) {
     const folio = sanitizarTexto(body?.folio, 255);
     const proyectoId = resolverClaveProyecto(folio, body?.proyecto_id || body?.proyectoId);
     const nombreProyecto = sanitizarTexto(body?.nombre_proyecto || body?.nombreProyecto, 255);
+    const carpetaPadre = sanitizarTexto(body?.carpeta_padre || body?.carpetaPadre, 255);
     const archivoBase64 = String(body?.archivo_base64 || body?.archivoBase64 || '').trim();
     const nombreArchivo = nombreSeguroArchivo(body?.nombre_archivo || body?.nombreArchivo);
 
@@ -551,10 +670,10 @@ async function subirEvidencia(pool, body, usuario) {
         throw Object.assign(new Error('Indica el nombre del análisis.'), { status: 400 });
     }
 
-    const carpetaDriveId = await resolverCarpetaProyecto(
-        nombreProyecto || folio,
-        body?.subcarpeta || body?.carpeta || body?.folder
-    );
+    const subcarpeta = body?.subcarpeta || body?.carpeta || body?.folder;
+    const carpetaDriveId = carpetaPadre
+        ? await resolverCarpetaPunto(carpetaPadre, nombreProyecto || folio, subcarpeta)
+        : await resolverCarpetaProyecto(nombreProyecto || folio, subcarpeta);
     let driveResult = null;
     let ultimoError = null;
 
@@ -635,6 +754,7 @@ async function subirEvidenciasLote(pool, body, usuario) {
     const folio = sanitizarTexto(body?.folio, 255);
     const proyectoId = resolverClaveProyecto(folio, body?.proyecto_id || body?.proyectoId);
     const nombreProyecto = sanitizarTexto(body?.nombre_proyecto || body?.nombreProyecto, 255);
+    const carpetaPadre = sanitizarTexto(body?.carpeta_padre || body?.carpetaPadre, 255);
     const archivos = Array.isArray(body?.archivos) ? body.archivos : [];
     if (!archivos.length) {
         throw Object.assign(new Error('No se recibieron archivos para subir.'), { status: 400 });
@@ -648,6 +768,7 @@ async function subirEvidenciasLote(pool, body, usuario) {
             proyecto_id: proyectoId,
             folio,
             nombre_proyecto: nombreProyecto,
+            carpeta_padre: carpetaPadre,
             nombre_archivo: archivo?.nombre_archivo || archivo?.nombreArchivo,
             mime_type: archivo?.mime_type || archivo?.mimeType,
             archivo_base64: archivo?.archivo_base64 || archivo?.archivoBase64,
