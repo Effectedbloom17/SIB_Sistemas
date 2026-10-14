@@ -3158,8 +3158,10 @@ export class BackendServices {
         });
     }
 
-    descargarPdfSgcF16(): Observable<Blob> {
-        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-16/descargar-pdf`, {
+    descargarPdfSgcF16(minutaId?: string | null): Observable<Blob> {
+        const id = String(minutaId || '').trim();
+        const qs = id ? `?minutaId=${encodeURIComponent(id)}` : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-16/descargar-pdf${qs}`, {
             responseType: 'blob'
         });
     }
@@ -3479,6 +3481,12 @@ export class BackendServices {
 
     actualizarPlantillaSgcF29(): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/actualizar-plantilla`, {});
+    }
+
+    descargarPdfSgcF29(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-29/descargar-pdf`, {
+            responseType: 'blob'
+        });
     }
 
     listarEvidenciasSgcF29(evaluacionId: string): Observable<any> {

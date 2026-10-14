@@ -3130,6 +3130,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private sgcF29EditorIframeListo = false;
   /** Criterio cuyo tip de puntaje está abierto (tap en móvil/tablet). */
   sgcF29TipAbierto: string | null = null;
+  sgcF29TipStyle: Record<string, string> | null = null;
+  sgcF29DescargandoPdf = false;
   sgcF29EvaluadorComboIdx: number | null = null;
   sgcF29EvaluadorComboQuery = '';
   sgcF29UsuariosCatalogo: AthF11EmpleadoCatalogo[] = [];
@@ -12474,48 +12476,87 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.sgcF16DescargandoPdf) {
       return;
     }
-    this.sgcF16DescargandoPdf = true;
-    this.backendService.descargarPdfSgcF16()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (blob) => {
-          this.sgcF16DescargandoPdf = false;
-          const url = URL.createObjectURL(blob);
-          const enlace = document.createElement('a');
-          enlace.href = url;
-          enlace.download = 'SGC-F-16 Minuta.pdf';
-          enlace.click();
-          URL.revokeObjectURL(url);
-        },
-        error: () => {
-          this.sgcF16DescargandoPdf = false;
-        }
-      });
+    const minutaId = this.sgcF16MinutaActiva?.id || this.sgcF16Form.minutaActivaId || null;
+    const folio = String(this.sgcF16MinutaActiva?.folio || '').trim();
+    const nombrePdf = folio
+      ? `SGC-F-16 ${folio}.pdf`.replace(/[\\/:*?"<>|]+/g, '_')
+      : 'SGC-F-16 Minuta.pdf';
+
+    const ejecutarDescarga = () => {
+      this.sgcF16DescargandoPdf = true;
+      this.backendService.descargarPdfSgcF16(minutaId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (blob) => {
+            this.sgcF16DescargandoPdf = false;
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = nombrePdf;
+            enlace.click();
+            URL.revokeObjectURL(url);
+          },
+          error: () => {
+            this.sgcF16DescargandoPdf = false;
+          }
+        });
+    };
+
+    if (this.sgcF16CambiosPendientes && this.sgcF16Listo && !this.sgcF16Guardando) {
+      this.sgcF16Guardando = true;
+      this.backendService.guardarSgcF16Formato(
+        { ...this.sgcF16Form, minutaActivaId: minutaId },
+        false
+      )
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.aplicarEstadoSgcF16(res, true, false, true);
+            this.sgcF16CambiosPendientes = false;
+            this.sgcF16Guardando = false;
+            ejecutarDescarga();
+          },
+          error: () => {
+            this.sgcF16Guardando = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo guardar',
+              text: 'Guarda la minuta antes de generar el PDF.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+      return;
+    }
+
+    ejecutarDescarga();
   }
 
   abrirEnvioCorreoSgcF16(): void {
     if (!this.sgcF16MinutaActiva || this.envioDocCorreoVisible) {
       return;
     }
-    const asuntoMinuta = String(this.sgcF16MinutaActiva.asunto || '').trim() || 'Sin asunto';
-    const folio = String(this.sgcF16MinutaActiva.folio || '').trim();
+    const activa = this.sgcF16MinutaActiva;
+    const minutaId = activa.id;
+    const asuntoMinuta = String(activa.asunto || '').trim() || 'Sin asunto';
+    const folio = String(activa.folio || '').trim();
     this.envioDocCorreoAsunto = `Envió de MINUTA  "${asuntoMinuta}"`;
     this.envioDocCorreoMensaje =
       `Se adjunta la minuta SGC-F-16${folio ? ` (${folio})` : ''} correspondiente a «${asuntoMinuta}».`;
     this.envioDocCorreoNombrePdf = folio
       ? `SGC-F-16 ${folio}.pdf`.replace(/[\\/:*?"<>|]+/g, '_')
       : 'SGC-F-16 Minuta.pdf';
-    this.envioDocCorreoPdfLoader = () => this.backendService.descargarPdfSgcF16();
+    this.envioDocCorreoPdfLoader = () => this.backendService.descargarPdfSgcF16(minutaId);
 
     const abrir = () => {
       this.envioDocCorreoVisible = true;
     };
 
-    if (this.sgcF16CambiosPendientes && this.sgcF16Listo && !this.sgcF16Guardando) {
+    // Siempre sincroniza la minuta abierta a BD/Drive antes de adjuntar el PDF.
+    if (this.sgcF16Listo && !this.sgcF16Guardando) {
       this.sgcF16Guardando = true;
-      const activa = this.sgcF16MinutaActiva;
       this.backendService.guardarSgcF16Formato(
-        { ...this.sgcF16Form, minutaActivaId: activa?.id || null },
+        { ...this.sgcF16Form, minutaActivaId: minutaId },
         false
       )
         .pipe(takeUntil(this.destroy$))
@@ -18321,11 +18362,69 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   toggleTipSgcF29(campo: string, event?: Event): void {
     event?.preventDefault();
     event?.stopPropagation();
-    this.sgcF29TipAbierto = this.sgcF29TipAbierto === campo ? null : campo;
+    if (this.sgcF29TipAbierto === campo) {
+      this.cerrarTipSgcF29();
+      return;
+    }
+    this.sgcF29TipAbierto = campo;
+    const btn = (event?.currentTarget || event?.target) as HTMLElement | null;
+    const el = (btn?.closest?.('.sgc-f-29-libreta__crit-tip') as HTMLElement | null) || btn;
+    if (el?.getBoundingClientRect) {
+      const r = el.getBoundingClientRect();
+      const panel = (el.closest('.sgc-f-29-libreta__detalle')
+        || el.closest('.sgc-f-29-libreta__criterios-legend')) as HTMLElement | null;
+      const bounds = panel?.getBoundingClientRect();
+      const tipW = Math.min(220, Math.max(160, (bounds?.width || window.innerWidth) * 0.42));
+      const pad = 10;
+      const minLeft = Math.max(pad, bounds ? bounds.left + pad : pad);
+      const maxRight = Math.min(window.innerWidth - pad, bounds ? bounds.right - pad : window.innerWidth - pad);
+      // Si el chip está en la mitad derecha del panel, anclar el tip a su borde derecho
+      const midX = bounds ? (bounds.left + bounds.right) / 2 : window.innerWidth / 2;
+      let left = r.left;
+      if (r.left >= midX || r.left + tipW > maxRight) {
+        left = r.right - tipW;
+      }
+      left = Math.max(minLeft, Math.min(left, maxRight - tipW));
+      this.sgcF29TipStyle = {
+        position: 'fixed',
+        top: `${Math.round(r.bottom + 6)}px`,
+        left: `${Math.round(left)}px`,
+        right: 'auto',
+        width: `${Math.round(tipW)}px`,
+        maxWidth: `${Math.round(Math.max(120, maxRight - minLeft))}px`,
+        zIndex: '10050'
+      };
+    } else {
+      this.sgcF29TipStyle = null;
+    }
   }
 
   cerrarTipSgcF29(): void {
     this.sgcF29TipAbierto = null;
+    this.sgcF29TipStyle = null;
+  }
+
+  descargarPdfSgcF29(): void {
+    if (this.sgcF29DescargandoPdf || this.sgcF29Cargando) {
+      return;
+    }
+    this.sgcF29DescargandoPdf = true;
+    this.backendService.descargarPdfSgcF29()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          this.sgcF29DescargandoPdf = false;
+          const url = URL.createObjectURL(blob);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = 'SGC-F-29 Evaluacion de Proveedores.pdf';
+          enlace.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.sgcF29DescargandoPdf = false;
+        }
+      });
   }
 
   recalcularCalificacionSgcF29(index: number): void {
@@ -25897,7 +25996,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.sgcF29TipAbierto
       && !target?.closest('.sgc-f-29-table__col--score')
-      && !target?.closest('.sgc-f-29-libreta__criterios-legend')) {
+      && !target?.closest('.sgc-f-29-libreta__criterios-legend')
+      && !target?.closest('.sgc-f-29-libreta__crit-tip-float')) {
       this.cerrarTipSgcF29();
     }
     if (this.sgcF29EvaluadorComboIdx != null && target && !target.closest('.sgc-f-29-eval-combo')) {

@@ -2829,7 +2829,7 @@ async function aplicarFormatoVisualSgcF16(spreadsheetId, sheetTitle, layout) {
     const bordeNegro = { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } };
     const sinBorde = { style: 'NONE' };
     const textFormatTitulo = { fontFamily: 'Century Gothic', fontSize: 10, bold: true };
-    const textFormatCuerpo = { fontFamily: 'Century Gothic', fontSize: 10 };
+    const textFormatCuerpo = { fontFamily: 'Century Gothic', fontSize: 10, bold: false };
     const COL_INICIO = 0;
     const COL_FIN = 8; // A:H
     const SEPARATOR = 1;

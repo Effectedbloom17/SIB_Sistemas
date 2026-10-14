@@ -591,6 +591,17 @@
                     <span class="sgc-btn-pdf-icon__label">{{ sgcF12DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
                   </button>
                   <button
+                    *ngIf="plantillaSlug === 'sgc-f-29'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-pdf-icon"
+                    [disabled]="!driveSyncDriveFileId || driveSyncCargando || sgcF29DescargandoPdf || sgcF29Cargando"
+                    (click)="descargarPdfSgcF29()"
+                    title="Descargar PDF (Carta, horizontal, ajustar al ancho, márgenes normales, centro / arriba)"
+                    aria-label="Descargar PDF de evaluación de proveedores">
+                    <i class="fas" [ngClass]="sgcF29DescargandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i>
+                    <span class="sgc-btn-pdf-icon__label">{{ sgcF29DescargandoPdf ? 'Generando…' : 'Descargar PDF' }}</span>
+                  </button>
+                  <button
                     *ngIf="plantillaSlug === 'sgc-f-04' && sgcF04Vista === 'editor'"
                     type="button"
                     class="btn btn-sm sgc-btn-pdf-icon"
@@ -8872,40 +8883,44 @@
                           <div class="sgc-f-29-libreta__criterios-legend"
                             [class.has-tip-open]="!!sgcF29TipAbierto"
                             aria-label="Criterios de evaluación">
-                            <span class="sgc-f-29-libreta__crit-label">
-                              <i class="fas fa-lightbulb" aria-hidden="true"></i>
-                              Criterios
-                            </span>
-                            <div class="sgc-f-29-libreta__crit-chips"
-                              [class.has-tip-open]="!!sgcF29TipAbierto">
-                              <button type="button" class="sgc-f-29-libreta__crit-tip"
-                                *ngFor="let c of sgcF29CriteriosActivos"
-                                (click)="toggleTipSgcF29(c.clave, $event)"
-                                [class.is-open]="sgcF29TipAbierto === c.clave"
-                                [attr.aria-expanded]="sgcF29TipAbierto === c.clave"
-                                [attr.title]="c.nombre">
-                                {{ c.nombre }}
-                                <i class="fas fa-info-circle" aria-hidden="true"></i>
-                                <span class="sgc-f-29-th-tip sgc-f-29-libreta__tip" role="tooltip"
-                                  *ngIf="sgcF29TipAbierto === c.clave"
-                                  (click)="$event.stopPropagation()">
-                                  <strong>{{ textoConSaltosSgcF29(c.nombre) }}</strong>
-                                  <ul>
-                                    <li *ngFor="let v of valoresEscalaCriterioSgcF29(c.clave)">
-                                      <b>{{ v }}%</b>
-                                      <span>{{ textoConSaltosSgcF29(descripcionCriterioSgcF29(c.clave, v)) }}</span>
-                                    </li>
-                                  </ul>
-                                </span>
+                            <div class="sgc-f-29-libreta__crit-row">
+                              <span class="sgc-f-29-libreta__crit-label">
+                                <i class="fas fa-lightbulb" aria-hidden="true"></i>
+                                Criterios
+                              </span>
+                              <div class="sgc-f-29-libreta__crit-chips"
+                                [class.has-tip-open]="!!sgcF29TipAbierto">
+                                <button type="button" class="sgc-f-29-libreta__crit-tip"
+                                  *ngFor="let c of sgcF29CriteriosActivos"
+                                  (click)="toggleTipSgcF29(c.clave, $event)"
+                                  [class.is-open]="sgcF29TipAbierto === c.clave"
+                                  [attr.aria-expanded]="sgcF29TipAbierto === c.clave"
+                                  [attr.title]="c.nombre">
+                                  {{ c.nombre }}
+                                  <i class="fas fa-info-circle" aria-hidden="true"></i>
+                                </button>
+                              </div>
+                              <button type="button" class="sgc-f-29-libreta__crit-add"
+                                (click)="toggleFormNuevoCriterioSgcF29($event)"
+                                [class.is-open]="sgcF29NuevoCriterioAbierto"
+                                title="Agregar nuevo criterio"
+                                aria-label="Agregar nuevo criterio">
+                                <i class="fas fa-plus" aria-hidden="true"></i>
                               </button>
                             </div>
-                            <button type="button" class="sgc-f-29-libreta__crit-add"
-                              (click)="toggleFormNuevoCriterioSgcF29($event)"
-                              [class.is-open]="sgcF29NuevoCriterioAbierto"
-                              title="Agregar criterio al catálogo"
-                              aria-label="Agregar criterio">
-                              <i class="fas fa-plus" aria-hidden="true"></i>
-                            </button>
+                            <div class="sgc-f-29-libreta__crit-tip-float sgc-f-29-th-tip"
+                              role="tooltip"
+                              *ngIf="sgcF29TipAbierto && criterioPorClaveSgcF29(sgcF29TipAbierto) as tip"
+                              [ngStyle]="sgcF29TipStyle"
+                              (click)="$event.stopPropagation()">
+                              <strong>{{ textoConSaltosSgcF29(tip.nombre) }}</strong>
+                              <ul>
+                                <li *ngFor="let v of valoresEscalaCriterioSgcF29(tip.clave)">
+                                  <b>{{ v }}%</b>
+                                  <span>{{ textoConSaltosSgcF29(descripcionCriterioSgcF29(tip.clave, v)) }}</span>
+                                </li>
+                              </ul>
+                            </div>
                             <div class="sgc-f-29-libreta__crit-form" *ngIf="sgcF29NuevoCriterioAbierto" (click)="$event.stopPropagation()">
                               <header class="sgc-f-29-libreta__crit-form-head">
                                 <span class="sgc-f-29-libreta__crit-form-badge" aria-hidden="true">
@@ -13643,7 +13658,7 @@
                                             <i class="fas fa-user"></i>
                                           </span>
                                           <span class="ath-f-08-combo__option-text">
-                                            <strong>{{ opt.nombre }}</strong>
+                                            <span class="sgc-f-16-combo__nombre">{{ opt.nombre }}</span>
                                             <small *ngIf="opt.puesto">{{ opt.puesto }}</small>
                                           </span>
                                         </button>
@@ -13715,7 +13730,7 @@
                                             <i class="fas fa-id-badge"></i>
                                           </span>
                                           <span class="ath-f-08-combo__option-text">
-                                            <strong>{{ opt.puesto || 'Sin puesto' }}</strong>
+                                            <span class="sgc-f-16-combo__puesto">{{ opt.puesto || 'Sin puesto' }}</span>
                                             <small *ngIf="opt.nombre">{{ opt.nombre }}</small>
                                           </span>
                                         </button>

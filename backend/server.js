@@ -28679,11 +28679,17 @@ app.post('/api/sgc/formatos/sgc-f-16/subir-pdf-firmado', requireAdminOrSgc, asyn
 app.get('/api/sgc/formatos/sgc-f-16/descargar-pdf', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const pdfBuffer = await sgcF16Service.descargarPlantillaPdf(poolBiznagaSgc);
+        const resultado = await sgcF16Service.descargarPlantillaPdf(poolBiznagaSgc, {
+            minutaId: req.query.minutaId || req.query.id || null
+        });
+        const pdfBuffer = resultado?.buffer || resultado;
+        const nombre = String(resultado?.nombreArchivo || 'SGC-F-16 Minuta.pdf')
+            .replace(/[^\w.\- áéíóúÁÉÍÓÚñÑ()]/gi, '_')
+            .trim() || 'SGC-F-16 Minuta.pdf';
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader(
             'Content-Disposition',
-            'attachment; filename="SGC-F-16 Minuta.pdf"'
+            `attachment; filename="${nombre.replace(/"/g, '')}"`
         );
         return res.send(pdfBuffer);
     } catch (error) {
@@ -29415,6 +29421,20 @@ app.post('/api/sgc/formatos/sgc-f-29/actualizar-plantilla', requireRole('root'),
         });
     } catch (error) {
         handleError(res, error, 'No se pudo actualizar la plantilla SGC-F-29');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-29/descargar-pdf', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pdf = await sgcF29Service.descargarPlantillaPdf(poolBiznagaSgc);
+        const filename = String(pdf?.nombreArchivo || 'SGC-F-29 Evaluacion de Proveedores.pdf')
+            .replace(/"/g, '');
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.send(pdf.buffer);
+    } catch (error) {
+        handleError(res, error, 'No se pudo descargar el PDF de SGC-F-29');
     }
 });
 
