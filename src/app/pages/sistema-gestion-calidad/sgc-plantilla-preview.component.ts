@@ -29897,7 +29897,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private subirPdfFirmadoAthF11(pdfBase64: string, nombreArchivo: string): void {
-    if (this.athF11SubiendoPdf || !this.athF11EvaluacionActiva) return;
+    if (this.athF11SubiendoPdf || !this.athF11EvaluacionActiva) {
+      this.cerrarModalSubidaPdfSgc();
+      return;
+    }
     this.athF11SubiendoPdf = true;
     this.backendService.subirPdfFirmadoAthF11(pdfBase64, nombreArchivo, this.athF11EvaluacionActiva.id)
       .pipe(takeUntil(this.destroy$))
@@ -29909,9 +29912,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
             this.athF11EvaluacionActiva.pdfFirmado = this.sanitizarPdfAthF11(res.pdfFirmado);
             this.sincronizarEvaluacionActivaEnFormAthF11();
           }
+          this.finalizarSubidaPdfSgc(true, nombreArchivo);
         },
         error: () => {
           this.athF11SubiendoPdf = false;
+          this.finalizarSubidaPdfSgc(false);
         }
       });
   }
