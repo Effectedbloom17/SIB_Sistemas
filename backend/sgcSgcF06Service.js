@@ -56,23 +56,8 @@ const DRIVE_SHEET_OPTIONS = {
 };
 
 const DATOS_DEFECTO = {
-    resumen: {
-        activos: 0,
-        acreditados: 0,
-        enEntrenamiento: 0
-    },
-    auditores: Array.from({ length: 10 }, () => ({
-        nombre: '',
-        puesto: '',
-        tiempoEmpresa: '',
-        escolaridad: '',
-        cursoAuditoresInternos: '',
-        calificacionCurso: null,
-        nivelObjetividad: '',
-        desempeno: '',
-        promedio: null,
-        auditoriasRealizadas: 0
-    }))
+    listas: [],
+    listaActivaId: null
 };
 
 function normalizarHeader(texto) {
@@ -158,6 +143,10 @@ function aplicarCalculosAuditor(auditor) {
 
 function formatearFechaIso(fecha) {
     if (!fecha) return '';
+    if (typeof fecha === 'string') {
+        const iso = fecha.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+    }
     const d = fecha instanceof Date ? fecha : new Date(fecha);
     if (Number.isNaN(d.getTime())) {
         const m = String(fecha).match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})/);
@@ -371,27 +360,136 @@ function normalizarResumen(resumen, auditores) {
     };
 }
 
+function nuevoIdLista() {
+    try {
+        return require('crypto').randomUUID();
+    } catch {
+        return `lista-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    }
+}
+
+function textoPlano(valor) {
+    return String(valor == null ? '' : valor).replace(/\s+/g, ' ').trim();
+}
+
+function auditoresVacios() {
+    return Array.from({ length: DATA_ROW_COUNT }, () => normalizarAuditor(crearAuditorVacio()));
+}
+
+function sanitizarAuditores(auditoresRaw) {
+    const fuente = Array.isArray(auditoresRaw) ? auditoresRaw : [];
+    const auditores = fuente.map(normalizarAuditorParaPersistencia);
+    if (!auditores.length) {
+        return auditoresVacios();
+    }
+    while (auditores.length < DATA_ROW_COUNT) {
+        auditores.push(normalizarAuditorParaPersistencia(crearAuditorVacio()));
+    }
+    return auditores.slice(0, DATA_ROW_COUNT);
+}
+
+function sanitizarLista(raw) {
+    const base = raw && typeof raw === 'object' ? raw : {};
+    const auditores = sanitizarAuditores(base.auditores);
+    return {
+        id: textoPlano(base.id) || nuevoIdLista(),
+        titulo: textoPlano(base.titulo) || 'Lista de auditores',
+        fecha: formatearFechaIso(base.fecha) || fechaHoyIso(),
+        auditores,
+        resumen: normalizarResumen(base.resumen, auditores)
+    };
+}
+
 function sanitizarDatos(raw) {
     const base = raw && typeof raw === 'object' ? raw : {};
-    const auditoresRaw = Array.isArray(base.auditores) ? base.auditores : DATOS_DEFECTO.auditores;
-    let auditores = auditoresRaw.map(normalizarAuditorParaPersistencia);
-    if (auditores.length === DATA_ROW_COUNT) {
-        // Mantener las 10 filas del formato.
-    } else if (auditores.length > 0) {
-        while (auditores.length < DATA_ROW_COUNT) {
-            auditores.push(normalizarAuditorParaPersistencia(crearAuditorVacio()));
-        }
-        auditores = auditores.slice(0, DATA_ROW_COUNT);
+    let listas;
+    if (Array.isArray(base.listas)) {
+        listas = base.listas.map(sanitizarLista);
+    } else if (Array.isArray(base.auditores)) {
+        listas = [sanitizarLista({
+            id: base.listaActivaId || base.id || 'lista-vigente',
+            titulo: base.titulo || 'Lista vigente',
+            fecha: base.fecha || fechaHoyIso(),
+            auditores: base.auditores,
+            resumen: base.resumen
+        })];
     } else {
-        auditores = auditores.filter(auditorTieneContenido);
+        listas = [];
     }
-    const datasetAuditores = auditores.length
-        ? auditores
-        : DATOS_DEFECTO.auditores.map(normalizarAuditor);
+    const activa = textoPlano(base.listaActivaId);
     return {
-        resumen: normalizarResumen(base.resumen, datasetAuditores),
-        auditores: datasetAuditores
+        listas,
+        listaActivaId: activa && listas.some((lista) => lista.id === activa) ? activa : (listas[0]?.id || null)
     };
+}
+
+function resolverListaActiva(datos) {
+    const sanit = Array.isArray(datos?.listas) ? datos : sanitizarDatos(datos || {});
+    const listas = Array.isArray(sanit.listas) ? sanit.listas : [];
+    if (!listas.length) return null;
+    const id = textoPlano(sanit.listaActivaId);
+    return listas.find((lista) => lista.id === id) || listas[0];
+}
+
+function proyeccionHoja(datos) {
+    const lista = resolverListaActiva(datos);
+    if (!lista) {
+        const auditores = auditoresVacios();
+        return {
+            auditores,
+            resumen: calcularResumenDesdeAuditores(auditores),
+            fecha: fechaHoyIso()
+        };
+    }
+    return {
+        auditores: lista.auditores,
+        resumen: lista.resumen,
+        fecha: lista.fecha || fechaHoyIso()
+    };
+}
+
+function auditoresHojaTienenContenido(auditores) {
+    return (Array.isArray(auditores) ? auditores : []).some(auditorTieneContenido);
+}
+
+function fusionarHojaEnListaActiva(datosDb, hoja) {
+    const db = sanitizarDatos(datosDb || {});
+    const auditoresHoja = sanitizarAuditores(hoja?.auditores);
+    const fechaHoja = formatearFechaIso(hoja?.fecha);
+    const tiene = auditoresHojaTienenContenido(auditoresHoja);
+    if (!db.listas.length) {
+        if (!tiene) return db;
+        const primera = sanitizarLista({
+            id: 'lista-vigente',
+            titulo: 'Lista vigente',
+            fecha: fechaHoja || fechaHoyIso(),
+            auditores: auditoresHoja,
+            resumen: hoja?.resumen
+        });
+        return sanitizarDatos({ listas: [primera], listaActivaId: primera.id });
+    }
+    if (!tiene) return db;
+    const activaId = db.listaActivaId || db.listas[0].id;
+    const listas = db.listas.map((lista) => {
+        if (lista.id !== activaId) return lista;
+        return sanitizarLista({
+            ...lista,
+            fecha: fechaHoja || lista.fecha,
+            auditores: auditoresHoja,
+            resumen: hoja?.resumen
+        });
+    });
+    return sanitizarDatos({ listas, listaActivaId: activaId });
+}
+
+function listaDesdeHoja(hoja) {
+    if (!hoja || !auditoresHojaTienenContenido(hoja.auditores)) return null;
+    return sanitizarDatos({
+        ...hoja,
+        id: 'lista-vigente',
+        titulo: 'Lista vigente',
+        listaActivaId: 'lista-vigente'
+    });
 }
 
 function calcularResumenDesdeAuditores(auditores) {
@@ -621,10 +719,16 @@ function parsearDatosDesdeHoja(ws) {
         auditores.push(auditoresPorNumero.get(i) || crearAuditorVacio());
     }
 
-    return sanitizarDatos({
+    return {
+        fecha: leerFechaEvaluacionHoja(ws),
         resumen: calcularResumenDesdeAuditores(auditores.filter(auditorTieneContenido)),
         auditores
-    });
+    };
+}
+
+function leerFechaEvaluacionHoja(ws) {
+    if (!ws) return '';
+    return formatearFechaIso(celdaATexto(ws.getCell('M5').value));
 }
 
 async function leerDatosDesdeBuffer(buffer, opciones = {}) {
@@ -670,11 +774,13 @@ function columnaALetraF06(col) {
 
 function datosAActualizacionesSheet(datos, headerInfo, sheetTitle = SHEET_TITLE) {
     const actualizaciones = [];
-    const auditores = (datos.auditores || []).slice(0, DATA_ROW_COUNT);
+    const proyeccion = proyeccionHoja(datos);
+    const auditores = (proyeccion.auditores || []).slice(0, DATA_ROW_COUNT);
+    const fechaDisplay = formatearFechaDisplay(proyeccion.fecha) || fechaEvaluacionMexicoDisplay();
 
     actualizaciones.push({
         range: rangoSheet(FECHA_EVALUACION_RANGO, sheetTitle),
-        values: [[fechaEvaluacionMexicoDisplay()]]
+        values: [[fechaDisplay]]
     });
 
     for (let index = 0; index < DATA_ROW_COUNT; index++) {
@@ -762,11 +868,11 @@ async function reforzarFormatoVisualSgcF06(spreadsheetId, sheetTitle, headerInfo
     }
 }
 
-async function aplicarFechaEvaluacionEnGoogleSheet(spreadsheetId, sheetTitle) {
+async function aplicarFechaEvaluacionEnGoogleSheet(spreadsheetId, sheetTitle, fechaDisplay = '') {
     const titulo = String(sheetTitle || await resolverTituloHojaTrabajo(spreadsheetId)).trim();
     await driveService.actualizarCeldasGoogleSheet(spreadsheetId, [{
         range: rangoSheet(FECHA_EVALUACION_RANGO, titulo),
-        values: [[fechaEvaluacionMexicoDisplay()]]
+        values: [[fechaDisplay || fechaEvaluacionMexicoDisplay()]]
     }]);
 }
 
@@ -797,7 +903,8 @@ async function publicarCompletoSgcF06(spreadsheetId, datos, sheetTitle = null) {
     }
 
     try {
-        await aplicarFechaEvaluacionEnGoogleSheet(spreadsheetId, tituloHoja);
+        const fechaDisplay = formatearFechaDisplay(proyeccionHoja(datos).fecha) || fechaEvaluacionMexicoDisplay();
+        await aplicarFechaEvaluacionEnGoogleSheet(spreadsheetId, tituloHoja, fechaDisplay);
     } catch (err) {
         console.warn('[SGC-F-06] Error al escribir fecha de evaluación:', err.message);
     }
@@ -923,9 +1030,11 @@ async function escribirDatosEnPlantilla(datos, driveFileId = DRIVE_FILE_ID_SISTE
     if (!ws) throw new Error('La plantilla SGC-F-06 no contiene hojas.');
 
     const headerInfo = completarColumnasFaltantes(detectarEncabezado(ws));
-    const auditores = (datos.auditores || []).slice(0, DATA_ROW_COUNT);
+    const proyeccion = proyeccionHoja(datos);
+    const auditores = (proyeccion.auditores || []).slice(0, DATA_ROW_COUNT);
 
-    ws.getCell(FECHA_EVALUACION_RANGO.split(':')[0]).value = fechaEvaluacionMexicoDisplay();
+    ws.getCell(FECHA_EVALUACION_RANGO.split(':')[0]).value = formatearFechaDisplay(proyeccion.fecha)
+        || fechaEvaluacionMexicoDisplay();
 
     for (let index = 0; index < DATA_ROW_COUNT; index++) {
         escribirAuditorEnFila(ws, DATA_FIRST_ROW + index, headerInfo, auditores[index] || crearAuditorVacio());
@@ -939,16 +1048,21 @@ async function obtenerRegistroDb(pool) {
     return obtenerRegistroSgcPersistido(pool, CODIGO_FORMATO);
 }
 
-async function leerDatosRegistro(registro) {
+function parsearJsonRegistro(registro) {
     if (!registro?.datos_json) return null;
     try {
-        const parsed = typeof registro.datos_json === 'string'
+        return typeof registro.datos_json === 'string'
             ? JSON.parse(registro.datos_json)
             : registro.datos_json;
-        return sanitizarDatos(parsed);
     } catch (err) {
         return null;
     }
+}
+
+async function leerDatosRegistro(registro) {
+    const parsed = parsearJsonRegistro(registro);
+    if (!parsed) return null;
+    return sanitizarDatos(parsed);
 }
 
 async function buscarArchivoDriveTrabajo() {
@@ -1091,8 +1205,8 @@ async function escribirSnapshotEnHojaDrive(spreadsheetId, sheetTitle, datos) {
 }
 
 function estructuraEsEquivalente(a, b) {
-    const fa = Array.isArray(a?.auditores) ? a.auditores.length : 0;
-    const fb = Array.isArray(b?.auditores) ? b.auditores.length : 0;
+    const fa = proyeccionHoja(a).auditores.length;
+    const fb = proyeccionHoja(b).auditores.length;
     return fa === fb;
 }
 
@@ -1173,36 +1287,50 @@ async function cargarFormato(pool) {
         registro = await obtenerRegistroDb(pool);
     }
 
+    const crudo = parsearJsonRegistro(registro);
+    const tieneArchivero = Array.isArray(crudo?.listas);
+    datos = crudo ? sanitizarDatos(crudo) : null;
+
+    let hoja = null;
     if (driveFileId) {
         try {
             const buffer = await descargarBufferDrive(driveFileId);
-            datos = await leerDatosDesdeBuffer(buffer);
+            hoja = await leerDatosDesdeBuffer(buffer);
             archivoDrive = await driveService.obtenerInfoArchivo(driveFileId).catch(() => null);
         } catch (err) {
             console.warn('[SGC-F-06] No se pudo leer archivo en Drive, usando BD/plantilla:', err.message);
         }
     }
 
-    if (!datos) datos = await leerDatosRegistro(registro);
-    if (!datos) {
-        try {
-            datos = await leerDatosDesdePlantilla();
-        } catch (err) {
-            datos = sanitizarDatos(DATOS_DEFECTO);
+    if (!tieneArchivero) {
+        const desdeHoja = listaDesdeHoja(hoja);
+        if (desdeHoja) {
+            datos = desdeHoja;
+        } else if (!datos?.listas?.some((lista) => auditoresHojaTienenContenido(lista.auditores))) {
+            try {
+                const plantilla = await leerDatosDesdePlantilla();
+                const desdePlantilla = listaDesdeHoja(plantilla);
+                if (desdePlantilla) datos = desdePlantilla;
+            } catch (err) {
+                console.warn('[SGC-F-06] Plantilla sin auditores, usando archivero vacío:', err.message);
+            }
+        }
+        if (datos?.listas?.length) {
+            try {
+                await guardarRegistroDb(pool, {
+                    driveFileId: driveFileId || null,
+                    datos,
+                    fechaElaboracionOriginal: registro?.fecha_elaboracion_original || fechaHoyIso(),
+                    fechaModificacionContenido: registro?.fecha_modificacion_contenido,
+                    contenidoModificado: !!registro?.contenido_modificado
+                });
+            } catch (err) {
+                console.warn('[SGC-F-06] No se pudo migrar el archivero en BD:', err.message);
+            }
         }
     }
 
-    if (!datos?.auditores?.length) {
-        try {
-            const plantilla = await leerDatosDesdePlantilla();
-            if (plantilla?.auditores?.length) {
-                datos = plantilla;
-            }
-        } catch (err) {
-            console.warn('[SGC-F-06] Plantilla sin auditores, usando datos por defecto:', err.message);
-        }
-    }
-    if (!datos?.auditores?.length) {
+    if (!datos) {
         datos = sanitizarDatos(DATOS_DEFECTO);
     }
 
@@ -1334,9 +1462,9 @@ async function sincronizarDesdeDrive(pool) {
     driveFileId = await asegurarDriveIdGoogleSheet(driveFileId, pool, registro);
 
     const buffer = await descargarBufferDrive(driveFileId);
-    const datosDrive = await leerDatosDesdeBuffer(buffer);
-
+    const hoja = await leerDatosDesdeBuffer(buffer);
     const datosPrevios = await leerDatosRegistro(registro);
+    const datosDrive = fusionarHojaEnListaActiva(datosPrevios, hoja);
     const huboCambio = !datosPrevios || !datosSonEquivalentes(datosPrevios, datosDrive);
 
     let hist = { aplicado: false, datosGuardar: datosDrive, hojaVigente: null };
@@ -1384,11 +1512,12 @@ async function actualizarPlantillaDesdeSistema(pool) {
     let datos = await leerDatosRegistro(registro);
     if (!datos) {
         try {
-            datos = await leerDatosDesdePlantilla();
+            datos = listaDesdeHoja(await leerDatosDesdePlantilla()) || sanitizarDatos(DATOS_DEFECTO);
         } catch (err) {
             datos = sanitizarDatos(DATOS_DEFECTO);
         }
     }
+    datos = sanitizarDatos(datos);
 
     const fechaOriginal = formatearFechaIso(registro?.fecha_elaboracion_original) || fechaHoyIso();
     const contenidoModificado = !!registro?.contenido_modificado;

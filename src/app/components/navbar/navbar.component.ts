@@ -122,6 +122,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   ticketArea = '';
   ticketPrioridad = 'normal';
   ticketTipo = '';
+  ticketTitulo = '';
   ticketDescripcion = '';
   enviandoTicket = false;
   ticketEnviadoOk = false;
@@ -1178,8 +1179,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
     const area = String(this.ticketArea || '').trim();
     const prioridad = String(this.ticketPrioridad || '').trim();
     const tipo = String(this.ticketTipo || '').trim();
+    const titulo = String(this.ticketTitulo || '').trim();
     const descripcion = String(this.ticketDescripcion || '').trim();
-    if (!area || !prioridad || !tipo || !descripcion || this.enviandoTicket) {
+    if (!area || !prioridad || !tipo || !titulo || !descripcion || this.enviandoTicket) {
       return;
     }
     this.enviandoTicket = true;
@@ -1187,6 +1189,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     this.ticketError = null;
     this.backendServices.crearTicket({
       area,
+      titulo,
       descripcion,
       prioridad,
       tipo,
@@ -1203,6 +1206,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
           this.ticketArea = '';
           this.ticketPrioridad = 'normal';
           this.ticketTipo = '';
+          this.ticketTitulo = '';
           this.ticketDescripcion = '';
           this.limpiarEvidencias();
           this.cargarMisTickets();

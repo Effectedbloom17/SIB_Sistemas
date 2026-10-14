@@ -380,6 +380,16 @@
                     Abrir editor integrado
                   </button>
                   <button
+                    *ngIf="puedeGestionarPlantillasSgc && plantillaSlug === 'sgc-f-07'"
+                    type="button"
+                    class="btn btn-sm sgc-btn-limpiar"
+                    [disabled]="driveSyncCargando || driveSyncGuardando || sgcF07Cargando"
+                    (click)="limpiarFormatoSgcF07()"
+                    title="Vacía auditorías, calendario y comentarios. Pide confirmación dos veces.">
+                    <i class="fas fa-eraser mr-1" aria-hidden="true"></i>
+                    Limpiar formato
+                  </button>
+                  <button
                     *ngIf="plantillaSlug === 'dg-f-05'"
                     type="button"
                     class="btn btn-sm sgc-btn-pdf-icon"
@@ -5028,13 +5038,128 @@
                 <div class="dg-f05-doc-wrap" [class.dg-f05-doc-wrap--loading]="sgcF06Cargando">
                   <div class="dg-f05-loading" *ngIf="sgcF06Cargando" role="status">
                     <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                    Cargando formato…
+                    Cargando listas de auditores…
                   </div>
-                  <article class="dg-f05-doc">
+
+                  <article class="dg-f05-doc" *ngIf="sgcF06Vista === 'archivero'">
                     <header class="dg-f05-doc__header">
                       <span class="dg-f05-doc__code">SGC-F-06</span>
                       <h3 class="dg-f05-doc__title">Lista y calificación de auditores</h3>
                     </header>
+
+                    <div class="sgc-f-04-archivero">
+                      <div class="sgc-f-04-archivero__intro">
+                        <div class="sgc-f-04-archivero__intro-main">
+                          <div class="sgc-f-04-archivero__intro-icon">
+                            <i class="fas fa-archive" aria-hidden="true"></i>
+                          </div>
+                          <div class="sgc-f-04-archivero__intro-text">
+                            <h4 class="sgc-f-04-archivero__title">Archivero de listas de auditores</h4>
+                            <p class="sgc-f-04-archivero__hint">Consulta, abre o crea listas de calificación. La hoja de Excel muestra la lista que abras.</p>
+                          </div>
+                        </div>
+                        <div class="sgc-f-04-archivero__toolbar">
+                          <label class="sgc-f-04-archivero__search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input class="dg-f05-field" type="search" name="sgcF06_busqueda"
+                              [(ngModel)]="sgcF06Busqueda" placeholder="Buscar lista, fecha o auditor…"
+                              autocomplete="off"
+                              (input)="$event.stopPropagation()" (change)="$event.stopPropagation()">
+                          </label>
+                          <button type="button" class="sgc-f-04-archivero__btn-nuevo" (click)="nuevaListaSgcF06()">
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            Nueva lista
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="sgc-f-04-archivero__stats">
+                        <span class="sgc-f-04-archivero__stat">
+                          {{ sgcF06Listas.length }}
+                          {{ sgcF06Listas.length === 1 ? 'lista' : 'listas' }}
+                        </span>
+                        <span class="sgc-f-04-archivero__stat sgc-f-04-archivero__stat--muted"
+                          *ngIf="sgcF06Busqueda.trim() && sgcF06ListasVista.length !== sgcF06Listas.length">
+                          · {{ sgcF06ListasVista.length }} en vista
+                        </span>
+                      </div>
+
+                      <ul class="sgc-f-04-archivero__grid" *ngIf="sgcF06ListasVista.length; else sgcF06ArchiveroVacio">
+                        <li class="sgc-f-04-book" *ngFor="let lista of sgcF06ListasVista; trackBy: trackByIdx">
+                          <button type="button" class="sgc-f-04-book__tap"
+                            (click)="abrirListaSgcF06(lista)"
+                            [attr.aria-label]="'Abrir ' + (lista.titulo || 'lista de auditores')">
+                            <span class="sgc-f-04-book__binding" aria-hidden="true">
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                            </span>
+                            <span class="sgc-f-04-book__page">
+                              <span class="sgc-f-04-book__corner" aria-hidden="true"></span>
+                              <span class="sgc-f-04-book__head">
+                                <span class="sgc-f-04-book__icon">
+                                  <i class="fas fa-user-check" aria-hidden="true"></i>
+                                </span>
+                              </span>
+                              <span class="sgc-f-04-book__origen">{{ lista.titulo?.trim() || 'Lista de auditores' }}</span>
+                              <span class="sgc-f-04-book__folio">{{ resumenTarjetaSgcF06(lista) }}</span>
+                              <span class="sgc-f-04-book__lines" aria-hidden="true">
+                                <span></span><span></span><span></span>
+                              </span>
+                              <span class="sgc-f-04-book__foot">
+                                <span class="sgc-f-04-book__fecha" *ngIf="lista.fecha">{{ formatearFechaCortaSgcF16(lista.fecha) }}</span>
+                              </span>
+                            </span>
+                          </button>
+                          <button type="button" class="sgc-f-04-book__del"
+                            (click)="eliminarListaSgcF06(lista, $event)" title="Eliminar lista"
+                            aria-label="Eliminar lista">
+                            <i class="fas fa-times" aria-hidden="true"></i>
+                          </button>
+                        </li>
+                      </ul>
+                      <ng-template #sgcF06ArchiveroVacio>
+                        <div class="sgc-f-04-archivero__empty">
+                          <i class="fas fa-archive" aria-hidden="true"></i>
+                          <p class="mb-0" *ngIf="sgcF06Busqueda.trim(); else sgcF06SinListas">
+                            No hay listas que coincidan con la búsqueda.
+                          </p>
+                          <ng-template #sgcF06SinListas>
+                            <p class="mb-0">Aún no hay listas. Crea la primera con «Nueva lista».</p>
+                          </ng-template>
+                        </div>
+                      </ng-template>
+                    </div>
+                  </article>
+
+                  <article class="dg-f05-doc" *ngIf="sgcF06Vista === 'editor' && sgcF06ListaActiva as lista">
+                    <div class="sgc-f-04-editor-bar">
+                      <button type="button" class="sgc-f-04-editor-bar__back" (click)="volverArchiveroSgcF06()">
+                        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                        Volver al archivero
+                      </button>
+                      <span class="sgc-f-04-editor-bar__folio" *ngIf="lista.titulo">{{ lista.titulo }}</span>
+                    </div>
+                    <header class="dg-f05-doc__header">
+                      <span class="dg-f05-doc__code">SGC-F-06</span>
+                      <h3 class="dg-f05-doc__title">Lista y calificación de auditores</h3>
+                    </header>
+
+                    <div class="dg-f05-doc__meta">
+                      <label class="dg-f05-meta-field">
+                        <span class="dg-f05-meta-field__label">Nombre de la lista</span>
+                        <input class="dg-f05-field" type="text" name="sgcF06_titulo"
+                          [(ngModel)]="lista.titulo" autocomplete="off">
+                      </label>
+                      <label class="dg-f05-meta-field">
+                        <span class="dg-f05-meta-field__label">Fecha</span>
+                        <input class="dg-f05-field" type="date" name="sgcF06_fecha"
+                          [(ngModel)]="lista.fecha">
+                      </label>
+                    </div>
 
                     <div class="dg-f05-table-panel">
                       <div class="sgc-f-11-matriz__intro">
@@ -5319,6 +5444,13 @@
                             </tbody>
                           </table>
                         </div>
+                        <div class="dg-f05-table-foot sgc-f-07-datos-foot">
+                          <button type="button" class="dg-f05-add-btn" (click)="agregarAuditoriaSgcF07()"
+                            [disabled]="sgcF07Cargando">
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            Agregar auditoría
+                          </button>
+                        </div>
                       </section>
 
                       <section class="sgc-f-11-split-block sgc-f-11-split-block--acciones" aria-labelledby="sgc-f-07-block-calendario">
@@ -5411,13 +5543,25 @@
 
                       </section>
 
-                      <div class="dg-f05-table-foot">
-                        <button type="button" class="dg-f05-add-btn" (click)="agregarAuditoriaSgcF07()"
-                          [disabled]="sgcF07Cargando">
-                          <i class="fas fa-plus" aria-hidden="true"></i>
-                          Agregar auditoría
-                        </button>
-                      </div>
+                      <section class="sgc-f-07-comentarios" aria-label="Comentarios generales">
+                        <header class="sgc-f-07-comentarios__head">
+                          <span class="sgc-f-07-comentarios__icon" aria-hidden="true">
+                            <i class="fas fa-comment-alt"></i>
+                          </span>
+                          <div>
+                            <strong class="sgc-f-07-comentarios__title">Comentarios</strong>
+                            <span class="sgc-f-07-comentarios__subtitle">Generales del programa de auditoría</span>
+                          </div>
+                        </header>
+                        <div class="sgc-f-07-comentarios__body">
+                          <textarea
+                            class="dg-f05-field dg-f05-field--textarea dg-f05-field--left"
+                            name="sgcF07_comentarios"
+                            rows="4"
+                            [(ngModel)]="sgcF07Form.footer.comentariosDetalle"
+                            placeholder="Escribe aquí los comentarios generales del programa"></textarea>
+                        </div>
+                      </section>
                     </div>
                   </article>
 

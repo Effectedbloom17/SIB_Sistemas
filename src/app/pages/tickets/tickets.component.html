@@ -22,24 +22,126 @@
       <div class="card shadow-lg border-0 tk-shell">
         <div class="card-body tk-shell-body">
 
-          <div class="tk-stats">
-            <div class="tk-stat">
-              <span class="tk-stat-value">{{ total }}</span>
-              <span class="tk-stat-label">En vista</span>
-            </div>
-            <div class="tk-stat tk-stat--warn">
-              <span class="tk-stat-value">{{ noRealizados }}</span>
-              <span class="tk-stat-label">No realizados</span>
-            </div>
-            <div class="tk-stat tk-stat--info">
-              <span class="tk-stat-value">{{ enDesarrollo }}</span>
-              <span class="tk-stat-label">En desarrollo</span>
-            </div>
-            <div class="tk-stat tk-stat--ok">
-              <span class="tk-stat-value">{{ realizados }}</span>
-              <span class="tk-stat-label">Realizados</span>
-            </div>
+          <div class="tk-kpi-bar">
+            <ng-container *ngFor="let card of tarjetasFila; trackBy: trackByTarjeta">
+              <div class="tk-kpi" [style.--kpi-accent]="card.color">
+                <span class="tk-kpi-icon" [style.background]="card.gradiente" aria-hidden="true">
+                  <i class="fas {{ card.icono }}"></i>
+                </span>
+                <span class="tk-kpi-valor">{{ card.valor }}</span>
+                <span class="tk-kpi-label">{{ card.titulo }}</span>
+                <span class="tk-kpi-sub">
+                  <i [style.background]="card.color"></i>
+                  {{ card.subtitulo }}
+                </span>
+              </div>
+            </ng-container>
           </div>
+
+          <section class="tk-charts" *ngIf="!cargando && total > 0" aria-label="Gráficos de tickets">
+            <div class="tk-charts-grid">
+            <article class="tk-chart-card" (mouseenter)="pausarEvolucion()" (mouseleave)="reanudarEvolucion()">
+              <header class="tk-chart-head">
+                <span class="tk-chart-icon" aria-hidden="true"><i class="fas fa-chart-line"></i></span>
+                <span>
+                  <strong>Evolución mensual</strong>
+                  <small>{{ resumenEvolucion[indiceEvolucion].titulo }} · {{ anioGrafico }}</small>
+                </span>
+              </header>
+              <div class="tk-chart-kpis">
+                <button type="button" class="tk-chart-kpi" *ngFor="let item of resumenEvolucion; let i = index"
+                  [class.is-active]="i === indiceEvolucion"
+                  [style.--c-accent]="item.color"
+                  (click)="mostrarEvolucion(i)">
+                  <span class="tk-chart-kpi-icon" [style.background]="item.gradiente" aria-hidden="true">
+                    <i class="fas {{ item.icono }}"></i>
+                  </span>
+                  <span>
+                    <strong>{{ item.titulo }}</strong>
+                    <small>{{ item.subtitulo }}</small>
+                  </span>
+                </button>
+              </div>
+              <div class="tk-chart-slot">
+                <ng-container *ngFor="let grafica of graficasEvolucion; let i = index">
+                  <apx-chart
+                    *ngIf="i === indiceEvolucion"
+                    [series]="grafica.series"
+                    [chart]="grafica.chart"
+                    [colors]="grafica.colors"
+                    [stroke]="grafica.stroke"
+                    [fill]="grafica.fill"
+                    [dataLabels]="grafica.dataLabels"
+                    [xaxis]="grafica.xaxis"
+                    [yaxis]="grafica.yaxis"
+                    [grid]="grafica.grid"
+                    [legend]="grafica.legend"
+                    [tooltip]="grafica.tooltip">
+                  </apx-chart>
+                </ng-container>
+              </div>
+            </article>
+
+            <div class="tk-chart-side">
+              <article class="tk-chart-card">
+                <header class="tk-chart-head">
+                  <span class="tk-chart-icon" aria-hidden="true"><i class="fas fa-chart-line"></i></span>
+                  <span>
+                    <strong>Distribución general</strong>
+                    <small>Fallas y sugerencias · {{ anioGrafico }}</small>
+                  </span>
+                </header>
+                <div class="tk-tipo-chart" *ngIf="tipoChart">
+                  <apx-chart
+                    [series]="tipoChart.series"
+                    [chart]="tipoChart.chart"
+                    [colors]="tipoChart.colors"
+                    [stroke]="tipoChart.stroke"
+                    [markers]="tipoChart.markers"
+                    [dataLabels]="tipoChart.dataLabels"
+                    [xaxis]="tipoChart.xaxis"
+                    [yaxis]="tipoChart.yaxis"
+                    [grid]="tipoChart.grid"
+                    [legend]="tipoChart.legend"
+                    [tooltip]="tipoChart.tooltip">
+                  </apx-chart>
+                </div>
+                <div class="tk-tipo-legend">
+                  <span><i class="is-falla"></i>Fallas <b>{{ fallas }}</b></span>
+                  <span><i class="is-sugerencia"></i>Sugerencias <b>{{ sugerencias }}</b></span>
+                </div>
+              </article>
+              <article class="tk-top" aria-label="Top solicitantes">
+                <header class="tk-chart-head">
+                  <span class="tk-chart-icon" aria-hidden="true"><i class="fas fa-users"></i></span>
+                  <span>
+                    <strong>Top solicitantes</strong>
+                    <small>Del 1 al 3</small>
+                  </span>
+                </header>
+                <div class="tk-top__list" *ngIf="topSolicitantes.length; else sinSolicitantes">
+                  <div class="tk-top__person" *ngFor="let persona of topSolicitantes; let i = index" [attr.data-lugar]="i">
+                    <span class="tk-top__rank">{{ i + 1 }}</span>
+                    <span class="tk-top__avatar">
+                      <img *ngIf="persona.foto && !fotosRotas[persona.id]"
+                        [src]="persona.foto"
+                        [alt]="persona.nombre"
+                        (error)="marcarFotoRota(persona.id)">
+                      <span *ngIf="!persona.foto || fotosRotas[persona.id]">{{ persona.iniciales }}</span>
+                    </span>
+                    <span class="tk-top__meta">
+                      <strong>{{ persona.nombre }}</strong>
+                      <small>{{ persona.puesto }}</small>
+                    </span>
+                  </div>
+                </div>
+                <ng-template #sinSolicitantes>
+                  <p class="tk-top__empty">Aún no hay solicitantes</p>
+                </ng-template>
+              </article>
+            </div>
+            </div>
+          </section>
 
           <div class="tk-loading" *ngIf="cargando">
             <div class="tk-spinner"></div>
@@ -67,9 +169,20 @@
 
             <div class="tk-inbox-tabs" role="tablist" aria-label="Estatus">
               <button type="button" class="tk-chip" [class.is-active]="filtroEstado === ''" (click)="cambiarFiltroEstado('')">Todos</button>
-              <button type="button" class="tk-chip" [class.is-active]="filtroEstado === 'abierto'" (click)="cambiarFiltroEstado('abierto')">No realizados</button>
-              <button type="button" class="tk-chip" [class.is-active]="filtroEstado === 'en_progreso'" (click)="cambiarFiltroEstado('en_progreso')">En desarrollo</button>
-              <button type="button" class="tk-chip" [class.is-active]="filtroEstado === 'cerrado'" (click)="cambiarFiltroEstado('cerrado')">Realizados</button>
+              <button type="button" class="tk-chip tk-chip--warn" [class.is-active]="filtroEstado === 'abierto'" (click)="cambiarFiltroEstado('abierto')">No realizados</button>
+              <button type="button" class="tk-chip tk-chip--info" [class.is-active]="filtroEstado === 'en_progreso'" (click)="cambiarFiltroEstado('en_progreso')">En desarrollo</button>
+              <button type="button" class="tk-chip tk-chip--ok" [class.is-active]="filtroEstado === 'cerrado'" (click)="cambiarFiltroEstado('cerrado')">Realizados</button>
+              <button type="button" class="tk-period" (click)="alternarPeriodo()"
+                [attr.aria-label]="vistaPeriodo === 'semana' ? 'Ver tickets por mes' : 'Ver tickets por semana'">
+                <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                {{ vistaPeriodo === 'semana' ? 'Ver por mes' : 'Ver por semana' }}
+              </button>
+              <select class="tk-period-select" *ngIf="opcionesPeriodo.length"
+                [ngModel]="periodoActivo"
+                (ngModelChange)="elegirPeriodo($event)"
+                [attr.aria-label]="vistaPeriodo === 'mes' ? 'Mes' : 'Semana'">
+                <option *ngFor="let op of opcionesPeriodo" [value]="op.valor">{{ op.etiqueta }}</option>
+              </select>
             </div>
 
             <div class="tk-empty" *ngIf="!tickets.length">
@@ -84,146 +197,120 @@
               <p>Prueba con otro término de búsqueda.</p>
             </div>
 
-            <div class="tk-feed" *ngIf="ticketsFiltrados.length" aria-label="Listado de tickets">
-              <ng-container *ngFor="let grupo of ticketsAgrupados; trackBy: trackByGrupo">
-                <h3 class="tk-feed-label">{{ grupo.etiqueta }}</h3>
-
-                <article class="tk-row" *ngFor="let ticket of grupo.tickets; trackBy: trackByTicketId"
-                  [attr.data-estado]="ticket.estado"
-                  [attr.data-tipo]="ticket.tipo || 'sugerencia'"
-                  [class.is-open]="expandidoId === ticket.ticket_id">
-
-                  <button type="button" class="tk-row-hit"
-                    (click)="seleccionarTicket(ticket)"
-                    [attr.aria-expanded]="expandidoId === ticket.ticket_id">
-                    <span class="tk-row-icon" aria-hidden="true">
-                      <i class="fas" [class.fa-exclamation-triangle]="ticket.tipo === 'falla'"
-                        [class.fa-lightbulb]="ticket.tipo !== 'falla'"></i>
-                    </span>
-
-                    <span class="tk-row-body">
-                      <strong>{{ tituloLista(ticket) }}</strong>
-                      <small>#{{ ticket.ticket_id }} · {{ snippetTicket(ticket) }}</small>
-                    </span>
-
-                    <span class="tk-row-aside">
-                      <span class="tk-status-label" [attr.data-estado]="ticket.estado">
-                        {{ estadoLabel(ticket.estado) }}
-                      </span>
-                      <i class="tk-row-dot" *ngIf="ticket.estado === 'abierto'" aria-hidden="true"></i>
-                      <i class="fas fa-chevron-down tk-row-chevron" aria-hidden="true"></i>
-                      <time>{{ tiempoRelativo(ticket.created_at) }}</time>
-                    </span>
-                  </button>
-
-                  <div class="tk-row-panel" [hidden]="expandidoId !== ticket.ticket_id" (click)="$event.stopPropagation()">
-                    <section class="tk-panel-block">
-                      <span class="tk-section-label">Descripción</span>
-                      <p>{{ ticket.descripcion || 'Este ticket no incluye una descripción.' }}</p>
-                    </section>
-
-                    <dl class="tk-facts">
-                      <div>
-                        <dt>Área</dt>
-                        <dd><i class="fas {{ areaIcon(ticket.area) }}"></i>{{ ticket.area }}</dd>
-                      </div>
-                      <div>
-                        <dt>Tipo</dt>
-                        <dd [attr.data-tipo]="ticket.tipo || 'sugerencia'">
-                          <i class="fas" [class.fa-exclamation-triangle]="ticket.tipo === 'falla'"
-                            [class.fa-lightbulb]="ticket.tipo !== 'falla'"></i>
-                          {{ tipoLabel(ticket.tipo) }}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Prioridad</dt>
-                        <dd [attr.data-prioridad]="ticket.prioridad || 'normal'">
-                          <i class="fas fa-flag"></i>{{ prioridadLabel(ticket.prioridad) }}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Solicitante</dt>
-                        <dd><i class="fas fa-user"></i>{{ autorLabel(ticket) }}</dd>
-                      </div>
-                    </dl>
-
-                    <section class="tk-evidence">
-                      <div class="tk-evidence-head">
-                        <span class="tk-section-label">Evidencia</span>
-                        <em *ngIf="ticket.evidencias?.length">{{ ticket.evidencias?.length }}</em>
-                      </div>
-                      <div class="tk-evidence-thumbs" *ngIf="ticket.evidencias?.length">
-                        <button type="button" class="tk-evidence-thumb"
-                          *ngFor="let ev of ticket.evidencias; trackBy: trackByEvidenciaId"
-                          (click)="abrirEvidencia(ticket.ticket_id, ev.evidencia_id)"
-                          [title]="ev.descripcion || 'Ver evidencia'">
-                          <img *ngIf="evidenciaSrc(ticket.ticket_id, ev.evidencia_id) as src"
-                            [src]="src"
-                            [alt]="ev.descripcion || 'Evidencia'">
-                          <span class="tk-evidencia-placeholder tk-evidencia-placeholder--error"
-                            *ngIf="evidenciaFallida(ticket.ticket_id, ev.evidencia_id)"
-                            title="No se pudo cargar la evidencia">
-                            <i class="fas fa-image"></i>
-                          </span>
-                          <span class="tk-evidencia-placeholder"
-                            *ngIf="!evidenciasUrl[ticket.ticket_id + '-' + ev.evidencia_id] && !evidenciaFallida(ticket.ticket_id, ev.evidencia_id)">
-                            <i class="fas fa-spinner fa-spin"></i>
-                          </span>
-                          <small *ngIf="ev.descripcion">{{ ev.descripcion }}</small>
-                        </button>
-                      </div>
-                      <p class="tk-info-empty" *ngIf="!ticket.evidencias?.length">Sin evidencias adjuntas</p>
-                    </section>
-
-                    <section class="tk-management">
-                      <span class="tk-management-updated">
-                        <ng-container *ngIf="ticket.updated_at">Actualizado el {{ fechaHoraUi(ticket.updated_at) }}</ng-container>
-                        <ng-container *ngIf="ticket.publicado_version"> · Publicado en v{{ ticket.publicado_version }}</ng-container>
-                      </span>
-                      <div class="tk-management-actions">
-                        <label [attr.for]="'ticket-status-' + ticket.ticket_id">Gestionar estado</label>
-                        <select
-                          id="ticket-status-{{ ticket.ticket_id }}"
-                          class="tk-estatus-select tk-estatus-select--detail"
-                          [attr.data-estado]="ticket.estado"
-                          [disabled]="actualizandoId != null"
-                          (mousedown)="$event.stopPropagation()"
-                          (change)="onEstatusChange(ticket, $event)">
-                          <option *ngFor="let op of opcionesEstatus" [value]="op.valor"
-                            [selected]="ticket.estado === op.valor">{{ op.label }}</option>
-                        </select>
-                      </div>
-                      <small *ngIf="actualizandoId === ticket.ticket_id">
-                        <i class="fas fa-spinner fa-spin"></i> Guardando cambio…
-                      </small>
-                      <small class="tk-management-error" *ngIf="errorEstado && expandidoId === ticket.ticket_id">{{ errorEstado }}</small>
-                    </section>
-                  </div>
-                </article>
-              </ng-container>
+            <div class="tk-empty" *ngIf="ticketsFiltrados.length && !ticketsVisibles.length">
+              <div class="tk-empty-icon"><i class="fas fa-calendar-alt"></i></div>
+              <h2>Sin tickets en este periodo</h2>
+              <p>Elige otro {{ vistaPeriodo === 'mes' ? 'mes' : 'semana' }}.</p>
             </div>
 
-            <nav class="tk-pagination" *ngIf="totalPaginas > 1" aria-label="Paginación de tickets">
-              <span class="tk-pagination__summary">
-                {{ rangoPagina.desde }}–{{ rangoPagina.hasta }} de {{ ticketsFiltrados.length }}
-              </span>
-              <div class="tk-pagination__controls">
-                <button type="button" (click)="cambiarPagina(paginaActual - 1)"
-                  [disabled]="paginaActual === 1" aria-label="Página anterior">
-                  <i class="fas fa-chevron-left"></i>
-                </button>
-                <button type="button" *ngFor="let pagina of paginasDisponibles"
-                  [class.is-active]="pagina === paginaActual"
-                  [attr.aria-current]="pagina === paginaActual ? 'page' : null"
-                  (click)="cambiarPagina(pagina)">
-                  {{ pagina }}
-                </button>
-                <button type="button" (click)="cambiarPagina(paginaActual + 1)"
-                  [disabled]="paginaActual === totalPaginas" aria-label="Página siguiente">
-                  <i class="fas fa-chevron-right"></i>
-                </button>
-              </div>
-            </nav>
+            <p class="tk-row-error" *ngIf="errorEstado">{{ errorEstado }}</p>
+
+            <div class="tk-board" *ngIf="ticketsVisibles.length" [class.tk-board--one]="!!filtroEstado" aria-label="Listado de tickets">
+              <section class="tk-board-col" *ngFor="let col of columnasTickets">
+                <header class="tk-board-col__head">
+                  <h3>{{ col.titulo }}</h3>
+                  <span>{{ ticketsDeColumna(col.id).length }}</span>
+                </header>
+                <div class="tk-board-col__body">
+                  <article class="tk-board-card" *ngFor="let ticket of ticketsDeColumna(col.id); trackBy: trackByTicketId"
+                    [class.is-open]="expandidoId === ticket.ticket_id">
+                    <button type="button" class="tk-board-card__open" (click)="seleccionarTicket(ticket)"
+                      [attr.aria-expanded]="expandidoId === ticket.ticket_id">
+                      <p class="tk-board-card__project">{{ autorLabel(ticket) }} · {{ ticket.area || 'General' }}</p>
+                      <p class="tk-board-card__title">{{ tituloTicket(ticket) }}</p>
+                      <p class="tk-board-card__desc">{{ snippetTicket(ticket) }}</p>
+                    </button>
+                    <div class="tk-board-card__meta">
+                      <label class="tk-status-pill" [attr.data-estado]="ticket.estado">
+                        <select [attr.aria-label]="'Estado del ticket ' + ticket.ticket_id"
+                          [disabled]="actualizandoId != null"
+                          [value]="ticket.estado"
+                          (change)="onEstatusChange(ticket, $event)">
+                          <option *ngFor="let op of opcionesEstatus" [value]="op.valor">{{ op.label }}</option>
+                        </select>
+                      </label>
+                      <span class="tk-board-side">
+                        <span class="tk-menu tk-prio" [attr.data-prioridad]="prioridadClave(ticket.prioridad)">{{ prioridadLabel(ticket.prioridad) }}</span>
+                        <span class="tk-board-av" [attr.data-tipo]="ticket.tipo === 'falla' ? 'falla' : 'sugerencia'" [title]="autorLabel(ticket)">{{ inicialesAutor(ticket) }}</span>
+                      </span>
+                    </div>
+                    <p class="tk-board-card__when">
+                      <i class="fas fa-clock" aria-hidden="true"></i>{{ tiempoRelativo(ticket.created_at) }}
+                      <button type="button" class="tk-line-clip" *ngIf="ticket.evidencias?.length" (click)="seleccionarTicket(ticket)">
+                        <i class="fas fa-paperclip" aria-hidden="true"></i>{{ ticket.evidencias.length }}
+                      </button>
+                    </p>
+
+                <section class="tk-line-detail" *ngIf="expandidoId === ticket.ticket_id">
+                  <section class="tk-panel-block">
+                    <span class="tk-section-label">Descripción</span>
+                    <p>{{ ticket.descripcion || 'Este ticket no incluye una descripción.' }}</p>
+                  </section>
+
+                  <dl class="tk-facts">
+                    <div>
+                      <dt>Área</dt>
+                      <dd><i class="fas {{ areaIcon(ticket.area) }}"></i>{{ ticket.area || 'General' }}</dd>
+                    </div>
+                    <div>
+                      <dt>Tipo</dt>
+                      <dd [attr.data-tipo]="ticket.tipo || 'sugerencia'">
+                        <i class="fas" [class.fa-exclamation-triangle]="ticket.tipo === 'falla'"
+                          [class.fa-lightbulb]="ticket.tipo !== 'falla'"></i>
+                        {{ tipoLabel(ticket.tipo) }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Prioridad</dt>
+                      <dd [attr.data-prioridad]="prioridadClave(ticket.prioridad)">
+                        <i class="fas fa-flag"></i>{{ prioridadLabel(ticket.prioridad) }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Solicitante</dt>
+                      <dd><i class="fas fa-user"></i>{{ autorLabel(ticket) }}</dd>
+                    </div>
+                  </dl>
+
+                  <section class="tk-evidence">
+                    <div class="tk-evidence-head">
+                      <span class="tk-section-label">Evidencia</span>
+                      <em *ngIf="ticket.evidencias?.length">{{ ticket.evidencias.length }}</em>
+                    </div>
+                    <div class="tk-evidence-thumbs" *ngIf="ticket.evidencias?.length">
+                      <button type="button" class="tk-evidence-thumb"
+                        *ngFor="let ev of ticket.evidencias; trackBy: trackByEvidenciaId"
+                        (click)="abrirEvidencia(ticket.ticket_id, ev.evidencia_id)"
+                        [title]="ev.descripcion || 'Ver evidencia'">
+                        <img *ngIf="evidenciaSrc(ticket.ticket_id, ev.evidencia_id) as src"
+                          [src]="src"
+                          [alt]="ev.descripcion || 'Evidencia'">
+                        <span class="tk-evidencia-placeholder tk-evidencia-placeholder--error"
+                          *ngIf="evidenciaFallida(ticket.ticket_id, ev.evidencia_id)"
+                          title="No se pudo cargar la evidencia">
+                          <i class="fas fa-image"></i>
+                        </span>
+                        <span class="tk-evidencia-placeholder"
+                          *ngIf="!evidenciasUrl[ticket.ticket_id + '-' + ev.evidencia_id] && !evidenciaFallida(ticket.ticket_id, ev.evidencia_id)">
+                          <i class="fas fa-spinner fa-spin"></i>
+                        </span>
+                        <small *ngIf="ev.descripcion">{{ ev.descripcion }}</small>
+                      </button>
+                    </div>
+                    <p class="tk-info-empty" *ngIf="!ticket.evidencias?.length">Sin evidencias adjuntas</p>
+                  </section>
+
+                  <p class="tk-line-updated" *ngIf="ticket.updated_at">
+                    Actualizado el {{ fechaHoraUi(ticket.updated_at) }}
+                    <ng-container *ngIf="ticket.publicado_version"> · Publicado en v{{ ticket.publicado_version }}</ng-container>
+                  </p>
+                    </section>
+                  </article>
+                  <p class="tk-board-col__empty" *ngIf="!ticketsDeColumna(col.id).length">Sin tickets en esta columna</p>
+                </div>
+              </section>
+            </div>
+
           </section>
 
         </div>

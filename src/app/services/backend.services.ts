@@ -28,6 +28,12 @@ export class BackendServices {
         );
     }
 
+    obtenerDestinoDb(): Observable<{ success: boolean; conectado: boolean; rol: string; etiqueta: string }> {
+        return this.httpClient.get<{ success: boolean; conectado: boolean; rol: string; etiqueta: string }>(
+            `${this.baseUrl}/db-destino?_nc=${Date.now()}`
+        );
+    }
+
     verificarPassword(password: string): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/verificar-password`, { password });
     }
@@ -737,6 +743,7 @@ export class BackendServices {
 
     crearTicket(payload: {
         area: string;
+        titulo?: string;
         descripcion: string;
         prioridad?: string;
         tipo: string;
@@ -744,6 +751,7 @@ export class BackendServices {
     }): Observable<any> {
         const formData = new FormData();
         formData.append('area', payload.area);
+        formData.append('titulo', payload.titulo || '');
         formData.append('descripcion', payload.descripcion);
         formData.append('prioridad', payload.prioridad || 'normal');
         formData.append('tipo', payload.tipo);
@@ -776,8 +784,8 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/tickets/mios`);
     }
 
-    actualizarTicket(id: number, estado: string): Observable<any> {
-        return this.httpClient.patch(`${this.baseUrl}/tickets/${id}`, { estado });
+    actualizarTicket(id: number, cambios: { estado?: string; prioridad?: string }): Observable<any> {
+        return this.httpClient.patch(`${this.baseUrl}/tickets/${id}`, cambios);
     }
 
     obtenerOpiniones(estado?: string): Observable<any> {

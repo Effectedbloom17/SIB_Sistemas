@@ -285,6 +285,14 @@
                   </div>
                 </div>
 
+                <div class="tk-field tk-field--full" (click)="$event.stopPropagation()">
+                  <span class="tk-field-label">Título</span>
+                  <input type="text" class="tk-titulo-input" maxlength="120"
+                    [(ngModel)]="ticketTitulo"
+                    placeholder="Escribe un título"
+                    (click)="cerrarMenusTicket(); $event.stopPropagation()">
+                </div>
+
                 <textarea class="novedades-textarea" maxlength="2000" rows="2"
                   [(ngModel)]="ticketDescripcion"
                   [placeholder]="ticketTipo === 'falla'
@@ -325,7 +333,7 @@
 
                 <div class="novedades-form-actions">
                   <button type="button" class="novedades-add-btn" (click)="enviarTicket($event)"
-                    [disabled]="enviandoTicket || !ticketArea || !ticketPrioridad || !ticketTipo || !ticketDescripcion.trim()">
+                    [disabled]="enviandoTicket || !ticketArea || !ticketPrioridad || !ticketTipo || !ticketTitulo.trim() || !ticketDescripcion.trim()">
                     {{ enviandoTicket ? 'Enviando…' : 'Enviar' }}
                   </button>
                 </div>

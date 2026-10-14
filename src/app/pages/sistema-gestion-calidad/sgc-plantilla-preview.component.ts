@@ -755,6 +755,14 @@ interface SgcF06Resumen {
   enEntrenamiento: number;
 }
 
+interface SgcF06Lista {
+  id: string;
+  titulo: string;
+  fecha: string;
+  auditores: SgcF06Auditor[];
+  resumen: SgcF06Resumen;
+}
+
 interface SgcF06CalificacionOpcion {
   valor: number;
   descripcion: string;
@@ -2338,6 +2346,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     { key: 'noviembre', label: 'Noviembre' },
     { key: 'diciembre', label: 'Diciembre' }
   ];
+  sgcF06Vista: 'archivero' | 'editor' = 'archivero';
+  sgcF06Busqueda = '';
+  sgcF06Listas: SgcF06Lista[] = [];
+  sgcF06ListaActivaId: string | null = null;
+  sgcF06ListaActiva: SgcF06Lista | null = null;
   sgcF06Auditores: SgcF06Auditor[] = [];
   readonly sgcF06ObjetividadOpciones = SGC_F06_OBJETIVIDAD_OPCIONES;
   readonly sgcF06DesempenoOpciones = SGC_F06_DESEMPENO_OPCIONES;
@@ -5765,7 +5778,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug !== 'sgc-f-06') {
       return '';
     }
-    return 'Usa «Guardar información» para conservar cambios y el historial en Excel. Los cambios de formato o de datos generan hojas de respaldo sin borrar versiones anteriores.';
+    return 'Archivero de listas y calificación de auditores. Crea, busca y abre cada lista. La hoja de Excel muestra la lista abierta. Usa «Guardar información» para conservar el archivero y el historial.';
   }
 
   get sgcF07IntroLead(): string {
@@ -6931,6 +6944,83 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
             icon: 'error',
             title: 'No se pudo descargar el PDF',
             text: 'No se pudo exportar la lista de verificación desde Drive. Inténtalo de nuevo.',
+            confirmButtonText: 'Entendido'
+          });
+        }
+      });
+  }
+
+  async limpiarFormatoSgcF07(): Promise<void> {
+    if (!this.puedeGestionarPlantillasSgc || this.sgcF07Cargando || this.sgcF07Guardando || !this.sgcF07Listo) {
+      return;
+    }
+
+    const primera = await Swal.fire({
+      icon: 'warning',
+      title: '¿Limpiar el formato?',
+      html:
+        '<p>Se van a borrar las auditorías, el calendario y los comentarios del programa.</p>'
+        + '<p class="mb-0">La empresa, la fecha de elaboración y los PDF firmados se conservan.</p>',
+      showCancelButton: true,
+      confirmButtonText: 'Continuar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b45309',
+      cancelButtonColor: '#6b7280',
+      reverseButtons: true
+    });
+    if (!primera.isConfirmed) {
+      return;
+    }
+
+    const segunda = await Swal.fire({
+      icon: 'warning',
+      title: 'Confirma de nuevo',
+      text: 'Esta acción vacía el programa de auditoría y se guarda así. ¿Deseas limpiarlo?',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, limpiar formato',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c',
+      cancelButtonColor: '#6b7280',
+      reverseButtons: true
+    });
+    if (!segunda.isConfirmed) {
+      return;
+    }
+
+    this.sgcF07IgnorarAutoSave = true;
+    this.sgcF07Form.auditorias = [this.crearAuditoriaVaciaSgcF07(1)];
+    this.sgcF07AuditoriaSeleccionadaIndex = 0;
+    this.sgcF07Busqueda = '';
+    this.sgcF07Form.footer = {
+      ...this.sgcF07Form.footer,
+      comentariosDetalle: '',
+      notaPrograma: ''
+    };
+    this.sgcF07IgnorarAutoSave = false;
+    this.sgcF07CambiosPendientes = true;
+    this.sgcF07Guardando = true;
+    const editorAbierto = this.mostrarSgcF07Editor;
+    this.backendService.guardarSgcF07Formato(this.sgcF07Form, false)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF07Guardando = false;
+          this.sgcF07CambiosPendientes = false;
+          this.aplicarEstadoSgcF07(res, editorAbierto, false, false);
+          void Swal.fire({
+            icon: 'success',
+            title: 'Formato limpio',
+            text: 'El programa quedó vacío y ya se guardó.',
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#0f766e'
+          });
+        },
+        error: () => {
+          this.sgcF07Guardando = false;
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo guardar',
+            text: 'El formato se vació en pantalla, pero no se pudo guardar. Usa «Guardar información».',
             confirmButtonText: 'Entendido'
           });
         }
@@ -24032,6 +24122,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private cargarSgcF06DesdeServidor(): void {
     this.sgcF06Cargando = true;
     this.sgcF06Listo = false;
+    this.sgcF06Vista = 'archivero';
+    this.sgcF06ListaActiva = null;
     this.backendService.cargarSgcF06Formato()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -24049,6 +24141,73 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.sgcF06Auditores.forEach((auditor) => this.recalcularAuditorSgcF06(auditor));
     this.sgcF06CambiosPendientes = true;
+  }
+
+  get sgcF06ListasVista(): SgcF06Lista[] {
+    const q = this.sgcF06Busqueda.trim().toLowerCase();
+    const listas = this.sgcF06Listas || [];
+    if (!q) {
+      return listas;
+    }
+    return listas.filter((lista) => {
+      const nombres = (lista.auditores || []).map((auditor) => auditor.nombre).join(' ');
+      return [lista.titulo, lista.fecha, nombres].join(' ').toLowerCase().includes(q);
+    });
+  }
+
+  resumenTarjetaSgcF06(lista: SgcF06Lista): string {
+    const total = (lista?.auditores || []).filter((auditor) => this.auditorSgcF06TieneContenido(auditor)).length;
+    if (!total) {
+      return 'Sin auditores';
+    }
+    return total === 1 ? '1 auditor' : `${total} auditores`;
+  }
+
+  nuevaListaSgcF06(): void {
+    const fecha = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+    const lista: SgcF06Lista = {
+      id: this.nuevoIdSgcF06(),
+      titulo: 'Lista de auditores',
+      fecha,
+      auditores: this.crearAuditoresVaciosSgcF06(),
+      resumen: { activos: 0, acreditados: 0, enEntrenamiento: 0 }
+    };
+    this.sgcF06Listas = [lista, ...(this.sgcF06Listas || [])];
+    this.abrirListaSgcF06(lista);
+    this.onSgcF06Editado();
+  }
+
+  abrirListaSgcF06(lista: SgcF06Lista): void {
+    this.sgcF06ListaActiva = lista;
+    this.sgcF06ListaActivaId = lista?.id || null;
+    this.sgcF06Auditores = lista?.auditores || [];
+    this.sgcF06Resumen = lista?.resumen || { activos: 0, acreditados: 0, enEntrenamiento: 0 };
+    this.sgcF06Vista = 'editor';
+  }
+
+  volverArchiveroSgcF06(): void {
+    this.sincronizarListaActivaEnFormSgcF06();
+    this.sgcF06Vista = 'archivero';
+    this.sgcF06ListaActiva = null;
+    this.sgcF06TipAbierto = null;
+  }
+
+  eliminarListaSgcF06(lista: SgcF06Lista, event?: Event): void {
+    event?.stopPropagation();
+    const nombre = String(lista?.titulo || '').trim() || 'esta lista';
+    if (!confirm(`¿Eliminar ${nombre}?`)) {
+      return;
+    }
+    this.sgcF06Listas = (this.sgcF06Listas || []).filter((item) => item.id !== lista.id);
+    if (this.sgcF06ListaActiva?.id === lista.id) {
+      this.sgcF06ListaActiva = null;
+      this.sgcF06Auditores = [];
+      this.sgcF06Vista = 'archivero';
+    }
+    if (this.sgcF06ListaActivaId === lista.id) {
+      this.sgcF06ListaActivaId = this.sgcF06Listas[0]?.id || null;
+    }
+    this.onSgcF06Editado();
   }
 
   agregarAuditorSgcF06(): void {
@@ -24109,10 +24268,6 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         next: (res) => {
           this.sgcF06Guardando = false;
           this.aplicarEstadoSgcF06(res, editorAbierto, false, false);
-          if (res?.success && res.datos?.auditores) {
-            const auditores = this.normalizarAuditoresSgcF06(res.datos.auditores);
-            this.sgcF06Auditores = auditores;
-          }
         },
         error: () => {
           this.sgcF06Guardando = false;
@@ -24190,9 +24345,23 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const editorAbierto = this.mostrarSgcF06Editor && !forzarActualizacionDrive;
 
     if (!conservarDatos && res.datos) {
-      const auditores = this.normalizarAuditoresSgcF06(res.datos.auditores);
-      this.sgcF06Auditores = auditores;
-      this.sgcF06Resumen = this.normalizarResumenSgcF06(res.datos.resumen, auditores);
+      const form = this.normalizarListasSgcF06(res.datos);
+      this.sgcF06Listas = form.listas;
+      const activoId = this.sgcF06ListaActiva?.id || this.sgcF06ListaActivaId || form.listaActivaId;
+      this.sgcF06ListaActivaId = form.listas.some((lista) => lista.id === activoId)
+        ? activoId
+        : form.listaActivaId;
+      if (this.sgcF06Vista === 'editor') {
+        const encontrada = form.listas.find((lista) => lista.id === this.sgcF06ListaActivaId) || null;
+        this.sgcF06ListaActiva = encontrada;
+        this.sgcF06Auditores = encontrada?.auditores || [];
+        this.sgcF06Resumen = encontrada?.resumen || { activos: 0, acreditados: 0, enEntrenamiento: 0 };
+        if (!encontrada) {
+          this.sgcF06Vista = 'archivero';
+        }
+      } else {
+        this.sgcF06ListaActiva = null;
+      }
     }
 
     const nuevoDriveId = res.driveFileId || null;
@@ -24218,11 +24387,103 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private obtenerDatosSgcF06ParaGuardar() {
-    const auditores = this.prepararAuditoresParaGuardarSgcF06();
+    if (this.sgcF06Vista === 'editor') {
+      this.sincronizarListaActivaEnFormSgcF06();
+    }
+    const activaId = this.sgcF06ListaActiva?.id || this.sgcF06ListaActivaId;
+    const activa = (this.sgcF06Listas || []).find((lista) => lista.id === activaId) || this.sgcF06Listas[0] || null;
     return {
-      resumen: this.normalizarResumenSgcF06(this.sgcF06Resumen, auditores),
-      auditores
+      listas: this.sgcF06Listas || [],
+      listaActivaId: activa?.id || null,
+      auditores: activa?.auditores || [],
+      resumen: activa?.resumen || { activos: 0, acreditados: 0, enEntrenamiento: 0 },
+      fecha: activa?.fecha || '',
+      titulo: activa?.titulo || ''
     };
+  }
+
+  private sincronizarListaActivaEnFormSgcF06(): void {
+    const activa = this.sgcF06ListaActiva;
+    if (!activa) {
+      return;
+    }
+    const auditores = this.prepararAuditoresParaGuardarSgcF06();
+    activa.auditores = auditores;
+    activa.resumen = this.normalizarResumenSgcF06(activa.resumen, auditores);
+    this.sgcF06Auditores = auditores;
+    this.sgcF06Resumen = activa.resumen;
+    const idx = (this.sgcF06Listas || []).findIndex((lista) => lista.id === activa.id);
+    if (idx >= 0) {
+      this.sgcF06Listas[idx] = activa;
+    } else {
+      this.sgcF06Listas = [activa, ...(this.sgcF06Listas || [])];
+    }
+    this.sgcF06ListaActivaId = activa.id;
+  }
+
+  private nuevoIdSgcF06(): string {
+    const cryptoRef = typeof crypto !== 'undefined' ? crypto : null;
+    if (cryptoRef && typeof cryptoRef.randomUUID === 'function') {
+      return cryptoRef.randomUUID();
+    }
+    return `lista-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  private crearAuditorVacioSgcF06(): SgcF06Auditor {
+    return {
+      nombre: '',
+      puesto: '',
+      tiempoEmpresa: '',
+      escolaridad: '',
+      cursoAuditoresInternos: '',
+      calificacionCurso: null,
+      nivelObjetividad: '',
+      desempeno: '',
+      promedio: null,
+      auditoriasRealizadas: 0
+    };
+  }
+
+  private crearAuditoresVaciosSgcF06(total = 10): SgcF06Auditor[] {
+    return Array.from({ length: total }, () => this.crearAuditorVacioSgcF06());
+  }
+
+  private fechaHoySgcF06(): string {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+  }
+
+  private normalizarListaSgcF06(datos: any): SgcF06Lista {
+    const auditores = this.normalizarAuditoresSgcF06(datos?.auditores);
+    const filas = auditores.length ? auditores : this.crearAuditoresVaciosSgcF06();
+    return {
+      id: String(datos?.id || '').trim() || this.nuevoIdSgcF06(),
+      titulo: String(datos?.titulo || '').trim() || 'Lista de auditores',
+      fecha: String(datos?.fecha || '').slice(0, 10) || this.fechaHoySgcF06(),
+      auditores: filas,
+      resumen: this.normalizarResumenSgcF06(datos?.resumen, filas)
+    };
+  }
+
+  private normalizarListasSgcF06(datos: any): { listas: SgcF06Lista[]; listaActivaId: string | null } {
+    if (Array.isArray(datos?.listas)) {
+      const listas = datos.listas.map((lista: any) => this.normalizarListaSgcF06(lista));
+      const activa = String(datos?.listaActivaId || '').trim();
+      return {
+        listas,
+        listaActivaId: listas.some((lista: SgcF06Lista) => lista.id === activa) ? activa : (listas[0]?.id || null)
+      };
+    }
+    if (Array.isArray(datos?.auditores)) {
+      const lista = this.normalizarListaSgcF06({
+        id: 'lista-vigente',
+        titulo: datos?.titulo || 'Lista vigente',
+        fecha: datos?.fecha || this.fechaHoySgcF06(),
+        auditores: datos.auditores,
+        resumen: datos?.resumen
+      });
+      return { listas: [lista], listaActivaId: lista.id };
+    }
+    return { listas: [], listaActivaId: null };
   }
 
   private prepararAuditoresParaGuardarSgcF06(): SgcF06Auditor[] {

@@ -12,6 +12,7 @@ const startupLog = require('./startupLog');
 const express = require('express');
 const mysql = require('mysql2/promise');
 const { esErrorConexionDb, buildMysqlPoolOptions, wrapPoolWithRetry } = require('./dbPoolUtils');
+const { seleccionarDestino, getDestino, estadoPublico } = require('./dbDestino');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
@@ -1282,89 +1283,40 @@ async function probarMysqlAuth(host, port, timeoutMs = 5000) {
 }
 
 let localNetworkProbe = null;
-/** 'local' | 'lan' | 'remote' — destino elegido tras el probe */
-let mysqlDestinoTipo = 'remote';
+/** Rol elegido: principal | secundaria | local | produccion | sin_conexion */
+let mysqlDestinoTipo = 'sin_conexion';
 
-/**
- * Orden de prueba (DB_PREFER en .env):
- *   local  (default) → Docker de esta PC, luego LAN, luego producción
- *   lan              → contenedor en otra PC (DB_HOST_LAN), luego local, luego producción
- *   remote           → solo producción (DB_HOST_REMOTE)
- */
-function getDbPreferOrder() {
-    const prefer = String(process.env.DB_PREFER || 'local').trim().toLowerCase();
-    if (prefer === 'lan' || prefer === 'remote' || prefer === 'local') return prefer;
-    return 'local';
+function poolSinConexion(error) {
+    const mensaje = error?.message || 'No existen bases de datos disponibles.';
+    const fallo = new Error(mensaje);
+    fallo.statusCode = error?.statusCode || 503;
+    fallo.code = error?.code || 'DB_SIN_DESTINO';
+    return {
+        query() { return Promise.reject(fallo); },
+        getConnection() { return Promise.reject(fallo); },
+        end() { return Promise.resolve(); },
+        on() { return this; }
+    };
 }
 
 /**
- * Detecta MySQL una sola vez y reutiliza el resultado en todos los pools.
+ * Elige un servidor una sola vez (principal → secundario → local → producción)
+ * y deja host, puerto y credenciales en dbConfig para todos los pools.
  */
 async function isLocalNetwork() {
     if (!localNetworkProbe) {
         localNetworkProbe = (async () => {
-            const prefer = getDbPreferOrder();
-            const port = Number(dbConfig.local.port || 3306);
-            const candidatos = [...new Set([
-                dbConfig.local.host,
-                '127.0.0.1',
-                'localhost'
-            ].filter(Boolean))];
-            const lanHost = dbConfig.lan.host && String(dbConfig.lan.host).trim();
-            const lanPort = Number(dbConfig.lan.port || port);
-
-            async function tryLocal() {
-                for (const host of candidatos) {
-                    const ok = await probarMysqlAuth(host, port, 5000);
-                    if (ok) {
-                        if (host !== dbConfig.local.host) {
-                            dbConfig.local.host = host;
-                        }
-                        mysqlDestinoTipo = 'local';
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            async function tryLan() {
-                if (!lanHost) return false;
-                const okLan = await probarMysqlAuth(lanHost, lanPort, 5000);
-                if (okLan) {
-                    dbConfig.local.host = lanHost;
-                    dbConfig.local.port = lanPort;
-                    mysqlDestinoTipo = 'lan';
-                    return true;
-                }
-                console.warn(
-                    `  MySQL del contenedor LAN no aceptó login en ${lanHost}:${lanPort} ` +
-                    `(usuario ${dbConfig.user}).`
-                );
-                return false;
-            }
-
-            if (prefer === 'remote') {
-                mysqlDestinoTipo = 'remote';
-                startupLog.detail(`  DB_PREFER=remote → se usará ${dbConfig.remote.host}:${dbConfig.remote.port}`);
-                return false;
-            }
-
-            if (prefer === 'lan') {
-                if (await tryLan()) return true;
-                if (await tryLocal()) return true;
-            } else {
-                if (await tryLocal()) return true;
-                if (await tryLan()) return true;
-            }
-
-            console.warn(
-                `  MySQL no aceptó login en local ${candidatos.join(' / ')}:${port}` +
-                (lanHost ? ` ni en LAN ${lanHost}:${lanPort}` : '') +
-                ` con ${dbConfig.user}. Se usará el host remoto.`
-            );
-            mysqlDestinoTipo = 'remote';
-            return false;
-        })();
+            const destino = await seleccionarDestino();
+            dbConfig.local.host = destino.host;
+            dbConfig.local.port = destino.port;
+            dbConfig.user = destino.user;
+            dbConfig.password = destino.password;
+            mysqlDestinoTipo = destino.rol;
+            return true;
+        })().catch((error) => {
+            mysqlDestinoTipo = 'sin_conexion';
+            throw error;
+        });
     }
     return localNetworkProbe;
 }
@@ -1420,25 +1372,20 @@ async function intentarConexionMysql(config, {
     }
 }
 
-async function conectarPool(isLocal, {
+async function conectarPool(_isLocal, {
     database,
     connectionLimit = 10,
     label,
     poolKey,
     bootstrapDb = false,
-    getPool,
-    allowRemoteFallback
+    getPool
 }) {
-    const permitirRemoto = allowRemoteFallback === true
-        || (allowRemoteFallback !== false && String(process.env.DB_ALLOW_REMOTE_FALLBACK || '').toLowerCase() === 'true');
-    const intentosLocales = isLocal ? 4 : 1;
+    await isLocalNetwork();
+    const config = dbConfig.local;
+    const intentos = 2;
     let ultimoError = null;
 
-    for (let intento = 1; intento <= intentosLocales; intento++) {
-        const config = isLocal ? dbConfig.local : dbConfig.remote;
-        const etiquetaOk = isLocal
-            ? `MySQL ${database} conectado`
-            : `MySQL ${database} conectado (remoto)`;
+    for (let intento = 1; intento <= intentos; intento++) {
         try {
             return await intentarConexionMysql(config, {
                 database,
@@ -1447,34 +1394,16 @@ async function conectarPool(isLocal, {
                 poolKey,
                 bootstrapDb,
                 getPool,
-                etiquetaOk
+                etiquetaOk: `MySQL ${database} conectado`
             });
         } catch (err) {
             ultimoError = err;
             startupLog.detail(
-                `  MySQL ${database}${intento > 1 ? ` (intento ${intento}/${intentosLocales})` : ''}: ${err.message}`
+                `  MySQL ${database}${intento > 1 ? ` (intento ${intento}/${intentos})` : ''}: ${err.message}`
             );
-            if (intento < intentosLocales) {
-                await esperarMs(1500 * intento);
+            if (intento < intentos) {
+                await esperarMs(1000);
             }
-        }
-    }
-
-    if (isLocal && permitirRemoto) {
-        startupLog.detail(`  Reintentando ${database} remoto...`);
-        try {
-            return await intentarConexionMysql(dbConfig.remote, {
-                database,
-                connectionLimit,
-                label,
-                poolKey,
-                bootstrapDb: false,
-                getPool,
-                etiquetaOk: `MySQL ${database} conectado (remoto)`
-            });
-        } catch (err) {
-            startupLog.dbFail(database, err);
-            throw err;
         }
     }
 
@@ -1496,22 +1425,22 @@ let pool;
 let isOnLocalNetwork = false; // Se actualiza al inicializar el pool
 
 async function initializePool() {
-    const isLocal = await isLocalNetwork();
-    isOnLocalNetwork = isLocal;
-
-    const cfg = isLocal ? dbConfig.local : dbConfig.remote;
-    const etiquetaDestino = mysqlDestinoTipo === 'lan'
-        ? 'contenedor LAN'
-        : (isLocal ? 'local' : 'remota');
-    startupLog.setMysqlInfo(`${etiquetaDestino} ${cfg.host}:${cfg.port}`);
-
-    pool = await conectarPool(isLocal, {
-        database: dbConfig.database,
-        connectionLimit: 10,
-        label: 'biznaga',
-        poolKey: 'main',
-        getPool: () => pool
-    });
+    try {
+        await isLocalNetwork();
+        isOnLocalNetwork = true;
+        const destino = getDestino();
+        startupLog.setMysqlInfo(`${destino.etiqueta} ${destino.host}:${destino.port}`);
+        pool = await conectarPool(true, {
+            database: dbConfig.database,
+            connectionLimit: 10,
+            label: 'biznaga',
+            poolKey: 'main',
+            getPool: () => pool
+        });
+    } catch (error) {
+        if (!pool) pool = poolSinConexion(error);
+        throw error;
+    }
 }
 
 const poolReady = registrarFalloPool(initializePool(), 'Pool principal no disponible');
@@ -1524,7 +1453,7 @@ async function exigirPoolPrincipal() {
     }
     if (!pool || typeof pool.query !== 'function') {
         const err = new Error(
-            'MySQL no está disponible. Confirme Docker local (127.0.0.1:3306) o DB_HOST_LAN en backend/.env.'
+            'No existen bases de datos disponibles.'
         );
         err.statusCode = 503;
         throw err;
@@ -1549,8 +1478,7 @@ async function reinicializarPoolPrincipal(motivo = '') {
             connectionLimit: 10,
             label: 'biznaga',
             poolKey: 'main',
-            getPool: () => pool,
-            allowRemoteFallback: false
+            getPool: () => pool
         });
         await cerrarPoolAnterior(poolAnterior);
     })().finally(() => {
@@ -1652,15 +1580,20 @@ let poolMedicosReinitPromise = null;
 let isOnLocalNetworkMedicos = false;
 
 async function initializePoolMedicos() {
-    const isLocal = await isLocalNetwork();
-    isOnLocalNetworkMedicos = isLocal;
-    poolMedicos = await conectarPool(isLocal, {
-        database: DB_NAME_MEDICOS,
-        connectionLimit: 5,
-        label: DB_NAME_MEDICOS,
-        poolKey: 'medicos',
-        getPool: () => poolMedicos
-    });
+    try {
+        await isLocalNetwork();
+        isOnLocalNetworkMedicos = true;
+        poolMedicos = await conectarPool(true, {
+            database: DB_NAME_MEDICOS,
+            connectionLimit: 5,
+            label: DB_NAME_MEDICOS,
+            poolKey: 'medicos',
+            getPool: () => poolMedicos
+        });
+    } catch (error) {
+        if (!poolMedicos) poolMedicos = poolSinConexion(error);
+        throw error;
+    }
 }
 
 async function reinicializarPoolMedicos(motivo = '') {
@@ -1704,9 +1637,10 @@ let poolProteccionCivilReinitPromise = null;
 let isOnLocalNetworkPc = false;
 
 async function initializePoolProteccionCivil() {
-    const isLocal = await isLocalNetwork();
-    isOnLocalNetworkPc = isLocal;
-    poolProteccionCivil = await conectarPool(isLocal, {
+    try {
+    await isLocalNetwork();
+    isOnLocalNetworkPc = true;
+    poolProteccionCivil = await conectarPool(true, {
         database: DB_NAME_PC,
         connectionLimit: 5,
         label: DB_NAME_PC,
@@ -1720,6 +1654,10 @@ async function initializePoolProteccionCivil() {
         startupLog.detail(`  Tabla pc_control_resolutivos verificada en ${DB_NAME_PC}`);
     } catch (pcMigrErr) {
         console.warn(`  [WARN] Tabla pc_control_resolutivos (${DB_NAME_PC}):`, pcMigrErr.message);
+    }
+    } catch (error) {
+        if (!poolProteccionCivil) poolProteccionCivil = poolSinConexion(error);
+        throw error;
     }
 }
 
@@ -1839,17 +1777,22 @@ async function ejecutarMigracionesBiznagaSgc(poolSgc) {
 }
 
 async function initializePoolBiznagaSgc() {
-    const isLocal = await isLocalNetwork();
-    isOnLocalNetworkSgc = isLocal;
-    poolBiznagaSgc = await conectarPool(isLocal, {
-        database: DB_NAME_SGC,
-        connectionLimit: 5,
-        label: DB_NAME_SGC,
-        poolKey: 'sgc',
-        bootstrapDb: true,
-        getPool: () => poolBiznagaSgc
-    });
-    await ejecutarMigracionesBiznagaSgc(poolBiznagaSgc);
+    try {
+        await isLocalNetwork();
+        isOnLocalNetworkSgc = true;
+        poolBiznagaSgc = await conectarPool(true, {
+            database: DB_NAME_SGC,
+            connectionLimit: 5,
+            label: DB_NAME_SGC,
+            poolKey: 'sgc',
+            bootstrapDb: true,
+            getPool: () => poolBiznagaSgc
+        });
+        await ejecutarMigracionesBiznagaSgc(poolBiznagaSgc);
+    } catch (error) {
+        if (!poolBiznagaSgc) poolBiznagaSgc = poolSinConexion(error);
+        throw error;
+    }
 }
 
 async function reinicializarPoolBiznagaSgc(motivo = '') {
@@ -1895,9 +1838,10 @@ let isOnLocalNetworkSensores = false;
 let muestreoSensoresIniciado = false;
 
 async function initializePoolSensores() {
-    const isLocal = await isLocalNetwork();
-    isOnLocalNetworkSensores = isLocal;
-    poolSensores = await conectarPool(isLocal, {
+    try {
+    await isLocalNetwork();
+    isOnLocalNetworkSensores = true;
+    poolSensores = await conectarPool(true, {
         database: DB_NAME_SENSORES,
         connectionLimit: 4,
         label: DB_NAME_SENSORES,
@@ -1908,6 +1852,10 @@ async function initializePoolSensores() {
     const sensoresHistorialService = require('./sensoresHistorialService');
     await sensoresHistorialService.asegurarTablasSensores(poolSensores);
     startupLog.detail(`  Tablas de sensores verificadas en ${DB_NAME_SENSORES}`);
+    } catch (error) {
+        if (!poolSensores) poolSensores = poolSinConexion(error);
+        throw error;
+    }
 }
 
 async function reinicializarPoolSensores(motivo = '') {
@@ -1959,9 +1907,10 @@ let poolNormativasReinitPromise = null;
 let isOnLocalNetworkNormativas = false;
 
 async function initializePoolNormativas() {
-    const isLocal = await isLocalNetwork();
-    isOnLocalNetworkNormativas = isLocal;
-    poolNormativas = await conectarPool(isLocal, {
+    try {
+    await isLocalNetwork();
+    isOnLocalNetworkNormativas = true;
+    poolNormativas = await conectarPool(true, {
         database: DB_NAME_NORMATIVAS,
         connectionLimit: 5,
         label: DB_NAME_NORMATIVAS,
@@ -1974,6 +1923,10 @@ async function initializePoolNormativas() {
     await seguridadNormativasService.asegurarHistorialImportacionInicial(poolNormativas);
     await require('./seguridadAsignacionService').asegurarTablas(poolNormativas);
     startupLog.detail(`  Tablas de normativas verificadas en ${DB_NAME_NORMATIVAS}`);
+    } catch (error) {
+        if (!poolNormativas) poolNormativas = poolSinConexion(error);
+        throw error;
+    }
 }
 
 async function reinicializarPoolNormativas(motivo = '') {
@@ -5115,6 +5068,11 @@ function resolveAppVersion() {
     console.error('[VERSION] No se pudo resolver la versión (app-version.json / package.json raíz)');
     return null;
 }
+
+app.get('/api/db-destino', (_req, res) => {
+    const estado = estadoPublico();
+    return res.json({ success: true, ...estado });
+});
 
 app.get('/api/version', (_req, res) => {
     const version = resolveAppVersion();
@@ -20735,6 +20693,7 @@ app.post('/api/tickets', authMiddleware, (req, res, next) => {
     try {
         const ticket = await ticketsService.crear(pool, {
             area: req.body?.area,
+            titulo: req.body?.titulo,
             descripcion: req.body?.descripcion,
             prioridad: req.body?.prioridad,
             tipo: req.body?.tipo,
@@ -20852,7 +20811,12 @@ app.get('/api/tickets/mios', authMiddleware, async (req, res) => {
  */
 app.patch('/api/tickets/:id', authMiddleware, requireRole('root'), async (req, res) => {
     try {
-        const actualizado = await ticketsService.actualizarEstado(pool, req.params.id, req.body?.estado);
+        const actualizado = await ticketsService.actualizarEstado(
+            pool,
+            req.params.id,
+            req.body?.estado,
+            req.body?.prioridad
+        );
         res.json({ success: true, ticket: actualizado });
     } catch (error) {
         const status = error.status || 500;

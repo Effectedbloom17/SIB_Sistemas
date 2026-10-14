@@ -1576,6 +1576,24 @@
     }
   }
 
+  .tk-titulo-input {
+    width: 100%;
+    margin-bottom: 0.45rem;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid rgba(56, 81, 47, 0.14);
+    border-radius: 7px;
+    background: #f7f8f6;
+    color: #273425;
+    font-size: 0.74rem;
+    line-height: 1.35;
+
+    &:focus {
+      outline: none;
+      background: #fff;
+      box-shadow: 0 0 0 2px rgba(56, 81, 47, 0.1);
+    }
+  }
+
   .novedades-textarea {
     min-height: 54px;
     margin-bottom: 0.45rem;

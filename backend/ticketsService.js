@@ -231,6 +231,13 @@ async function asegurarTabla(pool) {
         "tipo ENUM('falla','sugerencia') NOT NULL DEFAULT 'sugerencia'",
         'prioridad'
     );
+    await asegurarColumnaTickets(
+        pool,
+        columnas,
+        'titulo',
+        'titulo VARCHAR(160) DEFAULT NULL',
+        'area'
+    );
     try {
         await pool.query(
             `ALTER TABLE tickets
@@ -406,9 +413,10 @@ async function listarEvidenciasMap(pool, ticketIds) {
     return map;
 }
 
-async function crear(pool, { area, descripcion, prioridad, tipo, usuarioId, evidencias, evidenciaDescripciones }) {
+async function crear(pool, { area, titulo, descripcion, prioridad, tipo, usuarioId, evidencias, evidenciaDescripciones }) {
     await asegurarTabla(pool);
     const areaLimpia = normalizarArea(area);
+    const tituloLimpio = normalizarTexto(titulo, 160);
     const descripcionLimpia = normalizarTexto(descripcion, 2000);
     const prioridadLimpia = normalizarPrioridad(prioridad) || 'normal';
     const tipoLimpio = normalizarTipo(tipo);
@@ -434,9 +442,9 @@ async function crear(pool, { area, descripcion, prioridad, tipo, usuarioId, evid
     }
 
     const [result] = await pool.query(
-        `INSERT INTO tickets (area, descripcion, usuario_id, estado, prioridad, tipo, publicado_version)
-         VALUES (?, ?, ?, 'abierto', ?, ?, NULL)`,
-        [areaLimpia, descripcionLimpia, usuarioId, prioridadLimpia, tipoLimpio]
+        `INSERT INTO tickets (area, titulo, descripcion, usuario_id, estado, prioridad, tipo, publicado_version)
+         VALUES (?, ?, ?, ?, 'abierto', ?, ?, NULL)`,
+        [areaLimpia, tituloLimpio || null, descripcionLimpia, usuarioId, prioridadLimpia, tipoLimpio]
     );
 
     const ticketId = result.insertId;
@@ -460,7 +468,7 @@ async function crear(pool, { area, descripcion, prioridad, tipo, usuarioId, evid
         : descripcionLimpia;
 
     await notificarRoots(pool, {
-        titulo: `${tipoLabel} · ${areaLimpia}`,
+        titulo: tituloLimpio ? `${tipoLabel} · ${tituloLimpio}` : `${tipoLabel} · ${areaLimpia}`,
         mensaje: resumen,
         ruta: '/tickets'
     });
@@ -468,6 +476,7 @@ async function crear(pool, { area, descripcion, prioridad, tipo, usuarioId, evid
     return {
         ticket_id: ticketId,
         area: areaLimpia,
+        titulo: tituloLimpio || null,
         descripcion: descripcionLimpia,
         usuario_id: usuarioId,
         estado: 'abierto',
@@ -538,6 +547,7 @@ async function listar(pool, {
         `SELECT
             t.ticket_id,
             t.area,
+            t.titulo,
             t.descripcion,
             t.usuario_id,
             t.estado,
@@ -586,31 +596,63 @@ async function listar(pool, {
     }));
 }
 
-async function actualizarEstado(pool, ticketId, estado) {
+async function actualizarEstado(pool, ticketId, estado, prioridad) {
     await asegurarTabla(pool);
     const id = Number(ticketId);
-    const estadoLimpio = normalizarEstado(estado);
     if (!Number.isFinite(id) || id <= 0) {
         const error = new Error('Ticket inválido');
         error.status = 400;
         throw error;
     }
-    if (!estadoLimpio) {
-        const error = new Error('Estado inválido');
+
+    const sets = [];
+    const params = [];
+    let estadoLimpio = '';
+    let prioridadLimpia = '';
+
+    if (estado !== undefined && estado !== null && String(estado).trim() !== '') {
+        estadoLimpio = normalizarEstado(estado);
+        if (!estadoLimpio) {
+            const error = new Error('Estado inválido');
+            error.status = 400;
+            throw error;
+        }
+        sets.push('estado = ?');
+        params.push(estadoLimpio);
+    }
+
+    if (prioridad !== undefined && prioridad !== null && String(prioridad).trim() !== '') {
+        prioridadLimpia = normalizarPrioridad(prioridad);
+        if (!prioridadLimpia) {
+            const error = new Error('Prioridad inválida');
+            error.status = 400;
+            throw error;
+        }
+        sets.push('prioridad = ?');
+        params.push(prioridadLimpia);
+    }
+
+    if (!sets.length) {
+        const error = new Error('Nada que actualizar');
         error.status = 400;
         throw error;
     }
 
+    params.push(id);
     const [result] = await pool.query(
-        `UPDATE tickets SET estado = ? WHERE ticket_id = ?`,
-        [estadoLimpio, id]
+        `UPDATE tickets SET ${sets.join(', ')} WHERE ticket_id = ?`,
+        params
     );
     if (!result.affectedRows) {
         const error = new Error('Ticket no encontrado');
         error.status = 404;
         throw error;
     }
-    return { ticket_id: id, estado: estadoLimpio };
+
+    const actualizado = { ticket_id: id };
+    if (estadoLimpio) actualizado.estado = estadoLimpio;
+    if (prioridadLimpia) actualizado.prioridad = prioridadLimpia;
+    return actualizado;
 }
 
 async function obtenerPorId(pool, ticketId) {

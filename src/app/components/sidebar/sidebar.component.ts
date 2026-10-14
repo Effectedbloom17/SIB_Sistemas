@@ -119,6 +119,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
   public isCollapsed = true;
   public sidebarVisible = true;
   public appVersion: string = packageJson.version;
+  /** Rol de la base activa: principal | secundaria | local | produccion | sin_conexion */
+  public bdRol = '';
+  public bdEtiqueta = '';
   /** True cuando el servidor reporta una versión distinta a la cargada en esta pestaña. */
   public nuevaVersionDisponible = false;
   public logoRoute: string = '/dashboard';
@@ -195,6 +198,20 @@ export class SidebarComponent implements OnInit, OnDestroy {
    });
 
    this.iniciarChequeoVersion();
+   this.cargarDestinoDb();
+  }
+
+  private cargarDestinoDb(): void {
+    this.backendService.obtenerDestinoDb().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res) => {
+        this.bdRol = String(res?.rol || '');
+        this.bdEtiqueta = String(res?.etiqueta || '');
+      },
+      error: () => {
+        this.bdRol = '';
+        this.bdEtiqueta = '';
+      }
+    });
   }
 
   ngOnDestroy(): void {
