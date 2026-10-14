@@ -1132,7 +1132,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
         animations: { enabled: true, speed: 650 }
       },
       labels: ['Cerradas', 'Abiertas'],
-      colors: ['#0f766e', '#be123c'],
+      colors: ['#991b1b', '#be123c'],
       legend: {
         position: 'bottom',
         fontSize: '11px',
@@ -1328,7 +1328,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
         animations: { enabled: true, speed: 650 }
       },
       labels: ['Cerrados', 'Abiertos'],
-      colors: ['#0f766e', '#c2410c'],
+      colors: ['#991b1b', '#dc2626'],
       legend: {
         position: 'bottom',
         fontSize: '11px',
@@ -1385,7 +1385,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
         fontFamily: 'inherit',
         animations: { enabled: true, speed: 650 }
       },
-      colors: ['#0f766e', '#be123c'],
+      colors: ['#991b1b', '#be123c'],
       plotOptions: {
         bar: {
           horizontal: true,
@@ -1617,7 +1617,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
 
   colorAnillo(pct: number): string {
     const t = this.colorAvance(pct);
-    if (t === 'ok') return '#0f766e';
+    if (t === 'ok') return '#991b1b';
     if (t === 'mid') return '#c2410c';
     return '#b91c1c';
   }
@@ -1625,7 +1625,7 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
   /** Tono claro del anillo para degradados en gráficos. */
   colorAnilloClaro(pct: number): string {
     const t = this.colorAvance(pct);
-    if (t === 'ok') return '#2dd4bf';
+    if (t === 'ok') return '#fca5a5';
     if (t === 'mid') return '#fb923c';
     return '#f43f5e';
   }
