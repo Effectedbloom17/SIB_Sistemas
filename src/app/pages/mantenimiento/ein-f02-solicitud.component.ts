@@ -22,7 +22,7 @@ import {
   EinF02Solicitud,
   asegurarIdSerie,
   cargarSolicitudesLocal,
-  esRegistroForms,
+  conservarReportesManuales,
   formatearFechaCorta,
   generarIdSerie,
   guardarSolicitudesLocal,
@@ -35,6 +35,7 @@ import {
   cargarDriveState,
   guardarDriveState
 } from './mantenimiento-excel-sync.catalog';
+import { exportarBitacoraMantenimientoPdf } from './ein-f03-bitacora-pdf';
 
 @Component({
   selector: 'app-ein-f02-solicitud',
@@ -53,6 +54,7 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
   guardandoDrive = false;
   sincronizandoForms = false;
   editorDriveAbierto = false;
+  exportandoPdf = false;
   editorDriveCargando = false;
   excelWebViewLink = '';
   driveSpreadsheetId = '';
@@ -64,6 +66,12 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
   private editorMontadoEnBody = false;
 
   readonly meta = EIN_F03_META;
+  ejemploInterno = true;
+  ejemploCursor = false;
+  ejemploPresion = false;
+  private demoActiva = false;
+  private demoTimer: ReturnType<typeof setTimeout> | null = null;
+  private destruido = false;
 
   constructor(
     private auth: AuthService,
@@ -77,6 +85,7 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
     this.cargar();
     this.cargarDrive();
     this.sincronizarDesdeForms();
+    this.iniciarDemoInterno();
   }
 
   ngAfterViewChecked(): void {
@@ -88,6 +97,8 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
   }
 
   ngOnDestroy(): void {
+    this.destruido = true;
+    this.detenerDemoInterno();
     if (this.autoSaveTimer) {
       clearTimeout(this.autoSaveTimer);
     }
@@ -104,8 +115,17 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
     this.persistir();
   }
 
+  @HostListener('window:biznaga:ein-f02:cambio', ['$event'])
+  onSolicitudesCambio(ev: CustomEvent<{ eliminadoId?: string }>): void {
+    const id = ev?.detail?.eliminadoId;
+    if (!id) {
+      return;
+    }
+    this.filas = this.filas.filter(f => f.id !== id);
+  }
+
   get filasBitacora(): EinF02Solicitud[] {
-    return this.filas.filter(esRegistroForms);
+    return this.filas;
   }
 
   guardarInformacionDrive(silencioso = false): void {
@@ -115,7 +135,7 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
     const filas = this.filasBitacora;
     if (!filas.length) {
       if (!silencioso) {
-        this.flash('Sincroniza desde Forms para llenar la bitácora.');
+        this.flash('Agrega un reporte o sincroniza desde Forms para llenar la bitácora.');
       }
       return;
     }
@@ -140,7 +160,7 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
       idSerie: f.idSerie,
       tipoMantenimiento: f.tipoMantenimiento,
       internoExterno: f.internoExterno || 'Interno',
-      actividades: f.descripcionProblema,
+      actividades: f.descripcionMantenimientoRealizado,
       responsable: f.responsableMantenimiento,
       fechaRealizado: f.fechaRealizado,
       observaciones: f.observacionesBitacora
@@ -172,7 +192,9 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
           this.persistir();
         }
         if (!silencioso) {
-          this.flash('Información guardada en Excel/Drive.');
+          this.flash(reporte?.hoja
+            ? `Información guardada en la hoja ${reporte.hoja}.`
+            : 'Información guardada en Excel/Drive.');
         }
         if (this.abrirEditorTrasGuardar) {
           this.abrirEditorTrasGuardar = false;
@@ -272,6 +294,65 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
     this.programarAutoGuardadoDrive();
   }
 
+  alternarEjemploInterno(): void {
+    this.ejemploInterno = !this.ejemploInterno;
+  }
+
+  private iniciarDemoInterno(): void {
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+    this.demoActiva = true;
+    this.pasoDemoInterno();
+  }
+
+  private detenerDemoInterno(): void {
+    this.demoActiva = false;
+    if (this.demoTimer) {
+      clearTimeout(this.demoTimer);
+      this.demoTimer = null;
+    }
+  }
+
+  private pasoDemoInterno(): void {
+    if (!this.demoActiva) {
+      return;
+    }
+    this.ejemploCursor = false;
+    this.ejemploPresion = false;
+    this.demoTimer = setTimeout(() => {
+      if (!this.demoActiva) {
+        return;
+      }
+      this.ejemploCursor = true;
+      this.demoTimer = setTimeout(() => {
+        if (!this.demoActiva) {
+          return;
+        }
+        this.ejemploPresion = true;
+        this.demoTimer = setTimeout(() => {
+          if (!this.demoActiva) {
+            return;
+          }
+          this.ejemploInterno = !this.ejemploInterno;
+          this.demoTimer = setTimeout(() => {
+            if (!this.demoActiva) {
+              return;
+            }
+            this.ejemploPresion = false;
+            this.demoTimer = setTimeout(() => {
+              if (!this.demoActiva) {
+                return;
+              }
+              this.ejemploCursor = false;
+              this.demoTimer = setTimeout(() => this.pasoDemoInterno(), 800);
+            }, 1100);
+          }, 420);
+        }, 180);
+      }, 520);
+    }, 360);
+  }
+
   alternarInternoExterno(fila: EinF02Solicitud): void {
     const actual = fila.internoExterno || 'Interno';
     fila.internoExterno = actual === 'Interno' ? 'Externo' : 'Interno';
@@ -297,6 +378,35 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
   onObservacionesInput(fila: EinF02Solicitud, el: HTMLTextAreaElement): void {
     this.onCampoChange(fila);
     this.ajustarTextarea(el);
+  }
+
+  async exportarPdf(): Promise<void> {
+    if (this.exportandoPdf) {
+      return;
+    }
+    this.exportandoPdf = true;
+    try {
+      const filas = this.filasBitacora.map((fila, indice) => {
+        const iso = String(fila.fechaRealizado || '');
+        const fecha = iso.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || '';
+        return {
+          no: indice + 1,
+          infraestructura: fila.tipoInfraestructura || '',
+          idSerie: fila.idSerie || '',
+          tipo: fila.tipoMantenimiento || '',
+          internoExterno: this.esInterno(fila) ? 'Interno' : 'Externo',
+          actividades: fila.descripcionMantenimientoRealizado || '',
+          responsable: fila.responsableMantenimiento || '',
+          fecha,
+          observaciones: fila.observacionesBitacora || ''
+        };
+      });
+      await exportarBitacoraMantenimientoPdf(this.meta, filas);
+    } catch {
+      this.flash('No se pudo exportar el PDF.');
+    } finally {
+      this.exportandoPdf = false;
+    }
   }
 
   etiquetaTipoMantenimiento(fila: EinF02Solicitud): string {
@@ -339,6 +449,9 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
     this.sincronizandoForms = true;
     this.backend.obtenerEstadisticasFormsMantenimientoF02().subscribe({
       next: (res) => {
+        if (this.destruido) {
+          return;
+        }
         this.sincronizandoForms = false;
         const casos = Array.isArray(res?.casos) ? res.casos : [];
         if (!casos.length) {
@@ -413,17 +526,16 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
   private cargar(): void {
     this.filas = cargarSolicitudesLocal();
     for (const f of this.filas) {
-      if (esRegistroForms(f)) {
-        asegurarIdSerie(f, this.filas);
-        f.bitacoraDriveFileId = EIN_F03_TEMPLATE_ID;
-        f.bitacoraWebViewLink = this.urlDocumentoEinF03();
-      }
+      asegurarIdSerie(f, this.filas);
+      f.bitacoraDriveFileId = EIN_F03_TEMPLATE_ID;
+      f.bitacoraWebViewLink = this.urlDocumentoEinF03();
     }
     this.guardadoLocal = this.filas.length > 0;
     this.pendingTextareaResize = true;
   }
 
   private persistir(): void {
+    this.filas = conservarReportesManuales(this.filas, cargarSolicitudesLocal());
     this.guardadoLocal = guardarSolicitudesLocal(this.filas);
     if (!this.guardadoLocal) {
       this.flash('No se pudo guardar localmente.');

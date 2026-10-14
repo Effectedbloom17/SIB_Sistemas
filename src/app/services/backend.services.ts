@@ -666,6 +666,11 @@ export class BackendServices {
         );
     }
 
+    /** Lee la plantilla viva EIN-F-01 (Excel/Drive) para el PDF */
+    leerProgramaMantenimientoF01(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/mantenimiento/programa-f01`);
+    }
+
     /** Guarda EIN-F-01 Programa en Excel/Drive */
     guardarProgramaMantenimientoF01(payload: {
         meta?: object;
@@ -2773,8 +2778,22 @@ export class BackendServices {
         );
     }
 
-    obtenerEstadoSeguridadAsignacion(empresaId: number): Observable<any> {
-        return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion/estado?empresa_id=${empresaId}`);
+    obtenerEstadoSeguridadAsignacion(empresaId: number, anio?: number): Observable<any> {
+        const params: string[] = [`empresa_id=${empresaId}`];
+        if (anio) params.push(`anio=${anio}`);
+        return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion/estado?${params.join('&')}`);
+    }
+
+    listarHistorialSeguridadAsignacion(empresaId: number): Observable<any> {
+        return this.httpClient.get(
+            `${this.baseUrl}/seguridad/asignacion/historial?empresa_id=${empresaId}`
+        );
+    }
+
+    obtenerHistorialSeguridadAsignacion(empresaId: number, anio: number): Observable<any> {
+        return this.httpClient.get(
+            `${this.baseUrl}/seguridad/asignacion/historial?empresa_id=${empresaId}&anio=${anio}`
+        );
     }
 
     guardarBorradorSeguridadAsignacion(empresaId: number, payload: unknown): Observable<any> {
@@ -2788,10 +2807,17 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion/puntos/${normativaId}`);
     }
 
-    publicarSeguridadAsignacion(empresaId: number, payload: unknown): Observable<any> {
+    publicarSeguridadAsignacion(
+        empresaId: number,
+        payload: unknown,
+        extras?: { anio?: number; nuevo_ciclo?: boolean; clonar_desde_anio?: number | null }
+    ): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/seguridad/asignacion/publicar`, {
             empresa_id: empresaId,
-            payload
+            payload,
+            anio: extras?.anio,
+            nuevo_ciclo: extras?.nuevo_ciclo === true,
+            clonar_desde_anio: extras?.clonar_desde_anio ?? null
         });
     }
 
@@ -2818,6 +2844,8 @@ export class BackendServices {
         requisitoId: number,
         datos: {
             accion_score?: number | null;
+            tipo_accion?: 'preventiva' | 'correctiva' | null;
+            responsable?: 'Empresa' | 'Cliente';
             fecha_inicio?: string | null;
             observaciones?: string | null;
             indicador_avance?: number | null;
@@ -3414,6 +3442,29 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-29`);
     }
 
+    listarCriteriosSgcF29(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-29/criterios`);
+    }
+
+    crearCriterioSgcF29(payload: {
+        nombre: string;
+        escala?: 2 | 5 | 6;
+        descripciones?: Record<string, string>;
+    }): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/criterios`, payload || {});
+    }
+
+    listarProveedoresOcultosSgcF29(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-29/ocultos`);
+    }
+
+    establecerVisibilidadProveedorSgcF29(proveedor: string, oculto: boolean): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/visibilidad`, {
+            proveedor,
+            oculto
+        });
+    }
+
     guardarSgcF29Formato(datos: unknown, editorActivo = false): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/guardar`, {
             datos,
@@ -3587,10 +3638,11 @@ export class BackendServices {
 
     listarEvidenciasSgcF11(
         analisisId: string,
-        opts?: { nombre_proyecto?: string }
+        opts?: { nombre_proyecto?: string; carpeta_padre?: string }
     ): Observable<any> {
         const params: Record<string, string> = {};
         if (opts?.nombre_proyecto) params.nombre_proyecto = opts.nombre_proyecto;
+        if (opts?.carpeta_padre) params.carpeta_padre = opts.carpeta_padre;
         return this.httpClient.get(
             `${this.baseUrl}/sgc/formatos/sgc-f-11/evidencias/${encodeURIComponent(analisisId)}`,
             { params }
@@ -3608,6 +3660,7 @@ export class BackendServices {
     subirEvidenciasLoteSgcF11Eventos(payload: {
         proyecto_id: string;
         nombre_proyecto?: string;
+        carpeta_padre?: string;
         archivos: Array<{
             nombre_archivo: string;
             mime_type?: string;
@@ -3625,6 +3678,7 @@ export class BackendServices {
     crearCarpetaEvidenciaSgcF11(payload: {
         proyecto_id: string;
         nombre_proyecto?: string;
+        carpeta_padre?: string;
         nombre: string;
     }): Observable<any> {
         return this.httpClient.post(
@@ -4289,6 +4343,65 @@ export class BackendServices {
             ids,
             empresaId
         });
+    }
+
+    listarCambiosControlProyecto(meta: {
+        empresaId?: number | null;
+        folio?: string;
+        nombreProyecto?: string;
+    }): Observable<any> {
+        const params = new URLSearchParams();
+        if (meta?.empresaId) params.set('empresaId', String(meta.empresaId));
+        if (meta?.folio) params.set('folio', meta.folio);
+        if (meta?.nombreProyecto) params.set('nombreProyecto', meta.nombreProyecto);
+        const query = params.toString();
+        return this.httpClient.get(`${this.baseUrl}/control-proyectos/cambios${query ? `?${query}` : ''}`);
+    }
+
+    guardarCambiosControlProyecto(body: {
+        empresaId?: number | null;
+        folio?: string;
+        nombreProyecto?: string;
+        cambios: Array<{
+            id?: number | null;
+            tipoRequisitos?: boolean;
+            tipoDiseno?: boolean;
+            tipoProduccion?: boolean;
+            descripcion?: string;
+            motivo?: string;
+            accionesFilas?: Array<{
+                descripcion?: string;
+                responsable?: string;
+                responsableUsuarioId?: number | null;
+                fechaCompromiso?: string;
+            }>;
+            solicitar?: boolean;
+            corregir?: boolean;
+        }>;
+    }): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/control-proyectos/cambios/guardar`, body || { cambios: [] });
+    }
+
+    resolverCambioControlProyecto(body: {
+        empresaId?: number | null;
+        folio?: string;
+        nombreProyecto?: string;
+        cambioId: number;
+        decision: 'aprobado' | 'no_aprobado';
+    }): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/control-proyectos/cambios/resolver`, body);
+    }
+
+    listarBandejaCambiosControlProyecto(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/control-proyectos/cambios/bandeja`);
+    }
+
+    listarAvisosCambiosControlProyecto(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/control-proyectos/cambios/avisos`);
+    }
+
+    descartarAvisoCambioControlProyecto(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/control-proyectos/cambios/avisos/${id}/descartar`, {});
     }
 
     restaurarControlProyectosEliminados(body: {

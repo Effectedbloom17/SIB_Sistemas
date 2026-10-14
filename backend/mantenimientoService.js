@@ -186,6 +186,10 @@ async function generarSolicitudEinF02(datos = {}) {
   });
 }
 
+async function leerProgramaEinF01() {
+  return driveService.leerProgramaMantenimientoEinF01({});
+}
+
 async function generarProgramaEinF01(datos = {}) {
   return driveService.generarProgramaMantenimientoEinF01({
     meta: datos.meta,
@@ -489,6 +493,7 @@ module.exports = {
   eliminarEvidencia,
   subirPdfFirmadoF04,
   generarSolicitudEinF02,
+  leerProgramaEinF01,
   generarProgramaEinF01,
   generarBitacoraEinF03,
   generarReporteEinF04,

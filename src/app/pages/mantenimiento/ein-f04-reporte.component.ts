@@ -12,14 +12,17 @@ import {
   EinF04TipoMantenimiento,
   areaDesdeRol,
   cargarSolicitudesLocal,
+  conservarReportesManuales,
   crearSolicitudVacia,
+  esRegistroForms,
   formatearFechaCorta,
   guardarSolicitudesLocal,
   puestoDesdeRol,
   sincronizarCasosDesdeForms
 } from './ein-f02-solicitud.catalog';
 
-const MAX_EVIDENCIAS = 2;
+/** Alineado con el límite de multer en backend (`evidencias`, 12). */
+const MAX_EVIDENCIAS = 12;
 
 @Component({
   selector: 'app-ein-f04-reporte',
@@ -56,6 +59,8 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
   lightboxAbierto = false;
   lightboxUrl = '';
   lightboxNombre = '';
+  /** Incrementar al abrir/editar para que el textarea de descripción se ajuste al contenido. */
+  descripcionAutosizeTick = 0;
 
   readonly meta = EIN_F04_META;
   readonly tipos: EinF04TipoMantenimiento[] = ['Preventivo', 'Correctivo'];
@@ -70,6 +75,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.cargar();
+    this.cargarUsuariosSistema();
     this.sincronizarDesdeForms();
 
     const folioRoute = this.route.snapshot.paramMap.get('folio');
@@ -88,24 +94,123 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
         }
       };
       open();
-      setTimeout(open, 800);
+      setTimeout(() => {
+        if (!this.destruido) {
+          open();
+        }
+      }, 800);
     } else if (!this.embebido && this.route.snapshot.queryParamMap.get('nueva') === '1') {
       this.nuevoReporte();
       this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
     }
   }
 
+  private destruido = false;
+  usuariosSistema: string[] = [];
+  guiaSolicitanteAbierta = false;
+  private guiaSolicitanteTimer: ReturnType<typeof setTimeout> | null = null;
+
   ngOnDestroy(): void {
+    this.destruido = true;
+    if (this.guiaSolicitanteTimer) {
+      clearTimeout(this.guiaSolicitanteTimer);
+      this.guiaSolicitanteTimer = null;
+    }
     this.limpiarPreviewsPendientes();
     this.setEditorBodyState(false);
   }
 
   get solicitudesForms(): EinF02Solicitud[] {
-    return this.solicitudes.filter(s => !!String(s.formsResponseId || '').trim());
+    return this.solicitudes.filter(s => esRegistroForms(s));
   }
 
-  get solicitudesFiltradas(): EinF02Solicitud[] {
-    const base = this.solicitudesForms;
+  get solicitudesManuales(): EinF02Solicitud[] {
+    return this.solicitudes.filter(s => !esRegistroForms(s));
+  }
+
+  get reportesFormsFiltrados(): EinF02Solicitud[] {
+    return this.filtrarReportes(this.solicitudesForms);
+  }
+
+  get reportesManualesFiltrados(): EinF02Solicitud[] {
+    return this.filtrarReportes(this.solicitudesManuales);
+  }
+
+  esDeForms(sol: EinF02Solicitud | null | undefined): boolean {
+    return esRegistroForms(sol as EinF02Solicitud);
+  }
+
+  get solicitantesGuia(): string[] {
+    const q = String(this.seleccionada?.nombreSolicitante || '').trim().toLowerCase();
+    const base = this.usuariosSistema;
+    if (!q) {
+      return base;
+    }
+    const filtrados = base.filter(nombre => nombre.toLowerCase().includes(q));
+    return filtrados.length ? filtrados : base;
+  }
+
+  abrirGuiaSolicitante(): void {
+    if (this.guiaSolicitanteTimer) {
+      clearTimeout(this.guiaSolicitanteTimer);
+      this.guiaSolicitanteTimer = null;
+    }
+    this.guiaSolicitanteAbierta = true;
+  }
+
+  cerrarGuiaSolicitante(): void {
+    if (this.guiaSolicitanteTimer) {
+      clearTimeout(this.guiaSolicitanteTimer);
+    }
+    this.guiaSolicitanteTimer = setTimeout(() => {
+      this.guiaSolicitanteAbierta = false;
+      this.guiaSolicitanteTimer = null;
+    }, 160);
+  }
+
+  elegirSolicitante(nombre: string): void {
+    if (!this.seleccionada) {
+      return;
+    }
+    this.seleccionada.nombreSolicitante = nombre;
+    this.guiaSolicitanteAbierta = false;
+    this.onCampoChange();
+  }
+
+  private cargarUsuariosSistema(): void {
+    this.backend.obtenerUsuarios().subscribe({
+      next: (res: any) => {
+        if (this.destruido) {
+          return;
+        }
+        const lista = Array.isArray(res?.usuarios) ? res.usuarios : [];
+        const nombres = new Set<string>();
+        for (const u of lista) {
+          const rol = String(u?.rol || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .trim();
+          if (rol === 'empresa' || rol === 'usuario empresa') {
+            continue;
+          }
+          const nombre = [u?.nombre, u?.apellido]
+            .map((p: unknown) => String(p || '').trim())
+            .filter(Boolean)
+            .join(' ');
+          if (nombre) {
+            nombres.add(nombre);
+          }
+        }
+        this.usuariosSistema = Array.from(nombres).sort((a, b) => a.localeCompare(b, 'es'));
+      },
+      error: () => {
+        this.usuariosSistema = [];
+      }
+    });
+  }
+
+  private filtrarReportes(base: EinF02Solicitud[]): EinF02Solicitud[] {
     const q = this.filtro.trim().toLowerCase();
     if (!q) {
       return base;
@@ -116,7 +221,9 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
         s.nombreSolicitante,
         s.area,
         s.descripcionProblema,
+        s.descripcionMantenimientoRealizado,
         s.tipoMantenimiento,
+        s.tipoInfraestructura,
         s.responsableMantenimiento,
         s.idSerie
       ]
@@ -169,6 +276,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     this.limpiarFotosPendientes();
     this.seleccionada = sol;
     this.vista = 'editor';
+    this.descripcionAutosizeTick += 1;
     this.asegurarSnapshotDrive(sol);
   }
 
@@ -201,6 +309,9 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     this.sincronizandoForms = true;
     this.backend.obtenerEstadisticasFormsMantenimientoF02().subscribe({
       next: (res) => {
+        if (this.destruido) {
+          return;
+        }
         this.sincronizandoForms = false;
         const casos = Array.isArray(res?.casos) ? res.casos : [];
         if (!casos.length) {
@@ -693,14 +804,36 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     this.descargarPdfF04();
   }
 
-  eliminarReporte(sol: EinF02Solicitud, event?: Event): void {
+  async eliminarReporte(sol: EinF02Solicitud, event?: Event): Promise<void> {
     event?.stopPropagation();
+    event?.preventDefault();
+    if (!sol || esRegistroForms(sol)) {
+      return;
+    }
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: 'Eliminar reporte',
+      html: `Se quita <strong>${sol.folio}</strong> del archivero y de la bitácora.`,
+      showCancelButton: true,
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c',
+      reverseButtons: true
+    });
+    if (!result.isConfirmed) {
+      return;
+    }
+    const actuales = cargarSolicitudesLocal().filter(s => s.id !== sol.id);
+    guardarSolicitudesLocal(actuales);
     this.solicitudes = this.solicitudes.filter(s => s.id !== sol.id);
+    this.guardadoLocal = true;
     if (this.seleccionada?.id === sol.id) {
       this.volverArchivero();
     }
-    this.persistir();
-    this.flash('Registro eliminado.');
+    window.dispatchEvent(new CustomEvent('biznaga:ein-f02:cambio', {
+      detail: { eliminadoId: sol.id }
+    }));
+    this.flash('Reporte eliminado.');
   }
 
   irABitacoraF03(_sol?: EinF02Solicitud): void {
@@ -821,6 +954,7 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
   }
 
   private persistir(): void {
+    this.solicitudes = conservarReportesManuales(this.solicitudes, cargarSolicitudesLocal());
     this.guardadoLocal = guardarSolicitudesLocal(this.solicitudes);
     if (!this.guardadoLocal) {
       this.flash('No se pudo guardar localmente.');

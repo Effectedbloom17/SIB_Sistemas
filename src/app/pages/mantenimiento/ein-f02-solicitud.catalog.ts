@@ -30,9 +30,9 @@ export interface EinF02Solicitud {
   puesto: string;
   area: string;
   fechaSolicitud: string;
-  /** Descripción del problema (Google Forms → bitácora F-03 actividades) */
+  /** Descripción del problema. En Forms es referencia; en un reporte manual se escribe aquí. */
   descripcionProblema: string;
-  /** Acción realizada ante el reporte (manual → Word F-04 «Breve descripción…») */
+  /** Breve descripción del mantenimiento realizado. Es lo que muestra la bitácora. */
   descripcionMantenimientoRealizado: string;
   /** @deprecated EIN-F-02 Excel ya no se usa; se conserva por compatibilidad local */
   observacionesAdministrador: string;
@@ -128,6 +128,16 @@ export function parseFechaIso(iso: string): Date | null {
 
 export function esRegistroForms(s: EinF02Solicitud): boolean {
   return !!String(s?.formsResponseId || '').trim();
+}
+
+/** Conserva reportes escritos a mano que otra vista guardó mientras esta lista estaba en memoria. */
+export function conservarReportesManuales(
+  memoria: EinF02Solicitud[],
+  disco: EinF02Solicitud[]
+): EinF02Solicitud[] {
+  const ids = new Set((memoria || []).map(s => s.id));
+  const ajenos = (disco || []).filter(s => !ids.has(s.id) && !esRegistroForms(s));
+  return ajenos.length ? [...(memoria || []), ...ajenos] : (memoria || []);
 }
 
 /** ID / No. de serie: EINF03-MMDDYY-NN  (ej. EINF03-082726-01) */
@@ -347,6 +357,8 @@ export function sincronizarCasosDesdeForms(
       .map(c => String(c.formsResponseId || '').trim())
       .filter(Boolean)
   );
+  const manuales = (existentes || []).filter(s => !esRegistroForms(s));
+  const formsAntes = (existentes || []).filter(esRegistroForms).length;
 
   const byForms = new Map<string, EinF02Solicitud>();
   for (const s of existentes) {
@@ -356,7 +368,6 @@ export function sincronizarCasosDesdeForms(
     }
   }
 
-  const antes = existentes.length;
   let lista = Array.from(byForms.values());
   let nuevos = 0;
 
@@ -401,10 +412,6 @@ export function sincronizarCasosDesdeForms(
         prev.fechaSolicitud = caso.fechaSolicitud;
         changed = true;
       }
-      if (prev.tipoMantenimiento !== 'Correctivo') {
-        prev.tipoMantenimiento = 'Correctivo';
-        changed = true;
-      }
       if (asegurarIdSerie(prev, lista)) {
         changed = true;
       }
@@ -445,7 +452,12 @@ export function sincronizarCasosDesdeForms(
     asegurarIdSerie(s, lista);
   }
 
-  return { lista, nuevos, eliminados: antes - lista.length };
+  const conservados = lista.length - nuevos;
+  return {
+    lista: [...lista, ...manuales],
+    nuevos,
+    eliminados: Math.max(0, formsAntes - conservados)
+  };
 }
 
 export function formatearFechaCorta(iso: string): string {

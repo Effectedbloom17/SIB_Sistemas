@@ -28,6 +28,205 @@ app-footer {
   width: 100%;
 }
 
+.cp-aviso-cambio {
+  position: fixed;
+  top: 1.15rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1200;
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 0.35rem 0.85rem;
+  align-items: center;
+  width: min(34rem, calc(100vw - 2rem));
+  padding: 0.85rem 1rem 0.85rem 0.35rem;
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid #e7e5e4;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18);
+  animation: cp-aviso-bajar 0.48s cubic-bezier(0.22, 1, 0.36, 1);
+
+  h3 {
+    margin: 0.1rem 0 0.35rem;
+    font-size: 1rem;
+    color: #0f172a;
+  }
+
+  p {
+    margin: 0;
+    color: #334155;
+    font-size: 0.86rem;
+    line-height: 1.45;
+  }
+}
+
+.cp-aviso-cambio__mascota {
+  grid-row: 1 / span 2;
+  width: 7.5rem;
+  height: 8.4rem;
+  object-fit: contain;
+  object-position: center center;
+  align-self: center;
+  pointer-events: none;
+  user-select: none;
+}
+
+.cp-aviso-cambio__kicker {
+  font-size: 0.68rem !important;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #c2410c !important;
+}
+
+.cp-aviso-cambio__lead {
+  margin-top: 0.2rem !important;
+  color: #0f172a !important;
+  font-size: 0.92rem !important;
+  font-weight: 700;
+}
+
+.cp-aviso-cambio__personas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+
+  > div {
+    flex: 1 1 8.5rem;
+    min-width: 0;
+    padding: 0.4rem 0.6rem;
+    border-radius: 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+  }
+
+  span,
+  .cp-aviso-cambio__proyecto > span {
+    display: block;
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+
+  strong {
+    display: block;
+    margin-top: 0.12rem;
+    color: #0f172a;
+    font-size: 0.92rem;
+    font-weight: 750;
+    line-height: 1.3;
+  }
+}
+
+.cp-aviso-cambio__proyecto {
+  margin: 0.4rem 0 0 !important;
+  padding: 0.4rem 0.6rem;
+  border-radius: 10px;
+  background: #f4faf8;
+  border: 1px solid #d5e4de;
+
+  .cp-aviso-cambio__proyecto-etiqueta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+
+  .cp-aviso-cambio__sep {
+    color: #94a3b8;
+    font-weight: 600;
+  }
+
+  .cp-aviso-cambio__folio {
+    color: #0f172a;
+    font-size: 0.8rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+
+  strong {
+    display: block;
+    margin-top: 0.12rem;
+    color: #0f6f64;
+    font-size: 0.92rem;
+    font-weight: 750;
+    line-height: 1.35;
+  }
+}
+
+.cp-aviso-cambio.is-saliendo {
+  animation: cp-aviso-subir 0.48s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes cp-aviso-bajar {
+  from {
+    transform: translateX(-50%) translateY(calc(-100% - 2rem));
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes cp-aviso-subir {
+  from {
+    transform: translateX(-50%) translateY(0);
+  }
+  to {
+    transform: translateX(-50%) translateY(calc(-100% - 2rem));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cp-aviso-cambio,
+  .cp-aviso-cambio.is-saliendo {
+    animation: none;
+  }
+}
+
+.cp-aviso-cambio__extra {
+  margin-top: 0.4rem !important;
+  color: #64748b !important;
+  font-size: 0.75rem !important;
+}
+
+.cp-aviso-cambio__actions {
+  grid-column: 2;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.cp-aviso-cambio__cerrar,
+.cp-aviso-cambio__revisar {
+  height: 2.15rem;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cp-aviso-cambio__cerrar {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+}
+
+.cp-aviso-cambio__revisar {
+  border: 0;
+  background: #0f766e;
+  color: #fff;
+}
+
 // En pantallas pequeñas, el contenido siempre ocupa todo el ancho
 @media (max-width: 767px) {
   .main-content {

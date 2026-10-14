@@ -387,6 +387,9 @@ interface SgcF11Analisis {
 }
 
 interface SgcF11Fila {
+  id: string;
+  /** Nombre congelado de la carpeta de evidencias de este punto. */
+  carpetaEvidencia?: string;
   operacion: string;
   etapa: string;
   modoFalla: string;
@@ -1056,9 +1059,25 @@ interface SgcF14EvidenciaDoc {
   fechaSubida: string;
 }
 
+interface SgcF29CriterioCatalogo {
+  clave: string;
+  /** Nombre único (UI y Excel). */
+  nombre: string;
+  corto: string;
+  largo: string;
+  escala: 2 | 5 | 6;
+  valores: string[];
+  esSistema: boolean;
+  activo: boolean;
+  orden: number;
+  descripciones?: Record<string, string>;
+}
+
 interface SgcF29ProveedorItem {
   id: string;
   proveedor: string;
+  /** Acción / actividad que realiza la empresa (compartida por evaluaciones del mismo proveedor). */
+  accion?: string;
   referencia: string;
   /** Fecha de esta evaluación concreta (ISO yyyy-mm-dd). */
   fecha: string;
@@ -1068,7 +1087,15 @@ interface SgcF29ProveedorItem {
   pagoTransferencia: string;
   servicio: string;
   calidad: string;
+  /** Puntajes de criterios (sistema + personalizados). */
+  puntajes?: Record<string, string>;
+  /** Criterios activos en esta evaluación (mín. 3). */
+  criteriosUsados?: string[];
   calificacion: string;
+  /** Fuera de la vista y de los gráficos. El registro se conserva. */
+  oculto?: boolean;
+  /** Nombre del evaluador (usuario del sistema o texto libre). */
+  evaluador?: string;
 }
 
 interface SgcF29GrupoVista {
@@ -2150,6 +2177,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   };
   sgcF11EvidenciasModalAbierto = false;
   sgcF11EvidenciasAnalisis: SgcF11Analisis | null = null;
+  /** Índice del punto abierto. Null = carpeta general anterior del análisis. */
+  sgcF11EvidenciasFilaIdx: number | null = null;
+  private sgcF11IdsFilaNuevos = false;
+  private sgcF11IdsPersistidosIntento = false;
   sgcF11EvidenciasCargando = false;
   sgcF11EvidenciasSubiendo = false;
   sgcF11EvidenciasProgreso = 0;
@@ -3099,6 +3130,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private sgcF29EditorIframeListo = false;
   /** Criterio cuyo tip de puntaje está abierto (tap en móvil/tablet). */
   sgcF29TipAbierto: string | null = null;
+  sgcF29EvaluadorComboIdx: number | null = null;
+  sgcF29EvaluadorComboQuery = '';
+  sgcF29UsuariosCatalogo: AthF11EmpleadoCatalogo[] = [];
   sgcF29EvidenciasModalAbierto = false;
   sgcF29EvidenciasIdx: number | null = null;
   sgcF29EvidenciasCargando = false;
@@ -3122,19 +3156,58 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private sgcF29GaugeAnimTimer: ReturnType<typeof setTimeout> | null = null;
   /** Proveedor seleccionado en la libreta (clave de grupo). */
   sgcF29ProveedorSeleccionadoClave: string | null = null;
-  readonly sgcF29CriteriosOval: Array<{
-    campo: 'entregaTiempo' | 'entregaDomicilio' | 'precio' | 'pagoTransferencia' | 'servicio' | 'calidad';
-    tip: 'entrega' | 'entregaDomicilio' | 'precio' | 'pagoTransferencia' | 'servicio' | 'calidad';
-    corto: string;
-    largo: string;
-  }> = [
-    { campo: 'entregaTiempo', tip: 'entrega', corto: 'Entrega', largo: 'Entrega a tiempo' },
-    { campo: 'entregaDomicilio', tip: 'entregaDomicilio', corto: 'Domicilio', largo: 'Entrega a domicilio' },
-    { campo: 'precio', tip: 'precio', corto: 'Precio', largo: 'Precio' },
-    { campo: 'pagoTransferencia', tip: 'pagoTransferencia', corto: 'Pago', largo: 'Pago transferencia' },
-    { campo: 'servicio', tip: 'servicio', corto: 'Servicio', largo: 'Calidad del servicio' },
-    { campo: 'calidad', tip: 'calidad', corto: 'Producto', largo: 'Calidad del producto' }
+  sgcF29VisibilidadEnCurso: string | null = null;
+  sgcF29BusquedaProveedor = '';
+  readonly sgcF29EscalasOpciones: Array<{ escala: 2 | 5 | 6; etiqueta: string; valores: string[] }> = [
+    { escala: 6, etiqueta: '6 opciones (100–0)', valores: ['100', '80', '60', '40', '20', '0'] },
+    { escala: 5, etiqueta: '5 opciones (100–0)', valores: ['100', '75', '50', '25', '0'] },
+    { escala: 2, etiqueta: '2 opciones (100 / 0)', valores: ['100', '0'] }
   ];
+  private criterioCatalogoBaseSgcF29(
+    clave: string,
+    nombre: string,
+    orden: number,
+    descripciones?: Record<string, string>
+  ): SgcF29CriterioCatalogo {
+    return {
+      clave,
+      nombre,
+      corto: nombre,
+      largo: nombre,
+      escala: 5,
+      valores: ['0', '25', '50', '75', '100'],
+      esSistema: true,
+      activo: true,
+      orden,
+      descripciones
+    };
+  }
+  sgcF29CriteriosCatalogo: SgcF29CriterioCatalogo[] = [];
+  sgcF29NuevoCriterioAbierto = false;
+  sgcF29CriterioGuardando = false;
+  sgcF29MenuAddCritIdx: number | null = null;
+  sgcF29NuevoCriterio: {
+    nombre: string;
+    escala: 2 | 5 | 6;
+    descripciones: Record<string, string>;
+  } = { nombre: '', escala: 5, descripciones: {} };
+  readonly sgcF29MinCriterios = 3;
+  readonly sgcF29CriteriosSistemaDefault: SgcF29CriterioCatalogo[] = [
+    this.criterioCatalogoBaseSgcF29('entregaTiempo', 'Entrega a tiempo', 1),
+    this.criterioCatalogoBaseSgcF29('entregaDomicilio', 'Entrega a Domicilio', 2),
+    this.criterioCatalogoBaseSgcF29('precio', 'Precio', 3),
+    this.criterioCatalogoBaseSgcF29('pagoTransferencia', 'Pago Transferencia', 4),
+    this.criterioCatalogoBaseSgcF29('servicio', 'Calidad del Servicio', 5),
+    this.criterioCatalogoBaseSgcF29('calidad', 'Calidad del producto', 6)
+  ];
+  /** @deprecated Usar sgcF29CriteriosActivos. */
+  readonly sgcF29CriteriosOval = this.sgcF29CriteriosSistemaDefault.map((c) => ({
+    campo: c.clave as 'entregaTiempo' | 'entregaDomicilio' | 'precio' | 'pagoTransferencia' | 'servicio' | 'calidad',
+    tip: (c.clave === 'entregaTiempo' ? 'entrega' : c.clave) as
+      'entrega' | 'entregaDomicilio' | 'precio' | 'pagoTransferencia' | 'servicio' | 'calidad',
+    corto: c.nombre,
+    largo: c.nombre
+  }));
   sgcF06TipAbierto: string | null = null;
 
   readonly sgcF28TiposCriterio: Array<{ tipo: SgcF28CriterioTipo; etiqueta: string }> = [
@@ -5078,6 +5151,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.sgcF29TipAbierto) {
       event.preventDefault();
       this.cerrarTipSgcF29();
+      return;
+    }
+    if (this.sgcF29EvaluadorComboIdx != null) {
+      event.preventDefault();
+      this.cerrarComboEvaluadorSgcF29();
       return;
     }
     if (this.athF08CursoComboAbierto !== null || this.athF08ColabComboAbierto !== null) {
@@ -17823,6 +17901,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return {
       id: this.generarIdEvaluacionSgcF29(),
       proveedor: '',
+      accion: '',
       referencia: '',
       fecha: this.fechaHoyIsoLocalSgcF29(),
       entregaTiempo: '',
@@ -17831,8 +17910,194 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       pagoTransferencia: '',
       servicio: '',
       calidad: '',
-      calificacion: ''
+      puntajes: {},
+      criteriosUsados: this.sgcF29CriteriosSistemaDefault.map((c) => c.clave),
+      calificacion: '',
+      oculto: false,
+      evaluador: this.nombreEvaluadorActualSgcF29()
     };
+  }
+
+  get sgcF29CriteriosActivos(): SgcF29CriterioCatalogo[] {
+    const lista = (this.sgcF29CriteriosCatalogo?.length
+      ? this.sgcF29CriteriosCatalogo
+      : this.sgcF29CriteriosSistemaDefault)
+      .filter((c) => c?.activo !== false)
+      .slice()
+      .sort((a, b) => (a.orden || 0) - (b.orden || 0)
+        || String(a.nombre || a.corto).localeCompare(String(b.nombre || b.corto), 'es'));
+    return lista;
+  }
+
+  criterioPorClaveSgcF29(clave: string): SgcF29CriterioCatalogo | null {
+    return this.sgcF29CriteriosActivos.find((c) => c.clave === clave) || null;
+  }
+
+  criteriosUsadosFilaSgcF29(fila: SgcF29ProveedorItem): SgcF29CriterioCatalogo[] {
+    if (!fila) return [];
+    let usados = Array.isArray(fila.criteriosUsados) ? fila.criteriosUsados.filter(Boolean) : [];
+    if (!usados.length) {
+      usados = this.sgcF29CriteriosSistemaDefault.map((c) => c.clave);
+      fila.criteriosUsados = [...usados];
+    }
+    return usados
+      .map((k) => this.criterioPorClaveSgcF29(k))
+      .filter((c): c is SgcF29CriterioCatalogo => !!c);
+  }
+
+  criteriosDisponiblesParaFilaSgcF29(fila: SgcF29ProveedorItem): SgcF29CriterioCatalogo[] {
+    const usados = new Set((fila?.criteriosUsados || []).map(String));
+    return this.sgcF29CriteriosActivos.filter((c) => !usados.has(c.clave));
+  }
+
+  valoresEscalaCriterioSgcF29(clave: string): string[] {
+    const crit = this.criterioPorClaveSgcF29(clave);
+    if (crit?.valores?.length) {
+      return crit.valores.slice().sort((a, b) => Number(b) - Number(a));
+    }
+    return ['100', '75', '50', '25', '0'];
+  }
+
+  agregarCriterioAFilaSgcF29(index: number, clave: string, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const fila = this.sgcF29Form.proveedores[index];
+    if (!fila || !clave) return;
+    if (!Array.isArray(fila.criteriosUsados)) {
+      fila.criteriosUsados = this.sgcF29CriteriosSistemaDefault.map((c) => c.clave);
+    }
+    if (!fila.criteriosUsados.includes(clave)) {
+      fila.criteriosUsados = [...fila.criteriosUsados, clave];
+    }
+    this.sgcF29MenuAddCritIdx = null;
+    this.marcarEvaluadorFilaSgcF29(index);
+    this.recalcularCalificacionSgcF29(index);
+  }
+
+  quitarCriterioDeFilaSgcF29(index: number, clave: string, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const fila = this.sgcF29Form.proveedores[index];
+    if (!fila) return;
+    const usados = Array.isArray(fila.criteriosUsados)
+      ? fila.criteriosUsados
+      : this.sgcF29CriteriosSistemaDefault.map((c) => c.clave);
+    if (usados.length <= this.sgcF29MinCriterios) {
+      return;
+    }
+    fila.criteriosUsados = usados.filter((k) => k !== clave);
+    if (fila.puntajes) {
+      delete fila.puntajes[clave];
+    }
+    if (this.esCampoSistemaSgcF29(clave)) {
+      (fila as any)[clave] = '';
+    }
+    this.marcarEvaluadorFilaSgcF29(index);
+    this.recalcularCalificacionSgcF29(index);
+  }
+
+  toggleMenuAddCritSgcF29(index: number, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.sgcF29MenuAddCritIdx = this.sgcF29MenuAddCritIdx === index ? null : index;
+  }
+
+  get sgcF29GruposFiltrados(): SgcF29GrupoVista[] {
+    const q = String(this.sgcF29BusquedaProveedor || '').trim().toLowerCase();
+    const grupos = this.sgcF29GruposVista;
+    if (!q) {
+      return grupos;
+    }
+    return grupos.filter((g) => String(g.proveedor || '').toLowerCase().includes(q));
+  }
+
+  private tipLegacySgcF29(clave: string): 'entrega' | 'entregaDomicilio' | 'precio' | 'pagoTransferencia' | 'servicio' | 'calidad' | null {
+    if (clave === 'entregaTiempo' || clave === 'entrega') return 'entrega';
+    if (
+      clave === 'entregaDomicilio'
+      || clave === 'precio'
+      || clave === 'pagoTransferencia'
+      || clave === 'servicio'
+      || clave === 'calidad'
+    ) {
+      return clave;
+    }
+    return null;
+  }
+
+  private esCampoSistemaSgcF29(clave: string): boolean {
+    return [
+      'entregaTiempo',
+      'entregaDomicilio',
+      'precio',
+      'pagoTransferencia',
+      'servicio',
+      'calidad'
+    ].includes(clave);
+  }
+
+  private sincronizarPuntajesFilaSgcF29(fila: SgcF29ProveedorItem): void {
+    if (!fila) return;
+    const puntajes: Record<string, string> = { ...(fila.puntajes || {}) };
+    for (const clave of [
+      'entregaTiempo',
+      'entregaDomicilio',
+      'precio',
+      'pagoTransferencia',
+      'servicio',
+      'calidad'
+    ] as const) {
+      const v = this.parsearPuntajeSgcF29(fila[clave], clave);
+      if (v) {
+        puntajes[clave] = v;
+      } else {
+        delete puntajes[clave];
+      }
+      fila[clave] = v;
+    }
+    for (const [k, raw] of Object.entries(puntajes)) {
+      if (this.esCampoSistemaSgcF29(k)) continue;
+      const v = this.parsearPuntajeSgcF29(raw, k);
+      if (v) puntajes[k] = v;
+      else delete puntajes[k];
+    }
+    fila.puntajes = puntajes;
+  }
+
+  private nombreEvaluadorActualSgcF29(): string {
+    return String(this.authService.getNombreCompleto() || '').trim();
+  }
+
+  /** Solo llena el evaluador si esa fila todavía no tiene uno. */
+  private marcarEvaluadorFilaSgcF29(index: number): void {
+    const fila = this.sgcF29Form?.proveedores?.[index];
+    if (!fila || String(fila.evaluador || '').trim()) {
+      return;
+    }
+    fila.evaluador = this.nombreEvaluadorActualSgcF29();
+  }
+
+  onCampoEvalSgcF29(index: number): void {
+    this.marcarEvaluadorFilaSgcF29(index);
+    this.onSgcF29Editado();
+  }
+
+  private proveedorOcultoSgcF29(item: { oculto?: unknown } | null | undefined): boolean {
+    return item?.oculto === true || item?.oculto === 1 || String(item?.oculto || '').toLowerCase() === 'true';
+  }
+
+  /** Sergio (sergio56 / calidad) o superusuario (root). */
+  get puedeOcultarProveedorSgcF29(): boolean {
+    if (this.authService.esSuperusuario()) {
+      return true;
+    }
+    const username = String(this.authService.getUsername() || '').toLowerCase().trim();
+    return username === 'sergio56' || username === 'calidad';
+  }
+
+  /** Solo el superusuario ve y restaura proveedores ocultos. */
+  get puedeRestaurarProveedorSgcF29(): boolean {
+    return this.authService.esSuperusuario();
   }
 
   private generarIdEvaluacionSgcF29(): string {
@@ -17843,19 +18108,19 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private criteriosPuntajeSgcF29(fila: SgcF29ProveedorItem): string[] {
-    return [
-      fila.entregaTiempo,
-      fila.entregaDomicilio,
-      fila.precio,
-      fila.pagoTransferencia,
-      fila.servicio,
-      fila.calidad
-    ];
+    this.sincronizarPuntajesFilaSgcF29(fila);
+    const mapa = fila?.puntajes || {};
+    const usados = (fila.criteriosUsados?.length
+      ? fila.criteriosUsados
+      : Object.keys(mapa));
+    return usados
+      .map((k) => this.parsearPuntajeSgcF29(mapa[k], k))
+      .filter((v) => v !== '');
   }
 
-  private parsearPuntajeSgcF29(valor: unknown): string {
+  private parsearPuntajeSgcF29(valor: unknown, claveCriterio?: string): string {
     const crudo = String(valor ?? '').trim().replace('%', '').replace(',', '.');
-    if (!crudo) {
+    if (!crudo || /^n\/?a$/i.test(crudo)) {
       return '';
     }
     let n = Number(crudo);
@@ -17866,12 +18131,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       n = n * 100;
     }
     n = Math.round(n);
-    const permitidos = [0, 25, 50, 75, 100];
+    const crit = claveCriterio ? this.criterioPorClaveSgcF29(claveCriterio) : null;
+    const permitidos = (crit?.valores?.length
+      ? crit.valores.map(Number)
+      : [0, 20, 25, 40, 50, 60, 75, 80, 100]);
     if (permitidos.includes(n)) {
       return String(n);
     }
-    let mejor = 0;
-    let dist = Math.abs(n - 0);
+    let mejor = permitidos[0] ?? 0;
+    let dist = Math.abs(n - mejor);
     for (const p of permitidos) {
       const d = Math.abs(n - p);
       if (d < dist) {
@@ -17882,28 +18150,162 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return String(mejor);
   }
 
+  valoresNuevoCriterioSgcF29(): string[] {
+    const opt = this.sgcF29EscalasOpciones.find((e) => e.escala === this.sgcF29NuevoCriterio.escala);
+    return opt?.valores || ['100', '75', '50', '25', '0'];
+  }
+
+  onEscalaNuevoCriterioSgcF29Change(): void {
+    const vals = this.valoresNuevoCriterioSgcF29();
+    const next: Record<string, string> = {};
+    for (const v of vals) {
+      next[v] = this.sgcF29NuevoCriterio.descripciones[v] || '';
+    }
+    this.sgcF29NuevoCriterio.descripciones = next;
+  }
+
+  seleccionarEscalaNuevoCriterioSgcF29(escala: 2 | 5 | 6, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (this.sgcF29NuevoCriterio.escala === escala) {
+      return;
+    }
+    this.sgcF29NuevoCriterio.escala = escala;
+    this.onEscalaNuevoCriterioSgcF29Change();
+  }
+
+  get puedeGuardarNuevoCriterioSgcF29(): boolean {
+    const nombre = String(this.sgcF29NuevoCriterio.nombre || '').trim();
+    if (!nombre || this.sgcF29CriterioGuardando) return false;
+    return this.valoresNuevoCriterioSgcF29().every(
+      (v) => String(this.sgcF29NuevoCriterio.descripciones[v] || '').trim().length > 0
+    );
+  }
+
   etiquetaPuntajeSgcF29(valor: string): string {
     const item = this.sgcF29Puntajes.find((p) => p.valor === String(valor));
     return item ? `${item.valor}% · ${item.criterio}` : (valor ? `${valor}%` : '—');
   }
 
-  descripcionCriterioSgcF29(
-    campo: 'entrega' | 'entregaDomicilio' | 'precio' | 'pagoTransferencia' | 'servicio' | 'calidad',
-    valor: string
-  ): string {
+  descripcionCriterioSgcF29(clave: string, valor: string): string {
+    const crit = this.sgcF29CriteriosActivos.find((c) => c.clave === clave);
+    const custom = crit?.descripciones?.[String(valor)];
+    if (custom) {
+      return custom;
+    }
+    const tip = this.tipLegacySgcF29(clave);
     const item = this.sgcF29Puntajes.find((p) => p.valor === String(valor));
     if (!item) {
       return '';
     }
-    return item[campo];
+    if (tip) {
+      return item[tip];
+    }
+    return `${item.criterio}`;
   }
 
-  tituloColumnaCriterioSgcF29(
-    campo: 'entrega' | 'entregaDomicilio' | 'precio' | 'pagoTransferencia' | 'servicio' | 'calidad'
-  ): string {
-    return this.sgcF29Puntajes
-      .map((p) => `${p.valor}% (${p.criterio}): ${p[campo]}`)
+  tituloColumnaCriterioSgcF29(clave: string): string {
+    const vals = this.valoresEscalaCriterioSgcF29(clave);
+    return vals
+      .map((v) => `${v}%: ${this.descripcionCriterioSgcF29(clave, v)}`)
       .join('\n');
+  }
+
+  private formNuevoCriterioVacioSgcF29(): {
+    nombre: string;
+    escala: 2 | 5 | 6;
+    descripciones: Record<string, string>;
+  } {
+    return { nombre: '', escala: 5, descripciones: { '100': '', '75': '', '50': '', '25': '', '0': '' } };
+  }
+
+  toggleFormNuevoCriterioSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.sgcF29NuevoCriterioAbierto = !this.sgcF29NuevoCriterioAbierto;
+    if (this.sgcF29NuevoCriterioAbierto) {
+      this.sgcF29NuevoCriterio = this.formNuevoCriterioVacioSgcF29();
+    } else {
+      this.sgcF29NuevoCriterio = this.formNuevoCriterioVacioSgcF29();
+    }
+  }
+
+  cerrarFormNuevoCriterioSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.sgcF29NuevoCriterioAbierto = false;
+    this.sgcF29NuevoCriterio = this.formNuevoCriterioVacioSgcF29();
+  }
+
+  guardarNuevoCriterioSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!this.puedeGuardarNuevoCriterioSgcF29) {
+      return;
+    }
+    const nombre = String(this.sgcF29NuevoCriterio.nombre || '').trim();
+    const escala = this.sgcF29NuevoCriterio.escala;
+    const descripciones: Record<string, string> = {};
+    for (const v of this.valoresNuevoCriterioSgcF29()) {
+      descripciones[v] = String(this.sgcF29NuevoCriterio.descripciones[v] || '').trim();
+    }
+    this.sgcF29CriterioGuardando = true;
+    this.backendService.crearCriterioSgcF29({ nombre, escala, descripciones })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          const lista = Array.isArray(res?.criterios) ? res.criterios : [];
+          this.aplicarCatalogoCriteriosSgcF29(lista);
+          this.sgcF29CriterioGuardando = false;
+          this.cerrarFormNuevoCriterioSgcF29();
+        },
+        error: () => {
+          this.sgcF29CriterioGuardando = false;
+        }
+      });
+  }
+
+  private aplicarCatalogoCriteriosSgcF29(lista: unknown): void {
+    const arr = Array.isArray(lista) ? lista : [];
+    const normalizados: SgcF29CriterioCatalogo[] = arr
+      .map((raw: any, idx: number) => {
+        const escala = (Number(raw?.escala) === 2 || Number(raw?.escala) === 6
+          ? Number(raw.escala)
+          : 5) as 2 | 5 | 6;
+        const valores = Array.isArray(raw?.valores) && raw.valores.length
+          ? raw.valores.map(String)
+          : (this.sgcF29EscalasOpciones.find((e) => e.escala === escala)?.valores || []).slice().reverse();
+        const nombre = String(raw?.nombre || raw?.largo || raw?.corto || '').trim();
+        return {
+          clave: String(raw?.clave || '').trim(),
+          nombre,
+          corto: nombre,
+          largo: nombre,
+          escala,
+          valores: valores.map(String),
+          esSistema: raw?.esSistema === true || raw?.es_sistema === 1 || raw?.es_sistema === true,
+          activo: raw?.activo !== false && raw?.activo !== 0,
+          orden: Number(raw?.orden) || (idx + 1),
+          descripciones: raw?.descripciones && typeof raw.descripciones === 'object'
+            ? raw.descripciones
+            : undefined
+        };
+      })
+      .filter((c) => c.clave && c.nombre);
+    this.sgcF29CriteriosCatalogo = normalizados.length
+      ? normalizados
+      : [...this.sgcF29CriteriosSistemaDefault];
+  }
+
+  private cargarCatalogoCriteriosSgcF29(): void {
+    this.backendService.listarCriteriosSgcF29()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarCatalogoCriteriosSgcF29(res?.criterios),
+        error: () => {
+          this.sgcF29CriteriosCatalogo = [...this.sgcF29CriteriosSistemaDefault];
+        }
+      });
   }
 
   toggleTipSgcF06(campo: string, event?: Event): void {
@@ -17931,12 +18333,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!fila) {
       return;
     }
-    fila.entregaTiempo = this.parsearPuntajeSgcF29(fila.entregaTiempo);
-    fila.entregaDomicilio = this.parsearPuntajeSgcF29(fila.entregaDomicilio);
-    fila.precio = this.parsearPuntajeSgcF29(fila.precio);
-    fila.pagoTransferencia = this.parsearPuntajeSgcF29(fila.pagoTransferencia);
-    fila.servicio = this.parsearPuntajeSgcF29(fila.servicio);
-    fila.calidad = this.parsearPuntajeSgcF29(fila.calidad);
+    this.sincronizarPuntajesFilaSgcF29(fila);
     const vals = this.criteriosPuntajeSgcF29(fila)
       .map((v) => this.parsearPuntajeSgcF29(v))
       .filter((v) => v !== '')
@@ -17964,19 +18361,40 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       periodoEvaluacion: String(base.periodoEvaluacion || '').trim(),
       fechaEvaluacion: fechaHoy,
       proveedores: items.map((item) => {
+        const puntajesRaw = (item?.puntajes && typeof item.puntajes === 'object')
+          ? item.puntajes as Record<string, unknown>
+          : {};
         const fila: SgcF29ProveedorItem = {
           id: String(item?.id || '').trim() || this.generarIdEvaluacionSgcF29(),
-          proveedor: String(item?.proveedor || '').trim(),
+          proveedor: this.textoConSaltosSgcF29(item?.proveedor).trim(),
+          accion: String(item?.accion || '').trim().slice(0, 160),
           referencia: String(item?.referencia || '').trim(),
           fecha: this.formatearFechaIsoSgcF29(item?.fecha) || fechaHoy,
-          entregaTiempo: this.parsearPuntajeSgcF29(item?.entregaTiempo),
-          entregaDomicilio: this.parsearPuntajeSgcF29(item?.entregaDomicilio),
-          precio: this.parsearPuntajeSgcF29(item?.precio),
-          pagoTransferencia: this.parsearPuntajeSgcF29(item?.pagoTransferencia),
-          servicio: this.parsearPuntajeSgcF29(item?.servicio),
-          calidad: this.parsearPuntajeSgcF29(item?.calidad),
-          calificacion: ''
+          entregaTiempo: this.parsearPuntajeSgcF29(item?.entregaTiempo ?? puntajesRaw['entregaTiempo'], 'entregaTiempo'),
+          entregaDomicilio: this.parsearPuntajeSgcF29(item?.entregaDomicilio ?? puntajesRaw['entregaDomicilio'], 'entregaDomicilio'),
+          precio: this.parsearPuntajeSgcF29(item?.precio ?? puntajesRaw['precio'], 'precio'),
+          pagoTransferencia: this.parsearPuntajeSgcF29(item?.pagoTransferencia ?? puntajesRaw['pagoTransferencia'], 'pagoTransferencia'),
+          servicio: this.parsearPuntajeSgcF29(item?.servicio ?? puntajesRaw['servicio'], 'servicio'),
+          calidad: this.parsearPuntajeSgcF29(item?.calidad ?? puntajesRaw['calidad'], 'calidad'),
+          puntajes: {},
+          criteriosUsados: Array.isArray(item?.criteriosUsados)
+            ? item.criteriosUsados.map((k: unknown) => String(k || '').trim()).filter(Boolean)
+            : [],
+          calificacion: '',
+          oculto: this.proveedorOcultoSgcF29(item),
+          evaluador: String(item?.evaluador || '').trim()
         };
+        for (const [k, raw] of Object.entries(puntajesRaw)) {
+          const v = this.parsearPuntajeSgcF29(raw, k);
+          if (v) fila.puntajes![k] = v;
+        }
+        this.sincronizarPuntajesFilaSgcF29(fila);
+        if (!fila.criteriosUsados?.length) {
+          const conScore = Object.keys(fila.puntajes || {}).filter((k) => fila.puntajes![k]);
+          fila.criteriosUsados = conScore.length
+            ? conScore
+            : this.sgcF29CriteriosSistemaDefault.map((c) => c.clave);
+        }
         const vals = this.criteriosPuntajeSgcF29(fila)
           .filter((v) => v !== '')
           .map(Number);
@@ -18021,6 +18439,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private cargarSgcF29DesdeServidor(): void {
     this.sgcF29Cargando = true;
     this.sgcF29Listo = false;
+    this.cargarCatalogoCriteriosSgcF29();
+    this.cargarCatalogoUsuariosSgcF29();
     this.backendService.cargarSgcF29Formato()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -18032,6 +18452,29 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
+  private cargarCatalogoUsuariosSgcF29(): void {
+    this.backendService.obtenerUsuarios()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          const usuarios: any[] = Array.isArray(res?.usuarios) ? res.usuarios : [];
+          const mapa = new Map<string, AthF11EmpleadoCatalogo>();
+          for (const u of usuarios) {
+            if (this.esPerfilEmpresaAthF11(u)) continue;
+            const item = this.mapearEmpleadoCatalogoAthF11(u);
+            if (!item.nombreCompleto) continue;
+            const key = this.normalizarTextoAthF11(item.nombreCompleto);
+            if (!mapa.has(key)) mapa.set(key, item);
+          }
+          this.sgcF29UsuariosCatalogo = Array.from(mapa.values())
+            .sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto, 'es'));
+        },
+        error: () => {
+          this.sgcF29UsuariosCatalogo = [];
+        }
+      });
+  }
+
   onSgcF29Editado(): void {
     if (!this.sgcF29Listo || this.sgcF29IgnorarAutoSave) {
       return;
@@ -18039,11 +18482,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF29CambiosPendientes = true;
   }
 
-  get sgcF29GruposVista(): SgcF29GrupoVista[] {
+  private agruparProveedoresSgcF29(soloOcultos: boolean): SgcF29GrupoVista[] {
     const lista = this.sgcF29Form?.proveedores || [];
     const orden: string[] = [];
     const mapa = new Map<string, number[]>();
     lista.forEach((fila, idx) => {
+      const oculto = this.proveedorOcultoSgcF29(fila);
+      if (oculto !== soloOcultos) {
+        return;
+      }
       const nombre = String(fila.proveedor || '').trim();
       const clave = nombre
         ? nombre.toLowerCase()
@@ -18064,6 +18511,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         multiple: indices.length > 1
       };
     });
+  }
+
+  get sgcF29GruposVista(): SgcF29GrupoVista[] {
+    return this.agruparProveedoresSgcF29(false);
+  }
+
+  get sgcF29GruposOcultos(): SgcF29GrupoVista[] {
+    return this.agruparProveedoresSgcF29(true);
   }
 
   get sgcF29ProveedorActivo(): SgcF29GrupoVista | null {
@@ -18149,7 +18604,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   valorCriterioSgcF29(fila: SgcF29ProveedorItem, campo: string): string {
-    return String((fila as any)?.[campo] ?? '');
+    if (!fila) return '';
+    if (this.esCampoSistemaSgcF29(campo)) {
+      return String((fila as any)?.[campo] ?? fila.puntajes?.[campo] ?? '');
+    }
+    return String(fila.puntajes?.[campo] ?? '');
   }
 
   setCriterioSgcF29(index: number, campo: string, valor: string): void {
@@ -18157,12 +18616,37 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!fila) {
       return;
     }
-    (fila as any)[campo] = valor;
+    this.marcarEvaluadorFilaSgcF29(index);
+    const limpio = this.parsearPuntajeSgcF29(valor, campo);
+    if (!fila.puntajes) fila.puntajes = {};
+    if (!Array.isArray(fila.criteriosUsados) || !fila.criteriosUsados.length) {
+      fila.criteriosUsados = this.sgcF29CriteriosSistemaDefault.map((c) => c.clave);
+    }
+    if (!fila.criteriosUsados.includes(campo)) {
+      fila.criteriosUsados = [...fila.criteriosUsados, campo];
+    }
+    if (this.esCampoSistemaSgcF29(campo)) {
+      (fila as any)[campo] = limpio;
+    }
+    if (limpio) {
+      fila.puntajes[campo] = limpio;
+    } else {
+      delete fila.puntajes[campo];
+    }
     this.recalcularCalificacionSgcF29(index);
   }
 
+  /** Convierte literales \\n / \\r\\n a saltos reales para mostrar en UI. */
+  textoConSaltosSgcF29(texto: string | null | undefined): string {
+    return String(texto ?? '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\\r\\n/g, '\n')
+      .replace(/\\n/g, '\n')
+      .replace(/\r/g, '\n');
+  }
+
   nombreProveedorLineasSgcF29(nombre: string): string {
-    const limpio = String(nombre || '').trim();
+    const limpio = this.textoConSaltosSgcF29(nombre).trim();
     if (!limpio) {
       return 'Sin nombre';
     }
@@ -18204,7 +18688,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   onNombreGrupoSgcF29Change(grupo: SgcF29GrupoVista, nombre: string): void {
-    const limpio = String(nombre || '');
+    const limpio = this.textoConSaltosSgcF29(nombre);
     const claveAntes = grupo.clave;
     for (const idx of grupo.indices) {
       const fila = this.sgcF29Form.proveedores[idx];
@@ -18221,6 +18705,101 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
   }
 
+  accionGrupoSgcF29(grupo: SgcF29GrupoVista): string {
+    const fila = this.filaSgcF29(grupo?.indices?.[0]);
+    return String(fila?.accion || '');
+  }
+
+  onAccionGrupoSgcF29Change(grupo: SgcF29GrupoVista, valor: string): void {
+    const limpio = String(valor || '').slice(0, 160);
+    for (const idx of grupo.indices || []) {
+      const fila = this.sgcF29Form.proveedores[idx];
+      if (fila) {
+        fila.accion = limpio;
+      }
+    }
+    this.onSgcF29Editado();
+  }
+
+  textoComboEvaluadorSgcF29(idx: number): string {
+    if (this.sgcF29EvaluadorComboIdx === idx) {
+      return this.sgcF29EvaluadorComboQuery;
+    }
+    return String(this.sgcF29Form.proveedores[idx]?.evaluador || '');
+  }
+
+  get evaluadoresFiltradosSgcF29(): AthF11EmpleadoCatalogo[] {
+    const query = this.normalizarTextoAthF11(this.sgcF29EvaluadorComboQuery);
+    if (!query) return this.sgcF29UsuariosCatalogo.slice(0, 40);
+    return this.sgcF29UsuariosCatalogo
+      .filter((e) => this.normalizarTextoAthF11(e.nombreCompleto).includes(query))
+      .slice(0, 40);
+  }
+
+  get textoLibreEvaluadorSgcF29(): string {
+    const q = String(this.sgcF29EvaluadorComboQuery || '').trim();
+    if (!q) return '';
+    const existe = this.sgcF29UsuariosCatalogo.some(
+      (e) => this.normalizarTextoAthF11(e.nombreCompleto) === this.normalizarTextoAthF11(q)
+    );
+    return existe ? '' : q;
+  }
+
+  abrirComboEvaluadorSgcF29(idx: number): void {
+    this.sgcF29EvaluadorComboIdx = idx;
+    this.sgcF29EvaluadorComboQuery = String(this.sgcF29Form.proveedores[idx]?.evaluador || '');
+    if (!this.sgcF29UsuariosCatalogo.length) {
+      this.cargarCatalogoUsuariosSgcF29();
+    }
+  }
+
+  onEvaluadorComboInputSgcF29(idx: number, valor: string): void {
+    this.sgcF29EvaluadorComboIdx = idx;
+    this.sgcF29EvaluadorComboQuery = String(valor || '');
+    const fila = this.sgcF29Form.proveedores[idx];
+    if (fila) {
+      fila.evaluador = this.sgcF29EvaluadorComboQuery;
+      this.onCampoEvalSgcF29(idx);
+    }
+  }
+
+  seleccionarEvaluadorSgcF29(idx: number, emp: AthF11EmpleadoCatalogo): void {
+    const fila = this.sgcF29Form.proveedores[idx];
+    if (!fila) return;
+    fila.evaluador = emp.nombreCompleto;
+    this.sgcF29EvaluadorComboQuery = emp.nombreCompleto;
+    this.sgcF29EvaluadorComboIdx = null;
+    this.onCampoEvalSgcF29(idx);
+  }
+
+  seleccionarEvaluadorLibreSgcF29(idx: number, nombre: string): void {
+    const fila = this.sgcF29Form.proveedores[idx];
+    if (!fila) return;
+    const limpio = String(nombre || '').trim().slice(0, 160);
+    fila.evaluador = limpio;
+    this.sgcF29EvaluadorComboQuery = limpio;
+    this.sgcF29EvaluadorComboIdx = null;
+    this.onCampoEvalSgcF29(idx);
+  }
+
+  limpiarEvaluadorSgcF29(idx: number): void {
+    const fila = this.sgcF29Form.proveedores[idx];
+    if (!fila) return;
+    fila.evaluador = '';
+    this.sgcF29EvaluadorComboQuery = '';
+    this.onCampoEvalSgcF29(idx);
+  }
+
+  cerrarComboEvaluadorSgcF29(): void {
+    if (this.sgcF29EvaluadorComboIdx != null) {
+      const fila = this.sgcF29Form.proveedores[this.sgcF29EvaluadorComboIdx];
+      if (fila) {
+        fila.evaluador = String(this.sgcF29EvaluadorComboQuery || fila.evaluador || '').trim().slice(0, 160);
+      }
+    }
+    this.sgcF29EvaluadorComboIdx = null;
+  }
+
   /** Nueva evaluación del mismo proveedor (otro contrato/servicio). */
   reevaluarProveedorSgcF29(index: number, event?: Event): void {
     event?.preventDefault();
@@ -18234,6 +18813,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     const nueva = this.crearFilaProveedorSgcF29Vacia();
     nueva.proveedor = origen.proveedor.trim();
+    nueva.accion = String(origen.accion || '').trim();
     nueva.referencia = '';
     nueva.fecha = this.fechaHoyIsoLocalSgcF29();
     const lista = [...(this.sgcF29Form.proveedores || [])];
@@ -18248,6 +18828,116 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     event?.stopPropagation();
     const ultimo = grupo.indices[grupo.indices.length - 1];
     this.reevaluarProveedorSgcF29(ultimo, event);
+  }
+
+  private async confirmarVisibilidadSgcF29(grupo: SgcF29GrupoVista, ocultar: boolean): Promise<boolean> {
+    const nombre = String(grupo?.proveedor || '').trim() || 'este proveedor';
+    const resultado = await Swal.fire({
+      title: ocultar ? 'Ocultar proveedor' : 'Restaurar proveedor',
+      text: ocultar
+        ? `${nombre} dejará de mostrarse en el sistema y dejará de contar en los gráficos. El registro se conserva.`
+        : `${nombre} volverá a mostrarse y sus evaluaciones contarán otra vez en los gráficos.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: ocultar ? 'Ocultar' : 'Restaurar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: ocultar ? '#b45309' : '#0f766e'
+    });
+    return !!resultado.isConfirmed;
+  }
+
+  private aplicarVisibilidadLocalSgcF29(grupo: SgcF29GrupoVista, oculto: boolean): void {
+    for (const idx of grupo.indices || []) {
+      const fila = this.sgcF29Form.proveedores[idx];
+      if (fila) {
+        fila.oculto = oculto;
+      }
+    }
+    if (oculto && this.sgcF29ProveedorSeleccionadoClave === grupo.clave) {
+      this.sgcF29ProveedorSeleccionadoClave = this.sgcF29GruposVista[0]?.clave || null;
+    }
+    if (!oculto) {
+      this.sgcF29ProveedorSeleccionadoClave = grupo.clave;
+    }
+    this.sgcDashboardCache.invalidar();
+  }
+
+  async ocultarGrupoSgcF29(grupo: SgcF29GrupoVista, event?: Event): Promise<void> {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!this.puedeOcultarProveedorSgcF29 || !grupo?.proveedor?.trim()) {
+      return;
+    }
+    if (this.sgcF29VisibilidadEnCurso) {
+      return;
+    }
+    const ok = await this.confirmarVisibilidadSgcF29(grupo, true);
+    if (!ok) {
+      return;
+    }
+    this.sgcF29VisibilidadEnCurso = grupo.clave;
+    this.backendService.establecerVisibilidadProveedorSgcF29(grupo.proveedor.trim(), true)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.aplicarVisibilidadLocalSgcF29(grupo, true);
+          this.sgcF29VisibilidadEnCurso = null;
+          void Swal.fire({
+            icon: 'success',
+            title: 'Proveedor oculto',
+            text: 'Ya no aparece en el sistema ni en los gráficos.',
+            timer: 1800,
+            showConfirmButton: false
+          });
+        },
+        error: (err) => {
+          this.sgcF29VisibilidadEnCurso = null;
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo ocultar',
+            text: err?.error?.message || 'Inténtalo de nuevo.'
+          });
+        }
+      });
+  }
+
+  async restaurarGrupoSgcF29(grupo: SgcF29GrupoVista, event?: Event): Promise<void> {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!this.puedeRestaurarProveedorSgcF29 || !grupo?.proveedor?.trim()) {
+      return;
+    }
+    if (this.sgcF29VisibilidadEnCurso) {
+      return;
+    }
+    const ok = await this.confirmarVisibilidadSgcF29(grupo, false);
+    if (!ok) {
+      return;
+    }
+    this.sgcF29VisibilidadEnCurso = grupo.clave;
+    this.backendService.establecerVisibilidadProveedorSgcF29(grupo.proveedor.trim(), false)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.aplicarVisibilidadLocalSgcF29(grupo, false);
+          this.sgcF29VisibilidadEnCurso = null;
+          void Swal.fire({
+            icon: 'success',
+            title: 'Proveedor restaurado',
+            text: 'Vuelve a mostrarse y a contar en los gráficos.',
+            timer: 1800,
+            showConfirmButton: false
+          });
+        },
+        error: (err) => {
+          this.sgcF29VisibilidadEnCurso = null;
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo restaurar',
+            text: err?.error?.message || 'Inténtalo de nuevo.'
+          });
+        }
+      });
   }
 
   conteoEvaluacionesProveedorSgcF29(nombre: string): number {
@@ -25205,8 +25895,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.sgcF06TipAbierto && !target?.closest('.sgc-f-06-table__col--nivel, .sgc-f-06-table__col--desempeno')) {
       this.cerrarTipSgcF06();
     }
-    if (this.sgcF29TipAbierto && !target?.closest('.sgc-f-29-table__col--score')) {
+    if (this.sgcF29TipAbierto
+      && !target?.closest('.sgc-f-29-table__col--score')
+      && !target?.closest('.sgc-f-29-libreta__criterios-legend')) {
       this.cerrarTipSgcF29();
+    }
+    if (this.sgcF29EvaluadorComboIdx != null && target && !target.closest('.sgc-f-29-eval-combo')) {
+      this.cerrarComboEvaluadorSgcF29();
     }
     if (target && !target.closest('.ath-f-08-combo')) {
       if (this.athF08CursoComboAbierto !== null) {
@@ -29983,7 +30678,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private subirPdfFirmadoAthF11(pdfBase64: string, nombreArchivo: string): void {
-    if (this.athF11SubiendoPdf || !this.athF11EvaluacionActiva) return;
+    if (this.athF11SubiendoPdf || !this.athF11EvaluacionActiva) {
+      this.cerrarModalSubidaPdfSgc();
+      return;
+    }
     this.athF11SubiendoPdf = true;
     this.backendService.subirPdfFirmadoAthF11(pdfBase64, nombreArchivo, this.athF11EvaluacionActiva.id)
       .pipe(takeUntil(this.destroy$))
@@ -29995,9 +30693,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
             this.athF11EvaluacionActiva.pdfFirmado = this.sanitizarPdfAthF11(res.pdfFirmado);
             this.sincronizarEvaluacionActivaEnFormAthF11();
           }
+          this.finalizarSubidaPdfSgc(true, nombreArchivo);
         },
         error: () => {
           this.athF11SubiendoPdf = false;
+          this.finalizarSubidaPdfSgc(false);
         }
       });
   }
@@ -31650,6 +32350,74 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return String(item?.proceso || '').trim() || 'Sin proceso';
   }
 
+  get sgcF11EvidenciasFila(): SgcF11Fila | null {
+    if (this.sgcF11EvidenciasFilaIdx == null) return null;
+    return this.sgcF11Form.filas[this.sgcF11EvidenciasFilaIdx] || null;
+  }
+
+  get tituloEvidenciasSgcF11(): string {
+    const fila = this.sgcF11EvidenciasFila;
+    if (!fila || this.sgcF11EvidenciasFilaIdx == null) {
+      return this.nombreArchiveroSgcF11(this.sgcF11EvidenciasAnalisis);
+    }
+    return this.etiquetaVisiblePuntoSgcF11(fila, this.sgcF11EvidenciasFilaIdx);
+  }
+
+  get carpetaVisibleEvidenciasSgcF11(): string {
+    const fila = this.sgcF11EvidenciasFila;
+    if (!fila || this.sgcF11EvidenciasFilaIdx == null) {
+      return this.nombreArchiveroSgcF11(this.sgcF11EvidenciasAnalisis);
+    }
+    const punto = String(fila.carpetaEvidencia || '').trim()
+      || this.etiquetaVisiblePuntoSgcF11(fila, this.sgcF11EvidenciasFilaIdx);
+    return `${this.nombreArchiveroSgcF11(this.sgcF11EvidenciasAnalisis)} / ${punto}`;
+  }
+
+  etiquetaVisiblePuntoSgcF11(fila: SgcF11Fila, index: number): string {
+    const n = index + 1;
+    const texto = String(fila?.modoFalla || fila?.etapa || fila?.efecto || '').trim();
+    return texto ? `Punto ${n} · ${texto}` : `Punto ${n}`;
+  }
+
+  private asegurarIdentidadPuntoSgcF11(fila: SgcF11Fila, index: number): void {
+    let cambio = false;
+    if (!String(fila.id || '').trim()) {
+      fila.id = this.nuevoIdSgcF11();
+      cambio = true;
+    }
+    if (!String(fila.carpetaEvidencia || '').trim()) {
+      const n = index + 1;
+      const texto = String(fila.modoFalla || fila.etapa || '')
+        .trim()
+        .replace(/[/\\?%*:|"<>]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .slice(0, 40);
+      fila.carpetaEvidencia = texto ? `Punto ${n} - ${texto}` : `Punto ${n}`;
+      cambio = true;
+    }
+    if (cambio) {
+      this.onSgcF11Editado();
+    }
+  }
+
+  abrirEvidenciasFilaSgcF11(index: number, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const fila = this.sgcF11Form.filas[index];
+    if (!fila) return;
+    this.asegurarIdentidadPuntoSgcF11(fila, index);
+    this.volcarEditorEnAnalisisSgcF11();
+    const id = this.sgcF11Archivo.analisisActivoId;
+    const item = (this.sgcF11Archivo.analisis || []).find((row) => row.id === id) || null;
+    this.sgcF11EvidenciasAnalisis = item;
+    this.sgcF11EvidenciasFilaIdx = index;
+    this.sgcF11EvidenciasModalAbierto = true;
+    this.sgcF11EvidenciasFiltro = 'todo';
+    this.sgcF11EvidenciasBusqueda = '';
+    this.sgcF11EvidCarpetasMenu = false;
+    this.cargarEvidenciasSgcF11();
+  }
+
   abrirEvidenciasEditorSgcF11(event?: Event): void {
     event?.preventDefault();
     event?.stopPropagation();
@@ -31665,6 +32433,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     event?.stopPropagation();
     if (!item?.id) return;
     this.sgcF11EvidenciasAnalisis = item;
+    this.sgcF11EvidenciasFilaIdx = null;
     this.sgcF11EvidenciasModalAbierto = true;
     this.sgcF11EvidenciasFiltro = 'todo';
     this.sgcF11EvidenciasBusqueda = '';
@@ -31676,6 +32445,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.liberarMiniaturasEvidenciasSgcF11();
     this.sgcF11EvidenciasModalAbierto = false;
     this.sgcF11EvidenciasAnalisis = null;
+    this.sgcF11EvidenciasFilaIdx = null;
     this.sgcF11EvidenciasDocs = [];
     this.sgcF11EvidenciasCargando = false;
     this.sgcF11EvidenciasSubiendo = false;
@@ -31695,7 +32465,20 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }).length;
   }
 
-  conteoEvidenciasAnalisisSgcF11(item?: { id?: string } | null): number {
+  conteoEvidenciasFilaSgcF11(fila?: { id?: string } | null): number {
+    const clave = String(fila?.id || '').trim();
+    if (!clave) return 0;
+    return this.sgcF11EvidenciasConteos[clave] || 0;
+  }
+
+  /** Suma de evidencias de los puntos, más las que siguen en la carpeta general. */
+  conteoEvidenciasAnalisisSgcF11(item?: { id?: string; filas?: SgcF11Fila[] } | null): number {
+    if (!item) return 0;
+    const puntos = (item.filas || []).reduce((sum, fila) => sum + this.conteoEvidenciasFilaSgcF11(fila), 0);
+    return puntos + (this.sgcF11EvidenciasConteos[String(item.id || '').trim()] || 0);
+  }
+
+  conteoEvidenciasGeneralesSgcF11(item?: { id?: string } | null): number {
     const clave = String(item?.id || '').trim();
     if (!clave) return 0;
     return this.sgcF11EvidenciasConteos[clave] || 0;
@@ -31718,7 +32501,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private refrescarConteosEvidenciasSgcF11(): void {
-    const ids = (this.sgcF11Archivo.analisis || []).map((item) => String(item.id || '').trim()).filter(Boolean);
+    const ids = (this.sgcF11Archivo.analisis || []).flatMap((item) => {
+      const filas = (item.filas || []).map((fila) => String(fila.id || '').trim());
+      return [String(item.id || '').trim(), ...filas];
+    }).filter(Boolean);
     if (!ids.length) {
       this.sgcF11EvidenciasConteos = {};
       return;
@@ -31734,13 +32520,21 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private cargarEvidenciasSgcF11(): void {
+    const fila = this.sgcF11EvidenciasFila;
     const item = this.sgcF11EvidenciasAnalisis;
-    const analisisId = String(item?.id || '').trim();
-    if (!analisisId) return;
+    const porPunto = !!fila?.id;
+    const clave = porPunto ? String(fila.id).trim() : String(item?.id || '').trim();
+    if (!clave) return;
     this.sgcF11EvidenciasCargando = true;
-    this.backendService.listarEvidenciasSgcF11(analisisId, {
-      nombre_proyecto: this.nombreArchiveroSgcF11(item)
-    }).pipe(takeUntil(this.destroy$)).subscribe({
+    const consulta = porPunto
+      ? this.backendService.listarEvidenciasSgcF11(clave, {
+        nombre_proyecto: String(fila.carpetaEvidencia || '').trim(),
+        carpeta_padre: this.nombreArchiveroSgcF11(item)
+      })
+      : this.backendService.listarEvidenciasSgcF11(clave, {
+        nombre_proyecto: this.nombreArchiveroSgcF11(item)
+      });
+    consulta.pipe(takeUntil(this.destroy$)).subscribe({
       next: (res) => {
         this.sgcF11EvidenciasCargando = false;
         this.sgcF11EvidenciasDocs = Array.isArray(res?.documentos)
@@ -31748,7 +32542,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           : [];
         this.sgcF11EvidenciasConteos = {
           ...this.sgcF11EvidenciasConteos,
-          [analisisId]: this.sgcF11EvidenciasDocs.length
+          [clave]: this.sgcF11EvidenciasDocs.length
         };
         void this.precargarMiniaturasEvidenciasSgcF11(this.sgcF11EvidenciasDocs);
       },
@@ -31787,15 +32581,38 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF11CarpetaInput?.nativeElement?.click();
   }
 
+  private destinoEvidenciaSgcF11(): {
+    proyectoId: string;
+    nombreProyecto: string;
+    carpetaPadre?: string;
+    etiqueta: string;
+  } | null {
+    const fila = this.sgcF11EvidenciasFila;
+    const item = this.sgcF11EvidenciasAnalisis;
+    if (fila?.id && this.sgcF11EvidenciasFilaIdx != null) {
+      const punto = String(fila.carpetaEvidencia || '').trim() || `Punto ${this.sgcF11EvidenciasFilaIdx + 1}`;
+      const padre = this.nombreArchiveroSgcF11(item);
+      return {
+        proyectoId: fila.id,
+        nombreProyecto: punto,
+        carpetaPadre: padre,
+        etiqueta: `${padre} / ${punto}`
+      };
+    }
+    if (!item?.id) return null;
+    const nombre = this.nombreArchiveroSgcF11(item);
+    return { proyectoId: item.id, nombreProyecto: nombre, etiqueta: nombre };
+  }
+
   async crearCarpetaEvidenciaSgcF11(): Promise<void> {
     this.sgcF11EvidCarpetasMenu = false;
-    const item = this.sgcF11EvidenciasAnalisis;
-    if (!item?.id) return;
-    const destino = this.nombreArchiveroSgcF11(item);
+    const destinoInfo = this.destinoEvidenciaSgcF11();
+    if (!destinoInfo) return;
+    const destino = destinoInfo.etiqueta;
     const { value: nombre } = await Swal.fire({
       title: 'Nueva carpeta',
       input: 'text',
-      inputLabel: 'Nombre de la carpeta dentro de las evidencias de este análisis',
+      inputLabel: 'Nombre de la carpeta dentro de las evidencias de este punto',
       inputPlaceholder: 'Ej. Planos, Actas, Fotos…',
       showCancelButton: true,
       confirmButtonText: 'Crear',
@@ -31810,8 +32627,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     });
     if (!nombre) return;
     this.backendService.crearCarpetaEvidenciaSgcF11({
-      proyecto_id: item.id,
-      nombre_proyecto: destino,
+      proyecto_id: destinoInfo.proyectoId,
+      nombre_proyecto: destinoInfo.nombreProyecto,
+      ...(destinoInfo.carpetaPadre ? { carpeta_padre: destinoInfo.carpetaPadre } : {}),
       nombre: String(nombre).trim()
     }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (res) => {
@@ -31863,8 +32681,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private async subirArchivosEvidenciaSgcF11(files: File[], desdeCarpeta = false): Promise<void> {
-    const item = this.sgcF11EvidenciasAnalisis;
-    if (!item?.id || !files.length || this.sgcF11EvidenciasSubiendo) return;
+    const destinoInfo = this.destinoEvidenciaSgcF11();
+    if (!destinoInfo || !files.length || this.sgcF11EvidenciasSubiendo) return;
     if (files.length > 20) {
       void Swal.fire({
         toast: true,
@@ -31876,7 +32694,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
     }
     const lote = files.slice(0, 20);
-    const destino = this.nombreArchiveroSgcF11(item);
+    const destino = destinoInfo.etiqueta;
     this.sgcF11EvidenciasSubiendo = true;
     this.sgcF11EvidenciasProgreso = 2;
     this.sgcF11EvidenciasProgresoEtiqueta = desdeCarpeta
@@ -31915,8 +32733,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.sgcF11EvidenciasProgreso = Math.max(this.sgcF11EvidenciasProgreso, 48);
       this.sgcF11EvidenciasProgresoEtiqueta = 'Subiendo a Google Drive…';
       this.backendService.subirEvidenciasLoteSgcF11Eventos({
-        proyecto_id: item.id,
-        nombre_proyecto: destino,
+        proyecto_id: destinoInfo.proyectoId,
+        nombre_proyecto: destinoInfo.nombreProyecto,
+        ...(destinoInfo.carpetaPadre ? { carpeta_padre: destinoInfo.carpetaPadre } : {}),
         archivos
       }).pipe(takeUntil(this.destroy$)).subscribe({
         next: (event) => {
@@ -34132,8 +34951,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!bloquearFormulario && res.datos) {
       this.sgcF11IgnorarAutoSave = true;
       this.sgcF11Listo = false;
+      this.sgcF11IdsFilaNuevos = false;
       const d = res.datos;
       const analisis = this.normalizarAnalisisSgcF11(d);
+      this.conservarIdsLocalesSgcF11(analisis);
       this.sgcF11Archivo = {
         analisis,
         analisisActivoId: d.analisisActivoId || analisis[0]?.id || null
@@ -34187,6 +35008,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }
       this.autosizeTextareasSgcF11();
       this.refrescarConteosEvidenciasSgcF11();
+      if (this.sgcF11IdsFilaNuevos && !this.sgcF11IdsPersistidosIntento) {
+        this.sgcF11IdsFilaNuevos = false;
+        this.sgcF11IdsPersistidosIntento = true;
+        this.sgcF11CambiosPendientes = true;
+      }
     }, editorAbierto ? 0 : 350);
   }
 
@@ -35744,6 +36570,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   private crearFilaSgcF11Vacia(): SgcF11Fila {
     return {
+      id: this.nuevoIdSgcF11(),
+      carpetaEvidencia: '',
       operacion: '',
       etapa: '',
       modoFalla: '',
@@ -35773,8 +36601,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const ocurrenciaPost = this.escalaAmefSgcF11(fila.ocurrenciaPost);
     const severidadPost = this.escalaAmefSgcF11(fila.severidadPost);
     const deteccionPost = this.escalaAmefSgcF11(fila.deteccionPost);
+    const idPrevio = String(fila?.id || '').trim();
+    if (!idPrevio) {
+      this.sgcF11IdsFilaNuevos = true;
+    }
     return {
       ...fila,
+      id: idPrevio || this.nuevoIdSgcF11(),
+      carpetaEvidencia: String(fila?.carpetaEvidencia || '').trim(),
       ocurrencia,
       severidad,
       deteccion,
@@ -35785,6 +36619,30 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       rpn: this.normalizarValorRpn(fila.rpn, ocurrencia, severidad, deteccion),
       rpnPost: this.normalizarValorRpn(fila.rpnPost, ocurrenciaPost, severidadPost, deteccionPost)
     };
+  }
+
+  /** Si el servidor aún no devuelve el id del punto, se conserva el de esta sesión. */
+  private conservarIdsLocalesSgcF11(lista: SgcF11Analisis[]): void {
+    const previas = new Map(
+      (this.sgcF11Archivo?.analisis || []).map((item) => [item.id, item.filas || []])
+    );
+    for (const item of lista) {
+      const antes = previas.get(item.id) || [];
+      item.filas.forEach((fila, index) => {
+        const previa = antes[index];
+        if (!previa?.id || fila.id === previa.id) {
+          if (previa && !String(fila.carpetaEvidencia || '').trim() && previa.carpetaEvidencia) {
+            fila.carpetaEvidencia = previa.carpetaEvidencia;
+          }
+          return;
+        }
+        fila.id = previa.id;
+        if (!String(fila.carpetaEvidencia || '').trim() && previa.carpetaEvidencia) {
+          fila.carpetaEvidencia = previa.carpetaEvidencia;
+        }
+        this.sgcF11IdsFilaNuevos = false;
+      });
+    }
   }
 
   private normalizarFilasSgcF11(filas: SgcF11Fila[]): SgcF11Fila[] {

@@ -276,7 +276,10 @@ function sanitizarFila(raw) {
     const rpnCalc = calcularRpn(ocurrencia, severidad, deteccion);
     const rpnPostCalc = calcularRpn(ocurrenciaPost, severidadPost, deteccionPost);
 
+    const idFila = String(base.id || '').trim().slice(0, 64);
     return {
+        id: idFila || nuevoIdAnalisis(),
+        carpetaEvidencia: String(base.carpetaEvidencia || '').trim().slice(0, 180),
         operacion: String(base.operacion || '').trim(),
         etapa: String(base.etapa || '').trim(),
         modoFalla: String(base.modoFalla || '').trim(),

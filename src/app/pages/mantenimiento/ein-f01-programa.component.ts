@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 import { BackendServices } from 'src/app/services/backend.services';
 import {
@@ -30,6 +31,7 @@ import {
   cargarDriveState,
   guardarDriveState
 } from './mantenimiento-excel-sync.catalog';
+import { exportarProgramaInfraestructuraPdf } from './ein-f01-programa-pdf';
 
 const STORAGE_KEY = 'biznaga:ein-f01:programa';
 const COLLAPSE_KEY = 'biznaga:ein-f01:secciones';
@@ -62,6 +64,7 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
   guardadoLocal = false;
   mensajeEstado = '';
   guardandoDrive = false;
+  exportandoPdf = false;
   editorDriveAbierto = false;
   editorDriveCargando = false;
   driveSpreadsheetId = '';
@@ -76,6 +79,11 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
   private abrirEditorTrasGuardar = false;
   private pendingTextareaResize = false;
   private textareasSub: { unsubscribe(): void } | null = null;
+  ejemploInterno = true;
+  ejemploCursor = false;
+  ejemploPresion = false;
+  private demoActiva = false;
+  private demoTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** true = expandido */
   seccionAbierta: Record<MtSeccionId, boolean> = {
@@ -96,6 +104,8 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
     this.cargarColapso();
     this.recalcularIndicadores();
     this.pendingTextareaResize = true;
+    this.cargarDesdeExcel();
+    this.iniciarDemoInterno();
     const panel = (this.route.snapshot.queryParamMap.get('panel') || '').toLowerCase();
     if (panel === 'bitacora' || panel === 'solicitudes' || panel === 'solicitud' || panel === 'f02' || panel === 'f03') {
       this.abrirYScroll('f03');
@@ -122,7 +132,67 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
     this.programarAjusteTextareas();
   }
 
+  alternarEjemploInterno(): void {
+    this.ejemploInterno = !this.ejemploInterno;
+  }
+
+  private iniciarDemoInterno(): void {
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+    this.demoActiva = true;
+    this.pasoDemoInterno();
+  }
+
+  private detenerDemoInterno(): void {
+    this.demoActiva = false;
+    if (this.demoTimer) {
+      clearTimeout(this.demoTimer);
+      this.demoTimer = null;
+    }
+  }
+
+  private pasoDemoInterno(): void {
+    if (!this.demoActiva) {
+      return;
+    }
+    this.ejemploCursor = false;
+    this.ejemploPresion = false;
+    this.demoTimer = setTimeout(() => {
+      if (!this.demoActiva) {
+        return;
+      }
+      this.ejemploCursor = true;
+      this.demoTimer = setTimeout(() => {
+        if (!this.demoActiva) {
+          return;
+        }
+        this.ejemploPresion = true;
+        this.demoTimer = setTimeout(() => {
+          if (!this.demoActiva) {
+            return;
+          }
+          this.ejemploInterno = !this.ejemploInterno;
+          this.demoTimer = setTimeout(() => {
+            if (!this.demoActiva) {
+              return;
+            }
+            this.ejemploPresion = false;
+            this.demoTimer = setTimeout(() => {
+              if (!this.demoActiva) {
+                return;
+              }
+              this.ejemploCursor = false;
+              this.demoTimer = setTimeout(() => this.pasoDemoInterno(), 800);
+            }, 1100);
+          }, 420);
+        }, 180);
+      }, 520);
+    }, 360);
+  }
+
   ngOnDestroy(): void {
+    this.detenerDemoInterno();
     this.textareasSub?.unsubscribe();
     this.textareasSub = null;
     if (this.resizeTimer) {
@@ -175,7 +245,9 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
           });
         }
         if (!silencioso) {
-          this.flash('Información guardada en Excel/Drive.');
+          this.flash(reporte?.hoja
+            ? `Información guardada en la hoja ${reporte.hoja}.`
+            : 'Información guardada en Excel/Drive.');
         }
         if (this.abrirEditorTrasGuardar) {
           this.abrirEditorTrasGuardar = false;
@@ -190,6 +262,34 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
         }
       }
     });
+  }
+
+  async exportarPdf(): Promise<void> {
+    if (this.exportandoPdf) {
+      return;
+    }
+    this.exportandoPdf = true;
+    try {
+      const res = await firstValueFrom(this.backend.leerProgramaMantenimientoF01());
+      const programa = res?.programa;
+      const filas = Array.isArray(programa?.filas) ? programa.filas : [];
+      if (!filas.length) {
+        this.flash('La plantilla de Excel no tiene filas para exportar.');
+        return;
+      }
+      const meta = { ...this.meta, ...(programa.meta || {}) };
+      await exportarProgramaInfraestructuraPdf(meta, filas);
+      this.flash('PDF generado desde la plantilla de Excel.');
+    } catch (err: any) {
+      if (err?.status === 404) {
+        this.flash('Reinicia el backend para leer la plantilla de Excel.');
+        return;
+      }
+      const mensaje = typeof err?.error?.message === 'string' ? err.error.message : '';
+      this.flash(mensaje || 'No se pudo leer la plantilla de Excel.');
+    } finally {
+      this.exportandoPdf = false;
+    }
   }
 
   abrirEditorIntegrado(): void {
@@ -209,9 +309,9 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
     this.editorDriveCargando = false;
     document.body.classList.remove('mt-drive-editor-open');
     document.body.style.overflow = '';
-    if (this.pendingDriveSave) {
-      this.programarAutoGuardadoDrive();
-    }
+    this.cancelarAutoGuardadoDrive();
+    this.pendingDriveSave = false;
+    this.cargarDesdeExcel();
   }
 
   onEditorIframeLoad(): void {
@@ -462,6 +562,55 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
     }
   }
 
+  private cargandoExcel = false;
+
+  private async cargarDesdeExcel(): Promise<void> {
+    if (this.cargandoExcel) {
+      return;
+    }
+    this.cargandoExcel = true;
+    this.mensajeEstado = 'Cargando plantilla de Excel…';
+    try {
+      const res = await firstValueFrom(this.backend.leerProgramaMantenimientoF01());
+      const programa = res?.programa;
+      const filas = Array.isArray(programa?.filas) ? programa.filas : [];
+      if (!filas.length) {
+        this.flash('La plantilla de Excel no tiene filas.');
+        return;
+      }
+      if (this.pendingDriveSave) {
+        if (this.mensajeEstado === 'Cargando plantilla de Excel…') {
+          this.mensajeEstado = '';
+        }
+        return;
+      }
+      const anio = Number(programa?.meta?.anio || programa?.anio) || this.meta.anio;
+      this.meta = { ...metaInicialEinF01(anio), ...(programa.meta || {}) };
+      this.filas = filas.map((fila: InfraestructuraFila, i: number) => ({
+        id: String(fila?.id || `excel-${i + 1}`),
+        infraestructura: String(fila?.infraestructura || ''),
+        responsable: String(fila?.responsable || ''),
+        tipo: fila?.tipo === 'Ext' ? 'Ext' : 'Int',
+        programado: normalizarProgramado(fila?.programado as Record<string, unknown>)
+      }));
+      this.recalcularIndicadores();
+      this.persistir(false);
+      this.cancelarAutoGuardadoDrive();
+      this.pendingDriveSave = false;
+      this.programarAjusteTextareas();
+      this.flash('Programa cargado desde Excel.');
+    } catch (err: any) {
+      if (err?.status === 404) {
+        this.flash('Reinicia el backend para cargar la plantilla de Excel en pantalla.');
+        return;
+      }
+      const mensaje = typeof err?.error?.message === 'string' ? err.error.message : '';
+      this.flash(mensaje || 'No se pudo leer la plantilla de Excel.');
+    } finally {
+      this.cargandoExcel = false;
+    }
+  }
+
   private cargarDrive(): void {
     this.driveSpreadsheetId = EIN_F01_TEMPLATE_ID;
     const st = cargarDriveState(STORAGE_KEY_F01_DRIVE);
@@ -615,13 +764,17 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
     }
   }
 
-  private persistir(): void {
+  private persistir(avisar = true): void {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ meta: this.meta, filas: this.filas }));
       this.guardadoLocal = true;
-      this.flash('Cambios guardados en este navegador.');
+      if (avisar) {
+        this.flash('Cambios guardados en este navegador.');
+      }
     } catch {
-      this.flash('No se pudo guardar localmente.');
+      if (avisar) {
+        this.flash('No se pudo guardar localmente.');
+      }
     }
   }
 

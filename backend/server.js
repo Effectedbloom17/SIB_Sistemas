@@ -2812,6 +2812,18 @@ function esGestorCalidadSgc(req) {
     return username === 'sergio56' || username === 'calidad';
 }
 
+function esSuperusuarioSgc(req) {
+    const userRoles = Array.isArray(req.user?.roles)
+        ? req.user.roles.map((r) => String(r).toLowerCase())
+        : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+    return userRoles.includes('root');
+}
+
+/** SGC-F-29: ocultar proveedores — Sergio (calidad) o superusuario (root). */
+function puedeOcultarProveedorF29(req) {
+    return esSuperusuarioSgc(req) || esGestorCalidadSgc(req);
+}
+
 /** DG-F-04: solo super administrador (root) o Calidad pueden cambiar la fecha de elaboración. */
 function puedeEditarFechaElaboracionDgF04(req) {
     const userRoles = Array.isArray(req.user?.roles)
@@ -20492,6 +20504,25 @@ app.get(
     }
 );
 
+app.get(
+    '/api/mantenimiento/programa-f01',
+    authMiddleware,
+    denyEmpresa,
+    requireAdminOrMantenimiento,
+    async (req, res) => {
+        try {
+            const programa = await mantenimientoService.leerProgramaEinF01();
+            res.json({ success: true, programa });
+        } catch (error) {
+            console.error('[mantenimiento] leer programa F01:', error);
+            res.status(500).json({
+                success: false,
+                message: error.message || 'No se pudo leer la plantilla EIN-F-01'
+            });
+        }
+    }
+);
+
 app.post(
     '/api/mantenimiento/programa-f01/guardar',
     authMiddleware,
@@ -25815,10 +25846,37 @@ function responderErrorSeguridadAsignacion(res, error, fallback) {
 app.get('/api/seguridad/asignacion/estado', authMiddleware, denyEmpresa, async (req, res) => {
     try {
         await poolNormativasReady;
-        const estado = await seguridadAsignacionService.obtenerEstado(poolNormativas, req.query.empresa_id);
+        const estado = await seguridadAsignacionService.obtenerEstado(
+            poolNormativas,
+            req.query.empresa_id,
+            req.query.anio,
+            req.user
+        );
         res.json({ success: true, ...estado });
     } catch (error) {
         responderErrorSeguridadAsignacion(res, error, 'Error al recuperar la asignación');
+    }
+});
+
+app.get('/api/seguridad/asignacion/historial', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const empresaId = req.query.empresa_id;
+        if (req.query.anio) {
+            const detalle = await seguridadAsignacionService.obtenerHistorialDetalle(
+                poolNormativas,
+                empresaId,
+                req.query.anio
+            );
+            return res.json({ success: true, historial: detalle });
+        }
+        const historiales = await seguridadAsignacionService.listarHistorialEmpresa(
+            poolNormativas,
+            empresaId
+        );
+        res.json({ success: true, historiales });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al consultar el historial de asignaciones');
     }
 });
 
@@ -25894,7 +25952,7 @@ app.delete('/api/seguridad/asignacion/documentos/:docId', authMiddleware, denyEm
 app.get('/api/seguridad/asignacion/empresas', authMiddleware, denyEmpresa, async (req, res) => {
     try {
         await poolNormativasReady;
-        const empresas = await seguridadAsignacionService.listarEmpresasGestion(poolNormativas);
+        const empresas = await seguridadAsignacionService.listarEmpresasGestion(poolNormativas, req.user);
         res.json({ success: true, empresas });
     } catch (error) {
         responderErrorSeguridadAsignacion(res, error, 'Error al listar empresas en gestión');
@@ -25907,7 +25965,8 @@ app.get('/api/seguridad/asignacion/empresas/:empresaId', authMiddleware, denyEmp
         const detalle = await seguridadAsignacionService.obtenerEmpresaGestion(
             poolNormativas,
             req.params.empresaId,
-            req.query.categoria_id
+            req.query.categoria_id,
+            req.user
         );
         res.json({ success: true, ...detalle });
     } catch (error) {
@@ -25920,7 +25979,8 @@ app.get('/api/seguridad/asignacion', authMiddleware, denyEmpresa, async (req, re
         await poolNormativasReady;
         const asignaciones = await seguridadAsignacionService.listarGestion(
             poolNormativas,
-            req.query.empresa_id
+            req.query.empresa_id,
+            req.user
         );
         res.json({ success: true, asignaciones });
     } catch (error) {
@@ -25931,7 +25991,11 @@ app.get('/api/seguridad/asignacion', authMiddleware, denyEmpresa, async (req, re
 app.get('/api/seguridad/asignacion/:id', authMiddleware, denyEmpresa, async (req, res) => {
     try {
         await poolNormativasReady;
-        const detalle = await seguridadAsignacionService.obtenerGestion(poolNormativas, req.params.id);
+        const detalle = await seguridadAsignacionService.obtenerGestion(
+            poolNormativas,
+            req.params.id,
+            req.user
+        );
         res.json({ success: true, ...detalle });
     } catch (error) {
         responderErrorSeguridadAsignacion(res, error, 'Error al abrir la normativa asignada');
@@ -25945,7 +26009,8 @@ app.put('/api/seguridad/asignacion/:id/puntos/:requisitoId', authMiddleware, den
             poolNormativas,
             req.params.id,
             req.params.requisitoId,
-            req.body || {}
+            req.body || {},
+            req.user
         );
         res.json({ success: true, message: 'Punto actualizado.', ...detalle });
     } catch (error) {
@@ -26158,6 +26223,7 @@ const sgcAthF09Service = require('./sgcAthF09Service');
 const sgcAthF07Service = require('./sgcAthF07Service');
 const sgcAthF11Service = require('./sgcAthF11Service');
 const sgcControlProyectosService = require('./sgcControlProyectosService');
+const controlProyectosCambiosService = require('./controlProyectosCambiosService');
 const controlProyectosAdjuntosService = require('./controlProyectosAdjuntosService');
 const sgcSgcF06Service = require('./sgcSgcF06Service');
 const sgcSgcF18Service = require('./sgcSgcF18Service');
@@ -26824,6 +26890,137 @@ app.post('/api/control-proyectos/proyectos/desactivar', denyEmpresa, requireDesa
         handleError(res, error, 'No se pudo desactivar el proyecto');
     }
 });
+
+app.get('/api/control-proyectos/cambios', requireRole('administrador', 'instructor'), async (req, res) => {
+    try {
+        const filtro = filtroEmpresaIdControlProyectos(req, req.query.empresaId);
+        if (filtro.error) {
+            return res.status(403).json({ success: false, message: filtro.error });
+        }
+        await poolBiznagaSgcReady;
+        const cambios = await controlProyectosCambiosService.listar(poolBiznagaSgc, {
+            empresaId: filtro.empresaId,
+            folio: req.query.folio,
+            nombreProyecto: req.query.nombreProyecto
+        });
+        return res.json({ success: true, cambios });
+    } catch (error) {
+        if (error.statusCode === 400) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo cargar el control de cambios del proyecto');
+    }
+});
+
+app.post('/api/control-proyectos/cambios/guardar', requireRole('administrador', 'instructor'), async (req, res) => {
+    try {
+        const filtro = filtroEmpresaIdControlProyectos(req, req.body?.empresaId);
+        if (filtro.error) {
+            return res.status(403).json({ success: false, message: filtro.error });
+        }
+        await poolBiznagaSgcReady;
+        const roles = Array.isArray(req.user?.roles) ? req.user.roles : [];
+        const esRoot = roles.some((rol) => String(rol).toLowerCase() === 'root')
+            || String(req.user?.rol || '').toLowerCase() === 'root';
+        const cambios = await controlProyectosCambiosService.guardar(poolBiznagaSgc, {
+            empresaId: filtro.empresaId,
+            folio: req.body?.folio,
+            nombreProyecto: req.body?.nombreProyecto,
+            cambios: req.body?.cambios,
+            usuarioNombre: obtenerNombreUsuarioAccion(req),
+            usuarioId: Number(req.user?.id || 0),
+            fechaHora: obtenerFechaHoraMexicoMySQL(),
+            esRoot,
+            poolUsuarios: pool
+        });
+        return res.json({
+            success: true,
+            message: 'Control de cambios guardado.',
+            cambios
+        });
+    } catch (error) {
+        if (error.statusCode === 400) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo guardar el control de cambios del proyecto');
+    }
+});
+
+app.get('/api/control-proyectos/cambios/bandeja', async (req, res) => {
+    try {
+        if (!controlProyectosCambiosService.usuarioPuedeResolver(req.user)) {
+            return res.status(403).json({ success: false, message: 'No puedes consultar las solicitudes de cambio.' });
+        }
+        await poolBiznagaSgcReady;
+        const solicitudes = await controlProyectosCambiosService.listarBandeja(poolBiznagaSgc);
+        return res.json({ success: true, solicitudes });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron cargar las solicitudes de cambio');
+    }
+});
+
+app.get('/api/control-proyectos/cambios/avisos', async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const avisos = await controlProyectosCambiosService.listarAvisos(poolBiznagaSgc, req.user?.username);
+        return res.json({ success: true, avisos });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron cargar los avisos de cambio');
+    }
+});
+
+app.post('/api/control-proyectos/cambios/avisos/:id/descartar', async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await controlProyectosCambiosService.descartarAviso(poolBiznagaSgc, req.params.id, req.user?.username);
+        return res.json({ success: true });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cerrar el aviso de cambio');
+    }
+});
+
+app.post('/api/control-proyectos/cambios/resolver', async (req, res) => {
+    try {
+        const filtro = filtroEmpresaIdControlProyectos(req, req.body?.empresaId);
+        if (filtro.error) {
+            return res.status(403).json({ success: false, message: filtro.error });
+        }
+        await poolBiznagaSgcReady;
+        const cambios = await controlProyectosCambiosService.resolver(poolBiznagaSgc, {
+            user: req.user,
+            empresaId: filtro.empresaId,
+            folio: req.body?.folio,
+            nombreProyecto: req.body?.nombreProyecto,
+            cambioId: req.body?.cambioId,
+            decision: req.body?.decision,
+            usuarioNombre: obtenerNombreUsuarioAccion(req),
+            fechaHora: obtenerFechaHoraMexicoMySQL(),
+            poolUsuarios: pool
+        });
+        return res.json({ success: true, cambios });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 403 || error.statusCode === 409) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo resolver la solicitud de cambio');
+    }
+});
+
+function iniciarRecordatoriosCambiosProyecto() {
+    const ejecutar = async () => {
+        try {
+            await poolBiznagaSgcReady;
+            await poolReady;
+            await controlProyectosCambiosService.procesarRecordatorios(poolBiznagaSgc, pool);
+        } catch (error) {
+            console.warn('[cambios] No se pudieron preparar los recordatorios:', error.message);
+        }
+    };
+    setTimeout(ejecutar, 25 * 1000);
+    setInterval(ejecutar, 15 * 60 * 1000);
+}
+
+iniciarRecordatoriosCambiosProyecto();
 
 /** Soft-deleted: solo Super Administrador (root). */
 app.get('/api/control-proyectos/eliminados', requireRole('root'), async (req, res) => {
@@ -29084,6 +29281,85 @@ app.get('/api/sgc/formatos/sgc-f-27/descargar-pdf', requireAdminOrSgc, async (re
         return res.send(pdfBuffer);
     } catch (error) {
         handleError(res, error, 'No se pudo descargar el PDF de SGC-F-27');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-29/ocultos', requireAdminOrSgc, async (req, res) => {
+    try {
+        if (!esSuperusuarioSgc(req)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Solo el superusuario puede ver los proveedores ocultos.'
+            });
+        }
+        await poolBiznagaSgcReady;
+        const payload = await sgcF29Service.listarProveedoresOcultos(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron consultar los proveedores ocultos');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-29/visibilidad', requireAdminOrSgc, async (req, res) => {
+    try {
+        const ocultar = req.body?.oculto === true || req.body?.oculto === 'true' || req.body?.oculto === 1;
+        if (ocultar && !puedeOcultarProveedorF29(req)) {
+            return res.status(403).json({
+                success: false,
+                message: 'No tienes permiso para ocultar proveedores.'
+            });
+        }
+        if (!ocultar && !esSuperusuarioSgc(req)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Solo el superusuario puede restaurar proveedores.'
+            });
+        }
+        await poolBiznagaSgcReady;
+        await sgcF29Service.establecerVisibilidadProveedor(
+            poolBiznagaSgc,
+            req.body?.proveedor,
+            ocultar
+        );
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: ocultar
+                ? 'Proveedor oculto. Ya no entra en los gráficos.'
+                : 'Proveedor restaurado. Vuelve a contar en los gráficos.'
+        });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 404) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo actualizar la visibilidad del proveedor');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-29/criterios', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const criterios = await sgcF29Service.listarCriterios(poolBiznagaSgc);
+        return res.json({ success: true, criterios });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron listar los criterios de SGC-F-29');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-29/criterios', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const criterios = await sgcF29Service.crearCriterio(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'Criterio agregado al catálogo.',
+            criterios
+        });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 409) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo crear el criterio de SGC-F-29');
     }
 });
 

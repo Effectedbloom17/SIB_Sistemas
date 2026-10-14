@@ -1,12 +1,8 @@
 import {
-  AfterViewInit,
   ChangeDetectorRef,
   Component,
-  ElementRef,
   OnDestroy,
-  OnInit,
-  QueryList,
-  ViewChildren
+  OnInit
 } from '@angular/core';
 import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -14,6 +10,7 @@ import { Subject, forkJoin, of } from 'rxjs';
 import { catchError, takeUntil } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { environment } from 'src/environments/environment';
+import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
 import { DocumentPreviewService } from 'src/app/services/document-preview.service';
 import { SEG_NORMATIVAS_CATEGORIAS } from './seguridad-normativas.catalog';
@@ -174,8 +171,7 @@ type VistaGestion = 'empresas' | 'empresa' | 'normativa' | 'punto';
   templateUrl: './seguridad-gestion.component.html',
   styleUrls: ['./seguridad.shared.scss', './seguridad-gestion.component.scss']
 })
-export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestroy {
-  @ViewChildren('reqCard') reqCards!: QueryList<ElementRef<HTMLElement>>;
+export class SeguridadGestionComponent implements OnInit, OnDestroy {
   vista: VistaGestion = 'empresas';
   cargando = true;
   error: string | null = null;
@@ -253,11 +249,36 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
   private formatoPreviewBlob: string | null = null;
   /** Drive thumbnails que fallaron → fallback a iframe. */
   private driveThumbFallidos = new Set<number>();
-  /** Observa puntos al entrar/salir del viewport (slide desde la izquierda). */
-  private puntosIo: IntersectionObserver | null = null;
-
   readonly categorias = SEG_NORMATIVAS_CATEGORIAS;
   readonly accionesScore = ACCIONES_SCORE;
+  readonly tiposAccion: Array<{
+    valor: 'preventiva' | 'correctiva';
+    etiqueta: string;
+    icono: string;
+    detalle: string;
+  }> = [
+    {
+      valor: 'preventiva',
+      etiqueta: 'Preventiva',
+      icono: 'fa-shield-alt',
+      detalle: 'Acción preventiva'
+    },
+    {
+      valor: 'correctiva',
+      etiqueta: 'Correctiva',
+      icono: 'fa-wrench',
+      detalle: 'Acción correctiva'
+    }
+  ];
+  readonly responsablesOpts: Array<{
+    valor: 'Empresa' | 'Cliente';
+    etiqueta: string;
+    icono: string;
+    hint: string;
+  }> = [
+    { valor: 'Empresa', etiqueta: 'Empresa', icono: 'fa-building', hint: 'A cargo de Biznaga' },
+    { valor: 'Cliente', etiqueta: 'Cliente', icono: 'fa-handshake', hint: 'A cargo del cliente' }
+  ];
   readonly mesesInicio = [
     { valor: 1, etiqueta: 'Enero' }, { valor: 2, etiqueta: 'Febrero' },
     { valor: 3, etiqueta: 'Marzo' }, { valor: 4, etiqueta: 'Abril' },
@@ -278,6 +299,7 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
 
   constructor(
     private backend: BackendServices,
+    private auth: AuthService,
     private route: ActivatedRoute,
     private router: Router,
     private sanitizer: DomSanitizer,
@@ -285,27 +307,25 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
     private cdr: ChangeDetectorRef
   ) {}
 
+  get puedeAsignar(): boolean {
+    return this.auth.esAdministradorOSuperior();
+  }
+
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe(() => this.sincronizarRuta());
     this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe(() => {
       if (this.vista !== 'empresa') return;
       this.aplicarCategoriaQuery();
-      if (!this.cargando && this.asignaciones.length) this.sincronizarNormativaFoco();
-    });
-  }
-
-  ngAfterViewInit(): void {
-    this.inicializarObserverPuntos();
-    this.reqCards?.changes.pipe(takeUntil(this.destroy$)).subscribe(() => {
-      this.vincularObserverPuntos();
+      if (!this.cargando && this.asignaciones.length) {
+        this.aplicarNormaQuery();
+        this.sincronizarNormativaFoco();
+      }
     });
   }
 
   ngOnDestroy(): void {
     this.limpiarThumbsBlob();
     this.limpiarFormatoPreviewBlob();
-    this.puntosIo?.disconnect();
-    this.puntosIo = null;
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -439,18 +459,8 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
   private inicializarCapitulosColapsados(): void {
     if (this.capitulosInicializados) return;
     this.capitulosInicializados = true;
-    const claves = new Set<string>();
-    for (const p of this.detalle?.puntos || []) {
-      claves.add(p.punto_norma.split('.').filter(Boolean)[0] || 'General');
-    }
-    const ordenadas = Array.from(claves).sort((a, b) => {
-      if (a === 'General') return 1;
-      if (b === 'General') return -1;
-      return a.localeCompare(b, 'es', { numeric: true });
-    });
-    ordenadas.forEach((clave, i) => {
-      if (i > 0) this.capitulosCerrados.add(clave);
-    });
+    // Todos los capítulos abiertos al entrar: evita lista vacía por colapso/animación.
+    this.capitulosCerrados.clear();
   }
 
   capituloAbierto(clave: string): boolean {
@@ -510,6 +520,17 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
   private aplicarCategoriaQuery(): void {
     const cat = this.route.snapshot.queryParamMap.get('categoria');
     this.categoriaFiltro = cat || null;
+  }
+
+  /** Si la URL trae ?norma=, enfoca esa asignación en el panel de empresa. */
+  private aplicarNormaQuery(): void {
+    if (this.vista !== 'empresa' || !this.asignaciones.length) return;
+    const normaId = Number(this.route.snapshot.queryParamMap.get('norma') || 0);
+    if (!(normaId > 0)) return;
+    const item = this.asignaciones.find((a) => a.id === normaId);
+    if (!item) return;
+    if (this.panelModo === 'normativa' && this.normativaFoco?.id === item.id) return;
+    this.seleccionarNormativaFoco(item);
   }
 
   cargarEmpresas(): void {
@@ -577,6 +598,7 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
           this.cargando = false;
           this.panelModo = 'general';
           this.normativaFoco = null;
+          this.aplicarNormaQuery();
           this.actualizarGraficosEmpresa();
         },
         error: (err: any) => {
@@ -696,8 +718,10 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
 
   cargarDetalle(id: number, requisitoId?: number): void {
     this.cargando = false;
-    // En vista empresa el panel ya tiene gráficos: no hace falta estado de carga disruptivo.
-    this.cargandoDetalle = this.vista !== 'empresa';
+    // Solo pantalla de carga al abrir la vista normativa/punto.
+    // En tablero o vista empresa el resumen ya se muestra; el detalle llega en segundo plano.
+    const cargaDisruptiva = this.vista === 'normativa' || this.vista === 'punto';
+    this.cargandoDetalle = cargaDisruptiva;
     this.error = null;
     this.backend.obtenerGestionSeguridadAsignacion(id)
       .pipe(takeUntil(this.destroy$))
@@ -728,24 +752,23 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
             this.lecturaHtml = null;
             this.observacionesDraft = '';
             this.limpiarFormatoPreviewBlob();
-            // Lista de puntos: reenganchar animación al entrar al viewport.
-            setTimeout(() => this.vincularObserverPuntos(), 0);
           }
           this.cargandoDetalle = false;
-          if (this.vista === 'empresa') {
-            this.actualizarGraficosEmpresa();
+          if (this.vista === 'empresa' || this.vista === 'empresas') {
+            if (this.vista === 'empresa') this.actualizarGraficosEmpresa();
             this.liberarScrollAncla();
           } else {
             this.scrollAncla = null;
           }
+          this.cdr.markForCheck();
         },
         error: (err: any) => {
           this.error = err?.error?.message || 'No se encontró la normativa asignada.';
           this.detalle = null;
           this.puntoActivo = null;
           this.cargandoDetalle = false;
-          if (this.vista === 'empresa') {
-            this.actualizarGraficosEmpresa();
+          if (this.vista === 'empresa' || this.vista === 'empresas') {
+            if (this.vista === 'empresa') this.actualizarGraficosEmpresa();
             this.liberarScrollAncla();
           } else {
             this.scrollAncla = null;
@@ -1004,7 +1027,7 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
       this.liberarScrollAncla();
       return;
     }
-    // Restaura ya el scroll del refresco síncrono; el ancla se libera al terminar la carga.
+    // Mantén el detalle previo hasta que llegue el nuevo (evita parpadeo en blanco).
     if (this.scrollAncla != null) {
       const y = this.scrollAncla;
       requestAnimationFrame(() => window.scrollTo({ top: y, left: 0, behavior: 'auto' }));
@@ -1049,21 +1072,32 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
     const abiertas = rg.abiertas || 0;
     this.chartAvance = {
       series: [avance],
-      chart: { type: 'radialBar', height: 220, sparkline: { enabled: true }, fontFamily: 'inherit' },
+      chart: {
+        type: 'radialBar',
+        height: 252,
+        sparkline: { enabled: true },
+        fontFamily: 'inherit',
+        animations: { enabled: true, speed: 650, animateGradually: { enabled: true, delay: 80 } }
+      },
       plotOptions: {
         radialBar: {
-          startAngle: -120,
-          endAngle: 120,
-          hollow: { size: '58%' },
-          track: { background: '#e2e8f0', strokeWidth: '100%' },
+          startAngle: -135,
+          endAngle: 135,
+          hollow: { size: '62%', margin: 8, background: 'transparent' },
+          track: {
+            background: 'rgba(148, 163, 184, 0.22)',
+            strokeWidth: '97%',
+            margin: 4,
+            dropShadow: { enabled: false }
+          },
           dataLabels: {
-            name: { show: true, fontSize: '11px', color: '#64748b', offsetY: 18, fontWeight: 600 },
+            name: { show: true, fontSize: '11px', color: '#64748b', offsetY: 22, fontWeight: 700 },
             value: {
               show: true,
-              fontSize: '26px',
+              fontSize: '28px',
               fontWeight: 800,
-              color: '#1e293b',
-              offsetY: -10,
+              color: '#0f172a',
+              offsetY: -12,
               formatter: (val: number) => `${Math.round(val)}%`
             }
           }
@@ -1071,39 +1105,64 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
       },
       colors: [this.colorAnillo(avance)],
       labels: ['Avance general'],
-      stroke: { lineCap: 'round' }
+      stroke: { lineCap: 'round' },
+      fill: {
+        type: 'gradient',
+        gradient: {
+          shade: 'light',
+          type: 'horizontal',
+          shadeIntensity: 0.35,
+          gradientToColors: [this.colorAnilloClaro(avance)],
+          inverseColors: false,
+          opacityFrom: 1,
+          opacityTo: 1,
+          stops: [0, 100]
+        }
+      }
     };
 
     const estadoSeries = [cerradas, abiertas];
     const estadoTotal = cerradas + abiertas;
     this.chartEstado = {
       series: estadoTotal ? estadoSeries : [0, 1],
-      chart: { type: 'donut', height: 220, fontFamily: 'inherit' },
+      chart: {
+        type: 'donut',
+        height: 252,
+        fontFamily: 'inherit',
+        animations: { enabled: true, speed: 650 }
+      },
       labels: ['Cerradas', 'Abiertas'],
-      colors: ['#0f766e', '#b91c1c'],
+      colors: ['#991b1b', '#be123c'],
       legend: {
         position: 'bottom',
         fontSize: '11px',
-        fontWeight: 600,
-        markers: { width: 8, height: 8, radius: 2 }
+        fontWeight: 700,
+        labels: { colors: '#475569' },
+        markers: { width: 9, height: 9, radius: 10, offsetX: -2 },
+        itemMargin: { horizontal: 10, vertical: 2 }
       },
       dataLabels: {
         enabled: !!estadoTotal,
         formatter: (val: number) => `${Math.round(val)}%`,
-        style: { fontSize: '11px', fontWeight: 700 },
+        style: { fontSize: '11px', fontWeight: 700, colors: ['#fff'] },
         dropShadow: { enabled: false }
       },
       plotOptions: {
         pie: {
+          expandOnClick: false,
           donut: {
-            size: '68%',
+            size: '72%',
+            background: 'transparent',
             labels: {
               show: true,
+              name: { show: true, fontSize: '11px', fontWeight: 700, color: '#64748b', offsetY: -2 },
+              value: { show: true, fontSize: '22px', fontWeight: 800, color: '#0f172a', offsetY: 4 },
               total: {
                 show: true,
+                showAlways: true,
                 label: 'Normativas',
                 fontSize: '11px',
-                fontWeight: 600,
+                fontWeight: 700,
                 color: '#64748b',
                 formatter: () => String(rg.normativas || 0)
               }
@@ -1111,7 +1170,7 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
           }
         }
       },
-      stroke: { width: 2, colors: ['#fff'] },
+      stroke: { width: 3, colors: ['#fff'] },
       tooltip: {
         y: {
           formatter: (_val: number, opts: any) => {
@@ -1140,32 +1199,40 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
       series: [{ name: 'Avance', data: datos }],
       chart: {
         type: usarGrupos ? 'bar' : 'area',
-        height: 220,
+        height: 252,
         toolbar: { show: false },
         fontFamily: 'inherit',
-        zoom: { enabled: false }
+        zoom: { enabled: false },
+        animations: { enabled: true, speed: 650 }
       },
       colors: ['#9f1239'],
       dataLabels: { enabled: false },
-      stroke: { curve: 'smooth', width: usarGrupos ? 0 : 2.5 },
+      stroke: { curve: 'smooth', width: usarGrupos ? 0 : 3 },
       fill: usarGrupos
         ? { type: 'solid', opacity: 1 }
         : {
           type: 'gradient',
           gradient: {
-            shadeIntensity: 0.45,
-            opacityFrom: 0.45,
-            opacityTo: 0.05,
-            stops: [0, 90, 100]
+            shadeIntensity: 0.55,
+            opacityFrom: 0.55,
+            opacityTo: 0.04,
+            stops: [0, 85, 100]
           }
         },
       plotOptions: usarGrupos
-        ? { bar: { borderRadius: 4, columnWidth: '55%', distributed: true } }
+        ? {
+          bar: {
+            borderRadius: 6,
+            columnWidth: '48%',
+            distributed: true,
+            borderRadiusApplication: 'end'
+          }
+        }
         : {},
       xaxis: {
         categories: categorias,
         labels: {
-          style: { fontSize: '10px', colors: '#64748b', fontWeight: 600 },
+          style: { fontSize: '10px', colors: '#64748b', fontWeight: 700 },
           rotate: categorias.length > 4 ? -35 : 0,
           hideOverlappingLabels: true
         },
@@ -1177,13 +1244,20 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
         max: 100,
         tickAmount: 4,
         labels: {
-          style: { fontSize: '10px', colors: '#94a3b8' },
+          style: { fontSize: '10px', colors: '#94a3b8', fontWeight: 600 },
           formatter: (v: number) => `${Math.round(v)}%`
         }
       },
-      grid: { borderColor: '#f1f5f9', strokeDashArray: 3 },
+      grid: {
+        borderColor: 'rgba(226, 232, 240, 0.9)',
+        strokeDashArray: 4,
+        padding: { left: 8, right: 8 }
+      },
       legend: { show: false },
-      tooltip: { y: { formatter: (v: number) => `${Math.round(v)}%` } }
+      tooltip: {
+        theme: 'light',
+        y: { formatter: (v: number) => `${Math.round(v)}%` }
+      }
     };
   }
 
@@ -1196,21 +1270,31 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
 
     this.chartAvance = {
       series: [avance],
-      chart: { type: 'radialBar', height: 220, sparkline: { enabled: true }, fontFamily: 'inherit' },
+      chart: {
+        type: 'radialBar',
+        height: 252,
+        sparkline: { enabled: true },
+        fontFamily: 'inherit',
+        animations: { enabled: true, speed: 650 }
+      },
       plotOptions: {
         radialBar: {
-          startAngle: -120,
-          endAngle: 120,
-          hollow: { size: '58%' },
-          track: { background: '#e2e8f0', strokeWidth: '100%' },
+          startAngle: -135,
+          endAngle: 135,
+          hollow: { size: '62%', margin: 8, background: 'transparent' },
+          track: {
+            background: 'rgba(148, 163, 184, 0.22)',
+            strokeWidth: '97%',
+            margin: 4
+          },
           dataLabels: {
-            name: { show: true, fontSize: '11px', color: '#64748b', offsetY: 18, fontWeight: 600 },
+            name: { show: true, fontSize: '11px', color: '#64748b', offsetY: 22, fontWeight: 700 },
             value: {
               show: true,
-              fontSize: '26px',
+              fontSize: '28px',
               fontWeight: 800,
-              color: '#1e293b',
-              offsetY: -10,
+              color: '#0f172a',
+              offsetY: -12,
               formatter: (val: number) => `${Math.round(val)}%`
             }
           }
@@ -1218,38 +1302,62 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
       },
       colors: [this.colorAnillo(avance)],
       labels: ['Avance NOM'],
-      stroke: { lineCap: 'round' }
+      stroke: { lineCap: 'round' },
+      fill: {
+        type: 'gradient',
+        gradient: {
+          shade: 'light',
+          type: 'horizontal',
+          shadeIntensity: 0.35,
+          gradientToColors: [this.colorAnilloClaro(avance)],
+          inverseColors: false,
+          opacityFrom: 1,
+          opacityTo: 1,
+          stops: [0, 100]
+        }
+      }
     };
 
     const ptsTotal = cerrados + abiertos;
     this.chartEstado = {
       series: ptsTotal ? [cerrados, abiertos] : [0, 1],
-      chart: { type: 'donut', height: 220, fontFamily: 'inherit' },
+      chart: {
+        type: 'donut',
+        height: 252,
+        fontFamily: 'inherit',
+        animations: { enabled: true, speed: 650 }
+      },
       labels: ['Cerrados', 'Abiertos'],
-      colors: ['#0f766e', '#c2410c'],
+      colors: ['#991b1b', '#dc2626'],
       legend: {
         position: 'bottom',
         fontSize: '11px',
-        fontWeight: 600,
-        markers: { width: 8, height: 8, radius: 2 }
+        fontWeight: 700,
+        labels: { colors: '#475569' },
+        markers: { width: 9, height: 9, radius: 10, offsetX: -2 },
+        itemMargin: { horizontal: 10, vertical: 2 }
       },
       dataLabels: {
         enabled: !!ptsTotal,
         formatter: (val: number) => `${Math.round(val)}%`,
-        style: { fontSize: '11px', fontWeight: 700 },
+        style: { fontSize: '11px', fontWeight: 700, colors: ['#fff'] },
         dropShadow: { enabled: false }
       },
       plotOptions: {
         pie: {
+          expandOnClick: false,
           donut: {
-            size: '68%',
+            size: '72%',
             labels: {
               show: true,
+              name: { show: true, fontSize: '11px', fontWeight: 700, color: '#64748b', offsetY: -2 },
+              value: { show: true, fontSize: '22px', fontWeight: 800, color: '#0f172a', offsetY: 4 },
               total: {
                 show: true,
+                showAlways: true,
                 label: 'Puntos',
                 fontSize: '11px',
-                fontWeight: 600,
+                fontWeight: 700,
                 color: '#64748b',
                 formatter: () => String(totalPts)
               }
@@ -1257,7 +1365,7 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
           }
         }
       },
-      stroke: { width: 2, colors: ['#fff'] }
+      stroke: { width: 3, colors: ['#fff'] }
     };
 
     const ce = rn?.cerrados_empresa ?? 0;
@@ -1271,31 +1379,44 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
       ],
       chart: {
         type: 'bar',
-        height: 220,
+        height: 252,
         stacked: true,
         toolbar: { show: false },
-        fontFamily: 'inherit'
+        fontFamily: 'inherit',
+        animations: { enabled: true, speed: 650 }
       },
-      colors: ['#0f766e', '#b91c1c'],
+      colors: ['#991b1b', '#be123c'],
       plotOptions: {
-        bar: { horizontal: true, borderRadius: 4, barHeight: '55%' }
+        bar: {
+          horizontal: true,
+          borderRadius: 6,
+          barHeight: '48%',
+          borderRadiusApplication: 'end'
+        }
       },
       dataLabels: { enabled: false },
       xaxis: {
         categories: ['Empresa', 'Cliente'],
-        labels: { style: { fontSize: '11px', colors: '#64748b', fontWeight: 600 } },
+        labels: { style: { fontSize: '11px', colors: '#64748b', fontWeight: 700 } },
         axisBorder: { show: false },
         axisTicks: { show: false }
       },
-      yaxis: { labels: { style: { fontSize: '11px', colors: '#475569', fontWeight: 700 } } },
-      grid: { borderColor: '#f1f5f9', strokeDashArray: 3 },
+      yaxis: { labels: { style: { fontSize: '11px', colors: '#334155', fontWeight: 700 } } },
+      grid: {
+        borderColor: 'rgba(226, 232, 240, 0.9)',
+        strokeDashArray: 4,
+        xaxis: { lines: { show: true } },
+        yaxis: { lines: { show: false } }
+      },
       legend: {
         position: 'bottom',
         fontSize: '11px',
-        fontWeight: 600,
-        markers: { width: 8, height: 8, radius: 2 }
+        fontWeight: 700,
+        labels: { colors: '#475569' },
+        markers: { width: 9, height: 9, radius: 10, offsetX: -2 },
+        itemMargin: { horizontal: 10, vertical: 2 }
       },
-      tooltip: { y: { formatter: (v: number) => `${v} pts` } }
+      tooltip: { theme: 'light', y: { formatter: (v: number) => `${v} pts` } }
     };
   }
 
@@ -1314,56 +1435,20 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
     return item.id;
   }
 
+  trackByPuntoId(_: number, punto: PuntoGestion): number {
+    return punto.id;
+  }
+
+  trackByCapitulo(_: number, bloque: { clave: string }): string {
+    return bloque.clave;
+  }
+
   prepararLecturaPunto(punto: PuntoGestion): void {
     const { html, sobrantes } = construirHtmlPuntoLectura(punto, (r) => this.urlArchivo(r));
     this.lecturaHtml = this.sanitizer.bypassSecurityTrustHtml(html);
     this.imagenesSobrantes = sobrantes;
     this.imagenAbierta = null;
     this.precargarFormatoPreview(punto);
-  }
-
-  private inicializarObserverPuntos(): void {
-    if (typeof IntersectionObserver === 'undefined') {
-      this.marcarPuntosVisiblesSinIo();
-      return;
-    }
-    this.puntosIo?.disconnect();
-    this.puntosIo = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const el = entry.target as HTMLElement;
-          if (entry.isIntersecting) {
-            el.classList.add('is-inview');
-          } else {
-            el.classList.remove('is-inview');
-          }
-        }
-      },
-      { threshold: 0.12, rootMargin: '40px 0px -4% 0px' }
-    );
-    this.vincularObserverPuntos();
-  }
-
-  private marcarPuntosVisiblesSinIo(): void {
-    const cards = this.reqCards?.toArray() || [];
-    for (const ref of cards) {
-      ref?.nativeElement?.classList.add('is-inview');
-    }
-  }
-
-  private vincularObserverPuntos(): void {
-    const cards = this.reqCards?.toArray() || [];
-    if (!this.puntosIo) {
-      this.marcarPuntosVisiblesSinIo();
-      return;
-    }
-    this.puntosIo.disconnect();
-    for (const ref of cards) {
-      const el = ref?.nativeElement;
-      if (!el) continue;
-      el.classList.remove('is-inview');
-      this.puntosIo.observe(el);
-    }
   }
 
   private limpiarFormatoPreviewBlob(): void {
@@ -1462,7 +1547,7 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
   /** Miniatura de Drive (más fiable que iframe escalado). */
   previewThumbDrive(doc: DocumentoItem): string | null {
     if (!doc.drive_file_id || this.driveThumbFallidos.has(doc.id)) return null;
-    return `https://drive.google.com/thumbnail?id=${encodeURIComponent(doc.drive_file_id)}&sz=w1000`;
+    return `https://drive.google.com/thumbnail?id=${encodeURIComponent(doc.drive_file_id)}&sz=w1600`;
   }
 
   onDriveThumbError(doc: DocumentoItem, event: Event): void {
@@ -1532,9 +1617,17 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
 
   colorAnillo(pct: number): string {
     const t = this.colorAvance(pct);
-    if (t === 'ok') return '#0f766e';
+    if (t === 'ok') return '#991b1b';
     if (t === 'mid') return '#c2410c';
     return '#b91c1c';
+  }
+
+  /** Tono claro del anillo para degradados en gráficos. */
+  colorAnilloClaro(pct: number): string {
+    const t = this.colorAvance(pct);
+    if (t === 'ok') return '#fca5a5';
+    if (t === 'mid') return '#fb923c';
+    return '#f43f5e';
   }
 
   /** Anillo fino (menos invasivo) con pista suave. */
@@ -1673,8 +1766,10 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
   }
 
   etiquetaAccionActiva(punto: PuntoGestion): string {
-    const op = this.opcionAccion(this.pesoAccionSeleccionada(punto));
-    return op ? `${op.etiqueta} · ${op.score}` : 'Sin acción';
+    const grupo = this.tipoAccionGrupo(punto);
+    if (grupo === 'preventiva') return 'Preventiva';
+    if (grupo === 'correctiva') return 'Correctiva';
+    return 'Sin acción';
   }
 
   tipoAccionGrupo(punto: PuntoGestion): 'preventiva' | 'correctiva' | null {
@@ -1718,6 +1813,28 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
     this.guardarCamposPunto(punto.id, { accion_score: score });
   }
 
+  seleccionarTipoAccion(
+    punto: PuntoGestion,
+    tipo: 'preventiva' | 'correctiva',
+    event?: Event
+  ): void {
+    event?.stopPropagation();
+    if (!this.detalle || this.guardandoPunto) return;
+    if (this.tipoAccionGrupo(punto) === tipo) return;
+    this.guardarCamposPunto(punto.id, { tipo_accion: tipo });
+  }
+
+  seleccionarResponsable(
+    punto: PuntoGestion,
+    responsable: 'Empresa' | 'Cliente',
+    event?: Event
+  ): void {
+    event?.stopPropagation();
+    if (!this.detalle || this.guardandoPunto) return;
+    if (punto.responsable === responsable) return;
+    this.guardarCamposPunto(punto.id, { responsable });
+  }
+
   alCambiarInicioMes(punto: PuntoGestion, mes: number | string): void {
     const m = Number(mes);
     const y = this.anioInicioDe(punto) || new Date().getFullYear();
@@ -1753,6 +1870,8 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
     requisitoId: number,
     datos: {
       accion_score?: number | null;
+      tipo_accion?: 'preventiva' | 'correctiva' | null;
+      responsable?: 'Empresa' | 'Cliente';
       fecha_inicio?: string | null;
       observaciones?: string | null;
     }
@@ -1826,9 +1945,23 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
     return this.fechaCorta(emp?.ultima_gestion);
   }
 
-  abrirEmpresa(emp: EmpresaResumen): void {
+  abrirEmpresa(emp: EmpresaResumen, event?: Event): void {
+    event?.stopPropagation();
     this.empresaSeleccionada = emp;
-    this.router.navigate(['/seguridad/gestion/empresa', emp.empresa_id]);
+    this.panelModo = 'general';
+    this.normativaFoco = null;
+    this.router.navigate(['/seguridad/gestion/empresa', emp.empresa_id], { queryParams: {} });
+  }
+
+  /** Desde el tablero: entra a la empresa y deja enfocada la NOM elegida. */
+  abrirEmpresaConNorma(emp: EmpresaResumen, norma?: AsignacionResumen | null, event?: Event): void {
+    event?.stopPropagation();
+    this.empresaSeleccionada = emp;
+    const normaId = norma?.id || this.normativaFoco?.id || 0;
+    this.router.navigate(
+      ['/seguridad/gestion/empresa', emp.empresa_id],
+      { queryParams: normaId > 0 ? { norma: normaId } : {} }
+    );
   }
 
   abrirNormativa(item: AsignacionResumen): void {
@@ -1968,33 +2101,6 @@ export class SeguridadGestionComponent implements OnInit, AfterViewInit, OnDestr
           error: (err: any) => Swal.fire({
             icon: 'error',
             title: 'No se quitó',
-            text: err?.error?.message || 'Intente de nuevo.',
-            confirmButtonColor: '#b91c1c'
-          })
-        });
-    });
-  }
-
-  archivar(): void {
-    if (!this.detalle) return;
-    Swal.fire({
-      title: 'Retirar de la gestión',
-      text: `${this.detalle.asignacion.codigo} dejará de mostrarse para esta empresa.`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Retirar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#b91c1c'
-    }).then((r) => {
-      if (!r.isConfirmed || !this.detalle) return;
-      const empresaId = this.detalle.asignacion.empresa_id;
-      this.backend.archivarSeguridadAsignacion(this.detalle.asignacion.id)
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: () => this.router.navigate(['/seguridad/gestion/empresa', empresaId]),
-          error: (err: any) => Swal.fire({
-            icon: 'error',
-            title: 'No se retiró',
             text: err?.error?.message || 'Intente de nuevo.',
             confirmButtonColor: '#b91c1c'
           })

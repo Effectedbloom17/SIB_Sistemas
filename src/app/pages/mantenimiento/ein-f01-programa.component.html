@@ -143,7 +143,7 @@
             </div>
           </header>
 
-            <div class="mt-toolbar mt-toolbar--drive">
+            <div class="mt-toolbar mt-toolbar--drive mt-toolbar--programa">
               <div class="mt-toolbar__fields">
                 <label class="mt-filter-control">
                   <span class="mt-filter-label">Periodo de programación</span>
@@ -169,11 +169,46 @@
                   <i class="fas mr-1" [ngClass]="guardandoDrive ? 'fa-spinner fa-spin' : 'fa-save'"></i>
                   Guardar información
                 </button>
+                <button type="button" class="btn btn-sm mt-btn-pdf"
+                  (click)="exportarPdf()" [disabled]="exportandoPdf"
+                  title="Exportar el programa en PDF, hoja carta horizontal">
+                  <i class="fas mr-1" [ngClass]="exportandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
+                  Exportar PDF
+                </button>
                 <button type="button" class="btn btn-sm mt-btn-drive"
                   (click)="abrirEditorIntegrado()" [disabled]="guardandoDrive">
                   <i class="fas fa-pen mr-1"></i>
                   Abrir editor integrado
                 </button>
+              </div>
+
+              <div class="mt-programa-guia">
+                  <span
+                    class="mt-bitacora-demo"
+                    [class.is-aiming]="ejemploCursor"
+                    [class.is-pressing]="ejemploPresion"
+                  >
+                    <span>Clic para alternar entre interno o externo</span>
+                    <button
+                      type="button"
+                      class="mt-chip mt-chip--ie-toggle"
+                      [class.mt-chip--int]="ejemploInterno"
+                      [class.mt-chip--ext]="!ejemploInterno"
+                      [class.is-on]="true"
+                      (click)="alternarEjemploInterno()"
+                      [attr.aria-label]="'Ejemplo ' + (ejemploInterno ? 'Interno' : 'Externo') + '. Clic para alternar.'"
+                    >
+                      <span class="mt-bitacora-demo__sigla">
+                        <span [class.is-on]="ejemploInterno">Int</span>
+                        <span [class.is-on]="!ejemploInterno">Ext</span>
+                      </span>
+                      <i class="fas fa-mouse-pointer mt-bitacora-demo__cursor" aria-hidden="true"></i>
+                    </button>
+                    <span class="mt-bitacora-demo__estado" [class.is-ext]="!ejemploInterno">
+                      <span [class.is-on]="ejemploInterno">Interno</span>
+                      <span [class.is-on]="!ejemploInterno">Externo</span>
+                    </span>
+                  </span>
               </div>
             </div>
 

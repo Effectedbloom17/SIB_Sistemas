@@ -1,4 +1,4 @@
-<div class="header header-bg-image cp-hero pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden" [class.is-dimmed]="mostrarRegistro || panelActividadAbierto">
+<div class="header header-bg-image cp-hero pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden" [class.is-dimmed]="mostrarRegistro || panelActividadAbierto || cambiosProyectoAbierto">
   <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
     <div class="row w-100 text-center">
       <div class="col-12">
@@ -14,7 +14,7 @@
   </div>
 </div>
 
-<div class="container-fluid cp-main-wrap mt--5" [class.is-dimmed]="mostrarRegistro || panelActividadAbierto">
+<div class="container-fluid cp-main-wrap mt--5" [class.is-dimmed]="mostrarRegistro || panelActividadAbierto || cambiosProyectoAbierto">
   <div class="row justify-content-center">
     <div class="col-12 cp-content-col">
       <div class="card cp-shell border-0 shadow-sm">
@@ -38,7 +38,7 @@
             </button>
           </nav>
 
-          <section class="cp-company-filter" *ngIf="!esConsultaEmpresa">
+          <section class="cp-company-filter" *ngIf="!esConsultaEmpresa && vistaActiva !== 'solicitudes'">
             <div class="cp-company-filter__copy">
               <span class="cp-company-filter__name">{{ empresaSeleccionadaNombre }}</span>
               <small *ngIf="tienePermisoUniversalGestion">Permiso universal: puedes ver y gestionar proyectos de todas las empresas y perfiles.</small>
@@ -832,7 +832,20 @@
                         </div>
                       </div>
                     </ng-container>
-                    <div class="cp-gestion-detail-panel__actions" *ngIf="!esConsultaEmpresa">
+                    <div class="cp-gestion-detail-panel__actions" *ngIf="puedeUsarCambiosProyecto || !esConsultaEmpresa">
+                      <button
+                        type="button"
+                        class="cp-icon-action cp-icon-action--cambios"
+                        *ngIf="puedeUsarCambiosProyecto"
+                        (click)="abrirCambiosProyecto(grupo, $event)"
+                        [disabled]="guardandoGestion || guardandoActividadGestion"
+                        aria-label="Control de cambios del proyecto"
+                        title="Control de cambios"
+                      >
+                        <i class="fas fa-exchange-alt"></i>
+                        <span class="cp-icon-action__label">Cambios</span>
+                      </button>
+                      <ng-container *ngIf="!esConsultaEmpresa">
                       <button
                         type="button"
                         class="cp-icon-action"
@@ -876,6 +889,7 @@
                         <i class="fas" [ngClass]="guardandoActividadGestion ? 'fa-spinner fa-spin' : 'fa-plus'"></i>
                         <span class="cp-icon-action__label">Agregar</span>
                       </button>
+                      </ng-container>
                     </div>
                   </header>
 
@@ -1819,6 +1833,239 @@
             </p>
           </ng-container>
 
+          <ng-container *ngIf="vistaActiva === 'solicitudes' && puedeResolverCambiosProyecto">
+            <section class="cp-solicitudes">
+              <header class="cp-solicitudes__head">
+                <div>
+                  <h2>Solicitudes de cambio</h2>
+                  <p>Revisa las solicitudes pendientes y el historial de las que ya fueron atendidas.</p>
+                </div>
+                <button type="button" class="cp-solicitudes__refresh" (click)="cargarSolicitudesCambio()" [disabled]="cargandoSolicitudesCambio">
+                  <i class="fas" [ngClass]="cargandoSolicitudesCambio ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                  Actualizar
+                </button>
+              </header>
+              <div class="cp-solicitudes__barra">
+                <div class="cp-solicitudes__barra-copy">
+                  <span>{{ etiquetaFiltroSolicitudes() }}</span>
+                  <small>{{ solicitudesFiltradas.length }} solicitud{{ solicitudesFiltradas.length === 1 ? '' : 'es' }}</small>
+                </div>
+                <div
+                  class="cp-company-combo cp-solicitudes__combo"
+                  [class.is-open]="filtroSolicitudesAbierto"
+                  (click)="$event.stopPropagation()"
+                >
+                  <button
+                    type="button"
+                    class="cp-company-combo__trigger"
+                    (click)="filtroSolicitudesAbierto = !filtroSolicitudesAbierto"
+                    [attr.aria-expanded]="filtroSolicitudesAbierto"
+                    aria-haspopup="listbox"
+                  >
+                    <span class="cp-company-combo__trigger-logo">
+                      <i class="fas fa-filter"></i>
+                    </span>
+                    <span class="cp-company-combo__trigger-copy">
+                      <span class="cp-company-combo__trigger-name">{{ etiquetaFiltroSolicitudes() }}</span>
+                    </span>
+                    <i class="fas cp-company-combo__chevron" [ngClass]="filtroSolicitudesAbierto ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                  </button>
+                  <div class="cp-company-combo__dropdown" *ngIf="filtroSolicitudesAbierto" role="listbox">
+                    <div class="cp-company-combo__options">
+                      <button type="button" class="cp-company-combo__option" role="option" [class.is-selected]="filtroSolicitudesCambio === 'todas'" (click)="seleccionarFiltroSolicitudes('todas')">
+                        <span class="cp-company-combo__option-icon cp-company-combo__option-icon--all"><i class="fas fa-layer-group"></i></span>
+                        <span class="cp-company-combo__option-text"><strong>Todas</strong><small>{{ solicitudesCambio.length }} en el historial</small></span>
+                        <i class="fas fa-check cp-company-combo__check" *ngIf="filtroSolicitudesCambio === 'todas'"></i>
+                      </button>
+                      <button type="button" class="cp-company-combo__option" role="option" [class.is-selected]="filtroSolicitudesCambio === 'pendientes'" (click)="seleccionarFiltroSolicitudes('pendientes')">
+                        <span class="cp-company-combo__option-icon"><i class="fas fa-clock"></i></span>
+                        <span class="cp-company-combo__option-text"><strong>Pendientes</strong><small>{{ solicitudesPendientes.length }} en espera</small></span>
+                        <i class="fas fa-check cp-company-combo__check" *ngIf="filtroSolicitudesCambio === 'pendientes'"></i>
+                      </button>
+                      <button type="button" class="cp-company-combo__option" role="option" [class.is-selected]="filtroSolicitudesCambio === 'atendidas'" (click)="seleccionarFiltroSolicitudes('atendidas')">
+                        <span class="cp-company-combo__option-icon"><i class="fas fa-check-circle"></i></span>
+                        <span class="cp-company-combo__option-text"><strong>Atendidas</strong><small>{{ solicitudesAtendidas.length }} resueltas</small></span>
+                        <i class="fas fa-check cp-company-combo__check" *ngIf="filtroSolicitudesCambio === 'atendidas'"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p class="cp-solicitudes__error" *ngIf="errorSolicitudesCambio">{{ errorSolicitudesCambio }}</p>
+              <div class="cp-state" *ngIf="cargandoSolicitudesCambio">
+                <i class="fas fa-spinner fa-spin"></i>
+                Cargando solicitudes…
+              </div>
+              <p class="cp-solicitudes__vacio" *ngIf="!cargandoSolicitudesCambio && !solicitudesFiltradas.length">No hay solicitudes en esta vista.</p>
+              <div class="cp-solicitudes__visor" *ngIf="!cargandoSolicitudesCambio && solicitudBandejaActiva as fila">
+                <button type="button" class="cp-solicitudes__arrow" (click)="moverSolicitudBandeja(-1)" aria-label="Solicitud anterior">
+                  <i class="fas fa-chevron-left" aria-hidden="true"></i>
+                </button>
+                <div class="cp-solicitudes__panel" [class.cp-solicitudes__panel--vista]="solicitudBandejaPreview !== null">
+                  <div
+                    class="cp-solicitudes__hover"
+                    (mouseleave)="ocultarVistaSolicitudBandeja($event)"
+                    (focusout)="ocultarVistaSolicitudBandeja($event)"
+                  >
+                    <div class="cp-solicitudes__nums" role="tablist" aria-label="Solicitudes">
+                      <button
+                        type="button"
+                        class="cp-cambios-tab"
+                        *ngFor="let item of solicitudesFiltradas; let i = index"
+                        role="tab"
+                        [attr.aria-selected]="i === solicitudBandejaIndice"
+                        [class.cp-cambios-tab--activo]="i === solicitudBandejaIndice"
+                        [ngClass]="claseNumeroCambio(item)"
+                        (click)="seleccionarSolicitudBandeja(i)"
+                        (mouseenter)="mostrarVistaSolicitudBandeja(i)"
+                        (focus)="mostrarVistaSolicitudBandeja(i)"
+                        [attr.aria-label]="'Solicitud ' + (i + 1)"
+                      >{{ i + 1 }}</button>
+                    </div>
+                    <div class="cp-cambios-preview cp-solicitudes__preview" *ngIf="solicitudBandejaPreviewFila() as prev">
+                      <div class="cp-cambios-preview__head">
+                        <span class="cp-cambios-preview__num" [ngClass]="claseNumeroCambio(prev)">{{ (solicitudBandejaPreview || 0) + 1 }}</span>
+                        <strong>{{ prev.nombreProyecto || 'Solicitud' }}</strong>
+                      </div>
+                      <div class="cp-cambios-preview__tipos">
+                        <span
+                          class="cp-cambios-chip"
+                          *ngFor="let tipo of etiquetasTipoCambio(prev)"
+                          [class.cp-cambios-chip--req]="tipo.clave === 'req'"
+                          [class.cp-cambios-chip--dis]="tipo.clave === 'dis'"
+                          [class.cp-cambios-chip--prod]="tipo.clave === 'prod'"
+                        >{{ tipo.texto }}</span>
+                        <span class="cp-cambios-chip cp-cambios-chip--vacio" *ngIf="!etiquetasTipoCambio(prev).length">Sin tipo de cambio</span>
+                      </div>
+                      <p class="cp-cambios-preview__desc">{{ prev.descripcion.trim() || 'Sin descripción' }}</p>
+                    </div>
+                  </div>
+                  <article class="cp-cambios-resumen__card cp-solicitudes__card">
+                    <ng-container *ngTemplateOutlet="solicitudCambioCard; context: { $implicit: fila }"></ng-container>
+                  </article>
+                </div>
+                <button type="button" class="cp-solicitudes__arrow" (click)="moverSolicitudBandeja(1)" aria-label="Solicitud siguiente">
+                  <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                </button>
+              </div>
+            </section>
+            <ng-template #solicitudCambioCard let-fila>
+              <div class="cp-solicitudes__proyecto">
+                <strong>{{ fila.nombreProyecto || 'Proyecto' }}</strong>
+                <span *ngIf="fila.folio">{{ fila.folio }}</span>
+              </div>
+              <div class="cp-cambios-resumen__meta">
+                <div class="cp-cambios-resumen__tipo">
+                  <span>Tipo de cambio</span>
+                  <div class="cp-cambios-preview__tipos">
+                    <span
+                      class="cp-cambios-chip"
+                      *ngFor="let tipo of etiquetasTipoCambio(fila)"
+                      [class.cp-cambios-chip--req]="tipo.clave === 'req'"
+                      [class.cp-cambios-chip--dis]="tipo.clave === 'dis'"
+                      [class.cp-cambios-chip--prod]="tipo.clave === 'prod'"
+                    >{{ tipo.texto }}</span>
+                    <span class="cp-cambios-chip cp-cambios-chip--vacio" *ngIf="!etiquetasTipoCambio(fila).length">Sin tipo de cambio</span>
+                  </div>
+                </div>
+                <div class="cp-cambios-resumen__solicitud">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Fecha de solicitud</th>
+                        <th>Solicitó</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>
+                          <div>{{ fechaSolicitudCambio(fila) }}</div>
+                          <p class="cp-cambios-correccion" *ngIf="fechaCorreccionCambio(fila)">Corregido el {{ fechaCorreccionCambio(fila) }}</p>
+                        </td>
+                        <td>{{ solicitoCambio(fila) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <dl class="cp-cambios-resumen__datos">
+                <div>
+                  <dt>Descripción</dt>
+                  <dd>{{ fila.descripcion.trim() || '—' }}</dd>
+                </div>
+                <div>
+                  <dt>Motivo</dt>
+                  <dd *ngIf="fila.motivo.trim(); else motivoBandejaVacio">
+                    <ul>
+                      <li *ngFor="let linea of lineasMotivoCambio(fila)">{{ linea }}</li>
+                    </ul>
+                  </dd>
+                  <ng-template #motivoBandejaVacio><dd>—</dd></ng-template>
+                </div>
+              </dl>
+              <div class="cp-cambios-acciones cp-cambios-acciones--resumen">
+                <h3>Acciones derivadas de la revisión o para prevenir impactos adversos</h3>
+                <div class="cp-cambios-acciones__tabla">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Acciones</th>
+                        <th>Responsable</th>
+                        <th>Fecha compromiso</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr *ngFor="let accion of accionesResumenCambio(fila)">
+                        <td>{{ accion.descripcion.trim() || '—' }}</td>
+                        <td>{{ accion.responsable.trim() || '—' }}</td>
+                        <td>{{ accion.fechaCompromiso ? formatearFechaProyecto(accion.fechaCompromiso) : '—' }}</td>
+                      </tr>
+                      <tr *ngIf="!accionesResumenCambio(fila).length">
+                        <td>—</td>
+                        <td>—</td>
+                        <td>—</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <footer class="cp-cambios-resumen__estado">
+                <span
+                  class="cp-cambios-estatus"
+                  [class.cp-cambios-estatus--espera]="fila.estatus === 'en_espera'"
+                  [class.cp-cambios-estatus--aprobado]="fila.estatus === 'aprobado'"
+                  [class.cp-cambios-estatus--rechazado]="fila.estatus === 'no_aprobado'"
+                >
+                  <i class="fas" [ngClass]="iconoEstatusCambio(fila)" aria-hidden="true"></i>
+                  {{ etiquetaEstatusCambio(fila) }}
+                </span>
+                <div
+                  class="cp-cambios-resolutor"
+                  *ngIf="fila.resueltoPor"
+                  [class.cp-cambios-resolutor--aprobado]="fila.estatus === 'aprobado'"
+                  [class.cp-cambios-resolutor--rechazado]="fila.estatus !== 'aprobado'"
+                >
+                  <i class="fas" [ngClass]="fila.estatus === 'aprobado' ? 'fa-user-check' : 'fa-user-times'" aria-hidden="true"></i>
+                  <div>
+                    <span>{{ fila.estatus === 'aprobado' ? 'Aprobado por' : 'No aprobado por' }}</span>
+                    <strong>{{ fila.resueltoPor }}</strong>
+                  </div>
+                  <time *ngIf="fechaResolucionCambio(fila)">{{ fechaResolucionCambio(fila) }}</time>
+                </div>
+                <div class="cp-cambios-resumen__decision" *ngIf="fila.estatus === 'en_espera'">
+                  <button type="button" class="cp-cambios-decision cp-cambios-decision--si" (click)="resolverCambioProyecto(fila, 'aprobado')" [disabled]="guardandoCambiosProyecto">
+                    <i class="fas fa-check" aria-hidden="true"></i>
+                    Aprobar
+                  </button>
+                  <button type="button" class="cp-cambios-decision cp-cambios-decision--no" (click)="resolverCambioProyecto(fila, 'no_aprobado')" [disabled]="guardandoCambiosProyecto">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                    No aprobar
+                  </button>
+                </div>
+              </footer>
+            </ng-template>
+          </ng-container>
+
           <ng-container *ngIf="!cargando && !errorCarga && vistaActiva === 'eliminados' && esSuperAdministrador">
             <section class="cp-eliminados">
               <header class="cp-eliminados__head">
@@ -2520,3 +2767,472 @@
     </ng-container>
   </div>
 </aside>
+
+<div class="cp-cambios-backdrop" *ngIf="cambiosProyectoAbierto" (click)="cerrarCambiosProyecto()" aria-hidden="true"></div>
+<section
+  class="cp-cambios-modal"
+  *ngIf="cambiosProyectoAbierto"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="cp-cambios-title"
+>
+  <header class="cp-cambios-modal__head">
+    <div>
+      <p class="cp-cambios-modal__eyebrow">Control de cambios</p>
+      <h2 id="cp-cambios-title" class="cp-cambios-modal__title">{{ cambiosProyectoTitulo }}</h2>
+      <p class="cp-cambios-modal__folio" *ngIf="cambiosProyectoFolio">{{ cambiosProyectoFolio }}</p>
+    </div>
+    <button type="button" class="cp-cambios-modal__close" (click)="cerrarCambiosProyecto()" aria-label="Cerrar control de cambios">
+      <i class="fas fa-times"></i>
+    </button>
+  </header>
+
+  <div class="cp-cambios-modal__body">
+    <div class="cp-cambios-modal__state" *ngIf="cargandoCambiosProyecto">
+      <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+      Cargando control de cambios…
+    </div>
+
+    <div class="cp-cambios-modal__state" *ngIf="!cargandoCambiosProyecto && !cambiosProyectoFilas.length">
+      Este proyecto aún no tiene controles de cambio.
+    </div>
+
+    <div
+      class="cp-cambios-board"
+      *ngIf="!cargandoCambiosProyecto && cambiosProyectoFilas.length"
+      [class.cp-cambios-board--vista]="cambiosProyectoPreview !== null"
+    >
+      <div
+        class="cp-cambios-nav"
+        (mouseleave)="ocultarVistaCambioProyecto($event)"
+        (focusout)="ocultarVistaCambioProyecto($event)"
+      >
+        <div class="cp-cambios-nav__slot" aria-hidden="true"></div>
+        <div class="cp-cambios-nav__pager">
+          <button
+            type="button"
+            class="cp-cambios-arrow"
+            *ngIf="totalPaginasCambios() > 1"
+            (click)="moverPaginaCambios(-1)"
+            [disabled]="cambiosProyectoPagina === 0"
+            aria-label="Cambios anteriores"
+          >
+            <i class="fas fa-chevron-left" aria-hidden="true"></i>
+          </button>
+          <div class="cp-cambios-nav__tabs" role="tablist" aria-label="Cambios del proyecto">
+            <button
+              type="button"
+              class="cp-cambios-tab"
+              *ngFor="let i of indicesPaginaCambios()"
+              role="tab"
+              [attr.aria-selected]="numeroCambioResaltado(i)"
+              [class.cp-cambios-tab--activo]="numeroCambioResaltado(i)"
+              [ngClass]="claseNumeroCambio(cambiosProyectoFilas[i])"
+              (click)="elegirNumeroCambioProyecto(i)"
+              (mouseenter)="mostrarVistaCambioProyecto(i)"
+              (focus)="mostrarVistaCambioProyecto(i)"
+              [attr.aria-label]="'Cambio ' + (i + 1)"
+            >{{ i + 1 }}</button>
+          </div>
+          <button
+            type="button"
+            class="cp-cambios-arrow"
+            *ngIf="totalPaginasCambios() > 1"
+            (click)="moverPaginaCambios(1)"
+            [disabled]="cambiosProyectoPagina >= totalPaginasCambios() - 1"
+            aria-label="Cambios siguientes"
+          >
+            <i class="fas fa-chevron-right" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="cp-cambios-nav__slot">
+        <div class="cp-cambios-nav__tools">
+          <button
+            type="button"
+            class="cp-cambios-nav__add"
+            *ngIf="puedeCorregirCambioActivo()"
+            (click)="corregirCambioActivo()"
+            [disabled]="guardandoCambiosProyecto"
+          >
+            <i class="fas fa-pen" aria-hidden="true"></i>
+            Corregir cambio
+          </button>
+          <button
+            type="button"
+            class="cp-cambios-nav__resumen"
+            [class.cp-cambios-nav__resumen--activo]="cambiosProyectoVista === 'resumen'"
+            (click)="abrirResumenCambiosProyecto()"
+          >
+            <i class="fas fa-list-ul" aria-hidden="true"></i>
+            Resumen
+          </button>
+        </div>
+        </div>
+
+        <div class="cp-cambios-preview" *ngIf="cambioPreviewProyecto() as prev">
+          <div class="cp-cambios-preview__head">
+            <span class="cp-cambios-preview__num">{{ cambiosProyectoPreview + 1 }}</span>
+            <strong>Cambio {{ cambiosProyectoPreview + 1 }}</strong>
+          </div>
+          <div class="cp-cambios-preview__tipos" *ngIf="etiquetasTipoCambio(prev) as tipos">
+            <span
+              class="cp-cambios-chip"
+              *ngFor="let tipo of tipos"
+              [class.cp-cambios-chip--req]="tipo.clave === 'req'"
+              [class.cp-cambios-chip--dis]="tipo.clave === 'dis'"
+              [class.cp-cambios-chip--prod]="tipo.clave === 'prod'"
+            >{{ tipo.texto }}</span>
+            <span class="cp-cambios-chip cp-cambios-chip--vacio" *ngIf="!tipos.length">Sin tipo de cambio</span>
+          </div>
+          <p class="cp-cambios-preview__desc">{{ prev.descripcion.trim() || 'Sin descripción' }}</p>
+        </div>
+      </div>
+
+      <div class="cp-cambios-cuerpo">
+        <ng-container *ngIf="cambiosProyectoVista === 'editor'">
+        <ng-container *ngFor="let activo of [cambiosProyectoActivo]">
+        <ng-container *ngIf="cambioActivoProyecto() as fila">
+          <div class="cp-cambios-editor__head">
+            <span>Cambio {{ cambiosProyectoActivo + 1 }}</span>
+            <div class="cp-cambios-editor__estado">
+              <span
+                class="cp-cambios-estatus"
+                *ngIf="fila.estatus !== 'borrador'"
+                [class.cp-cambios-estatus--espera]="fila.estatus === 'en_espera'"
+                [class.cp-cambios-estatus--aprobado]="fila.estatus === 'aprobado'"
+                [class.cp-cambios-estatus--rechazado]="fila.estatus === 'no_aprobado'"
+              >
+                <i class="fas" [ngClass]="iconoEstatusCambio(fila)" aria-hidden="true"></i>
+                {{ etiquetaEstatusCambio(fila) }}
+              </span>
+              <button
+                type="button"
+                class="cp-cambios-quitar"
+                *ngIf="quitarCambioDescubierto && esSuperAdministrador"
+                (click)="quitarFilaCambioProyecto(cambiosProyectoActivo)"
+              >
+                <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                Quitar cambio
+              </button>
+            </div>
+          </div>
+
+          <section class="cp-cambios-sec">
+            <h3>Tipo de cambio</h3>
+            <div class="cp-cambios-tipos" role="group" aria-label="Tipo de cambio" [class.cp-cambios-invalido]="campoCambioInvalido('tipo')">
+              <label class="cp-cambios-tipos__item cp-cambios-tipos__item--req">
+                <input type="checkbox" name="cpCambioTipoReq" [(ngModel)]="fila.tipoRequisitos" [disabled]="!cambioSePuedeEditar(fila)">
+                <span>En los requisitos para los productos y servicios</span>
+              </label>
+              <label class="cp-cambios-tipos__item cp-cambios-tipos__item--dis">
+                <input type="checkbox" name="cpCambioTipoDis" [(ngModel)]="fila.tipoDiseno" [disabled]="!cambioSePuedeEditar(fila)">
+                <span>En el diseño y desarrollo</span>
+              </label>
+              <label class="cp-cambios-tipos__item cp-cambios-tipos__item--prod">
+                <input type="checkbox" name="cpCambioTipoProd" [(ngModel)]="fila.tipoProduccion" [disabled]="!cambioSePuedeEditar(fila)">
+                <span>En la producción o provisión del servicio</span>
+              </label>
+            </div>
+            <p class="cp-cambios-aviso-campo" *ngIf="campoCambioInvalido('tipo')">Falta seleccionar el tipo de cambio.</p>
+          </section>
+
+          <div class="cp-cambios-editor__grid">
+            <label class="cp-cambios-field">
+              <span>Descripción del cambio</span>
+              <textarea
+                class="cp-cambios-text"
+                appAutoResize
+                [appAutoResizeRefresh]="cambiosAutosizeTick"
+                rows="3"
+                name="cpCambioDesc"
+                [(ngModel)]="fila.descripcion"
+                [readonly]="!cambioSePuedeEditar(fila)"
+                [class.cp-cambios-invalido]="campoCambioInvalido('descripcion')"
+                placeholder="Describe el cambio"
+              ></textarea>
+              <p class="cp-cambios-aviso-campo" *ngIf="campoCambioInvalido('descripcion')">Falta llenar este campo.</p>
+            </label>
+            <label class="cp-cambios-field">
+              <span>Motivo del cambio</span>
+              <textarea
+                class="cp-cambios-text"
+                appAutoResize
+                [appAutoResizeRefresh]="cambiosAutosizeTick"
+                rows="3"
+                name="cpCambioMotivo"
+                [(ngModel)]="fila.motivo"
+                [readonly]="!cambioSePuedeEditar(fila)"
+                [class.cp-cambios-invalido]="campoCambioInvalido('motivo')"
+                placeholder="Motivo o justificación"
+              ></textarea>
+              <p class="cp-cambios-aviso-campo" *ngIf="campoCambioInvalido('motivo')">Falta llenar este campo.</p>
+            </label>
+          </div>
+
+          <section class="cp-cambios-acciones">
+            <h3>Acciones derivadas de la revisión o para prevenir impactos adversos</h3>
+            <div class="cp-cambios-acciones__tabla">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Acciones</th>
+                    <th>Responsable</th>
+                    <th>Fecha compromiso</th>
+                    <th class="cp-cambios-acciones__quitar" aria-label="Quitar"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let accion of fila.accionesFilas; let ai = index">
+                    <td>
+                      <textarea
+                        class="cp-cambios-text"
+                        appAutoResize
+                        [appAutoResizeRefresh]="cambiosAutosizeTick"
+                        rows="2"
+                        [name]="'cpCambioAccion' + ai"
+                        [(ngModel)]="accion.descripcion"
+                        [readonly]="!cambioSePuedeEditar(fila)"
+                        [class.cp-cambios-invalido]="campoCambioInvalido('accion-' + ai)"
+                        placeholder="Acción a realizar"
+                      ></textarea>
+                      <p class="cp-cambios-aviso-campo" *ngIf="campoCambioInvalido('accion-' + ai)">Falta llenar este campo.</p>
+                    </td>
+                    <td>
+                      <input
+                        class="cp-cambios-select"
+                        type="text"
+                        [name]="'cpCambioResp' + ai"
+                        [(ngModel)]="accion.responsable"
+                        (ngModelChange)="sincronizarResponsableAccion(accion)"
+                        list="cpUsuariosCambio"
+                        [readonly]="!cambioSePuedeEditar(fila)"
+                        [class.cp-cambios-invalido]="campoCambioInvalido('responsable-' + ai)"
+                        placeholder="Usuario o cliente"
+                        autocomplete="off"
+                      >
+                      <p class="cp-cambios-aviso-campo" *ngIf="campoCambioInvalido('responsable-' + ai)">Falta llenar este campo.</p>
+                    </td>
+                    <td>
+                      <input
+                        class="cp-cambios-date"
+                        type="date"
+                        [name]="'cpCambioFecha' + ai"
+                        [(ngModel)]="accion.fechaCompromiso"
+                        [disabled]="!cambioSePuedeEditar(fila)"
+                        [class.cp-cambios-invalido]="campoCambioInvalido('fecha-' + ai)"
+                      >
+                      <p class="cp-cambios-aviso-campo" *ngIf="campoCambioInvalido('fecha-' + ai)">Falta llenar este campo.</p>
+                    </td>
+                    <td class="cp-cambios-acciones__quitar">
+                      <button
+                        type="button"
+                        class="cp-cambios-acciones__x"
+                        *ngIf="cambioSePuedeEditar(fila)"
+                        (click)="quitarAccionCambio(fila, ai)"
+                        aria-label="Quitar acción"
+                      >
+                        <i class="fas fa-times" aria-hidden="true"></i>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <datalist id="cpUsuariosCambio">
+              <option *ngFor="let usuario of usuariosInternos" [value]="usuario.nombreCompleto"></option>
+            </datalist>
+            <button
+              type="button"
+              class="cp-cambios-acciones__add"
+              *ngIf="cambioSePuedeEditar(fila)"
+              (click)="agregarAccionCambio(fila)"
+            >
+              <i class="fas fa-plus" aria-hidden="true"></i>
+              Agregar acción
+            </button>
+          </section>
+        </ng-container>
+        </ng-container>
+        </ng-container>
+
+        <section class="cp-cambios-resumen" *ngIf="cambiosProyectoVista === 'resumen'" aria-label="Resumen de cambios">
+          <header class="cp-cambios-resumen__head">
+            <button type="button" class="cp-cambios-resumen__volver" (click)="volverEditorCambiosProyecto()">
+              <i class="fas fa-arrow-left" aria-hidden="true"></i>
+              Volver
+            </button>
+            <div class="cp-cambios-resumen__titulo">
+              <h3>Resumen de cambios</h3>
+              <p>{{ cambiosSolicitadosCount }} cambio{{ cambiosSolicitadosCount === 1 ? '' : 's' }} en este proyecto</p>
+            </div>
+          </header>
+          <div class="cp-cambios-resumen__visor" *ngIf="cambioResumenVisible() as fila">
+            <button type="button" class="cp-cambios-resumen__arrow" *ngIf="puedeNavegarResumenCambios()" (click)="moverResumenCambio(-1)" aria-label="Cambio anterior">
+              <i class="fas fa-chevron-left" aria-hidden="true"></i>
+            </button>
+            <article class="cp-cambios-resumen__card">
+            <div class="cp-cambios-resumen__card-head">
+              <span class="cp-cambios-preview__num" [ngClass]="claseNumeroCambio(fila)">{{ cambiosProyectoActivo + 1 }}</span>
+              <strong>Cambio {{ cambiosProyectoActivo + 1 }}</strong>
+              <button type="button" class="cp-cambios-resumen__abrir" (click)="seleccionarCambioProyecto(cambiosProyectoActivo)">Abrir</button>
+            </div>
+            <div class="cp-cambios-resumen__meta">
+              <div class="cp-cambios-resumen__tipo">
+                <span>Tipo de cambio</span>
+                <div class="cp-cambios-preview__tipos">
+                  <span
+                    class="cp-cambios-chip"
+                    *ngFor="let tipo of etiquetasTipoCambio(fila)"
+                    [class.cp-cambios-chip--req]="tipo.clave === 'req'"
+                    [class.cp-cambios-chip--dis]="tipo.clave === 'dis'"
+                    [class.cp-cambios-chip--prod]="tipo.clave === 'prod'"
+                  >{{ tipo.texto }}</span>
+                  <span class="cp-cambios-chip cp-cambios-chip--vacio" *ngIf="!etiquetasTipoCambio(fila).length">Sin tipo de cambio</span>
+                </div>
+              </div>
+              <div class="cp-cambios-resumen__solicitud">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Fecha de solicitud</th>
+                      <th>Solicitó</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <div>{{ fechaSolicitudCambio(fila) }}</div>
+                        <p class="cp-cambios-correccion" *ngIf="fechaCorreccionCambio(fila)">Corregido el {{ fechaCorreccionCambio(fila) }}</p>
+                      </td>
+                      <td>{{ solicitoCambio(fila) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <dl class="cp-cambios-resumen__datos">
+              <div>
+                <dt>Descripción</dt>
+                <dd>{{ fila.descripcion.trim() || '—' }}</dd>
+              </div>
+              <div>
+                <dt>Motivo</dt>
+                <dd *ngIf="fila.motivo.trim(); else motivoCambioVacio">
+                  <ul>
+                    <li *ngFor="let linea of lineasMotivoCambio(fila)">{{ linea }}</li>
+                  </ul>
+                </dd>
+                <ng-template #motivoCambioVacio><dd>—</dd></ng-template>
+              </div>
+            </dl>
+            <div class="cp-cambios-acciones cp-cambios-acciones--resumen">
+              <h3>Acciones derivadas de la revisión o para prevenir impactos adversos</h3>
+              <div class="cp-cambios-acciones__tabla">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Acciones</th>
+                      <th>Responsable</th>
+                      <th>Fecha compromiso</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let accion of accionesResumenCambio(fila)">
+                      <td>{{ accion.descripcion.trim() || '—' }}</td>
+                      <td>{{ accion.responsable.trim() || '—' }}</td>
+                      <td>{{ accion.fechaCompromiso ? formatearFechaProyecto(accion.fechaCompromiso) : '—' }}</td>
+                    </tr>
+                    <tr *ngIf="!accionesResumenCambio(fila).length">
+                      <td>—</td>
+                      <td>—</td>
+                      <td>—</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <footer class="cp-cambios-resumen__estado" *ngIf="fila.estatus !== 'borrador'">
+              <span
+                class="cp-cambios-estatus"
+                [class.cp-cambios-estatus--espera]="fila.estatus === 'en_espera'"
+                [class.cp-cambios-estatus--aprobado]="fila.estatus === 'aprobado'"
+                [class.cp-cambios-estatus--rechazado]="fila.estatus === 'no_aprobado'"
+              >
+                <i class="fas" [ngClass]="iconoEstatusCambio(fila)" aria-hidden="true"></i>
+                {{ etiquetaEstatusCambio(fila) }}
+              </span>
+              <div
+                class="cp-cambios-resolutor"
+                *ngIf="fila.resueltoPor"
+                [class.cp-cambios-resolutor--aprobado]="fila.estatus === 'aprobado'"
+                [class.cp-cambios-resolutor--rechazado]="fila.estatus !== 'aprobado'"
+              >
+                <i class="fas" [ngClass]="fila.estatus === 'aprobado' ? 'fa-user-check' : 'fa-user-times'" aria-hidden="true"></i>
+                <div>
+                  <span>{{ fila.estatus === 'aprobado' ? 'Aprobado por' : 'No aprobado por' }}</span>
+                  <strong>{{ fila.resueltoPor }}</strong>
+                </div>
+                <time *ngIf="fechaResolucionCambio(fila)">{{ fechaResolucionCambio(fila) }}</time>
+              </div>
+              <div class="cp-cambios-resumen__decision" *ngIf="puedeResolverCambiosProyecto && fila.estatus === 'en_espera'">
+                <button type="button" class="cp-cambios-decision cp-cambios-decision--si" (click)="resolverCambioProyecto(fila, 'aprobado')" [disabled]="guardandoCambiosProyecto">
+                  <i class="fas fa-check" aria-hidden="true"></i>
+                  Aprobar
+                </button>
+                <button type="button" class="cp-cambios-decision cp-cambios-decision--no" (click)="resolverCambioProyecto(fila, 'no_aprobado')" [disabled]="guardandoCambiosProyecto">
+                  <i class="fas fa-times" aria-hidden="true"></i>
+                  No aprobar
+                </button>
+              </div>
+            </footer>
+            </article>
+            <button type="button" class="cp-cambios-resumen__arrow" *ngIf="puedeNavegarResumenCambios()" (click)="moverResumenCambio(1)" aria-label="Cambio siguiente">
+              <i class="fas fa-chevron-right" aria-hidden="true"></i>
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <footer class="cp-cambios-modal__foot">
+    <p class="cp-cambios-modal__msg cp-cambios-modal__msg--error" *ngIf="errorCambiosProyecto">{{ errorCambiosProyecto }}</p>
+    <p class="cp-cambios-modal__msg cp-cambios-modal__msg--ok" *ngIf="exitoCambiosProyecto">{{ exitoCambiosProyecto }}</p>
+    <div class="cp-cambios-modal__actions">
+      <span class="cp-cambios-modal__spacer"></span>
+      <button type="button" class="cp-cambios-btn cp-cambios-btn--ghost" (click)="cerrarCambiosProyecto()">
+        {{ cambiosProyectoSoloLectura || !cambiosProyectoPendientes ? 'Cerrar' : 'Descartar' }}
+      </button>
+      <button
+        type="button"
+        class="cp-cambios-btn cp-cambios-btn--ghost"
+        *ngIf="quitarCambioDescubierto && esSuperAdministrador"
+        (click)="quitarFilaCambioProyecto(cambiosProyectoActivo)"
+        [disabled]="guardandoCambiosProyecto"
+      >
+        <i class="fas fa-trash-alt" aria-hidden="true"></i>
+        Quitar cambio
+      </button>
+      <button
+        type="button"
+        class="cp-cambios-btn cp-cambios-btn--primary"
+        *ngIf="quitarCambioDescubierto && esSuperAdministrador"
+        (click)="guardarRegistroCambiosRoot()"
+        [disabled]="cargandoCambiosProyecto || guardandoCambiosProyecto"
+      >
+        <i class="fas" [ngClass]="guardandoCambiosProyecto ? 'fa-spinner fa-spin' : 'fa-save'" aria-hidden="true"></i>
+        Guardar
+      </button>
+      <button
+        type="button"
+        class="cp-cambios-btn cp-cambios-btn--primary"
+        *ngIf="puedeSolicitarCambioActivo()"
+        (click)="guardarCambiosProyecto()"
+        [disabled]="cargandoCambiosProyecto || guardandoCambiosProyecto"
+      >
+        <i class="fas" [ngClass]="guardandoCambiosProyecto ? 'fa-spinner fa-spin' : 'fa-paper-plane'" aria-hidden="true"></i>
+        Solicitar cambio
+      </button>
+    </div>
+  </footer>
+</section>

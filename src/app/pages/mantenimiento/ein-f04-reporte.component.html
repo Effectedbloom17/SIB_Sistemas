@@ -28,8 +28,8 @@
                 <div>
                   <h2 class="mt-archivero__title">Archivero de reportes</h2>
                   <p class="mt-archivero__hint">
-                    Los reportes se crean desde las respuestas del Google Forms. Abre uno para completar
-                    la gestión (tipo, fechas, responsable, evidencias), generar el Word y subir el PDF firmado.
+                    Los de Forms llegan como correctivos. Los escritos aquí se arman con el mismo formato:
+                    abre uno para completar tipo, fechas, responsable y evidencias, generar el Word y subir el PDF firmado.
                   </p>
                 </div>
               </div>
@@ -38,21 +38,48 @@
                   <i class="fas fa-search" aria-hidden="true"></i>
                   <input type="search" [(ngModel)]="filtro" placeholder="Buscar folio, área, responsable…" />
                 </label>
-                <button type="button" class="mt-archivero__btn-nuevo" (click)="sincronizarDesdeForms()" [disabled]="sincronizandoForms">
-                  <i class="fas" [ngClass]="sincronizandoForms ? 'fa-spinner fa-spin' : 'fa-cloud-download-alt'"></i>
-                  {{ sincronizandoForms ? 'Sync…' : 'Desde Forms' }}
-                </button>
+                <div class="mt-archivero__actions">
+                  <button type="button" class="mt-archivero__btn-manual" (click)="nuevoReporte()">
+                    <i class="fas fa-plus"></i>
+                    Nuevo reporte
+                  </button>
+                  <button type="button" class="mt-archivero__btn-nuevo" (click)="sincronizarDesdeForms()" [disabled]="sincronizandoForms">
+                    <i class="fas" [ngClass]="sincronizandoForms ? 'fa-spinner fa-spin' : 'fa-cloud-download-alt'"></i>
+                    {{ sincronizandoForms ? 'Sync…' : 'Desde Forms' }}
+                  </button>
+                </div>
               </div>
             </div>
 
             <div class="mt-archivero__stats">
-              <span>{{ solicitudesForms.length }} {{ solicitudesForms.length === 1 ? 'reporte' : 'reportes' }}</span>
+              <span>{{ solicitudesForms.length }} desde Forms</span>
+              <span>{{ solicitudesManuales.length }} escritos aquí</span>
               <span class="mt-local ml-auto" *ngIf="guardadoLocal"><i class="fas fa-hdd"></i> Local</span>
             </div>
 
-            <ul class="mt-archivero__grid" *ngIf="solicitudesFiltradas.length; else vacio">
-              <li class="mt-book" *ngFor="let s of solicitudesFiltradas; trackBy: trackBySol"
-                [class.mt-book--done]="!!s.reporteDriveFileId">
+            <ng-container *ngIf="reportesFormsFiltrados.length || reportesManualesFiltrados.length; else vacio">
+              <section class="mt-archivero__grupo" *ngIf="reportesFormsFiltrados.length">
+                <h3 class="mt-archivero__grupo-title">
+                  <i class="fas fa-cloud-download-alt" aria-hidden="true"></i>
+                  Desde Forms
+                </h3>
+                <ul class="mt-archivero__grid">
+                  <ng-container *ngTemplateOutlet="tarjetaReporte; context: { lista: reportesFormsFiltrados }"></ng-container>
+                </ul>
+              </section>
+              <section class="mt-archivero__grupo mt-archivero__grupo--manual" *ngIf="reportesManualesFiltrados.length">
+                <h3 class="mt-archivero__grupo-title">
+                  <i class="fas fa-pen" aria-hidden="true"></i>
+                  Escritos aquí
+                </h3>
+                <ul class="mt-archivero__grid">
+                  <ng-container *ngTemplateOutlet="tarjetaReporte; context: { lista: reportesManualesFiltrados }"></ng-container>
+                </ul>
+              </section>
+            </ng-container>
+            <ng-template #tarjetaReporte let-lista="lista">
+              <li class="mt-book" *ngFor="let s of lista; trackBy: trackBySol"
+                [class.mt-book--done]="!!s.pdfFirmado?.driveFileId">
                 <button type="button" class="mt-book__tap" (click)="abrirRegistro(s)">
                   <span class="mt-book__binding" aria-hidden="true">
                     <span class="mt-book__ring"></span><span class="mt-book__ring"></span>
@@ -61,27 +88,34 @@
                   <span class="mt-book__page">
                     <span class="mt-book__head">
                       <span class="mt-book__icon mt-book__icon--word"><i class="fas fa-file-word"></i></span>
-                      <span class="mt-book__estado" [class.mt-book__estado--ok]="!!s.reporteDriveFileId">
-                        {{ s.reporteDriveFileId ? 'Word listo' : 'Pendiente' }}
+                      <span class="mt-book__estado" [class.mt-book__estado--ok]="!!s.pdfFirmado?.driveFileId">
+                        {{ s.pdfFirmado?.driveFileId ? 'Revisado' : 'Pendiente' }}
                       </span>
                     </span>
                     <span class="mt-book__origen">{{ s.nombreSolicitante || 'Sin solicitante' }}</span>
                     <span class="mt-book__folio">{{ s.folio }}</span>
                     <span class="mt-book__lines" aria-hidden="true"><span></span><span></span><span></span></span>
                     <span class="mt-book__fecha-solicitud">{{ formatearFecha(s.fechaSolicitud) }}</span>
-                    <button type="button" class="mt-book__editor-btn"
-                      (click)="abrirEditorIntegradoF04(s, $event)"
-                      title="Abrir editor integrado del Word">
-                      <i class="fas fa-pen"></i> Editor integrado
-                    </button>
+                    <span class="mt-book__actions" (click)="$event.stopPropagation()">
+                      <button type="button" class="mt-book__editor-btn"
+                        (click)="abrirEditorIntegradoF04(s, $event)"
+                        title="Abrir editor integrado del Word">
+                        <i class="fas fa-pen"></i> Editor integrado
+                      </button>
+                      <button type="button" class="mt-book__delete-btn" *ngIf="!esDeForms(s)"
+                        (click)="eliminarReporte(s, $event)"
+                        title="Eliminar reporte" aria-label="Eliminar reporte">
+                        <i class="fas fa-trash" aria-hidden="true"></i>
+                      </button>
+                    </span>
                   </span>
                 </button>
               </li>
-            </ul>
+            </ng-template>
             <ng-template #vacio>
               <div class="mt-archivero__empty">
                 <i class="fas fa-archive"></i>
-                <p>Aún no hay reportes. Usa «Desde Forms» para sincronizar las respuestas.</p>
+                <p>Aún no hay reportes. Crea uno con «Nuevo reporte» o sincroniza con «Desde Forms».</p>
               </div>
             </ng-template>
 
@@ -133,7 +167,72 @@
               </div>
             </div>
 
-            <aside class="mt-problema-ref" *ngIf="seleccionada as sol" aria-label="Referencia del problema reportado en Forms">
+            <aside class="mt-problema-ref mt-problema-ref--editable" *ngIf="!esDeForms(sol)"
+              [class.mt-problema-ref--guia]="guiaSolicitanteAbierta"
+              aria-label="Descripción del problema">
+              <div class="mt-problema-ref__ribbon" aria-hidden="true">
+                <i class="fas fa-pen"></i>
+                <span>Para escribir</span>
+              </div>
+              <div class="mt-problema-ref__head">
+                <div class="mt-problema-ref__icon" aria-hidden="true">
+                  <i class="fas fa-clipboard-list"></i>
+                </div>
+                <div class="mt-problema-ref__intro">
+                  <h3 class="mt-problema-ref__title">Descripción del problema</h3>
+                </div>
+              </div>
+              <div class="mt-problema-ref__editor">
+                <label class="mt-problema-ref__field">
+                  <span>Qué se va a atender</span>
+                  <textarea
+                    rows="3"
+                    appAutoResize
+                    [appAutoResizeMinHeight]="88"
+                    [(ngModel)]="sol.descripcionProblema"
+                    (ngModelChange)="onCampoChange()"
+                    placeholder="Describe el problema o la necesidad de mantenimiento…"></textarea>
+                </label>
+                <div class="mt-problema-ref__pair">
+                  <label class="mt-problema-ref__field">
+                    <span>Tipo de infraestructura</span>
+                    <textarea
+                      rows="1"
+                      appAutoResize
+                      [appAutoResizeMinHeight]="42"
+                      [(ngModel)]="sol.tipoInfraestructura"
+                      (ngModelChange)="onCampoChange()"
+                      placeholder="Ej. red, sanitario, luminarias…"></textarea>
+                  </label>
+                  <label class="mt-problema-ref__field mt-problema-ref__field--guia">
+                    <span>Solicitante</span>
+                    <textarea
+                      rows="1"
+                      appAutoResize
+                      [appAutoResizeMinHeight]="42"
+                      [(ngModel)]="sol.nombreSolicitante"
+                      (ngModelChange)="onCampoChange()"
+                      (focus)="abrirGuiaSolicitante()"
+                      (blur)="cerrarGuiaSolicitante()"
+                      placeholder="Nombre de quien solicita…"
+                      autocomplete="off"
+                      role="combobox"
+                      aria-autocomplete="list"
+                      [attr.aria-expanded]="guiaSolicitanteAbierta && solicitantesGuia.length > 0"></textarea>
+                    <ul class="mt-problema-ref__guia" *ngIf="guiaSolicitanteAbierta && solicitantesGuia.length"
+                      role="listbox" aria-label="Usuarios del sistema">
+                      <li *ngFor="let nombre of solicitantesGuia">
+                        <button type="button" role="option" (mousedown)="$event.preventDefault(); elegirSolicitante(nombre)">
+                          {{ nombre }}
+                        </button>
+                      </li>
+                    </ul>
+                  </label>
+                </div>
+              </div>
+            </aside>
+
+            <aside class="mt-problema-ref" *ngIf="esDeForms(sol)" aria-label="Referencia del problema reportado en Forms">
               <div class="mt-problema-ref__ribbon" aria-hidden="true">
                 <i class="fas fa-eye"></i>
                 <span>Solo referencia</span>
@@ -143,10 +242,6 @@
                   <i class="fas fa-clipboard-list"></i>
                 </div>
                 <div class="mt-problema-ref__intro">
-                  <span class="mt-problema-ref__badge">
-                    <i class="fab fa-google" aria-hidden="true"></i>
-                    Ayuda visual · Google Forms
-                  </span>
                   <h3 class="mt-problema-ref__title">Descripción del problema</h3>
                 </div>
               </div>
@@ -207,7 +302,8 @@
 
                 <label class="mt-doc__linea">
                   <span class="mt-doc__label">Fecha de la solicitud del mantenimiento*:</span>
-                  <input type="date" [(ngModel)]="sol.fechaSolicitud" (ngModelChange)="onCampoChange()" readonly tabindex="-1" />
+                  <input type="date" [(ngModel)]="sol.fechaSolicitud" (ngModelChange)="onCampoChange()"
+                    [readonly]="esDeForms(sol)" [attr.tabindex]="esDeForms(sol) ? -1 : null" />
                 </label>
 
                 <label class="mt-doc__linea">
@@ -224,7 +320,14 @@
 
               <section class="mt-doc__block">
                 <h3>Breve descripción del mantenimiento realizado</h3>
-                <textarea rows="4" [(ngModel)]="sol.descripcionMantenimientoRealizado" (ngModelChange)="onCampoChange()"
+                <textarea
+                  rows="4"
+                  class="mt-doc__textarea-auto"
+                  appAutoResize
+                  [appAutoResizeMinHeight]="120"
+                  [appAutoResizeRefresh]="descripcionAutosizeTick"
+                  [(ngModel)]="sol.descripcionMantenimientoRealizado"
+                  (ngModelChange)="onCampoChange()"
                   placeholder="Describe la acción de mantenimiento realizada…"></textarea>
               </section>
 
@@ -265,7 +368,7 @@
                     <div class="text-center">
                       <i class="fas fa-cloud-upload-alt fa-2x mb-2 evidencias-drop-zone__icon"></i>
                       <p class="mb-1 font-weight-600 small">
-                        {{ fotosPendientes.length ? (fotosPendientes.length + ' foto(s) listas') : 'Arrastra hasta 2 fotos o haz clic' }}
+                        {{ fotosPendientes.length ? (fotosPendientes.length + ' foto(s) listas') : 'Arrastra varias fotos o haz clic' }}
                       </p>
                     </div>
                   </div>
