@@ -4,22 +4,25 @@ const cacheFirmas = new Map();
 
 /** IDs de Google Drive por buzón (fallback si no hay CORREO_FIRMA_* en .env). */
 const FIRMAS_CORREO_DEFECTO = {
-    'alexis_design@biznaga.com.mx': '1TSy0r1IT3NPXRfrtMGi42pFArh80FmQh',
-    'areli_seguridad@biznaga.com.mx': '1yIQUVr4qy3WKW-36qZV_xY9TKYB7lotN',
-    'daniel_seguridad@biznaga.com.mx': '1wWaTF8RRNlK6P5M5PxYx9QJSyjzRU2_Y',
-    'edmundo_pc@biznaga.com.mx': '1aX6ISt6iPTB7epyJXPOJEGdAFXlXb_8m',
-    'efrain_salud@biznaga.com.mx': '1UjbqyndCDEMSE5zqXSU1h5XQ_NoMB6XC',
-    'facturas@biznaga.com.mx': '1NfgbNF5x70GeqiaVoOWcooI539n9Xtzl',
-    'fernanda_talentohumano@biznaga.com.mx': '15FirWRqf6OAnsW2jPug5Tlpw8jXBwhPg',
-    'hector_ti@biznaga.com.mx': '1KE456Fqwcjsxu4A7z8m7DiUTsHnfY0Nn',
-    'joseluis_ambiental@biznaga.com.mx': '1-0GBj8SgkkBqXMvYXIq-LTcmMFIG7sIn',
-    'leonel_innovacion@biznaga.com.mx': '1lE2XBu75aLzVn1bfjzd_A9P9ZWgEqGgl',
-    'marisol_ceo@biznaga.com.mx': '1s06mZJ4yrT_k4am7iewR1i-6QSfiee41',
+    'adrian_seguridad@biznaga.com.mx': '1gIcHRwDMycyXoszzCYU68hL6IvwEXodY', // arle_gate
+    'alexis_design@biznaga.com.mx': '1JqqUq9HjuztiJIIUoV-914T147rw5jWk', // alexismf
+    'areli_seguridad@biznaga.com.mx': '12hE3j3gIfq-Xf6oV151ogtQRviBQrGeO', // Areli
+    'daniel_seguridad@biznaga.com.mx': '14xxJxzTlQ9k761MlQBMW5yyiXdPvNwZV', // Irvin
+    'edmundo_pc@biznaga.com.mx': '1c3I6fSXbiCKc8R2vimowBqAR8zsNwyUq', // Edmundo
+    'efrain_salud@biznaga.com.mx': '1E2i-aSvoVau5ktRzkmRx3U8aycV41qI6', // drefrain34
+    'facturas@biznaga.com.mx': '1Pqx2LfM_2_ePuIbMSqLsBc6p9NnO84Uy', // RozanaRG
+    'fernanda_talentohumano@biznaga.com.mx': '1EvEqmifoFQzWHTuShmks99n0uNUM2oJc', // mafer295
+    'fernando_design@biznaga.com.mx': '1aVxvu_0IYVgi05jbobZFXW4lpGPjlEY-', // pumba24
+    'hector_ti@biznaga.com.mx': '1kUm75eH_B5Jd6tMJfD8cMI5AyMgO9q9l', // Hector
+    'joseluis_ambiental@biznaga.com.mx': '1yEXCzyvwIsg7Rfa071nJHAKwfBJgVqNp', // joseluis_ambiental
+    'leonel_innovacion@biznaga.com.mx': '16j3LFi09Zi3-HHZfLRtoqsUcEVf63_Y8', // leonel58
+    'mariana_administracion@biznaga.com.mx': '1dntOoHOzkZl8IVBeu8W-OO-TiyuBvM-X', // Mar
+    'marisol_ceo@biznaga.com.mx': '11wInrv4OK4JBR8a-iNXuGOLgEofeHcP8', // marisol12
     'melody_supervision@biznaga.com.mx': '1B0DbcjAdMZ7tVskeGYGVoCWx2r9RXKJO',
-    'pascual_seguridad@biznaga.com.mx': '1fJp93jryD15ZOJwdml1V8WBeUpji-tZH',
-    'ruben_seguridad@biznaga.com.mx': '1DiwPg6QUqWHODGjhgN-ntGKqKZUWc-ZF',
-    'saul_calidad@biznaga.com.mx': '1_pvm8WCiFJnaCJVrq2M0BeEPyVIbW4pN',
-    'sergio_calidad@biznaga.com.mx': '1Rp30hjrSsHAOOGOkzNtsL0rJTF_BqGUm'
+    'pascual_seguridad@biznaga.com.mx': '1oAIhF_pHA8QM_2XxydtrL08Qm79EovHm', // pascual123
+    'ruben_seguridad@biznaga.com.mx': '1H-uZCLLbxEZcWVo5EkkqtqcLAVWTYb4t', // RubenRamirez
+    'saul_calidad@biznaga.com.mx': '1N-xowVhyDsJbQ7mP2aYZoZ6IVmT-f4mI', // saul
+    'sergio_calidad@biznaga.com.mx': '1oj7NcbERIlV7rnu7iHeuLDU5reUrRD0w' // calidad
 };
 
 const ESTILO_CUERPO_CORREO = [

@@ -30,6 +30,11 @@ interface ResponsableAsignado {
   puesto: string;
 }
 
+interface PuntoAccion {
+  requisito_id: number;
+  accion_score: number;
+}
+
 interface NormaAsignada {
   normativa_id: number;
   codigo: string;
@@ -38,6 +43,24 @@ interface NormaAsignada {
   total_requisitos: number;
   empleados: ResponsableAsignado[];
   requisito_ids: number[];
+  /** Niveles de acción a conservar al publicar (p. ej. al clonar un año previo). */
+  puntos_accion: PuntoAccion[];
+}
+
+interface HistorialSugerido {
+  id: number;
+  anio: number;
+  total_normativas: number;
+  total_puntos: number;
+  publicado_por?: string | null;
+  normas_resumen: Array<{
+    normativa_id: number;
+    codigo: string | null;
+    titulo: string | null;
+    puntos: number;
+    responsable?: string | null;
+  }>;
+  payload: PayloadAsignacion;
 }
 
 interface ImagenPunto {
@@ -73,6 +96,7 @@ interface PayloadAsignacion {
     normativa_id: number;
     empleados: ResponsableAsignado[];
     requisito_ids: number[];
+    puntos?: PuntoAccion[];
   }>;
 }
 
@@ -160,6 +184,14 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   avisoRecuperado = '';
   publicando = false;
 
+  /** Año del ciclo de asignación en curso. */
+  anioCiclo = new Date().getFullYear();
+  /** Si se está reutilizando la asignación de un año anterior. */
+  clonarDesdeAnio: number | null = null;
+  nuevoCiclo = false;
+  historialSugerido: HistorialSugerido | null = null;
+  historialAplicado = false;
+
   private readonly destroy$ = new Subject<void>();
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private sucio = false;
@@ -174,6 +206,15 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     private ngZone: NgZone,
     private sanitizer: DomSanitizer
   ) {}
+
+  /** Solo administradores editan/publican; el resto solo ve lo asignado a sí. */
+  get puedeEditarAsignacion(): boolean {
+    return this.auth.esAdministradorOSuperior();
+  }
+
+  get usuarioActualId(): number {
+    return Number(this.auth.getUsuarioId() || 0);
+  }
 
   ngOnInit(): void {
     this.cargarEmpresas();
@@ -382,6 +423,11 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     this.guardadoPor = '';
     this.guardadoEn = null;
     this.sucio = false;
+    this.clonarDesdeAnio = null;
+    this.nuevoCiclo = false;
+    this.historialSugerido = null;
+    this.historialAplicado = false;
+    this.anioCiclo = new Date().getFullYear();
   }
 
   private cargarUsuarios(): void {
@@ -439,10 +485,26 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
 
   private cargarEstado(empresaId: number): void {
     const token = ++this.cargaToken;
-    this.backend.obtenerEstadoSeguridadAsignacion(empresaId).pipe(takeUntil(this.destroy$)).subscribe({
+    const anio = new Date().getFullYear();
+    this.backend.obtenerEstadoSeguridadAsignacion(empresaId, anio).pipe(takeUntil(this.destroy$)).subscribe({
       next: (res: any) => {
         if (token !== this.cargaToken || this.empresa?.empresa_id !== empresaId) return;
+        this.anioCiclo = Number(res?.anio) || anio;
         this.publicadasIds = new Set((res?.publicada_ids || []).map((id: any) => Number(id)));
+        this.historialSugerido = res?.historial_previo?.payload
+          ? {
+              id: Number(res.historial_previo.id),
+              anio: Number(res.historial_previo.anio),
+              total_normativas: Number(res.historial_previo.total_normativas) || 0,
+              total_puntos: Number(res.historial_previo.total_puntos) || 0,
+              publicado_por: res.historial_previo.publicado_por || null,
+              normas_resumen: Array.isArray(res.historial_previo.normas_resumen)
+                ? res.historial_previo.normas_resumen
+                : [],
+              payload: res.historial_previo.payload
+            }
+          : null;
+
         const local = this.leerLocal(empresaId);
         this.aplicando = true;
         if (local?.pendienteServidor) {
@@ -466,6 +528,9 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
         }
         this.aplicando = false;
         this.enfocarAsignacion();
+        if (res?.sugerir_historial && this.historialSugerido) {
+          this.ofrecerHistorialPrevio();
+        }
       },
       error: () => {
         if (token !== this.cargaToken) return;
@@ -482,6 +547,65 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
         }
       }
     });
+  }
+
+  ofrecerHistorialPrevio(): void {
+    const h = this.historialSugerido;
+    if (!h || !this.empresa) return;
+    const filas = (h.normas_resumen || []).slice(0, 10).map((n) => {
+      const codigo = this.escaparHtml(n.codigo || `Norma ${n.normativa_id}`);
+      return `<li><strong>${codigo}</strong> · ${Number(n.puntos) || 0} puntos</li>`;
+    }).join('');
+    const mas = (h.normas_resumen?.length || 0) > 10
+      ? `<li>… y ${(h.normas_resumen.length - 10)} más</li>`
+      : '';
+
+    Swal.fire({
+      icon: 'question',
+      title: `Asignación ${h.anio} encontrada`,
+      html: `
+        <p style="text-align:left;margin:0 0 .75rem;color:#374151;font-size:.95rem;line-height:1.45">
+          En <strong>${h.anio}</strong> se asignaron
+          <strong>${h.total_normativas}</strong> normativa(s) y
+          <strong>${h.total_puntos}</strong> punto(s) a
+          <strong>${this.escaparHtml(this.empresa.nombre_empresa)}</strong>.
+        </p>
+        <p style="text-align:left;margin:0 0 .5rem;color:#6b7280;font-size:.85rem">
+          ¿Desea repetir esa asignación para <strong>${this.anioCiclo}</strong>?
+          Se conservarán normativas, puntos y nivel de acción.
+          Fechas, evidencias y observaciones se inician en blanco.
+        </p>
+        <ul style="text-align:left;margin:.5rem 0 0;padding-left:1.1rem;color:#1f2937;font-size:.86rem;max-height:9rem;overflow:auto">
+          ${filas}${mas}
+        </ul>
+      `,
+      showCancelButton: true,
+      confirmButtonText: `Usar asignación ${h.anio}`,
+      cancelButtonText: 'Empezar de nuevo',
+      confirmButtonColor: '#b91c1c',
+      reverseButtons: true,
+      width: 560
+    }).then((r) => {
+      if (r.isConfirmed) this.aplicarHistorialSugerido();
+    });
+  }
+
+  aplicarHistorialSugerido(): void {
+    const h = this.historialSugerido;
+    if (!h?.payload || !this.empresa) return;
+    this.aplicando = true;
+    this.aplicarPayload(h.payload);
+    this.clonarDesdeAnio = h.anio;
+    this.nuevoCiclo = true;
+    this.historialAplicado = true;
+    this.avisoRecuperado =
+      `Se cargó la asignación de ${h.anio}. Al publicar se abre el ciclo ${this.anioCiclo} sin fechas, evidencias ni observaciones previas.`;
+    this.aplicando = false;
+    this.enfocarAsignacion();
+    this.marcarCambio();
+    if (this.paso < 1 && this.normas.every((n) => n.requisito_ids.length)) {
+      this.progreso = Math.max(this.progreso, 1);
+    }
   }
 
   aplicarFiltroNormas(): void {
@@ -506,7 +630,20 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     return this.normas.some((n) => n.normativa_id === id);
   }
 
+  private avisarSoloLecturaAsignacion(): void {
+    Swal.fire({
+      icon: 'info',
+      title: 'Solo lectura',
+      text: 'Solo los administradores pueden editar o publicar asignaciones. Aquí solo ve las normativas que tiene a cargo.',
+      confirmButtonColor: '#b91c1c'
+    });
+  }
+
   toggleNorma(item: SegNormativaResumen): void {
+    if (!this.puedeEditarAsignacion) {
+      this.avisarSoloLecturaAsignacion();
+      return;
+    }
     const idx = this.normas.findIndex((n) => n.normativa_id === item.id);
     if (idx >= 0) {
       const norma = this.normas[idx];
@@ -560,7 +697,8 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
       categoria_id: item.categoria_id,
       total_requisitos: item.total_requisitos || 0,
       empleados: [],
-      requisito_ids: []
+      requisito_ids: [],
+      puntos_accion: []
     };
   }
 
@@ -671,6 +809,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   togglePunto(norma: NormaAsignada, id: number): void {
     if (norma.requisito_ids.includes(id)) {
       norma.requisito_ids = norma.requisito_ids.filter((x) => x !== id);
+      norma.puntos_accion = (norma.puntos_accion || []).filter((p) => p.requisito_id !== id);
     } else {
       norma.requisito_ids = [...norma.requisito_ids, id];
     }
@@ -961,6 +1100,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     const ids = new Set(puntos.map((p) => p.id));
     if (todos) {
       norma.requisito_ids = norma.requisito_ids.filter((id) => !ids.has(id));
+      norma.puntos_accion = (norma.puntos_accion || []).filter((p) => !ids.has(p.requisito_id));
     } else {
       const actual = new Set(norma.requisito_ids);
       puntos.forEach((p) => actual.add(p.id));
@@ -1106,6 +1246,10 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   }
 
   publicar(): void {
+    if (!this.puedeEditarAsignacion) {
+      this.avisarSoloLecturaAsignacion();
+      return;
+    }
     if (!this.empresa || this.publicando) return;
       for (let i = 0; i <= 1; i++) {
       if (!this.pasoValido(i)) {
@@ -1118,9 +1262,12 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     const extra = retiradas
       ? ` Se retirarán ${retiradas} normativa(s) que ya estaban en gestión y quedaron fuera.`
       : '';
+    const cicloTxt = this.nuevoCiclo
+      ? ` Ciclo ${this.anioCiclo}: se reinician fechas, evidencias del año y observaciones; se conserva el nivel de acción.`
+      : ` Quedará registrada en el historial ${this.anioCiclo}.`;
     Swal.fire({
       title: 'Publicar en Gestión de Normativas',
-      text: `Se asignarán ${this.normas.length} normativa(s) a ${this.empresa.nombre_empresa}.${extra}`,
+      text: `Se asignarán ${this.normas.length} normativa(s) a ${this.empresa.nombre_empresa}.${extra}${cicloTxt}`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Publicar',
@@ -1129,7 +1276,11 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     }).then((r) => {
       if (!r.isConfirmed || !this.empresa) return;
       this.publicando = true;
-      this.backend.publicarSeguridadAsignacion(this.empresa.empresa_id, this.armarPayload())
+      this.backend.publicarSeguridadAsignacion(this.empresa.empresa_id, this.armarPayload(), {
+        anio: this.anioCiclo,
+        nuevo_ciclo: this.nuevoCiclo,
+        clonar_desde_anio: this.clonarDesdeAnio
+      })
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: () => {
@@ -1137,10 +1288,14 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
             this.borrarLocal(this.empresa!.empresa_id);
             this.sucio = false;
             this.estadoGuardado = 'guardado';
+            this.historialAplicado = false;
+            this.clonarDesdeAnio = null;
+            this.nuevoCiclo = false;
+            this.historialSugerido = null;
             Swal.fire({
               icon: 'success',
               title: 'Asignación publicada',
-              text: 'Ya puede cargar documentos en Gestión de Normativas.',
+              text: `Guardada en el historial ${this.anioCiclo}. Ya puede cargar documentos en Gestión de Normativas.`,
               confirmButtonText: 'Ir a gestión',
               showCancelButton: true,
               cancelButtonText: 'Quedarme aquí',
@@ -1165,7 +1320,7 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   }
 
   private marcarCambio(): void {
-    if (this.aplicando || !this.empresa) return;
+    if (this.aplicando || !this.empresa || !this.puedeEditarAsignacion) return;
     this.sucio = true;
     this.estadoGuardado = 'pendiente';
     this.persistirLocal(true);
@@ -1177,11 +1332,21 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     return {
       paso: this.paso,
       vista: 'compacta',
-      normas: this.normas.map((n) => ({
-        normativa_id: n.normativa_id,
-        empleados: n.empleados.map((e) => ({ ...e })),
-        requisito_ids: [...n.requisito_ids]
-      }))
+      normas: this.normas.map((n) => {
+        const ids = new Set(n.requisito_ids);
+        const puntos = (n.puntos_accion || []).filter(
+          (p) => ids.has(p.requisito_id) && [0, 20, 40, 60, 80, 100].includes(Number(p.accion_score))
+        );
+        return {
+          normativa_id: n.normativa_id,
+          empleados: n.empleados.map((e) => ({ ...e })),
+          requisito_ids: [...n.requisito_ids],
+          puntos: puntos.map((p) => ({
+            requisito_id: p.requisito_id,
+            accion_score: Number(p.accion_score)
+          }))
+        };
+      })
     };
   }
 
@@ -1202,6 +1367,10 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
   }
 
   elegirResponsable(norma: NormaAsignada, usuario: EmpleadoOpcion): void {
+    if (!this.puedeEditarAsignacion) {
+      this.avisarSoloLecturaAsignacion();
+      return;
+    }
     this.enfocarNorma(norma);
     this.alternarUsuario(usuario);
     this.consultaResp = { ...this.consultaResp, [norma.normativa_id]: '' };
@@ -1312,18 +1481,27 @@ export class SeguridadAsignacionComponent implements OnInit, OnDestroy {
     this.paso = 0;
     this.normas = normas.map((item) => {
       const cat = this.catalogo.find((c) => c.id === Number(item.normativa_id));
+      const requisitoIds = (item.requisito_ids || []).map((id) => Number(id)).filter((id) => id > 0);
+      const ids = new Set(requisitoIds);
+      const puntosAccion = (item.puntos || [])
+        .map((p) => ({
+          requisito_id: Number(p.requisito_id),
+          accion_score: Number(p.accion_score)
+        }))
+        .filter((p) => ids.has(p.requisito_id) && [0, 20, 40, 60, 80, 100].includes(p.accion_score));
       return {
         normativa_id: Number(item.normativa_id),
         codigo: cat?.codigo || `Norma ${item.normativa_id}`,
         titulo: cat?.titulo || 'Normativa del catálogo',
         categoria_id: cat?.categoria_id || '',
-        total_requisitos: cat?.total_requisitos || item.requisito_ids?.length || 0,
+        total_requisitos: cat?.total_requisitos || requisitoIds.length || 0,
         empleados: (item.empleados || []).slice(0, 1).map((e) => ({
           empleado_id: Number(e.empleado_id),
           nombre: e.nombre || `Empleado ${e.empleado_id}`,
           puesto: e.puesto || ''
         })),
-        requisito_ids: (item.requisito_ids || []).map((id) => Number(id)).filter((id) => id > 0)
+        requisito_ids: requisitoIds,
+        puntos_accion: puntosAccion
       };
     }).filter((n) => n.normativa_id > 0);
     if (this.normas.length) this.normaFocoId = this.normas[0].normativa_id;

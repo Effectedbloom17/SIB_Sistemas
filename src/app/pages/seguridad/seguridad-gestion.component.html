@@ -28,7 +28,7 @@
         <div class="ges-kpi"><span>{{ totalesEmpresas.normativas }}</span><em>Normativas</em></div>
         <div class="ges-kpi ges-kpi--accent"><span>{{ totalesEmpresas.avance }}%</span><em>Avance global</em></div>
       </div>
-      <a class="btn ges-btn" routerLink="/seguridad/asignacion"><i class="fas fa-plus-circle"></i> Asignar</a>
+      <a class="btn ges-btn" *ngIf="puedeAsignar" routerLink="/seguridad/asignacion"><i class="fas fa-plus-circle"></i> Asignar</a>
     </div>
 
     <div class="ges-loading ges-loading--pulse" *ngIf="cargando"><i class="fas fa-spinner fa-spin"></i> Cargando empresas…</div>
@@ -36,8 +36,8 @@
 
     <div class="ges-empty ges-empty--card ges-empty--illustrated" *ngIf="!cargando && !error && empresasFiltradas.length === 0">
       <i class="fas fa-building"></i>
-      <p>Todavía no hay normativas asignadas.</p>
-      <a routerLink="/seguridad/asignacion">Crear la primera asignación</a>
+      <p>{{ puedeAsignar ? 'Todavía no hay normativas asignadas.' : 'No tiene normativas asignadas aún.' }}</p>
+      <a *ngIf="puedeAsignar" routerLink="/seguridad/asignacion">Crear la primera asignación</a>
     </div>
 
     <ng-container *ngIf="!cargando && empresasFiltradas.length">
@@ -754,9 +754,21 @@
               <span>Periodicidad</span>
               <strong>{{ punto.periodicidad || '—' }}</strong>
             </article>
-            <article class="ges-fact">
+            <article class="ges-fact ges-fact--responsable">
               <span>Responsable</span>
-              <strong>{{ punto.responsable }}</strong>
+              <div class="ges-resp-picker" role="group" aria-label="Responsable del punto">
+                <button type="button"
+                        class="ges-resp-picker__btn"
+                        *ngFor="let opt of responsablesOpts"
+                        [class.is-on]="punto.responsable === opt.valor"
+                        [attr.data-resp]="opt.valor"
+                        [disabled]="guardandoPunto"
+                        [title]="opt.hint"
+                        (click)="seleccionarResponsable(punto, opt.valor, $event)">
+                  <i class="fas" [ngClass]="opt.icono" aria-hidden="true"></i>
+                  {{ opt.etiqueta }}
+                </button>
+              </div>
             </article>
             <article class="ges-fact">
               <span>Cumple / No cumple</span>
@@ -774,23 +786,7 @@
             <p>El nivel de acción solo se guarda; no altera Cumple/No cumple.</p>
           </header>
           <div class="ges-gestion-stack">
-            <div class="ges-gestion-stack__accion">
-              <span class="ges-gestion-compact__label">Nivel de acción</span>
-              <div class="ges-score-picker ges-score-picker--compact" role="group" aria-label="Nivel de acción">
-                <button type="button"
-                        class="ges-score-picker__btn"
-                        *ngFor="let op of accionesScore"
-                        [attr.data-grupo]="op.grupo"
-                        [class.is-on]="pesoAccionSeleccionada(punto) === op.score"
-                        [disabled]="guardandoPunto"
-                        [title]="op.detalle"
-                        (click)="seleccionarAccion(punto, op.score, $event)">
-                  <strong>{{ op.score }}</strong>
-                  <em>{{ op.etiqueta }}</em>
-                </button>
-              </div>
-            </div>
-            <div class="ges-gestion-stack__fechas ges-fechas-row">
+            <div class="ges-gestion-stack__fechas ges-fechas-row ges-fechas-row--3">
               <article class="ges-fact ges-fact--dates ges-fechas-row__inicio">
                 <span>Fecha de inicio (mes y año)</span>
                 <div class="ges-date-pick">
@@ -808,6 +804,22 @@
                     <option [ngValue]="null">Año</option>
                     <option *ngFor="let y of aniosInicio" [ngValue]="y">{{ y }}</option>
                   </select>
+                </div>
+              </article>
+              <article class="ges-fact ges-fechas-row__accion">
+                <span>Nivel de acción</span>
+                <div class="ges-tipo-accion" role="group" aria-label="Nivel de acción">
+                  <button type="button"
+                          class="ges-tipo-accion__btn"
+                          *ngFor="let op of tiposAccion"
+                          [attr.data-grupo]="op.valor"
+                          [class.is-on]="tipoAccionGrupo(punto) === op.valor"
+                          [disabled]="guardandoPunto"
+                          [title]="op.detalle"
+                          (click)="seleccionarTipoAccion(punto, op.valor, $event)">
+                    <i class="fas" [ngClass]="op.icono" aria-hidden="true"></i>
+                    <strong>{{ op.etiqueta }}</strong>
+                  </button>
                 </div>
               </article>
               <article class="ges-fact ges-fechas-row__termino">

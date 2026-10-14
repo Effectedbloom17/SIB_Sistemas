@@ -25882,10 +25882,37 @@ function responderErrorSeguridadAsignacion(res, error, fallback) {
 app.get('/api/seguridad/asignacion/estado', authMiddleware, denyEmpresa, async (req, res) => {
     try {
         await poolNormativasReady;
-        const estado = await seguridadAsignacionService.obtenerEstado(poolNormativas, req.query.empresa_id);
+        const estado = await seguridadAsignacionService.obtenerEstado(
+            poolNormativas,
+            req.query.empresa_id,
+            req.query.anio,
+            req.user
+        );
         res.json({ success: true, ...estado });
     } catch (error) {
         responderErrorSeguridadAsignacion(res, error, 'Error al recuperar la asignación');
+    }
+});
+
+app.get('/api/seguridad/asignacion/historial', authMiddleware, denyEmpresa, async (req, res) => {
+    try {
+        await poolNormativasReady;
+        const empresaId = req.query.empresa_id;
+        if (req.query.anio) {
+            const detalle = await seguridadAsignacionService.obtenerHistorialDetalle(
+                poolNormativas,
+                empresaId,
+                req.query.anio
+            );
+            return res.json({ success: true, historial: detalle });
+        }
+        const historiales = await seguridadAsignacionService.listarHistorialEmpresa(
+            poolNormativas,
+            empresaId
+        );
+        res.json({ success: true, historiales });
+    } catch (error) {
+        responderErrorSeguridadAsignacion(res, error, 'Error al consultar el historial de asignaciones');
     }
 });
 
@@ -25961,7 +25988,7 @@ app.delete('/api/seguridad/asignacion/documentos/:docId', authMiddleware, denyEm
 app.get('/api/seguridad/asignacion/empresas', authMiddleware, denyEmpresa, async (req, res) => {
     try {
         await poolNormativasReady;
-        const empresas = await seguridadAsignacionService.listarEmpresasGestion(poolNormativas);
+        const empresas = await seguridadAsignacionService.listarEmpresasGestion(poolNormativas, req.user);
         res.json({ success: true, empresas });
     } catch (error) {
         responderErrorSeguridadAsignacion(res, error, 'Error al listar empresas en gestión');
@@ -25974,7 +26001,8 @@ app.get('/api/seguridad/asignacion/empresas/:empresaId', authMiddleware, denyEmp
         const detalle = await seguridadAsignacionService.obtenerEmpresaGestion(
             poolNormativas,
             req.params.empresaId,
-            req.query.categoria_id
+            req.query.categoria_id,
+            req.user
         );
         res.json({ success: true, ...detalle });
     } catch (error) {
@@ -25987,7 +26015,8 @@ app.get('/api/seguridad/asignacion', authMiddleware, denyEmpresa, async (req, re
         await poolNormativasReady;
         const asignaciones = await seguridadAsignacionService.listarGestion(
             poolNormativas,
-            req.query.empresa_id
+            req.query.empresa_id,
+            req.user
         );
         res.json({ success: true, asignaciones });
     } catch (error) {
@@ -25998,7 +26027,11 @@ app.get('/api/seguridad/asignacion', authMiddleware, denyEmpresa, async (req, re
 app.get('/api/seguridad/asignacion/:id', authMiddleware, denyEmpresa, async (req, res) => {
     try {
         await poolNormativasReady;
-        const detalle = await seguridadAsignacionService.obtenerGestion(poolNormativas, req.params.id);
+        const detalle = await seguridadAsignacionService.obtenerGestion(
+            poolNormativas,
+            req.params.id,
+            req.user
+        );
         res.json({ success: true, ...detalle });
     } catch (error) {
         responderErrorSeguridadAsignacion(res, error, 'Error al abrir la normativa asignada');
@@ -26012,7 +26045,8 @@ app.put('/api/seguridad/asignacion/:id/puntos/:requisitoId', authMiddleware, den
             poolNormativas,
             req.params.id,
             req.params.requisitoId,
-            req.body || {}
+            req.body || {},
+            req.user
         );
         res.json({ success: true, message: 'Punto actualizado.', ...detalle });
     } catch (error) {
@@ -29335,6 +29369,33 @@ app.post('/api/sgc/formatos/sgc-f-29/visibilidad', requireAdminOrSgc, async (req
             return res.status(error.statusCode).json({ success: false, message: error.message });
         }
         handleError(res, error, 'No se pudo actualizar la visibilidad del proveedor');
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-29/criterios', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const criterios = await sgcF29Service.listarCriterios(poolBiznagaSgc);
+        return res.json({ success: true, criterios });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron listar los criterios de SGC-F-29');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-29/criterios', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const criterios = await sgcF29Service.crearCriterio(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'Criterio agregado al catálogo.',
+            criterios
+        });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 409) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo crear el criterio de SGC-F-29');
     }
 });
 

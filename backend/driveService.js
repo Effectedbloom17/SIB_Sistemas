@@ -1732,6 +1732,53 @@ async function insertarFilasGoogleSheet(spreadsheetId, sheetId, startIndex, numR
 }
 
 /**
+ * Inserta columnas en una hoja (índices 0-based, endIndex exclusivo).
+ * @param {string} spreadsheetId
+ * @param {number} sheetId
+ * @param {number} startIndex
+ * @param {number} numCols
+ * @param {{ inheritFromBefore?: boolean, pixelSize?: number }} [options]
+ */
+async function insertarColumnasGoogleSheet(spreadsheetId, sheetId, startIndex, numCols, options = {}) {
+    const cols = Math.max(0, Math.floor(Number(numCols) || 0));
+    if (!spreadsheetId || sheetId == null || cols <= 0) {
+        return null;
+    }
+    const start = Math.max(0, Math.floor(Number(startIndex) || 0));
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const requests = [{
+        insertDimension: {
+            range: {
+                sheetId: Number(sheetId),
+                dimension: 'COLUMNS',
+                startIndex: start,
+                endIndex: start + cols
+            },
+            inheritFromBefore: options.inheritFromBefore !== false
+        }
+    }];
+    const pixelSize = Number(options.pixelSize);
+    if (Number.isFinite(pixelSize) && pixelSize > 0) {
+        requests.push({
+            updateDimensionProperties: {
+                range: {
+                    sheetId: Number(sheetId),
+                    dimension: 'COLUMNS',
+                    startIndex: start,
+                    endIndex: start + cols
+                },
+                properties: { pixelSize: Math.round(pixelSize) },
+                fields: 'pixelSize'
+            }
+        });
+    }
+    return sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests }
+    });
+}
+
+/**
  * Elimina filas de una hoja de Google Sheets.
  * @param {string} spreadsheetId
  * @param {number} sheetId
@@ -1879,6 +1926,17 @@ async function actualizarCeldasGoogleSheet(spreadsheetId, actualizaciones) {
         }
     });
     return response.data;
+}
+
+async function leerRangoGoogleSheet(spreadsheetId, range) {
+    if (!spreadsheetId || !range) return [];
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const res = await sheetsApi.spreadsheets.values.get({
+        spreadsheetId,
+        range,
+        majorDimension: 'ROWS'
+    });
+    return res.data.values || [];
 }
 
 /**
@@ -3820,9 +3878,12 @@ async function aplicarFormatoFilasSgcF02(spreadsheetId, sheetTitle, filaInicio, 
 
 /**
  * SGC-F-29 · Evaluación de proveedores: Century Gothic 11, alineación por columna
- * y caja de tabla cerrada (incl. Calificación). Tabla A:J con Proveedor en B:C.
+ * y caja de tabla cerrada (incl. Calificación). Tabla A:… con Proveedor en B:C.
+ * @param {object} [opciones]
+ * @param {number} [opciones.numCriterios]
+ * @param {number} [opciones.colCalificacion] - 1-based
  */
-async function aplicarFormatoFilasSgcF29(spreadsheetId, sheetTitle, filaInicio, numFilas, filaMax) {
+async function aplicarFormatoFilasSgcF29(spreadsheetId, sheetTitle, filaInicio, numFilas, filaMax, opciones = {}) {
     if (!spreadsheetId || !sheetTitle) {
         return null;
     }
@@ -3838,9 +3899,11 @@ async function aplicarFormatoFilasSgcF29(spreadsheetId, sheetTitle, filaInicio, 
         return null;
     }
 
-    // A No | B:C Proveedor | D–H criterios | I Calidad producto | J Calificación.
+    // A No | B:C Proveedor | D… criterios | Calificación.
+    const numCriterios = Math.max(6, Number(opciones.numCriterios) || 6);
+    const colCalif1Based = Number(opciones.colCalificacion) || (4 + numCriterios);
     const TABLA_COL_INICIO = 0;
-    const TABLA_COL_FIN = 10; // A..J (fin exclusivo)
+    const TABLA_COL_FIN = colCalif1Based; // fin exclusivo (1-based colCalif = índice exclusivo)
     const HEADER_ROW_IDX = 6; // fila 7 (0-based)
 
     const filas = Math.max(0, Number(numFilas) || 0);
@@ -3955,7 +4018,7 @@ async function aplicarFormatoFilasSgcF29(spreadsheetId, sheetTitle, filaInicio, 
     if (filas > 0) {
         requests.push(formatoColumna(0, 1, 'CENTER', startRow, dataEndRow));   // A No
         requests.push(formatoColumna(1, 3, 'LEFT', startRow, dataEndRow));    // B:C Proveedor
-        requests.push(formatoColumna(3, 10, 'CENTER', startRow, dataEndRow)); // D–J (incl. Calificación)
+        requests.push(formatoColumna(3, TABLA_COL_FIN, 'CENTER', startRow, dataEndRow)); // D…Calificación
 
         // Caja completa encabezado + datos: cierra abajo y a la derecha (Calificación).
         requests.push({
@@ -4011,15 +4074,15 @@ async function aplicarFormatoFilasSgcF29(spreadsheetId, sheetTitle, filaInicio, 
         });
     }
 
-    // Columnas K:L residuales: no tocar "left" de K (borraría el borde derecho de Calificación).
+    // Columnas residuales a la derecha de Calificación.
     requests.push({
         updateBorders: {
             range: {
                 sheetId,
                 startRowIndex: HEADER_ROW_IDX,
                 endRowIndex: Math.max(blockEndRow, HEADER_ROW_IDX + 1),
-                startColumnIndex: 10,
-                endColumnIndex: 12
+                startColumnIndex: TABLA_COL_FIN,
+                endColumnIndex: TABLA_COL_FIN + 2
             },
             top: sinBorde,
             bottom: sinBorde,
@@ -12615,6 +12678,7 @@ module.exports = {
     getAuthClient: () => _driveAuthClient,
 
     actualizarCeldasGoogleSheet,
+    leerRangoGoogleSheet,
     permitirAccesoUrlsExternasGoogleSheet,
     aplicarFormatoRangoGoogleSheet,
     listarHojasGoogleSheet,
@@ -12628,6 +12692,7 @@ module.exports = {
     moverHojaAlInicioGoogleSheet,
     renombrarHojaGoogleSheet,
     insertarFilasGoogleSheet,
+    insertarColumnasGoogleSheet,
     fusionarRangoGoogleSheet,
     eliminarFilasGoogleSheet,
     crearHojaGoogleSheet,

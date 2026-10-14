@@ -8625,13 +8625,24 @@
                         <aside class="sgc-f-29-libreta__lista">
                           <header class="sgc-f-29-libreta__lista-head">
                             <span>Proveedores</span>
-                            <em>{{ sgcF29GruposVista.length }}</em>
+                            <em>{{ sgcF29GruposFiltrados.length }}</em>
                           </header>
 
-                          <div class="sgc-f-29-libreta__items" *ngIf="sgcF29GruposVista.length; else sgcF29ListaVacia">
+                          <div class="sgc-f-29-libreta__search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input type="search"
+                              class="sgc-f-29-libreta__search-input"
+                              name="sgcF29_busqueda_prov"
+                              placeholder="Buscar proveedor…"
+                              [(ngModel)]="sgcF29BusquedaProveedor"
+                              autocomplete="off"
+                              aria-label="Buscar proveedor">
+                          </div>
+
+                          <div class="sgc-f-29-libreta__items" *ngIf="sgcF29GruposFiltrados.length; else sgcF29ListaVacia">
                             <button type="button"
                               class="sgc-f-29-libreta__item"
-                              *ngFor="let grupo of sgcF29GruposVista; let gi = index; trackBy: trackByIdx"
+                              *ngFor="let grupo of sgcF29GruposFiltrados; let gi = index; trackBy: trackByIdx"
                               [class.is-active]="sgcF29ProveedorActivo?.clave === grupo.clave"
                               [class.is-multi]="grupo.multiple"
                               (click)="seleccionarProveedorSgcF29(grupo, $event)"
@@ -8653,7 +8664,12 @@
                             </button>
                           </div>
                           <ng-template #sgcF29ListaVacia>
-                            <p class="sgc-f-29-libreta__empty">Aún no hay proveedores en la libreta.</p>
+                            <p class="sgc-f-29-libreta__empty" *ngIf="sgcF29BusquedaProveedor.trim(); else sgcF29ListaSinDatos">
+                              Sin resultados para «{{ sgcF29BusquedaProveedor.trim() }}».
+                            </p>
+                            <ng-template #sgcF29ListaSinDatos>
+                              <p class="sgc-f-29-libreta__empty">Aún no hay proveedores en la libreta.</p>
+                            </ng-template>
                           </ng-template>
 
                           <footer class="sgc-f-29-libreta__lista-foot">
@@ -8671,19 +8687,23 @@
                         <section class="sgc-f-29-libreta__detalle" *ngIf="sgcF29ProveedorActivo as activo; else sgcF29SinSeleccion">
                           <header class="sgc-f-29-libreta__detalle-head">
                             <div class="sgc-f-29-libreta__detalle-titles">
-                              <p class="sgc-f-29-libreta__eyebrow">
-                                {{ activo.indices.length }} evaluación{{ activo.indices.length !== 1 ? 'es' : '' }}
-                                · Promedio
-                                <strong>{{ promedioGrupoSgcF29(activo.indices) ? (promedioGrupoSgcF29(activo.indices) + '%') : '—' }}</strong>
-                              </p>
                               <label class="sgc-f-29-libreta__nombre-field">
                                 <span>Proveedor</span>
                                 <textarea class="sgc-f-29-libreta__nombre"
-                                  rows="2"
+                                  rows="1"
                                   placeholder="Nombre del proveedor"
                                   [ngModel]="activo.proveedor"
                                   [name]="'sgcF29_prov_sel'"
                                   (ngModelChange)="onNombreGrupoSgcF29Change(activo, $event)"></textarea>
+                              </label>
+                              <label class="sgc-f-29-libreta__accion-field">
+                                <span>Acción / actividad</span>
+                                <input type="text" class="sgc-f-29-libreta__accion"
+                                  maxlength="160"
+                                  placeholder="Ej. Suministro de químicos, mantenimiento de extintores…"
+                                  [ngModel]="accionGrupoSgcF29(activo)"
+                                  [name]="'sgcF29_accion_sel'"
+                                  (ngModelChange)="onAccionGrupoSgcF29Change(activo, $event)">
                               </label>
                             </div>
                             <div class="sgc-f-29-libreta__detalle-actions">
@@ -8705,29 +8725,103 @@
                             </div>
                           </header>
 
-                          <div class="sgc-f-29-libreta__criterios-legend" aria-label="Criterios de evaluación">
+                          <div class="sgc-f-29-libreta__criterios-legend"
+                            [class.has-tip-open]="!!sgcF29TipAbierto"
+                            aria-label="Criterios de evaluación">
                             <span class="sgc-f-29-libreta__crit-label">
                               <i class="fas fa-lightbulb" aria-hidden="true"></i>
                               Criterios
                             </span>
-                            <button type="button" class="sgc-f-29-libreta__crit-tip"
-                              *ngFor="let c of sgcF29CriteriosOval"
-                              (click)="toggleTipSgcF29(c.tip, $event)"
-                              [class.is-open]="sgcF29TipAbierto === c.tip"
-                              [attr.aria-expanded]="sgcF29TipAbierto === c.tip"
-                              [attr.title]="c.largo">
-                              {{ c.corto }}
-                              <i class="fas fa-info-circle" aria-hidden="true"></i>
-                              <span class="sgc-f-29-th-tip sgc-f-29-libreta__tip" role="tooltip" *ngIf="sgcF29TipAbierto === c.tip">
-                                <strong>{{ c.largo }}</strong>
-                                <ul>
-                                  <li *ngFor="let p of sgcF29Puntajes">
-                                    <b>{{ p.valor }}%</b>
-                                    <span>{{ descripcionCriterioSgcF29(c.tip, p.valor) }}</span>
-                                  </li>
-                                </ul>
-                              </span>
+                            <div class="sgc-f-29-libreta__crit-chips"
+                              [class.has-tip-open]="!!sgcF29TipAbierto">
+                              <button type="button" class="sgc-f-29-libreta__crit-tip"
+                                *ngFor="let c of sgcF29CriteriosActivos"
+                                (click)="toggleTipSgcF29(c.clave, $event)"
+                                [class.is-open]="sgcF29TipAbierto === c.clave"
+                                [attr.aria-expanded]="sgcF29TipAbierto === c.clave"
+                                [attr.title]="c.nombre">
+                                {{ c.nombre }}
+                                <i class="fas fa-info-circle" aria-hidden="true"></i>
+                                <span class="sgc-f-29-th-tip sgc-f-29-libreta__tip" role="tooltip"
+                                  *ngIf="sgcF29TipAbierto === c.clave"
+                                  (click)="$event.stopPropagation()">
+                                  <strong>{{ textoConSaltosSgcF29(c.nombre) }}</strong>
+                                  <ul>
+                                    <li *ngFor="let v of valoresEscalaCriterioSgcF29(c.clave)">
+                                      <b>{{ v }}%</b>
+                                      <span>{{ textoConSaltosSgcF29(descripcionCriterioSgcF29(c.clave, v)) }}</span>
+                                    </li>
+                                  </ul>
+                                </span>
+                              </button>
+                            </div>
+                            <button type="button" class="sgc-f-29-libreta__crit-add"
+                              (click)="toggleFormNuevoCriterioSgcF29($event)"
+                              [class.is-open]="sgcF29NuevoCriterioAbierto"
+                              title="Agregar criterio al catálogo"
+                              aria-label="Agregar criterio">
+                              <i class="fas fa-plus" aria-hidden="true"></i>
                             </button>
+                            <div class="sgc-f-29-libreta__crit-form" *ngIf="sgcF29NuevoCriterioAbierto" (click)="$event.stopPropagation()">
+                              <header class="sgc-f-29-libreta__crit-form-head">
+                                <span class="sgc-f-29-libreta__crit-form-badge" aria-hidden="true">
+                                  <i class="fas fa-sliders-h"></i>
+                                </span>
+                                <div>
+                                  <h4>Nuevo criterio</h4>
+                                  <p>El nombre se usa igual en el sistema y en el Excel</p>
+                                </div>
+                              </header>
+
+                              <div class="sgc-f-29-libreta__crit-form-row">
+                                <label class="sgc-f-29-libreta__crit-form-name">
+                                  <span>Nombre del criterio</span>
+                                  <input type="text" maxlength="80"
+                                    [(ngModel)]="sgcF29NuevoCriterio.nombre"
+                                    name="sgcF29_crit_nombre"
+                                    placeholder="Ej. Calidad del empaque">
+                                </label>
+
+                                <label class="sgc-f-29-libreta__crit-form-escala">
+                                  <span>Escala de valores</span>
+                                  <select
+                                    [(ngModel)]="sgcF29NuevoCriterio.escala"
+                                    (ngModelChange)="onEscalaNuevoCriterioSgcF29Change()"
+                                    name="sgcF29_crit_escala">
+                                    <option *ngFor="let e of sgcF29EscalasOpciones" [ngValue]="e.escala">
+                                      {{ e.etiqueta }}
+                                    </option>
+                                  </select>
+                                </label>
+                              </div>
+
+                              <div class="sgc-f-29-libreta__crit-form-descs-wrap">
+                                <div class="sgc-f-29-libreta__crit-form-descs-head">
+                                  <span class="sgc-f-29-libreta__crit-form-section">Qué significa cada valor</span>
+                                  <small>Completa una descripción breve por porcentaje</small>
+                                </div>
+                                <div class="sgc-f-29-libreta__crit-form-descs"
+                                  [attr.data-count]="valoresNuevoCriterioSgcF29().length">
+                                  <label *ngFor="let v of valoresNuevoCriterioSgcF29()" class="sgc-f-29-desc-card">
+                                    <span class="sgc-f-29-desc-card__pct">{{ v }}%</span>
+                                    <textarea rows="2" maxlength="200"
+                                      [(ngModel)]="sgcF29NuevoCriterio.descripciones[v]"
+                                      [name]="'sgcF29_crit_desc_' + v"
+                                      [placeholder]="'Describe el ' + v + '%'"></textarea>
+                                  </label>
+                                </div>
+                              </div>
+
+                              <div class="sgc-f-29-libreta__crit-form-actions">
+                                <button type="button" class="sgc-f-29-libreta__crit-form-cancel"
+                                  (click)="cerrarFormNuevoCriterioSgcF29($event)">Cancelar</button>
+                                <button type="button" class="sgc-f-29-libreta__crit-form-save"
+                                  (click)="guardarNuevoCriterioSgcF29($event)"
+                                  [disabled]="!puedeGuardarNuevoCriterioSgcF29">
+                                  {{ sgcF29CriterioGuardando ? 'Guardando…' : 'Guardar criterio' }}
+                                </button>
+                              </div>
+                            </div>
                           </div>
 
                           <div class="sgc-f-29-libreta__evals">
@@ -8745,19 +8839,86 @@
                                         (ngModelChange)="onCampoEvalSgcF29(idx)"
                                         (click)="$event.stopPropagation()">
                                     </label>
+                                    <div class="sgc-f-29-field-outline sgc-f-29-field-outline--evaluador sgc-f-29-field-outline--grow"
+                                      (click)="$event.stopPropagation()"
+                                      (mousedown)="$event.stopPropagation()">
+                                      <span class="sgc-f-29-field-outline__label">Evaluador</span>
+                                      <div class="ath-f-08-combo sgc-f-29-eval-combo"
+                                        [class.ath-f-08-combo--open]="sgcF29EvaluadorComboIdx === idx">
+                                        <div class="ath-f-08-combo__control">
+                                          <input class="ath-f-08-combo__input sgc-f-29-field-outline__input"
+                                            type="text"
+                                            [name]="'sgcF29_eval_p' + idx"
+                                            [ngModel]="textoComboEvaluadorSgcF29(idx)"
+                                            (ngModelChange)="onEvaluadorComboInputSgcF29(idx, $event)"
+                                            (focus)="abrirComboEvaluadorSgcF29(idx)"
+                                            (click)="abrirComboEvaluadorSgcF29(idx)"
+                                            placeholder="Buscar usuario o escribir nombre…"
+                                            autocomplete="off"
+                                            [attr.aria-expanded]="sgcF29EvaluadorComboIdx === idx">
+                                          <button *ngIf="row.evaluador || (sgcF29EvaluadorComboIdx === idx && sgcF29EvaluadorComboQuery)"
+                                            type="button"
+                                            class="ath-f-08-combo__clear"
+                                            (click)="limpiarEvaluadorSgcF29(idx); $event.stopPropagation()"
+                                            title="Limpiar evaluador" aria-label="Limpiar evaluador">
+                                            <i class="fas fa-times" aria-hidden="true"></i>
+                                          </button>
+                                          <span class="ath-f-08-combo__chevron" aria-hidden="true">
+                                            <i class="fas"
+                                              [ngClass]="sgcF29EvaluadorComboIdx === idx ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                                          </span>
+                                        </div>
+                                        <div class="ath-f-08-combo__dropdown"
+                                          *ngIf="sgcF29EvaluadorComboIdx === idx"
+                                          role="listbox">
+                                          <div class="ath-f-08-combo__dropdown-head"
+                                            *ngIf="evaluadoresFiltradosSgcF29.length || textoLibreEvaluadorSgcF29">
+                                            <span class="ath-f-08-combo__dropdown-title">Usuarios del sistema</span>
+                                            <span class="ath-f-08-combo__dropdown-count">{{ evaluadoresFiltradosSgcF29.length }}</span>
+                                          </div>
+                                          <button *ngIf="textoLibreEvaluadorSgcF29" type="button"
+                                            class="ath-f-08-combo__option ath-f-08-combo__option--create"
+                                            (click)="seleccionarEvaluadorLibreSgcF29(idx, textoLibreEvaluadorSgcF29)">
+                                            <span class="ath-f-08-combo__option-icon" aria-hidden="true">
+                                              <i class="fas fa-plus"></i>
+                                            </span>
+                                            <span class="ath-f-08-combo__option-text">Usar «{{ textoLibreEvaluadorSgcF29 }}»</span>
+                                          </button>
+                                          <div class="ath-f-08-combo__state"
+                                            *ngIf="!evaluadoresFiltradosSgcF29.length && !textoLibreEvaluadorSgcF29">
+                                            <span class="ath-f-08-combo__state-icon" aria-hidden="true">
+                                              <i class="fas fa-search"></i>
+                                            </span>
+                                            Escribe para buscar o registrar un nombre
+                                          </div>
+                                          <div class="ath-f-08-combo__options"
+                                            *ngIf="evaluadoresFiltradosSgcF29.length">
+                                            <button *ngFor="let emp of evaluadoresFiltradosSgcF29; trackBy: trackByIdx"
+                                              type="button"
+                                              class="ath-f-08-combo__option"
+                                              [class.ath-f-08-combo__option--selected]="emp.nombreCompleto === row.evaluador"
+                                              (click)="seleccionarEvaluadorSgcF29(idx, emp)">
+                                              <span class="ath-f-08-combo__option-icon" aria-hidden="true">
+                                                <i class="fas fa-user"></i>
+                                              </span>
+                                              <span class="ath-f-08-combo__option-text">{{ emp.nombreCompleto }}</span>
+                                              <span class="ath-f-08-combo__option-check"
+                                                *ngIf="emp.nombreCompleto === row.evaluador" aria-hidden="true">
+                                                <i class="fas fa-check"></i>
+                                              </span>
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
                                     <label class="sgc-f-29-field-outline sgc-f-29-field-outline--grow">
-                                      <span class="sgc-f-29-field-outline__label">Motivo <em>(opcional)</em></span>
+                                      <span class="sgc-f-29-field-outline__label">Observaciones <em>(opcional)</em></span>
                                       <input type="text" class="sgc-f-29-field-outline__input"
                                         placeholder="Opcional · Ej. Contrato 2"
                                         [(ngModel)]="row.referencia" [name]="'sgcF29_ref_p' + idx"
                                         (ngModelChange)="onCampoEvalSgcF29(idx)"
                                         (click)="$event.stopPropagation()">
                                     </label>
-                                    <div class="sgc-f-29-field-outline sgc-f-29-field-outline--evaluador"
-                                      [attr.title]="row.evaluador || 'Sin registro'">
-                                      <span class="sgc-f-29-field-outline__label">Evaluador</span>
-                                      <span class="sgc-f-29-field-outline__static">{{ row.evaluador || 'Sin registro' }}</span>
-                                    </div>
                                     <div class="sgc-f-29-gauge"
                                       [class.is-empty]="!row.calificacion"
                                       [attr.title]="'Calificación ' + (row.calificacion ? row.calificacion + '%' : '—')">
@@ -8785,19 +8946,47 @@
                                   </div>
                                 </header>
 
-                                <div class="sgc-f-29-eval-card__scores sgc-f-29-eval-card__scores--oval">
-                                  <label *ngFor="let c of sgcF29CriteriosOval" [attr.title]="c.largo">
-                                    <span>{{ c.corto }}</span>
+                                <div class="sgc-f-29-eval-card__scores sgc-f-29-eval-card__scores--oval"
+                                  (click)="$event.stopPropagation()">
+                                  <div class="sgc-f-29-eval-crit"
+                                    *ngFor="let c of criteriosUsadosFilaSgcF29(row)"
+                                    [class.sgc-f-29-eval-crit--solo]="criteriosUsadosFilaSgcF29(row).length <= sgcF29MinCriterios"
+                                    [attr.title]="c.nombre">
+                                    <span class="sgc-f-29-eval-crit__label">{{ textoConSaltosSgcF29(c.nombre) }}</span>
+                                    <button type="button" class="sgc-f-29-eval-crit__rm"
+                                      *ngIf="criteriosUsadosFilaSgcF29(row).length > sgcF29MinCriterios"
+                                      (click)="quitarCriterioDeFilaSgcF29(idx, c.clave, $event)"
+                                      title="Quitar criterio de esta evaluación"
+                                      aria-label="Quitar criterio">
+                                      <i class="fas fa-times" aria-hidden="true"></i>
+                                    </button>
                                     <select class="sgc-f-29-score-oval"
-                                      [ngModel]="valorCriterioSgcF29(row, c.campo)"
-                                      [name]="'sgcF29_' + c.campo + '_' + idx"
-                                      (ngModelChange)="setCriterioSgcF29(idx, c.campo, $event)"
-                                      (click)="$event.stopPropagation()"
-                                      [attr.title]="descripcionCriterioSgcF29(c.tip, valorCriterioSgcF29(row, c.campo))">
+                                      [ngModel]="valorCriterioSgcF29(row, c.clave)"
+                                      [name]="'sgcF29_' + c.clave + '_' + idx"
+                                      (ngModelChange)="setCriterioSgcF29(idx, c.clave, $event)"
+                                      [attr.title]="descripcionCriterioSgcF29(c.clave, valorCriterioSgcF29(row, c.clave))">
                                       <option value="">—</option>
-                                      <option *ngFor="let p of sgcF29Puntajes" [value]="p.valor">{{ p.valor }}%</option>
+                                      <option *ngFor="let v of valoresEscalaCriterioSgcF29(c.clave)" [value]="v">{{ v }}%</option>
                                     </select>
-                                  </label>
+                                  </div>
+                                  <div class="sgc-f-29-eval-crit-add" *ngIf="criteriosDisponiblesParaFilaSgcF29(row).length">
+                                    <button type="button" class="sgc-f-29-eval-crit-add__btn"
+                                      (click)="toggleMenuAddCritSgcF29(idx, $event)"
+                                      [class.is-open]="sgcF29MenuAddCritIdx === idx"
+                                      title="Agregar criterio a esta evaluación">
+                                      <i class="fas fa-plus" aria-hidden="true"></i>
+                                      Criterio
+                                    </button>
+                                    <div class="sgc-f-29-eval-crit-add__menu" *ngIf="sgcF29MenuAddCritIdx === idx">
+                                      <p class="sgc-f-29-eval-crit-add__menu-title">Agregar a esta evaluación</p>
+                                      <button type="button"
+                                        *ngFor="let c of criteriosDisponiblesParaFilaSgcF29(row)"
+                                        (click)="agregarCriterioAFilaSgcF29(idx, c.clave, $event)">
+                                        <i class="fas fa-plus-circle" aria-hidden="true"></i>
+                                        {{ c.nombre }}
+                                      </button>
+                                    </div>
+                                  </div>
                                 </div>
 
                                 <footer class="sgc-f-29-eval-card__foot">

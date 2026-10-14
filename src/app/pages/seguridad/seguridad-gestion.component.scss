@@ -4203,10 +4203,108 @@ button.ges-req-card {
   gap: 0.65rem 0.85rem;
   width: 100%;
 
+  &--3 {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 0.9fr) !important;
+  }
+
   &__inicio,
+  &__accion,
   &__termino {
     min-width: 0;
     grid-column: auto !important;
+  }
+}
+
+.ges-tipo-accion {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 2.45rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    border-radius: 10px;
+    background: #fff;
+    color: #475569;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+
+    i { font-size: 0.78rem; opacity: 0.85; }
+    strong { font-size: 0.78rem; font-weight: 800; }
+
+    &[data-grupo='preventiva']:hover,
+    &[data-grupo='preventiva'].is-on {
+      border-color: rgba(15, 118, 110, 0.55);
+      background: #ecfdf5;
+      color: #0f766e;
+      box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12);
+    }
+
+    &[data-grupo='correctiva']:hover,
+    &[data-grupo='correctiva'].is-on {
+      border-color: rgba(194, 65, 12, 0.5);
+      background: #fff7ed;
+      color: #c2410c;
+      box-shadow: 0 0 0 2px rgba(194, 65, 12, 0.12);
+    }
+
+    &:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.ges-resp-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.28rem;
+  margin-top: 0.15rem;
+
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.28rem;
+    min-height: 1.9rem;
+    padding: 0.28rem 0.35rem;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    border-radius: 8px;
+    background: #fff;
+    color: #475569;
+    font-size: 0.68rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+
+    i { font-size: 0.68rem; }
+
+    &[data-resp='Empresa']:hover,
+    &[data-resp='Empresa'].is-on {
+      border-color: rgba(37, 99, 235, 0.55);
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    &[data-resp='Cliente']:hover,
+    &[data-resp='Cliente'].is-on {
+      border-color: rgba(185, 28, 28, 0.45);
+      background: #fef2f2;
+      color: #b91c1c;
+    }
+
+    &:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
   }
 }
 
@@ -4573,10 +4671,15 @@ button.ges-req-card {
 
   .ges-fechas-row {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+
+    &--3 {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    }
   }
 
   .ges-fact--wide,
-  .ges-fact--accion { grid-column: 1 / -1; }
+  .ges-fact--accion,
+  .ges-fechas-row__termino { grid-column: 1 / -1; }
 
   .ges-score-picker {
     grid-template-columns: repeat(3, minmax(0, 1fr));

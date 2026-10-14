@@ -10,6 +10,7 @@ import { Subject, forkJoin, of } from 'rxjs';
 import { catchError, takeUntil } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { environment } from 'src/environments/environment';
+import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
 import { DocumentPreviewService } from 'src/app/services/document-preview.service';
 import { SEG_NORMATIVAS_CATEGORIAS } from './seguridad-normativas.catalog';
@@ -250,6 +251,34 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
   private driveThumbFallidos = new Set<number>();
   readonly categorias = SEG_NORMATIVAS_CATEGORIAS;
   readonly accionesScore = ACCIONES_SCORE;
+  readonly tiposAccion: Array<{
+    valor: 'preventiva' | 'correctiva';
+    etiqueta: string;
+    icono: string;
+    detalle: string;
+  }> = [
+    {
+      valor: 'preventiva',
+      etiqueta: 'Preventiva',
+      icono: 'fa-shield-alt',
+      detalle: 'Acción preventiva'
+    },
+    {
+      valor: 'correctiva',
+      etiqueta: 'Correctiva',
+      icono: 'fa-wrench',
+      detalle: 'Acción correctiva'
+    }
+  ];
+  readonly responsablesOpts: Array<{
+    valor: 'Empresa' | 'Cliente';
+    etiqueta: string;
+    icono: string;
+    hint: string;
+  }> = [
+    { valor: 'Empresa', etiqueta: 'Empresa', icono: 'fa-building', hint: 'A cargo de Biznaga' },
+    { valor: 'Cliente', etiqueta: 'Cliente', icono: 'fa-handshake', hint: 'A cargo del cliente' }
+  ];
   readonly mesesInicio = [
     { valor: 1, etiqueta: 'Enero' }, { valor: 2, etiqueta: 'Febrero' },
     { valor: 3, etiqueta: 'Marzo' }, { valor: 4, etiqueta: 'Abril' },
@@ -270,12 +299,17 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
 
   constructor(
     private backend: BackendServices,
+    private auth: AuthService,
     private route: ActivatedRoute,
     private router: Router,
     private sanitizer: DomSanitizer,
     private preview: DocumentPreviewService,
     private cdr: ChangeDetectorRef
   ) {}
+
+  get puedeAsignar(): boolean {
+    return this.auth.esAdministradorOSuperior();
+  }
 
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe(() => this.sincronizarRuta());
@@ -1732,8 +1766,10 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
   }
 
   etiquetaAccionActiva(punto: PuntoGestion): string {
-    const op = this.opcionAccion(this.pesoAccionSeleccionada(punto));
-    return op ? `${op.etiqueta} · ${op.score}` : 'Sin acción';
+    const grupo = this.tipoAccionGrupo(punto);
+    if (grupo === 'preventiva') return 'Preventiva';
+    if (grupo === 'correctiva') return 'Correctiva';
+    return 'Sin acción';
   }
 
   tipoAccionGrupo(punto: PuntoGestion): 'preventiva' | 'correctiva' | null {
@@ -1777,6 +1813,28 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     this.guardarCamposPunto(punto.id, { accion_score: score });
   }
 
+  seleccionarTipoAccion(
+    punto: PuntoGestion,
+    tipo: 'preventiva' | 'correctiva',
+    event?: Event
+  ): void {
+    event?.stopPropagation();
+    if (!this.detalle || this.guardandoPunto) return;
+    if (this.tipoAccionGrupo(punto) === tipo) return;
+    this.guardarCamposPunto(punto.id, { tipo_accion: tipo });
+  }
+
+  seleccionarResponsable(
+    punto: PuntoGestion,
+    responsable: 'Empresa' | 'Cliente',
+    event?: Event
+  ): void {
+    event?.stopPropagation();
+    if (!this.detalle || this.guardandoPunto) return;
+    if (punto.responsable === responsable) return;
+    this.guardarCamposPunto(punto.id, { responsable });
+  }
+
   alCambiarInicioMes(punto: PuntoGestion, mes: number | string): void {
     const m = Number(mes);
     const y = this.anioInicioDe(punto) || new Date().getFullYear();
@@ -1812,6 +1870,8 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     requisitoId: number,
     datos: {
       accion_score?: number | null;
+      tipo_accion?: 'preventiva' | 'correctiva' | null;
+      responsable?: 'Empresa' | 'Cliente';
       fecha_inicio?: string | null;
       observaciones?: string | null;
     }

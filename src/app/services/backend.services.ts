@@ -2770,8 +2770,22 @@ export class BackendServices {
         );
     }
 
-    obtenerEstadoSeguridadAsignacion(empresaId: number): Observable<any> {
-        return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion/estado?empresa_id=${empresaId}`);
+    obtenerEstadoSeguridadAsignacion(empresaId: number, anio?: number): Observable<any> {
+        const params: string[] = [`empresa_id=${empresaId}`];
+        if (anio) params.push(`anio=${anio}`);
+        return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion/estado?${params.join('&')}`);
+    }
+
+    listarHistorialSeguridadAsignacion(empresaId: number): Observable<any> {
+        return this.httpClient.get(
+            `${this.baseUrl}/seguridad/asignacion/historial?empresa_id=${empresaId}`
+        );
+    }
+
+    obtenerHistorialSeguridadAsignacion(empresaId: number, anio: number): Observable<any> {
+        return this.httpClient.get(
+            `${this.baseUrl}/seguridad/asignacion/historial?empresa_id=${empresaId}&anio=${anio}`
+        );
     }
 
     guardarBorradorSeguridadAsignacion(empresaId: number, payload: unknown): Observable<any> {
@@ -2785,10 +2799,17 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/seguridad/asignacion/puntos/${normativaId}`);
     }
 
-    publicarSeguridadAsignacion(empresaId: number, payload: unknown): Observable<any> {
+    publicarSeguridadAsignacion(
+        empresaId: number,
+        payload: unknown,
+        extras?: { anio?: number; nuevo_ciclo?: boolean; clonar_desde_anio?: number | null }
+    ): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/seguridad/asignacion/publicar`, {
             empresa_id: empresaId,
-            payload
+            payload,
+            anio: extras?.anio,
+            nuevo_ciclo: extras?.nuevo_ciclo === true,
+            clonar_desde_anio: extras?.clonar_desde_anio ?? null
         });
     }
 
@@ -2815,6 +2836,8 @@ export class BackendServices {
         requisitoId: number,
         datos: {
             accion_score?: number | null;
+            tipo_accion?: 'preventiva' | 'correctiva' | null;
+            responsable?: 'Empresa' | 'Cliente';
             fecha_inicio?: string | null;
             observaciones?: string | null;
             indicador_avance?: number | null;
@@ -3409,6 +3432,18 @@ export class BackendServices {
 
     cargarSgcF29Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-29`);
+    }
+
+    listarCriteriosSgcF29(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-29/criterios`);
+    }
+
+    crearCriterioSgcF29(payload: {
+        nombre: string;
+        escala?: 2 | 5 | 6;
+        descripciones?: Record<string, string>;
+    }): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/criterios`, payload || {});
     }
 
     listarProveedoresOcultosSgcF29(): Observable<any> {

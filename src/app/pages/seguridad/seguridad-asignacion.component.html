@@ -16,6 +16,10 @@
 
 <div class="container-fluid seg-main-wrap mt--5">
   <div class="seg-panel asig-panel">
+    <p class="asig-readonly-banner" *ngIf="!puedeEditarAsignacion">
+      <i class="fas fa-eye" aria-hidden="true"></i>
+      Solo lectura: se muestran las normativas asignadas a usted. La edición y publicación es solo para administradores.
+    </p>
     <div class="asig-top">
       <ol class="asig-pasos" aria-label="Pasos de la asignación">
         <li *ngFor="let nombre of pasos; let i = index" [class.is-fill]="progreso > i">
@@ -95,12 +99,30 @@
               </span>
               <span class="emp-picked__txt">
                 <strong>{{ empresa.nombre_empresa }}</strong>
-                <small>{{ empresa.ciudad || empresa.rfc || empresa.estado || 'Empresa seleccionada' }}</small>
+                <small>{{ empresa.ciudad || empresa.rfc || empresa.estado || 'Empresa seleccionada' }} · Ciclo {{ anioCiclo }}</small>
               </span>
               <button type="button" class="emp-picked__x" (click)="limpiarEmpresa()" aria-label="Quitar empresa">
                 <i class="fas fa-times" aria-hidden="true"></i>
               </button>
             </article>
+            <div class="asig-hist" *ngIf="empresa && historialSugerido && !historialAplicado">
+              <div class="asig-hist__txt">
+                <strong>Asignación {{ historialSugerido.anio }}</strong>
+                <span>{{ historialSugerido.total_normativas }} normativa(s) · {{ historialSugerido.total_puntos }} puntos</span>
+              </div>
+              <div class="asig-hist__actions">
+                <button type="button" class="asig-hist__btn" (click)="ofrecerHistorialPrevio()">Ver detalle</button>
+                <button type="button" class="asig-hist__btn asig-hist__btn--main" (click)="aplicarHistorialSugerido()">
+                  Usar para {{ anioCiclo }}
+                </button>
+              </div>
+            </div>
+            <div class="asig-hist asig-hist--ok" *ngIf="empresa && historialAplicado && clonarDesdeAnio">
+              <div class="asig-hist__txt">
+                <strong>Basada en {{ clonarDesdeAnio }}</strong>
+                <span>Al publicar se abre el ciclo {{ anioCiclo }} con nivel de acción; fechas, evidencias y observaciones quedan en blanco.</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -156,24 +178,26 @@
             <div class="board-empty" *ngIf="!normas.length">
               <i class="fas fa-user-plus" aria-hidden="true"></i>
             </div>
-            <ng-container *ngIf="normaEnFoco() as foco">
-              <div class="asig-filter who-search">
-                <i class="fas fa-search" aria-hidden="true"></i>
-                <input type="search"
-                       [value]="consultaResp[foco.normativa_id] || ''"
-                       (input)="escribirResp(foco, $any($event.target).value)"
-                       [placeholder]="'Responsable de ' + foco.codigo"
-                       aria-label="Buscar responsable">
-              </div>
-              <div class="who-orbit" *ngIf="sugerenciasResp(foco).length">
-                <button type="button"
-                        class="who-bubble"
-                        *ngFor="let usuario of sugerenciasResp(foco)"
-                        (click)="elegirResponsable(foco, usuario)">
-                  <span class="who-bubble__av">{{ iniciales(usuario.nombre) }}</span>
-                  <strong>{{ nombreCorto(usuario.nombre) }}</strong>
-                </button>
-              </div>
+            <ng-container *ngIf="puedeEditarAsignacion">
+              <ng-container *ngIf="normaEnFoco() as foco">
+                <div class="asig-filter who-search">
+                  <i class="fas fa-search" aria-hidden="true"></i>
+                  <input type="search"
+                         [value]="consultaResp[foco.normativa_id] || ''"
+                         (input)="escribirResp(foco, $any($event.target).value)"
+                         [placeholder]="'Responsable de ' + foco.codigo"
+                         aria-label="Buscar responsable">
+                </div>
+                <div class="who-orbit" *ngIf="sugerenciasResp(foco).length">
+                  <button type="button"
+                          class="who-bubble"
+                          *ngFor="let usuario of sugerenciasResp(foco)"
+                          (click)="elegirResponsable(foco, usuario)">
+                    <span class="who-bubble__av">{{ iniciales(usuario.nombre) }}</span>
+                    <strong>{{ nombreCorto(usuario.nombre) }}</strong>
+                  </button>
+                </div>
+              </ng-container>
             </ng-container>
             <div class="who-rows">
               <div class="who-row"
@@ -188,7 +212,11 @@
                     <b>{{ norma.normativa_id === normaEnFoco()?.normativa_id ? emp.nombre : nombreCorto(emp.nombre) }}</b>
                     <small *ngIf="norma.normativa_id === normaEnFoco()?.normativa_id">{{ emp.puesto || 'Responsable' }}</small>
                   </span>
-                  <button type="button" class="who-row__x" (click)="$event.stopPropagation(); quitarResponsable(norma, emp.empleado_id)" aria-label="Quitar responsable">
+                  <button type="button"
+                          class="who-row__x"
+                          *ngIf="puedeEditarAsignacion"
+                          (click)="$event.stopPropagation(); quitarResponsable(norma, emp.empleado_id)"
+                          aria-label="Quitar responsable">
                     <i class="fas fa-times" aria-hidden="true"></i>
                   </button>
                 </ng-container>
@@ -507,11 +535,18 @@
       <button type="button" class="btn asig-btn-primary" *ngIf="paso < 2" (click)="siguiente()">
         Continuar <i class="fas fa-arrow-right" aria-hidden="true"></i>
       </button>
-      <button type="button" class="btn asig-btn-primary" *ngIf="paso === 2" (click)="publicar()" [disabled]="publicando">
+      <button type="button"
+              class="btn asig-btn-primary"
+              *ngIf="paso === 2 && puedeEditarAsignacion"
+              (click)="publicar()"
+              [disabled]="publicando">
         <i class="fas fa-spinner fa-spin" *ngIf="publicando"></i>
         <i class="fas fa-paper-plane" *ngIf="!publicando" aria-hidden="true"></i>
         {{ publicando ? 'Publicando…' : 'Publicar en gestión' }}
       </button>
+      <span class="asig-stat" *ngIf="paso === 2 && !puedeEditarAsignacion">
+        <i class="fas fa-lock" aria-hidden="true"></i> Solo administradores publican
+      </span>
     </footer>
   </div>
 </div>

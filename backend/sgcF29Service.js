@@ -22,13 +22,16 @@ const SHEET_TITLE = 'Evaluación Proveedor';
 const META_ROW = 5;
 const HEADER_ROW = 7;
 const DATA_START_ROW = 8;
-// La plantilla tiene 12 renglones (8–19); la NOTA vive en la fila 20.
-const MAX_FILAS = 12;
-const DATA_END_ROW = DATA_START_ROW + MAX_FILAS - 1;
+// Capacidad base de la plantilla (8–19); se insertan filas si hay más proveedores.
+const MAX_FILAS_BASE = 12;
+const MAX_FILAS = 80;
+const DATA_END_ROW = DATA_START_ROW + MAX_FILAS_BASE - 1;
+/** Columnas de criterios ya dibujadas en la plantilla (D…); Calificación a la derecha. */
+const CRITERIOS_BASE_PLANTILLA = 6;
+const ANCHO_COLUMNA_CRITERIO_PX = 90;
+const MIN_CRITERIOS_EVALUACION = 3;
 
-// Layout oficial (sin Certificado ISO 9000): A No | B:C Proveedor | D Entrega a tiempo |
-// E Entrega a Domicilio | F Precio | G Pago Transferencia | H Calidad del Servicio |
-// I Calidad del producto | J Calificación.
+// Layout oficial (sin Certificado ISO 9000): A No | B:C Proveedor | D… criterios | Calificación.
 // Meta fila 5: Periodo valor en C5 (C:E); etiqueta fecha en F5 (F:H); valor fecha en I5 (I:J).
 const COLUMNAS = {
     no: 1,                 // A
@@ -42,6 +45,107 @@ const COLUMNAS = {
     calidad: 9,            // I
     calificacion: 10       // J
 };
+
+/** Escalas de puntaje permitidas por criterio. */
+const ESCALAS_PUNTAJE = {
+    2: [0, 100],
+    5: [0, 25, 50, 75, 100],
+    6: [0, 20, 40, 60, 80, 100]
+};
+const PUNTAJES_TODOS = [0, 20, 25, 40, 50, 60, 75, 80, 100];
+
+const CRITERIOS_SISTEMA = [
+    {
+        clave: 'entregaTiempo',
+        nombre: 'Entrega a tiempo',
+        escala: 5,
+        orden: 1,
+        descripciones: {
+            '0': 'Del total de entregas nunca se realizó a tiempo',
+            '25': 'Del total de entregas casi nunca se realizó a tiempo',
+            '50': 'Del total de entregas algunas veces se realizó a tiempo',
+            '75': 'Del total de entregas casi siempre se realizó a tiempo',
+            '100': 'Del total de entregas siempre se realizó a tiempo'
+        }
+    },
+    {
+        clave: 'entregaDomicilio',
+        nombre: 'Entrega a Domicilio',
+        escala: 5,
+        orden: 2,
+        descripciones: {
+            '0': 'Nunca se realizó entrega a domicilio',
+            '25': 'Casi nunca se realizó entrega a domicilio',
+            '50': 'Algunas veces se realizó entrega a domicilio',
+            '75': 'Casi siempre se realizó entrega a domicilio',
+            '100': 'Siempre se realizó entrega a domicilio'
+        }
+    },
+    {
+        clave: 'precio',
+        nombre: 'Precio',
+        escala: 5,
+        orden: 3,
+        descripciones: {
+            '0': 'Muy alto',
+            '25': 'Alto',
+            '50': 'Regular',
+            '75': 'Bueno',
+            '100': 'Muy bueno'
+        }
+    },
+    {
+        clave: 'pagoTransferencia',
+        nombre: 'Pago Transferencia',
+        escala: 5,
+        orden: 4,
+        descripciones: {
+            '0': 'No acepta pago por transferencia',
+            '25': 'Casi nunca acepta pago por transferencia',
+            '50': 'Algunas veces acepta pago por transferencia',
+            '75': 'Casi siempre acepta pago por transferencia',
+            '100': 'Siempre acepta pago por transferencia'
+        }
+    },
+    {
+        clave: 'servicio',
+        nombre: 'Calidad del Servicio',
+        escala: 5,
+        orden: 5,
+        descripciones: {
+            '0': 'Nunca se atendió para resolver los problemas',
+            '25': 'Casi nunca se atendió para resolver los problemas',
+            '50': 'Algunas veces se atendió para resolver los problemas',
+            '75': 'Casi siempre se atendió para resolver los problemas',
+            '100': 'Siempre se atendió para resolver los problemas'
+        }
+    },
+    {
+        clave: 'calidad',
+        nombre: 'Calidad del producto',
+        escala: 5,
+        orden: 6,
+        descripciones: {
+            '0': 'La calidad del producto nunca fue aceptada',
+            '25': 'La calidad del producto casi nunca fue aceptada',
+            '50': 'La calidad del producto algunas veces fue aceptada',
+            '75': 'La calidad del producto casi siempre fue aceptada',
+            '100': 'La calidad del producto siempre fue aceptada'
+        }
+    }
+];
+
+const CLAVES_SISTEMA = CRITERIOS_SISTEMA.map((c) => c.clave);
+
+function normalizarEscala(valor) {
+    const n = Number(valor);
+    if (n === 2 || n === 6) return n;
+    return 5;
+}
+
+function valoresEscala(escala) {
+    return ESCALAS_PUNTAJE[normalizarEscala(escala)] || ESCALAS_PUNTAJE[5];
+}
 
 /** Layout previo con columna Certificado ISO 9000 en I. */
 const COLUMNAS_CON_ISO = {
@@ -90,16 +194,9 @@ const COLUMNAS_LEGACY = {
 // K y L residuales tras quitar ISO / acortar la tabla a A:J.
 const COLUMNAS_EXTRA_LIMPIAR = [11, 12];
 
-const HEADERS_TABLA = [
+const HEADERS_FIJOS = [
     [COLUMNAS.no, 'No.'],
-    [COLUMNAS.proveedor, 'Proveedor'],
-    [COLUMNAS.entregaTiempo, 'Entrega a tiempo'],
-    [COLUMNAS.entregaDomicilio, 'Entrega a Domicilio'],
-    [COLUMNAS.precio, 'Precio'],
-    [COLUMNAS.pagoTransferencia, 'Pago Transferencia'],
-    [COLUMNAS.servicio, 'Calidad del Servicio'],
-    [COLUMNAS.calidad, 'Calidad del producto'],
-    [COLUMNAS.calificacion, 'Calificación']
+    [COLUMNAS.proveedor, 'Proveedor']
 ];
 
 const META_COLS = {
@@ -121,6 +218,7 @@ const META_COLS_ALT = {
 const PROVEEDOR_DEFECTO = {
     id: '',
     proveedor: '',
+    accion: '',
     referencia: '',
     fecha: '',
     entregaTiempo: '',
@@ -129,9 +227,268 @@ const PROVEEDOR_DEFECTO = {
     pagoTransferencia: '',
     servicio: '',
     calidad: '',
+    puntajes: {},
+    criteriosUsados: [...CLAVES_SISTEMA],
     calificacion: '',
     evaluador: ''
 };
+
+function slugCriterio(texto) {
+    const base = String(texto || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 48);
+    return base || `criterio_${Date.now().toString(36)}`;
+}
+
+function sanitizarDescripcionesEscala(raw, escala) {
+    const vals = valoresEscala(escala);
+    const src = raw && typeof raw === 'object' ? raw : {};
+    const out = {};
+    for (const n of vals) {
+        const k = String(n);
+        const v = String(src[k] ?? src[n] ?? '').trim().slice(0, 200);
+        if (v) out[k] = v;
+    }
+    return out;
+}
+
+function sanitizarCriterioCatalogo(raw, idx = 0) {
+    const clave = String(raw?.clave || '').trim().slice(0, 64);
+    const nombre = String(
+        raw?.nombre || raw?.largo || raw?.corto || raw?.etiquetaLarga || raw?.etiquetaCorta || ''
+    ).trim().slice(0, 80);
+    if (!clave || !nombre) return null;
+    const escala = normalizarEscala(raw?.escala);
+    const descripciones = sanitizarDescripcionesEscala(raw?.descripciones, escala);
+    return {
+        clave,
+        nombre,
+        corto: nombre,
+        largo: nombre,
+        escala,
+        valores: valoresEscala(escala).map(String),
+        esSistema: !!(raw?.esSistema ?? raw?.es_sistema),
+        activo: raw?.activo !== false && raw?.activo !== 0,
+        orden: Number(raw?.orden) || (idx + 1),
+        descripciones: Object.keys(descripciones).length ? descripciones : null
+    };
+}
+
+async function asegurarColumnaCriterios(pool, columna, ddl) {
+    try {
+        const [cols] = await pool.query(
+            `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME = 'sgc_f29_criterios'
+               AND COLUMN_NAME = ?`,
+            [columna]
+        );
+        if (!cols?.length) {
+            await pool.query(`ALTER TABLE sgc_f29_criterios ADD COLUMN ${ddl}`);
+        }
+    } catch (err) {
+        console.warn(`[SGC-F-29] No se pudo asegurar columna ${columna}:`, err.message);
+    }
+}
+
+async function asegurarTablaCriterios(pool) {
+    if (!pool) return;
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS sgc_f29_criterios (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            clave VARCHAR(64) NOT NULL,
+            corto VARCHAR(80) NOT NULL,
+            largo VARCHAR(80) NOT NULL,
+            escala TINYINT NOT NULL DEFAULT 5,
+            es_sistema TINYINT(1) NOT NULL DEFAULT 0,
+            activo TINYINT(1) NOT NULL DEFAULT 1,
+            orden INT NOT NULL DEFAULT 100,
+            descripciones_json LONGTEXT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_sgc_f29_criterios_clave (clave)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await asegurarColumnaCriterios(pool, 'escala', 'escala TINYINT NOT NULL DEFAULT 5');
+    for (const c of CRITERIOS_SISTEMA) {
+        await pool.query(
+            `INSERT IGNORE INTO sgc_f29_criterios
+                (clave, corto, largo, escala, es_sistema, activo, orden, descripciones_json)
+             VALUES (?, ?, ?, ?, 1, 1, ?, ?)`,
+            [
+                c.clave,
+                c.nombre,
+                c.nombre,
+                normalizarEscala(c.escala),
+                c.orden,
+                JSON.stringify(c.descripciones || {})
+            ]
+        );
+    }
+}
+
+async function listarCriterios(pool) {
+    await asegurarTablaCriterios(pool);
+    const [rows] = await pool.query(
+        `SELECT clave, corto, largo, escala, es_sistema, activo, orden, descripciones_json
+         FROM sgc_f29_criterios
+         WHERE activo = 1
+         ORDER BY orden ASC, id ASC`
+    );
+    const lista = (rows || []).map((r, idx) => {
+        let descripciones = null;
+        try {
+            const raw = r.descripciones_json;
+            descripciones = typeof raw === 'string' ? JSON.parse(raw) : (raw || null);
+        } catch {
+            descripciones = null;
+        }
+        return sanitizarCriterioCatalogo({
+            clave: r.clave,
+            nombre: r.largo || r.corto,
+            corto: r.corto,
+            largo: r.largo,
+            escala: r.escala,
+            esSistema: !!r.es_sistema,
+            activo: !!r.activo,
+            orden: r.orden,
+            descripciones
+        }, idx);
+    }).filter(Boolean);
+    return lista.length ? lista : CRITERIOS_SISTEMA.map((c, i) => sanitizarCriterioCatalogo({
+        clave: c.clave,
+        nombre: c.nombre,
+        escala: c.escala,
+        descripciones: c.descripciones,
+        esSistema: true,
+        activo: true,
+        orden: c.orden
+    }, i));
+}
+
+async function crearCriterio(pool, body = {}) {
+    await asegurarTablaCriterios(pool);
+    const nombre = String(
+        body.nombre || body.largo || body.corto || body.etiquetaLarga || body.etiquetaCorta || ''
+    ).trim().slice(0, 80);
+    if (!nombre) {
+        const err = new Error('Indica el nombre del criterio.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const escala = normalizarEscala(body.escala);
+    const valores = valoresEscala(escala);
+    const descripciones = sanitizarDescripcionesEscala(body.descripciones, escala);
+    for (const n of valores) {
+        if (!descripciones[String(n)]) {
+            const err = new Error(`Registra la descripción del valor ${n}%.`);
+            err.statusCode = 400;
+            throw err;
+        }
+    }
+    let clave = slugCriterio(nombre);
+    if (CLAVES_SISTEMA.includes(clave) || clave.length < 2) {
+        clave = `${clave}_${crypto.randomBytes(3).toString('hex')}`;
+    }
+    const [existentes] = await pool.query(
+        'SELECT clave FROM sgc_f29_criterios WHERE clave = ? OR LOWER(largo) = LOWER(?) OR LOWER(corto) = LOWER(?) LIMIT 1',
+        [clave, nombre, nombre]
+    );
+    if (existentes?.length) {
+        const err = new Error('Ya existe un criterio con ese nombre.');
+        err.statusCode = 409;
+        throw err;
+    }
+    const [maxOrd] = await pool.query('SELECT COALESCE(MAX(orden), 0) AS m FROM sgc_f29_criterios');
+    const orden = Number(maxOrd?.[0]?.m || 0) + 1;
+    await pool.query(
+        `INSERT INTO sgc_f29_criterios
+            (clave, corto, largo, escala, es_sistema, activo, orden, descripciones_json)
+         VALUES (?, ?, ?, ?, 0, 1, ?, ?)`,
+        [clave, nombre, nombre, escala, orden, JSON.stringify(descripciones)]
+    );
+    return listarCriterios(pool);
+}
+
+function puntajeDeItem(item, clave) {
+    if (!item) return '';
+    if (item.puntajes && typeof item.puntajes === 'object' && item.puntajes[clave] != null) {
+        return parsearPuntaje(item.puntajes[clave]);
+    }
+    if (CLAVES_SISTEMA.includes(clave) && item[clave] != null) {
+        return parsearPuntaje(item[clave]);
+    }
+    return '';
+}
+
+/**
+ * Columnas de criterios para Excel: catálogo + claves usadas en datos.
+ * Garantiza al menos los criterios base de plantilla.
+ */
+function resolverCriteriosParaExcel(proveedores, catalogo) {
+    const cat = Array.isArray(catalogo) && catalogo.length
+        ? catalogo.map((c, i) => sanitizarCriterioCatalogo(c, i)).filter(Boolean)
+        : CRITERIOS_SISTEMA.map((c, i) => sanitizarCriterioCatalogo({ ...c, esSistema: true }, i));
+    const porClave = new Map(cat.map((c) => [c.clave, c]));
+    const usadas = new Set();
+    for (const p of (Array.isArray(proveedores) ? proveedores : [])) {
+        for (const clave of CLAVES_SISTEMA) {
+            if (puntajeDeItem(p, clave)) usadas.add(clave);
+        }
+        const extra = p?.puntajes && typeof p.puntajes === 'object' ? p.puntajes : {};
+        for (const [k, v] of Object.entries(extra)) {
+            if (parsearPuntaje(v)) usadas.add(k);
+        }
+    }
+    const ordenados = [];
+    const pushClave = (clave) => {
+        if (ordenados.some((c) => c.clave === clave)) return;
+        const known = porClave.get(clave);
+        if (known) {
+            ordenados.push(known);
+            return;
+        }
+        ordenados.push(sanitizarCriterioCatalogo({
+            clave,
+            corto: clave,
+            largo: clave,
+            esSistema: false,
+            activo: true,
+            orden: 900 + ordenados.length
+        }, ordenados.length));
+    };
+    // Plantilla base (sistema) + solo criterios personalizados que se usaron en alguna evaluación.
+    for (const c of CRITERIOS_SISTEMA) pushClave(c.clave);
+    for (const k of usadas) {
+        if (!CLAVES_SISTEMA.includes(k)) pushClave(k);
+    }
+    // Mantener al menos CRITERIOS_BASE_PLANTILLA columnas (plantilla).
+    while (ordenados.length < CRITERIOS_BASE_PLANTILLA && ordenados.length < CRITERIOS_SISTEMA.length) {
+        pushClave(CRITERIOS_SISTEMA[ordenados.length].clave);
+    }
+    return ordenados;
+}
+
+function layoutColumnasDesdeCriterios(criterios) {
+    const n = Math.max(CRITERIOS_BASE_PLANTILLA, (criterios || []).length);
+    const criterioInicio = COLUMNAS.entregaTiempo; // D = 4
+    return {
+        no: COLUMNAS.no,
+        proveedor: COLUMNAS.proveedor,
+        proveedorSpan: COLUMNAS.proveedorSpan,
+        criterioInicio,
+        criterios: (criterios || []).map((c, i) => ({
+            ...c,
+            col: criterioInicio + i
+        })),
+        numCriterios: n,
+        calificacion: criterioInicio + n
+    };
+}
 
 function generarIdEvaluacion() {
     if (typeof sgcF29EvidenciaService.generarEvaluacionId === 'function') {
@@ -221,19 +578,17 @@ function fechaEvaluacionRegistro(datos) {
     return fechaHoyIso();
 }
 
-function parsearPuntaje(valor) {
+function parsearPuntaje(valor, escala = null) {
     const crudo = String(valor ?? '').trim().replace('%', '').replace(',', '.');
-    if (!crudo) return '';
+    if (!crudo || /^n\/?a$/i.test(crudo)) return '';
     let n = Number(crudo);
     if (!Number.isFinite(n)) return '';
     if (n > 0 && n <= 1) n = n * 100;
     n = Math.round(n);
-    // Escala oficial del formato: 0 / 25 / 50 / 75 / 100.
-    const permitidos = [0, 25, 50, 75, 100];
+    const permitidos = escala != null ? valoresEscala(escala) : PUNTAJES_TODOS;
     if (permitidos.includes(n)) return String(n);
-    // Redondea al escalón más cercano.
-    let mejor = 0;
-    let dist = Math.abs(n - 0);
+    let mejor = permitidos[0] ?? 0;
+    let dist = Math.abs(n - mejor);
     for (const p of permitidos) {
         const d = Math.abs(n - p);
         if (d < dist) {
@@ -245,15 +600,13 @@ function parsearPuntaje(valor) {
 }
 
 function calcularCalificacion(item) {
-    const vals = [
-        'entregaTiempo',
-        'entregaDomicilio',
-        'precio',
-        'pagoTransferencia',
-        'servicio',
-        'calidad'
-    ]
-        .map((k) => parsearPuntaje(item?.[k]))
+    const puntajes = item?.puntajes && typeof item.puntajes === 'object' ? item.puntajes : {};
+    const claves = new Set([
+        ...CLAVES_SISTEMA,
+        ...Object.keys(puntajes)
+    ]);
+    const vals = [...claves]
+        .map((k) => puntajeDeItem(item, k))
         .filter((v) => v !== '')
         .map(Number);
     if (!vals.length) return '';
@@ -270,24 +623,64 @@ function proveedorEstaOculto(item) {
         || String(item?.oculto || '').toLowerCase() === 'true';
 }
 
+function sanitizarCriteriosUsados(item, puntajes) {
+    const raw = Array.isArray(item?.criteriosUsados) ? item.criteriosUsados : null;
+    let usados = (raw || [])
+        .map((k) => String(k || '').trim().slice(0, 64))
+        .filter(Boolean);
+    if (!usados.length) {
+        usados = Object.keys(puntajes || {}).filter((k) => puntajes[k] !== '');
+    }
+    if (!usados.length) {
+        usados = [...CLAVES_SISTEMA];
+    }
+    // Conserva solo claves únicas, mín. 3 si hay menos se dejan (validación UI).
+    return [...new Set(usados)].slice(0, 40);
+}
+
 function sanitizarProveedor(item) {
     const idExistente = String(item?.id || '').trim().slice(0, 64);
+    const puntajes = {};
+    const extra = item?.puntajes && typeof item.puntajes === 'object' ? item.puntajes : {};
+    for (const clave of CLAVES_SISTEMA) {
+        const v = parsearPuntaje(extra[clave] ?? item?.[clave]);
+        if (v !== '') puntajes[clave] = v;
+    }
+    for (const [k, raw] of Object.entries(extra)) {
+        if (CLAVES_SISTEMA.includes(k)) continue;
+        const clave = String(k || '').trim().slice(0, 64);
+        if (!clave) continue;
+        const v = parsearPuntaje(raw);
+        if (v !== '') puntajes[clave] = v;
+    }
+    const criteriosUsados = sanitizarCriteriosUsados(item, puntajes);
+    // Solo puntajes de criterios en uso cuentan para la evaluación.
+    const puntajesFiltrados = {};
+    for (const k of criteriosUsados) {
+        if (puntajes[k] != null && puntajes[k] !== '') {
+            puntajesFiltrados[k] = puntajes[k];
+        }
+    }
+    // Conserva valores de criterios no usados por compatibilidad, pero calificación usa los activos.
     const base = {
         id: idExistente,
         proveedor: String(item?.proveedor || '').trim(),
+        accion: String(item?.accion || '').trim().slice(0, 160),
         referencia: String(item?.referencia || '').trim().slice(0, 120),
         fecha: formatearFechaIso(item?.fecha) || '',
-        entregaTiempo: parsearPuntaje(item?.entregaTiempo),
-        entregaDomicilio: parsearPuntaje(item?.entregaDomicilio),
-        precio: parsearPuntaje(item?.precio),
-        pagoTransferencia: parsearPuntaje(item?.pagoTransferencia),
-        servicio: parsearPuntaje(item?.servicio),
-        calidad: parsearPuntaje(item?.calidad),
-        calificacion: parsearPuntaje(item?.calificacion),
+        entregaTiempo: puntajes.entregaTiempo || '',
+        entregaDomicilio: puntajes.entregaDomicilio || '',
+        precio: puntajes.precio || '',
+        pagoTransferencia: puntajes.pagoTransferencia || '',
+        servicio: puntajes.servicio || '',
+        calidad: puntajes.calidad || '',
+        puntajes,
+        criteriosUsados,
+        calificacion: '',
         oculto: proveedorEstaOculto(item),
         evaluador: textoEvaluador(item)
     };
-    const auto = calcularCalificacion(base);
+    const auto = calcularCalificacion({ ...base, puntajes: puntajesFiltrados });
     if (auto) base.calificacion = auto;
     return base;
 }
@@ -314,6 +707,7 @@ function fusionarIdsProveedores(anteriores, nuevos) {
             return {
                 ...fila,
                 id: mismoIdx.id,
+                accion: fila.accion || mismoIdx.accion || '',
                 referencia: fila.referencia || mismoIdx.referencia || '',
                 fecha: fila.fecha || mismoIdx.fecha || ''
             };
@@ -329,6 +723,7 @@ function fusionarIdsProveedores(anteriores, nuevos) {
             return {
                 ...fila,
                 id: matchNombre.id,
+                accion: fila.accion || matchNombre.accion || '',
                 referencia: fila.referencia || matchNombre.referencia || '',
                 fecha: fila.fecha || matchNombre.fecha || ''
             };
@@ -423,9 +818,8 @@ function datosParaHoja(datos) {
 
 function esProveedorVacio(item) {
     const p = sanitizarProveedor(item);
-    return !p.proveedor && !p.entregaTiempo && !p.entregaDomicilio
-        && !p.precio && !p.pagoTransferencia && !p.servicio
-        && !p.calidad && !p.calificacion;
+    const tienePuntaje = Object.keys(p.puntajes || {}).length > 0;
+    return !p.proveedor && !tienePuntaje && !p.calificacion;
 }
 
 function pareceNotaPlantilla(texto) {
@@ -513,7 +907,38 @@ function leerMetaFechaDesdeFila(getValor) {
     return '';
 }
 
-function leerFilaProveedorDesdeCeldas(getValor, cols) {
+function mapearHeaderAClaveCriterio(texto) {
+    const t = String(texto || '').trim().toLowerCase();
+    if (!t || t === 'n/a' || t.includes('calific')) return null;
+    for (const c of CRITERIOS_SISTEMA) {
+        const nombre = String(c.nombre || '').toLowerCase();
+        if (t === nombre) return c.clave;
+        if (nombre && t.includes(nombre) && c.clave !== 'calidad') return c.clave;
+    }
+    if (t.includes('producto')) return 'calidad';
+    if (t.includes('servicio')) return 'servicio';
+    if (t.includes('transfer')) return 'pagoTransferencia';
+    if (t.includes('precio')) return 'precio';
+    if (t.includes('domicilio')) return 'entregaDomicilio';
+    if (t.includes('tiempo') || t === 'entrega') return 'entregaTiempo';
+    return slugCriterio(texto);
+}
+
+function leerFilaProveedorDesdeCeldas(getValor, cols, criteriosCols = null) {
+    if (Array.isArray(criteriosCols) && criteriosCols.length) {
+        const puntajes = {};
+        for (const c of criteriosCols) {
+            const raw = getValor(c.col);
+            if (/^n\/?a$/i.test(String(raw || '').trim())) continue;
+            const v = parsearPuntaje(raw);
+            if (v !== '') puntajes[c.clave] = v;
+        }
+        return sanitizarProveedor({
+            proveedor: getValor(cols.proveedor),
+            puntajes,
+            calificacion: getValor(cols.calificacion)
+        });
+    }
     return sanitizarProveedor({
         proveedor: getValor(cols.proveedor),
         entregaTiempo: getValor(cols.entregaTiempo),
@@ -526,20 +951,57 @@ function leerFilaProveedorDesdeCeldas(getValor, cols) {
     });
 }
 
+function detectarCriteriosDesdeHeader(ws) {
+    const headerRow = ws.getRow(HEADER_ROW);
+    const criterios = [];
+    let calificacionCol = null;
+    for (let col = COLUMNAS.entregaTiempo; col <= COLUMNAS.entregaTiempo + 40; col++) {
+        const texto = celdaATexto(headerRow.getCell(col).value);
+        if (!texto) {
+            if (criterios.length) break;
+            continue;
+        }
+        if (/calific/i.test(texto)) {
+            calificacionCol = col;
+            break;
+        }
+        const clave = mapearHeaderAClaveCriterio(texto);
+        if (clave) {
+            criterios.push({ clave, largo: texto, corto: texto, col });
+        }
+    }
+    return {
+        criterios,
+        calificacionCol: calificacionCol || (COLUMNAS.entregaTiempo + Math.max(CRITERIOS_BASE_PLANTILLA, criterios.length))
+    };
+}
+
 function leerProveedoresDesdeHoja(ws) {
     const headerC = celdaATexto(ws.getRow(HEADER_ROW).getCell(3).value);
     const headerD = celdaATexto(ws.getRow(HEADER_ROW).getCell(4).value);
     const headerI = celdaATexto(ws.getRow(HEADER_ROW).getCell(9).value);
     const cols = resolverColumnasDesdeHeaders(headerC, headerD, headerI);
+    const dinamicos = detectarCriteriosDesdeHeader(ws);
+    const colsEff = {
+        ...cols,
+        calificacion: dinamicos.calificacionCol || cols.calificacion
+    };
+    const maxScan = Math.max(DATA_END_ROW, DATA_START_ROW + MAX_FILAS - 1);
     const proveedores = [];
-    for (let r = DATA_START_ROW; r <= DATA_END_ROW; r++) {
+    for (let r = DATA_START_ROW; r <= maxScan; r++) {
         const row = ws.getRow(r);
+        const proveedorTxt = celdaATexto(row.getCell(colsEff.proveedor).value);
+        if (pareceNotaPlantilla(proveedorTxt)) break;
         const fila = leerFilaProveedorDesdeCeldas(
             (col) => celdaATexto(row.getCell(col).value),
-            cols
+            colsEff,
+            dinamicos.criterios.length ? dinamicos.criterios : null
         );
-        if (!esProveedorVacio(fila) && !pareceNotaPlantilla(fila.proveedor)) {
+        if (!esProveedorVacio(fila)) {
             proveedores.push(fila);
+        } else if (!proveedorTxt && proveedores.length) {
+            // hueco tras datos: sigue escaneando unas filas por si hay más
+            continue;
         }
     }
     return proveedores;
@@ -577,56 +1039,62 @@ function limpiarCelda(row, col, horizontal = 'center') {
     asignarTextoSimple(row.getCell(col), '', horizontal);
 }
 
-function escribirFilaProveedor(row, item, indice, conDatos) {
+function escribirFilaProveedor(row, item, indice, conDatos, layout) {
+    const lay = layout || layoutColumnasDesdeCriterios(CRITERIOS_SISTEMA);
+    const maxCol = lay.calificacion + 2;
     if (!conDatos) {
-        // Filas vacías: sin número ni valores residuales.
-        limpiarCelda(row, COLUMNAS.no);
-        limpiarCelda(row, COLUMNAS.proveedor, 'left');
-        limpiarCelda(row, COLUMNAS.proveedorSpan, 'left');
-        limpiarCelda(row, COLUMNAS.entregaTiempo);
-        limpiarCelda(row, COLUMNAS.entregaDomicilio);
-        limpiarCelda(row, COLUMNAS.precio);
-        limpiarCelda(row, COLUMNAS.pagoTransferencia);
-        limpiarCelda(row, COLUMNAS.servicio);
-        limpiarCelda(row, COLUMNAS.calidad);
-        limpiarCelda(row, COLUMNAS.calificacion);
-        for (const col of COLUMNAS_EXTRA_LIMPIAR) limpiarCelda(row, col);
+        for (let col = 1; col <= maxCol; col++) {
+            limpiarCelda(row, col, col === lay.proveedor ? 'left' : 'center');
+        }
         return;
     }
     const p = sanitizarProveedor(item);
-    asignarTextoSimple(row.getCell(COLUMNAS.no), String(indice + 1), 'center');
-    asignarTextoSimple(row.getCell(COLUMNAS.proveedor), p.proveedor, 'left');
-    limpiarCelda(row, COLUMNAS.proveedorSpan, 'left');
-    asignarTextoSimple(row.getCell(COLUMNAS.entregaTiempo), p.entregaTiempo, 'center');
-    asignarTextoSimple(row.getCell(COLUMNAS.entregaDomicilio), p.entregaDomicilio, 'center');
-    asignarTextoSimple(row.getCell(COLUMNAS.precio), p.precio, 'center');
-    asignarTextoSimple(row.getCell(COLUMNAS.pagoTransferencia), p.pagoTransferencia, 'center');
-    asignarTextoSimple(row.getCell(COLUMNAS.servicio), p.servicio, 'center');
-    asignarTextoSimple(row.getCell(COLUMNAS.calidad), p.calidad, 'center');
-    asignarTextoSimple(row.getCell(COLUMNAS.calificacion), p.calificacion, 'center');
-    for (const col of COLUMNAS_EXTRA_LIMPIAR) limpiarCelda(row, col);
+    asignarTextoSimple(row.getCell(lay.no), String(indice + 1), 'center');
+    asignarTextoSimple(row.getCell(lay.proveedor), p.proveedor, 'left');
+    limpiarCelda(row, lay.proveedorSpan, 'left');
+    for (const c of lay.criterios) {
+        const v = puntajeDeItem(p, c.clave);
+        asignarTextoSimple(row.getCell(c.col), v !== '' ? v : 'N/A', 'center');
+    }
+    // Relleno N/A en columnas base de plantilla no cubiertas por criterios listados.
+    for (let i = lay.criterios.length; i < lay.numCriterios; i++) {
+        asignarTextoSimple(row.getCell(lay.criterioInicio + i), 'N/A', 'center');
+    }
+    asignarTextoSimple(row.getCell(lay.calificacion), p.calificacion || 'N/A', 'center');
+    for (let col = lay.calificacion + 1; col <= maxCol; col++) {
+        limpiarCelda(row, col);
+    }
 }
 
-function escribirProveedoresEnHoja(ws, proveedoresRaw) {
+function escribirProveedoresEnHoja(ws, proveedoresRaw, layout) {
     const proveedores = Array.isArray(proveedoresRaw) ? proveedoresRaw : [];
-    for (let i = 0; i < MAX_FILAS; i++) {
+    const totalFilas = Math.max(MAX_FILAS_BASE, proveedores.length);
+    for (let i = 0; i < totalFilas; i++) {
         const rowNum = DATA_START_ROW + i;
         asegurarMergeProveedorFila(ws, rowNum);
         const conDatos = i < proveedores.length;
         const fila = conDatos ? proveedores[i] : { ...PROVEEDOR_DEFECTO };
-        escribirFilaProveedor(ws.getRow(rowNum), fila, i, conDatos);
+        escribirFilaProveedor(ws.getRow(rowNum), fila, i, conDatos, layout);
     }
 }
 
-function escribirEncabezadosTabla(ws) {
+function escribirEncabezadosTabla(ws, layout) {
+    const lay = layout || layoutColumnasDesdeCriterios(CRITERIOS_SISTEMA);
     const row = ws.getRow(HEADER_ROW);
     asegurarMergeProveedorFila(ws, HEADER_ROW);
-    for (const [col, texto] of HEADERS_TABLA) {
+    for (const [col, texto] of HEADERS_FIJOS) {
         asignarTextoSimple(row.getCell(col), texto, 'center');
     }
-    // C queda cubierta por la fusión Proveedor; K/L residuales (ISO / layout viejo).
-    limpiarCelda(row, COLUMNAS.proveedorSpan, 'center');
-    for (const col of COLUMNAS_EXTRA_LIMPIAR) limpiarCelda(row, col, 'center');
+    limpiarCelda(row, lay.proveedorSpan, 'center');
+    for (let i = 0; i < lay.numCriterios; i++) {
+        const crit = lay.criterios[i];
+        const texto = crit?.nombre || crit?.largo || crit?.corto || '';
+        asignarTextoSimple(row.getCell(lay.criterioInicio + i), texto, 'center');
+    }
+    asignarTextoSimple(row.getCell(lay.calificacion), 'Calificación', 'center');
+    for (let col = lay.calificacion + 1; col <= lay.calificacion + 2; col++) {
+        limpiarCelda(row, col, 'center');
+    }
 }
 
 function escribirMetaEnHoja(ws, datos) {
@@ -645,11 +1113,13 @@ function escribirMetaEnHoja(ws, datos) {
     asignarTextoSimple(metaRow.getCell(META_COLS.fechaEvaluacion), fechaTxt, 'center');
 }
 
-function escribirDatosEnHoja(ws, datos) {
+function escribirDatosEnHoja(ws, datos, catalogo = null) {
     const d = datosParaHoja(datos);
+    const criterios = resolverCriteriosParaExcel(d.proveedores, catalogo);
+    const layout = layoutColumnasDesdeCriterios(criterios);
     escribirMetaEnHoja(ws, d);
-    escribirEncabezadosTabla(ws);
-    escribirProveedoresEnHoja(ws, d.proveedores);
+    escribirEncabezadosTabla(ws, layout);
+    escribirProveedoresEnHoja(ws, d.proveedores, layout);
 }
 
 function columnaALetra(col) {
@@ -667,15 +1137,16 @@ function rangoSheet(celda, sheetTitle) {
     return `'${sheetTitle}'!${celda}`;
 }
 
-function datosAActualizacionesSheet(datos, sheetTitle) {
+function datosAActualizacionesSheet(datos, sheetTitle, catalogo = null) {
     const d = datosParaHoja(datos);
+    const criterios = resolverCriteriosParaExcel(d.proveedores, catalogo);
+    const layout = layoutColumnasDesdeCriterios(criterios);
     const actualizaciones = [];
     const fechaTxt = fechaParaSheet(d.fechaEvaluacion) || '';
     actualizaciones.push({
         range: rangoSheet(`${columnaALetra(META_COLS.periodo)}${META_ROW}`, sheetTitle),
         values: [[d.periodoEvaluacion || '']]
     });
-    // Etiqueta en F5 (fusión F:H) + valor del día (México) en I5 (fusión I:J).
     actualizaciones.push({
         range: rangoSheet(`${columnaALetra(META_COLS.fechaLabel)}${META_ROW}`, sheetTitle),
         values: [['Fecha de la evaluación:']]
@@ -684,74 +1155,135 @@ function datosAActualizacionesSheet(datos, sheetTitle) {
         range: rangoSheet(`${columnaALetra(META_COLS.fechaEvaluacion)}${META_ROW}`, sheetTitle),
         values: [[fechaTxt]]
     });
-    for (const [col, texto] of HEADERS_TABLA) {
+    for (const [col, texto] of HEADERS_FIJOS) {
         actualizaciones.push({
             range: rangoSheet(`${columnaALetra(col)}${HEADER_ROW}`, sheetTitle),
             values: [[texto]]
         });
     }
     actualizaciones.push({
-        range: rangoSheet(`${columnaALetra(COLUMNAS.proveedorSpan)}${HEADER_ROW}`, sheetTitle),
+        range: rangoSheet(`${columnaALetra(layout.proveedorSpan)}${HEADER_ROW}`, sheetTitle),
         values: [['']]
     });
-    for (const col of COLUMNAS_EXTRA_LIMPIAR) {
+    for (let i = 0; i < layout.numCriterios; i++) {
+        const crit = layout.criterios[i];
         actualizaciones.push({
-            range: rangoSheet(`${columnaALetra(col)}${HEADER_ROW}`, sheetTitle),
-            values: [['']]
+            range: rangoSheet(`${columnaALetra(layout.criterioInicio + i)}${HEADER_ROW}`, sheetTitle),
+            values: [[crit?.nombre || crit?.largo || crit?.corto || '']]
         });
     }
-    for (let i = 0; i < MAX_FILAS; i++) {
+    actualizaciones.push({
+        range: rangoSheet(`${columnaALetra(layout.calificacion)}${HEADER_ROW}`, sheetTitle),
+        values: [['Calificación']]
+    });
+    const totalFilas = Math.max(MAX_FILAS_BASE, d.proveedores.length);
+    for (let i = 0; i < totalFilas; i++) {
         const rowNum = DATA_START_ROW + i;
         const conDatos = i < d.proveedores.length;
         const p = conDatos ? sanitizarProveedor(d.proveedores[i]) : { ...PROVEEDOR_DEFECTO };
         actualizaciones.push({
-            range: rangoSheet(`${columnaALetra(COLUMNAS.no)}${rowNum}`, sheetTitle),
+            range: rangoSheet(`${columnaALetra(layout.no)}${rowNum}`, sheetTitle),
             values: [[conDatos ? String(i + 1) : '']]
         });
         actualizaciones.push({
-            range: rangoSheet(`${columnaALetra(COLUMNAS.proveedor)}${rowNum}`, sheetTitle),
+            range: rangoSheet(`${columnaALetra(layout.proveedor)}${rowNum}`, sheetTitle),
             values: [[conDatos ? (p.proveedor || '') : '']]
         });
         actualizaciones.push({
-            range: rangoSheet(`${columnaALetra(COLUMNAS.proveedorSpan)}${rowNum}`, sheetTitle),
+            range: rangoSheet(`${columnaALetra(layout.proveedorSpan)}${rowNum}`, sheetTitle),
             values: [['']]
         });
-        actualizaciones.push({
-            range: rangoSheet(`${columnaALetra(COLUMNAS.entregaTiempo)}${rowNum}`, sheetTitle),
-            values: [[conDatos ? (p.entregaTiempo || '') : '']]
-        });
-        actualizaciones.push({
-            range: rangoSheet(`${columnaALetra(COLUMNAS.entregaDomicilio)}${rowNum}`, sheetTitle),
-            values: [[conDatos ? (p.entregaDomicilio || '') : '']]
-        });
-        actualizaciones.push({
-            range: rangoSheet(`${columnaALetra(COLUMNAS.precio)}${rowNum}`, sheetTitle),
-            values: [[conDatos ? (p.precio || '') : '']]
-        });
-        actualizaciones.push({
-            range: rangoSheet(`${columnaALetra(COLUMNAS.pagoTransferencia)}${rowNum}`, sheetTitle),
-            values: [[conDatos ? (p.pagoTransferencia || '') : '']]
-        });
-        actualizaciones.push({
-            range: rangoSheet(`${columnaALetra(COLUMNAS.servicio)}${rowNum}`, sheetTitle),
-            values: [[conDatos ? (p.servicio || '') : '']]
-        });
-        actualizaciones.push({
-            range: rangoSheet(`${columnaALetra(COLUMNAS.calidad)}${rowNum}`, sheetTitle),
-            values: [[conDatos ? (p.calidad || '') : '']]
-        });
-        actualizaciones.push({
-            range: rangoSheet(`${columnaALetra(COLUMNAS.calificacion)}${rowNum}`, sheetTitle),
-            values: [[conDatos ? (p.calificacion || '') : '']]
-        });
-        for (const col of COLUMNAS_EXTRA_LIMPIAR) {
+        for (let ci = 0; ci < layout.numCriterios; ci++) {
+            const crit = layout.criterios[ci];
+            let valor = '';
+            if (conDatos) {
+                const v = crit ? puntajeDeItem(p, crit.clave) : '';
+                valor = v !== '' ? v : 'N/A';
+            }
             actualizaciones.push({
-                range: rangoSheet(`${columnaALetra(col)}${rowNum}`, sheetTitle),
-                values: [['']]
+                range: rangoSheet(`${columnaALetra(layout.criterioInicio + ci)}${rowNum}`, sheetTitle),
+                values: [[valor]]
             });
         }
+        actualizaciones.push({
+            range: rangoSheet(`${columnaALetra(layout.calificacion)}${rowNum}`, sheetTitle),
+            values: [[conDatos ? (p.calificacion || 'N/A') : '']]
+        });
     }
     return actualizaciones;
+}
+
+async function contarCriteriosActualesEnSheet(spreadsheetId, sheetTitle) {
+    try {
+        const rango = `'${sheetTitle}'!${columnaALetra(COLUMNAS.entregaTiempo)}${HEADER_ROW}:${columnaALetra(COLUMNAS.entregaTiempo + 40)}${HEADER_ROW}`;
+        const valores = await driveService.leerRangoGoogleSheet(spreadsheetId, rango);
+        const fila = Array.isArray(valores?.[0]) ? valores[0] : [];
+        let n = 0;
+        for (const celda of fila) {
+            const t = String(celda || '').trim();
+            if (!t) break;
+            if (/calific/i.test(t)) break;
+            n += 1;
+        }
+        return n || CRITERIOS_BASE_PLANTILLA;
+    } catch {
+        return CRITERIOS_BASE_PLANTILLA;
+    }
+}
+
+async function asegurarEstructuraHojaDrive(spreadsheetId, sheetTitle, datos, catalogo) {
+    if (!spreadsheetId || !sheetTitle) return null;
+    const d = datosParaHoja(datos);
+    const criterios = resolverCriteriosParaExcel(d.proveedores, catalogo);
+    const layout = layoutColumnasDesdeCriterios(criterios);
+    const meta = await driveService.obtenerMetadatosHojasGoogleSheet(spreadsheetId).catch(() => []);
+    const hoja = (meta || []).find((h) => String(h.title || '').trim() === String(sheetTitle).trim());
+    if (!hoja) return layout;
+
+    const criteriosActuales = await contarCriteriosActualesEnSheet(spreadsheetId, sheetTitle);
+    const extraCols = Math.max(0, layout.numCriterios - criteriosActuales);
+    if (extraCols > 0 && typeof driveService.insertarColumnasGoogleSheet === 'function') {
+        // Insertar justo antes de Calificación actual (tras los criterios existentes).
+        const startIndex = (COLUMNAS.entregaTiempo - 1) + criteriosActuales; // 0-based
+        try {
+            await driveService.insertarColumnasGoogleSheet(
+                spreadsheetId,
+                hoja.sheetId,
+                startIndex,
+                extraCols,
+                { inheritFromBefore: true, pixelSize: ANCHO_COLUMNA_CRITERIO_PX }
+            );
+        } catch (err) {
+            console.warn('[SGC-F-29] No se pudieron insertar columnas de criterios:', err.message);
+        }
+    }
+
+    const filasNecesarias = Math.max(MAX_FILAS_BASE, d.proveedores.length);
+    let filasDisponibles = MAX_FILAS_BASE;
+    try {
+        const dims = await driveService.obtenerDimensionesHojaGoogleSheet(spreadsheetId, sheetTitle);
+        const rowCount = Number(dims?.rowCount) || 0;
+        if (rowCount > DATA_START_ROW) {
+            filasDisponibles = Math.max(MAX_FILAS_BASE, rowCount - (DATA_START_ROW - 1) - 1);
+        }
+    } catch {
+        /* usar base */
+    }
+    const extraFilas = Math.max(0, filasNecesarias - filasDisponibles);
+    if (extraFilas > 0 && typeof driveService.insertarFilasGoogleSheet === 'function') {
+        try {
+            await driveService.insertarFilasGoogleSheet(
+                spreadsheetId,
+                hoja.sheetId,
+                DATA_START_ROW + filasDisponibles - 1,
+                extraFilas,
+                { inheritFromBefore: true }
+            );
+        } catch (err) {
+            console.warn('[SGC-F-29] No se pudieron insertar filas de proveedores:', err.message);
+        }
+    }
+    return layout;
 }
 
 async function obtenerHojaDatos(wb, modo = 'vigente') {
@@ -815,45 +1347,54 @@ async function descargarBufferDrive(fileId) {
     }
 }
 
-async function aplicarFormatoVisualSgcF29(spreadsheetId, sheetTitle, datos) {
+async function aplicarFormatoVisualSgcF29(spreadsheetId, sheetTitle, datos, catalogo = null) {
     if (!spreadsheetId || !sheetTitle) return;
     const d = datosParaHoja(datos);
-    const numFilas = d.proveedores.length;
+    const criterios = resolverCriteriosParaExcel(d.proveedores, catalogo);
+    const layout = layoutColumnasDesdeCriterios(criterios);
+    const numFilas = Math.max(d.proveedores.length, 1);
+    const filaMax = DATA_START_ROW + Math.max(MAX_FILAS_BASE, d.proveedores.length) - 1;
     try {
         await driveService.aplicarFormatoFilasSgcF29(
             spreadsheetId,
             sheetTitle,
             DATA_START_ROW,
             numFilas,
-            DATA_END_ROW
+            filaMax,
+            {
+                numCriterios: layout.numCriterios,
+                colCalificacion: layout.calificacion
+            }
         );
     } catch (err) {
         console.warn('[SGC-F-29] No se pudo aplicar formato visual en Google Sheet:', err.message);
     }
 }
 
-async function actualizarDatosEnGoogleSheet(spreadsheetId, datos, sheetTitle) {
+async function actualizarDatosEnGoogleSheet(spreadsheetId, datos, sheetTitle, catalogo = null) {
     const titulo = String(sheetTitle || await resolverTituloHojaTrabajo(spreadsheetId)).trim();
-    const actualizaciones = datosAActualizacionesSheet(datos, titulo);
+    let cat = catalogo;
+    await asegurarEstructuraHojaDrive(spreadsheetId, titulo, datos, cat);
+    const actualizaciones = datosAActualizacionesSheet(datos, titulo, cat);
     const CHUNK = 200;
     for (let i = 0; i < actualizaciones.length; i += CHUNK) {
         await driveService.actualizarCeldasGoogleSheet(spreadsheetId, actualizaciones.slice(i, i + CHUNK));
     }
-    await aplicarFormatoVisualSgcF29(spreadsheetId, titulo, datos);
+    await aplicarFormatoVisualSgcF29(spreadsheetId, titulo, datos, cat);
     return driveService.obtenerInfoArchivo(spreadsheetId).catch(() => ({ id: spreadsheetId }));
 }
 
-async function escribirSnapshotEnHojaDrive(spreadsheetId, sheetTitle, datos) {
-    await actualizarDatosEnGoogleSheet(spreadsheetId, datos, sheetTitle);
+async function escribirSnapshotEnHojaDrive(spreadsheetId, sheetTitle, datos, catalogo = null) {
+    await actualizarDatosEnGoogleSheet(spreadsheetId, datos, sheetTitle, catalogo);
 }
 
-async function escribirDatosEnPlantilla(datos, driveFileId = DRIVE_FILE_ID_SISTEMA) {
+async function escribirDatosEnPlantilla(datos, driveFileId = DRIVE_FILE_ID_SISTEMA, catalogo = null) {
     const templateBuffer = await descargarBufferDrive(driveFileId);
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(templateBuffer);
     const ws = await obtenerHojaDatos(wb, 'edicion');
     if (!ws) throw new Error('La plantilla SGC-F-29 no contiene hojas.');
-    escribirDatosEnHoja(ws, datos);
+    escribirDatosEnHoja(ws, datos, catalogo);
     const buffer = await wb.xlsx.writeBuffer();
     return Buffer.from(buffer);
 }
@@ -895,7 +1436,8 @@ async function aplicarHistorialSgcF29(opciones) {
         datosNuevos: opciones.datosNuevos,
         contenidoEsEquivalente,
         estructuraEsEquivalente,
-        escribirSnapshotEnHoja: escribirSnapshotEnHojaDrive,
+        escribirSnapshotEnHoja: (spreadsheetId, sheetTitle, datos) =>
+            escribirSnapshotEnHojaDrive(spreadsheetId, sheetTitle, datos, opciones.catalogo || null),
         origen: opciones.origen || 'sistema',
         forzarTipo: opciones.forzarTipo || null,
         usarHojaVigenteComoOrigen: true,
@@ -906,7 +1448,8 @@ async function aplicarHistorialSgcF29(opciones) {
             await escribirSnapshotEnHojaDrive(
                 opciones.spreadsheetId,
                 result.hojaVigente,
-                result.datosGuardar
+                result.datosGuardar,
+                opciones.catalogo || null
             );
         } catch (err) {
             console.warn('[SGC-F-29] No se pudo reescribir hoja tras historial:', err.message);
@@ -1443,10 +1986,11 @@ async function guardarFormato(pool, body, options = {}) {
     if (driveId) {
         driveId = await asegurarDriveIdGoogleSheet(driveId, pool, registroPrevio);
     }
+    const catalogoCriterios = await listarCriterios(pool).catch(() => CRITERIOS_SISTEMA);
 
     if (!huboCambio && driveId && (await esSpreadsheetEditableEnDrive(driveId))) {
         const hojaDestino = await resolverTituloHojaTrabajo(driveId);
-        await actualizarDatosEnGoogleSheet(driveId, datosEntrada, hojaDestino);
+        await actualizarDatosEnGoogleSheet(driveId, datosEntrada, hojaDestino, catalogoCriterios);
         const archivoDrive = await driveService.obtenerInfoArchivo(driveId).catch(() => null);
         return construirRespuesta({ ...registroPrevio, drive_file_id: driveId }, datosEntrada, archivoDrive);
     }
@@ -1461,7 +2005,8 @@ async function guardarFormato(pool, body, options = {}) {
                 datosPrevios,
                 datosNuevos: { ...datosEntrada },
                 origen,
-                forzarTipo: body?.tipoCambio || null
+                forzarTipo: body?.tipoCambio || null,
+                catalogo: catalogoCriterios
             });
             datosGuardar = hist.datosGuardar;
 
@@ -1478,7 +2023,7 @@ async function guardarFormato(pool, body, options = {}) {
                 ? hist.hojaVigente
                 : await resolverTituloHojaTrabajo(driveId);
             if (!hist.aplicado) {
-                await actualizarDatosEnGoogleSheet(driveId, datosGuardar, hojaDestino);
+                await actualizarDatosEnGoogleSheet(driveId, datosGuardar, hojaDestino, catalogoCriterios);
             }
             const archivoDrive = await driveService.obtenerInfoArchivo(driveId).catch(() => null);
 
@@ -1500,7 +2045,7 @@ async function guardarFormato(pool, body, options = {}) {
         ? fechaModificacion
         : fechaOriginal;
 
-    const buffer = await escribirDatosEnPlantilla(datosGuardar, driveId || DRIVE_FILE_ID_SISTEMA);
+    const buffer = await escribirDatosEnPlantilla(datosGuardar, driveId || DRIVE_FILE_ID_SISTEMA, catalogoCriterios);
     const archivoDrive = await subirOReemplazarEnDrive(buffer, driveId);
 
     await guardarRegistroDb(pool, {
@@ -1686,5 +2231,9 @@ module.exports = {
     actualizarPlantillaDesdeSistema,
     obtenerResumenProveedores,
     listarProveedoresOcultos,
-    establecerVisibilidadProveedor
+    establecerVisibilidadProveedor,
+    listarCriterios,
+    crearCriterio,
+    asegurarTablaCriterios,
+    MIN_CRITERIOS_EVALUACION
 };
