@@ -47,10 +47,38 @@
 
             <div class="mt-toolbar mt-toolbar--drive">
               <div class="mt-toolbar__fields">
-                <p class="mt-bitacora-hint mb-0">
-                  Se llena desde Google Forms (EIN-F-02). Solo puedes editar
-                  <strong>Interno/Externo</strong> (clic para alternar) y <strong>Observaciones</strong>.
-                </p>
+                <div class="mt-bitacora-guia">
+                  <span
+                    class="mt-bitacora-demo"
+                    [class.is-aiming]="ejemploCursor"
+                    [class.is-pressing]="ejemploPresion"
+                  >
+                    <span>Clic para alternar entre interno o externo</span>
+                    <button
+                      type="button"
+                      class="mt-chip mt-chip--ie-toggle"
+                      [class.mt-chip--int]="ejemploInterno"
+                      [class.mt-chip--ext]="!ejemploInterno"
+                      [class.is-on]="true"
+                      (click)="alternarEjemploInterno()"
+                      [attr.aria-label]="'Ejemplo ' + (ejemploInterno ? 'Interno' : 'Externo') + '. Clic para alternar.'"
+                    >
+                      <span class="mt-bitacora-demo__sigla">
+                        <span [class.is-on]="ejemploInterno">Int</span>
+                        <span [class.is-on]="!ejemploInterno">Ext</span>
+                      </span>
+                      <i class="fas fa-mouse-pointer mt-bitacora-demo__cursor" aria-hidden="true"></i>
+                    </button>
+                    <span class="mt-bitacora-demo__estado" [class.is-ext]="!ejemploInterno">
+                      <span [class.is-on]="ejemploInterno">Interno</span>
+                      <span [class.is-on]="!ejemploInterno">Externo</span>
+                    </span>
+                  </span>
+                  <span class="mt-bitacora-guia__nota">
+                    <i class="fas fa-pen" aria-hidden="true"></i>
+                    Las observaciones se escriben manualmente.
+                  </span>
+                </div>
               </div>
 
               <div class="mt-drive-toolbar">
@@ -59,6 +87,12 @@
                   (click)="guardarInformacionDrive()" [disabled]="guardandoDrive || sincronizandoForms">
                   <i class="fas mr-1" [ngClass]="guardandoDrive ? 'fa-spinner fa-spin' : 'fa-save'"></i>
                   Guardar información
+                </button>
+                <button type="button" class="btn btn-sm mt-btn-pdf"
+                  (click)="exportarPdf()" [disabled]="exportandoPdf"
+                  title="Exportar la bitácora en PDF, hoja carta horizontal">
+                  <i class="fas mr-1" [ngClass]="exportandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
+                  Exportar PDF
                 </button>
                 <button type="button" class="btn btn-sm mt-btn-drive"
                   (click)="abrirEditorIntegrado()" [disabled]="guardandoDrive">
@@ -112,7 +146,7 @@
                       >{{ etiquetaInternoExterno(fila) }}</button>
                     </td>
                     <td class="mt-bcol mt-bcol--act">
-                      <div class="mt-cell-readonly">{{ fila.descripcionProblema || '—' }}</div>
+                      <div class="mt-cell-readonly">{{ fila.descripcionMantenimientoRealizado || '—' }}</div>
                     </td>
                     <td class="mt-bcol mt-bcol--resp">
                       <div class="mt-cell-readonly">{{ fila.responsableMantenimiento || 'Desde F-04…' }}</div>
@@ -134,19 +168,12 @@
                   </tr>
                   <tr *ngIf="!filasBitacora.length">
                     <td colspan="9" class="mt-bitacora-empty">
-                      Sin registros. Usa <strong>Desde Forms</strong> para sincronizar las respuestas del formulario.
+                      Sin registros. Sincroniza desde Forms o crea un reporte en el archivero.
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
-
-            <p class="mt-hint mt-hint--below">
-              <span class="mt-hint__legenda">
-                Clic en <span class="mt-chip mt-chip--int is-on">Int</span>/<span class="mt-chip mt-chip--ext is-on">Ext</span> para alternar Interno ↔ Externo
-              </span>
-              · ID formato EINF03-MMDDAA-NN (desde Forms) · Solo Interno/Externo y Observaciones son manuales
-            </p>
 
             <footer class="mt-foot">
               <p>

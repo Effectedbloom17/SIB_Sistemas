@@ -14,7 +14,7 @@ $mt-slate-soft: rgba(30, 41, 59, 0.08);
 
 .mt-toolbar--drive {
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 0.65rem;
   position: sticky;
   top: 0;
@@ -58,6 +58,29 @@ $mt-slate-soft: rgba(30, 41, 59, 0.08);
   font-weight: 700;
   padding: 0.42rem 1rem;
   font-size: 0.82rem;
+
+  &:hover:not(:disabled) {
+    background: $mt-slate-soft;
+    color: $mt-slate-deep !important;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+  }
+}
+
+.mt-btn-pdf {
+  background: #fff;
+  color: $mt-slate-dark !important;
+  border: 1px solid rgba(30, 41, 59, 0.42);
+  border-radius: 999px;
+  font-weight: 700;
+  padding: 0.42rem 1rem;
+  font-size: 0.82rem;
+
+  i {
+    color: #b91c1c;
+  }
 
   &:hover:not(:disabled) {
     background: $mt-slate-soft;

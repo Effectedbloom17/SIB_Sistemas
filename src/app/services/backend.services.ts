@@ -660,6 +660,11 @@ export class BackendServices {
         );
     }
 
+    /** Lee la plantilla viva EIN-F-01 (Excel/Drive) para el PDF */
+    leerProgramaMantenimientoF01(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/mantenimiento/programa-f01`);
+    }
+
     /** Guarda EIN-F-01 Programa en Excel/Drive */
     guardarProgramaMantenimientoF01(payload: {
         meta?: object;

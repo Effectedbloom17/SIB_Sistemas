@@ -11388,8 +11388,72 @@ async function generarSolicitudMantenimientoEinF02(params = {}) {
     };
 }
 
+/** Hoja de datos: folio, guion, mes y año. Ej. EIN-F-01-10-2026. La hoja Plantilla no se usa. */
+function nombreHojaRegistroMantenimiento(folio, fecha = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Mexico_City',
+        month: '2-digit',
+        year: 'numeric'
+    }).formatToParts(fecha);
+    const mes = parts.find((p) => p.type === 'month')?.value || '01';
+    const anio = parts.find((p) => p.type === 'year')?.value || String(fecha.getFullYear());
+    const base = String(folio || 'EIN').replace(/[/\\?*:[\]]/g, '-').trim();
+    return `${base}-${mes}-${anio}`.slice(0, 99);
+}
+
+function esHojaPlantillaMantenimiento(title) {
+    const n = String(title || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+    return n === 'plantilla' || n.startsWith('plantilla ');
+}
+
+function buscarHojaPlantillaMantenimiento(sheets) {
+    return (sheets || []).find((s) => esHojaPlantillaMantenimiento(s?.properties?.title)) || null;
+}
+
+function buscarHojaRegistroMantenimiento(sheets, folio) {
+    const base = String(folio || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`^${base}-(\\d{2})-(\\d{4})$`, 'i');
+    const coincidencias = [];
+    for (const sheet of sheets || []) {
+        const title = String(sheet?.properties?.title || '').trim();
+        const match = title.match(re);
+        if (!match) continue;
+        coincidencias.push({
+            sheet,
+            title,
+            orden: Number(match[2]) * 100 + Number(match[1])
+        });
+    }
+    coincidencias.sort((a, b) => b.orden - a.orden);
+    return coincidencias[0] || null;
+}
+
+async function asegurarHojaRegistroMantenimiento(spreadsheetId, plantillaTitle, nombreHoja) {
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const meta = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets(properties(sheetId,title))'
+    });
+    const sheets = meta?.data?.sheets || [];
+    const existente = sheets.find((s) => (
+        String(s?.properties?.title || '').trim().toLowerCase() === String(nombreHoja || '').trim().toLowerCase()
+    ));
+    if (existente && !esHojaPlantillaMantenimiento(existente.properties?.title)) {
+        return {
+            sheetId: existente.properties.sheetId,
+            title: String(existente.properties.title || nombreHoja).trim()
+        };
+    }
+    return duplicarHojaGoogleSheet(spreadsheetId, plantillaTitle, nombreHoja);
+}
+
 /**
- * EIN-F-01 Programa de mantenimiento — copia/actualiza plantilla Sheets.
+ * EIN-F-01 Programa de mantenimiento.
+ * Duplica la hoja Plantilla hacia EIN-F-01-MM-AAAA y escribe ahí. La plantilla no se modifica.
  * Plantilla: 1MaXJjsd9IcjiNd70Z4zXmzouEP0pZG_k9l6izOkGSng
  */
 async function generarProgramaMantenimientoEinF01(params = {}) {
@@ -11493,13 +11557,18 @@ async function generarProgramaMantenimientoEinF01(params = {}) {
         fields: 'sheets(properties(sheetId,title))'
     });
     const allSheets = metaSheet?.data?.sheets || [];
-    const programaSheet = allSheets.find((s) => {
-        const title = normalizarTexto(s?.properties?.title || '');
-        return title === 'programa' || title.includes('programa de mantenimiento');
-    }) || allSheets[0];
-    const firstSheet = programaSheet;
-    const firstSheetTitle = firstSheet?.properties?.title || 'Programa';
-    const firstSheetId = firstSheet?.properties?.sheetId ?? 0;
+    const plantillaSheet = buscarHojaPlantillaMantenimiento(allSheets);
+    if (!plantillaSheet?.properties?.title) {
+        throw new Error('No se encontró la hoja Plantilla de EIN-F-01.');
+    }
+    const nombreHoja = nombreHojaRegistroMantenimiento('EIN-F-01');
+    const hojaDatos = await asegurarHojaRegistroMantenimiento(
+        spreadsheetId,
+        plantillaSheet.properties.title,
+        nombreHoja
+    );
+    const firstSheetTitle = hojaDatos.title;
+    const firstSheetId = hojaDatos.sheetId;
 
     const valuesResp = await sheetsApi.spreadsheets.values.get({
         spreadsheetId,
@@ -11686,6 +11755,8 @@ async function generarProgramaMantenimientoEinF01(params = {}) {
                         col,
                         conP: estado === 'P'
                     });
+                } else {
+                    celdasFormato.push({ row: r, col, limpiar: true });
                 }
             }
         }
@@ -11698,6 +11769,28 @@ async function generarProgramaMantenimientoEinF01(params = {}) {
             });
         }
     });
+
+    let limiteDatos = rows.length;
+    for (let r = dataStartIdx + 1; r < rows.length; r++) {
+        const blob = normalizarTexto((rows[r] || []).join(' '));
+        if (blob.includes('observacion') || blob.includes('elaboro') || blob.includes('aprobo')) {
+            limiteDatos = r;
+            break;
+        }
+    }
+    const hasta = Math.min(limiteDatos, dataStartIdx + filas.length + 60);
+    for (let r = dataStartIdx + filas.length; r < hasta; r++) {
+        setCell(r, colInfra, '');
+        setCell(r, colResp, '');
+        setCell(r, colTipo, '');
+        for (let mes = 0; mes < 12; mes += 1) {
+            for (let sem = 0; sem < 4; sem += 1) {
+                const col = colSemana(mes, sem);
+                setCell(r, col, '');
+                celdasFormato.push({ row: r, col, limpiar: true });
+            }
+        }
+    }
 
     if (actualizaciones.length) {
         await sheetsApi.spreadsheets.values.batchUpdate({
@@ -11723,8 +11816,6 @@ async function generarProgramaMantenimientoEinF01(params = {}) {
                         },
                         cell: {
                             userEnteredFormat: {
-                                horizontalAlignment: 'CENTER',
-                                verticalAlignment: 'MIDDLE',
                                 backgroundColor: COLOR_BLANCO,
                                 textFormat: {
                                     foregroundColor: COLOR_TEXTO_NEGRO,
@@ -11732,7 +11823,7 @@ async function generarProgramaMantenimientoEinF01(params = {}) {
                                 }
                             }
                         },
-                        fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,backgroundColor,textFormat,textFormat.foregroundColor,textFormat.bold)'
+                        fields: 'userEnteredFormat.backgroundColor,userEnteredFormat.textFormat.foregroundColor,userEnteredFormat.textFormat.bold'
                     }
                 };
             }
@@ -11747,8 +11838,6 @@ async function generarProgramaMantenimientoEinF01(params = {}) {
                     },
                     cell: {
                         userEnteredFormat: {
-                            horizontalAlignment: 'CENTER',
-                            verticalAlignment: 'MIDDLE',
                             backgroundColor: COLOR_PROG_FONDO,
                             textFormat: {
                                 foregroundColor: item.conP ? COLOR_PROG_TEXTO : COLOR_PROG_FONDO,
@@ -11756,7 +11845,7 @@ async function generarProgramaMantenimientoEinF01(params = {}) {
                             }
                         }
                     },
-                    fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,backgroundColor,textFormat,textFormat.foregroundColor,textFormat.bold)'
+                    fields: 'userEnteredFormat.backgroundColor,userEnteredFormat.textFormat.foregroundColor,userEnteredFormat.textFormat.bold'
                 }
             };
         });
@@ -11769,11 +11858,260 @@ async function generarProgramaMantenimientoEinF01(params = {}) {
     return {
         driveFileId: canonicalTemplateId,
         nombre: nombreFinal,
-        webViewLink: webViewLink || `https://docs.google.com/spreadsheets/d/${canonicalTemplateId}/edit`,
+        webViewLink: `${(webViewLink || `https://docs.google.com/spreadsheets/d/${canonicalTemplateId}/edit`).split('#')[0]}#gid=${firstSheetId}`,
+        hoja: firstSheetTitle,
         anio,
         filasEscritas: filas.length,
         camposEscritos: actualizaciones.length,
         templateId: canonicalTemplateId
+    };
+}
+
+/**
+ * Lee la plantilla viva EIN-F-01 (valores y celdas verdes) para el PDF.
+ * El formulario del sistema no es la fuente: guarda su propia copia en el navegador.
+ */
+async function leerProgramaMantenimientoEinF01(params = {}) {
+    const templateId = String(
+        params.templateId || process.env.EIN_F01_TEMPLATE_ID || '1MaXJjsd9IcjiNd70Z4zXmzouEP0pZG_k9l6izOkGSng'
+    ).trim();
+
+    const normalizarTexto = (value = '') => String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+
+    if (!drive || !_driveAuthClient) {
+        throw new Error('Google Drive no está autenticado.');
+    }
+
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const metaFile = await drive.files.get({
+        fileId: templateId,
+        fields: 'id,name,mimeType,trashed,shortcutDetails(targetId)',
+        supportsAllDrives: true
+    });
+    if (metaFile?.data?.trashed) {
+        throw new Error('El documento EIN-F-01 está en la papelera de Drive.');
+    }
+    let spreadsheetId = templateId;
+    if (metaFile?.data?.mimeType === 'application/vnd.google-apps.shortcut') {
+        spreadsheetId = String(metaFile?.data?.shortcutDetails?.targetId || '').trim();
+        if (!spreadsheetId) {
+            throw new Error('La plantilla EIN-F-01 es un acceso directo inválido.');
+        }
+    }
+
+    const metaSheet = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets(properties(sheetId,title))'
+    });
+    const allSheets = metaSheet?.data?.sheets || [];
+    const registro = buscarHojaRegistroMantenimiento(allSheets, 'EIN-F-01');
+    const plantilla = buscarHojaPlantillaMantenimiento(allSheets);
+    const programaSheet = registro?.sheet
+        || plantilla
+        || allSheets.find((s) => {
+            const title = normalizarTexto(s?.properties?.title || '');
+            return title === 'programa' || title.includes('programa de mantenimiento');
+        })
+        || allSheets[0];
+    const sheetTitle = programaSheet?.properties?.title || 'Programa';
+
+    const gridResp = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        ranges: [`'${sheetTitle.replace(/'/g, "''")}'!A1:BZ160`],
+        includeGridData: true,
+        fields: 'sheets(data(rowData(values(formattedValue,effectiveFormat(backgroundColor)))))'
+    });
+    const rowData = gridResp?.data?.sheets?.[0]?.data?.[0]?.rowData || [];
+    const rows = rowData.map((row) => (row?.values || []).map((cell) => ({
+        text: String(cell?.formattedValue || '').replace(/\r/g, '').trim(),
+        bg: cell?.effectiveFormat?.backgroundColor || null
+    })));
+
+    const esMarcaVerde = (bg) => {
+        if (!bg) return false;
+        const r = Number(bg.red || 0);
+        const g = Number(bg.green || 0);
+        const b = Number(bg.blue || 0);
+        return g >= 0.45 && r <= 0.35 && b <= 0.55 && (g - r) >= 0.25;
+    };
+
+    const tomarValor = (needles) => {
+        const norms = needles.map(normalizarTexto);
+        for (let r = 0; r < Math.min(rows.length, 16); r++) {
+            const row = rows[r] || [];
+            for (let c = 0; c < row.length; c++) {
+                const norm = normalizarTexto(row[c].text);
+                if (!norm || !norms.some((n) => norm.includes(n))) continue;
+                const despues = row[c].text.split(':').slice(1).join(':').trim();
+                if (despues) return despues;
+                for (let k = c + 1; k < Math.min(row.length, c + 24); k++) {
+                    const valor = String(row[k].text || '').trim();
+                    if (valor) return valor;
+                }
+            }
+        }
+        return '';
+    };
+
+    let clausula = '7.1.3';
+    for (let r = 0; r < Math.min(rows.length, 12); r++) {
+        for (const cell of rows[r] || []) {
+            const match = String(cell.text || '').match(/\[(\d+(?:\.\d+)+)\]/);
+            if (match) clausula = match[1];
+        }
+    }
+
+    const periodo = tomarValor(['periodo de programacion', 'periodo']);
+    const anioMatch = String(periodo || '').match(/(20\d{2})/);
+    const anio = anioMatch ? Number(anioMatch[1]) : (Number(params.anio) || new Date().getFullYear());
+
+    const meta = {
+        codigo: tomarValor(['codigo']) || 'EIN-F-01',
+        revision: tomarValor(['revision']) || '00',
+        fechaRev: tomarValor(['fecha de rev', 'fecha de revision']) || '22-01-25',
+        clausula,
+        empresa: tomarValor(['empresa']) || 'BIZNAGA RISK AND TECH',
+        tipoInfraestructura: tomarValor(['tipo de infraestructura']) || 'Toda la infraestructura en general',
+        periodo: periodo || `Enero - Diciembre ${anio}`,
+        anio,
+        administrador: tomarValor(['administrador del programa', 'administrador']) || ''
+    };
+
+    let headerRowIdx = -1;
+    let colInfra = 0;
+    let colResp = 1;
+    let colTipo = 2;
+    let dataStartIdx = 9;
+
+    for (let r = 0; r < Math.min(rows.length, 40); r++) {
+        const cells = (rows[r] || []).map((c) => normalizarTexto(c.text));
+        const infraIdx = cells.findIndex((c) => c.includes('infraestructura') && !c.includes('tipo de'));
+        const respIdx = cells.findIndex((c) => c.includes('responsable'));
+        if (infraIdx < 0 || respIdx < 0) continue;
+        if (cells.some((c) => c.includes('tipo de infraestructura') && c.includes('programa'))) continue;
+
+        const tipoIdx = cells.findIndex((c) => (
+            c === 'tipo'
+            || (c.startsWith('tipo') && !c.includes('infraestructura') && !c.includes('mantenimiento'))
+        ));
+        headerRowIdx = r;
+        colInfra = infraIdx;
+        colResp = respIdx;
+        colTipo = tipoIdx >= 0 ? tipoIdx : Math.max(infraIdx, respIdx) + 1;
+
+        const headerWeeks = cells.filter((c) => /^[1-4]$/.test(c)).length;
+        if (headerWeeks >= 3) {
+            dataStartIdx = r + 1;
+        } else {
+            const nextCells = (rows[r + 1] || []).map((c) => normalizarTexto(c.text));
+            const nextWeeks = nextCells.filter((c) => /^[1-4]$/.test(c)).length;
+            dataStartIdx = nextWeeks >= 3 ? r + 2 : r + 1;
+        }
+        break;
+    }
+
+    const detectarColumnasSemana = () => {
+        if (headerRowIdx < 0) return null;
+        const candidatos = [headerRowIdx + 1, headerRowIdx].filter((i) => i >= 0 && i < rows.length);
+        for (const rowIdx of candidatos) {
+            const cells = (rows[rowIdx] || []).map((c) => normalizarTexto(c.text));
+            const meses = [];
+            let bloque = [];
+            for (let c = 0; c < cells.length; c++) {
+                if (/^[1-4]$/.test(cells[c])) {
+                    bloque.push(c);
+                    if (bloque.length === 4) {
+                        meses.push([...bloque]);
+                        bloque = [];
+                    }
+                } else if (bloque.length === 4) {
+                    meses.push([...bloque]);
+                    bloque = [];
+                } else if (bloque.length > 0) {
+                    bloque = [];
+                }
+            }
+            if (bloque.length === 4) meses.push(bloque);
+            if (meses.length >= 6) return meses.slice(0, 12);
+        }
+        return null;
+    };
+
+    const weekColsByMonth = detectarColumnasSemana();
+    const colSemana = (mes, sem) => {
+        if (weekColsByMonth && weekColsByMonth[mes] && weekColsByMonth[mes][sem] != null) {
+            return weekColsByMonth[mes][sem];
+        }
+        return colTipo + 1 + mes * 4 + sem;
+    };
+
+    const filas = [];
+    let vaciasSeguidas = 0;
+    for (let r = dataStartIdx; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const infra = String(row[colInfra]?.text || '').trim();
+        const resp = String(row[colResp]?.text || '').trim();
+        const tipoRaw = normalizarTexto(row[colTipo]?.text || '');
+        const infraNorm = normalizarTexto(infra);
+        if (
+            infraNorm.startsWith('p programado')
+            || infraNorm.startsWith('observacion')
+            || infraNorm.startsWith('elaboro')
+            || infraNorm === 'p'
+        ) {
+            break;
+        }
+
+        const programado = {};
+        for (let mes = 0; mes < 12; mes += 1) {
+            for (let sem = 0; sem < 4; sem += 1) {
+                const cell = row[colSemana(mes, sem)];
+                if (!cell) continue;
+                const marcaP = /^p$/i.test(cell.text);
+                if (marcaP || esMarcaVerde(cell.bg)) {
+                    programado[`m${mes}-s${sem}`] = marcaP ? 'P' : 'reservado';
+                }
+            }
+        }
+
+        const tieneDatos = !!(infra || resp || Object.keys(programado).length);
+        if (!tieneDatos) {
+            vaciasSeguidas += 1;
+            if (filas.length && vaciasSeguidas >= 2) break;
+            continue;
+        }
+        vaciasSeguidas = 0;
+
+        let tipo = 'Int';
+        if (tipoRaw.startsWith('ext')) tipo = 'Ext';
+        else if (!tipoRaw.startsWith('int')) {
+            const bg = row[colTipo]?.bg;
+            const rC = Number(bg?.red || 0);
+            const gC = Number(bg?.green || 0);
+            const bC = Number(bg?.blue || 0);
+            if (rC > 0.75 && gC > 0.55 && bC < 0.55) tipo = 'Ext';
+        }
+
+        filas.push({
+            id: `excel-${filas.length + 1}`,
+            infraestructura: infra,
+            responsable: resp,
+            tipo,
+            programado
+        });
+    }
+
+    return {
+        meta,
+        filas,
+        anio,
+        spreadsheetId,
+        nombre: metaFile?.data?.name || 'EIN-F-01'
     };
 }
 
@@ -11990,11 +12328,18 @@ async function generarBitacoraMantenimientoEinF03(params = {}) {
         fields: 'sheets(properties(sheetId,title))'
     });
     const allSheets = meta?.data?.sheets || [];
-    const plantillaSheet = allSheets.find((s) => {
-        const title = normalizarTexto(s?.properties?.title || '');
-        return title === 'plantilla' || title.includes('bitacora');
-    }) || allSheets[0];
-    const firstSheetTitle = plantillaSheet?.properties?.title || 'Plantilla';
+    const plantillaSheet = buscarHojaPlantillaMantenimiento(allSheets);
+    if (!plantillaSheet?.properties?.title) {
+        throw new Error('No se encontró la hoja Plantilla de EIN-F-03.');
+    }
+    const nombreHoja = nombreHojaRegistroMantenimiento('EIN-F-03');
+    const hojaDatos = await asegurarHojaRegistroMantenimiento(
+        spreadsheetId,
+        plantillaSheet.properties.title,
+        nombreHoja
+    );
+    const firstSheetTitle = hojaDatos.title;
+    const firstSheetId = hojaDatos.sheetId;
 
     const valuesResp = await sheetsApi.spreadsheets.values.get({
         spreadsheetId,
@@ -12080,6 +12425,22 @@ async function generarBitacoraMantenimientoEinF03(params = {}) {
         setCell(r, colMap.obs, fila.observaciones);
     });
 
+    let limiteDatos = rows.length;
+    for (let r = dataStartIdx + 1; r < rows.length; r++) {
+        const blob = normalizarTexto((rows[r] || []).join(' '));
+        if (blob.includes('elaboro') || blob.includes('reviso') || blob.includes('aprobo')) {
+            limiteDatos = r;
+            break;
+        }
+    }
+    const hasta = Math.min(limiteDatos, dataStartIdx + filas.length + 40);
+    const columnasDatos = Object.values(colMap).map((c) => Number(c)).filter((c) => c >= 0);
+    for (let r = dataStartIdx + filas.length; r < hasta; r++) {
+        for (const col of columnasDatos) {
+            setCell(r, col, '');
+        }
+    }
+
     if (actualizaciones.length) {
         await sheetsApi.spreadsheets.values.batchUpdate({
             spreadsheetId,
@@ -12090,22 +12451,11 @@ async function generarBitacoraMantenimientoEinF03(params = {}) {
         });
     }
 
-    const colEnd = Math.max(...Object.values(colMap).map((c) => Number(c) || 0), 8) + 1;
-
-    if (filas.length > 0) {
-        await aplicarFormatoVisualEinF03Bitacora(
-            spreadsheetId,
-            firstSheetTitle,
-            dataStartIdx + 1,
-            filas.length,
-            colEnd
-        );
-    }
-
     return {
         driveFileId: canonicalTemplateId,
         nombre: nombreFinal,
-        webViewLink: webViewLink || `https://docs.google.com/spreadsheets/d/${canonicalTemplateId}/edit`,
+        webViewLink: `${(webViewLink || `https://docs.google.com/spreadsheets/d/${canonicalTemplateId}/edit`).split('#')[0]}#gid=${firstSheetId}`,
+        hoja: firstSheetTitle,
         folio,
         filasEscritas: filas.length,
         camposEscritos: actualizaciones.length,
@@ -12239,6 +12589,7 @@ module.exports = {
     generarSolicitudMantenimientoEinF02,
     // Mantenimiento EIN-F-03 Bitácora (Google Sheets / Excel)
     generarProgramaMantenimientoEinF01,
+    leerProgramaMantenimientoEinF01,
     generarBitacoraMantenimientoEinF03,
 
     // Upload rápido

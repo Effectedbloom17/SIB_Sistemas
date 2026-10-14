@@ -20546,6 +20546,25 @@ app.get(
     }
 );
 
+app.get(
+    '/api/mantenimiento/programa-f01',
+    authMiddleware,
+    denyEmpresa,
+    requireAdminOrMantenimiento,
+    async (req, res) => {
+        try {
+            const programa = await mantenimientoService.leerProgramaEinF01();
+            res.json({ success: true, programa });
+        } catch (error) {
+            console.error('[mantenimiento] leer programa F01:', error);
+            res.status(500).json({
+                success: false,
+                message: error.message || 'No se pudo leer la plantilla EIN-F-01'
+            });
+        }
+    }
+);
+
 app.post(
     '/api/mantenimiento/programa-f01/guardar',
     authMiddleware,
