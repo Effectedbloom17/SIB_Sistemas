@@ -1601,7 +1601,7 @@ async function renombrarHojaGoogleSheet(spreadsheetId, tituloActual, tituloNuevo
         throw new Error(`Hoja "${actual}" no encontrada`);
     }
 
-    await sheetsApi.spreadsheets.batchUpdate({
+    await conReintentoCuotaSheets('renombrarHoja.batchUpdate', () => sheetsApi.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
             requests: [{
@@ -1611,7 +1611,7 @@ async function renombrarHojaGoogleSheet(spreadsheetId, tituloActual, tituloNuevo
                 }
             }]
         }
-    });
+    }));
     return { sheetId, title: nuevo };
 }
 
@@ -1650,7 +1650,7 @@ async function duplicarHojaGoogleSheet(spreadsheetId, sourceSheetTitle, newTitle
     }
 
     const nombreFinal = await resolverNombreHojaUnico(spreadsheetId, newTitle);
-    const response = await sheetsApi.spreadsheets.batchUpdate({
+    const response = await conReintentoCuotaSheets('duplicarHoja.batchUpdate', () => sheetsApi.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
             requests: [{
@@ -1660,7 +1660,7 @@ async function duplicarHojaGoogleSheet(spreadsheetId, sourceSheetTitle, newTitle
                 }
             }]
         }
-    });
+    }));
 
     const props = response.data?.replies?.[0]?.duplicateSheet?.properties || {};
     return {
@@ -1706,6 +1706,74 @@ async function moverHojaAlInicioGoogleSheet(spreadsheetId, sheetTitle) {
  * @param {number} numRows
  * @param {{ inheritFromBefore?: boolean }} [options]
  */
+// --- Cola + reintentos por cuota de Google Sheets (Write requests / min / user) ---
+const SHEETS_WRITE_MIN_GAP_MS = Math.max(0, Number(process.env.SHEETS_WRITE_MIN_GAP_MS) || 1200);
+const SHEETS_QUOTA_MAX_REINTENTOS = Math.max(1, Number(process.env.SHEETS_QUOTA_MAX_REINTENTOS) || 8);
+let _sheetsWriteChain = Promise.resolve();
+let _sheetsLastWriteAt = 0;
+
+function sleepMs(ms) {
+    return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+
+function mensajeErrorGoogleApi(err) {
+    return String(
+        err?.response?.data?.error?.message
+        || err?.errors?.[0]?.message
+        || err?.message
+        || ''
+    );
+}
+
+function esErrorCuotaSheets(err) {
+    const status = Number(err?.code || err?.response?.status || err?.response?.data?.error?.code || 0);
+    const msg = mensajeErrorGoogleApi(err).toLowerCase();
+    return status === 429
+        || msg.includes('quota exceeded')
+        || msg.includes('rate limit')
+        || msg.includes('user rate limit')
+        || msg.includes('resource_exhausted');
+}
+
+async function encolarEscrituraSheets(fn) {
+    const ejecutar = async () => {
+        const espera = Math.max(0, SHEETS_WRITE_MIN_GAP_MS - (Date.now() - _sheetsLastWriteAt));
+        if (espera > 0) await sleepMs(espera);
+        _sheetsLastWriteAt = Date.now();
+        return fn();
+    };
+    const tarea = _sheetsWriteChain.then(ejecutar, ejecutar);
+    _sheetsWriteChain = tarea.then(() => undefined, () => undefined);
+    return tarea;
+}
+
+/**
+ * Serializa escrituras a Sheets y reintenta con backoff si Google responde cuota.
+ * @param {string} etiqueta
+ * @param {() => Promise<any>} fn
+ */
+async function conReintentoCuotaSheets(etiqueta, fn) {
+    let ultimoError;
+    for (let intento = 0; intento < SHEETS_QUOTA_MAX_REINTENTOS; intento++) {
+        try {
+            return await encolarEscrituraSheets(fn);
+        } catch (err) {
+            ultimoError = err;
+            if (!esErrorCuotaSheets(err) || intento >= SHEETS_QUOTA_MAX_REINTENTOS - 1) {
+                throw err;
+            }
+            // La cuota Write/min suele liberarse cerca de 60s; backoff hasta ~65s.
+            const delay = Math.min(65000, 2000 * Math.pow(2, intento));
+            console.warn(
+                `[DRIVE] Quota Sheets (${etiqueta}), reintento ${intento + 1}/${SHEETS_QUOTA_MAX_REINTENTOS}`
+                + ` en ${delay}ms: ${mensajeErrorGoogleApi(err)}`
+            );
+            await sleepMs(delay);
+        }
+    }
+    throw ultimoError;
+}
+
 async function insertarFilasGoogleSheet(spreadsheetId, sheetId, startIndex, numRows, options = {}) {
     const filas = Math.max(0, Math.floor(Number(numRows) || 0));
     if (!spreadsheetId || sheetId == null || filas <= 0) {
@@ -1713,7 +1781,7 @@ async function insertarFilasGoogleSheet(spreadsheetId, sheetId, startIndex, numR
     }
     const start = Math.max(0, Math.floor(Number(startIndex) || 0));
     const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
-    return sheetsApi.spreadsheets.batchUpdate({
+    return conReintentoCuotaSheets('insertarFilas.batchUpdate', () => sheetsApi.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
             requests: [{
@@ -1728,7 +1796,7 @@ async function insertarFilasGoogleSheet(spreadsheetId, sheetId, startIndex, numR
                 }
             }]
         }
-    });
+    }));
 }
 
 /**
@@ -1817,7 +1885,7 @@ async function eliminarFilasGoogleSheet(spreadsheetId, sheetId, startIndex, numR
     }
     const start = Math.max(0, Math.floor(Number(startIndex) || 0));
     const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
-    return sheetsApi.spreadsheets.batchUpdate({
+    return conReintentoCuotaSheets('eliminarFilas.batchUpdate', () => sheetsApi.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
             requests: [{
@@ -1831,7 +1899,7 @@ async function eliminarFilasGoogleSheet(spreadsheetId, sheetId, startIndex, numR
                 }
             }]
         }
-    });
+    }));
 }
 
 /**
@@ -1871,10 +1939,10 @@ async function eliminarHojasGoogleSheet(spreadsheetId, titulos) {
         }
     }
     if (requests.length) {
-        await sheetsApi.spreadsheets.batchUpdate({
+        await conReintentoCuotaSheets('eliminarHojas.batchUpdate', () => sheetsApi.spreadsheets.batchUpdate({
             spreadsheetId,
             requestBody: { requests }
-        });
+        }));
     }
 }
 
@@ -1918,13 +1986,15 @@ async function actualizarCeldasGoogleSheet(spreadsheetId, actualizaciones) {
     }
 
     const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
-    const response = await sheetsApi.spreadsheets.values.batchUpdate({
-        spreadsheetId,
-        requestBody: {
-            valueInputOption: 'USER_ENTERED',
-            data: entradas
-        }
-    });
+    const response = await conReintentoCuotaSheets('actualizarCeldas.values.batchUpdate', () => (
+        sheetsApi.spreadsheets.values.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+                valueInputOption: 'USER_ENTERED',
+                data: entradas
+            }
+        })
+    ));
     return response.data;
 }
 
@@ -12678,6 +12748,7 @@ module.exports = {
     getAuthClient: () => _driveAuthClient,
 
     actualizarCeldasGoogleSheet,
+    conReintentoCuotaSheets,
     leerRangoGoogleSheet,
     permitirAccesoUrlsExternasGoogleSheet,
     aplicarFormatoRangoGoogleSheet,

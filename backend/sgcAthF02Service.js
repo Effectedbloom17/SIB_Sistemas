@@ -744,6 +744,46 @@ function contenidoEsEquivalente(a, b) {
     return JSON.stringify(snapshotComparable(a)) === JSON.stringify(snapshotComparable(b));
 }
 
+/** Snapshot de un perfil para decidir si hay que reescribir su hoja (ignora PDF y nombreHoja). */
+function snapshotPerfilParaSync(perfil) {
+    const p = sanitizarPerfil(perfil);
+    return {
+        puesto: p.puesto,
+        areaDepartamento: p.areaDepartamento,
+        puestoAlQueReporta: p.puestoAlQueReporta,
+        puestosQueLeReportan: p.puestosQueLeReportan,
+        objetivo: p.objetivo,
+        funciones: p.funciones,
+        edad: p.edad,
+        edadMinima: p.edadMinima,
+        edadMaxima: p.edadMaxima,
+        edadIndistinto: p.edadIndistinto,
+        sexo: p.sexo,
+        estadoCivil: p.estadoCivil,
+        escNivel: p.escNivel,
+        esc: p.esc,
+        experiencia: p.experiencia,
+        experiencias: p.experiencias,
+        experienciaIzq: p.experienciaIzq,
+        experienciaDer: p.experienciaDer,
+        formacionCompetenciasTecnicas: p.formacionCompetenciasTecnicas,
+        habilidadesBlandas: p.habilidadesBlandas,
+        conocimientoEquipoOperacion: p.conocimientoEquipoOperacion,
+        requerimientos: p.requerimientos,
+        relacionesInternas: p.relacionesInternas,
+        relacionesExternas: p.relacionesExternas
+    };
+}
+
+function perfilesEquivalentesParaSync(a, b) {
+    return JSON.stringify(snapshotPerfilParaSync(a)) === JSON.stringify(snapshotPerfilParaSync(b));
+}
+
+function metaCabeceraEquivalente(a, b) {
+    return String(a?.revision || '') === String(b?.revision || '')
+        && String(a?.fechaRevision || '') === String(b?.fechaRevision || '');
+}
+
 function columnaALetra(col) {
     let numero = Number(col);
     let letras = '';
@@ -1568,10 +1608,12 @@ async function insertarLineaDivisoriaBajoFunciones(spreadsheetId, sheetId, canti
             }
         });
     });
-    await sheetsApi.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: { requests }
-    });
+    await driveService.conReintentoCuotaSheets('athF02.lineaFunciones.batchUpdate', () => (
+        sheetsApi.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: { requests }
+        })
+    ));
 }
 
 function pushRelaciones(actualizaciones, startRow, endRow, relaciones, sheetTitle) {
@@ -2160,10 +2202,12 @@ async function aplicarFormatoPerfilAthF02(spreadsheetId, sheetTitle, layout, per
 
     try {
         const sheetsApi = google.sheets({ version: 'v4', auth: driveService.getAuthClient() });
-        return await sheetsApi.spreadsheets.batchUpdate({
-            spreadsheetId,
-            requestBody: { requests }
-        });
+        return await driveService.conReintentoCuotaSheets('athF02.format.batchUpdate', () => (
+            sheetsApi.spreadsheets.batchUpdate({
+                spreadsheetId,
+                requestBody: { requests }
+            })
+        ));
     } catch (err) {
         console.warn('[ATH-F-02] Format batch falló:', err.message);
         throw err;
@@ -2252,24 +2296,33 @@ async function recrearHojaPerfil(spreadsheetId, nombreHoja, perfil, meta) {
     return { titulo: tituloFinal, driveFileId: spreadsheetId };
 }
 
-async function sincronizarHojasPerfilesEnDrive(spreadsheetId, datos, datosPrevios = null) {
+async function sincronizarHojasPerfilesEnDrive(spreadsheetId, datos, datosPrevios = null, options = {}) {
     const meta = sanitizarDatos(datos);
     const prev = datosPrevios ? sanitizarDatos(datosPrevios) : null;
+    const forzarTodos = !!options.forzarTodos;
+    const idsForzados = Array.isArray(options.idsPerfiles) && options.idsPerfiles.length
+        ? new Set(options.idsPerfiles.map((id) => String(id)))
+        : null;
     let driveIdActual = spreadsheetId;
     const titulosExistentes = await driveService.listarHojasGoogleSheet(driveIdActual);
     const setExistentes = new Set(titulosExistentes);
     const plantillaOrigen = await resolverTituloPlantilla(driveIdActual);
+    const cabeceraIgual = !!(prev && metaCabeceraEquivalente(meta, prev));
+    const mapaPrevPorId = new Map();
 
     const mapaIdHojaPrevio = new Map();
     if (prev?.perfiles) {
         for (const p of prev.perfiles) {
             const almacenado = sanitizarNombreHoja(p.nombreHoja);
             mapaIdHojaPrevio.set(p.id, almacenado || resolverNombreHojaPerfil(p));
+            mapaPrevPorId.set(p.id, p);
         }
     }
 
     const hojasActivas = new Set();
     const perfilesOut = [];
+    let sincronizados = 0;
+    let omitidos = 0;
 
     for (const perfil of meta.perfiles) {
         if (!perfilTieneContenido(perfil)) {
@@ -2295,18 +2348,45 @@ async function sincronizarHojasPerfilesEnDrive(spreadsheetId, datos, datosPrevio
             }
         }
 
+        const prevPerfil = mapaPrevPorId.get(perfil.id);
+        const hojaExiste = setExistentes.has(nombreHoja)
+            || !!(hojaPrev && setExistentes.has(hojaPrev));
+        const contenidoIgual = !!(prevPerfil && perfilesEquivalentesParaSync(perfil, prevPerfil));
+        const forzadoPorId = !!(idsForzados && idsForzados.has(String(perfil.id)));
+        // Evita recrear las 9+ hojas en cada import/guardado: solo las que cambian o faltan.
+        // Si viene idsPerfiles (import), no propagar un cambio de cabecera a todo el archivero.
+        const debeSync = forzarTodos
+            || forzadoPorId
+            || !hojaExiste
+            || !contenidoIgual
+            || (!idsForzados && !cabeceraIgual);
+
+        if (!debeSync) {
+            const tituloConservar = setExistentes.has(nombreHoja)
+                ? nombreHoja
+                : (hojaPrev && setExistentes.has(hojaPrev) ? hojaPrev : nombreHoja);
+            hojasActivas.add(tituloConservar);
+            perfilesOut.push({ ...perfil, nombreHoja: tituloConservar });
+            omitidos += 1;
+            continue;
+        }
+
         try {
-            // Siempre recrear desde plantilla para que el layout de relaciones
-            // (3 base + extras) quede limpio y con bordes correctos.
+            // Recrear desde plantilla para layout de relaciones limpio (3 base + extras).
             const creada = await recrearHojaPerfil(driveIdActual, nombreHoja, perfil, meta);
             nombreHoja = creada.titulo;
             setExistentes.add(nombreHoja);
             hojasActivas.add(nombreHoja);
             perfilesOut.push({ ...perfil, nombreHoja });
+            sincronizados += 1;
         } catch (err) {
             console.warn(`[ATH-F-02] No se pudo sincronizar hoja "${nombreHoja}":`, err.message);
             perfilesOut.push(perfil);
         }
+    }
+
+    if (omitidos || sincronizados) {
+        console.log(`[ATH-F-02] Sync hojas Drive: ${sincronizados} actualizadas, ${omitidos} sin cambios.`);
     }
 
     const eliminar = [];
@@ -2663,7 +2743,9 @@ async function importarExcelPerfiles(pool, body = {}) {
             perfiles,
             perfilActivoId: importados[0]?.id || datos.perfilActivoId
         },
-        origen: 'sistema'
+        origen: 'sistema',
+        // Solo forzar hojas de perfiles tocados por el Excel (el resto se omite si no cambió).
+        idsPerfilesSync: importados.map((item) => item.id)
     });
     return { ...respuesta, importados };
 }
@@ -2711,7 +2793,21 @@ async function guardarFormato(pool, body, options = {}) {
 
     if (driveId && (await esSpreadsheetEditableEnDrive(driveId))) {
         try {
-            const sync = await sincronizarHojasPerfilesEnDrive(driveId, datosGuardar, datosPrevios);
+            const syncOpts = {};
+            if (Array.isArray(body?.idsPerfilesSync) && body.idsPerfilesSync.length) {
+                syncOpts.idsPerfiles = body.idsPerfilesSync;
+            } else if (Array.isArray(options.idsPerfilesSync) && options.idsPerfilesSync.length) {
+                syncOpts.idsPerfiles = options.idsPerfilesSync;
+            }
+            if (body?.forzarSyncHojas || options.forzarSyncHojas) {
+                syncOpts.forzarTodos = true;
+            }
+            const sync = await sincronizarHojasPerfilesEnDrive(
+                driveId,
+                datosGuardar,
+                datosPrevios,
+                syncOpts
+            );
             Object.assign(datosGuardar, sync.datos);
             if (sync.driveFileId) driveId = sync.driveFileId;
         } catch (err) {
