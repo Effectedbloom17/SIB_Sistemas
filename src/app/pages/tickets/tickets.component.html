@@ -22,65 +22,135 @@
       <div class="card shadow-lg border-0 tk-shell">
         <div class="card-body tk-shell-body">
 
-          <div class="tk-kpi-bar">
-            <ng-container *ngFor="let card of tarjetasFila; trackBy: trackByTarjeta">
-              <div class="tk-kpi" [style.--kpi-accent]="card.color">
-                <span class="tk-kpi-icon" [style.background]="card.gradiente" aria-hidden="true">
-                  <i class="fas {{ card.icono }}"></i>
-                </span>
-                <span class="tk-kpi-valor">{{ card.valor }}</span>
-                <span class="tk-kpi-label">{{ card.titulo }}</span>
-                <span class="tk-kpi-sub">
-                  <i [style.background]="card.color"></i>
-                  {{ card.subtitulo }}
-                </span>
-              </div>
-            </ng-container>
+          <div class="tk-kpi-wrap">
+            <div class="tk-kpi-bar">
+              <ng-container *ngFor="let card of tarjetasFila; trackBy: trackByTarjeta">
+                <div class="tk-kpi" [style.--kpi-accent]="card.color">
+                  <span class="tk-kpi-icon" [style.background]="card.gradiente" aria-hidden="true">
+                    <i class="fas {{ card.icono }}"></i>
+                  </span>
+                  <span class="tk-kpi-valor">{{ card.valor }}</span>
+                  <span class="tk-kpi-label">{{ card.titulo }}</span>
+                  <span class="tk-kpi-sub">
+                    <i [style.background]="card.color"></i>
+                    {{ card.subtitulo }}
+                  </span>
+                </div>
+              </ng-container>
+            </div>
+            <label class="tk-year">
+              <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+              Por año
+              <select [ngModel]="anioGrafico" (ngModelChange)="elegirAnio($event)" aria-label="Año">
+                <option *ngFor="let anio of aniosGrafico" [ngValue]="anio">{{ anio }}</option>
+              </select>
+            </label>
           </div>
 
           <section class="tk-charts" *ngIf="!cargando && total > 0" aria-label="Gráficos de tickets">
             <div class="tk-charts-grid">
-            <article class="tk-chart-card" (mouseenter)="pausarEvolucion()" (mouseleave)="reanudarEvolucion()">
-              <header class="tk-chart-head">
-                <span class="tk-chart-icon" aria-hidden="true"><i class="fas fa-chart-line"></i></span>
-                <span>
-                  <strong>Evolución mensual</strong>
-                  <small>{{ resumenEvolucion[indiceEvolucion].titulo }} · {{ anioGrafico }}</small>
-                </span>
-              </header>
-              <div class="tk-chart-kpis">
-                <button type="button" class="tk-chart-kpi" *ngFor="let item of resumenEvolucion; let i = index"
-                  [class.is-active]="i === indiceEvolucion"
-                  [style.--c-accent]="item.color"
-                  (click)="mostrarEvolucion(i)">
-                  <span class="tk-chart-kpi-icon" [style.background]="item.gradiente" aria-hidden="true">
-                    <i class="fas {{ item.icono }}"></i>
-                  </span>
-                  <span>
-                    <strong>{{ item.titulo }}</strong>
-                    <small>{{ item.subtitulo }}</small>
-                  </span>
+            <div class="tk-carousel" (mouseenter)="pausarEvolucion()" (mouseleave)="reanudarEvolucion()">
+              <div class="tk-carousel__shell">
+                <button type="button" class="tk-carousel__edge tk-carousel__edge--prev" (click)="moverCarrusel(-1)" aria-label="Indicador anterior"></button>
+                <button type="button" class="tk-carousel__edge tk-carousel__edge--next" (click)="moverCarrusel(1)" aria-label="Siguiente indicador"></button>
+                <div class="tk-carousel__track" [style.transform]="'translateX(-' + (indiceCarrusel * 100) + '%)'">
+                  <article class="tk-carousel__slide tk-chart-card">
+                    <header class="tk-chart-head">
+                      <span class="tk-chart-icon" aria-hidden="true"><i class="fas fa-chart-line"></i></span>
+                      <span>
+                        <strong>Evolución mensual</strong>
+                        <small>Tickets por estatus · {{ anioGrafico }}</small>
+                      </span>
+                    </header>
+                    <div class="tk-chart-kpis">
+                      <div class="tk-chart-kpi" *ngFor="let item of resumenEvolucion"
+                        [style.--c-accent]="item.color">
+                        <span class="tk-chart-kpi-icon" [style.background]="item.gradiente" aria-hidden="true">
+                          <i class="fas {{ item.icono }}"></i>
+                        </span>
+                        <span>
+                          <strong>{{ item.titulo }}</strong>
+                          <small>{{ item.subtitulo }}</small>
+                        </span>
+                      </div>
+                    </div>
+                    <div class="tk-chart-slot" *ngIf="indiceCarrusel === 0 && evolucionChart">
+                      <apx-chart
+                        [series]="evolucionChart.series"
+                        [chart]="evolucionChart.chart"
+                        [colors]="evolucionChart.colors"
+                        [stroke]="evolucionChart.stroke"
+                        [fill]="evolucionChart.fill"
+                        [dataLabels]="evolucionChart.dataLabels"
+                        [xaxis]="evolucionChart.xaxis"
+                        [yaxis]="evolucionChart.yaxis"
+                        [grid]="evolucionChart.grid"
+                        [legend]="evolucionChart.legend"
+                        [tooltip]="evolucionChart.tooltip">
+                      </apx-chart>
+                    </div>
+                  </article>
+
+                  <article class="tk-carousel__slide tk-chart-card" *ngIf="prioridadChart">
+                    <header class="tk-chart-head">
+                      <span class="tk-chart-icon" aria-hidden="true"><i class="fas fa-flag"></i></span>
+                      <span>
+                        <strong>Prioridades</strong>
+                        <small>Cuántos tickets hay en cada nivel · {{ anioGrafico }}</small>
+                      </span>
+                    </header>
+                    <apx-chart
+                      *ngIf="indiceCarrusel === 1"
+                      [series]="prioridadChart.series"
+                      [chart]="prioridadChart.chart"
+                      [plotOptions]="prioridadChart.plotOptions"
+                      [colors]="prioridadChart.colors"
+                      [dataLabels]="prioridadChart.dataLabels"
+                      [xaxis]="prioridadChart.xaxis"
+                      [yaxis]="prioridadChart.yaxis"
+                      [grid]="prioridadChart.grid"
+                      [legend]="prioridadChart.legend"
+                      [tooltip]="prioridadChart.tooltip">
+                    </apx-chart>
+                    <div class="tk-prio-legend">
+                      <span *ngFor="let item of resumenPrioridades">
+                        <i [style.background]="item.color"></i>
+                        {{ item.label }}
+                        <b>{{ item.total }}</b>
+                        <em>{{ item.plazo }}</em>
+                      </span>
+                    </div>
+                  </article>
+                </div>
+              </div>
+
+              <footer class="tk-carousel__footer">
+                <div class="tk-carousel__footer-main">
+                  <span class="tk-carousel__timer" *ngIf="evolucionAutoActiva && !evolucionPausada">Próximo indicador en {{ evolucionSegundos }} s...</span>
+                  <span class="tk-carousel__timer is-paused" *ngIf="evolucionAutoActiva && evolucionPausada">Avance automático en pausa</span>
+                  <span class="tk-carousel__timer is-paused" *ngIf="!evolucionAutoActiva">Avance automático desactivado</span>
+                  <div class="tk-carousel__bar" *ngIf="evolucionAutoActiva" aria-hidden="true">
+                    <span class="tk-carousel__bar-fill" [class.is-paused]="evolucionPausada" [style.width.%]="evolucionProgreso"></span>
+                  </div>
+                </div>
+                <button type="button" class="tk-carousel__auto" [class.is-active]="evolucionAutoActiva"
+                  (click)="toggleEvolucionAuto()"
+                  [attr.aria-pressed]="evolucionAutoActiva"
+                  [attr.aria-label]="evolucionAutoActiva ? 'Desactivar avance automático' : 'Activar avance automático'"
+                  title="Avance automático">
+                  <i class="fas fa-check" *ngIf="evolucionAutoActiva" aria-hidden="true"></i>
+                </button>
+              </footer>
+
+              <div class="tk-carousel__dots" role="tablist" aria-label="Gráficos">
+                <button type="button" class="tk-carousel__dot" *ngFor="let slide of diapositivasCarrusel; let i = index"
+                  [class.is-active]="indiceCarrusel === i"
+                  [attr.aria-selected]="indiceCarrusel === i"
+                  [attr.aria-label]="slide.titulo"
+                  (click)="irACarrusel(i)">
                 </button>
               </div>
-              <div class="tk-chart-slot">
-                <ng-container *ngFor="let grafica of graficasEvolucion; let i = index">
-                  <apx-chart
-                    *ngIf="i === indiceEvolucion"
-                    [series]="grafica.series"
-                    [chart]="grafica.chart"
-                    [colors]="grafica.colors"
-                    [stroke]="grafica.stroke"
-                    [fill]="grafica.fill"
-                    [dataLabels]="grafica.dataLabels"
-                    [xaxis]="grafica.xaxis"
-                    [yaxis]="grafica.yaxis"
-                    [grid]="grafica.grid"
-                    [legend]="grafica.legend"
-                    [tooltip]="grafica.tooltip">
-                  </apx-chart>
-                </ng-container>
-              </div>
-            </article>
+            </div>
 
             <div class="tk-chart-side">
               <article class="tk-chart-card">
@@ -172,10 +242,11 @@
               <button type="button" class="tk-chip tk-chip--warn" [class.is-active]="filtroEstado === 'abierto'" (click)="cambiarFiltroEstado('abierto')">No realizados</button>
               <button type="button" class="tk-chip tk-chip--info" [class.is-active]="filtroEstado === 'en_progreso'" (click)="cambiarFiltroEstado('en_progreso')">En desarrollo</button>
               <button type="button" class="tk-chip tk-chip--ok" [class.is-active]="filtroEstado === 'cerrado'" (click)="cambiarFiltroEstado('cerrado')">Realizados</button>
+              <button type="button" class="tk-chip tk-chip--danger" [class.is-active]="filtroEstado === 'vencidos'" (click)="cambiarFiltroEstado('vencidos')">Vencidos</button>
               <button type="button" class="tk-period" (click)="alternarPeriodo()"
-                [attr.aria-label]="vistaPeriodo === 'semana' ? 'Ver tickets por mes' : 'Ver tickets por semana'">
+                [attr.aria-label]="vistaPeriodo === 'semana' ? 'Ver tickets por semana' : 'Ver tickets por mes'">
                 <i class="fas fa-calendar-alt" aria-hidden="true"></i>
-                {{ vistaPeriodo === 'semana' ? 'Ver por mes' : 'Ver por semana' }}
+                {{ vistaPeriodo === 'semana' ? 'Ver por semana' : 'Ver por mes' }}
               </button>
               <select class="tk-period-select" *ngIf="opcionesPeriodo.length"
                 [ngModel]="periodoActivo"
@@ -205,15 +276,17 @@
 
             <p class="tk-row-error" *ngIf="errorEstado">{{ errorEstado }}</p>
 
-            <div class="tk-board" *ngIf="ticketsVisibles.length" [class.tk-board--one]="!!filtroEstado" aria-label="Listado de tickets">
+            <div class="tk-board" *ngIf="ticketsVisibles.length" [class.tk-board--one]="!!filtroEstado && filtroEstado !== 'vencidos'" aria-label="Listado de tickets">
               <section class="tk-board-col" *ngFor="let col of columnasTickets">
                 <header class="tk-board-col__head">
                   <h3>{{ col.titulo }}</h3>
                   <span>{{ ticketsDeColumna(col.id).length }}</span>
                 </header>
-                <div class="tk-board-col__body">
+                <div class="tk-board-col__body" (scroll)="cerrarMenuEstatus()">
                   <article class="tk-board-card" *ngFor="let ticket of ticketsDeColumna(col.id); trackBy: trackByTicketId"
-                    [class.is-open]="expandidoId === ticket.ticket_id">
+                    [class.is-open]="expandidoId === ticket.ticket_id"
+                    [class.has-aviso]="avisoPrioridad(ticket)?.nivel === 'vencido'">
+                    <i class="fas fa-exclamation-triangle tk-title-warn" *ngIf="avisoPrioridad(ticket)?.nivel === 'vencido'" title="Fuera de plazo" aria-label="Fuera de plazo"></i>
                     <button type="button" class="tk-board-card__open" (click)="seleccionarTicket(ticket)"
                       [attr.aria-expanded]="expandidoId === ticket.ticket_id">
                       <p class="tk-board-card__project">{{ autorLabel(ticket) }} · {{ ticket.area || 'General' }}</p>
@@ -221,14 +294,34 @@
                       <p class="tk-board-card__desc">{{ snippetTicket(ticket) }}</p>
                     </button>
                     <div class="tk-board-card__meta">
-                      <label class="tk-status-pill" [attr.data-estado]="ticket.estado">
-                        <select [attr.aria-label]="'Estado del ticket ' + ticket.ticket_id"
+                      <div class="tk-status" [attr.data-estado]="ticket.estado" (click)="$event.stopPropagation()">
+                        <button type="button" class="tk-status__btn" #estadoBtn
                           [disabled]="actualizandoId != null"
-                          [value]="ticket.estado"
-                          (change)="onEstatusChange(ticket, $event)">
-                          <option *ngFor="let op of opcionesEstatus" [value]="op.valor">{{ op.label }}</option>
-                        </select>
-                      </label>
+                          [attr.aria-expanded]="estatusMenuId === ticket.ticket_id"
+                          [attr.aria-label]="'Estado del ticket ' + ticket.ticket_id"
+                          (click)="alternarMenuEstatus(ticket, estadoBtn, $event)">
+                          <span class="tk-status__dot" aria-hidden="true"></span>
+                          {{ estadoLabel(ticket.estado) }}
+                          <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                        </button>
+                        <div class="tk-status__menu" *ngIf="estatusMenuId === ticket.ticket_id && estatusMenuPos"
+                          role="listbox"
+                          [attr.aria-label]="'Cambiar estado del ticket ' + ticket.ticket_id"
+                          [style.top.px]="estatusMenuPos.top"
+                          [style.left.px]="estatusMenuPos.left"
+                          (click)="$event.stopPropagation()">
+                          <button type="button" class="tk-status__opt" *ngFor="let op of opcionesEstatus"
+                            role="option"
+                            [attr.data-estado]="op.valor"
+                            [attr.aria-selected]="ticket.estado === op.valor"
+                            [class.is-current]="ticket.estado === op.valor"
+                            (click)="elegirEstatus(ticket, op.valor, $event)">
+                            <span class="tk-status__dot" aria-hidden="true"></span>
+                            <span>{{ op.label }}</span>
+                            <i class="fas fa-check tk-status__check" *ngIf="ticket.estado === op.valor" aria-hidden="true"></i>
+                          </button>
+                        </div>
+                      </div>
                       <span class="tk-board-side">
                         <span class="tk-menu tk-prio" [attr.data-prioridad]="prioridadClave(ticket.prioridad)">{{ prioridadLabel(ticket.prioridad) }}</span>
                         <span class="tk-board-av" [attr.data-tipo]="ticket.tipo === 'falla' ? 'falla' : 'sugerencia'" [title]="autorLabel(ticket)">{{ inicialesAutor(ticket) }}</span>
@@ -236,6 +329,7 @@
                     </div>
                     <p class="tk-board-card__when">
                       <i class="fas fa-clock" aria-hidden="true"></i>{{ tiempoRelativo(ticket.created_at) }}
+                      <span class="tk-plazo" *ngIf="avisoPrioridad(ticket)?.nivel === 'calma'">{{ avisoPrioridad(ticket)?.texto }}</span>
                       <button type="button" class="tk-line-clip" *ngIf="ticket.evidencias?.length" (click)="seleccionarTicket(ticket)">
                         <i class="fas fa-paperclip" aria-hidden="true"></i>{{ ticket.evidencias.length }}
                       </button>
@@ -246,6 +340,10 @@
                     <span class="tk-section-label">Descripción</span>
                     <p>{{ ticket.descripcion || 'Este ticket no incluye una descripción.' }}</p>
                   </section>
+
+                  <ng-container *ngIf="avisoPrioridad(ticket) as aviso">
+                    <p class="tk-aviso-detalle" *ngIf="aviso.nivel !== 'calma'" [attr.data-nivel]="aviso.nivel">{{ aviso.texto }}</p>
+                  </ng-container>
 
                   <dl class="tk-facts">
                     <div>

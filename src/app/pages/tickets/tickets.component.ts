@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnDestroy, OnInit, ChangeDetectorRef, HostListener } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { Subject } from 'rxjs';
 import { finalize, takeUntil } from 'rxjs/operators';
@@ -27,7 +27,7 @@ export interface TicketItem {
   evidencias?: TicketEvidencia[];
 }
 
-type FiltroEstado = '' | 'abierto' | 'en_progreso' | 'cerrado';
+type FiltroEstado = '' | 'abierto' | 'en_progreso' | 'cerrado' | 'vencidos';
 
 @Component({
   selector: 'app-tickets',
@@ -45,6 +45,8 @@ export class TicketsComponent implements OnInit, OnDestroy {
   expandidoId: number | null = null;
   seleccionadoId: number | null = null;
   actualizandoId: number | null = null;
+  estatusMenuId: number | null = null;
+  estatusMenuPos: { top: number; left: number } | null = null;
   paginaActual = 1;
   readonly ticketsPorPagina = 9;
   evidenciasUrl: Record<string, string> = {};
@@ -59,9 +61,13 @@ export class TicketsComponent implements OnInit, OnDestroy {
     { valor: 'cerrado', label: 'Realizado' }
   ];
 
-  readonly anioGrafico = new Date().getFullYear();
-  indiceEvolucion = 0;
-  graficasEvolucion: any[] = [];
+  anioGrafico = new Date().getFullYear();
+  indiceCarrusel = 0;
+  readonly diapositivasCarrusel = [
+    { titulo: 'Evolución mensual' },
+    { titulo: 'Prioridades' }
+  ];
+  evolucionChart: any = null;
   evolucionAutoActiva = true;
   evolucionPausada = false;
   evolucionSegundos = 8;
@@ -78,6 +84,7 @@ export class TicketsComponent implements OnInit, OnDestroy {
   ];
 
   tipoChart: any = null;
+  prioridadChart: any = null;
   fotosRotas: Record<number, boolean> = {};
   private fichaUsuario = new Map<number, { puesto: string; foto: string }>();
 
@@ -87,6 +94,14 @@ export class TicketsComponent implements OnInit, OnDestroy {
     { valor: 'prioritaria', label: 'Prioritaria' },
     { valor: 'normal', label: 'Normal' },
     { valor: 'no_prioritaria', label: 'No prioritaria' }
+  ];
+
+  private readonly escalaPrioridad: Array<{ valor: string; label: string; plazo: string; color: string }> = [
+    { valor: 'no_prioritaria', label: 'No prioritaria', plazo: '15+ días', color: '#868e96' },
+    { valor: 'normal', label: 'Normal', plazo: '8-15 días', color: '#64748b' },
+    { valor: 'prioritaria', label: 'Prioritaria', plazo: '3-8 días', color: '#e67700' },
+    { valor: 'urgente', label: 'Urgente', plazo: '2-3 días', color: '#f76707' },
+    { valor: 'critica', label: 'Crítica', plazo: '1 o menos', color: '#e03131' }
   ];
 
   private readonly destroy$ = new Subject<void>();
@@ -352,12 +367,17 @@ export class TicketsComponent implements OnInit, OnDestroy {
   ];
 
   get columnasTickets(): Array<{ id: 'abierto' | 'en_progreso' | 'cerrado'; titulo: string }> {
+    if (this.filtroEstado === 'vencidos') {
+      return this.columnasTicketsBase.filter((col) => col.id !== 'cerrado');
+    }
     if (!this.filtroEstado) return this.columnasTicketsBase;
     return this.columnasTicketsBase.filter((col) => col.id === this.filtroEstado);
   }
 
   ticketsDeColumna(estado: string): TicketItem[] {
-    return this.ticketsVisibles.filter((ticket) => ticket.estado === estado);
+    const lista = this.ticketsVisibles.filter((ticket) => ticket.estado === estado);
+    if (this.filtroEstado !== 'vencidos') return lista;
+    return lista.filter((ticket) => this.avisoPrioridad(ticket)?.nivel === 'vencido');
   }
 
   get ticketsVisibles(): TicketItem[] {
@@ -394,7 +414,7 @@ export class TicketsComponent implements OnInit, OnDestroy {
   cargar(): void {
     this.cargando = true;
     this.error = null;
-    this.backend.obtenerTickets(this.filtroEstado || undefined)
+    this.backend.obtenerTickets()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
@@ -413,9 +433,12 @@ export class TicketsComponent implements OnInit, OnDestroy {
   }
 
   cambiarFiltroEstado(estado: FiltroEstado): void {
+    if (this.filtroEstado === estado) return;
     this.filtroEstado = estado;
     this.paginaActual = 1;
-    this.cargar();
+    this.expandidoId = null;
+    this.seleccionadoId = null;
+    this.cerrarMenuEstatus();
   }
 
   onBusquedaChange(): void {
@@ -456,9 +479,10 @@ export class TicketsComponent implements OnInit, OnDestroy {
           }
           ticket.estado = estado;
           ticket.updated_at = new Date().toISOString();
-          if (this.filtroEstado && this.filtroEstado !== estado) {
-            this.tickets = this.tickets.filter((t) => t.ticket_id !== ticket.ticket_id);
-            this.paginaActual = Math.min(this.paginaActual, this.totalPaginas);
+          const saleDelFiltro = this.filtroEstado === 'vencidos'
+            ? this.avisoPrioridad(ticket)?.nivel !== 'vencido'
+            : !!this.filtroEstado && this.filtroEstado !== estado;
+          if (saleDelFiltro) {
             this.expandidoId = null;
             this.seleccionadoId = null;
           }
@@ -470,11 +494,46 @@ export class TicketsComponent implements OnInit, OnDestroy {
       });
   }
 
-  onEstatusChange(ticket: TicketItem, event: Event): void {
+  alternarMenuEstatus(ticket: TicketItem, anchor: HTMLElement, event: MouseEvent): void {
     event.stopPropagation();
-    const select = event.target as HTMLSelectElement;
-    const estado = select.value as 'abierto' | 'en_progreso' | 'cerrado';
+    if (this.actualizandoId != null) return;
+    if (this.estatusMenuId === ticket.ticket_id) {
+      this.cerrarMenuEstatus();
+      return;
+    }
+    const rect = anchor.getBoundingClientRect();
+    const ancho = 188;
+    const alto = 138;
+    const margen = 8;
+    let left = rect.left;
+    if (left + ancho > window.innerWidth - margen) {
+      left = Math.max(margen, window.innerWidth - ancho - margen);
+    }
+    const cabeAbajo = window.innerHeight - rect.bottom >= alto + margen;
+    const top = cabeAbajo ? rect.bottom + 6 : Math.max(margen, rect.top - alto - 6);
+    this.estatusMenuPos = { top, left };
+    this.estatusMenuId = ticket.ticket_id;
+  }
+
+  elegirEstatus(ticket: TicketItem, estado: 'abierto' | 'en_progreso' | 'cerrado', event: MouseEvent): void {
+    event.stopPropagation();
+    this.cerrarMenuEstatus();
     this.setEstado(ticket, estado);
+  }
+
+  cerrarMenuEstatus(): void {
+    this.estatusMenuId = null;
+    this.estatusMenuPos = null;
+  }
+
+  @HostListener('document:click')
+  cerrarMenuEstatusPorFuera(): void {
+    if (this.estatusMenuId != null) this.cerrarMenuEstatus();
+  }
+
+  @HostListener('document:keydown.escape')
+  cerrarMenuEstatusConEscape(): void {
+    if (this.estatusMenuId != null) this.cerrarMenuEstatus();
   }
 
   onPrioridadChange(ticket: TicketItem, event: Event): void {
@@ -503,6 +562,7 @@ export class TicketsComponent implements OnInit, OnDestroy {
           }
           ticket.prioridad = prioridad;
           ticket.updated_at = new Date().toISOString();
+          this.sincronizarGrafico();
         },
         error: (err) => {
           select.value = ticket.prioridad || 'normal';
@@ -634,13 +694,78 @@ export class TicketsComponent implements OnInit, OnDestroy {
     return this.opcionesPrioridad.find((op) => op.valor === clave)?.label || 'Normal';
   }
 
+  avisoPrioridad(ticket: TicketItem): { texto: string; nivel: 'calma' | 'pronto' | 'vencido' } | null {
+    const clave = this.prioridadClave(ticket.prioridad);
+    const escala = this.escalaPrioridad.find((item) => item.valor === clave);
+    const limite = this.limitePrioridad(clave);
+    if (!escala || !limite) return null;
+    if (ticket.estado === 'cerrado') {
+      return { texto: `Plazo ${escala.plazo}`, nivel: 'calma' };
+    }
+    const dias = this.diasDesde(ticket.created_at);
+    if (limite.max != null && dias > limite.max) {
+      return { texto: `Fuera de plazo · ${escala.plazo}`, nivel: 'vencido' };
+    }
+    if (dias >= limite.aviso) {
+      return { texto: `Por vencer · ${escala.plazo}`, nivel: 'pronto' };
+    }
+    return { texto: `Plazo ${escala.plazo}`, nivel: 'calma' };
+  }
+
+  private limitePrioridad(clave: string): { aviso: number; max: number | null } | null {
+    const limites: Record<string, { aviso: number; max: number | null }> = {
+      critica: { aviso: 1, max: 1 },
+      urgente: { aviso: 2, max: 3 },
+      prioritaria: { aviso: 3, max: 8 },
+      normal: { aviso: 8, max: 15 },
+      no_prioritaria: { aviso: Number.POSITIVE_INFINITY, max: null }
+    };
+    return limites[clave] || null;
+  }
+
+  private diasDesde(valor?: string): number {
+    const fecha = new Date(valor || '');
+    if (Number.isNaN(fecha.getTime())) return 0;
+    const inicio = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()).getTime();
+    const hoy = new Date();
+    const inicioHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime();
+    return Math.max(0, Math.round((inicioHoy - inicio) / 86400000));
+  }
+
   tipoLabel(tipo?: string): string {
     return this.esFalla(tipo) ? 'Falla' : 'Sugerencia de mejora';
   }
 
-  mostrarEvolucion(indice: number): void {
-    if (indice < 0 || indice >= this.seriesEvolucion.length) return;
-    this.indiceEvolucion = indice;
+  get totalDiapositivas(): number {
+    return this.diapositivasCarrusel.length;
+  }
+
+  get aniosGrafico(): number[] {
+    const hoy = new Date().getFullYear();
+    const anios = new Set<number>([hoy, hoy + 1]);
+    for (const ticket of this.tickets) {
+      const fecha = new Date(ticket.created_at);
+      if (!Number.isNaN(fecha.getTime())) anios.add(fecha.getFullYear());
+    }
+    return [...anios].sort((a, b) => b - a);
+  }
+
+  elegirAnio(anio: number | string): void {
+    const valor = Number(anio);
+    if (!Number.isFinite(valor) || valor === this.anioGrafico) return;
+    this.anioGrafico = valor;
+    this.sincronizarGrafico();
+  }
+
+  irACarrusel(indice: number): void {
+    if (indice < 0 || indice >= this.totalDiapositivas || indice === this.indiceCarrusel) return;
+    this.indiceCarrusel = indice;
+    this.reiniciarEvolucion();
+  }
+
+  moverCarrusel(delta: number): void {
+    const total = this.totalDiapositivas;
+    this.indiceCarrusel = (this.indiceCarrusel + delta + total) % total;
     this.reiniciarEvolucion();
   }
 
@@ -668,7 +793,7 @@ export class TicketsComponent implements OnInit, OnDestroy {
       if (!this.evolucionAutoActiva || this.evolucionPausada) return;
       this.evolucionTranscurrido += this.tickEvolucionMs;
       if (this.evolucionTranscurrido >= this.intervaloEvolucionMs) {
-        this.indiceEvolucion = (this.indiceEvolucion + 1) % this.seriesEvolucion.length;
+        this.indiceCarrusel = (this.indiceCarrusel + 1) % this.totalDiapositivas;
         this.evolucionTranscurrido = 0;
       }
       this.actualizarRelojEvolucion();
@@ -707,11 +832,86 @@ export class TicketsComponent implements OnInit, OnDestroy {
       if (this.esFalla(ticket.tipo)) fallasMes[fecha.getMonth()] += 1;
       else sugerenciasMes[fecha.getMonth()] += 1;
     }
-    this.graficasEvolucion = this.seriesEvolucion.map((serie) =>
-      this.graficaMensual(serie.nombre, porEstado[serie.estado], serie.color)
-    );
-    if (this.indiceEvolucion >= this.graficasEvolucion.length) this.indiceEvolucion = 0;
+    this.evolucionChart = this.graficaEvolucion(porEstado);
+    if (this.indiceCarrusel >= this.totalDiapositivas) this.indiceCarrusel = 0;
     this.tipoChart = this.graficaTipos(fallasMes, sugerenciasMes);
+    this.prioridadChart = this.graficaPrioridades(this.contarPrioridades());
+  }
+
+  get resumenPrioridades(): Array<{ label: string; plazo: string; color: string; total: number }> {
+    const conteo = this.contarPrioridades();
+    return this.escalaPrioridad.map((item) => ({
+      label: item.label,
+      plazo: item.plazo,
+      color: item.color,
+      total: conteo[item.valor] || 0
+    }));
+  }
+
+  private contarPrioridades(): Record<string, number> {
+    const conteo: Record<string, number> = {};
+    for (const item of this.escalaPrioridad) conteo[item.valor] = 0;
+    for (const ticket of this.ticketsFiltrados) {
+      const fecha = new Date(ticket.created_at);
+      if (Number.isNaN(fecha.getTime()) || fecha.getFullYear() !== this.anioGrafico) continue;
+      const clave = this.prioridadClave(ticket.prioridad);
+      if (conteo[clave] == null) conteo[clave] = 0;
+      conteo[clave] += 1;
+    }
+    return conteo;
+  }
+
+  private graficaPrioridades(conteo: Record<string, number>): any {
+    const plazos = this.escalaPrioridad.map((item) => item.plazo);
+    return {
+      series: [{ name: 'Tickets', data: this.escalaPrioridad.map((item) => conteo[item.valor] || 0) }],
+      chart: {
+        type: 'bar',
+        height: 220,
+        fontFamily: 'inherit',
+        toolbar: { show: false },
+        animations: { enabled: true, easing: 'easeinout', speed: 700 }
+      },
+      plotOptions: {
+        bar: {
+          horizontal: true,
+          distributed: true,
+          borderRadius: 6,
+          barHeight: '58%'
+        }
+      },
+      colors: this.escalaPrioridad.map((item) => item.color),
+      dataLabels: { enabled: false },
+      xaxis: {
+        categories: this.escalaPrioridad.map((item) => item.label),
+        min: 0,
+        tickAmount: 4,
+        labels: {
+          style: { colors: '#94a3b8', fontSize: '11px' },
+          formatter: (val: string | number) => {
+            const n = Number(val);
+            return Number.isFinite(n) ? `${Math.round(n)}` : String(val);
+          }
+        },
+        axisBorder: { show: false },
+        axisTicks: { show: false }
+      },
+      yaxis: {
+        labels: { style: { colors: '#475569', fontSize: '12px', fontWeight: 700 } }
+      },
+      grid: {
+        borderColor: '#e2e8f0',
+        strokeDashArray: 4,
+        padding: { left: 8, right: 28, top: 0, bottom: 0 }
+      },
+      legend: { show: false },
+      tooltip: {
+        y: {
+          formatter: (val: number, opts: { dataPointIndex: number }) =>
+            `${Math.round(val)} · ${plazos[opts?.dataPointIndex] || ''}`
+        }
+      }
+    };
   }
 
   private graficaTipos(fallas: number[], sugerencias: number[]): any {
@@ -786,9 +986,12 @@ export class TicketsComponent implements OnInit, OnDestroy {
     return letras.join('') || '??';
   }
 
-  private graficaMensual(nombre: string, data: number[], color: string): any {
+  private graficaEvolucion(porEstado: Record<string, number[]>): any {
     return {
-      series: [{ name: nombre, type: 'area', data }],
+      series: this.seriesEvolucion.map((serie) => ({
+        name: serie.nombre,
+        data: porEstado[serie.estado] || Array(12).fill(0)
+      })),
       chart: {
         type: 'area',
         height: 280,
@@ -798,20 +1001,22 @@ export class TicketsComponent implements OnInit, OnDestroy {
           enabled: true,
           easing: 'easeinout',
           speed: 800,
-          animateGradually: { enabled: true, delay: 120 },
+          animateGradually: { enabled: true, delay: 80 },
           dynamicAnimation: { enabled: true, speed: 700 }
         }
       },
-      colors: [color],
-      stroke: { curve: 'smooth', width: 3 },
+      colors: this.seriesEvolucion.map((serie) => serie.color),
+      stroke: { curve: 'smooth', width: 2.5 },
       fill: {
         type: 'gradient',
-        gradient: { shade: 'light', type: 'vertical', opacityFrom: 0.45, opacityTo: 0.04, stops: [0, 90, 100] }
+        gradient: { shade: 'light', type: 'vertical', shadeIntensity: 0.4, opacityFrom: 0.35, opacityTo: 0.04, stops: [0, 90, 100] }
       },
       dataLabels: { enabled: false },
       xaxis: {
         categories: this.mesesGrafico,
-        labels: { style: { colors: '#94a3b8', fontSize: '11px' } }
+        labels: { style: { colors: '#94a3b8', fontSize: '11px' } },
+        axisBorder: { show: false },
+        axisTicks: { show: false }
       },
       yaxis: {
         min: 0,
@@ -819,8 +1024,8 @@ export class TicketsComponent implements OnInit, OnDestroy {
         labels: { style: { colors: '#94a3b8', fontSize: '11px' }, formatter: (val: number) => `${Math.round(val)}` }
       },
       grid: { borderColor: '#e2e8f0', strokeDashArray: 4 },
-      legend: { show: true, position: 'bottom', fontSize: '12px', labels: { colors: '#475569' } },
-      tooltip: { y: { formatter: (val: number) => `${Math.round(val)}` } }
+      legend: { show: false },
+      tooltip: { shared: true, intersect: false, y: { formatter: (val: number) => `${Math.round(val)}` } }
     };
   }
 
