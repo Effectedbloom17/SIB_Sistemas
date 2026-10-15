@@ -4704,6 +4704,12 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-11`);
     }
 
+    importarExcelSgcF11(archivos: Array<{ excelBase64: string; nombreArchivo: string }>): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-11/importar-excel`, {
+            archivos
+        });
+    }
+
     guardarSgcF11Formato(datos: unknown, editorActivo = false): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-11/guardar`, {
             datos,

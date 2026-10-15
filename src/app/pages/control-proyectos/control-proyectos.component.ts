@@ -3720,41 +3720,38 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Solo el responsable de la actividad (o admin/root) puede editarla.
-   * Evita que un guardado masivo pise proyectos/actividades ajenos.
+   * Cualquier perfil interno puede editar actividades. Empresa queda en consulta.
    */
   puedeEditarActividadGestion(
-    actividad?: ProyectoTableroItem | null,
+    _actividad?: ProyectoTableroItem | null,
     _grupo?: GrupoGestionProyecto | null
   ): boolean {
-    if (this.auth.esUsuarioEmpresa()) return false;
-    if (this.tienePermisoUniversalGestion) return true;
-    if (!actividad) return false;
-    // Actividad nueva aún no persistida: quien la creó en esta sesión puede editarla.
-    if (!actividad.id) return true;
-    return this.usuarioEsResponsableDe(actividad);
+    return !this.auth.esUsuarioEmpresa();
+  }
+
+  /** Cualquier perfil interno puede editar el proyecto y agregar actividades. */
+  puedeEditarProyectoGestion(_grupo?: GrupoGestionProyecto | null): boolean {
+    return !this.auth.esUsuarioEmpresa();
   }
 
   /**
-   * Puede gestionar el proyecto si es responsable de al menos una actividad, o admin/root.
-   */
-  puedeEditarProyectoGestion(grupo?: GrupoGestionProyecto | null): boolean {
-    if (this.auth.esUsuarioEmpresa()) return false;
-    if (this.tienePermisoUniversalGestion) return true;
-    if (!grupo?.actividades?.length) return true;
-    return grupo.actividades.some(({ proyecto }) => this.usuarioEsResponsableDe(proyecto));
-  }
-
-  /**
-   * Solo el autor (responsable) de la actividad — o admin/root — puede eliminarla.
+   * Cualquier perfil interno puede desactivar actividades.
+   * La última actividad del proyecto solo la quita un administrador: eso eliminaría el proyecto.
    */
   puedeEliminarActividadGestion(actividad: ProyectoTableroItem | null | undefined): boolean {
     if (this.auth.esUsuarioEmpresa()) return false;
-    if (this.tienePermisoUniversalGestion || this.esSuperAdministrador) return true;
     if (!actividad) return false;
-    // Actividad nueva aún no guardada: quien la creó en esta sesión puede quitarla.
     if (!actividad.id) return true;
-    return this.usuarioEsResponsableDe(actividad);
+    if (this.puedeDesactivarProyectoGestion) return true;
+    return this.actividadesPersistidasDelProyecto(actividad) > 1;
+  }
+
+  /** Actividades ya guardadas que pertenecen al mismo proyecto. */
+  private actividadesPersistidasDelProyecto(actividad: ProyectoTableroItem): number {
+    const clave = this.claveGrupoGestion(actividad);
+    return this.proyectosGestion.filter((proyecto, indice) =>
+      !!proyecto.id && this.claveGrupoGestion(proyecto, indice) === clave
+    ).length;
   }
 
   /** Solo Super Administrador (root) puede ver/restaurar eliminados. */
@@ -3762,11 +3759,9 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     return this.auth.esRoot();
   }
 
-  /** root, calidad o marisol12 pueden desactivar un proyecto completo. */
+  /** Solo administrador o root pueden desactivar el proyecto completo. */
   get puedeDesactivarProyectoGestion(): boolean {
-    if (this.esSuperAdministrador) return true;
-    const username = String(this.auth.getUsername() || '').toLowerCase().trim();
-    return username === 'calidad' || username === 'sergio56' || username === 'marisol12';
+    return this.auth.esAdministradorOSuperior();
   }
 
   /** Perfil empresa: solo consulta Gestión (actividades + cronograma), sin editar. */
@@ -6194,7 +6189,9 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
     const actividad = this.proyectosGestion[indice];
     if (!this.puedeEliminarActividadGestion(actividad)) {
-      this.errorGestion = 'Solo el autor (responsable) de la actividad puede desactivarla.';
+      this.errorGestion = actividad?.id
+        ? 'No puedes desactivar la última actividad: eso eliminaría el proyecto. Solo un administrador puede desactivarlo.'
+        : 'No tienes permiso para desactivar esta actividad.';
       return;
     }
 

@@ -26431,9 +26431,8 @@ app.post('/api/control-proyectos/proyectos/guardar', denyEmpresa, async (req, re
             fechaHora: obtenerFechaHoraMexicoMySQL(),
             usuarioId: Number(req.user?.id || 0) || null,
             roles,
-            esPrivilegioUniversal: roles.some((r) =>
-                ['root', 'administrador', 'super_admin', 'superadmin'].includes(String(r).toLowerCase())
-            ),
+            // denyEmpresa ya excluyó el perfil empresa: cualquier usuario interno puede editar.
+            esPrivilegioUniversal: true,
             editorActivo: false,
             origen: 'sistema'
         });
@@ -26609,9 +26608,7 @@ app.post('/api/control-proyectos/actividades/:id/restaurar-version', denyEmpresa
                 fechaHora: obtenerFechaHoraMexicoMySQL(),
                 usuarioId: Number(req.user?.id || 0) || null,
                 roles,
-                esPrivilegioUniversal: roles.some((r) =>
-                    ['root', 'administrador', 'super_admin', 'superadmin'].includes(String(r).toLowerCase())
-                ),
+                esPrivilegioUniversal: true,
                 historialIds: Array.isArray(req.body?.historialIds) ? req.body.historialIds : []
             }
         );
@@ -26651,9 +26648,7 @@ app.post('/api/control-proyectos/restaurar-version-proyecto', denyEmpresa, async
                 fechaHora: obtenerFechaHoraMexicoMySQL(),
                 usuarioId: Number(req.user?.id || 0) || null,
                 roles,
-                esPrivilegioUniversal: roles.some((r) =>
-                    ['root', 'administrador', 'super_admin', 'superadmin'].includes(String(r).toLowerCase())
-                )
+                esPrivilegioUniversal: true
             }
         );
         sgcDashboardService.invalidarCacheDashboard();
@@ -26809,26 +26804,26 @@ app.post('/api/control-proyectos/adjuntos/:fileId/preparar-vista', async (req, r
     }
 });
 
-/** root, calidad (sergio56/calidad) o marisol12 pueden desactivar proyectos completos. */
-function requireDesactivarProyectoControlProyectos(req, res, next) {
+function esAdministradorControlProyectos(req) {
     const userRoles = Array.isArray(req.user?.roles)
         ? req.user.roles.map((r) => String(r).toLowerCase())
         : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
-    if (userRoles.includes('root')) {
-        return next();
-    }
-    const username = String(req.user?.username || '').toLowerCase().trim();
-    if (username === 'calidad' || username === 'sergio56' || username === 'marisol12') {
+    return userRoles.includes('root') || userRoles.includes('administrador');
+}
+
+/** Solo administrador o root pueden desactivar un proyecto completo. */
+function requireDesactivarProyectoControlProyectos(req, res, next) {
+    if (esAdministradorControlProyectos(req)) {
         return next();
     }
     return res.status(403).json({
         success: false,
-        message: 'No tiene permisos para desactivar proyectos'
+        message: 'Solo un administrador puede desactivar un proyecto'
     });
 }
 
-/** Eliminación lógica explícita: solo Super Administrador (root). */
-app.post('/api/control-proyectos/eliminados/desactivar', requireRole('root'), async (req, res) => {
+/** Desactivar actividades: cualquier perfil interno. No puede vaciar el proyecto salvo administrador. */
+app.post('/api/control-proyectos/eliminados/desactivar', denyEmpresa, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
         const resultado = await sgcControlProyectosService.desactivarActividades(
@@ -26836,7 +26831,8 @@ app.post('/api/control-proyectos/eliminados/desactivar', requireRole('root'), as
             req.body?.ids,
             {
                 usuarioNombre: obtenerNombreUsuarioAccion(req),
-                fechaHora: obtenerFechaHoraMexicoMySQL()
+                fechaHora: obtenerFechaHoraMexicoMySQL(),
+                permitirVaciarProyecto: esAdministradorControlProyectos(req)
             }
         );
         sgcDashboardService.invalidarCacheDashboard();
@@ -26852,14 +26848,14 @@ app.post('/api/control-proyectos/eliminados/desactivar', requireRole('root'), as
             ...payload
         });
     } catch (error) {
-        if (error.statusCode === 400) {
-            return res.status(400).json({ success: false, message: error.message });
+        if (error.statusCode === 400 || error.statusCode === 403) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
         }
         handleError(res, error, 'No se pudieron eliminar las actividades');
     }
 });
 
-/** Desactivar proyecto completo (todas sus actividades): root, calidad o marisol12. */
+/** Desactivar proyecto completo (todas sus actividades): administrador o root. */
 app.post('/api/control-proyectos/proyectos/desactivar', denyEmpresa, requireDesactivarProyectoControlProyectos, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
@@ -26868,7 +26864,8 @@ app.post('/api/control-proyectos/proyectos/desactivar', denyEmpresa, requireDesa
             req.body?.ids,
             {
                 usuarioNombre: obtenerNombreUsuarioAccion(req),
-                fechaHora: obtenerFechaHoraMexicoMySQL()
+                fechaHora: obtenerFechaHoraMexicoMySQL(),
+                permitirVaciarProyecto: true
             }
         );
         sgcDashboardService.invalidarCacheDashboard();
@@ -30709,6 +30706,23 @@ app.get('/api/sgc/formatos/sgc-f-11/descargar-pdf', requireAdminOrSgc, async (re
         return res.send(resultado.buffer);
     } catch (error) {
         handleError(res, error, 'No se pudo descargar el PDF de SGC-F-11');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-11/importar-excel', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcSgcF11Service.importarExcelAmef(poolBiznagaSgc, req.body || {});
+        const total = Array.isArray(payload.importados) ? payload.importados.length : 0;
+        return res.json({
+            success: true,
+            message: total === 1
+                ? 'Análisis AMEF importado al archivero.'
+                : `${total} análisis AMEF importados al archivero.`,
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo importar el Excel de SGC-F-11');
     }
 });
 

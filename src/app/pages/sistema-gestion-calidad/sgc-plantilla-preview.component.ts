@@ -4078,6 +4078,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF18ActualizandoPlantilla = false;
 
   sgcF11Cargando = false;
+  sgcF11Importando = false;
   sgcF11Guardando = false;
   sgcF11DriveFileId: string | null = null;
   sgcF11EditorUrl: string | null = null;
@@ -32978,6 +32979,138 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       [item.proceso, item.area, item.departamento, item.elaboro, item.equipoTrabajo]
         .some((valor) => String(valor || '').toLowerCase().includes(q))
     );
+  }
+
+  onImportarExcelSgcF11(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const archivos = input.files ? Array.from(input.files) : [];
+    input.value = '';
+    if (!archivos.length || this.sgcF11Importando) return;
+    const invalidos = archivos.filter((archivo) => !/\.xlsx$/i.test(String(archivo.name || '')));
+    if (invalidos.length) {
+      void Swal.fire({
+        icon: 'warning',
+        title: 'Archivo no válido',
+        text: 'Selecciona archivos Excel .xlsx con la plantilla SGC-F-11.',
+        confirmButtonColor: '#15a596'
+      });
+      return;
+    }
+    if (archivos.length > 10) {
+      void Swal.fire({
+        icon: 'warning',
+        title: 'Demasiados archivos',
+        text: 'Puedes importar hasta 10 Excel a la vez.',
+        confirmButtonColor: '#15a596'
+      });
+      return;
+    }
+    const pesado = archivos.find((archivo) => archivo.size > 25 * 1024 * 1024);
+    if (pesado) {
+      void Swal.fire({
+        icon: 'warning',
+        title: 'Archivo muy grande',
+        text: `«${pesado.name}» supera 25 MB.`,
+        confirmButtonColor: '#15a596'
+      });
+      return;
+    }
+
+    this.sgcF11Importando = true;
+    void Promise.all(archivos.map((archivo) => this.leerExcelBase64SgcF11(archivo)))
+      .then((leidos) => {
+        const payload = leidos.filter((item) => item.excelBase64);
+        if (!payload.length) {
+          this.sgcF11Importando = false;
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo leer el archivo',
+            text: 'Vuelve a seleccionar el Excel.',
+            confirmButtonColor: '#15a596'
+          });
+          return;
+        }
+        this.backendService.importarExcelSgcF11(payload)
+          .pipe(takeUntil(this.destroy$))
+          .subscribe({
+            next: (res) => {
+              this.sgcF11Importando = false;
+              this.sgcF11Busqueda = '';
+              this.sgcF11Vista = 'archivero';
+              this.aplicarEstadoSgcF11(res, false, false);
+              this.sgcF11CambiosPendientes = false;
+              const importados = Array.isArray(res?.importados) ? res.importados : [];
+              const omitidos = Array.isArray(res?.omitidos) ? res.omitidos : [];
+              void Swal.fire({
+                icon: 'success',
+                title: importados.length === 1 ? 'Análisis importado' : `${importados.length} análisis importados`,
+                html: this.htmlImportacionSgcF11(importados, omitidos),
+                confirmButtonText: 'Ver en el archivero',
+                confirmButtonColor: '#15a596'
+              });
+            },
+            error: (err) => {
+              this.sgcF11Importando = false;
+              void Swal.fire({
+                icon: 'error',
+                title: 'No se importó el Excel',
+                text: err?.error?.message || 'No se pudo leer la plantilla AMEF.',
+                confirmButtonColor: '#15a596'
+              });
+            }
+          });
+      })
+      .catch(() => {
+        this.sgcF11Importando = false;
+        void Swal.fire({
+          icon: 'error',
+          title: 'No se pudo leer el archivo',
+          text: 'Vuelve a seleccionar el Excel.',
+          confirmButtonColor: '#15a596'
+        });
+      });
+  }
+
+  private leerExcelBase64SgcF11(archivo: File): Promise<{ excelBase64: string; nombreArchivo: string }> {
+    return new Promise((resolve, reject) => {
+      const lector = new FileReader();
+      lector.onload = () => {
+        const resultado = lector.result;
+        const base64 = typeof resultado === 'string' ? (resultado.split(',')[1] || '') : '';
+        resolve({ excelBase64: base64, nombreArchivo: archivo.name });
+      };
+      lector.onerror = () => reject(new Error('No se pudo leer el archivo'));
+      lector.readAsDataURL(archivo);
+    });
+  }
+
+  private htmlImportacionSgcF11(
+    importados: Array<{ proceso?: string; area?: string; filas?: number; hoja?: string }>,
+    omitidos: Array<{ nombre?: string; motivo?: string }>
+  ): string {
+    const escapar = (valor: string) => String(valor || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    const filas = importados.slice(0, 8).map((item) => {
+      const titulo = escapar(String(item.proceso || 'Sin proceso').trim());
+      const detalle = [
+        item.hoja ? `Hoja: ${escapar(String(item.hoja))}` : '',
+        item.area ? escapar(String(item.area)) : '',
+        `${Number(item.filas) || 0} fila${Number(item.filas) === 1 ? '' : 's'}`
+      ].filter(Boolean).join(' · ');
+      return `<li style="margin:0.2rem 0;text-align:left"><strong>${titulo}</strong><br><span style="color:#64748b">${detalle}</span></li>`;
+    });
+    const extra = importados.length > 8
+      ? `<p style="margin:0.4rem 0 0;color:#64748b">y ${importados.length - 8} más</p>`
+      : '';
+    const avisos = omitidos.slice(0, 4).map((item) =>
+      `<li style="margin:0.15rem 0;text-align:left;color:#b45309">${escapar(String(item.nombre || 'Archivo'))}: ${escapar(String(item.motivo || 'omitido'))}</li>`
+    );
+    const bloqueAvisos = avisos.length
+      ? `<p style="margin:0.7rem 0 0.2rem;font-weight:700">No se importaron</p><ul style="margin:0;padding-left:1.1rem">${avisos.join('')}</ul>`
+      : '';
+    return `<p style="margin:0 0 0.45rem">Quedaron en el archivero y se agregó su hoja en SGC-F-11 AMEF.</p><ul style="margin:0;padding-left:1.1rem">${filas.join('')}</ul>${extra}${bloqueAvisos}`;
   }
 
   nuevoAnalisisSgcF11(): void {

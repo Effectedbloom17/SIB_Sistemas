@@ -887,9 +887,11 @@ $surface2: linear-gradient(165deg, #fff 0%, #f8fafc 45%, #fef2f2 100%);
     }
 
     .ges-search {
-      flex: 1 1 320px;
-      min-width: 18rem;
-      max-width: 42rem;
+      flex: 1 1 0;
+      min-width: 12rem;
+      max-width: none;
+
+      input { width: 100%; }
     }
 
     h3 {
@@ -2642,9 +2644,9 @@ $surface2: linear-gradient(165deg, #fff 0%, #f8fafc 45%, #fef2f2 100%);
       inset: 0;
       background: linear-gradient(
         100deg,
-        rgba(127, 29, 29, 0.18) 0%,
-        rgba(153, 27, 27, 0.08) 46%,
-        rgba(185, 28, 28, 0.03) 100%
+        rgba(127, 29, 29, 0.28) 0%,
+        rgba(153, 27, 27, 0.14) 46%,
+        rgba(185, 28, 28, 0.06) 100%
       );
     }
   }
@@ -2847,6 +2849,24 @@ $surface2: linear-gradient(165deg, #fff 0%, #f8fafc 45%, #fef2f2 100%);
   border: 1px solid $line;
   border-radius: 12px;
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+
+  .ges-search--normativa {
+    flex: 1 1 0;
+    min-width: 12rem;
+    max-width: none;
+    width: auto;
+
+    input { width: 100%; }
+  }
+
+  .ges-estado-chip,
+  .ges-estado-strip__count {
+    flex: 0 0 auto;
+  }
+
+  .ges-estado-strip__count {
+    margin-left: 0.35rem;
+  }
 }
 
 .ges-estado-chip {
