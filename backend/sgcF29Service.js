@@ -2224,6 +2224,43 @@ async function establecerVisibilidadProveedor(pool, nombre, oculto) {
     }, { aplicarVisibilidadCliente: true });
 }
 
+/**
+ * PDF: Carta · Horizontal · Ajustar al ancho · Márgenes normales · Centro / Arriba.
+ */
+async function descargarPlantillaPdf(pool) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const driveFileId = await resolverDriveFileId(registro);
+    if (!driveFileId) {
+        const err = new Error('No hay archivo SGC-F-29 en Drive para exportar a PDF.');
+        err.statusCode = 404;
+        throw err;
+    }
+    const hoja = await resolverTituloHojaTrabajo(driveFileId);
+    const gid = await driveService.obtenerGidHojaPorNombre(driveFileId, hoja);
+    if (gid == null) {
+        const err = new Error(`No se encontró la hoja «${hoja}» para exportar a PDF. Guarda la información primero.`);
+        err.statusCode = 404;
+        throw err;
+    }
+    const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
+        gid: String(gid),
+        landscape: true,
+        size: 'letter',
+        fitToWidth: true,
+        margins: 'normal',
+        horizontalAlignment: 'CENTER',
+        verticalAlignment: 'TOP'
+    });
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de SGC-F-29 quedó vacía.');
+    }
+    return {
+        buffer: Buffer.from(pdfBuffer),
+        nombreArchivo: 'SGC-F-29 Evaluacion de Proveedores.pdf'
+    };
+}
+
 module.exports = {
     cargarFormato,
     guardarFormato,
@@ -2235,5 +2272,6 @@ module.exports = {
     listarCriterios,
     crearCriterio,
     asegurarTablaCriterios,
+    descargarPlantillaPdf,
     MIN_CRITERIOS_EVALUACION
 };

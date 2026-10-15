@@ -1615,7 +1615,7 @@ async function subirPdfFirmado(pool, body) {
     return { ...respuesta, pdfFirmado };
 }
 
-async function descargarPlantillaPdf(pool) {
+async function descargarPlantillaPdf(pool, opciones = {}) {
     await asegurarTablaSgcFormatoDatos(pool);
     let registro = await obtenerRegistroDb(pool);
     let driveFileId = await resolverDriveFileId(registro);
@@ -1624,8 +1624,57 @@ async function descargarPlantillaPdf(pool) {
     }
     driveFileId = await asegurarDriveIdGoogleSheet(driveFileId, pool, registro);
 
-    // Solo la hoja vigente/activa (p. ej. SGCF16-0826), no Plantilla ni históricas.
+    const datosDb = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+    const minutaId = String(opciones.minutaId || opciones.id || '').trim() || null;
+    let datos = datosDb;
+
+    if (minutaId) {
+        const minuta = (datosDb.minutas || []).find((m) => m.id === minutaId) || null;
+        if (!minuta) {
+            const err = new Error('No se encontró la minuta indicada para exportar a PDF.');
+            err.statusCode = 404;
+            throw err;
+        }
+        datos = sanitizarDatos({ ...datosDb, minutaActivaId: minutaId });
+    } else {
+        datos = sanitizarDatos({
+            ...datosDb,
+            minutaActivaId: datosDb.minutaActivaId || resolverMinutaActiva(datosDb)?.id || null
+        });
+    }
+
+    const minutaActiva = resolverMinutaActiva(datos);
+    if (!minutaActiva || !minutaTieneContenido(minutaActiva)) {
+        const err = new Error('Abre o selecciona una minuta con datos para exportar a PDF.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    // Reescribir la hoja vigente con la minuta pedida (evita PDF de otra empresa/registro).
     const tituloHoja = await resolverTituloHojaTrabajo(driveFileId);
+    try {
+        await actualizarDatosEnGoogleSheet(driveFileId, datos, tituloHoja);
+    } catch (err) {
+        console.warn('[SGC-F-16] No se pudo sincronizar la minuta a Drive antes del PDF:', err.message);
+        throw new Error(
+            'No se pudo sincronizar la minuta activa a Drive antes de exportar el PDF. Intenta guardar e intentar de nuevo.'
+        );
+    }
+
+    if (minutaId && datosDb.minutaActivaId !== minutaId) {
+        try {
+            await guardarRegistroDb(pool, {
+                driveFileId,
+                datos,
+                fechaElaboracionOriginal: formatearFechaIso(registro?.fecha_elaboracion_original) || fechaHoyIso(),
+                fechaModificacionContenido: formatearFechaIso(registro?.fecha_modificacion_contenido),
+                contenidoModificado: !!registro?.contenido_modificado
+            });
+        } catch (err) {
+            console.warn('[SGC-F-16] No se pudo persistir minutaActivaId previo a PDF:', err.message);
+        }
+    }
+
     let gid = null;
     try {
         gid = await driveService.obtenerGidHojaPorNombre(driveFileId, tituloHoja);
@@ -1646,7 +1695,14 @@ async function descargarPlantillaPdf(pool) {
     if (!pdfBuffer || !pdfBuffer.length) {
         throw new Error('La exportación a PDF de SGC-F-16 quedó vacía.');
     }
-    return Buffer.from(pdfBuffer);
+
+    const folio = String(minutaActiva.folio || '').trim() || 'Minuta';
+    const nombreSeguro = `SGC-F-16 ${folio}`.replace(/[^\w.\- áéíóúÁÉÍÓÚñÑ()]+/gi, '_').trim()
+        || 'SGC-F-16 Minuta';
+    return {
+        buffer: Buffer.from(pdfBuffer),
+        nombreArchivo: `${nombreSeguro}.pdf`
+    };
 }
 
 module.exports = {

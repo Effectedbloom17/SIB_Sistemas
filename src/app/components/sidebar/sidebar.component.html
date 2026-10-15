@@ -145,11 +145,6 @@
         <span>Nueva versión disponible. Por favor actualice la página.</span>
       </button>
       <span class="sidebar-version-label">v{{ appVersion }}</span>
-      <span
-        *ngIf="bdEtiqueta"
-        class="sidebar-bd-badge"
-        [class.sidebar-bd-badge--aviso]="bdRol === 'secundaria' || bdRol === 'local' || bdRol === 'produccion'"
-        [class.sidebar-bd-badge--sin]="bdRol === 'sin_conexion'">{{ bdEtiqueta }}</span>
     </div>
   </div>
 </nav>

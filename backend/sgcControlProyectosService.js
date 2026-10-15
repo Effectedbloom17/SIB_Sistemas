@@ -10,8 +10,8 @@
  *
  * Cortafuegos:
  * - Solo se actualiza una actividad si hay cambios reales (por id).
- * - Un usuario solo puede modificar actividades de las que es responsable
- *   (salvo admin/root).
+ * - Cualquier perfil interno (no empresa) puede editar y desactivar actividades.
+ * - Desactivar el proyecto completo, o la última actividad, queda para administrador/root.
  * - Cada cambio guarda la versión anterior en sgc_control_proyectos_historial
  *   (retención 14 días).
  */
@@ -531,8 +531,9 @@ function esPrivilegioUniversal(roles = []) {
 }
 
 /**
- * Un usuario solo puede tocar actividades de las que es responsable (por ID).
- * Admin/root tienen privilegio universal. Actividades nuevas (sin id en BD) se permiten.
+ * Ownership por responsable. Las rutas de Control de Proyectos conceden
+ * privilegio de edición a todo perfil que no sea empresa.
+ * Admin/root también lo tienen por rol.
  */
 function usuarioPuedeModificarFila(filaBd, opciones = {}) {
     if (opciones.esPrivilegioUniversal || esPrivilegioUniversal(opciones.roles)) return true;
@@ -1688,7 +1689,7 @@ async function softDeleteActividades(pool, ids, auditoria = {}) {
  * Guarda el listado activo sin borrar filas de BD.
  * - Actualiza por id las actividades que siguen en el payload **y tienen cambios reales**
  * - Inserta las nuevas
- * - Un usuario solo puede actualizar actividades de las que es responsable (salvo admin/root)
+ * - Quien no trae privilegio de edición solo actualiza actividades de las que es responsable
  * La ausencia de una actividad en el payload nunca se interpreta como eliminación.
  * Reintenta ante deadlock y bloquea filas en orden de id para evitar ciclos de locks.
  */
@@ -1866,6 +1867,54 @@ async function reemplazarActividades(pool, actividadesRaw, opciones = {}) {
     throw lastError || new Error('No se pudieron guardar los proyectos.');
 }
 
+/**
+ * Impide que un perfil no administrador deje un proyecto sin actividades.
+ * El proyecto existe como grupo de filas; borrar la última lo elimina.
+ */
+async function impedirVaciarProyecto(pool, ids) {
+    const unicos = [...new Set(ids.map((id) => Number(id)).filter((id) => id > 0))];
+    if (!unicos.length) return;
+
+    const placeholders = unicos.map(() => '?').join(', ');
+    const [objetivo] = await pool.query(
+        `SELECT DISTINCT empresa_id, folio, nombre_proyecto
+         FROM sgc_control_proyectos
+         WHERE activo = 1 AND control_proyecto_id IN (${placeholders})`,
+        unicos
+    );
+    const idsSet = new Set(unicos);
+
+    for (const fila of objetivo) {
+        const folio = String(fila.folio || '').trim();
+        const nombre = String(fila.nombre_proyecto || '').trim();
+        const params = [fila.empresa_id];
+        let criterio;
+        if (folio) {
+            criterio = `LOWER(TRIM(COALESCE(folio, ''))) = LOWER(?)`;
+            params.push(folio);
+        } else {
+            criterio = `TRIM(COALESCE(folio, '')) = '' AND LOWER(TRIM(COALESCE(nombre_proyecto, ''))) = LOWER(?)`;
+            params.push(nombre);
+        }
+        const [hermanas] = await pool.query(
+            `SELECT control_proyecto_id
+             FROM sgc_control_proyectos
+             WHERE activo = 1
+               AND (empresa_id <=> ?)
+               AND ${criterio}`,
+            params
+        );
+        const quedan = hermanas.filter((h) => !idsSet.has(Number(h.control_proyecto_id))).length;
+        if (hermanas.length > 0 && quedan < 1) {
+            const err = new Error(
+                'No puedes eliminar el proyecto. Debe quedar al menos una actividad. Solo un administrador puede desactivarlo.'
+            );
+            err.statusCode = 403;
+            throw err;
+        }
+    }
+}
+
 async function desactivarActividades(pool, idsRaw = [], opciones = {}) {
     await asegurarTablaControlProyectos(pool);
     const ids = (Array.isArray(idsRaw) ? idsRaw : [])
@@ -1875,6 +1924,10 @@ async function desactivarActividades(pool, idsRaw = [], opciones = {}) {
         const err = new Error('Indica al menos una actividad para eliminar.');
         err.statusCode = 400;
         throw err;
+    }
+
+    if (!opciones.permitirVaciarProyecto) {
+        await impedirVaciarProyecto(pool, ids);
     }
 
     const desactivadas = await softDeleteActividades(pool, ids, opciones);

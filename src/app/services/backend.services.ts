@@ -58,8 +58,9 @@ export class BackendServices {
     // USUARIOS
     // ============================================
 
-    obtenerUsuarios(): Observable<any> {
-        return this.httpClient.get(`${this.baseUrl}/usuarios`);
+    obtenerUsuarios(incluirInactivos: boolean = false): Observable<any> {
+        const params = incluirInactivos ? '?incluirInactivos=1' : '';
+        return this.httpClient.get(`${this.baseUrl}/usuarios${params}`);
     }
 
     obtenerUsuario(id: number): Observable<any> {
@@ -96,6 +97,11 @@ export class BackendServices {
 
     eliminarUsuario(id: number): Observable<any> {
         return this.httpClient.delete(`${this.baseUrl}/usuarios/${id}`);
+    }
+
+    /** Reactiva un usuario desactivado (activo = 1). Solo root / super administrador. */
+    reactivarUsuario(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/usuarios/${id}/reactivar`, {});
     }
 
     resetearPassword(id: number, nueva_password: string, credencialesCorreosExtra: string[] = []): Observable<any> {
@@ -3158,8 +3164,10 @@ export class BackendServices {
         });
     }
 
-    descargarPdfSgcF16(): Observable<Blob> {
-        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-16/descargar-pdf`, {
+    descargarPdfSgcF16(minutaId?: string | null): Observable<Blob> {
+        const id = String(minutaId || '').trim();
+        const qs = id ? `?minutaId=${encodeURIComponent(id)}` : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-16/descargar-pdf${qs}`, {
             responseType: 'blob'
         });
     }
@@ -3479,6 +3487,12 @@ export class BackendServices {
 
     actualizarPlantillaSgcF29(): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/actualizar-plantilla`, {});
+    }
+
+    descargarPdfSgcF29(): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-29/descargar-pdf`, {
+            responseType: 'blob'
+        });
     }
 
     listarEvidenciasSgcF29(evaluacionId: string): Observable<any> {
@@ -4694,6 +4708,12 @@ export class BackendServices {
 
     cargarSgcF11Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-11`);
+    }
+
+    importarExcelSgcF11(archivos: Array<{ excelBase64: string; nombreArchivo: string }>): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-11/importar-excel`, {
+            archivos
+        });
     }
 
     guardarSgcF11Formato(datos: unknown, editorActivo = false): Observable<any> {

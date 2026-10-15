@@ -41,8 +41,8 @@
           <section class="cp-company-filter" *ngIf="!esConsultaEmpresa && vistaActiva !== 'solicitudes'">
             <div class="cp-company-filter__copy">
               <span class="cp-company-filter__name">{{ empresaSeleccionadaNombre }}</span>
-              <small *ngIf="tienePermisoUniversalGestion">Permiso universal: puedes ver y gestionar proyectos de todas las empresas y perfiles.</small>
-              <small *ngIf="!tienePermisoUniversalGestion">Puedes ver y gestionar todos los proyectos. Solo eliminas las actividades de las que eres responsable.</small>
+              <small *ngIf="puedeDesactivarProyectoGestion">Puedes ver, editar y desactivar proyectos.</small>
+              <small *ngIf="!puedeDesactivarProyectoGestion">Puedes ver y editar los proyectos, y agregar o quitar actividades. Solo un administrador puede desactivar el proyecto.</small>
             </div>
             <div
               class="cp-company-combo"
