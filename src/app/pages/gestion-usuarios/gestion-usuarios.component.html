@@ -114,7 +114,8 @@
                   <p class="text-muted mt-2 mb-0">No se encontraron usuarios que coincidan con "{{ textoBusqueda }}"</p>
                 </td>
               </tr>
-              <tr *ngFor="let usuario of usuariosInternosFiltrados; trackBy: trackByUsuarioId">
+              <tr *ngFor="let usuario of usuariosInternosFiltrados; trackBy: trackByUsuarioId"
+                [class.usuario-inactivo]="!usuarioEstaActivo(usuario)">
                 <td class="interno-col-usuario">
                   <div class="d-flex align-items-center interno-usuario-wrap" style="max-width: 100%; word-break: break-word;">
                     <ng-container *ngIf="getFotoUsuarioUrl(usuario) as fotoUrl; else usuarioIniciales">
@@ -127,7 +128,10 @@
                         {{ usuario.nombre ? usuario.nombre.charAt(0).toUpperCase() : 'U' }}{{ usuario.apellido ? usuario.apellido.charAt(0).toUpperCase() : '' }}
                       </div>
                     </ng-template>
-                    <span class="interno-username" style="overflow-wrap: break-word; word-break: break-word;">{{ usuario.username }}</span>
+                    <div class="interno-usuario-meta">
+                      <span class="interno-username" style="overflow-wrap: break-word; word-break: break-word;">{{ usuario.username }}</span>
+                      <span *ngIf="!usuarioEstaActivo(usuario)" class="badge badge-usuario-inactivo" title="Usuario desactivado">Inactivo</span>
+                    </div>
                   </div>
                 </td>
                 <td class="interno-col-nombre interno-nombre" style="word-break: break-word;">
@@ -155,13 +159,18 @@
                   </ng-container>
                 </td>
                 <td class="text-center interno-acciones interno-col-acciones" style="white-space: nowrap;">
-                  <button *ngIf="puedeEditar(usuario)" class="btn btn-sm btn-info" style="padding: 0.2rem 0.4rem; margin-right: 2px;"
+                  <button *ngIf="puedeEditar(usuario) && usuarioEstaActivo(usuario)" class="btn btn-sm btn-info" style="padding: 0.2rem 0.4rem; margin-right: 2px;"
                     (click)="editarUsuario(usuario)" title="Editar">
                     <i class="fas fa-edit" style="font-size: 0.7rem;"></i>
                   </button>
-                  <button *ngIf="esRoot && usuario.rol?.toLowerCase() !== 'root'" class="btn btn-sm btn-danger"
-                    style="padding: 0.2rem 0.4rem;" (click)="eliminarUsuario(usuario)" title="Eliminar (Solo Root)">
-                    <i class="fas fa-trash" style="font-size: 0.7rem;"></i>
+                  <button *ngIf="esRoot && !usuarioEstaActivo(usuario)" class="btn btn-sm btn-success"
+                    style="padding: 0.2rem 0.4rem; margin-right: 2px;" (click)="reactivarUsuario(usuario)"
+                    title="Reactivar (Solo Super Administrador)">
+                    <i class="fas fa-user-check" style="font-size: 0.7rem;"></i>
+                  </button>
+                  <button *ngIf="esRoot && usuarioEstaActivo(usuario) && usuario.rol?.toLowerCase() !== 'root'" class="btn btn-sm btn-danger"
+                    style="padding: 0.2rem 0.4rem;" (click)="eliminarUsuario(usuario)" title="Desactivar (Solo Super Administrador)">
+                    <i class="fas fa-user-slash" style="font-size: 0.7rem;"></i>
                   </button>
                 </td>
               </tr>
@@ -243,7 +252,8 @@
                     }}"</p>
                 </td>
               </tr>
-              <tr *ngFor="let usuario of usuariosEmpresasFiltrados; trackBy: trackByUsuarioId">
+              <tr *ngFor="let usuario of usuariosEmpresasFiltrados; trackBy: trackByUsuarioId"
+                [class.usuario-inactivo]="!usuarioEstaActivo(usuario)">
                 <td class="empresa-cell">
                   <div class="d-flex align-items-center">
                     <ng-container *ngIf="getLogoEmpresaPreviewUrl(usuario.empresa_logo) as logoUrl; else empIniciales">
@@ -260,6 +270,8 @@
                       [title]="usuario.nombre_empresa || 'Sin empresa'">{{ usuario.nombre_empresa || 'Sin empresa' }}</span>
                     <span *ngIf="usuario.es_empresa_colaboradora_sin_usuario" class="badge badge-colaboradora ml-2"
                       title="Acceso compartido con la empresa principal">Colaboradora</span>
+                    <span *ngIf="!usuarioEstaActivo(usuario)" class="badge badge-usuario-inactivo ml-2"
+                      title="Usuario desactivado">Inactivo</span>
                   </div>
                 </td>
                 <td class="usuario-cell"
@@ -275,13 +287,18 @@
                   [title]="usuario.email || usuario.empresa_contacto_email || usuario.empresa_email || '-'">{{
                   usuario.email || usuario.empresa_contacto_email || usuario.empresa_email || '-' }}</td>
                 <td class="text-center empresa-acciones">
-                  <button *ngIf="puedeEditar(usuario)" class="btn btn-sm btn-info mr-1" style="padding: 0.25rem 0.5rem;"
+                  <button *ngIf="puedeEditar(usuario) && usuarioEstaActivo(usuario)" class="btn btn-sm btn-info mr-1" style="padding: 0.25rem 0.5rem;"
                     (click)="editarUsuario(usuario)" title="Editar">
                     <i class="fas fa-edit" style="font-size: 0.75rem;"></i>
                   </button>
-                  <button *ngIf="esRoot" class="btn btn-sm btn-danger" style="padding: 0.25rem 0.5rem;"
-                    (click)="eliminarUsuario(usuario)" title="Eliminar (Solo Root)">
-                    <i class="fas fa-trash" style="font-size: 0.75rem;"></i>
+                  <button *ngIf="esRoot && !usuarioEstaActivo(usuario)" class="btn btn-sm btn-success mr-1"
+                    style="padding: 0.25rem 0.5rem;" (click)="reactivarUsuario(usuario)"
+                    title="Reactivar (Solo Super Administrador)">
+                    <i class="fas fa-user-check" style="font-size: 0.75rem;"></i>
+                  </button>
+                  <button *ngIf="esRoot && usuarioEstaActivo(usuario)" class="btn btn-sm btn-danger" style="padding: 0.25rem 0.5rem;"
+                    (click)="eliminarUsuario(usuario)" title="Desactivar (Solo Super Administrador)">
+                    <i class="fas fa-user-slash" style="font-size: 0.75rem;"></i>
                   </button>
                 </td>
               </tr>

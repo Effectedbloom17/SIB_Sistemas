@@ -92,12 +92,23 @@ export class GestionUsuariosComponent implements OnInit {
     );
   }
 
+  /** Indica si el usuario está activo en el sistema (activo = 1). */
+  usuarioEstaActivo(usuario: any): boolean {
+    if (usuario?.es_empresa_colaboradora_sin_usuario) {
+      return true;
+    }
+    const valor = usuario?.activo;
+    return valor === true || valor === 1 || valor === '1';
+  }
+
   cargarUsuarios() {
     this.cargando = true;
     const usuarioActual = this.authService.getUsername(); // Obtener usuario logueado
+    // Solo el super administrador (root) ve también los desactivados
+    const incluirInactivos = this.esRoot;
 
     forkJoin({
-      usuarios: this.backendService.obtenerUsuarios(),
+      usuarios: this.backendService.obtenerUsuarios(incluirInactivos),
       empresas: this.backendService.obtenerEmpresas()
     }).subscribe({
       next: ({ usuarios: response, empresas: respuestaEmpresas }: any) => {
@@ -125,17 +136,21 @@ export class GestionUsuariosComponent implements OnInit {
               this.usuariosEmpresas
             );
             this.usuariosEmpresas = [...this.usuariosEmpresas, ...colaboradorasSinUsuario];
-            this.usuariosEmpresas.sort((a, b) =>
-              String(a.nombre_empresa || '').localeCompare(String(b.nombre_empresa || ''), 'es', { sensitivity: 'base' })
-            );
+            this.usuariosEmpresas.sort((a, b) => {
+              const activoDiff = Number(this.usuarioEstaActivo(b)) - Number(this.usuarioEstaActivo(a));
+              if (activoDiff !== 0) return activoDiff;
+              return String(a.nombre_empresa || '').localeCompare(String(b.nombre_empresa || ''), 'es', { sensitivity: 'base' });
+            });
           }
 
-          // Ordenar usuarios internos: administradores primero, luego instructores
+          // Activos primero; dentro de cada grupo: administradores > instructores > ...
           this.usuariosInternos.sort((a, b) => {
+            const activoDiff = Number(this.usuarioEstaActivo(b)) - Number(this.usuarioEstaActivo(a));
+            if (activoDiff !== 0) return activoDiff;
+
             const rolA = a.rol?.toLowerCase() || '';
             const rolB = b.rol?.toLowerCase() || '';
 
-            // Prioridad: administrador > instructor > doctor > consulta/otros
             const prioridades: { [key: string]: number } = {
               'administrador': 1,
               'instructor': 2,
@@ -3997,11 +4012,11 @@ export class GestionUsuariosComponent implements OnInit {
   }
 
   eliminarUsuario(usuario: any) {
-    // Solo root puede eliminar usuarios
+    // Solo el super administrador (root) puede desactivar usuarios
     if (!this.esRoot) {
       Swal.fire({
         title: 'Acceso Denegado',
-        text: 'Solo el usuario root puede eliminar usuarios',
+        text: 'Solo el super administrador puede desactivar usuarios',
         icon: 'error',
         confirmButtonColor: '#38512F'
       });
@@ -4042,18 +4057,28 @@ export class GestionUsuariosComponent implements OnInit {
       return;
     }
 
+    if (!this.usuarioEstaActivo(usuario)) {
+      Swal.fire({
+        title: 'Usuario ya desactivado',
+        text: 'Este usuario ya está inactivo. Puede reactivarlo con el botón correspondiente.',
+        icon: 'info',
+        confirmButtonColor: '#38512F'
+      });
+      return;
+    }
+
     Swal.fire({
-      title: '¿Eliminar usuario?',
-      html: `¿Está seguro de eliminar el usuario <strong>${usuario.username}</strong>?<br><small class="text-muted">Esta acción no se puede deshacer.</small>`,
+      title: '¿Desactivar usuario?',
+      html: `¿Está seguro de desactivar a <strong>${usuario.username}</strong>?<br>
+        <small class="text-muted">No se elimina de la base de datos; dejará de poder iniciar sesión (activo = 0).</small>`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#f5365c',
       cancelButtonColor: '#A8A9A2',
-      confirmButtonText: 'Sí, eliminar',
+      confirmButtonText: 'Sí, desactivar',
       cancelButtonText: 'Cancelar'
     }).then((result) => {
       if (result.isConfirmed) {
-        // Validar que el ID existe
         if (!usuario.id) {
           console.error('❌ Error: usuario.id es undefined', usuario);
           Swal.fire({
@@ -4066,7 +4091,7 @@ export class GestionUsuariosComponent implements OnInit {
         }
 
         Swal.fire({
-          title: 'Eliminando usuario...',
+          title: 'Desactivando usuario...',
           allowOutsideClick: false,
           allowEscapeKey: false,
           didOpen: () => Swal.showLoading()
@@ -4076,8 +4101,8 @@ export class GestionUsuariosComponent implements OnInit {
           next: (res: any) => {
             if (res.success) {
               Swal.fire({
-                title: '¡Eliminado!',
-                text: 'Usuario eliminado correctamente',
+                title: 'Usuario desactivado',
+                text: 'El usuario quedó inactivo. Puede reactivarlo desde esta lista.',
                 icon: 'success',
                 confirmButtonColor: '#38512F'
               });
@@ -4085,24 +4110,107 @@ export class GestionUsuariosComponent implements OnInit {
             } else {
               Swal.fire({
                 title: 'Error',
-                text: res.message || 'No se pudo eliminar',
+                text: res.message || 'No se pudo desactivar',
                 icon: 'error',
                 confirmButtonColor: '#38512F'
               });
             }
           },
           error: (err) => {
-            console.error('❌ Error al eliminar usuario:', err);
-            console.error('URL intentada:', err.url);
+            console.error('❌ Error al desactivar usuario:', err);
             Swal.fire({
               title: 'Error',
-              text: 'Error al eliminar el usuario',
+              text: err?.error?.message || 'Error al desactivar el usuario',
               icon: 'error',
               confirmButtonColor: '#38512F'
             });
           }
         });
       }
+    });
+  }
+
+  reactivarUsuario(usuario: any) {
+    if (!this.esRoot) {
+      Swal.fire({
+        title: 'Acceso Denegado',
+        text: 'Solo el super administrador puede reactivar usuarios',
+        icon: 'error',
+        confirmButtonColor: '#38512F'
+      });
+      return;
+    }
+
+    if (!usuario?.id) {
+      Swal.fire({
+        title: 'Error',
+        text: 'ID de usuario no válido',
+        icon: 'error',
+        confirmButtonColor: '#38512F'
+      });
+      return;
+    }
+
+    if (this.usuarioEstaActivo(usuario)) {
+      Swal.fire({
+        title: 'Usuario activo',
+        text: 'Este usuario ya está activo en el sistema.',
+        icon: 'info',
+        confirmButtonColor: '#38512F'
+      });
+      return;
+    }
+
+    Swal.fire({
+      title: '¿Reactivar usuario?',
+      html: `Se reactivará a <strong>${usuario.username}</strong> y podrá volver a iniciar sesión.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#38512F',
+      cancelButtonColor: '#A8A9A2',
+      confirmButtonText: 'Sí, reactivar',
+      cancelButtonText: 'Cancelar'
+    }).then((result) => {
+      if (!result.isConfirmed) {
+        return;
+      }
+
+      Swal.fire({
+        title: 'Reactivando usuario...',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => Swal.showLoading()
+      });
+
+      this.backendService.reactivarUsuario(usuario.id).subscribe({
+        next: (res: any) => {
+          if (res.success) {
+            Swal.fire({
+              title: 'Usuario reactivado',
+              text: 'El usuario volvió a estar activo en el sistema.',
+              icon: 'success',
+              confirmButtonColor: '#38512F'
+            });
+            this.cargarUsuarios();
+          } else {
+            Swal.fire({
+              title: 'Error',
+              text: res.message || 'No se pudo reactivar',
+              icon: 'error',
+              confirmButtonColor: '#38512F'
+            });
+          }
+        },
+        error: (err) => {
+          console.error('❌ Error al reactivar usuario:', err);
+          Swal.fire({
+            title: 'Error',
+            text: err?.error?.message || 'Error al reactivar el usuario',
+            icon: 'error',
+            confirmButtonColor: '#38512F'
+          });
+        }
+      });
     });
   }
 }

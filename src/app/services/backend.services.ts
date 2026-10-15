@@ -58,8 +58,9 @@ export class BackendServices {
     // USUARIOS
     // ============================================
 
-    obtenerUsuarios(): Observable<any> {
-        return this.httpClient.get(`${this.baseUrl}/usuarios`);
+    obtenerUsuarios(incluirInactivos: boolean = false): Observable<any> {
+        const params = incluirInactivos ? '?incluirInactivos=1' : '';
+        return this.httpClient.get(`${this.baseUrl}/usuarios${params}`);
     }
 
     obtenerUsuario(id: number): Observable<any> {
@@ -96,6 +97,11 @@ export class BackendServices {
 
     eliminarUsuario(id: number): Observable<any> {
         return this.httpClient.delete(`${this.baseUrl}/usuarios/${id}`);
+    }
+
+    /** Reactiva un usuario desactivado (activo = 1). Solo root / super administrador. */
+    reactivarUsuario(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/usuarios/${id}/reactivar`, {});
     }
 
     resetearPassword(id: number, nueva_password: string, credencialesCorreosExtra: string[] = []): Observable<any> {

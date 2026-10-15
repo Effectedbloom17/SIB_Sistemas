@@ -5428,6 +5428,7 @@ app.post('/api/usuarios/correos-personales', async (req, res) => {
 
 // Obtener todos los usuarios (excluye usuarios root por seguridad)
 // Incluye las áreas temáticas para instructores y nombre de empresa para usuarios empresa
+// Por defecto solo activos. ?incluirInactivos=1 (solo root) incluye desactivados para reactivación.
 app.get('/api/usuarios', async (req, res) => {
     let puestoEmpresaExpr = 'NULL';
     try {
@@ -5437,6 +5438,19 @@ app.get('/api/usuarios', async (req, res) => {
         await asegurarColumnaOrganigramaUsuario(pool);
         await asegurarColumnaAreaDepartamentoUsuario(pool);
         puestoEmpresaExpr = await obtenerExpresionPuestoEmpresa(pool, 'e');
+
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map(r => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const esRoot = userRoles.includes('root');
+        const incluirInactivos = esRoot && ['1', 'true', 'yes'].includes(
+            String(req.query.incluirInactivos || '').toLowerCase()
+        );
+        const whereActivo = incluirInactivos ? '' : 'AND u.activo = 1';
+        const orderBy = incluirInactivos
+            ? 'ORDER BY u.activo DESC, u.nombre ASC'
+            : 'ORDER BY u.nombre ASC';
+
         const [rows] = await pool.query(
             `SELECT u.id, u.username, u.nombre, u.apellido, u.email, u.telefono,
                     u.organigrama,
@@ -5468,14 +5482,14 @@ app.get('/api/usuarios', async (req, res) => {
              LEFT JOIN instructor i ON u.id = i.usuario_id AND i.activo = 1
              LEFT JOIN instructor_areas ia ON i.instructor_id = ia.instructor_id
              LEFT JOIN area_tematica at ON ia.area_id = at.area_id AND at.activo = 1
-             WHERE r.nombre_rol != 'root' AND u.activo = 1
+             WHERE r.nombre_rol != 'root' ${whereActivo}
              GROUP BY u.id, u.username, u.nombre, u.apellido, u.email, u.telefono,
                       u.organigrama, u.area_departamento,
                       u.activo, u.bloqueado, u.ultimo_acceso, r.nombre_rol, r.rol_id,
                       COALESCE(u.empresa_id, e.empresa_id), e.nombre_empresa, e.logo, i.instructor_id, i.firma_url, i.firma_drive_id,
                       e.servicio_proteccion_civil, e.colaborador,
                       u.firma_url, u.firma_drive_id, u.foto_url, u.foto_drive_id, u.roles_adicionales
-             ORDER BY u.nombre`
+             ${orderBy}`
         );
 
 
@@ -5483,6 +5497,17 @@ app.get('/api/usuarios', async (req, res) => {
     } catch (error) {
         console.error('[ERROR] Error al obtener usuarios:', error.message);
         if (error.code === 'ER_NO_SUCH_TABLE') {
+            const userRoles = Array.isArray(req.user?.roles)
+                ? req.user.roles.map(r => String(r).toLowerCase())
+                : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+            const esRoot = userRoles.includes('root');
+            const incluirInactivos = esRoot && ['1', 'true', 'yes'].includes(
+                String(req.query.incluirInactivos || '').toLowerCase()
+            );
+            const whereActivo = incluirInactivos ? '' : 'AND u.activo = 1';
+            const orderBy = incluirInactivos
+                ? 'ORDER BY u.activo DESC, u.nombre ASC'
+                : 'ORDER BY u.nombre ASC';
             const [rows] = await pool.query(
                 `SELECT u.id, u.username, u.nombre, u.apellido, u.email, u.telefono,
                         u.activo, u.bloqueado, u.ultimo_acceso, r.nombre_rol as rol, r.rol_id,
@@ -5502,8 +5527,8 @@ app.get('/api/usuarios', async (req, res) => {
                         LIMIT 1
                     )
                  )
-                 WHERE r.nombre_rol != 'root' AND u.activo = 1
-                 ORDER BY u.nombre`
+                 WHERE r.nombre_rol != 'root' ${whereActivo}
+                 ${orderBy}`
             );
             res.json({ success: true, usuarios: rows });
         } else {
@@ -6786,14 +6811,14 @@ app.get('/api/roles', async (req, res) => {
     }
 });
 
-// Eliminar usuario (solo admin/root)
-app.delete('/api/usuarios/:id', requireAdmin, async (req, res) => {
+// Soft delete: solo root puede desactivar. El registro se conserva (activo = 0).
+app.delete('/api/usuarios/:id', requireRole('root'), async (req, res) => {
     try {
         const { id } = req.params;
 
         // Verificar que el usuario existe y obtener su rol e instructor_id
         const [users] = await pool.query(
-            `SELECT u.id, u.username, u.rol_id, u.instructor_id, r.nombre_rol
+            `SELECT u.id, u.username, u.rol_id, u.instructor_id, u.activo, r.nombre_rol
              FROM usuario u JOIN roles r ON u.rol_id = r.rol_id WHERE u.id = ?`,
             [id]
         );
@@ -6808,7 +6833,14 @@ app.delete('/api/usuarios/:id', requireAdmin, async (req, res) => {
         if (user.nombre_rol?.toLowerCase() === 'root') {
             return res.status(403).json({
                 success: false,
-                message: 'No se puede eliminar el usuario root'
+                message: 'No se puede desactivar el usuario root'
+            });
+        }
+
+        if (!user.activo) {
+            return res.json({
+                success: true,
+                message: 'El usuario ya estaba desactivado'
             });
         }
 
@@ -6820,7 +6852,7 @@ app.delete('/api/usuarios/:id', requireAdmin, async (req, res) => {
             );
         }
 
-        // Hacer soft delete del usuario (marcar como inactivo en lugar de eliminar)
+        // Soft delete del usuario (activo = 0; no se borra el registro)
         await pool.query(
             'UPDATE usuario SET activo = 0 WHERE id = ?',
             [id]
@@ -6831,7 +6863,60 @@ app.delete('/api/usuarios/:id', requireAdmin, async (req, res) => {
             message: 'Usuario desactivado exitosamente'
         });
     } catch (error) {
-        handleError(res, error, 'Error al eliminar usuario');
+        handleError(res, error, 'Error al desactivar usuario');
+    }
+});
+
+// Reactivar usuario desactivado (activo = 1). Solo super administrador (root).
+app.post('/api/usuarios/:id/reactivar', requireRole('root'), async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const [users] = await pool.query(
+            `SELECT u.id, u.username, u.instructor_id, u.activo, r.nombre_rol
+             FROM usuario u
+             JOIN roles r ON u.rol_id = r.rol_id
+             WHERE u.id = ?`,
+            [id]
+        );
+
+        if (users.length === 0) {
+            return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+        }
+
+        const user = users[0];
+
+        if (user.nombre_rol?.toLowerCase() === 'root') {
+            return res.status(403).json({
+                success: false,
+                message: 'No se puede modificar el usuario root'
+            });
+        }
+
+        if (user.activo) {
+            return res.json({
+                success: true,
+                message: 'El usuario ya estaba activo',
+                activo: 1
+            });
+        }
+
+        await pool.query('UPDATE usuario SET activo = 1 WHERE id = ?', [id]);
+
+        if (user.instructor_id) {
+            await pool.query(
+                'UPDATE instructor SET activo = 1 WHERE instructor_id = ?',
+                [user.instructor_id]
+            );
+        }
+
+        res.json({
+            success: true,
+            message: 'Usuario reactivado exitosamente',
+            activo: 1
+        });
+    } catch (error) {
+        handleError(res, error, 'Error al reactivar usuario');
     }
 });
 
