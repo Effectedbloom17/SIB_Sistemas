@@ -1013,19 +1013,22 @@ async function sincronizarPersistenciaEstructurada(pool, codigoFormato, payload)
     );
 
     const meta = extraerMetadatosFundamentales(payload?.datos || {});
+    // Ver / Fecha Rev (revision, fecha_original) solo se actualizan desde Lista Maestra
+    // o Solicitud de Documentos (propagarMetadatosDocumento). Un guardado del formato
+    // dinámico no debe pisar esos valores en sgc_formato_metadatos.
     await pool.query(
         `INSERT INTO sgc_formato_metadatos
             (codigo_formato, empresa, revision, fecha_original, fecha_modificacion,
              elaboro, reviso, autorizo)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
-            empresa = VALUES(empresa),
-            revision = VALUES(revision),
-            fecha_original = VALUES(fecha_original),
-            fecha_modificacion = VALUES(fecha_modificacion),
-            elaboro = VALUES(elaboro),
-            reviso = VALUES(reviso),
-            autorizo = VALUES(autorizo),
+            empresa = COALESCE(VALUES(empresa), empresa),
+            revision = revision,
+            fecha_original = fecha_original,
+            fecha_modificacion = COALESCE(VALUES(fecha_modificacion), fecha_modificacion),
+            elaboro = COALESCE(VALUES(elaboro), elaboro),
+            reviso = COALESCE(VALUES(reviso), reviso),
+            autorizo = COALESCE(VALUES(autorizo), autorizo),
             updated_at = CURRENT_TIMESTAMP`,
         [
             codigoFormato,

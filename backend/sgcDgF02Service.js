@@ -1319,11 +1319,9 @@ async function guardarFormato(pool, body) {
         fechaModificacion = fechaHoyIso();
     }
 
+    // Ver / Fecha Rev: solo Lista Maestra / Solicitud de Documentos (no subir al editar contenido).
     if (datosPrevios?.revision) {
         revision = formatearRevisionPlantillaDoc(datosPrevios.revision);
-    }
-    if (huboCambioContenido && origen !== 'consulta') {
-        revision = incrementarRevision(revision);
     }
 
     const fechaElaboracion = contenidoModificado && fechaModificacion

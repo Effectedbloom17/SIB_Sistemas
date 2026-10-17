@@ -206,6 +206,15 @@
                               <dt><i class="fas fa-code-branch"></i> Versión</dt>
                               <dd>{{ contexto.solicitud.version_actual || '—' }}</dd>
                             </div>
+                            <div class="sgc-fact sgc-fact--wide" *ngIf="tieneFormatoCentroSgc">
+                              <dt><i class="fas fa-desktop"></i> Formato dinámico</dt>
+                              <dd>
+                                <button type="button" class="sgc-btn sgc-btn--secondary sgc-btn--sm"
+                                  (click)="irAlFormatoCentroSgc()">
+                                  <i class="fas fa-arrow-right"></i> Ir al formato en Centro SGC
+                                </button>
+                              </dd>
+                            </div>
                             <div class="sgc-fact sgc-fact--wide">
                               <dt><i class="fas fa-file-alt"></i> Nombre del documento</dt>
                               <dd>{{ contexto.solicitud.nombre_documento || contexto.formatoDescarga?.titulo || '—' }}</dd>
@@ -285,6 +294,20 @@
                           <button type="button" class="sgc-btn sgc-btn--secondary sgc-btn--block"
                             (click)="abrirEditorIntegrado()" [disabled]="!driveFileIdActivo || estaProcesando()">
                             <i class="fas fa-external-link-alt"></i> Abrir editor integrado
+                          </button>
+                        </article>
+
+                        <article class="sgc-format-option sgc-format-option--centro" *ngIf="tieneFormatoCentroSgc">
+                          <span class="sgc-format-option__tag">Centro SGC</span>
+                          <i class="fas fa-desktop"></i>
+                          <h4>Formato dinámico en el sistema</h4>
+                          <p>
+                            Este documento ya tiene interfaz en Centro SGC. Ábrelo para capturar o corregir datos
+                            sin cambiar Versión ni Fecha de revisión (eso solo se hace en Lista Maestra).
+                          </p>
+                          <button type="button" class="sgc-btn sgc-btn--primary sgc-btn--block"
+                            (click)="irAlFormatoCentroSgc()" [disabled]="estaProcesando()">
+                            <i class="fas fa-arrow-right"></i> Ir al formato en Centro SGC
                           </button>
                         </article>
                       </div>

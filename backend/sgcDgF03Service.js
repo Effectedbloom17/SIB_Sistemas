@@ -955,7 +955,7 @@ async function guardarFormato(pool, body) {
     const huboCambioContenido = !contenidoEsEquivalente(datosPrevios, datosEntrada);
 
     if (huboCambioContenido && origen !== 'consulta') {
-        revision = incrementarRevision(revision);
+        // No incrementar revisión: Ver/Fecha Rev solo Lista Maestra / Solicitud.
         contenidoModificado = true;
         fechaModificacion = fechaHoyIso();
     }

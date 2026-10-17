@@ -349,9 +349,13 @@ async function aplicarHistorialEnDrive({
         datosPrevios.fechaRevision || datosNuevos.fechaRevision || ''
     ).trim();
 
+    // Ver / Fecha Rev solo se cambian en Lista Maestra (SGC-F-01) o Solicitud de Documentos.
+    // Un guardado del formato dinámico (aunque cree hoja de historial) NO debe subir revisión ni fecha.
     if (tipoCambio === 'formato') {
-        revision = incrementarRevision(revisionAnterior);
-        fechaRevision = fechaAhoraMexicoIso();
+        revision = revisionAnterior;
+        fechaRevision = String(
+            datosPrevios.fechaRevision || datosNuevos.fechaRevision || fechaRevision || ''
+        ).trim();
     }
 
     let nombreHistorial = tipoCambio === 'formato'

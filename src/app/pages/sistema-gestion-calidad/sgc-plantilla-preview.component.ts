@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import DOMPurify from 'dompurify';
 import { HttpEventType } from '@angular/common/http';
 import { Observable, Subject, Subscription, firstValueFrom, forkJoin, of, timer } from 'rxjs';
-import { catchError, switchMap, takeUntil, timeout } from 'rxjs/operators';
+import { catchError, finalize, switchMap, takeUntil, timeout } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
@@ -18,6 +18,7 @@ import {
   CapituloFormatoConfig,
   PlantillaFormato,
   formatoSgcVisibleParaUsuario,
+  resolverPlantillaCentroSgcPorCodigo,
   SGC_CAPITULOS_CATALOG
 } from './sgc-formatos.catalog';
 import {
@@ -4323,6 +4324,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.idsEditoresFormato = new Set();
       this.candidatosEditoresFormato = [];
       this.refrescarPermisoEditorSgcDelegado();
+      this.asegurarListaMaestraParaCabeceras();
 
       if (codigo !== 'metodologia-amef') {
         this.liberarScrollMetodologiaAmef();
@@ -5780,7 +5782,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug !== 'sgc-f-01') {
       return '';
     }
-    return 'Tronco del SGC: la versión vigente y la fecha de revisión se rescatan de los formatos ya cargados en el sistema. Usa «Actualizar versiones» para refrescar; «Guardar información» conserva cambios al listado.';
+    return 'Tronco del SGC: la versión vigente y la fecha de revisión solo se modifican aquí o en Solicitud de Documentos. El guardado de un formato dinámico no las cambia. Usa «Actualizar versiones» para refrescar el listado; «Guardar información» conserva cambios.';
   }
 
   get sgcF02IntroLead(): string {
@@ -31318,11 +31320,150 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.onSgcF18Editado();
   }
 
-  /** Revisión oficial de SGC-F-18 según lista maestra (catálogo SGC-F-01). */
-  revisionListaMaestraSgcF18(): string {
-    const doc = clonarCatalogoSgcF01().find((d) => String(d?.codigo || '').toUpperCase() === 'SGC-F-18');
-    const rev = String(doc?.versionVigente || '').trim();
+  /**
+   * Cache de lista maestra (SGC-F-01) para cabeceras de formato.
+   * Prioriza BD; si aún no cargó, usa el catálogo base.
+   */
+  private listaMaestraDocsCache: SgcF01Documento[] | null = null;
+  private listaMaestraCargaEnCurso = false;
+
+  /** Documento de la lista maestra por código (p. ej. DG-F-04). */
+  documentoListaMaestra(codigo: string | null | undefined): SgcF01Documento | null {
+    const key = String(codigo || '').trim().toUpperCase();
+    if (!key) {
+      return null;
+    }
+    const buscar = (docs: SgcF01Documento[] | null | undefined) =>
+      (docs || []).find((d) => String(d?.codigo || '').trim().toUpperCase() === key) || null;
+
+    return (
+      buscar(this.listaMaestraDocsCache)
+      || buscar(this.sgcF01Form?.documentos)
+      || buscar(clonarCatalogoSgcF01() as SgcF01Documento[])
+    );
+  }
+
+  /** Revisión vigente según lista maestra. */
+  revisionListaMaestra(codigo?: string | null): string {
+    const cod = String(codigo || this.plantilla?.codigo || '').trim();
+    const rev = String(this.documentoListaMaestra(cod)?.versionVigente || '').trim();
     return rev || '00';
+  }
+
+  /** Fecha de revisión ISO (YYYY-MM-DD) según lista maestra. */
+  fechaRevisionListaMaestra(codigo?: string | null): string {
+    const cod = String(codigo || this.plantilla?.codigo || '').trim();
+    return String(this.documentoListaMaestra(cod)?.fechaRevision || '').trim();
+  }
+
+  /** Fecha de revisión en DD/MM/YYYY para cabeceras. */
+  fechaRevisionListaMaestraDisplay(codigo?: string | null): string {
+    const iso = this.fechaRevisionListaMaestra(codigo);
+    if (!iso) {
+      return '—';
+    }
+    if (/^\d{4}-\d{2}-\d{2}/.test(iso)) {
+      const [y, m, d] = iso.slice(0, 10).split('-');
+      return `${d}/${m}/${y}`;
+    }
+    return iso;
+  }
+
+  /** Revisión oficial de SGC-F-18 según lista maestra. */
+  revisionListaMaestraSgcF18(): string {
+    return this.revisionListaMaestra('SGC-F-18');
+  }
+
+  /** Carga (o refresca) la lista maestra para alimentar cabeceras de todos los formatos. */
+  private asegurarListaMaestraParaCabeceras(): void {
+    if (!this.listaMaestraDocsCache?.length) {
+      this.listaMaestraDocsCache = (clonarCatalogoSgcF01() as SgcF01Documento[]).slice();
+    }
+    if (this.listaMaestraCargaEnCurso) {
+      return;
+    }
+    this.listaMaestraCargaEnCurso = true;
+    this.backendService.cargarSgcF01Formato()
+      .pipe(
+        timeout(10000),
+        takeUntil(this.destroy$),
+        catchError(() => of(null)),
+        finalize(() => {
+          this.listaMaestraCargaEnCurso = false;
+        })
+      )
+      .subscribe({
+        next: (res) => {
+          if (res?.success && Array.isArray(res?.datos?.documentos)) {
+            const normalizado = this.normalizarFormularioSgcF01(res.datos);
+            this.listaMaestraDocsCache = normalizado.documentos.slice();
+            if (this.plantillaSlug !== 'sgc-f-01' && !this.sgcF01Form?.documentos?.length) {
+              this.sgcF01Form = normalizado;
+            }
+            this.sincronizarRevisionFormatoActivoDesdeListaMaestra();
+          }
+        }
+      });
+  }
+
+  /** Aplica revisión/fecha de lista maestra a un formulario que las exponga. */
+  private aplicarRevisionListaMaestraAForm(
+    codigo: string,
+    form: { revision?: string; fechaRevision?: string } | null | undefined
+  ): void {
+    if (!form) {
+      return;
+    }
+    const rev = this.revisionListaMaestra(codigo);
+    const fecha = this.fechaRevisionListaMaestra(codigo);
+    if (rev) {
+      form.revision = rev;
+    }
+    if (fecha) {
+      form.fechaRevision = fecha;
+    }
+  }
+
+  /** Alinea el formato activo (si tiene revision/fechaRevision) con la lista maestra. */
+  private sincronizarRevisionFormatoActivoDesdeListaMaestra(): void {
+    const codigo = String(this.plantilla?.codigo || '').trim().toUpperCase();
+    if (!codigo) {
+      return;
+    }
+    const porSlug: Record<string, { revision?: string; fechaRevision?: string } | null | undefined> = {
+      'sgc-f-04': this.sgcF04Form,
+      'sgc-f-08': this.sgcF08Form,
+      'sgc-f-09': this.sgcF09Form,
+      'sgc-f-10': this.sgcF10Form,
+      'sgc-f-11': this.sgcF11Form,
+      'sgc-f-12': this.sgcF12Form,
+      'sgc-f-16': this.sgcF16Form,
+      'sgc-f-18': this.sgcF18Form,
+      'sgc-f-19': this.sgcF19Form,
+      'sgc-f-20': this.sgcF20Form,
+      'sgc-f-22': this.sgcF22Form,
+      'sgc-f-24': this.sgcF24Form,
+      'sgc-f-27': this.sgcF27Form,
+      'sgc-f-27-medicion': this.sgcF27mForm,
+      'sgc-f-28': this.sgcF28Form,
+      'sgc-f-02': this.sgcF02Form,
+      'ath-f-02': this.athF02Form,
+      'ath-f-03': this.athF03Form,
+      'ath-f-06': this.athF06Form,
+      'ath-f-07': this.athF07Form,
+      'ath-f-08': this.athF08Form,
+      'ath-f-09': this.athF09Form,
+      'ath-f-11': this.athF11Form,
+      'ath-f-13': this.athF13Form,
+      'sp-f-02': this.spF02Form,
+      'sp-f-07': this.spF07Form,
+      'af-f-02': this.afF02Form,
+      'dg-f-06': this.dgF06Form
+    };
+    const form = porSlug[this.plantillaSlug];
+    if (form) {
+      this.aplicarRevisionListaMaestraAForm(codigo, form);
+    }
   }
 
   contarVigenciaSgcF18(estado: string): number {
@@ -35562,6 +35703,33 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return grupo?.id || String(_i);
   }
 
+  /** True si el código tiene plantilla dinámica en Centro SGC. */
+  tieneFormatoCentroSgcF01(codigo: string | null | undefined): boolean {
+    return !!resolverPlantillaCentroSgcPorCodigo(
+      codigo,
+      this.authService.esSuperusuario()
+    );
+  }
+
+  /** Navega al formato dinámico en Centro SGC (solo si existe plantilla). */
+  irAlFormatoCentroSgcF01(doc: SgcF01Documento, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const ref = resolverPlantillaCentroSgcPorCodigo(
+      doc?.codigo,
+      this.authService.esSuperusuario()
+    );
+    if (!ref) {
+      return;
+    }
+    void this.router.navigate([
+      '/sistema-gestion-calidad',
+      ref.capituloSlug,
+      'plantilla',
+      ref.previewSlug
+    ]);
+  }
+
   abrirEditorSgcF01(doc: SgcF01Documento, event?: Event): void {
     event?.stopPropagation();
     if (!doc) {
@@ -37295,8 +37463,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   private crearSgcF04Vacio(): SgcF04FormData {
     return {
-      revision: '02',
-      fechaRevision: '2026-08-05',
+      revision: this.revisionListaMaestra('SGC-F-04'),
+      fechaRevision: this.fechaRevisionListaMaestra('SGC-F-04') || '2026-08-05',
       reportes: []
     };
   }
@@ -38244,6 +38412,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.sgcF04IgnorarAutoSave = true;
       this.sgcF04Listo = false;
       this.sgcF04Form = this.normalizarSgcF04Form(res.datos);
+      this.aplicarRevisionListaMaestraAForm('SGC-F-04', this.sgcF04Form);
       if (activoId) {
         this.sgcF04ReporteActivo = this.sgcF04Form.reportes.find((r) => r.id === activoId) || null;
         if (!this.sgcF04ReporteActivo && this.sgcF04Vista === 'editor') {

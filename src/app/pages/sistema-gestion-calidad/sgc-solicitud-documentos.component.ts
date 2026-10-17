@@ -1,8 +1,11 @@
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { Router } from '@angular/router';
 import { Observable, Subject } from 'rxjs';
 import { finalize, takeUntil } from 'rxjs/operators';
 import { BackendServices } from 'src/app/services/backend.services';
+import { AuthService } from 'src/app/services/auth.service';
+import { resolverPlantillaCentroSgcPorCodigo } from './sgc-formatos.catalog';
 import { TIPO_SOLICITUD_LABELS } from './sgc-solicitud-documentos.util';
 
 /** Responsable por defecto de cambios a la Lista Maestra SGC. */
@@ -142,7 +145,9 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
   constructor(
     private backend: BackendServices,
     private cdr: ChangeDetectorRef,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private router: Router,
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
@@ -258,6 +263,42 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
     if (origen.includes('instructivo')) return 'Instructivo';
     if (origen.includes('procedimiento')) return 'Procedimiento';
     return origen ? origen.replace(/_/g, ' ') : 'Documento solicitado';
+  }
+
+  /** Código activo de la solicitud (para ligar a Centro SGC). */
+  get codigoDocumentoActivo(): string {
+    return String(
+      this.contexto?.formatoDescarga?.codigo
+      || this.contexto?.solicitud?.codigo
+      || this.listaMaestraForm?.codigo
+      || ''
+    ).trim();
+  }
+
+  /** True si el documento tiene formato dinámico en Centro SGC. */
+  get tieneFormatoCentroSgc(): boolean {
+    return !!resolverPlantillaCentroSgcPorCodigo(
+      this.codigoDocumentoActivo,
+      this.authService.esSuperusuario()
+    );
+  }
+
+  /** Abre el formato dinámico en Centro SGC (pantalla del sistema). */
+  irAlFormatoCentroSgc(): void {
+    const ref = resolverPlantillaCentroSgcPorCodigo(
+      this.codigoDocumentoActivo,
+      this.authService.esSuperusuario()
+    );
+    if (!ref) {
+      this.errorGestion = 'Este documento no tiene formato dinámico en Centro SGC.';
+      return;
+    }
+    void this.router.navigate([
+      '/sistema-gestion-calidad',
+      ref.capituloSlug,
+      'plantilla',
+      ref.previewSlug
+    ]);
   }
 
   get tipoArchivoActivo(): 'PDF' | 'Sheet' | 'Doc' {

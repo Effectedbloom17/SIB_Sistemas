@@ -552,3 +552,47 @@ export const SGC_CAPITULOS_ORDEN: CapituloFormatoConfig[] = [
   SGC_CAPITULOS_CATALOG['capitulo-9'],
   SGC_CAPITULOS_CATALOG['capitulo-10']
 ];
+
+export interface PlantillaCentroSgcRef {
+  capituloSlug: string;
+  previewSlug: string;
+  plantilla: PlantillaFormato;
+}
+
+/**
+ * Resuelve un código de documento (p. ej. DG-F-04) a su plantilla dinámica en Centro SGC.
+ * Solo considera plantillas con previewSlug (formato en pantalla).
+ * Preferencia: previewMode === 'form'; si hay varios (p. ej. SGC-F-27), el primero en orden de capítulos.
+ */
+export function resolverPlantillaCentroSgcPorCodigo(
+  codigoDoc: string | null | undefined,
+  esSuperusuario = false
+): PlantillaCentroSgcRef | null {
+  const target = String(codigoDoc || '').trim().toUpperCase();
+  if (!target) {
+    return null;
+  }
+  let fallback: PlantillaCentroSgcRef | null = null;
+  for (const cap of SGC_CAPITULOS_ORDEN) {
+    for (const p of cap.plantillas || []) {
+      if (String(p.codigo || '').trim().toUpperCase() !== target || !p.previewSlug) {
+        continue;
+      }
+      if (!formatoSgcVisibleParaUsuario(p.codigo, esSuperusuario)) {
+        continue;
+      }
+      const ref: PlantillaCentroSgcRef = {
+        capituloSlug: cap.slug,
+        previewSlug: String(p.previewSlug).trim().toLowerCase(),
+        plantilla: p
+      };
+      if (p.previewMode === 'form') {
+        return ref;
+      }
+      if (!fallback) {
+        fallback = ref;
+      }
+    }
+  }
+  return fallback;
+}

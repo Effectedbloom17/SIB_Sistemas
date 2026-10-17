@@ -320,10 +320,10 @@ function enriquecerConMapa(documentos, mapaSistema) {
       return { ...fila, enSistema: false, fuenteVersion: 'catalogo' };
     }
     vinculados += 1;
+    // Ver / Fecha Rev: la lista maestra (y Solicitud de Documentos) son la fuente de verdad.
+    // Los metadatos del formato dinámico solo marcan que el documento está «en sistema».
     return {
       ...fila,
-      versionVigente: live.revision || fila.versionVigente,
-      fechaRevision: live.fechaRevision || fila.fechaRevision,
       enSistema: true,
       fuenteVersion: 'sistema'
     };

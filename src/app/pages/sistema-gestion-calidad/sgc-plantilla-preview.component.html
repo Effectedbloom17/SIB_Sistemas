@@ -1548,12 +1548,7 @@
                     <span>Cargando programa de capacitación…</span>
                   </div>
                   <article class="dg-f05-doc sgc-f05-doc" *ngIf="!athF07Cargando">
-                    <header class="dg-f05-doc__header sgc-f-14-doc__header">
-                      <div>
-                        <span class="dg-f05-doc__code">ATH-F-07</span>
-                        <h3 class="dg-f05-doc__title">Programa de capacitación</h3>
-                      </div>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'ATH-F-07', titulo: 'Programa de capacitación', icono: 'fa-chalkboard-teacher', extraClass: 'sgc-f-14-doc__header' }"></ng-container>
 
                     <div class="dg-f05-table-panel sgc-f05-panel" *ngIf="athF07ProgramaActivo as prog; else athF07SinPrograma">
                       <div class="sgc-f05-toolbar">
@@ -2701,12 +2696,7 @@
                     <span>Cargando eficacia de la capacitación…</span>
                   </div>
                   <article class="dg-f05-doc ath-f-08-doc">
-                    <header class="dg-f05-doc__header sgc-f-14-doc__header">
-                      <div>
-                        <span class="dg-f05-doc__code">ATH-F-08</span>
-                        <h3 class="dg-f05-doc__title">Eficacia de la capacitación</h3>
-                      </div>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'ATH-F-08', titulo: 'Eficacia de la capacitación', icono: 'fa-user-graduate', extraClass: 'sgc-f-14-doc__header' }"></ng-container>
 
                     <div class="dg-f05-table-panel">
                       <div class="sgc-f-11-matriz__intro ath-f-08-matriz-intro">
@@ -3104,10 +3094,7 @@
                   </div>
 
                   <article class="dg-f05-doc" aria-label="Formato DG-F-01 Mapa de procesos">
-                    <header class="dg-f05-doc__header">
-                      <span class="dg-f05-doc__code">DG-F-01</span>
-                      <h3 class="dg-f05-doc__title">Mapa de procesos</h3>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'DG-F-01', titulo: 'Mapa de procesos', icono: 'fa-project-diagram' }"></ng-container>
 
                     <div class="sgc-f-11-matriz__intro dg-f01-intro">
                       <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
@@ -3262,6 +3249,18 @@
                           <span class="dg-f02-page__meta-value"
                             [title]="dgF02ContenidoModificado ? 'Actualizada tras la última modificación' : 'Fecha original del formato'">
                             {{ formatearFechaDgF02(dgF02Form.fechaElaboracion) }}
+                          </span>
+                        </div>
+                        <div class="dg-f02-page__meta-item">
+                          <span class="dg-f02-page__meta-label">Revisión</span>
+                          <span class="dg-f02-page__meta-value" title="Según lista maestra (SGC-F-01)">
+                            {{ revisionListaMaestra('DG-F-02') }}
+                          </span>
+                        </div>
+                        <div class="dg-f02-page__meta-item">
+                          <span class="dg-f02-page__meta-label">Fecha de revisión</span>
+                          <span class="dg-f02-page__meta-value" title="Según lista maestra (SGC-F-01)">
+                            {{ fechaRevisionListaMaestraDisplay('DG-F-02') }}
                           </span>
                         </div>
                       </div>
@@ -4390,10 +4389,7 @@
                     Cargando formato…
                   </div>
                   <article class="dg-f05-doc">
-                    <header class="dg-f05-doc__header">
-                      <span class="dg-f05-doc__code">DG-F-04</span>
-                      <h3 class="dg-f05-doc__title">Análisis FODA</h3>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'DG-F-04', titulo: 'Análisis FODA', icono: 'fa-th-large' }"></ng-container>
 
                     <div class="sgc-f-11-matriz__intro">
                       <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-th-large" aria-hidden="true"></i></div>
@@ -4796,10 +4792,7 @@
                     Cargando formato…
                   </div>
                   <article class="dg-f05-doc">
-                    <header class="dg-f05-doc__header">
-                      <span class="dg-f05-doc__code">DG-F-05</span>
-                      <h3 class="dg-f05-doc__title">Listado de partes interesadas</h3>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'DG-F-05', titulo: 'Listado de partes interesadas', icono: 'fa-users' }"></ng-container>
 
                     <div class="dg-f05-table-panel">
                       <div class="sgc-f-11-matriz__intro">
@@ -4917,10 +4910,7 @@
                     Cargando formato…
                   </div>
                   <article class="dg-f05-doc">
-                    <header class="dg-f05-doc__header">
-                      <span class="dg-f05-doc__code">SGC-F-18</span>
-                      <h3 class="dg-f05-doc__title">Tabla de requisitos legales y reglamentarios</h3>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-18', titulo: 'Tabla de requisitos legales y reglamentarios', icono: 'fa-balance-scale' }"></ng-container>
 
                     <div class="dg-f05-doc__meta dg-f05-doc__meta--sgc-f18">
                       <label class="dg-f05-meta-field">
@@ -5067,10 +5057,7 @@
                   </div>
 
                   <article class="dg-f05-doc" *ngIf="sgcF06Vista === 'archivero'">
-                    <header class="dg-f05-doc__header">
-                      <span class="dg-f05-doc__code">SGC-F-06</span>
-                      <h3 class="dg-f05-doc__title">Lista y calificación de auditores</h3>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-06', titulo: 'Lista y calificación de auditores', icono: 'fa-user-check' }"></ng-container>
 
                     <div class="sgc-f-04-archivero">
                       <div class="sgc-f-04-archivero__intro">
@@ -5168,10 +5155,7 @@
                       </button>
                       <span class="sgc-f-04-editor-bar__folio" *ngIf="lista.titulo">{{ lista.titulo }}</span>
                     </div>
-                    <header class="dg-f05-doc__header">
-                      <span class="dg-f05-doc__code">SGC-F-06</span>
-                      <h3 class="dg-f05-doc__title">Lista y calificación de auditores</h3>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-06', titulo: 'Lista y calificación de auditores', icono: 'fa-user-check' }"></ng-container>
 
                     <div class="dg-f05-doc__meta">
                       <label class="dg-f05-meta-field">
@@ -5361,10 +5345,7 @@
                     Cargando formato…
                   </div>
                   <article class="dg-f05-doc">
-                    <header class="dg-f05-doc__header">
-                      <span class="dg-f05-doc__code">SGC-F-07</span>
-                      <h3 class="dg-f05-doc__title">Programa de auditoría</h3>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-07', titulo: 'Programa de auditoría', icono: 'fa-clipboard-list' }"></ng-container>
 
                     <div class="dg-f05-doc__meta">
                       <label class="dg-f05-meta-field">
@@ -5989,12 +5970,7 @@
                     <span>Cargando bitácora…</span>
                   </div>
                   <article class="dg-f05-doc sgc-f-14-doc">
-                    <header class="dg-f05-doc__header sgc-f-14-doc__header">
-                      <div>
-                        <span class="dg-f05-doc__code">SGC-F-14</span>
-                        <h3 class="dg-f05-doc__title">Bitácora de proyectos de mejora</h3>
-                      </div>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-14', titulo: 'Bitácora de proyectos de mejora', icono: 'fa-project-diagram', extraClass: 'sgc-f-14-doc__header' }"></ng-container>
 
                     <div class="dg-f05-table-panel sgc-f-14-panel">
                       <div class="sgc-f-11-matriz__intro">
@@ -6355,12 +6331,7 @@
                     <span>Cargando lista de distribución…</span>
                   </div>
                   <article class="dg-f05-doc sgc-f-03-doc" *ngIf="!sgcF03Cargando || sgcF03Form.registros.length">
-                    <header class="dg-f05-doc__header">
-                      <div>
-                        <span class="dg-f05-doc__code">SGC-F-03</span>
-                        <h3 class="dg-f05-doc__title">Lista de distribución de documentos</h3>
-                      </div>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-03', titulo: 'Lista de distribución de documentos', icono: 'fa-share-alt' }"></ng-container>
                     <div class="dg-f05-table-panel sgc-f-03-panel">
                       <div class="sgc-f-03-tools">
                         <label class="sgc-f-03-search">
@@ -6646,12 +6617,7 @@
                     <span>Cargando actividades…</span>
                   </div>
                   <article class="dg-f05-doc sgc-f-25-doc sgc-f-25-doc--enter" *ngIf="!sgcF25Cargando || sgcF25Form.actividades.length">
-                    <header class="dg-f05-doc__header sgc-f-25-doc__header">
-                      <div>
-                        <span class="dg-f05-doc__code">SGC-F-25</span>
-                        <h3 class="dg-f05-doc__title">Actividades posteriores a la entrega</h3>
-                      </div>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-25', titulo: 'Actividades posteriores a la entrega', icono: 'fa-clipboard-check', extraClass: 'sgc-f-25-doc__header' }"></ng-container>
 
                     <div class="dg-f05-table-panel sgc-f-25-panel">
                       <div class="sgc-f-11-matriz__intro sgc-f-25-intro">
@@ -6770,14 +6736,35 @@
                     <span>Cargando bitácora…</span>
                   </div>
                   <article class="dg-f05-doc sgc-f17-doc">
-                    <header class="dg-f05-doc__header">
-                      <div>
-                        <span class="dg-f05-doc__code">SGC-F-17</span>
-                        <h3 class="dg-f05-doc__title">Bitácora de calibración y verificación de equipos de medición</h3>
+                    <header class="dg-f05-doc__header sgc-f-04-doc__header">
+                      <div class="sgc-f-04-doc__header-main">
+                        <span class="sgc-f-04-doc__header-icon" aria-hidden="true">
+                          <i class="fas fa-ruler-combined"></i>
+                        </span>
+                        <div class="sgc-f-04-doc__header-text">
+                          <span class="dg-f05-doc__code">SGC-F-17</span>
+                          <h3 class="dg-f05-doc__title">Bitácora de calibración y verificación de equipos de medición</h3>
+                        </div>
                       </div>
-                      <p class="sgc-f17-hoja" *ngIf="sgcF17Form.hojaVigente">
-                        Hoja vigente {{ sgcF17Form.hojaVigente }}
-                      </p>
+                      <div class="sgc-f-04-doc__header-meta" role="group" aria-label="Control documental">
+                        <div class="sgc-f-04-doc__meta-item sgc-f-04-doc__meta-item--rev">
+                          <span class="sgc-f-04-doc__meta-label">
+                            <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                            Revisión
+                          </span>
+                          <span class="sgc-f-04-doc__meta-input">{{ revisionListaMaestra('SGC-F-17') }}</span>
+                        </div>
+                        <div class="sgc-f-04-doc__meta-item sgc-f-04-doc__meta-item--fecha">
+                          <span class="sgc-f-04-doc__meta-label">
+                            <i class="fas fa-calendar-check" aria-hidden="true"></i>
+                            Fecha de revisión
+                          </span>
+                          <span class="sgc-f-04-doc__meta-input">{{ fechaRevisionListaMaestraDisplay('SGC-F-17') }}</span>
+                        </div>
+                        <p class="sgc-f17-hoja sgc-f17-hoja--header" *ngIf="sgcF17Form.hojaVigente">
+                          Hoja vigente {{ sgcF17Form.hojaVigente }}
+                        </p>
+                      </div>
                     </header>
                     <div class="dg-f05-table-panel sgc-f17-panel">
                       <article class="sgc-f17-equipo" [class.sgc-f17-equipo--vista]="sgcF17PreviewIndex !== null">
@@ -7028,8 +7015,8 @@
                         <h3 class="dg-f05-doc__title">Reporte de verificación de equipos de medición</h3>
                       </div>
                       <div class="sgc-f27m-doc__rev">
-                        <span>Rev. 00</span>
-                        <span>Capítulo 7</span>
+                        <span>Rev. {{ revisionListaMaestra('SGC-F-27') }}</span>
+                        <span>{{ fechaRevisionListaMaestraDisplay('SGC-F-27') }}</span>
                       </div>
                     </header>
                     <div class="sgc-f27m-arch">
@@ -7105,8 +7092,8 @@
                         <h3 class="dg-f05-doc__title">Reporte de verificación de equipos de medición</h3>
                       </div>
                       <div class="sgc-f27m-doc__rev">
-                        <span>Rev. {{ sgcF27mForm.revision || '00' }}</span>
-                        <span>21-01-25</span>
+                        <span>Rev. {{ revisionListaMaestra('SGC-F-27') }}</span>
+                        <span>{{ fechaRevisionListaMaestraDisplay('SGC-F-27') }}</span>
                       </div>
                     </header>
 
@@ -8741,7 +8728,7 @@
                       <div class="sgc-f-29-doc__header-main">
                         <span class="dg-f05-doc__code">SGC-F-29</span>
                         <h3 class="dg-f05-doc__title">Evaluación de proveedores</h3>
-                        <p class="sgc-f-29-doc__meta">ISO 9001 · 8.4.1 / 8.4.2 · Revisión 00</p>
+                        <p class="sgc-f-29-doc__meta">ISO 9001 · 8.4.1 / 8.4.2 · Revisión {{ revisionListaMaestra('SGC-F-29') }} · {{ fechaRevisionListaMaestraDisplay('SGC-F-29') }}</p>
                       </div>
                       <div class="sgc-f-29-doc__header-meta">
                         <div class="sgc-f-29-meta__periodo">
@@ -9440,12 +9427,7 @@
                     <span>Cargando bitácora…</span>
                   </div>
                   <article class="dg-f05-doc sgc-f05-doc">
-                    <header class="dg-f05-doc__header sgc-f-14-doc__header">
-                      <div>
-                        <span class="dg-f05-doc__code">SGC-F-05</span>
-                        <h3 class="dg-f05-doc__title">Bitácora de no conformidades</h3>
-                      </div>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-05', titulo: 'Bitácora de no conformidades', icono: 'fa-clipboard-list', extraClass: 'sgc-f-14-doc__header' }"></ng-container>
 
                     <div class="dg-f05-table-panel sgc-f05-panel">
                       <div class="sgc-f05-toolbar">
@@ -11184,12 +11166,7 @@
                   </div>
 
                   <article class="dg-f05-doc sgc-f-16-doc" *ngIf="!athF13Cargando && !athF13PuedeSolicitar">
-                    <header class="dg-f05-doc__header">
-                      <div>
-                        <span class="dg-f05-doc__code">ATH-F-13</span>
-                        <h3 class="dg-f05-doc__title">Solicitud de vacaciones</h3>
-                      </div>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'ATH-F-13', titulo: 'Solicitud de vacaciones', icono: 'fa-umbrella-beach' }"></ng-container>
                     <div class="sgc-f-04-archivero__empty ath-f13-bloqueo" role="status">
                       <i class="fas fa-user-lock" aria-hidden="true"></i>
                       <p class="mb-0">Solo las personas registradas en Control de vacaciones pueden solicitar vacaciones.</p>
@@ -11753,8 +11730,8 @@
                         <h3 class="dg-f05-doc__title">Control de Proyectos Biznaga 2026</h3>
                       </div>
                       <div class="sgc-f-16-doc__rev">
-                        <span>Rev. 00</span>
-                        <span>13/10/2020</span>
+                        <span>Rev. {{ revisionListaMaestra('SP-F-04') }}</span>
+                        <span>{{ fechaRevisionListaMaestraDisplay('SP-F-04') }}</span>
                       </div>
                     </header>
 
@@ -11853,8 +11830,8 @@
                         <h3 class="dg-f05-doc__title">Control de vacaciones</h3>
                       </div>
                       <div class="sgc-f-16-doc__rev">
-                        <span>Rev. 00</span>
-                        <span>17/03/2026</span>
+                        <span>Rev. {{ revisionListaMaestra('ATH-F-14') }}</span>
+                        <span>{{ fechaRevisionListaMaestraDisplay('ATH-F-14') }}</span>
                       </div>
                     </header>
 
@@ -14280,10 +14257,7 @@
                   </nav>
 
                   <article class="dg-f05-doc dg-f07-doc" *ngIf="dgF07FormActivo as proc">
-                    <header class="dg-f05-doc__header">
-                      <span class="dg-f05-doc__code">DG-F-07</span>
-                      <h3 class="dg-f05-doc__title">Caracterización de procesos</h3>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'DG-F-07', titulo: 'Caracterización de procesos', icono: 'fa-sitemap' }"></ng-container>
 
                     <div class="sgc-f-11-matriz__intro dg-f07-intro">
                       <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-sitemap" aria-hidden="true"></i></div>
@@ -14412,10 +14386,7 @@
                     Cargando formato…
                   </div>
                   <article class="dg-f05-doc sgc-f-04-doc sgc-f-11-doc sgc-f-04-doc--archivero" *ngIf="sgcF11Vista === 'archivero' && !sgcF11EvidenciasModalAbierto">
-                    <header class="dg-f05-doc__header">
-                      <span class="dg-f05-doc__code">SGC-F-11</span>
-                      <h3 class="dg-f05-doc__title">Análisis de Modo y Efecto de Falla (AMEF)</h3>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-11', titulo: 'Análisis de Modo y Efecto de Falla (AMEF)', icono: 'fa-exclamation-triangle' }"></ng-container>
                     <div class="sgc-f-04-archivero">
                       <div class="sgc-f-04-archivero__intro">
                         <div class="sgc-f-04-archivero__intro-main">
@@ -14521,20 +14492,9 @@
                         </button>
                       </div>
                     </div>
-                    <header class="dg-f05-doc__header">
-                      <span class="dg-f05-doc__code">SGC-F-11</span>
-                      <h3 class="dg-f05-doc__title">Análisis de Modo y Efecto de Falla (AMEF)</h3>
-                    </header>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-11', titulo: 'Análisis de Modo y Efecto de Falla (AMEF)', icono: 'fa-exclamation-triangle' }"></ng-container>
 
-                    <!-- Lista maestra: Revisión / Fecha (solo lectura) -->
-                    <div class="dg-f05-doc__meta dg-f05-doc__meta--sgc-f11-lista" aria-label="Datos de lista maestra">
-                      <label class="dg-f05-meta-field">
-                        <span class="dg-f05-meta-field__label">Revisión</span>
-                        <input class="dg-f05-field dg-f05-field--readonly" type="text"
-                          name="sgcF11_revision" [(ngModel)]="sgcF11Form.revision"
-                          readonly tabindex="-1"
-                          title="Revisión según lista maestra (SGC-F-01)">
-                      </label>
+                    <div class="dg-f05-doc__meta dg-f05-doc__meta--sgc-f11-lista" aria-label="Resumen AMEF">
                       <div class="sgc-f11-resumen" aria-label="Resumen AMEF">
                         <span class="sgc-chip sgc-chip--info">
                           <i class="fas fa-project-diagram" aria-hidden="true"></i>
@@ -14545,12 +14505,6 @@
                           {{ altos }} RPN alto{{ altos === 1 ? '' : 's' }}
                         </span>
                       </div>
-                      <label class="dg-f05-meta-field">
-                        <span class="dg-f05-meta-field__label">Fecha de revisión</span>
-                        <input class="dg-f05-field dg-f05-field--readonly" type="date"
-                          name="sgcF11_fechaRev" [(ngModel)]="sgcF11Form.fechaRevision" readonly
-                          title="Fecha según lista maestra de documentos">
-                      </label>
                     </div>
 
                     <div class="sgc-f-11-matriz__lead">
@@ -15494,17 +15448,28 @@
                     <span class="sgc-f-04-doc__deco sgc-f-04-doc__deco--br" aria-hidden="true"></span>
                     <header class="dg-f05-doc__header sgc-f-04-doc__header">
                       <div class="sgc-f-04-doc__header-main">
-                        <span class="dg-f05-doc__code">SGC-F-04</span>
-                        <h3 class="dg-f05-doc__title">Reporte de no conformidad</h3>
+                        <span class="sgc-f-04-doc__header-icon" aria-hidden="true">
+                          <i class="fas fa-clipboard-list"></i>
+                        </span>
+                        <div class="sgc-f-04-doc__header-text">
+                          <span class="dg-f05-doc__code">SGC-F-04</span>
+                          <h3 class="dg-f05-doc__title">Reporte de no conformidad</h3>
+                        </div>
                       </div>
-                      <div class="sgc-f-04-doc__header-meta">
-                        <label class="sgc-f-04-doc__meta-item">
-                          <span class="sgc-f-04-doc__meta-label">Revisión</span>
+                      <div class="sgc-f-04-doc__header-meta" role="group" aria-label="Control documental">
+                        <label class="sgc-f-04-doc__meta-item sgc-f-04-doc__meta-item--rev">
+                          <span class="sgc-f-04-doc__meta-label">
+                            <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                            Revisión
+                          </span>
                           <input class="sgc-f-04-doc__meta-input" type="text" name="sgcF04_revision_arch"
                             [(ngModel)]="sgcF04Form.revision" autocomplete="off" readonly>
                         </label>
-                        <label class="sgc-f-04-doc__meta-item">
-                          <span class="sgc-f-04-doc__meta-label">Fecha de revisión</span>
+                        <label class="sgc-f-04-doc__meta-item sgc-f-04-doc__meta-item--fecha">
+                          <span class="sgc-f-04-doc__meta-label">
+                            <i class="fas fa-calendar-check" aria-hidden="true"></i>
+                            Fecha de revisión
+                          </span>
                           <input class="sgc-f-04-doc__meta-input" type="date" name="sgcF04_fechaRev_arch"
                             [(ngModel)]="sgcF04Form.fechaRevision" readonly>
                         </label>
@@ -15621,17 +15586,28 @@
 
                     <header class="dg-f05-doc__header sgc-f-04-doc__header">
                       <div class="sgc-f-04-doc__header-main">
-                        <span class="dg-f05-doc__code">SGC-F-04</span>
-                        <h3 class="dg-f05-doc__title">Reporte de no conformidad</h3>
+                        <span class="sgc-f-04-doc__header-icon" aria-hidden="true">
+                          <i class="fas fa-clipboard-list"></i>
+                        </span>
+                        <div class="sgc-f-04-doc__header-text">
+                          <span class="dg-f05-doc__code">SGC-F-04</span>
+                          <h3 class="dg-f05-doc__title">Reporte de no conformidad</h3>
+                        </div>
                       </div>
-                      <div class="sgc-f-04-doc__header-meta">
-                        <label class="sgc-f-04-doc__meta-item">
-                          <span class="sgc-f-04-doc__meta-label">Revisión</span>
+                      <div class="sgc-f-04-doc__header-meta" role="group" aria-label="Control documental">
+                        <label class="sgc-f-04-doc__meta-item sgc-f-04-doc__meta-item--rev">
+                          <span class="sgc-f-04-doc__meta-label">
+                            <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                            Revisión
+                          </span>
                           <input class="sgc-f-04-doc__meta-input" type="text" name="sgcF04_revision"
                             [(ngModel)]="sgcF04Form.revision" autocomplete="off" readonly>
                         </label>
-                        <label class="sgc-f-04-doc__meta-item">
-                          <span class="sgc-f-04-doc__meta-label">Fecha de revisión</span>
+                        <label class="sgc-f-04-doc__meta-item sgc-f-04-doc__meta-item--fecha">
+                          <span class="sgc-f-04-doc__meta-label">
+                            <i class="fas fa-calendar-check" aria-hidden="true"></i>
+                            Fecha de revisión
+                          </span>
                           <input class="sgc-f-04-doc__meta-input" type="date" name="sgcF04_fechaRev"
                             [(ngModel)]="sgcF04Form.fechaRevision" readonly>
                         </label>
@@ -16225,12 +16201,26 @@
                                 [class.sgc-f-01-row--vigente]="doc.vigente !== false"
                                 [class.sgc-f-01-row--novigente]="doc.vigente === false"
                                 [class.sgc-f-01-row--sistema]="doc.enSistema"
+                                [class.sgc-f-01-row--con-formato]="tieneFormatoCentroSgcF01(doc.codigo)"
                                 (click)="abrirEditorSgcF01(doc, $event)"
                                 tabindex="0"
                                 (keydown.enter)="abrirEditorSgcF01(doc, $event)"
                                 role="button"
                                 [attr.aria-label]="'Editar ' + (doc.codigo || doc.nombreDocumento)">
                                 <td class="sgc-f-01-col--area">
+                                  <div class="sgc-f-01-rail" *ngIf="tieneFormatoCentroSgcF01(doc.codigo)"
+                                    (click)="irAlFormatoCentroSgcF01(doc, $event)"
+                                    (keydown.enter)="irAlFormatoCentroSgcF01(doc, $event)"
+                                    tabindex="0"
+                                    role="link"
+                                    [attr.aria-label]="'Ir al formato ' + (doc.codigo || '')"
+                                    title="Ir al formato en Centro SGC">
+                                    <span class="sgc-f-01-rail__bar" aria-hidden="true"></span>
+                                    <span class="sgc-f-01-rail__label">
+                                      <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                                      Ir al Formato
+                                    </span>
+                                  </div>
                                   <span class="sgc-f-01-area">{{ doc.area || '—' }}</span>
                                 </td>
                                 <td class="sgc-f-01-col--tipo">
@@ -19964,6 +19954,37 @@
     </footer>
   </form>
 </div>
+
+<!-- Cabecera documental unificada: código + título + rev/fecha desde lista maestra (SGC-F-01) -->
+<ng-template #sgcDocHeaderListaMaestra let-codigo="codigo" let-titulo="titulo" let-icono="icono" let-extraClass="extraClass">
+  <header class="dg-f05-doc__header sgc-f-04-doc__header" [ngClass]="extraClass">
+    <div class="sgc-f-04-doc__header-main">
+      <span class="sgc-f-04-doc__header-icon" aria-hidden="true">
+        <i class="fas" [ngClass]="icono || 'fa-file-alt'"></i>
+      </span>
+      <div class="sgc-f-04-doc__header-text">
+        <span class="dg-f05-doc__code">{{ codigo }}</span>
+        <h3 class="dg-f05-doc__title">{{ titulo }}</h3>
+      </div>
+    </div>
+    <div class="sgc-f-04-doc__header-meta" role="group" aria-label="Control documental">
+      <div class="sgc-f-04-doc__meta-item sgc-f-04-doc__meta-item--rev">
+        <span class="sgc-f-04-doc__meta-label">
+          <i class="fas fa-sync-alt" aria-hidden="true"></i>
+          Revisión
+        </span>
+        <span class="sgc-f-04-doc__meta-input">{{ revisionListaMaestra(codigo) }}</span>
+      </div>
+      <div class="sgc-f-04-doc__meta-item sgc-f-04-doc__meta-item--fecha">
+        <span class="sgc-f-04-doc__meta-label">
+          <i class="fas fa-calendar-check" aria-hidden="true"></i>
+          Fecha de revisión
+        </span>
+        <span class="sgc-f-04-doc__meta-input">{{ fechaRevisionListaMaestraDisplay(codigo) }}</span>
+      </div>
+    </div>
+  </header>
+</ng-template>
 
 <app-envio-documento-correo
   [visible]="envioDocCorreoVisible"
