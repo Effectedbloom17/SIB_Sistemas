@@ -18,9 +18,16 @@ import {
   CapituloFormatoConfig,
   PlantillaFormato,
   formatoSgcVisibleParaUsuario,
-  resolverPlantillaCentroSgcPorCodigo,
-  SGC_CAPITULOS_CATALOG
+  SGC_CAPITULOS_CATALOG,
+  subtituloEncabezadoFormato as resolverSubtituloEncabezadoFormato
 } from './sgc-formatos.catalog';
+import {
+  DestinoFormatoSistema,
+  iconoAreaFormatoSistema,
+  resolverDestinoFormatoSistema,
+  tonoAreaFormatoSistema,
+  tooltipDestinoFormato
+} from './sgc-formato-navegacion.catalog';
 import {
   clonarCatalogoSgcF01,
   esDocumentoExternoSgcF01 as esDocExternoCatalogo,
@@ -2202,6 +2209,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF01Busqueda = '';
   /** Filtro por id de sección Excel (procedimientos, formatos, …) o vacío = todas. */
   sgcF01FiltroSeccion = '';
+  /** Solo documentos con enlace a formato dinámico en el sistema. */
+  sgcF01SoloConEnlace = false;
   /** Filas ya filtradas (cache) — no usar getters que recreen arrays en cada CD. */
   sgcF01FilasVista: SgcF01Documento[] = this.sgcF01Form.documentos.slice();
   /** Grupos por sección Excel (orden fijo del catálogo). */
@@ -31343,6 +31352,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     );
   }
 
+  /** Subtítulo de cabecera documental (SISTEMA DE GESTIÓN DE CALIDAD [cláusula]). */
+  subtituloEncabezadoFormato(codigo?: string | null): string {
+    return resolverSubtituloEncabezadoFormato(codigo || this.plantilla?.codigo);
+  }
+
   /** Revisión vigente según lista maestra. */
   revisionListaMaestra(codigo?: string | null): string {
     const cod = String(codigo || this.plantilla?.codigo || '').trim();
@@ -35695,6 +35709,19 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.refrescarVistaSgcF01();
   }
 
+  toggleSgcF01SoloConEnlace(): void {
+    this.sgcF01SoloConEnlace = !this.sgcF01SoloConEnlace;
+    this.refrescarVistaSgcF01();
+  }
+
+  /** Enter en el buscador: si hay un solo resultado con enlace, ir al formato. */
+  onSgcF01BusquedaEnter(): void {
+    const conEnlace = (this.sgcF01FilasVista || []).filter((d) => this.tieneFormatoSistemaF01(d.codigo));
+    if (conEnlace.length === 1) {
+      this.irAlFormatoSistemaF01(conEnlace[0]);
+    }
+  }
+
   trackBySgcF01Codigo(_i: number, doc: SgcF01Documento): string {
     return doc?.codigo || doc?.nombreDocumento || String(_i);
   }
@@ -35703,31 +35730,72 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return grupo?.id || String(_i);
   }
 
-  /** True si el código tiene plantilla dinámica en Centro SGC. */
-  tieneFormatoCentroSgcF01(codigo: string | null | undefined): boolean {
-    return !!resolverPlantillaCentroSgcPorCodigo(
-      codigo,
-      this.authService.esSuperusuario()
-    );
+  /** Destino del formato dinámico (Centro SGC u otra área del sistema). */
+  destinoFormatoSistemaF01(codigo: string | null | undefined): DestinoFormatoSistema | null {
+    return resolverDestinoFormatoSistema(codigo, this.authService.esSuperusuario());
   }
 
-  /** Navega al formato dinámico en Centro SGC (solo si existe plantilla). */
-  irAlFormatoCentroSgcF01(doc: SgcF01Documento, event?: Event): void {
-    event?.preventDefault();
-    event?.stopPropagation();
-    const ref = resolverPlantillaCentroSgcPorCodigo(
-      doc?.codigo,
-      this.authService.esSuperusuario()
-    );
-    if (!ref) {
+  /** True si el código tiene UI dinámica en el sistema (cualquier área). */
+  tieneFormatoSistemaF01(codigo: string | null | undefined): boolean {
+    return !!this.destinoFormatoSistemaF01(codigo);
+  }
+
+  tooltipIrFormatoF01(codigo: string | null | undefined): string {
+    return tooltipDestinoFormato(this.destinoFormatoSistemaF01(codigo)) || 'Abrir en el sistema';
+  }
+
+  /**
+   * Caracteres del nombre destino. Respaldo del desplazamiento
+   * hasta que el riel mide su ancho real.
+   */
+  anchoRailFormatoF01(codigo: string | null | undefined): number | null {
+    const dest = this.destinoFormatoSistemaF01(codigo);
+    if (!dest) {
+      return null;
+    }
+    const chipCurso = dest.requiereCurso ? 6 : 0;
+    return (dest.etiqueta || '').length + chipCurso;
+  }
+
+  /** Deja solo un poco de aire entre el indicador y los datos de la fila. */
+  ajustarEspacioRailF01(event: Event): void {
+    const rail = event.currentTarget as HTMLElement | null;
+    const row = rail?.closest('tr') as HTMLElement | null;
+    const label = rail?.querySelector('.sgc-f-01-rail__label') as HTMLElement | null;
+    const area = row?.querySelector('.sgc-f-01-area') as HTMLElement | null;
+    const celda = area?.closest('td') as HTMLElement | null;
+    if (!row || !label || !area || !celda) {
       return;
     }
-    void this.router.navigate([
-      '/sistema-gestion-calidad',
-      ref.capituloSlug,
-      'plantilla',
-      ref.previewSlug
-    ]);
+    const ancho = label.offsetWidth;
+    if (ancho < 8) {
+      return;
+    }
+    const inicioBadge = area.offsetLeft;
+    const aire = 14;
+    const desplazamiento = Math.max(72, Math.round(ancho - inicioBadge + aire));
+    row.style.setProperty('--rail-open-shift', `${desplazamiento}px`);
+  }
+
+  tonoRailFormatoF01(codigo: string | null | undefined): string {
+    return tonoAreaFormatoSistema(this.destinoFormatoSistemaF01(codigo)?.area);
+  }
+
+  iconoRailFormatoF01(codigo: string | null | undefined): string {
+    return iconoAreaFormatoSistema(this.destinoFormatoSistemaF01(codigo)?.area);
+  }
+
+  /** Navega al formato dinámico (Centro SGC, Capacitación, PC, Mantenimiento, …). */
+  irAlFormatoSistemaF01(doc: SgcF01Documento, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const dest = this.destinoFormatoSistemaF01(doc?.codigo);
+    if (!dest) {
+      return;
+    }
+    void this.router.navigate([dest.ruta], {
+      queryParams: dest.queryParams || undefined
+    });
   }
 
   abrirEditorSgcF01(doc: SgcF01Documento, event?: Event): void {
@@ -35984,9 +36052,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           return false;
         }
       }
+      if (this.sgcF01SoloConEnlace && !this.tieneFormatoSistemaF01(doc.codigo)) {
+        return false;
+      }
       if (!q) {
         return true;
       }
+      const dest = this.destinoFormatoSistemaF01(doc.codigo);
       const blob = [
         doc.codigo,
         doc.nombreDocumento,
@@ -35994,7 +36066,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         doc.especie,
         doc.responsable,
         doc.versionVigente,
-        doc.tipoDocumento
+        doc.tipoDocumento,
+        dest?.area || '',
+        dest?.etiqueta || ''
       ].join(' ').toLowerCase();
       return blob.includes(q);
     });

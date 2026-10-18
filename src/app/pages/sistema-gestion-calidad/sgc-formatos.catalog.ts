@@ -596,3 +596,49 @@ export function resolverPlantillaCentroSgcPorCodigo(
   }
   return fallback;
 }
+
+/**
+ * Cláusula ISO del encabezado documental (texto original del formato).
+ * Cada formato tiene su referencia; si no hay mapa, se usa el nº de capítulo.
+ */
+const CLAUSULAS_ENCABEZADO_FORMATO: Record<string, string> = {
+  'DG-F-01': '4.4',
+  'DG-F-04': '4.1',
+  'DG-F-05': '4.2',
+  'DG-F-07': '4.4',
+  'SGC-F-01': '7.5',
+  'SGC-F-02': '7.5',
+  'SGC-F-03': '7.5',
+  'SGC-F-04': '10.2',
+  'SGC-F-05': '10.2',
+  'SGC-F-06': '9.2',
+  'SGC-F-07': '9.2',
+  'SGC-F-11': '8.5.1',
+  'SGC-F-14': '10.3',
+  'SGC-F-18': '8.4.2',
+  'SGC-F-25': '8.5.5',
+  'SGC-F-28': '8.4',
+  'ATH-F-07': '7.2',
+  'ATH-F-08': '7.2',
+  'ATH-F-13': '7.1.2'
+};
+
+/** Subtítulo de cabecera: «SISTEMA DE GESTIÓN DE CALIDAD [cláusula]». */
+export function subtituloEncabezadoFormato(codigoDoc: string | null | undefined): string {
+  const codigo = String(codigoDoc || '').trim().toUpperCase();
+  if (!codigo) {
+    return 'SISTEMA DE GESTIÓN DE CALIDAD';
+  }
+  const clausula = CLAUSULAS_ENCABEZADO_FORMATO[codigo];
+  if (clausula) {
+    return `SISTEMA DE GESTIÓN DE CALIDAD [${clausula}]`;
+  }
+  const ref = resolverPlantillaCentroSgcPorCodigo(codigo);
+  if (ref) {
+    const cap = SGC_CAPITULOS_CATALOG[ref.capituloSlug];
+    if (cap?.numero != null) {
+      return `SISTEMA DE GESTIÓN DE CALIDAD [${cap.numero}]`;
+    }
+  }
+  return 'SISTEMA DE GESTIÓN DE CALIDAD';
+}

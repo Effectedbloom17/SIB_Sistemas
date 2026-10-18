@@ -16107,23 +16107,29 @@
               <div class="dg-f05-form sgc-f-01-form">
                 <div class="dg-f05-doc-wrap">
                   <article class="dg-f05-doc sgc-f-01-doc">
-                    <header class="sgc-f-01-masthead sgc-f-01-masthead--compact">
-                      <div class="sgc-f-01-masthead__icon" aria-hidden="true">
-                        <i class="fas fa-clipboard-list"></i>
+                    <header class="sgc-f-01-masthead sgc-f-01-masthead--compact sgc-doc-masthead">
+                      <div class="sgc-doc-masthead__brand">
+                        <img class="sgc-doc-masthead__logo" src="assets/img/logo_biznaga.png" alt="Biznaga">
                       </div>
-                      <div class="sgc-f-01-masthead__content">
-                        <div class="sgc-f-01-masthead__line1">
-                          <span class="sgc-f-01-masthead__code">SGC-F-01</span>
-                          <h3 class="sgc-f-01-masthead__title">Lista maestra de documentos controlados</h3>
+                      <div class="sgc-doc-masthead__body">
+                        <div class="sgc-doc-masthead__center">
+                          <p class="sgc-doc-masthead__clause">{{ subtituloEncabezadoFormato('SGC-F-01') }}</p>
+                          <h3 class="sgc-doc-masthead__title">Lista maestra de documentos controlados</h3>
                         </div>
-                        <div class="sgc-f-01-masthead__line2">
-                          <p class="sgc-f-01-masthead__clause">Sistema de Gestión de Calidad · [7.5]</p>
-                          <aside class="sgc-f-01-masthead__meta" aria-label="Datos del formato">
-                            <span><em>Código</em> <strong>SGC-F-01</strong></span>
-                            <span><em>Revisión</em> <strong>{{ sgcF01Form.revision }}</strong></span>
-                            <span><em>Fecha de rev.</em> <strong>{{ formatearFechaDisplaySgcF01(sgcF01Form.fechaRevision) }}</strong></span>
-                          </aside>
-                        </div>
+                        <aside class="sgc-doc-masthead__meta" aria-label="Datos del formato">
+                          <div class="sgc-doc-masthead__meta-row">
+                            <em>Código</em>
+                            <strong>SGC-F-01</strong>
+                          </div>
+                          <div class="sgc-doc-masthead__meta-row">
+                            <em>Revisión</em>
+                            <strong>{{ sgcF01Form.revision }}</strong>
+                          </div>
+                          <div class="sgc-doc-masthead__meta-row">
+                            <em>Fecha de rev.</em>
+                            <strong>{{ formatearFechaDisplaySgcF01(sgcF01Form.fechaRevision) }}</strong>
+                          </div>
+                        </aside>
                       </div>
                     </header>
 
@@ -16158,7 +16164,10 @@
                         <i class="fas fa-search" aria-hidden="true"></i>
                         <input class="dg-f05-field" type="search" name="sgcF01_busqueda"
                           [ngModel]="sgcF01Busqueda" (ngModelChange)="onSgcF01FiltroChange($event, null)"
-                          placeholder="Buscar código, nombre, área…" autocomplete="off">
+                          (keydown.enter)="onSgcF01BusquedaEnter()"
+                          placeholder="Código, nombre, área o módulo (EIN, SP-F-08…)"
+                          autocomplete="off"
+                          title="Escribe y Enter: si queda un solo resultado con enlace, abre el formato">
                       </label>
                       <label class="sgc-f-01-toolbar__filter">
                         <span class="sr-only">Sección</span>
@@ -16171,6 +16180,13 @@
                           </option>
                         </select>
                       </label>
+                      <button type="button" class="sgc-f-01-toolbar__link-btn"
+                        [class.is-on]="sgcF01SoloConEnlace"
+                        (click)="toggleSgcF01SoloConEnlace()"
+                        title="Mostrar solo documentos con formato dinámico en el sistema">
+                        <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                        Con enlace
+                      </button>
                     </div>
 
                     <div class="sgc-f-01-board" *ngIf="sgcF01GruposVista.length; else sgcF01Vacio">
@@ -16201,27 +16217,35 @@
                                 [class.sgc-f-01-row--vigente]="doc.vigente !== false"
                                 [class.sgc-f-01-row--novigente]="doc.vigente === false"
                                 [class.sgc-f-01-row--sistema]="doc.enSistema"
-                                [class.sgc-f-01-row--con-formato]="tieneFormatoCentroSgcF01(doc.codigo)"
+                                [class.sgc-f-01-row--con-formato]="tieneFormatoSistemaF01(doc.codigo)"
+                                [style.--rail-chars]="anchoRailFormatoF01(doc.codigo)"
                                 (click)="abrirEditorSgcF01(doc, $event)"
                                 tabindex="0"
                                 (keydown.enter)="abrirEditorSgcF01(doc, $event)"
                                 role="button"
                                 [attr.aria-label]="'Editar ' + (doc.codigo || doc.nombreDocumento)">
                                 <td class="sgc-f-01-col--area">
-                                  <div class="sgc-f-01-rail" *ngIf="tieneFormatoCentroSgcF01(doc.codigo)"
-                                    (click)="irAlFormatoCentroSgcF01(doc, $event)"
-                                    (keydown.enter)="irAlFormatoCentroSgcF01(doc, $event)"
-                                    tabindex="0"
-                                    role="link"
-                                    [attr.aria-label]="'Ir al formato ' + (doc.codigo || '')"
-                                    title="Ir al formato en Centro SGC">
-                                    <span class="sgc-f-01-rail__bar" aria-hidden="true"></span>
-                                    <span class="sgc-f-01-rail__label">
-                                      <i class="fas fa-external-link-alt" aria-hidden="true"></i>
-                                      Ir al Formato
+                                  <button type="button" class="sgc-f-01-rail"
+                                    *ngIf="destinoFormatoSistemaF01(doc.codigo) as dest"
+                                    [attr.data-tone]="tonoRailFormatoF01(doc.codigo)"
+                                    (mouseenter)="ajustarEspacioRailF01($event)"
+                                    (focus)="ajustarEspacioRailF01($event)"
+                                    (click)="irAlFormatoSistemaF01(doc, $event)"
+                                    [attr.aria-label]="tooltipIrFormatoF01(doc.codigo)">
+                                    <span class="sgc-f-01-rail__bar" aria-hidden="true">
+                                      <span class="sgc-f-01-rail__label">
+                                        <i class="fas sgc-f-01-rail__icon" [ngClass]="iconoRailFormatoF01(doc.codigo)"></i>
+                                        <span class="sgc-f-01-rail__destino">
+                                          <span class="sgc-f-01-rail__accion">Abrir</span>
+                                          <span class="sgc-f-01-rail__donde">{{ dest.etiqueta }}</span>
+                                          <span class="sgc-f-01-rail__curso" *ngIf="dest.requiereCurso">curso</span>
+                                        </span>
+                                        <i class="fas fa-arrow-right sgc-f-01-rail__arrow"></i>
+                                      </span>
                                     </span>
-                                  </div>
-                                  <span class="sgc-f-01-area">{{ doc.area || '—' }}</span>
+                                  </button>
+                                  <span class="sgc-f-01-area"
+                                    [attr.data-area]="(doc.area || '').toLowerCase()">{{ doc.area || '—' }}</span>
                                 </td>
                                 <td class="sgc-f-01-col--tipo">
                                   <span class="sgc-f-01-tipo">{{ doc.tipoDocumento || '—' }}</span>
@@ -19955,33 +19979,31 @@
   </form>
 </div>
 
-<!-- Cabecera documental unificada: código + título + rev/fecha desde lista maestra (SGC-F-01) -->
-<ng-template #sgcDocHeaderListaMaestra let-codigo="codigo" let-titulo="titulo" let-icono="icono" let-extraClass="extraClass">
-  <header class="dg-f05-doc__header sgc-f-04-doc__header" [ngClass]="extraClass">
-    <div class="sgc-f-04-doc__header-main">
-      <span class="sgc-f-04-doc__header-icon" aria-hidden="true">
-        <i class="fas" [ngClass]="icono || 'fa-file-alt'"></i>
-      </span>
-      <div class="sgc-f-04-doc__header-text">
-        <span class="dg-f05-doc__code">{{ codigo }}</span>
-        <h3 class="dg-f05-doc__title">{{ titulo }}</h3>
-      </div>
+<!-- Cabecera documental unificada: logo blanco · bloque color (subtítulo + título + meta) -->
+<ng-template #sgcDocHeaderListaMaestra let-codigo="codigo" let-titulo="titulo" let-icono="icono" let-extraClass="extraClass" let-subtitulo="subtitulo">
+  <header class="dg-f05-doc__header sgc-f-04-doc__header sgc-doc-masthead" [ngClass]="extraClass" role="banner">
+    <div class="sgc-doc-masthead__brand">
+      <img class="sgc-doc-masthead__logo" src="assets/img/logo_biznaga.png" alt="Biznaga">
     </div>
-    <div class="sgc-f-04-doc__header-meta" role="group" aria-label="Control documental">
-      <div class="sgc-f-04-doc__meta-item sgc-f-04-doc__meta-item--rev">
-        <span class="sgc-f-04-doc__meta-label">
-          <i class="fas fa-sync-alt" aria-hidden="true"></i>
-          Revisión
-        </span>
-        <span class="sgc-f-04-doc__meta-input">{{ revisionListaMaestra(codigo) }}</span>
+    <div class="sgc-doc-masthead__body">
+      <div class="sgc-doc-masthead__center">
+        <p class="sgc-doc-masthead__clause">{{ subtitulo || subtituloEncabezadoFormato(codigo) }}</p>
+        <h3 class="sgc-doc-masthead__title">{{ titulo }}</h3>
       </div>
-      <div class="sgc-f-04-doc__meta-item sgc-f-04-doc__meta-item--fecha">
-        <span class="sgc-f-04-doc__meta-label">
-          <i class="fas fa-calendar-check" aria-hidden="true"></i>
-          Fecha de revisión
-        </span>
-        <span class="sgc-f-04-doc__meta-input">{{ fechaRevisionListaMaestraDisplay(codigo) }}</span>
-      </div>
+      <aside class="sgc-doc-masthead__meta" role="group" aria-label="Control documental">
+        <div class="sgc-doc-masthead__meta-row">
+          <em>Código</em>
+          <strong>{{ codigo }}</strong>
+        </div>
+        <div class="sgc-doc-masthead__meta-row">
+          <em>Revisión</em>
+          <strong>{{ revisionListaMaestra(codigo) }}</strong>
+        </div>
+        <div class="sgc-doc-masthead__meta-row">
+          <em>Fecha de rev.</em>
+          <strong>{{ fechaRevisionListaMaestraDisplay(codigo) }}</strong>
+        </div>
+      </aside>
     </div>
   </header>
 </ng-template>

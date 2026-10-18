@@ -5,7 +5,10 @@ import { Observable, Subject } from 'rxjs';
 import { finalize, takeUntil } from 'rxjs/operators';
 import { BackendServices } from 'src/app/services/backend.services';
 import { AuthService } from 'src/app/services/auth.service';
-import { resolverPlantillaCentroSgcPorCodigo } from './sgc-formatos.catalog';
+import {
+  resolverDestinoFormatoSistema,
+  tooltipDestinoFormato
+} from './sgc-formato-navegacion.catalog';
 import { TIPO_SOLICITUD_LABELS } from './sgc-solicitud-documentos.util';
 
 /** Responsable por defecto de cambios a la Lista Maestra SGC. */
@@ -275,30 +278,33 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
     ).trim();
   }
 
-  /** True si el documento tiene formato dinámico en Centro SGC. */
-  get tieneFormatoCentroSgc(): boolean {
-    return !!resolverPlantillaCentroSgcPorCodigo(
+  /** Destino del formato dinámico (Centro SGC u otra área). */
+  get destinoFormatoSistema() {
+    return resolverDestinoFormatoSistema(
       this.codigoDocumentoActivo,
       this.authService.esSuperusuario()
     );
   }
 
-  /** Abre el formato dinámico en Centro SGC (pantalla del sistema). */
-  irAlFormatoCentroSgc(): void {
-    const ref = resolverPlantillaCentroSgcPorCodigo(
-      this.codigoDocumentoActivo,
-      this.authService.esSuperusuario()
-    );
-    if (!ref) {
-      this.errorGestion = 'Este documento no tiene formato dinámico en Centro SGC.';
+  /** True si el documento tiene formato dinámico en el sistema. */
+  get tieneFormatoSistema(): boolean {
+    return !!this.destinoFormatoSistema;
+  }
+
+  get tooltipIrFormatoSistema(): string {
+    return tooltipDestinoFormato(this.destinoFormatoSistema) || 'Ir al formato en el sistema';
+  }
+
+  /** Abre el formato dinámico (Centro SGC, Capacitación, PC, Mantenimiento, …). */
+  irAlFormatoSistema(): void {
+    const dest = this.destinoFormatoSistema;
+    if (!dest) {
+      this.errorGestion = 'Este documento no tiene formato dinámico en el sistema.';
       return;
     }
-    void this.router.navigate([
-      '/sistema-gestion-calidad',
-      ref.capituloSlug,
-      'plantilla',
-      ref.previewSlug
-    ]);
+    void this.router.navigate([dest.ruta], {
+      queryParams: dest.queryParams || undefined
+    });
   }
 
   get tipoArchivoActivo(): 'PDF' | 'Sheet' | 'Doc' {
