@@ -880,6 +880,15 @@ interface SgcF07FormData {
   pdfsHistorial: DgF02PdfFirmado[];
 }
 
+interface SgcF07Programa extends SgcF07FormData {
+  id: string;
+  anio: string;
+  titulo: string;
+  fechaCreacion: string;
+  driveFileId?: string | null;
+  nombreArchivo?: string | null;
+}
+
 interface SgcF08AgendaItem {
   actividad: string;
   fecha: string;
@@ -2023,6 +2032,29 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF09Form: AthF09FormData = this.crearAthF09FormVacio();
   athF09Vista: 'archivero' | 'editor' = 'archivero';
   athF09Busqueda = '';
+  athF09FiltroAbierto = false;
+  athF09FiltroPanelTop = '0px';
+  athF09FiltroPanelLeft = '0px';
+  athF09FiltroEstatus: 'todos' | 'borrador' | 'pendiente' | 'aceptada' = 'todos';
+  athF09FiltroMes = '';
+  athF09FiltroAnio = '';
+  athF09FiltroPdf: 'todos' | 'con' | 'sin' = 'todos';
+  athF09FiltroVigencia: 'todas' | 'vigentes' | 'vencidas' = 'todas';
+  readonly athF09DiasVigencia = 30;
+  readonly athF09MesesFiltro = [
+    { valor: '01', etiqueta: 'Enero' },
+    { valor: '02', etiqueta: 'Febrero' },
+    { valor: '03', etiqueta: 'Marzo' },
+    { valor: '04', etiqueta: 'Abril' },
+    { valor: '05', etiqueta: 'Mayo' },
+    { valor: '06', etiqueta: 'Junio' },
+    { valor: '07', etiqueta: 'Julio' },
+    { valor: '08', etiqueta: 'Agosto' },
+    { valor: '09', etiqueta: 'Septiembre' },
+    { valor: '10', etiqueta: 'Octubre' },
+    { valor: '11', etiqueta: 'Noviembre' },
+    { valor: '12', etiqueta: 'Diciembre' }
+  ];
   athF09CotizacionActiva: AthF09Cotizacion | null = null;
   athF09Cargando = false;
   athF09Guardando = false;
@@ -2409,6 +2441,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     pdfFirmado: null,
     pdfsHistorial: []
   };
+  sgcF07Vista: 'archivero' | 'editor' = 'archivero';
+  sgcF07Programas: SgcF07Programa[] = [];
+  sgcF07ProgramaActivoId: string | null = null;
+  sgcF07ArchivoBusqueda = '';
   sgcF07Cargando = false;
   sgcF07Guardando = false;
   sgcF07Listo = false;
@@ -5450,7 +5486,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return this.backendService.guardarSgcF06Formato(this.obtenerDatosSgcF06ParaGuardar(), false);
     }
     if (slug === 'sgc-f-07') {
-      return this.backendService.guardarSgcF07Formato(this.sgcF07Form, false);
+      return this.backendService.guardarSgcF07Formato(this.datosSgcF07ParaGuardar(), false);
     }
     if (slug === 'sgc-f-08') {
       return this.backendService.guardarSgcF08Formato(this.sgcF08Form, false);
@@ -6936,6 +6972,206 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.onSgcF07Editado();
   }
 
+  private nuevoIdProgramaSgcF07(): string {
+    try {
+      return crypto.randomUUID();
+    } catch {
+      return `sgcf07-${Date.now()}`;
+    }
+  }
+
+  private crearProgramaVacioSgcF07(): SgcF07Programa {
+    const hoy = new Date().toISOString().slice(0, 10);
+    return {
+      id: this.nuevoIdProgramaSgcF07(),
+      anio: hoy.slice(0, 4),
+      titulo: '',
+      fechaCreacion: hoy,
+      empresa: 'BIZNAGA RISK AND TECH',
+      fechaElaboracion: hoy,
+      auditorias: [this.crearAuditoriaVaciaSgcF07(1)],
+      footer: {
+        comentariosTitulo: 'Comentarios:',
+        comentariosDetalle: '',
+        notaPrograma: '',
+        firmaEjecutivo: 'Ejecutivo JR SGVC',
+        firmaDireccion: 'Dirección General'
+      },
+      pdfFirmado: null,
+      pdfsHistorial: [],
+      driveFileId: null,
+      nombreArchivo: null
+    };
+  }
+
+  private aplicarDriveProgramaSgcF07(programa: SgcF07Programa | null): void {
+    const id = String(programa?.driveFileId || '').trim();
+    this.sgcF07DriveFileId = id || null;
+    this.fijarEditorEmbedUrlSgcF07(
+      id ? `https://docs.google.com/spreadsheets/d/${id}/edit?usp=sharing` : null,
+      true
+    );
+  }
+
+  private formDesdeProgramaSgcF07(programa: SgcF07Programa): SgcF07FormData {
+    return {
+      empresa: programa.empresa,
+      fechaElaboracion: programa.fechaElaboracion,
+      auditorias: this.normalizarAuditoriasSgcF07(programa.auditorias),
+      footer: this.normalizarFooterSgcF07(programa.footer),
+      pdfFirmado: programa.pdfFirmado || null,
+      pdfsHistorial: Array.isArray(programa.pdfsHistorial) ? programa.pdfsHistorial : []
+    };
+  }
+
+  private programaDesdeFormSgcF07(base?: SgcF07Programa | null): SgcF07Programa {
+    const previo = base || this.sgcF07Programas.find((item) => item.id === this.sgcF07ProgramaActivoId) || null;
+    const fecha = String(this.sgcF07Form.fechaElaboracion || previo?.fechaElaboracion || '').slice(0, 4);
+    return {
+      id: previo?.id || this.sgcF07ProgramaActivoId || this.nuevoIdProgramaSgcF07(),
+      anio: previo?.anio || fecha,
+      titulo: previo?.titulo || '',
+      fechaCreacion: previo?.fechaCreacion || new Date().toISOString().slice(0, 10),
+      driveFileId: previo?.driveFileId || null,
+      nombreArchivo: previo?.nombreArchivo || null,
+      empresa: this.sgcF07Form.empresa,
+      fechaElaboracion: this.sgcF07Form.fechaElaboracion,
+      auditorias: this.sgcF07Form.auditorias,
+      footer: this.sgcF07Form.footer,
+      pdfFirmado: this.sgcF07Form.pdfFirmado,
+      pdfsHistorial: this.sgcF07Form.pdfsHistorial || []
+    };
+  }
+
+  private normalizarProgramasSgcF07(datos: any): SgcF07Programa[] {
+    const lista = Array.isArray(datos?.programas) ? datos.programas : [];
+    if (!lista.length) {
+      const plano = this.crearProgramaVacioSgcF07();
+      plano.empresa = String(datos?.empresa || plano.empresa);
+      plano.fechaElaboracion = String(datos?.fechaElaboracion || plano.fechaElaboracion);
+      plano.anio = plano.fechaElaboracion.slice(0, 4) || plano.anio;
+      plano.auditorias = this.normalizarAuditoriasSgcF07(datos?.auditorias);
+      plano.footer = this.normalizarFooterSgcF07(datos?.footer);
+      plano.pdfFirmado = datos?.pdfFirmado || null;
+      plano.pdfsHistorial = Array.isArray(datos?.pdfsHistorial) ? datos.pdfsHistorial : [];
+      return [plano];
+    }
+    return lista.map((item: any) => {
+      const fecha = String(item?.fechaElaboracion || item?.fechaCreacion || '').slice(0, 10);
+      return {
+        id: String(item?.id || this.nuevoIdProgramaSgcF07()),
+        anio: String(item?.anio || fecha.slice(0, 4) || ''),
+        titulo: String(item?.titulo || '').trim(),
+        fechaCreacion: String(item?.fechaCreacion || fecha || new Date().toISOString().slice(0, 10)).slice(0, 10),
+        driveFileId: item?.driveFileId || null,
+        nombreArchivo: item?.nombreArchivo || null,
+        empresa: String(item?.empresa || 'BIZNAGA RISK AND TECH'),
+        fechaElaboracion: fecha || new Date().toISOString().slice(0, 10),
+        auditorias: this.normalizarAuditoriasSgcF07(item?.auditorias),
+        footer: this.normalizarFooterSgcF07(item?.footer),
+        pdfFirmado: item?.pdfFirmado || null,
+        pdfsHistorial: Array.isArray(item?.pdfsHistorial) ? item.pdfsHistorial : []
+      };
+    });
+  }
+
+  private sincronizarProgramaActivoSgcF07(): void {
+    if (!this.sgcF07Programas.length) {
+      const programa = this.programaDesdeFormSgcF07(null);
+      this.sgcF07Programas = [programa];
+      this.sgcF07ProgramaActivoId = programa.id;
+      return;
+    }
+    const idx = this.sgcF07Programas.findIndex((item) => item.id === this.sgcF07ProgramaActivoId);
+    const actualizado = this.programaDesdeFormSgcF07(idx >= 0 ? this.sgcF07Programas[idx] : null);
+    if (idx >= 0) {
+      this.sgcF07Programas[idx] = actualizado;
+    } else {
+      this.sgcF07Programas = [actualizado, ...this.sgcF07Programas];
+    }
+    this.sgcF07ProgramaActivoId = actualizado.id;
+  }
+
+  datosSgcF07ParaGuardar(): SgcF07FormData & { programas: SgcF07Programa[]; programaActivoId: string | null } {
+    this.sincronizarProgramaActivoSgcF07();
+    return {
+      ...this.sgcF07Form,
+      programas: this.sgcF07Programas,
+      programaActivoId: this.sgcF07ProgramaActivoId
+    };
+  }
+
+  get sgcF07ProgramaActivo(): SgcF07Programa | null {
+    return this.sgcF07Programas.find((item) => item.id === this.sgcF07ProgramaActivoId) || this.sgcF07Programas[0] || null;
+  }
+
+  get sgcF07ProgramasVista(): SgcF07Programa[] {
+    const consulta = this.sgcF07ArchivoBusqueda.trim().toLowerCase();
+    const lista = [...this.sgcF07Programas].sort((a, b) => String(b.anio || b.fechaElaboracion).localeCompare(String(a.anio || a.fechaElaboracion), 'es'));
+    if (!consulta) return lista;
+    return lista.filter((item) =>
+      [item.anio, item.empresa, item.titulo, item.fechaElaboracion]
+        .some((valor) => String(valor || '').toLowerCase().includes(consulta))
+    );
+  }
+
+  etiquetaProgramaSgcF07(programa: SgcF07Programa | null): string {
+    if (!programa) return 'Programa';
+    return programa.anio || String(programa.fechaElaboracion || '').slice(0, 4) || 'Programa';
+  }
+
+  nuevoProgramaSgcF07(): void {
+    this.sincronizarProgramaActivoSgcF07();
+    const programa = this.crearProgramaVacioSgcF07();
+    this.sgcF07Programas = [programa, ...this.sgcF07Programas];
+    this.sgcF07ProgramaActivoId = programa.id;
+    this.sgcF07IgnorarAutoSave = true;
+    this.sgcF07Form = this.formDesdeProgramaSgcF07(programa);
+    this.sgcF07AuditoriaSeleccionadaIndex = 0;
+    this.sgcF07Busqueda = '';
+    this.sgcF07IgnorarAutoSave = false;
+    this.aplicarDriveProgramaSgcF07(programa);
+    this.sgcF07Vista = 'editor';
+    this.onSgcF07Editado();
+  }
+
+  abrirProgramaSgcF07(programa: SgcF07Programa): void {
+    this.sincronizarProgramaActivoSgcF07();
+    this.sgcF07ProgramaActivoId = programa.id;
+    this.sgcF07IgnorarAutoSave = true;
+    this.sgcF07Form = this.formDesdeProgramaSgcF07(programa);
+    this.sgcF07AuditoriaSeleccionadaIndex = 0;
+    this.sgcF07Busqueda = '';
+    this.sgcF07IgnorarAutoSave = false;
+    this.aplicarDriveProgramaSgcF07(programa);
+    this.sgcF07Vista = 'editor';
+  }
+
+  volverArchiveroSgcF07(): void {
+    this.sincronizarProgramaActivoSgcF07();
+    this.sgcF07Vista = 'archivero';
+    if (this.mostrarSgcF07Editor) {
+      this.toggleSgcF07Editor();
+    }
+  }
+
+  eliminarProgramaSgcF07(programa: SgcF07Programa, event?: Event): void {
+    event?.stopPropagation();
+    if (this.sgcF07Programas.length <= 1) return;
+    const etiqueta = this.etiquetaProgramaSgcF07(programa);
+    if (!confirm(`¿Quitar el programa ${etiqueta} del archivero?`)) return;
+    this.sgcF07Programas = this.sgcF07Programas.filter((item) => item.id !== programa.id);
+    if (this.sgcF07ProgramaActivoId === programa.id) {
+      const siguiente = this.sgcF07Programas[0];
+      this.sgcF07ProgramaActivoId = siguiente.id;
+      this.sgcF07IgnorarAutoSave = true;
+      this.sgcF07Form = this.formDesdeProgramaSgcF07(siguiente);
+      this.aplicarDriveProgramaSgcF07(siguiente);
+      this.sgcF07IgnorarAutoSave = false;
+    }
+    this.onSgcF07Editado();
+  }
+
   private cargarSgcF07DesdeServidor(): void {
     this.sgcF07Cargando = true;
     this.sgcF07Listo = false;
@@ -7010,7 +7246,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.sgcF07DescargandoPdf = true;
       this.sgcF07Guardando = true;
       const editorAbierto = this.mostrarSgcF07Editor;
-      this.backendService.guardarSgcF07Formato(this.sgcF07Form, false)
+      this.backendService.guardarSgcF07Formato(this.datosSgcF07ParaGuardar(), false)
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: (res) => {
@@ -7194,7 +7430,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF07CambiosPendientes = true;
     this.sgcF07Guardando = true;
     const editorAbierto = this.mostrarSgcF07Editor;
-    this.backendService.guardarSgcF07Formato(this.sgcF07Form, false)
+    this.backendService.guardarSgcF07Formato(this.datosSgcF07ParaGuardar(), false)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
@@ -7231,7 +7467,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF07Guardando = true;
     const editorAbierto = this.mostrarSgcF07Editor;
     const editorActivo = false;
-    this.backendService.guardarSgcF07Formato(this.sgcF07Form, false)
+    this.backendService.guardarSgcF07Formato(this.datosSgcF07ParaGuardar(), false)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
@@ -7285,16 +7521,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.sgcF07IgnorarAutoSave = true;
       this.sgcF07Listo = false;
       const d = res.datos;
-      this.sgcF07Form = {
-        empresa: d.empresa ?? this.sgcF07Form.empresa,
-        fechaElaboracion: d.fechaElaboracion ?? this.sgcF07Form.fechaElaboracion,
-        auditorias: this.normalizarAuditoriasSgcF07(d.auditorias),
-        footer: this.normalizarFooterSgcF07(d.footer),
-        pdfFirmado: d.pdfFirmado ?? res.pdfFirmado ?? this.sgcF07Form.pdfFirmado,
-        pdfsHistorial: Array.isArray(d.pdfsHistorial)
-          ? d.pdfsHistorial
-          : (Array.isArray(res.historialPdfs) ? res.historialPdfs : (this.sgcF07Form.pdfsHistorial || []))
-      };
+      const programas = this.normalizarProgramasSgcF07(d);
+      this.sgcF07Programas = programas;
+      const activoId = String(d.programaActivoId || '');
+      this.sgcF07ProgramaActivoId = programas.some((item) => item.id === activoId)
+        ? activoId
+        : programas[0].id;
+      const activo = programas.find((item) => item.id === this.sgcF07ProgramaActivoId) || programas[0];
+      this.sgcF07Form = this.formDesdeProgramaSgcF07(activo);
       this.asegurarAuditoriaActivaSgcF07();
     } else if (!editorAbierto && !conservarEdicion) {
       this.sgcF07IgnorarAutoSave = true;
@@ -29472,18 +29706,137 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return 'Archivero de cotizaciones. Crea un registro desde la plantilla Rev 2, asigna folio SC-YY-NNN y sincroniza el Word en Drive. Al subir el PDF firmado podrás marcar la aceptación con folio de proyecto.';
   }
 
+  estadoVisibleAthF09(cot: AthF09Cotizacion): 'borrador' | 'pendiente' | 'aceptada' {
+    if (cot.aceptada) return 'aceptada';
+    if (cot.borrador && !cot.driveFileId) return 'borrador';
+    return 'pendiente';
+  }
+
+  etiquetaEstadoAthF09(cot: AthF09Cotizacion): string {
+    const estado = this.estadoVisibleAthF09(cot);
+    if (estado === 'aceptada') return 'Aceptada';
+    if (estado === 'borrador') return 'Borrador';
+    return 'Pendiente';
+  }
+
+  get athF09FiltrosAplicados(): number {
+    let total = 0;
+    if (this.athF09FiltroEstatus !== 'todos') total += 1;
+    if (this.athF09FiltroMes) total += 1;
+    if (this.athF09FiltroAnio) total += 1;
+    if (this.athF09FiltroPdf !== 'todos') total += 1;
+    if (this.athF09FiltroVigencia !== 'todas') total += 1;
+    return total;
+  }
+
+  get athF09HayFiltroActivo(): boolean {
+    return !!this.athF09Busqueda.trim() || this.athF09FiltrosAplicados > 0;
+  }
+
+  toggleFiltroAthF09(event: Event): void {
+    event.stopPropagation();
+    const abrir = !this.athF09FiltroAbierto;
+    if (abrir) {
+      const boton = event.currentTarget as HTMLElement;
+      const ancla = boton.closest('.sgc-f-04-archivero') as HTMLElement | null;
+      if (ancla) {
+        const botonRect = boton.getBoundingClientRect();
+        const anclaRect = ancla.getBoundingClientRect();
+        const ancho = 292;
+        const left = Math.max(8, botonRect.right - anclaRect.left - ancho);
+        this.athF09FiltroPanelTop = `${botonRect.bottom - anclaRect.top + 8}px`;
+        this.athF09FiltroPanelLeft = `${left}px`;
+      }
+    }
+    this.athF09FiltroAbierto = abrir;
+  }
+
+  get athF09AniosFiltro(): string[] {
+    const anios = new Set<string>([String(new Date().getFullYear())]);
+    for (const cot of this.athF09Form.cotizaciones || []) {
+      const iso = this.fechaReferenciaAthF09(cot);
+      if (iso) anios.add(iso.slice(0, 4));
+    }
+    return [...anios].sort((a, b) => b.localeCompare(a));
+  }
+
+  limpiarListasFiltroAthF09(): void {
+    this.athF09FiltroEstatus = 'todos';
+    this.athF09FiltroMes = '';
+    this.athF09FiltroAnio = '';
+    this.athF09FiltroPdf = 'todos';
+    this.athF09FiltroVigencia = 'todas';
+  }
+
+  limpiarFiltroAthF09(): void {
+    this.athF09Busqueda = '';
+    this.limpiarListasFiltroAthF09();
+    this.athF09FiltroAbierto = false;
+  }
+
+  fechaReferenciaAthF09(cot: AthF09Cotizacion): string {
+    const cruda = String(cot?.fechaCreacion || cot?.fechaCarta || '').trim();
+    const coincidencia = cruda.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return coincidencia ? `${coincidencia[1]}-${coincidencia[2]}-${coincidencia[3]}` : '';
+  }
+
+  cotizacionVencidaAthF09(cot: AthF09Cotizacion): boolean {
+    if (cot?.aceptada) return false;
+    const iso = this.fechaReferenciaAthF09(cot);
+    if (!iso) return false;
+    const [anio, mes, dia] = iso.split('-').map(Number);
+    const fecha = new Date(anio, (mes || 1) - 1, dia || 1);
+    const limite = new Date();
+    limite.setHours(0, 0, 0, 0);
+    limite.setDate(limite.getDate() - this.athF09DiasVigencia);
+    return fecha.getTime() <= limite.getTime();
+  }
+
+  private normalizarTextoFiltroAthF09(valor: string): string {
+    return String(valor || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+  }
+
+  private coincideBusquedaAthF09(cot: AthF09Cotizacion, consulta: string): boolean {
+    if (!consulta) return true;
+    const empresa = String(cot.empresa || '').trim();
+    const campos = [
+      cot.folio,
+      cot.folioBase,
+      empresa,
+      empresa ? '' : 'sin empresa'
+    ];
+    return campos.some((valor) => this.normalizarTextoFiltroAthF09(valor).includes(consulta));
+  }
+
   get athF09CotizacionesVista(): AthF09Cotizacion[] {
-    const q = this.athF09Busqueda.trim().toLowerCase();
+    const consulta = this.normalizarTextoFiltroAthF09(this.athF09Busqueda);
+    const estatus = this.athF09FiltroEstatus;
+    const mes = this.athF09FiltroMes;
+    const anio = this.athF09FiltroAnio;
+    const pdf = this.athF09FiltroPdf;
+    const vigencia = this.athF09FiltroVigencia;
     const lista = [...(this.athF09Form.cotizaciones || [])].sort((a, b) => {
       const fa = String(a.folio || a.folioBase || '');
       const fb = String(b.folio || b.folioBase || '');
       return fb.localeCompare(fa, 'es');
     });
-    if (!q) return lista;
-    return lista.filter((c) =>
-      [c.folio, c.folioBase, c.empresa, c.destinatario, c.nombreArchivo]
-        .some((v) => String(v || '').toLowerCase().includes(q))
-    );
+    return lista.filter((cot) => {
+      if (estatus !== 'todos' && this.estadoVisibleAthF09(cot) !== estatus) return false;
+      const fecha = this.fechaReferenciaAthF09(cot);
+      if (mes && fecha.slice(5, 7) !== mes) return false;
+      if (anio && fecha.slice(0, 4) !== anio) return false;
+      const tienePdf = !!cot.pdfFirmado?.driveFileId;
+      if (pdf === 'con' && !tienePdf) return false;
+      if (pdf === 'sin' && tienePdf) return false;
+      const vencida = this.cotizacionVencidaAthF09(cot);
+      if (vigencia === 'vencidas' && !vencida) return false;
+      if (vigencia === 'vigentes' && vencida) return false;
+      return this.coincideBusquedaAthF09(cot, consulta);
+    });
   }
 
   nuevoCotizacionAthF09(): void {

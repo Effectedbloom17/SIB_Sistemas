@@ -1762,12 +1762,77 @@
                           <label class="sgc-f-04-archivero__search">
                             <i class="fas fa-search" aria-hidden="true"></i>
                             <input class="dg-f05-field" type="search" [(ngModel)]="athF09Busqueda" name="athF09_busqueda"
-                              placeholder="Buscar folio o empresa…" autocomplete="off">
+                              placeholder="Buscar folio o empresa…" autocomplete="off"
+                              (input)="$event.stopPropagation()" (change)="$event.stopPropagation()">
                           </label>
+                          <div class="ath-f-09-filtro">
+                            <button type="button" class="ath-f-09-filtro__btn"
+                              [class.is-active]="athF09FiltroAbierto || athF09FiltrosAplicados > 0"
+                              [attr.aria-expanded]="athF09FiltroAbierto"
+                              (click)="toggleFiltroAthF09($event)">
+                              <i class="fas fa-filter" aria-hidden="true"></i>
+                              Filtrar
+                              <span class="ath-f-09-filtro__count" *ngIf="athF09FiltrosAplicados">{{ athF09FiltrosAplicados }}</span>
+                            </button>
+                          </div>
                           <button type="button" class="sgc-f-04-archivero__btn-nuevo" (click)="nuevoCotizacionAthF09()">
                             <i class="fas fa-plus" aria-hidden="true"></i> Nueva cotización
                           </button>
                         </div>
+                      </div>
+
+                      <button type="button" class="ath-f-09-filtro__fondo" *ngIf="athF09FiltroAbierto"
+                        aria-label="Cerrar filtro" (click)="athF09FiltroAbierto = false"></button>
+                      <div class="ath-f-09-filtro__panel" *ngIf="athF09FiltroAbierto"
+                        [style.top]="athF09FiltroPanelTop"
+                        [style.left]="athF09FiltroPanelLeft"
+                        (click)="$event.stopPropagation()"
+                        (change)="$event.stopPropagation()"
+                        (input)="$event.stopPropagation()">
+                        <label class="ath-f-09-filtros__campo">
+                          <span>Estatus</span>
+                          <select [(ngModel)]="athF09FiltroEstatus" name="athF09_filtro_estatus">
+                            <option value="todos">Todos</option>
+                            <option value="borrador">Borrador</option>
+                            <option value="pendiente">Pendiente</option>
+                            <option value="aceptada">Aceptada</option>
+                          </select>
+                        </label>
+                        <div class="ath-f-09-filtros__fila">
+                          <label class="ath-f-09-filtros__campo">
+                            <span>Mes</span>
+                            <select [(ngModel)]="athF09FiltroMes" name="athF09_filtro_mes">
+                              <option value="">Todos</option>
+                              <option *ngFor="let mes of athF09MesesFiltro" [value]="mes.valor">{{ mes.etiqueta }}</option>
+                            </select>
+                          </label>
+                          <label class="ath-f-09-filtros__campo">
+                            <span>Año</span>
+                            <select [(ngModel)]="athF09FiltroAnio" name="athF09_filtro_anio">
+                              <option value="">Todos</option>
+                              <option *ngFor="let anio of athF09AniosFiltro" [value]="anio">{{ anio }}</option>
+                            </select>
+                          </label>
+                        </div>
+                        <label class="ath-f-09-filtros__campo">
+                          <span>PDF firmado</span>
+                          <select [(ngModel)]="athF09FiltroPdf" name="athF09_filtro_pdf">
+                            <option value="todos">Todos</option>
+                            <option value="con">Con PDF firmado</option>
+                            <option value="sin">Sin PDF firmado</option>
+                          </select>
+                        </label>
+                        <label class="ath-f-09-filtros__campo">
+                          <span>Vencidas</span>
+                          <select [(ngModel)]="athF09FiltroVigencia" name="athF09_filtro_vigencia">
+                            <option value="todas">Todas</option>
+                            <option value="vencidas">Vencidas</option>
+                            <option value="vigentes">Vigentes</option>
+                          </select>
+                        </label>
+                        <button type="button" class="ath-f-09-filtros__limpiar" (click)="limpiarListasFiltroAthF09()">
+                          Limpiar filtro
+                        </button>
                       </div>
 
                       <div class="sgc-f-04-archivero__stats">
@@ -1779,7 +1844,7 @@
                           Siguiente folio sugerido: <strong>{{ athF09SiguienteFolio }}</strong>
                         </span>
                         <span class="sgc-f-04-archivero__stat sgc-f-04-archivero__stat--muted"
-                          *ngIf="athF09Busqueda.trim() && athF09CotizacionesVista.length !== athF09Form.cotizaciones.length">
+                          *ngIf="athF09HayFiltroActivo && athF09CotizacionesVista.length !== athF09Form.cotizaciones.length">
                           · {{ athF09CotizacionesVista.length }} en vista
                         </span>
                       </div>
@@ -1802,7 +1867,7 @@
                                 </span>
                                 <span class="sgc-f-04-book__estado"
                                   [class.sgc-f-04-book__estado--cerrado]="c.aceptada">
-                                  {{ c.aceptada ? 'Aceptada' : (c.borrador && !c.driveFileId ? 'Borrador' : 'Pendiente') }}
+                                  {{ etiquetaEstadoAthF09(c) }}
                                 </span>
                               </span>
                               <span class="sgc-f-04-book__origen">{{ c.empresa?.trim() || 'Sin empresa' }}</span>
@@ -1815,6 +1880,7 @@
                                   {{ formatearFechaCortaSgcF04(c.fechaCreacion) }}
                                 </span>
                                 <span class="sgc-f-04-book__fuente" *ngIf="c.pdfFirmado?.driveFileId">PDF firmado</span>
+                                <span class="ath-f-09-book__vencida" *ngIf="cotizacionVencidaAthF09(c)">Vencida</span>
                               </span>
                             </span>
                           </button>
@@ -1826,13 +1892,25 @@
                         </li>
                       </ul>
                       <ng-template #athF09ArchiveroVacio>
-                        <div class="sgc-f-04-archivero__empty">
+                        <div class="sgc-f-04-archivero__empty" *ngIf="athF09Form.cotizaciones.length; else athF09SinRegistros">
                           <div class="sgc-empty-state">
-                            <div class="sgc-empty-state__icon"><i class="fas fa-folder-open" aria-hidden="true"></i></div>
-                            <h4 class="sgc-empty-state__title">Sin cotizaciones registradas</h4>
-                            <p class="sgc-empty-state__text mb-0">Crea la primera cotización para generar el Word en Drive con folio {{ athF09SiguienteFolio }}.</p>
+                            <div class="sgc-empty-state__icon"><i class="fas fa-search" aria-hidden="true"></i></div>
+                            <h4 class="sgc-empty-state__title">Ninguna cotización coincide</h4>
+                            <p class="sgc-empty-state__text">Prueba con otro folio, empresa o filtro.</p>
+                            <button type="button" class="ath-f-09-filtros__limpiar" (click)="limpiarFiltroAthF09()">
+                              Limpiar filtro
+                            </button>
                           </div>
                         </div>
+                        <ng-template #athF09SinRegistros>
+                          <div class="sgc-f-04-archivero__empty">
+                            <div class="sgc-empty-state">
+                              <div class="sgc-empty-state__icon"><i class="fas fa-folder-open" aria-hidden="true"></i></div>
+                              <h4 class="sgc-empty-state__title">Sin cotizaciones registradas</h4>
+                              <p class="sgc-empty-state__text mb-0">Crea la primera cotización para generar el Word en Drive con folio {{ athF09SiguienteFolio }}.</p>
+                            </div>
+                          </div>
+                        </ng-template>
                       </ng-template>
                     </div>
                   </article>
@@ -5290,7 +5368,93 @@
                     <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
                     Cargando formato…
                   </div>
-                  <article class="dg-f05-doc">
+                  <article class="dg-f05-doc sgc-f-04-doc" *ngIf="sgcF07Vista === 'archivero'">
+                    <header class="dg-f05-doc__header">
+                      <div>
+                        <span class="dg-f05-doc__code">SGC-F-07</span>
+                        <h3 class="dg-f05-doc__title">Programa de auditoría</h3>
+                      </div>
+                    </header>
+                    <div class="sgc-f-04-archivero">
+                      <div class="sgc-f-04-archivero__intro">
+                        <div class="sgc-f-04-archivero__intro-main">
+                          <div class="sgc-f-04-archivero__intro-icon">
+                            <i class="fas fa-clipboard-list" aria-hidden="true"></i>
+                          </div>
+                          <div class="sgc-f-04-archivero__intro-text">
+                            <h4 class="sgc-f-04-archivero__title">Archivero de programas</h4>
+                            <p class="sgc-f-04-archivero__hint">
+                              Cada ficha es un programa de auditoría. Ábrelo para ver sus auditorías y el calendario.
+                            </p>
+                          </div>
+                        </div>
+                        <div class="sgc-f-04-archivero__toolbar">
+                          <label class="sgc-f-04-archivero__search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input class="dg-f05-field" type="search" [(ngModel)]="sgcF07ArchivoBusqueda" name="sgcF07_archivo_busqueda"
+                              placeholder="Buscar año o empresa…" autocomplete="off"
+                              (input)="$event.stopPropagation()" (change)="$event.stopPropagation()">
+                          </label>
+                          <button type="button" class="sgc-f-04-archivero__btn-nuevo" (click)="nuevoProgramaSgcF07()">
+                            <i class="fas fa-plus" aria-hidden="true"></i> Nuevo programa
+                          </button>
+                        </div>
+                      </div>
+                      <div class="sgc-f-04-archivero__stats">
+                        <span class="sgc-f-04-archivero__stat">
+                          {{ sgcF07Programas.length }}
+                          {{ sgcF07Programas.length === 1 ? 'programa' : 'programas' }}
+                        </span>
+                      </div>
+                      <ul class="sgc-f-04-archivero__grid" *ngIf="sgcF07ProgramasVista.length; else sgcF07ArchiveroVacio">
+                        <li class="sgc-f-04-book" *ngFor="let programa of sgcF07ProgramasVista">
+                          <button type="button" class="sgc-f-04-book__tap" (click)="abrirProgramaSgcF07(programa)">
+                            <span class="sgc-f-04-book__binding" aria-hidden="true">
+                              <span class="sgc-f-04-book__ring" *ngFor="let _ of [0,1,2,3,4,5]"></span>
+                            </span>
+                            <span class="sgc-f-04-book__page">
+                              <span class="sgc-f-04-book__corner" aria-hidden="true"></span>
+                              <span class="sgc-f-04-book__head">
+                                <span class="sgc-f-04-book__icon" [class.sgc-f-04-book__icon--pdf]="!!programa.pdfFirmado?.driveFileId">
+                                  <i class="fas" [ngClass]="programa.pdfFirmado?.driveFileId ? 'fa-file-pdf' : 'fa-file-alt'" aria-hidden="true"></i>
+                                </span>
+                              </span>
+                              <span class="sgc-f-04-book__origen">{{ programa.empresa || 'Sin empresa' }}</span>
+                              <span class="sgc-f-04-book__folio">{{ etiquetaProgramaSgcF07(programa) }}</span>
+                              <span class="sgc-f-04-book__lines" aria-hidden="true"><span></span><span></span><span></span></span>
+                              <span class="sgc-f-04-book__foot">
+                                <span class="sgc-f-04-book__fecha">{{ programa.auditorias.length }} auditorías</span>
+                                <span class="sgc-f-04-book__fuente" *ngIf="programa.pdfFirmado?.driveFileId">PDF firmado</span>
+                              </span>
+                            </span>
+                          </button>
+                          <button type="button" class="sgc-f-04-book__del" *ngIf="sgcF07Programas.length > 1"
+                            title="Quitar programa" aria-label="Quitar programa"
+                            (click)="eliminarProgramaSgcF07(programa, $event)">
+                            <i class="fas fa-times" aria-hidden="true"></i>
+                          </button>
+                        </li>
+                      </ul>
+                      <ng-template #sgcF07ArchiveroVacio>
+                        <div class="sgc-f-04-archivero__empty">
+                          <div class="sgc-empty-state">
+                            <div class="sgc-empty-state__icon"><i class="fas fa-search" aria-hidden="true"></i></div>
+                            <h4 class="sgc-empty-state__title">Ningún programa coincide</h4>
+                            <p class="sgc-empty-state__text mb-0">Prueba con otro año o empresa.</p>
+                          </div>
+                        </div>
+                      </ng-template>
+                    </div>
+                  </article>
+
+                  <article class="dg-f05-doc" *ngIf="sgcF07Vista === 'editor'">
+                    <div class="sgc-f-04-editor-bar">
+                      <button type="button" class="sgc-f-04-editor-bar__back" (click)="volverArchiveroSgcF07()">
+                        <i class="fas fa-arrow-left mr-1" aria-hidden="true"></i>
+                        Volver al archivero
+                      </button>
+                      <span class="sgc-f-04-editor-bar__folio">{{ etiquetaProgramaSgcF07(sgcF07ProgramaActivo) }}</span>
+                    </div>
                     <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-07', titulo: 'Programa de auditoría', icono: 'fa-clipboard-list' }"></ng-container>
 
                     <div class="dg-f05-doc__meta">
