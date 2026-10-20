@@ -5168,6 +5168,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
+  /**
+   * Vista previa PDF vía proxy del backend (cuenta risktechbiznaga).
+   * Evita el muro de login de drive.google.com/file/.../preview en iframes.
+   */
+  private urlPdfProxyDrive(driveFileId: string | null | undefined): string | null {
+    const id = String(driveFileId || '').trim();
+    if (!id) {
+      return null;
+    }
+    return this.backendService.obtenerUrlDrivePreview(id);
+  }
+
   get tituloEditorIntegrado(): string {
     return this.puedeGestionarPlantillasSgc
       ? 'Editor integrado del formato'
@@ -8930,8 +8942,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           driveFileId: String(p?.driveFileId || '').trim(),
           nombreArchivo: String(p?.nombreArchivo || 'SGC-F-10 Informe de auditoría.pdf').trim(),
           webViewLink: p?.webViewLink || null,
-          previewUrl: p?.previewUrl
-            || (p?.driveFileId ? `https://drive.google.com/file/d/${p.driveFileId}/preview` : null),
+          previewUrl: p?.driveFileId ? this.urlPdfProxyDrive(p.driveFileId) : null,
           fechaSubida: String(p?.fechaSubida || '').trim()
         })).filter((p: DgF02PdfFirmado) => !!p.driveFileId)
       : this.sgcF10HistorialPdfs;
@@ -9037,7 +9048,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarSgcF10PdfViewer = true;
     this.sgcF10PdfCargando = true;
     this.sgcF10PdfViewerTitulo = objetivo?.nombreArchivo || 'SGC-F-10 Informe de auditoría.pdf';
-    const url = objetivo?.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+    const url = this.urlPdfProxyDrive(id);
+    if (!url) {
+      return;
+    }
     this.sgcF10PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
@@ -10651,7 +10665,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       driveFileId: id,
       nombreArchivo: String(raw?.nombreArchivo || 'SGC-F-27 firmado.pdf'),
       webViewLink: raw?.webViewLink || null,
-      previewUrl: raw?.previewUrl || `https://drive.google.com/file/d/${id}/preview`,
+      previewUrl: this.urlPdfProxyDrive(id),
       fechaSubida: raw?.fechaSubida || '',
       secuencia: Number.isFinite(secuencia) && secuencia > 0 ? secuencia : null
     };
@@ -11044,7 +11058,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.mostrarSgcF27mPdfViewer && objetivo) {
       this.sgcF27mPdfViewerActual = objetivo;
       this.sgcF27mPdfCargando = true;
-      const url = objetivo.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+      const url = this.urlPdfProxyDrive(id);
+      if (!url) {
+        return;
+      }
       this.sgcF27mPdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
@@ -11781,7 +11798,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (abrir) {
       this.sgcF19PdfViewerActual = objetivo;
       this.sgcF19PdfCargando = true;
-      const url = objetivo.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+      const url = this.urlPdfProxyDrive(id);
+      if (!url) {
+        return;
+      }
       this.sgcF19PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
@@ -11986,7 +12006,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'SGC-F-16 Minuta firmada.pdf').trim()
         || 'SGC-F-16 Minuta firmada.pdf',
       webViewLink: raw.webViewLink || raw.web_view_link || null,
-      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      previewUrl: this.urlPdfProxyDrive(driveFileId),
       fechaSubida: raw.fechaSubida || raw.fecha_subida || null
     };
   }
@@ -12833,8 +12853,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarSgcF16PdfViewer = abrir;
     if (abrir) {
       this.sgcF16PdfCargando = true;
-      const url = this.sgcF16MinutaActiva?.pdfFirmado?.previewUrl
-        || `https://drive.google.com/file/d/${id}/preview`;
+      const url = this.urlPdfProxyDrive(id);
+      if (!url) {
+        return;
+      }
       this.sgcF16PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
@@ -13059,7 +13081,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'SGC-F-24 Control de cambios firmado.pdf').trim()
         || 'SGC-F-24 Control de cambios firmado.pdf',
       webViewLink: raw.webViewLink || raw.web_view_link || null,
-      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      previewUrl: this.urlPdfProxyDrive(driveFileId),
       fechaSubida: raw.fechaSubida || raw.fecha_subida || null
     };
   }
@@ -13387,8 +13409,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarSgcF24PdfViewer = abrir;
     if (abrir) {
       this.sgcF24PdfCargando = true;
-      const url = this.sgcF24CambioActivo?.pdfFirmado?.previewUrl
-        || `https://drive.google.com/file/d/${id}/preview`;
+      const url = this.urlPdfProxyDrive(id);
+      if (!url) {
+        return;
+      }
       this.sgcF24PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
@@ -13613,7 +13637,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       driveFileId,
       nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'SGC-F-20 Ficha de conocimientos.pdf').trim(),
       webViewLink: String(raw.webViewLink || raw.web_view_link || '').trim(),
-      previewUrl: String(raw.previewUrl || '').trim() || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      previewUrl: this.urlPdfProxyDrive(driveFileId),
       fechaSubida: raw.fechaSubida || null
     };
   }
@@ -13967,8 +13991,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarSgcF20PdfViewer = abrir;
     if (abrir) {
       this.sgcF20PdfCargando = true;
-      const url = this.sgcF20FichaActiva?.pdfFirmado?.previewUrl
-        || `https://drive.google.com/file/d/${id}/preview`;
+      const url = this.urlPdfProxyDrive(id);
+      if (!url) {
+        return;
+      }
       this.sgcF20PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
@@ -14159,7 +14185,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       driveFileId,
       nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'ATH-F-06 DNC firmado.pdf').trim(),
       webViewLink: String(raw.webViewLink || '').trim(),
-      previewUrl: String(raw.previewUrl || '').trim() || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      previewUrl: this.urlPdfProxyDrive(driveFileId),
       fechaSubida: raw.fechaSubida || null
     };
   }
@@ -14463,8 +14489,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarAthF06PdfViewer = abrir;
     if (abrir) {
       this.athF06PdfCargando = true;
-      const url = this.athF06RegistroActivo?.pdfFirmado?.previewUrl
-        || `https://drive.google.com/file/d/${id}/preview`;
+      const url = this.urlPdfProxyDrive(id);
+      if (!url) {
+        return;
+      }
       this.athF06PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
@@ -14650,7 +14678,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       driveFileId,
       nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || '1ATH-F-03 Entrega firmada.pdf').trim(),
       webViewLink: raw.webViewLink || raw.web_view_link || null,
-      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      previewUrl: this.urlPdfProxyDrive(driveFileId),
       fechaSubida: raw.fechaSubida || raw.fecha_subida || null
     };
   }
@@ -15439,7 +15467,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarAthF03PdfViewer = true;
     this.athF03PdfCargando = true;
     this.athF03PdfVistaNombre = objetivo?.nombreArchivo || '1ATH-F-03 entrega firmada.pdf';
-    const url = objetivo?.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+    const url = this.urlPdfProxyDrive(id);
+    if (!url) {
+      return;
+    }
     this.athF03PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
@@ -16249,7 +16280,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       driveFileId,
       nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'ATH-F-13 Solicitud firmada.pdf').trim(),
       webViewLink: raw.webViewLink || raw.web_view_link || null,
-      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      previewUrl: this.urlPdfProxyDrive(driveFileId),
       fechaSubida: raw.fechaSubida || raw.fecha_subida || null
     };
   }
@@ -17180,7 +17211,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarAthF13PdfViewer = true;
     this.athF13PdfCargando = true;
     this.athF13PdfVistaNombre = objetivo?.nombreArchivo || 'ATH-F-13 solicitud firmada.pdf';
-    const url = objetivo?.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+    const url = this.urlPdfProxyDrive(id);
+    if (!url) {
+      return;
+    }
     this.athF13PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
@@ -17407,7 +17441,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'SGC-F-27 Orden de compra firmada.pdf').trim()
         || 'SGC-F-27 Orden de compra firmada.pdf',
       webViewLink: raw.webViewLink || raw.web_view_link || null,
-      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      previewUrl: this.urlPdfProxyDrive(driveFileId),
       fechaSubida: raw.fechaSubida || raw.fecha_subida || null
     };
   }
@@ -17773,8 +17807,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarSgcF27PdfViewer = abrir;
     if (abrir) {
       this.sgcF27PdfCargando = true;
-      const url = this.sgcF27OrdenActiva?.pdfFirmado?.previewUrl
-        || `https://drive.google.com/file/d/${id}/preview`;
+      const url = this.urlPdfProxyDrive(id);
+      if (!url) {
+        return;
+      }
       this.sgcF27PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
@@ -25460,7 +25496,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarDgF02PdfViewer = true;
     this.dgF02PdfCargando = true;
     this.dgF02PdfViewerTitulo = objetivo?.nombreArchivo || 'DG-F-02 Alcance.pdf';
-    const url = `https://drive.google.com/file/d/${id}/preview`;
+    const url = this.urlPdfProxyDrive(id);
+    if (!url) {
+      return;
+    }
     this.dgF02PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
@@ -27945,7 +27984,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (p.previewMode !== 'embed' || !p.driveFileId) {
       return null;
     }
-    const url = `https://drive.google.com/file/d/${p.driveFileId}/preview`;
+    const url = this.urlPdfProxyDrive(p.driveFileId);
+    if (!url) {
+      return null;
+    }
     return this.sanitizer.bypassSecurityTrustResourceUrl(url);
   }
 
@@ -28162,7 +28204,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       driveFileId,
       nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'ATH-F-02 firmado.pdf').trim(),
       webViewLink: raw.webViewLink || raw.web_view_link || null,
-      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      previewUrl: this.urlPdfProxyDrive(driveFileId),
       fechaSubida: raw.fechaSubida || raw.fecha_subida || null
     };
   }
@@ -29298,7 +29340,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       driveFileId,
       nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'Cotización firmada.pdf').trim(),
       webViewLink: raw.webViewLink || raw.web_view_link || null,
-      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      previewUrl: this.urlPdfProxyDrive(driveFileId),
       fechaSubida: raw.fechaSubida || raw.fecha_subida || null
     };
   }
@@ -30264,7 +30306,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       driveFileId,
       nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'Programa firmado.pdf').trim(),
       webViewLink: raw.webViewLink || raw.web_view_link || null,
-      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      previewUrl: this.urlPdfProxyDrive(driveFileId),
       fechaSubida: raw.fechaSubida || raw.fecha_subida || null,
       nota: String(raw.nota || '').trim() || undefined
     };
@@ -31362,7 +31404,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       driveFileId,
       nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'Evaluación firmada.pdf').trim(),
       webViewLink: raw.webViewLink || raw.web_view_link || null,
-      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      previewUrl: this.urlPdfProxyDrive(driveFileId),
       fechaSubida: raw.fechaSubida || raw.fecha_subida || null
     };
   }
@@ -32670,7 +32712,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (abrir) {
       this.sgcF07PdfViewerActual = objetivo;
       this.sgcF07PdfCargando = true;
-      const url = objetivo.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+      const url = this.urlPdfProxyDrive(id);
+      if (!url) {
+        return;
+      }
       this.sgcF07PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
@@ -32724,7 +32769,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (abrir) {
       this.sgcF08PdfViewerActual = objetivo;
       this.sgcF08PdfCargando = true;
-      const url = objetivo.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+      const url = this.urlPdfProxyDrive(id);
+      if (!url) {
+        return;
+      }
       this.sgcF08PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
@@ -32821,7 +32869,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarSgcPo01PdfViewer = true;
     this.sgcPo01PdfCargando = true;
     this.sgcPo01PdfViewerTitulo = objetivo?.nombreArchivo || 'SGC-PO-01 Politica de calidad_Biznaga.pdf';
-    const url = `https://drive.google.com/file/d/${id}/preview`;
+    const url = this.urlPdfProxyDrive(id);
+    if (!url) {
+      return;
+    }
     this.sgcPo01PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
@@ -32936,7 +32987,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarDgF08PdfViewer = true;
     this.dgF08PdfCargando = true;
     this.dgF08PdfViewerTitulo = objetivo?.nombreArchivo || 'DG-F-08 Filosofía Biznaga Risk and Tech.pdf';
-    const url = `https://drive.google.com/file/d/${id}/preview`;
+    const url = this.urlPdfProxyDrive(id);
+    if (!url) {
+      return;
+    }
     this.dgF08PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
@@ -32976,7 +33030,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarAfF02PdfViewer = true;
     this.afF02PdfCargando = true;
     this.afF02PdfViewerTitulo = objetivo?.nombreArchivo || 'AF-F-02 Contrato.pdf';
-    const url = `https://drive.google.com/file/d/${id}/preview`;
+    const url = this.urlPdfProxyDrive(id);
+    if (!url) {
+      return;
+    }
     this.afF02PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
@@ -32997,7 +33054,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
     if (abrir) {
       this.sgcF23PdfCargando = true;
-      const url = `https://drive.google.com/file/d/${id}/preview`;
+      const url = this.urlPdfProxyDrive(id);
+    if (!url) {
+      return;
+    }
       this.sgcF23PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
@@ -34442,7 +34502,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarSgcF12PdfViewer = true;
     this.sgcF12PdfCargando = true;
     this.sgcF12PdfViewerTitulo = objetivo?.nombreArchivo || 'SGC-F-12 notificación firmada.pdf';
-    const url = objetivo?.previewUrl || `https://drive.google.com/file/d/${id}/preview`;
+    const url = this.urlPdfProxyDrive(id);
+    if (!url) {
+      return;
+    }
     this.sgcF12PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
@@ -35537,7 +35600,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarDgF03PdfViewer = true;
     this.dgF03PdfCargando = true;
     this.dgF03PdfViewerTitulo = objetivo?.nombreArchivo || 'DG-F-03 Objetivos de calidad.pdf';
-    const url = `https://drive.google.com/file/d/${id}/preview`;
+    const url = this.urlPdfProxyDrive(id);
+    if (!url) {
+      return;
+    }
     this.dgF03PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
@@ -38233,7 +38299,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       driveFileId,
       nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'SGC-F-04 Reporte firmado.pdf').trim(),
       webViewLink: raw.webViewLink || raw.web_view_link || null,
-      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      previewUrl: this.urlPdfProxyDrive(driveFileId),
       fechaSubida: raw.fechaSubida || raw.fecha_subida || null
     };
   }
@@ -38687,8 +38753,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarSgcF04PdfViewer = abrir;
     if (abrir) {
       this.sgcF04PdfCargando = true;
-      const url = this.sgcF04ReporteActivo?.pdfFirmado?.previewUrl
-        || `https://drive.google.com/file/d/${id}/preview`;
+      const url = this.urlPdfProxyDrive(id);
+      if (!url) {
+        return;
+      }
       this.sgcF04PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
@@ -39251,7 +39319,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       driveFileId,
       nombreArchivo: String(raw.nombreArchivo || raw.nombre_archivo || 'SGC-F-22 Reporte firmado.pdf').trim(),
       webViewLink: raw.webViewLink || raw.web_view_link || undefined,
-      previewUrl: raw.previewUrl || `https://drive.google.com/file/d/${driveFileId}/preview`,
+      previewUrl: this.urlPdfProxyDrive(driveFileId),
       fechaSubida: raw.fechaSubida || raw.fecha_subida || null
     };
   }
@@ -39589,8 +39657,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarSgcF22PdfViewer = abrir;
     if (abrir) {
       this.sgcF22PdfCargando = true;
-      const url = this.sgcF22ReporteActivo?.pdfFirmado?.previewUrl
-        || `https://drive.google.com/file/d/${id}/preview`;
+      const url = this.urlPdfProxyDrive(id);
+      if (!url) {
+        return;
+      }
       this.sgcF22PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';

@@ -4972,6 +4972,42 @@ async function esDriveIdConocido(driveId) {
                 // silenced (la tabla se crea al iniciar el módulo ambiental)
             }
         }
+
+        // Formatos SGC: PDFs firmados / sheets viven en cabecera o campos JSON
+        if (!conocido) {
+            try {
+                const likeId = `%${driveId}%`;
+                const [rSgc] = await poolBiznagaSgc.query(
+                    `SELECT 1 FROM (
+                        SELECT 1 AS ok FROM sgc_formato_cabecera WHERE drive_file_id = ?
+                        UNION ALL
+                        SELECT 1 FROM sgc_formato_campos
+                         WHERE valor_texto = ?
+                            OR valor_json LIKE ?
+                     ) t LIMIT 1`,
+                    [driveId, driveId, likeId]
+                );
+                if (rSgc && rSgc.length > 0) conocido = true;
+            } catch (_e) {
+                // silenced
+            }
+        }
+        if (!conocido) {
+            for (const tabla of ['sgc_f11_evidencia', 'sgc_f14_evidencia', 'sgc_f29_evidencia']) {
+                try {
+                    const [rEv] = await poolBiznagaSgc.query(
+                        `SELECT 1 FROM ${tabla} WHERE drive_file_id = ? LIMIT 1`,
+                        [driveId]
+                    );
+                    if (rEv && rEv.length > 0) {
+                        conocido = true;
+                        break;
+                    }
+                } catch (_e) {
+                    // silenced
+                }
+            }
+        }
     }
 
     // Evidencias de Mantenimiento (carpeta Drive, sin fila en BD)
@@ -4982,6 +5018,23 @@ async function esDriveIdConocido(driveId) {
             conocido = await driveService.perteneceACarpetaAncestral(driveId, carpetaMant);
         } catch (_e) {
             // silenced
+        }
+    }
+
+    // Carpetas raíz SGC conocidas (PDFs firmados DG-F-02, etc.)
+    if (!conocido) {
+        const carpetasSgc = [
+            process.env.SGC_DRIVE_FOLDER_ID,
+            '1xU8fO32D2eF-fwKRzRgAQKN7oo59dvLO', // DG-F-02 Alcance
+            '1v2IBrryAJg5fILPH602gm_CZhJNyia82'  // SGC formatos / F-29
+        ].filter(Boolean);
+        for (const carpeta of carpetasSgc) {
+            try {
+                conocido = await driveService.perteneceACarpetaAncestral(driveId, carpeta);
+                if (conocido) break;
+            } catch (_e) {
+                // silenced
+            }
         }
     }
 
