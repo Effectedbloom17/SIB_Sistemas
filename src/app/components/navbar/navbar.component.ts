@@ -21,7 +21,11 @@ import {
   SGC_FORMATOS_DESCARGA_CATALOG,
   SGC_FORMATOS_CATEGORIAS
 } from 'src/app/pages/sistema-gestion-calidad/sgc-formatos-descarga.catalog';
-import { formatoSgcVisibleParaUsuario } from 'src/app/pages/sistema-gestion-calidad/sgc-formatos.catalog';
+import {
+  formatoSgcVisibleParaUsuario,
+  SGC_CAPITULOS_ORDEN,
+  tipoIconoPlantilla
+} from 'src/app/pages/sistema-gestion-calidad/sgc-formatos.catalog';
 import {
   SGC_PROCEDIMIENTOS_CATALOG,
   SGC_PROCEDIMIENTOS_CATEGORIAS
@@ -57,6 +61,10 @@ export interface BusquedaSistemaItem {
   roles?: string[];
   /** Si es true, la ruta abre el visor integrado del archivo. */
   abreVisor?: boolean;
+  /** Chip fijo (p. ej. SGC). Si no hay, se infiere de tipo o visor. */
+  badge?: string;
+  /** Tono del icono, alineado a las tarjetas del Centro SGC. */
+  tonoIcono?: 'excel' | 'word' | 'pdf' | 'sgc';
 }
 
 /** Pausa IMAP si el buzón no responde; sobrevive recreaciones del navbar (HMR). */
@@ -303,12 +311,34 @@ export class NavbarComponent implements OnInit, OnDestroy {
     }
 
     const tokens = q.split(/\s+/).filter(Boolean);
-    this.resultadosLocales = this.catalogoBusqueda
+    const ranked = this.catalogoBusqueda
       .map((item) => ({ item, score: this.puntuarResultado(item, tokens, q) }))
       .filter((r) => r.score > 0)
-      .sort((a, b) => b.score - a.score || a.item.titulo.localeCompare(b.item.titulo))
-      .slice(0, 8)
-      .map((r) => r.item);
+      .sort((a, b) => b.score - a.score || a.item.titulo.localeCompare(b.item.titulo));
+
+    const elegidos: BusquedaSistemaItem[] = [];
+    const ids = new Set<string>();
+    for (const row of ranked) {
+      if (elegidos.length >= 8) break;
+      elegidos.push(row.item);
+      ids.add(row.item.id);
+    }
+    // Si un código existe en Centro SGC y en Formatos, mostrar los dos.
+    for (const item of [...elegidos]) {
+      if (elegidos.length >= 12) break;
+      const codigo = this.codigoDeTitulo(item.titulo);
+      if (!codigo || (item.badge !== 'SGC' && !item.abreVisor)) continue;
+      const par = ranked.find((row) =>
+        !ids.has(row.item.id)
+        && this.codigoDeTitulo(row.item.titulo) === codigo
+        && (row.item.badge === 'SGC') !== (item.badge === 'SGC')
+        && (row.item.badge === 'SGC' || !!row.item.abreVisor)
+      );
+      if (!par) continue;
+      elegidos.push(par.item);
+      ids.add(par.item.id);
+    }
+    this.resultadosLocales = elegidos;
 
     this.combinarResultadosBusqueda();
     this.busquedaQuery$.next(raw);
@@ -318,12 +348,17 @@ export class NavbarComponent implements OnInit, OnDestroy {
     const vistos = new Set<string>();
     const merged: BusquedaSistemaItem[] = [];
     const fuente = [...this.resultadosRemotos, ...this.resultadosLocales];
+    const esArchivo = (item: BusquedaSistemaItem) =>
+      item.badge === 'SGC' || !!item.abreVisor || this.rutaAbreVisor(item.ruta);
+    const archivos = fuente.filter(esArchivo);
     const ordenados = [
-      ...fuente.filter((item) => item.abreVisor || this.rutaAbreVisor(item.ruta)),
-      ...fuente.filter((item) => !(item.abreVisor || this.rutaAbreVisor(item.ruta)))
+      ...archivos.filter((item) => item.badge === 'SGC'),
+      ...archivos.filter((item) => item.badge !== 'SGC'),
+      ...fuente.filter((item) => !esArchivo(item))
     ];
     for (const item of ordenados) {
       const key = item.id.startsWith('sgc-fmt-') || item.id.startsWith('sgc-proc-')
+        || item.id.startsWith('sgc-int-')
         ? item.id
         : (item.ruta || item.id);
       if (vistos.has(key)) continue;
@@ -419,6 +454,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   tipoBusquedaLabel(item: BusquedaSistemaItem): string {
+    if (item?.badge) {
+      return item.badge;
+    }
     if (item?.abreVisor || this.rutaAbreVisor(item?.ruta)) {
       return 'Visor';
     }
@@ -458,8 +496,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
     else if (titulo.includes(query)) score += 35;
     if (keys.includes(query)) score += 20;
     if (item.tipo === 'apartado') score += 5;
-    if (item.abreVisor) score += 18;
+    if (item.abreVisor || item.badge === 'SGC') score += 18;
     return score;
+  }
+
+  private codigoDeTitulo(titulo: string): string {
+    const match = String(titulo || '').match(/^([A-Z0-9]+(?:-[A-Z0-9]+)+)/i);
+    return match ? match[1].toUpperCase() : '';
   }
 
   private rebuildCatalogoBusqueda(): void {
@@ -692,7 +735,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       return {
         id: `sgc-fmt-${fmt.id}`,
         titulo: `${fmt.codigo} · ${fmt.titulo}`,
-        descripcion: cat ? `Formato SGC · ${cat.titulo}` : 'Formato del Sistema de Gestión',
+        descripcion: cat ? `Formatos · ${cat.titulo}` : 'Formatos · consulta y descarga',
         tipo: 'documento' as const,
         icono,
         ruta: `/sistema-gestion-calidad/formatos?codigo=${encodeURIComponent(fmt.codigo)}&cap=${encodeURIComponent(fmt.categoriaId)}`,
@@ -700,6 +743,44 @@ export class NavbarComponent implements OnInit, OnDestroy {
         abreVisor: true
       };
     });
+
+    const formatosInteractivosSgc: BusquedaSistemaItem[] = [];
+    for (const cap of SGC_CAPITULOS_ORDEN || []) {
+      for (const plantilla of cap.plantillas || []) {
+        if (!plantilla.previewSlug || plantilla.previewMode !== 'form') continue;
+        if (!formatoSgcVisibleParaUsuario(plantilla.codigo, esSu)) continue;
+        const slug = String(plantilla.previewSlug).trim().toLowerCase();
+        const iconoTipo = tipoIconoPlantilla(plantilla);
+        const icono = iconoTipo === 'excel'
+          ? 'fa-file-excel'
+          : iconoTipo === 'word'
+            ? 'fa-file-word'
+            : iconoTipo === 'pdf'
+              ? 'fa-file-pdf'
+              : 'fa-file-alt';
+        formatosInteractivosSgc.push({
+          id: `sgc-int-${cap.slug}-${slug}`,
+          titulo: `${plantilla.codigo} · ${plantilla.titulo}`,
+          descripcion: `Centro SGC · Cap. ${cap.numero} · ${cap.titulo}`,
+          tipo: 'documento',
+          icono,
+          tonoIcono: iconoTipo === 'otro' ? 'sgc' : iconoTipo,
+          ruta: `/sistema-gestion-calidad/${cap.slug}/plantilla/${slug}`,
+          keywords: [
+            plantilla.codigo,
+            plantilla.titulo,
+            plantilla.nombre,
+            'formato',
+            'interactivo',
+            'sgc',
+            'centro',
+            cap.titulo,
+            `capitulo ${cap.numero}`
+          ],
+          badge: 'SGC'
+        });
+      }
+    }
 
     const catsProc = new Map(SGC_PROCEDIMIENTOS_CATEGORIAS.map((c) => [c.id, c]));
     const procedimientosSgc: BusquedaSistemaItem[] = (SGC_PROCEDIMIENTOS_CATALOG || []).map((proc) => {
@@ -754,10 +835,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
     }));
 
     const vistos = new Set<string>();
-    this.catalogoBusqueda = [...extras, ...formatosSgc, ...procedimientosSgc, ...instructivosSgc, ...normativasSgc, ...desdeRutas]
+    this.catalogoBusqueda = [...extras, ...formatosInteractivosSgc, ...formatosSgc, ...procedimientosSgc, ...instructivosSgc, ...normativasSgc, ...desdeRutas]
       .filter((item) => this.puedeVerItemBusqueda(item))
       .filter((item) => {
-        const key = item.id.startsWith('sgc-fmt-') || item.id.startsWith('sgc-proc-') || item.id.startsWith('sgc-inst-') || item.id.startsWith('sgc-nom-')
+        const key = item.id.startsWith('sgc-fmt-') || item.id.startsWith('sgc-proc-') || item.id.startsWith('sgc-inst-') || item.id.startsWith('sgc-nom-') || item.id.startsWith('sgc-int-')
           ? item.id
           : item.ruta;
         if (vistos.has(key)) return false;

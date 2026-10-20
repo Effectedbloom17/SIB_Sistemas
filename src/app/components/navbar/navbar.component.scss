@@ -2247,6 +2247,15 @@
       transform: scale(1.05);
     }
   }
+
+  &[data-origen='SGC'] {
+    background: rgba(21, 165, 150, 0.1);
+
+    &:hover,
+    &.is-active {
+      background: rgba(15, 118, 110, 0.16);
+    }
+  }
 }
 
 .global-search-result-icon {
@@ -2271,6 +2280,26 @@
   &[data-tipo='documento'] {
     background: rgba(251, 99, 64, 0.12);
     color: #fb6340;
+  }
+
+  &[data-tono='excel'] {
+    background: rgba(29, 111, 66, 0.12);
+    color: #1d6f42;
+  }
+
+  &[data-tono='word'] {
+    background: rgba(43, 87, 154, 0.12);
+    color: #2b579a;
+  }
+
+  &[data-tono='pdf'] {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+  }
+
+  &[data-tono='sgc'] {
+    background: rgba(21, 165, 150, 0.16);
+    color: #0f766e;
   }
 }
 
@@ -2309,6 +2338,16 @@
   background: #f1f3f5;
   border-radius: 999px;
   padding: 0.22rem 0.45rem;
+
+  &[data-badge='SGC'] {
+    color: #0f766e;
+    background: rgba(21, 165, 150, 0.16);
+  }
+
+  &[data-badge='Visor'] {
+    color: #c2410c;
+    background: rgba(251, 99, 64, 0.14);
+  }
 }
 
 @media (max-width: 767px) {

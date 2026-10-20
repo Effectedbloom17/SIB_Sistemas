@@ -540,18 +540,19 @@
               *ngFor="let item of resultadosBusqueda; let i = index; trackBy: trackByBusquedaId"
               [id]="'global-search-result-' + i"
               [class.is-active]="i === resultadoActivo"
+              [attr.data-origen]="item.badge || null"
               role="option"
               [attr.aria-selected]="i === resultadoActivo"
               (click)="irAResultado(item, $event)"
               (mouseenter)="resultadoActivo = i">
-              <span class="global-search-result-icon" [attr.data-tipo]="item.tipo">
+              <span class="global-search-result-icon" [attr.data-tipo]="item.tipo" [attr.data-tono]="item.tonoIcono || null">
                 <i class="fas" [ngClass]="item.icono"></i>
               </span>
               <span class="global-search-result-body">
                 <span class="global-search-result-title">{{ item.titulo }}</span>
                 <span class="global-search-result-meta">{{ item.descripcion }}</span>
               </span>
-              <span class="global-search-result-tipo">{{ tipoBusquedaLabel(item) }}</span>
+              <span class="global-search-result-tipo" [attr.data-badge]="tipoBusquedaLabel(item)">{{ tipoBusquedaLabel(item) }}</span>
             </button>
           </div>
         </div>
