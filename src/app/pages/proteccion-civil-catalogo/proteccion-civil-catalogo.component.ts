@@ -387,10 +387,20 @@ export class ProteccionCivilCatalogoComponent implements OnInit, OnDestroy {
           }
           this.editorIntegradoUrlRaw = response.url;
           this.editorIntegradoUrl = null;
-          setTimeout(() => {
+          const fileId = String(fila.drive_file_id || '').trim();
+          const montar = () => {
+            if (!this.editorIntegradoVisible) return;
             this.editorIntegradoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(response.url);
             this.montarEditorEnBody();
-          }, 0);
+          };
+          if (!fileId) {
+            setTimeout(montar, 0);
+            return;
+          }
+          this.backendService.asegurarAccesoEditorDrive(fileId).subscribe({
+            next: () => setTimeout(montar, 0),
+            error: () => setTimeout(montar, 0)
+          });
         },
         error: (err: any) => {
           this.cargandoEditor = false;
@@ -414,7 +424,19 @@ export class ProteccionCivilCatalogoComponent implements OnInit, OnDestroy {
       return;
     }
     this.editorIntegradoUrlRaw = url;
-    this.editorIntegradoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    const fileId = String(fila.drive_file_id || '').trim();
+    const montarLocal = () => {
+      if (!this.editorIntegradoVisible) return;
+      this.editorIntegradoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    };
+    if (!fileId) {
+      montarLocal();
+      return;
+    }
+    this.backendService.asegurarAccesoEditorDrive(fileId).subscribe({
+      next: () => montarLocal(),
+      error: () => montarLocal()
+    });
   }
 
   private construirUrlEditorDrive(fila: CatalogoFila, modo: 'edit' | 'preview'): string {

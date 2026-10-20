@@ -16,6 +16,7 @@ import {
 } from 'ng-apexcharts';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { parsearFechaSoloDia } from 'src/app/utils/fecha.util';
+import { lanzarImpresionEnSistema } from 'src/app/utils/in-app-print.util';
 import { PdfPreviewLoaderService } from 'src/app/services/pdf-preview-loader.service';
 
 type EncuestaPieChartOptions = {
@@ -1553,7 +1554,7 @@ export class InformacionGeneralComponent implements OnInit, OnDestroy {
 
     try {
       try {
-        await firstValueFrom(this.backendService.asegurarAccesoPublicoDrive(driveIdInicial));
+        await firstValueFrom(this.backendService.asegurarAccesoEditorDrive(driveIdInicial));
       } catch {
         // Continuar: el editor puede funcionar con la sesión de Google del usuario.
       }
@@ -3485,6 +3486,57 @@ export class InformacionGeneralComponent implements OnInit, OnDestroy {
       )
     );
     this.descargarBlobPdf(blob, archivoPdf?.nombre || 'Informe_Fotografico');
+  }
+
+  async imprimirArchivoHistorial(archivo?: HistorialArchivo, event?: Event): Promise<void> {
+    event?.stopPropagation();
+
+    const destino = archivo || this.archivoVisorHistorial;
+    if (!destino) {
+      return;
+    }
+
+    const driveId = destino.driveFileId
+      || this.extraerDriveFileId(destino.webContentLink || destino.webViewLink || destino.id);
+    if (!driveId) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Impresión no disponible',
+        text: 'No se encontró el archivo en Drive para imprimirlo.',
+        confirmButtonColor: '#38512F'
+      });
+      return;
+    }
+
+    const esImagen = this.esArchivoImagenHistorial(destino);
+    const esPdf = this.esArchivoPdfHistorial(destino);
+    const nombre = destino.nombre || 'documento';
+
+    void Swal.fire({
+      title: 'Preparando impresión…',
+      text: 'Un momento, esto puede tardar unos segundos…',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    try {
+      const blob = esPdf || esImagen
+        ? await firstValueFrom(this.backendService.descargarArchivoDrive(driveId, nombre))
+        : await firstValueFrom(this.backendService.imprimirArchivoDriveComoPDF(driveId, nombre));
+      Swal.close();
+      const tipo = esImagen
+        ? (blob.type || destino.mimeType || 'image/png')
+        : 'application/pdf';
+      lanzarImpresionEnSistema(new Blob([blob], { type: tipo }), esImagen);
+    } catch {
+      Swal.close();
+      await Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo preparar el documento para impresión.',
+        confirmButtonColor: '#38512F'
+      });
+    }
   }
 
   async descargarArchivoHistorial(archivo?: HistorialArchivo, event?: Event) {

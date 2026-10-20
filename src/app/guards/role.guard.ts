@@ -21,7 +21,7 @@ const SUPERUSER_ROLES = ['root', 'Root', 'ROOT'];
  * - control_documental: Admin de capacitación / Entrega de Documentos SP-F-03
  * - iot: Sensores IoT (Blynk); de momento solo root (iot pendiente de reabrir)
  * - innovacion: Diseño e Innovación; de momento solo root (pendiente de reabrir)
- * - rrhh: Recursos Humanos (Residentes / Colaboradores)
+ * - rrhh: Recursos Humanos (Residentes / expediente; organigrama abierto a internos)
  * - mantenimiento: Programa EIN-F-01 (mantenimiento a la infraestructura)
  * 
  * Uso en rutas:
@@ -128,14 +128,27 @@ export class RoleGuard implements CanActivate {
       return true;
     }
 
-    // Recursos Humanos (datos sensibles): solo root, administrador y rrhh.
+    // Recursos Humanos:
+    // - Organigrama (Colaboradores): todos los perfiles internos excepto empresa.
+    // - Expediente documental y Residentes: solo root, administrador y rrhh.
     if (state.url.includes('/recursos-humanos')) {
-      const allowed = ['root', 'administrador', 'rrhh'];
-      const ok = userRoles.some(r => allowed.includes(r.toLowerCase()))
-        || (userRole && allowed.includes(userRole.toLowerCase()));
-      if (!ok) {
-        this.router.navigate(['/dashboard']);
+      const esEmpresa = userRoles.some(r => r.toLowerCase() === 'empresa')
+        || (userRole && userRole.toLowerCase() === 'empresa');
+      if (esEmpresa) {
+        this.router.navigate(['/curso-activos']);
         return false;
+      }
+
+      const esExpediente = state.url.includes('/recursos-humanos/colaboradores/expediente');
+      const esResidentes = state.url.includes('/recursos-humanos/residentes');
+      if (esExpediente || esResidentes) {
+        const allowed = ['root', 'administrador', 'rrhh'];
+        const ok = userRoles.some(r => allowed.includes(r.toLowerCase()))
+          || (userRole && allowed.includes(userRole.toLowerCase()));
+        if (!ok) {
+          this.router.navigate(['/recursos-humanos/colaboradores']);
+          return false;
+        }
       }
       return true;
     }

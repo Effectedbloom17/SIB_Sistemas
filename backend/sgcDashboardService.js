@@ -57,12 +57,39 @@ function normalizar(texto = '') {
         .trim();
 }
 
-// Caché en memoria del dashboard por año (TTL corto) para acelerar recargas.
+// Caché en memoria del dashboard por año.
+// Fresco: se sirve directo. Stale: se sirve al instante y se refresca en fondo.
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_STALE_MS = 30 * 60 * 1000;
 const dashboardCache = new Map(); // anio -> { ts, payload }
+const dashboardRefreshInflight = new Map(); // anio -> Promise
+const ENCUESTAS_CONCURRENCY = 8;
 
 function invalidarCacheDashboard() {
     dashboardCache.clear();
+    try {
+        googleFormsService.invalidarCacheForms();
+    } catch (_e) { /* noop */ }
+}
+
+/** Ejecuta `fn` sobre `items` con un máximo de workers en paralelo. */
+async function mapPool(items, concurrency, fn) {
+    const list = Array.isArray(items) ? items : [];
+    if (!list.length) return [];
+    const limit = Math.max(1, Math.min(Number(concurrency) || 1, list.length));
+    const results = new Array(list.length);
+    let next = 0;
+
+    async function worker() {
+        while (next < list.length) {
+            const i = next;
+            next += 1;
+            results[i] = await fn(list[i], i);
+        }
+    }
+
+    await Promise.all(Array.from({ length: limit }, () => worker()));
+    return results;
 }
 
 // ---------------------------------------------------------------------------
@@ -271,7 +298,7 @@ function serieMensualDesdeBuckets(buckets, anioRespaldo) {
  * El periodo lo define el formulario del ciclo (2025-2026 o 2026-2027), no el
  * año del resto del dashboard. El dashboard cachea ~5 min para no saturar la API.
  */
-async function obtenerSatisfaccionCurso(_pool, anio, ciclo = CICLO_SATISFACCION_VIGENTE) {
+async function obtenerSatisfaccionCurso(_pool, anio, ciclo = CICLO_SATISFACCION_VIGENTE, opciones = {}) {
     const anioNum = Number(anio) || new Date().getFullYear();
     const metaCiclo = {
         ciclo: ciclo.id,
@@ -282,7 +309,9 @@ async function obtenerSatisfaccionCurso(_pool, anio, ciclo = CICLO_SATISFACCION_
 
     let formulario;
     try {
-        formulario = await googleFormsService.obtenerFormularioConRespuestas(ciclo.formId);
+        formulario = await googleFormsService.obtenerFormularioConRespuestas(ciclo.formId, {
+            forzarRecarga: !!opciones.forzarRecarga
+        });
     } catch (err) {
         console.warn(
             `[SGC] No se pudo leer la encuesta de satisfacción del cliente (${ciclo.etiqueta}):`,
@@ -463,9 +492,9 @@ async function obtenerSatisfaccionCurso(_pool, anio, ciclo = CICLO_SATISFACCION_
     };
 }
 
-async function obtenerSatisfaccionCiclos(pool, anio) {
+async function obtenerSatisfaccionCiclos(pool, anio, opciones = {}) {
     return Promise.all(
-        CICLOS_SATISFACCION_CLIENTE.map((ciclo) => obtenerSatisfaccionCurso(pool, anio, ciclo))
+        CICLOS_SATISFACCION_CLIENTE.map((ciclo) => obtenerSatisfaccionCurso(pool, anio, ciclo, opciones))
     );
 }
 
@@ -600,10 +629,12 @@ function esErrorArchivoAusenteDrive(err) {
         || msg.includes('not found');
 }
 
-async function obtenerStatsEncuestaCursoProgramado(row) {
+async function obtenerStatsEncuestaCursoProgramado(row, opciones = {}) {
     if (row.google_form_id) {
         try {
-            return await googleFormsService.obtenerEstadisticasFormulario(row.google_form_id);
+            return await googleFormsService.obtenerEstadisticasFormulario(row.google_form_id, {
+                forzarRecarga: !!opciones.forzarRecarga
+            });
         } catch (err) {
             if (!esErrorArchivoAusenteDrive(err)) {
                 console.warn(`[SGC] Encuesta live programado_id=${row.programado_id}:`, err.message || err);
@@ -636,7 +667,7 @@ async function obtenerStatsEncuestaCursoProgramado(row) {
  * Satisfacción de cursos de capacitación (SP-F-14 · encuestas por curso programado).
  * Agrega formularios en vivo y JSON de cierre en Drive del año seleccionado.
  */
-async function obtenerSatisfaccionCapacitacion(pool, anio) {
+async function obtenerSatisfaccionCapacitacion(pool, anio, opciones = {}) {
     const anioNum = Number(anio) || new Date().getFullYear();
 
     const [cursos] = await pool.query(
@@ -683,8 +714,16 @@ async function obtenerSatisfaccionCapacitacion(pool, anio) {
     let totalRespuestas = 0;
     let cursosConDatos = 0;
 
-    for (const curso of cursos) {
-        const stats = await obtenerStatsEncuestaCursoProgramado(curso);
+    // Lectura en paralelo (antes era secuencial por curso → minutos con muchos Forms).
+    const statsPorCurso = await mapPool(
+        cursos,
+        ENCUESTAS_CONCURRENCY,
+        (curso) => obtenerStatsEncuestaCursoProgramado(curso, opciones)
+    );
+
+    for (let idxCurso = 0; idxCurso < cursos.length; idxCurso += 1) {
+        const curso = cursos[idxCurso];
+        const stats = statsPorCurso[idxCurso];
         if (!stats || !Array.isArray(stats.preguntas) || stats.preguntas.length < 2) {
             continue;
         }
@@ -1974,20 +2013,28 @@ async function obtenerProveedoresF29(poolSgc) {
 // Dashboard consolidado
 // ---------------------------------------------------------------------------
 
-async function obtenerDashboard(pool, poolSgc, anio, opciones = {}) {
-    const anioNum = Number(anio) || new Date().getFullYear();
+function aniosDashboard(anioNum) {
+    const anioActual = new Date().getFullYear();
+    const anios = [anioActual, anioActual - 1, anioActual - 2, anioActual - 3];
+    if (!anios.includes(anioNum)) anios.unshift(anioNum);
+    return anios;
+}
 
-    if (!opciones.forzarRecarga) {
-        const cacheado = dashboardCache.get(anioNum);
-        if (cacheado && (Date.now() - cacheado.ts) < CACHE_TTL_MS) {
-            return { ...cacheado.payload, cache: true };
-        }
-    }
+function elegirSatisfaccionCurso(satisfaccionCiclos, anioNum) {
+    return (satisfaccionCiclos || []).find((c) => c.vigente)
+        || (satisfaccionCiclos || [])[Math.max((satisfaccionCiclos || []).length - 1, 0)]
+        || payloadSatisfaccionVacio(anioNum);
+}
+
+/**
+ * Indicadores rápidos (solo BD / JSON persistido). Sin Google Forms.
+ * Permite pintar KPIs y gráficas locales en <1s mientras llegan las encuestas.
+ */
+async function obtenerDashboardCore(pool, poolSgc, anio) {
+    const anioNum = Number(anio) || new Date().getFullYear();
 
     const [
         eficaciaCapacitacion,
-        satisfaccionCapacitacion,
-        satisfaccionCiclos,
         quejasCliente,
         evaluacionProveedores,
         avanceProyectos,
@@ -1996,8 +2043,6 @@ async function obtenerDashboard(pool, poolSgc, anio, opciones = {}) {
         quejasSugerencias
     ] = await Promise.all([
         obtenerEficaciaCapacitacionAthF08(poolSgc, anioNum),
-        obtenerSatisfaccionCapacitacion(pool, anioNum),
-        obtenerSatisfaccionCiclos(pool, anioNum),
         obtenerQuejasCliente(poolSgc, anioNum),
         obtenerEvaluacionProveedores(poolSgc, anioNum),
         obtenerAvanceProyectos(poolSgc),
@@ -2006,38 +2051,195 @@ async function obtenerDashboard(pool, poolSgc, anio, opciones = {}) {
         obtenerQuejasSugerencias(pool, anioNum)
     ]);
 
-    const anioActual = new Date().getFullYear();
-    const anios = [anioActual, anioActual - 1, anioActual - 2, anioActual - 3];
-    if (!anios.includes(anioNum)) anios.unshift(anioNum);
-
-    const satisfaccionCurso = (satisfaccionCiclos || []).find((c) => c.vigente)
-        || (satisfaccionCiclos || [])[Math.max((satisfaccionCiclos || []).length - 1, 0)]
-        || payloadSatisfaccionVacio(anioNum);
-
-    const payload = {
+    return {
         anio: anioNum,
-        anios,
+        anios: aniosDashboard(anioNum),
+        fase: 'core',
+        parcial: true,
         eficaciaCapacitacion,
-        satisfaccionCapacitacion,
-        satisfaccionCurso,
-        satisfaccionCiclos: satisfaccionCiclos || [],
         quejasCliente,
         evaluacionProveedores,
         avanceProyectos,
         proveedoresF29,
         eficacia,
         quejasSugerencias,
-        // Alias retrocompatible con el frontend anterior
-        satisfaccion: satisfaccionCurso,
-        mejoraContinua: avanceProyectos
+        mejoraContinua: avanceProyectos,
+        // Placeholders: el frontend pinta skeleton/0 hasta que llegue fase encuestas.
+        satisfaccionCapacitacion: null,
+        satisfaccionCurso: null,
+        satisfaccionCiclos: [],
+        satisfaccion: null
     };
+}
 
+/** Bloque lento: satisfacción cliente (Forms) + satisfacción capacitación (Forms/Drive). */
+async function obtenerDashboardEncuestas(pool, anio, opciones = {}) {
+    const anioNum = Number(anio) || new Date().getFullYear();
+    const optsForms = { forzarRecarga: !!opciones.forzarRecarga };
+
+    const [satisfaccionCapacitacion, satisfaccionCiclos] = await Promise.all([
+        obtenerSatisfaccionCapacitacion(pool, anioNum, optsForms),
+        obtenerSatisfaccionCiclos(pool, anioNum, optsForms)
+    ]);
+
+    const satisfaccionCurso = elegirSatisfaccionCurso(satisfaccionCiclos, anioNum);
+
+    return {
+        anio: anioNum,
+        fase: 'encuestas',
+        parcial: false,
+        satisfaccionCapacitacion,
+        satisfaccionCurso,
+        satisfaccionCiclos: satisfaccionCiclos || [],
+        satisfaccion: satisfaccionCurso
+    };
+}
+
+async function computarDashboardCompleto(pool, poolSgc, anioNum, opciones = {}) {
+    const optsForms = { forzarRecarga: !!opciones.forzarRecarga };
+
+    const [
+        core,
+        encuestas
+    ] = await Promise.all([
+        obtenerDashboardCore(pool, poolSgc, anioNum),
+        obtenerDashboardEncuestas(pool, anioNum, optsForms)
+    ]);
+
+    return {
+        ...core,
+        ...encuestas,
+        anio: anioNum,
+        anios: core.anios,
+        fase: 'completo',
+        parcial: false,
+        mejoraContinua: core.avanceProyectos
+    };
+}
+
+function refrescarDashboardEnFondo(pool, poolSgc, anioNum) {
+    if (dashboardRefreshInflight.has(anioNum)) {
+        return dashboardRefreshInflight.get(anioNum);
+    }
+    const promesa = computarDashboardCompleto(pool, poolSgc, anioNum, {})
+        .then((payload) => {
+            dashboardCache.set(anioNum, { ts: Date.now(), payload });
+            return payload;
+        })
+        .catch((err) => {
+            console.warn('[SGC dashboard] Refresh en fondo falló:', err.message || err);
+            return null;
+        })
+        .finally(() => {
+            dashboardRefreshInflight.delete(anioNum);
+        });
+    dashboardRefreshInflight.set(anioNum, promesa);
+    return promesa;
+}
+
+/**
+ * @param {object} opciones
+ * @param {boolean} [opciones.forzarRecarga]
+ * @param {'completo'|'core'|'encuestas'} [opciones.modo]
+ */
+function leerCacheDashboard(anioNum, { permitirStale = true, dispararRefresh = true, pool = null, poolSgc = null } = {}) {
+    const cacheado = dashboardCache.get(anioNum);
+    if (!cacheado) return null;
+    const age = Date.now() - cacheado.ts;
+    if (age < CACHE_TTL_MS) {
+        return { ...cacheado.payload, cache: true, stale: false, parcial: false, fase: 'completo' };
+    }
+    if (permitirStale && age < CACHE_STALE_MS) {
+        if (dispararRefresh && pool && poolSgc) {
+            refrescarDashboardEnFondo(pool, poolSgc, anioNum);
+        }
+        return { ...cacheado.payload, cache: true, stale: true, parcial: false, fase: 'completo' };
+    }
+    return null;
+}
+
+async function obtenerDashboard(pool, poolSgc, anio, opciones = {}) {
+    const anioNum = Number(anio) || new Date().getFullYear();
+    const modo = String(opciones.modo || 'completo').toLowerCase();
+
+    if (modo === 'core') {
+        // Si ya hay dashboard completo en caché, devolverlo entero (UI instantánea).
+        if (!opciones.forzarRecarga) {
+            const hit = leerCacheDashboard(anioNum, {
+                permitirStale: true,
+                dispararRefresh: true,
+                pool,
+                poolSgc
+            });
+            if (hit) return hit;
+        }
+        return obtenerDashboardCore(pool, poolSgc, anioNum);
+    }
+
+    if (modo === 'encuestas') {
+        if (!opciones.forzarRecarga) {
+            const hit = leerCacheDashboard(anioNum, { permitirStale: false, dispararRefresh: false });
+            if (hit) {
+                return {
+                    anio: anioNum,
+                    fase: 'encuestas',
+                    parcial: false,
+                    cache: true,
+                    satisfaccionCapacitacion: hit.satisfaccionCapacitacion,
+                    satisfaccionCurso: hit.satisfaccionCurso,
+                    satisfaccionCiclos: hit.satisfaccionCiclos || [],
+                    satisfaccion: hit.satisfaccion || hit.satisfaccionCurso
+                };
+            }
+        }
+        const encuestas = await obtenerDashboardEncuestas(pool, anioNum, opciones);
+        // Tras la fase lenta, arma caché completa en fondo (core BD es barato).
+        obtenerDashboardCore(pool, poolSgc, anioNum)
+            .then((core) => {
+                const payload = {
+                    ...core,
+                    ...encuestas,
+                    anio: anioNum,
+                    anios: core.anios,
+                    fase: 'completo',
+                    parcial: false,
+                    mejoraContinua: core.avanceProyectos
+                };
+                dashboardCache.set(anioNum, { ts: Date.now(), payload });
+            })
+            .catch((err) => {
+                console.warn('[SGC dashboard] No se pudo armar caché post-encuestas:', err.message || err);
+            });
+        return encuestas;
+    }
+
+    if (!opciones.forzarRecarga) {
+        const hit = leerCacheDashboard(anioNum, {
+            permitirStale: true,
+            dispararRefresh: true,
+            pool,
+            poolSgc
+        });
+        if (hit) return hit;
+    }
+
+    const inflight = dashboardRefreshInflight.get(anioNum);
+    if (inflight && !opciones.forzarRecarga) {
+        const payload = await inflight;
+        if (payload) {
+            return { ...payload, cache: true, stale: false, parcial: false, fase: 'completo' };
+        }
+    }
+
+    const payload = await computarDashboardCompleto(pool, poolSgc, anioNum, opciones);
     dashboardCache.set(anioNum, { ts: Date.now(), payload });
     return payload;
 }
 
 module.exports = {
     obtenerDashboard,
+    obtenerDashboardCore,
+    obtenerDashboardEncuestas,
     obtenerSatisfaccionCurso,
     obtenerSatisfaccionCiclos,
     obtenerSatisfaccionCapacitacion,

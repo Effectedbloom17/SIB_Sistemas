@@ -8,7 +8,8 @@ import { RoleGuard } from 'src/app/guards/role.guard';
 import { ResidentesComponent } from './residentes.component';
 import { ColaboradoresComponent } from './colaboradores.component';
 
-const RRHH_ROLES = ['root', 'administrador', 'rrhh'];
+/** Residentes y expediente documental: solo gestión RRHH. */
+const RRHH_GESTION_ROLES = ['root', 'administrador', 'rrhh'];
 
 const routes: Routes = [
     {
@@ -20,19 +21,19 @@ const routes: Routes = [
         path: 'residentes',
         component: ResidentesComponent,
         canActivate: [RoleGuard],
-        data: { roles: RRHH_ROLES }
+        data: { roles: RRHH_GESTION_ROLES }
     },
     {
         path: 'colaboradores/expediente/:id',
         component: ColaboradoresComponent,
         canActivate: [RoleGuard],
-        data: { roles: RRHH_ROLES }
+        data: { roles: RRHH_GESTION_ROLES }
     },
     {
+        // Organigrama: todos los perfiles internos excepto empresa (RoleGuard).
         path: 'colaboradores',
         component: ColaboradoresComponent,
-        canActivate: [RoleGuard],
-        data: { roles: RRHH_ROLES }
+        canActivate: [RoleGuard]
     }
 ];
 

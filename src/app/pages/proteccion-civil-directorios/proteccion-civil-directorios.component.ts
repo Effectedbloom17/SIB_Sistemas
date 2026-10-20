@@ -354,10 +354,19 @@ export class ProteccionCivilDirectoriosComponent implements OnInit, OnDestroy {
             }
             this.editorIntegradoUrlRaw = response.url;
             this.editorIntegradoUrl = null;
-            setTimeout(() => {
+            const fileId = String(dir.driveFileId || response.driveFileId || '').trim();
+            const montar = () => {
+              if (!this.editorIntegradoVisible) return;
               this.editorIntegradoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(response.url);
               this.montarEditorEnBody();
-            }, 0);
+            };
+            if (!fileId) {
+              setTimeout(montar, 0);
+              return;
+            }
+            this.backendService.asegurarAccesoEditorDrive(fileId)
+              .pipe(takeUntil(this.destroy$))
+              .subscribe({ next: () => setTimeout(montar, 0), error: () => setTimeout(montar, 0) });
           },
           error: (err: any) => {
             this.cargandoEditor = false;
@@ -370,7 +379,18 @@ export class ProteccionCivilDirectoriosComponent implements OnInit, OnDestroy {
 
     const url = `https://docs.google.com/document/d/${dir.driveFileId}/edit?usp=sharing`;
     this.editorIntegradoUrlRaw = url;
-    this.editorIntegradoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    const fileIdLocal = String(dir.driveFileId || '').trim();
+    const montarLocal = () => {
+      if (!this.editorIntegradoVisible) return;
+      this.editorIntegradoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    };
+    if (!fileIdLocal) {
+      montarLocal();
+      return;
+    }
+    this.backendService.asegurarAccesoEditorDrive(fileIdLocal)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({ next: () => montarLocal(), error: () => montarLocal() });
   }
 
   onEditorIframeLoad(): void {

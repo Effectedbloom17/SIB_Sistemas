@@ -3,6 +3,7 @@ import { Subject, forkJoin, of } from 'rxjs';
 import { catchError, takeUntil } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { BackendServices } from 'src/app/services/backend.services';
+import { esMimeImagen, esMimePdf, lanzarImpresionEnSistema } from 'src/app/utils/in-app-print.util';
 
 export interface CtTramite {
   tramite_id: number;
@@ -77,6 +78,7 @@ export class AmbientalControlTramitesComponent implements OnInit, OnChanges, OnD
   previewComoEmbed = false;
   visorExpandido = false;
   descargandoArchivo = false;
+  imprimiendoArchivo = false;
 
   carpetasExpandidas = new Set<string>(['__raiz__']);
   readonly claveRaiz = '__raiz__';
@@ -274,6 +276,54 @@ export class AmbientalControlTramitesComponent implements OnInit, OnChanges, OnD
           });
         }
       });
+  }
+
+  imprimirArchivo(archivo?: CtArchivo | null, event?: Event): void {
+    event?.stopPropagation();
+    const doc = archivo || this.archivoSeleccionado;
+    if (!doc || !this.tramiteSeleccionado || this.imprimiendoArchivo) {
+      return;
+    }
+
+    const esImagen = esMimeImagen(doc.mimeType, doc.nombreArchivo);
+    const esPdf = esMimePdf(doc.mimeType, doc.nombreArchivo);
+    const driveId = String(doc.driveFileId || '').trim();
+    const nombre = doc.nombreArchivo || 'documento';
+
+    this.imprimiendoArchivo = true;
+    void Swal.fire({
+      title: 'Preparando impresión…',
+      text: 'Un momento, esto puede tardar unos segundos…',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    const source$ = (esPdf || esImagen)
+      ? this.backend.descargarAmbientalTramiteArchivo(this.tramiteSeleccionado.tramite_id, doc.id)
+      : driveId
+        ? this.backend.imprimirArchivoDriveComoPDF(driveId, nombre)
+        : this.backend.descargarAmbientalTramiteArchivo(this.tramiteSeleccionado.tramite_id, doc.id);
+
+    source$.pipe(takeUntil(this.destroy$)).subscribe({
+      next: (blob) => {
+        this.imprimiendoArchivo = false;
+        Swal.close();
+        const tipo = esImagen
+          ? (blob.type || doc.mimeType || 'image/png')
+          : 'application/pdf';
+        lanzarImpresionEnSistema(new Blob([blob], { type: tipo }), esImagen);
+      },
+      error: async () => {
+        this.imprimiendoArchivo = false;
+        Swal.close();
+        await Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'No se pudo preparar el documento para impresión.',
+          confirmButtonColor: '#38512F'
+        });
+      }
+    });
   }
 
   toggleCarpeta(ruta: string): void {

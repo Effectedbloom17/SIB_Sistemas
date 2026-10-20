@@ -2982,6 +2982,39 @@ const requireAdminOrMantenimiento = requireRole('root', 'administrador', 'manten
 /** Acceso a Recursos Humanos (datos sensibles): root | administrador | rrhh */
 const requireAdminOrRrhh = requireRole('root', 'administrador', 'rrhh');
 
+/** Organigrama Colaboradores: cualquier perfil interno autenticado, excepto empresa. */
+function requireInternoNoEmpresa(req, res, next) {
+    const userRoles = Array.isArray(req.user?.roles)
+        ? req.user.roles.map((r) => String(r).toLowerCase())
+        : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+
+    if (userRoles.length === 0) {
+        return res.status(403).json({
+            success: false,
+            message: 'No se pudo determinar el rol del usuario'
+        });
+    }
+    if (userRoles.includes('root')) {
+        return next();
+    }
+    if (userRoles.includes('empresa')) {
+        return res.status(403).json({
+            success: false,
+            message: 'No tiene permisos para realizar esta acción'
+        });
+    }
+    return next();
+}
+
+function esGestionRrhhColaboradores(req) {
+    const userRoles = Array.isArray(req.user?.roles)
+        ? req.user.roles.map((r) => String(r).toLowerCase())
+        : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+    return userRoles.includes('root')
+        || userRoles.includes('administrador')
+        || userRoles.includes('rrhh');
+}
+
 /** Acceso al módulo Sensores IoT (Blynk) — de momento solo root (antes: root/iot) */
 const requireRootOrIot = requireRole('root');
 const blynkService = require('./blynkService');
@@ -4331,6 +4364,49 @@ app.get('/api/drive/:fileId/descargar', authMiddleware, async (req, res) => {
     }
 });
 
+// Lectura pública por enlace (preview / descarga en navegador sin login Google).
+app.post('/api/drive/:fileId/asegurar-acceso-lectura', authMiddleware, async (req, res) => {
+    try {
+        const fileId = String(req.params.fileId || '').trim();
+        if (!fileId || !/^[a-zA-Z0-9_-]{10,}$/.test(fileId)) {
+            return res.status(400).json({ success: false, message: 'fileId inválido' });
+        }
+        const ok = await driveService.asignarPermisoLecturaPublica(fileId);
+        return res.json({ success: true, fileId, lectura: !!ok });
+    } catch (error) {
+        console.error('[ERROR] Asegurar acceso lectura Drive:', error.message);
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'No se pudo asegurar el acceso de lectura.'
+        });
+    }
+});
+
+// Escritura + lectura por enlace: editor/preview integrado sin muro de login de Google.
+app.post('/api/drive/:fileId/asegurar-acceso-editor', authMiddleware, async (req, res) => {
+    try {
+        const fileId = String(req.params.fileId || '').trim();
+        if (!fileId || !/^[a-zA-Z0-9_-]{10,}$/.test(fileId)) {
+            return res.status(400).json({ success: false, message: 'fileId inválido' });
+        }
+        const result = await driveService.asegurarAccesoEditorIntegrado(fileId);
+        return res.json({
+            success: true,
+            fileId: result.fileId || fileId,
+            escritura: !!result.escritura,
+            lectura: !!result.lectura,
+            editorUrl: `https://docs.google.com/spreadsheets/d/${encodeURIComponent(fileId)}/edit?usp=sharing`,
+            previewUrl: `https://docs.google.com/spreadsheets/d/${encodeURIComponent(fileId)}/preview`
+        });
+    } catch (error) {
+        console.error('[ERROR] Asegurar acceso editor Drive:', error.message);
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'No se pudo asegurar el acceso al editor integrado.'
+        });
+    }
+});
+
 // Asegura Google Sheet nativo (convierte XLSX de Office si hace falta) para editor integrado
 app.post('/api/drive/:fileId/asegurar-google-sheet', authMiddleware, async (req, res) => {
     try {
@@ -4353,6 +4429,12 @@ app.post('/api/drive/:fileId/asegurar-google-sheet', authMiddleware, async (req,
             || `https://docs.google.com/spreadsheets/d/${nuevoId}/edit`;
         const editorUrl = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(nuevoId)}/edit?usp=sharing`;
         const convertidoAhora = nuevoId !== fileId;
+
+        try {
+            await driveService.asegurarAccesoEditorIntegrado(nuevoId);
+        } catch (permErr) {
+            console.warn('[WARN] No se pudo asegurar permiso de enlace tras Google Sheet:', permErr.message);
+        }
 
         if (convertidoAhora) {
             try {
@@ -26405,7 +26487,12 @@ app.get('/api/sgc/dashboard', requireAdminOrSgc, async (req, res) => {
         await poolBiznagaSgcReady;
         const anio = req.query.anio ? Number(req.query.anio) : new Date().getFullYear();
         const forzarRecarga = req.query.refrescar === '1' || req.query.refrescar === 'true';
-        const payload = await sgcDashboardService.obtenerDashboard(pool, poolBiznagaSgc, anio, { forzarRecarga });
+        const modoRaw = String(req.query.modo || 'completo').toLowerCase();
+        const modo = ['core', 'encuestas', 'completo'].includes(modoRaw) ? modoRaw : 'completo';
+        const payload = await sgcDashboardService.obtenerDashboard(pool, poolBiznagaSgc, anio, {
+            forzarRecarga,
+            modo
+        });
         return res.json({ success: true, ...payload });
     } catch (error) {
         handleError(res, error, 'No se pudo cargar el dashboard del SGC');
@@ -29559,6 +29646,20 @@ app.post('/api/sgc/formatos/sgc-f-29/sincronizar-drive', requireAdminOrSgc, asyn
         });
     } catch (error) {
         handleError(res, error, 'No se pudo sincronizar SGC-F-29');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-29/asegurar-acceso', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF29Service.asegurarAccesoEditor(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Acceso al editor SGC-F-29 asegurado.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo asegurar el acceso al editor SGC-F-29');
     }
 });
 
@@ -37160,11 +37261,42 @@ function enviarArchivoRrhhColaborador(res, archivo, { descargar = false } = {}) 
     return res.send(Buffer.from(archivo.buffer));
 }
 
-app.get('/api/rrhh/colaboradores', requireAdminOrRrhh, async (req, res) => {
+app.get('/api/rrhh/colaboradores', requireInternoNoEmpresa, async (req, res) => {
     try {
         await poolReady;
         const forzar = String(req.query.refresh || '') === '1';
         const payload = await rrhhColaboradoresService.listarColaboradores({ forzar, pool });
+        // Organigrama abierto: sin enlaces Drive ni metadatos de expediente.
+        if (!esGestionRrhhColaboradores(req)) {
+            const colaboradores = Array.isArray(payload?.colaboradores)
+                ? payload.colaboradores.map((c) => ({
+                    id: c.id,
+                    nombre: c.nombre,
+                    iniciales: c.iniciales,
+                    organigrama: c.organigrama || null,
+                    usuarioId: c.usuarioId || null,
+                    fotoUrl: c.fotoUrl || null,
+                    email: c.email || null,
+                    telefono: c.telefono || null,
+                    tieneExpediente: false,
+                    fotoFileId: null,
+                    carpetas: 0,
+                    archivos: 0,
+                    documentos: 0,
+                    webViewLink: null,
+                    modificado: null
+                }))
+                : [];
+            return res.json({
+                success: true,
+                total: colaboradores.length,
+                documentos: 0,
+                carpetaId: null,
+                carpetaUrl: '',
+                carpetasSugeridas: [],
+                colaboradores
+            });
+        }
         res.json({ success: true, ...payload });
     } catch (error) {
         responderErrorRrhhColaboradores(res, error, 'No se pudo listar el expediente de colaboradores');

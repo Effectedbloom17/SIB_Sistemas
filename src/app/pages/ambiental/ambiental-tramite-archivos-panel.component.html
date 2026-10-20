@@ -210,6 +210,12 @@
         <strong>Visor integrado de documento</strong>
         <small [title]="previewNombre">{{ previewNombre }}</small>
       </div>
+      <button type="button" class="amb-arch-viewer__download" (click)="imprimirDesdePreview()"
+              *ngIf="previewDocumento || previewObjectUrl"
+              [disabled]="imprimiendoArchivo">
+        <i class="fas" [ngClass]="imprimiendoArchivo ? 'fa-spinner fa-spin' : 'fa-print'"></i>
+        <span>Imprimir</span>
+      </button>
       <button type="button" class="amb-arch-viewer__download" (click)="descargarDesdePreview()"
               *ngIf="previewDocumento || previewObjectUrl">
         <i class="fas fa-download"></i> <span>Descargar</span>

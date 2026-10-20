@@ -562,6 +562,7 @@ $radius: 10px;
 
     .action-upload,
     .action-preview,
+    .action-print,
     .action-download,
     .action-replace,
     .action-edit,
@@ -706,6 +707,7 @@ $radius: 10px;
 
   .action-upload,
   .action-preview,
+  .action-print,
   .action-download,
   .action-replace,
   .action-edit,
@@ -2294,6 +2296,17 @@ $radius: 10px;
     }
   }
 
+  .action-print {
+    background: #ffffff;
+    color: #38512f;
+
+    &:hover {
+      background: #eef4ec;
+      color: #2a3d28;
+      border-color: #c2d1b2;
+    }
+  }
+
   .action-edit {
     background: #ffffff;
     color: #2563eb;
@@ -3376,6 +3389,7 @@ $radius: 10px;
   .doc-card-actions {
     .action-upload,
     .action-preview,
+    .action-print,
     .action-download,
     .action-replace,
     .action-edit,

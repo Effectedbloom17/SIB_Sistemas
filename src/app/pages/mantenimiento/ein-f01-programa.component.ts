@@ -325,11 +325,24 @@ export class EinF01ProgramaComponent implements OnInit, AfterViewInit, AfterView
       return;
     }
     this.cancelarAutoGuardadoDrive();
-    this.actualizarEditorDriveUrl(this.excelWebViewLink);
     this.editorDriveCargando = true;
     document.body.classList.add('mt-drive-editor-open');
     document.body.style.overflow = 'hidden';
     this.editorDriveAbierto = true;
+    this.editorDriveUrlSafe = '';
+    const fileId = String(this.driveSpreadsheetId || EIN_F01_TEMPLATE_ID || '').trim();
+    const montar = () => {
+      if (!this.editorDriveAbierto) return;
+      this.actualizarEditorDriveUrl(this.excelWebViewLink);
+    };
+    if (!fileId) {
+      montar();
+      return;
+    }
+    this.backend.asegurarAccesoEditorDrive(fileId).subscribe({
+      next: () => montar(),
+      error: () => montar()
+    });
   }
 
   private actualizarEditorDriveUrl(url: string): void {

@@ -719,10 +719,23 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
       this.flash('No se pudo abrir el editor integrado.');
       return;
     }
-    this.actualizarEditorDriveUrlF04(url);
     this.editorDriveCargando = true;
     this.setEditorBodyState(true);
     this.editorDriveAbierto = true;
+    this.editorDriveUrlSafe = '';
+    const fileId = String(sol.reporteDriveFileId || '').trim();
+    const montar = () => {
+      if (!this.editorDriveAbierto) return;
+      this.actualizarEditorDriveUrlF04(url);
+    };
+    if (!fileId) {
+      montar();
+      return;
+    }
+    this.backend.asegurarAccesoEditorDrive(fileId).subscribe({
+      next: () => montar(),
+      error: () => montar()
+    });
   }
 
   descargarPdfF04(): void {

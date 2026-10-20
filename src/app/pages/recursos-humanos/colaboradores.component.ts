@@ -395,6 +395,11 @@ export class ColaboradoresComponent implements OnInit, OnDestroy {
     return this.auth.esAdministradorOSuperior() || this.auth.tieneRol('rrhh');
   }
 
+  /** Expediente documental: solo administradores (root incluido) y RRHH. */
+  get puedeAbrirExpediente(): boolean {
+    return this.auth.esAdministradorOSuperior() || this.auth.tieneRol('rrhh');
+  }
+
   /** Solo superadministrador (root) ve colaboradores fuera del organigrama. */
   get puedeVerSinPuestoOrganigrama(): boolean {
     return this.auth.esRoot();
@@ -443,7 +448,7 @@ export class ColaboradoresComponent implements OnInit, OnDestroy {
   }
 
   seleccionar(colaborador: ColaboradorItem): void {
-    if (!colaborador?.id) return;
+    if (!colaborador?.id || !this.puedeAbrirExpediente) return;
     this.ocultarFicha();
     this.cerrarCarpetaPuesto();
     void this.router.navigate(['/recursos-humanos/colaboradores/expediente', colaborador.id]);

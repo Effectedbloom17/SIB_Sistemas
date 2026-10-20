@@ -1935,7 +1935,35 @@ async function cargarFormato(pool) {
     }
 
     registro = { ...registro, drive_file_id: driveFileId || null };
+    if (driveFileId) {
+        try {
+            await driveService.asignarPermisoEscrituraEnlace(driveFileId);
+        } catch (err) {
+            console.warn('[SGC-F-29] No se pudo asegurar permiso de enlace al cargar:', err.message);
+        }
+    }
     return construirRespuesta(registro, datos, null);
+}
+
+/**
+ * Asegura anyone/writer (y reader) para que el editor integrado abra
+ * sin pedir login de Google al usuario del sistema.
+ */
+async function asegurarAccesoEditor(pool) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    let driveFileId = await resolverDriveFileId(registro);
+    if (!driveFileId) {
+        return construirRespuesta(registro || {}, sanitizarDatos(DATOS_DEFECTO), null);
+    }
+    driveFileId = await asegurarDriveIdGoogleSheet(driveFileId, pool, registro);
+    await driveService.asignarPermisoEscrituraEnlace(driveFileId);
+    try {
+        await driveService.asignarPermisoLecturaPublica(driveFileId);
+    } catch (_) { /* ignore */ }
+    const archivoDrive = await driveService.obtenerInfoArchivo(driveFileId).catch(() => ({ id: driveFileId }));
+    const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+    return construirRespuesta({ ...(registro || {}), drive_file_id: driveFileId }, datos, archivoDrive);
 }
 
 async function guardarFormato(pool, body, options = {}) {
@@ -2266,6 +2294,7 @@ module.exports = {
     guardarFormato,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
+    asegurarAccesoEditor,
     obtenerResumenProveedores,
     listarProveedoresOcultos,
     establecerVisibilidadProveedor,

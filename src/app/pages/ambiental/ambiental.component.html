@@ -386,6 +386,15 @@
                       <p class="ambiental-viewer__caption ambiental-viewer__caption--empty">Seleccione un oficio</p>
                     </ng-template>
                     <div class="ambiental-viewer__actions">
+                      <button *ngIf="oficioSeleccionado && (oficioSeleccionado.documento_drive_id || oficioSeleccionado.documento_url)"
+                              type="button"
+                              class="ambiental-btn ambiental-btn--outline ambiental-btn--xs"
+                              (click)="imprimirOficioSeleccionado()"
+                              [disabled]="imprimiendoOficio"
+                              title="Imprimir oficio">
+                        <i class="fas mr-1" [ngClass]="imprimiendoOficio ? 'fa-spinner fa-spin' : 'fa-print'"></i>
+                        Imprimir
+                      </button>
                       <button *ngIf="puedeCrearOficio && oficioSeleccionado" type="button"
                               class="ambiental-btn ambiental-btn--outline ambiental-btn--xs"
                               (click)="editarOficioSeleccionado()" title="Editar oficio">

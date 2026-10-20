@@ -250,11 +250,24 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
       return;
     }
     this.cancelarAutoGuardadoDrive();
-    this.actualizarEditorDriveUrl(this.excelWebViewLink);
     this.editorDriveCargando = true;
     this.setEditorBodyState(true);
     this.editorDriveAbierto = true;
-    setTimeout(() => this.montarEditorEnBody(), 0);
+    this.editorDriveUrlSafe = '';
+    const fileId = String(this.driveSpreadsheetId || EIN_F03_TEMPLATE_ID || '').trim();
+    const montar = () => {
+      if (!this.editorDriveAbierto) return;
+      this.actualizarEditorDriveUrl(this.excelWebViewLink);
+      setTimeout(() => this.montarEditorEnBody(), 0);
+    };
+    if (!fileId) {
+      montar();
+      return;
+    }
+    this.backend.asegurarAccesoEditorDrive(fileId).subscribe({
+      next: () => montar(),
+      error: () => montar()
+    });
   }
 
   private setEditorBodyState(abierto: boolean): void {

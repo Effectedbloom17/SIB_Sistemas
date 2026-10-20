@@ -90,7 +90,8 @@ export const ROUTES: RouteInfo[] = [
     { path: '/seguridad/asignacion', title: 'Asignación de\nnormativas', icon: '', iconFa: 'fa-tasks', class: '' },
     { path: '/seguridad/gestion', title: 'Gestión de\nnormativas', icon: '', iconFa: 'fa-folder-open', class: '' },
     { path: '/recursos-humanos/residentes', title: 'Residentes', icon: '', iconFa: 'fa-user-friends', class: '', roles: ['root', 'administrador', 'rrhh'] },
-    { path: '/recursos-humanos/colaboradores', title: 'Colaboradores', icon: '', iconFa: 'fa-id-badge', class: '', roles: ['root', 'administrador', 'rrhh'] },
+    // Organigrama: todos excepto empresa (filtro en filterMenuByRole); expediente solo RRHH/admin
+    { path: '/recursos-humanos/colaboradores', title: 'Colaboradores', icon: '', iconFa: 'fa-id-badge', class: '' },
     { path: '/control-proyectos', title: 'Control de avance\nde proyectos', icon: '', iconFa: 'fa-project-diagram', class: '' }, // Todos los perfiles; empresa en consulta
     // De momento solo superadministrador (root); reabrir a iot cuando corresponda
     { path: '/sensores', title: 'Sensores', icon: '', iconFa: 'fa-tint', class: '', roles: ['root'] },
@@ -503,10 +504,16 @@ export class SidebarComponent implements OnInit, OnDestroy {
         return !esEmpresa;
       }
 
-      // Recursos Humanos (datos sensibles): solo root, administrador y rrhh
-      if (item.path === '/recursos-humanos/residentes' || item.path.startsWith('/recursos-humanos/')) {
+      // Residentes (datos sensibles): solo root, administrador y rrhh
+      if (item.path === '/recursos-humanos/residentes') {
         return userRoles.some(role => ['root', 'administrador', 'rrhh'].includes(role.toLowerCase()))
           || ['root', 'administrador', 'rrhh'].includes(String(userRole || '').toLowerCase());
+      }
+
+      // Colaboradores / organigrama: todos los perfiles internos excepto empresa
+      if (item.path === '/recursos-humanos/colaboradores' || item.path.startsWith('/recursos-humanos/colaboradores')) {
+        const esEmpresa = userRoles.some(role => role.toLowerCase() === 'empresa') || userRole === 'empresa';
+        return !esEmpresa;
       }
 
       // Capítulos SGC queda integrado en Centro SGC (ruta principal)

@@ -5085,6 +5085,24 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return `https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/edit?usp=sharing`;
   }
 
+  /**
+   * Antes de montar el iframe de Drive: asegura anyone/writer+reader
+   * para que no pida login de Google (todos los formatos SGC).
+   */
+  private conAccesoDriveEmbed(fileId: string | null | undefined, continuar: () => void): void {
+    const id = String(fileId || '').trim();
+    if (!id) {
+      continuar();
+      return;
+    }
+    this.backendService.asegurarAccesoEditorDrive(id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => continuar(),
+        error: () => continuar()
+      });
+  }
+
   get tituloEditorIntegrado(): string {
     return this.puedeGestionarPlantillasSgc
       ? 'Editor integrado del formato'
@@ -6781,11 +6799,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarSgcF07Editor = abrir;
 
     if (abrir) {
+
       this.sgcF07EditorIframeListo = false;
       this.sgcF07EditorCargando = true;
-      this.fijarEditorEmbedUrlSgcF07(this.resolverUrlEditorDrive(this.sgcF07EditorUrl, this.sgcF07DriveFileId), true);
+      this.sgcF07EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF07DriveFileId, () => {
+        if (!this.mostrarSgcF07Editor) {
+          return;
+        }
+        this.fijarEditorEmbedUrlSgcF07(this.resolverUrlEditorDrive(this.sgcF07EditorUrl, this.sgcF07DriveFileId), true);
+      });
       return;
     }
 
@@ -7412,11 +7437,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF08Editor;
     this.mostrarSgcF08Editor = abrir;
     if (abrir) {
+
       this.sgcF08EditorIframeListo = false;
       this.sgcF08EditorCargando = true;
-      this.fijarEditorEmbedUrlSgcF08(this.resolverUrlEditorDrive(this.sgcF08EditorUrl, this.sgcF08DriveFileId), true);
+      this.sgcF08EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF08DriveFileId, () => {
+        if (!this.mostrarSgcF08Editor) {
+          return;
+        }
+        this.fijarEditorEmbedUrlSgcF08(this.resolverUrlEditorDrive(this.sgcF08EditorUrl, this.sgcF08DriveFileId), true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -8865,13 +8897,20 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF10Editor;
     this.mostrarSgcF10Editor = abrir;
     if (abrir) {
+
       this.sgcF10EditorIframeListo = false;
       this.sgcF10EditorCargando = true;
-      const url = this.sgcF10EditorUrl
-        || `https://docs.google.com/document/d/${encodeURIComponent(this.sgcF10DriveFileId)}/edit?usp=sharing`;
-      this.fijarEditorEmbedUrlSgcF10(url, true);
+      this.sgcF10EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF10DriveFileId, () => {
+        if (!this.mostrarSgcF10Editor) {
+          return;
+        }
+        const url = this.sgcF10EditorUrl
+        || `https://docs.google.com/document/d/${encodeURIComponent(this.sgcF10DriveFileId)}/edit?usp=sharing`;
+        this.fijarEditorEmbedUrlSgcF10(url, true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -9159,11 +9198,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF14Editor;
     this.mostrarSgcF14Editor = abrir;
     if (abrir) {
+
       this.sgcF14EditorIframeListo = false;
       this.sgcF14EditorCargando = true;
-      this.fijarEditorEmbedUrlSgcF14(this.resolverUrlEditorDrive(this.sgcF14EditorUrl, this.sgcF14DriveFileId), true);
+      this.sgcF14EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF14DriveFileId, () => {
+        if (!this.mostrarSgcF14Editor) {
+          return;
+        }
+        this.fijarEditorEmbedUrlSgcF14(this.resolverUrlEditorDrive(this.sgcF14EditorUrl, this.sgcF14DriveFileId), true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -10113,23 +10159,20 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF17Editor;
     this.mostrarSgcF17Editor = abrir;
     if (abrir) {
+
       this.sgcF17EditorCargando = true;
-      const url = this.resolverUrlEditorDrive(this.sgcF17EditorUrl, this.sgcF17DriveFileId);
-      this.sgcF17EditorEmbedUrlSafe = url
-        ? this.sanitizer.bypassSecurityTrustResourceUrl(url)
-        : null;
+      this.sgcF17EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
-      this.backendService.asegurarAccesoSgcF17()
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: (res) => {
-            if (res?.driveFileId) {
-              this.sgcF17DriveFileId = res.driveFileId;
-            }
-          },
-          error: () => undefined
-        });
+      this.conAccesoDriveEmbed(this.sgcF17DriveFileId, () => {
+        if (!this.mostrarSgcF17Editor) {
+          return;
+        }
+        const url = this.resolverUrlEditorDrive(this.sgcF17EditorUrl, this.sgcF17DriveFileId);
+        this.sgcF17EditorEmbedUrlSafe = url
+        ? this.sanitizer.bypassSecurityTrustResourceUrl(url)
+        : null;
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -10810,23 +10853,19 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF27mEditor;
     this.mostrarSgcF27mEditor = abrir;
     if (abrir) {
+
       this.sgcF27mEditorCargando = true;
-      const url = this.resolverUrlEditorDrive(this.sgcF27mEditorUrl, this.sgcF27mDriveFileId);
-      this.sgcF27mEditorEmbedUrlSafe = url
-        ? this.sanitizer.bypassSecurityTrustResourceUrl(url)
-        : null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
-      this.backendService.asegurarAccesoSgcF27Medicion()
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: (res) => {
-            if (res?.driveFileId) {
-              this.sgcF27mDriveFileId = res.driveFileId;
-            }
-          },
-          error: () => undefined
-        });
+      this.conAccesoDriveEmbed(this.sgcF27mDriveFileId, () => {
+        if (!this.mostrarSgcF27mEditor) {
+          return;
+        }
+        const url = this.resolverUrlEditorDrive(this.sgcF27mEditorUrl, this.sgcF27mDriveFileId);
+        this.sgcF27mEditorEmbedUrlSafe = url
+          ? this.sanitizer.bypassSecurityTrustResourceUrl(url)
+          : null;
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -10986,28 +11025,21 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarSgcF25Editor = abrir;
 
     if (abrir) {
+
       this.sgcF25EditorIframeListo = false;
       this.sgcF25EditorCargando = true;
-      this.fijarEditorEmbedUrlSgcF25(
-        this.resolverUrlEditorDrive(this.sgcF25EditorUrl, this.sgcF25DriveFileId),
-        true
-      );
+      this.sgcF25EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
-      // Permiso por enlace en segundo plano; no recargar el iframe (evita el modal de Google).
-      this.backendService.asegurarAccesoSgcF25()
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: (res) => {
-            if (res?.driveFileId) {
-              this.sgcF25DriveFileId = res.driveFileId;
-            }
-            if (res?.editorUrl && !this.sgcF25EditorUrl) {
-              this.sgcF25EditorUrl = res.editorUrl;
-            }
-          },
-          error: () => { /* ignore */ }
-        });
+      this.conAccesoDriveEmbed(this.sgcF25DriveFileId, () => {
+        if (!this.mostrarSgcF25Editor) {
+          return;
+        }
+        this.fijarEditorEmbedUrlSgcF25(
+        this.resolverUrlEditorDrive(this.sgcF25EditorUrl, this.sgcF25DriveFileId),
+        true
+        );
+      });
       return;
     }
 
@@ -11269,23 +11301,21 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF03Editor;
     this.mostrarSgcF03Editor = abrir;
     if (abrir) {
+
       this.sgcF03EditorIframeListo = false;
       this.sgcF03EditorCargando = true;
-      this.fijarEditorEmbedUrlSgcF03(
-        this.resolverUrlEditorDrive(this.sgcF03EditorUrl, this.sgcF03DriveFileId),
-        true
-      );
+      this.sgcF03EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
-      this.backendService.asegurarAccesoSgcF03()
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: (res) => {
-            if (res?.driveFileId) this.sgcF03DriveFileId = res.driveFileId;
-            if (res?.editorUrl && !this.sgcF03EditorUrl) this.sgcF03EditorUrl = res.editorUrl;
-          },
-          error: () => { /* ignore */ }
-        });
+      this.conAccesoDriveEmbed(this.sgcF03DriveFileId, () => {
+        if (!this.mostrarSgcF03Editor) {
+          return;
+        }
+        this.fijarEditorEmbedUrlSgcF03(
+        this.resolverUrlEditorDrive(this.sgcF03EditorUrl, this.sgcF03DriveFileId),
+        true
+        );
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -11725,23 +11755,21 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF19Editor;
     this.mostrarSgcF19Editor = abrir;
     if (abrir) {
+
       this.sgcF19EditorIframeListo = false;
       this.sgcF19EditorCargando = true;
-      this.fijarEditorEmbedUrlSgcF19(
-        this.resolverUrlEditorDrive(this.sgcF19EditorUrl, this.sgcF19DriveFileId),
-        true
-      );
+      this.sgcF19EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
-      this.backendService.asegurarAccesoSgcF19()
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: (res) => {
-            if (res?.driveFileId) this.sgcF19DriveFileId = res.driveFileId;
-            if (res?.editorUrl && !this.sgcF19EditorUrl) this.sgcF19EditorUrl = res.editorUrl;
-          },
-          error: () => { /* ignore */ }
-        });
+      this.conAccesoDriveEmbed(this.sgcF19DriveFileId, () => {
+        if (!this.mostrarSgcF19Editor) {
+          return;
+        }
+        this.fijarEditorEmbedUrlSgcF19(
+        this.resolverUrlEditorDrive(this.sgcF19EditorUrl, this.sgcF19DriveFileId),
+        true
+        );
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -12764,11 +12792,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF16Editor;
     this.mostrarSgcF16Editor = abrir;
     if (abrir) {
+
       this.sgcF16EditorIframeListo = false;
       this.sgcF16EditorCargando = true;
-      this.fijarEditorEmbedUrlSgcF16(this.resolverUrlEditorDrive(this.sgcF16EditorUrl, this.sgcF16DriveFileId), true);
+      this.sgcF16EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF16DriveFileId, () => {
+        if (!this.mostrarSgcF16Editor) {
+          return;
+        }
+        this.fijarEditorEmbedUrlSgcF16(this.resolverUrlEditorDrive(this.sgcF16EditorUrl, this.sgcF16DriveFileId), true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -13311,11 +13346,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF24Editor;
     this.mostrarSgcF24Editor = abrir;
     if (abrir) {
+
       this.sgcF24EditorIframeListo = false;
       this.sgcF24EditorCargando = true;
-      this.fijarEditorEmbedUrlSgcF24(this.resolverUrlEditorDrive(this.sgcF24EditorUrl, this.sgcF24DriveFileId), true);
+      this.sgcF24EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF24DriveFileId, () => {
+        if (!this.mostrarSgcF24Editor) {
+          return;
+        }
+        this.fijarEditorEmbedUrlSgcF24(this.resolverUrlEditorDrive(this.sgcF24EditorUrl, this.sgcF24DriveFileId), true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -13882,11 +13924,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF20Editor;
     this.mostrarSgcF20Editor = abrir;
     if (abrir) {
+
       this.sgcF20EditorIframeListo = false;
       this.sgcF20EditorCargando = true;
-      this.fijarEditorEmbedUrlSgcF20(this.resolverUrlEditorDrive(this.sgcF20EditorUrl, this.sgcF20DriveFileId), true);
+      this.sgcF20EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF20DriveFileId, () => {
+        if (!this.mostrarSgcF20Editor) {
+          return;
+        }
+        this.fijarEditorEmbedUrlSgcF20(this.resolverUrlEditorDrive(this.sgcF20EditorUrl, this.sgcF20DriveFileId), true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -14371,11 +14420,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarAthF06Editor;
     this.mostrarAthF06Editor = abrir;
     if (abrir) {
+
       this.athF06EditorIframeListo = false;
       this.athF06EditorCargando = true;
-      this.fijarEditorEmbedUrlAthF06(this.resolverUrlEditorDrive(this.athF06EditorUrl, this.athF06DriveFileId), true);
+      this.athF06EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.athF06DriveFileId, () => {
+        if (!this.mostrarAthF06Editor) {
+          return;
+        }
+        this.fijarEditorEmbedUrlAthF06(this.resolverUrlEditorDrive(this.athF06EditorUrl, this.athF06DriveFileId), true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -15358,10 +15414,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarAthF03Editor = true;
     this.athF03EditorIframeListo = false;
     this.athF03EditorCargando = true;
-    const url = this.athF03EditorUrl || `https://docs.google.com/document/d/${driveId}/edit?usp=sharing`;
-    this.fijarEditorEmbedUrlAthF03(this.resolverUrlEditorDrive(url, driveId), true);
+    this.athF03EditorEmbedUrlSafe = null;
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
+    this.conAccesoDriveEmbed(driveId, () => {
+      if (!this.mostrarAthF03Editor) return;
+      const url = this.athF03EditorUrl || `https://docs.google.com/document/d/${driveId}/edit?usp=sharing`;
+      this.fijarEditorEmbedUrlAthF03(this.resolverUrlEditorDrive(url, driveId), true);
+    });
   }
 
   onAthF03IframeLoad(): void {
@@ -15553,13 +15613,19 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   toggleAthF14Editor(): void {
     if (!this.athF14DriveFileId) return;
     this.mostrarAthF14Editor = !this.mostrarAthF14Editor;
-    if (this.mostrarAthF14Editor && !this.athF14EditorSrcCache) {
-      const id = encodeURIComponent(this.athF14DriveFileId);
-      const url = `https://docs.google.com/spreadsheets/d/${id}/edit?usp=sharing&embedded=true&single=true`;
-      this.athF14EditorSrcCache = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    if (this.mostrarAthF14Editor) {
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.athF14DriveFileId, () => {
+        if (!this.mostrarAthF14Editor) return;
+        const id = encodeURIComponent(this.athF14DriveFileId);
+        const url = `https://docs.google.com/spreadsheets/d/${id}/edit?usp=sharing&embedded=true&single=true`;
+        this.athF14EditorSrcCache = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      });
+      return;
     }
-    document.documentElement.style.overflow = this.mostrarAthF14Editor ? 'hidden' : '';
-    document.body.style.overflow = this.mostrarAthF14Editor ? 'hidden' : '';
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
   }
 
   get spF04FilasVista(): SpF04Fila[] {
@@ -15723,12 +15789,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!this.spF04DriveFileId) return;
     this.mostrarSpF04Editor = !this.mostrarSpF04Editor;
     if (this.mostrarSpF04Editor) {
-      const url = this.spF04EditorUrl
-        || `https://docs.google.com/spreadsheets/d/${encodeURIComponent(this.spF04DriveFileId)}/edit?usp=sharing&embedded=true&single=true`;
-      this.spF04EditorSrcCache = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.spF04DriveFileId, () => {
+        if (!this.mostrarSpF04Editor) return;
+        const url = this.spF04EditorUrl
+          || `https://docs.google.com/spreadsheets/d/${encodeURIComponent(this.spF04DriveFileId)}/edit?usp=sharing&embedded=true&single=true`;
+        this.spF04EditorSrcCache = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      });
+      return;
     }
-    document.documentElement.style.overflow = this.mostrarSpF04Editor ? 'hidden' : '';
-    document.body.style.overflow = this.mostrarSpF04Editor ? 'hidden' : '';
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
   }
 
   onAthF14IframeLoad(): void {
@@ -17083,10 +17155,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarAthF13Editor = true;
     this.athF13EditorIframeListo = false;
     this.athF13EditorCargando = true;
-    const url = this.athF13EditorUrl || `https://docs.google.com/document/d/${driveId}/edit?usp=sharing`;
-    this.fijarEditorEmbedUrlAthF13(this.resolverUrlEditorDrive(url, driveId), true);
+    this.athF13EditorEmbedUrlSafe = null;
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
+    this.conAccesoDriveEmbed(driveId, () => {
+      if (!this.mostrarAthF13Editor) return;
+      const url = this.athF13EditorUrl || `https://docs.google.com/document/d/${driveId}/edit?usp=sharing`;
+      this.fijarEditorEmbedUrlAthF13(this.resolverUrlEditorDrive(url, driveId), true);
+    });
   }
 
   onAthF13IframeLoad(): void {
@@ -17656,30 +17732,37 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF27Editor;
     this.mostrarSgcF27Editor = abrir;
     if (abrir) {
+
       this.sgcF27EditorIframeListo = false;
       this.sgcF27EditorCargando = true;
+      this.sgcF27EditorEmbedUrlSafe = null;
       // Relee el formato para reasignar permiso de enlace (evita el muro de login de Google).
-      this.backendService.cargarSgcF27Formato()
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: (res: any) => {
-            const driveId = res?.driveFileId || this.sgcF27DriveFileId;
-            const editorUrl = res?.editorUrl
-              || this.resolverUrlEditorDrive(this.sgcF27EditorUrl, driveId);
-            if (driveId) {
-              this.sgcF27DriveFileId = driveId;
-            }
-            this.fijarEditorEmbedUrlSgcF27(editorUrl, true);
-          },
-          error: () => {
-            this.fijarEditorEmbedUrlSgcF27(
-              this.resolverUrlEditorDrive(this.sgcF27EditorUrl, this.sgcF27DriveFileId),
-              true
-            );
-          }
-        });
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF27DriveFileId, () => {
+        if (!this.mostrarSgcF27Editor) {
+          return;
+        }
+        this.backendService.cargarSgcF27Formato()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+        next: (res: any) => {
+        const driveId = res?.driveFileId || this.sgcF27DriveFileId;
+        const editorUrl = res?.editorUrl
+        || this.resolverUrlEditorDrive(this.sgcF27EditorUrl, driveId);
+        if (driveId) {
+        this.sgcF27DriveFileId = driveId;
+        }
+        this.fijarEditorEmbedUrlSgcF27(editorUrl, true);
+        },
+        error: () => {
+        this.fijarEditorEmbedUrlSgcF27(
+        this.resolverUrlEditorDrive(this.sgcF27EditorUrl, this.sgcF27DriveFileId),
+        true
+        );
+        }
+        });
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -19798,10 +19881,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (abrir) {
       this.sgcF29EditorIframeListo = false;
       this.sgcF29EditorCargando = true;
-      const url = this.resolverUrlEditorDrive(this.sgcF29EditorUrl, this.sgcF29DriveFileId);
-      this.fijarEditorEmbedUrlSgcF29(url, true);
+      this.sgcF29EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF29DriveFileId, () => {
+        if (!this.mostrarSgcF29Editor) {
+          return;
+        }
+        const url = this.resolverUrlEditorDrive(this.sgcF29EditorUrl, this.sgcF29DriveFileId);
+        this.fijarEditorEmbedUrlSgcF29(url, true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -20663,11 +20752,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.sincronizarSgcF28DesdeDrive();
       return;
     }
-    const url = this.resolverUrlEditorDrive(this.sgcF28EditorUrl, this.sgcF28DriveFileId);
-    this.fijarEditorEmbedUrlSgcF28(url, true);
     this.mostrarSgcF28Editor = true;
     this.sgcF28EditorCargando = true;
     this.sgcF28EditorIframeListo = false;
+    this.sgcF28EditorEmbedUrlSafe = null;
+    this.conAccesoDriveEmbed(this.sgcF28DriveFileId, () => {
+      if (!this.mostrarSgcF28Editor) return;
+      const url = this.resolverUrlEditorDrive(this.sgcF28EditorUrl, this.sgcF28DriveFileId);
+      this.fijarEditorEmbedUrlSgcF28(url, true);
+    });
   }
 
   onSgcF28IframeLoad(): void {
@@ -21380,11 +21473,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       // El formulario es la fuente de verdad; no sobrescribir con lectura de Excel al cerrar.
       return;
     }
-    const url = this.resolverUrlEditorDrive(this.spF02EditorUrl, this.spF02DriveFileId);
-    this.fijarEditorEmbedUrlSpF02(url, true);
     this.mostrarSpF02Editor = true;
     this.spF02EditorCargando = true;
     this.spF02EditorIframeListo = false;
+    this.spF02EditorEmbedUrlSafe = null;
+    this.conAccesoDriveEmbed(this.spF02DriveFileId, () => {
+      if (!this.mostrarSpF02Editor) return;
+      const url = this.resolverUrlEditorDrive(this.spF02EditorUrl, this.spF02DriveFileId);
+      this.fijarEditorEmbedUrlSpF02(url, true);
+    });
   }
 
   onSpF02IframeLoad(): void {
@@ -22337,24 +22434,26 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     const abrir = !this.mostrarSpF07Editor;
+    this.mostrarSpF07Editor = abrir;
     if (abrir) {
-      if (this.spF07Guardando) {
-        return;
-      }
-      this.mostrarSpF07Editor = true;
       this.spF07EditorIframeListo = false;
       this.spF07EditorCargando = true;
-      this.fijarSpF07EditorEmbedUrl(
-        this.resolverUrlEditorDrive(this.spF07EditorUrl, this.spF07DriveFileId),
-        true
-      );
+      this.spF07EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.spF07DriveFileId, () => {
+        if (!this.mostrarSpF07Editor) {
+          return;
+        }
+        this.fijarSpF07EditorEmbedUrl(
+          this.resolverUrlEditorDrive(this.spF07EditorUrl, this.spF07DriveFileId),
+          true
+        );
+      });
       return;
     }
     document.documentElement.style.overflow = '';
     document.body.style.overflow = '';
-    this.mostrarSpF07Editor = false;
   }
 
   onSpF07IframeLoad(): void {
@@ -22783,11 +22882,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF05Editor;
     this.mostrarSgcF05Editor = abrir;
     if (abrir) {
+
       this.sgcF05EditorIframeListo = false;
       this.sgcF05EditorCargando = true;
-      this.fijarEditorEmbedUrlSgcF05(this.resolverUrlEditorDrive(this.sgcF05EditorUrl, this.sgcF05DriveFileId), true);
+      this.sgcF05EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF05DriveFileId, () => {
+        if (!this.mostrarSgcF05Editor) {
+          return;
+        }
+        this.fijarEditorEmbedUrlSgcF05(this.resolverUrlEditorDrive(this.sgcF05EditorUrl, this.sgcF05DriveFileId), true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -23528,11 +23634,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarAthF08Editor;
     this.mostrarAthF08Editor = abrir;
     if (abrir) {
+
       this.athF08EditorIframeListo = false;
       this.athF08EditorCargando = true;
-      this.fijarEditorEmbedUrlAthF08(this.resolverUrlEditorDrive(this.athF08EditorUrl, this.athF08DriveFileId), true);
+      this.athF08EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.athF08DriveFileId, () => {
+        if (!this.mostrarAthF08Editor) {
+          return;
+        }
+        this.fijarEditorEmbedUrlAthF08(this.resolverUrlEditorDrive(this.athF08EditorUrl, this.athF08DriveFileId), true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -23800,13 +23913,20 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF09Editor;
     this.mostrarSgcF09Editor = abrir;
     if (abrir) {
+
       this.sgcF09EditorIframeListo = false;
       this.sgcF09EditorCargando = true;
-      const url = this.sgcF09EditorUrl
-        || `https://docs.google.com/document/d/${encodeURIComponent(this.sgcF09DriveFileId)}/edit?usp=sharing`;
-      this.fijarEditorEmbedUrlSgcF09(url, true);
+      this.sgcF09EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF09DriveFileId, () => {
+        if (!this.mostrarSgcF09Editor) {
+          return;
+        }
+        const url = this.sgcF09EditorUrl
+        || `https://docs.google.com/document/d/${encodeURIComponent(this.sgcF09DriveFileId)}/edit?usp=sharing`;
+        this.fijarEditorEmbedUrlSgcF09(url, true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -24145,13 +24265,20 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarDgF06Editor;
     this.mostrarDgF06Editor = abrir;
     if (abrir) {
+
       this.dgF06EditorIframeListo = false;
       this.dgF06EditorCargando = true;
-      const url = this.dgF06EditorUrl
-        || `https://docs.google.com/spreadsheets/d/${encodeURIComponent(this.dgF06DriveFileId)}/edit?usp=sharing`;
-      this.fijarEditorEmbedUrlDgF06(url, true);
+      this.dgF06EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.dgF06DriveFileId, () => {
+        if (!this.mostrarDgF06Editor) {
+          return;
+        }
+        const url = this.dgF06EditorUrl
+        || `https://docs.google.com/spreadsheets/d/${encodeURIComponent(this.dgF06DriveFileId)}/edit?usp=sharing`;
+        this.fijarEditorEmbedUrlDgF06(url, true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -25083,11 +25210,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF06Editor;
     this.mostrarSgcF06Editor = abrir;
     if (abrir) {
+
       this.sgcF06EditorIframeListo = false;
       this.sgcF06EditorCargando = true;
-      this.fijarSgcF06EditorEmbedUrl(this.resolverUrlEditorDrive(this.sgcF06EditorUrl, this.sgcF06DriveFileId), true);
+      this.sgcF06EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF06DriveFileId, () => {
+        if (!this.mostrarSgcF06Editor) {
+          return;
+        }
+        this.fijarSgcF06EditorEmbedUrl(this.resolverUrlEditorDrive(this.sgcF06EditorUrl, this.sgcF06DriveFileId), true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -25789,10 +25923,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarDgF04Editor;
 
     if (abrir) {
-      if (this.dgF04Guardando) {
-        return;
-      }
-      this.abrirPanelEditorDgF04();
+
+      this.dgF04EditorEmbedUrlSafe = null;
+      this.conAccesoDriveEmbed(this.dgF04DriveFileId, () => {
+        if (!this.mostrarDgF04Editor) {
+          return;
+        }
+        if (this.dgF04Guardando) {
+        }
+        this.abrirPanelEditorDgF04();
+      });
       return;
     }
 
@@ -26386,11 +26526,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarDgF05Editor = abrir;
 
     if (abrir) {
+
       this.dgF05EditorIframeListo = false;
       this.dgF05EditorCargando = true;
-      this.fijarEditorEmbedUrl(this.resolverUrlEditorDrive(this.dgF05EditorUrl, this.dgF05DriveFileId), true);
+      this.dgF05EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.dgF05DriveFileId, () => {
+        if (!this.mostrarDgF05Editor) {
+          return;
+        }
+        this.fijarEditorEmbedUrl(this.resolverUrlEditorDrive(this.dgF05EditorUrl, this.dgF05DriveFileId), true);
+      });
       return;
     }
 
@@ -26767,11 +26914,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.mostrarDgF07Editor = abrir;
 
     if (abrir) {
+
       this.dgF07EditorIframeListo = false;
       this.dgF07EditorCargando = true;
-      this.fijarEditorEmbedUrlDgF07(this.resolverUrlEditorDrive(this.dgF07EditorUrl, this.dgF07DriveFileId), true);
+      this.dgF07EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.dgF07DriveFileId, () => {
+        if (!this.mostrarDgF07Editor) {
+          return;
+        }
+        this.fijarEditorEmbedUrlDgF07(this.resolverUrlEditorDrive(this.dgF07EditorUrl, this.dgF07DriveFileId), true);
+      });
       return;
     }
 
@@ -28289,13 +28443,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       document.body.style.overflow = '';
       return;
     }
-    const url = this.resolverUrlEditorDrive(this.athF02EditorUrl, this.athF02DriveFileId);
-    this.fijarEditorEmbedUrlAthF02(url, true);
     this.mostrarAthF02Editor = true;
     this.athF02EditorCargando = true;
     this.athF02EditorIframeListo = false;
+    this.athF02EditorEmbedUrlSafe = null;
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
+    this.conAccesoDriveEmbed(this.athF02DriveFileId, () => {
+      if (!this.mostrarAthF02Editor) return;
+      const url = this.resolverUrlEditorDrive(this.athF02EditorUrl, this.athF02DriveFileId);
+      this.fijarEditorEmbedUrlAthF02(url, true);
+    });
   }
 
   onAthF02IframeLoad(): void {
@@ -29369,13 +29527,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
       return;
     }
-    const url = this.resolverUrlEditorDrive(this.athF09EditorUrl, this.athF09DriveFileId);
-    this.fijarEditorEmbedUrlAthF09(url, true);
+    const driveId = this.athF09CotizacionActiva.driveFileId || this.athF09DriveFileId;
     this.mostrarAthF09Editor = true;
     this.athF09EditorCargando = true;
     this.athF09EditorIframeListo = false;
+    this.athF09EditorEmbedUrlSafe = null;
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
+    this.conAccesoDriveEmbed(driveId, () => {
+      if (!this.mostrarAthF09Editor) return;
+      const url = this.resolverUrlEditorDrive(this.athF09EditorUrl, driveId);
+      this.fijarEditorEmbedUrlAthF09(url, true);
+    });
   }
 
   onAthF09IframeLoad(): void {
@@ -29947,13 +30110,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
       return;
     }
-    const url = this.resolverUrlEditorDrive(this.athF07EditorUrl, this.athF07DriveFileId);
-    this.fijarEditorEmbedUrlAthF07(url, true);
+    const driveId = this.athF07ProgramaActivo.driveFileId || this.athF07DriveFileId;
     this.mostrarAthF07Editor = true;
     this.athF07EditorCargando = true;
     this.athF07EditorIframeListo = false;
+    this.athF07EditorEmbedUrlSafe = null;
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
+    this.conAccesoDriveEmbed(driveId, () => {
+      if (!this.mostrarAthF07Editor) return;
+      const url = this.resolverUrlEditorDrive(this.athF07EditorUrl, driveId);
+      this.fijarEditorEmbedUrlAthF07(url, true);
+    });
   }
 
   onAthF07IframeLoad(): void {
@@ -30852,13 +31020,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         return;
       }
       this.athF11DriveFileId = driveId;
-      const url = this.resolverUrlEditorDrive(this.athF11EditorUrl, driveId);
-      this.fijarEditorEmbedUrlAthF11(url, true);
       this.mostrarAthF11Editor = true;
       this.athF11EditorCargando = true;
       this.athF11EditorIframeListo = false;
+      this.athF11EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(driveId, () => {
+        if (!this.mostrarAthF11Editor) return;
+        const url = this.resolverUrlEditorDrive(this.athF11EditorUrl, driveId);
+        this.fijarEditorEmbedUrlAthF11(url, true);
+      });
     };
 
     if (this.athF11EvaluacionActiva?.driveFileId) {
@@ -31539,11 +31711,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF18Editor;
     this.mostrarSgcF18Editor = abrir;
     if (abrir) {
+
       this.sgcF18EditorIframeListo = false;
       this.sgcF18EditorCargando = true;
-      this.fijarSgcF18EditorEmbedUrl(this.resolverUrlEditorDrive(this.sgcF18EditorUrl, this.sgcF18DriveFileId), true);
+      this.sgcF18EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF18DriveFileId, () => {
+        if (!this.mostrarSgcF18Editor) {
+          return;
+        }
+        this.fijarSgcF18EditorEmbedUrl(this.resolverUrlEditorDrive(this.sgcF18EditorUrl, this.sgcF18DriveFileId), true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -33414,11 +33593,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const abrir = !this.mostrarSgcF11Editor;
     this.mostrarSgcF11Editor = abrir;
     if (abrir) {
+
       this.sgcF11EditorIframeListo = false;
       this.sgcF11EditorCargando = true;
-      this.fijarSgcF11EditorEmbedUrl(this.resolverUrlEditorDrive(this.sgcF11EditorUrl, this.sgcF11DriveFileId), true);
+      this.sgcF11EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF11DriveFileId, () => {
+        if (!this.mostrarSgcF11Editor) {
+          return;
+        }
+        this.fijarSgcF11EditorEmbedUrl(this.resolverUrlEditorDrive(this.sgcF11EditorUrl, this.sgcF11DriveFileId), true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -33583,10 +33769,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     const abrir = !this.mostrarSgcF12Editor;
     if (abrir) {
-      if (this.sgcF12Guardando) {
-        return;
-      }
-      this.abrirPanelEditorSgcF12();
+
+      this.sgcF12EditorEmbedUrlSafe = null;
+      this.conAccesoDriveEmbed(this.sgcF12DriveFileId, () => {
+        if (!this.mostrarSgcF12Editor) {
+          return;
+        }
+        if (this.sgcF12Guardando) {
+        }
+        this.abrirPanelEditorSgcF12();
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -34759,10 +34951,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     const abrir = !this.mostrarSgcF02Editor;
     if (abrir) {
-      if (this.sgcF02Guardando) {
-        return;
-      }
-      this.abrirPanelEditorSgcF02();
+
+      this.sgcF02EditorEmbedUrlSafe = null;
+      this.conAccesoDriveEmbed(this.sgcF02DriveFileId, () => {
+        if (!this.mostrarSgcF02Editor) {
+          return;
+        }
+        if (this.sgcF02Guardando) {
+        }
+        this.abrirPanelEditorSgcF02();
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -38051,15 +38249,21 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     const abrir = !this.mostrarSgcF04Editor;
     if (abrir) {
-      if (this.sgcF04Guardando) {
-        return;
-      }
-      this.mostrarSgcF04Editor = true;
+
       this.sgcF04EditorIframeListo = false;
       this.sgcF04EditorCargando = true;
-      this.fijarSgcF04EditorEmbedUrl(this.resolverUrlEditorDrive(this.sgcF04EditorUrl, this.sgcF04DriveFileId), true);
+      this.sgcF04EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF04DriveFileId, () => {
+        if (!this.mostrarSgcF04Editor) {
+          return;
+        }
+        if (this.sgcF04Guardando) {
+        }
+        this.mostrarSgcF04Editor = true;
+        this.fijarSgcF04EditorEmbedUrl(this.resolverUrlEditorDrive(this.sgcF04EditorUrl, this.sgcF04DriveFileId), true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';
@@ -38947,15 +39151,21 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     const abrir = !this.mostrarSgcF22Editor;
     if (abrir) {
-      if (this.sgcF22Guardando) {
-        return;
-      }
-      this.mostrarSgcF22Editor = true;
+
       this.sgcF22EditorIframeListo = false;
       this.sgcF22EditorCargando = true;
-      this.fijarSgcF22EditorEmbedUrl(this.resolverUrlEditorDrive(this.sgcF22EditorUrl, this.sgcF22DriveFileId), true);
+      this.sgcF22EditorEmbedUrlSafe = null;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      this.conAccesoDriveEmbed(this.sgcF22DriveFileId, () => {
+        if (!this.mostrarSgcF22Editor) {
+          return;
+        }
+        if (this.sgcF22Guardando) {
+        }
+        this.mostrarSgcF22Editor = true;
+        this.fijarSgcF22EditorEmbedUrl(this.resolverUrlEditorDrive(this.sgcF22EditorUrl, this.sgcF22DriveFileId), true);
+      });
       return;
     }
     document.documentElement.style.overflow = '';

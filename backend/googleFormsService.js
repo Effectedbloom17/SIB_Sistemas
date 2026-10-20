@@ -413,6 +413,60 @@ async function listarRespuestasFormulario(formId, pageSize = 5000) {
     return allResponses;
 }
 
+/** Caché en memoria de lecturas Forms (TTL corto) + dedupe de peticiones en vuelo. */
+const FORMS_CACHE_TTL_MS = 5 * 60 * 1000;
+const formsRawCache = new Map(); // formId -> { ts, data }
+const formsRawInflight = new Map(); // formId -> Promise
+
+function invalidarCacheForms(formId) {
+    if (formId) {
+        formsRawCache.delete(String(formId));
+        formsRawInflight.delete(String(formId));
+        return;
+    }
+    formsRawCache.clear();
+    formsRawInflight.clear();
+}
+
+/**
+ * Una sola lectura de estructura + respuestas por formulario.
+ * Reutilizada por estadísticas y agregaciones mensuales del dashboard SGC.
+ */
+async function obtenerFormularioYRespuestasRaw(formId, forzarRecarga = false) {
+    const key = String(formId || '');
+    if (!key) {
+        throw new Error('formId requerido');
+    }
+
+    if (!forzarRecarga) {
+        const hit = formsRawCache.get(key);
+        if (hit && (Date.now() - hit.ts) < FORMS_CACHE_TTL_MS) {
+            return hit.data;
+        }
+        const inflight = formsRawInflight.get(key);
+        if (inflight) {
+            return inflight;
+        }
+    }
+
+    const promesa = (async () => {
+        const [formData, responses] = await Promise.all([
+            forms.forms.get({ formId: key }),
+            listarRespuestasFormulario(key)
+        ]);
+        const data = { formData, responses: responses || [] };
+        formsRawCache.set(key, { ts: Date.now(), data });
+        return data;
+    })();
+
+    formsRawInflight.set(key, promesa);
+    try {
+        return await promesa;
+    } finally {
+        formsRawInflight.delete(key);
+    }
+}
+
 const DESCRIPCION_ENCUESTA_DEFAULT = 'En Biznaga Risk and Tech estamos comprometidos con la mejora continua y con el cumplimiento de las necesidades y expectativas de nuestros clientes. Valoramos profundamente su opinión respecto a nuestro servicio de capacitación, por lo que le solicitamos su colaboración para responder el siguiente cuestionario. Sus respuestas nos permitirán identificar áreas de oportunidad y fortalecer los aspectos señalados.\n\nCódigo: SP-F-14 | Revisión: 00 | Fecha de revisión: 24-01-25';
 
 async function copiarFormularioDesdeTemplate(templateId, nuevoTitulo, folderId) {
@@ -658,11 +712,10 @@ async function verificarFormularioExiste(formId) {
     }
 }
 
-async function obtenerEstadisticasFormulario(formId) {
-    const [formData, responses] = await Promise.all([
-        forms.forms.get({ formId }),
-        listarRespuestasFormulario(formId)
-    ]);
+async function obtenerEstadisticasFormulario(formId, opciones = {}) {
+    const raw = await obtenerFormularioYRespuestasRaw(formId, !!opciones.forzarRecarga);
+    const formData = raw.formData;
+    const responses = raw.responses || [];
 
     const preguntas = extraerPreguntasDeFormulario(formData.data);
     const preguntasMap = new Map();
@@ -748,17 +801,14 @@ async function obtenerEstadisticasFormulario(formId) {
  * Devuelve la estructura del formulario + respuestas crudas (con timestamps).
  * Útil para agregaciones por mes / año (p. ej. SGC-F-26 Satisfacción del cliente).
  */
-async function obtenerFormularioConRespuestas(formId) {
-    const [formData, responses] = await Promise.all([
-        forms.forms.get({ formId }),
-        listarRespuestasFormulario(formId)
-    ]);
+async function obtenerFormularioConRespuestas(formId, opciones = {}) {
+    const raw = await obtenerFormularioYRespuestasRaw(formId, !!opciones.forzarRecarga);
 
     return {
         form_id: formId,
-        info: formData.data?.info || {},
-        preguntas: extraerPreguntasDeFormulario(formData.data),
-        responses: responses || []
+        info: raw.formData.data?.info || {},
+        preguntas: extraerPreguntasDeFormulario(raw.formData.data),
+        responses: raw.responses || []
     };
 }
 
@@ -774,6 +824,7 @@ module.exports = {
     obtenerFormularioConRespuestas,
     listarRespuestasFormulario,
     verificarFormularioExiste,
+    invalidarCacheForms,
     FORMS_TEMPLATE_ID,
     authMethod
 };

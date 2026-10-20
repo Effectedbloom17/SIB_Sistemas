@@ -824,6 +824,7 @@ $light-green: #C2D1B2;
   inset: 0;
   background: rgba(16, 27, 13, 0.76);
   backdrop-filter: blur(3px);
+  animation: amb-arch-viewer-backdrop-in 0.28s ease-out both;
 }
 
 .amb-arch-viewer__panel {
@@ -838,6 +839,30 @@ $light-green: #C2D1B2;
   border-radius: 16px;
   background: #172018;
   box-shadow: 0 28px 75px rgba(10, 22, 8, 0.42);
+  animation: amb-arch-viewer-panel-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes amb-arch-viewer-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes amb-arch-viewer-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .amb-arch-viewer__backdrop,
+  .amb-arch-viewer__panel {
+    animation: none;
+  }
 }
 
 .amb-arch-viewer__head {

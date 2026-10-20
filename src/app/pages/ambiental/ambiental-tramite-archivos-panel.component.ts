@@ -3,6 +3,7 @@ import { Subject, firstValueFrom } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { BackendServices } from 'src/app/services/backend.services';
+import { esMimeImagen, esMimePdf, lanzarImpresionEnSistema } from 'src/app/utils/in-app-print.util';
 
 export interface AmbTramArchivoItem {
   id: number;
@@ -47,6 +48,7 @@ export class AmbientalTramiteArchivosPanelComponent implements OnChanges, OnDest
   pendientes: AmbPendiente[] = [];
   cargando = false;
   subiendo = false;
+  imprimiendoArchivo = false;
   error: string | null = null;
   dragOver = false;
   carpetasExpandidas = new Set<string>([this.claveRaiz]);
@@ -332,6 +334,74 @@ export class AmbientalTramiteArchivosPanelComponent implements OnChanges, OnDest
       a.download = this.previewPendiente.file.name;
       a.click();
     }
+  }
+
+  imprimirDesdePreview(): void {
+    if (this.imprimiendoArchivo) {
+      return;
+    }
+
+    if (this.previewPendiente?.file) {
+      const file = this.previewPendiente.file;
+      const esImagen = esMimeImagen(file.type, file.name);
+      const esPdf = esMimePdf(file.type, file.name);
+      if (esImagen || esPdf) {
+        lanzarImpresionEnSistema(file, esImagen);
+        return;
+      }
+      void Swal.fire({
+        icon: 'info',
+        title: 'Impresión no disponible',
+        text: 'Guarda el archivo primero para poder convertirlo e imprimirlo.',
+        confirmButtonColor: '#38512F'
+      });
+      return;
+    }
+
+    const doc = this.previewDocumento;
+    if (!doc || !this.tramiteId) {
+      return;
+    }
+
+    const esImagen = esMimeImagen(doc.mimeType, doc.nombreArchivo);
+    const esPdf = esMimePdf(doc.mimeType, doc.nombreArchivo);
+    const driveId = String(doc.driveFileId || '').trim();
+    const nombre = doc.nombreArchivo || 'documento';
+
+    this.imprimiendoArchivo = true;
+    void Swal.fire({
+      title: 'Preparando impresión…',
+      text: 'Un momento, esto puede tardar unos segundos…',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    const source$ = (esPdf || esImagen)
+      ? this.backend.descargarAmbientalTramiteArchivo(this.tramiteId, doc.id)
+      : driveId
+        ? this.backend.imprimirArchivoDriveComoPDF(driveId, nombre)
+        : this.backend.descargarAmbientalTramiteArchivo(this.tramiteId, doc.id);
+
+    source$.pipe(takeUntil(this.destroy$)).subscribe({
+      next: (blob) => {
+        this.imprimiendoArchivo = false;
+        Swal.close();
+        const tipo = esImagen
+          ? (blob.type || doc.mimeType || 'image/png')
+          : 'application/pdf';
+        lanzarImpresionEnSistema(new Blob([blob], { type: tipo }), esImagen);
+      },
+      error: () => {
+        this.imprimiendoArchivo = false;
+        Swal.close();
+        void Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'No se pudo preparar el documento para impresión.',
+          confirmButtonColor: '#38512F'
+        });
+      }
+    });
   }
 
   private iniciarPreview(nombre: string, mime: string): void {

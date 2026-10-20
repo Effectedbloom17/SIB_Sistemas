@@ -508,6 +508,9 @@
                         <button class="action-btn action-preview" (click)="abrirArchivoHistorial(archivo, $event)" title="Ver">
                           <i class="fas fa-eye"></i>
                         </button>
+                        <button class="action-btn action-print" (click)="imprimirArchivoHistorial(archivo, $event)" title="Imprimir">
+                          <i class="fas fa-print"></i>
+                        </button>
                         <button
                           *ngIf="esExcelEditableHistorial(archivo)"
                           class="action-btn action-edit"
@@ -1075,6 +1078,9 @@
               <i class="fas fa-search-plus"></i>
             </button>
           </div>
+          <button type="button" class="btn btn-sm btn-outline-light mr-2" (click)="imprimirArchivoHistorial()">
+            <i class="fas fa-print mr-1"></i>Imprimir
+          </button>
           <button type="button" class="btn btn-sm btn-light mr-2" (click)="descargarArchivoHistorial()">
             <i class="fas fa-download mr-1"></i>Descargar
           </button>

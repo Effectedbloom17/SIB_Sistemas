@@ -6260,24 +6260,39 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
   toggleEditorChecklist(): void {
     if (!this.checklistEditorDisponible) return;
 
-    if (!this.checklistEditorUrl && this.checklistVerificacionArchivo?.drive_file_id) {
-      const fileId = this.checklistVerificacionArchivo.drive_file_id;
-      const url = `https://docs.google.com/spreadsheets/d/${fileId}/edit`;
-      this.checklistEditorRawUrl = url;
-      this.checklistEditorUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
-    }
-
-    this.checklistEditorVisible = !this.checklistEditorVisible;
-    if (this.checklistEditorVisible) {
+    const abrir = !this.checklistEditorVisible;
+    if (abrir) {
       this.informeFinalEditorVisible = false;
       this.informeFotograficoEditorVisible = false;
-    }
-    this.sincronizarPantallaCompletaEditorIntegrado();
-    this.sincronizarBloqueoScrollEditor();
-    if (this.checklistEditorVisible) {
+      this.checklistEditorVisible = true;
+      this.sincronizarPantallaCompletaEditorIntegrado();
+      this.sincronizarBloqueoScrollEditor();
       this.limpiarRestauracionScrollEditorPendiente();
       this.actualizarAnclaScrollEditor();
+
+      const fileId = String(this.checklistVerificacionArchivo?.drive_file_id || '').trim();
+      const montar = () => {
+        if (!this.checklistEditorVisible) return;
+        if (!this.checklistEditorUrl && fileId) {
+          const url = `https://docs.google.com/spreadsheets/d/${fileId}/edit`;
+          this.checklistEditorRawUrl = url;
+          this.checklistEditorUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+        }
+      };
+      if (!fileId) {
+        montar();
+        return;
+      }
+      this.backendServices.asegurarAccesoEditorDrive(fileId).subscribe({
+        next: () => montar(),
+        error: () => montar()
+      });
+      return;
     }
+
+    this.checklistEditorVisible = false;
+    this.sincronizarPantallaCompletaEditorIntegrado();
+    this.sincronizarBloqueoScrollEditor();
   }
 
   abrirChecklistEnNuevaPestana(): void {
@@ -10176,7 +10191,26 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (!this.informeFinalEditorUrl) {
+    const abrir = !this.informeFinalEditorVisible;
+    if (!abrir) {
+      this.informeFinalEditorVisible = false;
+      this.sincronizarPantallaCompletaEditorIntegrado();
+      this.sincronizarBloqueoScrollEditor();
+      return;
+    }
+
+    this.informeFotograficoEditorVisible = false;
+    this.informeFinalEditorVisible = true;
+    this.sincronizarPantallaCompletaEditorIntegrado();
+    this.sincronizarBloqueoScrollEditor();
+    this.verificarCuentaGoogleDrive();
+    this.limpiarRestauracionScrollEditorPendiente();
+    this.actualizarAnclaScrollEditor();
+
+    const fileId = String(this.informeFinalArchivoDrive?.drive_file_id || '').trim();
+    const montar = () => {
+      if (!this.informeFinalEditorVisible) return;
+      if (this.informeFinalEditorUrl) return;
       const editorUrl = this.resolverUrlEdicionInforme(
         this.informeFinalArchivoDrive?.drive_file_id,
         this.informeFinalArchivoDrive?.url
@@ -10184,17 +10218,15 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
       if (!editorUrl) return;
       this.informeFinalEditorRawUrl = editorUrl;
       this.informeFinalEditorUrl = this.sanitizer.bypassSecurityTrustResourceUrl(editorUrl);
+    };
+    if (!fileId) {
+      montar();
+      return;
     }
-
-    this.informeFinalEditorVisible = !this.informeFinalEditorVisible;
-    if (this.informeFinalEditorVisible) this.informeFotograficoEditorVisible = false;
-    this.sincronizarPantallaCompletaEditorIntegrado();
-    this.sincronizarBloqueoScrollEditor();
-    if (this.informeFinalEditorVisible) this.verificarCuentaGoogleDrive();
-    if (this.informeFinalEditorVisible) {
-      this.limpiarRestauracionScrollEditorPendiente();
-      this.actualizarAnclaScrollEditor();
-    }
+    this.backendServices.asegurarAccesoEditorDrive(fileId).subscribe({
+      next: () => montar(),
+      error: () => montar()
+    });
   }
 
   abrirInformeFinalEnNuevaPestana(): void {
@@ -10215,7 +10247,26 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (!this.informeFotograficoEditorUrl) {
+    const abrir = !this.informeFotograficoEditorVisible;
+    if (!abrir) {
+      this.informeFotograficoEditorVisible = false;
+      this.sincronizarPantallaCompletaEditorIntegrado();
+      this.sincronizarBloqueoScrollEditor();
+      return;
+    }
+
+    this.informeFinalEditorVisible = false;
+    this.informeFotograficoEditorVisible = true;
+    this.sincronizarPantallaCompletaEditorIntegrado();
+    this.sincronizarBloqueoScrollEditor();
+    this.verificarCuentaGoogleDrive();
+    this.limpiarRestauracionScrollEditorPendiente();
+    this.actualizarAnclaScrollEditor();
+
+    const fileId = String(this.informeFotograficoArchivo?.drive_file_id || '').trim();
+    const montar = () => {
+      if (!this.informeFotograficoEditorVisible) return;
+      if (this.informeFotograficoEditorUrl) return;
       const editorUrl = this.resolverUrlEdicionInformeFotografico(
         this.informeFotograficoArchivo?.drive_file_id,
         this.informeFotograficoArchivo?.url
@@ -10223,17 +10274,15 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
       if (!editorUrl) return;
       this.informeFotograficoEditorRawUrl = editorUrl;
       this.informeFotograficoEditorUrl = this.sanitizer.bypassSecurityTrustResourceUrl(editorUrl);
+    };
+    if (!fileId) {
+      montar();
+      return;
     }
-
-    this.informeFotograficoEditorVisible = !this.informeFotograficoEditorVisible;
-    if (this.informeFotograficoEditorVisible) this.informeFinalEditorVisible = false;
-    this.sincronizarPantallaCompletaEditorIntegrado();
-    this.sincronizarBloqueoScrollEditor();
-    if (this.informeFotograficoEditorVisible) this.verificarCuentaGoogleDrive();
-    if (this.informeFotograficoEditorVisible) {
-      this.limpiarRestauracionScrollEditorPendiente();
-      this.actualizarAnclaScrollEditor();
-    }
+    this.backendServices.asegurarAccesoEditorDrive(fileId).subscribe({
+      next: () => montar(),
+      error: () => montar()
+    });
   }
 
   abrirInformeFotograficoEnNuevaPestana(): void {

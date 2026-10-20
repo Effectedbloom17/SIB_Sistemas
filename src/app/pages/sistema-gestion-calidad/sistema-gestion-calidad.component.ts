@@ -154,6 +154,8 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   etiquetaRolUsuario = '';
 
   cargandoDashboard = true;
+  /** true mientras llegan los bloques de Google Forms (satisfacción). */
+  cargandoEncuestas = false;
   errorDashboard = false;
   anioActual = new Date().getFullYear();
   anioSeleccionado = new Date().getFullYear();
@@ -472,14 +474,15 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     this.errorDashboard = false;
 
     const cached = !forzarRefresco
-      ? this.sgcDashboardCache.peek(this.anioSeleccionado)
+      ? this.sgcDashboardCache.peek(this.anioSeleccionado, true)
       : null;
 
-    if (cached?.success) {
+    if (cached?.success && !cached.parcial) {
       this.aplicarRespuestaDashboard(cached, { resetSeleccion: true });
       this.cargandoDashboard = false;
-      // Soft refresh en segundo plano sin vaciar la UI
-      this.sgcDashboardCache.obtener(this.anioSeleccionado, true).subscribe({
+      this.cargandoEncuestas = false;
+      // Soft refresh: salta cache local; el backend puede responder SWR al instante.
+      this.sgcDashboardCache.obtener(this.anioSeleccionado, false, { ignorarCacheLocal: true }).subscribe({
         next: (res) => {
           if (res?.success) {
             this.aplicarRespuestaDashboard(res, { resetSeleccion: false });
@@ -491,20 +494,31 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     }
 
     this.cargandoDashboard = true;
+    this.cargandoEncuestas = true;
     this.chartsReady = false;
+    let primeraEmision = true;
 
     this.sgcDashboardCache.obtener(this.anioSeleccionado, forzarRefresco).subscribe({
       next: (res: any) => {
         if (res?.success) {
-          this.aplicarRespuestaDashboard(res, { resetSeleccion: true });
+          this.aplicarRespuestaDashboard(res, { resetSeleccion: primeraEmision });
+          // Tras el core (fase rápida) ya se pueden ver KPIs y gráficas de BD.
+          this.cargandoDashboard = false;
+          this.cargandoEncuestas = !!res.parcial;
+          primeraEmision = false;
         } else {
           this.errorDashboard = true;
+          this.cargandoDashboard = false;
+          this.cargandoEncuestas = false;
         }
-        this.cargandoDashboard = false;
       },
       error: () => {
         this.errorDashboard = true;
         this.cargandoDashboard = false;
+        this.cargandoEncuestas = false;
+      },
+      complete: () => {
+        this.cargandoEncuestas = false;
       }
     });
   }
@@ -513,17 +527,40 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     if (Array.isArray(res.anios) && res.anios.length) {
       this.aniosDisponibles = res.anios;
     }
-    this.eficaciaCapacitacion = res.eficaciaCapacitacion || null;
-    this.satisfaccionCapacitacion = res.satisfaccionCapacitacion || null;
-    this.aplicarSatisfaccionCiclo(res);
-    this.quejasCliente = res.quejasCliente || null;
-    this.evaluacionProveedores = res.evaluacionProveedores || null;
-    this.avanceProyectos = res.avanceProyectos || res.mejoraContinua || null;
-    this.sincronizarSeleccionAvance();
-    this.proveedoresF29 = res.proveedoresF29 || null;
-    this.actualizarCriteriosProveedoresF29();
-    this.eficacia = res.eficacia || null;
-    this.quejasSugerencias = res.quejasSugerencias || null;
+    if (res.eficaciaCapacitacion != null) {
+      this.eficaciaCapacitacion = res.eficaciaCapacitacion;
+    }
+    // Fase core no trae Forms: no borrar satisfacción ya mostrada (soft refresh / cache).
+    if (res.satisfaccionCapacitacion != null) {
+      this.satisfaccionCapacitacion = res.satisfaccionCapacitacion;
+    }
+    if (
+      (Array.isArray(res.satisfaccionCiclos) && res.satisfaccionCiclos.length) ||
+      res.satisfaccionCurso != null ||
+      res.satisfaccion != null
+    ) {
+      this.aplicarSatisfaccionCiclo(res);
+    }
+    if (res.quejasCliente != null) {
+      this.quejasCliente = res.quejasCliente;
+    }
+    if (res.evaluacionProveedores != null) {
+      this.evaluacionProveedores = res.evaluacionProveedores;
+    }
+    if (res.avanceProyectos != null || res.mejoraContinua != null) {
+      this.avanceProyectos = res.avanceProyectos || res.mejoraContinua;
+      this.sincronizarSeleccionAvance();
+    }
+    if (res.proveedoresF29 != null) {
+      this.proveedoresF29 = res.proveedoresF29;
+      this.actualizarCriteriosProveedoresF29();
+    }
+    if (res.eficacia != null) {
+      this.eficacia = res.eficacia;
+    }
+    if (res.quejasSugerencias != null) {
+      this.quejasSugerencias = res.quejasSugerencias;
+    }
     if (opts.resetSeleccion) {
       this.auditoriaSeleccionada = null;
       this.eficaciaChartModo = 'eficacia';

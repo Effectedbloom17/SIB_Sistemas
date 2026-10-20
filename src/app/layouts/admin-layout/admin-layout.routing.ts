@@ -31,7 +31,7 @@ import { RoleGuard } from 'src/app/guards/role.guard';
  * - innovacion: Diseño e Innovación (Cotización Señalización) / Mantenimiento EIN
  * - control_documental: Admin de capacitación / SP-F-03
  * - iot: Sensores IoT (Blynk) — de momento solo root (iot pendiente de reabrir)
- * - rrhh: Recursos Humanos (Residentes / Colaboradores)
+ * - rrhh: Recursos Humanos (Residentes / expediente documental; organigrama es abierto)
  */
 export const AdminLayoutRoutes: Routes = [
     // =====================================================

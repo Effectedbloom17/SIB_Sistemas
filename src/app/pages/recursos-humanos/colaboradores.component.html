@@ -90,7 +90,10 @@
                   <button type="button" class="rrhh-btn rrhh-btn--ghost org-stage__btn" (click)="cargar(true)" [disabled]="cargando">
                     <i class="fas" [ngClass]="cargando ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
                   </button>
-                  <button *ngIf="carpetaUrl" type="button" class="rrhh-btn rrhh-btn--primary org-stage__btn org-stage__btn--drive" (click)="abrirEnDrive(carpetaUrl)">
+                  <button *ngIf="puedeAbrirExpediente && carpetaUrl"
+                          type="button"
+                          class="rrhh-btn rrhh-btn--primary org-stage__btn org-stage__btn--drive"
+                          (click)="abrirEnDrive(carpetaUrl)">
                     <i class="fab fa-google-drive"></i>
                     Drive
                   </button>
@@ -483,12 +486,13 @@
                     [class.org-person--boss]="esPuestoJefatura(puestoDe(c) || puesto)"
                     [class.org-person--direccion]="esPuestoDireccion(puestoDe(c) || puesto)"
                     [class.is-hover]="hoverColaborador?.id === c.id"
+                    [class.org-person--readonly]="!puedeAbrirExpediente"
                     (click)="seleccionar(c)"
                     (mouseenter)="mostrarFicha(c, $event)"
                     (mouseleave)="ocultarFicha()"
                     (focus)="mostrarFicha(c, $event)"
                     (blur)="ocultarFicha()"
-                    [attr.aria-label]="'Abrir expediente de ' + c.nombre">
+                    [attr.aria-label]="(puedeAbrirExpediente ? 'Abrir expediente de ' : 'Ver ficha de ') + c.nombre">
               <span class="org-person__avatar">
                 <span class="org-person__halo" aria-hidden="true"></span>
                 <span class="org-person__ring" aria-hidden="true"></span>
@@ -559,11 +563,13 @@
               class="org-person org-folder-member"
               *ngFor="let c of personasCarpetaAbierta; trackBy: trackByColaborador"
               [class.is-hover]="hoverColaborador?.id === c.id"
+              [class.org-person--readonly]="!puedeAbrirExpediente"
               (click)="seleccionar(c)"
               (mouseenter)="mostrarFicha(c, $event)"
               (mouseleave)="ocultarFicha()"
               (focus)="mostrarFicha(c, $event)"
-              (blur)="ocultarFicha()">
+              (blur)="ocultarFicha()"
+              [attr.aria-label]="(puedeAbrirExpediente ? 'Abrir expediente de ' : 'Ver ficha de ') + c.nombre">
         <span class="org-person__avatar">
           <span class="org-person__halo" aria-hidden="true"></span>
           <span class="org-person__ring" aria-hidden="true"></span>
@@ -609,7 +615,7 @@
       <span class="org-hovercard__icon"><i class="fas fa-envelope"></i></span>
       <span>
         <span class="org-hovercard__label">Correo</span>
-        <span class="org-hovercard__value">{{ contactoDe(hoverColaborador).email }}</span>
+        <span class="org-hovercard__value org-hovercard__value--email">{{ contactoDe(hoverColaborador).email }}</span>
       </span>
     </div>
     <div class="org-hovercard__row" *ngIf="contactoDe(hoverColaborador).telefono">

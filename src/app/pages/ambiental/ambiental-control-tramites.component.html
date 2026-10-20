@@ -137,6 +137,14 @@
           <div class="ct__preview-actions">
             <button type="button"
                     class="ct__preview-action"
+                    title="Imprimir archivo"
+                    [disabled]="imprimiendoArchivo"
+                    (click)="imprimirArchivo(archivoSeleccionado)">
+              <i class="fas" [ngClass]="imprimiendoArchivo ? 'fa-spinner fa-spin' : 'fa-print'" aria-hidden="true"></i>
+              <span>Imprimir</span>
+            </button>
+            <button type="button"
+                    class="ct__preview-action"
                     title="Abrir visor integrado"
                     (click)="abrirVisorIntegrado(archivoSeleccionado)">
               <i class="fas fa-expand" aria-hidden="true"></i>
@@ -254,6 +262,12 @@
         <strong>Visor integrado de documento</strong>
         <small [title]="archivoSeleccionado?.nombreArchivo">{{ archivoSeleccionado?.nombreArchivo }}</small>
       </div>
+      <button type="button" class="ct-viewer__download"
+              (click)="imprimirArchivo(archivoSeleccionado)"
+              [disabled]="!archivoSeleccionado || imprimiendoArchivo">
+        <i class="fas" [ngClass]="imprimiendoArchivo ? 'fa-spinner fa-spin' : 'fa-print'" aria-hidden="true"></i>
+        <span>Imprimir</span>
+      </button>
       <button type="button" class="ct-viewer__download"
               (click)="descargarArchivo(archivoSeleccionado)"
               [disabled]="!archivoSeleccionado || descargandoArchivo">

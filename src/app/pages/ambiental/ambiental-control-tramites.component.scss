@@ -711,6 +711,7 @@ $radius: 18px;
   inset: 0;
   background: rgba(16, 27, 13, 0.76);
   backdrop-filter: blur(3px);
+  animation: ct-viewer-backdrop-in 0.28s ease-out both;
 }
 
 .ct-viewer__panel {
@@ -725,6 +726,30 @@ $radius: 18px;
   border-radius: 16px;
   background: #172018;
   box-shadow: 0 28px 75px rgba(10, 22, 8, 0.42);
+  animation: ct-viewer-panel-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes ct-viewer-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ct-viewer-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct-viewer__backdrop,
+  .ct-viewer__panel {
+    animation: none;
+  }
 }
 
 .ct-viewer__head {

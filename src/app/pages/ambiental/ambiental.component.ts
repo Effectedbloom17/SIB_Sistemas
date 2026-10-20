@@ -21,6 +21,7 @@ import { takeUntil } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
+import { lanzarImpresionEnSistema } from 'src/app/utils/in-app-print.util';
 import { AmbientalControlTramitesComponent } from './ambiental-control-tramites.component';
 import { AmbientalTramiteArchivosPanelComponent } from './ambiental-tramite-archivos-panel.component';
 
@@ -147,6 +148,7 @@ export class AmbientalComponent implements OnInit, OnDestroy {
   /** Gestionar oficios SP-F-15 (crear / editar / eliminar): todos excepto empresa */
   puedeCrearOficio = false;
   visorExpandido = false;
+  imprimiendoOficio = false;
 
   @ViewChild(AmbientalControlTramitesComponent) controlTramitesPanel?: AmbientalControlTramitesComponent;
   @ViewChildren(AmbientalTramiteArchivosPanelComponent)
@@ -536,6 +538,61 @@ export class AmbientalComponent implements OnInit, OnDestroy {
     this.abrirModalOficio(this.oficioSeleccionado);
   }
 
+  imprimirOficioSeleccionado(): void {
+    const oficio = this.oficioSeleccionado;
+    if (!oficio || this.imprimiendoOficio) {
+      return;
+    }
+
+    const driveId = String(oficio.documento_drive_id || '').trim();
+    const nombre = oficio.documento_nombre || `Oficio_${oficio.numero_oficio || 'documento'}`;
+    const esImagen = this.esImagenPreview;
+    const esPdf = this.esPdfPreview;
+
+    if (!driveId) {
+      void Swal.fire({
+        icon: 'info',
+        title: 'Impresión no disponible',
+        text: 'Este oficio no tiene un archivo en Drive para imprimir.',
+        confirmButtonColor: '#38512F'
+      });
+      return;
+    }
+
+    this.imprimiendoOficio = true;
+    void Swal.fire({
+      title: 'Preparando impresión…',
+      text: 'Un momento, esto puede tardar unos segundos…',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    const source$ = (esPdf || esImagen)
+      ? this.backend.descargarArchivoDrive(driveId, nombre)
+      : this.backend.imprimirArchivoDriveComoPDF(driveId, nombre);
+
+    source$.pipe(takeUntil(this.destroy$)).subscribe({
+      next: (blob) => {
+        this.imprimiendoOficio = false;
+        Swal.close();
+        const tipo = esImagen
+          ? (blob.type || 'image/png')
+          : 'application/pdf';
+        lanzarImpresionEnSistema(new Blob([blob], { type: tipo }), esImagen);
+      },
+      error: () => {
+        this.imprimiendoOficio = false;
+        Swal.close();
+        void Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'No se pudo preparar el documento para impresión.',
+          confirmButtonColor: '#38512F'
+        });
+      }
+    });
+  }
+
   cargarEstadoDriveSpF15(): void {
     this.backend.obtenerAmbientalSpF15EstadoDrive()
       .pipe(takeUntil(this.destroy$))
@@ -579,9 +636,21 @@ export class AmbientalComponent implements OnInit, OnDestroy {
     }
     this.mostrarEditorSpF15 = true;
     this.editorSpF15Cargando = true;
-    this.fijarEditorSpF15Embed(this.spF15EditorEmbedUrl);
+    this.spF15EditorEmbedSafe = null;
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
+    this.backend.asegurarAccesoEditorDrive(this.spF15DriveFileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          if (!this.mostrarEditorSpF15) return;
+          this.fijarEditorSpF15Embed(this.spF15EditorEmbedUrl);
+        },
+        error: () => {
+          if (!this.mostrarEditorSpF15) return;
+          this.fijarEditorSpF15Embed(this.spF15EditorEmbedUrl);
+        }
+      });
   }
 
   private fijarEditorSpF15Embed(url: string | null): void {
@@ -645,9 +714,21 @@ export class AmbientalComponent implements OnInit, OnDestroy {
   private abrirEditorSpF28Panel(): void {
     this.mostrarEditorSpF28 = true;
     this.editorSpF28Cargando = true;
-    this.fijarEditorSpF28Embed(this.spF28EditorEmbedUrl);
+    this.spF28EditorEmbedSafe = null;
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
+    const fileId = String(this.spF28DriveFileId || '').trim();
+    const montar = () => {
+      if (!this.mostrarEditorSpF28) return;
+      this.fijarEditorSpF28Embed(this.spF28EditorEmbedUrl);
+    };
+    if (!fileId) {
+      montar();
+      return;
+    }
+    this.backend.asegurarAccesoEditorDrive(fileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({ next: () => montar(), error: () => montar() });
   }
 
   private fijarEditorSpF28Embed(url: string | null): void {

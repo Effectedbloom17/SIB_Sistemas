@@ -1,6 +1,6 @@
 import { Injectable } from "@angular/core";
 import { HttpClient, HttpEvent, HttpResponse } from "@angular/common/http";
-import { Observable } from "rxjs";
+import { Observable, of } from "rxjs";
 import { environment } from "src/environments/environment";
 
 @Injectable({
@@ -1163,9 +1163,25 @@ export class BackendServices {
         );
     }
 
+    /** Lectura pública por enlace (preview / descarga). */
     asegurarAccesoPublicoDrive(fileId: string): Observable<any> {
         return this.httpClient.post(
             `${this.baseUrl}/drive/${encodeURIComponent(fileId)}/asegurar-acceso-lectura`,
+            {}
+        );
+    }
+
+    /**
+     * Escritura + lectura por enlace para iframes de editor/preview Drive
+     * (evita el muro «Accede a tu cuenta de Google»).
+     */
+    asegurarAccesoEditorDrive(fileId: string): Observable<any> {
+        const id = String(fileId || '').trim();
+        if (!id) {
+            return of({ success: false, message: 'fileId vacío' });
+        }
+        return this.httpClient.post(
+            `${this.baseUrl}/drive/${encodeURIComponent(id)}/asegurar-acceso-editor`,
             {}
         );
     }
@@ -3485,6 +3501,10 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/sincronizar-drive`, {});
     }
 
+    asegurarAccesoSgcF29(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/asegurar-acceso`, {});
+    }
+
     actualizarPlantillaSgcF29(): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/actualizar-plantilla`, {});
     }
@@ -4063,10 +4083,18 @@ export class BackendServices {
     // SGC — Dashboard de Calidad (indicadores)
     // ============================================
 
-    obtenerDashboardSgc(anio?: number, refrescar = false): Observable<any> {
+    /**
+     * @param modo 'core' = indicadores BD (rápido); 'encuestas' = Forms; 'completo' = todo.
+     */
+    obtenerDashboardSgc(
+        anio?: number,
+        refrescar = false,
+        modo: 'completo' | 'core' | 'encuestas' = 'completo'
+    ): Observable<any> {
         const params: any = {};
         if (anio) params.anio = String(anio);
         if (refrescar) params.refrescar = '1';
+        if (modo && modo !== 'completo') params.modo = modo;
         return this.httpClient.get(`${this.baseUrl}/sgc/dashboard`, { params });
     }
 

@@ -656,6 +656,30 @@ async function asignarPermisoEscrituraEnlace(fileId) {
 }
 
 /**
+ * Asegura permisos para iframe integrado (editor/preview) sin pedir login de Google:
+ * anyone/writer + anyone/reader por enlace.
+ */
+async function asegurarAccesoEditorIntegrado(fileId) {
+    const id = String(fileId || '').trim();
+    if (!id) {
+        return { ok: false, fileId: null, escritura: false, lectura: false };
+    }
+    const escritura = await asignarPermisoEscrituraEnlace(id);
+    let lectura = false;
+    try {
+        lectura = await asignarPermisoLecturaPublica(id);
+    } catch (_) {
+        lectura = false;
+    }
+    return {
+        ok: !!(escritura || lectura),
+        fileId: id,
+        escritura: !!escritura,
+        lectura: !!lectura
+    };
+}
+
+/**
  * True si fileId está dentro de folderId (padres hasta maxDepth).
  * Usado por /api/drive-preview para evidencias de mantenimiento sin BD.
  */
@@ -12729,6 +12753,7 @@ module.exports = {
     uploadFileFast,
     asignarPermisoLecturaPublica,
     asignarPermisoEscrituraEnlace,
+    asegurarAccesoEditorIntegrado,
     subirImagenTemporal,
     perteneceACarpetaAncestral,
 
