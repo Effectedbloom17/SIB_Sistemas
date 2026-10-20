@@ -87,6 +87,7 @@ function layoutPorDefecto() {
         leyendaMomentos: 31,
         momentosInicio: MOMENTOS_FILA_INICIO_BASE,
         momentosFin: MOMENTOS_FILA_FIN_BASE,
+        columnas: columnasMomentoPorDefecto(),
         tiempoTotal: 35,
         metodoEvaluacion: 37,
         refsTitulo: 39,
@@ -200,6 +201,7 @@ async function sincronizarHojasPlanesEnDrive(spreadsheetId, datos, datosPrevios 
 
     const hojasActualizadas = new Set();
 
+    try {
     for (const plan of meta.planes) {
         const tieneFolio = !!String(plan.folio || '').trim();
         if (!planTieneContenido(plan) && !tieneFolio) continue;
@@ -221,7 +223,8 @@ async function sincronizarHojasPlanesEnDrive(spreadsheetId, datos, datosPrevios 
 
         const existeHoja = setExistentes.has(nombreHoja);
         if (!existeHoja) {
-            if (!esActivo) {
+            // Cualquier plan con folio obtiene su hoja (importación incluida).
+            if (!tieneFolio && !esActivo) {
                 continue;
             }
             try {
@@ -245,20 +248,21 @@ async function sincronizarHojasPlanesEnDrive(spreadsheetId, datos, datosPrevios 
             nombreHoja
         );
     }
-
-    const eliminar = [];
-    for (const titulo of titulosExistentes) {
-        if (titulo === SHEET_TITLE || titulo === plantillaOrigen) continue;
-        if (String(titulo || '').toLowerCase() === SHEET_TITLE) continue;
-        if (esHojaPlanSpF07(titulo) && !nombresVigentes.has(titulo)) {
-            eliminar.push(titulo);
+    } finally {
+        const eliminar = [];
+        for (const titulo of titulosExistentes) {
+            if (titulo === SHEET_TITLE || titulo === plantillaOrigen) continue;
+            if (String(titulo || '').toLowerCase() === SHEET_TITLE) continue;
+            if (esHojaPlanSpF07(titulo) && !nombresVigentes.has(titulo)) {
+                eliminar.push(titulo);
+            }
         }
-    }
-    if (eliminar.length) {
-        try {
-            await driveService.eliminarHojasGoogleSheet(spreadsheetId, eliminar);
-        } catch (err) {
-            console.warn('[SP-F-07] No se pudieron eliminar hojas obsoletas:', err.message);
+        if (eliminar.length) {
+            try {
+                await driveService.eliminarHojasGoogleSheet(spreadsheetId, eliminar);
+            } catch (err) {
+                console.warn('[SP-F-07] No se pudieron eliminar hojas obsoletas:', err.message);
+            }
         }
     }
 
@@ -317,10 +321,18 @@ function crearPlanVacio() {
     };
 }
 
+function canonSeccionMomento(texto) {
+    const n = normalizarTextoBusqueda(texto);
+    if (n === 'apertura') return 'Apertura';
+    if (n === 'desarrollo') return 'Desarrollo';
+    if (n === 'cierre') return 'Cierre';
+    return String(texto || '').trim();
+}
+
 function sanitizarMomento(raw) {
     const base = raw && typeof raw === 'object' ? raw : {};
     return {
-        momento: String(base.momento || '').trim(),
+        momento: canonSeccionMomento(base.momento),
         fecha: normalizarFechaInputSpF07(base.fecha),
         horaInicio: normalizarHoraInputSpF07(base.horaInicio),
         contenidoTematico: normalizarSaltosLinea(base.contenidoTematico),
@@ -736,18 +748,245 @@ function buscarFilaPorTexto(ws, fragmentos, opciones = {}) {
     return null;
 }
 
-function leerMomentoEnFila(ws, row) {
+function columnasMomentoPorDefecto() {
+    return {
+        momento: CELLS.momento.col,
+        fecha: CELLS.fecha.col,
+        horaInicio: CELLS.horaInicio.col,
+        contenidoTematico: CELLS.contenidoTematico.col,
+        descripcionActividades: CELLS.descripcionActividades.col,
+        horaTermino: CELLS.horaTermino.col,
+        tecnicasInstruccionales: CELLS.tecnicasInstruccionales.col,
+        tecnicasGrupales: CELLS.tecnicasGrupales.col,
+        duracion: CELLS.duracionMomento.col
+    };
+}
+
+function detectarColumnasMomentos(ws, filaLeyenda) {
+    const cols = columnasMomentoPorDefecto();
+    if (!ws || !filaLeyenda) return cols;
+    const reglas = [
+        ['momento', ['momentos de la capacitacion']],
+        ['horaTermino', ['hora de termino']],
+        ['horaInicio', ['hora de inicio']],
+        ['contenidoTematico', ['contenido tematico']],
+        ['descripcionActividades', ['descripcion de actividades', 'subtemas']],
+        ['tecnicasInstruccionales', ['tecnicas instruccionales']],
+        ['tecnicasGrupales', ['tecnicas grupales']],
+        ['duracion', ['duracion']],
+        ['fecha', ['fecha']]
+    ];
+    const usados = new Set();
+    for (let col = 1; col <= MAX_COLUMNAS_SISTEMA; col++) {
+        const texto = normalizarTextoBusqueda(leerCelda(ws, filaLeyenda, col));
+        if (!texto) continue;
+        for (const [key, frags] of reglas) {
+            if (usados.has(key)) continue;
+            if (frags.some((f) => texto.includes(f))) {
+                cols[key] = col;
+                usados.add(key);
+                break;
+            }
+        }
+    }
+    return cols;
+}
+
+function leerValorCrudo(ws, row, col) {
+    const cell = ws.getRow(row).getCell(col);
+    let valor = cell?.value;
+    if (valor && typeof valor === 'object' && valor.result !== undefined && valor.result !== null) {
+        valor = valor.result;
+    }
+    return { valor, numFmt: cell?.numFmt };
+}
+
+function leerFechaCelda(ws, row, col) {
+    const { valor } = leerValorCrudo(ws, row, col);
+    if (valor instanceof Date) {
+        const y = valor.getUTCFullYear();
+        if (!Number.isFinite(y) || y < 1905) return '';
+        const d = String(valor.getUTCDate()).padStart(2, '0');
+        const m = String(valor.getUTCMonth() + 1).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+    if (typeof valor === 'number' && valor > 20000 && valor < 80000) {
+        const utc = new Date(Date.UTC(1899, 11, 30) + Math.round(valor) * 86400000);
+        const y = utc.getUTCFullYear();
+        const m = String(utc.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(utc.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+    return normalizarFechaInputSpF07(celdaATexto(valor));
+}
+
+function leerHoraCelda(ws, row, col) {
+    const { valor, numFmt } = leerValorCrudo(ws, row, col);
+    if (valor instanceof Date) {
+        const fmt = String(numFmt || '').toLowerCase();
+        const pareceHora = /h|am\/pm|a\/p/.test(fmt) || valor.getUTCFullYear() < 1905;
+        if (pareceHora) {
+            const h = String(valor.getUTCHours()).padStart(2, '0');
+            const m = String(valor.getUTCMinutes()).padStart(2, '0');
+            return `${h}:${m}`;
+        }
+    }
+    if (typeof valor === 'number' && valor >= 0 && valor < 1) {
+        const total = Math.round(valor * 24 * 60);
+        const h = Math.floor(total / 60) % 24;
+        const min = total % 60;
+        return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+    }
+    return normalizarHoraInputSpF07(celdaATexto(valor));
+}
+
+function leerMomentoEnFila(ws, row, columnas = null) {
+    const c = columnas || columnasMomentoPorDefecto();
     return sanitizarMomento({
-        momento: leerCelda(ws, row, CELLS.momento.col),
-        fecha: leerCelda(ws, row, CELLS.fecha.col),
-        horaInicio: leerCelda(ws, row, CELLS.horaInicio.col),
-        contenidoTematico: leerCelda(ws, row, CELLS.contenidoTematico.col),
-        descripcionActividades: leerCelda(ws, row, CELLS.descripcionActividades.col),
-        horaTermino: leerCelda(ws, row, CELLS.horaTermino.col),
-        tecnicasInstruccionales: leerCelda(ws, row, CELLS.tecnicasInstruccionales.col),
-        tecnicasGrupales: leerCelda(ws, row, CELLS.tecnicasGrupales.col),
-        duracion: leerCelda(ws, row, CELLS.duracionMomento.col)
+        momento: leerCelda(ws, row, c.momento),
+        fecha: leerFechaCelda(ws, row, c.fecha),
+        horaInicio: leerHoraCelda(ws, row, c.horaInicio),
+        contenidoTematico: leerCelda(ws, row, c.contenidoTematico),
+        descripcionActividades: leerCelda(ws, row, c.descripcionActividades),
+        horaTermino: leerHoraCelda(ws, row, c.horaTermino),
+        tecnicasInstruccionales: leerCelda(ws, row, c.tecnicasInstruccionales),
+        tecnicasGrupales: leerCelda(ws, row, c.tecnicasGrupales),
+        duracion: leerCelda(ws, row, c.duracion)
     });
+}
+
+function filaCortaTablaMomentos(ws, row) {
+    for (let col = 1; col <= MAX_COLUMNAS_SISTEMA; col++) {
+        const t = normalizarTextoBusqueda(leerCelda(ws, row, col));
+        if (!t) continue;
+        if (
+            t.includes('tiempo total')
+            || t.includes('metodo de evaluacion')
+            || t.includes('referencias bibliograficas')
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function momentoTieneDatos(m) {
+    if (!m) return false;
+    return [
+        m.fecha, m.horaInicio, m.contenidoTematico, m.descripcionActividades,
+        m.horaTermino, m.tecnicasInstruccionales, m.tecnicasGrupales, m.duracion
+    ].some(textoTieneContenido);
+}
+
+/**
+ * Cada vez que vuelve a empezar Apertura (después de Desarrollo o Cierre)
+ * es otra tabla en el sistema (Día 1, Día 2…). En Excel van pegadas, sin fila en blanco.
+ */
+function agruparMomentosEnTablas(momentos) {
+    const lista = (Array.isArray(momentos) ? momentos : [])
+        .map(sanitizarMomento)
+        .filter(momentoTieneDatos);
+    const tablas = [];
+    let actual = [];
+    let fase = -1;
+    const flush = () => {
+        if (actual.length) {
+            tablas.push({ id: nuevoIdPlan(), momentos: actual });
+        }
+        actual = [];
+        fase = -1;
+    };
+    for (const m of lista) {
+        const idx = SECCIONES_MOMENTO.indexOf(m.momento);
+        if (idx >= 0 && fase >= 0 && idx < fase) flush();
+        if (idx >= 0) fase = idx;
+        actual.push(m);
+    }
+    flush();
+    if (!tablas.length) {
+        return [{
+            id: nuevoIdPlan(),
+            momentos: [
+                crearMomentoVacio('Apertura'),
+                crearMomentoVacio('Desarrollo'),
+                crearMomentoVacio('Cierre')
+            ]
+        }];
+    }
+    return tablas;
+}
+
+function buscarEtiquetaEnHoja(ws, fragmentos, opciones = {}) {
+    const desde = Math.max(1, Number(opciones.desde) || 1);
+    const hasta = Math.max(desde, Number(opciones.hasta) || Math.max(ws?.rowCount || 0, 80));
+    const exacto = !!opciones.exacto;
+    const frags = (Array.isArray(fragmentos) ? fragmentos : [fragmentos])
+        .map((f) => normalizarTextoBusqueda(f))
+        .filter(Boolean);
+    if (!ws || !frags.length) return null;
+    const colMax = Math.min(MAX_COLUMNAS_SISTEMA, Number(opciones.colMax) || 4);
+    for (let row = desde; row <= hasta; row++) {
+        for (let col = 1; col <= colMax; col++) {
+            const texto = normalizarTextoBusqueda(leerCelda(ws, row, col));
+            if (!texto || texto.length > 80) continue;
+            const ok = frags.some((f) => (exacto ? texto === f : (texto === f || texto.startsWith(f))));
+            if (ok) return { row, col };
+        }
+    }
+    return null;
+}
+
+function leerValorDerecha(ws, row, colEtiqueta) {
+    const etiqueta = normalizarTextoBusqueda(leerCelda(ws, row, colEtiqueta));
+    for (let col = colEtiqueta + 1; col <= MAX_COLUMNAS_SISTEMA; col++) {
+        const texto = leerCelda(ws, row, col);
+        if (!textoTieneContenido(texto)) continue;
+        if (normalizarTextoBusqueda(texto) === etiqueta) continue;
+        return texto;
+    }
+    return '';
+}
+
+function leerCampoEtiqueta(ws, fragmentos, opciones = {}) {
+    const hit = buscarEtiquetaEnHoja(ws, fragmentos, opciones);
+    if (!hit) return '';
+    return leerValorDerecha(ws, hit.row, hit.col);
+}
+
+function primerTexto(...valores) {
+    for (const valor of valores) {
+        if (textoTieneContenido(valor)) return String(valor).trim();
+    }
+    return '';
+}
+
+function buscarFolioEnHoja(ws) {
+    const nombreHoja = String(ws?.name || '');
+    const desdeNombre = nombreHoja.match(/PC-\d{6}-\d+/i);
+    if (desdeNombre) return desdeNombre[0].toUpperCase();
+    const hasta = Math.min(Math.max(ws?.rowCount || 0, 8), 12);
+    for (let row = 1; row <= hasta; row++) {
+        for (let col = 1; col <= MAX_COLUMNAS_SISTEMA; col++) {
+            const texto = leerCelda(ws, row, col);
+            const match = String(texto || '').match(/PC-\d{6}-\d+/i);
+            if (match) return match[0].toUpperCase();
+        }
+    }
+    return '';
+}
+
+function partirObjetivosParticularesTexto(texto) {
+    let crudo = String(texto || '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\u000b|\u2028/g, '\n');
+    const marcas = crudo.match(/[a-z]\)/gi) || [];
+    if (!crudo.includes('\n') && marcas.length > 1) {
+        crudo = crudo.replace(/\s+(?=[a-z]\))/gi, '\n');
+    }
+    return crudo
+        .split(/\n+/)
+        .map((linea) => linea.replace(/^[a-z]\)\s*/i, '').trim())
+        .filter((linea) => textoTieneContenido(linea));
 }
 
 function esFilaNumeroReferencia(ws, row) {
@@ -828,6 +1067,7 @@ function detectarLayoutDesdeWorksheet(ws) {
         hasta: Math.max(leyendaMomentos + 1, metodoEvaluacion)
     });
 
+    const columnas = detectarColumnasMomentos(ws, leyendaMomentos);
     let momentosInicio = leyendaMomentos + 1;
     let momentosFin = Math.max(momentosInicio, (tiempoTotalDetectado || metodoEvaluacion) - 1);
 
@@ -835,9 +1075,10 @@ function detectarLayoutDesdeWorksheet(ws) {
         let ultimo = momentosInicio - 1;
         const limite = Math.max(momentosInicio, metodoEvaluacion - 1);
         for (let row = momentosInicio; row <= limite; row++) {
-            const label = normalizarTextoBusqueda(leerCelda(ws, row, CELLS.momento.col));
+            if (filaCortaTablaMomentos(ws, row)) break;
+            const label = normalizarTextoBusqueda(leerCelda(ws, row, columnas.momento));
             const esSeccion = SECCIONES_MOMENTO.some((s) => normalizarTextoBusqueda(s) === label);
-            if (esSeccion || momentoTieneContenido(leerMomentoEnFila(ws, row))) {
+            if (esSeccion || momentoTieneDatos(leerMomentoEnFila(ws, row, columnas))) {
                 ultimo = row;
             }
         }
@@ -859,6 +1100,7 @@ function detectarLayoutDesdeWorksheet(ws) {
         leyendaMomentos,
         momentosInicio,
         momentosFin,
+        columnas,
         tiempoTotal,
         metodoEvaluacion,
         refsTitulo,
@@ -869,16 +1111,19 @@ function detectarLayoutDesdeWorksheet(ws) {
 
 function parsearMomentosDesdeHoja(ws, layout = null) {
     const lay = layout || detectarLayoutDesdeWorksheet(ws);
+    const columnas = lay.columnas || columnasMomentoPorDefecto();
     const momentos = [];
     let ultimoMomento = '';
     for (let row = lay.momentosInicio; row <= lay.momentosFin; row++) {
-        const labelCelda = leerCelda(ws, row, CELLS.momento.col);
-        if (labelCelda) ultimoMomento = labelCelda;
+        if (filaCortaTablaMomentos(ws, row)) break;
+        const labelCelda = canonSeccionMomento(leerCelda(ws, row, columnas.momento));
+        if (SECCIONES_MOMENTO.includes(labelCelda)) ultimoMomento = labelCelda;
+        const leido = leerMomentoEnFila(ws, row, columnas);
         const momento = sanitizarMomento({
-            ...leerMomentoEnFila(ws, row),
-            momento: labelCelda || ultimoMomento
+            ...leido,
+            momento: (SECCIONES_MOMENTO.includes(labelCelda) ? labelCelda : '') || ultimoMomento
         });
-        if (momentoTieneContenido(momento)) {
+        if (momentoTieneDatos(momento)) {
             momentos.push(momento);
         }
     }
@@ -895,26 +1140,22 @@ function parsearReferenciasDesdeHoja(ws, layout = null) {
     return sanitizarReferencias(refs);
 }
 
+function leerTextoParticularFila(ws, row) {
+    const fijo = leerCelda(ws, row, CELLS.objetivosParticulares.col);
+    if (textoTieneContenido(fijo)) return fijo;
+    return leerValorDerecha(ws, row, 1);
+}
+
 function parsearObjetivosParticularesDesdeHoja(ws, layout = null) {
     const lay = layout || detectarLayoutDesdeWorksheet(ws);
     const lista = [];
     for (let row = lay.particularesInicio; row <= lay.particularesFin; row++) {
-        const texto = leerCelda(ws, row, CELLS.objetivosParticulares.col);
-        if (textoTieneContenido(texto)) {
-            lista.push(String(texto).replace(/^[a-z]\)\s*/i, '').trim());
-        }
+        lista.push(...partirObjetivosParticularesTexto(leerTextoParticularFila(ws, row)));
     }
     if (lista.length) return sanitizarObjetivosParticulares(lista);
 
-    // Compat: un solo recuadro con a) / b)
     const texto = leerCelda(ws, CELLS.objetivosParticulares.row, CELLS.objetivosParticulares.col);
-    if (!textoTieneContenido(texto)) {
-        return sanitizarObjetivosParticulares(['']);
-    }
-    const legacy = texto
-        .split(/\r?\n+/)
-        .map((t) => t.replace(/^[a-z]\)\s*/i, '').trim())
-        .filter(Boolean);
+    const legacy = partirObjetivosParticularesTexto(texto);
     return sanitizarObjetivosParticulares(legacy.length ? legacy : ['']);
 }
 
@@ -1003,34 +1244,99 @@ function restaurarLeyendasEstructuralesEnActualizaciones(actualizaciones, sheetT
     pushUpdate(actualizaciones, lay.particularesInicio, 1, 'Particulares', sheetTitle);
 }
 
-function parsearDatosDesdeHoja(ws) {
+function extraerPlanDesdeWorksheet(ws) {
     const layout = detectarLayoutDesdeWorksheet(ws);
+    const zonaDetalles = { desde: 4, hasta: 16, colMax: 5 };
+    const zonaPerfil = { desde: 14, hasta: 22, colMax: 4 };
+    const zonaObjetivos = { desde: (layout.objetivoGeneral || 20) - 1, hasta: (layout.recursosTitulo || 30), colMax: 3 };
+    const zonaRecursos = { desde: (layout.recursosTitulo || 24), hasta: (layout.leyendaMomentos || 34), colMax: 3 };
+    const momentos = parsearMomentosDesdeHoja(ws, layout);
+    const momentosTablas = agruparMomentosEnTablas(momentos);
+    const objetivoGeneral = primerTexto(
+        leerCampoEtiqueta(ws, ['general'], { ...zonaObjetivos, exacto: true }),
+        leerCelda(ws, layout.objetivoGeneral || CELLS.objetivoGeneral.row, CELLS.objetivoGeneral.col)
+    );
+    const metodo = primerTexto(
+        leerCampoEtiqueta(ws, ['metodo de evaluacion'], { desde: layout.leyendaMomentos || 30, hasta: (layout.refsTitulo || 80) + 2, colMax: 5 }),
+        leerCelda(ws, layout.metodoEvaluacion, CELLS.metodoEvaluacionCol)
+    );
+    const tiempo = primerTexto(
+        leerCelda(ws, layout.tiempoTotal, CELLS.tiempoTotalCol),
+        leerValorDerecha(ws, layout.tiempoTotal, 10)
+    );
+
+    return sanitizarPlan({
+        folio: buscarFolioEnHoja(ws),
+        nombreCurso: primerTexto(
+            leerCampoEtiqueta(ws, ['nombre del curso'], zonaDetalles),
+            leerCelda(ws, CELLS.nombreCurso.row, CELLS.nombreCurso.col)
+        ),
+        proposito: primerTexto(
+            leerCampoEtiqueta(ws, ['proposito del curso'], zonaDetalles),
+            leerCelda(ws, CELLS.proposito.row, CELLS.proposito.col)
+        ),
+        instructor: primerTexto(
+            leerCampoEtiqueta(ws, ['nombre del instructor', 'instructor/capacitador'], zonaDetalles),
+            leerCelda(ws, CELLS.instructor.row, CELLS.instructor.col)
+        ),
+        fechaPeriodo: primerTexto(
+            leerCampoEtiqueta(ws, ['fecha/periodo', 'fecha periodo'], zonaDetalles),
+            leerCelda(ws, CELLS.fechaPeriodo.row, CELLS.fechaPeriodo.col)
+        ),
+        duracion: primerTexto(
+            leerCampoEtiqueta(ws, ['duracion'], { ...zonaDetalles, exacto: true }),
+            leerCelda(ws, CELLS.duracion.row, CELLS.duracion.col)
+        ),
+        lugar: primerTexto(
+            leerCampoEtiqueta(ws, ['lugar'], { ...zonaDetalles, exacto: true }),
+            leerCelda(ws, CELLS.lugar.row, CELLS.lugar.col)
+        ),
+        numParticipantes: primerTexto(
+            leerCampoEtiqueta(ws, ['numero de participantes'], zonaDetalles),
+            leerCelda(ws, CELLS.numParticipantes.row, CELLS.numParticipantes.col)
+        ),
+        nivelEstudios: primerTexto(
+            leerCampoEtiqueta(ws, ['nivel de estudios'], zonaPerfil),
+            leerCelda(ws, CELLS.nivelEstudios.row, CELLS.nivelEstudios.col)
+        ),
+        conocimientosRequeridos: primerTexto(
+            leerCampoEtiqueta(ws, ['conocimientos requeridos'], zonaPerfil),
+            leerCelda(ws, CELLS.conocimientosRequeridos.row, CELLS.conocimientosRequeridos.col)
+        ),
+        habilidadesRequeridas: primerTexto(
+            leerCampoEtiqueta(ws, ['habilidades requeridas'], zonaPerfil),
+            leerCelda(ws, CELLS.habilidadesRequeridas.row, CELLS.habilidadesRequeridas.col)
+        ),
+        objetivoGeneral,
+        objetivosParticulares: parsearObjetivosParticularesDesdeHoja(ws, layout),
+        recursosDidacticos: primerTexto(
+            leerCampoEtiqueta(ws, ['didacticos'], zonaRecursos),
+            leerCelda(ws, layout.recursosDidacticos || CELLS.recursosDidacticos.row, CELLS.recursosDidacticos.col)
+        ),
+        equipoApoyo: primerTexto(
+            leerCampoEtiqueta(ws, ['equipo de apoyo'], zonaRecursos),
+            leerCelda(ws, layout.equipoApoyo || CELLS.equipoApoyo.row, CELLS.equipoApoyo.col)
+        ),
+        momentos,
+        momentosTablas,
+        tiempoTotal: tiempo,
+        metodoEvaluacion: metodo,
+        referencias: parsearReferenciasDesdeHoja(ws, layout)
+    });
+}
+
+function parsearDatosDesdeHoja(ws) {
     const revText = leerCelda(ws, CELLS.revision.row, CELLS.revision.col);
     const revMatch = revText.match(/(\d+)/);
+    const plan = extraerPlanDesdeWorksheet(ws);
 
     return {
         datos: sanitizarDatos({
             revision: revMatch ? revMatch[1].padStart(2, '0') : DATOS_DEFECTO.revision,
             fechaRevision: DATOS_DEFECTO.fechaRevision,
-            nombreCurso: leerCelda(ws, CELLS.nombreCurso.row, CELLS.nombreCurso.col),
-            proposito: leerCelda(ws, CELLS.proposito.row, CELLS.proposito.col),
-            instructor: leerCelda(ws, CELLS.instructor.row, CELLS.instructor.col),
-            fechaPeriodo: leerCelda(ws, CELLS.fechaPeriodo.row, CELLS.fechaPeriodo.col),
-            duracion: leerCelda(ws, CELLS.duracion.row, CELLS.duracion.col),
-            lugar: leerCelda(ws, CELLS.lugar.row, CELLS.lugar.col),
-            numParticipantes: leerCelda(ws, CELLS.numParticipantes.row, CELLS.numParticipantes.col),
-            nivelEstudios: leerCelda(ws, CELLS.nivelEstudios.row, CELLS.nivelEstudios.col),
-            conocimientosRequeridos: leerCelda(ws, CELLS.conocimientosRequeridos.row, CELLS.conocimientosRequeridos.col),
-            habilidadesRequeridas: leerCelda(ws, CELLS.habilidadesRequeridas.row, CELLS.habilidadesRequeridas.col),
-            objetivoGeneral: leerCelda(ws, layout.objetivoGeneral || CELLS.objetivoGeneral.row, CELLS.objetivoGeneral.col),
-            objetivosParticulares: parsearObjetivosParticularesDesdeHoja(ws, layout),
-            recursosDidacticos: leerCelda(ws, layout.recursosDidacticos || CELLS.recursosDidacticos.row, CELLS.recursosDidacticos.col),
-            equipoApoyo: leerCelda(ws, layout.equipoApoyo || CELLS.equipoApoyo.row, CELLS.equipoApoyo.col),
-            momentos: parsearMomentosDesdeHoja(ws, layout),
-            tiempoTotal: leerCelda(ws, layout.tiempoTotal, CELLS.tiempoTotalCol),
-            metodoEvaluacion: leerCelda(ws, layout.metodoEvaluacion, CELLS.metodoEvaluacionCol),
-            referencias: parsearReferenciasDesdeHoja(ws, layout),
-            fechaElaboracion: DATOS_DEFECTO.fechaElaboracion
+            fechaElaboracion: DATOS_DEFECTO.fechaElaboracion,
+            planes: [plan],
+            planActivoId: plan.id
         }),
         legacyUsed: false
     };
@@ -1165,10 +1471,9 @@ async function asegurarMergesReferencias(spreadsheetId, sheetTitle, layout) {
 /**
  * Objetivos oficiales:
  * - General: A:B + C:M en una fila
- * - Particulares: A:B fusionado en vertical (una sola palabra «Particulares»),
- *   cada particular conserva su propia fila C:M (a / b / c…)
+ * - Particulares: una sola fila. Varios objetivos van en la misma celda, uno por línea.
  */
-async function asegurarMergesParticularesSpF07(spreadsheetId, sheetTitle, layout) {
+async function asegurarMergesParticularesSpF07(spreadsheetId, sheetTitle, layout, plan = null) {
     const lay = layout || layoutPorDefecto();
     const sheetId = await obtenerSheetIdPorTitulo(spreadsheetId, sheetTitle);
     if (sheetId == null) return;
@@ -1209,7 +1514,9 @@ async function asegurarMergesParticularesSpF07(spreadsheetId, sheetTitle, layout
         console.warn('[SP-F-07] No se pudieron fusionar filas de particulares:', err.message);
     }
 
-    // Altura compacta de particulares (evita interlineado exagerado en PDF).
+    const textoParticulares = plan ? formatearParticularesParaHoja(plan.objetivosParticulares) : '';
+    const lineasParticulares = Math.max(1, textoParticulares ? textoParticulares.split('\n').length : 1);
+    const altoParticulares = Math.min(280, Math.max(36, lineasParticulares * 20 + 16));
     try {
         await sheetsApi.spreadsheets.batchUpdate({
             spreadsheetId,
@@ -1222,7 +1529,7 @@ async function asegurarMergesParticularesSpF07(spreadsheetId, sheetTitle, layout
                             startIndex: lay.particularesInicio - 1,
                             endIndex: lay.particularesFin
                         },
-                        properties: { pixelSize: 32 },
+                        properties: { pixelSize: altoParticulares },
                         fields: 'pixelSize'
                     }
                 }]
@@ -1281,10 +1588,8 @@ async function restaurarTituloReferenciasSpF07(spreadsheetId, sheetTitle, layout
 async function asegurarEspacioMomentosYReferencias(spreadsheetId, sheetTitle, datos, layout) {
     const lay = { ...(layout || layoutPorDefecto()) };
     const plan = resolverPlanActivo(sanitizarDatos(datos));
-    const partesLista = sanitizarObjetivosParticulares(plan.objetivosParticulares)
-        .map((t) => String(t || '').replace(/^[a-z]\)\s*/i, '').trim())
-        .filter((t) => textoTieneContenido(t));
-    const particularesNeeded = Math.min(20, Math.max(1, partesLista.length || 1));
+    // Varios particulares viven en la misma celda, separados por un salto de línea.
+    const particularesNeeded = 1;
     const momentosNeeded = Math.min(
         MOMENTOS_MAX_HOJA,
         Math.max(SECCIONES_MOMENTO.length, aplanarMomentosParaHoja(plan.momentos).length)
@@ -1319,7 +1624,7 @@ async function asegurarEspacioMomentosYReferencias(spreadsheetId, sheetTitle, da
         lay.refsFin += n;
     };
 
-    // 1) Particulares: una fila por objetivo
+    // 1) Particulares: una sola fila (a / b / c van en la misma celda)
     const partsActuales = Math.max(0, lay.particularesFin - lay.particularesInicio + 1);
     const extraParts = Math.max(0, particularesNeeded - partsActuales);
     if (extraParts > 0) {
@@ -1423,7 +1728,7 @@ async function asegurarEspacioMomentosYReferencias(spreadsheetId, sheetTitle, da
 
     await asegurarMergesReferencias(spreadsheetId, sheetTitle, lay);
     await asegurarMergesFilasMomentoSpF07(spreadsheetId, sheetTitle, lay);
-    await asegurarMergesParticularesSpF07(spreadsheetId, sheetTitle, lay);
+    await asegurarMergesParticularesSpF07(spreadsheetId, sheetTitle, lay, plan);
     return lay;
 }
 
@@ -1973,16 +2278,12 @@ async function aplicarColoresObjetivosSpF07(spreadsheetId, sheetTitle, layout, p
         plan.objetivoGeneral
     );
 
-    const partes = sanitizarObjetivosParticulares(plan.objetivosParticulares)
-        .map((t) => String(t || '').replace(/^[a-z]\)\s*/i, '').trim());
-    const slots = Math.max(0, lay.particularesFin - lay.particularesInicio + 1);
-    for (let i = 0; i < slots; i++) {
-        const texto = partes[i] || '';
-        if (!textoTieneContenido(texto)) continue;
+    const textoParticulares = formatearParticularesParaHoja(plan.objetivosParticulares);
+    if (textoTieneContenido(textoParticulares)) {
         pushCelda(
-            lay.particularesInicio + i,
+            lay.particularesInicio,
             CELLS.objetivosParticulares.col,
-            `${letraParticularContenido(i)}${texto}`
+            textoParticulares
         );
     }
 
@@ -2138,16 +2439,12 @@ function escribirMomentosEnWorksheet(ws, momentos, layout = null) {
 
 function escribirObjetivosParticularesEnWorksheet(ws, particulares, layout = null) {
     const lay = layout || detectarLayoutDesdeWorksheet(ws);
-    const lista = sanitizarObjetivosParticulares(particulares)
-        .map((t) => String(t || '').replace(/^[a-z]\)\s*/i, '').trim());
+    const texto = formatearParticularesParaHoja(particulares);
     const slots = Math.max(0, lay.particularesFin - lay.particularesInicio + 1);
     for (let i = 0; i < slots; i++) {
         const row = lay.particularesInicio + i;
-        const texto = lista[i] || '';
-        // Solo la primera fila lleva «Particulares» (el merge vertical lo muestra una vez)
         asignarEn(ws, row, 1, i === 0 ? etiquetaParticularHoja(i) : '', 'center');
-        const contenido = textoTieneContenido(texto) ? `${letraParticularContenido(i)}${texto}` : '';
-        asignarEn(ws, row, CELLS.objetivosParticulares.col, contenido, 'center');
+        asignarEn(ws, row, CELLS.objetivosParticulares.col, i === 0 ? texto : '', 'center');
     }
 }
 
@@ -2280,12 +2577,10 @@ function datosAActualizacionesSheet(datos, sheetTitle = SHEET_TITLE, layout = nu
     pushUpdate(actualizaciones, lay.objetivoGeneral || CELLS.objetivoGeneral.row, CELLS.objetivoGeneral.col,
         normalizarSaltosLinea(plan.objetivoGeneral), sheetTitle);
 
-    const partes = sanitizarObjetivosParticulares(plan.objetivosParticulares)
-        .map((t) => String(t || '').replace(/^[a-z]\)\s*/i, '').trim());
+    const textoParticulares = formatearParticularesParaHoja(plan.objetivosParticulares);
     const slotsParts = Math.max(0, lay.particularesFin - lay.particularesInicio + 1);
     for (let i = 0; i < slotsParts; i++) {
         const row = lay.particularesInicio + i;
-        const texto = partes[i] || '';
         pushUpdate(
             actualizaciones,
             row,
@@ -2297,7 +2592,7 @@ function datosAActualizacionesSheet(datos, sheetTitle = SHEET_TITLE, layout = nu
             actualizaciones,
             row,
             CELLS.objetivosParticulares.col,
-            textoTieneContenido(texto) ? `${letraParticularContenido(i)}${texto}` : '',
+            i === 0 ? textoParticulares : '',
             sheetTitle
         );
     }
@@ -2581,13 +2876,13 @@ async function actualizarDatosEnGoogleSheet(spreadsheetId, datos, sheetTitle = n
     layoutDetectado = ws ? detectarLayoutDesdeWorksheet(ws) : layoutDetectado;
     const layout = fusionarLayoutExpandido(layoutDetectado, layoutExpandido);
 
+    const planActivo = resolverPlanActivo(sanitizarDatos(datos));
     const actualizaciones = datosAActualizacionesSheet(datos, titulo, layout);
     await driveService.actualizarCeldasGoogleSheet(spreadsheetId, actualizaciones);
     await asegurarMergesFilasMomentoSpF07(spreadsheetId, titulo, layout);
-    await asegurarMergesParticularesSpF07(spreadsheetId, titulo, layout);
+    await asegurarMergesParticularesSpF07(spreadsheetId, titulo, layout, planActivo);
     await asegurarMergesReferencias(spreadsheetId, titulo, layout);
     await restaurarTituloReferenciasSpF07(spreadsheetId, titulo, layout);
-    const planActivo = resolverPlanActivo(sanitizarDatos(datos));
     await fusionarEtiquetasMomentoSpF07(spreadsheetId, titulo, layout, planActivo.momentos);
     // Diseño oficial gris/blanco + bordes (después de merges); Cierre = fila completa gris
     await aplicarBordesTablasSpF07(spreadsheetId, titulo, layout, planActivo.momentos);
@@ -2960,7 +3255,15 @@ async function cargarFormato(pool) {
     return await construirRespuesta(registro, datos, archivoDrive);
 }
 
+let colaGuardadoSpF07 = Promise.resolve();
+
 async function guardarFormato(pool, body, options = {}) {
+    const turno = colaGuardadoSpF07.then(() => guardarFormatoAhora(pool, body, options));
+    colaGuardadoSpF07 = turno.then(() => undefined, () => undefined);
+    return turno;
+}
+
+async function guardarFormatoAhora(pool, body, options = {}) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registroPrevio = await obtenerRegistroDb(pool);
     const datosEntrada = sanitizarDatos(body?.datos || body);
@@ -3025,6 +3328,16 @@ async function guardarFormato(pool, body, options = {}) {
                 datosGuardar.fechaElaboracion = contenidoModificado && fechaModificacion
                     ? fechaModificacion
                     : fechaOriginal;
+
+                if (huboCambio) {
+                    await guardarRegistroDb(pool, {
+                        driveFileId: driveId,
+                        datos: datosGuardar,
+                        fechaElaboracionOriginal: fechaOriginal,
+                        fechaModificacionContenido: contenidoModificado ? fechaModificacion : null,
+                        contenidoModificado
+                    });
+                }
 
                 await sincronizarHojasPlanesEnDrive(driveId, datosGuardar, datosPrevios);
 
@@ -3324,6 +3637,385 @@ async function descargarPlantillaPdf(pool, opciones = {}) {
     };
 }
 
+function hojaParecePlanCurso(ws) {
+    if (!ws) return false;
+    return !!(
+        buscarFilaPorTexto(ws, ['detalles del curso'], { hasta: 25 })
+        || buscarFilaPorTexto(ws, ['nombre del curso'], { hasta: 25 })
+        || buscarFilaPorTexto(ws, ['plan del curso'], { hasta: 8 })
+        || buscarFilaPorTexto(ws, ['momentos de la capacitacion'], { hasta: 90 })
+    );
+}
+
+function generarFolioPlanSpF07(planes, reservados = null) {
+    const hoy = fechaHoyIso();
+    const partes = String(hoy || '').split('-');
+    const y = partes[0] || '2026';
+    const m = partes[1] || '01';
+    const d = partes[2] || '01';
+    const tag = `${d}${m}${y.slice(-2)}`;
+    let maximo = 0;
+    const considerar = (folio) => {
+        const match = String(folio || '').match(/^PC-(\d{6})-(\d+)$/i);
+        if (match && match[1] === tag) {
+            maximo = Math.max(maximo, parseInt(match[2], 10) || 0);
+        }
+    };
+    for (const p of planes || []) considerar(p?.folio);
+    if (reservados) {
+        for (const folio of reservados) considerar(folio);
+    }
+    return `PC-${tag}-${String(maximo + 1).padStart(2, '0')}`;
+}
+
+async function leerImportacionDesdeExcelBuffer(buffer) {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer);
+    const planes = [];
+    const errores = [];
+    let hojasRevisadas = 0;
+    let hojasOmitidas = 0;
+    for (const ws of wb.worksheets || []) {
+        hojasRevisadas += 1;
+        if (!hojaParecePlanCurso(ws)) {
+            hojasOmitidas += 1;
+            continue;
+        }
+        let plan;
+        try {
+            plan = extraerPlanDesdeWorksheet(ws);
+        } catch (err) {
+            errores.push({
+                hoja: String(ws?.name || 'Hoja'),
+                mensaje: err?.message || 'No se pudo leer la hoja.'
+            });
+            console.warn(`[SP-F-07] No se pudo leer la hoja «${ws.name}»:`, err.message);
+            continue;
+        }
+        if (!plan || !planTieneContenido(plan)) {
+            hojasOmitidas += 1;
+            continue;
+        }
+        planes.push(plan);
+    }
+    return { planes, hojasRevisadas, hojasOmitidas, errores };
+}
+
+async function leerPlanesDesdeExcelBuffer(buffer) {
+    const { planes } = await leerImportacionDesdeExcelBuffer(buffer);
+    return planes;
+}
+
+function avisarProgresoImportacion(onProgreso, avance) {
+    if (typeof onProgreso !== 'function') return;
+    try {
+        onProgreso(avance);
+    } catch (err) {
+        console.warn('[SP-F-07] No se pudo reportar el progreso de importación:', err.message);
+    }
+}
+
+async function importarExcelPlanes(pool, body = {}, onProgreso = null) {
+    const crudo = String(body.excelBase64 || body.excel_base64 || '').trim();
+    const limpio = crudo.replace(/^data:.*;base64,/i, '').replace(/\s+/g, '');
+    avisarProgresoImportacion(onProgreso, {
+        etapa: 'preparando',
+        progreso: 8,
+        detalle: 'Verificando el archivo Excel...'
+    });
+    if (!limpio) {
+        const error = new Error('Selecciona un archivo Excel (.xlsx) del formato SP-F-07.');
+        error.statusCode = 400;
+        throw error;
+    }
+    let buffer;
+    try {
+        buffer = Buffer.from(limpio, 'base64');
+    } catch {
+        const error = new Error('No se pudo leer el archivo Excel.');
+        error.statusCode = 400;
+        throw error;
+    }
+    if (!buffer.length || buffer[0] !== 0x50 || buffer[1] !== 0x4b) {
+        const error = new Error('El archivo debe ser un Excel .xlsx con el formato SP-F-07 Plan del curso.');
+        error.statusCode = 400;
+        throw error;
+    }
+    avisarProgresoImportacion(onProgreso, {
+        etapa: 'preparando',
+        progreso: 15,
+        detalle: 'Verificación completada correctamente.'
+    });
+    avisarProgresoImportacion(onProgreso, {
+        etapa: 'leyendo',
+        progreso: 15,
+        detalle: 'Identificando hojas, encabezados e información...'
+    });
+
+    let lectura;
+    try {
+        lectura = await leerImportacionDesdeExcelBuffer(buffer);
+    } catch (err) {
+        const error = new Error('No se pudo leer el Excel. Usa un archivo .xlsx del plan de curso SP-F-07.');
+        error.statusCode = 400;
+        throw error;
+    }
+    const encontrados = lectura.planes;
+    const hojasRevisadas = lectura.hojasRevisadas;
+    const hojasOmitidas = lectura.hojasOmitidas;
+    const erroresLectura = lectura.errores;
+    const etiquetaHoja = hojasRevisadas === 1 ? 'hoja' : 'hojas';
+    const etiquetaPlan = encontrados.length === 1 ? 'plan' : 'planes';
+    avisarProgresoImportacion(onProgreso, {
+        etapa: 'leyendo',
+        progreso: 40,
+        detalle: `Se identificaron ${hojasRevisadas} ${etiquetaHoja} y ${encontrados.length} ${etiquetaPlan}.`,
+        hojasRevisadas,
+        hojasOmitidas,
+        planesEncontrados: encontrados.length,
+        errores: erroresLectura
+    });
+    avisarProgresoImportacion(onProgreso, {
+        etapa: 'validando',
+        progreso: 40,
+        detalle: 'Comprobando los campos y la estructura del plan de curso...',
+        hojasRevisadas,
+        hojasOmitidas,
+        planesEncontrados: encontrados.length,
+        errores: erroresLectura
+    });
+    if (!encontrados.length) {
+        const error = new Error(
+            'El Excel no trae un plan de curso con datos. Revisa que sea el formato SP-F-07 ya lleno.'
+        );
+        error.statusCode = 400;
+        error.detalleImportacion = { hojasRevisadas, hojasOmitidas, errores: erroresLectura };
+        throw error;
+    }
+    const sinNombre = encontrados.filter((p) => !String(p.nombreCurso || '').trim()).length;
+    let detalleValidacion = `Validación completada. ${encontrados.length} ${etiquetaPlan} con datos.`;
+    if (sinNombre) {
+        detalleValidacion += ` ${sinNombre} sin nombre de curso.`;
+    }
+    if (erroresLectura.length) {
+        detalleValidacion += ` ${erroresLectura.length} ${erroresLectura.length === 1 ? 'hoja no se pudo leer' : 'hojas no se pudieron leer'}.`;
+    }
+    avisarProgresoImportacion(onProgreso, {
+        etapa: 'validando',
+        progreso: 55,
+        detalle: detalleValidacion,
+        hojasRevisadas,
+        hojasOmitidas,
+        planesEncontrados: encontrados.length,
+        errores: erroresLectura
+    });
+
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+    const planes = [...(datos.planes || [])];
+    const importados = [];
+    const foliosUsados = new Set(
+        planes.map((p) => sanitizarNombreHojaFolio(p.folio)).filter(Boolean)
+    );
+
+    for (const item of encontrados) {
+        let folio = sanitizarNombreHojaFolio(item.folio);
+        const idx = folio
+            ? planes.findIndex((p) => sanitizarNombreHojaFolio(p.folio) === folio)
+            : -1;
+        if (!folio) {
+            folio = generarFolioPlanSpF07(planes, foliosUsados);
+            foliosUsados.add(folio);
+        }
+        if (idx >= 0) {
+            const previo = planes[idx];
+            planes[idx] = sanitizarPlan({
+                ...item,
+                id: previo.id,
+                folio: previo.folio || folio,
+                nombreHoja: previo.nombreHoja || ''
+            });
+            importados.push({
+                id: planes[idx].id,
+                folio: planes[idx].folio,
+                nombreCurso: planes[idx].nombreCurso,
+                accion: 'actualizado'
+            });
+            continue;
+        }
+        const creado = sanitizarPlan({
+            ...item,
+            id: nuevoIdPlan(),
+            folio,
+            nombreHoja: ''
+        });
+        planes.unshift(creado);
+        foliosUsados.add(sanitizarNombreHojaFolio(creado.folio));
+        importados.push({
+            id: creado.id,
+            folio: creado.folio,
+            nombreCurso: creado.nombreCurso,
+            accion: 'creado'
+        });
+    }
+
+    avisarProgresoImportacion(onProgreso, {
+        etapa: 'guardando',
+        progreso: 55,
+        detalle: 'Guardando la información del plan de curso...',
+        hojasRevisadas,
+        hojasOmitidas,
+        planesEncontrados: encontrados.length,
+        errores: erroresLectura
+    });
+    const respuesta = await guardarFormato(pool, {
+        datos: {
+            ...datos,
+            planes,
+            planActivoId: importados[0]?.id || datos.planActivoId
+        },
+        origen: 'sistema'
+    });
+    const resumen = {
+        hojasRevisadas,
+        hojasOmitidas,
+        planesEncontrados: encontrados.length,
+        errores: erroresLectura
+    };
+    avisarProgresoImportacion(onProgreso, {
+        etapa: 'verificando',
+        progreso: 92,
+        detalle: 'Confirmando que el plan se haya importado correctamente...',
+        ...resumen
+    });
+    return { ...respuesta, importados, resumen };
+}
+
+const trabajosImportacionSpF07 = new Map();
+const IMPORTACION_SPF07_TTL_MS = 15 * 60 * 1000;
+
+function limpiarTrabajosImportacionSpF07() {
+    const ahora = Date.now();
+    for (const [id, job] of trabajosImportacionSpF07) {
+        if (ahora - Number(job.actualizadoEn || 0) > IMPORTACION_SPF07_TTL_MS) {
+            trabajosImportacionSpF07.delete(id);
+        }
+    }
+}
+
+function publicarTrabajoImportacionSpF07(job, extra = {}) {
+    Object.assign(job, extra, { actualizadoEn: Date.now() });
+}
+
+function iniciarImportacionExcel(pool, body = {}) {
+    limpiarTrabajosImportacionSpF07();
+    const crudo = String(body.excelBase64 || body.excel_base64 || '').trim();
+    if (!crudo) {
+        const error = new Error('Selecciona un archivo Excel (.xlsx) del formato SP-F-07.');
+        error.statusCode = 400;
+        throw error;
+    }
+    const id = nuevoIdPlan();
+    const nombreArchivo = String(body.nombreArchivo || body.nombre_archivo || 'plan.xlsx').trim() || 'plan.xlsx';
+    const job = {
+        id,
+        nombreArchivo,
+        estado: 'procesando',
+        etapa: 'preparando',
+        progreso: 0,
+        detalle: 'Verificando el archivo Excel...',
+        hojasRevisadas: 0,
+        hojasOmitidas: 0,
+        planesEncontrados: 0,
+        errores: [],
+        importados: null,
+        resultado: null,
+        mensajeError: '',
+        actualizadoEn: Date.now()
+    };
+    trabajosImportacionSpF07.set(id, job);
+
+    Promise.resolve()
+        .then(() => importarExcelPlanes(pool, body, (avance) => {
+            const actual = trabajosImportacionSpF07.get(id);
+            if (!actual || actual.estado !== 'procesando') return;
+            publicarTrabajoImportacionSpF07(actual, {
+                etapa: avance.etapa || actual.etapa,
+                progreso: Number.isFinite(Number(avance.progreso)) ? Number(avance.progreso) : actual.progreso,
+                detalle: avance.detalle || actual.detalle,
+                hojasRevisadas: avance.hojasRevisadas ?? actual.hojasRevisadas,
+                hojasOmitidas: avance.hojasOmitidas ?? actual.hojasOmitidas,
+                planesEncontrados: avance.planesEncontrados ?? actual.planesEncontrados,
+                errores: Array.isArray(avance.errores) ? avance.errores : actual.errores
+            });
+        }))
+        .then((payload) => {
+            const actual = trabajosImportacionSpF07.get(id);
+            if (!actual) return;
+            publicarTrabajoImportacionSpF07(actual, {
+                estado: 'completado',
+                etapa: 'verificando',
+                progreso: 100,
+                detalle: 'El archivo se procesó correctamente.',
+                importados: payload.importados || [],
+                resultado: payload,
+                resumen: payload.resumen || null,
+                mensajeError: ''
+            });
+        })
+        .catch((err) => {
+            const actual = trabajosImportacionSpF07.get(id);
+            if (!actual) return;
+            const detalle = err?.detalleImportacion || {};
+            publicarTrabajoImportacionSpF07(actual, {
+                estado: 'error',
+                mensajeError: err?.message || 'No se pudo importar el Excel.',
+                hojasRevisadas: detalle.hojasRevisadas ?? actual.hojasRevisadas,
+                hojasOmitidas: detalle.hojasOmitidas ?? actual.hojasOmitidas,
+                errores: Array.isArray(detalle.errores) ? detalle.errores : actual.errores
+            });
+        });
+
+    return { jobId: id, nombreArchivo };
+}
+
+function consultarImportacionExcel(jobId) {
+    limpiarTrabajosImportacionSpF07();
+    const job = trabajosImportacionSpF07.get(String(jobId || '').trim());
+    if (!job) {
+        const error = new Error('No se encontró la importación. Vuelve a seleccionar el Excel.');
+        error.statusCode = 404;
+        throw error;
+    }
+    const progreso = job.estado === 'completado'
+        ? 100
+        : Math.min(99, Math.max(0, Number(job.progreso) || 0));
+    const publico = {
+        jobId: job.id,
+        nombreArchivo: job.nombreArchivo,
+        estado: job.estado,
+        etapa: job.etapa,
+        progreso,
+        detalle: job.detalle,
+        hojasRevisadas: job.hojasRevisadas,
+        hojasOmitidas: job.hojasOmitidas,
+        planesEncontrados: job.planesEncontrados,
+        errores: job.errores || [],
+        importados: job.estado === 'completado' ? (job.importados || []) : [],
+        resumen: job.resumen || null,
+        mensajeError: job.estado === 'error' ? job.mensajeError : ''
+    };
+    if (job.estado === 'completado' && job.resultado) {
+        return {
+            ...job.resultado,
+            ...publico,
+            success: true
+        };
+    }
+    return publico;
+}
+
 module.exports = {
     CODIGO_FORMATO,
     DATOS_DEFECTO,
@@ -3332,6 +4024,10 @@ module.exports = {
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
     descargarPlantillaPdf,
+    importarExcelPlanes,
+    iniciarImportacionExcel,
+    consultarImportacionExcel,
+    leerPlanesDesdeExcelBuffer,
     sanitizarDatos,
     estructuraEsEquivalente
 };

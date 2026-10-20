@@ -8008,10 +8008,24 @@
                               [(ngModel)]="spF07Busqueda" placeholder="Buscar curso, instructor o folio…"
                               autocomplete="off">
                           </label>
-                          <button type="button" class="sgc-f-04-archivero__btn-nuevo" (click)="nuevoPlanSpF07()">
-                            <i class="fas fa-plus" aria-hidden="true"></i>
-                            Nuevo plan
-                          </button>
+                          <div class="sgc-f-04-archivero__actions">
+                            <button type="button" class="sgc-f-04-archivero__btn-nuevo" (click)="nuevoPlanSpF07()"
+                              [disabled]="spF07Importando">
+                              <i class="fas fa-plus" aria-hidden="true"></i>
+                              Nuevo plan
+                            </button>
+                            <button type="button" class="sgc-f-04-archivero__btn-importar"
+                              (click)="spF07ExcelInput.click()"
+                              [disabled]="spF07Importando || spF07Cargando || spF07Guardando"
+                              title="Importar un Excel ya lleno del plan de curso"
+                              aria-label="Importar Excel del plan de curso">
+                              <i class="fas fa-file-excel" aria-hidden="true"></i>
+                              Importar Excel
+                            </button>
+                            <input #spF07ExcelInput class="sgc-f-04-archivero__file" type="file"
+                              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                              (change)="onImportarExcelSpF07($event)">
+                          </div>
                         </div>
                       </div>
 
@@ -8086,7 +8100,20 @@
                         <i class="fas fa-arrow-left" aria-hidden="true"></i>
                         Volver al archivero
                       </button>
-                      <span class="sgc-f-04-editor-bar__folio" *ngIf="plan.folio">{{ plan.folio }}</span>
+                      <div class="sgc-f-04-editor-bar__tools">
+                        <button type="button" class="sgc-f-04-archivero__btn-importar"
+                          (click)="spF07ExcelInputEditor.click()"
+                          [disabled]="spF07Importando || spF07Cargando || spF07Guardando"
+                          title="Importar un Excel ya lleno y llenar este plan"
+                          aria-label="Importar Excel del plan de curso">
+                          <i class="fas fa-file-excel" aria-hidden="true"></i>
+                          Importar Excel
+                        </button>
+                        <input #spF07ExcelInputEditor class="sgc-f-04-archivero__file" type="file"
+                          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                          (change)="onImportarExcelSpF07($event)">
+                        <span class="sgc-f-04-editor-bar__folio" *ngIf="plan.folio">{{ plan.folio }}</span>
+                      </div>
                     </div>
 
                     <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SP-F-07', titulo: 'Plan del curso', icono: 'fa-chalkboard-teacher' }"></ng-container>
@@ -8127,6 +8154,7 @@
                                 <th scope="row">Propósito del curso</th>
                                 <td>
                                   <textarea class="dg-f05-field dg-f05-field--textarea" name="spF07_proposito"
+                                    appAutoResize [appAutoResizeRefresh]="spF07AutosizeTick"
                                     [(ngModel)]="plan.proposito" rows="2"></textarea>
                                 </td>
                               </tr>
@@ -8196,6 +8224,7 @@
                                 <th scope="row">Conocimientos requeridos</th>
                                 <td>
                                   <textarea class="dg-f05-field dg-f05-field--textarea" name="spF07_conocimientos"
+                                    appAutoResize [appAutoResizeRefresh]="spF07AutosizeTick"
                                     [(ngModel)]="plan.conocimientosRequeridos" rows="2"></textarea>
                                 </td>
                               </tr>
@@ -8203,6 +8232,7 @@
                                 <th scope="row">Habilidades requeridas</th>
                                 <td>
                                   <textarea class="dg-f05-field dg-f05-field--textarea" name="spF07_habilidades"
+                                    appAutoResize [appAutoResizeRefresh]="spF07AutosizeTick"
                                     [(ngModel)]="plan.habilidadesRequeridas" rows="2"></textarea>
                                 </td>
                               </tr>
@@ -8227,6 +8257,7 @@
                                 <th scope="row">General</th>
                                 <td>
                                   <textarea class="dg-f05-field dg-f05-field--textarea" name="spF07_objGeneral"
+                                    appAutoResize [appAutoResizeRefresh]="spF07AutosizeTick"
                                     [(ngModel)]="plan.objetivoGeneral" rows="3"></textarea>
                                 </td>
                               </tr>
@@ -8244,6 +8275,7 @@
                                       <span class="sp-f-07-particular-letra" aria-hidden="true">{{ letraParticularSpF07(pi) }})</span>
                                       <textarea class="dg-f05-field dg-f05-field--textarea sp-f-07-particular-textarea"
                                         [name]="'spF07_objParticular_' + pi"
+                                        appAutoResize [appAutoResizeRefresh]="spF07AutosizeTick"
                                         [(ngModel)]="plan.objetivosParticulares[pi]" rows="2"
                                         placeholder="Ej. El participante reconocerá… (Afectivo)"></textarea>
                                     </div>
@@ -8284,6 +8316,7 @@
                                 <th scope="row">Didácticos</th>
                                 <td>
                                   <textarea class="dg-f05-field dg-f05-field--textarea" name="spF07_recursos"
+                                    appAutoResize [appAutoResizeRefresh]="spF07AutosizeTick"
                                     [(ngModel)]="plan.recursosDidacticos" rows="2"></textarea>
                                 </td>
                               </tr>
@@ -8291,6 +8324,7 @@
                                 <th scope="row">Equipo de apoyo</th>
                                 <td>
                                   <textarea class="dg-f05-field dg-f05-field--textarea" name="spF07_equipo"
+                                    appAutoResize [appAutoResizeRefresh]="spF07AutosizeTick"
                                     [(ngModel)]="plan.equipoApoyo" rows="2"></textarea>
                                 </td>
                               </tr>
@@ -8384,11 +8418,13 @@
                                     <td>
                                       <textarea class="dg-f05-field dg-f05-field--textarea"
                                         [name]="'spF07_mom_ct_' + m.id"
+                                        appAutoResize [appAutoResizeRefresh]="spF07AutosizeTick"
                                         [(ngModel)]="m.contenidoTematico" rows="2"></textarea>
                                     </td>
                                     <td>
                                       <textarea class="dg-f05-field dg-f05-field--textarea"
                                         [name]="'spF07_mom_da_' + m.id"
+                                        appAutoResize [appAutoResizeRefresh]="spF07AutosizeTick"
                                         [(ngModel)]="m.descripcionActividades" rows="2"></textarea>
                                     </td>
                                     <td>
@@ -8402,11 +8438,13 @@
                                     <td>
                                       <textarea class="dg-f05-field dg-f05-field--textarea"
                                         [name]="'spF07_mom_ti_' + m.id"
+                                        appAutoResize [appAutoResizeRefresh]="spF07AutosizeTick"
                                         [(ngModel)]="m.tecnicasInstruccionales" rows="2"></textarea>
                                     </td>
                                     <td>
                                       <textarea class="dg-f05-field dg-f05-field--textarea"
                                         [name]="'spF07_mom_tg_' + m.id"
+                                        appAutoResize [appAutoResizeRefresh]="spF07AutosizeTick"
                                         [(ngModel)]="m.tecnicasGrupales" rows="2"></textarea>
                                     </td>
                                     <td>
@@ -8461,6 +8499,7 @@
                       <div class="sgc-f-04-section__body">
                         <label class="sgc-f-04-field-block sp-f-07-eval-block">
                           <textarea class="dg-f05-field dg-f05-field--textarea" name="spF07_metodoEval"
+                            appAutoResize [appAutoResizeRefresh]="spF07AutosizeTick"
                             [(ngModel)]="plan.metodoEvaluacion" rows="3"
                             placeholder="Método de evaluación del aprendizaje"></textarea>
                         </label>
@@ -8506,6 +8545,90 @@
                   </article>
                 </div>
               </form>
+
+              <div class="sp-f07-import" *ngIf="spF07ImportModalAbierto" role="dialog" aria-modal="true"
+                aria-labelledby="sp-f07-import-titulo">
+                <div class="sp-f07-import__backdrop"></div>
+                <div class="sp-f07-import__dialog">
+                  <header class="sp-f07-import__head">
+                    <span class="sp-f07-import__excel" aria-hidden="true">
+                      <i class="fas fa-file-excel"></i>
+                    </span>
+                    <div class="sp-f07-import__head-text">
+                      <h3 id="sp-f07-import-titulo">{{ spF07ImportTitulo }}</h3>
+                      <p class="sp-f07-import__archivo" *ngIf="spF07ImportNombre">{{ spF07ImportNombre }}</p>
+                    </div>
+                  </header>
+
+                  <ng-container *ngIf="spF07ImportEstado === 'procesando'">
+                    <div class="sp-f07-import__barra-head">
+                      <span>Progreso general</span>
+                      <strong>{{ spF07ImportProgresoVisible }}%</strong>
+                    </div>
+                    <div class="sp-f07-import__track" role="progressbar"
+                      [attr.aria-valuenow]="spF07ImportProgresoVisible" aria-valuemin="0" aria-valuemax="100">
+                      <span class="sp-f07-import__fill" [style.width.%]="spF07ImportProgresoVista"></span>
+                    </div>
+                    <ol class="sp-f07-import__etapas">
+                      <li *ngFor="let etapa of spF07ImportEtapas; let i = index"
+                        [class.is-activa]="spF07ImportEtapaEstado(etapa.id) === 'activa'"
+                        [class.is-lista]="spF07ImportEtapaEstado(etapa.id) === 'lista'"
+                        [class.is-pendiente]="spF07ImportEtapaEstado(etapa.id) === 'pendiente'">
+                        <span class="sp-f07-import__marca" aria-hidden="true">
+                          <i class="fas" [ngClass]="spF07ImportIconoEtapa(etapa.id)"></i>
+                        </span>
+                        <div>
+                          <strong>{{ i + 1 }}. {{ etapa.titulo }}</strong>
+                          <p *ngIf="spF07ImportEtapaEstado(etapa.id) === 'activa'">
+                            {{ spF07ImportDetalle || etapa.mensaje }}
+                          </p>
+                          <p *ngIf="spF07ImportEtapaEstado(etapa.id) === 'lista'">{{ etapa.listo }}</p>
+                        </div>
+                      </li>
+                    </ol>
+                  </ng-container>
+
+                  <div class="sp-f07-import__resultado" *ngIf="spF07ImportEstado === 'completado'">
+                    <div class="sp-f07-import__sello sp-f07-import__sello--ok" aria-hidden="true">
+                      <i class="fas fa-check"></i>
+                    </div>
+                    <p class="sp-f07-import__lead">El archivo se procesó correctamente.</p>
+                    <div class="sp-f07-import__stats">
+                      <div class="sp-f07-import__stat">
+                        <strong>{{ spF07ImportCreados + spF07ImportActualizados }}</strong>
+                        <span>Planes importados</span>
+                      </div>
+                      <div class="sp-f07-import__stat" *ngIf="spF07ImportOmitidas > 0">
+                        <strong>{{ spF07ImportOmitidas }}</strong>
+                        <span>Hojas omitidas</span>
+                      </div>
+                      <div class="sp-f07-import__stat sp-f07-import__stat--error" *ngIf="spF07ImportErrores.length">
+                        <strong>{{ spF07ImportErrores.length }}</strong>
+                        <span>Hojas con error</span>
+                      </div>
+                    </div>
+                    <p class="sp-f07-import__nota">{{ spF07ImportNotaResultado }}</p>
+                    <button type="button" class="sp-f07-import__aceptar" (click)="cerrarImportacionSpF07()">
+                      Aceptar
+                    </button>
+                  </div>
+
+                  <div class="sp-f07-import__resultado" *ngIf="spF07ImportEstado === 'error'">
+                    <div class="sp-f07-import__sello sp-f07-import__sello--error" aria-hidden="true">
+                      <i class="fas fa-times"></i>
+                    </div>
+                    <p class="sp-f07-import__lead">{{ spF07ImportError }}</p>
+                    <ul class="sp-f07-import__fallos" *ngIf="spF07ImportErrores.length">
+                      <li *ngFor="let fallo of spF07ImportErrores">
+                        {{ fallo.hoja || 'Hoja' }}: {{ fallo.mensaje || 'No se pudo leer.' }}
+                      </li>
+                    </ul>
+                    <button type="button" class="sp-f07-import__aceptar" (click)="cerrarImportacionSpF07()">
+                      Aceptar
+                    </button>
+                  </div>
+                </div>
+              </div>
             </ng-container>
 
             <ng-container *ngSwitchCase="'sgc-f-29'">

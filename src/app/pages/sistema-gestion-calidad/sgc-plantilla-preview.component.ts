@@ -3308,8 +3308,71 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   spF07PlanActivo: SpF07Plan | null = null;
   spF07Cargando = false;
   spF07Guardando = false;
+  spF07Importando = false;
+  spF07ImportModalAbierto = false;
+  spF07ImportNombre = '';
+  spF07ImportProgreso = 0;
+  spF07ImportProgresoVista = 0;
+  spF07ImportEtapa = 'preparando';
+  spF07ImportDetalle = '';
+  spF07ImportEstado: 'procesando' | 'completado' | 'error' = 'procesando';
+  spF07ImportError = '';
+  spF07ImportCreados = 0;
+  spF07ImportActualizados = 0;
+  spF07ImportOmitidas = 0;
+  spF07ImportErrores: Array<{ hoja?: string; mensaje?: string }> = [];
+  readonly spF07ImportEtapas: Array<{ id: string; titulo: string; mensaje: string; listo: string }> = [
+    {
+      id: 'preparando',
+      titulo: 'Preparando el archivo',
+      mensaje: 'Verificando el archivo Excel...',
+      listo: 'Verificación completada correctamente.'
+    },
+    {
+      id: 'leyendo',
+      titulo: 'Leyendo el documento',
+      mensaje: 'Identificando hojas, encabezados e información...',
+      listo: 'Lectura del documento completada.'
+    },
+    {
+      id: 'validando',
+      titulo: 'Validando información',
+      mensaje: 'Comprobando los campos y la estructura del plan de curso...',
+      listo: 'Validación completada.'
+    },
+    {
+      id: 'guardando',
+      titulo: 'Importando registros',
+      mensaje: 'Guardando la información del plan de curso...',
+      listo: 'Información guardada.'
+    },
+    {
+      id: 'verificando',
+      titulo: 'Verificando resultados',
+      mensaje: 'Confirmando que el plan se haya importado correctamente...',
+      listo: 'Resultado confirmado.'
+    }
+  ];
+  private spF07ImportPollSub: Subscription | null = null;
+  private spF07ImportAnimRaf: number | null = null;
+  private spF07ImportAnimDesde = 0;
+  private spF07ImportAnimHasta = 0;
+  private spF07ImportAnimInicio = 0;
+  private spF07ImportEtapaServidor = 'preparando';
+  private spF07ImportDetallesServidor: Record<string, string> = {};
+  private spF07ImportRitmoRaf: number | null = null;
+  private spF07ImportRitmoMarca = 0;
+  private readonly spF07ImportRitmo: Array<{ id: string; pausa: number; desde: number; hasta: number }> = [
+    { id: 'preparando', pausa: 1500, desde: 3, hasta: 14 },
+    { id: 'leyendo', pausa: 8000, desde: 14, hasta: 36 },
+    { id: 'validando', pausa: 10000, desde: 36, hasta: 54 },
+    { id: 'guardando', pausa: 0, desde: 55, hasta: 88 }
+  ];
+  spF07AutosizeTick = 0;
   spF07Listo = false;
   spF07CambiosPendientes = false;
+  private spF07RequiereOtroGuardado = false;
+  private spF07VistaDestruida = false;
   spF07IgnorarAutoSave = false;
   spF07UltimaSync: string | null = null;
   spF07DriveFileId: string | null = null;
@@ -4541,6 +4604,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.liberarMiniaturasEvidenciasSgcF14();
     this.sgcF17PagesObserver?.disconnect();
     this.cerrarVisorDocumentoFisicoSgcF02();
+    this.detenerAnimacionProgresoSpF07();
+    this.spF07VistaDestruida = true;
     this.destroy$.next();
     this.destroy$.complete();
     document.documentElement.style.overflow = '';
@@ -21767,10 +21832,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const planos = Array.isArray(datos?.momentos)
       ? datos.momentos.map((m) => this.normalizarMomentoSpF07(m))
       : [];
-    return [{
+    return this.partirMomentosEnCiclosSpF07(planos).map((ciclo) => ({
       id: this.nuevoIdSpF07(),
-      momentos: this.asegurarMomentosBaseSpF07(planos)
-    }];
+      momentos: this.asegurarMomentosBaseSpF07(ciclo)
+    }));
   }
 
   private crearPlanSpF07Vacio(): SpF07Plan {
@@ -21809,6 +21874,24 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       planes: [],
       planActivoId: null
     };
+  }
+
+  /** Cada línea del Excel (a) / b) / c)) es un objetivo particular en el formulario. */
+  private expandirParticularesSpF07(raw: unknown): string[] {
+    const base = Array.isArray(raw)
+      ? raw
+      : (typeof raw === 'string' ? [raw] : []);
+    const out: string[] = [];
+    for (const item of base) {
+      const lineas = String(item == null ? '' : item).split(/\r?\n|\u000b|\u2028/);
+      for (const linea of lineas) {
+        const limpio = linea.replace(/^[a-z]\)\s*/i, '').trim();
+        if (limpio) {
+          out.push(limpio);
+        }
+      }
+    }
+    return out;
   }
 
   private normalizarListaTextosSpF07(raw: unknown, minimo = 1): string[] {
@@ -21918,15 +22001,42 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }
     }
     const orden = new Map(this.spF07MomentosOpciones.map((s, i) => [s, i]));
+    const indice = new Map(lista.map((m, i) => [m, i]));
     lista.sort((a, b) => {
       const ia = orden.has(a.momento) ? (orden.get(a.momento) as number) : 99;
       const ib = orden.has(b.momento) ? (orden.get(b.momento) as number) : 99;
       if (ia !== ib) {
         return ia - ib;
       }
-      return String(a.id || '').localeCompare(String(b.id || ''));
+      return (indice.get(a) || 0) - (indice.get(b) || 0);
     });
     return lista;
+  }
+
+  /** Un ciclo nuevo empieza cuando vuelve Apertura después de Desarrollo o Cierre. */
+  private partirMomentosEnCiclosSpF07(momentos: SpF07Momento[]): SpF07Momento[][] {
+    const ciclos: SpF07Momento[][] = [];
+    let actual: SpF07Momento[] = [];
+    let fase = -1;
+    const flush = () => {
+      if (actual.length) {
+        ciclos.push(actual);
+      }
+      actual = [];
+      fase = -1;
+    };
+    for (const m of momentos || []) {
+      const idx = this.spF07MomentosOpciones.indexOf(String(m?.momento || '').trim());
+      if (idx >= 0 && fase >= 0 && idx < fase) {
+        flush();
+      }
+      if (idx >= 0) {
+        fase = idx;
+      }
+      actual.push(m);
+    }
+    flush();
+    return ciclos.length ? ciclos : [[]];
   }
 
   private normalizarPlanSpF07(datos: Partial<SpF07Plan> | null | undefined): SpF07Plan {
@@ -21953,7 +22063,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       conocimientosRequeridos: String(datos.conocimientosRequeridos || ''),
       habilidadesRequeridas: String(datos.habilidadesRequeridas || ''),
       objetivoGeneral: String(datos.objetivoGeneral || ''),
-      objetivosParticulares: this.normalizarListaTextosSpF07(datos.objetivosParticulares, 1),
+      objetivosParticulares: this.normalizarListaTextosSpF07(
+        this.expandirParticularesSpF07(datos.objetivosParticulares),
+        1
+      ),
       recursosDidacticos: String(datos.recursosDidacticos || ''),
       equipoApoyo: String(datos.equipoApoyo || ''),
       momentos,
@@ -22055,6 +22168,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.spF07PlanActivo = normalizado;
     this.spF07Form.planActivoId = normalizado.id;
     this.spF07Vista = 'editor';
+    this.spF07AutosizeTick += 1;
   }
 
   generarFolioSpF07(): void {
@@ -22083,6 +22197,350 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.onSpF07Editado();
   }
 
+  get spF07ImportTitulo(): string {
+    if (this.spF07ImportEstado === 'completado') {
+      return '¡Importación completada!';
+    }
+    if (this.spF07ImportEstado === 'error') {
+      return 'No se pudo completar la importación';
+    }
+    return 'Importando plan de curso';
+  }
+
+  get spF07ImportNotaResultado(): string {
+    const partes: string[] = [];
+    if (this.spF07ImportCreados) {
+      partes.push(`${this.spF07ImportCreados} nuevo${this.spF07ImportCreados === 1 ? '' : 's'}`);
+    }
+    if (this.spF07ImportActualizados) {
+      partes.push(`${this.spF07ImportActualizados} actualizado${this.spF07ImportActualizados === 1 ? '' : 's'}`);
+    }
+    if (!partes.length) {
+      return 'No hubo planes nuevos que guardar.';
+    }
+    return partes.join(' · ');
+  }
+
+  spF07ImportEtapaEstado(id: string): 'pendiente' | 'activa' | 'lista' {
+    const orden = this.spF07ImportEtapas.map((etapa) => etapa.id);
+    const actual = Math.max(0, orden.indexOf(this.spF07ImportEtapa));
+    const indice = orden.indexOf(id);
+    if (this.spF07ImportEstado === 'completado' || indice < actual) {
+      return 'lista';
+    }
+    if (indice === actual) {
+      return 'activa';
+    }
+    return 'pendiente';
+  }
+
+  spF07ImportIconoEtapa(id: string): string {
+    const estado = this.spF07ImportEtapaEstado(id);
+    if (estado === 'lista') {
+      return 'fa-check';
+    }
+    if (estado === 'activa') {
+      return 'fa-spinner fa-spin';
+    }
+    return 'fa-circle';
+  }
+
+  cerrarImportacionSpF07(): void {
+    if (this.spF07ImportEstado === 'procesando') {
+      return;
+    }
+    this.spF07ImportPollSub?.unsubscribe();
+    this.spF07ImportPollSub = null;
+    this.detenerAnimacionProgresoSpF07();
+    this.spF07ImportModalAbierto = false;
+    this.spF07Importando = false;
+  }
+
+  onImportarExcelSpF07(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    input.value = '';
+    if (!archivo || this.spF07Importando) {
+      return;
+    }
+    const nombre = String(archivo.name || '');
+    this.abrirModalImportacionSpF07(nombre);
+    if (!/\.xlsx$/i.test(nombre)) {
+      this.fallarImportacionSpF07('Selecciona un Excel .xlsx del formato SP-F-07 Plan del curso.');
+      return;
+    }
+    if (archivo.size > 25 * 1024 * 1024) {
+      this.fallarImportacionSpF07('El Excel no puede superar 25 MB.');
+      return;
+    }
+
+    const lector = new FileReader();
+    lector.onload = () => {
+      const resultado = lector.result;
+      if (typeof resultado !== 'string') {
+        this.fallarImportacionSpF07('No se pudo leer el archivo.');
+        return;
+      }
+      const base64 = resultado.split(',')[1] || '';
+      if (!base64) {
+        this.fallarImportacionSpF07('No se pudo leer el archivo. Vuelve a seleccionarlo.');
+        return;
+      }
+      this.backendService.iniciarImportacionSpF07(base64, nombre)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            const jobId = String(res?.jobId || '').trim();
+            if (!jobId) {
+              this.fallarImportacionSpF07('No se pudo iniciar la importación.');
+              return;
+            }
+            this.vigilarImportacionSpF07(jobId);
+          },
+          error: (err) => {
+            this.fallarImportacionSpF07(
+              err?.error?.message || 'No se pudo iniciar la importación del plan de curso.'
+            );
+          }
+        });
+    };
+    lector.onerror = () => {
+      this.fallarImportacionSpF07('No se pudo leer el archivo. Vuelve a seleccionarlo.');
+    };
+    lector.readAsDataURL(archivo);
+  }
+
+  private abrirModalImportacionSpF07(nombre: string): void {
+    this.spF07ImportPollSub?.unsubscribe();
+    this.spF07ImportPollSub = null;
+    this.spF07Importando = true;
+    this.spF07ImportModalAbierto = true;
+    this.spF07ImportNombre = nombre;
+    this.spF07ImportProgreso = 0;
+    this.reiniciarVistaProgresoSpF07();
+    this.spF07ImportEtapaServidor = 'preparando';
+    this.spF07ImportDetallesServidor = {};
+    this.spF07ImportEtapa = 'preparando';
+    this.spF07ImportDetalle = 'Verificando el archivo Excel...';
+    this.spF07ImportEstado = 'procesando';
+    this.spF07ImportError = '';
+    this.spF07ImportCreados = 0;
+    this.spF07ImportActualizados = 0;
+    this.spF07ImportOmitidas = 0;
+    this.spF07ImportErrores = [];
+    this.iniciarRitmoVisualSpF07();
+  }
+
+  private vigilarImportacionSpF07(jobId: string): void {
+    this.spF07ImportPollSub?.unsubscribe();
+    this.spF07ImportPollSub = timer(350, 700)
+      .pipe(
+        switchMap(() => this.backendService.consultarImportacionSpF07(jobId)),
+        takeUntil(this.destroy$)
+      )
+      .subscribe({
+        next: (res) => this.aplicarProgresoImportacionSpF07(res),
+        error: (err) => {
+          this.fallarImportacionSpF07(
+            err?.error?.message || 'No se pudo consultar el avance de la importación.'
+          );
+        }
+      });
+  }
+
+  private aplicarProgresoImportacionSpF07(res: any): void {
+    if (!res || this.spF07ImportEstado !== 'procesando') {
+      return;
+    }
+    const estado = String(res.estado || '');
+    if (estado === 'completado') {
+      this.spF07ImportPollSub?.unsubscribe();
+      this.spF07ImportPollSub = null;
+      this.detenerRitmoVisualSpF07();
+      this.spF07ImportEtapa = 'verificando';
+      this.spF07ImportProgreso = 100;
+      this.spF07ImportDetalle = res.detalle || 'El archivo se procesó correctamente.';
+      const importados = Array.isArray(res.importados) ? res.importados : [];
+      this.spF07ImportCreados = importados.filter((item: { accion?: string }) => item.accion === 'creado').length;
+      this.spF07ImportActualizados = importados.filter((item: { accion?: string }) => item.accion === 'actualizado').length;
+      this.spF07ImportOmitidas = Number(res.resumen?.hojasOmitidas ?? res.hojasOmitidas) || 0;
+      this.spF07ImportErrores = Array.isArray(res.resumen?.errores)
+        ? res.resumen.errores
+        : (Array.isArray(res.errores) ? res.errores : []);
+      this.aplicarEstadoSpF07(res, false, false, true);
+      this.spF07CambiosPendientes = false;
+      if (importados.length === 1) {
+        const plan = (this.spF07Form.planes || []).find((p) => p.id === importados[0].id);
+        if (plan) {
+          this.abrirPlanSpF07(plan);
+        }
+      } else if (importados.length > 1) {
+        this.volverArchiveroSpF07();
+      }
+      this.spF07ImportEstado = 'completado';
+      return;
+    }
+    if (estado === 'error') {
+      this.spF07ImportErrores = Array.isArray(res.errores) ? res.errores : [];
+      this.spF07ImportOmitidas = Number(res.hojasOmitidas) || 0;
+      this.fallarImportacionSpF07(res.mensajeError || 'No se pudo importar el plan de curso.');
+      return;
+    }
+    const etapaServidor = String(res.etapa || this.spF07ImportEtapaServidor || 'preparando');
+    this.spF07ImportEtapaServidor = etapaServidor;
+    if (res.detalle) {
+      this.spF07ImportDetallesServidor[etapaServidor] = String(res.detalle);
+    }
+    if (this.prefiereMovimientoReducidoSpF07()) {
+      const progreso = Number(res.progreso);
+      if (Number.isFinite(progreso)) {
+        this.fijarProgresoImportacionSpF07(Math.min(99, Math.max(this.spF07ImportProgreso, progreso)));
+      }
+      this.spF07ImportEtapa = etapaServidor;
+      if (res.detalle) {
+        this.spF07ImportDetalle = String(res.detalle);
+      }
+    }
+  }
+
+  private fallarImportacionSpF07(mensaje: string): void {
+    this.spF07ImportPollSub?.unsubscribe();
+    this.spF07ImportPollSub = null;
+    this.spF07ImportEstado = 'error';
+    this.spF07ImportError = mensaje || 'No se pudo importar el plan de curso.';
+    this.spF07ImportProgreso = Math.min(99, this.spF07ImportProgreso);
+    this.detenerAnimacionProgresoSpF07();
+  }
+
+  get spF07ImportProgresoVisible(): number {
+    return Math.round(this.spF07ImportProgresoVista);
+  }
+
+  private reiniciarVistaProgresoSpF07(): void {
+    this.detenerAnimacionProgresoSpF07();
+    this.spF07ImportProgresoVista = 0;
+  }
+
+  private detenerAnimacionProgresoSpF07(): void {
+    if (this.spF07ImportAnimRaf != null) {
+      cancelAnimationFrame(this.spF07ImportAnimRaf);
+      this.spF07ImportAnimRaf = null;
+    }
+    this.detenerRitmoVisualSpF07();
+  }
+
+  private prefiereMovimientoReducidoSpF07(): boolean {
+    return typeof matchMedia === 'function'
+      && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  private indiceEtapaImportacionSpF07(id: string): number {
+    return this.spF07ImportEtapas.findIndex((etapa) => etapa.id === id);
+  }
+
+  private detenerRitmoVisualSpF07(): void {
+    if (this.spF07ImportRitmoRaf != null) {
+      cancelAnimationFrame(this.spF07ImportRitmoRaf);
+      this.spF07ImportRitmoRaf = null;
+    }
+  }
+
+  private iniciarRitmoVisualSpF07(): void {
+    this.detenerRitmoVisualSpF07();
+    if (this.prefiereMovimientoReducidoSpF07()) {
+      return;
+    }
+    this.spF07ImportRitmoMarca = performance.now();
+    this.ngZone.runOutsideAngular(() => {
+      const paso = (ahora: number) => {
+        if (!this.spF07ImportModalAbierto || this.spF07ImportEstado !== 'procesando') {
+          this.spF07ImportRitmoRaf = null;
+          return;
+        }
+        const cambio = this.calcularRitmoVisualSpF07(ahora);
+        if (cambio) {
+          this.ngZone.run(() => this.aplicarRitmoVisualSpF07(cambio));
+        }
+        this.spF07ImportRitmoRaf = requestAnimationFrame(paso);
+      };
+      this.spF07ImportRitmoRaf = requestAnimationFrame(paso);
+    });
+  }
+
+  private calcularRitmoVisualSpF07(ahora: number): { etapa: string; detalle: string; vista: number } | null {
+    const servidor = Math.max(0, this.indiceEtapaImportacionSpF07(this.spF07ImportEtapaServidor));
+    let idx = Math.max(0, this.indiceEtapaImportacionSpF07(this.spF07ImportEtapa));
+    idx = Math.min(idx, this.spF07ImportRitmo.length - 1);
+    let paso = this.spF07ImportRitmo[idx];
+    const transcurrido = ahora - this.spF07ImportRitmoMarca;
+    if (servidor > idx && paso.pausa > 0 && transcurrido >= paso.pausa && idx < this.spF07ImportRitmo.length - 1) {
+      idx += 1;
+      paso = this.spF07ImportRitmo[idx];
+      this.spF07ImportRitmoMarca = ahora;
+    }
+    const recorrido = Math.max(0, ahora - this.spF07ImportRitmoMarca);
+    let objetivo: number;
+    if (paso.id === 'guardando') {
+      objetivo = paso.desde + (paso.hasta - paso.desde) * (1 - Math.exp(-recorrido / 24000));
+    } else {
+      const porcion = paso.pausa > 0 ? Math.min(1, recorrido / paso.pausa) : 1;
+      const suave = 1 - Math.pow(1 - porcion, 2);
+      objetivo = paso.desde + (paso.hasta - paso.desde) * suave;
+    }
+    objetivo = Math.max(this.spF07ImportProgresoVista, Math.min(88, objetivo));
+    const definicion = this.spF07ImportEtapas.find((etapa) => etapa.id === paso.id);
+    const detalle = this.spF07ImportDetallesServidor[paso.id] || definicion?.mensaje || this.spF07ImportDetalle;
+    if (
+      paso.id === this.spF07ImportEtapa
+      && detalle === this.spF07ImportDetalle
+      && Math.round(objetivo) === Math.round(this.spF07ImportProgresoVista)
+    ) {
+      return null;
+    }
+    return { etapa: paso.id, detalle, vista: objetivo };
+  }
+
+  private aplicarRitmoVisualSpF07(cambio: { etapa: string; detalle: string; vista: number }): void {
+    if (this.spF07ImportEstado !== 'procesando') {
+      return;
+    }
+    this.spF07ImportEtapa = cambio.etapa;
+    this.spF07ImportDetalle = cambio.detalle;
+    this.spF07ImportProgresoVista = cambio.vista;
+    this.spF07ImportProgreso = Math.min(99, Math.max(this.spF07ImportProgreso, cambio.vista));
+  }
+
+  private fijarProgresoImportacionSpF07(valor: number): void {
+    const destino = Math.max(0, Math.min(100, valor));
+    this.spF07ImportProgreso = destino;
+    const reducido = typeof matchMedia === 'function'
+      && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reducido || Math.abs(destino - this.spF07ImportProgresoVista) < 0.4) {
+      this.detenerAnimacionProgresoSpF07();
+      this.spF07ImportProgresoVista = destino;
+      return;
+    }
+    this.spF07ImportAnimDesde = this.spF07ImportProgresoVista;
+    this.spF07ImportAnimHasta = destino;
+    this.spF07ImportAnimInicio = performance.now();
+    if (this.spF07ImportAnimRaf != null) {
+      return;
+    }
+    const paso = (ahora: number) => {
+      const avance = Math.min(1, (ahora - this.spF07ImportAnimInicio) / 900);
+      const suave = 1 - Math.pow(1 - avance, 3);
+      this.spF07ImportProgresoVista = this.spF07ImportAnimDesde
+        + (this.spF07ImportAnimHasta - this.spF07ImportAnimDesde) * suave;
+      if (avance < 1) {
+        this.spF07ImportAnimRaf = requestAnimationFrame(paso);
+        return;
+      }
+      this.spF07ImportProgresoVista = this.spF07ImportAnimHasta;
+      this.spF07ImportAnimRaf = null;
+    };
+    this.spF07ImportAnimRaf = requestAnimationFrame(paso);
+  }
+
   nuevoPlanSpF07(): void {
     const plan = this.crearPlanSpF07Vacio();
     this.spF07Form.planes = [plan, ...this.spF07Form.planes];
@@ -22105,10 +22563,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     this.spF07Form.planes = this.spF07Form.planes.filter((p) => p.id !== plan.id);
+    if (this.spF07Form.planActivoId === plan.id) {
+      this.spF07Form.planActivoId = null;
+    }
     if (this.spF07PlanActivo?.id === plan.id) {
       this.volverArchiveroSpF07();
     }
     this.onSpF07Editado();
+    this.persistirSpF07(true);
   }
 
   agregarMomentoSpF07(momentoLabel = 'Desarrollo', tabla?: SpF07MomentosTabla): void {
@@ -22504,33 +22966,51 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
-  private persistirSpF07(): void {
+  private persistirSpF07(sobrevivirSalida = false): void {
     if (!this.puedeGestionarPlantillasSgc) {
       return;
     }
-    if (!this.spF07Listo || this.spF07Guardando) {
+    if (!this.spF07Listo) {
+      return;
+    }
+    if (this.spF07Guardando) {
+      this.spF07RequiereOtroGuardado = true;
       return;
     }
     this.spF07Guardando = true;
+    this.spF07RequiereOtroGuardado = false;
     const editorAbierto = this.mostrarSpF07Editor;
     this.sincronizarPlanActivoEnFormSpF07();
     const planActivoId = this.spF07PlanActivo?.id || null;
     this.spF07Form.planActivoId = planActivoId;
-    this.backendService.guardarSpF07Formato(
+    const peticion = this.backendService.guardarSpF07Formato(
       { ...this.spF07Form, planActivoId },
       false
-    )
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (res) => {
-          this.spF07Guardando = false;
-          this.spF07CambiosPendientes = false;
-          this.aplicarEstadoSpF07(res, editorAbierto, true);
-        },
-        error: () => {
-          this.spF07Guardando = false;
+    );
+    const solicitud = sobrevivirSalida ? peticion : peticion.pipe(takeUntil(this.destroy$));
+    solicitud.subscribe({
+      next: (res) => {
+        if (this.spF07VistaDestruida) {
+          return;
         }
-      });
+        this.spF07Guardando = false;
+        if (this.spF07RequiereOtroGuardado) {
+          this.persistirSpF07(sobrevivirSalida);
+          return;
+        }
+        this.spF07CambiosPendientes = false;
+        this.aplicarEstadoSpF07(res, editorAbierto, true);
+      },
+      error: () => {
+        if (this.spF07VistaDestruida) {
+          return;
+        }
+        this.spF07Guardando = false;
+        if (this.spF07RequiereOtroGuardado) {
+          this.persistirSpF07(sobrevivirSalida);
+        }
+      }
+    });
   }
 
   private fijarSpF07EditorEmbedUrl(url: string | null, forzar = false): void {

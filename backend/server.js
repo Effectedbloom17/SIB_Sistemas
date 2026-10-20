@@ -29865,6 +29865,50 @@ app.get('/api/sgc/formatos/sp-f-07', requireAdminOrSgc, async (req, res) => {
     }
 });
 
+app.post('/api/sgc/formatos/sp-f-07/importar-excel', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcSpF07Service.importarExcelPlanes(poolBiznagaSgc, req.body || {});
+        sgcDashboardService.invalidarCacheDashboard();
+        const total = Array.isArray(payload.importados) ? payload.importados.length : 0;
+        return res.json({
+            success: true,
+            message: total === 1
+                ? 'Plan de curso importado y guardado en Excel.'
+                : `${total} planes de curso importados y guardados en Excel.`,
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo importar el Excel de SP-F-07');
+    }
+});
+
+app.post('/api/sgc/formatos/sp-f-07/importar-excel/iniciar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = sgcSpF07Service.iniciarImportacionExcel(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'Importación de plan de curso iniciada.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo iniciar la importación de SP-F-07');
+    }
+});
+
+app.get('/api/sgc/formatos/sp-f-07/importar-excel/estado/:jobId', requireAdminOrSgc, async (req, res) => {
+    try {
+        const payload = sgcSpF07Service.consultarImportacionExcel(req.params.jobId);
+        if (payload.estado === 'completado') {
+            sgcDashboardService.invalidarCacheDashboard();
+        }
+        return res.json({ success: payload.estado !== 'error', ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo consultar la importación de SP-F-07');
+    }
+});
+
 app.post('/api/sgc/formatos/sp-f-07/guardar', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;

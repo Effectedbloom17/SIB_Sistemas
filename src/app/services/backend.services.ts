@@ -3817,6 +3817,25 @@ export class BackendServices {
         });
     }
 
+    importarExcelSpF07(excelBase64: string, nombreArchivo: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sp-f-07/importar-excel`, {
+            excelBase64,
+            nombreArchivo
+        });
+    }
+
+    iniciarImportacionSpF07(excelBase64: string, nombreArchivo: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sp-f-07/importar-excel/iniciar`, {
+            excelBase64,
+            nombreArchivo
+        });
+    }
+
+    consultarImportacionSpF07(jobId: string): Observable<any> {
+        const id = encodeURIComponent(String(jobId || '').trim());
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sp-f-07/importar-excel/estado/${id}`);
+    }
+
     sincronizarSpF07DesdeDrive(): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sp-f-07/sincronizar-drive`, {});
     }
