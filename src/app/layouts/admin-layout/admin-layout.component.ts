@@ -236,7 +236,7 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     this.esRecursosHumanos = path.startsWith('/recursos-humanos');
     this.esDisenoInnovacion = path.startsWith('/diseno-innovacion');
     this.esMantenimiento = path.startsWith('/mantenimiento');
-    this.ocultarFooter = path.startsWith('/correo');
+    this.ocultarFooter = path.startsWith('/correo') || path.startsWith('/diagramas');
   }
 
 }

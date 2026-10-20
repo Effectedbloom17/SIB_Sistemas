@@ -50,7 +50,7 @@ const MENU_GROUPS: { title?: string; paths: string[] }[] = [
     { title: 'Sensorización', paths: ['/sensores'] },
     { title: 'Diseño e Innovación', paths: ['/diseno-innovacion', '/diseno-innovacion/repositorio', '/diseno-innovacion/inventario'] },
     { title: 'Mantenimiento', paths: ['/mantenimiento/programa-infraestructura', '/mantenimiento/solicitud'] },
-    { title: 'Comunicación', paths: ['/calendario', '/quejas-sugerencias', '/correo', '/correo-empresa', '/tickets'] },
+    { title: 'Comunicación', paths: ['/calendario', '/quejas-sugerencias', '/correo', '/correo-empresa', '/tickets', '/diagramas'] },
 ];
 
 // Menú completo con roles permitidos
@@ -72,6 +72,7 @@ export const ROUTES: RouteInfo[] = [
     { path: '/correo', title: 'Correo',  icon:'ni-email-83', class: '', roles: ['root', 'administrador', 'instructor', 'coordinador', 'consulta', 'proteccion_civil', 'doctor', 'sgc', 'ambiental', 'innovacion', 'control_documental', 'rrhh'] },
     { path: '/correo-empresa', title: 'Correo\nEmpresarial',  icon:'ni-building', class: '', roles: ['root', 'administrador'] },
     { path: '/tickets', title: 'Tickets',  icon:'ni-tag', class: '', roles: ['root'] },
+    { path: '/diagramas', title: 'Diagramas', icon: '', iconFa: 'fa-project-diagram', class: '', roles: ['administrador', 'instructor', 'coordinador', 'consulta', 'proteccion_civil', 'doctor', 'sgc', 'ambiental', 'innovacion', 'control_documental', 'rrhh', 'mantenimiento', 'iot'] },
     { path: '/gestion-usuarios', title: 'Gestión de\nusuarios',  icon:'ni-circle-08', class: '', roles: ['root', 'administrador'], bottomSection: true },
     { path: '/aviso-privacidad', title: 'Aviso de\nprivacidad',  icon:'ni-circle-08', class: '', roles: ['empresa'], bottomSection: true },
     { path: '/proteccion-civil/asignacion-pipc', title: 'Asignación\nde PIPC',  icon:'ni-books', class: '', roles: ['root', 'administrador', 'proteccion_civil'] },

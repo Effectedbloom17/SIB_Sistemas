@@ -9,6 +9,7 @@ import { ChatEmpresasComponent } from '../../pages/chat-empresas/chat-empresas.c
 import { CorreoComponent } from '../../pages/correo/correo.component';
 import { CorreoEmpresaComponent } from '../../pages/correo-empresa/correo-empresa.component';
 import { TicketsComponent } from '../../pages/tickets/tickets.component';
+import { DiagramasComponent } from '../../pages/diagramas/diagramas.component';
 import { MisEmpresasComponent } from '../../pages/mis-empresas/mis-empresas.component';
 import { GestionUsuariosComponent } from '../../pages/gestion-usuarios/gestion-usuarios.component';
 import { AvisoPrivacidadComponent } from '../../pages/aviso-privacidad/aviso-privacidad.component';
@@ -72,6 +73,12 @@ export const AdminLayoutRoutes: Routes = [
         component: TicketsComponent,
         canActivate: [RoleGuard],
         data: { roles: ['root'] }
+    },
+    {
+        path: 'diagramas',
+        component: DiagramasComponent,
+        canActivate: [RoleGuard],
+        data: { roles: ['administrador', 'instructor', 'coordinador', 'consulta', 'proteccion_civil', 'doctor', 'sgc', 'ambiental', 'innovacion', 'control_documental', 'rrhh', 'mantenimiento', 'iot'] }
     },
     {
         path: 'correo',

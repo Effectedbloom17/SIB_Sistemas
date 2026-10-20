@@ -18,6 +18,7 @@
  */
 const { Server } = require('socket.io');
 const chatEmpresasService = require('./chatEmpresasService');
+const { registrarDiagramasSocket } = require('./diagramasSocket');
 const startupLog = require('./startupLog');
 
 /**
@@ -71,6 +72,7 @@ function initChatSocket(httpServer, { verifyJwtToken, getPool, corsOrigins, onMe
     });
 
     io.on('connection', (socket) => {
+        registrarDiagramasSocket(io, socket);
         const user = socket.user || {};
         const admin = chatEmpresasService.esAdminChat(user);
         const empresa = chatEmpresasService.esEmpresaChat(user);

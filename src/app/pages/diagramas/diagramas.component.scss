@@ -1,0 +1,325 @@
+:host {
+  display: block;
+}
+
+.dg-header-icon {
+  background: rgba(255, 255, 255, 0.15);
+  font-size: 1.6rem;
+}
+
+.dg-header-title {
+  font-weight: 700;
+  font-size: 2rem;
+}
+
+.dg-header-subtitle {
+  opacity: 0.9;
+  font-size: 0.95rem;
+}
+
+.dg-page {
+  position: relative;
+  z-index: 2;
+  margin-bottom: 2.5rem;
+}
+
+.dg-shell {
+  border-radius: 16px;
+  padding: 1.15rem 1.25rem 1.4rem;
+}
+
+.dg-toolbar,
+.dg-nuevo,
+.dg-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.dg-toolbar {
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.dg-buscar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  max-width: 28rem;
+  margin: 0;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid #d7e3e1;
+  border-radius: 999px;
+  background: #f8fbfb;
+  color: #5f7a76;
+
+  input {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: #1e293b;
+    outline: none;
+  }
+}
+
+.dg-nuevo {
+  margin-bottom: 1rem;
+  padding: 0.85rem;
+  border-radius: 12px;
+  background: #f4faf8;
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #d7e3e1;
+    border-radius: 10px;
+    padding: 0.55rem 0.75rem;
+    outline: none;
+  }
+}
+
+.dg-btn {
+  border: 0;
+  border-radius: 999px;
+  background: #0f766e;
+  color: #fff;
+  font-weight: 600;
+
+  &:hover,
+  &:focus {
+    background: #115e59;
+    color: #fff;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+  }
+}
+
+.dg-btn--ghost {
+  background: #eef4f3;
+  color: #134e4a;
+
+  &:hover,
+  &:focus {
+    background: #e2eeec;
+    color: #134e4a;
+  }
+}
+
+.dg-btn--sm {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.82rem;
+}
+
+.dg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.9rem;
+}
+
+.dg-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
+  padding: 1rem;
+  border: 1px solid #e6eeec;
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &:hover {
+    border-color: #99d5cb;
+    box-shadow: 0 8px 20px rgba(15, 118, 110, 0.08);
+  }
+
+  h2 {
+    margin: 0.75rem 0 0.25rem;
+    color: #134e4a;
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.84rem;
+  }
+}
+
+.dg-card__icon {
+  width: 2.4rem;
+  height: 2.4rem;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #ecfdf8;
+  color: #0f766e;
+}
+
+.dg-card__fecha {
+  margin-top: 0.2rem !important;
+}
+
+.dg-card__acciones {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: auto;
+  padding-top: 0.85rem;
+}
+
+.dg-vacio,
+.dg-aviso {
+  margin: 0.5rem 0 0;
+  color: #475569;
+}
+
+.dg-aviso {
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.dg-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+// El navbar es absoluto y se dibuja encima del contenido.
+// Esta franja ocupa justo su alto para que Volver, el título y el estado queden debajo.
+.dg-editor-top {
+  flex: 0 0 4.5rem;
+  height: 4.5rem;
+  background-image: url('/assets/img/header_img.jpeg');
+  background-size: cover;
+  background-position: center 28%;
+
+  &::before {
+    content: '';
+    display: block;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(56, 81, 47, 0.72) 0%, rgba(66, 80, 60, 0.66) 100%);
+  }
+}
+
+.dg-editor-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0.9rem 2.4rem 1.1rem;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(15, 118, 110, 0.08);
+  box-shadow: 0 2px 12px rgba(50, 50, 93, 0.07), 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.dg-bar {
+  flex: 0 0 auto;
+  padding: 0.7rem 1rem;
+  background: #fff;
+  border-bottom: 1px solid #e6eeec;
+
+  .dg-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+
+.dg-titulo {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #134e4a;
+  font-size: 1.05rem;
+  font-weight: 700;
+  outline: none;
+  text-overflow: ellipsis;
+}
+
+.dg-presentes {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.dg-presente {
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.dg-presentes-texto {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dg-estado {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: #0f766e;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dg-estado--error {
+  color: #b45309;
+}
+
+.dg-aviso--editor {
+  margin: 0.75rem 0.9rem 0;
+}
+
+.dg-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: #fff;
+}
+
+@media (max-width: 720px) {
+  .dg-toolbar,
+  .dg-nuevo,
+  .dg-bar {
+    flex-wrap: wrap;
+  }
+
+  .dg-buscar {
+    max-width: none;
+    width: 100%;
+  }
+
+  .dg-editor {
+    height: 100vh;
+  }
+
+  .dg-editor-top {
+    flex-basis: 4.25rem;
+    height: 4.25rem;
+  }
+
+  .dg-editor-body {
+    margin: 0.55rem 0.75rem 0.7rem;
+  }
+}

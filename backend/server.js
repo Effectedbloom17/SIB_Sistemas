@@ -48,6 +48,7 @@ const mantenimientoService = require('./mantenimientoService');
 const opinionesService = require('./opinionesService');
 const chatEmpresasService = require('./chatEmpresasService');
 const createChatEmpresasRouter = require('./chatEmpresasRoutes');
+const createDiagramasRouter = require('./diagramasRoutes');
 const createEmpresaRepositorioRouter = require('./empresaRepositorioRoutes');
 const empresaRepositorioService = require('./empresaRepositorioService');
 const createSgcF29EvidenciaRouter = require('./sgcF29EvidenciaRoutes');
@@ -21698,6 +21699,14 @@ const chatEmpresasMount = createChatEmpresasRouter({
     getIo: () => chatSocketIo
 });
 app.use('/api/chat-empresas', chatEmpresasMount.router);
+
+app.use('/api/diagramas', createDiagramasRouter({
+    getPool: () => poolSensores,
+    getPoolPrincipal: () => pool,
+    ready: poolSensoresReady,
+    authMiddleware,
+    denyEmpresa
+}));
 
 app.use('/api/empresas/:empresaId/repositorio', createEmpresaRepositorioRouter({
     getPool: () => pool,
