@@ -92,13 +92,15 @@ export const ROUTES: RouteInfo[] = [
     { path: '/recursos-humanos/residentes', title: 'Residentes', icon: '', iconFa: 'fa-user-friends', class: '', roles: ['root', 'administrador', 'rrhh'] },
     { path: '/recursos-humanos/colaboradores', title: 'Colaboradores', icon: '', iconFa: 'fa-id-badge', class: '', roles: ['root', 'administrador', 'rrhh'] },
     { path: '/control-proyectos', title: 'Control de avance\nde proyectos', icon: '', iconFa: 'fa-project-diagram', class: '' }, // Todos los perfiles; empresa en consulta
-    { path: '/sensores', title: 'Sensores', icon: '', iconFa: 'fa-tint', class: '', roles: ['root', 'iot'] },
+    // De momento solo superadministrador (root); reabrir a iot cuando corresponda
+    { path: '/sensores', title: 'Sensores', icon: '', iconFa: 'fa-tint', class: '', roles: ['root'] },
     { path: '/ambiental', title: 'Ambiental', icon: '', iconFa: 'fa-tree', class: '', roles: ['root', 'administrador', 'ambiental'] },
     { path: '/control-tramites', title: 'Control de\nTrámites', icon: '', iconFa: 'fa-clipboard-list', class: '', roles: ['root', 'administrador', 'ambiental'] },
     { path: '/control-oficios', title: 'Control de\nOficios', icon: '', iconFa: 'fa-folder-open', class: '' },
-    { path: '/diseno-innovacion', title: 'Proyectos\nSeñalización', icon: '', iconFa: 'fa-drafting-compass', class: '', roles: ['root', 'administrador', 'innovacion'] },
-    { path: '/diseno-innovacion/repositorio', title: 'Repositorio', icon: '', iconFa: 'fa-folder-open', class: '', roles: ['root', 'administrador', 'innovacion', 'sgc'] },
-    { path: '/diseno-innovacion/inventario', title: 'Inventario', icon: '', iconFa: 'fa-boxes', class: '', roles: ['root', 'administrador', 'innovacion'] },
+    // De momento solo superadministrador (root); reabrir a administrador/innovacion/sgc cuando corresponda
+    { path: '/diseno-innovacion', title: 'Proyectos\nSeñalización', icon: '', iconFa: 'fa-drafting-compass', class: '', roles: ['root'] },
+    { path: '/diseno-innovacion/repositorio', title: 'Repositorio', icon: '', iconFa: 'fa-folder-open', class: '', roles: ['root'] },
+    { path: '/diseno-innovacion/inventario', title: 'Inventario', icon: '', iconFa: 'fa-boxes', class: '', roles: ['root'] },
     { path: '/mantenimiento/programa-infraestructura', title: 'Programa\ninfraestructura', icon: '', iconFa: 'fa-industry', class: '', roles: ['root', 'administrador', 'mantenimiento'] },
     { path: '/mantenimiento/solicitud', title: 'Solicitud de\nmantenimiento', icon: '', iconFa: 'fa-file-signature', class: '' },
 ];
@@ -600,7 +602,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
     if (rol === 'proteccion_civil') return '/proteccion-civil';
     if (rol === 'sgc') return '/sistema-gestion-calidad';
     if (rol === 'ambiental') return '/ambiental';
-    if (rol === 'iot') return '/sensores';
+    // Sensorización temporalmente solo root; iot cae al dashboard
+    if (rol === 'iot') return '/dashboard';
     if (rol === 'rrhh') return '/recursos-humanos/colaboradores';
     if (rol === 'empresa') return '/curso-activos';
     if (rol === 'control_documental') return '/historial-cursos';

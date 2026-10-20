@@ -395,6 +395,11 @@ export class ColaboradoresComponent implements OnInit, OnDestroy {
     return this.auth.esAdministradorOSuperior() || this.auth.tieneRol('rrhh');
   }
 
+  /** Solo superadministrador (root) ve colaboradores fuera del organigrama. */
+  get puedeVerSinPuestoOrganigrama(): boolean {
+    return this.auth.esRoot();
+  }
+
   /** Carpeta padre (para Regresar / soltar archivos hacia arriba). */
   get carpetaPadreId(): string | null {
     if (!this.seleccionado || this.esRaizExpediente) return null;

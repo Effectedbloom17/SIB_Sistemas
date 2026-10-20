@@ -19,7 +19,8 @@ const SUPERUSER_ROLES = ['root', 'Root', 'ROOT'];
  * - sgc: Sistema de Gestión de Calidad
  * - ambiental: Módulo ambiental
  * - control_documental: Admin de capacitación / Entrega de Documentos SP-F-03
- * - iot: Sensores IoT (Blynk); solo root e iot
+ * - iot: Sensores IoT (Blynk); de momento solo root (iot pendiente de reabrir)
+ * - innovacion: Diseño e Innovación; de momento solo root (pendiente de reabrir)
  * - rrhh: Recursos Humanos (Residentes / Colaboradores)
  * - mantenimiento: Programa EIN-F-01 (mantenimiento a la infraestructura)
  * 
@@ -154,7 +155,7 @@ export class RoleGuard implements CanActivate {
         } else if (userRoles.includes('control_documental') || (userRole && userRole.toLowerCase() === 'control_documental')) {
           this.router.navigate(['/historial-cursos']);
         } else if (userRoles.includes('iot') || (userRole && userRole.toLowerCase() === 'iot')) {
-          this.router.navigate(['/sensores']);
+          this.router.navigate(['/dashboard']);
         } else if (userRoles.includes('rrhh') || (userRole && userRole.toLowerCase() === 'rrhh')) {
           this.router.navigate(['/recursos-humanos/colaboradores']);
         } else if (userRoles.includes('mantenimiento') || (userRole && userRole.toLowerCase() === 'mantenimiento')) {
@@ -213,7 +214,7 @@ export class RoleGuard implements CanActivate {
     } else if (userRoles.includes('control_documental') || (userRole && userRole.toLowerCase() === 'control_documental')) {
       this.router.navigate(['/historial-cursos']);
     } else if (userRoles.includes('iot') || (userRole && userRole.toLowerCase() === 'iot')) {
-      this.router.navigate(['/sensores']);
+      this.router.navigate(['/dashboard']);
     } else if (userRoles.includes('rrhh') || (userRole && userRole.toLowerCase() === 'rrhh')) {
       this.router.navigate(['/recursos-humanos/colaboradores']);
     } else if (userRoles.includes('mantenimiento') || (userRole && userRole.toLowerCase() === 'mantenimiento')) {

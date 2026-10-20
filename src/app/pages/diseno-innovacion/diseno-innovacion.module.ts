@@ -9,23 +9,24 @@ import { SgcDocumentacionExtraComponent } from '../sistema-gestion-calidad/sgc-d
 import { InnovacionInventarioComponent } from './innovacion-inventario.component';
 
 const routes: Routes = [
+  // De momento solo superadministrador (root). Antes: root/administrador/innovacion (+ sgc en repositorio).
   {
     path: '',
     component: DisenoInnovacionComponent,
     canActivate: [RoleGuard],
-    data: { roles: ['root', 'administrador', 'innovacion'] }
+    data: { roles: ['root'] }
   },
   {
     path: 'repositorio',
     component: SgcDocumentacionExtraComponent,
     canActivate: [RoleGuard],
-    data: { roles: ['root', 'administrador', 'innovacion', 'sgc'] }
+    data: { roles: ['root'] }
   },
   {
     path: 'inventario',
     component: InnovacionInventarioComponent,
     canActivate: [RoleGuard],
-    data: { roles: ['root', 'administrador', 'innovacion'] }
+    data: { roles: ['root'] }
   }
 ];
 

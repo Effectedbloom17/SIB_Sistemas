@@ -407,9 +407,9 @@
                         <span>{{ etiquetaTipo(doc.mimeType, doc.nombreArchivo) }}</span>
                       </div>
                       <span class="sgc-extra-tile__badge">{{ etiquetaTipo(doc.mimeType, doc.nombreArchivo) }}</span>
-                      <div class="sgc-extra-tile__hover" (click)="$event.stopPropagation()">
-                        <button type="button" class="sgc-extra-tile__btn" title="Ver" (click)="abrirDocumento(doc)">
-                          <i class="fas fa-expand" aria-hidden="true"></i>
+                      <div class="sgc-extra-tile__hover">
+                        <button type="button" class="sgc-extra-tile__btn" title="Imprimir" (click)="imprimirDocumento(doc, $event)">
+                          <i class="fas fa-print" aria-hidden="true"></i>
                         </button>
                         <button type="button" class="sgc-extra-tile__btn" title="Descargar" (click)="descargarDocumento(doc, $event)">
                           <i class="fas fa-download" aria-hidden="true"></i>
@@ -481,8 +481,8 @@
                         <td>{{ formatearTamano(doc.tamanoBytes) }}</td>
                         <td>{{ formatearFecha(doc.fechaSubida) }}</td>
                         <td class="repo-table__actions" (click)="$event.stopPropagation()">
-                          <button type="button" class="repo-table__btn" title="Ver" (click)="abrirDocumento(doc)">
-                            <i class="fas fa-expand" aria-hidden="true"></i>
+                          <button type="button" class="repo-table__btn" title="Imprimir" (click)="imprimirDocumento(doc, $event)">
+                            <i class="fas fa-print" aria-hidden="true"></i>
                           </button>
                           <button type="button" class="repo-table__btn" title="Descargar" (click)="descargarDocumento(doc, $event)">
                             <i class="fas fa-download" aria-hidden="true"></i>

@@ -576,7 +576,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
         icono: 'fa-drafting-compass',
         ruta: '/diseno-innovacion',
         keywords: ['senalizacion', 'senal', 'cotizacion', 'innovacion', 'folio'],
-        roles: ['root', 'administrador', 'innovacion']
+        roles: ['root'] // de momento solo superadministrador
       },
       {
         id: 'fn-mantenimiento-ein-f01',
@@ -625,7 +625,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
         icono: 'fa-folder-open',
         ruta: '/diseno-innovacion/repositorio',
         keywords: ['repositorio', 'archivo', 'documento', 'innovacion'],
-        roles: ['root', 'administrador', 'innovacion', 'sgc']
+        roles: ['root'] // de momento solo superadministrador
       },
       {
         id: 'fn-repositorio-empresarial',

@@ -9,6 +9,15 @@ const ENV_FILE = process.env.ENV_FILE || '.env';
 require('dotenv').config({ path: require('path').join(__dirname, ENV_FILE), debug: false, quiet: true });
 const startupLog = require('./startupLog');
 
+/** Evita usar placeholders copiados de .env.example (p.ej. id_del_documento_slides). */
+const SLIDES_TEMPLATE_ID_FALLBACK = '1AKyCqRJozJq1fNrnlln2lGy4xmhoY0p4URJGDWKU7Us';
+const SLIDES_TEMPLATE_ID_SERGIO_FALLBACK = '1_IXySQPK-mneLslyCyrsXBbGPZZYYFeGEIyUhTKGfac';
+function resolveSlidesTemplateId(envValue, fallback = SLIDES_TEMPLATE_ID_FALLBACK) {
+    const v = String(envValue || '').trim();
+    if (!v || /^id_del_/i.test(v) || /placeholder/i.test(v)) return fallback;
+    return v;
+}
+
 const express = require('express');
 const mysql = require('mysql2/promise');
 const { esErrorConexionDb, buildMysqlPoolOptions, wrapPoolWithRetry } = require('./dbPoolUtils');
@@ -2964,8 +2973,8 @@ function requireGestorDelegacionesSgc(req, res, next) {
 /** Acceso al módulo Ambiental (SP-F-15 / SP-F-28) */
 const requireAdminOrAmbiental = requireRole('root', 'administrador', 'ambiental');
 
-/** Acceso al módulo Diseño e Innovación (Cotización Señalización) */
-const requireAdminOrInnovacion = requireRole('root', 'administrador', 'innovacion');
+/** Acceso al módulo Diseño e Innovación — de momento solo root (antes: root/administrador/innovacion) */
+const requireAdminOrInnovacion = requireRole('root');
 
 /** Acceso al Programa EIN-F-01 (mantenimiento a la infraestructura) */
 const requireAdminOrMantenimiento = requireRole('root', 'administrador', 'mantenimiento');
@@ -2973,8 +2982,8 @@ const requireAdminOrMantenimiento = requireRole('root', 'administrador', 'manten
 /** Acceso a Recursos Humanos (datos sensibles): root | administrador | rrhh */
 const requireAdminOrRrhh = requireRole('root', 'administrador', 'rrhh');
 
-/** Acceso al módulo Sensores IoT (Blynk): solo root e iot */
-const requireRootOrIot = requireRole('root', 'iot');
+/** Acceso al módulo Sensores IoT (Blynk) — de momento solo root (antes: root/iot) */
+const requireRootOrIot = requireRole('root');
 const blynkService = require('./blynkService');
 
 /**
@@ -10844,6 +10853,57 @@ async function asegurarColumnasHistorialDescargasCursoProgramado(db) {
     cursoProgramadoHistorialDescargasColumnChecked = true;
 }
 
+/**
+ * Persiste quién descargó constancias/DC-3 y cuándo (hora México).
+ * Usado por el endpoint explícito y por las descargas PDF consolidadas.
+ */
+async function registrarHistorialDescargaConstanciasDc3(db, programadoId, req) {
+    const id = Number(programadoId || 0);
+    if (!id) {
+        const err = new Error('programado_id inválido');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    await asegurarColumnasHistorialDescargasCursoProgramado(db);
+
+    const nombreUsuario = obtenerNombreUsuarioAccion(req);
+    const fechaMexico = obtenerFechaHoraMexicoMySQL(new Date());
+
+    const [result] = await db.query(
+        `UPDATE curso_programado
+         SET ultima_descarga_constancias_por = ?,
+             ultima_descarga_constancias_fecha = ?
+         WHERE programado_id = ?`,
+        [nombreUsuario, fechaMexico, id]
+    );
+
+    if (!result?.affectedRows) {
+        const err = new Error('Curso programado no encontrado');
+        err.statusCode = 404;
+        throw err;
+    }
+
+    return {
+        programado_id: id,
+        ultima_descarga_constancias_por: nombreUsuario,
+        ultima_descarga_constancias_fecha: fechaMexico
+    };
+}
+
+async function intentarRegistrarHistorialDescargaConstancias(req, programadoId) {
+    try {
+        const data = await registrarHistorialDescargaConstanciasDc3(pool, programadoId, req);
+        console.log(
+            `[INFO] Historial descarga constancias/DC-3: programado_id=${data.programado_id} por="${data.ultima_descarga_constancias_por}" fecha=${data.ultima_descarga_constancias_fecha}`
+        );
+        return data;
+    } catch (error) {
+        console.warn('[WARN] No se pudo registrar historial de descarga constancias/DC-3:', error.message);
+        return null;
+    }
+}
+
 async function obtenerExpresionPuestoEmpresa(db, alias = 'e') {
     const safeAlias = /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(alias) ? alias : 'e';
 
@@ -14451,8 +14511,11 @@ app.post('/api/cursos-programados/:programadoId/generar-constancias-v2', async (
 
         sendEvent('progress', { fase: 'preparando', mensaje: `Preparando generación de ${tipoLabel}...`, completados: 0, total: participantes.length, pct: 0 });
 
-        const TEMPLATE_SLIDES_ID_DEFAULT = String(process.env.GOOGLE_SLIDES_TEMPLATE_ID || '1AKyCqRJozJq1fNrnlln2lGy4xmhoY0p4URJGDWKU7Us').trim();
-        const TEMPLATE_SLIDES_ID_SERGIO_CALIDAD = String(process.env.GOOGLE_SLIDES_TEMPLATE_ID_SERGIO_CALIDAD || '1_IXySQPK-mneLslyCyrsXBbGPZZYYFeGEIyUhTKGfac').trim();
+        const TEMPLATE_SLIDES_ID_DEFAULT = resolveSlidesTemplateId(process.env.GOOGLE_SLIDES_TEMPLATE_ID);
+        const TEMPLATE_SLIDES_ID_SERGIO_CALIDAD = resolveSlidesTemplateId(
+            process.env.GOOGLE_SLIDES_TEMPLATE_ID_SERGIO_CALIDAD,
+            SLIDES_TEMPLATE_ID_SERGIO_FALLBACK
+        );
         if (!TEMPLATE_SLIDES_ID_DEFAULT) {
             return res.status(500).json({ success: false, message: 'GOOGLE_SLIDES_TEMPLATE_ID no está configurado en las variables de entorno' });
         }
@@ -15849,6 +15912,7 @@ app.get('/api/cursos-programados/:programadoId/constancias-combinadas-pdf', asyn
             const fileBuffer = await driveService.descargarArchivo(doc.drive_file_id);
             const nombreArchivo = (doc.nombre_archivo || `Constancias_Curso_${programadoId}.pdf`).replace(/[\r\n"]/g, '_');
 
+            await intentarRegistrarHistorialDescargaConstancias(req, programadoId);
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
             return res.send(fileBuffer);
@@ -15959,6 +16023,7 @@ app.get('/api/cursos-programados/:programadoId/constancias-combinadas-pdf', asyn
         }
 
         nombreArchivo = String(nombreArchivo || `Constancias_Curso_${programadoId}.pdf`).replace(/[\r\n"]/g, '_');
+        await intentarRegistrarHistorialDescargaConstancias(req, programadoId);
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
         return res.send(bufferLote);
@@ -15973,40 +16038,18 @@ app.get('/api/cursos-programados/:programadoId/constancias-combinadas-pdf', asyn
 
 app.post('/api/cursos-programados/:programadoId/registrar-descarga-constancias-dc3', async (req, res) => {
     try {
-        const programadoId = Number(req.params.programadoId || 0);
-        if (!programadoId) {
-            return res.status(400).json({ success: false, message: 'programado_id inválido' });
-        }
-
-        await asegurarColumnasHistorialDescargasCursoProgramado(pool);
-
-        const nombreUsuario = obtenerNombreUsuarioAccion(req);
-        const fechaMexico = obtenerFechaHoraMexicoMySQL(new Date());
-
-        const [result] = await pool.query(
-            `UPDATE curso_programado
-             SET ultima_descarga_constancias_por = ?,
-                 ultima_descarga_constancias_fecha = ?
-             WHERE programado_id = ?`,
-            [nombreUsuario, fechaMexico, programadoId]
-        );
-
-        if (!result?.affectedRows) {
-            return res.status(404).json({ success: false, message: 'Curso programado no encontrado' });
-        }
-
+        const data = await registrarHistorialDescargaConstanciasDc3(pool, req.params.programadoId, req);
         return res.json({
             success: true,
             message: 'Historial de descarga registrado correctamente',
-            data: {
-                programado_id: programadoId,
-                ultima_descarga_constancias_por: nombreUsuario,
-                ultima_descarga_constancias_fecha: fechaMexico
-            }
+            data
         });
     } catch (error) {
-        console.error('[ERROR] registrar-descarga-constancias-dc3:', error);
-        return res.status(500).json({
+        const status = error.statusCode || 500;
+        if (status >= 500) {
+            console.error('[ERROR] registrar-descarga-constancias-dc3:', error);
+        }
+        return res.status(status).json({
             success: false,
             message: error.message || 'No se pudo registrar la descarga de constancias/DC-3.'
         });
@@ -16039,6 +16082,7 @@ app.get('/api/cursos-programados/:programadoId/dc3-combinados-pdf', async (req, 
             const fileBuffer = await driveService.descargarArchivo(pdfExistente.drive_file_id);
             const nombreArchivo = (pdfExistente.nombre_archivo || `DC3_Consolidado_Curso_${programadoId}.pdf`).replace(/[\r\n"]/g, '_');
 
+            await intentarRegistrarHistorialDescargaConstancias(req, programadoId);
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
             return res.send(fileBuffer);
@@ -16138,6 +16182,7 @@ app.get('/api/cursos-programados/:programadoId/dc3-combinados-pdf', async (req, 
         }
 
         nombreArchivo = String(nombreArchivo || `DC3_Consolidado_Curso_${programadoId}.pdf`).replace(/[\r\n"]/g, '_');
+        await intentarRegistrarHistorialDescargaConstancias(req, programadoId);
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
         return res.send(Buffer.from(pdfBuffer));
@@ -23230,8 +23275,30 @@ app.post('/api/dashboard/control-capacitacion/excel/guardar-drive', async (req, 
 // MANEJO DE ERRORES GLOBAL
 // =====================================================
 app.use((err, req, res, next) => {
+    if (res.headersSent) {
+        return next(err);
+    }
+    const tipo = err && err.type;
+    const cuerpoInvalido = tipo === 'entity.parse.failed'
+        || tipo === 'entity.too.large'
+        || (err instanceof SyntaxError && Number(err.status) === 400);
+    if (cuerpoInvalido) {
+        const status = tipo === 'entity.too.large' ? 413 : 400;
+        console.warn(`[HTTP ${status}] ${req.method} ${req.originalUrl}: ${err.message}`);
+        return res.status(status).json({
+            success: false,
+            message: status === 413
+                ? 'El cuerpo de la petición excede el tamaño permitido.'
+                : 'El cuerpo de la petición no es válido.'
+        });
+    }
     console.error('Error no manejado:', err);
-    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    const status = Number(err.status || err.statusCode) || 500;
+    const httpStatus = status >= 400 && status < 600 ? status : 500;
+    res.status(httpStatus).json({
+        success: false,
+        message: httpStatus === 500 ? 'Error interno del servidor' : (err.message || 'Solicitud inválida')
+    });
 });
 
 // Manejo de errores no capturados
@@ -24204,7 +24271,7 @@ app.post('/api/generar-constancias-temporal-empleado', async (req, res) => {
 
         sendEvent('progress', { fase: 'preparando', mensaje: `Preparando generación de ${tipoLabel}...`, pct: 0 });
 
-        const TEMPLATE_SLIDES_ID = String(process.env.GOOGLE_SLIDES_TEMPLATE_ID || '1AKyCqRJozJq1fNrnlln2lGy4xmhoY0p4URJGDWKU7Us').trim();
+        const TEMPLATE_SLIDES_ID = resolveSlidesTemplateId(process.env.GOOGLE_SLIDES_TEMPLATE_ID);
         if (!TEMPLATE_SLIDES_ID) {
             sendEvent('error', { message: 'GOOGLE_SLIDES_TEMPLATE_ID no configurado' });
             return res.end();
@@ -24386,8 +24453,11 @@ app.post('/api/generar-constancias-temporal-empleado-zip', async (req, res) => {
         const fechaFormateada = `${ahora.getDate()} de ${meses[ahora.getMonth()]}`;
         const anio = ahora.getFullYear();
 
-        const TEMPLATE_SLIDES_ID_DEFAULT = String(process.env.GOOGLE_SLIDES_TEMPLATE_ID || '1AKyCqRJozJq1fNrnlln2lGy4xmhoY0p4URJGDWKU7Us').trim();
-        const TEMPLATE_SLIDES_ID_SERGIO_CALIDAD = String(process.env.GOOGLE_SLIDES_TEMPLATE_ID_SERGIO_CALIDAD || '1_IXySQPK-mneLslyCyrsXBbGPZZYYFeGEIyUhTKGfac').trim();
+        const TEMPLATE_SLIDES_ID_DEFAULT = resolveSlidesTemplateId(process.env.GOOGLE_SLIDES_TEMPLATE_ID);
+        const TEMPLATE_SLIDES_ID_SERGIO_CALIDAD = resolveSlidesTemplateId(
+            process.env.GOOGLE_SLIDES_TEMPLATE_ID_SERGIO_CALIDAD,
+            SLIDES_TEMPLATE_ID_SERGIO_FALLBACK
+        );
         if (!TEMPLATE_SLIDES_ID_DEFAULT) {
             return res.status(500).json({ success: false, message: 'GOOGLE_SLIDES_TEMPLATE_ID no configurado.' });
         }

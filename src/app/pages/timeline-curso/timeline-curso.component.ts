@@ -8967,13 +8967,25 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
     }
 
     const modoColaboradoras = this.usaEmpresasColaboradorasPaso8;
-    const cursosSeleccionados = modoColaboradoras
+    let cursosSeleccionados = modoColaboradoras
       ? [{
         id: this.obtenerCursoCatalogoIdActual() || 0,
         nombre: this.nombreCurso || 'Empresas colaboradoras',
         esActual: true
       }]
       : this.obtenerCursosPaso8Seleccionados();
+
+    // Si el admin no tiene cursos marcados, usar el curso actual del timeline.
+    if (!modoColaboradoras && cursosSeleccionados.length === 0) {
+      const cursoActualId = this.obtenerCursoCatalogoIdActual();
+      if (cursoActualId) {
+        cursosSeleccionados = [{
+          id: cursoActualId,
+          nombre: this.nombreCurso || `Curso ${cursoActualId}`,
+          esActual: true
+        }];
+      }
+    }
 
     if (cursosSeleccionados.length === 0) {
       await Swal.fire({
@@ -8987,7 +8999,8 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const descargarDc3 = this.totalDc3Paso8 > 0;
+    // Intentar DC-3 si hay elegibles o si ya se generaron documentos en esta sesión.
+    const descargarDc3 = this.totalDc3Paso8 > 0 || this.documentosGeneradosPaso8 || this.isPasoCompletado(8);
     const totalArchivos = cursosSeleccionados.length * (descargarDc3 ? 2 : 1);
 
     this.descargandoZipPaso8 = true;
@@ -9019,6 +9032,7 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
 
     const zip = new JSZip();
     let completados = 0;
+    let exitosos = 0;
     const errores: string[] = [];
     const fecha = new Date().toISOString().split('T')[0];
 
@@ -9037,6 +9051,7 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
             this.backendServices.descargarConstanciasCombinadasPdf(this.cursoId, curso.esActual ? undefined : curso.id)
           );
           folder.file(`Constancias_${fecha}.pdf`, blob);
+          exitosos++;
         } catch {
           errores.push(`Constancias — ${curso.nombre}`);
         }
@@ -9050,12 +9065,24 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
               this.backendServices.descargarDc3CombinadosPdf(this.cursoId, curso.esActual ? undefined : curso.id)
             );
             folder.file(`DC3_${fecha}.pdf`, blob);
+            exitosos++;
           } catch {
             errores.push(`DC-3 — ${curso.nombre}`);
           }
           completados++;
           actualizarProgreso(completados, `DC-3: ${curso.nombre}`);
         }
+      }
+
+      if (exitosos === 0) {
+        Swal.close();
+        await Swal.fire({
+          title: 'Sin documentos',
+          text: 'No se pudieron obtener constancias ni DC-3 para descargar. Genera los documentos primero.',
+          icon: 'warning',
+          confirmButtonColor: '#38512F'
+        });
+        return;
       }
 
       // Generar ZIP y descargar
@@ -9066,14 +9093,8 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
       const nombreZip = `Documentos_${fecha}.zip`;
       this.descargarBlobPaso8(zipBlob, nombreZip);
 
-      try {
-        await firstValueFrom(this.backendServices.registrarDescargaConstanciasDc3(this.cursoId, {
-          origen: 'timeline_curso_zip',
-          detalle: `cursos:${cursosSeleccionados.length}`
-        }));
-      } catch {
-        // No bloquear la descarga del usuario si falla el registro.
-      }
+      // Refuerzo: el backend también registra al servir cada PDF; esto cubre el caso ZIP.
+      await this.registrarHistorialDescargaPaso8('timeline_curso_zip', `cursos:${cursosSeleccionados.length};ok:${exitosos}`);
 
       if (errores.length > 0) {
         await Swal.fire({
@@ -9104,6 +9125,18 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
       });
     } finally {
       this.descargandoZipPaso8 = false;
+    }
+  }
+
+  private async registrarHistorialDescargaPaso8(origen: string, detalle?: string): Promise<void> {
+    if (!this.cursoId) return;
+    try {
+      await firstValueFrom(this.backendServices.registrarDescargaConstanciasDc3(this.cursoId, {
+        origen,
+        detalle: detalle || undefined
+      }));
+    } catch (err: any) {
+      console.warn('[Paso8] No se pudo registrar historial de descarga:', err?.error?.message || err?.message || err);
     }
   }
 

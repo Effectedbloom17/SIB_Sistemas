@@ -30,7 +30,7 @@ import { RoleGuard } from 'src/app/guards/role.guard';
  * - ambiental: Módulo ambiental (SP-F-15 / SP-F-28)
  * - innovacion: Diseño e Innovación (Cotización Señalización) / Mantenimiento EIN
  * - control_documental: Admin de capacitación / SP-F-03
- * - iot: Sensores IoT (Blynk) — solo root e iot; no administrador
+ * - iot: Sensores IoT (Blynk) — de momento solo root (iot pendiente de reabrir)
  * - rrhh: Recursos Humanos (Residentes / Colaboradores)
  */
 export const AdminLayoutRoutes: Routes = [
@@ -184,12 +184,12 @@ export const AdminLayoutRoutes: Routes = [
     },
 
     // Sensores IoT (Blynk) — hermana de control-proyectos (NO hija: RoleGuard bypassea /control-proyectos)
-    // Acceso: root (bypass) e iot. No administrador.
+    // De momento solo superadministrador (root). Antes: root + iot.
     {
         path: 'sensores',
         loadChildren: () => import('../../pages/sensores/sensores.module').then(m => m.SensoresModule),
         canActivate: [RoleGuard],
-        data: { roles: ['iot'] }
+        data: { roles: ['root'] }
     },
 
     {

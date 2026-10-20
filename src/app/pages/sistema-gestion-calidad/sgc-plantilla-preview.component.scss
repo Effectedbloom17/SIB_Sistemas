@@ -6946,18 +6946,38 @@ $dg-f04-amenazas-head: #fae0e0;
     overflow: visible;
   }
 
-  .dg-f05-doc__header {
+  /* Encabezado legacy (sin masthead compartido) */
+  .dg-f05-doc__header:not(.sgc-doc-masthead) {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
   }
 
-  .dg-f05-doc__header > div:first-child {
+  .dg-f05-doc__header:not(.sgc-doc-masthead) > div:first-child {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 0.2rem;
+  }
+
+  /* Masthead: el título (p. ej. Minuta) queda centrado en el área teal */
+  .dg-f05-doc__header.sgc-doc-masthead {
+    display: grid;
+    grid-template-columns: minmax(11.5rem, var(--sgc-mh-brand)) minmax(0, 1fr);
+    align-items: stretch;
+    justify-content: stretch;
+    gap: 0;
+  }
+
+  .sgc-doc-masthead__body {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .sgc-doc-masthead__center {
+    align-items: center;
+    text-align: center;
   }
 }
 
@@ -17937,13 +17957,17 @@ $dg-f02-layout-max: 46.5rem;
 }
 
 .sgc-f17-hoja--header {
-  margin: 0;
-  align-self: center;
-  padding: 0.22rem 0.55rem;
+  margin: 0.55rem 0 0;
+  align-self: flex-start;
+  padding: 0.28rem 0.65rem;
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  font-size: 0.62rem;
+  background: rgba(21, 165, 150, 0.1);
+  border: 1px solid rgba(21, 165, 150, 0.28);
+  color: #0f766e;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   line-height: 1.2;
 }
 
@@ -21566,22 +21590,31 @@ $amef-slide-ratio: math.div(16, 9);
   min-width: 0;
 }
 
-.sgc-f-29-doc__header-meta {
+.sgc-f-29-doc__header-meta,
+.sgc-f-29-doc__toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: flex-end;
   gap: 0.55rem 0.85rem;
-  margin-left: auto;
+}
+
+.sgc-f-29-doc__toolbar {
+  margin: 0.75rem 0 0.15rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 118, 110, 0.12);
+  background: #f8fafc;
 }
 
 .sgc-f-29-doc__meta {
   margin: 0.2rem 0 0;
   font-size: 0.68rem;
-  color: rgba(255, 255, 255, 0.82);
+  color: #64748b;
 }
 
-.sgc-f-29-doc__header-meta {
+.sgc-f-29-doc__header-meta,
+.sgc-f-29-doc__toolbar {
   .sgc-f-29-meta__periodo,
   .sgc-f-29-meta__fecha {
     display: flex;
@@ -21595,56 +21628,7 @@ $amef-slide-ratio: math.div(16, 9);
     font-weight: 700;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.82);
-  }
-
-  .sgc-f-29-periodo {
-    border-color: rgba(255, 255, 255, 0.28);
-    background: rgba(255, 255, 255, 0.12);
-    box-shadow: none;
-  }
-
-  .sgc-f-29-periodo__icon,
-  .sgc-f-29-periodo__sep {
-    color: rgba(255, 255, 255, 0.85);
-  }
-
-  .sgc-f-29-periodo__mini {
-    color: rgba(255, 255, 255, 0.7);
-  }
-
-  .sgc-f-29-periodo__select {
-    border-color: rgba(255, 255, 255, 0.28);
-    background-color: rgba(255, 255, 255, 0.16);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23ffffff' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
-    color: #fff;
-
-    &:hover,
-    &:focus {
-      border-color: rgba(255, 255, 255, 0.55);
-      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12);
-    }
-
-    option {
-      color: #0f766e;
-      background: #fff;
-    }
-  }
-
-  .sgc-f-29-periodo__anio {
-    background: rgba(255, 255, 255, 0.2);
-    color: #fff;
-  }
-
-  .sgc-f-29-fecha-auto {
-    border-color: rgba(255, 255, 255, 0.28);
-    background: rgba(255, 255, 255, 0.12);
-    box-shadow: none;
-    color: #fff;
-
-    i {
-      color: rgba(255, 255, 255, 0.9);
-    }
+    color: #64748b;
   }
 }
 

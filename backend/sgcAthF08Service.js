@@ -1359,7 +1359,6 @@ async function aplicarPresentacionNombreEnDrive(spreadsheetId, sheetTitle) {
                         fields: 'userEnteredValue,userEnteredFormat.wrapStrategy,userEnteredFormat.verticalAlignment'
                     }
                 });
-                void celda;
             });
         });
     } catch (err) {
@@ -1372,6 +1371,7 @@ async function aplicarPresentacionNombreEnDrive(spreadsheetId, sheetTitle) {
 }
 
 async function actualizarDatosEnGoogleSheet(spreadsheetId, datos, sheetTitle) {
+    const titulo = String(sheetTitle || SHEET_TITLE).trim() || SHEET_TITLE;
     const d = sanitizarDatos(datos);
     const filled = d.colaboradores.filter((c) => !esColaboradorVacio(c)).length;
     let numCursos = layoutColumnas(d.cursos.length).numCursos;
@@ -1919,6 +1919,7 @@ async function guardarFormato(pool, body, options = {}) {
             return construirRespuesta(registro, datosGuardar, archivoDrive);
         } catch (err) {
             console.warn('[ATH-F-08] No se pudo actualizar Google Sheet:', err.message);
+            throw err;
         }
     }
 

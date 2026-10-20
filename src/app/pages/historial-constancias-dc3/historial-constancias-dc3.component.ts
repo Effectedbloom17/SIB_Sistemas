@@ -119,6 +119,7 @@ export class HistorialConstanciasDc3Component implements OnInit {
 
     try {
       await this.descargarDocumento(item, tipo);
+      await this.registrarHistorialDescarga(item, `historial_constancias_${tipo}`);
     } catch (err: any) {
       await Swal.fire({
         title: 'Error',
@@ -177,6 +178,7 @@ export class HistorialConstanciasDc3Component implements OnInit {
 
       const nombreBase = this.nombreZipDocumentos(item);
       this.descargarBlob(zipBlob, `${nombreBase}.zip`);
+      await this.registrarHistorialDescarga(item, 'historial_constancias_ambos');
 
       if (errores.length) {
         await Swal.fire({
@@ -195,6 +197,19 @@ export class HistorialConstanciasDc3Component implements OnInit {
       });
     } finally {
       this.descargandoKey = '';
+    }
+  }
+
+  private async registrarHistorialDescarga(item: any, origen: string): Promise<void> {
+    const programadoId = Number(item?.programado_id || 0);
+    if (!programadoId) return;
+    try {
+      await firstValueFrom(this.backendServices.registrarDescargaConstanciasDc3(programadoId, {
+        origen,
+        detalle: `inscripcion:${item?.inscripcion_id || ''}`
+      }));
+    } catch (err: any) {
+      console.warn('[HistorialConstancias] No se pudo registrar descarga:', err?.error?.message || err?.message || err);
     }
   }
 

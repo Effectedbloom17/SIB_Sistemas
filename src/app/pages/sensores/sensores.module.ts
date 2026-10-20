@@ -9,8 +9,8 @@ const routes: Routes = [
     path: '',
     component: SensoresComponent,
     canActivate: [RoleGuard],
-    // Acceso: root (bypass) e iot. No administrador.
-    data: { roles: ['iot'] }
+    // De momento solo superadministrador (root). Antes: root + iot.
+    data: { roles: ['root'] }
   }
 ];
 

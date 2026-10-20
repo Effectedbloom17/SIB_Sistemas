@@ -69,7 +69,8 @@ export class LoginComponent implements OnInit, OnDestroy {
     } else if (rol === 'control_documental') {
       this.router.navigate(['/historial-cursos']);
     } else if (rol === 'iot') {
-      this.router.navigate(['/sensores']);
+      // Sensorización temporalmente solo root
+      this.router.navigate(['/dashboard']);
     } else if (rol === 'rrhh') {
       this.router.navigate(['/recursos-humanos/colaboradores']);
     } else {
