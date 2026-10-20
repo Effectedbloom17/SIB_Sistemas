@@ -26440,33 +26440,28 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
 
     const abrir = !this.mostrarDgF04Editor;
+    this.mostrarDgF04Editor = abrir;
 
     if (abrir) {
-
+      this.dgF04EditorIframeListo = false;
+      this.dgF04EditorCargando = true;
       this.dgF04EditorEmbedUrlSafe = null;
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
       this.conAccesoDriveEmbed(this.dgF04DriveFileId, () => {
         if (!this.mostrarDgF04Editor) {
           return;
         }
-        if (this.dgF04Guardando) {
-        }
-        this.abrirPanelEditorDgF04();
+        this.fijarEditorEmbedUrlDgF04(
+          this.resolverUrlEditorDrive(this.dgF04EditorUrl, this.dgF04DriveFileId),
+          true
+        );
       });
       return;
     }
 
     document.documentElement.style.overflow = '';
     document.body.style.overflow = '';
-    this.mostrarDgF04Editor = false;
-  }
-
-  private abrirPanelEditorDgF04(): void {
-    this.mostrarDgF04Editor = true;
-    this.dgF04EditorIframeListo = false;
-    this.dgF04EditorCargando = true;
-    this.fijarEditorEmbedUrlDgF04(this.resolverUrlEditorDrive(this.dgF04EditorUrl, this.dgF04DriveFileId), true);
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.overflow = 'hidden';
   }
 
   private persistirDgF04Inmediato(alExito?: () => void): void {

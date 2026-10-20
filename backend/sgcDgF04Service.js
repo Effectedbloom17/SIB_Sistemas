@@ -479,6 +479,80 @@ function esFilaEncabezadoSeccion(texto) {
     return Object.values(SECCION_MARKERS).some((m) => t.includes(m));
 }
 
+/** Centra títulos Fortalezas/Debilidades/Amenazas/Oportunidades (+ Responsable/Estrategia). */
+function centrarEncabezadosSeccionEnHoja(ws) {
+    const secciones = mapearSeccionesEnHoja(ws);
+    for (const sec of secciones) {
+        const row = ws.getRow(sec.headerRow);
+        for (const cols of [COL_GRUPO.factor, COL_GRUPO.responsable, COL_GRUPO.seguimiento]) {
+            for (const col of cols) {
+                const celda = row.getCell(col);
+                celda.alignment = {
+                    ...(celda.alignment || {}),
+                    horizontal: 'center',
+                    vertical: 'middle',
+                    wrapText: true
+                };
+            }
+        }
+    }
+    return secciones;
+}
+
+async function centrarEncabezadosSeccionEnDrive(spreadsheetId, seccionesMap, sheetTitle = SHEET_TITLE) {
+    if (!spreadsheetId || !Array.isArray(seccionesMap) || !seccionesMap.length) {
+        return;
+    }
+    for (const sec of seccionesMap) {
+        const fila = Number(sec.headerRow);
+        if (!Number.isFinite(fila) || fila < 1) {
+            continue;
+        }
+        try {
+            // B–J: título de sección + Responsable + Estrategia
+            await driveService.aplicarFormatoRangoGoogleSheet(spreadsheetId, {
+                sheetTitle,
+                startRow: fila,
+                endRow: fila,
+                startColumn: COL_GRUPO.factor[0],
+                endColumn: COL_GRUPO.seguimiento[COL_GRUPO.seguimiento.length - 1],
+                horizontalAlignment: 'CENTER',
+                verticalAlignment: 'MIDDLE',
+                wrapStrategy: 'WRAP'
+            });
+        } catch (err) {
+            console.warn(`[DG-F-04] No se pudo centrar encabezado fila ${fila}:`, err.message);
+        }
+    }
+}
+
+async function resolverYCentrarEncabezadosDrive(spreadsheetId, sheetTitle = SHEET_TITLE) {
+    if (!spreadsheetId) {
+        return [];
+    }
+    try {
+        const filas = await driveService.leerRangoGoogleSheet(
+            spreadsheetId,
+            `'${sheetTitle}'!B1:B80`
+        );
+        const found = [];
+        (filas || []).forEach((fila, idx) => {
+            const txt = normalizarTextoBusqueda(fila?.[0]);
+            for (const [key, marker] of Object.entries(SECCION_MARKERS)) {
+                if (txt.includes(marker)) {
+                    found.push({ key, headerRow: idx + 1 });
+                }
+            }
+        });
+        found.sort((a, b) => a.headerRow - b.headerRow);
+        await centrarEncabezadosSeccionEnDrive(spreadsheetId, found, sheetTitle);
+        return found;
+    } catch (err) {
+        console.warn('[DG-F-04] No se pudieron centrar encabezados de sección en Drive:', err.message);
+        return [];
+    }
+}
+
 function encontrarFilaNota(ws) {
     for (let r = 1; r <= ws.rowCount; r++) {
         const txt = celdaATexto(ws.getRow(r).getCell(COL.factor).value).toLowerCase();
@@ -714,6 +788,7 @@ async function escribirDatosEnPlantilla(datos) {
     }
 
     escribirFirma(ws, datos.autorizo);
+    centrarEncabezadosSeccionEnHoja(ws);
     recortarColumnasSistema(ws);
 
     const buffer = await wb.xlsx.writeBuffer();
@@ -803,6 +878,7 @@ async function asegurarColumnasSistemaDrive(spreadsheetId) {
 async function actualizarDatosEnGoogleSheet(spreadsheetId, datos, seccionesMap, sheetTitle = SHEET_TITLE) {
     const actualizaciones = datosAActualizacionesSheet(datos, seccionesMap, sheetTitle);
     await driveService.actualizarCeldasGoogleSheet(spreadsheetId, actualizaciones);
+    await centrarEncabezadosSeccionEnDrive(spreadsheetId, seccionesMap, sheetTitle);
     if (sheetTitle === SHEET_TITLE) {
         await asegurarColumnasSistemaDrive(spreadsheetId);
     }
@@ -1065,6 +1141,7 @@ async function actualizarPlantillaDesdeSistema(pool) {
         DRIVE_SHEET_OPTIONS
     );
     await asegurarColumnasSistemaDrive(archivoDrive.id);
+    await resolverYCentrarEncabezadosDrive(archivoDrive.id, SHEET_TITLE);
 
     await guardarRegistroDb(pool, {
         driveFileId: archivoDrive.id,
@@ -1196,6 +1273,7 @@ async function guardarFormato(pool, body, options = {}) {
                         return await construirRespuesta(registro, datosGuardar, archivoDrive);
                     }
                 } else {
+                    await resolverYCentrarEncabezadosDrive(driveId, SHEET_TITLE);
                     const archivoDrive = await driveService
                         .obtenerInfoArchivo(driveId)
                         .catch(() => ({ id: driveId }));
@@ -1220,6 +1298,7 @@ async function guardarFormato(pool, body, options = {}) {
     const buffer = await escribirDatosEnPlantilla(datosGuardar);
     const archivoDrive = await subirOReemplazarEnDrive(buffer, driveId);
     await asegurarColumnasSistemaDrive(archivoDrive.id);
+    await resolverYCentrarEncabezadosDrive(archivoDrive.id, SHEET_TITLE);
 
     await guardarRegistroDb(pool, {
         driveFileId: archivoDrive.id,
@@ -1360,7 +1439,8 @@ async function editorUrlConHojaVigente(driveId) {
 }
 
 /**
- * Exporta el Google Sheet vigente a PDF sin alterar celdas ni estilos de la plantilla.
+ * Exporta el Google Sheet vigente a PDF.
+ * Antes del export se re-centran los títulos de sección (Fortalezas, etc.).
  */
 async function descargarPlantillaPdf(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
@@ -1381,13 +1461,18 @@ async function descargarPlantillaPdf(pool) {
         throw new Error(`No se encontró la hoja vigente «${tituloHoja}» para exportar a PDF.`);
     }
 
-    // Misma hoja de Drive: horizontal, ajustar al ancho (sin tocar el layout del sheet).
+    // Asegura centrado de Fortalezas/Debilidades/Amenazas/Oportunidades en la hoja a exportar.
+    await resolverYCentrarEncabezadosDrive(driveFileId, tituloHoja);
+
+    // Carta vertical, ajustar a la página, márgenes normales, centrado / arriba (como Sheets).
     const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
         gid,
-        landscape: true,
-        fitToWidth: true,
+        landscape: false,
+        fitToPage: true,
         size: 'letter',
-        margins: 'normales'
+        margins: 'normales',
+        horizontalAlignment: 'CENTER',
+        verticalAlignment: 'TOP'
     });
     if (!pdfBuffer || !pdfBuffer.length) {
         throw new Error('La exportación a PDF de DG-F-04 quedó vacía.');
