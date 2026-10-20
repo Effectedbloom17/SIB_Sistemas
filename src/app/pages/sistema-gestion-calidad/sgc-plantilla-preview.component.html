@@ -332,7 +332,7 @@
                     Actualizar versiones
                   </button>
                   <button
-                    *ngIf="(plantillaSlug === 'ath-f-13' ? athF13PuedeSolicitar : plantillaSlug === 'ath-f-14' ? puedeEditarAthF14 : puedeGestionarPlantillasSgc) && plantillaSlug !== 'sgc-f-05' && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'ath-f-06' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-27-medicion' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'ath-f-03' || plantillaSlug === 'ath-f-13' || plantillaSlug === 'ath-f-14' || plantillaSlug === 'sgc-f-17' || plantillaSlug === 'sgc-f-19' || plantillaSlug === 'sgc-f-20')"
+                    *ngIf="(plantillaSlug === 'ath-f-13' ? athF13PuedeSolicitar : plantillaSlug === 'ath-f-14' ? puedeEditarAthF14 : puedeGestionarPlantillasSgc) && plantillaSlug !== 'sgc-f-05' && (plantillaSlug !== 'sgc-f-10' || sgcF10Vista === 'editor') && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'ath-f-06' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-27-medicion' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'ath-f-03' || plantillaSlug === 'ath-f-13' || plantillaSlug === 'ath-f-14' || plantillaSlug === 'sgc-f-17' || plantillaSlug === 'sgc-f-19' || plantillaSlug === 'sgc-f-20')"
                     type="button"
                     class="btn btn-sm sgc-btn-save-info"
                     [disabled]="driveSyncCargando || driveSyncGuardando || (plantillaSlug === 'sgc-f-10' && sgcF10GuardandoHistorico)"
@@ -351,7 +351,7 @@
                     {{ driveSyncActualizandoPlantilla ? 'Actualizando…' : 'Actualizar plantilla' }}
                   </button>
                   <button
-                    *ngIf="puedeGestionarPlantillasSgc && plantillaSlug === 'sgc-f-10'"
+                    *ngIf="puedeGestionarPlantillasSgc && plantillaSlug === 'sgc-f-10' && sgcF10Vista === 'editor'"
                     type="button"
                     class="btn btn-sm sgc-btn-historico"
                     [disabled]="sgcF10Cargando || sgcF10Guardando || sgcF10GuardandoHistorico"
@@ -363,7 +363,7 @@
                     {{ sgcF10GuardandoHistorico ? 'Guardando histórico…' : 'Guardar Histórico' }}
                   </button>
                   <button
-                    *ngIf="plantillaSlug !== 'sgc-f-01'"
+                    *ngIf="plantillaSlug !== 'sgc-f-01' && (plantillaSlug !== 'sgc-f-10' || sgcF10Vista === 'editor')"
                     type="button"
                     class="btn btn-sm sgc-btn-drive"
                     [disabled]="
@@ -9781,7 +9781,261 @@
                     <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
                     Cargando formato…
                   </div>
-                  <article class="dg-f05-doc sgc-f-10-doc">
+
+                  <article class="dg-f05-doc sgc-f-10-doc" *ngIf="!sgcF10Cargando && sgcF10Vista === 'archivero'">
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-10', titulo: 'Informe de auditoría', icono: 'fa-file-alt', extraClass: 'sgc-f-10-doc__header' }"></ng-container>
+
+                    <div class="sgc-f-04-archivero sgc-f-10-archivero">
+                      <div class="sgc-f-04-archivero__intro">
+                        <div class="sgc-f-04-archivero__intro-main">
+                          <div class="sgc-f-04-archivero__intro-icon">
+                            <i class="fas fa-archive" aria-hidden="true"></i>
+                          </div>
+                          <div class="sgc-f-04-archivero__intro-text">
+                            <h4 class="sgc-f-04-archivero__title">Archivero de informes de auditoría</h4>
+                            <p class="sgc-f-04-archivero__hint">
+                              Consulta auditorías cerradas y continúa el informe vigente. Al usar «Guardar Histórico» se archiva el actual (Word + PDF) y se abre uno nuevo sin borrar el anterior.
+                            </p>
+                          </div>
+                        </div>
+                        <div class="sgc-f-04-archivero__toolbar">
+                          <label class="sgc-f-04-archivero__search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input class="dg-f05-field" type="search" name="sgcF10_busqueda"
+                              [(ngModel)]="sgcF10Busqueda" placeholder="Buscar No., empresa, fecha…"
+                              autocomplete="off"
+                              (input)="$event.stopPropagation()" (change)="$event.stopPropagation()">
+                          </label>
+                          <button type="button" class="sgc-f-04-archivero__btn-nuevo" (click)="abrirInformeVigenteSgcF10()">
+                            <i class="fas fa-edit" aria-hidden="true"></i>
+                            Abrir informe vigente
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="sgc-f-04-archivero__stats">
+                        <span class="sgc-f-04-archivero__stat">
+                          {{ sgcF10Historial.length + 1 }}
+                          {{ (sgcF10Historial.length + 1) === 1 ? 'informe' : 'informes' }}
+                        </span>
+                        <span class="sgc-f-04-archivero__stat sgc-f-04-archivero__stat--muted">
+                          · {{ sgcF10Historial.length }}
+                          {{ sgcF10Historial.length === 1 ? 'histórico' : 'históricos' }}
+                        </span>
+                        <span class="sgc-f-04-archivero__stat sgc-f-04-archivero__stat--muted"
+                          *ngIf="sgcF10Busqueda.trim()">
+                          · filtrados
+                        </span>
+                      </div>
+
+                      <ul class="sgc-f-04-archivero__grid"
+                        *ngIf="sgcF10CoincideBusquedaVigente || sgcF10HistorialVista.length; else sgcF10ArchiveroVacio">
+                        <li class="sgc-f-04-book sgc-f-04-book--vigente" *ngIf="sgcF10CoincideBusquedaVigente">
+                          <button type="button" class="sgc-f-04-book__tap"
+                            (click)="abrirInformeVigenteSgcF10()"
+                            [attr.aria-label]="'Abrir informe vigente No. ' + (sgcF10Form.auditoriaNo || '')">
+                            <span class="sgc-f-04-book__binding" aria-hidden="true">
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                            </span>
+                            <span class="sgc-f-04-book__page">
+                              <span class="sgc-f-04-book__corner" aria-hidden="true"></span>
+                              <span class="sgc-f-04-book__head">
+                                <span class="sgc-f-04-book__icon">
+                                  <i class="fas fa-file-signature" aria-hidden="true"></i>
+                                </span>
+                                <span class="sgc-f-04-book__estado">En captura</span>
+                              </span>
+                              <span class="sgc-f-04-book__origen">Auditoría No. {{ sgcF10Form.auditoriaNo || '—' }}</span>
+                              <span class="sgc-f-04-book__folio">{{ sgcF10Form.empresa?.trim() || 'Informe vigente' }}</span>
+                              <span class="sgc-f-24-book-tipos" *ngIf="totalHallazgosSgcF10">
+                                <span class="sgc-f-24-book-tipos__badge sgc-f-24-book-tipos__badge--req">
+                                  {{ totalHallazgosSgcF10 }} hallazgo{{ totalHallazgosSgcF10 === 1 ? '' : 's' }}
+                                </span>
+                              </span>
+                              <span class="sgc-f-04-book__lines" aria-hidden="true">
+                                <span></span><span></span><span></span>
+                              </span>
+                              <span class="sgc-f-04-book__foot">
+                                <span class="sgc-f-04-book__fecha" *ngIf="sgcF10Form.fechasAuditoria">{{ sgcF10Form.fechasAuditoria }}</span>
+                                <span class="sgc-f-04-book__fuente">Vigente</span>
+                              </span>
+                            </span>
+                          </button>
+                        </li>
+                        <li class="sgc-f-04-book sgc-f-04-book--cerrado"
+                          *ngFor="let h of sgcF10HistorialVista; trackBy: trackByIdx"
+                          [class.sgc-f-04-book--pdf]="!!h.pdfDriveFileId">
+                          <button type="button" class="sgc-f-04-book__tap"
+                            (click)="abrirHistoricoSgcF10(h)"
+                            [attr.aria-label]="'Abrir histórico No. ' + (h.auditoriaNo || '')">
+                            <span class="sgc-f-04-book__binding" aria-hidden="true">
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                              <span class="sgc-f-04-book__ring"></span>
+                            </span>
+                            <span class="sgc-f-04-book__page">
+                              <span class="sgc-f-04-book__corner" aria-hidden="true"></span>
+                              <span class="sgc-f-04-book__head">
+                                <span class="sgc-f-04-book__icon"
+                                  [class.sgc-f-04-book__icon--pdf]="!!h.pdfDriveFileId">
+                                  <i class="fas" [ngClass]="h.pdfDriveFileId ? 'fa-file-pdf' : 'fa-file-alt'" aria-hidden="true"></i>
+                                </span>
+                                <span class="sgc-f-04-book__estado sgc-f-04-book__estado--cerrado">Histórico</span>
+                              </span>
+                              <span class="sgc-f-04-book__origen">Auditoría No. {{ h.auditoriaNo || '—' }}</span>
+                              <span class="sgc-f-04-book__folio">{{ h.empresa?.trim() || 'Informe archivado' }}</span>
+                              <span class="sgc-f-24-book-tipos" *ngIf="h.totalHallazgos">
+                                <span class="sgc-f-24-book-tipos__badge sgc-f-24-book-tipos__badge--req">
+                                  {{ h.totalHallazgos }} hallazgo{{ h.totalHallazgos === 1 ? '' : 's' }}
+                                </span>
+                              </span>
+                              <span class="sgc-f-04-book__lines" aria-hidden="true">
+                                <span></span><span></span><span></span>
+                              </span>
+                              <span class="sgc-f-04-book__foot">
+                                <span class="sgc-f-04-book__fecha" *ngIf="h.fechasAuditoria">{{ h.fechasAuditoria }}</span>
+                                <span class="sgc-f-04-book__fuente" *ngIf="h.pdfDriveFileId">PDF</span>
+                              </span>
+                            </span>
+                          </button>
+                        </li>
+                      </ul>
+                      <ng-template #sgcF10ArchiveroVacio>
+                        <div class="sgc-f-04-archivero__empty">
+                          <i class="fas fa-archive" aria-hidden="true"></i>
+                          <p class="mb-0" *ngIf="sgcF10Busqueda.trim(); else sgcF10SinInformes">
+                            No hay informes que coincidan con la búsqueda.
+                          </p>
+                          <ng-template #sgcF10SinInformes>
+                            <p class="mb-0">Aún no hay informes. Abre el vigente para capturar la primera auditoría.</p>
+                          </ng-template>
+                        </div>
+                      </ng-template>
+                    </div>
+
+                    <section class="sgc-f-02-fisicos sgc-f-10-fisicos" aria-labelledby="sgc-f-10-fisicos-title">
+                      <header class="sgc-f-02-fisicos__head">
+                        <div class="sgc-f-02-fisicos__head-main">
+                          <span class="sgc-f-02-fisicos__icon" aria-hidden="true">
+                            <i class="fas fa-folder-open"></i>
+                          </span>
+                          <div>
+                            <h4 class="sgc-f-02-fisicos__title" id="sgc-f-10-fisicos-title">Subir documentación física</h4>
+                            <p class="sgc-f-02-fisicos__hint">
+                              PDF, JPG o JPEG. Se guardan en la carpeta Documentos Físicos de Drive y puedes consultarlos aquí.
+                            </p>
+                          </div>
+                        </div>
+                        <button type="button" class="sgc-f-02-fisicos__refresh"
+                          (click)="cargarDocumentosFisicosSgcF10()"
+                          [disabled]="sgcF10DocsFisicosCargando"
+                          title="Actualizar listado">
+                          <i class="fas" [ngClass]="sgcF10DocsFisicosCargando ? 'fa-spinner fa-spin' : 'fa-sync-alt'" aria-hidden="true"></i>
+                        </button>
+                      </header>
+
+                      <label class="sgc-f-02-fisicos__drop"
+                        [class.sgc-f-02-fisicos__drop--active]="sgcF10DocsFisicosArrastrando"
+                        [class.sgc-f-02-fisicos__drop--busy]="sgcF10DocsFisicosSubiendo"
+                        (dragover)="onSgcF10DocsDragOver($event)"
+                        (dragleave)="onSgcF10DocsDragLeave($event)"
+                        (drop)="onSgcF10DocsDrop($event)">
+                        <input type="file" accept=".pdf,.jpg,.jpeg,application/pdf,image/jpeg"
+                          multiple hidden
+                          [disabled]="sgcF10DocsFisicosSubiendo || !puedeGestionarPlantillasSgc"
+                          (change)="onSgcF10DocsInputChange($event)">
+                        <span class="sgc-f-02-fisicos__drop-icon" aria-hidden="true">
+                          <i class="fas" [ngClass]="sgcF10DocsFisicosSubiendo ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'"></i>
+                        </span>
+                        <span class="sgc-f-02-fisicos__drop-title">
+                          {{ sgcF10DocsFisicosSubiendo ? 'Subiendo archivos…' : 'Arrastra archivos o haz clic para seleccionar' }}
+                        </span>
+                        <span class="sgc-f-02-fisicos__drop-hint">PDF · JPG · JPEG · máx. 15 MB por archivo</span>
+                      </label>
+
+                      <div class="sgc-f-02-fisicos__list-wrap" *ngIf="sgcF10DocsFisicos.length; else sgcF10FisicosVacio">
+                        <p class="sgc-f-02-fisicos__count">{{ sgcF10DocsFisicos.length }} archivo{{ sgcF10DocsFisicos.length === 1 ? '' : 's' }}</p>
+                        <div class="sgc-f-02-fisicos__cards" role="list">
+                          <article class="sgc-f-02-doccard" *ngFor="let doc of sgcF10DocsFisicos; trackBy: trackByIdx"
+                            role="listitem" tabindex="0"
+                            (click)="consultarDocumentoFisicoSgcF10(doc)"
+                            (keyup.enter)="consultarDocumentoFisicoSgcF10(doc)"
+                            [attr.aria-label]="'Previsualizar ' + doc.nombre">
+                            <div class="sgc-f-02-doccard__preview">
+                              <div class="sgc-f-02-doccard__frame">
+                                <img *ngIf="!miniaturaSgcF10Fallida(doc)"
+                                  class="sgc-f-02-doccard__thumb"
+                                  [src]="urlMiniaturaSgcF10(doc)"
+                                  [alt]="'Vista previa de ' + doc.nombre"
+                                  loading="lazy"
+                                  (error)="onErrorMiniaturaSgcF10(doc)">
+                                <div *ngIf="miniaturaSgcF10Fallida(doc)" class="sgc-f-02-doccard__placeholder"
+                                  [class.sgc-f-02-doccard__placeholder--pdf]="doc.tipo === 'pdf'"
+                                  [class.sgc-f-02-doccard__placeholder--img]="doc.tipo === 'imagen'">
+                                  <i class="fas" [ngClass]="doc.tipo === 'pdf' ? 'fa-file-pdf' : 'fa-file-image'" aria-hidden="true"></i>
+                                </div>
+                                <div class="sgc-f-02-doccard__shine" aria-hidden="true"></div>
+                              </div>
+                              <span class="sgc-f-02-doccard__type"
+                                [class.sgc-f-02-doccard__type--img]="doc.tipo === 'imagen'">{{ etiquetaTipoSgcF10(doc) }}</span>
+                              <div class="sgc-f-02-doccard__overlay">
+                                <span class="sgc-f-02-doccard__open">
+                                  <i class="fas fa-expand" aria-hidden="true"></i>
+                                  Ver documento
+                                </span>
+                              </div>
+                            </div>
+                            <div class="sgc-f-02-doccard__body">
+                              <strong class="sgc-f-02-doccard__name" [title]="doc.nombre">{{ doc.nombre }}</strong>
+                              <div class="sgc-f-02-doccard__meta">
+                                <span>{{ formatearTamanoSgcF02(doc.size) }}</span>
+                                <span *ngIf="doc.modifiedTime">{{ doc.modifiedTime | date:'dd/MM/yyyy HH:mm' }}</span>
+                              </div>
+                              <div class="sgc-f-02-doccard__footer">
+                                <button *ngIf="puedeGestionarPlantillasSgc" type="button" class="sgc-f-02-doccard__del"
+                                  title="Eliminar archivo"
+                                  (click)="eliminarDocumentoFisicoSgcF10(doc, $event)">
+                                  <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                                </button>
+                                <span class="sgc-f-02-doccard__action" aria-hidden="true">
+                                  <i class="fas fa-arrow-right"></i>
+                                </span>
+                              </div>
+                            </div>
+                          </article>
+                        </div>
+                      </div>
+                      <ng-template #sgcF10FisicosVacio>
+                        <div class="sgc-f-02-fisicos__empty" *ngIf="!sgcF10DocsFisicosCargando">
+                          <i class="fas fa-file-upload" aria-hidden="true"></i>
+                          <p>Aún no hay documentación física. Sube escaneos o fotos de evidencias de auditoría.</p>
+                        </div>
+                        <div class="sgc-f-02-fisicos__empty" *ngIf="sgcF10DocsFisicosCargando">
+                          <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                          <p>Cargando archivos de Drive…</p>
+                        </div>
+                      </ng-template>
+                    </section>
+                  </article>
+
+                  <article class="dg-f05-doc sgc-f-10-doc" *ngIf="!sgcF10Cargando && sgcF10Vista === 'editor'">
+                    <div class="sgc-f-04-editor-bar">
+                      <button type="button" class="sgc-f-04-editor-bar__back" (click)="volverArchiveroSgcF10()">
+                        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                        Volver al archivero
+                      </button>
+                      <span class="sgc-f-04-editor-bar__folio" *ngIf="sgcF10Form.auditoriaNo">
+                        Auditoría No. {{ sgcF10Form.auditoriaNo }}
+                      </span>
+                    </div>
                     <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-10', titulo: 'Informe de auditoría', icono: 'fa-file-alt', extraClass: 'sgc-f-10-doc__header' }"></ng-container>
 
                     <div class="sgc-f-10-top">
@@ -9790,7 +10044,7 @@
                           <div class="sgc-f-10-intro__icon"><i class="fas fa-file-signature" aria-hidden="true"></i></div>
                           <div>
                             <h4 class="sgc-f-10-intro__title">Informe de auditoría</h4>
-                            <p class="sgc-f-10-intro__hint">Datos generales, hallazgos y conclusiones del ciclo de auditoría interna (ISO 9001 · 9.2). Usa «Guardar Histórico» para cerrar el informe actual (Word + PDF en Drive) y abrir uno nuevo.</p>
+                            <p class="sgc-f-10-intro__hint">Datos generales, hallazgos y conclusiones del ciclo de auditoría interna (ISO 9001 · 9.2). Usa «Guardar Histórico» para cerrar el informe actual (Word + PDF en Drive) y abrir uno nuevo sin borrar el anterior.</p>
                           </div>
                         </div>
                         <div class="sgc-f-10-intro__meta">
@@ -10515,73 +10769,6 @@
                       </div>
                     </div>
                   </article>
-
-                  <aside class="dg-f02-attach sgc-f-10-pdf-historial-wrap" aria-label="Historial de PDFs del informe">
-                    <div class="sgc-f-10-pdf-panel__head">
-                      <div class="sgc-f-10-pdf-panel__head-main">
-                        <div class="sgc-f-10-pdf-panel__icon" aria-hidden="true">
-                          <i class="fas fa-file-pdf"></i>
-                        </div>
-                        <div class="sgc-f-10-pdf-panel__titles">
-                          <div class="sgc-f-10-pdf-panel__title-row">
-                            <h3 class="sgc-f-10-pdf-panel__title">PDFs del histórico</h3>
-                            <span class="sgc-f-10-pdf-panel__badge" *ngIf="sgcF10HistorialPdfs.length">
-                              {{ sgcF10HistorialPdfs.length }}
-                              {{ sgcF10HistorialPdfs.length === 1 ? 'archivo' : 'archivos' }}
-                            </span>
-                          </div>
-                          <p class="sgc-f-10-pdf-panel__desc mb-0">
-                            Se generan automáticamente al usar «Guardar Histórico»
-                            (carta · <strong>horizontal</strong> · márgenes estrechos · ajustado al ancho). Sin carga manual.
-                          </p>
-                        </div>
-                      </div>
-                      <div class="sgc-f-10-pdf-panel__chip" aria-hidden="true">
-                        <i class="fas fa-cloud"></i>
-                        <span>Drive</span>
-                      </div>
-                    </div>
-
-                    <div class="sgc-f-10-pdf-panel__body" *ngIf="sgcF10HistorialPdfs.length; else sgcF10SinPdfs">
-                      <div class="sgc-f-10-pdf-panel__section-label">
-                        <i class="fas fa-history" aria-hidden="true"></i>
-                        <span>Historial de informes archivados</span>
-                      </div>
-                      <ul class="sgc-f-10-pdf-panel__list">
-                        <li class="sgc-f-10-pdf-panel__item" *ngFor="let hist of sgcF10HistorialPdfs; let i = index">
-                          <div class="sgc-f-10-pdf-panel__item-main">
-                            <span class="sgc-f-10-pdf-panel__ver">{{ sgcF10HistorialPdfs.length - i }}</span>
-                            <span class="sgc-f-10-pdf-panel__file-ico" aria-hidden="true">
-                              <i class="fas fa-file-pdf"></i>
-                            </span>
-                            <div class="sgc-f-10-pdf-panel__meta">
-                              <strong class="sgc-f-10-pdf-panel__name">{{ hist.nombreArchivo }}</strong>
-                              <small class="sgc-f-10-pdf-panel__date" *ngIf="hist.fechaSubida">
-                                <i class="far fa-calendar-alt" aria-hidden="true"></i>
-                                Generado el {{ formatearFechaDgF02(hist.fechaSubida) }}
-                              </small>
-                            </div>
-                          </div>
-                          <div class="sgc-f-10-pdf-panel__actions">
-                            <button type="button" class="sgc-f-10-pdf-panel__btn"
-                              (click)="toggleSgcF10PdfViewer(hist)">
-                              <i class="fas fa-eye" aria-hidden="true"></i>
-                              Abrir
-                            </button>
-                          </div>
-                        </li>
-                      </ul>
-                    </div>
-                    <ng-template #sgcF10SinPdfs>
-                      <div class="sgc-f-10-pdf-historial-empty">
-                        <i class="fas fa-inbox" aria-hidden="true"></i>
-                        <div>
-                          <strong>Aún no hay PDFs históricos</strong>
-                          <p class="mb-0">Al guardar el histórico de una auditoría, el PDF aparecerá aquí automáticamente.</p>
-                        </div>
-                      </div>
-                    </ng-template>
-                  </aside>
                 </div>
               </form>
             </ng-container>

@@ -2692,6 +2692,22 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-10/actualizar-plantilla`, {});
     }
 
+    listarDocumentosFisicosSgcF10(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-10/documentos-fisicos`);
+    }
+
+    subirDocumentosFisicosSgcF10(archivos: File[]): Observable<any> {
+        const formData = new FormData();
+        (archivos || []).forEach((file) => formData.append('archivos', file, file.name));
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-10/documentos-fisicos`, formData);
+    }
+
+    eliminarDocumentoFisicoSgcF10(fileId: string): Observable<any> {
+        return this.httpClient.delete(
+            `${this.baseUrl}/sgc/formatos/sgc-f-10/documentos-fisicos/${encodeURIComponent(fileId)}`
+        );
+    }
+
     /** Formatos limpios (página /formatos): IDs activos tras reemplazos versionados. */
     obtenerFormatosDescargaActivosSgc(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos-descarga/activos`);

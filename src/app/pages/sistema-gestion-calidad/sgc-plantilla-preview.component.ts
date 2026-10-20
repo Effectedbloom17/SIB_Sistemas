@@ -2504,6 +2504,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     { value: 'NC_MAYOR', label: 'NC Mayor · No conformidad mayor', icon: 'fa-times-circle' }
   ];
   sgcF10Form: SgcF10FormData = this.crearSgcF10FormVacio();
+  sgcF10Vista: 'archivero' | 'editor' = 'archivero';
+  sgcF10Busqueda = '';
   sgcF10Cargando = false;
   sgcF10Guardando = false;
   sgcF10GuardandoHistorico = false;
@@ -2518,13 +2520,23 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     id: number;
     auditoriaNo: string;
     fechasAuditoria?: string;
+    empresa?: string;
+    ubicaciones?: string;
     totalHallazgos?: number;
     totalNc?: number;
     totalOp?: number;
     driveFileId?: string | null;
     editorUrl?: string | null;
+    pdfDriveFileId?: string | null;
+    pdfDriveFileName?: string | null;
+    cerradoEn?: string | null;
   }> = [];
   sgcF10HistorialPdfs: DgF02PdfFirmado[] = [];
+  sgcF10DocsFisicos: SgcF02DocFisico[] = [];
+  sgcF10DocsFisicosCargando = false;
+  sgcF10DocsFisicosSubiendo = false;
+  sgcF10DocsFisicosArrastrando = false;
+  private sgcF10MiniaturasError = new Set<string>();
   mostrarSgcF10PdfViewer = false;
   sgcF10PdfCargando = false;
   sgcF10PdfViewerTitulo = 'SGC-F-10 Informe de auditoría.pdf';
@@ -8506,15 +8518,269 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private cargarSgcF10DesdeServidor(): void {
     this.sgcF10Cargando = true;
     this.sgcF10Listo = false;
+    this.sgcF10Vista = 'archivero';
     this.backendService.cargarSgcF10Formato()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: (res) => this.aplicarEstadoSgcF10(res),
+        next: (res) => {
+          this.aplicarEstadoSgcF10(res);
+          this.cargarDocumentosFisicosSgcF10();
+        },
         error: () => {
           this.sgcF10Cargando = false;
           this.sgcF10Listo = true;
         }
       });
+  }
+
+  get sgcF10HistorialVista(): Array<{
+    id: number;
+    auditoriaNo: string;
+    fechasAuditoria?: string;
+    empresa?: string;
+    ubicaciones?: string;
+    totalHallazgos?: number;
+    totalNc?: number;
+    totalOp?: number;
+    driveFileId?: string | null;
+    editorUrl?: string | null;
+    pdfDriveFileId?: string | null;
+    pdfDriveFileName?: string | null;
+    cerradoEn?: string | null;
+  }> {
+    const q = String(this.sgcF10Busqueda || '').trim().toLowerCase();
+    const lista = [...(this.sgcF10Historial || [])].reverse();
+    if (!q) {
+      return lista;
+    }
+    return lista.filter((h) => {
+      const blob = [
+        h.auditoriaNo,
+        h.fechasAuditoria,
+        h.empresa,
+        h.ubicaciones,
+        h.pdfDriveFileName
+      ].map((x) => String(x || '').toLowerCase()).join(' ');
+      return blob.includes(q);
+    });
+  }
+
+  get sgcF10CoincideBusquedaVigente(): boolean {
+    const q = String(this.sgcF10Busqueda || '').trim().toLowerCase();
+    if (!q) {
+      return true;
+    }
+    const blob = [
+      this.sgcF10Form?.auditoriaNo,
+      this.sgcF10Form?.fechasAuditoria,
+      this.sgcF10Form?.empresa,
+      this.sgcF10Form?.ubicaciones,
+      'vigente',
+      'captura'
+    ].map((x) => String(x || '').toLowerCase()).join(' ');
+    return blob.includes(q);
+  }
+
+  abrirInformeVigenteSgcF10(): void {
+    this.sgcF10Vista = 'editor';
+  }
+
+  volverArchiveroSgcF10(): void {
+    this.sgcF10Vista = 'archivero';
+    this.cerrarClasifSgcF10();
+    this.cargarDocumentosFisicosSgcF10();
+  }
+
+  abrirHistoricoSgcF10(item: {
+    pdfDriveFileId?: string | null;
+    pdfDriveFileName?: string | null;
+    driveFileId?: string | null;
+    editorUrl?: string | null;
+    auditoriaNo?: string;
+  }): void {
+    const pdfId = String(item?.pdfDriveFileId || '').trim();
+    if (pdfId) {
+      this.toggleSgcF10PdfViewer({
+        driveFileId: pdfId,
+        nombreArchivo: String(item?.pdfDriveFileName || `SGC-F-10 Informe de auditoría No.${item?.auditoriaNo || ''}.pdf`).trim(),
+        webViewLink: null,
+        previewUrl: this.urlPdfProxyDrive(pdfId),
+        fechaSubida: ''
+      });
+      return;
+    }
+    const url = String(item?.editorUrl || '').trim()
+      || (item?.driveFileId
+        ? `https://docs.google.com/document/d/${encodeURIComponent(item.driveFileId)}/view`
+        : '');
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    void Swal.fire({
+      icon: 'info',
+      title: 'Sin documento archivado',
+      text: 'Este registro histórico aún no tiene Word ni PDF en Drive.',
+      confirmButtonColor: '#15a596'
+    });
+  }
+
+  cargarDocumentosFisicosSgcF10(): void {
+    if (this.sgcF10DocsFisicosCargando) {
+      return;
+    }
+    this.sgcF10DocsFisicosCargando = true;
+    this.backendService.listarDocumentosFisicosSgcF10()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF10DocsFisicosCargando = false;
+          this.sgcF10DocsFisicos = Array.isArray(res?.archivos) ? res.archivos : [];
+        },
+        error: () => {
+          this.sgcF10DocsFisicosCargando = false;
+        }
+      });
+  }
+
+  onSgcF10DocsDragOver(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.sgcF10DocsFisicosArrastrando = true;
+  }
+
+  onSgcF10DocsDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.sgcF10DocsFisicosArrastrando = false;
+  }
+
+  onSgcF10DocsDrop(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.sgcF10DocsFisicosArrastrando = false;
+    const files = Array.from(event.dataTransfer?.files || []);
+    this.subirDocumentosFisicosSgcF10(files);
+  }
+
+  onSgcF10DocsInputChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input?.files || []);
+    this.subirDocumentosFisicosSgcF10(files);
+    if (input) {
+      input.value = '';
+    }
+  }
+
+  private subirDocumentosFisicosSgcF10(files: File[]): void {
+    if (!this.puedeGestionarPlantillasSgc || this.sgcF10DocsFisicosSubiendo) {
+      return;
+    }
+    const permitidos = (files || []).filter((f) => {
+      const mime = String(f.type || '').toLowerCase();
+      const nombre = String(f.name || '').toLowerCase();
+      return mime === 'application/pdf'
+        || mime === 'image/jpeg'
+        || mime === 'image/jpg'
+        || /\.pdf$/i.test(nombre)
+        || /\.jpe?g$/i.test(nombre);
+    });
+    if (!permitidos.length) {
+      void Swal.fire({
+        icon: 'warning',
+        title: 'Formato no válido',
+        text: 'Solo se permiten archivos PDF, JPG o JPEG.',
+        confirmButtonText: 'Entendido'
+      });
+      return;
+    }
+    this.sgcF10DocsFisicosSubiendo = true;
+    this.backendService.subirDocumentosFisicosSgcF10(permitidos)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF10DocsFisicosSubiendo = false;
+          this.sgcF10DocsFisicos = Array.isArray(res?.archivos) ? res.archivos : this.sgcF10DocsFisicos;
+          void Swal.fire({
+            icon: 'success',
+            title: 'Documentación subida',
+            text: res?.message || 'Archivos guardados en Documentos Físicos.',
+            timer: 2200,
+            showConfirmButton: false
+          });
+        },
+        error: (err) => {
+          this.sgcF10DocsFisicosSubiendo = false;
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo subir',
+            text: err?.error?.message || 'Revisa el archivo e inténtalo de nuevo.',
+            confirmButtonText: 'Entendido'
+          });
+        }
+      });
+  }
+
+  consultarDocumentoFisicoSgcF10(doc: SgcF02DocFisico): void {
+    this.consultarDocumentoFisicoSgcF02(doc);
+  }
+
+  urlMiniaturaSgcF10(doc: SgcF02DocFisico, cacheBust = 0): string {
+    return this.urlMiniaturaSgcF02(doc, cacheBust);
+  }
+
+  miniaturaSgcF10Fallida(doc: SgcF02DocFisico): boolean {
+    return !!doc?.id && this.sgcF10MiniaturasError.has(doc.id);
+  }
+
+  onErrorMiniaturaSgcF10(doc: SgcF02DocFisico): void {
+    if (doc?.id) {
+      this.sgcF10MiniaturasError.add(doc.id);
+    }
+  }
+
+  etiquetaTipoSgcF10(doc: SgcF02DocFisico): string {
+    return this.etiquetaTipoSgcF02(doc);
+  }
+
+  eliminarDocumentoFisicoSgcF10(doc: SgcF02DocFisico, event?: Event): void {
+    event?.stopPropagation();
+    if (!this.puedeGestionarPlantillasSgc || !doc?.id) {
+      return;
+    }
+    void Swal.fire({
+      icon: 'warning',
+      title: 'Eliminar documento',
+      text: `¿Eliminar «${doc.nombre}» de Documentos Físicos?`,
+      showCancelButton: true,
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c'
+    }).then((result) => {
+      if (!result.isConfirmed) {
+        return;
+      }
+      this.backendService.eliminarDocumentoFisicoSgcF10(doc.id)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.sgcF10DocsFisicos = Array.isArray(res?.archivos)
+              ? res.archivos
+              : this.sgcF10DocsFisicos.filter((a) => a.id !== doc.id);
+            if (this.sgcF02VisorDoc?.id === doc.id) {
+              this.cerrarVisorDocumentoFisicoSgcF02();
+            }
+          },
+          error: (err) => {
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo eliminar',
+              text: err?.error?.message || 'Inténtalo de nuevo.',
+              confirmButtonText: 'Entendido'
+            });
+          }
+        });
+    });
   }
 
   onSgcF10Editado(): void {
@@ -9100,6 +9366,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           this.sgcF10GuardandoHistorico = false;
           this.sgcDashboardCache.invalidar();
           this.aplicarEstadoSgcF10(res);
+          this.sgcF10Vista = 'archivero';
+          this.cargarDocumentosFisicosSgcF10();
           void Swal.fire({
             icon: 'success',
             title: 'Histórico guardado',
@@ -9163,11 +9431,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         id: Number(h?.id) || 0,
         auditoriaNo: String(h?.auditoriaNo || ''),
         fechasAuditoria: String(h?.fechasAuditoria || ''),
+        empresa: String(h?.empresa || ''),
+        ubicaciones: String(h?.ubicaciones || ''),
         totalHallazgos: Number(h?.totalHallazgos) || 0,
         totalNc: Number(h?.totalNc) || 0,
         totalOp: Number(h?.totalOp) || 0,
         driveFileId: h?.driveFileId || null,
-        editorUrl: h?.editorUrl || null
+        editorUrl: h?.editorUrl || null,
+        pdfDriveFileId: h?.pdfDriveFileId || null,
+        pdfDriveFileName: h?.pdfDriveFileName || null,
+        cerradoEn: h?.cerradoEn || null
       }));
     }
 
@@ -9180,6 +9453,27 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           fechaSubida: String(p?.fechaSubida || '').trim()
         })).filter((p: DgF02PdfFirmado) => !!p.driveFileId)
       : this.sgcF10HistorialPdfs;
+
+    if (this.sgcF10Historial.length && this.sgcF10HistorialPdfs.length) {
+      this.sgcF10Historial = this.sgcF10Historial.map((h) => {
+        if (h.pdfDriveFileId) {
+          return h;
+        }
+        const no = String(h.auditoriaNo || '').replace(/\D/g, '');
+        const pdf = this.sgcF10HistorialPdfs.find((p) => {
+          const m = String(p.nombreArchivo || '').match(/No\.?\s*0*(\d+)/i);
+          return m && String(Number(m[1])) === String(Number(no));
+        });
+        if (!pdf) {
+          return h;
+        }
+        return {
+          ...h,
+          pdfDriveFileId: pdf.driveFileId,
+          pdfDriveFileName: pdf.nombreArchivo
+        };
+      });
+    }
 
     this.sgcF10DriveFileId = res.driveFileId || this.sgcF10DriveFileId || null;
     this.sgcF10EditorUrl = res.editorUrl || this.sgcF10EditorUrl || null;

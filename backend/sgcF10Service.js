@@ -20,6 +20,10 @@ const GOOGLE_DOC_MIME = 'application/vnd.google-apps.document';
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const NOMBRE_DOC_SISTEMA = 'SGC-F-10 Informe de auditoría (sistema)';
 const NOMBRE_PDF_PREFIJO = 'SGC-F-10 Informe de auditoría';
+const NOMBRE_CARPETA_DOCS_FISICOS = 'Documentos Físicos';
+const MIME_DOCS_FISICOS = new Set(['application/pdf', 'image/jpeg']);
+const EXT_DOCS_FISICOS = new Set(['pdf', 'jpg', 'jpeg']);
+const MAX_DOC_FISICO_MB = 15;
 /** Carta horizontal · márgenes estrechos · tablas ajustadas al ancho útil. */
 const OPCIONES_PDF_HISTORICO = {
     size: 'letter',
@@ -30,6 +34,7 @@ const OPCIONES_PDF_HISTORICO = {
 };
 const MAX_HALLAZGOS = 40;
 const AUDITORIA_NO_ACTUAL = '3';
+let _carpetaDocsFisicosIdCache = null;
 
 function fechaHoyDisplayMx() {
     const d = new Date();
@@ -1770,6 +1775,125 @@ async function actualizarPlantillaDesdeSistema(pool) {
     return construirRespuesta(registroActualizado, datos);
 }
 
+function extensionArchivo(nombre) {
+    const partes = String(nombre || '').toLowerCase().split('.');
+    return partes.length > 1 ? partes.pop() : '';
+}
+
+function resolverMimeDocFisico(nombreArchivo, mimeEntrada) {
+    const mime = String(mimeEntrada || '').trim().toLowerCase();
+    if (mime === 'image/jpg') return 'image/jpeg';
+    if (MIME_DOCS_FISICOS.has(mime)) return mime;
+    const ext = extensionArchivo(nombreArchivo);
+    if (ext === 'pdf') return 'application/pdf';
+    if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+    return '';
+}
+
+function esMimeDocFisicoPermitido(nombreArchivo, mimeEntrada) {
+    const mime = resolverMimeDocFisico(nombreArchivo, mimeEntrada);
+    const ext = extensionArchivo(nombreArchivo);
+    return !!mime && EXT_DOCS_FISICOS.has(ext);
+}
+
+function mapearDocFisicoDrive(file) {
+    const mime = String(file?.mimeType || '').toLowerCase();
+    const nombre = String(file?.name || 'archivo');
+    const ext = extensionArchivo(nombre);
+    let tipo = 'otro';
+    if (mime === 'application/pdf' || ext === 'pdf') tipo = 'pdf';
+    else if (mime.startsWith('image/') || ext === 'jpg' || ext === 'jpeg') tipo = 'imagen';
+    return {
+        id: file.id,
+        nombre,
+        mimeType: file.mimeType || null,
+        size: file.size != null ? Number(file.size) : null,
+        modifiedTime: file.modifiedTime || null,
+        webViewLink: file.webViewLink || null,
+        webContentLink: file.webContentLink || null,
+        tipo
+    };
+}
+
+/**
+ * Carpeta «Documentos Físicos» hermana de Word/PDF históricos (padre de la carpeta PDF).
+ */
+async function obtenerCarpetaDocsFisicosId() {
+    if (_carpetaDocsFisicosIdCache) {
+        return _carpetaDocsFisicosIdCache;
+    }
+    const meta = await driveService.obtenerMetadatosArchivo(CARPETA_PDF_HISTORICO_ID);
+    const parentId = Array.isArray(meta?.parents) ? String(meta.parents[0] || '').trim() : '';
+    if (!parentId) {
+        throw new Error('No se pudo ubicar la carpeta padre de históricos SGC-F-10 en Drive.');
+    }
+    _carpetaDocsFisicosIdCache = await driveService.obtenerOCrearCarpeta(
+        NOMBRE_CARPETA_DOCS_FISICOS,
+        parentId
+    );
+    return _carpetaDocsFisicosIdCache;
+}
+
+async function listarDocumentosFisicos() {
+    const carpetaId = await obtenerCarpetaDocsFisicosId();
+    const archivos = await driveService.listarArchivosCarpeta(carpetaId);
+    return (archivos || [])
+        .filter((f) => esMimeDocFisicoPermitido(f.name, f.mimeType)
+            || String(f.mimeType || '').toLowerCase() === 'application/pdf'
+            || String(f.mimeType || '').toLowerCase().startsWith('image/jpeg'))
+        .map(mapearDocFisicoDrive)
+        .sort((a, b) => new Date(b.modifiedTime || 0) - new Date(a.modifiedTime || 0));
+}
+
+async function subirDocumentoFisico(buffer, nombreArchivo, mimeType) {
+    if (!Buffer.isBuffer(buffer) || !buffer.length) {
+        const err = new Error('Archivo vacío o inválido.');
+        err.status = 400;
+        throw err;
+    }
+    if (buffer.length > MAX_DOC_FISICO_MB * 1024 * 1024) {
+        const err = new Error(`El archivo supera el máximo de ${MAX_DOC_FISICO_MB} MB.`);
+        err.status = 400;
+        throw err;
+    }
+    const mime = resolverMimeDocFisico(nombreArchivo, mimeType);
+    if (!mime || !esMimeDocFisicoPermitido(nombreArchivo, mime)) {
+        const err = new Error('Solo se permiten archivos PDF, JPG o JPEG.');
+        err.status = 400;
+        throw err;
+    }
+    const seguro = String(nombreArchivo || 'documento')
+        .replace(/[/\\?%*:|"<>]/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 180) || 'documento';
+    const carpetaId = await obtenerCarpetaDocsFisicosId();
+    const subido = await driveService.subirArchivoNuevo(
+        buffer,
+        seguro,
+        mime,
+        carpetaId
+    );
+    return mapearDocFisicoDrive(subido);
+}
+
+async function eliminarDocumentoFisico(fileId) {
+    const id = String(fileId || '').trim();
+    if (!id) {
+        const err = new Error('Identificador de archivo requerido.');
+        err.status = 400;
+        throw err;
+    }
+    const lista = await listarDocumentosFisicos();
+    if (!lista.some((f) => f.id === id)) {
+        const err = new Error('El archivo no pertenece a Documentos Físicos de SGC-F-10.');
+        err.status = 403;
+        throw err;
+    }
+    await driveService.eliminarArchivo(id);
+    return { id };
+}
+
 module.exports = {
     CODIGO_FORMATO,
     DATOS_DEFECTO,
@@ -1777,11 +1901,16 @@ module.exports = {
     DRIVE_FILE_ID_SISTEMA,
     CARPETA_WORD_HISTORICO_ID,
     CARPETA_PDF_HISTORICO_ID,
+    NOMBRE_CARPETA_DOCS_FISICOS,
+    obtenerCarpetaDocsFisicosId,
     cargarFormato,
     guardarFormato,
     guardarHistorico,
     listarHistorial,
     listarPdfsHistorialDrive,
+    listarDocumentosFisicos,
+    subirDocumentoFisico,
+    eliminarDocumentoFisico,
     seedHistoricosPrecedentes,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,

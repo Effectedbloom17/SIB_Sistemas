@@ -28187,6 +28187,91 @@ app.post('/api/sgc/formatos/sgc-f-10/actualizar-plantilla', requireRole('root'),
     }
 });
 
+const uploadSgcF10DocsFisicos = multer({
+    storage: storageMemory,
+    limits: { fileSize: 15 * 1024 * 1024 },
+    fileFilter: function (req, file, cb) {
+        const mime = String(file.mimetype || '').toLowerCase();
+        const ext = path.extname(String(file.originalname || '')).toLowerCase();
+        const okMime = mime === 'application/pdf' || mime === 'image/jpeg' || mime === 'image/jpg';
+        const okExt = ['.pdf', '.jpg', '.jpeg'].includes(ext);
+        if (okMime || okExt) {
+            cb(null, true);
+        } else {
+            cb(new Error('Solo se permiten archivos PDF, JPG o JPEG'));
+        }
+    }
+});
+
+app.get('/api/sgc/formatos/sgc-f-10/documentos-fisicos', requireAdminOrSgc, async (req, res) => {
+    try {
+        const carpetaDriveId = await sgcF10Service.obtenerCarpetaDocsFisicosId();
+        const archivos = await sgcF10Service.listarDocumentosFisicos();
+        return res.json({
+            success: true,
+            carpetaDriveId,
+            archivos
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron listar los documentos físicos de SGC-F-10');
+    }
+});
+
+app.post(
+    '/api/sgc/formatos/sgc-f-10/documentos-fisicos',
+    requireAdminOrSgc,
+    (req, res, next) => {
+        uploadSgcF10DocsFisicos.array('archivos', 12)(req, res, (err) => {
+            if (err) {
+                return res.status(400).json({ success: false, message: err.message || 'Archivo no válido' });
+            }
+            return next();
+        });
+    },
+    async (req, res) => {
+        try {
+            const files = Array.isArray(req.files) ? req.files : [];
+            if (!files.length) {
+                return res.status(400).json({ success: false, message: 'Selecciona al menos un archivo PDF, JPG o JPEG.' });
+            }
+            const subidos = [];
+            for (const file of files) {
+                const item = await sgcF10Service.subirDocumentoFisico(
+                    file.buffer,
+                    file.originalname,
+                    file.mimetype
+                );
+                subidos.push(item);
+            }
+            const archivos = await sgcF10Service.listarDocumentosFisicos();
+            return res.json({
+                success: true,
+                message: subidos.length === 1
+                    ? 'Documento físico subido correctamente.'
+                    : `${subidos.length} documentos físicos subidos correctamente.`,
+                subidos,
+                archivos
+            });
+        } catch (error) {
+            handleError(res, error, 'No se pudieron subir los documentos físicos de SGC-F-10');
+        }
+    }
+);
+
+app.delete('/api/sgc/formatos/sgc-f-10/documentos-fisicos/:fileId', requireAdminOrSgc, async (req, res) => {
+    try {
+        await sgcF10Service.eliminarDocumentoFisico(req.params.fileId);
+        const archivos = await sgcF10Service.listarDocumentosFisicos();
+        return res.json({
+            success: true,
+            message: 'Documento físico eliminado.',
+            archivos
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo eliminar el documento físico de SGC-F-10');
+    }
+});
+
 app.get('/api/sgc/formatos/sgc-f-14', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;

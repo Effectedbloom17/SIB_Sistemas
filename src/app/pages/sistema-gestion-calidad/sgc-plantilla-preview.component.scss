@@ -6527,6 +6527,24 @@ $dg-f04-amenazas-head: #fae0e0;
   }
 }
 
+.sgc-f-10-archivero {
+  margin-bottom: 0.25rem;
+}
+
+.sgc-f-10-fisicos.sgc-f-02-fisicos {
+  margin-top: 1.35rem;
+}
+
+.sgc-f-04-book--vigente .sgc-f-04-book__page {
+  border-color: rgba(21, 165, 150, 0.35);
+  box-shadow: 0 8px 22px rgba(15, 118, 110, 0.12);
+}
+
+.sgc-f-04-book--vigente .sgc-f-04-book__estado:not(.sgc-f-04-book__estado--cerrado) {
+  background: rgba(21, 165, 150, 0.14);
+  color: #0f766e;
+}
+
 .sgc-f-10-pdf-historial-wrap.dg-f02-attach {
   display: block;
   width: 100%;
