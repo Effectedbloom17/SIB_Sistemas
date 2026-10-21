@@ -3240,7 +3240,12 @@ function warnImapIncompleto(tag, payload) {
     const last = imapConfigWarnAt.get(key) || 0;
     if (now - last < 5 * 60 * 1000) return;
     imapConfigWarnAt.set(key, now);
-    console.warn(tag, payload);
+    const motivo = Array.isArray(payload?.faltantes) && payload.faltantes.includes('pass')
+        ? 'sin contraseña IMAP'
+        : (Array.isArray(payload?.faltantes) && payload.faltantes.includes('host')
+            ? 'sin IMAP_HOST'
+            : 'config incompleta');
+    console.warn(`${tag}: ${payload?.correo || '?'} (${motivo})`);
 }
 
 async function obtenerContextoCorreoPerfil(req, res) {
@@ -3279,15 +3284,13 @@ async function obtenerContextoCorreoPerfil(req, res) {
         const faltantes = [];
         if (!configImap.host) faltantes.push('host');
         if (!configImap.pass) faltantes.push('pass');
-        warnImapIncompleto('[correo] Config IMAP incompleta', {
+        warnImapIncompleto('[correo] IMAP', {
             correo: correoPerfil,
-            faltantes,
-            hostSource: obtenerFuenteHostImap(correoPerfil) || 'sin_host',
-            passSource: obtenerFuentePasswordImap(correoPerfil) || 'sin_pass'
+            faltantes
         });
         res.status(503).json({
             success: false,
-            message: `Falta configurar el acceso IMAP para ${correoPerfil}`,
+            message: 'No se pudo leer el correo: permisos IMAP incompletos (IMAP_HOST / contraseña).',
             cuenta: correoPerfil
         });
         return null;
@@ -3316,15 +3319,13 @@ async function obtenerContextoCorreoEmpresa(req, res) {
         const faltantes = [];
         if (!configImap.host) faltantes.push('host');
         if (!configImap.pass) faltantes.push('pass');
-        warnImapIncompleto('[correo-empresa] Config IMAP incompleta', {
+        warnImapIncompleto('[correo-empresa] IMAP', {
             correo: correoPerfil,
-            faltantes,
-            hostSource: obtenerFuenteHostImap(correoPerfil) || 'sin_host',
-            passSource: obtenerFuentePasswordImap(correoPerfil) || 'sin_pass'
+            faltantes
         });
         res.status(503).json({
             success: false,
-            message: `Falta configurar el acceso IMAP para ${correoPerfil}`,
+            message: 'No se pudo leer el correo: permisos IMAP incompletos (IMAP_HOST / contraseña).',
             cuenta: correoPerfil
         });
         return null;
@@ -8382,7 +8383,7 @@ app.post('/api/cursos', async (req, res) => {
         const [result] = await pool.query(
             `INSERT INTO curso (nombre_curso, descripcion, objetivo, objetivos_especificos, expectativas, imagen, imagen_updated_at, area_id, horas, precio, cupo_maximo,
                                cupo_minimo, requisitos, temario, material_incluido, modalidad_default, certificacion, activo${fechaRegistro ? ', created_at' : ''})
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1${fechaRegistro ? ', ?' : ''})`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1${fechaRegistro ? ', ?' : ''})`,
             fechaRegistro
                 ? [nombre_curso, descripcionNormalizada || null, objetivoNormalizado || null, objetivosEspecificosJson, expectativasJson, imagenNormalizada, imagenUpdatedAt, area_id, horas || 8, precio || 0, cupo_maximo || 25,
                     cupo_minimo || 5, requisitos, temario, material_incluido, modalidad_default || 'presencial',
