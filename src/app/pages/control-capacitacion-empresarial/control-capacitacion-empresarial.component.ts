@@ -248,7 +248,7 @@ export class ControlCapacitacionEmpresarialComponent implements OnInit, OnDestro
     return !!(this.textoBusqueda || this.filtroEmpresa || this.filtroMes || this.filtroEstatus || this.filtroDescarga);
   }
 
-  private registroTieneDescarga(registro: RegistroControlCapacitacion): boolean {
+  registroTieneDescarga(registro: RegistroControlCapacitacion): boolean {
     const por = String(registro?.ultima_descarga_constancias_por || '').trim();
     const fecha = String(registro?.ultima_descarga_constancias_fecha || '').trim();
     return !!(por || fecha);

@@ -15,7 +15,7 @@ import {
   ApexTooltip
 } from 'ng-apexcharts';
 import { firstValueFrom, Subscription } from 'rxjs';
-import { parsearFechaSoloDia } from 'src/app/utils/fecha.util';
+import { formatearFechaHoraDescargaMexico, parsearFechaSoloDia } from 'src/app/utils/fecha.util';
 import { lanzarImpresionEnSistema } from 'src/app/utils/in-app-print.util';
 import { PdfPreviewLoaderService } from 'src/app/services/pdf-preview-loader.service';
 
@@ -2215,6 +2215,11 @@ export class InformacionGeneralComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const confirmar = await this.confirmarDescargaSiYaExisteHistorial(curso.programado_id);
+    if (!confirmar) {
+      return;
+    }
+
     this.descargandoZipIndividuales = true;
     const totalEstimado = tipo === 'ambos'
       ? (constancias.length + dc3.length)
@@ -2323,6 +2328,7 @@ export class InformacionGeneralComponent implements OnInit, OnDestroy {
       };
 
       this.descargarDesdeBlob(zipBlob, nombresZip[tipo]);
+      await this.registrarHistorialDescargaZipIndividuales(curso.programado_id, tipo, entradas.length);
       Swal.close();
 
       if (fallidos > 0) {
@@ -2343,6 +2349,77 @@ export class InformacionGeneralComponent implements OnInit, OnDestroy {
       });
     } finally {
       this.descargandoZipIndividuales = false;
+    }
+  }
+
+  private async confirmarDescargaSiYaExisteHistorial(programadoId: number): Promise<boolean> {
+    const id = Number(programadoId || 0);
+    if (!id) {
+      return true;
+    }
+
+    try {
+      const res: any = await firstValueFrom(
+        this.backendService.obtenerHistorialDescargaConstanciasDc3(id)
+      );
+      const data = res?.data || {};
+      const por = String(data?.ultima_descarga_constancias_por || '').trim();
+      const fecha = String(data?.ultima_descarga_constancias_fecha || '').trim();
+      if (!data?.tiene_descarga && !por && !fecha) {
+        return true;
+      }
+
+      const fechaFmt = formatearFechaHoraDescargaMexico(fecha || null);
+      const resultado = await Swal.fire({
+        icon: 'warning',
+        title: 'Documentos ya descargados',
+        html: `
+          <p style="margin:0 0 10px;color:#374151;font-size:0.95rem;">
+            Esta capacitación ya tiene un registro en el Historial de Descargas.
+          </p>
+          <p style="margin:0;color:#4b5563;font-size:0.9rem;text-align:left;">
+            <strong>Última descarga por:</strong> ${por || 'Sin registro'}<br>
+            <strong>Fecha y hora:</strong> ${fechaFmt}
+          </p>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Descargar nuevamente',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#38512F',
+        cancelButtonColor: '#6b7280',
+        reverseButtons: true,
+        focusCancel: true
+      });
+      return !!resultado.isConfirmed;
+    } catch (err: any) {
+      console.warn(
+        '[Historial] No se pudo consultar descarga previa:',
+        err?.error?.message || err?.message || err
+      );
+      return true;
+    }
+  }
+
+  private async registrarHistorialDescargaZipIndividuales(
+    programadoId: number,
+    tipo: 'constancias' | 'dc3' | 'ambos',
+    totalArchivos: number
+  ): Promise<void> {
+    const id = Number(programadoId || 0);
+    if (!id) {
+      return;
+    }
+
+    try {
+      await firstValueFrom(this.backendService.registrarDescargaConstanciasDc3(id, {
+        origen: `informacion_general_zip_${tipo}`,
+        detalle: `archivos:${totalArchivos}`
+      }));
+    } catch (err: any) {
+      console.warn(
+        '[Historial] No se pudo registrar descarga ZIP individuales:',
+        err?.error?.message || err?.message || err
+      );
     }
   }
 

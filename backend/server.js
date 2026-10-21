@@ -16193,6 +16193,57 @@ app.post('/api/cursos-programados/:programadoId/registrar-descarga-constancias-d
     }
 });
 
+app.get('/api/cursos-programados/:programadoId/historial-descarga-constancias-dc3', async (req, res) => {
+    try {
+        const programadoId = Number(req.params.programadoId || 0);
+        if (!programadoId) {
+            return res.status(400).json({
+                success: false,
+                message: 'programado_id inválido'
+            });
+        }
+
+        await asegurarColumnasHistorialDescargasCursoProgramado(pool);
+
+        const [rows] = await pool.query(
+            `SELECT programado_id,
+                    ultima_descarga_constancias_por,
+                    DATE_FORMAT(ultima_descarga_constancias_fecha, '%Y-%m-%d %H:%i:%s') AS ultima_descarga_constancias_fecha
+             FROM curso_programado
+             WHERE programado_id = ?
+             LIMIT 1`,
+            [programadoId]
+        );
+
+        if (!rows?.length) {
+            return res.status(404).json({
+                success: false,
+                message: 'Curso programado no encontrado'
+            });
+        }
+
+        const row = rows[0];
+        return res.json({
+            success: true,
+            data: {
+                programado_id: Number(row.programado_id),
+                ultima_descarga_constancias_por: row.ultima_descarga_constancias_por || null,
+                ultima_descarga_constancias_fecha: row.ultima_descarga_constancias_fecha || null,
+                tiene_descarga: Boolean(
+                    String(row.ultima_descarga_constancias_por || '').trim() ||
+                    String(row.ultima_descarga_constancias_fecha || '').trim()
+                )
+            }
+        });
+    } catch (error) {
+        console.error('[ERROR] historial-descarga-constancias-dc3:', error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'No se pudo consultar el historial de descarga.'
+        });
+    }
+});
+
 app.get('/api/cursos-programados/:programadoId/dc3-combinados-pdf', async (req, res) => {
     try {
         const { programadoId } = req.params;

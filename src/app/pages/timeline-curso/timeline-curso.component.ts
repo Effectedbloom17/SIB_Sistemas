@@ -16,7 +16,8 @@ import JSZip from 'jszip';
 import { environment } from 'src/environments/environment';
 import {
   formatearFechaCursoCortoEs,
-  formatearFechaDdmmaaaa
+  formatearFechaDdmmaaaa,
+  formatearFechaHoraDescargaMexico
 } from 'src/app/utils/fecha.util';
 
 interface EmpleadoEmpresaDisponible {
@@ -9014,6 +9015,11 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const confirmar = await this.confirmarDescargaSiYaExisteHistorialPaso8();
+    if (!confirmar) {
+      return;
+    }
+
     // Intentar DC-3 si hay elegibles o si ya se generaron documentos en esta sesión.
     const descargarDc3 = this.totalDc3Paso8 > 0 || this.documentosGeneradosPaso8 || this.isPasoCompletado(8);
     const totalArchivos = cursosSeleccionados.length * (descargarDc3 ? 2 : 1);
@@ -9140,6 +9146,53 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
       });
     } finally {
       this.descargandoZipPaso8 = false;
+    }
+  }
+
+  private async confirmarDescargaSiYaExisteHistorialPaso8(): Promise<boolean> {
+    if (!this.cursoId) {
+      return true;
+    }
+
+    try {
+      const res: any = await firstValueFrom(
+        this.backendServices.obtenerHistorialDescargaConstanciasDc3(this.cursoId)
+      );
+      const data = res?.data || {};
+      const por = String(data?.ultima_descarga_constancias_por || '').trim();
+      const fecha = String(data?.ultima_descarga_constancias_fecha || '').trim();
+      if (!data?.tiene_descarga && !por && !fecha) {
+        return true;
+      }
+
+      const fechaFmt = formatearFechaHoraDescargaMexico(fecha || null);
+      const resultado = await Swal.fire({
+        icon: 'warning',
+        title: 'Documentos ya descargados',
+        html: `
+          <p style="margin:0 0 10px;color:#374151;font-size:0.95rem;">
+            Esta capacitación ya tiene un registro en el Historial de Descargas.
+          </p>
+          <p style="margin:0;color:#4b5563;font-size:0.9rem;text-align:left;">
+            <strong>Última descarga por:</strong> ${por || 'Sin registro'}<br>
+            <strong>Fecha y hora:</strong> ${fechaFmt}
+          </p>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Descargar nuevamente',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#38512F',
+        cancelButtonColor: '#6b7280',
+        reverseButtons: true,
+        focusCancel: true
+      });
+      return !!resultado.isConfirmed;
+    } catch (err: any) {
+      console.warn(
+        '[Paso8] No se pudo consultar descarga previa:',
+        err?.error?.message || err?.message || err
+      );
+      return true;
     }
   }
 

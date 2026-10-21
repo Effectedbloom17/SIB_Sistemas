@@ -396,10 +396,18 @@
 
             <div class="cac-form__actions">
               <div class="cac-form__btns">
-                <button type="button" class="cac-btn-ghost" (click)="cancelarFormulario()">Cancelar</button>
-                <button type="button" class="cac-btn-primary" (click)="guardarCurso()">
-                  <i class="fas fa-save"></i>
-                  {{ modoEdicion ? 'Actualizar' : 'Guardar curso' }}
+                <button type="button"
+                        class="cac-btn-ghost"
+                        (click)="cancelarFormulario()"
+                        [disabled]="guardandoCurso">
+                  Cancelar
+                </button>
+                <button type="button"
+                        class="cac-btn-primary"
+                        (click)="guardarCurso()"
+                        [disabled]="guardandoCurso">
+                  <i class="fas" [ngClass]="guardandoCurso ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                  {{ guardandoCurso ? 'Guardando...' : (modoEdicion ? 'Actualizar' : 'Guardar curso') }}
                 </button>
               </div>
             </div>

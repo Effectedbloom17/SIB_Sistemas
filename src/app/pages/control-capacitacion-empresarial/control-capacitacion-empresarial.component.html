@@ -173,6 +173,7 @@
                   <th class="col-fecha">Fecha</th>
                   <th class="col-instructor">Instructor</th>
                   <th class="col-estatus">Estatus</th>
+                  <th class="col-descarga" title="Historial de descargas">Descarga</th>
                 </tr>
               </thead>
               <tbody>
@@ -189,6 +190,14 @@
                   <td class="text-center col-estatus">
                     <span class="estatus-badge" [ngClass]="claseEstatus(row.estatus_acreditaciones)">
                       {{ row.estatus_acreditaciones }}
+                    </span>
+                  </td>
+                  <td class="text-center col-descarga">
+                    <span
+                      *ngIf="registroTieneDescarga(row)"
+                      class="descarga-indicator"
+                      title="Documentos ya descargados — clic para ver historial">
+                      <i class="fas fa-download" aria-hidden="true"></i>
                     </span>
                   </td>
                 </tr>

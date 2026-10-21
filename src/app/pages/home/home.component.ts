@@ -54,6 +54,9 @@ export class HomeComponent implements OnInit, OnDestroy {
   imagenCursoFile: File | null = null;
   imagenPreviewTemporal: string = '';
   objetivosEspecificos: { texto: string }[] = [];
+  guardandoCurso = false;
+  private progresoGuardadoPct = 0;
+  private progresoGuardadoTimer: ReturnType<typeof setInterval> | null = null;
 
   // Mapeo de slugs a imágenes de fondo
   private imagenesArea: { [slug: string]: string } = {
@@ -88,6 +91,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.detenerProgresoGuardadoSimulado();
     this.restaurarScrollBody();
   }
 
@@ -457,30 +461,91 @@ export class HomeComponent implements OnInit, OnDestroy {
     }
   }
 
+  private abrirProgresoGuardadoCurso(titulo: string, subtitulo: string): void {
+    this.progresoGuardadoPct = 0;
+    Swal.fire({
+      title: titulo,
+      html: `
+        <p id="curso-progress-msg" style="margin-bottom: 0.65rem; color: #475569; font-size: 0.92rem;">${subtitulo}</p>
+        <div style="width: 100%; background: #e2e8f0; border-radius: 999px; overflow: hidden; height: 12px;">
+          <div id="curso-progress-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #38512F 0%, #6d8a67 100%); transition: width 0.25s ease;"></div>
+        </div>
+        <p id="curso-progress-text" style="margin-top: 0.6rem; margin-bottom: 0; font-weight: 700; color: #38512F;">0%</p>
+      `,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      customClass: { popup: 'swal2-fm-alert swal2-fm-alert--cac' }
+    });
+  }
+
+  private actualizarProgresoGuardadoCurso(porcentaje: number, mensaje?: string): void {
+    this.progresoGuardadoPct = Math.max(this.progresoGuardadoPct, Math.max(0, Math.min(100, Math.round(porcentaje))));
+    const fill = document.getElementById('curso-progress-fill');
+    const texto = document.getElementById('curso-progress-text');
+    const msg = document.getElementById('curso-progress-msg');
+    if (fill) fill.style.width = `${this.progresoGuardadoPct}%`;
+    if (texto) texto.textContent = `${this.progresoGuardadoPct}%`;
+    if (mensaje && msg) msg.textContent = mensaje;
+  }
+
+  private iniciarProgresoGuardadoSimulado(hasta: number): void {
+    this.detenerProgresoGuardadoSimulado();
+    this.progresoGuardadoTimer = setInterval(() => {
+      if (this.progresoGuardadoPct >= hasta) {
+        this.detenerProgresoGuardadoSimulado();
+        return;
+      }
+      this.actualizarProgresoGuardadoCurso(this.progresoGuardadoPct + 2);
+    }, 220);
+  }
+
+  private detenerProgresoGuardadoSimulado(): void {
+    if (this.progresoGuardadoTimer) {
+      clearInterval(this.progresoGuardadoTimer);
+      this.progresoGuardadoTimer = null;
+    }
+  }
+
+  private cerrarProgresoGuardadoCurso(): void {
+    this.detenerProgresoGuardadoSimulado();
+    this.guardandoCurso = false;
+    this.progresoGuardadoPct = 0;
+  }
+
   private guardarConImagenOpcional(cursoId: number, titulo: string, texto: string) {
     if (!Number.isFinite(cursoId) || cursoId <= 0) {
+      this.cerrarProgresoGuardadoCurso();
       Swal.fire('Error', 'No se pudo identificar el curso para subir su imagen', 'error');
       return;
     }
 
     if (!this.imagenCursoFile) {
+      this.actualizarProgresoGuardadoCurso(100, 'Finalizando...');
       this.finalizarGuardado(titulo, texto);
       return;
     }
+
+    this.detenerProgresoGuardadoSimulado();
+    this.actualizarProgresoGuardadoCurso(78, 'Subiendo imagen del curso...');
+    this.iniciarProgresoGuardadoSimulado(92);
 
     const formData = new FormData();
     formData.append('imagen', this.imagenCursoFile);
 
     this.backendService.subirImagenCurso(cursoId, formData).subscribe(
       (response: any) => {
+        this.detenerProgresoGuardadoSimulado();
         const imagenActualizada = response?.imagen || this.cursoForm.imagen || '';
         const imagenUpdatedAt = response?.imagen_updated_at || new Date().toISOString();
         this.actualizarImagenCursoLocal(cursoId, imagenActualizada, imagenUpdatedAt);
+        this.actualizarProgresoGuardadoCurso(100, 'Finalizando...');
         this.finalizarGuardado(titulo, texto);
       },
       (error) => {
         console.error('Error al subir imagen:', error);
         const mensaje = error.error?.message || 'El curso se guardó, pero la imagen no pudo actualizarse';
+        this.cerrarProgresoGuardadoCurso();
         Swal.fire('Curso guardado con advertencia', mensaje, 'warning');
         this.cargarCursos();
         this.cargarCursosParaBusqueda();
@@ -490,11 +555,13 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   private finalizarGuardado(titulo: string, texto: string) {
+    this.cerrarProgresoGuardadoCurso();
     Swal.fire({
       title: titulo,
       text: texto,
       icon: 'success',
-      confirmButtonColor: '#38512F'
+      confirmButtonColor: '#38512F',
+      customClass: { popup: 'swal2-fm-alert swal2-fm-alert--cac' }
     });
     this.cargarCursos();
     this.cargarCursosParaBusqueda();
@@ -528,6 +595,8 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   // Guardar curso (crear o actualizar)
   guardarCurso() {
+    if (this.guardandoCurso) return;
+
     // Validaciones
     if (!this.cursoForm.nombre_curso || !this.cursoForm.nombre_curso.trim()) {
       Swal.fire('Error', 'El nombre del curso es requerido', 'warning');
@@ -566,19 +635,33 @@ export class HomeComponent implements OnInit, OnDestroy {
       payload.created_at = fechaRegistro;
     }
 
-    if (this.modoEdicion) {
-      // Actualizar
+    const esEdicion = this.modoEdicion;
+    this.guardandoCurso = true;
+    this.abrirProgresoGuardadoCurso(
+      esEdicion ? 'Actualizando curso' : 'Creando curso',
+      esEdicion
+        ? 'Guardando cambios en el catálogo...'
+        : 'Registrando curso y creando carpeta en Drive...'
+    );
+    this.actualizarProgresoGuardadoCurso(8, esEdicion ? 'Enviando actualización...' : 'Enviando datos...');
+    this.iniciarProgresoGuardadoSimulado(58);
+
+    if (esEdicion) {
       this.backendService.actualizarCurso(payload).subscribe(
         (response: any) => {
+          this.detenerProgresoGuardadoSimulado();
           if (response.success) {
+            this.actualizarProgresoGuardadoCurso(68, 'Curso actualizado. Preparando imagen...');
             this.guardarConImagenOpcional(payload.curso_id, 'Actualizado', 'Curso actualizado exitosamente');
           } else {
+            this.cerrarProgresoGuardadoCurso();
             Swal.fire('Error', response.message || 'No se pudo actualizar', 'error');
           }
         },
         (error) => {
           console.error('Error al actualizar:', error);
           const mensaje = error.error?.message || error.message || 'Error de conexión con el servidor';
+          this.cerrarProgresoGuardadoCurso();
           Swal.fire({
             title: 'Error al Actualizar',
             text: mensaje,
@@ -587,19 +670,22 @@ export class HomeComponent implements OnInit, OnDestroy {
         }
       );
     } else {
-      // Crear nuevo
       this.backendService.crearCurso(payload).subscribe(
         (response: any) => {
+          this.detenerProgresoGuardadoSimulado();
           if (response.success) {
             const nuevoCursoId = Number(response.curso_id);
+            this.actualizarProgresoGuardadoCurso(68, 'Curso registrado. Preparando imagen...');
             this.guardarConImagenOpcional(nuevoCursoId, 'Guardado', 'Curso creado exitosamente');
           } else {
+            this.cerrarProgresoGuardadoCurso();
             Swal.fire('Error', response.message || 'No se pudo crear', 'error');
           }
         },
         (error) => {
           console.error('Error al crear:', error);
           const mensaje = error.error?.message || error.message || 'Error de conexión con el servidor';
+          this.cerrarProgresoGuardadoCurso();
           Swal.fire({
             title: 'Error al Crear Curso',
             text: mensaje,
@@ -754,6 +840,7 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   // Cancelar formulario
   cancelarFormulario() {
+    if (this.guardandoCurso) return;
     this.mostrarModalEdicionCurso = false;
     this.mostrarFormulario = false;
     this.cursoEnEdicionId = null;

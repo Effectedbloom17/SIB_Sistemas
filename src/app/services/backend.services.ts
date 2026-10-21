@@ -1267,6 +1267,12 @@ export class BackendServices {
         );
     }
 
+    obtenerHistorialDescargaConstanciasDc3(programadoId: number): Observable<any> {
+        return this.httpClient.get(
+            `${this.baseUrl}/cursos-programados/${programadoId}/historial-descarga-constancias-dc3`
+        );
+    }
+
     diagnosticarConstanciasDc3(programadoId: number): Observable<any> {
         return this.httpClient.get(
             `${this.baseUrl}/cursos-programados/${programadoId}/constancias-dc3/diagnostico`
