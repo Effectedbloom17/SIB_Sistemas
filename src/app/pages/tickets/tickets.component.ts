@@ -41,7 +41,9 @@ export class TicketsComponent implements OnInit, OnDestroy {
   filtroEstado: FiltroEstado = '';
   busqueda = '';
   vistaPeriodo: 'semana' | 'mes' = 'mes';
-  periodoSeleccionado = '';
+  periodoSeleccionado = 'todos';
+  periodoMenuAbierto = false;
+  periodoMenuPos: { top: number; left: number; width: number } | null = null;
   expandidoId: number | null = null;
   seleccionadoId: number | null = null;
   actualizandoId: number | null = null;
@@ -337,27 +339,53 @@ export class TicketsComponent implements OnInit, OnDestroy {
     return this.ticketsFiltrados.find((t) => t.ticket_id === this.expandidoId) || null;
   }
 
-  get opcionesPeriodo(): Array<{ valor: string; etiqueta: string }> {
+  get opcionesPeriodo(): Array<{ valor: string; etiqueta: string; nombre: string; anio: string }> {
+    if (this.vistaPeriodo === 'mes') {
+      const vistos = new Set<string>();
+      for (const ticket of this.ticketsFiltrados) {
+        const clave = this.clavePeriodo(ticket.created_at);
+        if (clave) vistos.add(clave);
+      }
+      const meses = [...vistos]
+        .sort((a, b) => {
+          const [anioA, mesA] = a.split('-').map(Number);
+          const [anioB, mesB] = b.split('-').map(Number);
+          return anioA - anioB || mesA - mesB;
+        })
+        .map((valor) => {
+          const partes = this.partesMes(valor);
+          return { valor, etiqueta: `${partes.nombre} ${partes.anio}`, nombre: partes.nombre, anio: partes.anio };
+        });
+      return [{ valor: 'todos', etiqueta: 'Todos los meses', nombre: 'Todos los meses', anio: '' }, ...meses];
+    }
     const vistos = new Map<string, number>();
-    for (const ticket of this.ticketsFiltrados) {
+    for (const ticket of this.ticketsConEstatus) {
       const clave = this.clavePeriodo(ticket.created_at);
       if (!clave) continue;
       const tiempo = new Date(ticket.created_at).getTime();
       const previo = vistos.get(clave);
       if (previo == null || tiempo > previo) vistos.set(clave, tiempo);
     }
-    return [...vistos.entries()]
+    const semanas = [...vistos.entries()]
       .sort((a, b) => b[1] - a[1])
-      .map(([valor]) => ({
-        valor,
-        etiqueta: this.vistaPeriodo === 'mes' ? this.etiquetaMesClave(valor) : this.etiquetaSemanaClave(valor)
-      }));
+      .map(([valor]) => {
+        const etiqueta = this.etiquetaSemanaClave(valor);
+        return { valor, etiqueta, nombre: etiqueta, anio: '' };
+      });
+    return [{ valor: 'todos', etiqueta: 'Todas las semanas', nombre: 'Todas las semanas', anio: '' }, ...semanas];
+  }
+
+  get opcionPeriodoActiva(): { valor: string; etiqueta: string; nombre: string; anio: string } {
+    const valor = this.periodoSeleccionado || 'todos';
+    return this.opcionesPeriodo.find((op) => op.valor === valor)
+      || this.opcionesPeriodo[0]
+      || { valor: 'todos', etiqueta: 'Todos los meses', nombre: 'Todos los meses', anio: '' };
   }
 
   get periodoActivo(): string {
-    const opciones = this.opcionesPeriodo;
-    if (opciones.some((op) => op.valor === this.periodoSeleccionado)) return this.periodoSeleccionado;
-    return opciones[0]?.valor || '';
+    if (!this.periodoSeleccionado || this.periodoSeleccionado === 'todos') return '';
+    if (this.opcionesPeriodo.some((op) => op.valor === this.periodoSeleccionado)) return this.periodoSeleccionado;
+    return '';
   }
 
   readonly columnasTicketsBase: Array<{ id: 'abierto' | 'en_progreso' | 'cerrado'; titulo: string }> = [
@@ -380,20 +408,62 @@ export class TicketsComponent implements OnInit, OnDestroy {
     return lista.filter((ticket) => this.avisoPrioridad(ticket)?.nivel === 'vencido');
   }
 
+  /** Tickets del estatus activo, sin recortar por mes. En Todos son todos los de la búsqueda. */
+  private get ticketsConEstatus(): TicketItem[] {
+    if (!this.filtroEstado) return this.ticketsFiltrados;
+    if (this.filtroEstado === 'vencidos') {
+      return this.ticketsFiltrados.filter((ticket) => (
+        ticket.estado !== 'cerrado' && this.avisoPrioridad(ticket)?.nivel === 'vencido'
+      ));
+    }
+    return this.ticketsFiltrados.filter((ticket) => ticket.estado === this.filtroEstado);
+  }
+
   get ticketsVisibles(): TicketItem[] {
     const periodo = this.periodoActivo;
-    const lista = this.ticketsFiltrados.filter((ticket) => !periodo || this.clavePeriodo(ticket.created_at) === periodo);
+    const lista = periodo
+      ? this.ticketsConEstatus.filter((ticket) => this.clavePeriodo(ticket.created_at) === periodo)
+      : this.ticketsConEstatus.slice();
     return lista.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
-  elegirPeriodo(valor: string): void {
-    this.periodoSeleccionado = valor;
+  elegirPeriodo(valor: string, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.periodoSeleccionado = valor || 'todos';
     this.expandidoId = null;
+    setTimeout(() => this.cerrarMenuPeriodo());
+  }
+
+  alternarMenuPeriodo(event: Event): void {
+    event.stopPropagation();
+    this.cerrarMenuEstatus();
+    if (this.periodoMenuAbierto) {
+      this.cerrarMenuPeriodo();
+      return;
+    }
+    const btn = event.currentTarget as HTMLElement;
+    const rect = btn.getBoundingClientRect();
+    const ancho = Math.max(rect.width, 220);
+    const margen = 8;
+    let left = rect.right - ancho;
+    if (left < margen) left = margen;
+    if (left + ancho > window.innerWidth - margen) {
+      left = Math.max(margen, window.innerWidth - ancho - margen);
+    }
+    this.periodoMenuPos = { top: rect.bottom + 6, left, width: ancho };
+    this.periodoMenuAbierto = true;
+  }
+
+  cerrarMenuPeriodo(): void {
+    this.periodoMenuAbierto = false;
+    this.periodoMenuPos = null;
   }
 
   alternarPeriodo(): void {
     this.vistaPeriodo = this.vistaPeriodo === 'semana' ? 'mes' : 'semana';
-    this.periodoSeleccionado = '';
+    this.periodoSeleccionado = 'todos';
+    this.cerrarMenuPeriodo();
     this.expandidoId = null;
   }
 
@@ -435,10 +505,12 @@ export class TicketsComponent implements OnInit, OnDestroy {
   cambiarFiltroEstado(estado: FiltroEstado): void {
     if (this.filtroEstado === estado) return;
     this.filtroEstado = estado;
+    if (!estado) this.periodoSeleccionado = 'todos';
     this.paginaActual = 1;
     this.expandidoId = null;
     this.seleccionadoId = null;
     this.cerrarMenuEstatus();
+    this.cerrarMenuPeriodo();
   }
 
   onBusquedaChange(): void {
@@ -526,14 +598,17 @@ export class TicketsComponent implements OnInit, OnDestroy {
     this.estatusMenuPos = null;
   }
 
-  @HostListener('document:click')
-  cerrarMenuEstatusPorFuera(): void {
-    if (this.estatusMenuId != null) this.cerrarMenuEstatus();
+  @HostListener('document:click', ['$event'])
+  cerrarMenuEstatusPorFuera(event: MouseEvent): void {
+    const el = event.target as HTMLElement | null;
+    if (this.estatusMenuId != null && !el?.closest('.tk-status')) this.cerrarMenuEstatus();
+    if (this.periodoMenuAbierto && !el?.closest('.tk-period-menu')) this.cerrarMenuPeriodo();
   }
 
   @HostListener('document:keydown.escape')
   cerrarMenuEstatusConEscape(): void {
     if (this.estatusMenuId != null) this.cerrarMenuEstatus();
+    if (this.periodoMenuAbierto) this.cerrarMenuPeriodo();
   }
 
   onPrioridadChange(ticket: TicketItem, event: Event): void {
@@ -623,16 +698,12 @@ export class TicketsComponent implements OnInit, OnDestroy {
     return new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate() - (dia === 0 ? 6 : dia - 1));
   }
 
-  private etiquetaMesClave(clave: string): string {
+  private partesMes(clave: string): { nombre: string; anio: string } {
     const [anio, mes] = clave.split('-').map(Number);
     const fecha = new Date(anio, mes, 1);
     const texto = fecha.toLocaleDateString('es-MX', { month: 'long' });
-    const mismoMesOtroAnio = this.ticketsFiltrados.some((ticket) => {
-      const otra = this.clavePeriodo(ticket.created_at);
-      return !!otra && otra !== clave && otra.endsWith(`-${mes}`);
-    });
     const nombre = texto.charAt(0).toUpperCase() + texto.slice(1);
-    return mismoMesOtroAnio ? `${nombre} ${anio}` : nombre;
+    return { nombre, anio: String(anio) };
   }
 
   private etiquetaSemanaClave(clave: string): string {

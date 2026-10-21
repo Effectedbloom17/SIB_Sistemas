@@ -248,12 +248,28 @@
                 <i class="fas fa-calendar-alt" aria-hidden="true"></i>
                 {{ vistaPeriodo === 'semana' ? 'Ver por semana' : 'Ver por mes' }}
               </button>
-              <select class="tk-period-select" *ngIf="opcionesPeriodo.length"
-                [ngModel]="periodoActivo"
-                (ngModelChange)="elegirPeriodo($event)"
-                [attr.aria-label]="vistaPeriodo === 'mes' ? 'Mes' : 'Semana'">
-                <option *ngFor="let op of opcionesPeriodo" [value]="op.valor">{{ op.etiqueta }}</option>
-              </select>
+              <div class="tk-period-menu" *ngIf="opcionesPeriodo.length">
+                <button type="button" class="tk-period-select" (click)="alternarMenuPeriodo($event)"
+                  [attr.aria-expanded]="periodoMenuAbierto"
+                  [attr.aria-label]="vistaPeriodo === 'mes' ? 'Mes' : 'Semana'">
+                  <span class="tk-period-select__nombre">{{ opcionPeriodoActiva.nombre }}</span>
+                  <span class="tk-period-select__anio" *ngIf="opcionPeriodoActiva.anio">({{ opcionPeriodoActiva.anio }})</span>
+                </button>
+                <div class="tk-period-list" *ngIf="periodoMenuAbierto && periodoMenuPos" role="listbox"
+                  [style.top.px]="periodoMenuPos.top"
+                  [style.left.px]="periodoMenuPos.left"
+                  [style.width.px]="periodoMenuPos.width"
+                  (click)="$event.stopPropagation()">
+                  <button type="button" class="tk-period-opt" *ngFor="let op of opcionesPeriodo"
+                    role="option"
+                    [attr.aria-selected]="(periodoSeleccionado || 'todos') === op.valor"
+                    [class.is-current]="(periodoSeleccionado || 'todos') === op.valor"
+                    (mousedown)="elegirPeriodo(op.valor, $event)">
+                    <span class="tk-period-opt__nombre">{{ op.nombre }}</span>
+                    <span class="tk-period-opt__anio" *ngIf="op.anio">({{ op.anio }})</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div class="tk-empty" *ngIf="!tickets.length">
@@ -270,8 +286,9 @@
 
             <div class="tk-empty" *ngIf="ticketsFiltrados.length && !ticketsVisibles.length">
               <div class="tk-empty-icon"><i class="fas fa-calendar-alt"></i></div>
-              <h2>Sin tickets en este periodo</h2>
-              <p>Elige otro {{ vistaPeriodo === 'mes' ? 'mes' : 'semana' }}.</p>
+              <h2>{{ periodoActivo ? 'Sin tickets en este periodo' : 'Sin tickets en este filtro' }}</h2>
+              <p *ngIf="periodoActivo">Elige otro {{ vistaPeriodo === 'mes' ? 'mes' : 'semana' }}.</p>
+              <p *ngIf="!periodoActivo">No hay tickets con este estatus.</p>
             </div>
 
             <p class="tk-row-error" *ngIf="errorEstado">{{ errorEstado }}</p>
