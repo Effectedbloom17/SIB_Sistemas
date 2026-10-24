@@ -3,6 +3,13 @@
 <div class="main-content" [class.sidebar-hidden]="!sidebarVisible || esDoctor" [class.doctor-theme]="esDoctor" [class.theme-pc]="esProteccionCivil" [class.theme-sgc]="esSistemaGestionCalidad" [class.theme-control-proyectos]="esControlProyectos" [class.theme-sensores]="esSensores" [class.theme-rrhh]="esRecursosHumanos" [class.theme-diseno-innovacion]="esDisenoInnovacion" [class.theme-mantenimiento]="esMantenimiento">
   <!-- Top navbar -->
   <app-navbar></app-navbar>
+  <div class="biz-offline-banner" *ngIf="sinConexion" role="status" aria-live="polite">
+    <i class="fas fa-wifi" aria-hidden="true"></i>
+    <div class="biz-offline-banner__text">
+      <strong>Trabajando sin conexión</strong>
+      <span>Tu avance se guarda en este dispositivo. Para sincronizar con el servidor vuelve a estar en línea y pulsa «Guardar información».</span>
+    </div>
+  </div>
   <!-- Pages -->
   <div class="page-content">
     <router-outlet></router-outlet>

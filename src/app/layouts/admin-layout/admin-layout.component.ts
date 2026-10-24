@@ -6,6 +6,7 @@ import { BackendServices } from 'src/app/services/backend.services';
 import { NotificacionesService } from 'src/app/services/notificaciones.service';
 import { HistorialPendientesService } from 'src/app/services/historial-pendientes.service';
 import { SgcDashboardCacheService } from 'src/app/services/sgc-dashboard-cache.service';
+import { ConnectivityService } from 'src/app/services/connectivity.service';
 import { Subject, interval } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
 
@@ -40,6 +41,8 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     estatus?: string;
   }> = [];
   avisoSaliendo = false;
+  /** Banner global: sin conexión a internet. */
+  sinConexion = false;
 
   private destroy$ = new Subject<void>();
   private avisoAccionPendiente: 'cerrar' | 'revisar' | null = null;
@@ -53,7 +56,8 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     private backendServices: BackendServices,
     private notificacionesService: NotificacionesService,
     private historialPendientes: HistorialPendientesService,
-    private sgcDashboardCache: SgcDashboardCacheService
+    private sgcDashboardCache: SgcDashboardCacheService,
+    private connectivity: ConnectivityService
   ) { }
 
   ngOnInit() {
@@ -85,6 +89,13 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
       .subscribe(() => {
         this.cargarNotificaciones();
         this.cargarAvisosCambio();
+      });
+
+    this.sinConexion = this.connectivity.isOffline;
+    this.connectivity.online$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((online) => {
+        this.sinConexion = !online;
       });
 
     // Precarga dashboard Centro SGC en idle mientras el usuario navega

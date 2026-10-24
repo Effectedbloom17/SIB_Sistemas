@@ -7,12 +7,22 @@ const { asegurarTablaSgcFormatoDatos, persistirRegistroSgc, obtenerRegistroSgcPe
 const excelHistorial = require('./sgcExcelHistorialService');
 
 const CODIGO_FORMATO = 'SGC-F-11';
-/** Libro de trabajo y plantilla en blanco: docs.google.com/spreadsheets/d/15iP8UalTLSW83DDuEmQEPZaAG3zao06zO51guKiR9_k */
-const ARCHIVO_TRABAJO_DRIVE_ID = '15iP8UalTLSW83DDuEmQEPZaAG3zao06zO51guKiR9_k';
-const TEMPLATE_DRIVE_ID = ARCHIVO_TRABAJO_DRIVE_ID;
+/**
+ * Plantilla maestra (solo estructura/diseño). El sistema la lee y copia; nunca escribe aquí.
+ * https://docs.google.com/spreadsheets/d/1mR9vTvMRJ_E0-416ujaCkDqg1hwPKpujZN0OQ8AseZE
+ */
+const TEMPLATE_DRIVE_ID = '1mR9vTvMRJ_E0-416ujaCkDqg1hwPKpujZN0OQ8AseZE';
+/**
+ * Archivo de trabajo Centro SGC (análisis del archivero + histograma).
+ * https://docs.google.com/spreadsheets/d/15iP8UalTLSW83DDuEmQEPZaAG3zao06zO51guKiR9_k
+ */
+const DRIVE_FILE_ID_SISTEMA = '15iP8UalTLSW83DDuEmQEPZaAG3zao06zO51guKiR9_k';
 const CARPETA_DRIVE_ID = '1v2IBrryAJg5fILPH602gm_CZhJNyia82';
-const NOMBRE_ARCHIVO_DRIVE = 'SGC-F-11 AMEF';
-const SHEET_TITLE = 'Plantilla';
+const NOMBRE_ARCHIVO_DRIVE = 'SGC-F-11 AMEF (sistema)';
+/** Nombre de la pestaña en el archivo plantilla externo. */
+const TEMPLATE_SHEET_TITLE = 'Plantilla';
+/** Fallback de resolución de hoja; el trabajo real usa pestañas por análisis. */
+const SHEET_TITLE = TEMPLATE_SHEET_TITLE;
 
 const HEADER_ROW = 10;
 const DATA_START_ROW = 11;
@@ -168,7 +178,11 @@ const DATOS_DEFECTO = {
 
 function normalizarSaltosLinea(texto) {
     return String(texto || '')
+        .replace(/\\r\\n/g, '\n')
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\n')
         .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
 }
@@ -323,12 +337,12 @@ function sanitizarAnalisis(raw) {
     });
     return {
         id: String(base.id || '').trim() || nuevoIdAnalisis(),
-        area: String(base.area || '').trim(),
-        departamento: String(base.departamento || '').trim(),
-        elaboro: String(base.elaboro || '').trim(),
+        area: normalizarSaltosLinea(base.area),
+        departamento: normalizarSaltosLinea(base.departamento),
+        elaboro: normalizarSaltosLinea(base.elaboro),
         fechaElaboracion: formatearFechaIso(base.fechaElaboracion) || '',
-        proceso: String(base.proceso || '').trim(),
-        equipoTrabajo: String(base.equipoTrabajo || '').trim(),
+        proceso: normalizarSaltosLinea(base.proceso),
+        equipoTrabajo: normalizarSaltosLinea(base.equipoTrabajo),
         edicionBloqueada: base.edicionBloqueada === true || base.edicionBloqueada === 1 || base.edicionBloqueada === '1',
         nombreHoja: sanitizarNombreHoja(base.nombreHoja || ''),
         filas
@@ -787,11 +801,22 @@ async function leerDatosRegistro(registro) {
     }
 }
 
+function esArchivoProtegidoDrive(fileId) {
+    const id = String(fileId || '').trim();
+    return !!id && (id === TEMPLATE_DRIVE_ID || id === DRIVE_FILE_ID_SISTEMA);
+}
+
 async function buscarArchivoDriveTrabajo() {
     const archivos = await driveService.listarArchivosCarpeta(CARPETA_DRIVE_ID);
-    const objetivo = NOMBRE_ARCHIVO_DRIVE.toLowerCase();
+    const objetivo = 'sgc-f-11 amef';
     return (archivos || [])
-        .filter((f) => String(f.name || '').toLowerCase().startsWith(objetivo))
+        .filter((f) => {
+            const id = String(f.id || '');
+            if (esArchivoProtegidoDrive(id) && id !== DRIVE_FILE_ID_SISTEMA) {
+                return false;
+            }
+            return String(f.name || '').toLowerCase().startsWith(objetivo);
+        })
         .sort((a, b) => new Date(b.modifiedTime || 0) - new Date(a.modifiedTime || 0))[0] || null;
 }
 
@@ -807,11 +832,14 @@ async function archivoEstaEnCarpeta(fileId, folderId) {
 
 async function eliminarCopiasDriveTrabajo(excluirId = null) {
     const archivos = await driveService.listarArchivosCarpeta(CARPETA_DRIVE_ID);
-    const objetivo = NOMBRE_ARCHIVO_DRIVE.toLowerCase();
+    const objetivo = 'sgc-f-11 amef';
     for (const archivo of (archivos || [])) {
         const id = String(archivo.id || '');
         const name = String(archivo.name || '').toLowerCase();
-        if (id && id !== excluirId && name.startsWith(objetivo)) {
+        if (!id || id === excluirId || esArchivoProtegidoDrive(id)) {
+            continue;
+        }
+        if (name.startsWith(objetivo)) {
             try {
                 await driveService.eliminarArchivo(id);
             } catch (err) {
@@ -821,9 +849,55 @@ async function eliminarCopiasDriveTrabajo(excluirId = null) {
     }
 }
 
-async function resolverDriveFileId(_registro) {
-    const existe = await driveService.verificarArchivoExiste(ARCHIVO_TRABAJO_DRIVE_ID);
-    return existe ? ARCHIVO_TRABAJO_DRIVE_ID : null;
+async function resolverDriveFileId(registro) {
+    if (DRIVE_FILE_ID_SISTEMA) {
+        const existeSistema = await driveService.verificarArchivoExiste(DRIVE_FILE_ID_SISTEMA);
+        if (existeSistema) {
+            return DRIVE_FILE_ID_SISTEMA;
+        }
+    }
+    const idDb = String(registro?.drive_file_id || '').trim() || null;
+    if (idDb && idDb !== TEMPLATE_DRIVE_ID) {
+        const existe = await driveService.verificarArchivoExiste(idDb);
+        if (existe) return idDb;
+    }
+    const enCarpeta = await buscarArchivoDriveTrabajo();
+    if (enCarpeta?.id && enCarpeta.id !== TEMPLATE_DRIVE_ID) {
+        return enCarpeta.id;
+    }
+    return DRIVE_FILE_ID_SISTEMA || null;
+}
+
+/**
+ * Copia la hoja «Plantilla» del archivo plantilla externo al archivo sistema.
+ */
+async function adoptarPlantillaEnSistema(spreadsheetId, tituloDestino = null) {
+    if (!spreadsheetId || spreadsheetId === TEMPLATE_DRIVE_ID) {
+        throw new Error('No se puede adoptar la plantilla sobre el archivo plantilla externo.');
+    }
+    const destino = String(tituloDestino || '').trim() || 'AMEF';
+    console.warn(
+        `[SGC-F-11] Copiando hoja «${TEMPLATE_SHEET_TITLE}» desde plantilla `
+        + `${TEMPLATE_DRIVE_ID} → sistema como «${destino}».`
+    );
+    const copiada = await driveService.copiarHojaEntreSpreadsheets(
+        TEMPLATE_DRIVE_ID,
+        TEMPLATE_SHEET_TITLE,
+        spreadsheetId,
+        destino
+    );
+    try {
+        await driveService.copiarAnchosColumnasGoogleSheet(
+            TEMPLATE_DRIVE_ID,
+            TEMPLATE_SHEET_TITLE,
+            spreadsheetId,
+            copiada.title,
+            MAX_COLUMNAS_SISTEMA
+        );
+    } catch (err) {
+        console.warn('[SGC-F-11] Anchos de columna desde plantilla:', err.message);
+    }
+    return copiada.title;
 }
 
 function formatearUltimaSyncDisplay(registro, archivoDrive) {
@@ -994,15 +1068,18 @@ function asignarNombresHojaAnalisis(analisis, mapaPrevio, titulosExistentes) {
 }
 
 async function sincronizarHojasAnalisisEnDrive(spreadsheetId, datos, datosPrevios = null, opciones = {}) {
+    if (!spreadsheetId || spreadsheetId === TEMPLATE_DRIVE_ID) {
+        throw new Error('SGC-F-11 solo escribe en el archivo sistema, nunca en la plantilla externa.');
+    }
     const meta = sanitizarDatos(datos);
     const prev = datosPrevios ? sanitizarDatos(datosPrevios) : null;
     const titulosExistentes = await driveService.listarHojasGoogleSheet(spreadsheetId);
     const setExistentes = new Set(titulosExistentes);
-    const plantillaOrigen = driveService.resolverTituloHojaExistente(
+    const plantillaLocal = driveService.resolverTituloHojaExistente(
         titulosExistentes,
         SHEET_TITLE,
         { fallbackRegex: /plantilla/i }
-    ) || SHEET_TITLE;
+    ) || '';
 
     const mapaPrevio = new Map();
     const ocupadosPrevios = [];
@@ -1020,7 +1097,7 @@ async function sincronizarHojasAnalisisEnDrive(spreadsheetId, datos, datosPrevio
     const exigirIds = new Set((opciones?.exigirIds || []).map((id) => String(id || '').trim()).filter(Boolean));
     const priorizarId = String(opciones?.priorizarId || '').trim();
     const activoId = String(meta.analisisActivoId || '').trim();
-    let hojaActiva = plantillaOrigen;
+    let hojaActiva = plantillaLocal || '';
     let hojaPrioritaria = '';
 
     for (const item of meta.analisis) {
@@ -1043,23 +1120,41 @@ async function sincronizarHojasAnalisisEnDrive(spreadsheetId, datos, datosPrevio
 
         if (!buscarTituloHoja([...setExistentes], nombreHoja)) {
             try {
-                const dup = await driveService.duplicarHojaGoogleSheet(
-                    spreadsheetId,
-                    plantillaOrigen,
-                    nombreHoja
-                );
-                nombreHoja = dup.title || nombreHoja;
+                // Estructura siempre desde la plantilla externa (no duplicar una hoja del sistema).
+                nombreHoja = await adoptarPlantillaEnSistema(spreadsheetId, nombreHoja);
                 setExistentes.add(nombreHoja);
             } catch (err) {
-                console.warn(`[SGC-F-11] No se pudo crear hoja "${nombreHoja}":`, err.message);
-                if (exigir) {
+                console.warn(`[SGC-F-11] No se pudo crear hoja "${nombreHoja}" desde plantilla:`, err.message);
+                // Fallback: duplicar Plantilla local del sistema si existe.
+                if (plantillaLocal) {
+                    try {
+                        const dup = await driveService.duplicarHojaGoogleSheet(
+                            spreadsheetId,
+                            plantillaLocal,
+                            nombreHoja
+                        );
+                        nombreHoja = dup.title || nombreHoja;
+                        setExistentes.add(nombreHoja);
+                    } catch (errDup) {
+                        console.warn(`[SGC-F-11] Fallback duplicar hoja local falló:`, errDup.message);
+                        if (exigir) {
+                            const error = new Error(
+                                `No se pudo crear la hoja «${nombreHoja}» en ${NOMBRE_ARCHIVO_DRIVE}.`
+                            );
+                            error.statusCode = 502;
+                            throw error;
+                        }
+                        continue;
+                    }
+                } else if (exigir) {
                     const error = new Error(
                         `No se pudo crear la hoja «${nombreHoja}» en ${NOMBRE_ARCHIVO_DRIVE}.`
                     );
                     error.statusCode = 502;
                     throw error;
+                } else {
+                    continue;
                 }
-                continue;
             }
         }
 
@@ -1169,14 +1264,18 @@ async function reforzarFormatoDriveSheet(spreadsheetId, numFilasDatos, sheetTitl
 }
 
 async function subirOReemplazarEnDrive(buffer, driveFileIdPrevio, numFilasDatos = 1) {
-    if (String(driveFileIdPrevio || '') === ARCHIVO_TRABAJO_DRIVE_ID) {
-        return driveService.obtenerInfoArchivo(ARCHIVO_TRABAJO_DRIVE_ID);
+    const idPrevio = String(driveFileIdPrevio || '').trim();
+    if (idPrevio === TEMPLATE_DRIVE_ID) {
+        throw new Error('No se puede reemplazar el archivo plantilla externo de SGC-F-11.');
+    }
+    if (idPrevio === DRIVE_FILE_ID_SISTEMA) {
+        return driveService.obtenerInfoArchivo(DRIVE_FILE_ID_SISTEMA);
     }
     let archivo;
-    if (driveFileIdPrevio) {
+    if (idPrevio) {
         try {
             archivo = await driveService.reemplazarArchivoEnDrive(
-                driveFileIdPrevio,
+                idPrevio,
                 buffer,
                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 NOMBRE_ARCHIVO_DRIVE
@@ -1189,7 +1288,7 @@ async function subirOReemplazarEnDrive(buffer, driveFileIdPrevio, numFilasDatos 
     }
 
     const existentes = await buscarArchivoDriveTrabajo();
-    if (existentes?.id && existentes.id !== driveFileIdPrevio && existentes.id !== ARCHIVO_TRABAJO_DRIVE_ID) {
+    if (existentes?.id && existentes.id !== idPrevio && !esArchivoProtegidoDrive(existentes.id)) {
         try {
             await driveService.eliminarArchivo(existentes.id);
         } catch (err) {
@@ -1318,8 +1417,12 @@ async function guardarFormato(pool, body) {
     let archivoDrive = null;
     let hojaActiva = null;
 
-    if (!driveId) {
-        const error = new Error('No se encontró el archivo SGC-F-11 AMEF en Drive.');
+    if (!driveId || driveId === TEMPLATE_DRIVE_ID) {
+        const error = new Error(
+            driveId === TEMPLATE_DRIVE_ID
+                ? 'SGC-F-11 no puede usar la plantilla externa como archivo de trabajo.'
+                : 'No se encontró el archivo SGC-F-11 AMEF (sistema) en Drive.'
+        );
         error.statusCode = 404;
         throw error;
     }
@@ -1358,8 +1461,8 @@ async function sincronizarDesdeDrive(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
     const driveFileId = await resolverDriveFileId(registro);
-    if (!driveFileId) {
-        throw new Error('No hay archivo SGC-F-11 en Drive para sincronizar.');
+    if (!driveFileId || driveFileId === TEMPLATE_DRIVE_ID) {
+        throw new Error('No hay archivo sistema SGC-F-11 en Drive para sincronizar.');
     }
 
     const datosPrevios = await leerDatosRegistro(registro) || sanitizarDatos(DATOS_DEFECTO);
@@ -1445,8 +1548,12 @@ async function actualizarPlantillaDesdeSistema(pool) {
 
     let driveId = await resolverDriveFileId(registro);
     let archivoDrive = null;
-    if (!driveId) {
-        const error = new Error('No se encontró el archivo SGC-F-11 AMEF en Drive.');
+    if (!driveId || driveId === TEMPLATE_DRIVE_ID) {
+        const error = new Error(
+            driveId === TEMPLATE_DRIVE_ID
+                ? 'SGC-F-11 no puede regenerar sobre la plantilla externa.'
+                : 'No se encontró el archivo SGC-F-11 AMEF (sistema) en Drive.'
+        );
         error.statusCode = 404;
         throw error;
     }
@@ -1485,8 +1592,8 @@ async function descargarPdf(pool, opciones = {}) {
     }
 
     const driveFileId = await resolverDriveFileId(registro);
-    if (!driveFileId) {
-        const err = new Error('No hay Google Sheet SGC-F-11 para exportar a PDF. Guarda la información primero.');
+    if (!driveFileId || driveFileId === TEMPLATE_DRIVE_ID) {
+        const err = new Error('No hay Google Sheet sistema SGC-F-11 para exportar a PDF. Guarda la información primero.');
         err.statusCode = 404;
         throw err;
     }
@@ -1527,11 +1634,15 @@ async function descargarPdf(pool, opciones = {}) {
 }
 
 async function publicarContenidoEnDrive(spreadsheetId, datos) {
+    const id = String(spreadsheetId || '').trim() || DRIVE_FILE_ID_SISTEMA;
+    if (!id || id === TEMPLATE_DRIVE_ID) {
+        throw new Error('SGC-F-11 solo publica en el archivo sistema, nunca en la plantilla.');
+    }
     const limpios = sanitizarDatos(datos);
     if (!limpios.analisis.length) {
         throw new Error('No hay análisis AMEF para publicar en Drive.');
     }
-    const sync = await sincronizarHojasAnalisisEnDrive(spreadsheetId, limpios, null);
+    const sync = await sincronizarHojasAnalisisEnDrive(id, limpios, null);
     return { hoja: sync?.hojaActiva || '', total: limpios.analisis.length };
 }
 
@@ -1703,6 +1814,9 @@ async function importarExcelAmef(pool, body = {}) {
 
 module.exports = {
     CODIGO_FORMATO,
+    TEMPLATE_DRIVE_ID,
+    DRIVE_FILE_ID_SISTEMA,
+    TEMPLATE_SHEET_TITLE,
     DATOS_DEFECTO,
     cargarFormato,
     guardarFormato,
@@ -1712,5 +1826,6 @@ module.exports = {
     publicarContenidoEnDrive,
     sanitizarDatos,
     leerAnalisisImportablesDesdeBuffer,
-    importarExcelAmef
+    importarExcelAmef,
+    adoptarPlantillaEnSistema
 };

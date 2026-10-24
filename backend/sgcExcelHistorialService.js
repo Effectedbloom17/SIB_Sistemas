@@ -124,21 +124,23 @@ function esHojaHistorialInformacion(titulo, codigoFormato) {
     const t = String(titulo || '').trim();
     const base = codigoHistorialBase(codigoFormato);
     const baseLegacy = codigoHistorialBaseLegacy(codigoFormato);
-    const patronVigente = new RegExp(`^${escaparRegex(base)}-\\d{4}$`, 'i');
+    // DGF05-1026 o DGF05-1026_2 / DGF05-1026_3 …
+    const patronVigente = new RegExp(`^${escaparRegex(base)}-\\d{4}(?:_\\d+)?$`, 'i');
     if (patronVigente.test(t)) {
         return true;
     }
-    const patronLegacyBase = new RegExp(`^${escaparRegex(baseLegacy)}-\\d{2}_\\d{2}$`, 'i');
+    const patronLegacyBase = new RegExp(`^${escaparRegex(baseLegacy)}-\\d{2}_\\d{2}(?:_\\d+)?$`, 'i');
     if (patronLegacyBase.test(t)) {
         return true;
     }
-    const patronLegacyCodigo = new RegExp(`^${escaparRegex(codigoFormato)}_\\d{2}_\\d{2}$`, 'i');
+    const patronLegacyCodigo = new RegExp(`^${escaparRegex(codigoFormato)}_\\d{2}_\\d{2}(?:_\\d+)?$`, 'i');
     return patronLegacyCodigo.test(t);
 }
 
 function esHojaHistorialFormato(titulo, codigoFormato) {
     const alias = resolverAlias(codigoFormato);
-    return new RegExp(`^${escaparRegex(alias)}_r\\d+$`, 'i').test(String(titulo || '').trim());
+    // Partes_r00, Partes_r00_2, Partes_r00_prev, etc.
+    return new RegExp(`^${escaparRegex(alias)}_r\\d+`, 'i').test(String(titulo || '').trim());
 }
 
 function esHojaHistorial(titulo, codigoFormato) {
@@ -151,22 +153,25 @@ function parsearFechaHojaHistorial(titulo, codigoFormato) {
     const base = codigoHistorialBase(codigoFormato);
     const baseLegacy = codigoHistorialBaseLegacy(codigoFormato);
 
-    let match = t.match(new RegExp(`^${escaparRegex(base)}-(\\d{2})(\\d{2})$`, 'i'));
+    let match = t.match(new RegExp(`^${escaparRegex(base)}-(\\d{2})(\\d{2})(?:_(\\d+))?$`, 'i'));
     if (!match) {
-        match = t.match(new RegExp(`^${escaparRegex(baseLegacy)}-(\\d{2})_(\\d{2})$`, 'i'));
+        match = t.match(new RegExp(`^${escaparRegex(baseLegacy)}-(\\d{2})_(\\d{2})(?:_(\\d+))?$`, 'i'));
     }
     if (!match) {
-        match = t.match(new RegExp(`^${escaparRegex(codigoFormato)}_(\\d{2})_(\\d{2})$`, 'i'));
+        match = t.match(new RegExp(`^${escaparRegex(codigoFormato)}_(\\d{2})_(\\d{2})(?:_(\\d+))?$`, 'i'));
     }
     if (!match) {
         return null;
     }
     const mm = match[1];
     const yy = match[2];
+    // Sin sufijo = versión 1; _2 = 2, _3 = 3…
+    const version = match[3] ? Number(match[3]) : 1;
     return {
         mm,
         yy,
-        sortKey: Number(`20${yy}`) * 100 + Number(mm)
+        version: Number.isFinite(version) && version > 0 ? version : 1,
+        sortKey: Number(`20${yy}`) * 1000000 + Number(mm) * 10000 + (Number.isFinite(version) && version > 0 ? version : 1)
     };
 }
 
@@ -303,7 +308,14 @@ async function aplicarHistorialEnDrive({
     origen = 'sistema',
     forzarTipo = null,
     usarHojaVigenteComoOrigen = false,
-    resolverNombreHistorial = null
+    resolverNombreHistorial = null,
+    /** Si true, un cambio clasificado como «formato» se trata como «informacion» (sin alias_rNN). */
+    soloHistorialInformacion = false,
+    /**
+     * Si true, cada cambio de información crea una pestaña nueva del mes
+     * (DGF05-1026, DGF05-1026_2, …) en lugar de reutilizar/sobrescribir la del mes.
+     */
+    versionarCadaCambioMes = false
 }) {
     if (!spreadsheetId || !sheetActiva || origen === 'consulta') {
         return {
@@ -322,7 +334,7 @@ async function aplicarHistorialEnDrive({
         console.warn(`[${codigoFormato}] No se pudieron leer dimensiones de hoja:`, err.message);
     }
 
-    const tipoCambio = forzarTipo || clasificarTipoCambio({
+    let tipoCambio = forzarTipo || clasificarTipoCambio({
         datosPrevios,
         datosNuevos,
         contenidoEsEquivalente,
@@ -330,6 +342,9 @@ async function aplicarHistorialEnDrive({
         metaHojaPrevia,
         metaHojaNueva
     });
+    if (soloHistorialInformacion && tipoCambio === 'formato') {
+        tipoCambio = 'informacion';
+    }
 
     if (tipoCambio === 'ninguno' || !datosPrevios) {
         return {
@@ -401,8 +416,12 @@ async function aplicarHistorialEnDrive({
         console.warn(`[${codigoFormato}] No se pudieron listar hojas:`, err.message);
     }
     const yaExisteHistorial = titulosExistentes.includes(nombreNorm);
-    const origenEsHojaMes = hojaOrigenNorm === nombreNorm;
-    const reutilizarHojaMes = tipoCambio === 'informacion' && (yaExisteHistorial || origenEsHojaMes);
+    const origenEsHojaMes = hojaOrigenNorm === nombreNorm
+        || new RegExp(`^${escaparRegex(nombreNorm)}_\\d+$`, 'i').test(hojaOrigenNorm);
+    // Con versionarCadaCambioMes: si ya existe DGF05-1026, se crea _2, _3… (no se reutiliza).
+    const reutilizarHojaMes = !versionarCadaCambioMes
+        && tipoCambio === 'informacion'
+        && (yaExisteHistorial || origenEsHojaMes);
 
     if (reutilizarHojaMes) {
         const duplicados = titulosExistentes.filter((titulo) => {

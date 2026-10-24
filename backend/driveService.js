@@ -870,24 +870,19 @@ async function aplicarFormatoRangoGoogleSheet(spreadsheetId, options = {}) {
         fields.push('textFormat');
     }
 
-    return sheetsApi.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: {
-            requests: [{
-                repeatCell: {
-                    range: {
-                        sheetId,
-                        startRowIndex: startRow - 1,
-                        endRowIndex: endRow,
-                        startColumnIndex: startColumn - 1,
-                        endColumnIndex: endColumn
-                    },
-                    cell: { userEnteredFormat },
-                    fields: `userEnteredFormat(${fields.join(',')})`
-                }
-            }]
+    return batchUpdateGoogleSheet(spreadsheetId, [{
+        repeatCell: {
+            range: {
+                sheetId,
+                startRowIndex: startRow - 1,
+                endRowIndex: endRow,
+                startColumnIndex: startColumn - 1,
+                endColumnIndex: endColumn
+            },
+            cell: { userEnteredFormat },
+            fields: `userEnteredFormat(${fields.join(',')})`
         }
-    });
+    }], 'aplicarFormatoRango.batchUpdate');
 }
 
 /**
@@ -1694,6 +1689,69 @@ async function duplicarHojaGoogleSheet(spreadsheetId, sourceSheetTitle, newTitle
 }
 
 /**
+ * Copia una hoja de un spreadsheet a otro (Sheets API sheets.copyTo) y la renombra.
+ * @returns {{ sheetId: number, title: string }}
+ */
+async function copiarHojaEntreSpreadsheets(sourceSpreadsheetId, sourceSheetTitle, destSpreadsheetId, newTitle) {
+    if (!sourceSpreadsheetId || !destSpreadsheetId) {
+        throw new Error('spreadsheet origen y destino requeridos para copiar hoja');
+    }
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const metaOrigen = await sheetsApi.spreadsheets.get({
+        spreadsheetId: sourceSpreadsheetId,
+        fields: 'sheets.properties(sheetId,title)'
+    });
+    const buscado = String(sourceSheetTitle || '').trim().toLowerCase();
+    const hojasOrigen = metaOrigen.data.sheets || [];
+    const origen = (buscado
+        ? hojasOrigen.find((s) => String(s.properties?.title || '').trim().toLowerCase() === buscado)
+        : null)
+        || hojasOrigen[0];
+    const sourceSheetId = origen?.properties?.sheetId;
+    if (sourceSheetId == null) {
+        throw new Error(
+            `Hoja origen "${sourceSheetTitle || '(primera)'}" no encontrada en plantilla.`
+        );
+    }
+
+    const copiada = await conReintentoCuotaSheets('copiarHoja.copyTo', () => (
+        sheetsApi.spreadsheets.sheets.copyTo({
+            spreadsheetId: sourceSpreadsheetId,
+            sheetId: sourceSheetId,
+            requestBody: { destinationSpreadsheetId: destSpreadsheetId }
+        })
+    ));
+    const nuevoId = copiada.data?.sheetId;
+    if (nuevoId == null) {
+        throw new Error('Google Sheets no devolvió sheetId al copiar la hoja.');
+    }
+
+    const tituloTemp = String(copiada.data?.title || `Copia de ${origen.properties?.title || 'Plantilla'}`).trim();
+    let tituloFinal = String(newTitle || tituloTemp).trim()
+        .replace(/[/\\?*:[\]]/g, '_')
+        .replace(/\s+/g, ' ')
+        .slice(0, 100);
+    if (!tituloFinal) {
+        tituloFinal = tituloTemp;
+    }
+    tituloFinal = await resolverNombreHojaUnico(destSpreadsheetId, tituloFinal);
+
+    await conReintentoCuotaSheets('copiarHoja.renombrar', () => sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId: destSpreadsheetId,
+        requestBody: {
+            requests: [{
+                updateSheetProperties: {
+                    properties: { sheetId: nuevoId, title: tituloFinal, index: 0 },
+                    fields: 'title,index'
+                }
+            }]
+        }
+    }));
+
+    return { sheetId: nuevoId, title: tituloFinal };
+}
+
+/**
  * Deja una hoja como la primera pestaña visible del libro.
  */
 async function moverHojaAlInicioGoogleSheet(spreadsheetId, sheetTitle) {
@@ -1805,22 +1863,89 @@ async function insertarFilasGoogleSheet(spreadsheetId, sheetId, startIndex, numR
     }
     const start = Math.max(0, Math.floor(Number(startIndex) || 0));
     const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const requests = [{
+        insertDimension: {
+            range: {
+                sheetId: Number(sheetId),
+                dimension: 'ROWS',
+                startIndex: start,
+                endIndex: start + filas
+            },
+            inheritFromBefore: options.inheritFromBefore !== false
+        }
+    }];
+    const pixelSize = Number(options.pixelSize);
+    if (Number.isFinite(pixelSize) && pixelSize > 0) {
+        requests.push({
+            updateDimensionProperties: {
+                range: {
+                    sheetId: Number(sheetId),
+                    dimension: 'ROWS',
+                    startIndex: start,
+                    endIndex: start + filas
+                },
+                properties: { pixelSize: Math.round(pixelSize) },
+                fields: 'pixelSize'
+            }
+        });
+    }
     return conReintentoCuotaSheets('insertarFilas.batchUpdate', () => sheetsApi.spreadsheets.batchUpdate({
         spreadsheetId,
-        requestBody: {
-            requests: [{
-                insertDimension: {
-                    range: {
-                        sheetId: Number(sheetId),
-                        dimension: 'ROWS',
-                        startIndex: start,
-                        endIndex: start + filas
-                    },
-                    inheritFromBefore: options.inheritFromBefore !== false
-                }
-            }]
-        }
+        requestBody: { requests }
     }));
+}
+
+/**
+ * Fija el alto (píxeles) de un rango de filas (índices 1-based inclusivos).
+ */
+async function aplicarAltoFilasGoogleSheet(spreadsheetId, sheetId, startRow1, endRow1, pixelSize) {
+    const alto = Math.round(Number(pixelSize) || 0);
+    const start = Math.max(0, Math.floor(Number(startRow1) || 1) - 1);
+    const end = Math.max(start + 1, Math.floor(Number(endRow1) || start + 1));
+    if (!spreadsheetId || sheetId == null || alto <= 0) {
+        return null;
+    }
+    return batchUpdateGoogleSheet(spreadsheetId, [{
+        updateDimensionProperties: {
+            range: {
+                sheetId: Number(sheetId),
+                dimension: 'ROWS',
+                startIndex: start,
+                endIndex: end
+            },
+            properties: { pixelSize: alto },
+            fields: 'pixelSize'
+        }
+    }], 'aplicarAltoFilas.batchUpdate');
+}
+
+/**
+ * Un solo batchUpdate (1 write de cuota) con N sub-requests.
+ * Si hay demasiados, parte en bloques (cada bloque = 1 write).
+ * @param {string} spreadsheetId
+ * @param {object[]} requests
+ * @param {string} [etiqueta]
+ * @param {{ chunkSize?: number }} [options]
+ */
+async function batchUpdateGoogleSheet(spreadsheetId, requests, etiqueta = 'batchUpdate', options = {}) {
+    const lista = Array.isArray(requests) ? requests.filter(Boolean) : [];
+    if (!spreadsheetId || !lista.length) {
+        return null;
+    }
+    const chunkSize = Math.max(1, Math.min(400, Number(options.chunkSize) || 400));
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    let ultimo = null;
+    for (let i = 0; i < lista.length; i += chunkSize) {
+        const chunk = lista.slice(i, i + chunkSize);
+        const label = lista.length > chunkSize
+            ? `${etiqueta}[${Math.floor(i / chunkSize) + 1}/${Math.ceil(lista.length / chunkSize)}]`
+            : etiqueta;
+        ultimo = await conReintentoCuotaSheets(label, () => sheetsApi.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: { requests: chunk }
+        }));
+    }
+    return ultimo;
 }
 
 /**
@@ -1831,6 +1956,84 @@ async function insertarFilasGoogleSheet(spreadsheetId, sheetId, startIndex, numR
  * @param {number} numCols
  * @param {{ inheritFromBefore?: boolean, pixelSize?: number }} [options]
  */
+/**
+ * Copia anchos de columna (pixelSize) de una hoja origen a otra destino.
+ * @param {string} sourceSpreadsheetId
+ * @param {string} sourceSheetTitle
+ * @param {string} destSpreadsheetId
+ * @param {string} destSheetTitle
+ * @param {number} [maxColumns]
+ */
+async function copiarAnchosColumnasGoogleSheet(
+    sourceSpreadsheetId,
+    sourceSheetTitle,
+    destSpreadsheetId,
+    destSheetTitle,
+    maxColumns = 14
+) {
+    if (!sourceSpreadsheetId || !destSpreadsheetId) {
+        return null;
+    }
+    const srcTitle = String(sourceSheetTitle || '').trim();
+    const dstTitle = String(destSheetTitle || '').trim();
+    if (!srcTitle || !dstTitle) {
+        return null;
+    }
+    const cols = Math.max(1, Math.min(50, Math.floor(Number(maxColumns) || 14)));
+    const endCol = String.fromCharCode('A'.charCodeAt(0) + cols - 1);
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+
+    const srcMeta = await sheetsApi.spreadsheets.get({
+        spreadsheetId: sourceSpreadsheetId,
+        ranges: [`'${srcTitle}'!A1:${endCol}1`],
+        fields: 'sheets(properties(title,sheetId),data(columnMetadata(pixelSize)))'
+    });
+    const srcSheet = (srcMeta.data.sheets || []).find(
+        (s) => String(s.properties?.title || '').trim() === srcTitle
+    ) || srcMeta.data.sheets?.[0];
+    const widths = (srcSheet?.data?.[0]?.columnMetadata || [])
+        .map((c) => Number(c?.pixelSize) || 0)
+        .slice(0, cols);
+    if (!widths.length) {
+        return null;
+    }
+
+    const destMeta = await obtenerMetadatosHojasGoogleSheet(destSpreadsheetId);
+    const dest = destMeta.find((h) => h.title === dstTitle)
+        || destMeta.find((h) => h.title.toLowerCase() === dstTitle.toLowerCase());
+    if (!dest || dest.sheetId == null) {
+        return null;
+    }
+
+    const requests = [];
+    for (let i = 0; i < widths.length; i++) {
+        const px = widths[i];
+        if (!(px > 0)) {
+            continue;
+        }
+        requests.push({
+            updateDimensionProperties: {
+                range: {
+                    sheetId: Number(dest.sheetId),
+                    dimension: 'COLUMNS',
+                    startIndex: i,
+                    endIndex: i + 1
+                },
+                properties: { pixelSize: Math.round(px) },
+                fields: 'pixelSize'
+            }
+        });
+    }
+    if (!requests.length) {
+        return null;
+    }
+    return batchUpdateGoogleSheet(
+        destSpreadsheetId,
+        requests,
+        'copiarAnchosColumnas.batchUpdate'
+    );
+}
+
 async function insertarColumnasGoogleSheet(spreadsheetId, sheetId, startIndex, numCols, options = {}) {
     const cols = Math.max(0, Math.floor(Number(numCols) || 0));
     if (!spreadsheetId || sheetId == null || cols <= 0) {
@@ -1882,24 +2085,18 @@ async function insertarColumnasGoogleSheet(spreadsheetId, sheetId, startIndex, n
  */
 async function fusionarRangoGoogleSheet(spreadsheetId, sheetId, startRowIndex, endRowIndex, startColumnIndex, endColumnIndex) {
     if (!spreadsheetId || sheetId == null) return null;
-    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
-    return sheetsApi.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: {
-            requests: [{
-                mergeCells: {
-                    range: {
-                        sheetId: Number(sheetId),
-                        startRowIndex: Math.max(0, Math.floor(Number(startRowIndex) || 0)),
-                        endRowIndex: Math.max(0, Math.floor(Number(endRowIndex) || 0)),
-                        startColumnIndex: Math.max(0, Math.floor(Number(startColumnIndex) || 0)),
-                        endColumnIndex: Math.max(0, Math.floor(Number(endColumnIndex) || 0))
-                    },
-                    mergeType: 'MERGE_ALL'
-                }
-            }]
+    return batchUpdateGoogleSheet(spreadsheetId, [{
+        mergeCells: {
+            range: {
+                sheetId: Number(sheetId),
+                startRowIndex: Math.max(0, Math.floor(Number(startRowIndex) || 0)),
+                endRowIndex: Math.max(0, Math.floor(Number(endRowIndex) || 0)),
+                startColumnIndex: Math.max(0, Math.floor(Number(startColumnIndex) || 0)),
+                endColumnIndex: Math.max(0, Math.floor(Number(endColumnIndex) || 0))
+            },
+            mergeType: 'MERGE_ALL'
         }
-    });
+    }], 'fusionarRango.batchUpdate');
 }
 
 async function eliminarFilasGoogleSheet(spreadsheetId, sheetId, startIndex, numRows) {
@@ -2198,16 +2395,41 @@ async function aplicarFormatoVisualSgcF12(spreadsheetId, options = {}) {
 
     const sheetTitle = typeof options.sheetTitle === 'string' && options.sheetTitle.trim()
         ? options.sheetTitle.trim()
-        : 'Notificación';
+        : 'Plantilla';
     const columnLPixelWidth = Number(options.columnLPixelWidth) > 0
         ? Math.floor(Number(options.columnLPixelWidth))
-        : 150;
+        : 120;
+    const columnMPixelWidth = Number(options.columnMPixelWidth) > 0
+        ? Math.floor(Number(options.columnMPixelWidth))
+        : 120;
     const textFields = Array.isArray(options.textFields) ? options.textFields : [];
+    const headerRow = Math.max(1, Number(options.headerRow) || 18);
+    const dataStartRow = Math.max(1, Number(options.dataStartRow) || 19);
+    const numFilasDatos = Math.max(1, Number(options.numFilasDatos) || 6);
+    const dataRowHeight = Math.max(20, Number(options.dataRowHeight) || 45);
+    const maxColumns = Math.max(12, Number(options.maxColumns) || 13);
+    const firmas = Array.isArray(options.firmas) && options.firmas.length
+        ? options.firmas
+        : (options.firmaElaboro && typeof options.firmaElaboro === 'object'
+            ? [{
+                lineRow: 25,
+                labelRow: Number(options.firmaElaboro.labelRow) || 26,
+                labelEndRow: (Number(options.firmaElaboro.labelRow) || 26) + 1,
+                nameRow: Number(options.firmaElaboro.nameRow) || 33,
+                col: Number(options.firmaElaboro.labelCol || options.firmaElaboro.nameCol) || 2,
+                endCol: (Number(options.firmaElaboro.labelCol || options.firmaElaboro.nameCol) || 2) + 2
+            }]
+            : [
+                { lineRow: 30, labelRow: 31, labelEndRow: 32, nameRow: 33, col: 2, endCol: 4 },
+                { lineRow: 30, labelRow: 31, labelEndRow: 32, nameRow: 33, col: 6, endCol: 8 },
+                { lineRow: 30, labelRow: 31, labelEndRow: 32, nameRow: 33, col: 10, endCol: 12 }
+            ]);
+    const dataEndRow = dataStartRow + numFilasDatos - 1;
 
     const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
     const meta = await sheetsApi.spreadsheets.get({
         spreadsheetId,
-        fields: 'sheets.properties(sheetId,title)'
+        fields: 'sheets(properties(sheetId,title),merges)'
     });
     const sheet = (meta.data.sheets || []).find((s) => (s.properties?.title || '').trim() === sheetTitle);
     const sheetId = sheet?.properties?.sheetId;
@@ -2215,7 +2437,121 @@ async function aplicarFormatoVisualSgcF12(spreadsheetId, options = {}) {
         return null;
     }
 
+    const merges = Array.isArray(sheet.merges) ? sheet.merges : [];
     const requests = [];
+
+    // Desfusionar zona de tabla (encabezado + datos) A:M para reaplicar merges limpios.
+    const tableRow0 = headerRow - 1;
+    const tableRow1 = dataEndRow;
+    for (const m of merges) {
+        const mRow0 = Number(m.startRowIndex) || 0;
+        const mRow1 = Number(m.endRowIndex) || 0;
+        const mCol0 = Number(m.startColumnIndex) || 0;
+        const mCol1 = Number(m.endColumnIndex) || 0;
+        if (mRow1 <= tableRow0 || mRow0 >= tableRow1) continue;
+        if (mCol1 <= 0 || mCol0 >= maxColumns) continue;
+        requests.push({
+            unmergeCells: {
+                range: {
+                    sheetId,
+                    startRowIndex: mRow0,
+                    endRowIndex: mRow1,
+                    startColumnIndex: mCol0,
+                    endColumnIndex: mCol1
+                }
+            }
+        });
+    }
+
+    const mergeFila = (row1Based, startCol0, endCol0Exclusive) => {
+        requests.push({
+            mergeCells: {
+                range: {
+                    sheetId,
+                    startRowIndex: row1Based - 1,
+                    endRowIndex: row1Based,
+                    startColumnIndex: startCol0,
+                    endColumnIndex: endCol0Exclusive
+                },
+                mergeType: 'MERGE_ALL'
+            }
+        });
+    };
+
+    // Merges: ACTIVIDAD A:E · ASIGNACIÓN F:H · RECURSOS I · FECHA J:K · VERIFICACIÓN L:M
+    for (let row = headerRow; row <= dataEndRow; row++) {
+        mergeFila(row, 0, 5);   // A:E
+        mergeFila(row, 5, 8);   // F:H
+        mergeFila(row, 9, 11);  // J:K
+        mergeFila(row, 11, 13); // L:M
+    }
+
+    // Tabla: bordes + alineación Centro / Medio (encabezado y datos).
+    // endRowIndex / endColumnIndex son exclusivos en la API.
+    const tableEndRowExclusive = dataEndRow; // dataEndRow es 1-based inclusive → índice exclusivo = mismo número
+    const bordeTabla = { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } };
+    const bordePerimetro = { style: 'SOLID', width: 2, color: { red: 0, green: 0, blue: 0 } };
+    requests.push({
+        updateBorders: {
+            range: {
+                sheetId,
+                startRowIndex: headerRow - 1,
+                endRowIndex: tableEndRowExclusive,
+                startColumnIndex: 0,
+                endColumnIndex: maxColumns
+            },
+            top: bordeTabla,
+            bottom: bordeTabla,
+            left: bordeTabla,
+            right: bordeTabla,
+            innerHorizontal: bordeTabla,
+            innerVertical: bordeTabla
+        }
+    });
+    // Refuerzo: borde izquierdo (columna A) e inferior (última fila de datos).
+    requests.push({
+        updateBorders: {
+            range: {
+                sheetId,
+                startRowIndex: headerRow - 1,
+                endRowIndex: tableEndRowExclusive,
+                startColumnIndex: 0,
+                endColumnIndex: 1
+            },
+            left: bordePerimetro
+        }
+    });
+    requests.push({
+        updateBorders: {
+            range: {
+                sheetId,
+                startRowIndex: dataEndRow - 1,
+                endRowIndex: tableEndRowExclusive,
+                startColumnIndex: 0,
+                endColumnIndex: maxColumns
+            },
+            bottom: bordePerimetro
+        }
+    });
+    requests.push({
+        repeatCell: {
+            range: {
+                sheetId,
+                startRowIndex: headerRow - 1,
+                endRowIndex: tableEndRowExclusive,
+                startColumnIndex: 0,
+                endColumnIndex: maxColumns
+            },
+            cell: {
+                userEnteredFormat: {
+                    horizontalAlignment: 'CENTER',
+                    verticalAlignment: 'MIDDLE',
+                    wrapStrategy: 'WRAP'
+                }
+            },
+            fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy)'
+        }
+    });
 
     for (const field of textFields) {
         const row = Number(field.row);
@@ -2246,6 +2582,20 @@ async function aplicarFormatoVisualSgcF12(spreadsheetId, options = {}) {
         });
     }
 
+    // Alto 45 px en encabezado + filas de la tabla.
+    requests.push({
+        updateDimensionProperties: {
+            range: {
+                sheetId,
+                dimension: 'ROWS',
+                startIndex: headerRow - 1,
+                endIndex: dataEndRow
+            },
+            properties: { pixelSize: dataRowHeight },
+            fields: 'pixelSize'
+        }
+    });
+
     requests.push({
         updateDimensionProperties: {
             range: {
@@ -2258,6 +2608,118 @@ async function aplicarFormatoVisualSgcF12(spreadsheetId, options = {}) {
             fields: 'pixelSize'
         }
     });
+    requests.push({
+        updateDimensionProperties: {
+            range: {
+                sheetId,
+                dimension: 'COLUMNS',
+                startIndex: 12,
+                endIndex: 13
+            },
+            properties: { pixelSize: columnMPixelWidth },
+            fields: 'pixelSize'
+        }
+    });
+
+    // Firmas: desfusionar zona f25–f34 y reaplicar línea + etiquetas (sin nombres).
+    const firmaRow0 = 24; // fila 25
+    const firmaRow1 = 34; // filas 25–33
+    for (const m of merges) {
+        const mRow0 = Number(m.startRowIndex) || 0;
+        const mRow1 = Number(m.endRowIndex) || 0;
+        const mCol0 = Number(m.startColumnIndex) || 0;
+        const mCol1 = Number(m.endColumnIndex) || 0;
+        if (mRow1 <= firmaRow0 || mRow0 >= firmaRow1) continue;
+        if (mCol1 <= 0 || mCol0 >= maxColumns) continue;
+        requests.push({
+            unmergeCells: {
+                range: {
+                    sheetId,
+                    startRowIndex: mRow0,
+                    endRowIndex: mRow1,
+                    startColumnIndex: mCol0,
+                    endColumnIndex: mCol1
+                }
+            }
+        });
+    }
+
+    // Quitar bordes residuales de la zona de firmas antigua (f25–f29).
+    const sinBorde = { style: 'NONE' };
+    requests.push({
+        updateBorders: {
+            range: {
+                sheetId,
+                startRowIndex: 24,
+                endRowIndex: 29,
+                startColumnIndex: 0,
+                endColumnIndex: maxColumns
+            },
+            top: sinBorde,
+            bottom: sinBorde,
+            left: sinBorde,
+            right: sinBorde,
+            innerHorizontal: sinBorde,
+            innerVertical: sinBorde
+        }
+    });
+
+    const bordeFirma = { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } };
+    for (const firma of firmas) {
+        const lineRow = Math.max(1, Number(firma.lineRow) || 30);
+        const labelRow = Math.max(1, Number(firma.labelRow) || 31);
+        const labelEndRow = Math.max(labelRow, Number(firma.labelEndRow) || labelRow + 1);
+        const col = Math.max(1, Number(firma.col) || 2);
+        const endCol = Math.max(col, Number(firma.endCol) || col + 2);
+
+        // Borde superior = línea donde va la firma (encima de la etiqueta).
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: lineRow - 1,
+                    endRowIndex: lineRow,
+                    startColumnIndex: col - 1,
+                    endColumnIndex: endCol
+                },
+                top: bordeFirma
+            }
+        });
+
+        requests.push({
+            mergeCells: {
+                range: {
+                    sheetId,
+                    startRowIndex: labelRow - 1,
+                    endRowIndex: labelEndRow,
+                    startColumnIndex: col - 1,
+                    endColumnIndex: endCol
+                },
+                mergeType: 'MERGE_ALL'
+            }
+        });
+
+        requests.push({
+            repeatCell: {
+                range: {
+                    sheetId,
+                    startRowIndex: labelRow - 1,
+                    endRowIndex: labelEndRow,
+                    startColumnIndex: col - 1,
+                    endColumnIndex: endCol
+                },
+                cell: {
+                    userEnteredFormat: {
+                        horizontalAlignment: 'CENTER',
+                        verticalAlignment: 'MIDDLE',
+                        wrapStrategy: 'WRAP',
+                        textFormat: { bold: true, fontFamily: 'Century Gothic', fontSize: 10 }
+                    }
+                },
+                fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)'
+            }
+        });
+    }
 
     return sheetsApi.spreadsheets.batchUpdate({
         spreadsheetId,
@@ -5089,15 +5551,17 @@ async function aplicarFormatoVisualSgcF04(spreadsheetId, sheetTitle) {
 
 async function resolverFilaFirmasDgF05(spreadsheetId, sheetTitle) {
     const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    // El encabezado suele estar fusionado C:D; el valor queda en C, no en D.
     const res = await sheetsApi.spreadsheets.values.get({
         spreadsheetId,
-        range: `'${sheetTitle}'!D1:D120`,
+        range: `'${sheetTitle}'!C1:E120`,
         majorDimension: 'ROWS'
     });
     const values = res.data.values || [];
     for (let i = 0; i < values.length; i++) {
-        const txt = String(values[i]?.[0] || '').toUpperCase();
-        if (txt.includes('ELABORÓ') || txt.includes('ELABORO')) {
+        const fila = values[i] || [];
+        const txt = `${fila[0] || ''} ${fila[1] || ''} ${fila[2] || ''}`.toUpperCase();
+        if (txt.includes('ELABORÓ') || txt.includes('ELABORO') || txt.includes('AUTORIZ')) {
             return i + 1;
         }
     }
@@ -5257,6 +5721,7 @@ async function aplicarBordesComplementariosDgF05(
     const filaFirmas = await resolverFilaFirmasDgF05(spreadsheetId, sheetTitle);
     if (filaFirmas) {
         const filaFinBloque = filaFirmas + 7;
+        // ELABORÓ (col D): borde inferior + laterales en «Firma»
         requests.push({
             updateBorders: {
                 range: {
@@ -5271,6 +5736,22 @@ async function aplicarBordesComplementariosDgF05(
                 right: bordeNegro
             }
         });
+        // AUTORIZÓ (col E): borde derecho en TODO el bloque (incluye encabezado).
+        // Antes empezaba en filaFirmas (0-based = primera fila de contenido) y
+        // dejaba el encabezado sin borde derecho.
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: filaFirmas - 1,
+                    endRowIndex: filaFinBloque,
+                    startColumnIndex: 4,
+                    endColumnIndex: 5
+                },
+                right: bordeNegro
+            }
+        });
+        // AUTORIZÓ: borde inferior de la fila «Firma»
         requests.push({
             updateBorders: {
                 range: {
@@ -5281,18 +5762,6 @@ async function aplicarBordesComplementariosDgF05(
                     endColumnIndex: 5
                 },
                 bottom: bordeNegro,
-                right: bordeNegro
-            }
-        });
-        requests.push({
-            updateBorders: {
-                range: {
-                    sheetId,
-                    startRowIndex: filaFirmas,
-                    endRowIndex: filaFinBloque,
-                    startColumnIndex: 4,
-                    endColumnIndex: 5
-                },
                 right: bordeNegro
             }
         });
@@ -5370,7 +5839,11 @@ async function limpiarBordesColumnaInfluenciaFueraTablaDgF05(
     }
 
     const filaInicio = filaInicioDatos + numFilas;
-    const filaFin = 120;
+    // No limpiar hasta la fila 120: eso borraba el borde compartido con AUTORIZÓ (col E).
+    const filaNota = await resolverFilaNotaDgF05(spreadsheetId, sheetTitle);
+    const filaFin = filaNota
+        ? filaNota - 1
+        : filaInicioDatos + Math.max(numFilas, 1) + 5;
 
     if (filaInicio > filaFin) {
         return null;
@@ -12785,10 +13258,14 @@ module.exports = {
     resolverNombreHojaUnico,
     obtenerDimensionesHojaGoogleSheet,
     duplicarHojaGoogleSheet,
+    copiarHojaEntreSpreadsheets,
     moverHojaAlInicioGoogleSheet,
     renombrarHojaGoogleSheet,
     insertarFilasGoogleSheet,
+    aplicarAltoFilasGoogleSheet,
+    batchUpdateGoogleSheet,
     insertarColumnasGoogleSheet,
+    copiarAnchosColumnasGoogleSheet,
     fusionarRangoGoogleSheet,
     eliminarFilasGoogleSheet,
     crearHojaGoogleSheet,
@@ -12826,5 +13303,6 @@ module.exports = {
 
     asegurarMergeElaboroDgF05,
 
-    resolverFilaFirmasDgF05
+    resolverFilaFirmasDgF05,
+    resolverFilaNotaDgF05
 };

@@ -6,10 +6,36 @@ const driveService = require('./driveService');
 const excelHistorial = require('./sgcExcelHistorialService');
 
 const CODIGO_FORMATO = 'DG-F-05';
-const TEMPLATE_DRIVE_ID = '1TztLGOGdIW6P-zhjy_kBYAK4GfmX5nPF';
+/**
+ * Plantilla maestra (estructura). Editar aquí el diseño; el sistema la copia al archivo de trabajo.
+ * https://docs.google.com/spreadsheets/d/1-B7XvU4BBFc98JOKaSY6zVAMCV03g6lCC7WBKtuiif0
+ */
+const TEMPLATE_DRIVE_ID = '1-B7XvU4BBFc98JOKaSY6zVAMCV03g6lCC7WBKtuiif0';
+/**
+ * Archivo de trabajo Centro SGC (historial DGF05-MMAA). Nunca se borra al actualizar plantilla.
+ * https://docs.google.com/spreadsheets/d/1n4NOREoSxd5-kn1jI245m0m9hKL4fntH5BvTMUg6NDg
+ */
+const DRIVE_FILE_ID_SISTEMA = '1n4NOREoSxd5-kn1jI245m0m9hKL4fntH5BvTMUg6NDg';
 const CARPETA_DRIVE_ID = '1W9Zxve87e85bkWeRpy-0P-QuMh1IeOT4';
 const NOMBRE_ARCHIVO_DRIVE = 'DG-F-05 Listado de partes interesadas (sistema)';
+/** Nombre de la pestaña en el archivo plantilla. */
+const TEMPLATE_SHEET_TITLE = 'Plantilla';
+/** Nombre base de hoja de edición (si existe) dentro del archivo sistema. */
 const SHEET_TITLE = 'Partes Interesadas';
+const MAX_COLUMNAS_SISTEMA = 11;
+const DRIVE_SHEET_OPTIONS = {
+    sheetTitle: SHEET_TITLE,
+    maxColumns: MAX_COLUMNAS_SISTEMA,
+    keepSingleSheet: false
+};
+
+/** Nombre de hoja del mes actual (DGF05-MMAA). */
+function nombreHojaMesActual(fechaIso = null) {
+    return excelHistorial.nombreHojaHistorialInformacion(
+        CODIGO_FORMATO,
+        fechaIso || excelHistorial.fechaAhoraMexicoIso()
+    );
+}
 
 const META_ROW = 7;
 const HEADER_ROW = 9;
@@ -340,7 +366,8 @@ function reforzarBordesFirmasDesdePlantilla(ws) {
 
     const filaFirma = filaFirmas + FILA_FIRMA_OFFSET;
 
-    for (let r = filaFirmas + 1; r <= filaFirma; r++) {
+    // AUTORIZÓ (col E): borde derecho desde el encabezado hasta «Firma»
+    for (let r = filaFirmas; r <= filaFirma; r++) {
         const cell = ws.getRow(r).getCell(COL.necesidadesOrg);
         cell.border = {
             ...(cell.border || {}),
@@ -382,7 +409,8 @@ function reforzarBordeInferiorUltimaFilaTabla(ws, numFilas) {
 
 function limpiarBordesColumnaInfluenciaFueraTabla(ws, numFilas) {
     const filaInicio = DATA_START_ROW + numFilas;
-    const filaFin = Math.max(filaInicio, FILA_LIMPIEZA_F_MAX);
+    const filaNota = encontrarFilaNota(ws);
+    const filaFin = Math.max(filaInicio, Math.min(filaNota - 1, FILA_LIMPIEZA_F_MAX));
 
     for (let r = filaInicio; r <= filaFin; r++) {
         ws.getRow(r).getCell(COL.influencia).border = {};
@@ -612,8 +640,15 @@ function encontrarFilaNota(ws) {
 
 function encontrarFilaFirmas(ws) {
     for (let r = DATA_START_ROW; r <= ws.rowCount; r++) {
-        const txt = celdaATexto(ws.getRow(r).getCell(COL.necesidadesParte).value).toUpperCase();
-        if (txt.includes('ELABORÓ') || txt.includes('ELABORO')) return r;
+        const row = ws.getRow(r);
+        const txt = [
+            celdaATexto(row.getCell(COL.tipo).value),
+            celdaATexto(row.getCell(COL.necesidadesParte).value),
+            celdaATexto(row.getCell(COL.necesidadesOrg).value)
+        ].join(' ').toUpperCase();
+        if (txt.includes('ELABORÓ') || txt.includes('ELABORO') || txt.includes('AUTORIZ')) {
+            return r;
+        }
     }
     return encontrarFilaNota(ws) + 2;
 }
@@ -1390,16 +1425,27 @@ async function leerDatosDesdeBuffer(buffer, opciones = {}) {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buffer);
     const modo = String(opciones.modo || 'vigente').toLowerCase();
-    const ws = modo === 'edicion'
-        ? excelHistorial.obtenerHojaEdicionDesdeWorkbook(wb, SHEET_TITLE)
-        : excelHistorial.obtenerHojaActivaDesdeWorkbook(wb, SHEET_TITLE, CODIGO_FORMATO);
+    let ws = null;
+    if (modo === 'edicion') {
+        const mes = nombreHojaMesActual();
+        ws = wb.worksheets.find((h) => String(h.name || '').trim() === mes)
+            || excelHistorial.obtenerHojaEdicionDesdeWorkbook(wb, SHEET_TITLE);
+    } else {
+        ws = excelHistorial.obtenerHojaActivaDesdeWorkbook(wb, SHEET_TITLE, CODIGO_FORMATO);
+    }
     if (!ws) throw new Error('La plantilla DG-F-05 no contiene hojas.');
     return parsearDatosDesdeHoja(ws);
 }
 
 async function leerDatosDesdePlantilla() {
-    const buffer = await driveService.descargarArchivo(TEMPLATE_DRIVE_ID);
-    return leerDatosDesdeBuffer(buffer);
+    const buffer = await descargarBufferDrive(TEMPLATE_DRIVE_ID);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer);
+    const ws = wb.worksheets.find(
+        (h) => String(h.name || '').trim().toLowerCase() === TEMPLATE_SHEET_TITLE.toLowerCase()
+    ) || wb.worksheets[0];
+    if (!ws) throw new Error('La plantilla DG-F-05 no contiene hojas.');
+    return parsearDatosDesdeHoja(ws);
 }
 
 async function descargarBufferDrive(fileId) {
@@ -1416,10 +1462,12 @@ async function descargarBufferDrive(fileId) {
 }
 
 async function escribirDatosEnPlantilla(datos) {
-    const templateBuffer = await driveService.descargarArchivo(TEMPLATE_DRIVE_ID);
+    const templateBuffer = await descargarBufferDrive(TEMPLATE_DRIVE_ID);
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(templateBuffer);
-    const ws = wb.worksheets[0];
+    const ws = wb.worksheets.find(
+        (h) => String(h.name || '').trim().toLowerCase() === TEMPLATE_SHEET_TITLE.toLowerCase()
+    ) || wb.worksheets[0];
     if (!ws) throw new Error('La plantilla DG-F-05 no contiene hojas.');
 
     const filaNota = encontrarFilaNota(ws);
@@ -1468,13 +1516,21 @@ async function escribirDatosEnPlantilla(datos) {
     return Buffer.from(buffer);
 }
 
+function esArchivoProtegidoDrive(fileId) {
+    const id = String(fileId || '').trim();
+    return !!id && (id === TEMPLATE_DRIVE_ID || id === DRIVE_FILE_ID_SISTEMA);
+}
+
 async function eliminarCopiasDriveTrabajo(excluirId = null) {
     const archivos = await driveService.listarArchivosCarpeta(CARPETA_DRIVE_ID);
     const objetivo = NOMBRE_ARCHIVO_DRIVE.toLowerCase();
     const candidatos = (archivos || []).filter((f) => {
         const id = String(f.id || '');
         const name = String(f.name || '').toLowerCase();
-        return id && id !== excluirId && name.startsWith(objetivo);
+        if (!id || id === excluirId || esArchivoProtegidoDrive(id)) {
+            return false;
+        }
+        return name.startsWith(objetivo);
     });
 
     for (const archivo of candidatos) {
@@ -1486,17 +1542,295 @@ async function eliminarCopiasDriveTrabajo(excluirId = null) {
     }
 }
 
+async function buscarArchivoDriveTrabajo() {
+    const archivos = await driveService.listarArchivosCarpeta(CARPETA_DRIVE_ID);
+    const objetivo = NOMBRE_ARCHIVO_DRIVE.toLowerCase();
+    return (archivos || [])
+        .filter((f) => {
+            const id = String(f.id || '');
+            if (esArchivoProtegidoDrive(id) && id !== DRIVE_FILE_ID_SISTEMA) {
+                return false;
+            }
+            return String(f.name || '').toLowerCase().startsWith(objetivo);
+        })
+        .sort((a, b) => new Date(b.modifiedTime || 0) - new Date(a.modifiedTime || 0))[0] || null;
+}
+
 async function resolverDriveFileId(registro) {
-    const idDb = registro?.drive_file_id || null;
-    if (idDb) {
-        const existe = await driveService.verificarArchivoExiste(idDb);
-        if (existe) {
-            return idDb;
+    if (DRIVE_FILE_ID_SISTEMA) {
+        const existeSistema = await driveService.verificarArchivoExiste(DRIVE_FILE_ID_SISTEMA);
+        if (existeSistema) {
+            return DRIVE_FILE_ID_SISTEMA;
         }
     }
-
+    const idDb = String(registro?.drive_file_id || '').trim() || null;
+    if (idDb && idDb !== TEMPLATE_DRIVE_ID) {
+        const existe = await driveService.verificarArchivoExiste(idDb);
+        if (existe) return idDb;
+    }
     const enCarpeta = await buscarArchivoDriveTrabajo();
-    return enCarpeta?.id || null;
+    if (enCarpeta?.id && enCarpeta.id !== TEMPLATE_DRIVE_ID) {
+        return enCarpeta.id;
+    }
+    return DRIVE_FILE_ID_SISTEMA || null;
+}
+
+/** Valida encabezados B9/H9 típicos de la plantilla DG-F-05. */
+async function hojaTieneEstructuraPlantilla(spreadsheetId, sheetTitle) {
+    if (!spreadsheetId || !sheetTitle) {
+        return false;
+    }
+    try {
+        const filas = await driveService.leerRangoGoogleSheet(
+            spreadsheetId,
+            rangoSheet(`B${HEADER_ROW}:H${HEADER_ROW}`, sheetTitle)
+        );
+        const row = Array.isArray(filas?.[0]) ? filas[0] : [];
+        const parte = String(row[0] || '').toLowerCase();
+        const seguimiento = String(row[6] || '').toLowerCase();
+        return parte.includes('parte') && seguimiento.includes('seguimiento');
+    } catch (err) {
+        console.warn('[DG-F-05] No se pudo validar estructura vs plantilla:', err.message);
+        return false;
+    }
+}
+
+/**
+ * Copia la hoja «Plantilla» del archivo plantilla externo (TEMPLATE_DRIVE_ID)
+ * al archivo sistema con el título indicado (sin borrar historial).
+ */
+async function adoptarPlantillaEnSistema(spreadsheetId, tituloDestino = null) {
+    const destino = String(tituloDestino || '').trim() || nombreHojaMesActual();
+    console.warn(
+        `[DG-F-05] Copiando hoja «${TEMPLATE_SHEET_TITLE}» desde plantilla `
+        + `${TEMPLATE_DRIVE_ID} → sistema como «${destino}».`
+    );
+    const copiada = await driveService.copiarHojaEntreSpreadsheets(
+        TEMPLATE_DRIVE_ID,
+        TEMPLATE_SHEET_TITLE,
+        spreadsheetId,
+        destino
+    );
+    try {
+        await driveService.copiarAnchosColumnasGoogleSheet(
+            TEMPLATE_DRIVE_ID,
+            TEMPLATE_SHEET_TITLE,
+            spreadsheetId,
+            copiada.title,
+            MAX_COLUMNAS_SISTEMA
+        );
+    } catch (err) {
+        console.warn('[DG-F-05] Anchos de columna desde plantilla:', err.message);
+    }
+    const ok = await hojaTieneEstructuraPlantilla(spreadsheetId, copiada.title);
+    if (!ok) {
+        try {
+            await driveService.eliminarHojasGoogleSheet(spreadsheetId, [copiada.title]);
+        } catch (_) { /* ignore */ }
+        throw new Error(
+            `La copia «${copiada.title}» no coincide con la plantilla externa `
+            + `(se esperan encabezados Parte interesada / Seguimiento).`
+        );
+    }
+    return copiada.title;
+}
+
+/**
+ * Ajusta el bloque de datos: inserta filas si faltan o elimina filas sobrantes
+ * entre el último registro y la nota (para que al borrar una parte no quede hueco).
+ */
+async function asegurarFilasDatosEnDrive(spreadsheetId, sheetTitle, datos) {
+    const numFilas = Math.max(Array.isArray(datos?.filas) ? datos.filas.length : 0, 1);
+    const filaNota = await driveService.resolverFilaNotaDgF05(spreadsheetId, sheetTitle);
+    if (!filaNota) {
+        return;
+    }
+    const disponibles = Math.max(0, filaNota - DATA_START_ROW);
+    if (numFilas === disponibles) {
+        return;
+    }
+    const hojas = await driveService.obtenerMetadatosHojasGoogleSheet(spreadsheetId);
+    const hoja = (hojas || []).find((h) => String(h.title || '').trim() === String(sheetTitle).trim());
+    if (!hoja || hoja.sheetId == null) {
+        return;
+    }
+    if (numFilas > disponibles) {
+        await driveService.insertarFilasGoogleSheet(
+            spreadsheetId,
+            hoja.sheetId,
+            filaNota - 1,
+            numFilas - disponibles
+        );
+        return;
+    }
+    // Sobrantes: borrar filas físicas vacías (no solo limpiar celdas).
+    await driveService.eliminarFilasGoogleSheet(
+        spreadsheetId,
+        hoja.sheetId,
+        DATA_START_ROW + numFilas - 1,
+        disponibles - numFilas
+    );
+}
+
+/**
+ * Sustituye SOLO la hoja del mes de trabajo por una copia limpia de la plantilla
+ * externa, inserta filas y vuelca datos. Nunca reescribe pestañas de historial.
+ */
+function esHojaDelMesActual(titulo, mesBase = null) {
+    const mes = String(mesBase || nombreHojaMesActual()).trim();
+    const t = String(titulo || '').trim();
+    if (!t || !mes) return false;
+    if (t === mes) return true;
+    return new RegExp(`^${mes.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}_\\d+$`, 'i').test(t);
+}
+
+async function reescribirHojaDesdePlantilla(spreadsheetId, tituloDestino, datos) {
+    const mesActual = nombreHojaMesActual();
+    let titulo = String(tituloDestino || '').trim() || mesActual;
+    // Solo se regeneran versiones del mes actual (DGF05-1026 / _N); meses previos no se tocan.
+    if (!esHojaDelMesActual(titulo, mesActual)
+        && excelHistorial.esHojaHistorialInformacion(titulo, CODIGO_FORMATO)) {
+        console.warn(
+            `[DG-F-05] Se ignoró reescritura de historial «${titulo}»; `
+            + `se regenera solo el mes actual.`
+        );
+        titulo = mesActual;
+    }
+
+    console.warn(`[DG-F-05] Regenerando «${titulo}» desde plantilla maestra (copyTo + datos).`);
+
+    const tmpTitle = `_tmp_${titulo}_${Date.now().toString().slice(-6)}`;
+    const tituloTmp = await adoptarPlantillaEnSistema(spreadsheetId, tmpTitle);
+
+    await asegurarFilasDatosEnDrive(spreadsheetId, tituloTmp, datos);
+    const filasPrevias = Array.isArray(datos?.filas) ? datos.filas.length : 0;
+    await actualizarDatosEnGoogleSheet(spreadsheetId, datos, filasPrevias, tituloTmp);
+
+    const titulos = await driveService.listarHojasGoogleSheet(spreadsheetId).catch(() => []);
+    if (titulos.includes(titulo)) {
+        try {
+            await driveService.eliminarHojasGoogleSheet(spreadsheetId, [titulo]);
+        } catch (err) {
+            console.warn(`[DG-F-05] No se pudo eliminar hoja previa «${titulo}»:`, err.message);
+        }
+    }
+    await driveService.renombrarHojaGoogleSheet(spreadsheetId, tituloTmp, titulo);
+    try {
+        await driveService.moverHojaAlInicioGoogleSheet(spreadsheetId, titulo);
+    } catch (_) { /* opcional */ }
+
+    return driveService.obtenerInfoArchivo(spreadsheetId).catch(() => ({ id: spreadsheetId }));
+}
+
+/**
+ * Última versión del mes actual: DGF05-1026_3 > DGF05-1026_2 > DGF05-1026.
+ */
+function resolverTituloMesMasReciente(titulos, mesBase = null) {
+    const mes = String(mesBase || nombreHojaMesActual()).trim();
+    const lista = Array.isArray(titulos) ? titulos : [];
+    const delMes = lista
+        .map((t) => String(t || '').trim())
+        .filter((t) => t === mes || new RegExp(`^${mes.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}_\\d+$`, 'i').test(t))
+        .map((titulo) => ({
+            titulo,
+            fecha: excelHistorial.parsearFechaHojaHistorial(titulo, CODIGO_FORMATO)
+        }))
+        .filter((item) => item.fecha)
+        .sort((a, b) => b.fecha.sortKey - a.fecha.sortKey);
+    return delMes[0]?.titulo || null;
+}
+
+/**
+ * Escribe datos en la hoja vigente (última versión del mes). Si faltan slots o la
+ * estructura está rota, reescribe desde la plantilla externa solo esa pestaña.
+ */
+async function sincronizarHojaEdicionDrive(spreadsheetId, datos, sheetTitlePreferido = null) {
+    const mesActual = nombreHojaMesActual();
+    let titulos = [];
+    try {
+        titulos = await driveService.listarHojasGoogleSheet(spreadsheetId);
+    } catch (err) {
+        console.warn('[DG-F-05] No se pudo listar hojas; se usa plantilla:', err.message);
+        return reescribirHojaDesdePlantilla(spreadsheetId, mesActual, datos);
+    }
+
+    let titulo = String(sheetTitlePreferido || '').trim();
+    if (!titulo || !titulos.includes(titulo)) {
+        titulo = resolverTituloMesMasReciente(titulos, mesActual) || mesActual;
+    }
+
+    if (!titulos.includes(titulo)) {
+        return reescribirHojaDesdePlantilla(spreadsheetId, mesActual, datos);
+    }
+
+    const estructuraOk = await hojaTieneEstructuraPlantilla(spreadsheetId, titulo);
+    if (!estructuraOk) {
+        console.warn(`[DG-F-05] «${titulo}» no coincide con plantilla externa; se regenera.`);
+        return reescribirHojaDesdePlantilla(spreadsheetId, titulo, datos);
+    }
+
+    try {
+        await asegurarFilasDatosEnDrive(spreadsheetId, titulo, datos);
+        const filasPrevias = Array.isArray(datos?.filas) ? datos.filas.length : 0;
+        return await actualizarDatosEnGoogleSheet(spreadsheetId, datos, filasPrevias, titulo);
+    } catch (err) {
+        console.warn('[DG-F-05] Sync celda falló; regenerando desde plantilla:', err.message);
+        return reescribirHojaDesdePlantilla(spreadsheetId, titulo, datos);
+    }
+}
+
+/**
+ * Hoja de trabajo del editor: última versión del mes (DGF05-MMAA o DGF05-MMAA_N).
+ */
+async function resolverTituloHojaVigente(spreadsheetId) {
+    const mesActual = nombreHojaMesActual();
+    let titulos = [];
+    try {
+        titulos = await driveService.listarHojasGoogleSheet(spreadsheetId);
+    } catch (err) {
+        console.warn('[DG-F-05] No se pudieron listar hojas:', err.message);
+    }
+
+    const delMes = resolverTituloMesMasReciente(titulos, mesActual);
+    if (delMes) {
+        return delMes;
+    }
+    if (!titulos.length) {
+        return mesActual;
+    }
+
+    try {
+        const vigente = await excelHistorial.resolverTituloHojaVigenteDesdeDrive(
+            spreadsheetId,
+            SHEET_TITLE,
+            CODIGO_FORMATO
+        );
+        const nombre = String(vigente || '').trim();
+        if (nombre && titulos.some((t) => String(t).trim() === nombre)) {
+            return nombre;
+        }
+    } catch (err) {
+        console.warn('[DG-F-05] No se pudo resolver hoja vigente:', err.message);
+    }
+
+    return titulos[0] || mesActual;
+}
+
+async function editorUrlConHojaVigente(driveId) {
+    const base = `https://docs.google.com/spreadsheets/d/${driveId}/edit?usp=sharing`;
+    if (!driveId) {
+        return null;
+    }
+    try {
+        const titulo = await resolverTituloHojaVigente(driveId);
+        const gid = await driveService.obtenerGidHojaPorNombre(driveId, titulo);
+        if (gid != null) {
+            return `${base}&gid=${gid}#gid=${gid}`;
+        }
+    } catch (err) {
+        console.warn('[DG-F-05] No se pudo armar URL del editor:', err.message);
+    }
+    return base;
 }
 
 async function leerDatosRegistro(registro) {
@@ -1511,14 +1845,6 @@ async function leerDatosRegistro(registro) {
     } catch {
         return null;
     }
-}
-
-async function buscarArchivoDriveTrabajo() {
-    const archivos = await driveService.listarArchivosCarpeta(CARPETA_DRIVE_ID);
-    const objetivo = NOMBRE_ARCHIVO_DRIVE.toLowerCase();
-    return (archivos || [])
-        .filter((f) => String(f.name || '').toLowerCase().startsWith(objetivo.toLowerCase()))
-        .sort((a, b) => new Date(b.modifiedTime || 0) - new Date(a.modifiedTime || 0))[0] || null;
 }
 
 function formatearFechaCelda(fechaIso) {
@@ -1596,6 +1922,11 @@ async function escribirSnapshotEnHojaDrive(spreadsheetId, sheetTitle, datos) {
     await actualizarFirmasEnGoogleSheet(spreadsheetId, datos, sheetTitle);
 }
 
+/**
+ * DG-F-05 solo usa pestañas DGF05-MMAA / DGF05-MMAA_N.
+ * - Nunca Partes_rNN (formato → información).
+ * - Cada guardado con cambios crea una versión nueva del mes (_2, _3…).
+ */
 async function aplicarHistorialDgF05(opciones) {
     return excelHistorial.aplicarHistorialEnDrive({
         codigoFormato: CODIGO_FORMATO,
@@ -1607,9 +1938,51 @@ async function aplicarHistorialDgF05(opciones) {
         estructuraEsEquivalente: excelHistorial.estructuraFilasEquivalente,
         escribirSnapshotEnHoja: escribirSnapshotEnHojaDrive,
         origen: opciones.origen || 'sistema',
-        forzarTipo: opciones.forzarTipo || null,
-        usarHojaVigenteComoOrigen: true
+        forzarTipo: null,
+        usarHojaVigenteComoOrigen: true,
+        soloHistorialInformacion: true,
+        versionarCadaCambioMes: true,
+        resolverNombreHistorial: () => nombreHojaMesActual()
     });
+}
+
+/**
+ * Elimina pestañas Partes_r* y «Partes Interesadas» residuales.
+ * Solo conserva DGF05-MMAA(_N) y otras hojas ajenas al alias de formato.
+ */
+async function eliminarHojasHistorialFormatoDgF05(spreadsheetId) {
+    if (!spreadsheetId || spreadsheetId === TEMPLATE_DRIVE_ID) {
+        return;
+    }
+    const alias = excelHistorial.resolverAlias(CODIGO_FORMATO);
+    let titulos = [];
+    try {
+        titulos = await driveService.listarHojasGoogleSheet(spreadsheetId);
+    } catch (err) {
+        console.warn('[DG-F-05] No se pudieron listar hojas para limpiar Partes_r*:', err.message);
+        return;
+    }
+    const patronAlias = new RegExp(`^${String(alias).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}_r`, 'i');
+    const aEliminar = (titulos || []).filter((t) => {
+        const nombre = String(t || '').trim();
+        if (!nombre) return false;
+        if (patronAlias.test(nombre)) return true;
+        if (nombre.toLowerCase() === SHEET_TITLE.toLowerCase()) return true;
+        return false;
+    });
+    // No borrar si sería la única hoja del libro.
+    if (!aEliminar.length || aEliminar.length >= (titulos || []).length) {
+        if (aEliminar.length && aEliminar.length >= (titulos || []).length) {
+            console.warn('[DG-F-05] No se eliminan Partes_*: serían las únicas pestañas del libro.');
+        }
+        return;
+    }
+    try {
+        await driveService.eliminarHojasGoogleSheet(spreadsheetId, aEliminar);
+        console.warn(`[DG-F-05] Eliminadas pestañas residuales: ${aEliminar.join(', ')}`);
+    } catch (err) {
+        console.warn('[DG-F-05] No se pudieron eliminar pestañas Partes_r*:', err.message);
+    }
 }
 
 async function actualizarFirmasEnGoogleSheet(spreadsheetId, datos, sheetTitle = SHEET_TITLE) {
@@ -1642,45 +2015,46 @@ async function actualizarDatosEnGoogleSheet(spreadsheetId, datos, filasPrevias =
     const numFilas = Math.max(datos.filas.length, 1);
     const actualizaciones = datosAActualizacionesSheet(datos, filasPrevias, sheetTitle);
     await driveService.actualizarCeldasGoogleSheet(spreadsheetId, actualizaciones);
-    await actualizarFirmasEnGoogleSheet(spreadsheetId, datos);
-    await reforzarFormatoDriveSheet(spreadsheetId, numFilas, filasPrevias);
+    await actualizarFirmasEnGoogleSheet(spreadsheetId, datos, sheetTitle);
+    await reforzarFormatoDriveSheet(spreadsheetId, numFilas, filasPrevias, sheetTitle);
     return driveService.obtenerInfoArchivo(spreadsheetId).catch(() => ({ id: spreadsheetId }));
 }
 
-async function reforzarFormatoDriveSheet(fileId, numFilas, filasPrevias = 0) {
+async function reforzarFormatoDriveSheet(fileId, numFilas, filasPrevias = 0, sheetTitle = SHEET_TITLE) {
     if (!fileId || !numFilas) {
         return;
     }
+    const titulo = String(sheetTitle || SHEET_TITLE).trim() || SHEET_TITLE;
     try {
         const info = await driveService.obtenerInfoArchivo(fileId).catch(() => null);
         if (info?.mimeType === 'application/vnd.google-apps.spreadsheet') {
             await driveService.actualizarCeldasGoogleSheet(fileId, [{
-                range: `'${SHEET_TITLE}'!H${HEADER_ROW}`,
+                range: `'${titulo}'!H${HEADER_ROW}`,
                 values: [[TEXTO_ENCABEZADO_SEGUIMIENTO]]
             }]);
             await driveService.limpiarBordesTablaDebajoDatosDgF05(
                 fileId,
-                SHEET_TITLE,
+                titulo,
                 DATA_START_ROW,
                 numFilas,
                 filasPrevias
             );
             await driveService.limpiarBordesColumnaInfluenciaFueraTablaDgF05(
                 fileId,
-                SHEET_TITLE,
+                titulo,
                 DATA_START_ROW,
                 numFilas
             );
             await driveService.aplicarFormatoFilasDgF05(
                 fileId,
-                SHEET_TITLE,
+                titulo,
                 DATA_START_ROW,
                 numFilas,
                 HEADER_ROW
             );
             await driveService.aplicarBordesComplementariosDgF05(
                 fileId,
-                SHEET_TITLE,
+                titulo,
                 DATA_START_ROW,
                 numFilas,
                 HEADER_ROW
@@ -1691,27 +2065,28 @@ async function reforzarFormatoDriveSheet(fileId, numFilas, filasPrevias = 0) {
     }
 }
 
+/**
+ * Nunca reemplaza el archivo sistema ni la plantilla maestra (se perdería el historial).
+ * Solo se usa como fallback extremo para archivos temporales.
+ */
 async function subirOReemplazarEnDrive(buffer, driveFileIdPrevio) {
-    if (driveFileIdPrevio) {
+    if (driveFileIdPrevio && !esArchivoProtegidoDrive(driveFileIdPrevio)) {
         try {
-            const actualizado = await driveService.reemplazarArchivoEnDrive(
+            return await driveService.reemplazarArchivoEnDrive(
                 driveFileIdPrevio,
                 buffer,
                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 NOMBRE_ARCHIVO_DRIVE
             );
-            return actualizado;
         } catch (err) {
             console.warn('[DG-F-05] No se pudo actualizar el archivo en Drive in-place:', err.message);
         }
     }
 
-    const existentes = await buscarArchivoDriveTrabajo();
-    if (existentes?.id && existentes.id !== driveFileIdPrevio) {
-        try {
-            await driveService.eliminarArchivo(existentes.id);
-        } catch (err) {
-            console.warn('[DG-F-05] No se pudo eliminar duplicado en Drive:', err.message);
+    if (DRIVE_FILE_ID_SISTEMA) {
+        const info = await driveService.obtenerInfoArchivo(DRIVE_FILE_ID_SISTEMA).catch(() => null);
+        if (info?.id) {
+            return info;
         }
     }
 
@@ -1719,11 +2094,11 @@ async function subirOReemplazarEnDrive(buffer, driveFileIdPrevio) {
         buffer,
         NOMBRE_ARCHIVO_DRIVE,
         CARPETA_DRIVE_ID,
-        { sheetTitle: 'Partes Interesadas', maxColumns: 11, keepSingleSheet: true }
+        DRIVE_SHEET_OPTIONS
     );
 }
 
-function construirRespuesta(registro, datos, archivoDrive) {
+async function construirRespuesta(registro, datos, archivoDrive) {
     const fechaOriginal = formatearFechaIso(registro?.fecha_elaboracion_original);
     const fechaMod = formatearFechaIso(registro?.fecha_modificacion_contenido);
     const modificado = !!registro?.contenido_modificado;
@@ -1740,7 +2115,7 @@ function construirRespuesta(registro, datos, archivoDrive) {
         fechaModificacionContenido: fechaMod || null,
         contenidoModificado: modificado,
         driveFileId: driveId,
-        editorUrl: driveId ? `https://docs.google.com/spreadsheets/d/${driveId}/edit?usp=sharing` : null,
+        editorUrl: driveId ? await editorUrlConHojaVigente(driveId) : null,
         previewUrl: driveId ? `https://docs.google.com/spreadsheets/d/${driveId}/preview` : null,
         ultimaSyncDrive: formatearUltimaSyncDisplay(registro, archivoDrive)
     };
@@ -1773,6 +2148,8 @@ async function cargarFormato(pool) {
         registro = await obtenerRegistroDb(pool);
     }
 
+    const datosDb = await leerDatosRegistro(registro);
+
     if (driveFileId) {
         try {
             const buffer = await descargarBufferDrive(driveFileId);
@@ -1783,18 +2160,50 @@ async function cargarFormato(pool) {
         }
     }
 
-    if (!datos) {
-        datos = await leerDatosRegistro(registro);
+    // Solo se toca la última versión del MES ACTUAL (DGF05-MMAA / _N). Historial previo intacto.
+    const tituloMes = nombreHojaMesActual();
+    if (driveFileId && driveFileId !== TEMPLATE_DRIVE_ID) {
+        await eliminarHojasHistorialFormatoDgF05(driveFileId);
+        const titulos = await driveService.listarHojasGoogleSheet(driveFileId).catch(() => []);
+        const tituloVigente = resolverTituloMesMasReciente(titulos, tituloMes);
+        const existeMes = !!tituloVigente;
+        const estructuraMesOk = existeMes
+            ? await hojaTieneEstructuraPlantilla(driveFileId, tituloVigente)
+            : false;
+        const driveConMenosFilas = !!(datos && datosDb
+            && (datosDb.filas?.length || 0) > (datos.filas?.length || 0));
+
+        if (!existeMes || !estructuraMesOk || driveConMenosFilas) {
+            const destino = tituloVigente || tituloMes;
+            if (!existeMes) {
+                console.warn(`[DG-F-05] Falta hoja del mes «${tituloMes}»; se crea desde plantilla.`);
+            } else if (!estructuraMesOk) {
+                console.warn(`[DG-F-05] «${destino}» no coincide con plantilla; se regenera.`);
+            } else {
+                console.warn('[DG-F-05] Drive con menos filas que BD; se regenera hoja del mes.');
+            }
+            datos = datosDb || datos || sanitizarDatos(DATOS_DEFECTO);
+            try {
+                await reescribirHojaDesdePlantilla(driveFileId, destino, datos);
+                archivoDrive = await driveService.obtenerInfoArchivo(driveFileId).catch(() => archivoDrive);
+            } catch (healErr) {
+                console.warn('[DG-F-05] No se pudo regenerar hoja del mes desde plantilla:', healErr.message);
+            }
+        } else {
+            datos = datosDb || datos || sanitizarDatos(DATOS_DEFECTO);
+        }
     }
 
+    if (!datos) {
+        datos = datosDb;
+    }
     if (!datos) {
         datos = await leerDatosDesdePlantilla();
     }
 
     if (!registro) {
-        const fechaOriginal = datos.fechaElaboracion || DATOS_DEFECTO.fechaElaboracion;
         registro = {
-            fecha_elaboracion_original: fechaOriginal,
+            fecha_elaboracion_original: datos.fechaElaboracion || DATOS_DEFECTO.fechaElaboracion,
             fecha_modificacion_contenido: null,
             contenido_modificado: 0,
             drive_file_id: null,
@@ -1802,14 +2211,14 @@ async function cargarFormato(pool) {
         };
     }
 
-    registro = {
-        ...registro,
-        drive_file_id: driveFileId || null
-    };
-
-    return construirRespuesta(registro, datos, archivoDrive);
+    registro = { ...registro, drive_file_id: driveFileId || null };
+    return await construirRespuesta(registro, datos, archivoDrive);
 }
 
+/**
+ * Trae la estructura desde el Excel plantilla externo hacia el archivo sistema
+ * (nueva/actual hoja del mes), sin borrar pestañas de historial.
+ */
 async function actualizarPlantillaDesdeSistema(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
@@ -1833,26 +2242,41 @@ async function actualizarPlantillaDesdeSistema(pool) {
         fechaElaboracion: contenidoModificado && fechaModificacion ? fechaModificacion : fechaOriginal
     };
 
-    if (registro?.drive_file_id) {
+    const driveId = await resolverDriveFileId(registro);
+    if (!driveId) {
+        throw new Error('No hay archivo sistema DG-F-05 configurado (DRIVE_FILE_ID_SISTEMA).');
+    }
+    if (driveId === TEMPLATE_DRIVE_ID) {
+        throw new Error('El archivo plantilla no puede usarse como archivo de trabajo.');
+    }
+
+    await eliminarCopiasDriveTrabajo(driveId);
+    await eliminarHojasHistorialFormatoDgF05(driveId);
+
+    const tituloMes = nombreHojaMesActual(datosPublicar.fechaElaboracion || fechaOriginal);
+    const titulos = await driveService.listarHojasGoogleSheet(driveId).catch(() => []);
+    let tituloHoja = titulos.includes(tituloMes) ? tituloMes : null;
+
+    if (tituloHoja) {
+        // Sin Partes_r*: se regenera solo la hoja del mes (el historial DGF05-MMAA previo se conserva).
         try {
-            await driveService.eliminarArchivo(registro.drive_file_id);
+            await driveService.eliminarHojasGoogleSheet(driveId, [tituloHoja]);
         } catch (err) {
-            console.warn('[DG-F-05] Archivo previo no encontrado al actualizar plantilla:', err.message);
+            console.warn('[DG-F-05] No se pudo eliminar hoja previa del mes:', err.message);
         }
     }
-    await eliminarCopiasDriveTrabajo();
 
-    const buffer = await escribirDatosEnPlantilla(datosPublicar);
-    const archivoDrive = await driveService.subirExcelComoGoogleSheet(
-        buffer,
-        NOMBRE_ARCHIVO_DRIVE,
-        CARPETA_DRIVE_ID,
-        { sheetTitle: 'Partes Interesadas', maxColumns: 11, keepSingleSheet: true }
+    tituloHoja = await adoptarPlantillaEnSistema(driveId, tituloMes);
+    await asegurarFilasDatosEnDrive(driveId, tituloHoja, datosPublicar);
+    const archivoDrive = await actualizarDatosEnGoogleSheet(
+        driveId,
+        datosPublicar,
+        datosPublicar.filas.length,
+        tituloHoja
     );
-    await reforzarFormatoDriveSheet(archivoDrive.id, datosPublicar.filas.length);
 
     await guardarRegistroDb(pool, {
-        driveFileId: archivoDrive.id,
+        driveFileId: driveId,
         datos: datosPublicar,
         fechaElaboracionOriginal: fechaOriginal,
         fechaModificacionContenido: contenidoModificado ? fechaModificacion : null,
@@ -1860,15 +2284,24 @@ async function actualizarPlantillaDesdeSistema(pool) {
     });
 
     const registroActualizado = await obtenerRegistroDb(pool);
-    return construirRespuesta(registroActualizado, datosPublicar, archivoDrive);
+    return await construirRespuesta(registroActualizado, datosPublicar, archivoDrive);
 }
 
+/** Serializa guardados: evita syncs DG-F-05 compitiendo por la misma cuota Sheets. */
+let _guardarFormatoChain = Promise.resolve();
+
 async function guardarFormato(pool, body, options = {}) {
+    const ejecutar = () => guardarFormatoInterno(pool, body, options);
+    const tarea = _guardarFormatoChain.then(ejecutar, ejecutar);
+    _guardarFormatoChain = tarea.then(() => undefined, () => undefined);
+    return tarea;
+}
+
+async function guardarFormatoInterno(pool, body, options = {}) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registroPrevio = await obtenerRegistroDb(pool);
     const datosEntrada = sanitizarDatos(body?.datos || body);
     const origen = String(body?.origen || 'sistema').toLowerCase();
-    const editorActivo = !!body?.editorActivo || !!options.editorActivo;
 
     let fechaOriginal = formatearFechaIso(registroPrevio?.fecha_elaboracion_original);
     let contenidoModificado = !!registroPrevio?.contenido_modificado;
@@ -1902,16 +2335,17 @@ async function guardarFormato(pool, body, options = {}) {
         const archivoDrive = await driveService
             .obtenerInfoArchivo(registroPrevio.drive_file_id)
             .catch(() => null);
-        return construirRespuesta(registroPrevio, datosEntrada, archivoDrive);
+        return await construirRespuesta(registroPrevio, datosEntrada, archivoDrive);
     }
 
-    const driveId = registroPrevio?.drive_file_id || null;
+    const driveId = await resolverDriveFileId(registroPrevio);
     let datosGuardar = { ...datosEntrada };
 
-    if (driveId) {
+    if (driveId && driveId !== TEMPLATE_DRIVE_ID) {
         try {
             const infoDrive = await driveService.obtenerInfoArchivo(driveId).catch(() => null);
             if (infoDrive?.mimeType === 'application/vnd.google-apps.spreadsheet') {
+                await eliminarHojasHistorialFormatoDgF05(driveId);
                 const fechaCambio = fechaHoyIso();
                 const datosHistorial = origen !== 'consulta'
                     ? { ...datosEntrada, fechaElaboracion: fechaCambio }
@@ -1920,28 +2354,32 @@ async function guardarFormato(pool, body, options = {}) {
                     spreadsheetId: driveId,
                     datosPrevios,
                     datosNuevos: datosHistorial,
-                    origen,
-                    forzarTipo: body?.tipoCambio || null
+                    origen
                 });
                 datosGuardar = hist.datosGuardar;
 
                 if (hist.aplicado && origen !== 'consulta') {
                     contenidoModificado = true;
-                    fechaModificacion = hist.tipoCambio === 'formato'
-                        ? (datosGuardar.fechaRevision || excelHistorial.fechaAhoraMexicoIso())
-                        : fechaCambio;
+                    fechaModificacion = fechaCambio;
                 }
 
                 datosGuardar.fechaElaboracion = contenidoModificado && fechaModificacion
                     ? fechaModificacion
                     : fechaOriginal;
 
-                const archivoDrive = await driveService
-                    .obtenerInfoArchivo(driveId)
-                    .catch(() => ({ id: driveId }));
-                if (!hist.aplicado) {
-                    const filasPrevias = Array.isArray(datosPrevios?.filas) ? datosPrevios.filas.length : 0;
-                    await actualizarDatosEnGoogleSheet(driveId, datosGuardar, filasPrevias);
+                let archivoDrive = null;
+                const tituloSync = String(hist.hojaVigente || '').trim()
+                    || await resolverTituloHojaVigente(driveId);
+                try {
+                    archivoDrive = await sincronizarHojaEdicionDrive(driveId, datosGuardar, tituloSync);
+                } catch (syncErr) {
+                    console.warn('[DG-F-05] Sync hoja edición falló tras historial:', syncErr.message);
+                }
+                await eliminarHojasHistorialFormatoDgF05(driveId);
+                if (!archivoDrive) {
+                    archivoDrive = await driveService
+                        .obtenerInfoArchivo(driveId)
+                        .catch(() => ({ id: driveId }));
                 }
                 await guardarRegistroDb(pool, {
                     driveFileId: driveId,
@@ -1951,10 +2389,10 @@ async function guardarFormato(pool, body, options = {}) {
                     contenidoModificado
                 });
                 const registro = await obtenerRegistroDb(pool);
-                return construirRespuesta(registro, datosGuardar, archivoDrive);
+                return await construirRespuesta(registro, datosGuardar, archivoDrive);
             }
         } catch (err) {
-            console.warn('[DG-F-05] No se pudo actualizar celdas en Google Sheet, reemplazando archivo:', err.message);
+            console.warn('[DG-F-05] No se pudo actualizar celdas en Google Sheet:', err.message);
         }
     }
 
@@ -1962,15 +2400,28 @@ async function guardarFormato(pool, body, options = {}) {
         ? fechaModificacion
         : fechaOriginal;
 
-    const buffer = await escribirDatosEnPlantilla(datosGuardar);
-    const archivoDrive = await subirOReemplazarEnDrive(buffer, driveId);
-    await reforzarFormatoDriveSheet(archivoDrive.id, datosGuardar.filas.length);
+    // Fallback: no reemplazar el archivo sistema. Adoptar plantilla en hoja del mes y volcar datos.
+    const driveTrabajo = driveId || await resolverDriveFileId(registroPrevio);
+    if (!driveTrabajo || driveTrabajo === TEMPLATE_DRIVE_ID) {
+        throw new Error('No se pudo sincronizar DG-F-05: falta archivo sistema.');
+    }
+    let tituloNuevo = await resolverTituloHojaVigente(driveTrabajo);
+    try {
+        const titulos = await driveService.listarHojasGoogleSheet(driveTrabajo);
+        if (!titulos.includes(tituloNuevo)) {
+            tituloNuevo = await adoptarPlantillaEnSistema(driveTrabajo, nombreHojaMesActual());
+        }
+    } catch (adoptErr) {
+        console.warn('[DG-F-05] Adoptar plantilla en fallback:', adoptErr.message);
+    }
+    const archivoDrive = await sincronizarHojaEdicionDrive(driveTrabajo, datosGuardar, tituloNuevo)
+        || await driveService.obtenerInfoArchivo(driveTrabajo).catch(() => ({ id: driveTrabajo }));
 
     await guardarRegistroDb(pool, {
-        driveFileId: archivoDrive.id,
+        driveFileId: driveTrabajo,
         datos: excelHistorial.adjuntarMetaHoja(
             datosGuardar,
-            await driveService.obtenerDimensionesHojaGoogleSheet(archivoDrive.id, SHEET_TITLE)
+            await driveService.obtenerDimensionesHojaGoogleSheet(driveTrabajo, tituloNuevo).catch(() => null)
         ),
         fechaElaboracionOriginal: fechaOriginal,
         fechaModificacionContenido: contenidoModificado ? fechaModificacion : null,
@@ -1978,29 +2429,30 @@ async function guardarFormato(pool, body, options = {}) {
     });
 
     const registro = await obtenerRegistroDb(pool);
-    return construirRespuesta(registro, datosGuardar, archivoDrive);
+    return await construirRespuesta(registro, datosGuardar, archivoDrive);
 }
 
 async function sincronizarDesdeDrive(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
-    if (!registro?.drive_file_id) {
+    const driveId = await resolverDriveFileId(registro);
+    if (!driveId || driveId === TEMPLATE_DRIVE_ID) {
         return cargarFormato(pool);
     }
 
-    const buffer = await descargarBufferDrive(registro.drive_file_id);
+    const buffer = await descargarBufferDrive(driveId);
     const datosDrive = sanitizarDatos(await leerDatosDesdeBuffer(buffer, { modo: 'edicion' }));
 
-    let fechaOriginal = formatearFechaIso(registro.fecha_elaboracion_original);
-    let contenidoModificado = !!registro.contenido_modificado;
-    let fechaModificacion = formatearFechaIso(registro.fecha_modificacion_contenido);
+    let fechaOriginal = formatearFechaIso(registro?.fecha_elaboracion_original);
+    let contenidoModificado = !!registro?.contenido_modificado;
+    let fechaModificacion = formatearFechaIso(registro?.fecha_modificacion_contenido);
 
     if (!fechaOriginal) {
         fechaOriginal = datosDrive.fechaElaboracion || DATOS_DEFECTO.fechaElaboracion;
     }
 
     let datosPrevios = null;
-    if (registro.datos_json) {
+    if (registro?.datos_json) {
         try {
             datosPrevios = sanitizarDatos(
                 typeof registro.datos_json === 'string'
@@ -2015,14 +2467,14 @@ async function sincronizarDesdeDrive(pool) {
     const huboCambio = !datosPrevios || !datosSonEquivalentes(datosPrevios, datosDrive);
     if (!huboCambio) {
         const archivoDrive = await driveService
-            .obtenerInfoArchivo(registro.drive_file_id)
+            .obtenerInfoArchivo(driveId)
             .catch(() => null);
-        return construirRespuesta(registro, datosDrive, archivoDrive);
+        return await construirRespuesta(registro, datosDrive, archivoDrive);
     }
 
     const fechaCambio = fechaHoyIso();
     const hist = await aplicarHistorialDgF05({
-        spreadsheetId: registro.drive_file_id,
+        spreadsheetId: driveId,
         datosPrevios,
         datosNuevos: { ...datosDrive, fechaElaboracion: fechaCambio },
         origen: 'drive'
@@ -2041,7 +2493,7 @@ async function sincronizarDesdeDrive(pool) {
         : fechaOriginal;
 
     await guardarRegistroDb(pool, {
-        driveFileId: registro.drive_file_id,
+        driveFileId: driveId,
         datos: datosGuardar,
         fechaElaboracionOriginal: fechaOriginal,
         fechaModificacionContenido: contenidoModificado ? fechaModificacion : null,
@@ -2050,127 +2502,76 @@ async function sincronizarDesdeDrive(pool) {
 
     const registroActualizado = await obtenerRegistroDb(pool);
     const archivoDrive = await driveService
-        .obtenerInfoArchivo(registro.drive_file_id)
+        .obtenerInfoArchivo(driveId)
         .catch(() => null);
 
-    return construirRespuesta(registroActualizado, datosGuardar, archivoDrive);
+    return await construirRespuesta(registroActualizado, datosGuardar, archivoDrive);
 }
 
 async function obtenerEstadoDrive() {
-    const registro = null;
-    const archivo = await buscarArchivoDriveTrabajo();
+    const existeSistema = DRIVE_FILE_ID_SISTEMA
+        ? await driveService.verificarArchivoExiste(DRIVE_FILE_ID_SISTEMA).catch(() => false)
+        : false;
+    const archivo = existeSistema
+        ? await driveService.obtenerInfoArchivo(DRIVE_FILE_ID_SISTEMA).catch(() => null)
+        : await buscarArchivoDriveTrabajo();
     return {
         existe: !!archivo,
         archivo,
-        registro
+        plantillaDriveId: TEMPLATE_DRIVE_ID,
+        sistemaDriveId: DRIVE_FILE_ID_SISTEMA,
+        registro: null
     };
 }
 
 /**
- * Exporta el Google Sheet DG-F-05 a PDF (solo la hoja activa, no históricas).
+ * Exporta el Google Sheet DG-F-05 a PDF (solo la hoja del mes vigente, no históricas).
  * Carta, horizontal, ajustar al ancho, márgenes personalizados 1 cm.
  */
-async function resolverTituloHojaParaPdf(spreadsheetId) {
-    let titulos = [];
-    try {
-        titulos = await driveService.listarHojasGoogleSheet(spreadsheetId);
-    } catch (err) {
-        console.warn('[DG-F-05] No se pudieron listar hojas para PDF:', err.message);
-    }
-
-    // Preferir la hoja de edición (donde se guardan los cambios del sistema).
-    if (titulos.some((t) => String(t).trim() === SHEET_TITLE)) {
-        return SHEET_TITLE;
-    }
-
-    try {
-        const vigente = await excelHistorial.resolverTituloHojaVigenteDesdeDrive(
-            spreadsheetId,
-            SHEET_TITLE,
-            CODIGO_FORMATO
-        );
-        if (vigente && titulos.some((t) => String(t).trim() === String(vigente).trim())) {
-            return String(vigente).trim();
-        }
-    } catch (err) {
-        console.warn('[DG-F-05] No se pudo resolver hoja vigente para PDF:', err.message);
-    }
-
-    return titulos[0] || SHEET_TITLE;
-}
-
 async function descargarPlantillaPdf(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
     let driveFileId = await resolverDriveFileId(registro);
-    if (!driveFileId) {
+    if (!driveFileId || driveFileId === TEMPLATE_DRIVE_ID) {
         throw new Error('No hay Google Sheet DG-F-05 configurado para exportar a PDF.');
     }
 
-    const info = await driveService.obtenerInfoArchivo(driveFileId).catch(() => null);
-    const mime = String(info?.mimeType || '');
-    let spreadsheetId = driveFileId;
-    let tempConvertidoId = null;
-
-    if (mime !== 'application/vnd.google-apps.spreadsheet') {
-        try {
-            const convertido = await driveService.convertirOfficeExcelAGoogleSheet(driveFileId, {
-                nombre: `_tmp_dgf05_pdf_${Date.now()}`,
-                eliminarOriginal: false
-            });
-            tempConvertidoId = convertido?.id || null;
-            if (!tempConvertidoId) {
-                throw new Error('No se pudo convertir el Excel DG-F-05 a Google Sheet para PDF.');
-            }
-            spreadsheetId = tempConvertidoId;
-        } catch (err) {
-            throw new Error(`No se pudo preparar DG-F-05 para PDF: ${err.message}`);
-        }
-    }
-
+    const tituloHoja = await resolverTituloHojaVigente(driveFileId);
+    let gid = null;
     try {
-        const tituloHoja = await resolverTituloHojaParaPdf(spreadsheetId);
-        let gid = null;
-        try {
-            gid = await driveService.obtenerGidHojaPorNombre(spreadsheetId, tituloHoja);
-        } catch (err) {
-            console.warn('[DG-F-05] No se pudo resolver gid de hoja para PDF:', err.message);
-        }
-        if (gid == null) {
-            throw new Error(`No se encontró la hoja activa «${tituloHoja}» para exportar a PDF.`);
-        }
-
-        // 1 cm ≈ 0.3937 in (API de exportación de Sheets usa pulgadas).
-        const margen1cm = '0.3937';
-        // gid obligatorio: sin él Sheets exporta TODO el libro (históricos = páginas duplicadas).
-        const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(spreadsheetId, {
-            gid: String(gid),
-            landscape: true,
-            size: 'letter',
-            margins: {
-                top_margin: margen1cm,
-                bottom_margin: margen1cm,
-                left_margin: margen1cm,
-                right_margin: margen1cm
-            }
-        });
-        if (!pdfBuffer || !pdfBuffer.length) {
-            throw new Error('La exportación a PDF de DG-F-05 quedó vacía.');
-        }
-        return Buffer.from(pdfBuffer);
-    } finally {
-        if (tempConvertidoId) {
-            try {
-                await driveService.eliminarArchivo(tempConvertidoId);
-            } catch (cleanupErr) {
-                console.warn('[DG-F-05] No se pudo eliminar Sheet temporal de PDF:', cleanupErr.message);
-            }
-        }
+        gid = await driveService.obtenerGidHojaPorNombre(driveFileId, tituloHoja);
+    } catch (err) {
+        console.warn('[DG-F-05] No se pudo resolver gid de hoja para PDF:', err.message);
     }
+    if (gid == null) {
+        throw new Error(`No se encontró la hoja vigente «${tituloHoja}» para exportar a PDF.`);
+    }
+
+    // 1 cm ≈ 0.3937 in (API de exportación de Sheets usa pulgadas).
+    const margen1cm = '0.3937';
+    // gid obligatorio: sin él Sheets exporta TODO el libro (históricos = páginas duplicadas).
+    const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
+        gid: String(gid),
+        landscape: true,
+        size: 'letter',
+        margins: {
+            top_margin: margen1cm,
+            bottom_margin: margen1cm,
+            left_margin: margen1cm,
+            right_margin: margen1cm
+        }
+    });
+    if (!pdfBuffer || !pdfBuffer.length) {
+        throw new Error('La exportación a PDF de DG-F-05 quedó vacía.');
+    }
+    return Buffer.from(pdfBuffer);
 }
 
 module.exports = {
     CODIGO_FORMATO,
+    TEMPLATE_DRIVE_ID,
+    DRIVE_FILE_ID_SISTEMA,
+    TEMPLATE_SHEET_TITLE,
     DATOS_DEFECTO,
     asegurarTablaSgcFormatoDatos,
     resetAsegurarTablasSgcFlag,

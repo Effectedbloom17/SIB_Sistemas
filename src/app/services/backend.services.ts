@@ -2686,6 +2686,26 @@ export class BackendServices {
         });
     }
 
+    nuevoInformeSgcF10Formato(datos: unknown): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-10/nuevo-informe`, {
+            datos,
+            origen: 'sistema'
+        });
+    }
+
+    subirPdfFirmadoSgcF10(pdfBase64: string, nombreArchivo: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-10/subir-pdf-firmado`, {
+            pdf_base64: pdfBase64,
+            nombreArchivo
+        });
+    }
+
+    eliminarPdfHistorialSgcF10(driveFileId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-10/eliminar-pdf-historial`, {
+            driveFileId
+        });
+    }
+
     listarHistorialSgcF10(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-10/historial`);
     }

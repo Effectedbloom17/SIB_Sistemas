@@ -1,3 +1,40 @@
+.biz-offline-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin: 0.65rem 1rem 0;
+  padding: 0.7rem 1rem;
+  border-radius: 0.65rem;
+  background: linear-gradient(135deg, #7c2d12 0%, #9a3412 55%, #b45309 100%);
+  color: #fff7ed;
+  box-shadow: 0 8px 22px rgba(124, 45, 18, 0.28);
+  z-index: 40;
+
+  i {
+    margin-top: 0.15rem;
+    font-size: 1.1rem;
+    opacity: 0.95;
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+
+    strong {
+      font-size: 0.92rem;
+      letter-spacing: 0.01em;
+    }
+
+    span {
+      font-size: 0.82rem;
+      line-height: 1.35;
+      opacity: 0.95;
+    }
+  }
+}
+
 // Transición suave para el contenido principal
 .main-content {
   margin-left: 250px;

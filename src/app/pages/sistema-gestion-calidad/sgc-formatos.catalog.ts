@@ -180,7 +180,7 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         codigo: 'SGC-F-12',
         titulo: 'Notificación de cambios al SGC',
         nombre: 'SGC-F-12 Notificacion de cambios al SGC.xlsx',
-        driveFileId: '1n0TAYAe9b-Q_XAYUXYArqqYPz60cLFjY',
+        driveFileId: '1Disbn6atnNc6L56D6axW0Y4hCSqspK2SfStbujGQf78',
         previewSlug: 'sgc-f-12',
         previewMode: 'form'
       },

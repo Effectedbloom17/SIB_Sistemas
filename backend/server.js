@@ -28211,6 +28211,59 @@ app.post('/api/sgc/formatos/sgc-f-10/guardar-historico', requireAdminOrSgc, asyn
     }
 });
 
+app.post('/api/sgc/formatos/sgc-f-10/nuevo-informe', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF10Service.nuevoInforme(
+            poolBiznagaSgc,
+            req.body || {},
+            req.user || null
+        );
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: payload.mensajeHistorico || 'Nuevo informe SGC-F-10 listo.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo crear el nuevo informe SGC-F-10');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-10/subir-pdf-firmado', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcF10Service.subirPdfFirmado(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'PDF firmado subido correctamente.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo subir el PDF firmado del formato SGC-F-10');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-10/eliminar-pdf-historial', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const puedeBorrarHistorial = userRoles.includes('root') || esGestorCalidadSgc(req);
+        const payload = await sgcF10Service.eliminarPdfHistorial(poolBiznagaSgc, req.body || {}, {
+            puedeBorrarHistorial
+        });
+        return res.json({
+            success: true,
+            message: 'PDF eliminado del historial.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo eliminar el PDF del historial SGC-F-10');
+    }
+});
+
 app.post('/api/sgc/formatos/sgc-f-10/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;

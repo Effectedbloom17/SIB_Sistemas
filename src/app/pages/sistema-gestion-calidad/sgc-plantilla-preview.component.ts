@@ -8,6 +8,8 @@ import { catchError, finalize, switchMap, takeUntil, timeout } from 'rxjs/operat
 import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
+import { ConnectivityService } from 'src/app/services/connectivity.service';
+import { FormDraftService } from 'src/app/services/form-draft.service';
 import { PdfThumbnailService } from 'src/app/services/pdf-thumbnail.service';
 import { DocumentPreviewService } from 'src/app/services/document-preview.service';
 import { PdfPreviewLoaderService } from 'src/app/services/pdf-preview-loader.service';
@@ -2532,6 +2534,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     cerradoEn?: string | null;
   }> = [];
   sgcF10HistorialPdfs: DgF02PdfFirmado[] = [];
+  sgcF10PdfFirmado: DgF02PdfFirmado | null = null;
+  sgcF10SubiendoPdf = false;
+  sgcF10BorrandoPdf = false;
   sgcF10DocsFisicos: SgcF02DocFisico[] = [];
   sgcF10DocsFisicosCargando = false;
   sgcF10DocsFisicosSubiendo = false;
@@ -2548,12 +2553,25 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF10PickOtros = '';
   sgcF10ComboAbierto: 'lider' | 'auditores' | 'participantes' | 'otros' | null = null;
   sgcF10ComboQuery = '';
+  /** Combo «Auditor del hallazgo» abierto en este índice; null = cerrado. */
+  sgcF10HallazgoAuditorComboIdx: number | null = null;
+  sgcF10HallazgoAuditorComboQuery = '';
   sgcF10ClasifAbierto: number | null = null;
   /** Índice del hallazgo en modo edición; el resto queda bloqueado para evitar cambios accidentales. */
   sgcF10HallazgoEditandoIdx: number | null = null;
   sgcF10OrdenHallazgos: SgcF10OrdenHallazgos = 'manual';
   sgcF10FiltroAuditor = '';
   sgcF10FiltroClausula = '';
+  /** Menús estilo combo: empresa, filtro de auditor y orden de hallazgos. */
+  sgcF10MenuAbierto: 'empresa' | 'filtroAuditor' | 'orden' | null = null;
+  sgcF10MenuQuery = '';
+  readonly sgcF10OrdenOpciones: Array<{ value: SgcF10OrdenHallazgos; label: string; icon: string }> = [
+    { value: 'manual', label: 'Orden del informe', icon: 'fa-list-ol' },
+    { value: 'auditor_asc', label: 'Por auditor (A-Z)', icon: 'fa-user-tie' },
+    { value: 'clausula_asc', label: 'Por cláusula (A-Z)', icon: 'fa-bookmark' },
+    { value: 'fecha_asc', label: 'Por fecha (antigua → reciente)', icon: 'fa-calendar-alt' },
+    { value: 'fecha_desc', label: 'Por fecha (reciente → antigua)', icon: 'fa-calendar-check' }
+  ];
   mostrarSgcF10Editor = false;
   sgcF10EditorEmbedUrlSafe: SafeResourceUrl | null = null;
   sgcF10EditorCargando = false;
@@ -3760,6 +3778,35 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   dgF02PdfCargando = false;
   dgF02PdfViewerTitulo = 'DG-F-02 Alcance.pdf';
 
+  /** Overlay de avance al pulsar «Guardar información» (Drive / Excel). */
+  sgcSaveProgressAbierto = false;
+  sgcSaveProgressPct = 0;
+  sgcSaveProgressEtapaIdx = 0;
+  sgcSaveProgressEstado: 'procesando' | 'listo' | 'error' = 'procesando';
+  sgcSaveProgressDetalle = '';
+  readonly sgcSaveProgressEtapas: Array<{ titulo: string; mensaje: string; listo: string }> = [
+    {
+      titulo: 'Guardando en el sistema',
+      mensaje: 'Registrando la información del formato…',
+      listo: 'Datos registrados en el sistema.'
+    },
+    {
+      titulo: 'Sincronizando con Drive',
+      mensaje: 'Actualizando el Excel e historial…',
+      listo: 'Archivo en Drive actualizado.'
+    },
+    {
+      titulo: 'Confirmando',
+      mensaje: 'Verificando que todo se haya guardado…',
+      listo: 'Guardado confirmado.'
+    }
+  ];
+  private sgcSaveProgressTimer: ReturnType<typeof setInterval> | null = null;
+  private sgcSaveProgressCierreTimer: ReturnType<typeof setTimeout> | null = null;
+  private sgcSaveProgressInicio = 0;
+  private sgcSaveProgressVioGuardando = false;
+  private sgcSaveProgressFallo = false;
+
   dgF04Cargando = false;
   dgF04Guardando = false;
   dgF04DriveFileId: string | null = null;
@@ -4353,6 +4400,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private dgF02Listo = false;
   private dgF04SaveTimer: number | null = null;
   dgF04CambiosPendientes = false;
+  /** Borrador local (localStorage) pendiente de sincronizar al servidor. */
+  borradorLocalPendiente = false;
+  /** Réplica local del estado de red (banner/toolbar del formato). */
+  sinConexion = false;
+  private draftLocalTimer: number | null = null;
   dgF05CambiosPendientes = false;
   sgcF18CambiosPendientes = false;
   sgcF11CambiosPendientes = false;
@@ -4408,13 +4460,30 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     private pdfThumbnail: PdfThumbnailService,
     private documentPreview: DocumentPreviewService,
     private pdfPreviewLoader: PdfPreviewLoaderService,
-    private ngZone: NgZone
+    private ngZone: NgZone,
+    private connectivity: ConnectivityService,
+    private formDraft: FormDraftService
   ) {}
 
   ngOnInit(): void {
     this.initEtiquetaRol();
     this.reiniciarTemporizadorInactividadSgc();
     this.puedeGestionarDelegacionesSgc = this.authService.puedeGestionarDelegacionesSgc();
+    this.sinConexion = this.connectivity.isOffline;
+    this.connectivity.online$.pipe(takeUntil(this.destroy$)).subscribe((online) => {
+      const estabaOffline = this.sinConexion;
+      this.sinConexion = !online;
+      if (estabaOffline && online && this.borradorLocalPendiente) {
+        void Swal.fire({
+          icon: 'info',
+          title: 'Conexión restablecida',
+          text: 'Tienes cambios guardados en este dispositivo. Pulsa «Guardar información» para sincronizarlos con el servidor.',
+          confirmButtonText: 'Entendido',
+          timer: 6000,
+          timerProgressBar: true
+        });
+      }
+    });
 
     this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe(pm => {
       const capitulo = (pm.get('capitulo') || '').toLowerCase();
@@ -4615,6 +4684,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (codigo === 'metodologia-amef') {
         this.cargarMetodologiaAmefDesdeServidor();
       }
+      // FODA restaura solo; el resto pregunta si hay borrador distinto al servidor.
+      if (codigo !== 'dg-f-04') {
+        window.setTimeout(() => this.ofrecerBorradorLocalSgcSiAplica(), 1400);
+      }
     });
 
     this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe((qm) => {
@@ -4633,9 +4706,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     document.querySelector('.sgc-f-11-guia')?.remove();
     this.detenerTemporizadorInactividadSgc();
-    this.guardarAlSalirSgc();
     this.revocarDgF01PreviewUrl();
     this.cancelarAutoSaveDgF04();
+    if (this.draftLocalTimer !== null) {
+      window.clearTimeout(this.draftLocalTimer);
+      this.draftLocalTimer = null;
+    }
+    // Solo respalda si hay cambios reales; no reescribir borrador tras un guardado limpio.
+    this.guardarAlSalirSgc();
     this.liberarScrollMetodologiaAmef();
     if (this.sgcF01EditorCerrarTimer) {
       clearTimeout(this.sgcF01EditorCerrarTimer);
@@ -4653,6 +4731,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF17PagesObserver?.disconnect();
     this.cerrarVisorDocumentoFisicoSgcF02();
     this.detenerAnimacionProgresoSpF07();
+    this.detenerOverlayGuardadoSgc(true);
     this.spF07VistaDestruida = true;
     this.destroy$.next();
     this.destroy$.complete();
@@ -4825,6 +4904,24 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       || this.plantillaSlug === 'sgc-f-17'
       || this.plantillaSlug === 'sgc-f-19'
       || this.plantillaSlug === 'sgc-f-20';
+  }
+
+  get sgcSaveProgressPctVisible(): number {
+    return Math.round(Math.max(0, Math.min(100, this.sgcSaveProgressPct)));
+  }
+
+  get formatoGuardandoActivo(): boolean {
+    if (this.driveSyncGuardando) {
+      return true;
+    }
+    if (this.plantillaSlug === 'sgc-po-01') return this.sgcPo01Guardando;
+    if (this.plantillaSlug === 'dg-f-08') return this.dgF08Guardando;
+    if (this.plantillaSlug === 'af-f-02') return this.afF02Guardando;
+    if (this.plantillaSlug === 'sgc-f-23') return this.sgcF23Guardando;
+    if (this.plantillaSlug === 'dg-f-02') return this.dgF02Guardando;
+    if (this.plantillaSlug === 'dg-f-03') return this.dgF03Guardando;
+    if (this.plantillaSlug === 'dg-f-01') return this.dgF01Guardando;
+    return false;
   }
 
   get driveSyncGuardando(): boolean {
@@ -5255,9 +5352,26 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
   }
 
-  @HostListener('window:beforeunload')
-  onBeforeUnloadSgc(): void {
+  @HostListener('window:beforeunload', ['$event'])
+  onBeforeUnloadSgc(event: BeforeUnloadEvent): string | void {
     this.guardarAlSalirSgc();
+    if (this.hayCambiosPendientesSgc || this.borradorLocalPendiente) {
+      event.preventDefault();
+      event.returnValue = true;
+      return '';
+    }
+  }
+
+  /** Cualquier escritura en el formato se respalda en el dispositivo (debounce). */
+  @HostListener('input')
+  onInputBorradorLocalSgc(): void {
+    if (!this.plantillaSlug) {
+      return;
+    }
+    if (this.plantillaSlug === 'dg-f-04' && this.dgF04Listo && !this.dgF04IgnorarAutoSave) {
+      this.dgF04CambiosPendientes = true;
+    }
+    this.programarBorradorLocalSgc();
   }
 
   /**
@@ -5469,10 +5583,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   /**
    * Guarda al salir/recargar sin cancelar la petición con destroy$.
-   * Misma semántica que «Guardar información».
+   * Borrador local solo si hay cambios pendientes (evita «Borrador local encontrado» tras guardar).
+   * Al servidor solo si hay red.
    */
   private guardarAlSalirSgc(): void {
-    if (!this.puedeGestionarPlantillasSgc || !this.hayCambiosPendientesSgc) {
+    if (!this.hayCambiosPendientesSgc) {
+      return;
+    }
+    this.persistirBorradorLocalSgcAhora();
+    if (!this.puedeGestionarPlantillasSgc) {
+      return;
+    }
+    if (this.connectivity.isOffline) {
       return;
     }
     const req$ = this.obtenerRequestGuardadoActualSgc();
@@ -5480,6 +5602,166 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     req$.subscribe({ next: () => {}, error: () => {} });
+  }
+
+  private claveBorradorLocalSgc(): string | null {
+    if (!this.plantillaSlug) {
+      return null;
+    }
+    return this.formDraft.claveSgc(this.plantillaSlug);
+  }
+
+  private programarBorradorLocalSgc(): void {
+    if (this.draftLocalTimer !== null) {
+      window.clearTimeout(this.draftLocalTimer);
+    }
+    this.draftLocalTimer = window.setTimeout(() => {
+      this.draftLocalTimer = null;
+      this.persistirBorradorLocalSgcAhora();
+    }, 350);
+  }
+
+  private persistirBorradorLocalSgcAhora(): void {
+    const clave = this.claveBorradorLocalSgc();
+    const datos = this.obtenerPayloadBorradorLocalSgc();
+    if (!clave || datos == null) {
+      return;
+    }
+    this.formDraft.guardar(clave, datos);
+    this.borradorLocalPendiente = true;
+  }
+
+  /**
+   * Tras guardar OK en servidor: quita «Cambios sin guardar» y el borrador de localStorage.
+   * Obligatorio en el `next` de todo `persistir*` (y variantes Inmediato / ConClave).
+   * En `error`: llamar `persistirBorradorLocalSgcAhora()`.
+   * No respaldar al salir si no hay cambios (`guardarAlSalirSgc`).
+   */
+  private limpiarBorradorLocalSgc(): void {
+    if (this.draftLocalTimer !== null) {
+      window.clearTimeout(this.draftLocalTimer);
+      this.draftLocalTimer = null;
+    }
+    const clave = this.claveBorradorLocalSgc();
+    if (clave) {
+      this.formDraft.limpiar(clave);
+    }
+    this.borradorLocalPendiente = false;
+  }
+
+  /** Snapshot del formulario activo para respaldo local. */
+  private obtenerPayloadBorradorLocalSgc(): unknown | null {
+    const slug = this.plantillaSlug;
+    if (slug === 'dg-f-04') return this.dgF04Form;
+    if (slug === 'dg-f-05') return this.dgF05Form;
+    if (slug === 'dg-f-07') return { procesos: this.dgF07Forms };
+    if (slug === 'dg-f-01') return this.dgF01Form;
+    if (slug === 'dg-f-02') return this.dgF02Form;
+    if (slug === 'dg-f-03') return this.dgF03Form;
+    if (slug === 'sgc-f-06') return this.obtenerDatosSgcF06ParaGuardar();
+    if (slug === 'sgc-f-07') return this.datosSgcF07ParaGuardar();
+    if (slug === 'sgc-f-08') return this.sgcF08Form;
+    if (slug === 'sgc-f-10') return this.sgcF10Form;
+    if (slug === 'sgc-f-14') return this.sgcF14Form;
+    if (slug === 'sgc-f-17') return this.sgcF17Form;
+    if (slug === 'sgc-f-18') return this.sgcF18Form;
+    if (slug === 'sgc-f-11') return this.sgcF11Form;
+    if (slug === 'sgc-f-12') return this.sgcF12Form;
+    if (slug === 'sgc-f-02') return this.sgcF02Form;
+    if (slug === 'sgc-f-01') return this.sgcF01Form;
+    if (slug === 'sgc-f-04') return this.sgcF04Form;
+    if (slug === 'sgc-f-19') return this.sgcF19Form;
+    if (slug === 'sgc-f-20') return this.sgcF20Form;
+    if (slug === 'sgc-f-25') return this.sgcF25Form;
+    if (slug === 'sgc-f-29') return this.sgcF29Form;
+    if (slug === 'ath-f-02') return this.athF02Form;
+    if (slug === 'ath-f-09') return this.athF09Form;
+    if (slug === 'ath-f-11') return this.athF11Form;
+    if (slug === 'sp-f-02') return this.spF02Form;
+    if (slug === 'sp-f-07') return this.spF07Form;
+    return null;
+  }
+
+  private avisoGuardarSinConexion(): void {
+    void Swal.fire({
+      icon: 'warning',
+      title: 'Sin conexión',
+      html: 'Los cambios quedaron <strong>guardados en este dispositivo</strong>.<br>Cuando vuelvas a estar en línea, pulsa <strong>«Guardar información»</strong> para sincronizarlos.',
+      confirmButtonText: 'Entendido'
+    });
+  }
+
+  private async ofrecerBorradorLocalSgcSiAplica(): Promise<void> {
+    const clave = this.claveBorradorLocalSgc();
+    if (!clave) {
+      return;
+    }
+    const draft = this.formDraft.leer(clave);
+    if (!draft?.datos) {
+      this.borradorLocalPendiente = false;
+      return;
+    }
+    const actual = this.obtenerPayloadBorradorLocalSgc();
+    if (actual == null) {
+      return;
+    }
+    try {
+      if (JSON.stringify(actual) === JSON.stringify(draft.datos)) {
+        this.limpiarBorradorLocalSgc();
+        return;
+      }
+    } catch {
+      /* comparar falló: ofrecer restauración */
+    }
+    const cuando = draft.updatedAt
+      ? new Date(draft.updatedAt).toLocaleString('es-MX')
+      : 'reciente';
+    const result = await Swal.fire({
+      icon: 'question',
+      title: 'Borrador local encontrado',
+      html: `Hay cambios de este formato guardados en el dispositivo (<strong>${cuando}</strong>).<br>¿Deseas restaurarlos?`,
+      showCancelButton: true,
+      confirmButtonText: 'Restaurar',
+      cancelButtonText: 'Descartar'
+    });
+    if (result.isConfirmed) {
+      this.aplicarPayloadBorradorLocalSgc(draft.datos);
+      this.borradorLocalPendiente = true;
+    } else {
+      this.limpiarBorradorLocalSgc();
+    }
+  }
+
+  private aplicarPayloadBorradorLocalSgc(datos: unknown): void {
+    if (!datos || typeof datos !== 'object') {
+      return;
+    }
+    const slug = this.plantillaSlug;
+    const d = datos as any;
+    if (slug === 'dg-f-05') { this.dgF05Form = d; this.dgF05CambiosPendientes = true; return; }
+    if (slug === 'dg-f-07' && d.procesos) { this.dgF07Forms = d.procesos; this.dgF07CambiosPendientes = true; return; }
+    if (slug === 'dg-f-01') { this.dgF01Form = d; this.dgF01CambiosPendientes = true; return; }
+    if (slug === 'dg-f-02') { this.dgF02Form = d; this.dgF02CambiosPendientes = true; return; }
+    if (slug === 'dg-f-03') { this.dgF03Form = d; this.dgF03CambiosPendientes = true; return; }
+    if (slug === 'sgc-f-08') { this.sgcF08Form = d; this.sgcF08CambiosPendientes = true; return; }
+    if (slug === 'sgc-f-10') { this.sgcF10Form = d; this.sgcF10CambiosPendientes = true; return; }
+    if (slug === 'sgc-f-14') { this.sgcF14Form = d; this.sgcF14CambiosPendientes = true; return; }
+    if (slug === 'sgc-f-17') { this.sgcF17Form = d; this.sgcF17CambiosPendientes = true; return; }
+    if (slug === 'sgc-f-18') { this.sgcF18Form = d; this.sgcF18CambiosPendientes = true; return; }
+    if (slug === 'sgc-f-11') { this.sgcF11Form = d; this.sgcF11CambiosPendientes = true; return; }
+    if (slug === 'sgc-f-12') { this.sgcF12Form = d; this.sgcF12CambiosPendientes = true; return; }
+    if (slug === 'sgc-f-02') { this.sgcF02Form = d; this.sgcF02CambiosPendientes = true; return; }
+    if (slug === 'sgc-f-01') { this.sgcF01Form = d; this.sgcF01CambiosPendientes = true; return; }
+    if (slug === 'sgc-f-04') { this.sgcF04Form = d; this.sgcF04CambiosPendientes = true; return; }
+    if (slug === 'sgc-f-19') { this.sgcF19Form = d; this.sgcF19CambiosPendientes = true; return; }
+    if (slug === 'sgc-f-20') { this.sgcF20Form = d; this.sgcF20CambiosPendientes = true; return; }
+    if (slug === 'sgc-f-25') { this.sgcF25Form = d; this.sgcF25CambiosPendientes = true; return; }
+    if (slug === 'sgc-f-29') { this.sgcF29Form = d; this.sgcF29CambiosPendientes = true; return; }
+    if (slug === 'ath-f-02') { this.athF02Form = d; this.athF02CambiosPendientes = true; return; }
+    if (slug === 'ath-f-09') { this.athF09Form = d; this.athF09CambiosPendientes = true; return; }
+    if (slug === 'ath-f-11') { this.athF11Form = d; this.athF11CambiosPendientes = true; return; }
+    if (slug === 'sp-f-02') { this.spF02Form = d; this.spF02CambiosPendientes = true; return; }
+    if (slug === 'sp-f-07') { this.spF07Form = d; this.spF07CambiosPendientes = true; return; }
   }
 
   /** Siempre empuja formulario → Excel/BD (nunca pull desde Drive). */
@@ -5678,169 +5960,310 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       && !(this.plantillaSlug === 'ath-f-13' && this.athF13PuedeSolicitar)) {
       return;
     }
+    // Cancela debounce pendiente para que no reescriba el borrador tras un guardado exitoso.
+    if (this.draftLocalTimer !== null) {
+      window.clearTimeout(this.draftLocalTimer);
+      this.draftLocalTimer = null;
+    }
+    this.persistirBorradorLocalSgcAhora();
+    if (this.connectivity.isOffline && this.plantillaSlug !== 'dg-f-04') {
+      // dg-f-04 maneja el aviso dentro de persistirDgF04
+      this.avisoGuardarSinConexion();
+      return;
+    }
     // El sistema es la fuente de verdad: siempre empuja formulario → Excel (nunca pull).
-    if (this.plantillaSlug === 'dg-f-04') {
-      this.persistirDgF04();
+    try {
+      if (this.plantillaSlug === 'dg-f-04') {
+        this.persistirDgF04();
+        return;
+      }
+      if (this.plantillaSlug === 'dg-f-05') {
+        this.persistirDgF05();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-06') {
+        this.persistirSgcF06();
+        return;
+      }
+      if (this.plantillaSlug === 'dg-f-07') {
+        this.persistirDgF07();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-07') {
+        this.persistirSgcF07();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-08') {
+        this.persistirSgcF08();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-09') {
+        // Maqueta en pantalla + editor Drive; persistencia de captura pendiente.
+        return;
+      }
+      if (this.plantillaSlug === 'dg-f-06') {
+        // Archivero anual + editor Drive; persistencia de captura pendiente.
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-10') {
+        this.persistirSgcF10();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-14') {
+        this.persistirSgcF14();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-17') {
+        this.persistirSgcF17();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-19') {
+        this.persistirSgcF19();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-20') {
+        this.persistirSgcF20();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-25') {
+        this.persistirSgcF25();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-03') {
+        this.persistirSgcF03();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-16') {
+        this.persistirSgcF16();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-24') {
+        this.persistirSgcF24();
+        return;
+      }
+      if (this.plantillaSlug === 'ath-f-06') {
+        this.persistirAthF06();
+        return;
+      }
+      if (this.plantillaSlug === 'ath-f-03') {
+        this.persistirAthF03();
+        return;
+      }
+      if (this.plantillaSlug === 'ath-f-13') {
+        this.persistirAthF13();
+        return;
+      }
+      if (this.plantillaSlug === 'ath-f-14') {
+        this.persistirAthF14();
+        return;
+      }
+      if (this.plantillaSlug === 'sp-f-04') {
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-27') {
+        this.persistirSgcF27();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-27-medicion') {
+        this.persistirSgcF27Medicion();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-29') {
+        this.persistirSgcF29();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-28') {
+        this.persistirSgcF28();
+        return;
+      }
+      if (this.plantillaSlug === 'sp-f-02') {
+        this.persistirSpF02();
+        return;
+      }
+      if (this.plantillaSlug === 'sp-f-07') {
+        this.persistirSpF07();
+        return;
+      }
+      if (this.plantillaSlug === 'ath-f-02') {
+        this.persistirAthF02();
+        return;
+      }
+      if (this.plantillaSlug === 'ath-f-09') {
+        this.persistirAthF09();
+        return;
+      }
+      if (this.plantillaSlug === 'ath-f-07') {
+        this.persistirAthF07();
+        return;
+      }
+      if (this.plantillaSlug === 'ath-f-11') {
+        this.persistirAthF11();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-05') {
+        // Solo lectura en pantalla: la bitácora se sincroniza desde SGC-F-04 / Actualizar plantilla.
+        return;
+      }
+      if (this.plantillaSlug === 'ath-f-08') {
+        this.persistirAthF08();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-18') {
+        this.persistirSgcF18();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-11') {
+        this.persistirSgcF11();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-12') {
+        this.persistirSgcF12();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-01') {
+        this.persistirSgcF01();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-02') {
+        this.persistirSgcF02();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-04') {
+        this.persistirSgcF04();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-22') {
+        this.persistirSgcF22();
+      }
+    } finally {
+      this.programarOverlayGuardadoSgc();
+    }
+  }
+
+  private programarOverlayGuardadoSgc(): void {
+    void Promise.resolve().then(() => {
+      if (this.formatoGuardandoActivo) {
+        this.iniciarOverlayGuardadoSgc();
+      }
+    });
+  }
+
+  private iniciarOverlayGuardadoSgc(): void {
+    this.detenerOverlayGuardadoSgc(false);
+    this.sgcSaveProgressAbierto = true;
+    this.sgcSaveProgressEstado = 'procesando';
+    this.sgcSaveProgressPct = 4;
+    this.sgcSaveProgressEtapaIdx = 0;
+    this.sgcSaveProgressDetalle = this.sgcSaveProgressEtapas[0].mensaje;
+    this.sgcSaveProgressInicio = Date.now();
+    this.sgcSaveProgressVioGuardando = this.formatoGuardandoActivo;
+    this.sgcSaveProgressFallo = false;
+    this.sgcSaveProgressTimer = setInterval(() => this.tickOverlayGuardadoSgc(), 200);
+  }
+
+  private tickOverlayGuardadoSgc(): void {
+    if (!this.sgcSaveProgressAbierto || this.sgcSaveProgressEstado !== 'procesando') {
       return;
     }
-    if (this.plantillaSlug === 'dg-f-05') {
-      this.persistirDgF05();
+    const guardando = this.formatoGuardandoActivo;
+    if (guardando) {
+      this.sgcSaveProgressVioGuardando = true;
+    }
+    const elapsed = Date.now() - this.sgcSaveProgressInicio;
+    if (guardando || !this.sgcSaveProgressVioGuardando) {
+      const pct = 6 + 82 * (1 - Math.exp(-elapsed / 14000));
+      this.sgcSaveProgressPct = Math.max(this.sgcSaveProgressPct, Math.min(90, pct));
+      if (elapsed < 2200) {
+        this.sgcSaveProgressEtapaIdx = 0;
+      } else if (elapsed < 9000) {
+        this.sgcSaveProgressEtapaIdx = 1;
+      } else {
+        this.sgcSaveProgressEtapaIdx = 2;
+      }
+      const etapa = this.sgcSaveProgressEtapas[this.sgcSaveProgressEtapaIdx];
+      this.sgcSaveProgressDetalle = etapa?.mensaje || '';
+      // Si nunca arrancó el flag (guardado rechazado), cerrar sin asustar.
+      if (!guardando && !this.sgcSaveProgressVioGuardando && elapsed > 800) {
+        this.detenerOverlayGuardadoSgc(true);
+      }
       return;
     }
-    if (this.plantillaSlug === 'sgc-f-06') {
-      this.persistirSgcF06();
-      return;
+    this.completarOverlayGuardadoSgc(!this.sgcSaveProgressFallo);
+  }
+
+  private completarOverlayGuardadoSgc(ok: boolean): void {
+    if (this.sgcSaveProgressTimer != null) {
+      clearInterval(this.sgcSaveProgressTimer);
+      this.sgcSaveProgressTimer = null;
     }
-    if (this.plantillaSlug === 'dg-f-07') {
-      this.persistirDgF07();
-      return;
+    this.sgcSaveProgressEstado = ok ? 'listo' : 'error';
+    this.sgcSaveProgressEtapaIdx = this.sgcSaveProgressEtapas.length - 1;
+    this.sgcSaveProgressPct = 100;
+    this.sgcSaveProgressDetalle = ok
+      ? 'La información quedó guardada correctamente.'
+      : 'No se pudo completar el guardado. Revisa la conexión e inténtalo de nuevo.';
+    if (this.sgcSaveProgressCierreTimer != null) {
+      clearTimeout(this.sgcSaveProgressCierreTimer);
     }
-    if (this.plantillaSlug === 'sgc-f-07') {
-      this.persistirSgcF07();
-      return;
+    this.sgcSaveProgressCierreTimer = setTimeout(() => {
+      this.sgcSaveProgressCierreTimer = null;
+      this.sgcSaveProgressAbierto = false;
+    }, ok ? 1100 : 2800);
+  }
+
+  /** Marca fallo en el overlay (p. ej. error HTTP al guardar DG-F-04). */
+  private marcarFalloOverlayGuardadoSgc(): void {
+    this.sgcSaveProgressFallo = true;
+    if (this.sgcSaveProgressAbierto && this.sgcSaveProgressEstado === 'procesando' && !this.formatoGuardandoActivo) {
+      this.completarOverlayGuardadoSgc(false);
     }
-    if (this.plantillaSlug === 'sgc-f-08') {
-      this.persistirSgcF08();
-      return;
+  }
+
+  private detenerOverlayGuardadoSgc(cerrar: boolean): void {
+    if (this.sgcSaveProgressTimer != null) {
+      clearInterval(this.sgcSaveProgressTimer);
+      this.sgcSaveProgressTimer = null;
     }
-    if (this.plantillaSlug === 'sgc-f-09') {
-      // Maqueta en pantalla + editor Drive; persistencia de captura pendiente.
-      return;
+    if (this.sgcSaveProgressCierreTimer != null) {
+      clearTimeout(this.sgcSaveProgressCierreTimer);
+      this.sgcSaveProgressCierreTimer = null;
     }
-    if (this.plantillaSlug === 'dg-f-06') {
-      // Archivero anual + editor Drive; persistencia de captura pendiente.
-      return;
+    if (cerrar) {
+      this.sgcSaveProgressAbierto = false;
+      this.sgcSaveProgressEstado = 'procesando';
+      this.sgcSaveProgressPct = 0;
+      this.sgcSaveProgressEtapaIdx = 0;
+      this.sgcSaveProgressDetalle = '';
+      this.sgcSaveProgressVioGuardando = false;
+      this.sgcSaveProgressFallo = false;
     }
-    if (this.plantillaSlug === 'sgc-f-10') {
-      this.persistirSgcF10();
-      return;
+  }
+
+  sgcSaveProgressEtapaEstado(idx: number): 'lista' | 'activa' | 'pendiente' {
+    if (this.sgcSaveProgressEstado === 'listo') {
+      return 'lista';
     }
-    if (this.plantillaSlug === 'sgc-f-14') {
-      this.persistirSgcF14();
-      return;
+    if (this.sgcSaveProgressEstado === 'error') {
+      return idx < this.sgcSaveProgressEtapaIdx ? 'lista' : (idx === this.sgcSaveProgressEtapaIdx ? 'activa' : 'pendiente');
     }
-    if (this.plantillaSlug === 'sgc-f-17') {
-      this.persistirSgcF17();
-      return;
+    if (idx < this.sgcSaveProgressEtapaIdx) {
+      return 'lista';
     }
-    if (this.plantillaSlug === 'sgc-f-19') {
-      this.persistirSgcF19();
-      return;
+    if (idx === this.sgcSaveProgressEtapaIdx) {
+      return 'activa';
     }
-    if (this.plantillaSlug === 'sgc-f-20') {
-      this.persistirSgcF20();
-      return;
+    return 'pendiente';
+  }
+
+  sgcSaveProgressIconoEtapa(idx: number): string {
+    const estado = this.sgcSaveProgressEtapaEstado(idx);
+    if (estado === 'lista') {
+      return 'fa-check';
     }
-    if (this.plantillaSlug === 'sgc-f-25') {
-      this.persistirSgcF25();
-      return;
+    if (estado === 'activa') {
+      return this.sgcSaveProgressEstado === 'error' ? 'fa-exclamation' : 'fa-spinner fa-spin';
     }
-    if (this.plantillaSlug === 'sgc-f-03') {
-      this.persistirSgcF03();
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-f-16') {
-      this.persistirSgcF16();
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-f-24') {
-      this.persistirSgcF24();
-      return;
-    }
-    if (this.plantillaSlug === 'ath-f-06') {
-      this.persistirAthF06();
-      return;
-    }
-    if (this.plantillaSlug === 'ath-f-03') {
-      this.persistirAthF03();
-      return;
-    }
-    if (this.plantillaSlug === 'ath-f-13') {
-      this.persistirAthF13();
-      return;
-    }
-    if (this.plantillaSlug === 'ath-f-14') {
-      this.persistirAthF14();
-      return;
-    }
-    if (this.plantillaSlug === 'sp-f-04') {
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-f-27') {
-      this.persistirSgcF27();
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-f-27-medicion') {
-      this.persistirSgcF27Medicion();
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-f-29') {
-      this.persistirSgcF29();
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-f-28') {
-      this.persistirSgcF28();
-      return;
-    }
-    if (this.plantillaSlug === 'sp-f-02') {
-      this.persistirSpF02();
-      return;
-    }
-    if (this.plantillaSlug === 'sp-f-07') {
-      this.persistirSpF07();
-      return;
-    }
-    if (this.plantillaSlug === 'ath-f-02') {
-      this.persistirAthF02();
-      return;
-    }
-    if (this.plantillaSlug === 'ath-f-09') {
-      this.persistirAthF09();
-      return;
-    }
-    if (this.plantillaSlug === 'ath-f-07') {
-      this.persistirAthF07();
-      return;
-    }
-    if (this.plantillaSlug === 'ath-f-11') {
-      this.persistirAthF11();
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-f-05') {
-      // Solo lectura en pantalla: la bitácora se sincroniza desde SGC-F-04 / Actualizar plantilla.
-      return;
-    }
-    if (this.plantillaSlug === 'ath-f-08') {
-      this.persistirAthF08();
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-f-18') {
-      this.persistirSgcF18();
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-f-11') {
-      this.persistirSgcF11();
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-f-12') {
-      this.persistirSgcF12();
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-f-01') {
-      this.persistirSgcF01();
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-f-02') {
-      this.persistirSgcF02();
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-f-04') {
-      this.persistirSgcF04();
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-f-22') {
-      this.persistirSgcF22();
-    }
+    return 'fa-circle';
   }
 
   get dgF04IntroLead(): string {
@@ -6059,7 +6482,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug !== 'sgc-f-10') {
       return '';
     }
-    return 'Completa el informe con datos de la auditoría, hallazgos y conclusiones. «Guardar información» conserva el borrador; «Guardar Histórico» cierra el informe como registro inmutable (BD + Word + PDF) y abre uno nuevo.';
+    return 'Completa el informe con datos de la auditoría, hallazgos y conclusiones. «Guardar información» conserva el borrador; «Nuevo informe» guarda el actual en el archivero y abre uno vacío. Al final puedes subir la versión firmada en PDF.';
   }
 
   get sgcF15IntroLead(): string {
@@ -7483,11 +7906,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF07Guardando = false;
           this.sgcF07CambiosPendientes = false;
           this.aplicarEstadoSgcF07(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF07Guardando = false;
         }
       });
@@ -7744,10 +8169,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF08Guardando = false;
           this.aplicarEstadoSgcF08(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF08Guardando = false;
         }
       });
@@ -7898,6 +8325,43 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   get totalHallazgosSgcF10(): number {
     return Array.isArray(this.sgcF10Form?.hallazgos) ? this.sgcF10Form.hallazgos.length : 0;
+  }
+
+  get totalNcSgcF10(): number {
+    const lista = Array.isArray(this.sgcF10Form?.hallazgos) ? this.sgcF10Form.hallazgos : [];
+    return lista.filter((h) => {
+      const c = String(h?.clasificacion || '').toUpperCase();
+      return c === 'NC_MENOR' || c === 'NC_MAYOR';
+    }).length;
+  }
+
+  get totalOpSgcF10(): number {
+    const lista = Array.isArray(this.sgcF10Form?.hallazgos) ? this.sgcF10Form.hallazgos : [];
+    return lista.filter((h) => String(h?.clasificacion || '').toUpperCase() === 'OP').length;
+  }
+
+  /** Excluye PDFs automáticos del antiguo histórico (No.XX); solo firmados gestionados. */
+  private esPdfFirmadoGestionadoSgcF10(nombre: string | null | undefined): boolean {
+    const n = String(nombre || '').trim();
+    if (!n) {
+      return true;
+    }
+    if (/No\.?\s*\d+/i.test(n)) {
+      return false;
+    }
+    return /^SGC-F-10\s+Informe de auditor/i.test(n);
+  }
+
+  get sgcF10HistorialPdfsVista(): DgF02PdfFirmado[] {
+    const actual = String(this.sgcF10PdfFirmado?.driveFileId || '').trim();
+    return (this.sgcF10HistorialPdfs || []).filter((p) => {
+      const id = String(p?.driveFileId || '').trim();
+      return !!id && id !== actual && this.esPdfFirmadoGestionadoSgcF10(p?.nombreArchivo);
+    });
+  }
+
+  get puedeBorrarPdfHistorialSgcF10(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
   }
 
   get sgcF10FirmaLiderUrl(): string | null {
@@ -8264,6 +8728,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   abrirComboSgcF10(campo: 'lider' | 'auditores' | 'participantes' | 'otros'): void {
+    this.cerrarComboAuditorHallazgoSgcF10();
+    this.cerrarMenuSgcF10();
     this.sgcF10ComboAbierto = campo;
     this.sgcF10ComboQuery = campo === 'lider' ? (this.sgcF10Form.auditorLider || '') : '';
   }
@@ -8293,6 +8759,111 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.sgcF10ComboAbierto = null;
     this.sgcF10ComboQuery = '';
+    this.cerrarComboAuditorHallazgoSgcF10();
+  }
+
+  textoComboAuditorHallazgoSgcF10(index: number): string {
+    if (this.sgcF10HallazgoAuditorComboIdx === index) {
+      return this.sgcF10HallazgoAuditorComboQuery;
+    }
+    return String(this.sgcF10Form.hallazgos[index]?.auditor || '').trim();
+  }
+
+  usuariosFiltradosAuditorHallazgoSgcF10(index: number): SgcF10UsuarioOpt[] {
+    const base = this.sgcF10AuditoresHallazgoOpts;
+    const q = (this.sgcF10HallazgoAuditorComboIdx === index
+      ? this.sgcF10HallazgoAuditorComboQuery
+      : this.textoComboAuditorHallazgoSgcF10(index)
+    ).trim().toLowerCase();
+    if (!q) {
+      return base.slice(0, 40);
+    }
+    return base.filter((u) => u.nombre.toLowerCase().includes(q)).slice(0, 40);
+  }
+
+  abrirComboAuditorHallazgoSgcF10(index: number): void {
+    if (this.sgcF10ComboAbierto === 'lider') {
+      this.confirmarAuditorLiderLibreSgcF10();
+    }
+    this.sgcF10ComboAbierto = null;
+    this.sgcF10ComboQuery = '';
+    this.cerrarMenuSgcF10();
+    this.cerrarClasifSgcF10();
+    this.sgcF10HallazgoAuditorComboIdx = index;
+    this.sgcF10HallazgoAuditorComboQuery = String(this.sgcF10Form.hallazgos[index]?.auditor || '').trim();
+  }
+
+  onFiltroAuditorHallazgoSgcF10(index: number, valor: string): void {
+    this.sgcF10HallazgoAuditorComboIdx = index;
+    this.sgcF10HallazgoAuditorComboQuery = valor;
+    const hallazgo = this.sgcF10Form.hallazgos[index];
+    if (!hallazgo) {
+      return;
+    }
+    hallazgo.auditor = valor;
+    const match = this.buscarUsuarioPorNombreSgcF10(valor);
+    if (match) {
+      hallazgo.auditorId = match.id;
+      hallazgo.auditor = match.nombre;
+    } else {
+      hallazgo.auditorId = null;
+    }
+    this.onSgcF10Editado();
+  }
+
+  seleccionarAuditorHallazgoSgcF10(index: number, userId: number): void {
+    this.onAuditorHallazgoSgcF10Change(index, userId);
+    this.cerrarComboAuditorHallazgoSgcF10();
+  }
+
+  limpiarAuditorHallazgoSgcF10(index: number, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.onAuditorHallazgoSgcF10Change(index, null);
+    this.sgcF10HallazgoAuditorComboQuery = '';
+    this.sgcF10HallazgoAuditorComboIdx = index;
+  }
+
+  cerrarComboAuditorHallazgoSgcF10(): void {
+    if (this.sgcF10HallazgoAuditorComboIdx != null) {
+      const idx = this.sgcF10HallazgoAuditorComboIdx;
+      const hallazgo = this.sgcF10Form.hallazgos[idx];
+      if (hallazgo) {
+        const nombre = String(hallazgo.auditor || '').trim();
+        if (nombre && !hallazgo.auditorId) {
+          const match = this.buscarUsuarioPorNombreSgcF10(nombre);
+          if (match) {
+            hallazgo.auditorId = match.id;
+            hallazgo.auditor = match.nombre;
+          }
+        }
+      }
+    }
+    this.sgcF10HallazgoAuditorComboIdx = null;
+    this.sgcF10HallazgoAuditorComboQuery = '';
+  }
+
+  onComboAuditorHallazgoKeydownSgcF10(index: number, event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.cerrarComboAuditorHallazgoSgcF10();
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const lista = this.usuariosFiltradosAuditorHallazgoSgcF10(index);
+      if (lista.length === 1) {
+        this.seleccionarAuditorHallazgoSgcF10(index, lista[0].id);
+        return;
+      }
+      const q = String(this.sgcF10HallazgoAuditorComboQuery || '').trim();
+      const match = this.buscarUsuarioPorNombreSgcF10(q);
+      if (match) {
+        this.seleccionarAuditorHallazgoSgcF10(index, match.id);
+      } else {
+        this.cerrarComboAuditorHallazgoSgcF10();
+      }
+    }
   }
 
   limpiarComboSgcF10(campo: 'lider' | 'auditores' | 'participantes' | 'otros', event?: Event): void {
@@ -8406,6 +8977,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const empresaId = Number(empresaIdRaw);
     if (!Number.isFinite(empresaId) || empresaId <= 0) {
       this.sgcF10Form.empresaId = null;
+      this.sgcF10Form.empresa = '';
       this.onSgcF10Editado();
       return;
     }
@@ -8417,6 +8989,162 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.sgcF10Form.domicilio = empresa.direccion || this.sgcF10Form.domicilio;
     }
     this.onSgcF10Editado();
+  }
+
+  get etiquetaOrdenHallazgosSgcF10(): string {
+    return this.sgcF10OrdenOpciones.find((o) => o.value === this.sgcF10OrdenHallazgos)?.label
+      || 'Orden del informe';
+  }
+
+  get etiquetaFiltroAuditorSgcF10(): string {
+    const id = String(this.sgcF10FiltroAuditor || '').trim();
+    if (!id) {
+      return 'Todos los auditores';
+    }
+    const u = this.sgcF10AuditoresHallazgoOpts.find((x) => String(x.id) === id);
+    return u?.nombre || 'Auditor filtrado';
+  }
+
+  textoMenuSgcF10(menu: 'empresa' | 'filtroAuditor'): string {
+    if (this.sgcF10MenuAbierto === menu) {
+      return this.sgcF10MenuQuery;
+    }
+    if (menu === 'empresa') {
+      return String(this.sgcF10Form.empresa || '').trim();
+    }
+    return this.sgcF10FiltroAuditor ? this.etiquetaFiltroAuditorSgcF10 : '';
+  }
+
+  empresasFiltradasSgcF10(): SgcF10EmpresaOpt[] {
+    const q = (this.sgcF10MenuAbierto === 'empresa'
+      ? this.sgcF10MenuQuery
+      : this.textoMenuSgcF10('empresa')
+    ).trim().toLowerCase();
+    const base = this.sgcF10Empresas || [];
+    if (!q) {
+      return base.slice(0, 40);
+    }
+    return base.filter((e) => e.nombre.toLowerCase().includes(q)).slice(0, 40);
+  }
+
+  auditoresFiltroFiltradosSgcF10(): SgcF10UsuarioOpt[] {
+    const q = (this.sgcF10MenuAbierto === 'filtroAuditor'
+      ? this.sgcF10MenuQuery
+      : this.textoMenuSgcF10('filtroAuditor')
+    ).trim().toLowerCase();
+    const base = this.sgcF10AuditoresHallazgoOpts;
+    if (!q) {
+      return base.slice(0, 40);
+    }
+    return base.filter((u) => u.nombre.toLowerCase().includes(q)).slice(0, 40);
+  }
+
+  abrirMenuSgcF10(menu: 'empresa' | 'filtroAuditor' | 'orden'): void {
+    if (this.sgcF10ComboAbierto === 'lider') {
+      this.confirmarAuditorLiderLibreSgcF10();
+    }
+    this.sgcF10ComboAbierto = null;
+    this.sgcF10ComboQuery = '';
+    this.cerrarComboAuditorHallazgoSgcF10();
+    this.cerrarClasifSgcF10();
+    this.sgcF10MenuAbierto = menu;
+    if (menu === 'empresa') {
+      this.sgcF10MenuQuery = String(this.sgcF10Form.empresa || '').trim();
+    } else if (menu === 'filtroAuditor') {
+      this.sgcF10MenuQuery = this.sgcF10FiltroAuditor ? this.etiquetaFiltroAuditorSgcF10 : '';
+    } else {
+      this.sgcF10MenuQuery = '';
+    }
+  }
+
+  onFiltroMenuSgcF10(menu: 'empresa' | 'filtroAuditor', valor: string): void {
+    this.sgcF10MenuAbierto = menu;
+    this.sgcF10MenuQuery = valor;
+    if (menu === 'empresa') {
+      this.sgcF10Form.empresa = valor;
+      const match = this.sgcF10Empresas.find(
+        (e) => e.nombre.toLowerCase() === valor.trim().toLowerCase()
+      );
+      if (match) {
+        this.onEmpresaSgcF10Change(match.empresaId);
+      } else {
+        this.sgcF10Form.empresaId = null;
+        this.onSgcF10Editado();
+      }
+    }
+  }
+
+  seleccionarEmpresaMenuSgcF10(empresaId: number): void {
+    this.onEmpresaSgcF10Change(empresaId);
+    this.cerrarMenuSgcF10();
+  }
+
+  limpiarEmpresaMenuSgcF10(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.onEmpresaSgcF10Change(null);
+    this.sgcF10MenuQuery = '';
+    this.sgcF10MenuAbierto = 'empresa';
+  }
+
+  esFiltroAuditorActivoSgcF10(auditorId: number | null | undefined): boolean {
+    const id = Number(auditorId);
+    if (!Number.isFinite(id) || id <= 0) {
+      return false;
+    }
+    return String(this.sgcF10FiltroAuditor || '').trim() === String(id);
+  }
+
+  seleccionarFiltroAuditorSgcF10(auditorId: number | null): void {
+    this.sgcF10FiltroAuditor = auditorId != null && auditorId > 0 ? String(auditorId) : '';
+    this.cerrarMenuSgcF10();
+  }
+
+  limpiarFiltroAuditorMenuSgcF10(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.sgcF10FiltroAuditor = '';
+    this.sgcF10MenuQuery = '';
+    this.sgcF10MenuAbierto = 'filtroAuditor';
+  }
+
+  seleccionarOrdenHallazgosMenuSgcF10(orden: SgcF10OrdenHallazgos): void {
+    this.onOrdenHallazgosSgcF10Change(orden);
+    this.cerrarMenuSgcF10();
+  }
+
+  cerrarMenuSgcF10(): void {
+    this.sgcF10MenuAbierto = null;
+    this.sgcF10MenuQuery = '';
+  }
+
+  onMenuSgcF10Keydown(menu: 'empresa' | 'filtroAuditor', event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.cerrarMenuSgcF10();
+      return;
+    }
+    if (event.key !== 'Enter') {
+      return;
+    }
+    event.preventDefault();
+    if (menu === 'empresa') {
+      const lista = this.empresasFiltradasSgcF10();
+      if (lista.length === 1) {
+        this.seleccionarEmpresaMenuSgcF10(lista[0].empresaId);
+      } else {
+        this.cerrarMenuSgcF10();
+      }
+      return;
+    }
+    const lista = this.auditoresFiltroFiltradosSgcF10();
+    if (lista.length === 1) {
+      this.seleccionarFiltroAuditorSgcF10(lista[0].id);
+    } else if (!String(this.sgcF10MenuQuery || '').trim()) {
+      this.seleccionarFiltroAuditorSgcF10(null);
+    } else {
+      this.cerrarMenuSgcF10();
+    }
   }
 
   onAuditorLiderSgcF10Change(userIdRaw: string | number | null): void {
@@ -8585,6 +9313,59 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF10Vista = 'editor';
   }
 
+  async nuevoInformeSgcF10(): Promise<void> {
+    if (!this.puedeGestionarPlantillasSgc || this.sgcF10GuardandoHistorico || this.sgcF10Guardando) {
+      return;
+    }
+    const auditoriaNo = String(this.sgcF10Form?.auditoriaNo || '').trim() || '—';
+    const confirmacion = await Swal.fire({
+      icon: 'question',
+      title: '¿Crear nuevo informe?',
+      html:
+        `<p>Se guardará la <strong>Auditoría No. ${auditoriaNo}</strong> en el archivero</p>`
+        + '<p class="mb-0">y se abrirá un <strong>informe nuevo</strong> vacío para continuar capturando.</p>',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, nuevo informe',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#15a596',
+      cancelButtonColor: '#6b7280',
+      reverseButtons: true
+    });
+    if (!confirmacion.isConfirmed) {
+      return;
+    }
+
+    this.sgcF10GuardandoHistorico = true;
+    this.backendService.nuevoInformeSgcF10Formato(this.sgcF10Form)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF10GuardandoHistorico = false;
+          this.sgcDashboardCache.invalidar();
+          this.aplicarEstadoSgcF10(res);
+          this.sgcF10Vista = 'editor';
+          void Swal.fire({
+            icon: 'success',
+            title: 'Informe listo',
+            text: res?.mensajeHistorico
+              || `Auditoría No. ${auditoriaNo} guardada. Ya puedes capturar la siguiente.`,
+            confirmButtonColor: '#15a596'
+          });
+        },
+        error: (err) => {
+          this.sgcF10GuardandoHistorico = false;
+          const msg = err?.error?.error || err?.error?.message || err?.message
+            || 'No se pudo crear el nuevo informe.';
+          void Swal.fire({
+            icon: 'error',
+            title: 'Error al crear informe',
+            text: msg,
+            confirmButtonColor: '#15a596'
+          });
+        }
+      });
+  }
+
   volverArchiveroSgcF10(): void {
     this.sgcF10Vista = 'archivero';
     this.cerrarClasifSgcF10();
@@ -8598,17 +9379,6 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     editorUrl?: string | null;
     auditoriaNo?: string;
   }): void {
-    const pdfId = String(item?.pdfDriveFileId || '').trim();
-    if (pdfId) {
-      this.toggleSgcF10PdfViewer({
-        driveFileId: pdfId,
-        nombreArchivo: String(item?.pdfDriveFileName || `SGC-F-10 Informe de auditoría No.${item?.auditoriaNo || ''}.pdf`).trim(),
-        webViewLink: null,
-        previewUrl: this.urlPdfProxyDrive(pdfId),
-        fechaSubida: ''
-      });
-      return;
-    }
     const url = String(item?.editorUrl || '').trim()
       || (item?.driveFileId
         ? `https://docs.google.com/document/d/${encodeURIComponent(item.driveFileId)}/view`
@@ -8620,7 +9390,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     void Swal.fire({
       icon: 'info',
       title: 'Sin documento archivado',
-      text: 'Este registro histórico aún no tiene Word ni PDF en Drive.',
+      text: 'Este registro histórico aún no tiene el archivo gestionado en Drive.',
       confirmButtonColor: '#15a596'
     });
   }
@@ -8860,8 +9630,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.onSgcF10Editado();
   }
 
-  estaEditandoHallazgoSgcF10(index: number): boolean {
-    return this.sgcF10HallazgoEditandoIdx === index;
+  /** Los hallazgos quedan siempre editables (sin modo bloqueado / botón Editar). */
+  estaEditandoHallazgoSgcF10(_index: number): boolean {
+    return true;
   }
 
   get sgcF10AuditoresHallazgoOpts(): SgcF10UsuarioOpt[] {
@@ -8968,7 +9739,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   onAuditorHallazgoSgcF10Change(index: number, auditorId: number | null): void {
     const hallazgo = this.sgcF10Form.hallazgos[index];
-    if (!hallazgo || !this.estaEditandoHallazgoSgcF10(index)) {
+    if (!hallazgo) {
       return;
     }
     const idNum = Number(auditorId);
@@ -9021,9 +9792,6 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   abrirClasifSgcF10(index: number, event?: Event): void {
     event?.preventDefault();
     event?.stopPropagation();
-    if (!this.estaEditandoHallazgoSgcF10(index)) {
-      return;
-    }
     this.cerrarComboSgcF10();
     this.sgcF10ClasifAbierto = this.sgcF10ClasifAbierto === index ? null : index;
   }
@@ -9326,67 +10094,20 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF10Guardando = false;
           this.aplicarEstadoSgcF10(res);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF10Guardando = false;
         }
       });
   }
 
+  /** @deprecated Usar nuevoInformeSgcF10 */
   async guardarHistoricoSgcF10(): Promise<void> {
-    if (!this.puedeGestionarPlantillasSgc || this.sgcF10GuardandoHistorico || this.sgcF10Guardando) {
-      return;
-    }
-    const auditoriaNo = String(this.sgcF10Form?.auditoriaNo || '').trim() || '—';
-    const confirmacion = await Swal.fire({
-      icon: 'warning',
-      title: '¿Guardar Histórico?',
-      html:
-        `<p>Se cerrará la <strong>Auditoría No. ${auditoriaNo}</strong> como registro inmutable.</p>`
-        + '<p>Se archivará el <strong>Word</strong> y se generará el <strong>PDF</strong> en Drive, y se abrirá un <strong>nuevo informe</strong> vacío para la siguiente auditoría.</p>'
-        + '<p class="mb-0"><small>Esta acción no se puede deshacer desde el formulario.</small></p>',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, guardar histórico',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#1e3a5f',
-      cancelButtonColor: '#6b7280',
-      reverseButtons: true
-    });
-    if (!confirmacion.isConfirmed) {
-      return;
-    }
-
-    this.sgcF10GuardandoHistorico = true;
-    this.backendService.guardarHistoricoSgcF10Formato(this.sgcF10Form)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (res) => {
-          this.sgcF10GuardandoHistorico = false;
-          this.sgcDashboardCache.invalidar();
-          this.aplicarEstadoSgcF10(res);
-          this.sgcF10Vista = 'archivero';
-          this.cargarDocumentosFisicosSgcF10();
-          void Swal.fire({
-            icon: 'success',
-            title: 'Histórico guardado',
-            text: res?.mensajeHistorico
-              || `Auditoría No. ${auditoriaNo} archivada. Ya puedes capturar la siguiente.`,
-            confirmButtonColor: '#15a596'
-          });
-        },
-        error: (err) => {
-          this.sgcF10GuardandoHistorico = false;
-          const msg = err?.error?.error || err?.error?.message || err?.message || 'No se pudo guardar el histórico.';
-          void Swal.fire({
-            icon: 'error',
-            title: 'Error al guardar histórico',
-            text: msg,
-            confirmButtonColor: '#15a596'
-          });
-        }
-      });
+    return this.nuevoInformeSgcF10();
   }
 
   actualizarPlantillaSgcF10(): void {
@@ -9444,36 +10165,35 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       }));
     }
 
-    this.sgcF10HistorialPdfs = Array.isArray(res.historialPdfs)
-      ? res.historialPdfs.map((p: any) => ({
-          driveFileId: String(p?.driveFileId || '').trim(),
-          nombreArchivo: String(p?.nombreArchivo || 'SGC-F-10 Informe de auditoría.pdf').trim(),
-          webViewLink: p?.webViewLink || null,
-          previewUrl: p?.driveFileId ? this.urlPdfProxyDrive(p.driveFileId) : null,
-          fechaSubida: String(p?.fechaSubida || '').trim()
-        })).filter((p: DgF02PdfFirmado) => !!p.driveFileId)
-      : this.sgcF10HistorialPdfs;
+    const mapPdf = (p: any): DgF02PdfFirmado | null => {
+      const driveFileId = String(p?.driveFileId || '').trim();
+      if (!driveFileId) {
+        return null;
+      }
+      return {
+        driveFileId,
+        nombreArchivo: String(p?.nombreArchivo || 'SGC-F-10 Informe de auditoría.pdf').trim(),
+        webViewLink: p?.webViewLink || null,
+        previewUrl: this.urlPdfProxyDrive(driveFileId),
+        fechaSubida: String(p?.fechaSubida || '').trim()
+      };
+    };
 
-    if (this.sgcF10Historial.length && this.sgcF10HistorialPdfs.length) {
-      this.sgcF10Historial = this.sgcF10Historial.map((h) => {
-        if (h.pdfDriveFileId) {
-          return h;
-        }
-        const no = String(h.auditoriaNo || '').replace(/\D/g, '');
-        const pdf = this.sgcF10HistorialPdfs.find((p) => {
-          const m = String(p.nombreArchivo || '').match(/No\.?\s*0*(\d+)/i);
-          return m && String(Number(m[1])) === String(Number(no));
-        });
-        if (!pdf) {
-          return h;
-        }
-        return {
-          ...h,
-          pdfDriveFileId: pdf.driveFileId,
-          pdfDriveFileName: pdf.nombreArchivo
-        };
-      });
-    }
+    const filtrarFirmados = (lista: DgF02PdfFirmado[]) =>
+      lista.filter((p) => this.esPdfFirmadoGestionadoSgcF10(p.nombreArchivo));
+
+    this.sgcF10HistorialPdfs = Array.isArray(res.historialPdfs)
+      ? filtrarFirmados(res.historialPdfs.map(mapPdf).filter((p: DgF02PdfFirmado | null): p is DgF02PdfFirmado => !!p))
+      : (Array.isArray(res.datos?.pdfsHistorial)
+        ? filtrarFirmados(res.datos.pdfsHistorial.map(mapPdf).filter((p: DgF02PdfFirmado | null): p is DgF02PdfFirmado => !!p))
+        : filtrarFirmados(this.sgcF10HistorialPdfs));
+
+    const pdfFirmadoRaw = res.pdfFirmado || res.datos?.pdfFirmado || null;
+    const pdfFirmadoMapped = mapPdf(pdfFirmadoRaw);
+    this.sgcF10PdfFirmado = (pdfFirmadoMapped && this.esPdfFirmadoGestionadoSgcF10(pdfFirmadoMapped.nombreArchivo)
+      ? pdfFirmadoMapped
+      : null)
+      || (this.sgcF10HistorialPdfs.length ? this.sgcF10HistorialPdfs[0] : null);
 
     this.sgcF10DriveFileId = res.driveFileId || this.sgcF10DriveFileId || null;
     this.sgcF10EditorUrl = res.editorUrl || this.sgcF10EditorUrl || null;
@@ -9587,6 +10307,56 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   onSgcF10PdfIframeLoad(): void {
     this.sgcF10PdfCargando = false;
+  }
+
+  onSeleccionarPdfSgcF10(event: Event): void {
+    this.procesarPdfDocumento(
+      event,
+      'SGC-F-10 Informe de auditoría.pdf',
+      (base64, nombre) => this.subirPdfSgcF10(base64, nombre)
+    );
+  }
+
+  private subirPdfSgcF10(base64: string, nombre: string): void {
+    if (this.sgcF10SubiendoPdf) {
+      return;
+    }
+    this.sgcF10SubiendoPdf = true;
+    this.backendService.subirPdfFirmadoSgcF10(base64, nombre)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF10SubiendoPdf = false;
+          this.aplicarEstadoSgcF10(res);
+          const nombreFinal = res?.pdfFirmado?.nombreArchivo || nombre;
+          this.finalizarSubidaPdfSgc(!!res?.success, nombreFinal);
+        },
+        error: () => {
+          this.sgcF10SubiendoPdf = false;
+          this.finalizarSubidaPdfSgc(false);
+        }
+      });
+  }
+
+  eliminarPdfHistorialSgcF10(hist: DgF02PdfFirmado): void {
+    if (!this.puedeBorrarPdfHistorialSgcF10 || !hist?.driveFileId || this.sgcF10BorrandoPdf) {
+      return;
+    }
+    if (!confirm(`¿Eliminar «${hist.nombreArchivo || 'PDF'}» del historial?`)) {
+      return;
+    }
+    this.sgcF10BorrandoPdf = true;
+    this.backendService.eliminarPdfHistorialSgcF10(hist.driveFileId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.sgcF10BorrandoPdf = false;
+          this.aplicarEstadoSgcF10(res);
+        },
+        error: () => {
+          this.sgcF10BorrandoPdf = false;
+        }
+      });
   }
 
   // ===================== SGC-F-14 · Bitácora de proyectos de mejora =====================
@@ -9789,10 +10559,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF14Guardando = false;
           this.aplicarEstadoSgcF14(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF14Guardando = false;
         }
       });
@@ -10750,10 +11522,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF17Guardando = false;
           this.aplicarEstadoSgcF17(res, editorAbierto);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF17Guardando = false;
         }
       });
@@ -10994,10 +11768,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF25Guardando = false;
           this.aplicarEstadoSgcF25(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF25Guardando = false;
         }
       });
@@ -11403,10 +12179,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF27mGuardando = false;
           this.aplicarEstadoSgcF27Medicion(res);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF27mGuardando = false;
         }
       });
@@ -11876,10 +12654,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF03Guardando = false;
           this.aplicarEstadoSgcF03(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF03Guardando = false;
         }
       });
@@ -12141,10 +12921,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF19Guardando = false;
           this.aplicarEstadoSgcF19(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF19Guardando = false;
         }
       });
@@ -13116,10 +13898,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF16Guardando = false;
           this.aplicarEstadoSgcF16(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF16Guardando = false;
         }
       });
@@ -13861,10 +14645,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF24Guardando = false;
           this.aplicarEstadoSgcF24(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF24Guardando = false;
         }
       });
@@ -14331,10 +15117,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF20Guardando = false;
           this.aplicarEstadoSgcF20(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF20Guardando = false;
         }
       });
@@ -14945,10 +15733,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.athF06Guardando = false;
           this.aplicarEstadoAthF06(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.athF06Guardando = false;
         }
       });
@@ -15878,10 +16668,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.athF03Guardando = false;
           this.aplicarEstadoAthF03(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.athF03Guardando = false;
         }
       });
@@ -16586,11 +17378,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.athF14Guardando = false;
           this.athF14CambiosPendientes = false;
           this.athF14UltimaSync = res?.ultimaSyncDrive || new Date().toISOString();
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.athF14Guardando = false;
           this.athF14Error = 'No se pudo guardar. Si acabas de actualizar el servidor, reinícialo e inténtalo de nuevo.';
         }
@@ -17622,10 +18416,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.athF13Guardando = false;
           this.aplicarEstadoAthF13(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.athF13Guardando = false;
         }
       });
@@ -18260,10 +19056,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF27Guardando = false;
           this.aplicarEstadoSgcF27(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF27Guardando = false;
         }
       });
@@ -20492,10 +21290,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF29Guardando = false;
           this.aplicarEstadoSgcF29(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF29Guardando = false;
         }
       });
@@ -21513,11 +22313,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF28Guardando = true;
     this.backendService.guardarSgcF28Formato(this.sgcF28Form, false).subscribe({
       next: (res) => {
+          this.limpiarBorradorLocalSgc();
         this.aplicarEstadoSgcF28(res, true, false, true);
         this.sgcF28CambiosPendientes = false;
         this.sgcF28Guardando = false;
       },
       error: () => {
+          this.persistirBorradorLocalSgcAhora();
         this.sgcF28Guardando = false;
       }
     });
@@ -22242,11 +23044,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       false
     ).subscribe({
       next: (res) => {
+          this.limpiarBorradorLocalSgc();
         this.aplicarEstadoSpF02(res, true, false, true);
         this.spF02CambiosPendientes = false;
         this.spF02Guardando = false;
       },
       error: () => {
+          this.persistirBorradorLocalSgcAhora();
         this.spF02Guardando = false;
       }
     });
@@ -23554,6 +24358,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const solicitud = sobrevivirSalida ? peticion : peticion.pipe(takeUntil(this.destroy$));
     solicitud.subscribe({
       next: (res) => {
+          this.limpiarBorradorLocalSgc();
         if (this.spF07VistaDestruida) {
           return;
         }
@@ -23566,6 +24371,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         this.aplicarEstadoSpF07(res, editorAbierto, true);
       },
       error: () => {
+          this.persistirBorradorLocalSgcAhora();
         if (this.spF07VistaDestruida) {
           return;
         }
@@ -23910,10 +24716,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF05Guardando = false;
           this.aplicarEstadoSgcF05(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF05Guardando = false;
         }
       });
@@ -24662,10 +25470,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.athF08Guardando = false;
           this.aplicarEstadoAthF08(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.athF08Guardando = false;
         }
       });
@@ -25747,6 +26557,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     this.dgF04CambiosPendientes = true;
+    this.programarBorradorLocalSgc();
   }
 
   onDgF02Editado(): void {
@@ -26042,34 +26853,39 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     this.persistirDgF01();
+    this.programarOverlayGuardadoSgc();
   }
 
   guardarInformacionDocumentoWord(): void {
-    if (this.plantillaSlug === 'af-f-02') {
-      this.persistirAfF02();
-      return;
-    }
-    if (!this.puedeGestionarPlantillasSgc) {
-      return;
-    }
-    if (this.plantillaSlug === 'dg-f-02') {
-      this.persistirDgF02();
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-po-01') {
-      this.persistirSgcPo01();
-      return;
-    }
-    if (this.plantillaSlug === 'dg-f-08') {
-      this.persistirDgF08();
-      return;
-    }
-    if (this.plantillaSlug === 'sgc-f-23') {
-      this.persistirSgcF23();
-      return;
-    }
-    if (this.plantillaSlug === 'dg-f-03') {
-      this.persistirDgF03();
+    try {
+      if (this.plantillaSlug === 'af-f-02') {
+        this.persistirAfF02();
+        return;
+      }
+      if (!this.puedeGestionarPlantillasSgc) {
+        return;
+      }
+      if (this.plantillaSlug === 'dg-f-02') {
+        this.persistirDgF02();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-po-01') {
+        this.persistirSgcPo01();
+        return;
+      }
+      if (this.plantillaSlug === 'dg-f-08') {
+        this.persistirDgF08();
+        return;
+      }
+      if (this.plantillaSlug === 'sgc-f-23') {
+        this.persistirSgcF23();
+        return;
+      }
+      if (this.plantillaSlug === 'dg-f-03') {
+        this.persistirDgF03();
+      }
+    } finally {
+      this.programarOverlayGuardadoSgc();
     }
   }
 
@@ -26241,10 +27057,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF06Guardando = false;
           this.aplicarEstadoSgcF06(res, editorAbierto, false, false);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF06Guardando = false;
         }
       });
@@ -26671,11 +27489,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.dgF01Guardando = false;
           this.dgF01CambiosPendientes = false;
           this.aplicarEstadoDgF01(res, true);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.dgF01Guardando = false;
         }
       });
@@ -26772,11 +27592,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.dgF02Guardando = false;
           this.dgF02CambiosPendientes = false;
           this.aplicarEstadoDgF02(res);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.dgF02Guardando = false;
         }
       });
@@ -27001,6 +27823,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       alExito?.();
       return;
     }
+    this.persistirBorradorLocalSgcAhora();
+    if (this.connectivity.isOffline) {
+      this.avisoGuardarSinConexion();
+      alExito?.();
+      return;
+    }
     this.cancelarAutoSaveDgF04();
     this.dgF04Guardando = true;
     this.backendService.guardarDgF04Formato(this.dgF04Form, false)
@@ -27009,11 +27837,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         next: (res) => {
           this.dgF04Guardando = false;
           this.dgF04CambiosPendientes = false;
+          this.limpiarBorradorLocalSgc();
           this.aplicarEstadoDgF04(res, false, false, false);
           alExito?.();
         },
         error: () => {
           this.dgF04Guardando = false;
+          this.persistirBorradorLocalSgcAhora();
+          this.marcarFalloOverlayGuardadoSgc();
           alExito?.();
         }
       });
@@ -27225,8 +28056,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         this.cerrarComboDocSgcF02();
       }
     }
-    if (this.sgcF10ComboAbierto && target && !target.closest('.sgc-f-10-combo')) {
+    if (
+      (this.sgcF10ComboAbierto || this.sgcF10HallazgoAuditorComboIdx !== null)
+      && target
+      && !target.closest('.sgc-f-10-combo')
+    ) {
       this.cerrarComboSgcF10();
+    }
+    if (this.sgcF10MenuAbierto && target && !target.closest('.sgc-f-10-combo') && !target.closest('.sgc-f-10-menu')) {
+      this.cerrarMenuSgcF10();
     }
     if (this.sgcF10ClasifAbierto !== null && target && !target.closest('.sgc-f-10-clasif')) {
       this.cerrarClasifSgcF10();
@@ -27460,6 +28298,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           next: (res) => {
             this.dgF05Guardando = false;
             this.dgF05CambiosPendientes = false;
+            this.limpiarBorradorLocalSgc();
             this.aplicarEstadoDgF05(res, false, false, false);
             iniciarDescarga();
           },
@@ -28062,12 +28901,69 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.backendService.cargarDgF04Formato()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: (res) => this.aplicarEstadoDgF04(res),
+        next: (res) => {
+          this.aplicarEstadoDgF04(res);
+          // Tras el timeout de aplicarEstado (limpia cambiosPendientes).
+          window.setTimeout(() => this.restaurarBorradorLocalDgF04(), 400);
+        },
         error: () => {
           this.dgF04Cargando = false;
           this.dgF04Listo = true;
+          this.restaurarBorradorLocalDgF04(true);
         }
       });
+  }
+
+  /** Restaura filas/campos del FODA guardados en el dispositivo si difieren del servidor. */
+  private restaurarBorradorLocalDgF04(forzar = false): void {
+    const clave = this.formDraft.claveSgc('dg-f-04');
+    const draft = this.formDraft.leer<typeof this.dgF04Form>(clave);
+    if (!draft?.datos) {
+      this.borradorLocalPendiente = false;
+      return;
+    }
+    const d = draft.datos as any;
+    if (!d || typeof d !== 'object') {
+      return;
+    }
+    const candidato = {
+      empresa: d.empresa ?? this.dgF04Form.empresa,
+      fechaElaboracion: d.fechaElaboracion ?? this.dgF04Form.fechaElaboracion,
+      fortalezas: Array.isArray(d.fortalezas)
+        ? d.fortalezas.map((f: DgF04Fila) => this.normalizarFilaDgF04(f, 'fortalezas'))
+        : this.dgF04Form.fortalezas,
+      oportunidades: Array.isArray(d.oportunidades)
+        ? d.oportunidades.map((f: DgF04Fila) => this.normalizarFilaDgF04(f, 'oportunidades'))
+        : this.dgF04Form.oportunidades,
+      debilidades: Array.isArray(d.debilidades)
+        ? d.debilidades.map((f: DgF04Fila) => this.normalizarFilaDgF04(f, 'debilidades'))
+        : this.dgF04Form.debilidades,
+      amenazas: Array.isArray(d.amenazas)
+        ? d.amenazas.map((f: DgF04Fila) => this.normalizarFilaDgF04(f, 'amenazas'))
+        : this.dgF04Form.amenazas,
+      autorizo: d.autorizo ?? this.dgF04Form.autorizo
+    };
+    const igual = JSON.stringify(candidato) === JSON.stringify(this.dgF04Form);
+    if (igual && !forzar) {
+      this.limpiarBorradorLocalSgc();
+      return;
+    }
+    this.dgF04IgnorarAutoSave = true;
+    this.dgF04Form = candidato;
+    this.dgF04CambiosPendientes = true;
+    this.borradorLocalPendiente = true;
+    window.setTimeout(() => {
+      this.dgF04IgnorarAutoSave = false;
+      this.dgF04Listo = true;
+    }, 100);
+    void Swal.fire({
+      icon: 'info',
+      title: 'Borrador local restaurado',
+      text: 'Se recuperó información del FODA guardada en este dispositivo. Pulsa «Guardar información» para sincronizarla.',
+      confirmButtonText: 'Entendido',
+      timer: 7000,
+      timerProgressBar: true
+    });
   }
 
   private sincronizarDgF04DesdeDrive(): void {
@@ -28093,19 +28989,32 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!this.dgF04Listo || this.dgF04Guardando) {
       return;
     }
+    this.persistirBorradorLocalSgcAhora();
+    if (this.connectivity.isOffline) {
+      this.avisoGuardarSinConexion();
+      return;
+    }
     this.dgF04Guardando = true;
     const editorAbierto = this.mostrarDgF04Editor;
-    const editorActivo = false;
     this.backendService.guardarDgF04Formato(this.dgF04Form, false)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
           this.dgF04Guardando = false;
           this.dgF04CambiosPendientes = false;
+          this.limpiarBorradorLocalSgc();
           this.aplicarEstadoDgF04(res, editorAbierto, false, false);
         },
         error: () => {
           this.dgF04Guardando = false;
+          this.persistirBorradorLocalSgcAhora();
+          this.marcarFalloOverlayGuardadoSgc();
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo guardar',
+            text: 'Se mantuvo un borrador en este dispositivo. Revisa la conexión e inténtalo de nuevo.',
+            confirmButtonText: 'Entendido'
+          });
         }
       });
   }
@@ -28237,6 +29146,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         next: (res) => {
           this.dgF05Guardando = false;
           this.dgF05CambiosPendientes = false;
+          this.limpiarBorradorLocalSgc();
           this.aplicarEstadoDgF05(res, false, false);
         },
         error: () => {
@@ -28254,17 +29164,20 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.dgF05Guardando = true;
     const editorAbierto = this.mostrarDgF05Editor;
-    const editorActivo = false;
     this.backendService.guardarDgF05Formato(this.dgF05Form, false)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
           this.dgF05Guardando = false;
           this.dgF05CambiosPendientes = false;
+          // Sin esto el hint «Cambios sin guardar» queda por borradorLocalPendiente
+          // (se marca al inicio de guardarInformacionDriveSync).
+          this.limpiarBorradorLocalSgc();
           this.aplicarEstadoDgF05(res, editorAbierto, false, false);
         },
         error: () => {
           this.dgF05Guardando = false;
+          this.persistirBorradorLocalSgcAhora();
         }
       });
   }
@@ -28339,6 +29252,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     window.setTimeout(() => {
       this.dgF05IgnorarAutoSave = false;
       this.dgF05Listo = true;
+      // Tras reaplicar el formulario, inputs/autosize no deben dejar el hint activo.
+      if (!bloquearFormulario) {
+        this.dgF05CambiosPendientes = false;
+      }
       if (!sincronizacionSilenciosa) {
         this.dgF05Cargando = false;
       }
@@ -28389,12 +29306,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.dgF07Guardando = false;
           this.dgF07CambiosPendientes = false;
           // Conservar lo que el usuario está editando; solo actualizar sync/Drive.
           this.aplicarEstadoDgF07(res, true, true);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.dgF07Guardando = false;
         }
       });
@@ -29560,11 +30479,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.aplicarEstadoAthF02(res, true, false, true);
           this.athF02CambiosPendientes = false;
           this.athF02Guardando = false;
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.athF02Guardando = false;
         }
       });
@@ -30777,11 +31698,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.aplicarEstadoAthF09(res, true, false, true);
           this.athF09CambiosPendientes = false;
           this.athF09Guardando = false;
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.athF09Guardando = false;
         }
       });
@@ -31351,6 +32274,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.aplicarRespuestaAthF07(res, true, false, true);
           this.athF07CambiosPendientes = false;
           this.athF07Guardando = false;
@@ -32291,11 +33215,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.aplicarEstadoAthF11(res, true, false, true);
           this.athF11CambiosPendientes = false;
           this.athF11Guardando = false;
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.athF11Guardando = false;
         }
       });
@@ -33881,6 +34807,32 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.onSgcF11Editado();
   }
 
+  onSgcF11MetaInput(event: Event): void {
+    const el = event.target as HTMLTextAreaElement | null;
+    if (el && typeof el.value === 'string' && /\\n|\\r/.test(el.value)) {
+      const name = String(el.getAttribute('name') || '');
+      const limpio = this.normalizarTextoMultilineaSgcF11(el.value);
+      el.value = limpio;
+      if (name === 'sgcF11_area') this.sgcF11Form.area = limpio;
+      else if (name === 'sgcF11_depto') this.sgcF11Form.departamento = limpio;
+      else if (name === 'sgcF11_elab') this.sgcF11Form.elaboro = limpio;
+      else if (name === 'sgcF11_proceso') this.sgcF11Form.proceso = limpio;
+      else if (name === 'sgcF11_equipo') this.sgcF11Form.equipoTrabajo = limpio;
+    }
+    this.autosizeSgcF11Textarea(el);
+    this.onSgcF11Editado();
+  }
+
+  /** Convierte literales \\n / \\r\\n a saltos reales para mostrar sin cortar. */
+  private normalizarTextoMultilineaSgcF11(texto: unknown): string {
+    return String(texto ?? '')
+      .replace(/\\r\\n/g, '\n')
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\n')
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n');
+  }
+
   /** Crece el textarea al contenido real; nunca usa scroll vertical interno. */
   autosizeSgcF11Textarea(target: EventTarget | HTMLTextAreaElement | null): void {
     const el = target as HTMLTextAreaElement | null;
@@ -33897,24 +34849,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private autosizeTextareasSgcF11(): void {
-    window.setTimeout(() => {
+    const aplicar = () => {
       if (this.plantillaSlug !== 'sgc-f-11') {
         return;
       }
       const nodos = this.host.nativeElement.querySelectorAll<HTMLTextAreaElement>(
-        '.sgc-f-11-table textarea.sgc-f-11-field'
+        '.sgc-f-11-table textarea.sgc-f-11-field, .dg-f05-doc__meta--sgc-f11-datos textarea.sgc-f-11-meta-field'
       );
       nodos.forEach((el) => this.autosizeSgcF11Textarea(el));
-    }, 0);
-    window.setTimeout(() => {
-      if (this.plantillaSlug !== 'sgc-f-11') {
-        return;
-      }
-      const nodos = this.host.nativeElement.querySelectorAll<HTMLTextAreaElement>(
-        '.sgc-f-11-table textarea.sgc-f-11-field'
-      );
-      nodos.forEach((el) => this.autosizeSgcF11Textarea(el));
-    }, 120);
+    };
+    window.setTimeout(aplicar, 0);
+    window.setTimeout(aplicar, 120);
   }
 
   onSgcF11FilaRpnEditada(fila: SgcF11Fila): void {
@@ -34641,12 +35586,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF11IgnorarAutoSave = true;
     this.sgcF11Form = {
       ...this.sgcF11Form,
-      area: item.area || '',
-      departamento: item.departamento || '',
-      elaboro: item.elaboro || '',
+      area: this.normalizarTextoMultilineaSgcF11(item.area),
+      departamento: this.normalizarTextoMultilineaSgcF11(item.departamento),
+      elaboro: this.normalizarTextoMultilineaSgcF11(item.elaboro),
       fechaElaboracion: item.fechaElaboracion || this.sgcF11Form.fechaElaboracion,
-      proceso: item.proceso || '',
-      equipoTrabajo: item.equipoTrabajo || '',
+      proceso: this.normalizarTextoMultilineaSgcF11(item.proceso),
+      equipoTrabajo: this.normalizarTextoMultilineaSgcF11(item.equipoTrabajo),
       edicionBloqueada: !!item.edicionBloqueada,
       filas: this.normalizarFilasSgcF11(
         (item.filas && item.filas.length ? item.filas : [this.crearFilaSgcF11Vacia()]).map((fila) => ({ ...fila }))
@@ -34950,31 +35895,33 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     const abrir = !this.mostrarSgcF12Editor;
+    this.mostrarSgcF12Editor = abrir;
     if (abrir) {
-
-      this.sgcF12EditorEmbedUrlSafe = null;
+      this.sgcF12EditorIframeListo = false;
+      this.sgcF12EditorCargando = true;
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      // Montar URL de inmediato (no esperar permisos Drive: si cuelga, el modal quedaba vacío).
+      const urlInicial = this.resolverUrlEditorDrive(this.sgcF12EditorUrl, this.sgcF12DriveFileId);
+      this.fijarSgcF12EditorEmbedUrl(urlInicial, true);
+      window.setTimeout(() => {
+        if (this.mostrarSgcF12Editor && this.sgcF12EditorCargando) {
+          this.sgcF12EditorCargando = false;
+        }
+      }, 8000);
       this.conAccesoDriveEmbed(this.sgcF12DriveFileId, () => {
         if (!this.mostrarSgcF12Editor) {
           return;
         }
-        if (this.sgcF12Guardando) {
-        }
-        this.abrirPanelEditorSgcF12();
+        this.fijarSgcF12EditorEmbedUrl(
+          this.resolverUrlEditorDrive(this.sgcF12EditorUrl, this.sgcF12DriveFileId),
+          true
+        );
       });
       return;
     }
     document.documentElement.style.overflow = '';
     document.body.style.overflow = '';
-    this.mostrarSgcF12Editor = false;
-  }
-
-  private abrirPanelEditorSgcF12(): void {
-    this.mostrarSgcF12Editor = true;
-    this.sgcF12EditorIframeListo = false;
-    this.sgcF12EditorCargando = true;
-    this.fijarSgcF12EditorEmbedUrl(this.resolverUrlEditorDrive(this.sgcF12EditorUrl, this.sgcF12DriveFileId), true);
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.overflow = 'hidden';
   }
 
   private persistirSgcF12Inmediato(alExito?: () => void): void {
@@ -34991,12 +35938,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF12Guardando = false;
           this.sgcF12CambiosPendientes = false;
           this.aplicarEstadoSgcF12(res, false, false);
           alExito?.();
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF12Guardando = false;
           alExito?.();
         }
@@ -36679,11 +37628,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF11Guardando = false;
           this.sgcF11CambiosPendientes = false;
           this.aplicarEstadoSgcF11(res, editorAbierto, true);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF11Guardando = false;
         }
       });
@@ -36834,11 +37785,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF12Guardando = false;
           this.sgcF12CambiosPendientes = false;
           this.aplicarEstadoSgcF12(res, editorAbierto, true);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF12Guardando = false;
         }
       });
@@ -36976,11 +37929,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF01Guardando = false;
           this.sgcF01CambiosPendientes = false;
           this.aplicarEstadoSgcF01(res, true);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF01Guardando = false;
         }
       });
@@ -37627,11 +38582,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF02Guardando = false;
           this.sgcF02CambiosPendientes = false;
           this.aplicarEstadoSgcF02(res, editorAbierto, true);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF02Guardando = false;
         }
       });
@@ -37748,11 +38705,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.dgF03Guardando = false;
           this.dgF03CambiosPendientes = false;
           this.aplicarEstadoDgF03(res);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.dgF03Guardando = false;
         }
       });
@@ -37858,6 +38817,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         next: (res) => {
           this.sgcF18Guardando = false;
           this.sgcF18CambiosPendientes = false;
+          this.limpiarBorradorLocalSgc();
           this.aplicarEstadoSgcF18(res, false, false);
         },
         error: () => {
@@ -37883,10 +38843,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         next: (res) => {
           this.sgcF18Guardando = false;
           this.sgcF18CambiosPendientes = false;
+          // Sin esto el hint «Cambios sin guardar» queda por borradorLocalPendiente
+          // (se marca al inicio de guardarInformacionDriveSync).
+          this.limpiarBorradorLocalSgc();
           this.aplicarEstadoSgcF18(res, editorAbierto, true);
         },
         error: () => {
           this.sgcF18Guardando = false;
+          this.persistirBorradorLocalSgcAhora();
         }
       });
   }
@@ -37988,11 +38952,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcPo01Guardando = false;
           this.sgcPo01CambiosPendientes = false;
           this.aplicarEstadoSgcPo01(res);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcPo01Guardando = false;
         }
       });
@@ -38057,11 +39023,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.dgF08Guardando = false;
           this.dgF08CambiosPendientes = false;
           this.aplicarEstadoDgF08(res);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.dgF08Guardando = false;
         }
       });
@@ -38125,11 +39093,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.afF02Guardando = false;
           this.afF02CambiosPendientes = false;
           this.aplicarEstadoAfF02(res);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.afF02Guardando = false;
         }
       });
@@ -38262,11 +39232,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF23Guardando = false;
           this.sgcF23CambiosPendientes = false;
           this.aplicarEstadoSgcF23(res);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF23Guardando = false;
         }
       });
@@ -38470,6 +39442,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       ...fila,
       id: idPrevio || this.nuevoIdSgcF11(),
       carpetaEvidencia: String(fila?.carpetaEvidencia || '').trim(),
+      etapa: this.normalizarTextoMultilineaSgcF11(fila?.etapa),
+      modoFalla: this.normalizarTextoMultilineaSgcF11(fila?.modoFalla),
+      causas: this.normalizarTextoMultilineaSgcF11(fila?.causas),
+      efecto: this.normalizarTextoMultilineaSgcF11(fila?.efecto),
+      controlesPreventivos: this.normalizarTextoMultilineaSgcF11(fila?.controlesPreventivos),
+      controlesDeteccion: this.normalizarTextoMultilineaSgcF11(fila?.controlesDeteccion),
+      acciones: this.normalizarTextoMultilineaSgcF11(fila?.acciones),
+      responsable: this.normalizarTextoMultilineaSgcF11(fila?.responsable),
+      resultado: this.normalizarTextoMultilineaSgcF11(fila?.resultado),
       ocurrencia,
       severidad,
       deteccion,
@@ -38572,12 +39553,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       : [this.crearFilaSgcF11Vacia()];
     return {
       id: String(item?.id || this.nuevoIdSgcF11()),
-      area: String(item?.area || ''),
-      departamento: String(item?.departamento || ''),
-      elaboro: String(item?.elaboro || ''),
+      area: this.normalizarTextoMultilineaSgcF11(item?.area),
+      departamento: this.normalizarTextoMultilineaSgcF11(item?.departamento),
+      elaboro: this.normalizarTextoMultilineaSgcF11(item?.elaboro),
       fechaElaboracion: String(item?.fechaElaboracion || ''),
-      proceso: String(item?.proceso || ''),
-      equipoTrabajo: String(item?.equipoTrabajo || ''),
+      proceso: this.normalizarTextoMultilineaSgcF11(item?.proceso),
+      equipoTrabajo: this.normalizarTextoMultilineaSgcF11(item?.equipoTrabajo),
       edicionBloqueada: !!item?.edicionBloqueada,
       filas
     };
@@ -39832,11 +40813,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF04Guardando = false;
           this.sgcF04CambiosPendientes = false;
           this.aplicarEstadoSgcF04(res, editorAbierto, true);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF04Guardando = false;
         }
       });
@@ -40450,11 +41433,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
+          this.limpiarBorradorLocalSgc();
           this.sgcF22Guardando = false;
           this.sgcF22CambiosPendientes = false;
           this.aplicarEstadoSgcF22(res, editorAbierto, true);
         },
         error: () => {
+          this.persistirBorradorLocalSgcAhora();
           this.sgcF22Guardando = false;
         }
       });

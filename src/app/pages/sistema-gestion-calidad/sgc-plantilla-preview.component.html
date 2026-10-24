@@ -203,23 +203,30 @@
               </ng-container>
               <ng-container *ngIf="plantillaSlug === 'dg-f-04'; else toolbarDriveSync">
                 <div class="sgc-preview-toolbar__actions">
-                  <span class="sgc-preview-sync sgc-preview-sync--hint" *ngIf="dgF04CambiosPendientes && !dgF04Guardando">
+                  <span class="sgc-preview-sync sgc-preview-sync--offline" *ngIf="sinConexion">
+                    <i class="fas fa-wifi mr-1" aria-hidden="true"></i>
+                    Sin conexión · borrador local
+                  </span>
+                  <span class="sgc-preview-sync sgc-preview-sync--hint" *ngIf="(dgF04CambiosPendientes || borradorLocalPendiente) && !dgF04Guardando">
+                    <i class="fas fa-exclamation-circle mr-1" aria-hidden="true"></i>
                     Cambios sin guardar
                   </span>
                   <span class="sgc-preview-sync" *ngIf="dgF04Guardando">
-                    <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i> Guardando en Drive…
+                    <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i>
+                    Guardando… {{ sgcSaveProgressPctVisible }}%
                   </span>
-                  <span class="sgc-preview-sync" *ngIf="!dgF04Guardando && dgF04UltimaSync">
+                  <span class="sgc-preview-sync" *ngIf="!dgF04Guardando && dgF04UltimaSync && !dgF04CambiosPendientes && !borradorLocalPendiente">
                     Sync: {{ formatearUltimaSync(dgF04UltimaSync) }}
                   </span>
                   <button
                     *ngIf="puedeGestionarPlantillasSgc"
                     type="button"
                     class="btn btn-sm sgc-btn-save-info"
+                    [class.sgc-btn-save-info--pending]="dgF04CambiosPendientes || borradorLocalPendiente"
                     [disabled]="dgF04Cargando || dgF04Guardando || !dgF04Listo"
                     (click)="guardarInformacionDriveSync()">
                     <i class="fas mr-1" [ngClass]="dgF04Guardando ? 'fa-spinner fa-spin' : 'fa-save'" aria-hidden="true"></i>
-                    Guardar información
+                    {{ dgF04Guardando ? ('Guardando… ' + sgcSaveProgressPctVisible + '%') : 'Guardar información' }}
                   </button>
                   <button
                     type="button"
@@ -313,11 +320,17 @@
                     <i class="fas mr-1" [ngClass]="spF04Cargando ? 'fa-spinner fa-spin' : 'fa-sync-alt'" aria-hidden="true"></i>
                     Actualizar
                   </button>
-                  <span class="sgc-preview-sync sgc-preview-sync--hint" *ngIf="driveSyncCambiosPendientes && !driveSyncGuardando && plantillaSlug !== 'sgc-f-05'">
+                  <span class="sgc-preview-sync sgc-preview-sync--offline" *ngIf="sinConexion">
+                    <i class="fas fa-wifi mr-1" aria-hidden="true"></i>
+                    Sin conexión · borrador local
+                  </span>
+                  <span class="sgc-preview-sync sgc-preview-sync--hint" *ngIf="(driveSyncCambiosPendientes || borradorLocalPendiente) && !driveSyncGuardando && plantillaSlug !== 'sgc-f-05'">
+                    <i class="fas fa-exclamation-circle mr-1" aria-hidden="true"></i>
                     Cambios sin guardar
                   </span>
                   <span class="sgc-preview-sync" *ngIf="driveSyncGuardando">
-                    <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i> Guardando…
+                    <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i>
+                    Guardando… {{ sgcSaveProgressPctVisible }}%
                   </span>
                   <span class="sgc-preview-sync" *ngIf="!driveSyncGuardando && driveSyncUltimaSync">
                     Sync: {{ formatearUltimaSync(driveSyncUltimaSync) }}
@@ -335,10 +348,10 @@
                     *ngIf="(plantillaSlug === 'ath-f-13' ? athF13PuedeSolicitar : plantillaSlug === 'ath-f-14' ? puedeEditarAthF14 : puedeGestionarPlantillasSgc) && plantillaSlug !== 'sgc-f-05' && (plantillaSlug !== 'sgc-f-10' || sgcF10Vista === 'editor') && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'ath-f-06' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-27-medicion' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'ath-f-03' || plantillaSlug === 'ath-f-13' || plantillaSlug === 'ath-f-14' || plantillaSlug === 'sgc-f-17' || plantillaSlug === 'sgc-f-19' || plantillaSlug === 'sgc-f-20')"
                     type="button"
                     class="btn btn-sm sgc-btn-save-info"
-                    [disabled]="driveSyncCargando || driveSyncGuardando || (plantillaSlug === 'sgc-f-10' && sgcF10GuardandoHistorico)"
+                    [disabled]="driveSyncCargando || driveSyncGuardando"
                     (click)="guardarInformacionDriveSync()">
                     <i class="fas mr-1" [ngClass]="driveSyncGuardando ? 'fa-spinner fa-spin' : 'fa-save'" aria-hidden="true"></i>
-                    Guardar información
+                    {{ driveSyncGuardando ? ('Guardando… ' + sgcSaveProgressPctVisible + '%') : 'Guardar información' }}
                   </button>
                   <button
                     *ngIf="puedeGestionarPlantillasSgc && plantillaSlug === 'sgc-f-05'"
@@ -351,18 +364,6 @@
                     {{ driveSyncActualizandoPlantilla ? 'Actualizando…' : 'Actualizar plantilla' }}
                   </button>
                   <button
-                    *ngIf="puedeGestionarPlantillasSgc && plantillaSlug === 'sgc-f-10' && sgcF10Vista === 'editor'"
-                    type="button"
-                    class="btn btn-sm sgc-btn-historico"
-                    [disabled]="sgcF10Cargando || sgcF10Guardando || sgcF10GuardandoHistorico"
-                    (click)="guardarHistoricoSgcF10()"
-                    title="Cierra esta auditoría como histórico inmutable y abre un nuevo registro">
-                    <i class="fas mr-1"
-                      [ngClass]="sgcF10GuardandoHistorico ? 'fa-spinner fa-spin' : 'fa-archive'"
-                      aria-hidden="true"></i>
-                    {{ sgcF10GuardandoHistorico ? 'Guardando histórico…' : 'Guardar Histórico' }}
-                  </button>
-                  <button
                     *ngIf="plantillaSlug !== 'sgc-f-01' && (plantillaSlug !== 'sgc-f-10' || sgcF10Vista === 'editor')"
                     type="button"
                     class="btn btn-sm sgc-btn-drive"
@@ -373,8 +374,7 @@
                           ? (athF07Vista !== 'editor' || !athF07ProgramaActivo?.driveFileId || athF07Guardando || athF07Cargando)
                           : !driveSyncDriveFileId)
                       || driveSyncCargando
-                      || driveSyncActualizandoPlantilla
-                      || (plantillaSlug === 'sgc-f-10' && sgcF10GuardandoHistorico)"
+                      || driveSyncActualizandoPlantilla"
                     (click)="toggleEditorDriveSync()">
                     <i class="fas mr-1" [ngClass]="puedeGestionarPlantillasSgc ? 'fa-pen' : 'fa-eye'" aria-hidden="true"></i>
                     Abrir editor integrado
@@ -4517,6 +4517,7 @@
                                         <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left"
                                           [attr.rows]="filasTexto(fila.factor)"
                                           [(ngModel)]="fila.factor"
+                                          (ngModelChange)="onDgF04Editado()"
                                           [name]="'dgF04_' + sec.key + '_f' + i"></textarea>
                                       </div>
                                     </td>
@@ -4525,6 +4526,7 @@
                                         <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--center"
                                           [attr.rows]="filasTexto(fila.responsable)"
                                           [(ngModel)]="fila.responsable"
+                                          (ngModelChange)="onDgF04Editado()"
                                           [name]="'dgF04_' + sec.key + '_r' + i"></textarea>
                                       </div>
                                     </td>
@@ -4533,6 +4535,7 @@
                                         <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--center"
                                           [attr.rows]="filasTexto(fila.seguimiento)"
                                           [(ngModel)]="fila.seguimiento"
+                                          (ngModelChange)="onDgF04Editado()"
                                           [name]="'dgF04_' + sec.key + '_s' + i"></textarea>
                                       </div>
                                     </td>
@@ -4937,12 +4940,6 @@
                     <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-18', titulo: 'Tabla de requisitos legales y reglamentarios', icono: 'fa-balance-scale' }"></ng-container>
 
                     <div class="dg-f05-doc__meta dg-f05-doc__meta--sgc-f18">
-                      <label class="dg-f05-meta-field">
-                        <span class="dg-f05-meta-field__label">Revisión</span>
-                        <input class="dg-f05-field dg-f05-field--readonly" type="text"
-                          name="sgcF18_revision" [ngModel]="sgcF18Form.revision" readonly
-                          title="Revisión según lista maestra (SGC-F-01)">
-                      </label>
                       <div class="sgc-f18-resumen" aria-label="Resumen de vigencia">
                         <span class="sgc-chip sgc-chip--info">
                           <i class="fas fa-balance-scale" aria-hidden="true"></i>
@@ -4961,12 +4958,6 @@
                           {{ contarVigenciaSgcF18('No vigente') }} no vigentes
                         </span>
                       </div>
-                      <label class="dg-f05-meta-field">
-                        <span class="dg-f05-meta-field__label">Fecha de revisión</span>
-                        <input class="dg-f05-field dg-f05-field--readonly" type="date"
-                          name="sgcF18_fechaRev" [(ngModel)]="sgcF18Form.fechaRevision" readonly
-                          [title]="sgcF18ContenidoModificado ? 'Actualizada tras la última modificación' : 'Fecha original del formato'">
-                      </label>
                     </div>
 
                     <div class="dg-f05-table-panel">
@@ -5020,8 +5011,8 @@
                                   (input)="onSgcF18TextareaInput($event)"
                                   [(ngModel)]="fila.documento" [name]="'sgcF18_d' + i"></textarea>
                               </td>
-                              <td class="dg-f05-table__col--tipo dg-f05-table__col--center sgc-f18-td">
-                                <select class="dg-f05-field dg-f05-field--select dg-f05-field--center sgc-f18-vigencia-select"
+                              <td class="dg-f05-table__col--center sgc-f18-td sgc-f18-col-vigencia">
+                                <select class="dg-f05-field dg-f05-field--select sgc-f18-vigencia-select"
                                   [(ngModel)]="fila.vigencia" [name]="'sgcF18_v' + i"
                                   [attr.data-estado]="fila.vigencia || ''">
                                   <option value="">—</option>
@@ -9794,7 +9785,7 @@
                           <div class="sgc-f-04-archivero__intro-text">
                             <h4 class="sgc-f-04-archivero__title">Archivero de informes de auditoría</h4>
                             <p class="sgc-f-04-archivero__hint">
-                              Consulta auditorías cerradas y continúa el informe vigente. Al usar «Guardar Histórico» se archiva el actual (Word + PDF) y se abre uno nuevo sin borrar el anterior.
+                              Continúa el informe en captura. Usa «Nuevo informe» para guardar el actual y abrir uno vacío. Los PDF firmados se suben desde el informe; la documentación física va abajo.
                             </p>
                           </div>
                         </div>
@@ -9806,31 +9797,28 @@
                               autocomplete="off"
                               (input)="$event.stopPropagation()" (change)="$event.stopPropagation()">
                           </label>
-                          <button type="button" class="sgc-f-04-archivero__btn-nuevo" (click)="abrirInformeVigenteSgcF10()">
-                            <i class="fas fa-edit" aria-hidden="true"></i>
-                            Abrir informe vigente
+                          <button type="button" class="sgc-f-04-archivero__btn-nuevo"
+                            (click)="nuevoInformeSgcF10()"
+                            [disabled]="sgcF10GuardandoHistorico || sgcF10Guardando || !puedeGestionarPlantillasSgc">
+                            <i class="fas"
+                              [ngClass]="sgcF10GuardandoHistorico ? 'fa-spinner fa-spin' : 'fa-plus'"
+                              aria-hidden="true"></i>
+                            {{ sgcF10GuardandoHistorico ? 'Creando…' : 'Nuevo informe' }}
                           </button>
                         </div>
                       </div>
 
                       <div class="sgc-f-04-archivero__stats">
-                        <span class="sgc-f-04-archivero__stat">
-                          {{ sgcF10Historial.length + 1 }}
-                          {{ (sgcF10Historial.length + 1) === 1 ? 'informe' : 'informes' }}
-                        </span>
-                        <span class="sgc-f-04-archivero__stat sgc-f-04-archivero__stat--muted">
-                          · {{ sgcF10Historial.length }}
-                          {{ sgcF10Historial.length === 1 ? 'histórico' : 'históricos' }}
-                        </span>
+                        <span class="sgc-f-04-archivero__stat">1 informe en captura</span>
                         <span class="sgc-f-04-archivero__stat sgc-f-04-archivero__stat--muted"
-                          *ngIf="sgcF10Busqueda.trim()">
-                          · filtrados
+                          *ngIf="sgcF10Busqueda.trim() && !sgcF10CoincideBusquedaVigente">
+                          · sin coincidencias
                         </span>
                       </div>
 
                       <ul class="sgc-f-04-archivero__grid"
-                        *ngIf="sgcF10CoincideBusquedaVigente || sgcF10HistorialVista.length; else sgcF10ArchiveroVacio">
-                        <li class="sgc-f-04-book sgc-f-04-book--vigente" *ngIf="sgcF10CoincideBusquedaVigente">
+                        *ngIf="sgcF10CoincideBusquedaVigente; else sgcF10ArchiveroVacio">
+                        <li class="sgc-f-04-book sgc-f-04-book--vigente">
                           <button type="button" class="sgc-f-04-book__tap"
                             (click)="abrirInformeVigenteSgcF10()"
                             [attr.aria-label]="'Abrir informe vigente No. ' + (sgcF10Form.auditoriaNo || '')">
@@ -9852,9 +9840,14 @@
                               </span>
                               <span class="sgc-f-04-book__origen">Auditoría No. {{ sgcF10Form.auditoriaNo || '—' }}</span>
                               <span class="sgc-f-04-book__folio">{{ sgcF10Form.empresa?.trim() || 'Informe vigente' }}</span>
-                              <span class="sgc-f-24-book-tipos" *ngIf="totalHallazgosSgcF10">
-                                <span class="sgc-f-24-book-tipos__badge sgc-f-24-book-tipos__badge--req">
-                                  {{ totalHallazgosSgcF10 }} hallazgo{{ totalHallazgosSgcF10 === 1 ? '' : 's' }}
+                              <span class="sgc-f-24-book-tipos" *ngIf="totalNcSgcF10 || totalOpSgcF10">
+                                <span class="sgc-f-24-book-tipos__badge sgc-f-10-book-badge sgc-f-10-book-badge--nc"
+                                  *ngIf="totalNcSgcF10">
+                                  {{ totalNcSgcF10 }} NC
+                                </span>
+                                <span class="sgc-f-24-book-tipos__badge sgc-f-10-book-badge sgc-f-10-book-badge--op"
+                                  *ngIf="totalOpSgcF10">
+                                  {{ totalOpSgcF10 }} OP
                                 </span>
                               </span>
                               <span class="sgc-f-04-book__lines" aria-hidden="true">
@@ -9867,55 +9860,15 @@
                             </span>
                           </button>
                         </li>
-                        <li class="sgc-f-04-book sgc-f-04-book--cerrado"
-                          *ngFor="let h of sgcF10HistorialVista; trackBy: trackByIdx"
-                          [class.sgc-f-04-book--pdf]="!!h.pdfDriveFileId">
-                          <button type="button" class="sgc-f-04-book__tap"
-                            (click)="abrirHistoricoSgcF10(h)"
-                            [attr.aria-label]="'Abrir histórico No. ' + (h.auditoriaNo || '')">
-                            <span class="sgc-f-04-book__binding" aria-hidden="true">
-                              <span class="sgc-f-04-book__ring"></span>
-                              <span class="sgc-f-04-book__ring"></span>
-                              <span class="sgc-f-04-book__ring"></span>
-                              <span class="sgc-f-04-book__ring"></span>
-                              <span class="sgc-f-04-book__ring"></span>
-                              <span class="sgc-f-04-book__ring"></span>
-                            </span>
-                            <span class="sgc-f-04-book__page">
-                              <span class="sgc-f-04-book__corner" aria-hidden="true"></span>
-                              <span class="sgc-f-04-book__head">
-                                <span class="sgc-f-04-book__icon"
-                                  [class.sgc-f-04-book__icon--pdf]="!!h.pdfDriveFileId">
-                                  <i class="fas" [ngClass]="h.pdfDriveFileId ? 'fa-file-pdf' : 'fa-file-alt'" aria-hidden="true"></i>
-                                </span>
-                                <span class="sgc-f-04-book__estado sgc-f-04-book__estado--cerrado">Histórico</span>
-                              </span>
-                              <span class="sgc-f-04-book__origen">Auditoría No. {{ h.auditoriaNo || '—' }}</span>
-                              <span class="sgc-f-04-book__folio">{{ h.empresa?.trim() || 'Informe archivado' }}</span>
-                              <span class="sgc-f-24-book-tipos" *ngIf="h.totalHallazgos">
-                                <span class="sgc-f-24-book-tipos__badge sgc-f-24-book-tipos__badge--req">
-                                  {{ h.totalHallazgos }} hallazgo{{ h.totalHallazgos === 1 ? '' : 's' }}
-                                </span>
-                              </span>
-                              <span class="sgc-f-04-book__lines" aria-hidden="true">
-                                <span></span><span></span><span></span>
-                              </span>
-                              <span class="sgc-f-04-book__foot">
-                                <span class="sgc-f-04-book__fecha" *ngIf="h.fechasAuditoria">{{ h.fechasAuditoria }}</span>
-                                <span class="sgc-f-04-book__fuente" *ngIf="h.pdfDriveFileId">PDF</span>
-                              </span>
-                            </span>
-                          </button>
-                        </li>
                       </ul>
                       <ng-template #sgcF10ArchiveroVacio>
                         <div class="sgc-f-04-archivero__empty">
                           <i class="fas fa-archive" aria-hidden="true"></i>
                           <p class="mb-0" *ngIf="sgcF10Busqueda.trim(); else sgcF10SinInformes">
-                            No hay informes que coincidan con la búsqueda.
+                            El informe en captura no coincide con la búsqueda.
                           </p>
                           <ng-template #sgcF10SinInformes>
-                            <p class="mb-0">Aún no hay informes. Abre el vigente para capturar la primera auditoría.</p>
+                            <p class="mb-0">No hay informe en captura. Usa «Nuevo informe» para comenzar.</p>
                           </ng-template>
                         </div>
                       </ng-template>
@@ -10035,6 +9988,15 @@
                       <span class="sgc-f-04-editor-bar__folio" *ngIf="sgcF10Form.auditoriaNo">
                         Auditoría No. {{ sgcF10Form.auditoriaNo }}
                       </span>
+                      <button type="button" class="sgc-f-04-archivero__btn-nuevo sgc-f-10-editor-nuevo"
+                        *ngIf="puedeGestionarPlantillasSgc"
+                        (click)="nuevoInformeSgcF10()"
+                        [disabled]="sgcF10GuardandoHistorico || sgcF10Guardando">
+                        <i class="fas"
+                          [ngClass]="sgcF10GuardandoHistorico ? 'fa-spinner fa-spin' : 'fa-plus'"
+                          aria-hidden="true"></i>
+                        {{ sgcF10GuardandoHistorico ? 'Creando…' : 'Nuevo informe' }}
+                      </button>
                     </div>
                     <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-10', titulo: 'Informe de auditoría', icono: 'fa-file-alt', extraClass: 'sgc-f-10-doc__header' }"></ng-container>
 
@@ -10044,13 +10006,19 @@
                           <div class="sgc-f-10-intro__icon"><i class="fas fa-file-signature" aria-hidden="true"></i></div>
                           <div>
                             <h4 class="sgc-f-10-intro__title">Informe de auditoría</h4>
-                            <p class="sgc-f-10-intro__hint">Datos generales, hallazgos y conclusiones del ciclo de auditoría interna (ISO 9001 · 9.2). Usa «Guardar Histórico» para cerrar el informe actual (Word + PDF en Drive) y abrir uno nuevo sin borrar el anterior.</p>
+                            <p class="sgc-f-10-intro__hint">Datos generales, hallazgos y conclusiones del ciclo de auditoría interna (ISO 9001 · 9.2). Usa «Guardar información» para conservar el borrador; al final puedes subir la versión firmada en PDF.</p>
                           </div>
                         </div>
-                        <div class="sgc-f-10-intro__meta">
-                          <div class="sgc-f-10-total" aria-live="polite">
-                            <span class="sgc-f-10-total__label">Total de hallazgos</span>
-                            <strong class="sgc-f-10-total__value">{{ totalHallazgosSgcF10 | number:'2.0-0' }}</strong>
+                        <div class="sgc-f-10-intro__meta sgc-f-10-intro__meta--split" aria-live="polite">
+                          <div class="sgc-f-10-total sgc-f-10-total--nc">
+                            <span class="sgc-f-10-total__label">NC</span>
+                            <strong class="sgc-f-10-total__value">{{ totalNcSgcF10 | number:'2.0-0' }}</strong>
+                            <small class="sgc-f-10-total__sub">Menores + mayores</small>
+                          </div>
+                          <div class="sgc-f-10-total sgc-f-10-total--op">
+                            <span class="sgc-f-10-total__label">OP</span>
+                            <strong class="sgc-f-10-total__value">{{ totalOpSgcF10 | number:'2.0-0' }}</strong>
+                            <small class="sgc-f-10-total__sub">Oportunidades</small>
                           </div>
                         </div>
                       </div>
@@ -10358,19 +10326,60 @@
                               <i class="fas fa-building" aria-hidden="true"></i>
                               <span>Datos del sitio</span>
                             </div>
-                            <label class="sgc-f-10-field sgc-f-10-field--stack">
+                            <div class="sgc-f-10-field sgc-f-10-field--stack">
                               <span class="sgc-f-10-field__label">Empresa</span>
-                              <div class="sgc-f-10-pick">
-                                <i class="fas fa-building sgc-f-10-pick__lead" aria-hidden="true"></i>
-                                <select class="sgc-f-10-pick__input" name="sgcF10_empresaId"
-                                  [ngModel]="sgcF10Form.empresaId"
-                                  (ngModelChange)="onEmpresaSgcF10Change($event)">
-                                  <option [ngValue]="null">Seleccionar empresa…</option>
-                                  <option *ngFor="let emp of sgcF10Empresas" [ngValue]="emp.empresaId">{{ emp.nombre }}</option>
-                                </select>
-                                <i class="fas fa-chevron-down sgc-f-10-pick__icon" aria-hidden="true"></i>
+                              <div class="sgc-f-10-combo"
+                                [class.sgc-f-10-combo--open]="sgcF10MenuAbierto === 'empresa'">
+                                <div class="sgc-f-10-combo__control">
+                                  <span class="sgc-f-10-combo__icon" aria-hidden="true"><i class="fas fa-building"></i></span>
+                                  <input class="sgc-f-10-combo__input" type="text" name="sgcF10_empresaCombo"
+                                    [ngModel]="textoMenuSgcF10('empresa')"
+                                    (ngModelChange)="onFiltroMenuSgcF10('empresa', $event)"
+                                    (focus)="abrirMenuSgcF10('empresa')"
+                                    (keydown)="onMenuSgcF10Keydown('empresa', $event)"
+                                    placeholder="Buscar empresa…"
+                                    autocomplete="off"
+                                    aria-label="Empresa"
+                                    [attr.aria-expanded]="sgcF10MenuAbierto === 'empresa'">
+                                  <button *ngIf="sgcF10Form.empresa || (sgcF10MenuAbierto === 'empresa' && sgcF10MenuQuery)"
+                                    type="button" class="sgc-f-10-combo__clear"
+                                    title="Limpiar" aria-label="Limpiar empresa"
+                                    (mousedown)="$event.preventDefault()"
+                                    (click)="limpiarEmpresaMenuSgcF10($event)">
+                                    <i class="fas fa-times" aria-hidden="true"></i>
+                                  </button>
+                                  <span class="sgc-f-10-combo__chevron" aria-hidden="true">
+                                    <i class="fas" [ngClass]="sgcF10MenuAbierto === 'empresa' ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                                  </span>
+                                </div>
+                                <div class="sgc-f-10-combo__dropdown" *ngIf="sgcF10MenuAbierto === 'empresa'" role="listbox">
+                                  <div class="sgc-f-10-combo__dropdown-head">
+                                    <span class="sgc-f-10-combo__dropdown-title">
+                                      <i class="fas fa-building" aria-hidden="true"></i> Empresas
+                                    </span>
+                                    <span class="sgc-f-10-combo__dropdown-count">{{ empresasFiltradasSgcF10().length }}</span>
+                                  </div>
+                                  <div class="sgc-f-10-combo__state" *ngIf="!empresasFiltradasSgcF10().length">
+                                    <span class="sgc-f-10-combo__state-icon" aria-hidden="true"><i class="fas fa-search"></i></span>
+                                    <span>Sin coincidencias. Prueba otro nombre.</span>
+                                  </div>
+                                  <div class="sgc-f-10-combo__options" *ngIf="empresasFiltradasSgcF10().length">
+                                    <button *ngFor="let emp of empresasFiltradasSgcF10(); trackBy: trackByIdx"
+                                      type="button" class="sgc-f-10-combo__option" role="option"
+                                      [class.sgc-f-10-combo__option--selected]="emp.empresaId === sgcF10Form.empresaId"
+                                      (mousedown)="$event.preventDefault()"
+                                      (click)="seleccionarEmpresaMenuSgcF10(emp.empresaId)">
+                                      <span class="sgc-f-10-combo__option-icon" aria-hidden="true"><i class="fas fa-building"></i></span>
+                                      <span class="sgc-f-10-combo__option-text">{{ emp.nombre }}</span>
+                                      <span class="sgc-f-10-combo__option-check"
+                                        *ngIf="emp.empresaId === sgcF10Form.empresaId" aria-hidden="true">
+                                        <i class="fas fa-check"></i>
+                                      </span>
+                                    </button>
+                                  </div>
+                                </div>
                               </div>
-                            </label>
+                            </div>
                             <label class="sgc-f-10-field sgc-f-10-field--stack">
                               <span class="sgc-f-10-field__label">Ubicación(es)</span>
                               <input class="dg-f05-field" type="text" name="sgcF10_ubic"
@@ -10422,20 +10431,77 @@
                         <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-clipboard-check" aria-hidden="true"></i></div>
                         <div>
                           <h4 class="sgc-f-11-matriz__title">Descripción de resultados de auditoría</h4>
-                          <p class="sgc-f-11-matriz__hint">Usa «Editar» para modificar un hallazgo, «Ampliar editor» para negrita/cursiva, y el organizador para filtrar u ordenar por auditor, cláusula o fecha.</p>
+                          <p class="sgc-f-11-matriz__hint">Puedes editar cada hallazgo en cualquier momento. Usa «Ampliar editor» para negrita/cursiva, y el organizador para filtrar u ordenar por auditor, cláusula o fecha.</p>
                         </div>
                       </div>
 
                       <div class="sgc-f-10-organizador" aria-label="Organizador de hallazgos">
-                        <label class="sgc-f-10-organizador__field">
+                        <div class="sgc-f-10-organizador__field">
                           <span class="sgc-f-10-organizador__label">Filtrar por auditor</span>
-                          <select class="dg-f05-field sgc-f-10-organizador__control"
-                            name="sgcF10_filtroAuditor"
-                            [(ngModel)]="sgcF10FiltroAuditor">
-                            <option value="">Todos los auditores</option>
-                            <option *ngFor="let u of sgcF10AuditoresHallazgoOpts" [value]="u.id">{{ u.nombre }}</option>
-                          </select>
-                        </label>
+                          <div class="sgc-f-10-combo"
+                            [class.sgc-f-10-combo--open]="sgcF10MenuAbierto === 'filtroAuditor'">
+                            <div class="sgc-f-10-combo__control">
+                              <span class="sgc-f-10-combo__icon" aria-hidden="true"><i class="fas fa-filter"></i></span>
+                              <input class="sgc-f-10-combo__input" type="text" name="sgcF10_filtroAuditorCombo"
+                                [ngModel]="textoMenuSgcF10('filtroAuditor')"
+                                (ngModelChange)="onFiltroMenuSgcF10('filtroAuditor', $event)"
+                                (focus)="abrirMenuSgcF10('filtroAuditor')"
+                                (keydown)="onMenuSgcF10Keydown('filtroAuditor', $event)"
+                                placeholder="Todos los auditores"
+                                autocomplete="off"
+                                aria-label="Filtrar por auditor"
+                                [attr.aria-expanded]="sgcF10MenuAbierto === 'filtroAuditor'">
+                              <button *ngIf="sgcF10FiltroAuditor || (sgcF10MenuAbierto === 'filtroAuditor' && sgcF10MenuQuery)"
+                                type="button" class="sgc-f-10-combo__clear"
+                                title="Quitar filtro" aria-label="Quitar filtro de auditor"
+                                (mousedown)="$event.preventDefault()"
+                                (click)="limpiarFiltroAuditorMenuSgcF10($event)">
+                                <i class="fas fa-times" aria-hidden="true"></i>
+                              </button>
+                              <span class="sgc-f-10-combo__chevron" aria-hidden="true">
+                                <i class="fas" [ngClass]="sgcF10MenuAbierto === 'filtroAuditor' ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                              </span>
+                            </div>
+                            <div class="sgc-f-10-combo__dropdown" *ngIf="sgcF10MenuAbierto === 'filtroAuditor'" role="listbox">
+                              <div class="sgc-f-10-combo__dropdown-head">
+                                <span class="sgc-f-10-combo__dropdown-title">
+                                  <i class="fas fa-user-check" aria-hidden="true"></i> Auditores
+                                </span>
+                                <span class="sgc-f-10-combo__dropdown-count">{{ auditoresFiltroFiltradosSgcF10().length }}</span>
+                              </div>
+                              <button type="button"
+                                class="sgc-f-10-combo__option"
+                                role="option"
+                                [class.sgc-f-10-combo__option--selected]="!sgcF10FiltroAuditor"
+                                (mousedown)="$event.preventDefault()"
+                                (click)="seleccionarFiltroAuditorSgcF10(null)">
+                                <span class="sgc-f-10-combo__option-icon" aria-hidden="true"><i class="fas fa-users"></i></span>
+                                <span class="sgc-f-10-combo__option-text">Todos los auditores</span>
+                                <span class="sgc-f-10-combo__option-check" *ngIf="!sgcF10FiltroAuditor" aria-hidden="true">
+                                  <i class="fas fa-check"></i>
+                                </span>
+                              </button>
+                              <div class="sgc-f-10-combo__state" *ngIf="!auditoresFiltroFiltradosSgcF10().length">
+                                <span class="sgc-f-10-combo__state-icon" aria-hidden="true"><i class="fas fa-search"></i></span>
+                                <span>Sin coincidencias.</span>
+                              </div>
+                              <div class="sgc-f-10-combo__options" *ngIf="auditoresFiltroFiltradosSgcF10().length">
+                                <button *ngFor="let aud of auditoresFiltroFiltradosSgcF10(); trackBy: trackByIdx"
+                                  type="button" class="sgc-f-10-combo__option" role="option"
+                                  [class.sgc-f-10-combo__option--selected]="esFiltroAuditorActivoSgcF10(aud.id)"
+                                  (mousedown)="$event.preventDefault()"
+                                  (click)="seleccionarFiltroAuditorSgcF10(aud.id)">
+                                  <span class="sgc-f-10-combo__option-icon" aria-hidden="true"><i class="fas fa-user-tie"></i></span>
+                                  <span class="sgc-f-10-combo__option-text">{{ aud.nombre }}</span>
+                                  <span class="sgc-f-10-combo__option-check"
+                                    *ngIf="esFiltroAuditorActivoSgcF10(aud.id)" aria-hidden="true">
+                                    <i class="fas fa-check"></i>
+                                  </span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                         <label class="sgc-f-10-organizador__field">
                           <span class="sgc-f-10-organizador__label">Filtrar por cláusula</span>
                           <input class="dg-f05-field sgc-f-10-organizador__control" type="search"
@@ -10444,19 +10510,38 @@
                             placeholder="Buscar cláusula…"
                             autocomplete="off">
                         </label>
-                        <label class="sgc-f-10-organizador__field">
+                        <div class="sgc-f-10-organizador__field">
                           <span class="sgc-f-10-organizador__label">Ordenar hallazgos</span>
-                          <select class="dg-f05-field sgc-f-10-organizador__control"
-                            name="sgcF10_ordenHallazgos"
-                            [ngModel]="sgcF10OrdenHallazgos"
-                            (ngModelChange)="onOrdenHallazgosSgcF10Change($event)">
-                            <option value="manual">Orden del informe</option>
-                            <option value="auditor_asc">Por auditor (A-Z)</option>
-                            <option value="clausula_asc">Por cláusula (A-Z)</option>
-                            <option value="fecha_asc">Por fecha (antigua → reciente)</option>
-                            <option value="fecha_desc">Por fecha (reciente → antigua)</option>
-                          </select>
-                        </label>
+                          <div class="sgc-f-10-menu"
+                            [class.sgc-f-10-menu--open]="sgcF10MenuAbierto === 'orden'">
+                            <button type="button" class="sgc-f-10-menu__trigger"
+                              (click)="sgcF10MenuAbierto === 'orden' ? cerrarMenuSgcF10() : abrirMenuSgcF10('orden')"
+                              [attr.aria-expanded]="sgcF10MenuAbierto === 'orden'"
+                              aria-haspopup="listbox"
+                              aria-label="Ordenar hallazgos">
+                              <span class="sgc-f-10-menu__trigger-icon" aria-hidden="true"><i class="fas fa-sort-amount-down"></i></span>
+                              <span class="sgc-f-10-menu__trigger-text">{{ etiquetaOrdenHallazgosSgcF10 }}</span>
+                              <i class="fas sgc-f-10-menu__trigger-chevron"
+                                [ngClass]="sgcF10MenuAbierto === 'orden' ? 'fa-chevron-up' : 'fa-chevron-down'"
+                                aria-hidden="true"></i>
+                            </button>
+                            <div class="sgc-f-10-menu__dropdown" *ngIf="sgcF10MenuAbierto === 'orden'" role="listbox">
+                              <button *ngFor="let opt of sgcF10OrdenOpciones"
+                                type="button" class="sgc-f-10-menu__option" role="option"
+                                [class.sgc-f-10-menu__option--selected]="opt.value === sgcF10OrdenHallazgos"
+                                [attr.aria-selected]="opt.value === sgcF10OrdenHallazgos"
+                                (mousedown)="$event.preventDefault()"
+                                (click)="seleccionarOrdenHallazgosMenuSgcF10(opt.value)">
+                                <span class="sgc-f-10-menu__option-icon" aria-hidden="true">
+                                  <i class="fas" [ngClass]="opt.icon"></i>
+                                </span>
+                                <span class="sgc-f-10-menu__option-text">{{ opt.label }}</span>
+                                <i class="fas fa-check sgc-f-10-menu__option-check" aria-hidden="true"
+                                  *ngIf="opt.value === sgcF10OrdenHallazgos"></i>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                         <button *ngIf="sgcF10HayFiltroHallazgos" type="button"
                           class="sgc-f-10-organizador__clear"
                           (click)="limpiarFiltrosHallazgosSgcF10()">
@@ -10556,24 +10641,6 @@
                             </ng-template>
 
                             <div class="sgc-f-10-apartado__actions">
-                              <button *ngIf="!estaEditandoHallazgoSgcF10(item.index)"
-                                type="button"
-                                class="sgc-f-10-apartado__action-btn sgc-f-10-apartado__action-btn--edit"
-                                (click)="iniciarEdicionHallazgoSgcF10(item.index, $event)"
-                                [attr.aria-label]="'Editar hallazgo ' + item.num"
-                                title="Editar hallazgo">
-                                <i class="fas fa-pen" aria-hidden="true"></i>
-                                <span>Editar</span>
-                              </button>
-                              <button *ngIf="estaEditandoHallazgoSgcF10(item.index)"
-                                type="button"
-                                class="sgc-f-10-apartado__action-btn sgc-f-10-apartado__action-btn--done"
-                                (click)="cerrarEdicionHallazgoSgcF10($event)"
-                                [attr.aria-label]="'Terminar edición del hallazgo ' + item.num"
-                                title="Terminar edición">
-                                <i class="fas fa-check" aria-hidden="true"></i>
-                                <span>Listo</span>
-                              </button>
                               <button type="button"
                                 class="dg-f05-row-btn sgc-f-10-apartado__quitar"
                                 (click)="quitarHallazgoSgcF10(item.index)"
@@ -10585,40 +10652,76 @@
                           </header>
 
                           <div class="sgc-f-10-apartado__meta">
-                            <ng-container *ngIf="estaEditandoHallazgoSgcF10(item.index); else metaBloqueada">
-                              <label class="sgc-f-10-field sgc-f-10-field--stack sgc-f-10-apartado__meta-auditor">
-                                <span class="sgc-f-10-field__label">Auditor del hallazgo</span>
-                                <select class="dg-f05-field"
-                                  [name]="'sgcF10_audHall' + item.index"
-                                  [ngModel]="item.hallazgo.auditorId"
-                                  (ngModelChange)="onAuditorHallazgoSgcF10Change(item.index, $event)">
-                                  <option [ngValue]="null">Seleccionar auditor…</option>
-                                  <option *ngFor="let u of sgcF10AuditoresHallazgoOpts" [ngValue]="u.id">{{ u.nombre }}</option>
-                                </select>
-                              </label>
-                              <label class="sgc-f-10-field sgc-f-10-field--stack sgc-f-10-apartado__meta-fecha">
-                                <span class="sgc-f-10-field__label">Fecha de adición</span>
-                                <input class="dg-f05-field" type="date"
-                                  [(ngModel)]="item.hallazgo.fechaAdicion"
-                                  [name]="'sgcF10_fechaHall' + item.index"
-                                  (ngModelChange)="onSgcF10Editado()">
-                              </label>
-                            </ng-container>
-                            <ng-template #metaBloqueada>
-                              <div class="sgc-f-10-field sgc-f-10-field--stack sgc-f-10-apartado__meta-auditor">
-                                <span class="sgc-f-10-field__label">Auditor del hallazgo</span>
-                                <div class="sgc-f-10-apartado__locked-value"
-                                  [class.sgc-f-10-apartado__locked-value--empty]="!item.hallazgo.auditor">
-                                  {{ item.hallazgo.auditor || 'Sin auditor asignado' }}
+                            <div class="sgc-f-10-field sgc-f-10-field--stack sgc-f-10-apartado__meta-auditor">
+                              <span class="sgc-f-10-field__label">Auditor del hallazgo</span>
+                              <div class="sgc-f-10-combo sgc-f-10-combo--hallazgo"
+                                [class.sgc-f-10-combo--open]="sgcF10HallazgoAuditorComboIdx === item.index">
+                                <div class="sgc-f-10-combo__control">
+                                  <span class="sgc-f-10-combo__icon" aria-hidden="true"><i class="fas fa-search"></i></span>
+                                  <input class="sgc-f-10-combo__input" type="text"
+                                    [name]="'sgcF10_audHallCombo' + item.index"
+                                    [ngModel]="textoComboAuditorHallazgoSgcF10(item.index)"
+                                    (ngModelChange)="onFiltroAuditorHallazgoSgcF10(item.index, $event)"
+                                    (focus)="abrirComboAuditorHallazgoSgcF10(item.index)"
+                                    (keydown)="onComboAuditorHallazgoKeydownSgcF10(item.index, $event)"
+                                    placeholder="Buscar auditor…"
+                                    autocomplete="off"
+                                    [attr.aria-label]="'Auditor del hallazgo ' + item.num"
+                                    [attr.aria-expanded]="sgcF10HallazgoAuditorComboIdx === item.index">
+                                  <button *ngIf="item.hallazgo.auditor || (sgcF10HallazgoAuditorComboIdx === item.index && sgcF10HallazgoAuditorComboQuery)"
+                                    type="button" class="sgc-f-10-combo__clear"
+                                    title="Limpiar" aria-label="Limpiar auditor del hallazgo"
+                                    (mousedown)="$event.preventDefault()"
+                                    (click)="limpiarAuditorHallazgoSgcF10(item.index, $event)">
+                                    <i class="fas fa-times" aria-hidden="true"></i>
+                                  </button>
+                                  <span class="sgc-f-10-combo__chevron" aria-hidden="true">
+                                    <i class="fas"
+                                      [ngClass]="sgcF10HallazgoAuditorComboIdx === item.index ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                                  </span>
+                                </div>
+                                <div class="sgc-f-10-combo__dropdown"
+                                  *ngIf="sgcF10HallazgoAuditorComboIdx === item.index" role="listbox">
+                                  <div class="sgc-f-10-combo__dropdown-head">
+                                    <span class="sgc-f-10-combo__dropdown-title">
+                                      <i class="fas fa-user-check" aria-hidden="true"></i> Auditores
+                                    </span>
+                                    <span class="sgc-f-10-combo__dropdown-count">
+                                      {{ usuariosFiltradosAuditorHallazgoSgcF10(item.index).length }}
+                                    </span>
+                                  </div>
+                                  <div class="sgc-f-10-combo__state"
+                                    *ngIf="!usuariosFiltradosAuditorHallazgoSgcF10(item.index).length">
+                                    <span class="sgc-f-10-combo__state-icon" aria-hidden="true"><i class="fas fa-search"></i></span>
+                                    <span>Sin coincidencias. Prueba otro nombre.</span>
+                                  </div>
+                                  <div class="sgc-f-10-combo__options"
+                                    *ngIf="usuariosFiltradosAuditorHallazgoSgcF10(item.index).length">
+                                    <button *ngFor="let u of usuariosFiltradosAuditorHallazgoSgcF10(item.index); trackBy: trackByIdx"
+                                      type="button" class="sgc-f-10-combo__option" role="option"
+                                      [class.sgc-f-10-combo__option--selected]="u.id === item.hallazgo.auditorId"
+                                      (mousedown)="$event.preventDefault()"
+                                      (click)="seleccionarAuditorHallazgoSgcF10(item.index, u.id)">
+                                      <span class="sgc-f-10-combo__option-icon" aria-hidden="true">
+                                        <i class="fas fa-user-tie"></i>
+                                      </span>
+                                      <span class="sgc-f-10-combo__option-text">{{ u.nombre }}</span>
+                                      <span class="sgc-f-10-combo__option-check"
+                                        *ngIf="u.id === item.hallazgo.auditorId" aria-hidden="true">
+                                        <i class="fas fa-check"></i>
+                                      </span>
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-                              <div class="sgc-f-10-field sgc-f-10-field--stack sgc-f-10-apartado__meta-fecha">
-                                <span class="sgc-f-10-field__label">Fecha de adición</span>
-                                <div class="sgc-f-10-apartado__locked-value">
-                                  {{ formatearFechaHallazgoSgcF10(item.hallazgo.fechaAdicion) }}
-                                </div>
-                              </div>
-                            </ng-template>
+                            </div>
+                            <label class="sgc-f-10-field sgc-f-10-field--stack sgc-f-10-apartado__meta-fecha">
+                              <span class="sgc-f-10-field__label">Fecha de adición</span>
+                              <input class="dg-f05-field" type="date"
+                                [(ngModel)]="item.hallazgo.fechaAdicion"
+                                [name]="'sgcF10_fechaHall' + item.index"
+                                (ngModelChange)="onSgcF10Editado()">
+                            </label>
                           </div>
 
                           <div class="sgc-f-10-apartado__grid">
@@ -10665,26 +10768,14 @@
                               </ng-template>
                             </div>
 
-                            <ng-container *ngIf="estaEditandoHallazgoSgcF10(item.index); else procesosBloqueados">
-                              <label class="sgc-f-10-field sgc-f-10-field--stack">
-                                <span class="sgc-f-10-field__label">Proceso(s) involucrado(s)</span>
-                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left sgc-f-10-apartado__text sgc-f-10-autosize"
-                                  rows="2"
-                                  [(ngModel)]="item.hallazgo.procesos" [name]="'sgcF10_proc' + item.index"
-                                  (input)="onTextoAutosizeSgcF10($event)"
-                                  (focus)="autosizeTextarea($event.target)"
-                                  placeholder="Proceso(s) involucrado(s)…"></textarea>
-                              </label>
-                            </ng-container>
-                            <ng-template #procesosBloqueados>
-                              <div class="sgc-f-10-field sgc-f-10-field--stack">
-                                <span class="sgc-f-10-field__label">Proceso(s) involucrado(s)</span>
-                                <div class="sgc-f-10-apartado__locked-value sgc-f-10-apartado__locked-value--area"
-                                  [class.sgc-f-10-apartado__locked-value--empty]="!item.hallazgo.procesos">
-                                  {{ item.hallazgo.procesos || 'Sin procesos' }}
-                                </div>
-                              </div>
-                            </ng-template>
+                            <label class="sgc-f-10-field sgc-f-10-field--stack sgc-f-10-apartado__procesos-field">
+                              <span class="sgc-f-10-field__label">Proceso(s) involucrado(s)</span>
+                              <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left sgc-f-10-apartado__procesos"
+                                rows="8"
+                                [(ngModel)]="item.hallazgo.procesos" [name]="'sgcF10_proc' + item.index"
+                                (input)="onSgcF10Editado()"
+                                placeholder="Proceso(s) involucrado(s)…"></textarea>
+                            </label>
                           </div>
                         </article>
 
@@ -10713,62 +10804,107 @@
                           <p class="sgc-f-11-matriz__hint">Síntesis del resultado y recomendación para la dirección.</p>
                         </div>
                       </div>
-                      <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left sgc-f-10-conclusiones__text sgc-f-10-autosize"
-                        name="sgcF10_concl" rows="5"
+                      <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left sgc-f-10-conclusiones__text"
+                        name="sgcF10_concl" rows="16"
                         [(ngModel)]="sgcF10Form.conclusiones"
-                        (input)="onTextoAutosizeSgcF10($event)"
-                        (focus)="autosizeTextarea($event.target)"
+                        (input)="onSgcF10Editado()"
                         placeholder="Escribe las conclusiones de la auditoría…"></textarea>
-
-                      <div class="sgc-f-10-firmas">
-                        <div class="sgc-f-10-firma">
-                          <div class="sgc-f-10-firma__preview" *ngIf="sgcF10FirmaLiderUrl; else firmaLiderPlaceholder">
-                            <img [src]="sgcF10FirmaLiderUrl" alt="Firma del auditor líder">
-                          </div>
-                          <ng-template #firmaLiderPlaceholder>
-                            <div class="sgc-f-10-firma__preview sgc-f-10-firma__preview--empty">
-                              <span>Sin firma digital registrada</span>
-                            </div>
-                          </ng-template>
-                          <div class="sgc-f-10-pick sgc-f-10-pick--firma">
-                            <i class="fas fa-user-tie sgc-f-10-pick__lead" aria-hidden="true"></i>
-                            <select class="sgc-f-10-pick__input" name="sgcF10_firmaLiderSel"
-                              [ngModel]="sgcF10Form.auditorLiderId"
-                              (ngModelChange)="onAuditorLiderSgcF10Change($event)">
-                              <option [ngValue]="null">Seleccionar auditor líder…</option>
-                              <option *ngFor="let u of sgcF10Usuarios" [ngValue]="u.id">{{ u.nombre }}</option>
-                            </select>
-                            <i class="fas fa-chevron-down sgc-f-10-pick__icon" aria-hidden="true"></i>
-                          </div>
-                          <span class="sgc-f-10-firma__line" aria-hidden="true"></span>
-                          <span class="sgc-f-10-firma__role">Auditor líder</span>
-                        </div>
-
-                        <div class="sgc-f-10-firma">
-                          <div class="sgc-f-10-firma__preview" *ngIf="sgcF10FirmaDgUrl; else firmaDgPlaceholder">
-                            <img [src]="sgcF10FirmaDgUrl" alt="Firma de Dirección General">
-                          </div>
-                          <ng-template #firmaDgPlaceholder>
-                            <div class="sgc-f-10-firma__preview sgc-f-10-firma__preview--empty">
-                              <span>Sin firma digital registrada</span>
-                            </div>
-                          </ng-template>
-                          <div class="sgc-f-10-pick sgc-f-10-pick--firma">
-                            <i class="fas fa-briefcase sgc-f-10-pick__lead" aria-hidden="true"></i>
-                            <select class="sgc-f-10-pick__input" name="sgcF10_firmaDgSel"
-                              [ngModel]="sgcF10Form.firmaDireccionGeneralId"
-                              (ngModelChange)="onFirmaDgSgcF10Change($event)">
-                              <option [ngValue]="null">Seleccionar dirección general…</option>
-                              <option *ngFor="let u of sgcF10Usuarios" [ngValue]="u.id">{{ u.nombre }}</option>
-                            </select>
-                            <i class="fas fa-chevron-down sgc-f-10-pick__icon" aria-hidden="true"></i>
-                          </div>
-                          <span class="sgc-f-10-firma__line" aria-hidden="true"></span>
-                          <span class="sgc-f-10-firma__role">Dirección General</span>
-                        </div>
-                      </div>
                     </div>
                   </article>
+
+                  <aside class="dg-f02-attach sgc-f-10-attach sgc-f-10-attach--wide"
+                    *ngIf="!sgcF10Cargando && sgcF10Vista === 'editor'"
+                    aria-label="Documento firmado">
+                    <div class="dg-f02-attach__head">
+                      <div class="dg-f02-attach__icon-wrap">
+                        <i class="fas fa-file-signature" aria-hidden="true"></i>
+                      </div>
+                      <div>
+                        <h3 class="dg-f02-attach__title">Versión firmada</h3>
+                        <p class="dg-f02-attach__desc mb-0">
+                          Sube el PDF firmado del informe que estás gestionando. Cada carga se agrega al historial (no reemplaza versiones anteriores).
+                        </p>
+                      </div>
+                    </div>
+                    <label class="dg-f02-attach__dropzone" *ngIf="!sgcF10PdfFirmado?.driveFileId"
+                      [class.dg-f02-attach__dropzone--busy]="sgcF10SubiendoPdf">
+                      <input type="file" class="dg-f02-attach__input" accept="application/pdf"
+                        (change)="onSeleccionarPdfSgcF10($event)" [disabled]="sgcF10SubiendoPdf || !puedeGestionarPlantillasSgc">
+                      <span class="dg-f02-attach__dropzone-icon">
+                        <i class="fas" [ngClass]="sgcF10SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                      </span>
+                      <span class="dg-f02-attach__dropzone-title">
+                        {{ sgcF10SubiendoPdf ? 'Subiendo PDF…' : 'Arrastra o selecciona el PDF firmado' }}
+                      </span>
+                      <span class="dg-f02-attach__dropzone-hint">Formato PDF · máximo {{ etiquetaMaxPdfSgc }}</span>
+                    </label>
+                    <input #sgcF10InputActualizarPdf type="file" class="dg-f02-attach__input" accept="application/pdf"
+                      (change)="onSeleccionarPdfSgcF10($event)" [disabled]="sgcF10SubiendoPdf">
+                    <div class="dg-f02-attach__file dg-f02-attach__file--solo" *ngIf="sgcF10PdfFirmado as pdf">
+                      <div class="dg-f02-attach__file-icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></div>
+                      <div class="dg-f02-attach__file-info">
+                        <span class="dg-f02-attach__file-badge">Vigente</span>
+                        <strong class="dg-f02-attach__file-name">{{ pdf.nombreArchivo || 'SGC-F-10 Informe de auditoría.pdf' }}</strong>
+                        <small class="dg-f02-attach__file-date" *ngIf="pdf.fechaSubida">
+                          <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                          Subido el {{ formatearFechaDgF02(pdf.fechaSubida) }}
+                        </small>
+                      </div>
+                      <div class="dg-f02-attach__file-actions" *ngIf="sgcF10PdfFirmado?.driveFileId">
+                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                          (click)="toggleSgcF10PdfViewer(pdf)">
+                          <i class="fas fa-eye" aria-hidden="true"></i>
+                          Abrir
+                        </button>
+                        <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
+                          [disabled]="sgcF10SubiendoPdf || !puedeGestionarPlantillasSgc"
+                          (click)="sgcF10InputActualizarPdf.click()">
+                          <i class="fas" [ngClass]="sgcF10SubiendoPdf ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                          {{ sgcF10SubiendoPdf ? 'Subiendo…' : 'Nueva versión' }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="sgc-pdf-historial" *ngIf="sgcF10HistorialPdfsVista.length">
+                      <div class="sgc-pdf-historial__head">
+                        <div class="sgc-pdf-historial__icon" aria-hidden="true">
+                          <i class="fas fa-history"></i>
+                        </div>
+                        <div>
+                          <h4 class="sgc-pdf-historial__title">Historial de PDFs firmados</h4>
+                          <p class="sgc-pdf-historial__hint">Versiones firmadas anteriores de este informe.</p>
+                        </div>
+                      </div>
+                      <ul class="sgc-pdf-historial__list">
+                        <li class="sgc-pdf-historial__item" *ngFor="let hist of sgcF10HistorialPdfsVista; let i = index">
+                          <div class="sgc-pdf-historial__item-main">
+                            <span class="sgc-pdf-historial__ver">{{ sgcF10HistorialPdfsVista.length - i }}</span>
+                            <div class="sgc-pdf-historial__meta">
+                              <strong class="sgc-pdf-historial__name">{{ hist.nombreArchivo }}</strong>
+                              <small class="sgc-pdf-historial__date" *ngIf="hist.fechaSubida">
+                                <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                                {{ formatearFechaDgF02(hist.fechaSubida) }}
+                              </small>
+                            </div>
+                          </div>
+                          <div class="sgc-pdf-historial__actions">
+                            <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                              (click)="toggleSgcF10PdfViewer(hist)">
+                              <i class="fas fa-eye" aria-hidden="true"></i>
+                              Abrir
+                            </button>
+                            <button *ngIf="puedeBorrarPdfHistorialSgcF10" type="button"
+                              class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--danger"
+                              [disabled]="sgcF10BorrandoPdf"
+                              (click)="eliminarPdfHistorialSgcF10(hist)"
+                              title="Eliminar PDF del historial">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </li>
+                      </ul>
+                    </div>
+                  </aside>
                 </div>
               </form>
             </ng-container>
@@ -14607,38 +14743,43 @@
                     <div class="dg-f05-doc__meta dg-f05-doc__meta--sgc-f11-datos" aria-label="Datos del análisis">
                       <label class="dg-f05-meta-field">
                         <span class="dg-f05-meta-field__label">Área</span>
-                        <input class="dg-f05-field" type="text" name="sgcF11_area"
-                          [(ngModel)]="sgcF11Form.area" autocomplete="off"
-                          [readonly]="sgcF11Form.edicionBloqueada">
+                        <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-meta-field" rows="1"
+                          name="sgcF11_area" [(ngModel)]="sgcF11Form.area" autocomplete="off"
+                          (input)="onSgcF11MetaInput($event)"
+                          [readonly]="sgcF11Form.edicionBloqueada"></textarea>
                       </label>
                       <label class="dg-f05-meta-field">
                         <span class="dg-f05-meta-field__label">Departamento</span>
-                        <input class="dg-f05-field" type="text" name="sgcF11_depto"
-                          [(ngModel)]="sgcF11Form.departamento" autocomplete="off"
-                          [readonly]="sgcF11Form.edicionBloqueada">
+                        <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-meta-field" rows="1"
+                          name="sgcF11_depto" [(ngModel)]="sgcF11Form.departamento" autocomplete="off"
+                          (input)="onSgcF11MetaInput($event)"
+                          [readonly]="sgcF11Form.edicionBloqueada"></textarea>
                       </label>
                       <label class="dg-f05-meta-field">
                         <span class="dg-f05-meta-field__label">Elaboró</span>
-                        <input class="dg-f05-field" type="text" name="sgcF11_elab"
-                          [(ngModel)]="sgcF11Form.elaboro" autocomplete="off"
-                          [readonly]="sgcF11Form.edicionBloqueada">
+                        <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-meta-field" rows="1"
+                          name="sgcF11_elab" [(ngModel)]="sgcF11Form.elaboro" autocomplete="off"
+                          (input)="onSgcF11MetaInput($event)"
+                          [readonly]="sgcF11Form.edicionBloqueada"></textarea>
                       </label>
                       <label class="dg-f05-meta-field">
                         <span class="dg-f05-meta-field__label">Fecha elaboración</span>
-                        <input class="dg-f05-field dg-f05-field--readonly" type="date" name="sgcF11_fechaElab"
+                        <input class="dg-f05-field dg-f05-field--readonly sgc-f-11-meta-date" type="date" name="sgcF11_fechaElab"
                           [(ngModel)]="sgcF11Form.fechaElaboracion" readonly>
                       </label>
                       <label class="dg-f05-meta-field dg-f05-meta-field--wide">
                         <span class="dg-f05-meta-field__label">Proceso</span>
-                        <input class="dg-f05-field" type="text" name="sgcF11_proceso"
-                          [(ngModel)]="sgcF11Form.proceso" autocomplete="off"
-                          [readonly]="sgcF11Form.edicionBloqueada">
+                        <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-meta-field" rows="1"
+                          name="sgcF11_proceso" [(ngModel)]="sgcF11Form.proceso" autocomplete="off"
+                          (input)="onSgcF11MetaInput($event)"
+                          [readonly]="sgcF11Form.edicionBloqueada"></textarea>
                       </label>
                       <label class="dg-f05-meta-field dg-f05-meta-field--wide">
                         <span class="dg-f05-meta-field__label">Equipo de trabajo</span>
-                        <input class="dg-f05-field" type="text" name="sgcF11_equipo"
-                          [(ngModel)]="sgcF11Form.equipoTrabajo" autocomplete="off"
-                          [readonly]="sgcF11Form.edicionBloqueada">
+                        <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-meta-field" rows="2"
+                          name="sgcF11_equipo" [(ngModel)]="sgcF11Form.equipoTrabajo" autocomplete="off"
+                          (input)="onSgcF11MetaInput($event)"
+                          [readonly]="sgcF11Form.edicionBloqueada"></textarea>
                       </label>
                     </div>
 
@@ -19939,6 +20080,65 @@
     </div>
   </header>
 </ng-template>
+
+<div class="sgc-save-progress" *ngIf="sgcSaveProgressAbierto" role="dialog" aria-modal="true"
+  aria-labelledby="sgc-save-progress-titulo">
+  <div class="sgc-save-progress__backdrop"></div>
+  <div class="sgc-save-progress__dialog">
+    <header class="sgc-save-progress__head">
+      <span class="sgc-save-progress__icon" aria-hidden="true">
+        <i class="fas" [ngClass]="sgcSaveProgressEstado === 'error' ? 'fa-exclamation-triangle' : (sgcSaveProgressEstado === 'listo' ? 'fa-check' : 'fa-cloud-upload-alt')"></i>
+      </span>
+      <div class="sgc-save-progress__head-text">
+        <h3 id="sgc-save-progress-titulo">
+          {{ sgcSaveProgressEstado === 'listo' ? 'Información guardada' : (sgcSaveProgressEstado === 'error' ? 'No se pudo guardar' : 'Guardando información') }}
+        </h3>
+        <p class="sgc-save-progress__sub">El sistema está trabajando; no cierres esta pantalla.</p>
+      </div>
+    </header>
+
+    <ng-container *ngIf="sgcSaveProgressEstado === 'procesando'">
+      <div class="sgc-save-progress__barra-head">
+        <span>Progreso</span>
+        <strong>{{ sgcSaveProgressPctVisible }}%</strong>
+      </div>
+      <div class="sgc-save-progress__track" role="progressbar"
+        [attr.aria-valuenow]="sgcSaveProgressPctVisible" aria-valuemin="0" aria-valuemax="100"
+        [attr.aria-label]="'Guardando información: ' + sgcSaveProgressPctVisible + ' por ciento'">
+        <span class="sgc-save-progress__fill" [style.width.%]="sgcSaveProgressPct"></span>
+      </div>
+      <ol class="sgc-save-progress__etapas">
+        <li *ngFor="let etapa of sgcSaveProgressEtapas; let i = index"
+          [class.is-activa]="sgcSaveProgressEtapaEstado(i) === 'activa'"
+          [class.is-lista]="sgcSaveProgressEtapaEstado(i) === 'lista'"
+          [class.is-pendiente]="sgcSaveProgressEtapaEstado(i) === 'pendiente'">
+          <span class="sgc-save-progress__marca" aria-hidden="true">
+            <i class="fas" [ngClass]="sgcSaveProgressIconoEtapa(i)"></i>
+          </span>
+          <div>
+            <strong>{{ i + 1 }}. {{ etapa.titulo }}</strong>
+            <p *ngIf="sgcSaveProgressEtapaEstado(i) === 'activa'">{{ sgcSaveProgressDetalle || etapa.mensaje }}</p>
+            <p *ngIf="sgcSaveProgressEtapaEstado(i) === 'lista'">{{ etapa.listo }}</p>
+          </div>
+        </li>
+      </ol>
+    </ng-container>
+
+    <div class="sgc-save-progress__resultado" *ngIf="sgcSaveProgressEstado === 'listo'">
+      <div class="sgc-save-progress__sello sgc-save-progress__sello--ok" aria-hidden="true">
+        <i class="fas fa-check"></i>
+      </div>
+      <p class="sgc-save-progress__lead">{{ sgcSaveProgressDetalle }}</p>
+    </div>
+
+    <div class="sgc-save-progress__resultado" *ngIf="sgcSaveProgressEstado === 'error'">
+      <div class="sgc-save-progress__sello sgc-save-progress__sello--error" aria-hidden="true">
+        <i class="fas fa-times"></i>
+      </div>
+      <p class="sgc-save-progress__lead">{{ sgcSaveProgressDetalle }}</p>
+    </div>
+  </div>
+</div>
 
 <app-envio-documento-correo
   [visible]="envioDocCorreoVisible"
