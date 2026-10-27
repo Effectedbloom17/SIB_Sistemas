@@ -1,8 +1,8 @@
 /**
  * SGC-F-20 · Ficha de conocimientos (ISO 7.1.6).
- * Archivero de fichas. La hoja vigente muestra la ficha activa.
- * Cada PDF firmado se guarda en la carpeta de firmados del capítulo.
- * La plantilla maestra no se edita: la primera carga la copia al capítulo 7.
+ * Archivero: plantilla externa aislada + una hoja por ficha en el archivo sistema.
+ * Nombre de cada pestaña = valor de «Tipo de fuente» (sanitizado; colisiones → « 2», « 3»…).
+ * El histograma / hojas auxiliares del sistema se conservan; nunca se escribe en la plantilla.
  */
 const { google } = require('googleapis');
 const ExcelJS = require('exceljs');
@@ -11,10 +11,18 @@ const { asegurarTablaSgcFormatoDatos, persistirRegistroSgc, obtenerRegistroSgcPe
 const excelHistorial = require('./sgcExcelHistorialService');
 
 const CODIGO_FORMATO = 'SGC-F-20';
-const TEMPLATE_DRIVE_ID = '1we0bWgQpKUKybvveOrqmmrWdtfwFFIdbFMjWQs1Oxm4';
+
+/** Plantilla maestra (solo lectura / copyTo). */
+const TEMPLATE_DRIVE_ID = '1IFE1KVStlqrHs5UIzhunjWh-tGoNfXtV1caVskE4unc';
+const TEMPLATE_SHEET_TITLE = 'Plantilla';
+
+/** Archivo de trabajo Centro SGC (historial / archivero). */
+const DRIVE_FILE_ID_SISTEMA = '1we0bWgQpKUKybvveOrqmmrWdtfwFFIdbFMjWQs1Oxm4';
 const CARPETA_DRIVE_ID = '1IIlNXxAE2h-AiVbZDDr6zuGa87NXdFLm';
 const CARPETA_PDF_FIRMADOS_ID = '1KxlovhD8lMwRPZvNeRCqtfAGQWVX_3aF';
 const NOMBRE_ARCHIVO_DRIVE = 'SGC-F-20 Ficha de conocimientos (sistema)';
+
+/** Fallback de resolución; el trabajo real usa pestañas por Tipo de fuente. */
 const SHEET_TITLE = 'Plantilla';
 const SHEET_TITLE_ANTERIOR = 'Copia de Hoja1';
 const HOJA_FUENTES = 'Hoja2';
@@ -108,6 +116,57 @@ function rango(titulo, a1) {
     return `'${String(titulo).replace(/'/g, "''")}'!${a1}`;
 }
 
+function sanitizarNombreHoja(nombre) {
+    return String(nombre || '').trim()
+        .replace(/[/\\?*:[\]]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 90);
+}
+
+function esHojaReservadaSgcF20(titulo) {
+    const t = String(titulo || '').trim();
+    if (!t) return true;
+    if (t === SHEET_TITLE || /^plantilla$/i.test(t)) return true;
+    if (t === SHEET_TITLE_ANTERIOR || /^copia de /i.test(t)) return true;
+    if (t === HOJA_FUENTES || /^hoja\s*2$/i.test(t)) return true;
+    if (/histograma/i.test(t)) return true;
+    if (/^Alias_/i.test(t) || /^Partes_/i.test(t)) return true;
+    if (/^_tmp_/i.test(t)) return true;
+    if (excelHistorial.esHojaHistorial(t, CODIGO_FORMATO)) return true;
+    return false;
+}
+
+function tituloHojaCoincide(a, b) {
+    return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+}
+
+function buscarTituloHoja(titulos, nombre) {
+    return (titulos || []).find((titulo) => tituloHojaCoincide(titulo, nombre)) || '';
+}
+
+function resolverNombreHojaFicha(ficha, ocupados = []) {
+    let base = sanitizarNombreHoja(ficha?.tipoFuente);
+    if (!base) {
+        const folio = sanitizarNombreHoja(ficha?.folio);
+        const id = String(ficha?.id || '').trim();
+        base = folio || (id ? `BORRADOR-${id.slice(0, 8)}` : 'Sin-fuente');
+    }
+    if (esHojaReservadaSgcF20(base)) {
+        base = `Fuente ${base}`.slice(0, 90);
+    }
+    const usados = new Set(
+        (ocupados || []).map((n) => String(n || '').trim().toLowerCase()).filter(Boolean)
+    );
+    let nombre = base;
+    let n = 2;
+    while (usados.has(nombre.toLowerCase()) || esHojaReservadaSgcF20(nombre)) {
+        nombre = `${base} ${n}`.slice(0, 90);
+        n += 1;
+    }
+    return nombre;
+}
+
 function sanitizarPdfFirmado(raw) {
     if (!raw || typeof raw !== 'object') return null;
     const driveFileId = texto(raw.driveFileId || raw.drive_file_id);
@@ -130,7 +189,8 @@ function sanitizarFicha(raw) {
         tipoFuente: tipo,
         descripcion: textoLargo(base.descripcion),
         fechaCaptura: formatearFechaIso(base.fechaCaptura || base.fecha_captura),
-        pdfFirmado: sanitizarPdfFirmado(base.pdfFirmado || base.pdf_firmado)
+        pdfFirmado: sanitizarPdfFirmado(base.pdfFirmado || base.pdf_firmado),
+        nombreHoja: sanitizarNombreHoja(base.nombreHoja || base.nombre_hoja)
     };
 }
 
@@ -185,10 +245,6 @@ function contenidoEsEquivalente(a, b) {
     return JSON.stringify(firmaContenido(a)) === JSON.stringify(firmaContenido(b));
 }
 
-function estructuraEsEquivalente() {
-    return true;
-}
-
 function conservarPdfs(entrada, previos) {
     const mapa = new Map((previos?.fichas || []).map((f) => [f.id, f.pdfFirmado]));
     return sanitizarDatos({
@@ -198,6 +254,53 @@ function conservarPdfs(entrada, previos) {
             pdfFirmado: f.pdfFirmado || mapa.get(f.id) || null
         }))
     });
+}
+
+function aplicarNombresHojaEnDatos(datos, hojasPorId) {
+    if (!datos || !hojasPorId) return;
+    for (const item of datos.fichas || []) {
+        const nombre = hojasPorId.get(item.id);
+        if (nombre) item.nombreHoja = nombre;
+    }
+}
+
+function asignarNombresHojaFichas(fichas, mapaPrevio, titulosExistentes) {
+    const nombrePorId = new Map();
+    const ocupados = [];
+
+    for (const item of fichas) {
+        const prev = mapaPrevio.get(item.id);
+        if (!prev || esHojaReservadaSgcF20(prev)) continue;
+        nombrePorId.set(item.id, prev);
+        ocupados.push(prev);
+    }
+
+    for (const item of fichas) {
+        const prev = nombrePorId.get(item.id);
+        if (!prev) continue;
+        const base = sanitizarNombreHoja(item.tipoFuente)
+            || sanitizarNombreHoja(item.folio)
+            || `BORRADOR-${String(item.id || '').slice(0, 8)}`;
+        if (tituloHojaCoincide(base, prev)) continue;
+        const bloqueados = ocupados.filter((nombre) => !tituloHojaCoincide(nombre, prev));
+        for (const titulo of titulosExistentes) {
+            if (!tituloHojaCoincide(titulo, prev)) bloqueados.push(titulo);
+        }
+        const deseado = resolverNombreHojaFicha(item, bloqueados);
+        if (tituloHojaCoincide(deseado, prev)) continue;
+        const idx = ocupados.findIndex((nombre) => tituloHojaCoincide(nombre, prev));
+        if (idx >= 0) ocupados[idx] = deseado;
+        else ocupados.push(deseado);
+        nombrePorId.set(item.id, deseado);
+    }
+
+    for (const item of fichas) {
+        if (nombrePorId.has(item.id)) continue;
+        const nombre = resolverNombreHojaFicha(item, [...ocupados, ...titulosExistentes]);
+        nombrePorId.set(item.id, nombre);
+        ocupados.push(nombre);
+    }
+    return nombrePorId;
 }
 
 async function obtenerRegistroDb(pool) {
@@ -244,6 +347,19 @@ function formatearDatetimeMysqlMexico(fecha) {
     return `${pick('day')}/${pick('month')}/${pick('year')} ${pick('hour')}:${pick('minute')}`;
 }
 
+async function aplicarUrlsHojaEnRespuesta(respuesta, spreadsheetId, tituloHoja) {
+    if (!respuesta || !spreadsheetId || !tituloHoja) return respuesta;
+    try {
+        const gid = await driveService.obtenerGidHojaPorNombre(spreadsheetId, tituloHoja);
+        if (gid == null) return respuesta;
+        respuesta.editorUrl = driveService.construirUrlEditorGoogleSheet(spreadsheetId, { gid });
+        respuesta.previewUrl = driveService.construirUrlEditorGoogleSheet(spreadsheetId, { gid, modo: 'preview' });
+    } catch (err) {
+        console.warn('[SGC-F-20] No se pudo resolver la hoja del editor:', err.message);
+    }
+    return respuesta;
+}
+
 function construirRespuesta(registro, datos, archivoDrive) {
     const limpio = sanitizarDatos(datos);
     const fechaOriginal = formatearFechaIso(registro?.fecha_elaboracion_original);
@@ -275,12 +391,20 @@ function construirRespuesta(registro, datos, archivoDrive) {
     };
 }
 
+function esArchivoProtegidoDrive(fileId) {
+    const id = String(fileId || '').trim();
+    return !!id && (id === TEMPLATE_DRIVE_ID || id === DRIVE_FILE_ID_SISTEMA);
+}
+
 async function buscarArchivoDriveTrabajo() {
     const archivos = await driveService.listarArchivosCarpeta(CARPETA_DRIVE_ID);
     const objetivo = NOMBRE_ARCHIVO_DRIVE.toLowerCase();
     return (archivos || [])
-        .filter((f) => String(f.name || '').toLowerCase().startsWith(objetivo))
-        .filter((f) => String(f.id || '') !== TEMPLATE_DRIVE_ID)
+        .filter((f) => {
+            const id = String(f.id || '');
+            if (esArchivoProtegidoDrive(id) && id !== DRIVE_FILE_ID_SISTEMA) return false;
+            return String(f.name || '').toLowerCase().startsWith(objetivo);
+        })
         .sort((a, b) => new Date(b.modifiedTime || 0) - new Date(a.modifiedTime || 0))[0] || null;
 }
 
@@ -297,52 +421,69 @@ async function esSpreadsheetEditableEnDrive(spreadsheetId) {
     }
 }
 
-async function crearCopiaSistema() {
-    const archivo = await driveService.copiarGoogleSheetACarpeta(
-        TEMPLATE_DRIVE_ID,
-        NOMBRE_ARCHIVO_DRIVE,
-        CARPETA_DRIVE_ID
-    );
-    if (!archivo?.id) throw new Error('No se pudo copiar la plantilla SGC-F-20.');
-    try {
-        await driveService.asignarPermisoEscrituraEnlace(archivo.id);
-    } catch (err) {
-        console.warn('[SGC-F-20] No se pudo compartir la copia:', err.message);
-    }
-    return archivo.id;
-}
-
 async function resolverDriveFileId(registro) {
-    const candidatos = [];
-    const agregar = (id) => {
-        const val = texto(id);
-        if (val && val !== TEMPLATE_DRIVE_ID && !candidatos.includes(val)) candidatos.push(val);
-    };
-    agregar(registro?.drive_file_id);
-    const enCarpeta = await buscarArchivoDriveTrabajo().catch(() => null);
-    agregar(enCarpeta?.id);
-    for (const id of candidatos) {
-        if (await esSpreadsheetEditableEnDrive(id)) return id;
+    if (DRIVE_FILE_ID_SISTEMA) {
+        const existeSistema = await driveService.verificarArchivoExiste(DRIVE_FILE_ID_SISTEMA);
+        if (existeSistema) return DRIVE_FILE_ID_SISTEMA;
     }
-    return null;
+    const idDb = String(registro?.drive_file_id || '').trim() || null;
+    if (idDb && idDb !== TEMPLATE_DRIVE_ID) {
+        const existe = await driveService.verificarArchivoExiste(idDb);
+        if (existe && await esSpreadsheetEditableEnDrive(idDb)) return idDb;
+    }
+    const enCarpeta = await buscarArchivoDriveTrabajo().catch(() => null);
+    if (enCarpeta?.id && enCarpeta.id !== TEMPLATE_DRIVE_ID) {
+        return enCarpeta.id;
+    }
+    return DRIVE_FILE_ID_SISTEMA || null;
 }
 
-async function asegurarCopiaSistema(pool, registro) {
+async function asegurarArchivoSistema(pool, registro) {
     let driveFileId = await resolverDriveFileId(registro);
-    if (driveFileId) return driveFileId;
-    driveFileId = await crearCopiaSistema();
-    const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
-    await guardarRegistroDb(pool, {
-        driveFileId,
-        datos,
-        fechaElaboracionOriginal: formatearFechaIso(registro?.fecha_elaboracion_original) || datos.fechaElaboracion,
-        fechaModificacionContenido: formatearFechaIso(registro?.fecha_modificacion_contenido),
-        contenidoModificado: !!registro?.contenido_modificado
-    });
+    if (!driveFileId || driveFileId === TEMPLATE_DRIVE_ID) {
+        const error = new Error(
+            'No se encontró el archivo sistema SGC-F-20 en Drive. '
+            + `Verifica el ID ${DRIVE_FILE_ID_SISTEMA} y el acceso de la cuenta de servicio.`
+        );
+        error.statusCode = 404;
+        throw error;
+    }
+    if (driveFileId !== registro?.drive_file_id) {
+        const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+        await guardarRegistroDb(pool, {
+            driveFileId,
+            datos,
+            fechaElaboracionOriginal: formatearFechaIso(registro?.fecha_elaboracion_original) || datos.fechaElaboracion,
+            fechaModificacionContenido: formatearFechaIso(registro?.fecha_modificacion_contenido),
+            contenidoModificado: !!registro?.contenido_modificado
+        });
+    }
     return driveFileId;
 }
 
-async function resolverHoja(spreadsheetId, tituloPreferido) {
+/**
+ * Copia la hoja «Plantilla» del archivo plantilla externo al archivo sistema.
+ * Nunca escribe ni borra en TEMPLATE_DRIVE_ID.
+ */
+async function adoptarPlantillaEnSistema(spreadsheetId, tituloDestino = null) {
+    if (!spreadsheetId || spreadsheetId === TEMPLATE_DRIVE_ID) {
+        throw new Error('No se puede adoptar la plantilla sobre el archivo plantilla externo.');
+    }
+    const destino = String(tituloDestino || '').trim() || 'Ficha';
+    console.warn(
+        `[SGC-F-20] Copiando hoja «${TEMPLATE_SHEET_TITLE}» desde plantilla `
+        + `${TEMPLATE_DRIVE_ID} → sistema como «${destino}».`
+    );
+    const copiada = await driveService.copiarHojaEntreSpreadsheets(
+        TEMPLATE_DRIVE_ID,
+        TEMPLATE_SHEET_TITLE,
+        spreadsheetId,
+        destino
+    );
+    return copiada.title;
+}
+
+async function resolverMetaHoja(spreadsheetId, tituloPreferido) {
     const sheets = clienteSheets();
     const meta = await sheets.spreadsheets.get({
         spreadsheetId,
@@ -354,7 +495,7 @@ async function resolverHoja(spreadsheetId, tituloPreferido) {
     const base = exacta
         || hojas.find((s) => texto(s.properties?.title) === SHEET_TITLE)
         || hojas.find((s) => texto(s.properties?.title) === SHEET_TITLE_ANTERIOR)
-        || hojas.find((s) => !excelHistorial.esHojaHistorial(s.properties?.title, CODIGO_FORMATO) && texto(s.properties?.title) !== HOJA_FUENTES)
+        || hojas.find((s) => !esHojaReservadaSgcF20(s.properties?.title) || texto(s.properties?.title) === SHEET_TITLE)
         || hojas[0];
     if (!base?.properties) throw new Error('La hoja SGC-F-20 no está disponible.');
     return {
@@ -447,7 +588,7 @@ async function asegurarCatalogoFuentes(spreadsheetId, hojaDestino) {
 }
 
 async function leerDatosDesdeHoja(spreadsheetId, tituloHoja) {
-    const hoja = await resolverHoja(spreadsheetId, tituloHoja || SHEET_TITLE);
+    const hoja = await resolverMetaHoja(spreadsheetId, tituloHoja || SHEET_TITLE);
     const sheets = clienteSheets();
     const res = await sheets.spreadsheets.values.batchGet({
         spreadsheetId,
@@ -471,7 +612,8 @@ async function leerDatosDesdeHoja(spreadsheetId, tituloHoja) {
         fechaRevision: formatearFechaIso(pick(1)) || DATOS_DEFECTO.fechaRevision,
         tipoFuente: placeholder ? '' : tipo,
         descripcion,
-        fechaCaptura: fecha
+        fechaCaptura: fecha,
+        nombreHoja: hoja.title
     };
 }
 
@@ -483,7 +625,8 @@ function fusionarHojaEnFichaActiva(datosDb, hoja) {
         const primera = sanitizarFicha({
             tipoFuente: hoja.tipoFuente,
             descripcion: hoja.descripcion,
-            fechaCaptura: hoja.fechaCaptura
+            fechaCaptura: hoja.fechaCaptura,
+            nombreHoja: hoja.nombreHoja || ''
         });
         return sanitizarDatos({
             ...db,
@@ -500,7 +643,8 @@ function fusionarHojaEnFichaActiva(datosDb, hoja) {
             ...f,
             tipoFuente: hoja.tipoFuente || f.tipoFuente,
             descripcion: hoja.descripcion || f.descripcion,
-            fechaCaptura: hoja.fechaCaptura || f.fechaCaptura
+            fechaCaptura: hoja.fechaCaptura || f.fechaCaptura,
+            nombreHoja: hoja.nombreHoja || f.nombreHoja
         });
     });
     return sanitizarDatos({
@@ -512,75 +656,21 @@ function fusionarHojaEnFichaActiva(datosDb, hoja) {
     });
 }
 
-async function adoptarPlantillaMaestra(spreadsheetId, opciones = {}) {
-    const sheets = clienteSheets();
-    const meta = await sheets.spreadsheets.get({
-        spreadsheetId,
-        fields: 'sheets.properties(sheetId,title,gridProperties(columnCount))'
-    });
-    const hojas = meta.data.sheets || [];
-    const vigente = hojas.find((s) => texto(s.properties?.title) === SHEET_TITLE);
-    const columnas = Number(vigente?.properties?.gridProperties?.columnCount || 0);
-    if (!opciones.forzar && vigente && columnas > 0 && columnas <= 6) return SHEET_TITLE;
-
-    const master = await sheets.spreadsheets.get({
-        spreadsheetId: TEMPLATE_DRIVE_ID,
-        fields: 'sheets.properties(sheetId,title)'
-    });
-    const origen = (master.data.sheets || []).find((s) => texto(s.properties?.title) === SHEET_TITLE)
-        || (master.data.sheets || []).find((s) => texto(s.properties?.title) === SHEET_TITLE_ANTERIOR)
-        || (master.data.sheets || [])[0];
-    if (origen?.properties?.sheetId == null) {
-        throw new Error('La plantilla maestra SGC-F-20 no tiene hoja.');
-    }
-    const copiada = await sheets.spreadsheets.sheets.copyTo({
-        spreadsheetId: TEMPLATE_DRIVE_ID,
-        sheetId: origen.properties.sheetId,
-        requestBody: { destinationSpreadsheetId: spreadsheetId }
-    });
-    const nuevoId = copiada.data.sheetId;
-    const borrar = hojas
-        .filter((s) => {
-            if (s.properties?.sheetId === nuevoId) return false;
-            const titulo = texto(s.properties?.title);
-            if (!titulo || titulo === HOJA_FUENTES) return false;
-            if (excelHistorial.esHojaHistorial(titulo, CODIGO_FORMATO)) return false;
-            return titulo === SHEET_TITLE || titulo === SHEET_TITLE_ANTERIOR;
-        })
-        .map((s) => ({ deleteSheet: { sheetId: s.properties.sheetId } }));
-    await sheets.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: {
-            requests: [
-                ...borrar,
-                {
-                    updateSheetProperties: {
-                        properties: { sheetId: nuevoId, title: SHEET_TITLE, index: 0 },
-                        fields: 'title,index'
-                    }
-                }
-            ]
-        }
-    });
-    return SHEET_TITLE;
-}
-
-async function escribirEnHoja(spreadsheetId, tituloHoja, datos, opciones = {}) {
+async function escribirDatosEnHoja(spreadsheetId, tituloHoja, datos, ficha) {
     const limpio = sanitizarDatos(datos);
-    const tituloPedido = texto(tituloHoja);
-    const escribeBase = !tituloPedido || tituloPedido === SHEET_TITLE || tituloPedido === SHEET_TITLE_ANTERIOR;
-    if (escribeBase) {
-        await adoptarPlantillaMaestra(spreadsheetId, { forzar: !!opciones.forzarPlantilla });
+    const item = ficha || resolverFichaActiva(limpio);
+    const hoja = await resolverMetaHoja(spreadsheetId, tituloHoja);
+    try {
+        await asegurarCatalogoFuentes(spreadsheetId, hoja);
+    } catch (err) {
+        console.warn('[SGC-F-20] Catálogo de fuentes:', err.message);
     }
-    const hoja = await resolverHoja(spreadsheetId, tituloHoja || SHEET_TITLE);
-    await asegurarCatalogoFuentes(spreadsheetId, hoja);
-    const ficha = resolverFichaActiva(limpio);
     const actualizaciones = [
         { range: rango(hoja.title, 'D2'), values: [[`Rev. ${limpio.revision}`]] },
         { range: rango(hoja.title, 'D3'), values: [[`Fecha de rev. ${fechaCortaHoja(limpio.fechaRevision)}`]] },
-        { range: rango(hoja.title, 'C9'), values: [[ficha?.tipoFuente || '']] },
-        { range: rango(hoja.title, 'A12'), values: [[ficha?.descripcion || '']] },
-        { range: rango(hoja.title, 'D30'), values: [[fechaCortaHoja(ficha?.fechaCaptura)]] }
+        { range: rango(hoja.title, 'C9'), values: [[item?.tipoFuente || '']] },
+        { range: rango(hoja.title, 'A12'), values: [[item?.descripcion || '']] },
+        { range: rango(hoja.title, 'D30'), values: [[fechaCortaHoja(item?.fechaCaptura)]] }
     ];
     await driveService.actualizarCeldasGoogleSheet(spreadsheetId, actualizaciones);
     const comun = {
@@ -618,21 +708,173 @@ async function escribirEnHoja(spreadsheetId, tituloHoja, datos, opciones = {}) {
     return hoja.title;
 }
 
-async function aplicarHistorial(opciones) {
-    return excelHistorial.aplicarHistorialEnDrive({
-        codigoFormato: CODIGO_FORMATO,
-        spreadsheetId: opciones.spreadsheetId,
-        sheetActiva: SHEET_TITLE,
-        datosPrevios: opciones.datosPrevios,
-        datosNuevos: opciones.datosNuevos,
-        contenidoEsEquivalente,
-        estructuraEsEquivalente,
-        escribirSnapshotEnHoja: async (spreadsheetId, hoja, datos) => {
-            await escribirEnHoja(spreadsheetId, hoja, datos);
-        },
-        origen: opciones.origen || 'sistema',
-        forzarTipo: opciones.forzarTipo || null
-    });
+async function recrearHojaFicha(spreadsheetId, nombreHoja, plantillaLocal = '') {
+    if (!spreadsheetId || spreadsheetId === TEMPLATE_DRIVE_ID) {
+        throw new Error('SGC-F-20 solo recrea hojas en el archivo sistema.');
+    }
+    const titulos = await driveService.listarHojasGoogleSheet(spreadsheetId);
+    if (titulos.includes(nombreHoja) && !esHojaReservadaSgcF20(nombreHoja)) {
+        try {
+            await driveService.eliminarHojasGoogleSheet(spreadsheetId, [nombreHoja]);
+        } catch (err) {
+            console.warn(`[SGC-F-20] No se pudo eliminar hoja previa ${nombreHoja}:`, err.message);
+        }
+    }
+    try {
+        return await adoptarPlantillaEnSistema(spreadsheetId, nombreHoja);
+    } catch (err) {
+        console.warn(`[SGC-F-20] copyTo plantilla falló para "${nombreHoja}":`, err.message);
+        if (plantillaLocal) {
+            const dup = await driveService.duplicarHojaGoogleSheet(spreadsheetId, plantillaLocal, nombreHoja);
+            return dup.title || nombreHoja;
+        }
+        throw err;
+    }
+}
+
+/**
+ * Una pestaña por ficha del archivero; nombre = Tipo de fuente.
+ * No versiona por mes ni escribe en la plantilla externa.
+ */
+async function sincronizarHojasFichasEnDrive(spreadsheetId, datos, datosPrevios = null, opciones = {}) {
+    if (!spreadsheetId || spreadsheetId === TEMPLATE_DRIVE_ID) {
+        throw new Error('SGC-F-20 solo escribe en el archivo sistema, nunca en la plantilla externa.');
+    }
+    const meta = sanitizarDatos(datos);
+    const prev = datosPrevios ? sanitizarDatos(datosPrevios) : null;
+    const titulosExistentes = await driveService.listarHojasGoogleSheet(spreadsheetId);
+    const setExistentes = new Set(titulosExistentes);
+    const plantillaLocal = driveService.resolverTituloHojaExistente(
+        titulosExistentes,
+        SHEET_TITLE,
+        { fallbackRegex: /plantilla/i }
+    ) || '';
+
+    const mapaPrevio = new Map();
+    const ocupadosPrevios = [];
+    if (prev?.fichas) {
+        for (const item of prev.fichas) {
+            const fijo = sanitizarNombreHoja(item.nombreHoja);
+            const nombre = fijo || resolverNombreHojaFicha(item, ocupadosPrevios);
+            ocupadosPrevios.push(nombre);
+            mapaPrevio.set(item.id, nombre);
+        }
+    }
+
+    const nombrePorId = asignarNombresHojaFichas(meta.fichas, mapaPrevio, titulosExistentes);
+    const nombresVigentes = new Set();
+    const exigirIds = new Set((opciones?.exigirIds || []).map((id) => String(id || '').trim()).filter(Boolean));
+    const priorizarId = String(opciones?.priorizarId || '').trim();
+    const activoId = String(meta.fichaActivaId || '').trim();
+    const forzarRecrear = !!opciones?.forzarRecrear;
+    let hojaActiva = plantillaLocal || '';
+    let hojaPrioritaria = '';
+
+    for (const item of meta.fichas) {
+        let nombreHoja = nombrePorId.get(item.id) || resolverNombreHojaFicha(item, [...nombresVigentes]);
+        const hojaPrev = mapaPrevio.get(item.id);
+        const esActivo = !!activoId && item.id === activoId;
+        const exigir = exigirIds.has(item.id);
+
+        if (hojaPrev && !tituloHojaCoincide(hojaPrev, nombreHoja)
+            && buscarTituloHoja([...setExistentes], hojaPrev)
+            && !esHojaReservadaSgcF20(hojaPrev)) {
+            try {
+                const ren = await driveService.renombrarHojaGoogleSheet(spreadsheetId, hojaPrev, nombreHoja);
+                setExistentes.delete(buscarTituloHoja([...setExistentes], hojaPrev));
+                nombreHoja = ren.title || nombreHoja;
+                setExistentes.add(nombreHoja);
+            } catch (err) {
+                console.warn(`[SGC-F-20] No se pudo renombrar hoja ${hojaPrev}:`, err.message);
+                nombreHoja = hojaPrev;
+            }
+        }
+
+        const existe = !!buscarTituloHoja([...setExistentes], nombreHoja);
+        if (!existe || forzarRecrear) {
+            try {
+                if (existe && forzarRecrear) {
+                    nombreHoja = await recrearHojaFicha(spreadsheetId, nombreHoja, plantillaLocal);
+                } else if (!existe) {
+                    nombreHoja = await adoptarPlantillaEnSistema(spreadsheetId, nombreHoja);
+                }
+                setExistentes.add(nombreHoja);
+            } catch (err) {
+                console.warn(`[SGC-F-20] No se pudo crear hoja "${nombreHoja}" desde plantilla:`, err.message);
+                if (plantillaLocal && !existe) {
+                    try {
+                        const dup = await driveService.duplicarHojaGoogleSheet(
+                            spreadsheetId,
+                            plantillaLocal,
+                            nombreHoja
+                        );
+                        nombreHoja = dup.title || nombreHoja;
+                        setExistentes.add(nombreHoja);
+                    } catch (errDup) {
+                        console.warn('[SGC-F-20] Fallback duplicar hoja local falló:', errDup.message);
+                        if (exigir) {
+                            const error = new Error(
+                                `No se pudo crear la hoja «${nombreHoja}» en ${NOMBRE_ARCHIVO_DRIVE}.`
+                            );
+                            error.statusCode = 502;
+                            throw error;
+                        }
+                        continue;
+                    }
+                } else if (exigir) {
+                    const error = new Error(
+                        `No se pudo crear la hoja «${nombreHoja}» en ${NOMBRE_ARCHIVO_DRIVE}.`
+                    );
+                    error.statusCode = 502;
+                    throw error;
+                } else if (!existe) {
+                    continue;
+                }
+            }
+        }
+
+        nombrePorId.set(item.id, nombreHoja);
+        nombresVigentes.add(nombreHoja);
+        await escribirDatosEnHoja(spreadsheetId, nombreHoja, meta, item);
+        if (item.id === priorizarId) hojaPrioritaria = nombreHoja;
+        if (esActivo || (!activoId && item === meta.fichas[0])) {
+            hojaActiva = nombreHoja;
+        }
+    }
+
+    for (const id of exigirIds) {
+        if (!nombrePorId.get(id) || !nombresVigentes.has(nombrePorId.get(id))) {
+            const error = new Error(`No se pudo crear la hoja de la ficha en ${NOMBRE_ARCHIVO_DRIVE}.`);
+            error.statusCode = 502;
+            throw error;
+        }
+    }
+
+    const eliminar = [];
+    for (const titulo of [...setExistentes]) {
+        if (esHojaReservadaSgcF20(titulo)) continue;
+        const vigente = [...nombresVigentes].some((nombre) => tituloHojaCoincide(nombre, titulo));
+        const eraPrevia = [...mapaPrevio.values()].some((nombre) => tituloHojaCoincide(nombre, titulo));
+        if (!vigente && eraPrevia) eliminar.push(titulo);
+    }
+    if (eliminar.length) {
+        try {
+            await driveService.eliminarHojasGoogleSheet(spreadsheetId, eliminar);
+        } catch (err) {
+            console.warn('[SGC-F-20] No se pudieron eliminar hojas de fichas obsoletas:', err.message);
+        }
+    }
+
+    const alFrente = hojaPrioritaria || hojaActiva;
+    if (alFrente && meta.fichas.length) {
+        try {
+            await driveService.moverHojaAlInicioGoogleSheet(spreadsheetId, alFrente);
+        } catch (err) {
+            console.warn('[SGC-F-20] No se pudo mostrar la hoja de la ficha al frente:', err.message);
+        }
+    }
+
+    return { hojaActiva: alFrente || hojaActiva, hojasPorId: nombrePorId };
 }
 
 async function cargarFormato(pool) {
@@ -640,27 +882,48 @@ async function cargarFormato(pool) {
     let registro = await obtenerRegistroDb(pool);
     let driveFileId = null;
     try {
-        driveFileId = await asegurarCopiaSistema(pool, registro);
+        driveFileId = await asegurarArchivoSistema(pool, registro);
     } catch (err) {
-        console.warn('[SGC-F-20] No se pudo asegurar la copia en Drive:', err.message);
+        console.warn('[SGC-F-20] No se pudo asegurar el archivo sistema:', err.message);
     }
     if (driveFileId && driveFileId !== registro?.drive_file_id) {
         registro = await obtenerRegistroDb(pool);
     }
     let datos = await leerDatosRegistro(registro);
-    if (driveFileId) {
+    datos = datos || sanitizarDatos(DATOS_DEFECTO);
+
+    let hojaActiva = null;
+    if (driveFileId && datos.fichas.length) {
+        const activa = resolverFichaActiva(datos);
+        hojaActiva = sanitizarNombreHoja(activa?.nombreHoja) || resolverNombreHojaFicha(activa || {});
         try {
-            const hoja = await leerDatosDesdeHoja(driveFileId, SHEET_TITLE);
-            datos = fusionarHojaEnFichaActiva(datos || DATOS_DEFECTO, hoja);
+            const titulos = await driveService.listarHojasGoogleSheet(driveFileId);
+            if (!buscarTituloHoja(titulos, hojaActiva)) {
+                const sync = await sincronizarHojasFichasEnDrive(driveFileId, datos, null);
+                aplicarNombresHojaEnDatos(datos, sync?.hojasPorId);
+                hojaActiva = sync?.hojaActiva || hojaActiva;
+                await guardarRegistroDb(pool, {
+                    driveFileId,
+                    datos,
+                    fechaElaboracionOriginal: formatearFechaIso(registro?.fecha_elaboracion_original) || datos.fechaElaboracion,
+                    fechaModificacionContenido: formatearFechaIso(registro?.fecha_modificacion_contenido),
+                    contenidoModificado: !!registro?.contenido_modificado
+                });
+                registro = await obtenerRegistroDb(pool);
+            } else {
+                const hoja = await leerDatosDesdeHoja(driveFileId, hojaActiva);
+                datos = fusionarHojaEnFichaActiva(datos, hoja);
+            }
         } catch (err) {
-            console.warn('[SGC-F-20] No se pudo leer la hoja:', err.message);
+            console.warn('[SGC-F-20] No se pudo leer/sincronizar hojas:', err.message);
         }
     }
-    datos = datos || sanitizarDatos(DATOS_DEFECTO);
+
     const archivoDrive = driveFileId
         ? await driveService.obtenerInfoArchivo(driveFileId).catch(() => ({ id: driveFileId }))
         : null;
-    return construirRespuesta({ ...(registro || {}), drive_file_id: driveFileId }, datos, archivoDrive);
+    const respuesta = construirRespuesta({ ...(registro || {}), drive_file_id: driveFileId }, datos, archivoDrive);
+    return aplicarUrlsHojaEnRespuesta(respuesta, driveFileId, hojaActiva);
 }
 
 async function guardarFormato(pool, body) {
@@ -684,27 +947,20 @@ async function guardarFormato(pool, body) {
         ? fechaHoyIso()
         : formatearFechaIso(registroPrevio?.fecha_modificacion_contenido);
 
-    let driveId = await asegurarCopiaSistema(pool, registroPrevio).catch(() => null);
+    const driveId = await asegurarArchivoSistema(pool, registroPrevio);
     let datosGuardar = {
         ...datosEntrada,
         fechaElaboracion: contenidoModificado && fechaModificacion ? fechaModificacion : fechaOriginal
     };
 
-    if (driveId) {
+    let hojaActiva = null;
+    if (driveId && datosGuardar.fichas.length) {
         try {
-            await escribirEnHoja(driveId, SHEET_TITLE, datosGuardar);
-            if (huboCambio) {
-                const hist = await aplicarHistorial({
-                    spreadsheetId: driveId,
-                    datosPrevios,
-                    datosNuevos: datosGuardar,
-                    origen: 'sistema',
-                    forzarTipo: 'informacion'
-                });
-                if (hist?.datosGuardar) {
-                    datosGuardar = conservarPdfs(sanitizarDatos(hist.datosGuardar), datosGuardar);
-                }
-            }
+            const sync = await sincronizarHojasFichasEnDrive(driveId, datosGuardar, datosPrevios, {
+                priorizarId: datosGuardar.fichaActivaId || ''
+            });
+            hojaActiva = sync?.hojaActiva || null;
+            aplicarNombresHojaEnDatos(datosGuardar, sync?.hojasPorId);
         } catch (err) {
             console.warn('[SGC-F-20] Drive no sincronizó; la BD igual se guarda:', err.message);
         }
@@ -722,17 +978,31 @@ async function guardarFormato(pool, body) {
     const archivoDrive = driveId
         ? await driveService.obtenerInfoArchivo(driveId).catch(() => ({ id: driveId }))
         : null;
-    return construirRespuesta(registro, datosGuardar, archivoDrive);
+    const respuesta = construirRespuesta(registro, datosGuardar, archivoDrive);
+    return aplicarUrlsHojaEnRespuesta(respuesta, driveId, hojaActiva);
 }
 
 async function sincronizarDesdeDrive(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
-    const driveFileId = await asegurarCopiaSistema(pool, registro);
+    const driveFileId = await asegurarArchivoSistema(pool, registro);
     const previos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+    const activa = resolverFichaActiva(previos);
+    let sheetTitle = sanitizarNombreHoja(activa?.nombreHoja) || resolverNombreHojaFicha(activa || {});
+    try {
+        const titulos = await driveService.listarHojasGoogleSheet(driveFileId);
+        if (!buscarTituloHoja(titulos, sheetTitle)) {
+            sheetTitle = driveService.resolverTituloHojaExistente(
+                titulos,
+                SHEET_TITLE,
+                { fallbackRegex: /plantilla/i }
+            ) || titulos.find((t) => !esHojaReservadaSgcF20(t)) || sheetTitle;
+        }
+    } catch (_) { /* usar título calculado */ }
+
     let datos = previos;
     try {
-        const hoja = await leerDatosDesdeHoja(driveFileId, SHEET_TITLE);
+        const hoja = await leerDatosDesdeHoja(driveFileId, sheetTitle);
         datos = fusionarHojaEnFichaActiva(previos, hoja);
     } catch (err) {
         console.warn('[SGC-F-20] No se pudo importar la hoja:', err.message);
@@ -748,44 +1018,76 @@ async function sincronizarDesdeDrive(pool) {
     });
     const registroActualizado = await obtenerRegistroDb(pool);
     const archivoDrive = await driveService.obtenerInfoArchivo(driveFileId).catch(() => null);
-    return construirRespuesta(registroActualizado, datos, archivoDrive);
+    const respuesta = construirRespuesta(registroActualizado, datos, archivoDrive);
+    return aplicarUrlsHojaEnRespuesta(respuesta, driveFileId, sheetTitle);
 }
 
 async function actualizarPlantillaDesdeSistema(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
     const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
-    const driveFileId = await asegurarCopiaSistema(pool, registro);
-    await escribirEnHoja(driveFileId, SHEET_TITLE, datos, { forzarPlantilla: true });
+    const driveFileId = await asegurarArchivoSistema(pool, registro);
+    let hojaActiva = null;
+    if (datos.fichas.length) {
+        const sync = await sincronizarHojasFichasEnDrive(driveFileId, datos, null, {
+            forzarRecrear: true,
+            priorizarId: datos.fichaActivaId || ''
+        });
+        hojaActiva = sync?.hojaActiva || null;
+        aplicarNombresHojaEnDatos(datos, sync?.hojasPorId);
+        await guardarRegistroDb(pool, {
+            driveFileId,
+            datos,
+            fechaElaboracionOriginal: formatearFechaIso(registro?.fecha_elaboracion_original) || datos.fechaElaboracion,
+            fechaModificacionContenido: formatearFechaIso(registro?.fecha_modificacion_contenido),
+            contenidoModificado: !!registro?.contenido_modificado,
+            ultimaSyncDrive: fechaHoyIso()
+        });
+    }
     const archivoDrive = await driveService.obtenerInfoArchivo(driveFileId).catch(() => ({ id: driveFileId }));
-    return construirRespuesta({ ...(registro || {}), drive_file_id: driveFileId }, datos, archivoDrive);
+    const respuesta = construirRespuesta({ ...(registro || {}), drive_file_id: driveFileId }, datos, archivoDrive);
+    return aplicarUrlsHojaEnRespuesta(respuesta, driveFileId, hojaActiva);
 }
 
 async function asegurarAccesoEditor(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
-    const driveFileId = await asegurarCopiaSistema(pool, registro);
+    const driveFileId = await asegurarArchivoSistema(pool, registro);
     await driveService.asignarPermisoEscrituraEnlace(driveFileId);
     try {
         await driveService.asignarPermisoLecturaPublica(driveFileId);
     } catch (_) { /* el enlace puede existir */ }
     const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+    const activa = resolverFichaActiva(datos);
+    const hojaActiva = sanitizarNombreHoja(activa?.nombreHoja) || resolverNombreHojaFicha(activa || {});
     const archivoDrive = await driveService.obtenerInfoArchivo(driveFileId).catch(() => ({ id: driveFileId }));
-    return construirRespuesta({ ...(registro || {}), drive_file_id: driveFileId }, datos, archivoDrive);
+    const respuesta = construirRespuesta({ ...(registro || {}), drive_file_id: driveFileId }, datos, archivoDrive);
+    return aplicarUrlsHojaEnRespuesta(respuesta, driveFileId, hojaActiva);
 }
 
 async function descargarPlantillaPdf(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
-    const driveFileId = await asegurarCopiaSistema(pool, registro);
+    const driveFileId = await asegurarArchivoSistema(pool, registro);
     const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
-    try {
-        await escribirEnHoja(driveFileId, SHEET_TITLE, datos);
-    } catch (err) {
-        console.warn('[SGC-F-20] No se pudo escribir la hoja antes del PDF:', err.message);
+    const activa = resolverFichaActiva(datos);
+    if (!activa) {
+        const err = new Error('Abre o crea una ficha para exportar a PDF.');
+        err.statusCode = 400;
+        throw err;
     }
-    let gid = await driveService.obtenerGidHojaPorNombre(driveFileId, SHEET_TITLE);
-    if (gid == null) gid = await driveService.obtenerGidHojaPorNombre(driveFileId, SHEET_TITLE_ANTERIOR);
+    let tituloHoja = sanitizarNombreHoja(activa.nombreHoja) || resolverNombreHojaFicha(activa);
+    let gid = await driveService.obtenerGidHojaPorNombre(driveFileId, tituloHoja).catch(() => null);
+    if (gid == null) {
+        const sync = await sincronizarHojasFichasEnDrive(
+            driveFileId,
+            { ...datos, fichaActivaId: activa.id },
+            null,
+            { priorizarId: activa.id, exigirIds: [activa.id] }
+        );
+        tituloHoja = sync?.hojaActiva || tituloHoja;
+        gid = await driveService.obtenerGidHojaPorNombre(driveFileId, tituloHoja).catch(() => null);
+    }
     if (gid == null) throw new Error('No se encontró la hoja de la ficha para exportar a PDF.');
     const pdfBuffer = await driveService.exportarGoogleSheetComoPDF(driveFileId, {
         gid: String(gid),
@@ -856,7 +1158,7 @@ function siguienteFolioFicha(fichas, fechaIso) {
 
 function parsearFichaDesdeHojaExcel(ws) {
     const nombre = texto(ws?.name);
-    if (!ws || /^hoja\s*2$/i.test(nombre)) return null;
+    if (!ws || esHojaReservadaSgcF20(nombre)) return null;
     const tipoFuente = normalizarTipoFuente(valorCelda(ws, 'C9'));
     const descripcion = textoLargo(valorCelda(ws, 'A12'));
     const fechaCaptura = formatearFechaIso(valorCelda(ws, 'D30'));
@@ -870,7 +1172,8 @@ function parsearFichaDesdeHojaExcel(ws) {
         descripcion,
         fechaCaptura,
         revision: /rev|\d/i.test(revTexto) ? extraerRevision(revTexto) : '',
-        fechaRevision: formatearFechaIso(revFechaTexto)
+        fechaRevision: formatearFechaIso(revFechaTexto),
+        nombreHoja: sanitizarNombreHoja(nombre)
     };
 }
 
@@ -949,7 +1252,8 @@ async function importarExcelFichas(pool, body = {}) {
                 tipoFuente: item.tipoFuente || previo.tipoFuente,
                 descripcion: item.descripcion || previo.descripcion,
                 fechaCaptura: item.fechaCaptura || previo.fechaCaptura,
-                pdfFirmado: previo.pdfFirmado
+                pdfFirmado: previo.pdfFirmado,
+                nombreHoja: previo.nombreHoja || item.nombreHoja || ''
             });
             importados.push({
                 id: fichas[idx].id,
@@ -964,7 +1268,8 @@ async function importarExcelFichas(pool, body = {}) {
             descripcion: item.descripcion,
             fechaCaptura: item.fechaCaptura || fechaHoyIso(),
             folio: siguienteFolioFicha(fichas, item.fechaCaptura || fechaHoyIso()),
-            pdfFirmado: null
+            pdfFirmado: null,
+            nombreHoja: item.nombreHoja || ''
         });
         fichas.unshift(creado);
         importados.push({
@@ -991,12 +1296,16 @@ async function importarExcelFichas(pool, body = {}) {
 async function descargarPlantillaXlsx(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
-    const driveFileId = await asegurarCopiaSistema(pool, registro);
+    const driveFileId = await asegurarArchivoSistema(pool, registro);
     const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
-    try {
-        await escribirEnHoja(driveFileId, SHEET_TITLE, datos);
-    } catch (err) {
-        console.warn('[SGC-F-20] No se pudo escribir la hoja antes del Excel:', err.message);
+    if (datos.fichas.length) {
+        try {
+            await sincronizarHojasFichasEnDrive(driveFileId, datos, null, {
+                priorizarId: datos.fichaActivaId || ''
+            });
+        } catch (err) {
+            console.warn('[SGC-F-20] No se pudo escribir antes del Excel:', err.message);
+        }
     }
     const xlsxBuffer = await driveService.exportarGoogleSheetComoXLSX(driveFileId);
     if (!xlsxBuffer || !xlsxBuffer.length) throw new Error('La exportación a Excel de SGC-F-20 quedó vacía.');
@@ -1076,5 +1385,8 @@ module.exports = {
     subirPdfFirmado,
     sanitizarDatos,
     TIPOS_FUENTE,
-    CARPETA_PDF_FIRMADOS_ID
+    TEMPLATE_DRIVE_ID,
+    DRIVE_FILE_ID_SISTEMA,
+    CARPETA_PDF_FIRMADOS_ID,
+    adoptarPlantillaEnSistema
 };

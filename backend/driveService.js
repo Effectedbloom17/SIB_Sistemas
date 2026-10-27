@@ -5161,9 +5161,12 @@ async function aplicarFormatoFilasSgcF25(spreadsheetId, sheetTitle, filaInicio, 
 
 /**
  * SGC-F-03 · Lista de distribución: Century Gothic 11, alineación y cuadrícula A:L.
+ * Alto de fila según «Nombre del documento»: ≥5 caracteres → 60 px; si no → 45 px.
  * No toca las filas de encabezado (1-6) ni sus celdas combinadas.
+ * @param {object} [opciones]
+ * @param {Array<{ nombreDocumento?: string }>} [opciones.registros]
  */
-async function aplicarFormatoFilasSgcF03(spreadsheetId, sheetTitle, filaInicio, numFilas, filaMax) {
+async function aplicarFormatoFilasSgcF03(spreadsheetId, sheetTitle, filaInicio, numFilas, filaMax, opciones = {}) {
     if (!spreadsheetId || !sheetTitle) return null;
     const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
     const meta = await sheetsApi.spreadsheets.get({
@@ -5181,6 +5184,7 @@ async function aplicarFormatoFilasSgcF03(spreadsheetId, sheetTitle, filaInicio, 
     const bordeNegro = { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } };
     const sinBorde = { style: 'NONE' };
     const textFormat = { fontFamily: 'Century Gothic', fontSize: 11 };
+    const registros = Array.isArray(opciones?.registros) ? opciones.registros : [];
     const requests = [];
 
     const formatoColumna = (startCol, endCol, horizontal) => ({
@@ -5232,6 +5236,26 @@ async function aplicarFormatoFilasSgcF03(spreadsheetId, sheetTitle, filaInicio, 
                 innerVertical: bordeNegro
             }
         });
+
+        for (let i = 0; i < filas; i++) {
+            const nombre = String(registros[i]?.nombreDocumento || '')
+                .replace(/\r\n/g, '\n')
+                .replace(/\n/g, '')
+                .trim();
+            const alto = nombre.length >= 5 ? 60 : 45;
+            requests.push({
+                updateDimensionProperties: {
+                    range: {
+                        sheetId,
+                        dimension: 'ROWS',
+                        startIndex: startRow + i,
+                        endIndex: startRow + i + 1
+                    },
+                    properties: { pixelSize: alto },
+                    fields: 'pixelSize'
+                }
+            });
+        }
     }
 
     if (blockEndRow > dataEndRow) {

@@ -861,7 +861,7 @@
 
                   <!-- Archivero -->
                   <article class="dg-f05-doc ath-f-02-doc ath-f-02-doc--archivero" *ngIf="athF02Vista === 'archivero'">
-                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'ATH-F-02', titulo: 'Descripción y perfil de puesto', icono: 'fa-id-card', extraClass: 'ath-f-02-doc__header' }"></ng-container>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'ATH-F-02', titulo: 'Descripción y perfil de puesto', icono: 'fa-id-card' }"></ng-container>
 
                     <div class="sgc-f-04-archivero ath-f-02-archivero">
                       <div class="sgc-f-04-archivero__intro">
@@ -981,7 +981,7 @@
                       <span class="sgc-f-04-editor-bar__folio" *ngIf="perf.puesto">{{ perf.puesto }}</span>
                     </div>
 
-                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'ATH-F-02', titulo: 'Descripción y perfil de puesto', icono: 'fa-id-card', extraClass: 'ath-f-02-doc__header' }"></ng-container>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'ATH-F-02', titulo: 'Descripción y perfil de puesto', icono: 'fa-id-card' }"></ng-container>
 
                     <div class="ath-f-02-editor-body">
                       <section class="ath-f-02-section" aria-labelledby="ath-f-02-ident">
@@ -2729,7 +2729,7 @@
                     <span>Cargando eficacia de la capacitación…</span>
                   </div>
                   <article class="dg-f05-doc ath-f-08-doc">
-                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'ATH-F-08', titulo: 'Eficacia de la capacitación', icono: 'fa-user-graduate', extraClass: 'sgc-f-14-doc__header' }"></ng-container>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'ATH-F-08', titulo: 'Eficacia de la capacitación', icono: 'fa-user-graduate' }"></ng-container>
 
                     <div class="dg-f05-table-panel">
                       <div class="sgc-f-11-matriz__intro ath-f-08-matriz-intro">
@@ -6430,7 +6430,7 @@
                         </label>
                         <span class="sgc-f-03-count">{{ sgcF03Form.registros.length }} registro{{ sgcF03Form.registros.length === 1 ? '' : 's' }}</span>
                       </div>
-                      <div class="dg-f05-table-wrap dg-f05-table-wrap--scroll sgc-f-11-table-wrap sgc-f-03-table-wrap">
+                      <div class="dg-f05-table-wrap dg-f05-table-wrap--scroll sgc-f-03-table-wrap">
                         <table class="dg-f05-table sgc-f-03-table">
                           <thead>
                             <tr>
@@ -6458,43 +6458,52 @@
                           <tbody>
                             <tr *ngFor="let item of sgcF03RegistrosVista">
                               <td>
-                                <input class="dg-f05-field" [(ngModel)]="item.codigo" [name]="'sgcF03_cod' + sgcF03Form.registros.indexOf(item)">
+                                <input class="dg-f05-field" [(ngModel)]="item.codigo" [name]="'sgcF03_cod' + sgcF03Form.registros.indexOf(item)" (ngModelChange)="onSgcF03Editado()">
                               </td>
                               <td>
-                                <input class="dg-f05-field" [(ngModel)]="item.nombreDocumento" [name]="'sgcF03_nom' + sgcF03Form.registros.indexOf(item)">
+                                <textarea class="dg-f05-field sgc-f-03-field--wrap" rows="2"
+                                  [(ngModel)]="item.nombreDocumento"
+                                  [name]="'sgcF03_nom' + sgcF03Form.registros.indexOf(item)"
+                                  (ngModelChange)="onSgcF03Editado()"></textarea>
                               </td>
                               <td>
-                                <input class="dg-f05-field dg-f05-field--center" [(ngModel)]="item.numeroVersion" [name]="'sgcF03_ver' + sgcF03Form.registros.indexOf(item)">
+                                <input class="dg-f05-field dg-f05-field--center" [(ngModel)]="item.numeroVersion" [name]="'sgcF03_ver' + sgcF03Form.registros.indexOf(item)" (ngModelChange)="onSgcF03Editado()">
                               </td>
                               <td>
-                                <select class="dg-f05-field dg-f05-field--select" [(ngModel)]="item.formaDistribucion" [name]="'sgcF03_forma' + sgcF03Form.registros.indexOf(item)">
+                                <select class="dg-f05-field dg-f05-field--select" [(ngModel)]="item.formaDistribucion" [name]="'sgcF03_forma' + sgcF03Form.registros.indexOf(item)" (ngModelChange)="onSgcF03Editado()">
                                   <option value="">Seleccionar</option>
                                   <option *ngFor="let forma of formasDistribucionSgcF03(item.formaDistribucion)" [value]="forma">{{ forma }}</option>
                                 </select>
                               </td>
                               <td>
-                                <input class="dg-f05-field" type="date" [(ngModel)]="item.fechaEntrega" [name]="'sgcF03_fe' + sgcF03Form.registros.indexOf(item)">
+                                <input class="dg-f05-field" type="date" [(ngModel)]="item.fechaEntrega" [name]="'sgcF03_fe' + sgcF03Form.registros.indexOf(item)" (ngModelChange)="onSgcF03Editado()">
                               </td>
                               <td>
-                                <input class="dg-f05-field" [(ngModel)]="item.entrego" [name]="'sgcF03_ent' + sgcF03Form.registros.indexOf(item)">
+                                <input class="dg-f05-field" [(ngModel)]="item.entrego" [name]="'sgcF03_ent' + sgcF03Form.registros.indexOf(item)" (ngModelChange)="onSgcF03Editado()">
                               </td>
                               <td>
-                                <input class="dg-f05-field dg-f05-field--center" [(ngModel)]="item.numeroCopias" [name]="'sgcF03_cop' + sgcF03Form.registros.indexOf(item)">
+                                <input class="dg-f05-field dg-f05-field--center" [(ngModel)]="item.numeroCopias" [name]="'sgcF03_cop' + sgcF03Form.registros.indexOf(item)" (ngModelChange)="onSgcF03Editado()">
+                              </td>
+                              <td class="sgc-f-03-td--acceso">
+                                <textarea class="dg-f05-field sgc-f-03-field--wrap sgc-f-03-field--acceso" rows="2"
+                                  [(ngModel)]="item.nombreRecibe"
+                                  [name]="'sgcF03_rec' + sgcF03Form.registros.indexOf(item)"
+                                  (ngModelChange)="onSgcF03Editado()"></textarea>
+                              </td>
+                              <td class="sgc-f-03-td--acceso">
+                                <textarea class="dg-f05-field sgc-f-03-field--wrap sgc-f-03-field--acceso" rows="2"
+                                  [(ngModel)]="item.areaUso"
+                                  [name]="'sgcF03_area' + sgcF03Form.registros.indexOf(item)"
+                                  (ngModelChange)="onSgcF03Editado()"></textarea>
                               </td>
                               <td>
-                                <input class="dg-f05-field" [(ngModel)]="item.nombreRecibe" [name]="'sgcF03_rec' + sgcF03Form.registros.indexOf(item)">
+                                <input class="dg-f05-field" type="date" [(ngModel)]="item.fechaRecuperacion" [name]="'sgcF03_fr' + sgcF03Form.registros.indexOf(item)" (ngModelChange)="onSgcF03Editado()">
                               </td>
                               <td>
-                                <input class="dg-f05-field" [(ngModel)]="item.areaUso" [name]="'sgcF03_area' + sgcF03Form.registros.indexOf(item)">
+                                <input class="dg-f05-field" [(ngModel)]="item.motivo" [name]="'sgcF03_mot' + sgcF03Form.registros.indexOf(item)" (ngModelChange)="onSgcF03Editado()">
                               </td>
                               <td>
-                                <input class="dg-f05-field" type="date" [(ngModel)]="item.fechaRecuperacion" [name]="'sgcF03_fr' + sgcF03Form.registros.indexOf(item)">
-                              </td>
-                              <td>
-                                <input class="dg-f05-field" [(ngModel)]="item.motivo" [name]="'sgcF03_mot' + sgcF03Form.registros.indexOf(item)">
-                              </td>
-                              <td>
-                                <input class="dg-f05-field" [(ngModel)]="item.disposicionFinal" [name]="'sgcF03_dis' + sgcF03Form.registros.indexOf(item)">
+                                <input class="dg-f05-field" [(ngModel)]="item.disposicionFinal" [name]="'sgcF03_dis' + sgcF03Form.registros.indexOf(item)" (ngModelChange)="onSgcF03Editado()">
                               </td>
                               <td class="dg-f05-table__act">
                                 <button type="button" class="dg-f05-row-btn" (click)="quitarFilaSgcF03(item)" title="Quitar registro">
@@ -6808,7 +6817,9 @@
 
 
             <ng-container *ngSwitchCase="'sgc-f-17'">
-              <form class="dg-f05-form sgc-f17-form" (ngSubmit)="$event.preventDefault()"
+              <form class="dg-f05-form sgc-f17-form"
+                    [class.sgc-f17-form--select-open]="!!sgcF17SelectAbierto"
+                    (ngSubmit)="$event.preventDefault()"
                     (input)="onSgcF17Editado()" (change)="onSgcF17Editado()">
                 <div class="dg-f05-doc-wrap" [class.dg-f05-doc-wrap--loading]="sgcF17Cargando">
                   <div class="dg-f05-loading" *ngIf="sgcF17Cargando" role="status">
@@ -6952,29 +6963,95 @@
                         <section class="sgc-f17-sec">
                           <h4 class="sgc-f17-sec__title sgc-f17-sec__title--mant">Mantenimiento de equipos o instrumentos de medición</h4>
                           <div class="sgc-f17-grid sgc-f17-grid--mant">
-                            <label class="sgc-f17-field sgc-f17-field--mant">
+                            <label class="sgc-f17-field sgc-f17-field--mant sgc-f17-field--select"
+                              [class.sgc-f17-field--select-open]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'condiciones')">
                               <span>Condiciones</span>
-                              <select class="dg-f05-field dg-f05-field--select" [(ngModel)]="eq.condiciones" [name]="'sgcF17_cond' + i">
-                                <option value="">Seleccionar</option>
-                                <option *ngIf="opcionSgcF17Fuera(eq.condiciones, sgcF17Condiciones)" [value]="eq.condiciones">{{ eq.condiciones }}</option>
-                                <option *ngFor="let op of sgcF17Condiciones" [value]="op">{{ op }}</option>
-                              </select>
+                              <div class="sgc-f17-select sgc-f17-select--mant"
+                                [class.sgc-f17-select--open]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'condiciones')"
+                                [class.sgc-f17-select--filled]="!!eq.condiciones">
+                                <button type="button" class="sgc-f17-select__trigger"
+                                  (mousedown)="$event.stopPropagation()"
+                                  (click)="toggleSelectSgcF17(claveSelectSgcF17(i, 'condiciones'), $event)"
+                                  [attr.aria-expanded]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'condiciones')"
+                                  aria-haspopup="listbox"
+                                  [attr.aria-label]="'Condiciones' + (eq.condiciones ? ': ' + eq.condiciones : '')">
+                                  <span class="sgc-f17-select__value"
+                                    [class.sgc-f17-select__value--placeholder]="!eq.condiciones">{{ eq.condiciones || 'Seleccionar' }}</span>
+                                  <i class="fas fa-chevron-down sgc-f17-select__chevron" aria-hidden="true"></i>
+                                </button>
+                                <ul class="sgc-f17-select__menu" *ngIf="sgcF17SelectAbierto === claveSelectSgcF17(i, 'condiciones')"
+                                  role="listbox"
+                                  (mousedown)="$event.stopPropagation()"
+                                  (click)="$event.stopPropagation()">
+                                  <li role="option" class="sgc-f17-select__option sgc-f17-select__option--empty"
+                                    [class.sgc-f17-select__option--active]="!eq.condiciones"
+                                    (click)="elegirSelectSgcF17(eq, 'condiciones', '', $event)">Seleccionar</li>
+                                  <li *ngFor="let op of opcionesMenuSgcF17(eq.condiciones, sgcF17Condiciones)"
+                                    role="option" class="sgc-f17-select__option"
+                                    [class.sgc-f17-select__option--active]="eq.condiciones === op"
+                                    (click)="elegirSelectSgcF17(eq, 'condiciones', op, $event)">{{ op }}</li>
+                                </ul>
+                              </div>
                             </label>
-                            <label class="sgc-f17-field sgc-f17-field--mant">
+                            <label class="sgc-f17-field sgc-f17-field--mant sgc-f17-field--select"
+                              [class.sgc-f17-field--select-open]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'accionesMantenimiento')">
                               <span>Acciones de mantenimiento</span>
-                              <select class="dg-f05-field dg-f05-field--select" [(ngModel)]="eq.accionesMantenimiento" [name]="'sgcF17_acc' + i">
-                                <option value="">Seleccionar</option>
-                                <option *ngIf="opcionSgcF17Fuera(eq.accionesMantenimiento, sgcF17AccionesMantenimiento)" [value]="eq.accionesMantenimiento">{{ eq.accionesMantenimiento }}</option>
-                                <option *ngFor="let op of sgcF17AccionesMantenimiento" [value]="op">{{ op }}</option>
-                              </select>
+                              <div class="sgc-f17-select sgc-f17-select--mant"
+                                [class.sgc-f17-select--open]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'accionesMantenimiento')"
+                                [class.sgc-f17-select--filled]="!!eq.accionesMantenimiento">
+                                <button type="button" class="sgc-f17-select__trigger"
+                                  (mousedown)="$event.stopPropagation()"
+                                  (click)="toggleSelectSgcF17(claveSelectSgcF17(i, 'accionesMantenimiento'), $event)"
+                                  [attr.aria-expanded]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'accionesMantenimiento')"
+                                  aria-haspopup="listbox"
+                                  [attr.aria-label]="'Acciones de mantenimiento' + (eq.accionesMantenimiento ? ': ' + eq.accionesMantenimiento : '')">
+                                  <span class="sgc-f17-select__value"
+                                    [class.sgc-f17-select__value--placeholder]="!eq.accionesMantenimiento">{{ eq.accionesMantenimiento || 'Seleccionar' }}</span>
+                                  <i class="fas fa-chevron-down sgc-f17-select__chevron" aria-hidden="true"></i>
+                                </button>
+                                <ul class="sgc-f17-select__menu" *ngIf="sgcF17SelectAbierto === claveSelectSgcF17(i, 'accionesMantenimiento')"
+                                  role="listbox"
+                                  (mousedown)="$event.stopPropagation()"
+                                  (click)="$event.stopPropagation()">
+                                  <li role="option" class="sgc-f17-select__option sgc-f17-select__option--empty"
+                                    [class.sgc-f17-select__option--active]="!eq.accionesMantenimiento"
+                                    (click)="elegirSelectSgcF17(eq, 'accionesMantenimiento', '', $event)">Seleccionar</li>
+                                  <li *ngFor="let op of opcionesMenuSgcF17(eq.accionesMantenimiento, sgcF17AccionesMantenimiento)"
+                                    role="option" class="sgc-f17-select__option"
+                                    [class.sgc-f17-select__option--active]="eq.accionesMantenimiento === op"
+                                    (click)="elegirSelectSgcF17(eq, 'accionesMantenimiento', op, $event)">{{ op }}</li>
+                                </ul>
+                              </div>
                             </label>
-                            <label class="sgc-f17-field sgc-f17-field--mant">
+                            <label class="sgc-f17-field sgc-f17-field--mant sgc-f17-field--select"
+                              [class.sgc-f17-field--select-open]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'tipoMantenimiento')">
                               <span>Tipo de mantenimiento</span>
-                              <select class="dg-f05-field dg-f05-field--select" [(ngModel)]="eq.tipoMantenimiento" [name]="'sgcF17_tipo' + i">
-                                <option value="">Seleccionar</option>
-                                <option *ngIf="opcionSgcF17Fuera(eq.tipoMantenimiento, sgcF17TiposMantenimiento)" [value]="eq.tipoMantenimiento">{{ eq.tipoMantenimiento }}</option>
-                                <option *ngFor="let op of sgcF17TiposMantenimiento" [value]="op">{{ op }}</option>
-                              </select>
+                              <div class="sgc-f17-select sgc-f17-select--mant"
+                                [class.sgc-f17-select--open]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'tipoMantenimiento')"
+                                [class.sgc-f17-select--filled]="!!eq.tipoMantenimiento">
+                                <button type="button" class="sgc-f17-select__trigger"
+                                  (mousedown)="$event.stopPropagation()"
+                                  (click)="toggleSelectSgcF17(claveSelectSgcF17(i, 'tipoMantenimiento'), $event)"
+                                  [attr.aria-expanded]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'tipoMantenimiento')"
+                                  aria-haspopup="listbox"
+                                  [attr.aria-label]="'Tipo de mantenimiento' + (eq.tipoMantenimiento ? ': ' + eq.tipoMantenimiento : '')">
+                                  <span class="sgc-f17-select__value"
+                                    [class.sgc-f17-select__value--placeholder]="!eq.tipoMantenimiento">{{ eq.tipoMantenimiento || 'Seleccionar' }}</span>
+                                  <i class="fas fa-chevron-down sgc-f17-select__chevron" aria-hidden="true"></i>
+                                </button>
+                                <ul class="sgc-f17-select__menu" *ngIf="sgcF17SelectAbierto === claveSelectSgcF17(i, 'tipoMantenimiento')"
+                                  role="listbox"
+                                  (mousedown)="$event.stopPropagation()"
+                                  (click)="$event.stopPropagation()">
+                                  <li role="option" class="sgc-f17-select__option sgc-f17-select__option--empty"
+                                    [class.sgc-f17-select__option--active]="!eq.tipoMantenimiento"
+                                    (click)="elegirSelectSgcF17(eq, 'tipoMantenimiento', '', $event)">Seleccionar</li>
+                                  <li *ngFor="let op of opcionesMenuSgcF17(eq.tipoMantenimiento, sgcF17TiposMantenimiento)"
+                                    role="option" class="sgc-f17-select__option"
+                                    [class.sgc-f17-select__option--active]="eq.tipoMantenimiento === op"
+                                    (click)="elegirSelectSgcF17(eq, 'tipoMantenimiento', op, $event)">{{ op }}</li>
+                                </ul>
+                              </div>
                             </label>
                             <label class="sgc-f17-field sgc-f17-field--mant">
                               <span>Fecha de realización del mantenimiento</span>
@@ -6986,20 +7063,65 @@
                         <section class="sgc-f17-sec">
                           <h4 class="sgc-f17-sec__title sgc-f17-sec__title--cal">Calibración / verificación</h4>
                           <div class="sgc-f17-grid sgc-f17-grid--cal">
-                            <label class="sgc-f17-field sgc-f17-field--cal">
+                            <label class="sgc-f17-field sgc-f17-field--cal sgc-f17-field--select"
+                              [class.sgc-f17-field--select-open]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'equipoPatron')">
                               <span>¿Equipo patrón?</span>
-                              <select class="dg-f05-field dg-f05-field--select" [(ngModel)]="eq.equipoPatron" [name]="'sgcF17_patron' + i">
-                                <option value="">Seleccionar</option>
-                                <option *ngFor="let op of sgcF17EquipoPatron" [value]="op">{{ op }}</option>
-                              </select>
+                              <div class="sgc-f17-select sgc-f17-select--cal"
+                                [class.sgc-f17-select--open]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'equipoPatron')"
+                                [class.sgc-f17-select--filled]="!!eq.equipoPatron">
+                                <button type="button" class="sgc-f17-select__trigger"
+                                  (mousedown)="$event.stopPropagation()"
+                                  (click)="toggleSelectSgcF17(claveSelectSgcF17(i, 'equipoPatron'), $event)"
+                                  [attr.aria-expanded]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'equipoPatron')"
+                                  aria-haspopup="listbox"
+                                  [attr.aria-label]="'Equipo patrón' + (eq.equipoPatron ? ': ' + eq.equipoPatron : '')">
+                                  <span class="sgc-f17-select__value"
+                                    [class.sgc-f17-select__value--placeholder]="!eq.equipoPatron">{{ eq.equipoPatron || 'Seleccionar' }}</span>
+                                  <i class="fas fa-chevron-down sgc-f17-select__chevron" aria-hidden="true"></i>
+                                </button>
+                                <ul class="sgc-f17-select__menu" *ngIf="sgcF17SelectAbierto === claveSelectSgcF17(i, 'equipoPatron')"
+                                  role="listbox"
+                                  (mousedown)="$event.stopPropagation()"
+                                  (click)="$event.stopPropagation()">
+                                  <li role="option" class="sgc-f17-select__option sgc-f17-select__option--empty"
+                                    [class.sgc-f17-select__option--active]="!eq.equipoPatron"
+                                    (click)="elegirSelectSgcF17(eq, 'equipoPatron', '', $event)">Seleccionar</li>
+                                  <li *ngFor="let op of opcionesMenuSgcF17(eq.equipoPatron, sgcF17EquipoPatron)"
+                                    role="option" class="sgc-f17-select__option"
+                                    [class.sgc-f17-select__option--active]="eq.equipoPatron === op"
+                                    (click)="elegirSelectSgcF17(eq, 'equipoPatron', op, $event)">{{ op }}</li>
+                                </ul>
+                              </div>
                             </label>
-                            <label class="sgc-f17-field sgc-f17-field--cal">
+                            <label class="sgc-f17-field sgc-f17-field--cal sgc-f17-field--select"
+                              [class.sgc-f17-field--select-open]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'tipoControl')">
                               <span>Tipo de control</span>
-                              <select class="dg-f05-field dg-f05-field--select" [(ngModel)]="eq.tipoControl" [name]="'sgcF17_ctrl' + i">
-                                <option value="">Seleccionar</option>
-                                <option *ngIf="opcionSgcF17Fuera(eq.tipoControl, sgcF17TiposControl)" [value]="eq.tipoControl">{{ eq.tipoControl }}</option>
-                                <option *ngFor="let op of sgcF17TiposControl" [value]="op">{{ op }}</option>
-                              </select>
+                              <div class="sgc-f17-select sgc-f17-select--cal"
+                                [class.sgc-f17-select--open]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'tipoControl')"
+                                [class.sgc-f17-select--filled]="!!eq.tipoControl">
+                                <button type="button" class="sgc-f17-select__trigger"
+                                  (mousedown)="$event.stopPropagation()"
+                                  (click)="toggleSelectSgcF17(claveSelectSgcF17(i, 'tipoControl'), $event)"
+                                  [attr.aria-expanded]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'tipoControl')"
+                                  aria-haspopup="listbox"
+                                  [attr.aria-label]="'Tipo de control' + (eq.tipoControl ? ': ' + eq.tipoControl : '')">
+                                  <span class="sgc-f17-select__value"
+                                    [class.sgc-f17-select__value--placeholder]="!eq.tipoControl">{{ eq.tipoControl || 'Seleccionar' }}</span>
+                                  <i class="fas fa-chevron-down sgc-f17-select__chevron" aria-hidden="true"></i>
+                                </button>
+                                <ul class="sgc-f17-select__menu" *ngIf="sgcF17SelectAbierto === claveSelectSgcF17(i, 'tipoControl')"
+                                  role="listbox"
+                                  (mousedown)="$event.stopPropagation()"
+                                  (click)="$event.stopPropagation()">
+                                  <li role="option" class="sgc-f17-select__option sgc-f17-select__option--empty"
+                                    [class.sgc-f17-select__option--active]="!eq.tipoControl"
+                                    (click)="elegirSelectSgcF17(eq, 'tipoControl', '', $event)">Seleccionar</li>
+                                  <li *ngFor="let op of opcionesMenuSgcF17(eq.tipoControl, sgcF17TiposControl)"
+                                    role="option" class="sgc-f17-select__option"
+                                    [class.sgc-f17-select__option--active]="eq.tipoControl === op"
+                                    (click)="elegirSelectSgcF17(eq, 'tipoControl', op, $event)">{{ op }}</li>
+                                </ul>
+                              </div>
                             </label>
                             <label class="sgc-f17-field sgc-f17-field--cal">
                               <span>Empresa que calibra o verifica el equipo</span>
@@ -7013,21 +7135,65 @@
                                 [appAutoResizeRefresh]="sgcF17AutosizeTick"
                                 [(ngModel)]="eq.numeroCertificado" [name]="'sgcF17_cert' + i"></textarea>
                             </label>
-                            <label class="sgc-f17-field sgc-f17-field--cal">
+                            <label class="sgc-f17-field sgc-f17-field--cal sgc-f17-field--select"
+                              [class.sgc-f17-field--select-open]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'resultado')">
                               <span>Resultado de la verificación</span>
-                              <select class="dg-f05-field dg-f05-field--select" [(ngModel)]="eq.resultado" [name]="'sgcF17_res' + i">
-                                <option value="">Seleccionar</option>
-                                <option *ngIf="opcionSgcF17Fuera(eq.resultado, sgcF17Resultados)" [value]="eq.resultado">{{ eq.resultado }}</option>
-                                <option *ngFor="let op of sgcF17Resultados" [value]="op">{{ op }}</option>
-                              </select>
+                              <div class="sgc-f17-select sgc-f17-select--cal"
+                                [class.sgc-f17-select--open]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'resultado')"
+                                [class.sgc-f17-select--filled]="!!eq.resultado">
+                                <button type="button" class="sgc-f17-select__trigger"
+                                  (mousedown)="$event.stopPropagation()"
+                                  (click)="toggleSelectSgcF17(claveSelectSgcF17(i, 'resultado'), $event)"
+                                  [attr.aria-expanded]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'resultado')"
+                                  aria-haspopup="listbox"
+                                  [attr.aria-label]="'Resultado de la verificación' + (eq.resultado ? ': ' + eq.resultado : '')">
+                                  <span class="sgc-f17-select__value"
+                                    [class.sgc-f17-select__value--placeholder]="!eq.resultado">{{ eq.resultado || 'Seleccionar' }}</span>
+                                  <i class="fas fa-chevron-down sgc-f17-select__chevron" aria-hidden="true"></i>
+                                </button>
+                                <ul class="sgc-f17-select__menu" *ngIf="sgcF17SelectAbierto === claveSelectSgcF17(i, 'resultado')"
+                                  role="listbox"
+                                  (mousedown)="$event.stopPropagation()"
+                                  (click)="$event.stopPropagation()">
+                                  <li role="option" class="sgc-f17-select__option sgc-f17-select__option--empty"
+                                    [class.sgc-f17-select__option--active]="!eq.resultado"
+                                    (click)="elegirSelectSgcF17(eq, 'resultado', '', $event)">Seleccionar</li>
+                                  <li *ngFor="let op of opcionesMenuSgcF17(eq.resultado, sgcF17Resultados)"
+                                    role="option" class="sgc-f17-select__option"
+                                    [class.sgc-f17-select__option--active]="eq.resultado === op"
+                                    (click)="elegirSelectSgcF17(eq, 'resultado', op, $event)">{{ op }}</li>
+                                </ul>
+                              </div>
                             </label>
-                            <label class="sgc-f17-field sgc-f17-field--cal">
+                            <label class="sgc-f17-field sgc-f17-field--cal sgc-f17-field--select"
+                              [class.sgc-f17-field--select-open]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'accionesInmediatas')">
                               <span>Acciones inmediatas sobre el resultado</span>
-                              <select class="dg-f05-field dg-f05-field--select" [(ngModel)]="eq.accionesInmediatas" [name]="'sgcF17_ainm' + i">
-                                <option value="">Seleccionar</option>
-                                <option *ngIf="opcionSgcF17Fuera(eq.accionesInmediatas, sgcF17AccionesInmediatas)" [value]="eq.accionesInmediatas">{{ eq.accionesInmediatas }}</option>
-                                <option *ngFor="let op of sgcF17AccionesInmediatas" [value]="op">{{ op }}</option>
-                              </select>
+                              <div class="sgc-f17-select sgc-f17-select--cal"
+                                [class.sgc-f17-select--open]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'accionesInmediatas')"
+                                [class.sgc-f17-select--filled]="!!eq.accionesInmediatas">
+                                <button type="button" class="sgc-f17-select__trigger"
+                                  (mousedown)="$event.stopPropagation()"
+                                  (click)="toggleSelectSgcF17(claveSelectSgcF17(i, 'accionesInmediatas'), $event)"
+                                  [attr.aria-expanded]="sgcF17SelectAbierto === claveSelectSgcF17(i, 'accionesInmediatas')"
+                                  aria-haspopup="listbox"
+                                  [attr.aria-label]="'Acciones inmediatas' + (eq.accionesInmediatas ? ': ' + eq.accionesInmediatas : '')">
+                                  <span class="sgc-f17-select__value"
+                                    [class.sgc-f17-select__value--placeholder]="!eq.accionesInmediatas">{{ eq.accionesInmediatas || 'Seleccionar' }}</span>
+                                  <i class="fas fa-chevron-down sgc-f17-select__chevron" aria-hidden="true"></i>
+                                </button>
+                                <ul class="sgc-f17-select__menu" *ngIf="sgcF17SelectAbierto === claveSelectSgcF17(i, 'accionesInmediatas')"
+                                  role="listbox"
+                                  (mousedown)="$event.stopPropagation()"
+                                  (click)="$event.stopPropagation()">
+                                  <li role="option" class="sgc-f17-select__option sgc-f17-select__option--empty"
+                                    [class.sgc-f17-select__option--active]="!eq.accionesInmediatas"
+                                    (click)="elegirSelectSgcF17(eq, 'accionesInmediatas', '', $event)">Seleccionar</li>
+                                  <li *ngFor="let op of opcionesMenuSgcF17(eq.accionesInmediatas, sgcF17AccionesInmediatas)"
+                                    role="option" class="sgc-f17-select__option"
+                                    [class.sgc-f17-select__option--active]="eq.accionesInmediatas === op"
+                                    (click)="elegirSelectSgcF17(eq, 'accionesInmediatas', op, $event)">{{ op }}</li>
+                                </ul>
+                              </div>
                             </label>
                             <label class="sgc-f17-field sgc-f17-field--cal">
                               <span>Fecha de calibración</span>
@@ -7045,7 +7211,7 @@
                       <div class="dg-f05-table-foot">
                         <p class="sgc-f17-hint mb-0">
                           <i class="fas fa-info-circle" aria-hidden="true"></i>
-                          Cada guardado con cambios crea una hoja nueva (01, 02, 03…). Al cambiar de mes el número vuelve a 01.
+                          Cada guardado con cambios crea una hoja SGCF17-MMAA (luego _2, _3…). Al cambiar de mes empieza otra base; el historial previo no se toca.
                         </p>
                       </div>
                     </div>
@@ -7070,7 +7236,7 @@
                           <span class="sgc-f27m-arch__icon" aria-hidden="true"><i class="fas fa-folder-open"></i></span>
                           <div>
                             <h4>Archivero de verificaciones</h4>
-                            <p>La hoja Plantilla queda solo como referencia. Cada verificación se guarda en su propia hoja, con el nombre del instrumento.</p>
+                            <p>La plantilla vive en un archivo aparte (solo diseño). Cada verificación se copia al Excel del sistema en su propia hoja, con el nombre del instrumento de medición.</p>
                           </div>
                         </div>
                         <div class="sgc-f27m-arch__tools">
@@ -7221,97 +7387,139 @@
                       </div>
                     </section>
 
-                    <div class="dg-f05-table-wrap dg-f05-table-wrap--scroll sgc-f27m-table-wrap">
-                      <table class="dg-f05-table sgc-f27m-table">
-                        <thead>
-                          <tr>
-                            <th>Corrida</th>
-                            <th>Estándar (X′)</th>
-                            <th>Medición real (Xi)</th>
-                            <th>Eabs (Xi−X′)</th>
-                            <th>(Xi−X′)²</th>
-                            <th>Σ(Xi−X′)²</th>
-                            <th>n−1</th>
-                            <th>Σ / (n−1)</th>
-                            <th>S</th>
-                            <th>Estatus</th>
-                            <th class="dg-f05-table__act"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <ng-container *ngFor="let corrida of sgcF27mForm.corridas; let i = index; trackBy: trackByIdx">
-                            <tr *ngFor="let k of [0, 1, 2]"
-                              [class.sgc-f27m-table__row--warn]="calcularCorridaSgcF27Medicion(corrida).fueraDeRango">
-                              <td *ngIf="k === 0" rowspan="3" class="sgc-f27m-table__num">{{ i + 1 }}</td>
-                              <td *ngIf="k === 0" rowspan="3">
-                                <input class="dg-f05-field dg-f05-field--center" type="number" step="any"
-                                  [name]="'sgcF27m_std' + i" [(ngModel)]="corrida.estandar"
-                                  (ngModelChange)="onMedicionSgcF27Medicion(i)">
-                              </td>
-                              <td>
-                                <input class="dg-f05-field dg-f05-field--center" type="number" step="any"
-                                  [name]="'sgcF27m_xi' + i + '_' + k" [(ngModel)]="corrida.mediciones[k]"
-                                  (ngModelChange)="onMedicionSgcF27Medicion(i)">
-                              </td>
-                              <td class="sgc-f27m-calc">{{ formatoCalcSgcF27Medicion(calcularCorridaSgcF27Medicion(corrida).errores[k]) }}</td>
-                              <td class="sgc-f27m-calc">{{ formatoCalcSgcF27Medicion(calcularCorridaSgcF27Medicion(corrida).cuadrados[k]) }}</td>
-                              <td *ngIf="k === 0" rowspan="3" class="sgc-f27m-calc">{{ formatoCalcSgcF27Medicion(calcularCorridaSgcF27Medicion(corrida).suma) }}</td>
-                              <td *ngIf="k === 0" rowspan="3" class="sgc-f27m-calc">{{ calcularCorridaSgcF27Medicion(corrida).nMenos1 ?? '—' }}</td>
-                              <td *ngIf="k === 0" rowspan="3" class="sgc-f27m-calc">{{ formatoCalcSgcF27Medicion(calcularCorridaSgcF27Medicion(corrida).varianza, 'var') }}</td>
-                              <td *ngIf="k === 0" rowspan="3" class="sgc-f27m-calc sgc-f27m-calc--s"
-                                [class.sgc-f27m-calc--alto]="calcularCorridaSgcF27Medicion(corrida).fueraDeRango">
-                                {{ formatoCalcSgcF27Medicion(calcularCorridaSgcF27Medicion(corrida).desviacion, 's') }}
-                              </td>
-                              <td *ngIf="k === 0" rowspan="3" class="sgc-f27m-estatus-cell">
-                                <span class="sgc-f27m-estatus-auto"
-                                  [class.sgc-f27m-estatus-auto--ok]="estatusCorridaSgcF27Medicion(corrida) === 'OK'"
-                                  [class.sgc-f27m-estatus-auto--no]="estatusCorridaSgcF27Medicion(corrida) === 'Fuera de rango'">
-                                  {{ estatusCorridaSgcF27Medicion(corrida) || '—' }}
-                                </span>
-                              </td>
-                              <td *ngIf="k === 0" rowspan="3" class="dg-f05-table__act">
-                                <button type="button" class="dg-f05-row-btn" (click)="quitarCorridaSgcF27Medicion(i)"
-                                  title="Quitar corrida" aria-label="Quitar corrida">
-                                  <i class="fas fa-times" aria-hidden="true"></i>
-                                </button>
-                              </td>
+                    <section class="sgc-f27m-corridas" aria-label="Corridas de verificación">
+                      <header class="sgc-f27m-corridas__head">
+                        <span class="sgc-f27m-corridas__icon" aria-hidden="true"><i class="fas fa-table"></i></span>
+                        <div class="sgc-f27m-corridas__titles">
+                          <strong>Corridas de medición</strong>
+                          <small>Tres lecturas por corrida · S se calcula automáticamente (límite ≤ 0.50)</small>
+                        </div>
+                        <span class="sgc-f27m-corridas__count">{{ sgcF27mForm.corridas.length }} / 12</span>
+                      </header>
+                      <div class="dg-f05-table-wrap dg-f05-table-wrap--scroll sgc-f27m-table-wrap">
+                        <table class="dg-f05-table sgc-f27m-table">
+                          <thead>
+                            <tr>
+                              <th class="sgc-f27m-table__th--sticky">#</th>
+                              <th>Estándar<br><span>(X′)</span></th>
+                              <th>Medición<br><span>(Xi)</span></th>
+                              <th class="sgc-f27m-table__th--calc">Eabs<br><span>Xi−X′</span></th>
+                              <th class="sgc-f27m-table__th--calc">(Xi−X′)²</th>
+                              <th class="sgc-f27m-table__th--calc">Σ(Xi−X′)²</th>
+                              <th class="sgc-f27m-table__th--calc">n−1</th>
+                              <th class="sgc-f27m-table__th--calc">Varianza<br><span>Σ/(n−1)</span></th>
+                              <th class="sgc-f27m-table__th--s">S</th>
+                              <th>Estatus</th>
+                              <th class="dg-f05-table__act"></th>
                             </tr>
-                          </ng-container>
-                        </tbody>
-                      </table>
-                    </div>
-                    <div class="dg-f05-table-foot">
-                      <button type="button" class="dg-f05-add-btn" (click)="agregarCorridaSgcF27Medicion()"
-                        [disabled]="sgcF27mForm.corridas.length >= 12">
-                        <i class="fas fa-plus" aria-hidden="true"></i>
-                        Agregar corrida
-                      </button>
-                    </div>
+                          </thead>
+                          <tbody>
+                            <ng-container *ngFor="let corrida of sgcF27mForm.corridas; let i = index; trackBy: trackByIdx">
+                              <tr *ngFor="let k of [0, 1, 2]"
+                                [class.sgc-f27m-table__row--warn]="calcularCorridaSgcF27Medicion(corrida).fueraDeRango"
+                                [class.sgc-f27m-table__row--ok]="estatusCorridaSgcF27Medicion(corrida) === 'OK'"
+                                [class.sgc-f27m-table__row--first]="k === 0"
+                                [class.sgc-f27m-table__row--last]="k === 2"
+                                [class.sgc-f27m-table__row--alt]="i % 2 === 1">
+                                <td *ngIf="k === 0" rowspan="3" class="sgc-f27m-table__num">
+                                  <span>{{ i + 1 }}</span>
+                                </td>
+                                <td *ngIf="k === 0" rowspan="3" class="sgc-f27m-table__input">
+                                  <input class="dg-f05-field dg-f05-field--center" type="number" step="any"
+                                    [name]="'sgcF27m_std' + i" [(ngModel)]="corrida.estandar"
+                                    (ngModelChange)="onMedicionSgcF27Medicion(i)"
+                                    placeholder="0">
+                                </td>
+                                <td class="sgc-f27m-table__input">
+                                  <input class="dg-f05-field dg-f05-field--center" type="number" step="any"
+                                    [name]="'sgcF27m_xi' + i + '_' + k" [(ngModel)]="corrida.mediciones[k]"
+                                    (ngModelChange)="onMedicionSgcF27Medicion(i)"
+                                    placeholder="Xi">
+                                </td>
+                                <td class="sgc-f27m-calc">{{ formatoCalcSgcF27Medicion(calcularCorridaSgcF27Medicion(corrida).errores[k]) }}</td>
+                                <td class="sgc-f27m-calc">{{ formatoCalcSgcF27Medicion(calcularCorridaSgcF27Medicion(corrida).cuadrados[k]) }}</td>
+                                <td *ngIf="k === 0" rowspan="3" class="sgc-f27m-calc">{{ formatoCalcSgcF27Medicion(calcularCorridaSgcF27Medicion(corrida).suma) }}</td>
+                                <td *ngIf="k === 0" rowspan="3" class="sgc-f27m-calc">{{ calcularCorridaSgcF27Medicion(corrida).nMenos1 ?? '—' }}</td>
+                                <td *ngIf="k === 0" rowspan="3" class="sgc-f27m-calc">{{ formatoCalcSgcF27Medicion(calcularCorridaSgcF27Medicion(corrida).varianza, 'var') }}</td>
+                                <td *ngIf="k === 0" rowspan="3" class="sgc-f27m-calc sgc-f27m-calc--s"
+                                  [class.sgc-f27m-calc--alto]="calcularCorridaSgcF27Medicion(corrida).fueraDeRango">
+                                  {{ formatoCalcSgcF27Medicion(calcularCorridaSgcF27Medicion(corrida).desviacion, 's') }}
+                                </td>
+                                <td *ngIf="k === 0" rowspan="3" class="sgc-f27m-estatus-cell">
+                                  <span class="sgc-f27m-estatus-auto"
+                                    [class.sgc-f27m-estatus-auto--ok]="estatusCorridaSgcF27Medicion(corrida) === 'OK'"
+                                    [class.sgc-f27m-estatus-auto--no]="estatusCorridaSgcF27Medicion(corrida) === 'Fuera de rango'"
+                                    [class.sgc-f27m-estatus-auto--empty]="!estatusCorridaSgcF27Medicion(corrida)">
+                                    <i class="fas" aria-hidden="true"
+                                      [ngClass]="estatusCorridaSgcF27Medicion(corrida) === 'OK' ? 'fa-check-circle'
+                                        : estatusCorridaSgcF27Medicion(corrida) === 'Fuera de rango' ? 'fa-exclamation-circle'
+                                        : 'fa-minus-circle'"></i>
+                                    {{ estatusCorridaSgcF27Medicion(corrida) || 'Sin datos' }}
+                                  </span>
+                                </td>
+                                <td *ngIf="k === 0" rowspan="3" class="dg-f05-table__act">
+                                  <button type="button" class="dg-f05-row-btn sgc-f27m-table__del" (click)="quitarCorridaSgcF27Medicion(i)"
+                                    title="Quitar corrida" aria-label="Quitar corrida">
+                                    <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                                  </button>
+                                </td>
+                              </tr>
+                            </ng-container>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div class="sgc-f27m-corridas__foot">
+                        <button type="button" class="sgc-f27m-corridas__add" (click)="agregarCorridaSgcF27Medicion()"
+                          [disabled]="sgcF27mForm.corridas.length >= 12">
+                          <i class="fas fa-plus" aria-hidden="true"></i>
+                          Agregar corrida
+                        </button>
+                      </div>
+                    </section>
 
-                    <p class="sgc-f27m-criterio">
-                      <strong>Criterio de aceptación:</strong>
-                      ≤ 0.50 en desviación estándar de todas las corridas. Aprobado: estatus OK para 3 de las corridas.
+                    <div class="sgc-f27m-criterio"
+                      [class.sgc-f27m-criterio--ok]="criterioSgcF27Medicion().cumple"
+                      [class.sgc-f27m-criterio--no]="!criterioSgcF27Medicion().cumple">
+                      <div class="sgc-f27m-criterio__main">
+                        <span class="sgc-f27m-criterio__label">Criterio de aceptación</span>
+                        <p>S ≤ 0.50 en todas las corridas. Aprobado: estatus OK en al menos 3 corridas.</p>
+                        <span class="sgc-f27m-criterio__detalle">{{ criterioSgcF27Medicion().detalle }}</span>
+                      </div>
                       <span class="sgc-f27m-criterio__badge"
                         [class.sgc-f27m-criterio__badge--ok]="criterioSgcF27Medicion().cumple"
                         [class.sgc-f27m-criterio__badge--no]="!criterioSgcF27Medicion().cumple">
+                        <i class="fas" aria-hidden="true"
+                          [ngClass]="criterioSgcF27Medicion().cumple ? 'fa-check' : 'fa-times'"></i>
                         {{ criterioSgcF27Medicion().cumple ? 'Cumple' : 'No cumple' }}
                       </span>
-                      <span class="sgc-f27m-criterio__detalle">{{ criterioSgcF27Medicion().detalle }}</span>
-                    </p>
+                    </div>
 
                     <div class="sgc-f27m-resultado">
-                      <label>
-                        <span>Resultado</span>
-                        <select class="dg-f05-field dg-f05-field--select sgc-f27m-estatus"
-                          [class.sgc-f27m-estatus--ok]="sgcF27mForm.resultado === 'Verificación aprobada'"
-                          [class.sgc-f27m-estatus--no]="sgcF27mForm.resultado === 'Verificación no aprobada'"
-                          name="sgcF27m_resultado" [(ngModel)]="sgcF27mForm.resultado">
-                          <option value="">Seleccionar</option>
-                          <option *ngFor="let res of sgcF27mResultados" [value]="res">{{ res }}</option>
-                        </select>
-                      </label>
-                      <label>
-                        <span>Acción a realizar</span>
+                      <div class="sgc-f27m-resultado__field">
+                        <span class="sgc-f27m-resultado__label">Resultado</span>
+                        <div class="sgc-f27m-choice" role="group" aria-label="Resultado de la verificación">
+                          <button type="button" class="sgc-f27m-choice__btn sgc-f27m-choice__btn--ok"
+                            [class.sgc-f27m-choice__btn--active]="sgcF27mForm.resultado === 'Verificación aprobada'"
+                            (click)="setResultadoSgcF27Medicion('Verificación aprobada')">
+                            <i class="fas fa-check-circle" aria-hidden="true"></i>
+                            <span>
+                              <strong>Aprobada</strong>
+                              <small>Verificación aprobada</small>
+                            </span>
+                          </button>
+                          <button type="button" class="sgc-f27m-choice__btn sgc-f27m-choice__btn--no"
+                            [class.sgc-f27m-choice__btn--active]="sgcF27mForm.resultado === 'Verificación no aprobada'"
+                            (click)="setResultadoSgcF27Medicion('Verificación no aprobada')">
+                            <i class="fas fa-times-circle" aria-hidden="true"></i>
+                            <span>
+                              <strong>No aprobada</strong>
+                              <small>Verificación no aprobada</small>
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                      <label class="sgc-f27m-resultado__field">
+                        <span class="sgc-f27m-resultado__label">Acción a realizar</span>
                         <textarea class="dg-f05-field dg-f05-field--textarea" rows="2" name="sgcF27m_accion"
                           appAutoResize
                           [appAutoResizeRefresh]="sgcF27mAutosizeTick"
@@ -12001,39 +12209,129 @@
                       [disabled]="spF04FilasVista.length < 2" (click)="moverResumenSpF04(-1)">
                       <i class="fas fa-chevron-left" aria-hidden="true"></i>
                     </button>
-                    <div class="sp-f-04-modal__dialog" role="dialog" aria-modal="true"
+                    <div class="sp-f-04-modal__dialog"
+                      [class.sp-f-04-modal__dialog--cerrado]="det.estatus === 'Cerrado'"
+                      role="dialog" aria-modal="true"
                       aria-labelledby="spF04ResumenTitulo" tabindex="-1">
-                      <header class="sp-f-04-modal__head">
-                        <p class="sp-f-04-modal__empresa">{{ det.empresa || 'Sin empresa' }}</p>
-                        <h3 id="spF04ResumenTitulo">{{ det.nombreProyecto || 'Proyecto sin nombre' }}</h3>
+                      <header class="sp-f-04-modal__hero">
+                        <div class="sp-f-04-modal__hero-glow" aria-hidden="true"></div>
+                        <div class="sp-f-04-modal__hero-mesh" aria-hidden="true"></div>
+                        <div class="sp-f-04-modal__hero-top">
+                          <span class="sp-f-04-modal__index" *ngIf="spF04IndiceDetalle() as idx">{{ idx }}</span>
+                          <span class="sp-f-04-code sp-f-04-code--on-dark">{{ spF04Codigo(det) }}</span>
+                          <span class="sp-f-04-pill"
+                            [class.sp-f-04-pill--cerrado]="det.estatus === 'Cerrado'">
+                            <span class="sp-f-04-pill__dot" aria-hidden="true"></span>
+                            {{ det.estatus }}
+                          </span>
+                        </div>
+                        <div class="sp-f-04-modal__hero-body">
+                          <ng-container *ngTemplateOutlet="spF04Ring; context: { $implicit: det, grande: true }"></ng-container>
+                          <div class="sp-f-04-modal__title-box">
+                            <div class="sp-f-04-modal__empresa-row">
+                              <span class="sp-f-04-logo sp-f-04-logo--on-light" aria-hidden="true">
+                                <img *ngIf="spF04LogoEmpresa(det) as logoSrc" [src]="logoSrc" alt=""
+                                  (error)="onSpF04LogoError(det)">
+                                <i *ngIf="!spF04LogoEmpresa(det)" class="fas fa-building"></i>
+                              </span>
+                              <p class="sp-f-04-modal__empresa">{{ det.empresa || 'Sin empresa' }}</p>
+                            </div>
+                            <h3 id="spF04ResumenTitulo" [ngClass]="spF04TituloClase(det)">{{ spF04TituloVista(det) }}</h3>
+                          </div>
+                        </div>
                       </header>
-                      <dl class="sp-f-04-modal__datos">
-                        <div class="sp-f-04-modal__par">
-                          <div>
-                            <dt>Folio</dt>
-                            <dd>{{ det.folio || det.numeroProyecto || '—' }}</dd>
+
+                      <div class="sp-f-04-modal__body">
+                        <section class="sp-f-04-modal__section sp-f-04-modal__section--people">
+                          <div class="sp-f-04-modal__row-head">
+                            <h4>
+                              <i class="fas fa-user-friends" aria-hidden="true"></i>
+                              Responsables
+                            </h4>
+                            <ul class="sp-f-04-modal__people" *ngIf="spF04Responsables(det).length; else spF04SinResp">
+                              <li *ngFor="let persona of spF04Responsables(det)">
+                                <i class="fas fa-user-tie" aria-hidden="true"></i>
+                                <span>{{ persona }}</span>
+                              </li>
+                            </ul>
+                            <ng-template #spF04SinResp>
+                              <p class="sp-f-04-modal__muted">Sin responsable asignado</p>
+                            </ng-template>
                           </div>
-                          <div>
-                            <dt>Responsables</dt>
-                            <dd>{{ det.responsable || 'Sin responsable' }}</dd>
+                        </section>
+
+                        <section class="sp-f-04-modal__section sp-f-04-modal__section--acts"
+                          *ngIf="spF04ResumenActividades(det) as acts">
+                          <div class="sp-f-04-modal__row-head">
+                            <h4>
+                              <i class="fas fa-tasks" aria-hidden="true"></i>
+                              Actividades
+                              <span class="sp-f-04-modal__sec-count">{{ acts.total }}</span>
+                            </h4>
                           </div>
-                        </div>
-                        <div class="sp-f-04-modal__estatus">
-                          <ng-container *ngTemplateOutlet="spF04Mark; context: { $implicit: det }"></ng-container>
-                        </div>
-                        <div>
-                          <dt>Observaciones</dt>
-                          <dd>{{ det.observaciones || 'Sin observaciones' }}</dd>
-                        </div>
-                      </dl>
+                          <ul class="sp-f-04-modal__acts-strip" aria-label="Estatus de actividades">
+                            <li class="sp-f-04-modal__acts-chip sp-f-04-modal__acts-chip--todo">
+                              <i class="far fa-circle" aria-hidden="true"></i>
+                              <span>No iniciado</span>
+                              <strong>{{ acts.porEstatus.noIniciado }}</strong>
+                            </li>
+                            <li class="sp-f-04-modal__acts-chip sp-f-04-modal__acts-chip--curso">
+                              <i class="fas fa-play" aria-hidden="true"></i>
+                              <span>En curso</span>
+                              <strong>{{ acts.porEstatus.enCurso }}</strong>
+                            </li>
+                            <li class="sp-f-04-modal__acts-chip sp-f-04-modal__acts-chip--rev">
+                              <i class="fas fa-search" aria-hidden="true"></i>
+                              <span>En revisión</span>
+                              <strong>{{ acts.porEstatus.enRevision }}</strong>
+                            </li>
+                            <li class="sp-f-04-modal__acts-chip sp-f-04-modal__acts-chip--listo">
+                              <i class="fas fa-check" aria-hidden="true"></i>
+                              <span>Listo</span>
+                              <strong>{{ acts.porEstatus.listo }}</strong>
+                            </li>
+                          </ul>
+                          <div class="sp-f-04-modal__pipeline" *ngIf="acts.total > 0"
+                            aria-hidden="true"
+                            [style.--sp-listo]="(acts.porEstatus.listo / acts.total) * 100"
+                            [style.--sp-rev]="(acts.porEstatus.enRevision / acts.total) * 100"
+                            [style.--sp-curso]="(acts.porEstatus.enCurso / acts.total) * 100"
+                            [style.--sp-todo]="(acts.porEstatus.noIniciado / acts.total) * 100">
+                            <span class="sp-f-04-modal__pipeline-seg sp-f-04-modal__pipeline-seg--listo"></span>
+                            <span class="sp-f-04-modal__pipeline-seg sp-f-04-modal__pipeline-seg--rev"></span>
+                            <span class="sp-f-04-modal__pipeline-seg sp-f-04-modal__pipeline-seg--curso"></span>
+                            <span class="sp-f-04-modal__pipeline-seg sp-f-04-modal__pipeline-seg--todo"></span>
+                          </div>
+                        </section>
+
+                        <section class="sp-f-04-modal__section sp-f-04-modal__section--obs">
+                          <div class="sp-f-04-modal__row-head">
+                            <h4>
+                              <i class="fas fa-sticky-note" aria-hidden="true"></i>
+                              Observaciones
+                              <span class="sp-f-04-modal__sec-count"
+                                *ngIf="spF04Observaciones(det).length as nObs">{{ nObs }}</span>
+                            </h4>
+                          </div>
+                          <div class="sp-f-04-modal__notes" *ngIf="spF04Observaciones(det).length; else spF04SinObs">
+                            <ul>
+                              <li *ngFor="let nota of spF04Observaciones(det)">{{ nota }}</li>
+                            </ul>
+                          </div>
+                          <ng-template #spF04SinObs>
+                            <p class="sp-f-04-modal__muted">Sin observaciones registradas</p>
+                          </ng-template>
+                        </section>
+                      </div>
+
                       <footer class="sp-f-04-modal__actions">
                         <button type="button" class="sp-f-04-modal__cerrar" (click)="cerrarResumenSpF04()">
                           <i class="fas fa-times" aria-hidden="true"></i>
                           Cerrar
                         </button>
                         <button type="button" class="sp-f-04-modal__ir" (click)="irAlProyectoSpF04()">
-                          <i class="fas fa-folder-open" aria-hidden="true"></i>
                           Ir al proyecto
+                          <i class="fas fa-arrow-right" aria-hidden="true"></i>
                         </button>
                       </footer>
                     </div>
@@ -12043,16 +12341,19 @@
                     </button>
                   </div>
                 </div>
-                <ng-template #spF04Mark let-fila>
-                  <div class="sp-f-04-mark" [class.sp-f-04-mark--cerrado]="fila.estatus === 'Cerrado'"
+                <ng-template #spF04Ring let-fila let-grande="grande">
+                  <div class="sp-f-04-ring"
+                    [class.sp-f-04-ring--lg]="!!grande"
+                    [class.sp-f-04-ring--cerrado]="fila.estatus === 'Cerrado'"
+                    [style.--sp-avance]="fila.avance"
                     [attr.aria-label]="fila.estatus + ', ' + fila.avance + ' por ciento'">
-                    <span class="sp-f-04-mark__k"><i class="fas fa-flag" aria-hidden="true"></i> Estatus</span>
-                    <strong>{{ fila.estatus }}</strong>
-                    <div class="sp-f-04-mark__bar">
-                      <span class="sp-f-04-mark__track">
-                        <span class="sp-f-04-mark__fill" [style.--sp-ancho]="fila.avance + '%'"></span>
-                      </span>
-                      <span class="sp-f-04-mark__pct">{{ fila.avance }}%</span>
+                    <svg class="sp-f-04-ring__svg" viewBox="0 0 36 36" aria-hidden="true">
+                      <circle class="sp-f-04-ring__track" cx="18" cy="18" r="15.5" pathLength="100"></circle>
+                      <circle class="sp-f-04-ring__value" cx="18" cy="18" r="15.5" pathLength="100"></circle>
+                    </svg>
+                    <div class="sp-f-04-ring__label">
+                      <strong>{{ fila.avance }}%</strong>
+                      <span *ngIf="grande">avance</span>
                     </div>
                   </div>
                 </ng-template>
@@ -12065,80 +12366,159 @@
                     <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SP-F-04', titulo: 'Control de Proyectos Biznaga 2026', icono: 'fa-project-diagram' }"></ng-container>
 
                     <div class="sp-f-04-panel">
-                      <div class="sp-f-04-intro">
-                        <div class="sp-f-04-intro__icon" aria-hidden="true">
-                          <i class="fas fa-project-diagram"></i>
-                        </div>
-                        <div>
-                          <h4>Proyectos de Control de Proyectos</h4>
-                          <p>
-                            Cada fila muestra la empresa, el nombre del proyecto y el estatus.
-                            Haz clic en una fila para ver el resumen y abrir ese proyecto en Control de Proyectos.
-                            El estatus pasa a Cerrado cuando el avance llega al 100%.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div class="sp-f-04-stats">
-                        <button type="button" class="sp-f-04-stat" [class.sp-f-04-stat--on]="spF04FiltroEstatus === 'todos'" (click)="spF04FiltroEstatus = 'todos'">
-                          <span class="sp-f-04-stat__icon" aria-hidden="true"><i class="fas fa-layer-group"></i></span>
-                          <span>
+                      <div class="sp-f-04-shell">
+                        <div class="sp-f-04-stats" role="tablist" aria-label="Filtrar por estatus">
+                          <button type="button" class="sp-f-04-stat" role="tab"
+                            [attr.aria-selected]="spF04FiltroEstatus === 'todos'"
+                            [class.sp-f-04-stat--on]="spF04FiltroEstatus === 'todos'"
+                            (click)="spF04FiltroEstatus = 'todos'">
                             <span class="sp-f-04-stat__num">{{ spF04Filas.length }}</span>
                             <span class="sp-f-04-stat__label">Proyectos</span>
-                          </span>
-                        </button>
-                        <button type="button" class="sp-f-04-stat sp-f-04-stat--abierto" [class.sp-f-04-stat--on]="spF04FiltroEstatus === 'Abierto'" (click)="spF04FiltroEstatus = 'Abierto'">
-                          <span class="sp-f-04-stat__icon" aria-hidden="true"><i class="fas fa-folder-open"></i></span>
-                          <span>
+                          </button>
+                          <button type="button" class="sp-f-04-stat sp-f-04-stat--abierto" role="tab"
+                            [attr.aria-selected]="spF04FiltroEstatus === 'Abierto'"
+                            [class.sp-f-04-stat--on]="spF04FiltroEstatus === 'Abierto'"
+                            (click)="spF04FiltroEstatus = 'Abierto'">
                             <span class="sp-f-04-stat__num">{{ spF04Abiertos }}</span>
                             <span class="sp-f-04-stat__label">Abiertos</span>
-                          </span>
-                        </button>
-                        <button type="button" class="sp-f-04-stat sp-f-04-stat--cerrado" [class.sp-f-04-stat--on]="spF04FiltroEstatus === 'Cerrado'" (click)="spF04FiltroEstatus = 'Cerrado'">
-                          <span class="sp-f-04-stat__icon" aria-hidden="true"><i class="fas fa-check-circle"></i></span>
-                          <span>
+                          </button>
+                          <button type="button" class="sp-f-04-stat sp-f-04-stat--cerrado" role="tab"
+                            [attr.aria-selected]="spF04FiltroEstatus === 'Cerrado'"
+                            [class.sp-f-04-stat--on]="spF04FiltroEstatus === 'Cerrado'"
+                            (click)="spF04FiltroEstatus = 'Cerrado'">
                             <span class="sp-f-04-stat__num">{{ spF04Cerrados }}</span>
                             <span class="sp-f-04-stat__label">Cerrados</span>
-                          </span>
-                        </button>
-                      </div>
-
-                      <div class="sp-f-04-toolbar">
-                        <label class="sp-f-04-search">
-                          <i class="fas fa-search" aria-hidden="true"></i>
-                          <input class="dg-f05-field" type="search" name="spF04_busqueda"
-                            [(ngModel)]="spF04Busqueda" placeholder="Buscar cotización, empresa, proyecto o responsable…"
-                            autocomplete="off">
-                        </label>
-                        <span class="sp-f-04-count">
-                          {{ spF04FilasVista.length }}
-                          {{ spF04FilasVista.length === 1 ? 'registro' : 'registros' }}
-                        </span>
-                      </div>
-
-                      <p class="sp-f-04-aviso" *ngIf="spF04Error">{{ spF04Error }}</p>
-                      <p class="sp-f-04-aviso sp-f-04-aviso--soft" *ngIf="!spF04Error && spF04Aviso">{{ spF04Aviso }}</p>
-
-                      <div class="sp-f-04-board" *ngIf="spF04FilasVista.length; else spF04Vacio">
-                        <button type="button" class="sp-f-04-card" *ngFor="let fila of spF04FilasVista; trackBy: trackBySpF04"
-                          (click)="abrirResumenSpF04(fila)"
-                          [attr.aria-label]="'Abrir resumen de ' + (fila.nombreProyecto || 'proyecto') + ', ' + (fila.empresa || 'sin empresa')">
-                          <span class="sp-f-04-empresa">{{ fila.empresa || 'Sin empresa' }}</span>
-                          <span class="sp-f-04-title">{{ fila.nombreProyecto || '—' }}</span>
-                          <ng-container *ngTemplateOutlet="spF04Mark; context: { $implicit: fila }"></ng-container>
-                        </button>
-                      </div>
-                      <ng-template #spF04Vacio>
-                        <div class="sp-f-04-empty" *ngIf="!spF04Cargando && !spF04Error">
-                          <i class="fas fa-folder-open" aria-hidden="true"></i>
-                          <p *ngIf="spF04Busqueda.trim() || spF04FiltroEstatus !== 'todos'; else spF04SinDatos">
-                            No hay proyectos que coincidan con el filtro.
-                          </p>
-                          <ng-template #spF04SinDatos>
-                            <p>Aún no hay proyectos activos en Control de Proyectos.</p>
-                          </ng-template>
+                          </button>
                         </div>
-                      </ng-template>
+
+                        <div class="sp-f-04-toolbar">
+                          <label class="sp-f-04-search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input class="dg-f05-field" type="search" name="spF04_busqueda"
+                              [(ngModel)]="spF04Busqueda" placeholder="Buscar cotización, empresa, proyecto o responsable…"
+                              autocomplete="off">
+                          </label>
+                          <span class="sp-f-04-count">{{ spF04FilasVista.length }}</span>
+                        </div>
+
+                        <p class="sp-f-04-aviso" *ngIf="spF04Error">{{ spF04Error }}</p>
+                        <p class="sp-f-04-aviso sp-f-04-aviso--soft" *ngIf="!spF04Error && spF04Aviso">{{ spF04Aviso }}</p>
+
+                        <div class="sp-f-04-workspace" *ngIf="spF04FilasVista.length; else spF04Vacio"
+                          (mouseleave)="limpiarHoverSpF04()">
+                          <div class="sp-f-04-board" role="list">
+                            <button type="button" class="sp-f-04-card"
+                              *ngFor="let fila of spF04FilasVista; trackBy: trackBySpF04"
+                              role="listitem"
+                              [class.sp-f-04-card--cerrado]="fila.estatus === 'Cerrado'"
+                              [class.sp-f-04-card--active]="spF04Hover === fila"
+                              (mouseenter)="activarHoverSpF04(fila)"
+                              (focus)="activarHoverSpF04(fila)"
+                              (click)="abrirResumenSpF04(fila)"
+                              [attr.aria-label]="'Abrir resumen de ' + (fila.nombreProyecto || 'proyecto') + ', ' + (fila.empresa || 'sin empresa')">
+                              <ng-container *ngTemplateOutlet="spF04Ring; context: { $implicit: fila }"></ng-container>
+                              <span class="sp-f-04-card__main">
+                                <span class="sp-f-04-card__meta">
+                                  <span class="sp-f-04-pill"
+                                    [class.sp-f-04-pill--cerrado]="fila.estatus === 'Cerrado'">
+                                    <span class="sp-f-04-pill__dot" aria-hidden="true"></span>
+                                    {{ fila.estatus }}
+                                  </span>
+                                  <span class="sp-f-04-code">{{ spF04Codigo(fila) }}</span>
+                                </span>
+                                <span class="sp-f-04-title" [ngClass]="spF04TituloClase(fila)"
+                                  [title]="spF04TituloVista(fila)">{{ spF04TituloVista(fila) }}</span>
+                                <span class="sp-f-04-card__people">
+                                  <span class="sp-f-04-empresa" [title]="fila.empresa || 'Sin empresa'">
+                                    <span class="sp-f-04-logo" aria-hidden="true">
+                                      <img *ngIf="spF04LogoEmpresa(fila) as logoSrc" [src]="logoSrc" alt=""
+                                        (error)="onSpF04LogoError(fila)">
+                                      <i *ngIf="!spF04LogoEmpresa(fila)" class="fas fa-building"></i>
+                                    </span>
+                                    <span>{{ fila.empresa || 'Sin empresa' }}</span>
+                                  </span>
+                                  <span class="sp-f-04-card__resp" *ngIf="spF04Responsables(fila) as responsables"
+                                    [class.sp-f-04-card__resp--empty]="!responsables.length">
+                                    <i class="fas fa-user-tie" aria-hidden="true"></i>
+                                    <span>{{ responsables.length ? responsables[0] : 'Sin responsable' }}</span>
+                                    <span class="sp-f-04-card__more" *ngIf="responsables.length > 1">+{{ responsables.length - 1 }}</span>
+                                  </span>
+                                </span>
+                              </span>
+                            </button>
+                          </div>
+
+                          <aside class="sp-f-04-side" [class.sp-f-04-side--on]="!!spF04Hover"
+                            aria-live="polite">
+                            <ng-container *ngIf="spF04Hover as preview; else spF04SideVacio">
+                              <div class="sp-f-04-side__head">
+                                <span class="sp-f-04-logo sp-f-04-logo--lg" aria-hidden="true">
+                                  <img *ngIf="spF04LogoEmpresa(preview) as logoSrc" [src]="logoSrc" alt=""
+                                    (error)="onSpF04LogoError(preview)">
+                                  <i *ngIf="!spF04LogoEmpresa(preview)" class="fas fa-building"></i>
+                                </span>
+                                <div>
+                                  <p class="sp-f-04-side__empresa">{{ preview.empresa || 'Sin empresa' }}</p>
+                                  <span class="sp-f-04-code">{{ spF04Codigo(preview) }}</span>
+                                </div>
+                              </div>
+                              <h4 class="sp-f-04-side__title">{{ spF04TituloVista(preview) }}</h4>
+                              <div class="sp-f-04-side__avance">
+                                <ng-container *ngTemplateOutlet="spF04Ring; context: { $implicit: preview }"></ng-container>
+                                <div>
+                                  <span class="sp-f-04-pill"
+                                    [class.sp-f-04-pill--cerrado]="preview.estatus === 'Cerrado'">
+                                    <span class="sp-f-04-pill__dot" aria-hidden="true"></span>
+                                    {{ preview.estatus }}
+                                  </span>
+                                  <strong>{{ preview.avance }}% de avance</strong>
+                                </div>
+                              </div>
+                              <div class="sp-f-04-side__block">
+                                <em>Responsables</em>
+                                <ul *ngIf="spF04Responsables(preview).length; else spF04SideSinResp">
+                                  <li *ngFor="let persona of spF04Responsables(preview)">
+                                    <i class="fas fa-user-tie" aria-hidden="true"></i>
+                                    {{ persona }}
+                                  </li>
+                                </ul>
+                                <ng-template #spF04SideSinResp>
+                                  <p class="sp-f-04-side__muted">Sin responsable</p>
+                                </ng-template>
+                              </div>
+                              <div class="sp-f-04-side__block sp-f-04-side__block--obs">
+                                <em>Observaciones
+                                  <span *ngIf="spF04Observaciones(preview).length as n"> · {{ n }}</span>
+                                </em>
+                                <ul class="sp-f-04-side__obs" *ngIf="spF04Observaciones(preview).length; else spF04SideSinObs">
+                                  <li *ngFor="let nota of spF04Observaciones(preview)">{{ nota }}</li>
+                                </ul>
+                                <ng-template #spF04SideSinObs>
+                                  <p class="sp-f-04-side__muted">Sin observaciones</p>
+                                </ng-template>
+                              </div>
+                              <p class="sp-f-04-side__hint">Clic en la tarjeta para abrir el detalle</p>
+                            </ng-container>
+                            <ng-template #spF04SideVacio>
+                              <div class="sp-f-04-side__empty">
+                                <i class="fas fa-hand-pointer" aria-hidden="true"></i>
+                                <p>Pasa el mouse sobre un proyecto para ver el resumen aquí</p>
+                              </div>
+                            </ng-template>
+                          </aside>
+                        </div>
+                        <ng-template #spF04Vacio>
+                          <div class="sp-f-04-empty" *ngIf="!spF04Cargando && !spF04Error">
+                            <i class="fas fa-folder-open" aria-hidden="true"></i>
+                            <p *ngIf="spF04Busqueda.trim() || spF04FiltroEstatus !== 'todos'; else spF04SinDatos">
+                              No hay proyectos que coincidan con el filtro.
+                            </p>
+                            <ng-template #spF04SinDatos>
+                              <p>Aún no hay proyectos activos en Control de Proyectos.</p>
+                            </ng-template>
+                          </div>
+                        </ng-template>
+                      </div>
                     </div>
                   </article>
                 </div>
@@ -12155,122 +12535,152 @@
                   <article class="dg-f05-doc">
                     <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'ATH-F-14', titulo: 'Control de vacaciones', icono: 'fa-calendar-check' }"></ng-container>
 
-                    <div class="dg-f05-table-panel">
-                      <div class="sgc-f-11-matriz__intro">
-                        <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-umbrella-beach" aria-hidden="true"></i></div>
-                        <div>
-                          <h4 class="sgc-f-11-matriz__title">Saldo de vacaciones por colaborador</h4>
-                          <p class="sgc-f-11-matriz__hint">
-                            Los colaboradores se agregan uno por uno. Fecha de ingreso y días disponibles se capturan aquí.
-                            Días tomados y la fecha de vacaciones salen de ATH-F-13. Días restantes son la diferencia.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div class="ath-f-14-toolbar">
-                        <label class="ath-f-14-search">
-                          <i class="fas fa-search" aria-hidden="true"></i>
-                          <input class="dg-f05-field" type="search" name="athF14_busqueda"
-                            [(ngModel)]="athF14Busqueda" placeholder="Buscar colaborador…"
-                            autocomplete="off">
-                        </label>
-                        <span class="ath-f-14-count">
-                          {{ athF14FilasVista.length }}
-                          {{ athF14FilasVista.length === 1 ? 'colaborador' : 'colaboradores' }}
-                        </span>
-                        <button type="button" class="ath-f-14-add" *ngIf="puedeEditarAthF14"
-                          [class.ath-f-14-add--open]="athF14PickerAbierto"
-                          (click)="togglePickerAthF14()">
-                          <i class="fas fa-user-plus" aria-hidden="true"></i>
-                          Agregar usuario
-                        </button>
-                      </div>
-
-                      <div class="ath-f-14-picker" *ngIf="puedeEditarAthF14 && athF14PickerAbierto">
-                        <label class="ath-f-14-picker__search">
-                          <i class="fas fa-search" aria-hidden="true"></i>
-                          <input type="search" name="athF14_picker" [(ngModel)]="athF14PickerQuery"
-                            placeholder="Busca por nombre o puesto…" autocomplete="off">
-                        </label>
-                        <div class="ath-f-14-picker__lista" *ngIf="athF14Candidatos.length; else athF14SinCandidatos">
-                          <button type="button" class="ath-f-14-opcion"
-                            *ngFor="let emp of athF14Candidatos; let i = index"
-                            [style.animation-delay.ms]="i * 35"
-                            (click)="agregarUsuarioAthF14(emp)">
-                            <span class="ath-f-14-opcion__avatar" aria-hidden="true">{{ inicialesAthF14(emp.nombreCompleto) }}</span>
-                            <span class="ath-f-14-opcion__texto">
-                              <strong>{{ emp.nombreCompleto }}</strong>
-                              <small>{{ emp.puesto || 'Sin puesto' }}</small>
-                            </span>
-                            <i class="fas fa-plus ath-f-14-opcion__plus" aria-hidden="true"></i>
-                          </button>
-                        </div>
-                        <ng-template #athF14SinCandidatos>
-                          <p class="ath-f-14-picker__vacio">No hay más usuarios para agregar.</p>
-                        </ng-template>
-                      </div>
-
-                      <p class="ath-f-14-aviso" *ngIf="athF14Error">{{ athF14Error }}</p>
-
-                      <div class="ath-f-14-tabla" *ngIf="athF14FilasVista.length; else athF14Vacio">
-                        <div class="ath-f-14-head" aria-hidden="true">
-                          <span>Colaborador</span>
-                          <span>Ingreso</span>
-                          <span>Antigüedad</span>
-                          <span>Disponibles</span>
-                          <span>Tomados</span>
-                          <span>Restantes</span>
-                          <span>Periodo</span>
-                          <span></span>
-                        </div>
-                        <article class="ath-f-14-persona" *ngFor="let fila of athF14FilasVista; let i = index"
-                          [style.animation-delay.ms]="i * 40"
-                          [class.ath-f-14-persona--nueva]="esFilaNuevaAthF14(fila)"
-                          [class.ath-f-14-persona--lectura]="!puedeEditarAthF14">
-                          <div class="ath-f-14-persona__nombre">
-                            <span class="ath-f-14-persona__avatar" aria-hidden="true">{{ inicialesAthF14(fila.nombreCompleto) }}</span>
-                            <strong>{{ fila.nombreCompleto }}</strong>
+                    <div class="dg-f05-table-panel ath-f-14-shell">
+                      <div class="ath-f-14-panel">
+                        <div class="ath-f-14-panel__head">
+                          <span class="ath-f-14-panel__icon" aria-hidden="true">
+                            <i class="fas fa-umbrella-beach"></i>
+                          </span>
+                          <div class="ath-f-14-panel__titles">
+                            <strong>Saldo de vacaciones por colaborador</strong>
+                            <small>
+                              Ingreso y días disponibles se capturan aquí. Tomados y periodo salen de ATH-F-13;
+                              restantes es la diferencia.
+                            </small>
                           </div>
-                          <label class="ath-f-14-celda ath-f-14-celda--edit">
-                            <span class="ath-f-14-sr">Fecha de ingreso</span>
-                            <input class="ath-f-14-input" type="date"
-                              [name]="'athF14_ingreso_' + i"
-                              [readonly]="!puedeEditarAthF14"
-                              [ngModel]="fila.fechaIngreso"
-                              (ngModelChange)="onFechaIngresoAthF14(fila, $event)">
+                          <span class="ath-f-14-count">
+                            {{ athF14FilasVista.length }}
+                            {{ athF14FilasVista.length === 1 ? 'colaborador' : 'colaboradores' }}
+                          </span>
+                        </div>
+
+                        <div class="ath-f-14-toolbar">
+                          <label class="ath-f-14-search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input class="dg-f05-field" type="search" name="athF14_busqueda"
+                              [(ngModel)]="athF14Busqueda" placeholder="Buscar colaborador…"
+                              autocomplete="off">
                           </label>
-                          <span class="ath-f-14-celda ath-f-14-celda--tiempo">{{ fila.antiguedad || 'Sin antigüedad' }}</span>
-                          <label class="ath-f-14-celda ath-f-14-celda--edit ath-f-14-celda--dias">
-                            <span class="ath-f-14-sr">Días disponibles</span>
-                            <input class="ath-f-14-input ath-f-14-input--num" type="number"
-                              min="0" step="1" inputmode="numeric"
-                              [name]="'athF14_dias_' + i"
-                              [readonly]="!puedeEditarAthF14"
-                              [ngModel]="fila.diasDisponibles"
-                              (ngModelChange)="onDiasDisponiblesAthF14(fila, $event)">
-                          </label>
-                          <span class="ath-f-14-celda ath-f-14-celda--tomados">{{ fila.diasTomados }}</span>
-                          <span class="ath-f-14-celda"
-                            [class.ath-f-14-celda--restantes]="fila.diasRestantes >= 0"
-                            [class.ath-f-14-celda--bajo]="fila.diasRestantes < 0">{{ fila.diasRestantes }}</span>
-                          <span class="ath-f-14-celda ath-f-14-celda--periodo" [attr.title]="fila.fechaVacaciones || 'Sin periodo'">{{ fila.fechaVacaciones || 'Sin periodo' }}</span>
-                          <button type="button" class="ath-f-14-quitar" *ngIf="puedeEditarAthF14"
-                            (click)="quitarUsuarioAthF14(fila)" title="Quitar colaborador" aria-label="Quitar colaborador">
-                            <i class="fas fa-times" aria-hidden="true"></i>
+                          <button type="button" class="ath-f-14-add" *ngIf="puedeEditarAthF14"
+                            [class.ath-f-14-add--open]="athF14PickerAbierto"
+                            (click)="togglePickerAthF14()">
+                            <i class="fas" [ngClass]="athF14PickerAbierto ? 'fa-times' : 'fa-user-plus'" aria-hidden="true"></i>
+                            {{ athF14PickerAbierto ? 'Cerrar menú' : 'Agregar usuario' }}
                           </button>
-                        </article>
-                      </div>
-                      <ng-template #athF14Vacio>
-                        <div class="sgc-f-04-archivero__empty" *ngIf="!athF14Cargando">
-                          <i class="fas fa-umbrella-beach" aria-hidden="true"></i>
-                          <p class="mb-0" *ngIf="athF14Busqueda.trim(); else athF14SinUsuarios">
-                            No hay colaboradores que coincidan con la búsqueda.
-                          </p>
-                          <ng-template #athF14SinUsuarios>
-                            <p class="mb-0">Todavía no hay colaboradores en el control. Quien administra las vacaciones los agrega con «Agregar usuario».</p>
+                        </div>
+
+                        <div class="ath-f-14-picker" *ngIf="puedeEditarAthF14 && athF14PickerAbierto">
+                          <div class="ath-f-14-picker__head">
+                            <div class="ath-f-14-picker__head-text">
+                              <strong>Seleccionar colaborador</strong>
+                              <small>{{ athF14Candidatos.length }} disponibles en el catálogo</small>
+                            </div>
+                            <button type="button" class="ath-f-14-picker__cerrar"
+                              (click)="togglePickerAthF14()" aria-label="Cerrar menú">
+                              <i class="fas fa-times" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                          <label class="ath-f-14-picker__search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input type="search" name="athF14_picker" [(ngModel)]="athF14PickerQuery"
+                              placeholder="Filtrar por nombre o puesto…" autocomplete="off">
+                          </label>
+                          <div class="ath-f-14-picker__lista" *ngIf="athF14Candidatos.length; else athF14SinCandidatos">
+                            <button type="button" class="ath-f-14-opcion"
+                              *ngFor="let emp of athF14Candidatos; let i = index"
+                              [style.animation-delay.ms]="i * 28"
+                              (click)="agregarUsuarioAthF14(emp)">
+                              <span class="ath-f-14-opcion__avatar" aria-hidden="true">{{ inicialesAthF14(emp.nombreCompleto) }}</span>
+                              <span class="ath-f-14-opcion__texto">
+                                <strong>{{ emp.nombreCompleto }}</strong>
+                                <span class="ath-f-14-opcion__puesto">{{ emp.puesto || 'Sin puesto asignado' }}</span>
+                              </span>
+                              <span class="ath-f-14-opcion__accion" aria-hidden="true">
+                                <i class="fas fa-plus"></i>
+                                Agregar
+                              </span>
+                            </button>
+                          </div>
+                          <ng-template #athF14SinCandidatos>
+                            <div class="ath-f-14-picker__vacio">
+                              <i class="fas fa-user-check" aria-hidden="true"></i>
+                              <p>No hay más usuarios para agregar{{ athF14PickerQuery.trim() ? ' con ese filtro' : '' }}.</p>
+                            </div>
                           </ng-template>
                         </div>
-                      </ng-template>
+
+                        <p class="ath-f-14-aviso" *ngIf="athF14Error">{{ athF14Error }}</p>
+
+                        <div class="ath-f-14-tabla-wrap" *ngIf="athF14FilasVista.length; else athF14Vacio">
+                          <div class="ath-f-14-tabla">
+                            <div class="ath-f-14-head" aria-hidden="true">
+                              <span>Colaborador</span>
+                              <span>Ingreso</span>
+                              <span>Antigüedad</span>
+                              <span>Disponibles</span>
+                              <span>Tomados</span>
+                              <span>Restantes</span>
+                              <span>Periodo</span>
+                              <span class="ath-f-14-head__accion">Acción</span>
+                            </div>
+                            <article class="ath-f-14-persona" *ngFor="let fila of athF14FilasVista; let i = index"
+                              [style.animation-delay.ms]="i * 36"
+                              [class.ath-f-14-persona--nueva]="esFilaNuevaAthF14(fila)"
+                              [class.ath-f-14-persona--lectura]="!puedeEditarAthF14"
+                              [class.ath-f-14-persona--alt]="i % 2 === 1">
+                              <div class="ath-f-14-persona__nombre">
+                                <span class="ath-f-14-persona__nombre-texto">{{ fila.nombreCompleto }}</span>
+                              </div>
+                              <label class="ath-f-14-celda ath-f-14-celda--edit">
+                                <span class="ath-f-14-sr">Fecha de ingreso</span>
+                                <input class="ath-f-14-input" type="date"
+                                  [name]="'athF14_ingreso_' + i"
+                                  [readonly]="!puedeEditarAthF14"
+                                  [ngModel]="fila.fechaIngreso"
+                                  (ngModelChange)="onFechaIngresoAthF14(fila, $event)">
+                              </label>
+                              <span class="ath-f-14-metric ath-f-14-metric--muted">{{ fila.antiguedad || 'Sin antigüedad' }}</span>
+                              <label class="ath-f-14-celda ath-f-14-celda--edit ath-f-14-celda--dias">
+                                <span class="ath-f-14-sr">Días disponibles</span>
+                                <input class="ath-f-14-input ath-f-14-input--num" type="number"
+                                  min="0" step="1" inputmode="numeric"
+                                  [name]="'athF14_dias_' + i"
+                                  [readonly]="!puedeEditarAthF14"
+                                  [ngModel]="fila.diasDisponibles"
+                                  (ngModelChange)="onDiasDisponiblesAthF14(fila, $event)">
+                              </label>
+                              <span class="ath-f-14-metric ath-f-14-metric--tomados">{{ fila.diasTomados }}</span>
+                              <span class="ath-f-14-metric"
+                                [class.ath-f-14-metric--ok]="fila.diasRestantes > 0"
+                                [class.ath-f-14-metric--cero]="fila.diasRestantes === 0"
+                                [class.ath-f-14-metric--bajo]="fila.diasRestantes < 0">{{ fila.diasRestantes }}</span>
+                              <span class="ath-f-14-periodo" [attr.title]="fila.fechaVacaciones || 'Sin periodo'">
+                                <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                                <span>{{ fila.fechaVacaciones || 'Sin periodo' }}</span>
+                              </span>
+                              <button type="button" class="ath-f-14-quitar" *ngIf="puedeEditarAthF14"
+                                (click)="quitarUsuarioAthF14(fila)" title="Quitar colaborador" aria-label="Quitar colaborador">
+                                <i class="fas fa-times" aria-hidden="true"></i>
+                              </button>
+                              <span class="ath-f-14-quitar-slot" *ngIf="!puedeEditarAthF14" aria-hidden="true"></span>
+                            </article>
+                          </div>
+                        </div>
+                        <ng-template #athF14Vacio>
+                          <div class="ath-f-14-vacio" *ngIf="!athF14Cargando">
+                            <span class="ath-f-14-vacio__icon" aria-hidden="true">
+                              <i class="fas fa-umbrella-beach"></i>
+                            </span>
+                            <p class="mb-0" *ngIf="athF14Busqueda.trim(); else athF14SinUsuarios">
+                              No hay colaboradores que coincidan con la búsqueda.
+                            </p>
+                            <ng-template #athF14SinUsuarios>
+                              <p class="mb-0">Todavía no hay colaboradores en el control.</p>
+                              <small *ngIf="puedeEditarAthF14">Usa «Agregar usuario» para incorporar al primer colaborador.</small>
+                            </ng-template>
+                          </div>
+                        </ng-template>
+                      </div>
                     </div>
                   </article>
                 </div>
@@ -12392,7 +12802,7 @@
                     </div>
                   </article>
 
-                  <article class="dg-f05-doc sgc-f-16-doc" *ngIf="sgcF20Vista === 'editor' && sgcF20FichaActiva as ficha">
+                  <article class="dg-f05-doc sgc-f-16-doc sgc-f20-doc" *ngIf="sgcF20Vista === 'editor' && sgcF20FichaActiva as ficha">
                     <div class="sgc-f-04-editor-bar">
                       <button type="button" class="sgc-f-04-editor-bar__back" (click)="volverArchiveroSgcF20()">
                         <i class="fas fa-arrow-left" aria-hidden="true"></i>
@@ -12402,70 +12812,145 @@
 
                     <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-20', titulo: 'Ficha de conocimientos', icono: 'fa-book' }"></ng-container>
 
-                    <div class="dg-f05-table-panel sgc-f-16-panel">
-                      <section class="sgc-f-16-block" aria-labelledby="sgc-f-20-desc">
-                        <header class="sgc-f-16-block__head" id="sgc-f-20-desc">
+                    <div class="dg-f05-table-panel sgc-f-16-panel sgc-f20-panel">
+                      <section class="sgc-f-16-block sgc-f20-block" aria-labelledby="sgc-f-20-desc"
+                        [class.sgc-f20-block--combo-open]="sgcF20FuenteComboAbierto">
+                        <header class="sgc-f-16-block__head sgc-f20-block__head" id="sgc-f-20-desc">
                           <span class="sgc-f-16-block__badge">1</span>
-                          <div>
+                          <div class="sgc-f20-block__head-text">
                             <strong class="sgc-f-16-block__title">Descripción del conocimiento</strong>
                             <span class="sgc-f-16-block__subtitle">Tipo de fuente, detalle y fecha de captura</span>
                           </div>
+                          <div class="sgc-f20-chip sgc-f20-chip--head" *ngIf="ficha.folio" title="Folio de la ficha">
+                            <i class="fas fa-hashtag" aria-hidden="true"></i>
+                            <span>{{ ficha.folio }}</span>
+                          </div>
                         </header>
-                        <div class="dg-f05-table-wrap sgc-f20-fuente">
-                          <table class="dg-f05-table sgc-f-16-table">
-                            <thead>
-                              <tr>
-                                <th>Tipo de fuente</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <tr>
-                                <td>
-                                  <select class="dg-f05-field dg-f05-field--select" name="sgcF20_fuente"
-                                    [(ngModel)]="ficha.tipoFuente">
-                                    <option value="">Selecciona el tipo de fuente</option>
-                                    <option *ngFor="let tipo of opcionesTipoFuenteSgcF20(ficha)" [value]="tipo">{{ tipo }}</option>
-                                  </select>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                        <div class="dg-f05-table-wrap">
-                          <table class="dg-f05-table sgc-f-16-table">
-                            <thead>
-                              <tr>
-                                <th>Descripción del conocimiento</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <tr>
-                                <td>
-                                  <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left sgc-f20-descripcion"
-                                    name="sgcF20_descripcion" rows="14"
-                                    [(ngModel)]="ficha.descripcion"
-                                    placeholder="Describe el conocimiento"></textarea>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                        <div class="sgc-f20-fecha">
-                          <table class="dg-f05-table sgc-f-16-table">
-                            <thead>
-                              <tr>
-                                <th>Fecha de captura</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <tr>
-                                <td>
-                                  <input class="dg-f05-field dg-f05-field--center" type="date" name="sgcF20_fecha"
-                                    [(ngModel)]="ficha.fechaCaptura" (change)="generarFolioSgcF20()">
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
+
+                        <div class="sgc-f20-editor">
+                          <label class="sgc-f20-field sgc-f20-field--fuente">
+                            <span class="sgc-f20-field__label">
+                              <i class="fas fa-database" aria-hidden="true"></i>
+                              Tipo de fuente
+                            </span>
+                            <div class="ath-f-08-combo ath-f-08-combo--abajo sgc-f20-combo"
+                              [class.ath-f-08-combo--open]="sgcF20FuenteComboAbierto"
+                              (mousedown)="$event.stopPropagation()">
+                              <div class="ath-f-08-combo__control sgc-f20-combo__control"
+                                role="combobox"
+                                [attr.aria-expanded]="sgcF20FuenteComboAbierto"
+                                aria-haspopup="listbox"
+                                (click)="abrirComboFuenteSgcF20()">
+                                <span class="ath-f-08-combo__icon" aria-hidden="true">
+                                  <i class="fas" [ngClass]="iconoAmbitoFuenteSgcF20(ficha.tipoFuente)"></i>
+                                </span>
+                                <span class="ath-f-08-combo__input sgc-f20-combo__value"
+                                  [class.sgc-f20-combo__value--placeholder]="!ficha.tipoFuente">
+                                  <span class="sgc-f20-combo__badge"
+                                    *ngIf="ficha.tipoFuente"
+                                    [attr.data-ambito]="ambitoFuenteSgcF20(ficha.tipoFuente)">
+                                    {{ ambitoFuenteSgcF20(ficha.tipoFuente) }}
+                                  </span>
+                                  <span class="sgc-f20-combo__text">
+                                    {{ etiquetaFuenteSgcF20(ficha.tipoFuente) || 'Selecciona el tipo de fuente' }}
+                                  </span>
+                                </span>
+                                <button *ngIf="ficha.tipoFuente" type="button"
+                                  class="ath-f-08-combo__clear"
+                                  (click)="limpiarFuenteSgcF20(); $event.stopPropagation()"
+                                  title="Limpiar tipo de fuente" aria-label="Limpiar tipo de fuente">
+                                  <i class="fas fa-times" aria-hidden="true"></i>
+                                </button>
+                                <span class="ath-f-08-combo__chevron" aria-hidden="true">
+                                  <i class="fas"
+                                    [ngClass]="sgcF20FuenteComboAbierto ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                                </span>
+                              </div>
+
+                              <div class="ath-f-08-combo__dropdown sgc-f20-combo__dropdown"
+                                *ngIf="sgcF20FuenteComboAbierto"
+                                role="listbox"
+                                aria-label="Tipos de fuente">
+                                <div class="ath-f-08-combo__dropdown-head">
+                                  <span class="ath-f-08-combo__dropdown-title">
+                                    <i class="fas fa-layer-group" aria-hidden="true"></i>
+                                    Fuentes de conocimiento
+                                  </span>
+                                  <span class="ath-f-08-combo__dropdown-count">{{ opcionesTipoFuenteSgcF20(ficha).length }}</span>
+                                </div>
+
+                                <label class="sgc-f20-combo__search">
+                                  <i class="fas fa-search" aria-hidden="true"></i>
+                                  <input type="search" name="sgcF20_fuente_q"
+                                    [(ngModel)]="sgcF20FuenteComboQuery"
+                                    (ngModelChange)="onFuenteComboQuerySgcF20($event)"
+                                    placeholder="Buscar fuente…"
+                                    autocomplete="off"
+                                    (click)="$event.stopPropagation()">
+                                </label>
+
+                                <ng-container *ngIf="gruposFuenteFiltradosSgcF20(ficha) as gruposFuente">
+                                <div class="ath-f-08-combo__state" *ngIf="!gruposFuente.length">
+                                  <span class="ath-f-08-combo__state-icon" aria-hidden="true">
+                                    <i class="fas fa-search"></i>
+                                  </span>
+                                  Sin coincidencias para «{{ sgcF20FuenteComboQuery.trim() }}»
+                                </div>
+
+                                <div class="ath-f-08-combo__options sgc-f20-combo__options"
+                                  *ngIf="gruposFuente.length">
+                                  <ng-container *ngFor="let grupo of gruposFuente; trackBy: trackByIdx">
+                                    <div class="sgc-f20-combo__group-label" [attr.data-ambito]="grupo.ambito">
+                                      <i class="fas" [ngClass]="grupo.ambito === 'Interna' ? 'fa-building' : 'fa-globe'" aria-hidden="true"></i>
+                                      {{ grupo.ambito === 'Interna' ? 'Fuentes internas' : 'Fuentes externas' }}
+                                      <span>{{ grupo.opciones.length }}</span>
+                                    </div>
+                                    <button *ngFor="let tipo of grupo.opciones; trackBy: trackByIdx"
+                                      type="button"
+                                      class="ath-f-08-combo__option sgc-f20-combo__option"
+                                      [class.ath-f-08-combo__option--selected]="tipo === ficha.tipoFuente"
+                                      role="option"
+                                      [attr.aria-selected]="tipo === ficha.tipoFuente"
+                                      (click)="seleccionarFuenteSgcF20(tipo)">
+                                      <span class="ath-f-08-combo__option-icon" aria-hidden="true">
+                                        <i class="fas" [ngClass]="iconoAmbitoFuenteSgcF20(tipo)"></i>
+                                      </span>
+                                      <span class="ath-f-08-combo__option-text sgc-f20-combo__option-text">
+                                        <strong>{{ etiquetaFuenteSgcF20(tipo) }}</strong>
+                                        <small>{{ ambitoFuenteSgcF20(tipo) }}</small>
+                                      </span>
+                                      <span class="ath-f-08-combo__option-check"
+                                        *ngIf="tipo === ficha.tipoFuente" aria-hidden="true">
+                                        <i class="fas fa-check"></i>
+                                      </span>
+                                    </button>
+                                  </ng-container>
+                                </div>
+                                </ng-container>
+                              </div>
+                            </div>
+                          </label>
+
+                          <label class="sgc-f20-field sgc-f20-field--descripcion">
+                            <span class="sgc-f20-field__label">
+                              <i class="fas fa-align-left" aria-hidden="true"></i>
+                              Descripción del conocimiento
+                            </span>
+                            <textarea class="sgc-f20-field__control sgc-f20-descripcion"
+                              name="sgcF20_descripcion" rows="14"
+                              [(ngModel)]="ficha.descripcion"
+                              placeholder="Describe la lección, el conocimiento adquirido o el hallazgo relevante…"></textarea>
+                          </label>
+
+                          <label class="sgc-f20-field sgc-f20-field--fecha">
+                            <span class="sgc-f20-field__label">
+                              <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                              Fecha de captura
+                            </span>
+                            <input class="sgc-f20-field__control sgc-f20-field__control--date"
+                              type="date" name="sgcF20_fecha"
+                              [(ngModel)]="ficha.fechaCaptura" (change)="generarFolioSgcF20()">
+                          </label>
                         </div>
                       </section>
                     </div>
@@ -12809,7 +13294,7 @@
             </ng-container>
 
             <ng-container *ngSwitchCase="'ath-f-06'">
-              <form class="dg-f05-form sgc-f-16-form sgc-f-24-form" (ngSubmit)="$event.preventDefault()"
+              <form class="dg-f05-form sgc-f-16-form sgc-f-24-form ath-f-06-form" (ngSubmit)="$event.preventDefault()"
                     (input)="onAthF06Editado()" (change)="onAthF06Editado()">
                 <div class="dg-f05-doc-wrap" [class.dg-f05-doc-wrap--loading]="athF06Cargando">
                   <div class="dg-f05-loading" *ngIf="athF06Cargando" role="status">
@@ -12817,7 +13302,7 @@
                     <span>Cargando detecciones de necesidades…</span>
                   </div>
 
-                  <article class="dg-f05-doc sgc-f-16-doc" *ngIf="athF06Vista === 'archivero'">
+                  <article class="dg-f05-doc sgc-f-16-doc ath-f-06-doc" *ngIf="athF06Vista === 'archivero'">
                     <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'ATH-F-06', titulo: 'Detección de necesidades de capacitación', icono: 'fa-user-graduate' }"></ng-container>
                     <div class="sgc-f-04-archivero">
                       <div class="sgc-f-04-archivero__intro">
@@ -12898,7 +13383,7 @@
                     </div>
                   </article>
 
-                  <article class="dg-f05-doc sgc-f-16-doc" *ngIf="athF06Vista === 'editor' && athF06RegistroActivo as reg">
+                  <article class="dg-f05-doc sgc-f-16-doc ath-f-06-doc" *ngIf="athF06Vista === 'editor' && athF06RegistroActivo as reg">
                     <div class="sgc-f-04-editor-bar">
                       <button type="button" class="sgc-f-04-editor-bar__back" (click)="volverArchiveroAthF06()">
                         <i class="fas fa-arrow-left" aria-hidden="true"></i>
@@ -12908,72 +13393,82 @@
                     </div>
                     <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'ATH-F-06', titulo: 'Detección de necesidades de capacitación', icono: 'fa-user-graduate' }"></ng-container>
 
-                    <div class="dg-f05-table-panel sgc-f-16-panel">
-                      <section class="ath-f06-sheet" aria-label="Datos generales">
+                    <div class="dg-f05-table-panel sgc-f-16-panel ath-f-06-panel">
+                      <section class="sgc-f-16-block ath-f06-block" aria-labelledby="ath-f-06-datos">
+                        <header class="sgc-f-16-block__head" id="ath-f-06-datos">
+                          <span class="sgc-f-16-block__badge">1</span>
+                          <div>
+                            <strong class="sgc-f-16-block__title">Datos generales</strong>
+                            <span class="sgc-f-16-block__subtitle">Solicitante, área y tipo de requerimiento</span>
+                          </div>
+                        </header>
                         <div class="ath-f06-datos">
-                          <div class="ath-f06-datos__banner">Datos generales</div>
-                          <div class="ath-f06-datos__row">
+                          <div class="ath-f06-datos__row ath-f06-datos__row--top">
+                            <label class="ath-f06-datos__cell ath-f06-datos__cell--fecha">
+                              <span class="ath-f06-datos__label">
+                                <i class="fas fa-calendar-day" aria-hidden="true"></i>
+                                Fecha de emisión
+                              </span>
+                              <input class="dg-f05-field ath-f06-sheet__input" type="date" name="athF06_fecha" [(ngModel)]="reg.fechaEmision">
+                            </label>
+                            <div class="ath-f06-req" role="group" aria-label="Requerimiento de capacitación">
+                              <span class="ath-f06-req__title">Requerimiento de capacitación</span>
+                              <div class="ath-f06-req__chips">
+                                <label class="ath-f06-req__item" [class.ath-f06-req__item--on]="reg.tipoIngreso">
+                                  <input type="checkbox" name="athF06_ingreso" [(ngModel)]="reg.tipoIngreso">
+                                  <span>Ingreso</span>
+                                </label>
+                                <label class="ath-f06-req__item" [class.ath-f06-req__item--on]="reg.tipoCambioPuesto">
+                                  <input type="checkbox" name="athF06_cambio" [(ngModel)]="reg.tipoCambioPuesto">
+                                  <span>Cambio de puesto</span>
+                                </label>
+                                <label class="ath-f06-req__item" [class.ath-f06-req__item--on]="reg.tipoFormacion">
+                                  <input type="checkbox" name="athF06_formacion" [(ngModel)]="reg.tipoFormacion">
+                                  <span>Formación y desarrollo</span>
+                                </label>
+                                <label class="ath-f06-req__item" [class.ath-f06-req__item--on]="reg.tipoExtraordinaria">
+                                  <input type="checkbox" name="athF06_extra" [(ngModel)]="reg.tipoExtraordinaria">
+                                  <span>Capacitación extraordinaria</span>
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="ath-f06-datos__row ath-f06-datos__row--solicitante">
                             <label class="ath-f06-datos__cell">
-                              <span>Fecha de emisión</span>
-                              <input class="ath-f06-sheet__input" type="date" name="athF06_fecha" [(ngModel)]="reg.fechaEmision">
+                              <span class="ath-f06-datos__label">
+                                <i class="fas fa-user" aria-hidden="true"></i>
+                                Nombre del solicitante
+                              </span>
+                              <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left ath-f06-sheet__input ath-f06-autosize" rows="1"
+                                name="athF06_nombre" [(ngModel)]="reg.nombreSolicitante"
+                                [placeholder]="athF06PhNombre"
+                                (input)="autosizeTextarea($event.target)"
+                                (keyup)="autosizeTextarea($event.target)"></textarea>
                             </label>
                             <label class="ath-f06-datos__cell">
-                              <span>Nombre del solicitante</span>
-                              <input class="ath-f06-sheet__input" type="text" name="athF06_nombre" [(ngModel)]="reg.nombreSolicitante" autocomplete="off">
+                              <span class="ath-f06-datos__label">
+                                <i class="fas fa-id-badge" aria-hidden="true"></i>
+                                Puesto del solicitante
+                              </span>
+                              <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left ath-f06-sheet__input ath-f06-autosize" rows="1"
+                                name="athF06_puesto" [(ngModel)]="reg.puestoSolicitante"
+                                [placeholder]="athF06PhPuesto"
+                                (input)="autosizeTextarea($event.target)"
+                                (keyup)="autosizeTextarea($event.target)"></textarea>
                             </label>
                             <label class="ath-f06-datos__cell">
-                              <span>Puesto del solicitante</span>
-                              <input class="ath-f06-sheet__input" type="text" name="athF06_puesto" [(ngModel)]="reg.puestoSolicitante" autocomplete="off">
+                              <span class="ath-f06-datos__label">
+                                <i class="fas fa-building" aria-hidden="true"></i>
+                                Área o Departamento
+                              </span>
+                              <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left ath-f06-sheet__input ath-f06-autosize" rows="1"
+                                name="athF06_area" [(ngModel)]="reg.area"
+                                [placeholder]="athF06PhArea"
+                                (input)="autosizeTextarea($event.target)"
+                                (keyup)="autosizeTextarea($event.target)"></textarea>
                             </label>
                           </div>
                         </div>
-
-                        <table class="ath-f06-sheet__table">
-                          <thead>
-                            <tr>
-                              <th>Área o Departamento</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              <td>
-                                <input class="ath-f06-sheet__input" type="text" name="athF06_area" [(ngModel)]="reg.area" autocomplete="off">
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-
-                        <table class="ath-f06-sheet__table">
-                          <thead>
-                            <tr>
-                              <th>Requerimiento de capacitación</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              <td>
-                                <div class="ath-f06-req" role="group" aria-label="Requerimiento de capacitación">
-                                  <label class="ath-f06-req__item">
-                                    <span>Ingreso</span>
-                                    <input type="checkbox" name="athF06_ingreso" [(ngModel)]="reg.tipoIngreso">
-                                  </label>
-                                  <label class="ath-f06-req__item">
-                                    <span>Cambio de puesto</span>
-                                    <input type="checkbox" name="athF06_cambio" [(ngModel)]="reg.tipoCambioPuesto">
-                                  </label>
-                                  <label class="ath-f06-req__item">
-                                    <span>Formación y desarrollo</span>
-                                    <input type="checkbox" name="athF06_formacion" [(ngModel)]="reg.tipoFormacion">
-                                  </label>
-                                  <label class="ath-f06-req__item">
-                                    <span>Capacitación extraordinaria</span>
-                                    <input type="checkbox" name="athF06_extra" [(ngModel)]="reg.tipoExtraordinaria">
-                                  </label>
-                                </div>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
                       </section>
 
                       <section class="sgc-f-16-block" aria-labelledby="ath-f-06-trab">
@@ -13004,10 +13499,18 @@
                               <tr *ngFor="let t of reg.trabajadores; let i = index; trackBy: trackByIdx">
                                 <td class="ath-f06-grid__no">{{ i + 1 }}</td>
                                 <td>
-                                  <input class="dg-f05-field" type="text" [(ngModel)]="t.nombre" [name]="'athF06_tn' + i" autocomplete="off">
+                                  <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left ath-f06-autosize" rows="1"
+                                    [(ngModel)]="t.nombre" [name]="'athF06_tn' + i"
+                                    [placeholder]="athF06PhTrabNombre"
+                                    (input)="autosizeTextarea($event.target)"
+                                    (keyup)="autosizeTextarea($event.target)"></textarea>
                                 </td>
                                 <td>
-                                  <input class="dg-f05-field" type="text" [(ngModel)]="t.puesto" [name]="'athF06_tp' + i" autocomplete="off">
+                                  <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left ath-f06-autosize" rows="1"
+                                    [(ngModel)]="t.puesto" [name]="'athF06_tp' + i"
+                                    [placeholder]="athF06PhTrabPuesto"
+                                    (input)="autosizeTextarea($event.target)"
+                                    (keyup)="autosizeTextarea($event.target)"></textarea>
                                 </td>
                                 <td class="dg-f05-table__act">
                                   <button type="button" class="dg-f05-row-btn" (click)="quitarTrabajadorAthF06(i)" title="Quitar trabajador">
@@ -13055,17 +13558,23 @@
                                 <td>
                                   <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left ath-f06-autosize" rows="2"
                                     [(ngModel)]="n.capacitacion" [name]="'athF06_nc' + i"
-                                    placeholder="Capacitación requerida" (input)="autosizeTextarea($event.target)"></textarea>
+                                    [placeholder]="athF06PhCapacitacion"
+                                    (input)="autosizeTextarea($event.target)"
+                                    (keyup)="autosizeTextarea($event.target)"></textarea>
                                 </td>
                                 <td>
                                   <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left ath-f06-autosize" rows="2"
                                     [(ngModel)]="n.justificacion" [name]="'athF06_nj' + i"
-                                    placeholder="Justificación de la capacitación" (input)="autosizeTextarea($event.target)"></textarea>
+                                    [placeholder]="athF06PhJustificacion"
+                                    (input)="autosizeTextarea($event.target)"
+                                    (keyup)="autosizeTextarea($event.target)"></textarea>
                                 </td>
                                 <td>
                                   <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left ath-f06-autosize" rows="2"
                                     [(ngModel)]="n.fechaRequerida" [name]="'athF06_nf' + i"
-                                    placeholder="Fecha requerida" (input)="autosizeTextarea($event.target)"></textarea>
+                                    [placeholder]="athF06PhFechaReq"
+                                    (input)="autosizeTextarea($event.target)"
+                                    (keyup)="autosizeTextarea($event.target)"></textarea>
                                 </td>
                                 <td class="dg-f05-table__act">
                                   <button type="button" class="dg-f05-row-btn" (click)="quitarNecesidadAthF06(i)" title="Quitar necesidad">
@@ -13084,24 +13593,21 @@
                         </div>
                       </section>
 
-                      <section class="ath-f06-comentarios" aria-label="Comentarios">
-                        <table class="ath-f06-sheet__table">
-                          <thead>
-                            <tr>
-                              <th>Comentarios</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              <td>
-                                <textarea class="ath-f06-sheet__input ath-f06-comentarios__input ath-f06-autosize" rows="4"
-                                  name="athF06_comentarios" [(ngModel)]="reg.comentarios"
-                                  placeholder="Sede, observaciones u otros comentarios"
-                                  (input)="autosizeTextarea($event.target)"></textarea>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
+                      <section class="sgc-f-16-block ath-f06-comentarios" aria-labelledby="ath-f-06-com">
+                        <header class="sgc-f-16-block__head" id="ath-f-06-com">
+                          <span class="sgc-f-16-block__badge sgc-f-16-block__badge--alt">4</span>
+                          <div>
+                            <strong class="sgc-f-16-block__title">Comentarios</strong>
+                            <span class="sgc-f-16-block__subtitle">Sede, observaciones u otros comentarios</span>
+                          </div>
+                        </header>
+                        <div class="ath-f06-comentarios__body">
+                          <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--left ath-f06-comentarios__input ath-f06-autosize" rows="4"
+                            name="athF06_comentarios" [(ngModel)]="reg.comentarios"
+                            [placeholder]="athF06PhComentarios"
+                            (input)="autosizeTextarea($event.target)"
+                            (keyup)="autosizeTextarea($event.target)"></textarea>
+                        </div>
                       </section>
                     </div>
 

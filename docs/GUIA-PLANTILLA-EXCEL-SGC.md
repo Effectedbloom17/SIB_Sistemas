@@ -5,6 +5,8 @@ diseño en un Google Sheet **plantilla** (aparte) y trabajo/historial en un Goog
 
 No cubre reglas de diseño (bordes, colores, anchos, merges visuales). Solo el flujo de archivos y sync.
 
+Si el formato tiene **archivero**, el nombre de cada hoja no es `CODIGO-MMAA`: ver **§2.1** (folio o valor de un campo del formulario; lo defines tú al solicitar el formato).
+
 ---
 
 ## 1. Datos que debes proporcionar (rellenar antes de codear)
@@ -18,9 +20,11 @@ No cubre reglas de diseño (bordes, colores, anchos, merges visuales). Solo el f
 | ID de Drive (entre `/d/` y `/edit`) | |
 | Carpeta Drive destino (si aplica) | |
 | Nombre deseado del archivo en Drive | |
-| Convención de pestañas de historial | _ej. `DGF05-MMAA` → adapta al código_ |
-| Versionado dentro del mismo mes | _1ª = `CODIGO-MMAA`; 2ª = `CODIGO-MMAA_2`; 3ª = `_3`…_ |
+| Convención de pestañas de historial | _ej. `DGF05-MMAA` → adapta al código_ **(solo si NO hay archivero; ver §2.1)** |
+| Versionado dentro del mismo mes | _1ª = `CODIGO-MMAA`; 2ª = `CODIGO-MMAA_2`; 3ª = `_3`…_ **(solo si NO hay archivero)** |
 | Pestaña de trabajo vigente | _siempre la última versión del mes; no reescribir meses previos_ |
+| ¿Tiene archivero? | _Sí / No_ |
+| Si tiene archivero → nombre de hoja | _`folio` **o** valor de un campo del formulario (indicar cuál)_ |
 
 Ejemplo de link sistema:
 
@@ -45,7 +49,8 @@ Ejemplo de link plantilla:
 2. **Nunca** usar el ID de la plantilla como `drive_file_id` de trabajo en BD.
 3. El historial (pestañas de meses anteriores y versiones `_N` previas) **no se regenera** al cambiar la plantilla; solo la hoja **vigente del mes actual**.
 4. La cuenta de servicio / OAuth del backend debe tener acceso de lectura a la plantilla y de edición al sistema.
-5. **No** crear pestañas `Alias_r00` / `Partes_r00` (historial de “formato”). Solo pestañas `CODIGO-MMAA` / `CODIGO-MMAA_N`.
+5. **No** crear pestañas `Alias_r00` / `Partes_r00` (historial de “formato”).
+6. Sin archivero: solo pestañas `CODIGO-MMAA` / `CODIGO-MMAA_N`. **Con archivero:** una pestaña por ítem (§2.1); no mezclar con el scheme mensual.
 
 ---
 
@@ -80,6 +85,45 @@ Reglas:
 - El editor / sync / PDF abren **siempre la última** versión del mes (`…_N` más alto; sin sufijo = versión 1).
 - Meses anteriores (`DGF05-0826`, etc.) **no se tocan**.
 - En `aplicarHistorialEnDrive`: `soloHistorialInformacion: true` + `versionarCadaCambioMes: true` (ver `sgcDgF05Service.js`).
+
+### 2.1 Formatos con archivero — nombre de hoja distinto
+
+Cuando el formato tiene **archivero** (lista de ítems: notificaciones, análisis AMEF, etc.), **no** aplica el scheme `CODIGO-MMAA` / `CODIGO-MMAA_N`.
+
+Regla:
+
+| Tipo de formato | Nombre de cada pestaña en el Excel sistema |
+| --- | --- |
+| Sin archivero (historial por mes) | `CODIGO-MMAA`, luego `_2`, `_3`… |
+| **Con archivero** | **Una pestaña por ítem del archivero**; el nombre lo define el solicitante |
+
+Al pedir implementación de un formato con archivero, **tú indicas** cuál de estas dos opciones usar:
+
+1. **Folio del archivero** — la hoja se llama igual que el folio del ítem  
+   (ej. SGC-F-12: `CAM-241026-01`).
+2. **Valor de un campo del formulario** — la hoja se llama como ese campo (sanitizado para Excel)  
+   (ej. SGC-F-11: nombre = campo **proceso**).
+
+Comportamiento común (ambas opciones):
+
+- Cada ítem del archivero → su propia hoja (`copyTo` desde la plantilla externa).
+- Al crear / renombrar: sanitizar el título (caracteres inválidos de Excel, longitud) y resolver colisiones (`resolverNombreHojaUnico` o equivalente).
+- No versionar por mes (`versionarCadaCambioMes` no aplica).
+- El archivo sistema conserva histograma / hojas auxiliares; no se escribe en la plantilla ni se reemplaza el libro entero.
+- Si el folio o el valor del campo cambia, renombrar la hoja (si existe) para que siga coincidiendo.
+
+Referencias:
+
+| Formato | Criterio de nombre de hoja |
+| --- | --- |
+| SGC-F-12 · Notificación de cambios | Folio (`CAM-…`) |
+| SGC-F-22 · Daño o pérdida de propiedad | Folio (`DP-…`) |
+| SGC-F-11 · AMEF | Campo del formulario: **proceso** |
+| SGC-F-20 · Ficha de conocimientos | Campo del formulario: **Tipo de fuente** |
+| ATH-F-02 · Descripción y perfil de puesto | Campo del formulario: **Puesto** |
+| SGC-F-27 · Verificación de equipos de medición | Campo del formulario: **Instrumento de medición** |
+
+En la tabla de §1.A (campos «¿Tiene archivero?» y «Si tiene archivero → nombre de hoja») deja escrito, antes de codear, si quieres **folio** o **qué campo** del formulario.
 
 ---
 
@@ -152,16 +196,21 @@ Patrón a copiar (lógica, no diseño): `sgcDgF05Service.js` —
 - [ ] Crear / ubicar Google Sheet **plantilla** y anotar link + ID + nombre de pestaña.
 - [ ] Crear / ubicar Google Sheet **sistema** y anotar link + ID.
 - [ ] Compartir ambos con la cuenta Drive del backend.
-- [ ] Definir `CODIGO_FORMATO` y convención `CODIGO-MMAA` / `CODIGO-MMAA_N`.
+- [ ] Definir `CODIGO_FORMATO` y convención de pestañas:
+  - Sin archivero → `CODIGO-MMAA` / `CODIGO-MMAA_N`.
+  - Con archivero → nombre = **folio** o **campo del formulario** (indicado en §1.A; ver §2.1).
 - [ ] Constantes `TEMPLATE_*` y `DRIVE_FILE_ID_SISTEMA` en el servicio.
 - [ ] `resolverDriveFileId`: priorizar sistema; rechazar plantilla como archivo de trabajo.
-- [ ] Historial: `soloHistorialInformacion: true` + `versionarCadaCambioMes: true` (sin `Alias_rNN`).
-- [ ] Al cargar: si falta hoja del mes → copiar plantilla; editor abre la **última** `_N` del mes.
-- [ ] Al guardar: nueva versión del mes (`_2`, `_3`…); si estructura mala → regenerar solo la vigente.
-- [ ] Historial: no regenerar meses anteriores ni versiones previas del mes.
-- [ ] Endpoint / UI con `editorUrl` del **sistema** (gid de la última versión del mes).
+- [ ] Sin archivero — historial: `soloHistorialInformacion: true` + `versionarCadaCambioMes: true` (sin `Alias_rNN`).
+- [ ] Con archivero — una hoja por ítem (`copyTo` plantilla); no usar `CODIGO-MMAA` ni `versionarCadaCambioMes`.
+- [ ] Al cargar: si falta hoja (mes o ítem) → copiar plantilla; editor abre la hoja correcta (última `_N` del mes **o** la del ítem activo).
+- [ ] Al guardar (sin archivero): nueva versión del mes (`_2`, `_3`…); si estructura mala → regenerar solo la vigente.
+- [ ] Al guardar (con archivero): escribir en la hoja del ítem; renombrar si cambió folio/campo usado como título.
+- [ ] Historial: no regenerar meses anteriores ni versiones previas del mes (ni hojas de otros ítems del archivero).
+- [ ] Endpoint / UI con `editorUrl` del **sistema** (gid de la hoja vigente / del ítem).
 - [ ] Borrador local UI: en el `next` de `persistir*` llamar `limpiarBorradorLocalSgc()`; en `error`, `persistirBorradorLocalSgcAhora()` (ver §10).
-- [ ] Probar: 3 guardados en el mismo mes → `CODIGO-MMAA`, `_2`, `_3`; meses viejos intactos.
+- [ ] Probar sin archivero: 3 guardados en el mismo mes → `CODIGO-MMAA`, `_2`, `_3`; meses viejos intactos.
+- [ ] Probar con archivero: 2 ítems → 2 pestañas con el nombre acordado (folio o campo); crear/renombrar/borrar coherente.
 - [ ] Probar: editar plantilla → regenerar vigente → se refleja; historial previo intacto.
 - [ ] Probar UI: Guardar → desaparece «Cambios sin guardar»; salir y volver → **no** sale «Borrador local encontrado».
 
@@ -183,12 +232,17 @@ Pestaña a copiar: Plantilla
 Requisitos:
 - TEMPLATE_DRIVE_ID vs DRIVE_FILE_ID_SISTEMA separados
 - copyTo de la hoja Plantilla al sistema
-- cada guardado del mes crea CODIGO-MMAA, luego CODIGO-MMAA_2, _3… (versionarCadaCambioMes)
+- ¿Archivero? Sí / No
+  - Si NO: cada guardado del mes crea CODIGO-MMAA, luego CODIGO-MMAA_2, _3… (versionarCadaCambioMes)
+  - Si SÍ: una pestaña por ítem; nombre de hoja = folio del archivero
+    OR valor del campo <NOMBRE_CAMPO> del formulario (elige uno; ver §2.1)
 - nunca pestañas Alias_rNN / Partes_r00
-- nunca escribir en la plantilla ni borrar historial de meses/versiones previas
-- datos de BD/payload solo en la última versión del mes
-- reutilizar driveService.copiarHojaEntreSpreadsheets y el patrón de sgcDgF05Service
-  (adoptarPlantillaEnSistema / reescribirHojaDesdePlantilla / versionarCadaCambioMes)
+- nunca escribir en la plantilla ni borrar historial / hojas de otros ítems
+- sin archivero: datos solo en la última versión del mes
+- con archivero: datos solo en la hoja del ítem activo
+- reutilizar driveService.copiarHojaEntreSpreadsheets
+  - sin archivero: patrón sgcDgF05Service (versionarCadaCambioMes)
+  - con archivero: patrón sgcSgcF12Service (folio) o sgcSgcF11Service (campo)
 - UI: limpiarBorradorLocalSgc() al guardar OK; no reescribir borrador al salir si no hay cambios
 ```
 
@@ -202,6 +256,8 @@ Requisitos:
 | Guardar en BD el ID de la plantilla | El editor “trabaja” sobre el maestro |
 | Regenerar la pestaña de un mes pasado o una `_N` vieja | Se destruye el historial visual |
 | Reutilizar/sobrescribir la misma pestaña del mes en cada guardado | Se pierde el historial intra-mes |
+| Usar `CODIGO-MMAA` en un formato con archivero | Mezcla historial mensual con ítems; hojas ilegibles / chocan |
+| No definir si el archivero nombra por folio o por campo | Implementación a ciegas; hay que acordarlo en §1.A antes de codear |
 | Crear pestañas `Alias_r00` / `Partes_r00` | Historial de formato confuso; no usar |
 | Escribir celdas sin copiar plantilla cuando faltan filas/columnas | Rangos inválidos / layout roto |
 | `copyTo` a nombre que ya existe sin versionar (`_2`, `_3`) | Choque de pestañas o hoja a medias |
@@ -222,6 +278,17 @@ Requisitos:
 | Historial | `DGF05-MMAA`, `DGF05-MMAA_2`, `_3`… (`versionarCadaCambioMes`) |
 | Código | `backend/sgcDgF05Service.js` |
 
+### SP-F-04 · Control de Proyectos Biznaga
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1y87zEHPmEboXR7y5GAjpPbJPb3Ps0sm62cknZACMhOs/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1efmyxhAYxuN-H0BxGpUlSsYb3uhutWKDYBTHh8SfnMo/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Historial | `SPF04-MMAA`, `SPF04-MMAA_2`, `_3`… (cada sync con cambios reales; sin archivero) |
+| Código | `backend/sgcSpF04Service.js` |
+| Nota | Vista generada desde Control de Proyectos + ATH-F-09. El archivo sistema conserva histograma; no se escribe en la plantilla |
+
 ### DG-F-04 · Análisis FODA (referencia anterior)
 
 | Rol | Link |
@@ -230,6 +297,72 @@ Requisitos:
 | Sistema | `https://docs.google.com/spreadsheets/d/1VfHOIJEeCJ8QZNYdWp6spszmcFKq_ZNVDn24oX8Rj9I/edit` |
 | Código | `backend/sgcDgF04Service.js` |
 | Nota | Preferir el patrón de versionado de DG-F-05 en formatos nuevos |
+
+### ATH-F-02 · Descripción y perfil de puesto
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1bl97eZoBhPSe50jpkD7rjTZPiA9XqKLSFQKNNB86R6M/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1PH6_usxtmpYsr8AOYqlGi9Z9fJEZ4hywDEqKDjIfKOk/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Trabajo | Archivero: una pestaña por perfil; **nombre = campo `Puesto`** (§2.1 opción 2); `copyTo` desde plantilla |
+| Código | `backend/sgcAthF02Service.js` |
+| Nota | El archivo sistema conserva histograma y hojas auxiliares; no se escribe en la plantilla ni se reemplaza el libro entero |
+
+### ATH-F-06 · Detección de necesidades de capacitación (DNC)
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1fdsvuQkiZ0Wg-un23-EKjDYOnmles4HCvCR-_f-YxJs/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1ozFzD61H4fiskcLExEPF0TiNoLQqEfmtqsfkGPL4lxc/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Historial | `ATHF06-MMAA`, `ATHF06-MMAA_2`, `_3`… (`versionarCadaCambioMes`) |
+| Código | `backend/sgcAthF06Service.js` |
+| Nota | El archivo sistema conserva histograma; no se escribe en la plantilla |
+
+### ATH-F-14 · Control de vacaciones
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1nKn62UggYGS16Wx_sl0t8ZfunixTdixrsW43L7aDWwk/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1Fxn1FNWcByT3RcinuVmmf4IgPR4g1AVksYF149-YvBc/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Historial | `ATHF14-MMAA`, `ATHF14-MMAA_2`, `_3`… (`versionarCadaCambioMes`) |
+| Código | `backend/sgcAthF14Service.js` |
+| Nota | Sin archivero. El archivo sistema conserva histograma; no se escribe en la plantilla |
+
+### ATH-F-08 · Eficacia de la capacitación
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1t-N6A6kZzcFzy3bg5X6TqZyP6G95n0Ic-386N7XaKd4/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1-tq5eEeFmUPk8cJXOmPEXpycthXTXwe6kwK_-M-7kww/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Historial | `ATHF08-MMAA`, `ATHF08-MMAA_2`, `_3`… (`versionarCadaCambioMes`) |
+| Código | `backend/sgcAthF08Service.js` |
+| Nota | El archivo sistema conserva histograma y pestañas previas (`ATHF08-0926`…, legado `Evaluación`); no se escribe en la plantilla |
+
+### SGC-F-03 · Lista de distribución de documentos
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1DWdTrHeYbSlXp2lHIqrUzHcxxB4Oo9_8LxjiM-juMH4/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1XpcTc_ZzNMf747KGejC3D4NM67hwHTIpPJ3--mRKtsA/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Historial | `SGCF03-MMAA`, `SGCF03-MMAA_2`, `_3`… (`versionarCadaCambioMes`) |
+| Código | `backend/sgcF03Service.js` |
+| Nota | El archivo sistema conserva histograma; no se escribe en la plantilla |
+
+### SGC-F-17 · Bitácora de calibración y verificación de equipos de medición
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1cVw6AeNlQLrl8iwb0pdUADMb61oI2hDgZGVo-lB9Yao/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1XzxX2gRHUSf0z2ToPp1YCvzD6IOzzRUlpsEsY62takk/edit` |
+| Pestaña plantilla | `Plantilla` (legado aceptado: `Plantilla.`) |
+| Historial | `SGCF17-MMAA`, `SGCF17-MMAA_2`, `_3`… (cada guardado con cambios; sin archivero) |
+| Código | `backend/sgcF17Service.js` |
+| Nota | El archivo sistema conserva histograma y hojas legadas `MMAA-NN`; no se escribe en la plantilla |
 
 ### SGC-F-18 · Tabla de requisitos legales y reglamentarios
 
@@ -241,6 +374,28 @@ Requisitos:
 | Historial | `SGCF18-MMAA`, `SGCF18-MMAA_2`, `_3`… (`versionarCadaCambioMes`) |
 | Código | `backend/sgcSgcF18Service.js` |
 
+### SGC-F-19 · Listado de conocimientos de la organización
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1KUJxWvly0Hm0urH0aAGoaEWZfmBloahpAXA7uwQfAFg/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1ExqXpnX4J617v1V2JimjEzg1VN_sV0XJOHQnaCxTLMA/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Historial | `SGCF19-MMAA`, `SGCF19-MMAA_2`, `_3`… (`versionarCadaCambioMes`) |
+| Código | `backend/sgcF19Service.js` |
+| Nota | El archivo sistema conserva histograma y hoja legada `Copia de Listado de conocimientos`; no se escribe en la plantilla |
+
+### SGC-F-20 · Ficha de conocimientos
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1IFE1KVStlqrHs5UIzhunjWh-tGoNfXtV1caVskE4unc/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1we0bWgQpKUKybvveOrqmmrWdtfwFFIdbFMjWQs1Oxm4/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Trabajo | Archivero: una pestaña por ficha; **nombre = campo `Tipo de fuente`** (§2.1 opción 2); `copyTo` desde plantilla |
+| Código | `backend/sgcF20Service.js` |
+| Nota | El archivo sistema conserva histograma y `Hoja2` (catálogo); no se escribe en la plantilla |
+
 ### SGC-F-11 · AMEF
 
 | Rol | Link |
@@ -248,7 +403,7 @@ Requisitos:
 | Plantilla | `https://docs.google.com/spreadsheets/d/1mR9vTvMRJ_E0-416ujaCkDqg1hwPKpujZN0OQ8AseZE/edit` |
 | Sistema | `https://docs.google.com/spreadsheets/d/15iP8UalTLSW83DDuEmQEPZaAG3zao06zO51guKiR9_k/edit` |
 | Pestaña plantilla | `Plantilla` |
-| Trabajo | Una pestaña por análisis del archivero (nombre = proceso); nuevas hojas = `copyTo` desde plantilla externa |
+| Trabajo | Archivero: una pestaña por análisis; **nombre = campo `proceso`** (§2.1 opción 2); `copyTo` desde plantilla |
 | Código | `backend/sgcSgcF11Service.js` |
 | Nota | El archivo sistema conserva histograma/guías; no se escribe en la plantilla |
 
@@ -259,9 +414,31 @@ Requisitos:
 | Plantilla | `https://docs.google.com/spreadsheets/d/1TyIqkHtAZGy405u7lNCq-j1LzW-dMxRjWG4LzMwonJg/edit` |
 | Sistema | `https://docs.google.com/spreadsheets/d/1Disbn6atnNc6L56D6axW0Y4hCSqspK2SfStbujGQf78/edit` |
 | Pestaña plantilla | `Plantilla` |
-| Trabajo | Una pestaña por notificación del archivero (nombre = folio `CAM-…`); nuevas hojas = `copyTo` desde plantilla externa |
+| Trabajo | Archivero: una pestaña por notificación; **nombre = folio `CAM-…`** (§2.1 opción 1); `copyTo` desde plantilla |
 | Código | `backend/sgcSgcF12Service.js` |
 | Nota | Igual que SGC-F-11: el archivo sistema conserva histograma; no se escribe en la plantilla ni se reemplaza el libro entero |
+
+### SGC-F-22 · Reporte de daño o pérdida de propiedad del cliente o proveedor
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1PPUDTSmo6mPqkjGMlLt7uKM09TL5MU_DlTxdf9l-cNw/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1asICBqzuBkhpvD4tXdfB1VIkFNPyhiOGNv6SxaEcYMw/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Trabajo | Archivero: una pestaña por reporte; **nombre = folio `DP-…`** (§2.1 opción 1); `copyTo` desde plantilla |
+| Código | `backend/sgcF22Service.js` |
+| Nota | El archivo sistema conserva histograma; no se escribe en la plantilla ni se reemplaza el libro entero |
+
+### SGC-F-27 · Reporte de verificación de equipos de medición (capítulo 7)
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1BzMshUJ9f2qqAaTl8xqY6Bwu6r_7L1PFyA8PW1VFRy8/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1EK1xd8hJtpkDs_H7F_aoprV3eAz7bAmzIp9Fy0kHZy0/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Trabajo | Archivero: una pestaña por verificación; **nombre = campo `Instrumento de medición`** (§2.1 opción 2); `copyTo` desde plantilla |
+| Código | `backend/sgcF27MedicionService.js` (clave interna `SGC-F-27V`) |
+| Nota | El archivo sistema conserva histograma; no se escribe en la plantilla. Clave UI: `sgc-f-27-medicion` (distinta de la orden de compra SGC-F-27 cap. 8) |
 
 ---
 

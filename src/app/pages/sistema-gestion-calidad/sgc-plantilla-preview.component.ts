@@ -1044,6 +1044,8 @@ interface SgcF20Ficha {
   descripcion: string;
   fechaCaptura: string;
   pdfFirmado: DgF02PdfFirmado | null;
+  /** Pestaña en el Excel sistema (nombre = Tipo de fuente). */
+  nombreHoja?: string;
 }
 
 interface SgcF20FormData {
@@ -1704,16 +1706,27 @@ interface AthF14Fila {
   fechaVacaciones: string;
 }
 
+interface SpF04ActividadesPorEstatus {
+  noIniciado: number;
+  enCurso: number;
+  enRevision: number;
+  listo: number;
+}
+
 interface SpF04Fila {
   numero: number;
   numeroCotizacion: string;
   numeroProyecto: string;
+  empresaId: number | null;
   empresa: string;
   nombreProyecto: string;
   responsable: string;
   observaciones: string;
   estatus: string;
   avance: number;
+  totalActividades: number;
+  actividadesDisponibles: number;
+  actividadesPorEstatus: SpF04ActividadesPorEstatus;
   folio: string;
 }
 
@@ -2654,6 +2667,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF17PorPagina = 16;
   sgcF17PaginaDir = 1;
   sgcF17PaginaToken = 0;
+  /** Clave del menú custom abierto: `${equipoIndex}:${campo}`. */
+  sgcF17SelectAbierto: string | null = null;
   private sgcF17PagesEl?: ElementRef<HTMLElement>;
   private sgcF17PagesObserver?: ResizeObserver;
 
@@ -2785,6 +2800,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF20PdfCargando = false;
   sgcF20PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   private sgcF20EditorIframeListo = false;
+  sgcF20FuenteComboAbierto = false;
+  sgcF20FuenteComboQuery = '';
   readonly tiposFuenteSgcF20: string[] = [
     'Propiedad intelectual (Interna)',
     'Conocimientos adquiridos con la experiencia (Interna)',
@@ -2870,6 +2887,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF06PdfCargando = false;
   athF06PdfEmbedUrlSafe: SafeResourceUrl | null = null;
   private athF06EditorIframeListo = false;
+  /** Placeholders multilínea (Enter / \\n) solo en la UI; no alteran los datos. */
+  readonly athF06PhNombre = 'Nombre del solicitante\n';
+  readonly athF06PhPuesto = 'Puesto del solicitante\n';
+  readonly athF06PhArea = 'Área o departamento\n';
+  readonly athF06PhTrabNombre = 'Nombre del trabajador\n';
+  readonly athF06PhTrabPuesto = 'Puesto que ocupa\n';
+  readonly athF06PhCapacitacion = 'Capacitación requerida\n';
+  readonly athF06PhJustificacion = 'Justificación de la capacitación\n';
+  readonly athF06PhFechaReq = 'Fecha requerida\n';
+  readonly athF06PhComentarios = 'Sede, observaciones\ny otros comentarios\n';
   athF03Form: AthF03FormData = this.crearAthF03FormVacio();
   athF03Cargando = false;
   athF03Guardando = false;
@@ -2965,6 +2992,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   mostrarAthF14Editor = false;
   spF04Filas: SpF04Fila[] = [];
   spF04Detalle: SpF04Fila | null = null;
+  spF04Hover: SpF04Fila | null = null;
   spF04Busqueda = '';
   spF04FiltroEstatus: 'todos' | 'Abierto' | 'Cerrado' = 'todos';
   spF04Cargando = false;
@@ -2976,6 +3004,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   spF04DescargandoPdf = false;
   mostrarSpF04Editor = false;
   private spF04EditorSrcCache: SafeResourceUrl | null = null;
+  private spF04LogosPorId = new Map<number, string>();
+  private spF04LogosPorEmpresa = new Map<string, string>();
+  private spF04LogosCargados = false;
   athF14EditorCargando = false;
   private athF14EditorIframeListo = false;
   private athF14EditorSrcCache: SafeResourceUrl | null = null;
@@ -4203,8 +4234,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
-  @HostListener('document:click')
-  onDocumentClickCerrarEditoresFormato(): void {
+  @HostListener('document:click', ['$event'])
+  onDocumentClickCerrarEditoresFormato(event?: MouseEvent): void {
     if (this.menuEditoresFormatoAbierto) {
       this.cerrarMenuEditoresFormato();
     }
@@ -4216,6 +4247,21 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.sgcF29EvidCarpetasMenu) {
       this.sgcF29EvidCarpetasMenu = false;
+    }
+    if (this.sgcF17SelectAbierto) {
+      const target = event?.target as HTMLElement | null;
+      // No cerrar si el clic fue en el trigger o en el menú (evita abrir→cerrar en el mismo click).
+      if (target?.closest('.sgc-f17-select, .sgc-f17-select__menu')) {
+        return;
+      }
+      this.cerrarSelectSgcF17();
+    }
+    if (this.sgcF20FuenteComboAbierto) {
+      const target = event?.target as HTMLElement | null;
+      if (target?.closest('.sgc-f20-combo')) {
+        return;
+      }
+      this.cerrarComboFuenteSgcF20();
     }
   }
 
@@ -4704,6 +4750,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    document.querySelector('.sp-f-04-modal')?.remove();
+    document.body.classList.remove('sp-f-04-modal-open');
     document.querySelector('.sgc-f-11-guia')?.remove();
     this.detenerTemporizadorInactividadSgc();
     this.revocarDgF01PreviewUrl();
@@ -5396,6 +5444,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (this.sgcF17SelectAbierto) {
+      event.preventDefault();
+      this.cerrarSelectSgcF17();
+      return;
+    }
+
     if (this.spF04Detalle) {
       event.preventDefault();
       this.cerrarResumenSpF04();
@@ -5677,6 +5731,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (slug === 'ath-f-02') return this.athF02Form;
     if (slug === 'ath-f-09') return this.athF09Form;
     if (slug === 'ath-f-11') return this.athF11Form;
+    if (slug === 'ath-f-14') return { filas: this.athF14Filas };
     if (slug === 'sp-f-02') return this.spF02Form;
     if (slug === 'sp-f-07') return this.spF07Form;
     return null;
@@ -5760,6 +5815,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (slug === 'ath-f-02') { this.athF02Form = d; this.athF02CambiosPendientes = true; return; }
     if (slug === 'ath-f-09') { this.athF09Form = d; this.athF09CambiosPendientes = true; return; }
     if (slug === 'ath-f-11') { this.athF11Form = d; this.athF11CambiosPendientes = true; return; }
+    if (slug === 'ath-f-14') {
+      this.athF14Filas = this.filasDesdeGuardadoAthF14(d.filas);
+      this.athF14CambiosPendientes = true;
+      return;
+    }
     if (slug === 'sp-f-02') { this.spF02Form = d; this.spF02CambiosPendientes = true; return; }
     if (slug === 'sp-f-07') { this.spF07Form = d; this.spF07CambiosPendientes = true; return; }
   }
@@ -6503,7 +6563,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug !== 'sgc-f-20') {
       return '';
     }
-    return 'Archivero de fichas de conocimiento. Cada ficha registra el tipo de fuente, la descripción y la fecha de captura. El PDF firmado se guarda en la carpeta de firmados.';
+    return 'Archivero de fichas de conocimiento. Cada ficha tiene su pestaña en el Excel sistema (nombre = Tipo de fuente). El PDF firmado se guarda en la carpeta de firmados.';
   }
 
   get sgcF24IntroLead(): string {
@@ -6538,7 +6598,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug !== 'ath-f-14') {
       return '';
     }
-    return 'Control de vacaciones de todos los usuarios del sistema. Fecha de ingreso y días disponibles se capturan aquí. Días tomados y la fecha de vacaciones salen de ATH-F-13; los días restantes son la diferencia.';
+    return 'Control de vacaciones de todos los usuarios del sistema. Fecha de ingreso y días disponibles se capturan aquí. Días tomados y la fecha de vacaciones salen de ATH-F-13; los días restantes son la diferencia. Cada guardado crea una pestaña ATHF14-MMAA (o _2, _3…) en el Excel sistema; la plantilla de diseño está aparte.';
   }
 
   get sgcF27IntroLead(): string {
@@ -11318,6 +11378,42 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return !!t && !lista.includes(t);
   }
 
+  claveSelectSgcF17(equipoIndex: number, campo: string): string {
+    return `${equipoIndex}:${campo}`;
+  }
+
+  opcionesMenuSgcF17(valor: string, lista: readonly string[]): string[] {
+    const opts = [...lista];
+    const t = String(valor || '').trim();
+    if (t && !opts.includes(t)) {
+      opts.unshift(t);
+    }
+    return opts;
+  }
+
+  cerrarSelectSgcF17(): void {
+    this.sgcF17SelectAbierto = null;
+  }
+
+  toggleSelectSgcF17(clave: string, event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.sgcF17SelectAbierto = this.sgcF17SelectAbierto === clave ? null : clave;
+  }
+
+  elegirSelectSgcF17(
+    eq: { [key: string]: string },
+    campo: string,
+    valor: string,
+    event: Event
+  ): void {
+    event.preventDefault();
+    event.stopPropagation();
+    eq[campo] = valor;
+    this.cerrarSelectSgcF17();
+    this.onSgcF17Editado();
+  }
+
   private cargarSgcF17DesdeServidor(): void {
     this.sgcF17Cargando = true;
     this.sgcF17Listo = false;
@@ -11371,6 +11467,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (siguiente < 0 || siguiente >= this.totalPaginasSgcF17()) {
       return;
     }
+    this.cerrarSelectSgcF17();
     this.sgcF17PaginaDir = delta < 0 ? -1 : 1;
     this.sgcF17Pagina = siguiente;
     this.sgcF17PaginaToken += 1;
@@ -11420,6 +11517,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (index < 0 || index >= this.sgcF17Form.equipos.length || index === this.sgcF17EquipoActivo) {
       return;
     }
+    this.cerrarSelectSgcF17();
     this.sgcF17EquipoActivo = index;
     this.sgcF17AutosizeTick += 1;
   }
@@ -11619,7 +11717,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug !== 'sgc-f-17') {
       return '';
     }
-    return 'Registra equipos de medición, su mantenimiento y su calibración o verificación. Las listas fijas solo permiten las opciones del formato. Cada guardado con cambios crea una hoja nueva (01, 02, 03…) y el consecutivo se reinicia al cambiar de mes.';
+    return 'Registra equipos de medición, su mantenimiento y su calibración o verificación. Las listas fijas solo permiten las opciones del formato. Cada guardado con cambios crea una hoja SGCF17-MMAA (luego _2, _3…) en el Excel sistema; al cambiar de mes empieza de nuevo sin tocar el historial previo.';
   }
 
   get sgcF14IntroLead(): string {
@@ -11898,6 +11996,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     this.sgcF27mCambiosPendientes = true;
+  }
+
+  setResultadoSgcF27Medicion(resultado: string): void {
+    this.sgcF27mForm.resultado = resultado;
+    this.onSgcF27MedicionEditado();
   }
 
   estatusCorridaSgcF27Medicion(corrida: SgcF27MedicionCorrida): string {
@@ -12569,21 +12672,37 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     };
   }
 
+  private textoPlanoSgcF03(valor: unknown): string {
+    return String(valor || '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\n+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private esRegistroSgcF03Vacio(item: SgcF03Registro): boolean {
+    return !item.codigo && !item.nombreDocumento && !item.numeroVersion && !item.formaDistribucion
+      && !item.fechaEntrega && !item.entrego && !item.numeroCopias && !item.nombreRecibe
+      && !item.areaUso && !item.fechaRecuperacion && !item.motivo && !item.disposicionFinal;
+  }
+
   private normalizarRegistrosSgcF03(items: SgcF03Registro[] | undefined): SgcF03Registro[] {
-    return (Array.isArray(items) ? items : []).map((item) => ({
-      codigo: String(item?.codigo || '').trim(),
-      nombreDocumento: String(item?.nombreDocumento || '').trim(),
-      numeroVersion: String(item?.numeroVersion || '').trim(),
-      formaDistribucion: String(item?.formaDistribucion || '').trim(),
-      fechaEntrega: String(item?.fechaEntrega || '').trim().slice(0, 10),
-      entrego: String(item?.entrego || '').trim(),
-      numeroCopias: String(item?.numeroCopias || '').trim(),
-      nombreRecibe: String(item?.nombreRecibe || '').trim(),
-      areaUso: String(item?.areaUso || '').trim(),
-      fechaRecuperacion: String(item?.fechaRecuperacion || '').trim().slice(0, 10),
-      motivo: String(item?.motivo || '').trim(),
-      disposicionFinal: String(item?.disposicionFinal || '').trim()
-    }));
+    return (Array.isArray(items) ? items : [])
+      .map((item) => ({
+        codigo: this.textoPlanoSgcF03(item?.codigo),
+        nombreDocumento: this.textoPlanoSgcF03(item?.nombreDocumento),
+        numeroVersion: this.textoPlanoSgcF03(item?.numeroVersion),
+        formaDistribucion: this.textoPlanoSgcF03(item?.formaDistribucion),
+        fechaEntrega: String(item?.fechaEntrega || '').trim().slice(0, 10),
+        entrego: this.textoPlanoSgcF03(item?.entrego),
+        numeroCopias: this.textoPlanoSgcF03(item?.numeroCopias),
+        nombreRecibe: this.textoPlanoSgcF03(item?.nombreRecibe),
+        areaUso: this.textoPlanoSgcF03(item?.areaUso),
+        fechaRecuperacion: String(item?.fechaRecuperacion || '').trim().slice(0, 10),
+        motivo: this.textoPlanoSgcF03(item?.motivo),
+        disposicionFinal: this.textoPlanoSgcF03(item?.disposicionFinal)
+      }))
+      .filter((item) => !this.esRegistroSgcF03Vacio(item));
   }
 
   private normalizarSgcF03Form(datos: Partial<SgcF03FormData> | null | undefined): SgcF03FormData {
@@ -14939,7 +15058,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       tipoFuente: '',
       descripcion: '',
       fechaCaptura: '',
-      pdfFirmado: null
+      pdfFirmado: null,
+      nombreHoja: ''
     };
   }
 
@@ -14964,7 +15084,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       tipoFuente: String(datos?.tipoFuente || datos?.tipo_fuente || '').trim(),
       descripcion: String(datos?.descripcion || '').trim(),
       fechaCaptura: String(datos?.fechaCaptura || datos?.fecha_captura || '').slice(0, 10),
-      pdfFirmado: this.sanitizarPdfSgcF20(datos?.pdfFirmado || datos?.pdf_firmado)
+      pdfFirmado: this.sanitizarPdfSgcF20(datos?.pdfFirmado || datos?.pdf_firmado),
+      nombreHoja: String(datos?.nombreHoja || datos?.nombre_hoja || '').trim()
     };
   }
 
@@ -15021,6 +15142,68 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return this.tiposFuenteSgcF20;
   }
 
+  ambitoFuenteSgcF20(tipo: string | null | undefined): 'Interna' | 'Externo' | '' {
+    const t = String(tipo || '');
+    if (/\(Externo\)\s*$/i.test(t) || /\bexterno\b/i.test(t)) return 'Externo';
+    if (/\(Interna\)\s*$/i.test(t) || /\binterna\b/i.test(t)) return 'Interna';
+    return '';
+  }
+
+  etiquetaFuenteSgcF20(tipo: string | null | undefined): string {
+    return String(tipo || '')
+      .replace(/\s*\((Interna|Externo)\)\s*$/i, '')
+      .trim();
+  }
+
+  iconoAmbitoFuenteSgcF20(tipo: string | null | undefined): string {
+    return this.ambitoFuenteSgcF20(tipo) === 'Externo' ? 'fa-globe' : 'fa-building';
+  }
+
+  gruposFuenteFiltradosSgcF20(ficha: SgcF20Ficha | null): Array<{ ambito: 'Interna' | 'Externo'; opciones: string[] }> {
+    const q = this.sgcF20FuenteComboQuery.trim().toLowerCase();
+    const lista = this.opcionesTipoFuenteSgcF20(ficha).filter((tipo) => {
+      if (!q) return true;
+      return `${tipo} ${this.etiquetaFuenteSgcF20(tipo)} ${this.ambitoFuenteSgcF20(tipo)}`
+        .toLowerCase()
+        .includes(q);
+    });
+    const internas = lista.filter((t) => this.ambitoFuenteSgcF20(t) !== 'Externo');
+    const externas = lista.filter((t) => this.ambitoFuenteSgcF20(t) === 'Externo');
+    const grupos: Array<{ ambito: 'Interna' | 'Externo'; opciones: string[] }> = [];
+    if (internas.length) grupos.push({ ambito: 'Interna', opciones: internas });
+    if (externas.length) grupos.push({ ambito: 'Externo', opciones: externas });
+    return grupos;
+  }
+
+  abrirComboFuenteSgcF20(): void {
+    this.sgcF20FuenteComboAbierto = !this.sgcF20FuenteComboAbierto;
+    if (!this.sgcF20FuenteComboAbierto) {
+      this.sgcF20FuenteComboQuery = '';
+    }
+  }
+
+  cerrarComboFuenteSgcF20(): void {
+    this.sgcF20FuenteComboAbierto = false;
+    this.sgcF20FuenteComboQuery = '';
+  }
+
+  onFuenteComboQuerySgcF20(_valor: string): void {
+    this.sgcF20FuenteComboAbierto = true;
+  }
+
+  seleccionarFuenteSgcF20(tipo: string): void {
+    if (!this.sgcF20FichaActiva) return;
+    this.sgcF20FichaActiva.tipoFuente = String(tipo || '').trim();
+    this.cerrarComboFuenteSgcF20();
+    this.onSgcF20Editado();
+  }
+
+  limpiarFuenteSgcF20(): void {
+    if (!this.sgcF20FichaActiva) return;
+    this.sgcF20FichaActiva.tipoFuente = '';
+    this.onSgcF20Editado();
+  }
+
   fichaFirmadaSgcF20(ficha: SgcF20Ficha | null): boolean {
     return !!ficha?.pdfFirmado?.driveFileId;
   }
@@ -15073,6 +15256,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   volverArchiveroSgcF20(): void {
+    this.cerrarComboFuenteSgcF20();
     this.sincronizarFichaActivaEnFormSgcF20();
     this.sgcF20Vista = 'archivero';
     this.sgcF20FichaActiva = null;
@@ -15595,9 +15779,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private programarAutosizeAthF06(): void {
     window.setTimeout(() => this.autosizeTextareasAthF06(), 0);
     window.setTimeout(() => this.autosizeTextareasAthF06(), 60);
+    window.setTimeout(() => this.autosizeTextareasAthF06(), 180);
   }
 
   private autosizeTextareasAthF06(): void {
+    if (this.plantillaSlug !== 'ath-f-06') {
+      return;
+    }
     const nodos = this.host.nativeElement.querySelectorAll<HTMLTextAreaElement>('textarea.ath-f06-autosize');
     nodos.forEach((el) => this.autosizeTextarea(el));
   }
@@ -17030,13 +17218,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!this.athF14DriveFileId) return;
     this.mostrarAthF14Editor = !this.mostrarAthF14Editor;
     if (this.mostrarAthF14Editor) {
+      this.athF14EditorIframeListo = false;
+      this.athF14EditorCargando = true;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
       this.conAccesoDriveEmbed(this.athF14DriveFileId, () => {
         if (!this.mostrarAthF14Editor) return;
-        const id = encodeURIComponent(this.athF14DriveFileId);
-        const url = `https://docs.google.com/spreadsheets/d/${id}/edit?usp=sharing&embedded=true&single=true`;
-        this.athF14EditorSrcCache = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+        const url = this.resolverUrlEditorDrive(this.athF14EditorUrl, this.athF14DriveFileId);
+        const embedUrl = this.urlIframeDriveSegunPermiso(url);
+        this.athF14EditorSrcCache = embedUrl
+          ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
+          : null;
       });
       return;
     }
@@ -17072,16 +17264,178 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return this.spF04Filas.filter((fila) => fila.estatus === 'Cerrado').length;
   }
 
+  /** Cotización visible: KEY-SC-YY-NNN o SC-YY-NNN (no folio interno SP-…). */
+  spF04Codigo(fila: SpF04Fila | null | undefined): string {
+    if (!fila) return '—';
+    const cotizacion = String(fila.numeroCotizacion || '').trim().toUpperCase();
+    if (/^SC-\d{2}-\d{3}$/.test(cotizacion)) {
+      const clave = String(fila.numeroProyecto || '').trim().toUpperCase();
+      return clave && clave.length <= 6 ? `${clave}-${cotizacion}` : cotizacion;
+    }
+    const fuentes = [fila.folio, fila.nombreProyecto, fila.numeroProyecto]
+      .map((v) => String(v || '').trim().toUpperCase());
+    for (const texto of fuentes) {
+      const conClave = texto.match(/\b([A-Z0-9]{2,6})-(SC-\d{2}-\d{3})\b/);
+      if (conClave) return `${conClave[1]}-${conClave[2]}`;
+      const solo = texto.match(/\b(SC-\d{2}-\d{3})\b/);
+      if (solo) return solo[1];
+    }
+    const folio = String(fila.folio || '').trim();
+    if (folio && !/^SP-/i.test(folio)) return folio;
+    return String(fila.numeroProyecto || folio || '—').trim() || '—';
+  }
+
+  /** Folio interno de Control de Proyectos (SP-…) si difiere de la cotización. */
+  spF04FolioInterno(fila: SpF04Fila | null | undefined): string {
+    if (!fila) return '';
+    const folio = String(fila.folio || '').trim();
+    if (!folio) return '';
+    const codigo = this.spF04Codigo(fila);
+    if (!folio || folio === codigo) return '';
+    if (/^SP-/i.test(folio) || !/SC-\d{2}-\d{3}/i.test(folio)) return folio;
+    return '';
+  }
+
+  spF04TituloVista(fila: SpF04Fila | null | undefined): string {
+    if (!fila) return 'Proyecto sin nombre';
+    let nombre = String(fila.nombreProyecto || '').trim();
+    if (!nombre) return 'Proyecto sin nombre';
+    // Quita "BAPEVA BAP-SC-26-017 …" / "BAP-SC-26-017 …" / "SC-26-017 …" al inicio
+    nombre = nombre
+      .replace(/^(?:[A-Z0-9ÁÉÍÓÚÑ]{2,12}\s+)?(?:[A-Z0-9]{2,6}-)?SC-\d{2}-\d{3}\b[\s\-–—/|·]*/i, '')
+      .replace(/^SP-\d{6,}-\d+\b[\s\-–—/|·]*/i, '')
+      .trim();
+    const codigo = this.spF04Codigo(fila);
+    const folio = String(fila.folio || '').trim();
+    for (const token of [folio, codigo].filter(Boolean).sort((a, b) => b.length - a.length)) {
+      const re = new RegExp(`^${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\-–—/|·]*`, 'i');
+      nombre = nombre.replace(re, '').trim();
+    }
+    return nombre || String(fila.nombreProyecto || '').trim() || 'Proyecto sin nombre';
+  }
+
+  /** Clase tipográfica según longitud: corto / medio / largo. */
+  spF04TituloClase(fila: SpF04Fila | null | undefined): string {
+    const len = this.spF04TituloVista(fila).length;
+    if (len <= 42) return 'sp-f-04-title--corto';
+    if (len <= 95) return 'sp-f-04-title--medio';
+    return 'sp-f-04-title--largo';
+  }
+
+  spF04Responsables(fila: SpF04Fila | null | undefined): string[] {
+    return String(fila?.responsable || '')
+      .split(/\s*\/\s*|\s*\|\s*|\n+/)
+      .map((parte) => parte.trim())
+      .filter(Boolean);
+  }
+
+  spF04Observaciones(fila: SpF04Fila | null | undefined): string[] {
+    return String(fila?.observaciones || '')
+      .split(/\n+/)
+      .map((linea) => linea.replace(/^[-•*]\s*/, '').trim())
+      .filter(Boolean);
+  }
+
+  spF04IndiceDetalle(): string {
+    const total = this.spF04FilasVista.length;
+    const indice = this.indiceResumenSpF04();
+    if (indice < 0 || !total) return '';
+    return `${indice + 1} / ${total}`;
+  }
+
+  private claveEmpresaSpF04(nombre: string): string {
+    return this.normalizarTextoAthF11(nombre);
+  }
+
+  spF04LogoEmpresa(fila: SpF04Fila | null | undefined): string | null {
+    if (!fila) return null;
+    const id = Number(fila.empresaId || 0);
+    if (id > 0 && this.spF04LogosPorId.has(id)) {
+      return this.spF04LogosPorId.get(id) || null;
+    }
+    const clave = this.claveEmpresaSpF04(fila.empresa || '');
+    if (!clave) return null;
+    if (this.spF04LogosPorEmpresa.has(clave)) {
+      return this.spF04LogosPorEmpresa.get(clave) || null;
+    }
+    // Coincidencia flexible (nombres parciales / variaciones)
+    for (const [nombre, url] of this.spF04LogosPorEmpresa.entries()) {
+      if (!nombre || !url) continue;
+      if (nombre.includes(clave) || clave.includes(nombre)) return url;
+    }
+    return null;
+  }
+
+  onSpF04LogoError(fila: SpF04Fila): void {
+    const id = Number(fila?.empresaId || 0);
+    if (id > 0) this.spF04LogosPorId.delete(id);
+    const clave = this.claveEmpresaSpF04(fila?.empresa || '');
+    if (clave) this.spF04LogosPorEmpresa.delete(clave);
+  }
+
+  private asegurarLogosSpF04(): void {
+    if (this.spF04LogosCargados) return;
+    this.spF04LogosCargados = true;
+    this.backendService.obtenerEmpresas()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          const lista: any[] = Array.isArray(res?.empresas)
+            ? res.empresas
+            : (Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []));
+          this.spF04LogosPorId.clear();
+          this.spF04LogosPorEmpresa.clear();
+          for (const e of lista) {
+            const id = Number(e?.empresa_id || e?.empresaId || 0);
+            const nombre = String(e?.nombre_empresa || e?.nombreEmpresa || e?.nombre || '').trim();
+            const url = this.backendService.resolverUrlDrivePreview(
+              e?.logo || e?.logo_url || e?.logoUrl || e?.empresa_logo || null
+            );
+            if (!url) continue;
+            if (Number.isInteger(id) && id > 0) this.spF04LogosPorId.set(id, url);
+            const clave = this.claveEmpresaSpF04(nombre);
+            if (clave) this.spF04LogosPorEmpresa.set(clave, url);
+          }
+        },
+        error: () => { /* sin logos; se usa icono */ }
+      });
+  }
+
+  activarHoverSpF04(fila: SpF04Fila): void {
+    this.spF04Hover = fila;
+  }
+
+  limpiarHoverSpF04(): void {
+    this.spF04Hover = null;
+  }
+
   abrirResumenSpF04(fila: SpF04Fila): void {
     this.spF04Detalle = fila;
+    this.spF04Hover = null;
     setTimeout(() => {
-      const dialog = this.host.nativeElement.querySelector('.sp-f-04-modal__dialog') as HTMLElement | null;
+      this.portalModalSpF04();
+      const dialog = document.querySelector('.sp-f-04-modal__dialog') as HTMLElement | null;
       dialog?.focus();
     }, 0);
   }
 
   cerrarResumenSpF04(): void {
     this.spF04Detalle = null;
+    document.body.classList.remove('sp-f-04-modal-open');
+    document.body.style.overflow = '';
+  }
+
+  /** Mueve el overlay al body para que el blur cubra también el menú lateral. */
+  private portalModalSpF04(): void {
+    const el =
+      (this.host.nativeElement.querySelector('.sp-f-04-modal') as HTMLElement | null)
+      || (document.body.querySelector('.sp-f-04-modal') as HTMLElement | null);
+    if (!el) return;
+    if (el.parentElement !== document.body) {
+      document.body.appendChild(el);
+    }
+    document.body.classList.add('sp-f-04-modal-open');
+    document.body.style.overflow = 'hidden';
   }
 
   moverResumenSpF04(delta: number): void {
@@ -17091,6 +17445,32 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (indice < 0) return;
     const siguiente = (indice + delta + lista.length) % lista.length;
     this.spF04Detalle = lista[siguiente];
+    setTimeout(() => this.portalModalSpF04(), 0);
+  }
+
+  spF04ResumenActividades(fila: SpF04Fila | null | undefined): {
+    total: number;
+    disponibles: number;
+    porEstatus: SpF04ActividadesPorEstatus;
+  } {
+    const por = fila?.actividadesPorEstatus;
+    const porEstatus: SpF04ActividadesPorEstatus = {
+      noIniciado: Number(por?.noIniciado) || 0,
+      enCurso: Number(por?.enCurso) || 0,
+      enRevision: Number(por?.enRevision) || 0,
+      listo: Number(por?.listo) || 0
+    };
+    const total = Number(fila?.totalActividades);
+    const disponibles = Number(fila?.actividadesDisponibles);
+    return {
+      total: Number.isFinite(total) && total >= 0
+        ? total
+        : porEstatus.noIniciado + porEstatus.enCurso + porEstatus.enRevision + porEstatus.listo,
+      disponibles: Number.isFinite(disponibles) && disponibles >= 0
+        ? disponibles
+        : porEstatus.noIniciado + porEstatus.enCurso + porEstatus.enRevision,
+      porEstatus
+    };
   }
 
   private indiceResumenSpF04(): number {
@@ -17106,7 +17486,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!fila) return;
     const folio = (fila.folio || fila.numeroProyecto || fila.nombreProyecto || '').trim();
     if (!folio) return;
-    this.spF04Detalle = null;
+    this.cerrarResumenSpF04();
     this.router.navigate(['/control-proyectos'], {
       queryParams: {
         vista: 'gestion',
@@ -17119,24 +17499,49 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   cargarSpF04(forzar = false): void {
     this.spF04Cargando = true;
     this.spF04Error = '';
+    this.spF04Hover = null;
+    this.asegurarLogosSpF04();
     const peticion = forzar
       ? this.backendService.actualizarSpF04Formato()
       : this.backendService.cargarSpF04Formato();
     peticion.pipe(takeUntil(this.destroy$)).subscribe({
       next: (res) => {
         const filas = Array.isArray(res?.datos?.filas) ? res.datos.filas : [];
-        this.spF04Filas = filas.map((fila: SpF04Fila) => ({
-          numero: Number(fila?.numero) || 0,
-          numeroCotizacion: String(fila?.numeroCotizacion || ''),
-          numeroProyecto: String(fila?.numeroProyecto || ''),
-          empresa: String(fila?.empresa || ''),
-          nombreProyecto: String(fila?.nombreProyecto || ''),
-          responsable: String(fila?.responsable || ''),
-          observaciones: String(fila?.observaciones || ''),
-          estatus: fila?.estatus === 'Cerrado' ? 'Cerrado' : 'Abierto',
-          avance: Number(fila?.avance) || 0,
-          folio: String(fila?.folio || '')
-        }));
+        this.spF04Filas = filas.map((fila: SpF04Fila) => {
+          const empresaIdNum = Number((fila as any)?.empresaId || (fila as any)?.empresa_id || 0);
+          const porRaw = (fila as any)?.actividadesPorEstatus || {};
+          const porEstatus: SpF04ActividadesPorEstatus = {
+            noIniciado: Number(porRaw.noIniciado) || 0,
+            enCurso: Number(porRaw.enCurso) || 0,
+            enRevision: Number(porRaw.enRevision) || 0,
+            listo: Number(porRaw.listo) || 0
+          };
+          const totalCalc = porEstatus.noIniciado + porEstatus.enCurso + porEstatus.enRevision + porEstatus.listo;
+          const dispCalc = porEstatus.noIniciado + porEstatus.enCurso + porEstatus.enRevision;
+          const totalRaw = Number((fila as any)?.totalActividades);
+          const dispRaw = Number((fila as any)?.actividadesDisponibles);
+          return {
+            numero: Number(fila?.numero) || 0,
+            numeroCotizacion: String(fila?.numeroCotizacion || ''),
+            numeroProyecto: String(fila?.numeroProyecto || ''),
+            empresaId: Number.isInteger(empresaIdNum) && empresaIdNum > 0 ? empresaIdNum : null,
+            empresa: String(fila?.empresa || ''),
+            nombreProyecto: String(fila?.nombreProyecto || ''),
+            responsable: String(fila?.responsable || ''),
+            observaciones: String(fila?.observaciones || ''),
+            estatus: fila?.estatus === 'Cerrado' ? 'Cerrado' : 'Abierto',
+            avance: Number(fila?.avance) || 0,
+            totalActividades: Number.isFinite(totalRaw) && totalRaw >= 0 ? totalRaw : totalCalc,
+            actividadesDisponibles: Number.isFinite(dispRaw) && dispRaw >= 0 ? dispRaw : dispCalc,
+            actividadesPorEstatus: porEstatus,
+            folio: String(fila?.folio || '')
+          };
+        });
+        // Reintentar logos si llegaron filas con empresaId y aún no había mapa
+        if (!this.spF04LogosPorId.size && !this.spF04LogosPorEmpresa.size) {
+          this.spF04LogosCargados = false;
+          this.asegurarLogosSpF04();
+        }
         this.spF04DriveFileId = String(res?.driveFileId || '');
         this.spF04EditorUrl = String(res?.editorUrl || '');
         this.spF04UltimaSync = res?.ultimaSyncDrive || null;
@@ -17382,6 +17787,20 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           this.athF14Guardando = false;
           this.athF14CambiosPendientes = false;
           this.athF14UltimaSync = res?.ultimaSyncDrive || new Date().toISOString();
+          if (res?.driveFileId) this.athF14DriveFileId = res.driveFileId;
+          if (res?.editorUrl) this.athF14EditorUrl = res.editorUrl;
+          if (Array.isArray(res?.datos?.filas)) {
+            this.athF14IgnorarAutoSave = true;
+            this.athF14Filas = this.filasDesdeGuardadoAthF14(res.datos.filas);
+            this.athF14IgnorarAutoSave = false;
+          }
+          if (this.mostrarAthF14Editor && this.athF14EditorUrl) {
+            const url = this.resolverUrlEditorDrive(this.athF14EditorUrl, this.athF14DriveFileId);
+            const embedUrl = this.urlIframeDriveSegunPermiso(url);
+            this.athF14EditorSrcCache = embedUrl
+              ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
+              : null;
+          }
         },
         error: () => {
           this.persistirBorradorLocalSgcAhora();

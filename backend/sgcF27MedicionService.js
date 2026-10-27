@@ -1,6 +1,8 @@
 /**
  * SGC-F-27 · Reporte de verificación de equipos de medición (capítulo 7).
- * La hoja «Plantilla» solo se copia. Cada verificación vive en su hoja «SGC-F-27 -01», «-02», etc.
+ *
+ * Plantilla externa (solo lectura / copyTo) + archivo sistema (archivero + histograma).
+ * Cada verificación = una pestaña cuyo nombre = «Instrumento de medición» (sanitizado).
  *
  * Código visible: SGC-F-27. La clave interna SGC-F-27V evita chocar con
  * la orden de compra (también registrada como SGC-F-27 en el capítulo 8).
@@ -21,6 +23,10 @@ const excelHistorial = require('./sgcExcelHistorialService');
 
 const CODIGO_FORMATO = 'SGC-F-27V';
 const CODIGO_VISIBLE = 'SGC-F-27';
+/** Plantilla maestra (solo lectura / copyTo). */
+const TEMPLATE_DRIVE_ID = '1BzMshUJ9f2qqAaTl8xqY6Bwu6r_7L1PFyA8PW1VFRy8';
+const TEMPLATE_SHEET_TITLE = 'Plantilla';
+/** Archivo de trabajo Centro SGC (archivero + histograma). */
 const DRIVE_FILE_ID_SISTEMA = '1EK1xd8hJtpkDs_H7F_aoprV3eAz7bAmzIp9Fy0kHZy0';
 const CARPETA_DRIVE_ID = '1QR_QluYmog0K45Z2gZot0EgOnw26l6Aj';
 const CARPETA_PDF_FIRMADOS_ID = '1T5yhvPmTE8621G4xL15ueDN3trwmHUKH';
@@ -374,7 +380,8 @@ async function guardarRegistroDb(pool, payload) {
 }
 
 function construirRespuesta(registro, datos, archivo) {
-    const driveId = archivo?.id || registro?.drive_file_id || DRIVE_FILE_ID_SISTEMA;
+    let driveId = texto(archivo?.id) || texto(registro?.drive_file_id) || DRIVE_FILE_ID_SISTEMA;
+    if (esArchivoPlantilla(driveId)) driveId = DRIVE_FILE_ID_SISTEMA;
     return {
         codigo: CODIGO_VISIBLE,
         datos: sanitizarArchivo(datos),
@@ -388,13 +395,75 @@ function construirRespuesta(registro, datos, archivo) {
     };
 }
 
-async function resolverDriveFileId() {
-    const existe = await driveService.verificarArchivoExiste(DRIVE_FILE_ID_SISTEMA).catch(() => false);
-    if (existe) return DRIVE_FILE_ID_SISTEMA;
+function esArchivoPlantilla(fileId) {
+    return !!texto(fileId) && texto(fileId) === TEMPLATE_DRIVE_ID;
+}
+
+async function resolverDriveFileId(registro = null) {
+    if (DRIVE_FILE_ID_SISTEMA) {
+        const existeSistema = await driveService.verificarArchivoExiste(DRIVE_FILE_ID_SISTEMA).catch(() => false);
+        if (existeSistema) return DRIVE_FILE_ID_SISTEMA;
+    }
+    const idDb = texto(registro?.drive_file_id);
+    if (idDb && !esArchivoPlantilla(idDb)) {
+        const existe = await driveService.verificarArchivoExiste(idDb).catch(() => false);
+        if (existe) return idDb;
+    }
     const archivos = await driveService.listarArchivosCarpeta(CARPETA_DRIVE_ID).catch(() => []);
-    const hoja = (archivos || []).find((f) => String(f.mimeType || '').includes('spreadsheet'));
-    if (!hoja?.id) throw new Error('No se encontró la hoja SGC-F-27 de verificación en Drive.');
-    return hoja.id;
+    const hoja = (archivos || []).find((f) => {
+        const id = texto(f.id);
+        if (!id || esArchivoPlantilla(id)) return false;
+        return String(f.mimeType || '').includes('spreadsheet');
+    });
+    if (hoja?.id) return hoja.id;
+    if (!DRIVE_FILE_ID_SISTEMA) {
+        throw new Error('No se encontró el archivo sistema SGC-F-27 de verificación en Drive.');
+    }
+    return DRIVE_FILE_ID_SISTEMA;
+}
+
+/**
+ * Copia «Plantilla» del archivo plantilla externo al sistema.
+ * Nunca escribe ni borra en TEMPLATE_DRIVE_ID.
+ */
+async function adoptarPlantillaEnSistema(spreadsheetId, tituloDestino) {
+    if (!spreadsheetId || esArchivoPlantilla(spreadsheetId)) {
+        throw new Error('No se puede adoptar la plantilla sobre el archivo plantilla externo.');
+    }
+    const destino = texto(tituloDestino) || 'Sin instrumento';
+    console.warn(
+        `[SGC-F-27 medición] Copiando hoja «${TEMPLATE_SHEET_TITLE}» desde plantilla `
+        + `${TEMPLATE_DRIVE_ID} → sistema como «${destino}».`
+    );
+    const copiada = await driveService.copiarHojaEntreSpreadsheets(
+        TEMPLATE_DRIVE_ID,
+        TEMPLATE_SHEET_TITLE,
+        spreadsheetId,
+        destino
+    );
+    return texto(copiada?.title) || destino;
+}
+
+/**
+ * Crea la hoja del ítem desde la plantilla externa.
+ * Fallback legado: duplicar «Plantilla» local del sistema si aún existe.
+ */
+async function asegurarHojaDesdePlantilla(spreadsheetId, tituloDeseado) {
+    try {
+        return await adoptarPlantillaEnSistema(spreadsheetId, tituloDeseado);
+    } catch (err) {
+        console.warn(`[SGC-F-27 medición] copyTo plantilla falló para «${tituloDeseado}»:`, err.message);
+        const hojas = await metadatosHojas(spreadsheetId);
+        const plantillaLocal = hojas.find((h) => (h.properties?.title || '') === SHEET_TITLE);
+        if (!plantillaLocal) {
+            throw new Error(
+                'No se pudo copiar la plantilla externa y no hay hoja Plantilla local en el archivo sistema. '
+                + err.message
+            );
+        }
+        const dup = await driveService.duplicarHojaGoogleSheet(spreadsheetId, SHEET_TITLE, tituloDeseado);
+        return texto(dup?.title) || tituloDeseado;
+    }
 }
 
 async function metadatosHojas(spreadsheetId) {
@@ -726,22 +795,23 @@ function actualizacionesValores(titulo, datos) {
 }
 
 async function escribirEnHoja(spreadsheetId, datos, nombreHoja) {
-    const tituloDeseado = texto(nombreHoja);
+    if (!spreadsheetId || esArchivoPlantilla(spreadsheetId)) {
+        throw new Error('No se puede escribir verificaciones en el archivo plantilla externo.');
+    }
+    const tituloDeseado = texto(nombreHoja) || limpiarNombreHoja(datos?.instrumento);
     if (!tituloDeseado || tituloDeseado === SHEET_TITLE || tituloDeseado === HOJA_LISTAS) {
-        throw new Error('La hoja Plantilla solo es referencia. Cada verificación se guarda en su propia hoja.');
+        throw new Error(
+            'La plantilla solo es referencia. Cada verificación se guarda en su propia hoja '
+            + '(nombre = Instrumento de medición).'
+        );
     }
     await asegurarHojaListas(spreadsheetId);
     let hojas = await metadatosHojas(spreadsheetId);
     let hoja = hojas.find((h) => (h.properties?.title || '') === tituloDeseado);
     if (!hoja) {
-        const plantilla = hojas.find((h) => (h.properties?.title || '') === SHEET_TITLE);
-        if (!plantilla) {
-            throw new Error('No existe la hoja Plantilla para copiar el formato.');
-        }
-        const dup = await driveService.duplicarHojaGoogleSheet(spreadsheetId, SHEET_TITLE, tituloDeseado);
+        const tituloCreado = await asegurarHojaDesdePlantilla(spreadsheetId, tituloDeseado);
         hojas = await metadatosHojas(spreadsheetId);
-        const tituloDup = texto(dup?.title) || tituloDeseado;
-        hoja = hojas.find((h) => (h.properties?.title || '') === tituloDup)
+        hoja = hojas.find((h) => (h.properties?.title || '') === tituloCreado)
             || hojas.find((h) => (h.properties?.title || '') === tituloDeseado);
     }
     if (!hoja) throw new Error(`No se pudo crear la hoja «${tituloDeseado}».`);
@@ -863,7 +933,7 @@ async function cargarFormato(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
     const datos = (await leerDatosRegistro(registro)) || archivoVacio();
-    const driveFileId = await resolverDriveFileId().catch(() => DRIVE_FILE_ID_SISTEMA);
+    const driveFileId = await resolverDriveFileId(registro).catch(() => DRIVE_FILE_ID_SISTEMA);
     const hojasRenombradas = await renombrarHojasPendientes(driveFileId, datos).catch((err) => {
         console.warn('[SGC-F-27 medición] No se alinearon los nombres de hoja:', err.message);
         return false;
@@ -893,7 +963,10 @@ async function guardarFormato(pool, body) {
     const registroPrevio = await obtenerRegistroDb(pool);
     const previos = (await leerDatosRegistro(registroPrevio)) || archivoVacio();
     const entrada = fusionarPdfsPrevios(sanitizarArchivo(body?.datos || body), previos);
-    const driveFileId = await resolverDriveFileId();
+    const driveFileId = await resolverDriveFileId(registroPrevio);
+    if (esArchivoPlantilla(driveFileId)) {
+        throw new Error('El archivo de trabajo no puede ser la plantilla externa de SGC-F-27.');
+    }
     await renombrarHojasPendientes(driveFileId, entrada);
     const activo = buscarReporte(entrada, entrada.reporteActivoId);
     if (activo) {
@@ -921,7 +994,10 @@ async function sincronizarDesdeDrive(pool, body = {}) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registroPrevio = await obtenerRegistroDb(pool);
     const archivo = (await leerDatosRegistro(registroPrevio)) || archivoVacio();
-    const driveFileId = await resolverDriveFileId();
+    const driveFileId = await resolverDriveFileId(registroPrevio);
+    if (esArchivoPlantilla(driveFileId)) {
+        throw new Error('El archivo de trabajo no puede ser la plantilla externa de SGC-F-27.');
+    }
     const reporte = buscarReporte(archivo, body?.reporteId || body?.reporteActivoId || archivo.reporteActivoId);
     if (reporte?.nombreHoja) {
         const leidos = await leerDatosDesdeDrive(driveFileId, reporte.nombreHoja);
@@ -958,21 +1034,27 @@ async function sincronizarDesdeDrive(pool, body = {}) {
 
 async function actualizarPlantillaDesdeSistema(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
-    const driveFileId = await resolverDriveFileId();
-    await asegurarHojaListas(driveFileId);
     const registro = await obtenerRegistroDb(pool);
+    const driveFileId = await resolverDriveFileId(registro);
+    if (esArchivoPlantilla(driveFileId)) {
+        throw new Error('No se puede sincronizar sobre el archivo plantilla externo.');
+    }
+    await asegurarHojaListas(driveFileId);
     const datos = (await leerDatosRegistro(registro)) || archivoVacio();
     return construirRespuesta(registro || {}, datos, { id: driveFileId });
 }
 
 async function asegurarAccesoEditor(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
-    const driveFileId = await resolverDriveFileId();
+    const registro = await obtenerRegistroDb(pool);
+    const driveFileId = await resolverDriveFileId(registro);
+    if (esArchivoPlantilla(driveFileId)) {
+        throw new Error('El editor debe abrir el archivo sistema, no la plantilla.');
+    }
     await driveService.asignarPermisoEscrituraEnlace(driveFileId);
     try {
         await driveService.asignarPermisoLecturaPublica(driveFileId);
     } catch (_) { /* ignore */ }
-    const registro = await obtenerRegistroDb(pool);
     const datos = (await leerDatosRegistro(registro)) || archivoVacio();
     return construirRespuesta(
         { ...(registro || {}), drive_file_id: driveFileId },
@@ -987,7 +1069,7 @@ async function descargarPlantillaPdf(pool, reporteId) {
     const archivo = (await leerDatosRegistro(registro)) || archivoVacio();
     const reporte = buscarReporte(archivo, reporteId);
     if (!reporte) throw new Error('Selecciona una verificación del archivero para descargar el PDF.');
-    const driveFileId = await resolverDriveFileId();
+    const driveFileId = await resolverDriveFileId(registro);
     const titulo = await escribirEnHoja(driveFileId, reporte, reporte.nombreHoja);
     reporte.nombreHoja = titulo;
     archivo.reporteActivoId = reporte.id;
@@ -1062,7 +1144,10 @@ async function subirPdfFirmado(pool, body) {
         [pdfFirmado, ...historial.filter((p) => p.driveFileId !== pdfFirmado.driveFileId)]
     );
     datos.reporteActivoId = reporte.id;
-    const driveFileId = registroPrevio?.drive_file_id || DRIVE_FILE_ID_SISTEMA;
+    let driveFileId = texto(registroPrevio?.drive_file_id);
+    if (!driveFileId || esArchivoPlantilla(driveFileId)) {
+        driveFileId = DRIVE_FILE_ID_SISTEMA;
+    }
     await guardarRegistroDb(pool, {
         driveFileId,
         datos,
@@ -1101,7 +1186,10 @@ async function eliminarPdfHistorial(pool, body, opciones = {}) {
     reporte.pdfsHistorial = hist;
     reporte.pdfFirmado = vigente;
     datos.reporteActivoId = reporte.id;
-    const hojaId = registroPrevio?.drive_file_id || DRIVE_FILE_ID_SISTEMA;
+    let hojaId = texto(registroPrevio?.drive_file_id);
+    if (!hojaId || esArchivoPlantilla(hojaId)) {
+        hojaId = DRIVE_FILE_ID_SISTEMA;
+    }
     await guardarRegistroDb(pool, {
         driveFileId: hojaId,
         datos,
@@ -1117,6 +1205,8 @@ async function eliminarPdfHistorial(pool, body, opciones = {}) {
 module.exports = {
     CODIGO_FORMATO,
     CODIGO_VISIBLE,
+    TEMPLATE_DRIVE_ID,
+    DRIVE_FILE_ID_SISTEMA,
     ESTATUS,
     RESULTADOS,
     LIMITE_S,
