@@ -1,0 +1,282 @@
+<div class="header header-bg-image sgc-hero sgc-hero--compact pb-5 pt-4 pt-md-5 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid position-relative">
+    <div class="sgc-hero__content text-center">
+      <span class="sgc-hero__icon icon icon-shape text-white rounded-circle shadow mb-2">
+        <i class="fas fa-file-signature"></i>
+      </span>
+      <p class="text-white mb-1 sgc-hero-tagline">SGC · Firmas</p>
+      <h1 class="text-white mb-0 sgc-hero-title">Firmas y autorizaciones</h1>
+    </div>
+  </div>
+</div>
+
+<main class="container-fluid sgc-firmas mt--5">
+  <div class="sgc-firmas__shell" [class.sgc-firmas__shell--ancha]="vista === 'mi-firma'">
+    <nav class="sgc-firmas__tabs" aria-label="Secciones de firmas">
+      <button type="button" [class.is-active]="vista === 'mi-firma'" (click)="cambiarVista('mi-firma')">Mis firmas</button>
+      <button type="button" [class.is-active]="vista === 'pendientes'" (click)="cambiarVista('pendientes')">Firmas pendientes</button>
+      <button type="button" [class.is-active]="vista === 'mias'" (click)="cambiarVista('mias')">Mis solicitudes</button>
+      <button type="button" [class.is-active]="vista === 'historial'" (click)="cambiarVista('historial')">Historial</button>
+      <button type="button" *ngIf="puedeConfigurar" [class.is-active]="vista === 'zonas'" (click)="cambiarVista('zonas')">Zonas de firma</button>
+    </nav>
+
+    <p class="sgc-firmas__aviso" *ngIf="aviso">{{ aviso }}</p>
+    <p class="sgc-firmas__error" *ngIf="error">{{ error }}</p>
+
+    <section *ngIf="vista === 'mi-firma'" class="sgc-mia">
+      <article class="sgc-mia__card">
+        <header class="sgc-mia__head">
+          <span class="sgc-mia__brand" aria-hidden="true"><i class="fas fa-briefcase"></i></span>
+          <div>
+            <h2>Mi firma manuscrita</h2>
+            <p>Tu firma se cifra en este navegador antes de enviarse y se almacena de forma segura.</p>
+          </div>
+          <div class="sgc-mia__meta">
+            <span class="sgc-mia__badge" [attr.data-estado]="estadoFirma?.estado || 'sin_firma'">
+              <i></i>{{ etiquetaEstadoFirma() }}
+            </span>
+            <small *ngIf="estadoFirma?.actualizada">
+              Última actualización
+              <strong>{{ fechaUi(estadoFirma?.actualizada) }}</strong>
+            </small>
+          </div>
+        </header>
+
+        <div class="sgc-mia__steps">
+          <section class="sgc-mia__step">
+            <header>
+              <span>1</span>
+              <div>
+                <h3>Imagen de la firma</h3>
+                <p>Selecciona un archivo PNG con fondo transparente.</p>
+              </div>
+            </header>
+            <label class="sgc-mia__drop" [class.is-over]="arrastrandoFirma"
+              (dragenter)="alEntrarFirma($event)" (dragover)="alMantenerFirma($event)"
+              (dragleave)="alSalirFirma($event)" (drop)="soltarFirma($event)">
+              <input #firmaPng type="file" accept="image/png,.png" (change)="elegirImagenFirma($event)" />
+              <span class="sgc-mia__drop-icon" aria-hidden="true"><i class="far fa-image"></i></span>
+              <strong>{{ nombreArchivoFirma || 'Arrastra tu firma aquí' }}</strong>
+              <em>o selecciona un archivo</em>
+              <span class="sgc-mia__pick"><i class="fas fa-upload" aria-hidden="true"></i> Seleccionar PNG</span>
+            </label>
+            <p class="sgc-mia__hint">Formato PNG · Tamaño máximo 2 MB · Fondo transparente</p>
+          </section>
+
+          <section class="sgc-mia__step">
+            <header>
+              <span>2</span>
+              <div>
+                <h3>Protección de la firma</h3>
+                <p>Crea una contraseña para cifrar tu firma.</p>
+              </div>
+            </header>
+            <label class="sgc-mia__secret">
+              <i class="fas fa-lock" aria-hidden="true"></i>
+              <input [type]="verClaveFirma ? 'text' : 'password'" [(ngModel)]="passwordFirma"
+                autocomplete="new-password" placeholder="Contraseña de la firma" />
+              <button type="button" (click)="verClaveFirma = !verClaveFirma" [attr.aria-label]="verClaveFirma ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+                <i class="fas" [class.fa-eye]="!verClaveFirma" [class.fa-eye-slash]="verClaveFirma" aria-hidden="true"></i>
+              </button>
+            </label>
+            <label class="sgc-mia__secret">
+              <i class="fas fa-lock" aria-hidden="true"></i>
+              <input [type]="verClaveFirma2 ? 'text' : 'password'" [(ngModel)]="passwordFirma2"
+                autocomplete="new-password" placeholder="Confirmar contraseña" />
+              <button type="button" (click)="verClaveFirma2 = !verClaveFirma2" [attr.aria-label]="verClaveFirma2 ? 'Ocultar confirmación' : 'Mostrar confirmación'">
+                <i class="fas" [class.fa-eye]="!verClaveFirma2" [class.fa-eye-slash]="verClaveFirma2" aria-hidden="true"></i>
+              </button>
+            </label>
+            <div class="sgc-mia__note">
+              <i class="fas fa-info-circle" aria-hidden="true"></i>
+              <ul>
+                <li>La contraseña solo la conocerás tú.</li>
+                <li>Se utiliza para cifrar y descifrar tu firma.</li>
+                <li>Queda guardada para usarla de nuevo en otra solicitud.</li>
+              </ul>
+            </div>
+            <button type="button" class="sgc-mia__save" [disabled]="guardando" (click)="registrarFirma()">
+              <i class="fas fa-lock" aria-hidden="true"></i>
+              {{ guardando ? 'Cifrando…' : 'Guardar firma' }}
+            </button>
+          </section>
+        </div>
+      </article>
+
+      <aside class="sgc-mia__side">
+        <header>
+          <span aria-hidden="true"><i class="fas fa-eye"></i></span>
+          <h2>Vista previa</h2>
+        </header>
+        <div class="sgc-mia__preview" [class.is-open]="!!vistaPreviaFirma">
+          <img *ngIf="vistaPreviaFirma" [src]="vistaPreviaFirma" alt="Vista previa de la firma, todavía sin guardar" />
+          <div *ngIf="!vistaPreviaFirma" class="sgc-mia__lock">
+            <span aria-hidden="true"><i class="fas fa-lock"></i></span>
+            <strong>{{ estadoFirma?.tieneFirma ? 'Firma protegida' : 'Sin firma' }}</strong>
+            <p>{{ estadoFirma?.tieneFirma ? 'Guardada. Ya no se muestra en ningún lado.' : 'Arrastra un PNG para verla aquí antes de guardarla' }}</p>
+          </div>
+        </div>
+
+        <h3>Información</h3>
+        <dl>
+          <div>
+            <dt>Estado</dt>
+            <dd [attr.data-estado]="estadoFirma?.estado || 'sin_firma'"><i></i>{{ etiquetaEstadoFirma() }}</dd>
+          </div>
+          <div>
+            <dt>Registrada</dt>
+            <dd>{{ estadoFirma?.creada ? fechaUi(estadoFirma?.creada) : '—' }}</dd>
+          </div>
+          <div>
+            <dt>Última actualización</dt>
+            <dd>{{ estadoFirma?.actualizada ? fechaUi(estadoFirma?.actualizada) : '—' }}</dd>
+          </div>
+          <div>
+            <dt>Formato</dt>
+            <dd>{{ estadoFirma?.tieneFirma ? 'PNG (cifrado)' : '—' }}</dd>
+          </div>
+          <div>
+            <dt>Tamaño</dt>
+            <dd>{{ tamanoUi(estadoFirma?.tamano) }}</dd>
+          </div>
+        </dl>
+
+        <button type="button" class="sgc-mia__revoke" *ngIf="estadoFirma?.tieneFirma" [disabled]="guardando" (click)="revocarFirma()">
+          <i class="fas fa-trash-alt" aria-hidden="true"></i> Revocar firma
+        </button>
+        <p class="sgc-mia__revoke-note" *ngIf="estadoFirma?.tieneFirma">
+          Al revocar tu firma ya no podrá utilizarse en nuevos documentos. No afecta los documentos ya firmados.
+        </p>
+      </aside>
+    </section>
+
+    <section *ngIf="vista === 'pendientes' || vista === 'mias' || vista === 'historial'" class="sgc-firmas__panel">
+      <h2 *ngIf="vista === 'pendientes'">Bandeja de firmas pendientes</h2>
+      <h2 *ngIf="vista === 'mias'">Solicitudes que enviaste</h2>
+      <h2 *ngIf="vista === 'historial'">Historial de autorizaciones</h2>
+      <p class="sgc-firmas__loading" *ngIf="cargando">Cargando…</p>
+      <p class="sgc-firmas__note" *ngIf="!cargando && !solicitudes.length">No hay solicitudes en esta bandeja.</p>
+
+      <article class="sgc-firmas__card" *ngFor="let solicitud of solicitudes; trackBy: trackSolicitud"
+        [attr.data-estado]="solicitud.estado">
+        <button type="button" class="sgc-firmas__summary" (click)="abrir(solicitud)">
+          <span>
+            <strong>{{ solicitud.codigo }} · {{ solicitud.nombre_documento }}</strong>
+            <small>
+              {{ solicitud.nombre_solicitante }} · {{ fechaUi(solicitud.created_at) }}
+              · Huella {{ huellaCorta(solicitud.contenido_hash) }}
+            </small>
+          </span>
+          <em [attr.data-estado]="solicitud.estado">{{ estadoLabel(solicitud.estado) }}</em>
+        </button>
+
+        <div class="sgc-firmas__detail" *ngIf="solicitudAbierta === solicitud.solicitud_id && detalle?.solicitud_id === solicitud.solicitud_id">
+          <p>{{ detalle.contenido_resumen }}</p>
+          <p *ngIf="detalle.registro_clave">Registro: {{ detalle.registro_clave }}</p>
+          <a *ngIf="detalle.ruta_documento" [routerLink]="detalle.ruta_documento">Abrir documento</a>
+          <a *ngIf="!detalle.ruta_documento" routerLink="/sistema-gestion-calidad">Ir al SGC</a>
+
+          <h3>Firmantes</h3>
+          <ul>
+            <li *ngFor="let firmante of detalle.firmantes">
+              {{ firmante.nombre || nombreUsuario(firmante.usuario_id) }}
+              · {{ firmante.rol_etiqueta || 'Firmante' }}
+              · {{ estadoLabel(firmante.estado) }}
+              <span *ngIf="firmante.observacion"> — {{ firmante.observacion }}</span>
+            </li>
+          </ul>
+
+          <div *ngIf="puedeDecidir(detalle)">
+            <label class="sgc-firmas__field">
+              <span>Observación</span>
+              <textarea appAutoResize [appAutoResizeRefresh]="autosizeTick" rows="2" [(ngModel)]="observacion"
+                placeholder="Obligatoria si rechazas"></textarea>
+            </label>
+            <p class="sgc-firmas__note" *ngIf="confianzaFirmaActiva">
+              Este dispositivo recuerda tu firma hasta {{ fechaConfianzaUi() }}.
+              <button type="button" class="sgc-firmas__link" (click)="olvidarFirmaDispositivo()">Olvidar en este equipo</button>
+            </p>
+            <label class="sgc-firmas__field" *ngIf="!confianzaFirmaActiva">
+              <span>Contraseña de tu firma</span>
+              <input type="password" [(ngModel)]="passwordAprobar" autocomplete="current-password" />
+            </label>
+            <label class="sgc-firmas__check" *ngIf="!confianzaFirmaActiva">
+              <input type="checkbox" [(ngModel)]="recordarFirmaDispositivo" />
+              <span>Recordar en este dispositivo por 7 días</span>
+            </label>
+            <div class="sgc-firmas__actions">
+              <button type="button" class="sgc-firmas__primary" [disabled]="guardando" (click)="aprobar(detalle)">Aprobar este documento</button>
+              <button type="button" class="sgc-firmas__danger" [disabled]="guardando" (click)="rechazar(detalle)">Rechazar</button>
+            </div>
+            <p class="sgc-firmas__note">
+              Al aprobar se usa tu PNG. En el documento aparecerá el botón para imprimirlo en el apartado de firma.
+            </p>
+          </div>
+
+          <div *ngIf="puedeInvalidar(detalle)">
+            <label class="sgc-firmas__field">
+              <span>Invalidar porque el documento cambió</span>
+              <textarea appAutoResize rows="2" [(ngModel)]="motivoInvalidar"></textarea>
+            </label>
+            <button type="button" class="sgc-firmas__ghost" [disabled]="guardando" (click)="invalidar(detalle)">Invalidar autorización</button>
+          </div>
+
+          <h3 *ngIf="detalle.auditoria?.length">Bitácora</h3>
+          <ul *ngIf="detalle.auditoria?.length">
+            <li *ngFor="let evento of detalle.auditoria">
+              {{ fechaUi(evento.created_at) }} · {{ evento.nombre }} · {{ evento.accion }}
+              <span *ngIf="evento.detalle"> — {{ evento.detalle }}</span>
+            </li>
+          </ul>
+        </div>
+      </article>
+    </section>
+
+    <section *ngIf="vista === 'zonas' && puedeConfigurar" class="sgc-firmas__panel">
+      <h2>Configuración de espacios de firma</h2>
+      <p class="sgc-firmas__lead">
+        Las coordenadas solo se guardan si indicas página, posición y tamaño.
+        Un texto parecido a «firma» no coloca la imagen.
+      </p>
+      <p class="sgc-firmas__loading" *ngIf="cargando">Cargando zonas…</p>
+      <article class="sgc-firmas__card" *ngFor="let zona of zonas">
+        <button type="button" class="sgc-firmas__summary" (click)="editarZona(zona)">
+          <span>
+            <strong>{{ zona.codigo_formato }} · {{ zona.etiqueta }}</strong>
+            <small>{{ confianzaLabel(zona.confianza) }} · {{ zona.firmas_requeridas }} firma(s)</small>
+          </span>
+        </button>
+      </article>
+
+      <div class="sgc-firmas__detail" *ngIf="zonaEdit">
+        <h3>{{ zonaEdit.codigo_formato }} · {{ zonaEdit.etiqueta }}</h3>
+        <div class="sgc-firmas__grid">
+          <label class="sgc-firmas__field"><span>Página</span><input type="number" min="1" [(ngModel)]="zonaForm.pagina" /></label>
+          <label class="sgc-firmas__field"><span>X</span><input type="number" min="0" [(ngModel)]="zonaForm.posX" /></label>
+          <label class="sgc-firmas__field"><span>Y</span><input type="number" min="0" [(ngModel)]="zonaForm.posY" /></label>
+          <label class="sgc-firmas__field"><span>Ancho</span><input type="number" min="1" [(ngModel)]="zonaForm.ancho" /></label>
+          <label class="sgc-firmas__field"><span>Alto</span><input type="number" min="1" [(ngModel)]="zonaForm.alto" /></label>
+          <label class="sgc-firmas__field"><span>Firmas requeridas</span><input type="number" min="1" max="10" [(ngModel)]="zonaForm.firmasRequeridas" /></label>
+        </div>
+        <label class="sgc-firmas__field"><span>Rol responsable</span><input type="text" [(ngModel)]="zonaForm.rolResponsable" /></label>
+        <label class="sgc-firmas__field">
+          <span>Notas</span>
+          <textarea appAutoResize [appAutoResizeRefresh]="autosizeTick" rows="2" [(ngModel)]="zonaForm.notas"></textarea>
+        </label>
+        <button type="button" class="sgc-firmas__primary" [disabled]="guardando" (click)="guardarZona()">Guardar zona</button>
+      </div>
+
+      <h3>Nueva zona manual</h3>
+      <div class="sgc-firmas__grid">
+        <label class="sgc-firmas__field"><span>Código</span><input type="text" [(ngModel)]="zonaNueva.codigo" /></label>
+        <label class="sgc-firmas__field"><span>Clave</span><input type="text" [(ngModel)]="zonaNueva.clave" placeholder="reviso" /></label>
+        <label class="sgc-firmas__field"><span>Etiqueta</span><input type="text" [(ngModel)]="zonaNueva.etiqueta" /></label>
+      </div>
+      <label class="sgc-firmas__field">
+        <span>Notas</span>
+        <textarea appAutoResize rows="2" [(ngModel)]="zonaNueva.notas"></textarea>
+      </label>
+      <button type="button" class="sgc-firmas__ghost" [disabled]="guardando" (click)="crearZona()">Agregar zona pendiente</button>
+    </section>
+  </div>
+</main>
