@@ -466,6 +466,7 @@
 
 // EXPEDIENTES MÉDICOS / ESTADÍSTICAS — Color azul especial cuando está activo
 .nav-link.expedientes-medicos-link,
+.nav-link.audiometria-link,
 .nav-link.estadisticas-medicas-link {
   // Hover cuando NO está activo
   &:hover:not(.active) {

@@ -12,6 +12,18 @@
       </div>
     </div>
   </div>
+  <div class="stat-carrusel">
+    <button type="button" class="stat-carrusel-flecha" (click)="cambiarVista(-1)" aria-label="Vista anterior">
+      <i class="fas fa-chevron-left"></i>
+    </button>
+    <div class="stat-carrusel-opciones">
+      <button type="button" class="stat-carrusel-opcion" [class.activo]="vistaPanel === 'expedientes'" (click)="irVista('expedientes')">Expedientes médicos</button>
+      <button type="button" class="stat-carrusel-opcion" [class.activo]="vistaPanel === 'audiometria'" (click)="irVista('audiometria')">Audiometría</button>
+    </div>
+    <button type="button" class="stat-carrusel-flecha" (click)="cambiarVista(1)" aria-label="Vista siguiente">
+      <i class="fas fa-chevron-right"></i>
+    </button>
+  </div>
 </div>
 
 <div class="container-fluid mt--3" style="position: relative; z-index: 10; margin-bottom: 2rem;">
@@ -24,11 +36,11 @@
           <div class="d-flex align-items-center justify-content-between flex-wrap">
             <div class="d-flex align-items-center">
               <div>
-                <h5 class="stat-main-title mb-0">Panel de Estadísticas Médicas</h5>
+                <h5 class="stat-main-title mb-0">{{ tituloPanel }}</h5>
               </div>
             </div>
             <div class="d-flex align-items-center mt-2 mt-md-0">
-              <button *ngIf="estadisticas && estadisticas.total > 0"
+              <button *ngIf="vistaPanel === 'expedientes' && estadisticas && estadisticas.total > 0"
                       class="btn btn-sm btn-reporte mr-2"
                       (click)="abrirReporte()">
                 <i class="fas fa-file-powerpoint mr-1"></i> Generar Reporte
@@ -43,19 +55,19 @@
         </div>
 
         <!-- Loading -->
-        <div *ngIf="cargandoEstadisticas" class="text-center py-5">
+        <div *ngIf="vistaPanel === 'expedientes' && cargandoEstadisticas" class="text-center py-5">
           <div class="spinner-border" style="color: #0891b2;" role="status"></div>
           <p class="text-muted mt-2 mb-0">Cargando estadísticas...</p>
         </div>
 
         <!-- Sin datos -->
-        <div *ngIf="!cargandoEstadisticas && estadisticas && estadisticas.total === 0" class="text-center py-5">
+        <div *ngIf="vistaPanel === 'expedientes' && !cargandoEstadisticas && estadisticas && estadisticas.total === 0" class="text-center py-5">
           <i class="fas fa-chart-pie fa-3x text-muted mb-3"></i>
           <h5 class="text-muted">Sin datos disponibles</h5>
         </div>
 
         <!-- Dashboard -->
-        <div *ngIf="!cargandoEstadisticas && estadisticas && estadisticas.total > 0" class="stat-dashboard">
+        <div *ngIf="vistaPanel === 'expedientes' && !cargandoEstadisticas && estadisticas && estadisticas.total > 0" class="stat-dashboard">
 
           <!-- ===== KPI BAR ===== -->
           <div class="kpi-bar-stats mb-3">
@@ -257,6 +269,143 @@
           </div>
 
 
+        </div>
+
+        <div *ngIf="vistaPanel === 'audiometria' && cargandoAudiometria" class="text-center py-5">
+          <div class="spinner-border" style="color: #0891b2;" role="status"></div>
+          <p class="text-muted mt-2 mb-0">Cargando estadísticas...</p>
+        </div>
+
+        <div *ngIf="vistaPanel === 'audiometria' && !cargandoAudiometria && estadisticasAudiometria && estadisticasAudiometria.total === 0" class="text-center py-5">
+          <i class="fas fa-chart-pie fa-3x text-muted mb-3"></i>
+          <h5 class="text-muted">Sin audiometrías para esta selección</h5>
+        </div>
+
+        <div *ngIf="vistaPanel === 'audiometria' && !cargandoAudiometria && estadisticasAudiometria && estadisticasAudiometria.total > 0" class="stat-dashboard">
+          <div class="kpi-bar-stats mb-3">
+            <div class="kpi-cell-stats" [style.--kpi-accent]="'#1d4ed8'">
+              <div class="kpi-cell-stats-icon" style="background: linear-gradient(135deg,#1d4ed8,#3b82f6)">
+                <i class="fas fa-headphones"></i>
+              </div>
+              <div class="kpi-cell-stats-valor">{{ estadisticasAudiometria.total }}</div>
+              <div class="kpi-cell-stats-label">Audiometrías</div>
+              <div class="kpi-cell-stats-sub"><span class="kpi-cell-stats-dot" style="background:#1d4ed8"></span>Total</div>
+            </div>
+            <div class="kpi-cell-stats" [style.--kpi-accent]="'#059669'">
+              <div class="kpi-cell-stats-icon" style="background: linear-gradient(135deg,#059669,#34d399)">
+                <i class="fas fa-check-circle"></i>
+              </div>
+              <div class="kpi-cell-stats-valor">{{ estadisticasAudiometria.pctNormal }}%</div>
+              <div class="kpi-cell-stats-label">Audición normal</div>
+              <div class="kpi-cell-stats-sub"><span class="kpi-cell-stats-dot" style="background:#059669"></span>Hasta 20 dB</div>
+            </div>
+            <div class="kpi-cell-stats" [style.--kpi-accent]="'#7c3aed'">
+              <div class="kpi-cell-stats-icon" style="background: linear-gradient(135deg,#7c3aed,#a78bfa)">
+                <i class="fas fa-shield-alt"></i>
+              </div>
+              <div class="kpi-cell-stats-valor">{{ estadisticasAudiometria.pctProtector }}%</div>
+              <div class="kpi-cell-stats-label">Con protector</div>
+              <div class="kpi-cell-stats-sub"><span class="kpi-cell-stats-dot" style="background:#7c3aed"></span>Uso sí</div>
+            </div>
+            <div class="kpi-cell-stats" [style.--kpi-accent]="'#d97706'">
+              <div class="kpi-cell-stats-icon" style="background: linear-gradient(135deg,#d97706,#fbbf24)">
+                <i class="fas fa-stethoscope"></i>
+              </div>
+              <div class="kpi-cell-stats-valor">{{ estadisticasAudiometria.pctSintomas }}%</div>
+              <div class="kpi-cell-stats-label">Con síntomas</div>
+              <div class="kpi-cell-stats-sub"><span class="kpi-cell-stats-dot" style="background:#d97706"></span>Al menos uno</div>
+            </div>
+            <div class="kpi-cell-stats" [style.--kpi-accent]="'#dc2626'">
+              <div class="kpi-cell-stats-icon" style="background: linear-gradient(135deg,#dc2626,#f87171)">
+                <i class="fas fa-percent"></i>
+              </div>
+              <div class="kpi-cell-stats-valor">{{ estadisticasAudiometria.perdidaBinaural }}%</div>
+              <div class="kpi-cell-stats-label">Pérdida binaural</div>
+              <div class="kpi-cell-stats-sub"><span class="kpi-cell-stats-dot" style="background:#dc2626"></span>Promedio</div>
+            </div>
+          </div>
+
+          <div class="stat-grid-row stat-grid-2">
+            <div class="stat-card">
+              <div class="stat-card-head"><strong>Resultado auditivo</strong></div>
+              <div class="stat-card-chart">
+                <apx-chart *ngIf="tieneDatos(chartAudResultado)"
+                  [series]="chartAudResultado.series" [chart]="chartAudResultado.chart"
+                  [labels]="chartAudResultado.labels" [colors]="chartAudResultado.colors"
+                  [legend]="chartAudResultado.legend" [dataLabels]="chartAudResultado.dataLabels"
+                  [plotOptions]="chartAudResultado.plotOptions" [stroke]="chartAudResultado.stroke"
+                  [responsive]="chartAudResultado.responsive">
+                </apx-chart>
+                <p *ngIf="!tieneDatos(chartAudResultado)" class="text-muted text-center py-4 mb-0">Sin umbrales para clasificar</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-head"><strong>Oído derecho e izquierdo</strong></div>
+              <div class="stat-card-chart">
+                <apx-chart *ngIf="chartAudOidos.series"
+                  [series]="chartAudOidos.series" [chart]="chartAudOidos.chart"
+                  [plotOptions]="chartAudOidos.plotOptions" [colors]="chartAudOidos.colors"
+                  [dataLabels]="chartAudOidos.dataLabels" [xaxis]="chartAudOidos.xaxis"
+                  [yaxis]="chartAudOidos.yaxis" [grid]="chartAudOidos.grid"
+                  [legend]="chartAudOidos.legend" [tooltip]="chartAudOidos.tooltip">
+                </apx-chart>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-grid-row stat-grid-3">
+            <div class="stat-card">
+              <div class="stat-card-head"><strong>Tipo de audiometría</strong></div>
+              <div class="stat-card-chart">
+                <apx-chart *ngIf="tieneDatos(chartAudTipo)"
+                  [series]="chartAudTipo.series" [chart]="chartAudTipo.chart"
+                  [labels]="chartAudTipo.labels" [colors]="chartAudTipo.colors"
+                  [legend]="chartAudTipo.legend" [dataLabels]="chartAudTipo.dataLabels"
+                  [plotOptions]="chartAudTipo.plotOptions" [stroke]="chartAudTipo.stroke"
+                  [responsive]="chartAudTipo.responsive">
+                </apx-chart>
+                <p *ngIf="!tieneDatos(chartAudTipo)" class="text-muted text-center py-4 mb-0">Sin tipo registrado</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-head"><strong>Uso de protector</strong></div>
+              <div class="stat-card-chart">
+                <apx-chart *ngIf="tieneDatos(chartAudProtector)"
+                  [series]="chartAudProtector.series" [chart]="chartAudProtector.chart"
+                  [labels]="chartAudProtector.labels" [colors]="chartAudProtector.colors"
+                  [legend]="chartAudProtector.legend" [dataLabels]="chartAudProtector.dataLabels"
+                  [plotOptions]="chartAudProtector.plotOptions" [stroke]="chartAudProtector.stroke"
+                  [responsive]="chartAudProtector.responsive">
+                </apx-chart>
+                <p *ngIf="!tieneDatos(chartAudProtector)" class="text-muted text-center py-4 mb-0">Sin uso de protector registrado</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-head"><strong>Tipo de ruido</strong></div>
+              <div class="stat-card-chart">
+                <apx-chart *ngIf="chartAudRuido.series"
+                  [series]="chartAudRuido.series" [chart]="chartAudRuido.chart"
+                  [plotOptions]="chartAudRuido.plotOptions" [colors]="chartAudRuido.colors"
+                  [dataLabels]="chartAudRuido.dataLabels" [xaxis]="chartAudRuido.xaxis"
+                  [yaxis]="chartAudRuido.yaxis" [grid]="chartAudRuido.grid"
+                  [legend]="chartAudRuido.legend" [tooltip]="chartAudRuido.tooltip">
+                </apx-chart>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-card-head"><strong>Síntomas más frecuentes</strong></div>
+            <div class="stat-card-chart">
+              <apx-chart *ngIf="chartAudSintomas.series"
+                [series]="chartAudSintomas.series" [chart]="chartAudSintomas.chart"
+                [plotOptions]="chartAudSintomas.plotOptions" [colors]="chartAudSintomas.colors"
+                [dataLabels]="chartAudSintomas.dataLabels" [xaxis]="chartAudSintomas.xaxis"
+                [yaxis]="chartAudSintomas.yaxis" [grid]="chartAudSintomas.grid"
+                [legend]="chartAudSintomas.legend" [tooltip]="chartAudSintomas.tooltip">
+              </apx-chart>
+            </div>
+          </div>
         </div>
       </div>
 

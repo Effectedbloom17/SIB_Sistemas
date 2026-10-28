@@ -7,8 +7,65 @@
   background-size: cover;
   background-position: center 60%;
   background-repeat: no-repeat;
-  min-height: 180px;
+  min-height: 230px;
+  padding-bottom: 4.25rem !important;
   position: relative;
+
+  .stat-carrusel {
+    position: absolute;
+    left: 50%;
+    bottom: 36px;
+    transform: translateX(-50%);
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: calc(100% - 24px);
+  }
+
+  .stat-carrusel-opciones {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px;
+    border-radius: 999px;
+    background: rgba(8, 30, 48, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+  }
+
+  .stat-carrusel-opcion,
+  .stat-carrusel-flecha {
+    border: 0;
+    color: #fff;
+    background: transparent;
+    font-family: 'Open Sans', sans-serif;
+    cursor: pointer;
+  }
+
+  .stat-carrusel-opcion {
+    border-radius: 999px;
+    padding: 7px 16px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    white-space: nowrap;
+
+    &.activo {
+      background: #fff;
+      color: #0e4a6f;
+    }
+  }
+
+  .stat-carrusel-flecha {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.32);
+    }
+  }
 
   &::before {
     content: '';

@@ -1,0 +1,541 @@
+:host {
+  font-family: 'Open Sans', sans-serif;
+}
+
+.header-bg-image {
+  background-image: url('/assets/img/medic.jpg');
+  background-size: cover;
+  background-position: center 60%;
+  background-repeat: no-repeat;
+  min-height: 180px;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(135deg, rgba(15, 54, 97, 0.88) 0%, rgba(26, 74, 122, 0.8) 50%, rgba(15, 39, 68, 0.9) 100%);
+  }
+}
+
+.header-icon {
+  background: rgba(255, 255, 255, 0.15);
+  width: 58px;
+  height: 58px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.header-title {
+  font-weight: 700;
+  font-size: 2.2rem;
+  letter-spacing: -0.5px;
+}
+
+.audiometria-page {
+  position: relative;
+  z-index: 10;
+  margin-bottom: 2rem;
+}
+
+.panel {
+  border-radius: 15px;
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 1.4rem 1.6rem 0.6rem;
+}
+
+.panel-title {
+  color: #0f3661;
+  font-weight: 700;
+}
+
+.form-row {
+  align-items: flex-end;
+
+  > .form-group > label {
+    display: block;
+    line-height: 1.3;
+    margin-bottom: 0.35rem;
+  }
+
+  > .form-group > .form-control {
+    width: 100%;
+    height: 46px;
+  }
+}
+
+.audiometria-page label {
+  color: #0f3661;
+}
+
+.empresa-card,
+.accion-card {
+  border: 2px solid #7dd3fc;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(15, 54, 97, 0.16) !important;
+  }
+}
+
+.avatar-empresa,
+.logo-empresa {
+  width: 50px;
+  height: 50px;
+  min-width: 50px;
+  border-radius: 50%;
+  margin-right: 0.8rem;
+}
+
+.avatar-empresa {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(145deg, #0f3661, #1a4a7a);
+  font-weight: 700;
+}
+
+.logo-empresa {
+  object-fit: contain;
+  background: #fff;
+  padding: 0.3rem;
+}
+
+.empresa-nombre,
+.ver-link {
+  color: #0f3661;
+  font-weight: 700;
+}
+
+.accion-icon {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 0.8rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(145deg, #0f3661, #1a4a7a);
+  font-size: 1.3rem;
+}
+
+.accion-icon-suave {
+  background: linear-gradient(145deg, #1a4a7a, #3d6f99);
+}
+
+.seccion-titulo,
+.grafico-titulo {
+  color: #0f3661;
+  font-weight: 800;
+}
+
+.bloque-antecedente {
+  border: 1px solid #e6e6e6;
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.stepper {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 1.5rem 1rem;
+}
+
+.stepper-line {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  top: 22px;
+  height: 3px;
+  background: #e6e6e6;
+}
+
+.stepper-line-progress {
+  height: 100%;
+  background: #0f3661;
+}
+
+.stepper-step {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  background: transparent;
+  width: 16.66%;
+  text-align: center;
+}
+
+.stepper-circle {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  margin: 0 auto 0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 2px solid #cfcfcf;
+  color: #777;
+  font-weight: 700;
+
+  &.active,
+  &.done {
+    background: #0f3661;
+    border-color: #0f3661;
+    color: #fff;
+  }
+}
+
+.stepper-label {
+  display: block;
+  font-size: 0.72rem;
+  line-height: 1.15;
+  color: #0f3661;
+}
+
+.umbral-table {
+  th, td {
+    text-align: center;
+    vertical-align: middle;
+    font-size: 0.82rem;
+  }
+
+  input {
+    width: 68px;
+    border: 1px solid #d9d9d9;
+    border-radius: 6px;
+    text-align: center;
+    padding: 0.25rem;
+  }
+
+  input:disabled {
+    background: #f3f3f3;
+  }
+}
+
+.valoracion-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+
+  th, td {
+    border: 1px solid #d4e4f0;
+    padding: 0.55rem 0.75rem;
+    text-align: center;
+    color: #0f3661;
+  }
+
+  thead th {
+    background: #0f3661;
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
+  tbody th {
+    text-align: left;
+    background: #f4f8fc;
+    font-weight: 700;
+    width: 34%;
+  }
+}
+
+.valoracion-clase {
+  font-weight: 700;
+}
+
+.interpretacion-card {
+  background: #f4f8fc;
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  color: #0f3661;
+}
+
+.interpretacion-texto {
+  white-space: pre-wrap;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.preview-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-radius: 12px;
+  position: relative;
+  z-index: 3;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.hc-document {
+  width: 216mm;
+  max-width: 216mm;
+  margin: 0 auto;
+  background: #fff;
+  padding: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+
+  /* Lectura en pantalla ~ tamaño de botones Finalizar/PDF */
+  .hc-table {
+    font-size: 12px;
+    flex: 0 0 auto;
+
+    td { padding: 5px 8px; font-size: 12px; }
+  }
+
+  /* Sección 6 al mismo tamaño que el resto de la tabla del reporte */
+  .hc-diagnostico {
+    font-size: 12px !important;
+
+    td,
+    .hc-cell,
+    .hc-section-header,
+    strong {
+      font-size: 12px !important;
+      line-height: 1.35;
+      padding: 5px 8px !important;
+    }
+  }
+
+  .hc-logo-img { max-height: 40px; max-width: 120px; }
+  .hc-title-cell { font-size: 17px; letter-spacing: 2px; }
+  .hc-empresa { font-size: 13px; margin-top: 2px; }
+  .hc-col-header { font-size: 13px; }
+  .hc-section-header { font-size: 12px; }
+  .grafico-caja-titulo { font-size: 14px; }
+  .eje-texto { font-size: 12px; }
+  .audiograma-leyenda { display: none; }
+  .audiograma-card {
+    border: 0;
+    flex: 0 0 auto;
+  }
+  .audiograma { height: auto; }
+}
+
+.hc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0;
+  font-size: 11px;
+  table-layout: fixed;
+
+  td {
+    border: 1px solid #333;
+    padding: 4px 6px;
+    vertical-align: middle;
+  }
+}
+
+.hc-logo-cell {
+  text-align: center;
+  width: 25%;
+}
+
+.hc-logo-img {
+  max-height: 52px;
+  max-width: 140px;
+}
+
+.hc-title-cell {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: #0f3661;
+}
+
+.hc-empresa {
+  letter-spacing: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+  margin-top: 4px;
+}
+
+.hc-section-header {
+  background: #d6ebf8;
+  color: #0f3661;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.hc-preguntas td {
+  text-align: left;
+}
+
+.hc-preguntas td.hc-section-header {
+  text-align: center;
+}
+
+.hc-izq {
+  text-align: left;
+}
+
+.hc-col-header {
+  background: #f3f3f3;
+  font-weight: 700;
+  text-align: center;
+  font-size: 9px;
+}
+
+.hc-center { text-align: center; }
+.hc-check { color: #0f3661; font-weight: 700; }
+.hc-multiline { white-space: pre-wrap; }
+
+.firma-cell { min-height: 70px; }
+.firma-img { max-height: 48px; display: block; margin-bottom: 4px; }
+
+.hc-tabla-cierre tr:last-child td {
+  border-bottom: 2px solid #333;
+}
+
+.hc-diagnostico {
+  margin-top: 10px;
+}
+
+.graficos-divididos {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin: 10px 0 0;
+  border: 1px solid #333;
+}
+
+.grafico-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid #333;
+
+  &:last-child { border-right: 0; }
+}
+
+.grafico-caja-titulo {
+  text-align: center;
+  font-weight: 700;
+  font-size: 12px;
+  color: #222;
+  padding: 8px 6px;
+  background: #f7f7f7;
+  border-bottom: 1px solid #333;
+}
+
+.audiograma-card {
+  border: 1px solid #d7d7d7;
+  background: #fff;
+}
+
+.audiograma {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.eje-texto {
+  font-size: 9px;
+  fill: #555;
+}
+
+.audiograma-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 6px 8px 8px;
+  font-size: 11px;
+  color: #444;
+}
+
+.leyenda-titulo {
+  font-weight: 700;
+  color: #0f3661;
+}
+
+.leyenda-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+}
+
+@media (max-width: 768px) {
+  .preview-controls { align-items: flex-start; }
+}
+
+@page {
+  size: letter portrait;
+  margin: 0;
+}
+
+@media print {
+  .no-print,
+  .header,
+  .preview-controls { display: none !important; }
+  .audiometria-page { margin: 0 !important; }
+  .hc-document {
+    box-shadow: none;
+    width: 216mm;
+    height: auto;
+    overflow: visible;
+
+    .hc-table {
+      font-size: 8px;
+
+      td { padding: 1px 4px; }
+    }
+
+    .hc-logo-img { max-height: 26px; max-width: 90px; }
+    .hc-title-cell { font-size: 13px; letter-spacing: 2px; }
+    .hc-empresa { font-size: 9px; margin-top: 0; }
+    .hc-col-header { font-size: 9px; }
+    .grafico-caja-titulo { font-size: 12px; }
+    .eje-texto { font-size: 9px; }
+
+    .hc-diagnostico,
+    .hc-diagnostico td,
+    .hc-diagnostico .hc-cell,
+    .hc-diagnostico .hc-section-header,
+    .hc-diagnostico strong {
+      font-size: 8px !important;
+      padding-top: 1px !important;
+      padding-bottom: 1px !important;
+    }
+  }
+}

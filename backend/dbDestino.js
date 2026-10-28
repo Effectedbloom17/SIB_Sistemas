@@ -163,11 +163,17 @@ function seleccionarDestino() {
     if (!seleccionPromise) {
         seleccionPromise = ejecutarSeleccion().catch((error) => {
             destinoActual = null;
+            seleccionPromise = null;
             console.error(`[DB] ${error.message}`);
             throw error;
         });
     }
     return seleccionPromise;
+}
+
+function invalidarDestino() {
+    destinoActual = null;
+    seleccionPromise = null;
 }
 
 function getDestino() {
@@ -187,6 +193,7 @@ function estadoPublico() {
 
 module.exports = {
     seleccionarDestino,
+    invalidarDestino,
     getDestino,
     estadoPublico,
     candidatos

@@ -2416,6 +2416,43 @@ export class BackendServices {
         });
     }
 
+    obtenerEmpresasAudiometria(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/audiometrias/empresas`);
+    }
+
+    asegurarCarpetaAudiometria(empresaId: number, nombreEmpresa?: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/audiometrias/carpeta`, {
+            empresa_id: empresaId,
+            nombre_empresa: nombreEmpresa || undefined
+        });
+    }
+
+    obtenerEstadisticasAudiometria(empresaId?: number): Observable<any> {
+        const params = empresaId ? `?empresa_id=${empresaId}` : '';
+        return this.httpClient.get(`${this.baseUrl}/audiometrias/estadisticas${params}`);
+    }
+
+    obtenerAudiometrias(empresaId?: number): Observable<any> {
+        const params = empresaId ? `?empresa_id=${empresaId}` : '';
+        return this.httpClient.get(`${this.baseUrl}/audiometrias${params}`);
+    }
+
+    obtenerAudiometria(id: number): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/audiometrias/${id}`);
+    }
+
+    guardarAudiometria(data: any): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/audiometrias`, data);
+    }
+
+    actualizarAudiometria(id: number, data: any): Observable<any> {
+        return this.httpClient.put(`${this.baseUrl}/audiometrias/${id}`, data);
+    }
+
+    eliminarAudiometria(id: number): Observable<any> {
+        return this.httpClient.delete(`${this.baseUrl}/audiometrias/${id}`);
+    }
+
     obtenerEstadoAuthDrive(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/drive/auth-status`);
     }

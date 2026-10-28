@@ -897,6 +897,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       '/proteccion-civil/control-resolutivos': 'Control de resolutivos PIPC',
       '/proteccion-civil/historial-pc': 'Historial de trámites PIPC finalizados',
       '/expedientes-medicos': 'Expedientes clínicos',
+      '/audiometria': 'Audiometrías ocupacionales',
       '/sistema-gestion-calidad': 'Centro del Sistema de Gestión de Calidad',
       '/sistema-gestion-calidad/formatos': 'Formatos oficiales para consulta y descarga',
       '/sistema-gestion-calidad/normativas': 'Normas Oficiales Mexicanas (NOM-STPS)',
@@ -930,6 +931,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       '/proteccion-civil': ['pc', 'brigada', 'evacuacion'],
       '/proteccion-civil/historial-pc': ['historial', 'pipc', 'tramite', 'pc'],
       '/expedientes-medicos': ['medico', 'clinica', 'salud'],
+      '/audiometria': ['audiometria', 'oido', 'ruido', 'medico'],
       '/diseno-innovacion': ['senalizacion', 'diseño', 'innovacion'],
       '/mantenimiento/programa-infraestructura': ['mantenimiento', 'infraestructura', 'ein'],
       '/mantenimiento/solicitud': ['solicitud', 'mantenimiento', 'eiff02'],
@@ -1711,7 +1713,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   private actualizarVisibilidadNotificaciones(url?: string): void {
     const currentUrl = (url ?? this.router.url ?? '').toLowerCase();
-    this.mostrarNotificaciones = !currentUrl.startsWith('/expedientes-medicos') && !currentUrl.startsWith('/estadisticas-medicas');
+    this.mostrarNotificaciones = !currentUrl.startsWith('/expedientes-medicos') && !currentUrl.startsWith('/audiometria') && !currentUrl.startsWith('/estadisticas-medicas');
     if (!this.mostrarNotificaciones) {
       this.notifAbiertas = false;
     }
