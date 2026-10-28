@@ -298,6 +298,30 @@ async function notifsAmbiental(poolSgc, ambientalService) {
     return out;
 }
 
+async function notifsFirmasSgc(poolSgc, user) {
+    const userId = Number(user?.id || user?.usuario_id || 0);
+    if (!userId || !poolSgc?.query) return [];
+    try {
+        const sgcFirmasService = require('./sgcFirmasService');
+        const rows = await sgcFirmasService.pendientesDeUsuario(poolSgc, userId);
+        return rows.map((row) => notifBase({
+            notif_id: `sgc-firma-${row.solicitud_id}`,
+            tipo: 'info',
+            icono: 'fa-file-signature',
+            titulo: `Firma pendiente: ${row.codigo || 'Documento SGC'}`,
+            mensaje: `${row.nombre_documento || row.codigo} · Versión ${row.version_etiqueta || '—'} · Solicitó ${row.nombre_solicitante || 'SGC'}`,
+            ruta: `/sistema-gestion-calidad/firmas?vista=pendientes&solicitud=${row.solicitud_id}`,
+            categoria: 'sgc',
+            prioridad: 8
+        }));
+    } catch (error) {
+        if (error?.code !== 'ER_NO_SUCH_TABLE') {
+            console.warn('[NOTIF] firmas SGC:', error.message);
+        }
+        return [];
+    }
+}
+
 /**
  * Genera notificaciones operativas según roles del usuario autenticado.
  */
@@ -326,6 +350,10 @@ async function generarNotificacionesOperativas({
 
     if (tieneRol(roles, 'ambiental')) {
         tareas.push(notifsAmbiental(poolSgc, ambientalService));
+    }
+
+    if (!tieneRol(roles, 'empresa') && poolSgc) {
+        tareas.push(notifsFirmasSgc(poolSgc, user));
     }
 
     const grupos = await Promise.all(tareas);

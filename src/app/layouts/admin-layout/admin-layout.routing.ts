@@ -152,6 +152,12 @@ export const AdminLayoutRoutes: Routes = [
         loadChildren: () => import('../../pages/expedientes-medicos/expedientes-medicos.module').then(m => m.ExpedientesMedicosModule)
     },
 
+    // Audiometría ocupacional: empresas, formulario, plantilla y reporte
+    {
+        path: 'audiometria',
+        loadChildren: () => import('../../pages/audiometria/audiometria.module').then(m => m.AudiometriaModule)
+    },
+
     {
         path: 'estadisticas-medicas',
         loadChildren: () => import('../../pages/estadisticas-medicas/estadisticas-medicas.module').then(m => m.EstadisticasMedicasModule)

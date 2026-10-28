@@ -264,6 +264,67 @@ app-footer {
   color: #fff;
 }
 
+// Pop-up PIPC: paleta Protección Civil (naranja #d97248), no teal SGC/CP
+.cp-aviso-cambio--pc {
+  border-color: #f0e4dc;
+  box-shadow: 0 18px 50px rgba(217, 114, 72, 0.22);
+  background: linear-gradient(180deg, #ffffff 0%, #fff8f4 100%);
+
+  h3 {
+    color: #32325d;
+  }
+
+  .cp-aviso-cambio__kicker {
+    color: #d97248 !important;
+  }
+
+  .cp-aviso-cambio__lead {
+    color: #32325d !important;
+  }
+
+  .cp-aviso-cambio__personas > div {
+    background: #fff6f1;
+    border-color: #f0e4dc;
+  }
+
+  .cp-aviso-cambio__personas span,
+  .cp-aviso-cambio__proyecto .cp-aviso-cambio__proyecto-etiqueta {
+    color: #8898aa;
+  }
+
+  .cp-aviso-cambio__personas strong {
+    color: #32325d;
+  }
+
+  .cp-aviso-cambio__proyecto {
+    background: linear-gradient(180deg, #fff6f1 0%, #ffefe6 100%);
+    border-color: #f0d5c4;
+
+    .cp-aviso-cambio__folio {
+      color: #c45a2f;
+    }
+
+    strong {
+      color: #d97248;
+    }
+  }
+
+  .cp-aviso-cambio__extra {
+    color: #8898aa !important;
+  }
+
+  .cp-aviso-cambio__cerrar {
+    border-color: #f0d5c4;
+    color: #c45a2f;
+    background: #fff;
+  }
+
+  .cp-aviso-cambio__revisar {
+    background: linear-gradient(135deg, #d97248 0%, #e8956d 100%);
+    color: #fff;
+  }
+}
+
 // En pantallas pequeñas, el contenido siempre ocupa todo el ancho
 @media (max-width: 767px) {
   .main-content {

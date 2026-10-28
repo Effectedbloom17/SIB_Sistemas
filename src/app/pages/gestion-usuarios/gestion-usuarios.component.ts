@@ -3922,11 +3922,17 @@ export class GestionUsuariosComponent implements OnInit {
   }
 
   async editarEmpresaColaboradora(entrada: any) {
+    const empresaActualId = Number(entrada.empresa_id || 0);
+    if (!empresaActualId) {
+      Swal.fire('Error', 'No se encontró la empresa colaboradora', 'error');
+      return;
+    }
+
     let empresasPrincipales: any[] = [];
+    let datosEmpresa: any = {};
     try {
       const respuestaEmpresas = await firstValueFrom(this.backendService.obtenerEmpresas());
       if (respuestaEmpresas?.success) {
-        const empresaActualId = Number(entrada.empresa_id || 0);
         empresasPrincipales = (respuestaEmpresas.empresas || []).filter((empresa: any) => {
           const empresaId = Number(empresa?.empresa_id || 0);
           return empresaId > 0 && !empresa?.colaborador && empresaId !== empresaActualId;
@@ -3936,78 +3942,404 @@ export class GestionUsuariosComponent implements OnInit {
       empresasPrincipales = [];
     }
 
-    const colaboradorActual = Number(entrada.empresa_colaborador || 0) || null;
+    try {
+      const respuestaEmpresa = await firstValueFrom(this.backendService.obtenerEmpresa(empresaActualId));
+      if (respuestaEmpresa?.success && respuestaEmpresa.empresa) {
+        datosEmpresa = respuestaEmpresa.empresa;
+      }
+    } catch (_) {
+      datosEmpresa = {};
+    }
+
+    const esc = (valor: unknown) => String(valor ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    const nombreEmpresaActual = esc(datosEmpresa.nombre_empresa || entrada.nombre_empresa || '');
+    const rfcEmpresaActual = esc(datosEmpresa.rfc || '');
+    const razonSocialEmpresaActual = esc(datosEmpresa.razon_social || '');
+    const cpEmpresaActual = esc(datosEmpresa.codigo_postal || '');
+    const estadoEmpresaActual = esc(datosEmpresa.estado || '');
+    const ciudadEmpresaActual = esc(datosEmpresa.ciudad || '');
+    const direccionEmpresaActual = esc(datosEmpresa.direccion || '');
+    const colaboradorActual = Number(datosEmpresa.colaborador || entrada.empresa_colaborador || 0) || null;
+    const servicioPcActivo = Number(datosEmpresa.servicio_proteccion_civil ?? entrada.servicio_proteccion_civil ?? 0) === 1;
+    const accesoCompartido = esc(entrada.acceso_compartido_label || 'empresa principal');
+    const logoEmpresaPreviewUrl = this.getLogoEmpresaPreviewUrl(datosEmpresa.logo || entrada.empresa_logo);
+    const logoEmpresaActualHtml = logoEmpresaPreviewUrl
+      ? `<div style="margin-top:0.4rem;text-align:center;">
+           <p style="font-size:0.62rem;color:#8898aa;margin:0 0 0.25rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Actual</p>
+           <img src="${esc(logoEmpresaPreviewUrl)}"
+                style="max-height:72px;max-width:95%;border:1px solid #dee2e6;border-radius:6px;padding:3px;background:#fff;display:block;margin:0 auto;object-fit:contain;"
+                onerror="this.parentNode.innerHTML='<span style=\\'font-size:0.65rem;color:#dc3545;\\'><i class=\\'fas fa-exclamation-circle\\'></i> No disponible</span>'">
+         </div>`
+      : `<p style="font-size:0.65rem;color:#f5365c;margin:0.3rem 0 0;text-align:center;"><i class="fas fa-exclamation-triangle"></i> Sin logo</p>`;
     const opcionesEmpresasPrincipalesHtml = empresasPrincipales
       .map((empresa: any) => {
         const empresaId = Number(empresa.empresa_id);
         const selected = colaboradorActual === empresaId ? 'selected' : '';
-        return `<option value="${empresaId}" ${selected}>${empresa.nombre_empresa}</option>`;
+        return `<option value="${empresaId}" ${selected}>${esc(empresa.nombre_empresa)}</option>`;
       })
       .join('');
-    const servicioPcActivo = Boolean(Number(entrada.servicio_proteccion_civil));
 
-    const resultado = await Swal.fire({
-      title: 'Editar empresa colaboradora',
-      html: `
-        <div style="text-align:left;font-family:'Open Sans',sans-serif;">
-          <p style="font-size:0.82rem;color:#6c757d;margin:0 0 0.75rem;">
-            <strong>${entrada.nombre_empresa || 'Empresa'}</strong><br>
-            <span style="font-size:0.75rem;">Acceso compartido: ${entrada.acceso_compartido_label || 'empresa principal'}</span>
-          </p>
-          <label style="display:block;font-size:0.68rem;font-weight:700;color:#6c757d;text-transform:uppercase;margin-bottom:0.25rem;">Empresa principal</label>
-          <select id="swal-colab-padre" class="swal2-input" style="width:100%;margin:0 0 0.75rem;padding:0.45rem 0.6rem;">
-            <option value="">Seleccione empresa principal</option>
-            ${opcionesEmpresasPrincipalesHtml}
-          </select>
-          <label style="display:flex;align-items:center;gap:0.45rem;font-size:0.82rem;color:#2f4630;cursor:pointer;">
-            <input type="checkbox" id="swal-colab-pc" ${servicioPcActivo ? 'checked' : ''}>
-            Servicio de Protección Civil
-          </label>
+    const htmlForm = `
+      <style>${this.getEditUserModalStyles()}</style>
+      <header class="eu-hero">
+        <div class="eu-hero-bg"></div>
+        <div class="eu-hero-content">
+          <div class="eu-hero-badge"><i class="fas fa-building"></i></div>
+          <div class="eu-hero-text">
+            <h2 class="eu-hero-title">
+              ${nombreEmpresaActual || 'Empresa'}
+              <span class="eu-hero-rol" style="background:#28a745;">Colaboradora</span>
+            </h2>
+            <p class="eu-hero-subtitle">${accesoCompartido}</p>
+          </div>
+          <button type="button" class="eu-hero-close" id="eu-edit-close" aria-label="Cerrar">
+            <i class="fas fa-times"></i>
+          </button>
         </div>
-      `,
-      showCancelButton: true,
-      confirmButtonText: 'Guardar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#38512F',
-      cancelButtonColor: '#A8A9A2',
+      </header>
+      <div class="eu-body">
+        <div class="eu-body-deco" aria-hidden="true"></div>
+        <div class="eu-inner">
+          <section class="eu-card">
+            <header class="eu-card-head">
+              <div>
+                <p class="eu-card-eyebrow">Empresa</p>
+                <h3 class="eu-card-title">Datos de la empresa</h3>
+              </div>
+              <div class="eu-card-hero"><i class="fas fa-id-card"></i></div>
+            </header>
+            <div class="eu-row">
+              <div class="eu-field">
+                <label><i class="fas fa-building"></i> Nombre de la empresa <em>*</em></label>
+                <div class="eu-input-wrap">
+                  <i class="eu-input-icon fas fa-building"></i>
+                  <input id="swal-nombre-empresa" type="text" value="${nombreEmpresaActual}" placeholder="Razón social o nombre comercial" autocomplete="off">
+                </div>
+              </div>
+              <div class="eu-field">
+                <label><i class="fas fa-file-invoice"></i> RFC <em>*</em></label>
+                <div class="eu-input-wrap">
+                  <i class="eu-input-icon fas fa-file-invoice"></i>
+                  <input id="swal-rfc-empresa" type="text" value="${rfcEmpresaActual}" placeholder="RFC (12-13 caracteres)" maxlength="13" autocomplete="off" style="text-transform:uppercase;">
+                </div>
+              </div>
+            </div>
+            <div class="eu-row eu-row-single">
+              <div class="eu-field">
+                <label><i class="fas fa-briefcase"></i> Razón social</label>
+                <div class="eu-input-wrap">
+                  <i class="eu-input-icon fas fa-briefcase"></i>
+                  <input id="swal-razon-social-empresa" type="text" value="${razonSocialEmpresaActual}" placeholder="Razón social (opcional)" autocomplete="off">
+                </div>
+              </div>
+            </div>
+            <div class="eu-row">
+              <div class="eu-field">
+                <label><i class="fas fa-mail-bulk"></i> Código postal</label>
+                <div class="eu-input-wrap">
+                  <i class="eu-input-icon fas fa-mail-bulk"></i>
+                  <input id="swal-cp-empresa" type="text" value="${cpEmpresaActual}" placeholder="00000" maxlength="5" inputmode="numeric" autocomplete="postal-code">
+                </div>
+              </div>
+              <div class="eu-field">
+                <label><i class="fas fa-map"></i> Estado</label>
+                <div class="eu-input-wrap">
+                  <i class="eu-input-icon fas fa-map"></i>
+                  <input id="swal-estado-empresa" type="text" value="${estadoEmpresaActual}" placeholder="Estado" autocomplete="address-level1">
+                </div>
+              </div>
+            </div>
+            <div class="eu-row">
+              <div class="eu-field">
+                <label><i class="fas fa-city"></i> Ciudad / Municipio</label>
+                <div class="eu-input-wrap">
+                  <i class="eu-input-icon fas fa-city"></i>
+                  <input id="swal-ciudad-empresa" type="text" value="${ciudadEmpresaActual}" placeholder="Municipio o ciudad" autocomplete="address-level2">
+                </div>
+              </div>
+              <div class="eu-field">
+                <label><i class="fas fa-road"></i> Dirección</label>
+                <div class="eu-input-wrap">
+                  <i class="eu-input-icon fas fa-road"></i>
+                  <input id="swal-direccion-empresa" type="text" value="${direccionEmpresaActual}" placeholder="Calle, número, colonia" autocomplete="street-address">
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="eu-card">
+            <header class="eu-card-head">
+              <div>
+                <p class="eu-card-eyebrow">Empresa</p>
+                <h3 class="eu-card-title">Protección Civil y colaboración</h3>
+              </div>
+              <div class="eu-card-hero"><i class="fas fa-building"></i></div>
+            </header>
+            <div class="eu-pc-card">
+              <div class="eu-pc-copy">
+                <div class="eu-pc-title"><i class="fas fa-shield-alt"></i> Servicio de Protección Civil</div>
+              </div>
+              <div class="eu-pc-toggle-wrap">
+                <span id="swal-pc-status" class="eu-pc-status"></span>
+                <label class="eu-switch" aria-label="Servicio de Protección Civil">
+                  <input id="swal-servicio-proteccion-civil" type="checkbox" ${servicioPcActivo ? 'checked' : ''}>
+                  <span class="eu-switch-slider"></span>
+                </label>
+              </div>
+            </div>
+            <div class="eu-pc-card" style="margin-top:0.65rem;">
+              <div class="eu-pc-copy">
+                <div class="eu-pc-title"><i class="fas fa-handshake"></i> Es empresa colaboradora</div>
+                <small>Asocia esta empresa a una empresa principal (ej. PEAK1 depende de PEAK).</small>
+              </div>
+              <div class="eu-pc-toggle-wrap">
+                <label class="eu-switch" aria-label="Es empresa colaboradora">
+                  <input id="swal-es-empresa-colaboradora" type="checkbox" checked>
+                  <span class="eu-switch-slider"></span>
+                </label>
+              </div>
+            </div>
+            <div id="swal-colaborador-empresa-wrap" class="eu-row eu-row-single" style="margin-top:0.65rem;">
+              <div class="eu-field">
+                <label><i class="fas fa-building"></i> Empresa principal <em>*</em></label>
+                <div class="eu-input-wrap eu-select-wrap">
+                  <i class="eu-input-icon fas fa-building"></i>
+                  <select id="swal-empresa-colaborador-padre">
+                    <option value="">Seleccione una empresa</option>
+                    ${opcionesEmpresasPrincipalesHtml}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="eu-card">
+            <header class="eu-card-head">
+              <div>
+                <p class="eu-card-eyebrow">Identidad visual</p>
+                <h3 class="eu-card-title">Logo de la empresa</h3>
+              </div>
+              <div class="eu-card-hero"><i class="fas fa-image"></i></div>
+            </header>
+            <div class="eu-media-section">
+              <div class="eu-media-header">
+                <i class="fas fa-image"></i>
+                <span>Logo Empresa</span>
+                <span class="eu-badge">JPG · PNG</span>
+              </div>
+              <div class="eu-media-body">
+                ${logoEmpresaActualHtml}
+                <div id="logo-dropzone-edit" class="eu-dropzone" style="margin-top:${logoEmpresaPreviewUrl ? '0.45rem' : '0'};">
+                  <input id="swal-logo-edit" type="file" accept="image/jpeg,image/png,image/webp" style="display:none;">
+                  <div id="logo-placeholder-edit">
+                    <i class="fas fa-cloud-upload-alt dz-icon"></i>
+                    <p>${logoEmpresaPreviewUrl ? 'Cambiar logo' : 'Clic o arrastra el logo'}</p>
+                    <small>Opcional</small>
+                  </div>
+                  <div id="logo-preview-edit" class="eu-dz-preview">
+                    <img id="logo-preview-img-edit" src="" alt="Logo Empresa">
+                    <p id="logo-filename-edit" class="eu-preview-name"></p>
+                    <button type="button" id="logo-remove-edit" class="eu-remove-btn"><i class="fas fa-trash-alt"></i> Quitar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p class="eu-footnote"><i class="fas fa-info-circle"></i> Los campos marcados con <em>*</em> son obligatorios. El logo es opcional.</p>
+          </section>
+        </div>
+      </div>
+    `;
+
+    const { value: formValues } = await Swal.fire({
+      title: '',
+      html: htmlForm,
+      width: '720px',
+      padding: 0,
+      backdrop: 'rgba(15, 23, 42, 0.42)',
       focusConfirm: false,
-      preConfirm: () => {
-        const empresaColaboradorPadre = (document.getElementById('swal-colab-padre') as HTMLSelectElement)?.value;
-        const servicioProteccionCivil = (document.getElementById('swal-colab-pc') as HTMLInputElement)?.checked;
-        if (!empresaColaboradorPadre) {
-          Swal.showValidationMessage('Seleccione la empresa principal');
+      showLoaderOnConfirm: true,
+      allowOutsideClick: () => !Swal.isLoading(),
+      allowEscapeKey: () => !Swal.isLoading(),
+      showCancelButton: true,
+      heightAuto: false,
+      confirmButtonText: '<i class="fas fa-check"></i> Guardar',
+      cancelButtonText: '<i class="fas fa-times"></i> Cancelar',
+      buttonsStyling: false,
+      customClass: {
+        popup: 'eu-modal-popup',
+        htmlContainer: 'eu-modal-html',
+        actions: 'eu-modal-actions',
+        confirmButton: 'eu-modal-confirm',
+        cancelButton: 'eu-modal-cancel',
+        validationMessage: 'eu-modal-validation'
+      },
+      didOpen: () => {
+        const popup = Swal.getPopup();
+        const html = Swal.getHtmlContainer();
+        const actions = Swal.getActions();
+        if (popup && html) {
+          const actionsH = actions ? actions.offsetHeight : 0;
+          html.style.maxHeight = `${Math.max(280, popup.clientHeight - actionsH)}px`;
+          html.style.overflowY = 'auto';
+          html.style.textAlign = 'left';
+        }
+
+        document.getElementById('eu-edit-close')?.addEventListener('click', () => Swal.close());
+
+        const rfcEmpresaInput = document.getElementById('swal-rfc-empresa') as HTMLInputElement | null;
+        rfcEmpresaInput?.addEventListener('input', () => {
+          rfcEmpresaInput.value = rfcEmpresaInput.value.toUpperCase();
+        });
+
+        const servicioProteccionCivilInput = document.getElementById('swal-servicio-proteccion-civil') as HTMLInputElement | null;
+        const servicioProteccionCivilStatus = document.getElementById('swal-pc-status');
+        const actualizarEstadoServicioPC = () => {
+          if (!servicioProteccionCivilInput || !servicioProteccionCivilStatus) return;
+          const activo = servicioProteccionCivilInput.checked;
+          servicioProteccionCivilStatus.textContent = activo ? 'Activo' : 'Inactivo';
+          servicioProteccionCivilStatus.classList.toggle('on', activo);
+          servicioProteccionCivilStatus.classList.toggle('off', !activo);
+        };
+        actualizarEstadoServicioPC();
+        servicioProteccionCivilInput?.addEventListener('change', actualizarEstadoServicioPC);
+
+        const esEmpresaColaboradoraInput = document.getElementById('swal-es-empresa-colaboradora') as HTMLInputElement | null;
+        const colaboradorEmpresaWrap = document.getElementById('swal-colaborador-empresa-wrap');
+        const actualizarVisibilidadColaborador = () => {
+          if (!esEmpresaColaboradoraInput || !colaboradorEmpresaWrap) return;
+          colaboradorEmpresaWrap.style.display = esEmpresaColaboradoraInput.checked ? '' : 'none';
+        };
+        actualizarVisibilidadColaborador();
+        esEmpresaColaboradoraInput?.addEventListener('change', actualizarVisibilidadColaborador);
+
+        const dz = document.getElementById('logo-dropzone-edit');
+        const inp = document.getElementById('swal-logo-edit') as HTMLInputElement | null;
+        const placeholder = document.getElementById('logo-placeholder-edit');
+        const preview = document.getElementById('logo-preview-edit');
+        const previewImg = document.getElementById('logo-preview-img-edit') as HTMLImageElement | null;
+        const filename = document.getElementById('logo-filename-edit');
+        const removeBtn = document.getElementById('logo-remove-edit');
+        if (dz && inp) {
+          const showPreview = (file: File) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              if (previewImg) previewImg.src = ev.target?.result as string;
+              if (placeholder) placeholder.style.display = 'none';
+              if (preview) preview.style.display = 'flex';
+              if (filename) filename.textContent = file.name;
+              dz.style.borderColor = '#38512F';
+              dz.style.background = 'rgba(56,81,47,0.05)';
+            };
+            reader.readAsDataURL(file);
+          };
+          dz.addEventListener('click', (ev) => {
+            if ((ev.target as HTMLElement).id !== 'logo-remove-edit' && !(ev.target as HTMLElement).closest('#logo-remove-edit')) {
+              inp.click();
+            }
+          });
+          inp.addEventListener('change', () => { if (inp.files?.[0]) showPreview(inp.files[0]); });
+          dz.addEventListener('dragover', (ev) => {
+            ev.preventDefault();
+            dz.style.borderColor = '#38512F';
+            dz.style.background = 'rgba(56,81,47,0.08)';
+          });
+          dz.addEventListener('dragleave', () => {
+            dz.style.borderColor = '#C2D1B2';
+            dz.style.background = '#f8f9fa';
+          });
+          dz.addEventListener('drop', (ev) => {
+            ev.preventDefault();
+            const file = (ev as DragEvent).dataTransfer?.files[0];
+            if (file && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+              const dt = new DataTransfer();
+              dt.items.add(file);
+              inp.files = dt.files;
+              showPreview(file);
+            }
+          });
+          removeBtn?.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            inp.value = '';
+            if (placeholder) placeholder.style.display = 'flex';
+            if (preview) preview.style.display = 'none';
+            dz.style.borderColor = '#C2D1B2';
+            dz.style.background = '#f8f9fa';
+          });
+        }
+      },
+      preConfirm: async () => {
+        const nombreEmpresa = String((document.getElementById('swal-nombre-empresa') as HTMLInputElement | null)?.value || '').trim();
+        const rfcEmpresa = String((document.getElementById('swal-rfc-empresa') as HTMLInputElement | null)?.value || '').trim().toUpperCase();
+        const razonSocial = String((document.getElementById('swal-razon-social-empresa') as HTMLInputElement | null)?.value || '').trim();
+        const codigoPostal = String((document.getElementById('swal-cp-empresa') as HTMLInputElement | null)?.value || '').trim();
+        const estado = String((document.getElementById('swal-estado-empresa') as HTMLInputElement | null)?.value || '').trim();
+        const ciudad = String((document.getElementById('swal-ciudad-empresa') as HTMLInputElement | null)?.value || '').trim();
+        const direccion = String((document.getElementById('swal-direccion-empresa') as HTMLInputElement | null)?.value || '').trim();
+        const servicioProteccionCivil = (document.getElementById('swal-servicio-proteccion-civil') as HTMLInputElement | null)?.checked;
+        const esEmpresaColaboradora = (document.getElementById('swal-es-empresa-colaboradora') as HTMLInputElement | null)?.checked;
+        const empresaColaboradorPadre = (document.getElementById('swal-empresa-colaborador-padre') as HTMLSelectElement | null)?.value || '';
+        const logoFile = (document.getElementById('swal-logo-edit') as HTMLInputElement | null)?.files?.[0] || null;
+
+        if (!nombreEmpresa) {
+          Swal.showValidationMessage('El nombre de la empresa es obligatorio');
           return false;
         }
-        return { empresaColaboradorPadre, servicioProteccionCivil };
+        if (!rfcEmpresa || rfcEmpresa.length < 12 || rfcEmpresa.length > 13) {
+          Swal.showValidationMessage('El RFC debe tener entre 12 y 13 caracteres');
+          return false;
+        }
+        if (esEmpresaColaboradora && !empresaColaboradorPadre) {
+          Swal.showValidationMessage('Seleccione la empresa principal para la empresa colaboradora');
+          return false;
+        }
+
+        const payload: Record<string, string | number> = {
+          nombre_empresa: nombreEmpresa,
+          rfc: rfcEmpresa,
+          razon_social: razonSocial,
+          codigo_postal: codigoPostal,
+          estado,
+          ciudad,
+          direccion,
+          servicio_proteccion_civil: servicioProteccionCivil ? 1 : 0,
+          colaborador: esEmpresaColaboradora ? empresaColaboradorPadre : ''
+        };
+
+        try {
+          const respuesta = logoFile
+            ? await firstValueFrom(this.backendService.actualizarLogoEmpresa(empresaActualId, (() => {
+                const formData = new FormData();
+                Object.entries(payload).forEach(([clave, valor]) => formData.append(clave, String(valor ?? '')));
+                formData.append('logo', logoFile);
+                return formData;
+              })()))
+            : await firstValueFrom(this.backendService.actualizarEmpresa(empresaActualId, payload));
+
+          if (!respuesta?.success) {
+            Swal.showValidationMessage(respuesta?.message || 'No se pudo actualizar la empresa colaboradora');
+            return false;
+          }
+          return { success: true };
+        } catch (error: any) {
+          Swal.showValidationMessage(error?.error?.message || 'No se pudo actualizar la empresa colaboradora');
+          return false;
+        }
       }
     });
 
-    if (!resultado.isConfirmed || !resultado.value) {
-      return;
-    }
-
-    const { empresaColaboradorPadre, servicioProteccionCivil } = resultado.value;
-    try {
-      const respuesta = await firstValueFrom(
-        this.backendService.actualizarEmpresa(Number(entrada.empresa_id), {
-          colaborador: empresaColaboradorPadre,
-          servicio_proteccion_civil: servicioProteccionCivil ? 1 : 0
-        })
-      );
-      if (respuesta?.success) {
-        Swal.fire({
-          title: 'Actualizado',
-          text: 'Empresa colaboradora actualizada correctamente',
-          icon: 'success',
-          confirmButtonColor: '#38512F'
-        });
-        this.cargarUsuarios();
-      } else {
-        Swal.fire('Error', respuesta?.message || 'No se pudo actualizar la empresa', 'error');
-      }
-    } catch (error) {
-      console.error('Error al actualizar empresa colaboradora:', error);
-      Swal.fire('Error', 'No se pudo actualizar la empresa colaboradora', 'error');
+    if (formValues?.success) {
+      Swal.fire({
+        title: 'Actualizado',
+        text: 'Empresa colaboradora actualizada correctamente',
+        icon: 'success',
+        confirmButtonColor: '#38512F'
+      });
+      this.cargarUsuarios();
     }
   }
 

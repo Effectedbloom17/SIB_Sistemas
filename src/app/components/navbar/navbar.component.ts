@@ -180,6 +180,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     control_documental: { titulo: 'Control Documental', icono: 'fa-file-alt', color: '#8965e0', orden: 2 },
     pc: { titulo: 'Protección Civil', icono: 'fa-shield-alt', color: '#fb6340', orden: 3 },
     ambiental: { titulo: 'Ambiental', icono: 'fa-tree', color: '#2dce89', orden: 4 },
+    sgc: { titulo: 'Gestión de calidad', icono: 'fa-file-signature', color: '#12ad9d', orden: 5 },
     general: { titulo: 'General', icono: 'fa-bell', color: '#5e72e4', orden: 9 }
   };
 
@@ -896,6 +897,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       '/proteccion-civil/control-resolutivos': 'Control de resolutivos PIPC',
       '/proteccion-civil/historial-pc': 'Historial de trámites PIPC finalizados',
       '/expedientes-medicos': 'Expedientes clínicos',
+      '/audiometria': 'Audiometrías ocupacionales',
       '/sistema-gestion-calidad': 'Centro del Sistema de Gestión de Calidad',
       '/sistema-gestion-calidad/formatos': 'Formatos oficiales para consulta y descarga',
       '/sistema-gestion-calidad/normativas': 'Normas Oficiales Mexicanas (NOM-STPS)',
@@ -929,6 +931,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       '/proteccion-civil': ['pc', 'brigada', 'evacuacion'],
       '/proteccion-civil/historial-pc': ['historial', 'pipc', 'tramite', 'pc'],
       '/expedientes-medicos': ['medico', 'clinica', 'salud'],
+      '/audiometria': ['audiometria', 'oido', 'ruido', 'medico'],
       '/diseno-innovacion': ['senalizacion', 'diseño', 'innovacion'],
       '/mantenimiento/programa-infraestructura': ['mantenimiento', 'infraestructura', 'ein'],
       '/mantenimiento/solicitud': ['solicitud', 'mantenimiento', 'eiff02'],
@@ -1402,7 +1405,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
       if (titulo.includes('capacitación finalizada') || titulo.includes('capacitacion finalizada')) {
         continue;
       }
-      const key = String(n?.categoria || 'general').toLowerCase();
+      const ruta = String(n?.ruta || '');
+      const key = ruta.startsWith('/sistema-gestion-calidad/firmas')
+        ? 'sgc'
+        : String(n?.categoria || 'general').toLowerCase();
       if (!buckets.has(key)) buckets.set(key, []);
       buckets.get(key)!.push(n);
     }
@@ -1707,7 +1713,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   private actualizarVisibilidadNotificaciones(url?: string): void {
     const currentUrl = (url ?? this.router.url ?? '').toLowerCase();
-    this.mostrarNotificaciones = !currentUrl.startsWith('/expedientes-medicos') && !currentUrl.startsWith('/estadisticas-medicas');
+    this.mostrarNotificaciones = !currentUrl.startsWith('/expedientes-medicos') && !currentUrl.startsWith('/audiometria') && !currentUrl.startsWith('/estadisticas-medicas');
     if (!this.mostrarNotificaciones) {
       this.notifAbiertas = false;
     }

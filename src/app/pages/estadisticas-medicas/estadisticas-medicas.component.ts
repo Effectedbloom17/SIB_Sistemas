@@ -40,6 +40,17 @@ export class EstadisticasMedicasComponent implements OnInit, OnDestroy {
   pctNoFuma: number = 0;
   pctEnfermos: number = 0;
 
+  vistaPanel: 'expedientes' | 'audiometria' = 'expedientes';
+  readonly vistasPanel: Array<'expedientes' | 'audiometria'> = ['expedientes', 'audiometria'];
+  cargandoAudiometria = false;
+  estadisticasAudiometria: any = null;
+  chartAudResultado: any = {};
+  chartAudOidos: any = {};
+  chartAudTipo: any = {};
+  chartAudProtector: any = {};
+  chartAudRuido: any = {};
+  chartAudSintomas: any = {};
+
   // =====================================================
   // REPORTE
   // =====================================================
@@ -150,8 +161,37 @@ export class EstadisticasMedicasComponent implements OnInit, OnDestroy {
     });
   }
 
+  get tituloPanel(): string {
+    return this.vistaPanel === 'audiometria' ? 'Panel de Audiometría' : 'Panel de Estadísticas Médicas';
+  }
+
   onEmpresaEstadisticaChange(): void {
+    this.estadisticasAudiometria = null;
+    if (this.vistaPanel === 'audiometria') {
+      this.cargarEstadisticasAudiometria();
+      return;
+    }
     this.cargarEstadisticas();
+  }
+
+  irVista(vista: 'expedientes' | 'audiometria'): void {
+    this.vistaPanel = vista;
+    if (vista === 'audiometria' && !this.estadisticasAudiometria && !this.cargandoAudiometria) {
+      this.cargarEstadisticasAudiometria();
+    }
+  }
+
+  cambiarVista(direccion: number): void {
+    const indice = this.vistasPanel.indexOf(this.vistaPanel);
+    const siguiente = (indice + direccion + this.vistasPanel.length) % this.vistasPanel.length;
+    this.irVista(this.vistasPanel[siguiente]);
+  }
+
+  tieneDatos(chart: any): boolean {
+    const series = chart?.series;
+    if (!Array.isArray(series) || !series.length) return false;
+    if (typeof series[0] === 'number') return series.some((valor: number) => valor > 0);
+    return series.some((serie: any) => Array.isArray(serie?.data) && serie.data.some((valor: number) => valor > 0));
   }
 
   cargarEstadisticas(): void {
@@ -171,6 +211,126 @@ export class EstadisticasMedicasComponent implements OnInit, OnDestroy {
         Swal.fire('Error', 'No se pudieron cargar las estadÃ­sticas', 'error');
       }
     });
+  }
+
+  cargarEstadisticasAudiometria(): void {
+    this.cargandoAudiometria = true;
+    this.backendServices.obtenerEstadisticasAudiometria(
+      this.empresaEstadisticas || undefined
+    ).subscribe({
+      next: (resp: any) => {
+        if (resp.success) {
+          this.estadisticasAudiometria = resp;
+          this.construirGraficasAudiometria(resp);
+        }
+        this.cargandoAudiometria = false;
+      },
+      error: () => {
+        this.cargandoAudiometria = false;
+        Swal.fire('Error', 'No se pudieron cargar las estadísticas de audiometría', 'error');
+      }
+    });
+  }
+
+  private construirGraficasAudiometria(data: any): void {
+    const resultado = data.resultado || {};
+    const oidos = data.oidos || {};
+    const tipo = data.tipo || {};
+    const protector = data.protector || {};
+    const ruido = data.ruido || {};
+    const sintomas = data.sintomas || {};
+
+    this.chartAudResultado = this.dona(
+      [resultado.normal || 0, resultado.leve || 0, resultado.moderada || 0, resultado.severa || 0, resultado.profunda || 0],
+      ['Normal', 'Leve', 'Moderada', 'Severa', 'Profunda'],
+      ['#10b981', '#f59e0b', '#f97316', '#ef4444', '#7f1d1d']
+    );
+    this.chartAudOidos = this.barras(
+      [oidos.derecho || 0, oidos.izquierdo || 0],
+      ['Oído derecho', 'Oído izquierdo'],
+      ['#c62828', '#1565c0']
+    );
+    this.chartAudTipo = this.dona(
+      [tipo.inicial || 0, tipo.periodica || 0, tipo.confirmacion || 0, tipo.egreso || 0],
+      ['Inicial', 'Periódica', 'Confirmación', 'Egreso'],
+      ['#0e4a6f', '#0891b2', '#14b8a6', '#64748b']
+    );
+    this.chartAudProtector = this.dona(
+      [protector.si || 0, protector.no || 0, protector.ocasional || 0],
+      ['Sí', 'No', 'Ocasional'],
+      ['#059669', '#dc2626', '#d97706']
+    );
+    this.chartAudRuido = this.barras(
+      [ruido.continuo || 0, ruido.intermitente || 0, ruido.impacto || 0, ruido.mixto || 0],
+      ['Continuo', 'Intermitente', 'De impacto', 'Mixto'],
+      ['#006064', '#00838F', '#0097A7', '#00ACC1']
+    );
+    this.chartAudSintomas = this.barras(
+      [sintomas.disminucion || 0, sintomas.tinnitus || 0, sintomas.otalgia || 0, sintomas.vertigo || 0, sintomas.mareos || 0, sintomas.otorrea || 0],
+      ['Disminución', 'Tinnitus', 'Otalgia', 'Vértigo', 'Mareos', 'Otorrea'],
+      ['#0e4a6f', '#0891b2', '#0f766e', '#d97706', '#c2410c', '#b91c1c'],
+      true
+    );
+  }
+
+  private dona(series: number[], labels: string[], colors: string[]): any {
+    return {
+      series,
+      chart: { type: 'donut', height: 270 },
+      labels,
+      colors,
+      legend: {
+        position: 'bottom', fontSize: '12px', fontWeight: 600,
+        markers: { width: 10, height: 10, radius: 3 }
+      },
+      dataLabels: {
+        enabled: true, formatter: (val: number) => val.toFixed(0) + '%',
+        style: { fontSize: '12px', fontWeight: 700 },
+        dropShadow: { enabled: false }
+      },
+      plotOptions: {
+        pie: {
+          donut: {
+            size: '62%',
+            labels: {
+              show: true, total: {
+                show: true, label: 'Total', fontSize: '12px', fontWeight: 600, color: '#64748b',
+                formatter: (w: any) => w.globals.seriesTotals.reduce((a: number, b: number) => a + b, 0)
+              }
+            }
+          }
+        }
+      },
+      stroke: { width: 2, colors: ['#fff'] },
+      responsive: [{ breakpoint: 480, options: { chart: { height: 200 } } }]
+    };
+  }
+
+  private barras(data: number[], categories: string[], colors: string[], horizontal = false): any {
+    return {
+      series: [{ name: 'Estudios', data }],
+      chart: { type: 'bar', height: horizontal ? 320 : 280, toolbar: { show: false }, fontFamily: 'inherit' },
+      plotOptions: {
+        bar: horizontal
+          ? { horizontal: true, borderRadius: 3, barHeight: '58%', distributed: true }
+          : { borderRadius: 4, columnWidth: '48%', distributed: true }
+      },
+      colors,
+      dataLabels: {
+        enabled: true,
+        style: { fontSize: '11px', fontWeight: 700, colors: ['#fff'] },
+        formatter: (val: number) => val > 0 ? String(val) : ''
+      },
+      xaxis: {
+        categories,
+        labels: { style: { fontSize: '11px', colors: '#64748b' } },
+        axisBorder: { show: false }, axisTicks: { show: false }
+      },
+      yaxis: { labels: { style: { fontSize: '11px', colors: horizontal ? '#475569' : '#94a3b8' } } },
+      grid: { borderColor: '#f1f5f9', strokeDashArray: 3 },
+      legend: { show: false },
+      tooltip: { y: { formatter: (val: number) => val + ' estudios' } }
+    };
   }
 
 

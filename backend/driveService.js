@@ -776,6 +776,31 @@ async function subirArchivo(fileData, nombreArchivo, mimeType, carpetaId = ROOT_
  * Sube un archivo nuevo sin reemplazar otros archivos con el mismo nombre.
  * Útil para historiales donde se deben conservar todas las versiones.
  */
+/**
+ * Igual que subirArchivoNuevo, sin permiso público.
+ * El cifrado de la firma personal no debe quedar como archivo "anyone".
+ */
+async function subirArchivoPrivado(fileData, nombreArchivo, mimeType, carpetaId = ROOT_FOLDER_ID) {
+    const esBuffer = Buffer.isBuffer(fileData);
+    const esStream = !!fileData && typeof fileData.pipe === 'function';
+    if (!esBuffer && !esStream) {
+        throw new Error('Contenido de archivo inválido: se esperaba Buffer o Stream');
+    }
+    const response = await drive.files.create({
+        requestBody: {
+            name: nombreArchivo,
+            parents: [carpetaId]
+        },
+        media: {
+            mimeType,
+            body: esBuffer ? require('stream').Readable.from(fileData) : fileData
+        },
+        fields: 'id, name, mimeType, size',
+        supportsAllDrives: true
+    });
+    return response.data;
+}
+
 async function subirArchivoNuevo(fileData, nombreArchivo, mimeType, carpetaId = ROOT_FOLDER_ID) {
     const esBuffer = Buffer.isBuffer(fileData);
     const esStream = !!fileData && typeof fileData.pipe === 'function';
@@ -13423,6 +13448,7 @@ module.exports = {
     buscarArchivoGlobal,
     subirArchivo,
     subirArchivoNuevo,
+    subirArchivoPrivado,
     subirExcelComoGoogleSheet,
     convertirOfficeExcelAGoogleSheet,
     asegurarSpreadsheetNativoParaCatalogo,

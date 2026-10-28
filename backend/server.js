@@ -21,7 +21,7 @@ function resolveSlidesTemplateId(envValue, fallback = SLIDES_TEMPLATE_ID_FALLBAC
 const express = require('express');
 const mysql = require('mysql2/promise');
 const { esErrorConexionDb, buildMysqlPoolOptions, wrapPoolWithRetry } = require('./dbPoolUtils');
-const { seleccionarDestino, getDestino, estadoPublico } = require('./dbDestino');
+const { seleccionarDestino, invalidarDestino, getDestino, estadoPublico } = require('./dbDestino');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
@@ -44,6 +44,7 @@ const notificacionesOperativasService = require('./notificacionesOperativasServi
 const notasVersionService = require('./notasVersionService');
 const ticketsService = require('./ticketsService');
 const sgcSolicitudDocumentosService = require('./sgcSolicitudDocumentosService');
+const createSgcFirmasRouter = require('./sgcFirmasRoutes');
 const mantenimientoService = require('./mantenimientoService');
 const opinionesService = require('./opinionesService');
 const chatEmpresasService = require('./chatEmpresasService');
@@ -1302,6 +1303,7 @@ function poolSinConexion(error) {
     fallo.statusCode = error?.statusCode || 503;
     fallo.code = error?.code || 'DB_SIN_DESTINO';
     return {
+        __sinConexion: true,
         query() { return Promise.reject(fallo); },
         getConnection() { return Promise.reject(fallo); },
         end() { return Promise.resolve(); },
@@ -1325,10 +1327,43 @@ async function isLocalNetwork() {
             return true;
         })().catch((error) => {
             mysqlDestinoTipo = 'sin_conexion';
+            localNetworkProbe = null;
             throw error;
         });
     }
     return localNetworkProbe;
+}
+
+function esErrorSinDestinoBd(error) {
+    return error?.code === 'DB_SIN_DESTINO'
+        || /No existen bases de datos disponibles/i.test(String(error?.message || ''));
+}
+
+let recuperarBdPromise = null;
+
+async function intentarRecuperarConexionBd(motivo = 'reintento') {
+    if (recuperarBdPromise) {
+        return recuperarBdPromise;
+    }
+    recuperarBdPromise = (async () => {
+        console.warn(`[DB] Reintentando selección de servidor (${motivo})...`);
+        invalidarDestino();
+        localNetworkProbe = null;
+        mysqlDestinoTipo = 'sin_conexion';
+        await isLocalNetwork();
+        await reinicializarPoolPrincipal(motivo);
+        await Promise.allSettled([
+            typeof reinicializarPoolMedicos === 'function' ? reinicializarPoolMedicos(motivo) : Promise.resolve(),
+            typeof reinicializarPoolProteccionCivil === 'function' ? reinicializarPoolProteccionCivil(motivo) : Promise.resolve(),
+            typeof reinicializarPoolBiznagaSgc === 'function' ? reinicializarPoolBiznagaSgc(motivo) : Promise.resolve(),
+            typeof reinicializarPoolSensores === 'function' ? reinicializarPoolSensores(motivo) : Promise.resolve(),
+            typeof reinicializarPoolNormativas === 'function' ? reinicializarPoolNormativas(motivo) : Promise.resolve()
+        ]);
+        return getDestino();
+    })().finally(() => {
+        recuperarBdPromise = null;
+    });
+    return recuperarBdPromise;
 }
 
 function esperarMs(ms) {
@@ -1461,11 +1496,22 @@ async function exigirPoolPrincipal() {
     } catch (_e) {
         // silenced
     }
-    if (!pool || typeof pool.query !== 'function') {
+    if (mysqlDestinoTipo === 'sin_conexion' || pool?.__sinConexion) {
+        try {
+            await intentarRecuperarConexionBd('pool principal');
+        } catch (error) {
+            const err = new Error(error?.message || 'No existen bases de datos disponibles.');
+            err.statusCode = error?.statusCode || 503;
+            err.code = error?.code || 'DB_SIN_DESTINO';
+            throw err;
+        }
+    }
+    if (!pool || typeof pool.query !== 'function' || pool.__sinConexion) {
         const err = new Error(
             'No existen bases de datos disponibles.'
         );
         err.statusCode = 503;
+        err.code = 'DB_SIN_DESTINO';
         throw err;
     }
     return pool;
@@ -1759,6 +1805,13 @@ async function ejecutarMigracionesBiznagaSgc(poolSgc) {
         startupLog.detail(`  Tablas sgc_formatos_descarga_* verificadas en ${DB_NAME_SGC}`);
     } catch (sgcMigrErr) {
         console.warn(`  [WARN] Tablas sgc_formatos_descarga (${DB_NAME_SGC}):`, sgcMigrErr.message);
+    }
+    try {
+        const sgcFirmasService = require('./sgcFirmasService');
+        await sgcFirmasService.asegurarTablas(poolSgc);
+        startupLog.detail(`  Tablas sgc_firma_* verificadas en ${DB_NAME_SGC}`);
+    } catch (sgcMigrErr) {
+        console.warn(`  [WARN] Tablas sgc_firma (${DB_NAME_SGC}):`, sgcMigrErr.message);
     }
     try {
         const ambientalService = require('./ambientalService');
@@ -11858,12 +11911,63 @@ const EMPRESA_CAMPOS_PERMITIDOS = [
     'servicio_proteccion_civil', 'colaborador'
 ];
 
-app.put('/api/empresas/:id', async (req, res) => {
+app.put('/api/empresas/:id', (req, res, next) => {
+    const contentType = String(req.headers['content-type'] || '');
+    if (!contentType.includes('multipart/form-data')) {
+        return next();
+    }
+    uploadEmpresaRegistro.fields([{ name: 'logo', maxCount: 1 }])(req, res, (err) => {
+        if (err) {
+            return res.status(400).json({
+                success: false,
+                message: err.message || 'No se pudo procesar el logo'
+            });
+        }
+        next();
+    });
+}, async (req, res) => {
     try {
         await asegurarColumnaServicioProteccionCivilEmpresa(pool);
         await asegurarColumnaPuestoEmpresa(pool);
         await asegurarColumnaColaboradorEmpresa(pool);
+        await asegurarColumnaLogoEmpresa(pool);
         const fields = { ...req.body };
+        const logoFile = req.files?.logo?.[0] || null;
+
+        if (logoFile) {
+            const [empresaRows] = await pool.query(
+                'SELECT empresa_id, logo, drive_folder_id FROM empresa WHERE empresa_id = ? LIMIT 1',
+                [req.params.id]
+            );
+            if (!empresaRows.length) {
+                return res.status(404).json({ success: false, message: 'Empresa no encontrada' });
+            }
+
+            const empresa = empresaRows[0];
+            const extension = String(logoFile.originalname || '').split('.').pop() || 'png';
+            const nombreLogo = `logo_empresa_${empresa.empresa_id}_${Date.now()}.${extension}`;
+            let logoSubido;
+            try {
+                logoSubido = await driveService.subirArchivo(
+                    logoFile.buffer,
+                    nombreLogo,
+                    logoFile.mimetype,
+                    empresa.drive_folder_id || undefined
+                );
+            } catch (driveError) {
+                console.error('[ERROR] Actualizar logo de empresa:', driveError.message);
+                return res.status(500).json({ success: false, message: 'No se pudo subir el logo de la empresa' });
+            }
+
+            fields.logo = logoSubido?.id || null;
+            const logoActualRaw = String(empresa.logo || '').trim();
+            const oldByIdParam = logoActualRaw.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+            const oldByPath = logoActualRaw.match(/\/d\/([a-zA-Z0-9_-]+)/);
+            const oldLogoDriveId = oldByIdParam?.[1] || oldByPath?.[1] || (/^[a-zA-Z0-9_-]{10,}$/.test(logoActualRaw) ? logoActualRaw : null);
+            if (oldLogoDriveId && oldLogoDriveId !== fields.logo) {
+                try { await driveService.eliminarArchivo(oldLogoDriveId); } catch (e) { console.warn('[WARN] No se pudo eliminar logo anterior de empresa:', e.message); }
+            }
+        }
 
         // Compatibilidad con payloads antiguos que enviaban contacto_puesto.
         if (fields.puesto === undefined && fields.contacto_puesto !== undefined) {
@@ -20528,17 +20632,29 @@ app.get('/api/notificaciones', authMiddleware, async (req, res) => {
                 const t = String(n.titulo || '').toLowerCase();
                 return !TITULOS_BLOQUEADOS.some((b) => t.includes(b));
             })
-            .map((n) => ({ ...n, auto: false }));
+            .map((n) => {
+                const ruta = String(n.ruta || '');
+                const esFirmaSgc = ruta.startsWith('/sistema-gestion-calidad/firmas');
+                return {
+                    ...n,
+                    auto: false,
+                    categoria: esFirmaSgc ? 'sgc' : n.categoria
+                };
+            });
 
-        // Roles con notificaciones operativas: no mezclar legacy (evita ruido)
+        // Roles con notificaciones operativas: no mezclar legacy (evita ruido).
+        // Las de firma SGC sí se conservan: son eventos puntuales (aprobada, rechazada, invalidada).
         const roles = notificacionesOperativasService.rolesDeUsuario(req.user);
         const usaOperativas = notificacionesOperativasService.tieneRol(
             roles,
             'instructor', 'control_documental', 'proteccion_civil', 'ambiental'
         );
+        const legacyFirmas = legacyFiltradas.filter((n) =>
+            String(n.ruta || '').startsWith('/sistema-gestion-calidad/firmas')
+        );
         const notificaciones = usaOperativas
-            ? operativas
-            : [...operativas, ...legacyFiltradas].slice(0, 50);
+            ? [...operativas, ...legacyFirmas]
+            : [...operativas, ...legacyFiltradas].slice(0, 80);
 
         res.json({ success: true, notificaciones });
     } catch (error) {
@@ -24377,6 +24493,14 @@ app.delete('/api/historias-clinicas/:id', async (req, res) => {
         console.error('[ERROR] Eliminar historia clínica:', error.message);
         res.status(500).json({ success: false, message: 'Error al eliminar historia clínica' });
     }
+});
+
+const { registrarRutasAudiometria } = require('./audiometriaRoutes');
+registrarRutasAudiometria(app, {
+    getPoolMedicos: () => poolMedicos,
+    poolMedicosReady,
+    getPool: () => pool,
+    dbMedicos: DB_NAME_MEDICOS
 });
 
 // =====================================================
@@ -31204,6 +31328,22 @@ app.get('/api/sgc/formatos/sgc-f-23/descargar-plantilla-pdf', requireAdminOrSgc,
     }
 });
 
+app.use('/api/sgc/firmas', createSgcFirmasRouter({
+    authMiddleware,
+    denyEmpresa,
+    getPool: () => pool,
+    getPoolSgc: () => poolBiznagaSgc,
+    handleError,
+    esGestor: (req) => {
+        const roles = getUserRolesLower(req);
+        return roles.includes('root') || esGestorCalidadSgc(req);
+    },
+    nombreUsuario: (req) => {
+        const nombre = [req.user?.nombre, req.user?.apellido].filter(Boolean).join(' ').trim();
+        return nombre || req.user?.username || '';
+    }
+}));
+
 app.use('/api/sgc/formatos/sgc-f-11/evidencias', async (req, res, next) => {
     try {
         await poolBiznagaSgcReady;
@@ -36339,6 +36479,53 @@ server.headersTimeout = 66000;
 // CONTROL RESOLUTIVOS PIPC (SP-F-29) — BD satélite + Google Sheets
 // =====================================================
 const pcResolutivosService = require('./pcResolutivosService');
+const pcResolutivosAvisosService = require('./pcResolutivosAvisosService');
+
+app.get('/api/proteccion-civil/resolutivos/avisos', async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        await poolReady;
+        const avisos = await pcResolutivosAvisosService.listarAvisos(
+            poolProteccionCivil,
+            pool,
+            req.user?.username
+        );
+        return res.json({ success: true, avisos });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron cargar los avisos de resolutivos PIPC');
+    }
+});
+
+app.post('/api/proteccion-civil/resolutivos/avisos/:id/descartar', async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        await pcResolutivosAvisosService.descartarAviso(
+            poolProteccionCivil,
+            req.params.id,
+            req.user?.username
+        );
+        return res.json({ success: true });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cerrar el aviso de resolutivo PIPC');
+    }
+});
+
+function iniciarAvisosResolutivosPipc() {
+    const ejecutar = async () => {
+        try {
+            await poolProteccionCivilReady;
+            await poolReady;
+            if (!poolProteccionCivil?.query) return;
+            await pcResolutivosAvisosService.procesarVentanaDiaria(poolProteccionCivil, pool);
+        } catch (error) {
+            console.warn('[PC-AVISO] No se pudieron preparar avisos diarios:', error.message);
+        }
+    };
+    setTimeout(ejecutar, 40 * 1000);
+    setInterval(ejecutar, 15 * 60 * 1000);
+}
+
+iniciarAvisosResolutivosPipc();
 
 app.get('/api/proteccion-civil/empresas/:empresaId/resolutivo-contexto', requireAdminOrPC, async (req, res) => {
     try {

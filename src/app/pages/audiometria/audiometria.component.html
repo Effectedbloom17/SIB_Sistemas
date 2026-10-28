@@ -1,0 +1,799 @@
+<div class="header header-bg-image pb-4 pt-3 pt-md-4 d-flex align-items-center position-relative overflow-hidden no-print">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="text-center">
+      <div class="icon icon-shape text-white rounded-circle shadow mb-2 header-icon">
+        <i class="fas fa-assistive-listening-systems"></i>
+      </div>
+      <h1 class="text-white mb-0 header-title">Audiometría</h1>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--3 audiometria-page">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+
+      <div *ngIf="vistaActual === 'empresas'" class="card shadow-lg border-0 panel">
+        <div class="card-header border-0 panel-header">
+          <div class="row align-items-center">
+            <div class="col-lg-7">
+              <h6 class="text-uppercase text-muted ls-1 mb-1">Gestión</h6>
+              <h2 class="panel-title mb-0">Seleccionar empresa ({{ empresasFiltradas.length }})</h2>
+            </div>
+            <div class="col-lg-5 mt-3 mt-lg-0">
+              <div class="input-group input-group-alternative">
+                <div class="input-group-prepend">
+                  <span class="input-group-text"><i class="fas fa-search"></i></span>
+                </div>
+                <input class="form-control" placeholder="Buscar por nombre o RFC..." [(ngModel)]="textoBusquedaEmpresa" (input)="filtrarEmpresas()">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div *ngIf="cargandoEmpresas" class="text-center py-5 text-muted">
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+            <p class="mt-2 mb-0">Cargando empresas...</p>
+          </div>
+          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length === 0" class="text-center py-5 text-muted">
+            <i class="fas fa-building fa-2x"></i>
+            <p class="mt-2 mb-0">No hay empresas registradas</p>
+          </div>
+          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length > 0" class="row">
+            <div *ngFor="let empresa of empresasFiltradas" class="col-lg-4 col-md-6 mb-4">
+              <div class="card h-100 shadow-sm border-0 empresa-card" (click)="seleccionarEmpresa(empresa)">
+                <div class="card-body">
+                  <div class="d-flex align-items-center mb-3">
+                    <span *ngIf="!getLogoEmpresaUrl(empresa)" class="avatar-empresa">{{ getInicialesEmpresa(empresa.nombre_empresa) }}</span>
+                    <img *ngIf="getLogoEmpresaUrl(empresa)" [src]="getLogoEmpresaUrl(empresa)" [alt]="empresa.nombre_empresa" class="logo-empresa" (error)="onLogoEmpresaError(empresa)">
+                    <div>
+                      <h5 class="mb-0 empresa-nombre">{{ empresa.nombre_empresa }}</h5>
+                      <small class="text-muted d-block">RFC: {{ empresa.rfc }}</small>
+                      <small class="text-muted" *ngIf="empresa.ciudad || empresa.estado">
+                        {{ empresa.ciudad }}{{ empresa.ciudad && empresa.estado ? ', ' : '' }}{{ empresa.estado }}
+                      </small>
+                    </div>
+                  </div>
+                  <div class="d-flex justify-content-between">
+                    <small class="text-muted">Audiometrías</small>
+                    <small class="font-weight-bold">{{ empresa.audiometrias_totales || 0 }}</small>
+                  </div>
+                  <div class="text-right mt-3 ver-link">Ver audiometrías <i class="fas fa-arrow-right ml-1"></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="vistaActual === 'menu'" class="card shadow-lg border-0 panel">
+        <div class="card-header border-0 panel-header">
+          <button class="btn btn-link p-0 text-muted mb-2" (click)="volverAEmpresas()"><i class="fas fa-arrow-left mr-1"></i> Volver a empresas</button>
+          <div class="d-flex align-items-center">
+            <img *ngIf="getLogoEmpresaUrl()" [src]="getLogoEmpresaUrl()" class="logo-empresa mr-3" [alt]="empresaSeleccionada?.nombre_empresa" (error)="onLogoEmpresaError()">
+            <div>
+              <h2 class="panel-title mb-0">{{ empresaSeleccionada?.nombre_empresa }}</h2>
+              <h6 class="text-uppercase text-muted ls-1 mb-0 mt-1">Audiometría</h6>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="row justify-content-center">
+            <div class="col-lg-4 col-md-6 mb-4">
+              <div class="card h-100 shadow-sm border-0 accion-card" (click)="abrirFormulario()">
+                <div class="card-body text-center py-4">
+                  <div class="accion-icon"><i class="fas fa-file-medical-alt"></i></div>
+                  <h4 class="panel-title">Iniciar formulario</h4>
+                  <p class="text-muted mb-0">Registrar una audiometría nueva</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-4 col-md-6 mb-4">
+              <div class="card h-100 shadow-sm border-0 accion-card" (click)="verHistorial()">
+                <div class="card-body text-center py-4">
+                  <div class="accion-icon accion-icon-suave"><i class="fas fa-history"></i></div>
+                  <h4 class="panel-title">Historial</h4>
+                  <p class="text-muted mb-0">Consultar audiometrías anteriores</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="vistaActual === 'formulario'" class="card shadow-lg border-0 panel">
+        <div class="card-header border-0 panel-header">
+          <button class="btn btn-link p-0 text-muted mb-2" (click)="volverAlMenu()"><i class="fas fa-arrow-left mr-1"></i> Volver al menú</button>
+          <h6 class="text-uppercase text-muted ls-1 mb-1">{{ editandoId ? 'Editar registro' : 'Nuevo registro' }}</h6>
+          <h2 class="panel-title mb-0">Evaluación de audiometría</h2>
+        </div>
+
+        <div class="stepper">
+          <div class="stepper-line"><div class="stepper-line-progress" [style.width.%]="progresoPorcentaje"></div></div>
+          <button type="button" *ngFor="let paso of pasos" class="stepper-step" (click)="irAPaso(paso.numero)">
+            <span class="stepper-circle" [class.active]="pasoActual === paso.numero" [class.done]="pasoActual > paso.numero">
+              <i *ngIf="pasoActual > paso.numero" class="fas fa-check"></i>
+              <span *ngIf="pasoActual <= paso.numero">{{ paso.numero }}</span>
+            </span>
+            <span class="stepper-label">{{ paso.titulo }}</span>
+          </button>
+        </div>
+
+        <div class="card-body">
+          <div *ngIf="pasoActual === 1">
+            <h4 class="seccion-titulo">Datos generales</h4>
+            <div class="form-row">
+              <div class="form-group col-md-4">
+                <label>Tipo de audiometría</label>
+                <select class="form-control" [(ngModel)]="formulario.tipoAudiometria">
+                  <option value="">Seleccionar</option>
+                  <option *ngFor="let tipo of tiposAudiometria" [value]="tipo">{{ tipo }}</option>
+                </select>
+              </div>
+              <div class="form-group col-md-8">
+                <label>Nombre</label>
+                <input class="form-control" [(ngModel)]="formulario.nombre" placeholder="Nombre completo">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-md-4">
+                <label>Fecha de elaboración</label>
+                <input type="date" class="form-control" [(ngModel)]="formulario.fechaElaboracion">
+              </div>
+              <div class="form-group col-md-5">
+                <label>Área de trabajo</label>
+                <input class="form-control" [(ngModel)]="formulario.ocupacion">
+              </div>
+              <div class="form-group col-md-3">
+                <label>Edad</label>
+                <input class="form-control" [(ngModel)]="formulario.edad">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-md-4">
+                <label>Uso de protector auditivo</label>
+                <select class="form-control" [(ngModel)]="formulario.usoProtector">
+                  <option value="">Seleccionar</option>
+                  <option *ngFor="let uso of usosProtector" [value]="uso">{{ uso }}</option>
+                </select>
+              </div>
+              <div class="form-group col-md-2">
+                <label>Años en puesto</label>
+                <input class="form-control" [(ngModel)]="formulario.anosEnPuesto">
+              </div>
+              <div class="form-group col-md-3">
+                <label>Exposición a ruido (horas al día)</label>
+                <input class="form-control" [(ngModel)]="formulario.horasExposicion">
+              </div>
+              <div class="form-group col-md-3">
+                <label>Tipo de ruido</label>
+                <select class="form-control" [(ngModel)]="formulario.tipoRuido">
+                  <option value="">Seleccionar</option>
+                  <option *ngFor="let tipo of tiposRuido" [value]="tipo">{{ tipo }}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="pasoActual === 2">
+            <h4 class="seccion-titulo">1. Antecedentes heredo-familiares</h4>
+            <div class="bloque-antecedente">
+              <div class="font-weight-bold mb-2">Familiar con pérdida auditiva</div>
+              <div class="form-row">
+                <div class="form-group col-md-6">
+                  <label>Unilateral</label>
+                  <select class="form-control" [(ngModel)]="formulario.perdidaUnilateral">
+                    <option value=""></option>
+                    <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                  </select>
+                </div>
+                <div class="form-group col-md-6">
+                  <label>Bilateral</label>
+                  <select class="form-control" [(ngModel)]="formulario.perdidaBilateral">
+                    <option value=""></option>
+                    <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="bloque-antecedente">
+              <div class="font-weight-bold mb-2">Familiar con alguna enfermedad de oído</div>
+              <div class="form-row">
+                <div class="form-group col-md-4">
+                  <label>Súbita</label>
+                  <select class="form-control" [(ngModel)]="formulario.enfermedadSubita">
+                    <option value=""></option>
+                    <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                  </select>
+                </div>
+                <div class="form-group col-md-4">
+                  <label>Progresiva</label>
+                  <select class="form-control" [(ngModel)]="formulario.enfermedadProgresiva">
+                    <option value=""></option>
+                    <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                  </select>
+                </div>
+                <div class="form-group col-md-4">
+                  <label>Fluctuante</label>
+                  <select class="form-control" [(ngModel)]="formulario.enfermedadFluctuante">
+                    <option value=""></option>
+                    <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="bloque-antecedente">
+              <div class="form-row">
+                <div class="form-group col-md-6">
+                  <label>Familiar con pérdida auditiva</label>
+                  <select class="form-control" [(ngModel)]="formulario.perdidaAuditiva">
+                    <option value=""></option>
+                    <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                  </select>
+                </div>
+                <div class="form-group col-md-6">
+                  <label>Parentesco</label>
+                  <input class="form-control" [(ngModel)]="formulario.perdidaParentesco">
+                </div>
+              </div>
+            </div>
+            <div class="bloque-antecedente">
+              <div class="form-row">
+                <div class="form-group col-md-4">
+                  <label>Familiar con alguna enfermedad de oído</label>
+                  <select class="form-control" [(ngModel)]="formulario.enfermedadOido">
+                    <option value=""></option>
+                    <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                  </select>
+                </div>
+                <div class="form-group col-md-4">
+                  <label>Cuál</label>
+                  <input class="form-control" [(ngModel)]="formulario.enfermedadCual">
+                </div>
+                <div class="form-group col-md-4">
+                  <label>Parentesco</label>
+                  <input class="form-control" [(ngModel)]="formulario.enfermedadParentesco">
+                </div>
+              </div>
+            </div>
+            <div class="bloque-antecedente">
+              <div class="form-row">
+                <div class="form-group col-md-4">
+                  <label>Trastornos de comunicación</label>
+                  <select class="form-control" [(ngModel)]="formulario.trastornosComunicacion">
+                    <option value=""></option>
+                    <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                  </select>
+                </div>
+                <div class="form-group col-md-4">
+                  <label>Tipo</label>
+                  <input class="form-control" [(ngModel)]="formulario.trastornosTipo">
+                </div>
+                <div class="form-group col-md-4">
+                  <label>Observaciones</label>
+                  <input class="form-control" [(ngModel)]="formulario.trastornosObservaciones">
+                </div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Observaciones</label>
+              <textarea class="form-control" rows="3" [(ngModel)]="formulario.observacionesHeredo"></textarea>
+            </div>
+          </div>
+
+          <div *ngIf="pasoActual === 3">
+            <h4 class="seccion-titulo">2. Antecedentes otológicos</h4>
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label>Meningitis, parálisis facial, herpes zoster, parotiditis, rubéola, fiebre tifoidea</label>
+                <select class="form-control" [(ngModel)]="formulario.infecciosos">
+                  <option value=""></option>
+                  <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                </select>
+              </div>
+              <div class="form-group col-md-6">
+                <label>Traumatismo, daño de oído</label>
+                <select class="form-control" [(ngModel)]="formulario.traumatismo">
+                  <option value=""></option>
+                  <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label>Uso de audífonos</label>
+                <select class="form-control" [(ngModel)]="formulario.audifonos">
+                  <option value=""></option>
+                  <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                </select>
+              </div>
+              <div class="form-group col-md-6">
+                <label>Horas al día</label>
+                <input class="form-control" [(ngModel)]="formulario.audifonosHoras">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label>Exposición a químicos</label>
+                <select class="form-control" [(ngModel)]="formulario.quimicos">
+                  <option value=""></option>
+                  <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                </select>
+              </div>
+              <div class="form-group col-md-6">
+                <label>Horas al día</label>
+                <input class="form-control" [(ngModel)]="formulario.quimicosHoras">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label>Uso de ototóxicos (estreptomicina, quininas, gentamicina, salicilatos, kanamicina, tobramicina, furosemida)</label>
+                <input class="form-control" [(ngModel)]="formulario.ototoxicos">
+              </div>
+              <div class="form-group col-md-6">
+                <label>Ruido extralaboral (discoteca, automovilismo, aviación, motociclismo, etc.)</label>
+                <input class="form-control" [(ngModel)]="formulario.ruidoExtralaboral">
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="pasoActual === 4">
+            <h4 class="seccion-titulo">3. Datos clínicos</h4>
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label>Disminución de la audición</label>
+                <select class="form-control" [(ngModel)]="formulario.disminucionAudicion">
+                  <option value=""></option>
+                  <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                </select>
+              </div>
+              <div class="form-group col-md-6">
+                <label>Otalgia</label>
+                <select class="form-control" [(ngModel)]="formulario.otalgia">
+                  <option value=""></option>
+                  <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label>Tinnitus</label>
+                <input class="form-control" [(ngModel)]="formulario.tinnitus" placeholder="Ej. esporádico, hace 3 años">
+              </div>
+              <div class="form-group col-md-6">
+                <label>Mareos</label>
+                <select class="form-control" [(ngModel)]="formulario.mareos">
+                  <option value=""></option>
+                  <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label>Vértigo</label>
+                <select class="form-control" [(ngModel)]="formulario.vertigo">
+                  <option value=""></option>
+                  <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                </select>
+              </div>
+              <div class="form-group col-md-6">
+                <label>Otorrea</label>
+                <select class="form-control" [(ngModel)]="formulario.otorrea">
+                  <option value=""></option>
+                  <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label>Oye bien</label>
+                <select class="form-control" [(ngModel)]="formulario.oyeBien">
+                  <option value=""></option>
+                  <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                </select>
+              </div>
+              <div class="form-group col-md-6">
+                <label>Si no oye bien, desde cuándo</label>
+                <input class="form-control" [(ngModel)]="formulario.oyeBienDesdeCuando">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label>Debe pedir que repitan las frases</label>
+                <select class="form-control" [(ngModel)]="formulario.repetirFrases">
+                  <option value=""></option>
+                  <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                </select>
+              </div>
+              <div class="form-group col-md-6">
+                <label>Debe aumentar el volumen de la T.V.</label>
+                <select class="form-control" [(ngModel)]="formulario.aumentarVolumenTv">
+                  <option value=""></option>
+                  <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label>Oye mejor cuando hay ruido</label>
+                <select class="form-control" [(ngModel)]="formulario.oyeMejorConRuido">
+                  <option value=""></option>
+                  <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                </select>
+              </div>
+              <div class="form-group col-md-6">
+                <label>Le molestan los ruidos intensos</label>
+                <select class="form-control" [(ngModel)]="formulario.molestanRuidosIntensos">
+                  <option value=""></option>
+                  <option *ngFor="let op of opcionesSiNo" [value]="op">{{ op === 'SI' ? 'Sí' : 'No' }}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="pasoActual === 5">
+            <h4 class="seccion-titulo">4. Evaluación de audiometría</h4>
+            <p class="text-muted">Umbrales en dB HL. La frecuencia va a la izquierda y se anota en hertz. La vía ósea se registra de 250 Hz a 4000 Hz. El gráfico de esta pantalla reúne ambos oídos.</p>
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label>Otoscopia oído derecho</label>
+                <input class="form-control" [(ngModel)]="formulario.otoscopiaOd" placeholder="Conducto y membrana">
+              </div>
+              <div class="form-group col-md-6">
+                <label>Otoscopia oído izquierdo</label>
+                <input class="form-control" [(ngModel)]="formulario.otoscopiaOi" placeholder="Conducto y membrana">
+              </div>
+            </div>
+            <div class="table-responsive mb-4">
+              <table class="table table-sm umbral-table mb-0">
+                <thead>
+                  <tr>
+                    <th>Frecuencia</th>
+                    <th>Vía aérea OD</th>
+                    <th>Vía aérea OI</th>
+                    <th>Vía ósea OD</th>
+                    <th>Vía ósea OI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let u of umbrales">
+                    <th>{{ etiquetaFrecuencia(u.frecuencia) }}</th>
+                    <td><input type="number" min="-10" max="120" step="5" [(ngModel)]="u.vaOd"></td>
+                    <td><input type="number" min="-10" max="120" step="5" [(ngModel)]="u.vaOi"></td>
+                    <td><input type="number" min="-10" max="120" step="5" [(ngModel)]="u.voOd" [disabled]="!esOsea(u.frecuencia)"></td>
+                    <td><input type="number" min="-10" max="120" step="5" [(ngModel)]="u.voOi" [disabled]="!esOsea(u.frecuencia)"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="valoracion-wrap mb-4">
+              <table class="valoracion-tabla">
+                <thead>
+                  <tr>
+                    <th>Apartado</th>
+                    <th>Oído derecho</th>
+                    <th>Oído izquierdo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th>Media</th>
+                    <td>{{ textoNumero(mediaLado('Od'), 2) }}</td>
+                    <td>{{ textoNumero(mediaLado('Oi'), 2) }}</td>
+                  </tr>
+                  <tr>
+                    <th>Suma en dB de niveles</th>
+                    <td>{{ textoNumero(sumaDb('Od'), 0) }}</td>
+                    <td>{{ textoNumero(sumaDb('Oi'), 0) }}</td>
+                  </tr>
+                  <tr>
+                    <th>% pérdida</th>
+                    <td>{{ textoNumero(porcentajeOido('Od'), 0) }}</td>
+                    <td>{{ textoNumero(porcentajeOido('Oi'), 0) }}</td>
+                  </tr>
+                  <tr>
+                    <th>% Pérdida SNDA binaural</th>
+                    <td colspan="2">{{ textoNumero(porcentajeBinaural(), 1) }}</td>
+                  </tr>
+                  <tr>
+                    <th>% Discapacidad</th>
+                    <td colspan="2">{{ textoNumero(porcentajeDiscapacidad(), 0) }}</td>
+                  </tr>
+                  <tr>
+                    <th>Tipo pérdida dB OD-OI</th>
+                    <td>{{ textoNumero(tipoPerdidaDb(), 2) }}</td>
+                    <td class="valoracion-clase">{{ clasificarTipo(tipoPerdidaDb()) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h5 class="grafico-titulo">Gráfico combinado</h5>
+            <ng-container *ngTemplateOutlet="audiogramaTpl; context: { modo: 'combinado', titulo: 'Ambos oídos' }"></ng-container>
+          </div>
+
+          <div *ngIf="pasoActual === 6">
+            <h4 class="seccion-titulo">5. Diagnóstico</h4>
+            <div class="interpretacion-card mb-3">
+              <div class="d-flex justify-content-between align-items-start">
+                <strong>Interpretación automática</strong>
+                <button type="button" class="btn btn-sm btn-outline-success" (click)="usarInterpretacion()">Copiar al diagnóstico</button>
+              </div>
+              <pre class="interpretacion-texto mb-0">{{ interpretacion() }}</pre>
+            </div>
+            <div class="form-group">
+              <label>Diagnóstico</label>
+              <textarea class="form-control" rows="4" [(ngModel)]="formulario.diagnostico"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Recomendaciones</label>
+              <textarea class="form-control" rows="3" [(ngModel)]="formulario.recomendaciones"></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-md-8">
+                <label>Elaboró</label>
+                <input class="form-control" [(ngModel)]="formulario.personalElaboro">
+              </div>
+              <div class="form-group col-md-4">
+                <label>Cédula profesional</label>
+                <input class="form-control" [(ngModel)]="formulario.cedulaProfesional">
+              </div>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between mt-4">
+            <button type="button" class="btn btn-outline-secondary" (click)="pasoAnterior()" [disabled]="pasoActual === 1">Anterior</button>
+            <button *ngIf="pasoActual < pasos.length" type="button" class="btn btn-success" (click)="pasoSiguiente()">Siguiente</button>
+            <button *ngIf="pasoActual === pasos.length" type="button" class="btn btn-success" (click)="verReporte()">Ver reporte</button>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="vistaActual === 'preview'" class="preview-wrapper">
+        <div class="preview-controls no-print">
+          <button type="button" class="btn btn-link text-muted preview-back" (click)="origenPreview === 'historial' ? verHistorial() : volverAlFormulario()">
+            <i class="fas fa-arrow-left mr-1"></i> {{ origenPreview === 'historial' ? 'Historial' : 'Formulario' }}
+          </button>
+          <div class="preview-actions">
+            <button type="button" class="btn btn-success btn-sm" (click)="guardar()" [disabled]="guardando">
+              {{ guardando ? 'Guardando...' : 'Finalizar' }}
+            </button>
+            <a *ngIf="excelUrl" class="btn btn-outline-success btn-sm" [href]="excelUrl" target="_blank" rel="noopener">Excel en Drive</a>
+            <button type="button" class="btn btn-outline-success btn-sm" (click)="descargarExcel()">Plantilla Excel</button>
+            <button type="button" class="btn btn-outline-primary btn-sm" (click)="descargarPDF()" [disabled]="generandoPdf">PDF</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" (click)="imprimir()">Imprimir</button>
+            <button *ngIf="editandoId" type="button" class="btn btn-outline-dark btn-sm" (click)="editarRegistro(editandoId)">Editar</button>
+            <button *ngIf="editandoId" type="button" class="btn btn-outline-danger btn-sm" (click)="eliminarRegistro(editandoId)">Eliminar</button>
+          </div>
+        </div>
+
+        <div class="hc-document" id="audiometria-print">
+          <table class="hc-table">
+            <tr>
+              <td colspan="3" class="hc-logo-cell">
+                <img src="assets/img/logo_biznaga.png" alt="Biznaga" class="hc-logo-img">
+              </td>
+              <td colspan="9" class="hc-title-cell">
+                HISTORIA CLINICA
+                <div class="hc-empresa">{{ empresaSeleccionada?.nombre_empresa }}</div>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="12" class="hc-cell"><strong>TIPO DE AUDIOMETRÍA:</strong> {{ formulario.tipoAudiometria }}</td>
+            </tr>
+            <tr>
+              <td colspan="12" class="hc-cell"><strong>NOMBRE:</strong> {{ formulario.nombre }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>FECHA ELABORACIÓN:</strong> {{ fechaReporte() }}</td>
+              <td colspan="5" class="hc-cell"><strong>ÁREA DE TRABAJO:</strong> {{ formulario.ocupacion }}</td>
+              <td colspan="3" class="hc-cell"><strong>EDAD:</strong> {{ formulario.edad }}</td>
+            </tr>
+            <tr>
+              <td colspan="7" class="hc-cell"><strong>USO DE PROTECTOR AUDITIVO:</strong> {{ formulario.usoProtector }}</td>
+              <td colspan="5" class="hc-cell"><strong>AÑOS EN PUESTO:</strong> {{ formulario.anosEnPuesto }}</td>
+            </tr>
+            <tr>
+              <td colspan="7" class="hc-cell"><strong>EXPOSICIÓN A RUIDO (HORAS AL DÍA):</strong> {{ formulario.horasExposicion }}</td>
+              <td colspan="5" class="hc-cell"><strong>TIPO DE RUIDO:</strong> {{ formulario.tipoRuido }}</td>
+            </tr>
+          </table>
+
+          <table class="hc-table hc-preguntas">
+            <tr><td colspan="12" class="hc-section-header">1. Antecedentes heredo-familiares</td></tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>FAMILIAR CON PÉRDIDA AUDITIVA</strong></td>
+              <td colspan="4" class="hc-cell"><strong>UNILATERAL:</strong> {{ textoSiNo(formulario.perdidaUnilateral) }}</td>
+              <td colspan="4" class="hc-cell"><strong>BILATERAL:</strong> {{ textoSiNo(formulario.perdidaBilateral) }}</td>
+            </tr>
+            <tr>
+              <td colspan="3" class="hc-cell"><strong>FAMILIAR CON ALGUNA ENFERMEDAD OÍDO</strong></td>
+              <td colspan="3" class="hc-cell"><strong>SÚBITA:</strong> {{ textoSiNo(formulario.enfermedadSubita) }}</td>
+              <td colspan="3" class="hc-cell"><strong>PROGRESIVA:</strong> {{ textoSiNo(formulario.enfermedadProgresiva) }}</td>
+              <td colspan="3" class="hc-cell"><strong>FLUCTUANTE:</strong> {{ textoSiNo(formulario.enfermedadFluctuante) }}</td>
+            </tr>
+            <tr>
+              <td colspan="6" class="hc-cell"><strong>FAMILIAR CON PÉRDIDA AUDITIVA:</strong> {{ textoSiNo(formulario.perdidaAuditiva) }}</td>
+              <td colspan="6" class="hc-cell"><strong>PARENTESCO:</strong> {{ formulario.perdidaParentesco }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>FAMILIAR CON ALGUNA ENFERMEDAD OÍDO:</strong> {{ textoSiNo(formulario.enfermedadOido) }}</td>
+              <td colspan="4" class="hc-cell"><strong>CUÁL:</strong> {{ formulario.enfermedadCual }}</td>
+              <td colspan="4" class="hc-cell"><strong>PARENTESCO:</strong> {{ formulario.enfermedadParentesco }}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="hc-cell"><strong>TRASTORNOS DE COMUNICACIÓN:</strong> {{ textoSiNo(formulario.trastornosComunicacion) }}</td>
+              <td colspan="4" class="hc-cell"><strong>TIPO:</strong> {{ formulario.trastornosTipo }}</td>
+              <td colspan="4" class="hc-cell"><strong>OBSERVACIONES:</strong> {{ formulario.trastornosObservaciones }}</td>
+            </tr>
+            <tr>
+              <td colspan="12" class="hc-cell"><strong>OBSERVACIONES:</strong> {{ formulario.observacionesHeredo }}</td>
+            </tr>
+          </table>
+
+          <table class="hc-table hc-preguntas">
+            <tr><td colspan="12" class="hc-section-header">2. Antecedentes otológicos</td></tr>
+            <tr>
+              <td colspan="6" class="hc-cell"><strong>MENINGITIS, PARÁLISIS FACIAL, HERPES ZOSTER, PAROTIDITIS, RUBÉOLA, FIEBRE TIFOIDEA:</strong> {{ textoSiNo(formulario.infecciosos) }}</td>
+              <td colspan="6" class="hc-cell"><strong>TRAUMATISMO, DAÑO DE OÍDO:</strong> {{ textoSiNo(formulario.traumatismo) }}</td>
+            </tr>
+            <tr>
+              <td colspan="6" class="hc-cell"><strong>USO DE AUDÍFONOS:</strong> {{ textoSiNo(formulario.audifonos) }}</td>
+              <td colspan="6" class="hc-cell"><strong>HORAS AL DÍA:</strong> {{ formulario.audifonosHoras }}</td>
+            </tr>
+            <tr>
+              <td colspan="6" class="hc-cell"><strong>EXPOSICIÓN A QUÍMICOS:</strong> {{ textoSiNo(formulario.quimicos) }}</td>
+              <td colspan="6" class="hc-cell"><strong>HORAS AL DÍA:</strong> {{ formulario.quimicosHoras }}</td>
+            </tr>
+            <tr>
+              <td colspan="6" class="hc-cell"><strong>USO DE OTOTÓXICOS (ESTREPTOMICINA, QUININAS, GENTAMICINA, SALICILATOS, KANAMICINA, TOBRAMICINA, FUROSEMIDA):</strong> {{ formulario.ototoxicos }}</td>
+              <td colspan="6" class="hc-cell"><strong>RUIDO EXTRALABORAL (DISCOTECA, AUTOMOVILISMO, AVIACIÓN, MOTOCICLISMO, ETC.):</strong> {{ formulario.ruidoExtralaboral }}</td>
+            </tr>
+          </table>
+
+          <table class="hc-table hc-preguntas hc-tabla-cierre">
+            <tr><td colspan="12" class="hc-section-header">3. Datos clínicos</td></tr>
+            <tr>
+              <td colspan="6" class="hc-cell"><strong>DISMINUCIÓN DE LA AUDICIÓN:</strong> {{ textoSiNo(formulario.disminucionAudicion) }}</td>
+              <td colspan="6" class="hc-cell"><strong>OTALGIA:</strong> {{ textoSiNo(formulario.otalgia) }}</td>
+            </tr>
+            <tr>
+              <td colspan="6" class="hc-cell"><strong>TINNITUS:</strong> {{ formulario.tinnitus }}</td>
+              <td colspan="6" class="hc-cell"><strong>MAREOS:</strong> {{ textoSiNo(formulario.mareos) }}</td>
+            </tr>
+            <tr>
+              <td colspan="6" class="hc-cell"><strong>VÉRTIGO:</strong> {{ textoSiNo(formulario.vertigo) }}</td>
+              <td colspan="6" class="hc-cell"><strong>OTORREA:</strong> {{ textoSiNo(formulario.otorrea) }}</td>
+            </tr>
+            <tr>
+              <td colspan="6" class="hc-cell"><strong>OYE BIEN:</strong> {{ textoSiNo(formulario.oyeBien) }}</td>
+              <td colspan="6" class="hc-cell"><strong>SI NO OYE BIEN, DESDE CUÁNDO:</strong> {{ formulario.oyeBienDesdeCuando }}</td>
+            </tr>
+            <tr>
+              <td colspan="6" class="hc-cell"><strong>DEBE PEDIR QUE REPITAN LAS FRASES:</strong> {{ textoSiNo(formulario.repetirFrases) }}</td>
+              <td colspan="6" class="hc-cell"><strong>DEBE AUMENTAR EL VOL. DE T.V.:</strong> {{ textoSiNo(formulario.aumentarVolumenTv) }}</td>
+            </tr>
+            <tr>
+              <td colspan="6" class="hc-cell"><strong>OYE MEJOR CUANDO HAY RUIDO:</strong> {{ textoSiNo(formulario.oyeMejorConRuido) }}</td>
+              <td colspan="6" class="hc-cell"><strong>LE MOLESTAN LOS RUIDOS INTENSOS:</strong> {{ textoSiNo(formulario.molestanRuidosIntensos) }}</td>
+            </tr>
+          </table>
+
+          <div class="graficos-divididos">
+            <div class="grafico-panel">
+              <div class="grafico-caja-titulo">Oído derecho</div>
+              <ng-container *ngTemplateOutlet="audiogramaTpl; context: { modo: 'od', titulo: 'Oído derecho' }"></ng-container>
+            </div>
+            <div class="grafico-panel">
+              <div class="grafico-caja-titulo">Oído izquierdo</div>
+              <ng-container *ngTemplateOutlet="audiogramaTpl; context: { modo: 'oi', titulo: 'Oído izquierdo' }"></ng-container>
+            </div>
+          </div>
+
+          <table class="hc-table hc-preguntas hc-diagnostico" [style.font-size.px]="12">
+            <tr><td colspan="12" class="hc-section-header" [style.font-size.px]="12">6. Diagnóstico</td></tr>
+            <tr>
+              <td colspan="12" class="hc-cell hc-multiline hc-izq" [style.font-size.px]="12"><strong>INTERPRETACIÓN AUTOMÁTICA:</strong> {{ interpretacion() }}</td>
+            </tr>
+            <tr>
+              <td colspan="12" class="hc-cell hc-multiline hc-izq" [style.font-size.px]="12"><strong>DIAGNÓSTICO:</strong> {{ formulario.diagnostico }}</td>
+            </tr>
+            <tr>
+              <td colspan="12" class="hc-cell hc-multiline hc-izq" [style.font-size.px]="12"><strong>RECOMENDACIONES:</strong> {{ formulario.recomendaciones }}</td>
+            </tr>
+            <tr>
+              <td colspan="8" class="hc-cell hc-izq" [style.font-size.px]="12"><strong>ELABORÓ:</strong> {{ formulario.personalElaboro }}</td>
+              <td colspan="4" class="hc-cell hc-izq" [style.font-size.px]="12"><strong>CÉDULA PROFESIONAL:</strong> {{ formulario.cedulaProfesional }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <div *ngIf="vistaActual === 'historial'" class="card shadow-lg border-0 panel">
+        <div class="card-header border-0 panel-header">
+          <button class="btn btn-link p-0 text-muted mb-2" (click)="volverAlMenu()"><i class="fas fa-arrow-left mr-1"></i> Volver al menú</button>
+          <div class="row align-items-center">
+            <div class="col-md-7">
+              <h2 class="panel-title mb-0">Historial de audiometrías</h2>
+            </div>
+            <div class="col-md-5 mt-3 mt-md-0">
+              <input class="form-control" placeholder="Buscar por nombre, folio o área de trabajo" [(ngModel)]="filtroHistorial" (input)="filtrarHistorial()">
+            </div>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div *ngIf="cargandoHistorial" class="text-center py-5 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>
+          <div *ngIf="!cargandoHistorial && registrosFiltrados.length === 0" class="text-center py-5 text-muted">No hay audiometrías registradas</div>
+          <div class="table-responsive" *ngIf="!cargandoHistorial && registrosFiltrados.length > 0">
+            <table class="table align-items-center mb-0">
+              <thead>
+                <tr>
+                  <th>Folio</th>
+                  <th>Nombre</th>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>Área de trabajo</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let registro of registrosFiltrados">
+                  <td>{{ registro.folio }}</td>
+                  <td>{{ registro.nombre }}</td>
+                  <td>{{ registro.fecha_elaboracion }}</td>
+                  <td>{{ registro.tipo_audiometria }}</td>
+                  <td>{{ registro.ocupacion }}</td>
+                  <td class="text-right text-nowrap">
+                    <a *ngIf="registro.drive_url" class="btn btn-sm btn-outline-success mr-2" [href]="registro.drive_url" target="_blank" rel="noopener">Excel</a>
+                    <button type="button" class="btn btn-sm btn-success" (click)="abrirRegistro(registro.id)">Ver reporte</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<ng-template #audiogramaTpl let-modo="modo" let-titulo="titulo">
+  <div class="audiograma-card">
+    <svg [attr.viewBox]="'0 0 ' + chartW + ' ' + chartH" class="audiograma" role="img" [attr.aria-label]="titulo">
+      <rect x="0" y="0" [attr.width]="chartW" [attr.height]="chartH" fill="#ffffff"></rect>
+      <line *ngFor="let db of nivelesDb"
+            [attr.x1]="chartL" [attr.x2]="chartW - chartR" [attr.y1]="yDb(db)" [attr.y2]="yDb(db)"
+            [attr.stroke]="db === 0 || db === 25 ? '#9e9e9e' : '#e4e4e4'"
+            [attr.stroke-dasharray]="db === 25 ? '4 3' : null"></line>
+      <line *ngFor="let frecuencia of frecuencias; let i = index"
+            [attr.x1]="xFrecuencia(i)" [attr.x2]="xFrecuencia(i)" [attr.y1]="chartT" [attr.y2]="chartH - chartB"
+            stroke="#eeeeee"></line>
+      <text *ngFor="let db of nivelesDb" [attr.x]="4" [attr.y]="yDb(db) + 4" class="eje-texto">{{ db }}</text>
+      <text *ngFor="let frecuencia of frecuencias; let i = index" [attr.x]="xFrecuencia(i)" [attr.y]="chartH - 16" text-anchor="middle" class="eje-texto">{{ frecuencia }}</text>
+      <text [attr.x]="chartW / 2" [attr.y]="chartH - 3" text-anchor="middle" class="eje-texto">Hz</text>
+      <ng-container *ngFor="let serie of series">
+        <ng-container *ngIf="serieVisible(serie, modo)">
+          <polyline *ngFor="let tramo of tramos(serie)" [attr.points]="tramo" fill="none" [attr.stroke]="serie.color" stroke-width="1.7"></polyline>
+          <ng-container *ngFor="let punto of marcas(serie)">
+            <circle *ngIf="serie.tipo === 'circulo'" [attr.cx]="punto.x" [attr.cy]="punto.y" r="5" fill="#fff" [attr.stroke]="serie.color" stroke-width="1.7"></circle>
+            <g *ngIf="serie.tipo === 'x'" [attr.stroke]="serie.color" stroke-width="1.7">
+              <line [attr.x1]="punto.x - 5" [attr.y1]="punto.y - 5" [attr.x2]="punto.x + 5" [attr.y2]="punto.y + 5"></line>
+              <line [attr.x1]="punto.x - 5" [attr.y1]="punto.y + 5" [attr.x2]="punto.x + 5" [attr.y2]="punto.y - 5"></line>
+            </g>
+            <polyline *ngIf="serie.tipo === 'menor' || serie.tipo === 'mayor'" [attr.points]="chevron(punto, serie.tipo)" fill="none" [attr.stroke]="serie.color" stroke-width="1.7"></polyline>
+          </ng-container>
+        </ng-container>
+      </ng-container>
+    </svg>
+    <div class="audiograma-leyenda">
+      <span class="leyenda-titulo">{{ titulo }}</span>
+      <span *ngFor="let serie of series">
+        <span *ngIf="serieVisible(serie, modo)" class="leyenda-item">
+          <i [style.background]="serie.color"></i>{{ serie.etiqueta }}
+        </span>
+      </span>
+    </div>
+  </div>
+</ng-template>

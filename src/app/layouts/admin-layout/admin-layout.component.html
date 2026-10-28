@@ -23,8 +23,96 @@
 
 <section
   class="cp-aviso-cambio"
+  [class.is-saliendo]="avisoFirmaSaliendo"
+  *ngIf="avisoFirmaActual as aviso"
+  role="dialog"
+  aria-labelledby="sgcAvisoFirmaTitulo"
+  (animationend)="alTerminarAnimacionAvisoFirma($event)">
+  <img class="cp-aviso-cambio__mascota" [src]="mascotaAvisoFirma(aviso)" alt="">
+  <div class="cp-aviso-cambio__body">
+    <p class="cp-aviso-cambio__kicker">Firma de documento</p>
+    <h3 id="sgcAvisoFirmaTitulo">{{ tituloAvisoFirma(aviso) }}</h3>
+    <p class="cp-aviso-cambio__lead">{{ leadAvisoFirma(aviso) }}</p>
+    <div class="cp-aviso-cambio__personas">
+      <div *ngIf="aviso.tipo === 'solicitud'">
+        <span>Solicitó</span>
+        <strong>{{ aviso.solicitadoPor || 'Un usuario' }}</strong>
+      </div>
+      <div *ngIf="aviso.tipo !== 'solicitud' && aviso.resueltoPor">
+        <span>{{ aviso.tipo === 'aprobada' ? 'Aprobó' : 'Rechazó' }}</span>
+        <strong>{{ aviso.resueltoPor }}</strong>
+      </div>
+    </div>
+    <p class="cp-aviso-cambio__proyecto" [title]="aviso.nombreDocumento || aviso.codigo">
+      <span class="cp-aviso-cambio__proyecto-etiqueta">
+        Documento
+        <ng-container *ngIf="aviso.codigo">
+          <span class="cp-aviso-cambio__sep" aria-hidden="true">|</span>
+          <span class="cp-aviso-cambio__folio">{{ aviso.codigo }}</span>
+        </ng-container>
+      </span>
+      <strong>{{ aviso.nombreDocumento || aviso.codigo || 'Documento SGC' }}</strong>
+    </p>
+    <p class="cp-aviso-cambio__extra" *ngIf="avisosFirma.length > 1">
+      Hay {{ avisosFirma.length - 1 }} aviso{{ avisosFirma.length - 1 === 1 ? '' : 's' }} más.
+    </p>
+  </div>
+  <div class="cp-aviso-cambio__actions">
+    <button type="button" class="cp-aviso-cambio__cerrar" (click)="cerrarAvisoFirma()">Cerrar</button>
+    <button type="button" class="cp-aviso-cambio__revisar" (click)="revisarAvisoFirma()">
+      {{ aviso.tipo === 'solicitud' ? 'Revisar solicitud' : 'Ver resultado' }}
+    </button>
+  </div>
+</section>
+
+<section
+  class="cp-aviso-cambio cp-aviso-cambio--pc"
+  [class.is-saliendo]="avisoResolutivoSaliendo"
+  *ngIf="!avisoFirmaActual && avisoResolutivoActual as aviso"
+  role="dialog"
+  aria-labelledby="pcAvisoResolutivoTitulo"
+  (animationend)="alTerminarAnimacionAvisoResolutivo($event)">
+  <img class="cp-aviso-cambio__mascota" [src]="mascotaAvisoResolutivo(aviso)" alt="">
+  <div class="cp-aviso-cambio__body">
+    <p class="cp-aviso-cambio__kicker">Protección Civil · Resolutivos</p>
+    <h3 id="pcAvisoResolutivoTitulo">{{ tituloAvisoResolutivo(aviso) }}</h3>
+    <p class="cp-aviso-cambio__lead">{{ leadAvisoResolutivo(aviso) }}</p>
+    <div class="cp-aviso-cambio__personas">
+      <div>
+        <span>Tiempo</span>
+        <strong>{{ etiquetaDiasResolutivo(aviso) }}</strong>
+      </div>
+      <div *ngIf="aviso.responsableNombre">
+        <span>Responsable</span>
+        <strong>{{ aviso.responsableNombre }}</strong>
+      </div>
+    </div>
+    <p class="cp-aviso-cambio__proyecto" [title]="aviso.nombreEmpresa">
+      <span class="cp-aviso-cambio__proyecto-etiqueta">
+        Empresa
+        <ng-container *ngIf="aviso.nombreAsignacion">
+          <span class="cp-aviso-cambio__sep" aria-hidden="true">|</span>
+          <span class="cp-aviso-cambio__folio">{{ aviso.nombreAsignacion }}</span>
+        </ng-container>
+      </span>
+      <strong>{{ aviso.nombreEmpresa || 'Empresa' }}</strong>
+    </p>
+    <p class="cp-aviso-cambio__extra" *ngIf="avisosResolutivo.length > 1">
+      Hay {{ avisosResolutivo.length - 1 }} aviso{{ avisosResolutivo.length - 1 === 1 ? '' : 's' }} más de resolutivos.
+    </p>
+  </div>
+  <div class="cp-aviso-cambio__actions">
+    <button type="button" class="cp-aviso-cambio__cerrar" (click)="cerrarAvisoResolutivo()">Cerrar</button>
+    <button type="button" class="cp-aviso-cambio__revisar" (click)="revisarAvisoResolutivo()">
+      Abrir Atención
+    </button>
+  </div>
+</section>
+
+<section
+  class="cp-aviso-cambio"
   [class.is-saliendo]="avisoSaliendo"
-  *ngIf="avisoCambioActual as aviso"
+  *ngIf="!avisoFirmaActual && !avisoResolutivoActual && avisoCambioActual as aviso"
   role="dialog"
   aria-labelledby="cpAvisoCambioTitulo"
   (animationend)="alTerminarAnimacionAviso($event)">
