@@ -15,6 +15,8 @@ import { SgcInstructivosComponent } from './sgc-instructivos.component';
 import { SgcFormatosDescargaComponent } from './sgc-formatos-descarga.component';
 import { SgcNormativasComponent } from './sgc-normativas.component';
 import { SgcSolicitudDocumentosComponent } from './sgc-solicitud-documentos.component';
+import { SgcFirmasComponent } from './sgc-firmas.component';
+import { SgcPedirFirmaComponent } from './sgc-pedir-firma.component';
 
 const routes: Routes = [
   {
@@ -52,6 +54,12 @@ const routes: Routes = [
     component: SgcSolicitudDocumentosComponent,
     canActivate: [RoleGuard],
     data: { roles: ['root'] }
+  },
+  {
+    path: 'firmas',
+    component: SgcFirmasComponent,
+    canActivate: [RoleGuard],
+    data: { roles: [] }
   },
   {
     path: 'capitulos',
@@ -96,7 +104,9 @@ const routes: Routes = [
     SgcInstructivosComponent,
     SgcFormatosDescargaComponent,
     SgcNormativasComponent,
-    SgcSolicitudDocumentosComponent
+    SgcSolicitudDocumentosComponent,
+    SgcFirmasComponent,
+    SgcPedirFirmaComponent
   ]
 })
 export class SistemaGestionCalidadModule {}

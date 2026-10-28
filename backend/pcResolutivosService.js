@@ -2390,6 +2390,7 @@ module.exports = {
     similitudRegistroExcelVsSistema,
     formatearFechaMx,
     calcularFechaContacto,
+    calcularDiasHastaContacto,
     calcularEstatusResolutivo,
     verificarAsignacionIncompleta,
     resolutivoYaCompletado,

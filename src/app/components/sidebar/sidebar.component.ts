@@ -42,7 +42,7 @@ const MENU_GROUPS: { title?: string; paths: string[] }[] = [
     { title: 'Capacitación', paths: ['/home', '/control-capacitacion', '/asig-curso', '/curso-activos', '/historial-cursos', '/historial-constancias-dc3'] },
     { title: 'Protección Civil', paths: ['/proteccion-civil/asignacion-pipc', '/proteccion-civil', '/proteccion-civil/control-resolutivos', '/proteccion-civil/historial-pc'] },
     { title: 'Médicos', paths: ['/expedientes-medicos', '/estadisticas-medicas'] },
-    { title: 'SGC', paths: ['/sistema-gestion-calidad', '/sistema-gestion-calidad/procedimientos', '/sistema-gestion-calidad/instructivos', '/sistema-gestion-calidad/formatos', '/sistema-gestion-calidad/normativas', '/sistema-gestion-calidad/solicitud-documentos'] },
+    { title: 'SGC', paths: ['/sistema-gestion-calidad', '/sistema-gestion-calidad/procedimientos', '/sistema-gestion-calidad/instructivos', '/sistema-gestion-calidad/formatos', '/sistema-gestion-calidad/normativas', '/sistema-gestion-calidad/firmas', '/sistema-gestion-calidad/solicitud-documentos'] },
     { title: 'Seguridad', paths: ['/seguridad/normativas', '/seguridad/asignacion', '/seguridad/gestion'] },
     { title: 'Recursos Humanos', paths: ['/recursos-humanos/residentes', '/recursos-humanos/colaboradores'] },
     { title: 'Ambiental', paths: ['/ambiental', '/control-tramites'] },
@@ -86,6 +86,7 @@ export const ROUTES: RouteInfo[] = [
     { path: '/sistema-gestion-calidad/instructivos', title: 'Instructivos', icon: '', iconFa: 'fa-list-alt', class: '' },
     { path: '/sistema-gestion-calidad/formatos', title: 'Formatos', icon: '', iconFa: 'fa-file-download', class: '' },
     { path: '/sistema-gestion-calidad/normativas', title: 'Normativas', icon: '', iconFa: 'fa-file-pdf', class: '' },
+    { path: '/sistema-gestion-calidad/firmas', title: 'Firmas', icon: '', iconFa: 'fa-file-signature', class: '' },
     { path: '/sistema-gestion-calidad/solicitud-documentos', title: 'Solicitud de\nDocumentos', icon: '', iconFa: 'fa-file-signature', class: '', roles: ['root'] },
     { path: '/seguridad/normativas', title: 'Normativas', icon: '', iconFa: 'fa-clipboard-check', class: '' },
     { path: '/seguridad/asignacion', title: 'Asignación de\nnormativas', icon: '', iconFa: 'fa-tasks', class: '' },
@@ -494,7 +495,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
         || item.path === '/sistema-gestion-calidad/procedimientos'
         || item.path === '/sistema-gestion-calidad/instructivos'
         || item.path === '/sistema-gestion-calidad/formatos'
-        || item.path === '/sistema-gestion-calidad/normativas') {
+        || item.path === '/sistema-gestion-calidad/normativas'
+        || item.path === '/sistema-gestion-calidad/firmas') {
         const esEmpresa = userRoles.some(role => role.toLowerCase() === 'empresa') || userRole === 'empresa';
         return !esEmpresa;
       }
@@ -569,6 +571,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
     }
     if (path === '/sistema-gestion-calidad/normativas') {
       return this.currentUrl.startsWith('/sistema-gestion-calidad/normativas');
+    }
+    if (path === '/sistema-gestion-calidad/firmas') {
+      return this.currentUrl.startsWith('/sistema-gestion-calidad/firmas');
     }
     if (path === '/sistema-gestion-calidad/solicitud-documentos') {
       return this.currentUrl.startsWith('/sistema-gestion-calidad/solicitud-documentos');

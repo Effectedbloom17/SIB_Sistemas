@@ -4507,6 +4507,14 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/control-proyectos/cambios/avisos/${id}/descartar`, {});
     }
 
+    listarAvisosResolutivosPipc(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/resolutivos/avisos`);
+    }
+
+    descartarAvisoResolutivoPipc(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/resolutivos/avisos/${id}/descartar`, {});
+    }
+
     restaurarControlProyectosEliminados(body: {
         ids?: number[];
         proyecto?: {
@@ -4967,6 +4975,95 @@ export class BackendServices {
             `${this.baseUrl}/sgc/solicitud-documentos/${id}/regresar`,
             {}
         );
+    }
+
+    listarUsuariosFirmaSgc(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/firmas/usuarios`);
+    }
+
+    listarZonasFirmaSgc(codigo?: string): Observable<any> {
+        const q = codigo ? `?codigo=${encodeURIComponent(codigo)}` : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/firmas/zonas${q}`);
+    }
+
+    crearZonaFirmaSgc(payload: Record<string, unknown>): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/firmas/zonas`, payload);
+    }
+
+    guardarZonaFirmaSgc(id: number, payload: Record<string, unknown>): Observable<any> {
+        return this.httpClient.put(`${this.baseUrl}/sgc/firmas/zonas/${id}`, payload);
+    }
+
+    listarSolicitudesFirmaSgc(vista: string): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/firmas/solicitudes?vista=${encodeURIComponent(vista)}`);
+    }
+
+    crearSolicitudFirmaSgc(payload: Record<string, unknown>): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/firmas/solicitudes`, payload);
+    }
+
+    obtenerSolicitudFirmaSgc(id: number): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/firmas/solicitudes/${id}`);
+    }
+
+    aprobarSolicitudFirmaSgc(id: number, observacion?: string, firmaPng?: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/firmas/solicitudes/${id}/aprobar`, {
+            observacion: observacion || '',
+            firmaPng: firmaPng || ''
+        });
+    }
+
+    consultarFirmaDocumentoSgc(codigo: string, ruta: string): Observable<any> {
+        const q = `codigo=${encodeURIComponent(codigo)}&ruta=${encodeURIComponent(ruta)}`;
+        return this.httpClient.get(`${this.baseUrl}/sgc/firmas/documento?${q}`);
+    }
+
+    prepararImpresionFirmaSgc(id: number, firmaPng: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/firmas/solicitudes/${id}/preparar-impresion`, { firmaPng });
+    }
+
+    imagenesImpresionFirmaSgc(id: number): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/firmas/solicitudes/${id}/impresion`);
+    }
+
+    descargarPdfFirmadoSgc(id: number): Observable<Blob> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/firmas/solicitudes/${id}/pdf`, { responseType: 'blob' });
+    }
+
+    consumirFirmaSgc(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/firmas/solicitudes/${id}/consumir`, {});
+    }
+
+    rechazarSolicitudFirmaSgc(id: number, observacion?: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/firmas/solicitudes/${id}/rechazar`, { observacion: observacion || '' });
+    }
+
+    invalidarSolicitudFirmaSgc(id: number, motivo: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/firmas/solicitudes/${id}/invalidar`, { motivo });
+    }
+
+    obtenerFirmaPersonalSgc(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/firmas/mia`);
+    }
+
+    obtenerFirmaCifradaSgc(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/firmas/mia/cifrado`);
+    }
+
+    guardarFirmaPersonalSgc(payload: Record<string, unknown>): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/firmas/mia`, payload);
+    }
+
+    revocarFirmaPersonalSgc(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/firmas/mia/revocar`, {});
+    }
+
+    listarAvisosFirmaSgc(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/firmas/avisos`);
+    }
+
+    descartarAvisoFirmaSgc(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/firmas/avisos/${id}/descartar`, {});
     }
 
     cargarSgcF12Formato(): Observable<any> {

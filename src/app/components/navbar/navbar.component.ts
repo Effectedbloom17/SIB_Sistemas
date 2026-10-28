@@ -180,6 +180,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     control_documental: { titulo: 'Control Documental', icono: 'fa-file-alt', color: '#8965e0', orden: 2 },
     pc: { titulo: 'Protección Civil', icono: 'fa-shield-alt', color: '#fb6340', orden: 3 },
     ambiental: { titulo: 'Ambiental', icono: 'fa-tree', color: '#2dce89', orden: 4 },
+    sgc: { titulo: 'Gestión de calidad', icono: 'fa-file-signature', color: '#12ad9d', orden: 5 },
     general: { titulo: 'General', icono: 'fa-bell', color: '#5e72e4', orden: 9 }
   };
 
@@ -1402,7 +1403,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
       if (titulo.includes('capacitación finalizada') || titulo.includes('capacitacion finalizada')) {
         continue;
       }
-      const key = String(n?.categoria || 'general').toLowerCase();
+      const ruta = String(n?.ruta || '');
+      const key = ruta.startsWith('/sistema-gestion-calidad/firmas')
+        ? 'sgc'
+        : String(n?.categoria || 'general').toLowerCase();
       if (!buckets.has(key)) buckets.set(key, []);
       buckets.get(key)!.push(n);
     }

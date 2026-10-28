@@ -44,6 +44,7 @@ const notificacionesOperativasService = require('./notificacionesOperativasServi
 const notasVersionService = require('./notasVersionService');
 const ticketsService = require('./ticketsService');
 const sgcSolicitudDocumentosService = require('./sgcSolicitudDocumentosService');
+const createSgcFirmasRouter = require('./sgcFirmasRoutes');
 const mantenimientoService = require('./mantenimientoService');
 const opinionesService = require('./opinionesService');
 const chatEmpresasService = require('./chatEmpresasService');
@@ -1759,6 +1760,13 @@ async function ejecutarMigracionesBiznagaSgc(poolSgc) {
         startupLog.detail(`  Tablas sgc_formatos_descarga_* verificadas en ${DB_NAME_SGC}`);
     } catch (sgcMigrErr) {
         console.warn(`  [WARN] Tablas sgc_formatos_descarga (${DB_NAME_SGC}):`, sgcMigrErr.message);
+    }
+    try {
+        const sgcFirmasService = require('./sgcFirmasService');
+        await sgcFirmasService.asegurarTablas(poolSgc);
+        startupLog.detail(`  Tablas sgc_firma_* verificadas en ${DB_NAME_SGC}`);
+    } catch (sgcMigrErr) {
+        console.warn(`  [WARN] Tablas sgc_firma (${DB_NAME_SGC}):`, sgcMigrErr.message);
     }
     try {
         const ambientalService = require('./ambientalService');
@@ -20528,17 +20536,29 @@ app.get('/api/notificaciones', authMiddleware, async (req, res) => {
                 const t = String(n.titulo || '').toLowerCase();
                 return !TITULOS_BLOQUEADOS.some((b) => t.includes(b));
             })
-            .map((n) => ({ ...n, auto: false }));
+            .map((n) => {
+                const ruta = String(n.ruta || '');
+                const esFirmaSgc = ruta.startsWith('/sistema-gestion-calidad/firmas');
+                return {
+                    ...n,
+                    auto: false,
+                    categoria: esFirmaSgc ? 'sgc' : n.categoria
+                };
+            });
 
-        // Roles con notificaciones operativas: no mezclar legacy (evita ruido)
+        // Roles con notificaciones operativas: no mezclar legacy (evita ruido).
+        // Las de firma SGC sí se conservan: son eventos puntuales (aprobada, rechazada, invalidada).
         const roles = notificacionesOperativasService.rolesDeUsuario(req.user);
         const usaOperativas = notificacionesOperativasService.tieneRol(
             roles,
             'instructor', 'control_documental', 'proteccion_civil', 'ambiental'
         );
+        const legacyFirmas = legacyFiltradas.filter((n) =>
+            String(n.ruta || '').startsWith('/sistema-gestion-calidad/firmas')
+        );
         const notificaciones = usaOperativas
-            ? operativas
-            : [...operativas, ...legacyFiltradas].slice(0, 50);
+            ? [...operativas, ...legacyFirmas]
+            : [...operativas, ...legacyFiltradas].slice(0, 80);
 
         res.json({ success: true, notificaciones });
     } catch (error) {
@@ -31191,6 +31211,22 @@ app.get('/api/sgc/formatos/sgc-f-23/descargar-plantilla-pdf', requireAdminOrSgc,
     }
 });
 
+app.use('/api/sgc/firmas', createSgcFirmasRouter({
+    authMiddleware,
+    denyEmpresa,
+    getPool: () => pool,
+    getPoolSgc: () => poolBiznagaSgc,
+    handleError,
+    esGestor: (req) => {
+        const roles = getUserRolesLower(req);
+        return roles.includes('root') || esGestorCalidadSgc(req);
+    },
+    nombreUsuario: (req) => {
+        const nombre = [req.user?.nombre, req.user?.apellido].filter(Boolean).join(' ').trim();
+        return nombre || req.user?.username || '';
+    }
+}));
+
 app.use('/api/sgc/formatos/sgc-f-11/evidencias', async (req, res, next) => {
     try {
         await poolBiznagaSgcReady;
@@ -36326,6 +36362,53 @@ server.headersTimeout = 66000;
 // CONTROL RESOLUTIVOS PIPC (SP-F-29) — BD satélite + Google Sheets
 // =====================================================
 const pcResolutivosService = require('./pcResolutivosService');
+const pcResolutivosAvisosService = require('./pcResolutivosAvisosService');
+
+app.get('/api/proteccion-civil/resolutivos/avisos', async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        await poolReady;
+        const avisos = await pcResolutivosAvisosService.listarAvisos(
+            poolProteccionCivil,
+            pool,
+            req.user?.username
+        );
+        return res.json({ success: true, avisos });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron cargar los avisos de resolutivos PIPC');
+    }
+});
+
+app.post('/api/proteccion-civil/resolutivos/avisos/:id/descartar', async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        await pcResolutivosAvisosService.descartarAviso(
+            poolProteccionCivil,
+            req.params.id,
+            req.user?.username
+        );
+        return res.json({ success: true });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cerrar el aviso de resolutivo PIPC');
+    }
+});
+
+function iniciarAvisosResolutivosPipc() {
+    const ejecutar = async () => {
+        try {
+            await poolProteccionCivilReady;
+            await poolReady;
+            if (!poolProteccionCivil?.query) return;
+            await pcResolutivosAvisosService.procesarVentanaDiaria(poolProteccionCivil, pool);
+        } catch (error) {
+            console.warn('[PC-AVISO] No se pudieron preparar avisos diarios:', error.message);
+        }
+    };
+    setTimeout(ejecutar, 40 * 1000);
+    setInterval(ejecutar, 15 * 60 * 1000);
+}
+
+iniciarAvisosResolutivosPipc();
 
 app.get('/api/proteccion-civil/empresas/:empresaId/resolutivo-contexto', requireAdminOrPC, async (req, res) => {
     try {
