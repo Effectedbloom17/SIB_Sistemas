@@ -1980,17 +1980,42 @@ async function copiarAnchosColumnasGoogleSheet(
         return null;
     }
     const cols = Math.max(1, Math.min(50, Math.floor(Number(maxColumns) || 14)));
-    const endCol = String.fromCharCode('A'.charCodeAt(0) + cols - 1);
     const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
 
-    const srcMeta = await sheetsApi.spreadsheets.get({
+    // Resolver sheetId por título (evita A1 con acentos: "Unable to parse range").
+    const srcList = await sheetsApi.spreadsheets.get({
         spreadsheetId: sourceSpreadsheetId,
-        ranges: [`'${srcTitle}'!A1:${endCol}1`],
+        fields: 'sheets.properties(sheetId,title)'
+    });
+    const srcProps = (srcList.data.sheets || []).find(
+        (s) => String(s.properties?.title || '').trim() === srcTitle
+    ) || (srcList.data.sheets || []).find(
+        (s) => String(s.properties?.title || '').trim().toLowerCase() === srcTitle.toLowerCase()
+    );
+    const srcSheetId = srcProps?.properties?.sheetId;
+    if (srcSheetId == null) {
+        return null;
+    }
+
+    const srcDetail = await sheetsApi.spreadsheets.getByDataFilter({
+        spreadsheetId: sourceSpreadsheetId,
+        requestBody: {
+            includeGridData: true,
+            dataFilters: [{
+                gridRange: {
+                    sheetId: Number(srcSheetId),
+                    startRowIndex: 0,
+                    endRowIndex: 1,
+                    startColumnIndex: 0,
+                    endColumnIndex: cols
+                }
+            }]
+        },
         fields: 'sheets(properties(title,sheetId),data(columnMetadata(pixelSize)))'
     });
-    const srcSheet = (srcMeta.data.sheets || []).find(
-        (s) => String(s.properties?.title || '').trim() === srcTitle
-    ) || srcMeta.data.sheets?.[0];
+    const srcSheet = (srcDetail.data.sheets || []).find(
+        (s) => Number(s.properties?.sheetId) === Number(srcSheetId)
+    ) || srcDetail.data.sheets?.[0];
     const widths = (srcSheet?.data?.[0]?.columnMetadata || [])
         .map((c) => Number(c?.pixelSize) || 0)
         .slice(0, cols);
@@ -3784,16 +3809,39 @@ async function aplicarFormatoVisualSpF02(spreadsheetId, sheetTitle, layout, repo
             }
         });
 
-        // Fondo de estatus (columna I) según valor
+        // Estatus (columna I): colores directos por celda (CF de plantilla se limpia abajo).
         const items = Array.isArray(reporte?.items) ? reporte.items : [];
-        const colorAbierto = { red: 1, green: 0.92, blue: 0.8 };
-        const colorCerrado = { red: 0.86, green: 0.95, blue: 0.88 };
         for (let i = 0; i < (itemsEnd - itemsStart + 1); i++) {
             const row = itemsStart + i;
             const est = String(items[i]?.estatus || '').trim().toLowerCase();
             if (!est) continue;
-            const bg = /cerrad/.test(est) ? colorCerrado : colorAbierto;
-            aplicarRango(row, row, 8, 9, 'CENTER', { backgroundColor: bg });
+            const estilo = estiloEstatusSpF02(est);
+            if (!estilo) continue;
+            requests.push({
+                repeatCell: {
+                    range: {
+                        sheetId,
+                        startRowIndex: row - 1,
+                        endRowIndex: row,
+                        startColumnIndex: 8,
+                        endColumnIndex: 9
+                    },
+                    cell: {
+                        userEnteredFormat: {
+                            horizontalAlignment: 'CENTER',
+                            verticalAlignment: 'MIDDLE',
+                            wrapStrategy: 'WRAP',
+                            backgroundColor: estilo.bg,
+                            textFormat: {
+                                fontFamily: 'Century Gothic',
+                                fontSize: 10,
+                                foregroundColor: estilo.text
+                            }
+                        }
+                    },
+                    fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,backgroundColor,textFormat)'
+                }
+            });
         }
     }
 
@@ -3807,6 +3855,216 @@ async function aplicarFormatoVisualSpF02(spreadsheetId, sheetTitle, layout, repo
             requestBody: { requests: requests.slice(i, i + CHUNK) }
         });
     }
+
+    // Quitar CF de plantilla (p. ej. azul) en columna I y poner reglas Abierto/Cerrado.
+    try {
+        await asegurarFormatoCondicionalEstatusSpF02(
+            spreadsheetId,
+            sheetTitle,
+            itemsStart,
+            Math.max(itemsEnd, itemsStart + 39)
+        );
+    } catch (err) {
+        console.warn('[SP-F-02] Formato condicional de estatus:', err.message);
+    }
+    return true;
+}
+
+/** Abierto: texto #9c0006 / fondo #ffc7ce · Cerrado: texto #006100 / fondo #c6efce */
+function estiloEstatusSpF02(estatus) {
+    const est = String(estatus || '').trim().toLowerCase();
+    if (!est) return null;
+    if (/cerrad/.test(est)) {
+        return {
+            bg: { red: 198 / 255, green: 239 / 255, blue: 206 / 255 },
+            text: { red: 0, green: 97 / 255, blue: 0 }
+        };
+    }
+    // Abierto / pendiente / cualquier otro valor de la columna
+    return {
+        bg: { red: 1, green: 199 / 255, blue: 206 / 255 },
+        text: { red: 156 / 255, green: 0, blue: 6 / 255 }
+    };
+}
+
+/**
+ * Elimina reglas CF que tocan la columna Estatus (I) y crea Abierto/Cerrado
+ * con los colores corporativos (evita el azul de la plantilla).
+ */
+async function asegurarFormatoCondicionalEstatusSpF02(
+    spreadsheetId,
+    sheetTitle,
+    itemsStart,
+    itemsEnd
+) {
+    if (!spreadsheetId || !sheetTitle) return null;
+    const startRow = Math.max(1, Number(itemsStart) || 11);
+    const endRow = Math.max(startRow, Number(itemsEnd) || startRow);
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+
+    const meta = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets(properties(sheetId,title),conditionalFormats)'
+    });
+    const sheet = (meta.data.sheets || []).find(
+        (s) => (s.properties?.title || '').trim() === String(sheetTitle).trim()
+    );
+    const sheetId = sheet?.properties?.sheetId;
+    if (sheetId === undefined || sheetId === null) return null;
+
+    const colStart = 8; // I
+    const colEnd = 9;
+    const tocaEstatus = (range) => {
+        if (Number(range?.sheetId) !== Number(sheetId)) return false;
+        const c0 = Number(range.startColumnIndex ?? 0);
+        const c1 = Number(range.endColumnIndex ?? 0);
+        return c0 < colEnd && c1 > colStart;
+    };
+
+    for (let intento = 0; intento < 40; intento += 1) {
+        const metaCf = await sheetsApi.spreadsheets.get({
+            spreadsheetId,
+            fields: 'sheets(properties(sheetId,title),conditionalFormats)'
+        });
+        const hojaCf = (metaCf.data.sheets || []).find(
+            (s) => (s.properties?.title || '').trim() === String(sheetTitle).trim()
+        );
+        const reglas = Array.isArray(hojaCf?.conditionalFormats) ? hojaCf.conditionalFormats : [];
+        let indiceBorrar = -1;
+        for (let index = reglas.length - 1; index >= 0; index -= 1) {
+            const afecta = Array.isArray(reglas[index]?.ranges)
+                && reglas[index].ranges.some(tocaEstatus);
+            if (afecta) {
+                indiceBorrar = index;
+                break;
+            }
+        }
+        if (indiceBorrar < 0) break;
+        await sheetsApi.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+                requests: [{
+                    deleteConditionalFormatRule: { sheetId, index: indiceBorrar }
+                }]
+            }
+        });
+    }
+
+    const rangoEstatus = {
+        sheetId,
+        startRowIndex: startRow - 1,
+        endRowIndex: endRow,
+        startColumnIndex: colStart,
+        endColumnIndex: colEnd
+    };
+    const abierto = estiloEstatusSpF02('Abierto');
+    const cerrado = estiloEstatusSpF02('Cerrado');
+    await sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+            requests: [
+                {
+                    addConditionalFormatRule: {
+                        index: 0,
+                        rule: {
+                            ranges: [rangoEstatus],
+                            booleanRule: {
+                                condition: {
+                                    type: 'TEXT_EQ',
+                                    values: [{ userEnteredValue: 'Cerrado' }]
+                                },
+                                format: {
+                                    backgroundColor: cerrado.bg,
+                                    textFormat: { foregroundColor: cerrado.text }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    addConditionalFormatRule: {
+                        index: 0,
+                        rule: {
+                            ranges: [rangoEstatus],
+                            booleanRule: {
+                                condition: {
+                                    type: 'TEXT_EQ',
+                                    values: [{ userEnteredValue: 'Abierto' }]
+                                },
+                                format: {
+                                    backgroundColor: abierto.bg,
+                                    textFormat: { foregroundColor: abierto.text }
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    });
+    return true;
+}
+
+/** Reaplica colores de estatus (útil al final del sync, tras imágenes). */
+async function aplicarColoresEstatusSpF02(spreadsheetId, sheetTitle, layout, reporte = null) {
+    if (!spreadsheetId || !sheetTitle || !layout) return null;
+    const items = Array.isArray(reporte?.items) ? reporte.items : [];
+    const itemsStart = Number(layout.itemsStart) || 11;
+    const itemsEnd = Number(layout.itemsEnd) || itemsStart;
+    const sheetsApi = google.sheets({ version: 'v4', auth: _driveAuthClient });
+    const meta = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties(sheetId,title)'
+    });
+    const sheet = (meta.data.sheets || []).find(
+        (s) => (s.properties?.title || '').trim() === String(sheetTitle).trim()
+    );
+    const sheetId = sheet?.properties?.sheetId;
+    if (sheetId === undefined || sheetId === null) return null;
+
+    const requests = [];
+    for (let i = 0; i < (itemsEnd - itemsStart + 1); i++) {
+        const row = itemsStart + i;
+        const estilo = estiloEstatusSpF02(items[i]?.estatus);
+        if (!estilo) continue;
+        requests.push({
+            repeatCell: {
+                range: {
+                    sheetId,
+                    startRowIndex: row - 1,
+                    endRowIndex: row,
+                    startColumnIndex: 8,
+                    endColumnIndex: 9
+                },
+                cell: {
+                    userEnteredFormat: {
+                        horizontalAlignment: 'CENTER',
+                        verticalAlignment: 'MIDDLE',
+                        wrapStrategy: 'WRAP',
+                        backgroundColor: estilo.bg,
+                        textFormat: {
+                            fontFamily: 'Century Gothic',
+                            fontSize: 10,
+                            foregroundColor: estilo.text
+                        }
+                    }
+                },
+                fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,backgroundColor,textFormat)'
+            }
+        });
+    }
+    if (requests.length) {
+        await sheetsApi.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: { requests }
+        });
+    }
+    await asegurarFormatoCondicionalEstatusSpF02(
+        spreadsheetId,
+        sheetTitle,
+        itemsStart,
+        Math.max(itemsEnd, itemsStart + 39)
+    );
     return true;
 }
 
@@ -3916,6 +4174,29 @@ async function aplicarFormatoPostImagenesSpF02(spreadsheetId, sheetTitle, layout
                 fields: 'userEnteredFormat(verticalAlignment,wrapStrategy)'
             }
         });
+
+        // Una sola imagen (sin texto) en Problema: alinear al centro (C:D).
+        if (fila.probN === 1 && !fila.textoProb) {
+            requests.push({
+                repeatCell: {
+                    range: {
+                        sheetId,
+                        startRowIndex: fila.row - 1,
+                        endRowIndex: fila.row,
+                        startColumnIndex: 2,
+                        endColumnIndex: 4
+                    },
+                    cell: {
+                        userEnteredFormat: {
+                            horizontalAlignment: 'CENTER',
+                            verticalAlignment: 'MIDDLE'
+                        }
+                    },
+                    fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment)'
+                }
+            });
+        }
+
         requests.push({
             updateBorders: {
                 range: {
@@ -4434,7 +4715,8 @@ async function aplicarFormatoFilasSgcF02(spreadsheetId, sheetTitle, filaInicio, 
 
 /**
  * SGC-F-29 · Evaluación de proveedores: Century Gothic 11, alineación por columna
- * y caja de tabla cerrada (incl. Calificación). Tabla A:… con Proveedor en B:C.
+ * y caja de tabla cerrada (incl. Calificación).
+ * Plantilla: A No | B Proveedor | C… criterios | Calificación (sin fusión B:C).
  * @param {object} [opciones]
  * @param {number} [opciones.numCriterios]
  * @param {number} [opciones.colCalificacion] - 1-based
@@ -4455,9 +4737,9 @@ async function aplicarFormatoFilasSgcF29(spreadsheetId, sheetTitle, filaInicio, 
         return null;
     }
 
-    // A No | B:C Proveedor | D… criterios | Calificación.
+    // A No | B Proveedor | C… criterios | Calificación (plantilla oficial).
     const numCriterios = Math.max(6, Number(opciones.numCriterios) || 6);
-    const colCalif1Based = Number(opciones.colCalificacion) || (4 + numCriterios);
+    const colCalif1Based = Number(opciones.colCalificacion) || (3 + numCriterios); // C=3 → Calif tras criterios
     const TABLA_COL_INICIO = 0;
     const TABLA_COL_FIN = colCalif1Based; // fin exclusivo (1-based colCalif = índice exclusivo)
     const HEADER_ROW_IDX = 6; // fila 7 (0-based)
@@ -4496,7 +4778,7 @@ async function aplicarFormatoFilasSgcF29(spreadsheetId, sheetTitle, filaInicio, 
         }
     });
 
-    // Quitar fusiones B:C previas en encabezado + bloque de datos para recrearlas limpias.
+    // Liberar fusiones B:C legado en encabezado/datos (plantilla oficial ya no las usa).
     const unmergeRequests = [];
     const mergeTop = Math.min(HEADER_ROW_IDX, startRow);
     const mergeBottom = Math.max(HEADER_ROW_IDX + 1, blockEndRow);
@@ -4516,35 +4798,7 @@ async function aplicarFormatoFilasSgcF29(spreadsheetId, sheetTitle, filaInicio, 
 
     const requests = [];
 
-    // Fusionar Proveedor B:C en encabezado y en cada fila del bloque.
-    requests.push({
-        mergeCells: {
-            range: {
-                sheetId,
-                startRowIndex: HEADER_ROW_IDX,
-                endRowIndex: HEADER_ROW_IDX + 1,
-                startColumnIndex: 1,
-                endColumnIndex: 3
-            },
-            mergeType: 'MERGE_ALL'
-        }
-    });
-    for (let r = startRow; r < blockEndRow; r++) {
-        requests.push({
-            mergeCells: {
-                range: {
-                    sheetId,
-                    startRowIndex: r,
-                    endRowIndex: r + 1,
-                    startColumnIndex: 1,
-                    endColumnIndex: 3
-                },
-                mergeType: 'MERGE_ALL'
-            }
-        });
-    }
-
-    // Encabezado A7:J7 — gris, Century Gothic 10, sin negrita (incl. Calificación).
+    // Encabezado — gris, Century Gothic 10, sin negrita (incl. Calificación).
     requests.push({
         repeatCell: {
             range: {
@@ -4573,8 +4827,8 @@ async function aplicarFormatoFilasSgcF29(spreadsheetId, sheetTitle, filaInicio, 
 
     if (filas > 0) {
         requests.push(formatoColumna(0, 1, 'CENTER', startRow, dataEndRow));   // A No
-        requests.push(formatoColumna(1, 3, 'LEFT', startRow, dataEndRow));    // B:C Proveedor
-        requests.push(formatoColumna(3, TABLA_COL_FIN, 'CENTER', startRow, dataEndRow)); // D…Calificación
+        requests.push(formatoColumna(1, 2, 'LEFT', startRow, dataEndRow));    // B Proveedor
+        requests.push(formatoColumna(2, TABLA_COL_FIN, 'CENTER', startRow, dataEndRow)); // C…Calificación
 
         // Caja completa encabezado + datos: cierra abajo y a la derecha (Calificación).
         requests.push({
@@ -4613,7 +4867,7 @@ async function aplicarFormatoFilasSgcF29(spreadsheetId, sheetTitle, filaInicio, 
         });
     }
 
-    // Filas vacías: no tocar "top" para no borrar el borde inferior del último dato.
+    // Filas vacías (proveedores ocultos / huecos de plantilla): quitar TODOS los bordes.
     if (blockEndRow > dataEndRow) {
         requests.push({
             updateBorders: {
@@ -4622,15 +4876,35 @@ async function aplicarFormatoFilasSgcF29(spreadsheetId, sheetTitle, filaInicio, 
                     startRowIndex: dataEndRow,
                     endRowIndex: blockEndRow,
                     startColumnIndex: TABLA_COL_INICIO,
+                    endColumnIndex: Math.max(TABLA_COL_FIN + 6, TABLA_COL_FIN)
+                },
+                top: sinBorde,
+                bottom: sinBorde,
+                left: sinBorde,
+                right: sinBorde,
+                innerHorizontal: sinBorde,
+                innerVertical: sinBorde
+            }
+        });
+        // Reponer el borde inferior de la última fila con datos (o del encabezado).
+        const filaBordeInferior = filas > 0 ? dataEndRow - 1 : HEADER_ROW_IDX;
+        requests.push({
+            updateBorders: {
+                range: {
+                    sheetId,
+                    startRowIndex: filaBordeInferior,
+                    endRowIndex: filaBordeInferior + 1,
+                    startColumnIndex: TABLA_COL_INICIO,
                     endColumnIndex: TABLA_COL_FIN
                 },
-                bottom: sinBorde,
-                innerHorizontal: sinBorde
+                bottom: bordeNegro
             }
         });
     }
 
     // Columnas residuales a la derecha de Calificación.
+    // Nota: left:NONE en la col siguiente borra el borde derecho compartido de Calificación;
+    // por eso se repone justo después.
     requests.push({
         updateBorders: {
             range: {
@@ -4638,13 +4912,29 @@ async function aplicarFormatoFilasSgcF29(spreadsheetId, sheetTitle, filaInicio, 
                 startRowIndex: HEADER_ROW_IDX,
                 endRowIndex: Math.max(blockEndRow, HEADER_ROW_IDX + 1),
                 startColumnIndex: TABLA_COL_FIN,
-                endColumnIndex: TABLA_COL_FIN + 2
+                endColumnIndex: TABLA_COL_FIN + 6
             },
             top: sinBorde,
             bottom: sinBorde,
+            left: sinBorde,
             right: sinBorde,
             innerHorizontal: sinBorde,
             innerVertical: sinBorde
+        }
+    });
+
+    // Reponer borde derecho de Calificación (cierra la caja de la tabla).
+    const filaFinTabla = filas > 0 ? tablaEndRow : HEADER_ROW_IDX + 1;
+    requests.push({
+        updateBorders: {
+            range: {
+                sheetId,
+                startRowIndex: HEADER_ROW_IDX,
+                endRowIndex: filaFinTabla,
+                startColumnIndex: Math.max(0, TABLA_COL_FIN - 1),
+                endColumnIndex: TABLA_COL_FIN
+            },
+            right: bordeNegro
         }
     });
 
@@ -13311,6 +13601,7 @@ module.exports = {
     aplicarFormatoVisualSpF02,
     formulaImagenSpF02,
     aplicarFormatoPostImagenesSpF02,
+    aplicarColoresEstatusSpF02,
     aplicarFormatoFilasSgcF14,
     aplicarFormatoFilasSgcF18,
     aplicarFormatoFilasSgcF25,

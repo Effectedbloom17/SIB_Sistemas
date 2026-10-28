@@ -30107,6 +30107,19 @@ app.get('/api/sgc/formatos/sp-f-02/descargar-pdf', requireAdminOrSgc, async (req
     }
 });
 
+app.post('/api/sgc/formatos/sp-f-02/imagen', requireAdminOrSgc, async (req, res) => {
+    try {
+        const imagen = await sgcSpF02Service.subirImagenItem(req.body || {});
+        return res.json({
+            success: true,
+            message: 'Imagen subida a Google Drive.',
+            imagen
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo subir la imagen del SP-F-02');
+    }
+});
+
 app.get('/api/sgc/formatos/sp-f-07', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;

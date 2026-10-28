@@ -8,8 +8,11 @@ const { listarPipcAsignadosActivos, obtenerCicloActivo } = require('./pcCentroOp
 
 /** Historial SP-F-02 en Drive (Protección Civil): carpeta raíz por empresa. */
 const CARPETA_PC_RECORRIDO_RAIZ_ID = '1Yo_NbcXSoNKn7LnvUvhiZX8zvB1-w-9d';
-/** Plantilla SP-F-02 con logo Biznaga (misma que SGC). */
-const PC_TEMPLATE_DRIVE_ID = '1lZOjlr7PAvoudcOJF5Qz28x3ok88UUEb32L1YnxUAZI';
+/**
+ * Plantilla SP-F-02 externa (solo diseño; misma que SGC).
+ * Nunca usar el archivo sistema SGC (histograma) como origen de copia.
+ */
+const PC_TEMPLATE_DRIVE_ID = sgcSpF02Service.TEMPLATE_DRIVE_ID;
 const CARPETA_IMAGENES_RECORRIDO_NOMBRE = 'Imagenes de Recorrido';
 const CARPETA_REPORTE_RECORRIDO_PDF_NOMBRE = 'Reporte de Recorrido';
 const MODOS_CAPTURA_VALIDOS = new Set(['manual', 'pdf']);
@@ -419,7 +422,8 @@ async function obtenerNombreEmpresa(poolBiznaga, empresaId) {
 
 async function resolverSpreadsheetReportePipc(pool, poolBiznaga, empresaId, documentoPipcId, datos, rowDb = null) {
     const existenteId = String(rowDb?.drive_file_id || datos?.driveFileIdPc || '').trim();
-    if (existenteId) {
+    // Nunca reutilizar la plantilla maestra ni el Excel sistema SGC (histograma) como archivo PC.
+    if (existenteId && !sgcSpF02Service.esArchivoDriveConocidoSpF02(existenteId)) {
         try {
             if (await driveService.verificarArchivoExiste(existenteId)) {
                 return existenteId;
@@ -427,6 +431,14 @@ async function resolverSpreadsheetReportePipc(pool, poolBiznaga, empresaId, docu
         } catch {
             /* recrear */
         }
+    } else if (existenteId && sgcSpF02Service.esArchivoDriveConocidoSpF02(existenteId)) {
+        console.warn(
+            '[PC Recorrido] drive_file_id apuntaba a plantilla/sistema SGC; se crea copia dedicada.'
+        );
+    }
+
+    if (!PC_TEMPLATE_DRIVE_ID) {
+        throw new Error('No hay plantilla SP-F-02 configurada para crear el recorrido en Drive.');
     }
 
     const nombreEmpresa = await obtenerNombreEmpresa(poolBiznaga, empresaId);
@@ -443,6 +455,9 @@ async function resolverSpreadsheetReportePipc(pool, poolBiznaga, empresaId, docu
     const driveFileId = String(copia?.id || '').trim();
     if (!driveFileId) {
         throw new Error('No se pudo crear el archivo SP-F-02 del recorrido en Google Drive');
+    }
+    if (sgcSpF02Service.esArchivoDriveConocidoSpF02(driveFileId)) {
+        throw new Error('La copia PC no puede ser la plantilla ni el archivo sistema SGC.');
     }
     return driveFileId;
 }
@@ -683,8 +698,10 @@ async function descargarPdfReportePipc(pool, empresaId, operacionId, documentoPi
         throw err;
     }
     const driveFileId = String(reporte.drive_file_id || '').trim();
-    if (!driveFileId) {
-        const err = new Error('No hay Google Sheet del recorrido para exportar a PDF.');
+    if (!driveFileId || sgcSpF02Service.esArchivoDriveConocidoSpF02(driveFileId)) {
+        const err = new Error(
+            'No hay Google Sheet dedicado del recorrido para exportar a PDF. Guarda el reporte de nuevo.'
+        );
         err.statusCode = 404;
         throw err;
     }
@@ -704,12 +721,18 @@ async function eliminarReportePipc(pool, empresaId, operacionId, documentoPipcId
     if (!rows[0]) return { eliminado: false };
 
     const driveFileId = String(rows[0].drive_file_id || '').trim();
-    if (driveFileId) {
+    // Nunca borrar la plantilla maestra ni el Excel sistema SGC si un registro legado apuntaba ahí.
+    if (driveFileId && !sgcSpF02Service.esArchivoDriveConocidoSpF02(driveFileId)) {
         try {
             await driveService.eliminarArchivo(driveFileId);
         } catch (err) {
             console.warn('[PC Recorrido] No se pudo eliminar spreadsheet del reporte:', err.message);
         }
+    } else if (driveFileId) {
+        console.warn(
+            '[PC Recorrido] Se omite borrar drive_file_id maestro (plantilla/sistema SGC):',
+            driveFileId
+        );
     }
 
     await pool.query(

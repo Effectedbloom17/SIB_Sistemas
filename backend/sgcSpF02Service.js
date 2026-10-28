@@ -1,8 +1,10 @@
 /**
  * SP-F-02 · Reporte de visita y recorrido — persistencia en biznaga_sgc y sync con Drive.
- * Arquetipo: SGC-F-28 (una hoja por reporte) + SGC-F-16 (cabecera + filas dinámicas).
+ * Archivero: una pestaña por reporte (nombre = folio SPF02-MMAA).
+ * Plantilla externa (solo diseño) ≠ archivo sistema (reportes + histograma).
+ * Arquetipo: SGC-F-22 / SGC-F-28 (copyTo) + SGC-F-16 (cabecera + filas dinámicas).
  *
- * Plantilla (hoja «Plantilla»): cabecera r5–r8 · ítems desde r10 · resumen al pie.
+ * Plantilla (hoja «Levantamiento eléctrico»): cabecera r5–r8 · ítems desde r10 · resumen al pie.
  * Tipografía Excel: Century Gothic 10, vertical medio, ajuste de texto.
  * Columnas ítems: B=# · C:D problema · E:F acciones · G resp · H fecha · I estatus · J obs.
  */
@@ -17,11 +19,23 @@ const {
 const excelHistorial = require('./sgcExcelHistorialService');
 
 const CODIGO_FORMATO = 'SP-F-02';
-const TEMPLATE_DRIVE_ID = '1lZOjlr7PAvoudcOJF5Qz28x3ok88UUEb32L1YnxUAZI';
+/**
+ * Plantilla maestra (solo estructura/diseño). El sistema la lee y copia; nunca escribe aquí.
+ * https://docs.google.com/spreadsheets/d/1X_MSGiMu9Bksi3ip9pOm3tMtMZzUXwvo86wGiGvmHQc
+ */
+const TEMPLATE_DRIVE_ID = '1X_MSGiMu9Bksi3ip9pOm3tMtMZzUXwvo86wGiGvmHQc';
+/**
+ * Archivo de trabajo Centro SGC (reportes del archivero + histograma).
+ * https://docs.google.com/spreadsheets/d/1lZOjlr7PAvoudcOJF5Qz28x3ok88UUEb32L1YnxUAZI
+ */
 const DRIVE_FILE_ID_SISTEMA = '1lZOjlr7PAvoudcOJF5Qz28x3ok88UUEb32L1YnxUAZI';
 const CARPETA_DRIVE_ID = '1v2IBrryAJg5fILPH602gm_CZhJNyia82';
 const NOMBRE_ARCHIVO_DRIVE = 'SP-F-02 Reporte de visita y recorrido (sistema)';
-const SHEET_TITLE = 'Plantilla';
+/** Nombre de la pestaña en el archivo plantilla externo. */
+const TEMPLATE_SHEET_TITLE = 'Levantamiento eléctrico';
+/** Fallback / legado; el trabajo real usa pestañas por folio SPF02-MMAA. */
+const SHEET_TITLE = TEMPLATE_SHEET_TITLE;
+const MAX_COLUMNAS_SISTEMA = 12;
 
 const MAX_ITEMS = 40;
 const MAX_IMAGENES_CAMPO = 3;
@@ -445,6 +459,15 @@ function sanitizarNombreHoja(nombre) {
         .slice(0, 90);
 }
 
+function esIdPlantillaExterna(fileId) {
+    return String(fileId || '').trim() === TEMPLATE_DRIVE_ID;
+}
+
+function esArchivoDriveConocidoSpF02(fileId) {
+    const id = String(fileId || '').trim();
+    return !!id && (id === TEMPLATE_DRIVE_ID || id === DRIVE_FILE_ID_SISTEMA);
+}
+
 /** SP-F-02 → SPF02-0826 (mismo criterio que SGC-F-16 / historial MMAA). */
 function folioDesdeFecha(fechaIso) {
     const iso = formatearFechaIso(fechaIso) || fechaHoyIso();
@@ -452,16 +475,28 @@ function folioDesdeFecha(fechaIso) {
 }
 
 function resolverNombreHojaReporte(reporte) {
+    const fijo = sanitizarNombreHoja(reporte?.nombreHoja);
+    if (fijo && !esHojaPlantillaSpF02(fijo)) return fijo;
     return folioDesdeFecha(reporte?.fecha);
+}
+
+function esHojaPlantillaSpF02(titulo) {
+    const t = String(titulo || '').trim();
+    if (!t) return false;
+    if (t === TEMPLATE_SHEET_TITLE || t === SHEET_TITLE) return true;
+    if (/^plantilla\.?$/i.test(t)) return true;
+    if (/^levantamiento\s+el[eé]ctrico$/i.test(t)) return true;
+    return false;
 }
 
 function esHojaReporteSpF02(titulo) {
     const t = String(titulo || '').trim();
-    if (!t || t === SHEET_TITLE) return false;
-    if (/^plantilla$/i.test(t)) return false;
+    if (!t || esHojaPlantillaSpF02(t)) return false;
     if (excelHistorial.esHojaHistorialInformacion(t, CODIGO_FORMATO)) return true;
-    // Hojas legacy (empresa + fecha, RV-, Visita-, etc.)
-    return true;
+    // Folios / legados de reporte; no tratar histograma ni hojas auxiliares como reportes.
+    if (/^SPF02[-_]/i.test(t)) return true;
+    if (/^RV[-_]/i.test(t) || /^Visita[-_\s]/i.test(t)) return true;
+    return false;
 }
 
 function buscarFilaEtiqueta(ws, needles, maxRow = 40) {
@@ -737,12 +772,72 @@ async function obtenerSheetIdPorTitulo(spreadsheetId, sheetTitle) {
     return hit?.sheetId ?? null;
 }
 
-async function resolverTituloPlantilla(spreadsheetId) {
+async function resolverTituloPlantillaLocal(spreadsheetId) {
+    if (!spreadsheetId || esIdPlantillaExterna(spreadsheetId)) return null;
     const titulos = await driveService.listarHojasGoogleSheet(spreadsheetId);
-    return driveService.resolverTituloHojaExistente(titulos, SHEET_TITLE, { fallbackRegex: /plantilla/i })
-        || SHEET_TITLE
-        || (titulos || [])[0]
-        || SHEET_TITLE;
+    return driveService.resolverTituloHojaExistente(
+        titulos,
+        TEMPLATE_SHEET_TITLE,
+        { fallbackRegex: /plantilla|levantamiento\s+el[eé]ctrico/i }
+    ) || null;
+}
+
+/**
+ * Copia la hoja «Levantamiento eléctrico» del archivo plantilla externo al archivo sistema.
+ * Nunca escribe ni borra en TEMPLATE_DRIVE_ID.
+ */
+async function adoptarPlantillaEnSistema(spreadsheetId, tituloDestino = null) {
+    if (!spreadsheetId || esIdPlantillaExterna(spreadsheetId)) {
+        throw new Error('No se puede adoptar la plantilla sobre el archivo plantilla externo.');
+    }
+    const destino = String(tituloDestino || '').trim() || 'SPF02';
+    console.warn(
+        `[SP-F-02] Copiando hoja «${TEMPLATE_SHEET_TITLE}» desde plantilla `
+        + `${TEMPLATE_DRIVE_ID} → sistema como «${destino}».`
+    );
+    const copiada = await driveService.copiarHojaEntreSpreadsheets(
+        TEMPLATE_DRIVE_ID,
+        TEMPLATE_SHEET_TITLE,
+        spreadsheetId,
+        destino
+    );
+    try {
+        await driveService.copiarAnchosColumnasGoogleSheet(
+            TEMPLATE_DRIVE_ID,
+            TEMPLATE_SHEET_TITLE,
+            spreadsheetId,
+            copiada.title,
+            MAX_COLUMNAS_SISTEMA
+        );
+    } catch (err) {
+        console.warn('[SP-F-02] Anchos de columna desde plantilla:', err.message);
+    }
+    return copiada.title;
+}
+
+/**
+ * Sustituye una hoja de folio por una copia fresca de la plantilla externa y escribe datos.
+ * Conserva histograma y demás pestañas del archivo sistema.
+ */
+async function reescribirHojaReporteDesdePlantilla(spreadsheetId, nombreHoja, reporte) {
+    if (!spreadsheetId || esIdPlantillaExterna(spreadsheetId)) {
+        throw new Error('No se puede reescribir sobre el archivo plantilla externo.');
+    }
+    const objetivo = String(nombreHoja || '').trim();
+    if (!objetivo || objetivo === 'Sin-nombre' || esHojaPlantillaSpF02(objetivo)) {
+        throw new Error('Nombre de hoja de reporte inválido para regenerar desde plantilla.');
+    }
+    const titulos = await driveService.listarHojasGoogleSheet(spreadsheetId);
+    if (titulos.includes(objetivo)) {
+        try {
+            await driveService.eliminarHojasGoogleSheet(spreadsheetId, [objetivo]);
+        } catch (err) {
+            console.warn(`[SP-F-02] No se pudo eliminar hoja previa «${objetivo}»:`, err.message);
+        }
+    }
+    const tituloFinal = await adoptarPlantillaEnSistema(spreadsheetId, objetivo);
+    const nuevoId = await escribirReporteEnHoja(spreadsheetId, tituloFinal, reporte);
+    return { titulo: tituloFinal, driveFileId: nuevoId || spreadsheetId };
 }
 
 async function asegurarFilasItems(spreadsheetId, sheetTitle, reporte, layout) {
@@ -922,6 +1017,12 @@ async function escribirReporteEnHoja(spreadsheetId, sheetTitle, reporte) {
             await driveService.aplicarFormatoPostImagenesSpF02(driveIdFinal, sheetTitle, layout, { items });
         } catch (err) {
             console.warn('[SP-F-02] No se pudo aplicar formato post-imágenes:', err.message);
+        }
+        try {
+            // Tras imágenes: reaplicar estatus (el CF azul de plantilla se reemplaza).
+            await driveService.aplicarColoresEstatusSpF02(driveIdFinal, sheetTitle, layout, { items });
+        } catch (err) {
+            console.warn('[SP-F-02] No se pudo aplicar colores de estatus:', err.message);
         }
         await recortarFilasTrasContenido(driveIdFinal, sheetTitle, layout);
         return driveIdFinal;
@@ -1262,28 +1363,43 @@ async function subirImagenItem(body = {}) {
 }
 
 async function recrearHojaReporte(spreadsheetId, nombreHoja, reporte) {
-    const titulos = await driveService.listarHojasGoogleSheet(spreadsheetId);
-    if (titulos.includes(nombreHoja)) {
-        try {
-            await driveService.eliminarHojasGoogleSheet(spreadsheetId, [nombreHoja]);
-        } catch (err) {
-            console.warn(`[SP-F-02] No se pudo eliminar hoja previa ${nombreHoja}:`, err.message);
-        }
+    if (!spreadsheetId || esIdPlantillaExterna(spreadsheetId)) {
+        throw new Error('SP-F-02 solo escribe en el archivo sistema, nunca en la plantilla externa.');
     }
-    const origen = await resolverTituloPlantilla(spreadsheetId);
-    const dup = await driveService.duplicarHojaGoogleSheet(spreadsheetId, origen, nombreHoja);
-    const tituloFinal = dup.title || nombreHoja;
-    const nuevoId = await escribirReporteEnHoja(spreadsheetId, tituloFinal, reporte);
-    return { titulo: tituloFinal, driveFileId: nuevoId || spreadsheetId };
+    try {
+        return await reescribirHojaReporteDesdePlantilla(spreadsheetId, nombreHoja, reporte);
+    } catch (errCopy) {
+        console.warn(`[SP-F-02] copyTo desde plantilla falló; fallback local:`, errCopy.message);
+        const titulos = await driveService.listarHojasGoogleSheet(spreadsheetId);
+        if (titulos.includes(nombreHoja)) {
+            try {
+                await driveService.eliminarHojasGoogleSheet(spreadsheetId, [nombreHoja]);
+            } catch (err) {
+                console.warn(`[SP-F-02] No se pudo eliminar hoja previa ${nombreHoja}:`, err.message);
+            }
+        }
+        const origen = await resolverTituloPlantillaLocal(spreadsheetId);
+        if (!origen) throw errCopy;
+        const dup = await driveService.duplicarHojaGoogleSheet(spreadsheetId, origen, nombreHoja);
+        const tituloFinal = dup.title || nombreHoja;
+        const nuevoId = await escribirReporteEnHoja(spreadsheetId, tituloFinal, reporte);
+        return { titulo: tituloFinal, driveFileId: nuevoId || spreadsheetId };
+    }
 }
 
-async function sincronizarHojasReportesEnDrive(spreadsheetId, datos, datosPrevios = null) {
+async function sincronizarHojasReportesEnDrive(spreadsheetId, datos, datosPrevios = null, opciones = {}) {
+    if (!spreadsheetId || esIdPlantillaExterna(spreadsheetId)) {
+        throw new Error('SP-F-02 solo escribe en el archivo sistema, nunca en la plantilla externa.');
+    }
+    const crearTodas = !!opciones.crearTodas;
+    const regenerarActivo = !!opciones.regenerarActivo || crearTodas;
     const meta = sanitizarDatos(datos);
     const prev = datosPrevios ? sanitizarDatos(datosPrevios) : null;
     let driveIdActual = spreadsheetId;
     const titulosExistentes = await driveService.listarHojasGoogleSheet(driveIdActual);
     const setExistentes = new Set(titulosExistentes);
-    const plantillaOrigen = await resolverTituloPlantilla(driveIdActual);
+    const plantillaLocal = await resolverTituloPlantillaLocal(driveIdActual).catch(() => null);
+    const activoId = String(meta.reporteActivoId || '').trim();
 
     const mapaIdHojaPrevio = new Map();
     if (prev?.reportes) {
@@ -1303,7 +1419,14 @@ async function sincronizarHojasReportesEnDrive(spreadsheetId, datos, datosPrevio
         }
         let nombreHoja = resolverNombreHojaReporte(reporte);
         const hojaPrev = mapaIdHojaPrevio.get(reporte.id);
-        if (hojaPrev && hojaPrev !== nombreHoja && setExistentes.has(hojaPrev)) {
+        const esActivo = !!activoId && reporte.id === activoId;
+
+        if (
+            hojaPrev
+            && hojaPrev !== nombreHoja
+            && setExistentes.has(hojaPrev)
+            && !esHojaPlantillaSpF02(hojaPrev)
+        ) {
             try {
                 const ren = await driveService.renombrarHojaGoogleSheet(driveIdActual, hojaPrev, nombreHoja);
                 nombreHoja = ren?.title || nombreHoja;
@@ -1318,14 +1441,47 @@ async function sincronizarHojasReportesEnDrive(spreadsheetId, datos, datosPrevio
                 }
             }
         }
+
         try {
-            if (setExistentes.has(nombreHoja)) {
+            const existeHoja = setExistentes.has(nombreHoja);
+
+            // Regenerar desde plantilla externa (Actualizar plantilla / guardar con regeneración).
+            if (existeHoja && ((esActivo && regenerarActivo) || crearTodas)) {
+                try {
+                    const regenerada = await reescribirHojaReporteDesdePlantilla(
+                        driveIdActual,
+                        nombreHoja,
+                        reporte
+                    );
+                    nombreHoja = regenerada.titulo;
+                    if (regenerada.driveFileId && regenerada.driveFileId !== driveIdActual) {
+                        driveIdActual = regenerada.driveFileId;
+                    }
+                    setExistentes.add(nombreHoja);
+                    hojasActivas.add(nombreHoja);
+                    reportesOut.push({
+                        ...reporte,
+                        folio: folioDesdeFecha(reporte.fecha),
+                        nombreHoja
+                    });
+                    continue;
+                } catch (errRewrite) {
+                    console.warn(
+                        `[SP-F-02] Regenerar «${nombreHoja}» desde plantilla falló; se actualizan celdas:`,
+                        errRewrite.message
+                    );
+                }
+            }
+
+            if (existeHoja) {
                 const nuevoId = await escribirReporteEnHoja(driveIdActual, nombreHoja, reporte);
                 if (nuevoId && nuevoId !== driveIdActual) driveIdActual = nuevoId;
             } else {
                 const creada = await recrearHojaReporte(driveIdActual, nombreHoja, reporte);
                 nombreHoja = creada.titulo;
-                if (creada.driveFileId && creada.driveFileId !== driveIdActual) driveIdActual = creada.driveFileId;
+                if (creada.driveFileId && creada.driveFileId !== driveIdActual) {
+                    driveIdActual = creada.driveFileId;
+                }
                 setExistentes.add(nombreHoja);
             }
             hojasActivas.add(nombreHoja);
@@ -1336,13 +1492,38 @@ async function sincronizarHojasReportesEnDrive(spreadsheetId, datos, datosPrevio
             });
         } catch (err) {
             console.warn(`[SP-F-02] No se pudo sincronizar hoja "${nombreHoja}":`, err.message);
+            // Último recurso: duplicar hoja local de plantilla si existe en el sistema.
+            if (plantillaLocal && !setExistentes.has(nombreHoja)) {
+                try {
+                    const dup = await driveService.duplicarHojaGoogleSheet(
+                        driveIdActual,
+                        plantillaLocal,
+                        nombreHoja
+                    );
+                    nombreHoja = dup.title || nombreHoja;
+                    const nuevoId = await escribirReporteEnHoja(driveIdActual, nombreHoja, reporte);
+                    if (nuevoId && nuevoId !== driveIdActual) driveIdActual = nuevoId;
+                    setExistentes.add(nombreHoja);
+                    hojasActivas.add(nombreHoja);
+                    reportesOut.push({
+                        ...reporte,
+                        folio: folioDesdeFecha(reporte.fecha),
+                        nombreHoja
+                    });
+                    continue;
+                } catch (errDup) {
+                    console.warn('[SP-F-02] Fallback duplicar hoja local falló:', errDup.message);
+                }
+            }
             reportesOut.push(reporte);
         }
     }
 
+    // Borrar solo hojas de reportes que ya no están en el archivero.
+    // Conservar histograma y hojas auxiliares del archivo sistema.
     const eliminar = [];
     for (const titulo of titulosExistentes) {
-        if (titulo === SHEET_TITLE || titulo === plantillaOrigen) continue;
+        if (esHojaPlantillaSpF02(titulo) || titulo === plantillaLocal) continue;
         if (esHojaReporteSpF02(titulo) && !hojasActivas.has(titulo)) {
             eliminar.push(titulo);
         }
@@ -1371,9 +1552,12 @@ async function buscarArchivoDriveTrabajo() {
     const archivos = await driveService.listarArchivosCarpeta(CARPETA_DRIVE_ID);
     const objetivo = NOMBRE_ARCHIVO_DRIVE.toLowerCase();
     return (archivos || [])
-        .filter((f) => String(f.name || '').toLowerCase().startsWith(objetivo)
-            || String(f.id || '') === DRIVE_FILE_ID_SISTEMA
-            || String(f.id || '') === TEMPLATE_DRIVE_ID)
+        .filter((f) => {
+            const id = String(f.id || '').trim();
+            if (!id || esIdPlantillaExterna(id)) return false;
+            return String(f.name || '').toLowerCase().startsWith(objetivo)
+                || id === DRIVE_FILE_ID_SISTEMA;
+        })
         .sort((a, b) => new Date(b.modifiedTime || 0) - new Date(a.modifiedTime || 0))[0] || null;
 }
 
@@ -1381,13 +1565,14 @@ async function resolverDriveFileId(registro) {
     const candidatos = [];
     const agregar = (id) => {
         const val = String(id || '').trim();
-        if (val && !candidatos.includes(val)) candidatos.push(val);
+        if (!val || esIdPlantillaExterna(val) || candidatos.includes(val)) return;
+        candidatos.push(val);
     };
-    agregar(registro?.drive_file_id);
+    const idDb = String(registro?.drive_file_id || '').trim();
+    if (idDb && !esIdPlantillaExterna(idDb)) agregar(idDb);
     agregar(DRIVE_FILE_ID_SISTEMA);
-    agregar(TEMPLATE_DRIVE_ID);
     const enCarpeta = await buscarArchivoDriveTrabajo().catch(() => null);
-    agregar(enCarpeta?.id);
+    if (enCarpeta?.id && !esIdPlantillaExterna(enCarpeta.id)) agregar(enCarpeta.id);
     for (const id of candidatos) {
         try {
             if (await driveService.verificarArchivoExiste(id) && await esSpreadsheetEditableEnDrive(id)) {
@@ -1397,7 +1582,7 @@ async function resolverDriveFileId(registro) {
             continue;
         }
     }
-    return DRIVE_FILE_ID_SISTEMA || TEMPLATE_DRIVE_ID || null;
+    return DRIVE_FILE_ID_SISTEMA || null;
 }
 
 function formatearDatetimeMysqlMexico(fecha) {
@@ -1544,6 +1729,7 @@ async function guardarFormato(pool, body, options = {}) {
     const datosPrevios = await leerDatosRegistro(registroPrevio);
     const huboCambio = !datosPrevios || !contenidoEsEquivalente(datosPrevios, datosEntrada);
     let driveId = await resolverDriveFileId(registroPrevio);
+    if (esIdPlantillaExterna(driveId)) driveId = DRIVE_FILE_ID_SISTEMA;
 
     if (huboCambio && origen !== 'consulta') {
         contenidoModificado = true;
@@ -1561,11 +1747,13 @@ async function guardarFormato(pool, body, options = {}) {
         console.warn('[SP-F-02] No se pudieron migrar imágenes a carpetas de recorrido:', err.message);
     }
 
-    if (driveId && (await esSpreadsheetEditableEnDrive(driveId))) {
+    if (driveId && !esIdPlantillaExterna(driveId) && (await esSpreadsheetEditableEnDrive(driveId))) {
         try {
-            const sync = await sincronizarHojasReportesEnDrive(driveId, datosGuardar, datosPrevios);
+            const sync = await sincronizarHojasReportesEnDrive(driveId, datosGuardar, datosPrevios, {
+                regenerarActivo: false
+            });
             Object.assign(datosGuardar, sync.datos);
-            if (sync.driveFileId) driveId = sync.driveFileId;
+            if (sync.driveFileId && !esIdPlantillaExterna(sync.driveFileId)) driveId = sync.driveFileId;
             // Imágenes del formulario mandan al guardar (Excel no guarda metadatos JSON).
             datosGuardar.reportes = (datosGuardar.reportes || []).map((rep) => {
                 const orig = (datosEntrada.reportes || []).find((r) => r.id === rep.id);
@@ -1596,16 +1784,15 @@ async function sincronizarDesdeDrive(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
     const driveFileId = await resolverDriveFileId(registro);
-    if (!driveFileId) return cargarFormato(pool);
+    if (!driveFileId || esIdPlantillaExterna(driveFileId)) return cargarFormato(pool);
 
     const datosDb = await leerDatosRegistro(registro) || sanitizarDatos(DATOS_DEFECTO);
     const titulos = await driveService.listarHojasGoogleSheet(driveFileId);
-    const plantilla = await resolverTituloPlantilla(driveFileId);
     const reportes = [];
     const buffer = await descargarBufferDrive(driveFileId);
 
     for (const titulo of titulos || []) {
-        if (titulo === plantilla || /^plantilla$/i.test(String(titulo).trim())) continue;
+        if (esHojaPlantillaSpF02(titulo)) continue;
         if (!esHojaReporteSpF02(titulo)) continue;
         try {
             const ws = await obtenerWorksheet(buffer, titulo);
@@ -1649,10 +1836,22 @@ async function actualizarPlantillaDesdeSistema(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
     const datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
-    const driveId = await resolverDriveFileId(registro);
-    if (driveId) {
+    let driveId = await resolverDriveFileId(registro);
+    if (esIdPlantillaExterna(driveId)) driveId = DRIVE_FILE_ID_SISTEMA;
+    let datosOut = datos;
+    if (driveId && !esIdPlantillaExterna(driveId)) {
         try {
-            await sincronizarHojasReportesEnDrive(driveId, datos, null);
+            // Regenera todas las hojas de reporte desde la plantilla externa; conserva histograma.
+            const sync = await sincronizarHojasReportesEnDrive(driveId, datos, null, { crearTodas: true });
+            datosOut = sync.datos || datos;
+            if (sync.driveFileId) driveId = sync.driveFileId;
+            await guardarRegistroDb(pool, {
+                driveFileId: driveId,
+                datos: datosOut,
+                fechaElaboracionOriginal: registro?.fecha_elaboracion_original,
+                fechaModificacionContenido: registro?.fecha_modificacion_contenido,
+                contenidoModificado: !!registro?.contenido_modificado
+            });
         } catch (err) {
             console.warn('[SP-F-02] Actualizar plantilla:', err.message);
         }
@@ -1661,8 +1860,8 @@ async function actualizarPlantillaDesdeSistema(pool) {
         ? await driveService.obtenerInfoArchivo(driveId).catch(() => ({ id: driveId }))
         : null;
     const registroFinal = await obtenerRegistroDb(pool);
-    return construirRespuesta(registroFinal, datos, archivoDrive, {
-        hojaEditor: resolverNombreHojaReporte(resolverReporteActivo(datos))
+    return construirRespuesta(registroFinal, datosOut, archivoDrive, {
+        hojaEditor: resolverNombreHojaReporte(resolverReporteActivo(datosOut))
     });
 }
 
@@ -1679,8 +1878,9 @@ async function sincronizarReporteIndividualEnDrive(spreadsheetId, reporte, repor
 
 /** Elimina la hoja de un reporte individual en Drive. */
 async function eliminarHojaReporteIndividualEnDrive(spreadsheetId, nombreHoja) {
+    if (!spreadsheetId || esIdPlantillaExterna(spreadsheetId)) return;
     const hoja = String(nombreHoja || '').trim();
-    if (!hoja || hoja === SHEET_TITLE) return;
+    if (!hoja || esHojaPlantillaSpF02(hoja)) return;
     try {
         await driveService.eliminarHojasGoogleSheet(spreadsheetId, [hoja]);
     } catch (err) {
@@ -1742,18 +1942,48 @@ async function upsertReportePcEnArchivero(pool, reporte, meta = {}) {
     return idx >= 0 ? reportes[idx] : limpio;
 }
 
-/** Sincroniza un reporte PC en su spreadsheet dedicado (copia de plantilla por recorrido). */
+/**
+ * Sincroniza un reporte PC en su spreadsheet dedicado (copia de la plantilla externa).
+ * No escribe en la plantilla maestra ni en el archivo sistema SGC (histograma).
+ */
 async function sincronizarReportePcEnSpreadsheetDedicado(spreadsheetId, reporte) {
+    if (!spreadsheetId || esArchivoDriveConocidoSpF02(spreadsheetId)) {
+        throw new Error(
+            'Spreadsheet PC inválido: no se puede usar la plantilla ni el archivo sistema SGC como destino.'
+        );
+    }
     const limpio = sanitizarReporte(reporte);
     const nombreHoja = resolverNombreHojaReporte(limpio);
     const titulos = await driveService.listarHojasGoogleSheet(spreadsheetId);
     let hojaActiva = nombreHoja;
+
     if (titulos.includes(nombreHoja)) {
         await escribirReporteEnHoja(spreadsheetId, nombreHoja, limpio);
-    } else {
-        const creada = await recrearHojaReporte(spreadsheetId, nombreHoja, limpio);
-        hojaActiva = creada.titulo || nombreHoja;
+        return { nombreHoja: hojaActiva, folio: folioDesdeFecha(limpio.fecha) };
     }
+
+    // Copia dedicada de la plantilla: renombrar «Levantamiento eléctrico» → folio (sin hoja duplicada).
+    const plantillaLocal = (titulos || []).find((t) => esHojaPlantillaSpF02(t));
+    if (plantillaLocal) {
+        try {
+            const ren = await driveService.renombrarHojaGoogleSheet(
+                spreadsheetId,
+                plantillaLocal,
+                nombreHoja
+            );
+            hojaActiva = ren?.title || nombreHoja;
+            await escribirReporteEnHoja(spreadsheetId, hojaActiva, limpio);
+            return { nombreHoja: hojaActiva, folio: folioDesdeFecha(limpio.fecha) };
+        } catch (err) {
+            console.warn(
+                '[SP-F-02] Renombrar hoja plantilla en spreadsheet PC falló; se usa copyTo:',
+                err.message
+            );
+        }
+    }
+
+    const creada = await recrearHojaReporte(spreadsheetId, nombreHoja, limpio);
+    hojaActiva = creada.titulo || nombreHoja;
     return { nombreHoja: hojaActiva, folio: folioDesdeFecha(limpio.fecha) };
 }
 
@@ -1784,8 +2014,8 @@ async function descargarPlantillaPdf(pool, opciones = {}) {
     }
 
     const driveFileId = await resolverDriveFileId(registro);
-    if (!driveFileId) {
-        const err = new Error('No hay Google Sheet SP-F-02 configurado para exportar a PDF.');
+    if (!driveFileId || esIdPlantillaExterna(driveFileId)) {
+        const err = new Error('No hay Google Sheet SP-F-02 de trabajo configurado para exportar a PDF.');
         err.statusCode = 404;
         throw err;
     }
@@ -1857,6 +2087,8 @@ async function exportarReporteComoPdf(driveFileId, reporte) {
 module.exports = {
     CODIGO_FORMATO,
     TEMPLATE_DRIVE_ID,
+    DRIVE_FILE_ID_SISTEMA,
+    TEMPLATE_SHEET_TITLE,
     CARPETA_DRIVE_ID,
     ESTATUS_VALIDOS,
     MODALIDADES,
@@ -1876,6 +2108,8 @@ module.exports = {
     fechaHoyIso,
     sincronizarReporteIndividualEnDrive,
     eliminarHojaReporteIndividualEnDrive,
+    adoptarPlantillaEnSistema,
+    esArchivoDriveConocidoSpF02,
     subirImagenItem,
     esImagenSpF02Conocida,
     MAX_IMAGENES_CAMPO

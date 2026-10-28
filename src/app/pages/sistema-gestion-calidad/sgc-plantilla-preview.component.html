@@ -5281,9 +5281,11 @@
                               </td>
                               <td class="dg-f05-table__col--center sgc-f-06-table__metric-cell sgc-f-06-table__col--calif">
                                 <input class="dg-f05-field dg-f05-field--center sgc-f-06-table__num" type="number"
-                                  step="0.1" min="0" max="10"
+                                  step="0.1" min="0" max="10" inputmode="decimal"
                                   [(ngModel)]="auditor.calificacionCurso" [name]="'sgcF06_cal' + i"
-                                  (ngModelChange)="onSgcF06CalificacionChange(auditor)">
+                                  (keydown)="onSgcF06EvalCursoKeydown($event)"
+                                  (paste)="onSgcF06EvalCursoPaste($event, auditor)"
+                                  (ngModelChange)="onSgcF06EvalCursoChange(auditor)">
                               </td>
                               <td class="dg-f05-table__col--center sgc-f-06-table__metric-cell">
                                 <div class="sgc-f-06-select-wrap">
@@ -5383,7 +5385,7 @@
                           <label class="sgc-f-04-archivero__search">
                             <i class="fas fa-search" aria-hidden="true"></i>
                             <input class="dg-f05-field" type="search" [(ngModel)]="sgcF07ArchivoBusqueda" name="sgcF07_archivo_busqueda"
-                              placeholder="Buscar año o empresa…" autocomplete="off"
+                              placeholder="Buscar motivo, año o empresa…" autocomplete="off"
                               (input)="$event.stopPropagation()" (change)="$event.stopPropagation()">
                           </label>
                           <button type="button" class="sgc-f-04-archivero__btn-nuevo" (click)="nuevoProgramaSgcF07()">
@@ -5431,7 +5433,7 @@
                           <div class="sgc-empty-state">
                             <div class="sgc-empty-state__icon"><i class="fas fa-search" aria-hidden="true"></i></div>
                             <h4 class="sgc-empty-state__title">Ningún programa coincide</h4>
-                            <p class="sgc-empty-state__text mb-0">Prueba con otro año o empresa.</p>
+                            <p class="sgc-empty-state__text mb-0">Prueba con otro motivo, año o empresa.</p>
                           </div>
                         </div>
                       </ng-template>
@@ -5452,7 +5454,15 @@
                       <label class="dg-f05-meta-field">
                         <span class="dg-f05-meta-field__label">Empresa</span>
                         <input class="dg-f05-field" type="text"
-                          name="sgcF07_empresa" [(ngModel)]="sgcF07Form.empresa" autocomplete="off">
+                          name="sgcF07_empresa" [(ngModel)]="sgcF07Form.empresa"
+                          (ngModelChange)="onSgcF07Editado()" autocomplete="off">
+                      </label>
+                      <label class="dg-f05-meta-field">
+                        <span class="dg-f05-meta-field__label">Motivo de Auditoría</span>
+                        <input class="dg-f05-field" type="text"
+                          name="sgcF07_motivo" [(ngModel)]="sgcF07Form.motivoAuditoria"
+                          (ngModelChange)="onSgcF07Editado()"
+                          placeholder="Motivo o propósito de la auditoría" autocomplete="off">
                       </label>
                       <label class="dg-f05-meta-field">
                         <span class="dg-f05-meta-field__label">Fecha de elaboración</span>
@@ -6698,7 +6708,9 @@
             </ng-container>
 
             <ng-container *ngSwitchCase="'sgc-f-25'">
-              <form class="dg-f05-form sgc-f-25-form" (ngSubmit)="$event.preventDefault()"
+              <form class="dg-f05-form sgc-f-25-form"
+                    [class.sgc-f-25-form--select-open]="sgcF25SelectAbierto != null"
+                    (ngSubmit)="$event.preventDefault()"
                     (input)="onSgcF25Editado()" (change)="onSgcF25Editado()">
                 <div class="dg-f05-doc-wrap" [class.dg-f05-doc-wrap--loading]="sgcF25Cargando">
                   <div class="dg-f05-loading" *ngIf="sgcF25Cargando" role="status">
@@ -6713,7 +6725,7 @@
                         <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-clipboard-check" aria-hidden="true"></i></div>
                         <div>
                           <h4 class="sgc-f-11-matriz__title">Seguimiento post-entrega</h4>
-                          <p class="sgc-f-11-matriz__hint">Contrato/cotización, actividad, fecha compromiso, responsables y categorías ISO 8.5.5. Cada guardado archiva una hoja nueva en el historial.</p>
+                          <p class="sgc-f-11-matriz__hint">Contrato/cotización, actividad, fecha compromiso, responsables y categorías ISO 8.5.5. Cada guardado archiva una hoja del mes (SGCF25-MMAA; si hay más de una en el mismo mes, _2, _3…).</p>
                         </div>
                       </div>
 
@@ -6742,6 +6754,7 @@
                           <tbody>
                             <tr *ngFor="let item of sgcF25Form.actividades; let i = index; trackBy: trackByIdx"
                               class="sgc-f-25-table__row"
+                              [class.sgc-f-25-table__row--select-open]="sgcF25SelectAbierto === i"
                               [style.animation-delay.ms]="40 * i">
                               <td class="sgc-f-25-table__cell">
                                 <textarea class="dg-f05-field dg-f05-field--textarea dg-f05-field--center sgc-f-25-table__text"
@@ -6753,14 +6766,46 @@
                                   [attr.rows]="filasTexto(item.cliente)"
                                   [(ngModel)]="item.cliente" [name]="'sgcF25_cliente' + i"></textarea>
                               </td>
-                              <td class="sgc-f-25-table__cell">
-                                <div class="sgc-f-25-pick">
-                                  <select class="dg-f05-field sgc-f-25-table__select sgc-f-25-pick__input"
-                                    [(ngModel)]="item.actividad" [name]="'sgcF25_actividad' + i">
-                                    <option value="">Seleccionar actividad</option>
-                                    <option *ngFor="let act of sgcF25Actividades" [value]="act">{{ act }}</option>
-                                  </select>
-                                  <i class="fas fa-chevron-down sgc-f-25-pick__icon" aria-hidden="true"></i>
+                              <td class="sgc-f-25-table__cell sgc-f-25-table__cell--actividad"
+                                [class.sgc-f-25-table__cell--select-open]="sgcF25SelectAbierto === i">
+                                <div class="sgc-f-25-select"
+                                  [class.sgc-f-25-select--open]="sgcF25SelectAbierto === i"
+                                  [class.sgc-f-25-select--filled]="!!item.actividad">
+                                  <button type="button" class="sgc-f-25-select__trigger"
+                                    (mousedown)="$event.stopPropagation()"
+                                    (click)="toggleSelectSgcF25(i, $event)"
+                                    [attr.aria-expanded]="sgcF25SelectAbierto === i"
+                                    aria-haspopup="listbox"
+                                    [attr.aria-label]="'Actividad posterior a la entrega' + (item.actividad ? ': ' + item.actividad : '')">
+                                    <span class="sgc-f-25-select__icon" aria-hidden="true">
+                                      <i class="fas" [ngClass]="iconoActividadSgcF25(item.actividad)"></i>
+                                    </span>
+                                    <span class="sgc-f-25-select__value"
+                                      [class.sgc-f-25-select__value--placeholder]="!item.actividad">{{ item.actividad || 'Seleccionar actividad' }}</span>
+                                    <i class="fas fa-chevron-down sgc-f-25-select__chevron" aria-hidden="true"></i>
+                                  </button>
+                                  <ul class="sgc-f-25-select__menu" *ngIf="sgcF25SelectAbierto === i"
+                                    role="listbox"
+                                    (mousedown)="$event.stopPropagation()"
+                                    (click)="$event.stopPropagation()">
+                                    <li role="option" class="sgc-f-25-select__option sgc-f-25-select__option--empty"
+                                      [class.sgc-f-25-select__option--active]="!item.actividad"
+                                      (click)="elegirActividadSgcF25(i, '', $event)">
+                                      <span class="sgc-f-25-select__option-icon" aria-hidden="true"><i class="fas fa-minus"></i></span>
+                                      <span class="sgc-f-25-select__option-text">Seleccionar actividad</span>
+                                    </li>
+                                    <li *ngFor="let act of sgcF25Actividades"
+                                      role="option" class="sgc-f-25-select__option"
+                                      [class.sgc-f-25-select__option--active]="item.actividad === act"
+                                      (click)="elegirActividadSgcF25(i, act, $event)">
+                                      <span class="sgc-f-25-select__option-icon" aria-hidden="true">
+                                        <i class="fas" [ngClass]="iconoActividadSgcF25(act)"></i>
+                                      </span>
+                                      <span class="sgc-f-25-select__option-text">{{ act }}</span>
+                                      <i class="fas fa-check sgc-f-25-select__option-check" aria-hidden="true"
+                                        *ngIf="item.actividad === act"></i>
+                                    </li>
+                                  </ul>
                                 </div>
                               </td>
                               <td class="sgc-f-25-table__cell">
@@ -7748,7 +7793,7 @@
                         <p class="sgc-f-28-quote__hint">
                           <i class="fas fa-file-excel" aria-hidden="true"></i>
                           Hoja Excel:
-                          <strong>{{ comp.nombreCotizacion.trim() || 'Sin-nombre' }}</strong>
+                          <strong>{{ (comp.nombreHoja || comp.nombreCotizacion || '').trim() || 'Sin-nombre' }}</strong>
                         </p>
                       </div>
                       <div class="sgc-f-28-quote__side">
@@ -16087,7 +16132,7 @@
                         <div>
                           <h3 class="dg-f02-attach__title">4. Versión firmada (escaneada)</h3>
                           <p class="dg-f02-attach__desc mb-0">
-                            Imprime el reporte, firma a mano y sube el PDF escaneado. Se guarda en la carpeta de control del SGC-F-22.
+                            Imprime el reporte, firma a mano y sube el PDF escaneado. Se guarda en Documentos Firmados del SGC-F-22.
                           </p>
                         </div>
                       </div>

@@ -116,12 +116,17 @@ Referencias:
 
 | Formato | Criterio de nombre de hoja |
 | --- | --- |
+| SGC-F-04 · Reporte de no conformidad | Folio (`NC-…`) |
 | SGC-F-12 · Notificación de cambios | Folio (`CAM-…`) |
 | SGC-F-22 · Daño o pérdida de propiedad | Folio (`DP-…`) |
 | SGC-F-11 · AMEF | Campo del formulario: **proceso** |
+| SGC-F-16 · Minuta | Campo del formulario: **Asunto** |
 | SGC-F-20 · Ficha de conocimientos | Campo del formulario: **Tipo de fuente** |
 | ATH-F-02 · Descripción y perfil de puesto | Campo del formulario: **Puesto** |
 | SGC-F-27 · Verificación de equipos de medición | Campo del formulario: **Instrumento de medición** |
+| SGC-F-28 · Comparativa de proveedores | Campo del formulario: **Nombre de cotización** |
+| SP-F-02 · Reporte de visita y recorrido | Folio (`SPF02-MMAA`) |
+| SP-F-07 · Plan del curso | Folio (`PC-…`) |
 
 En la tabla de §1.A (campos «¿Tiene archivero?» y «Si tiene archivero → nombre de hoja») deja escrito, antes de codear, si quieres **folio** o **qué campo** del formulario.
 
@@ -278,6 +283,17 @@ Requisitos:
 | Historial | `DGF05-MMAA`, `DGF05-MMAA_2`, `_3`… (`versionarCadaCambioMes`) |
 | Código | `backend/sgcDgF05Service.js` |
 
+### SP-F-02 · Reporte de visita y recorrido
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1X_MSGiMu9Bksi3ip9pOm3tMtMZzUXwvo86wGiGvmHQc/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1lZOjlr7PAvoudcOJF5Qz28x3ok88UUEb32L1YnxUAZI/edit` |
+| Pestaña plantilla | `Levantamiento eléctrico` |
+| Trabajo | Archivero SGC: una pestaña por reporte; **nombre = folio `SPF02-MMAA`** (§2.1 opción 1); `copyTo` desde plantilla |
+| Código | `backend/sgcSpF02Service.js` + `backend/pcRecorridoService.js` |
+| Nota | **SGC y PC comparten la misma plantilla externa.** SGC escribe solo en el archivo sistema (conserva histograma). PC crea un Google Sheet dedicado por PIPC (`copiarGoogleSheetACarpeta` desde la plantilla) y renombra la hoja al folio; nunca usa ni borra la plantilla ni el sistema SGC |
+
 ### SP-F-04 · Control de Proyectos Biznaga
 
 | Rol | Link |
@@ -288,6 +304,17 @@ Requisitos:
 | Historial | `SPF04-MMAA`, `SPF04-MMAA_2`, `_3`… (cada sync con cambios reales; sin archivero) |
 | Código | `backend/sgcSpF04Service.js` |
 | Nota | Vista generada desde Control de Proyectos + ATH-F-09. El archivo sistema conserva histograma; no se escribe en la plantilla |
+
+### SP-F-07 · Plan del curso
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1Pj1ZlJDqGNUCr36CktlcWDn_SRDy7vZpXi3ltCCN0GU/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1p0XiIIwWth04aKYTs6XYldsy4yNvHGdbJWfWEfYVs4w/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Trabajo | Archivero: una pestaña por plan; **nombre = folio `PC-…`** (§2.1 opción 1); `copyTo` desde plantilla |
+| Código | `backend/sgcSpF07Service.js` |
+| Nota | El archivo sistema conserva histograma; no se escribe en la plantilla ni se reemplaza el libro entero |
 
 ### DG-F-04 · Análisis FODA (referencia anterior)
 
@@ -352,6 +379,51 @@ Requisitos:
 | Historial | `SGCF03-MMAA`, `SGCF03-MMAA_2`, `_3`… (`versionarCadaCambioMes`) |
 | Código | `backend/sgcF03Service.js` |
 | Nota | El archivo sistema conserva histograma; no se escribe en la plantilla |
+
+### SGC-F-04 · Reporte de no conformidad
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/17E4xiCV-APDAMxbCankh-YY1LU8WuK67yhodlSpqNcU/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1bVfQsZxrpkLg199i_bJ0XhBDTY-_099KVMg1IWyqAHY/edit` |
+| Pestaña plantilla | `Plantilla` (legado aceptado: `Reporte`) |
+| Trabajo | Archivero: una pestaña por reporte; **nombre = folio `NC-…`** (§2.1 opción 1); `copyTo` desde plantilla |
+| Código | `backend/sgcSgcF04Service.js` |
+| Nota | El archivo sistema conserva histograma; no se escribe en la plantilla ni se reemplaza el libro entero |
+
+### SGC-F-06 · Lista y calificación de auditores internos
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1CsIGwpxURUGwwgd16YGacJK0pPkoYmcsdMoGaY7B-pk/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/172FXnaaY-62DluYGLjZRogqZF3ZZ_aFwCf4Ww-31T2A/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Historial | `SGCF06-MMAA`, `SGCF06-MMAA_2`, `_3`… (`versionarCadaCambioMes`) |
+| Código | `backend/sgcSgcF06Service.js` |
+| Nota | Archivero de listas en BD/UI; Excel proyecta la lista activa en pestañas mensuales. El archivo sistema conserva histograma; no se escribe en la plantilla |
+
+### SGC-F-07 · Programa de auditoría
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/112kGODk9XU0lvJ0LmYkgVTSOKdTL1-3e3l2jNuJQ2wE/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1wvrP_EB5XvdL5xu_j5xiiX53o8Bz9KzvLaVMCwwXT2w/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Historial | `SGCF07-MMAA`, `SGCF07-MMAA_2`, `_3`… (`versionarCadaCambioMes`) |
+| Código | `backend/sgcF07Service.js` |
+| PDFs firmados | `https://drive.google.com/drive/folders/1yodruqEhzAHJbQY3cU-ZvQFTLKKsT4gp` (Documentos Firmados) |
+| Nota | Archivero de programas en BD/UI; Excel proyecta el programa activo en pestañas mensuales. «Motivo de Auditoría» es campo del formulario (no nombra la hoja). El archivo sistema conserva histograma; no se escribe en la plantilla |
+
+### SGC-F-08 · Plan de auditoría
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1EJMKbuUde5EVdtf39-nAppB_9NBwmTwjKbYjE1HbqJ8/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/19R5biJd2EHKN6OURoSEpvLnDWQSDi8YjfL9PhVdla-0/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Historial | `SGCF08-MMAA`, `SGCF08-MMAA_2`, `_3`… (`versionarCadaCambioMes`); sin archivero |
+| Código | `backend/sgcF08Service.js` |
+| Nota | El archivo sistema conserva histograma; no se escribe en la plantilla ni se reemplaza el libro entero |
 
 ### SGC-F-17 · Bitácora de calibración y verificación de equipos de medición
 
@@ -418,6 +490,17 @@ Requisitos:
 | Código | `backend/sgcSgcF12Service.js` |
 | Nota | Igual que SGC-F-11: el archivo sistema conserva histograma; no se escribe en la plantilla ni se reemplaza el libro entero |
 
+### SGC-F-16 · Minuta
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/18aG752wFV2Pt7EE0TT_DD4jM5ldGDo6MKD889woKgzE/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1Rc-mprKV22mONhk81zHjPTChaEgF0HBiUESRx8D_y-M/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Trabajo | Archivero: una pestaña por minuta; **nombre = campo `Asunto`** (§2.1 opción 2); `copyTo` desde plantilla |
+| Código | `backend/sgcF16Service.js` |
+| Nota | El archivo sistema conserva histograma y hojas legado `SGCF16-MMAA`; no se escribe en la plantilla ni se reemplaza el libro entero |
+
 ### SGC-F-22 · Reporte de daño o pérdida de propiedad del cliente o proveedor
 
 | Rol | Link |
@@ -429,6 +512,17 @@ Requisitos:
 | Código | `backend/sgcF22Service.js` |
 | Nota | El archivo sistema conserva histograma; no se escribe en la plantilla ni se reemplaza el libro entero |
 
+### SGC-F-25 · Actividades posteriores a la entrega
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1kaE2ZDm2Za6PdZLEJMWyoBnj6TP2fkoc17W0sasleEM/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1tXQx1lxhdHas40sS2tF97HoBOypwGP8Qjfrv5aM41Mk/edit` |
+| Pestaña plantilla | `Plantilla` (legado aceptado: `Plantilla.`) |
+| Historial | `SGCF25-MMAA`, `SGCF25-MMAA_2`, `_3`… (`versionarCadaCambioMes`) |
+| Código | `backend/sgcF25Service.js` |
+| Nota | Sin archivero. El archivo sistema conserva histograma y hojas legado `SGCF25-DDMM-NN`; no se escribe en la plantilla |
+
 ### SGC-F-27 · Reporte de verificación de equipos de medición (capítulo 7)
 
 | Rol | Link |
@@ -439,6 +533,28 @@ Requisitos:
 | Trabajo | Archivero: una pestaña por verificación; **nombre = campo `Instrumento de medición`** (§2.1 opción 2); `copyTo` desde plantilla |
 | Código | `backend/sgcF27MedicionService.js` (clave interna `SGC-F-27V`) |
 | Nota | El archivo sistema conserva histograma; no se escribe en la plantilla. Clave UI: `sgc-f-27-medicion` (distinta de la orden de compra SGC-F-27 cap. 8) |
+
+### SGC-F-28 · Comparativa de proveedores
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1QIXS3sn51MefyzwXam-HxIN_9bsdv37_F6ITnF_OHHo/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1PxxA5U1Z0tOpbaj1eH8agdxOuQVgF8ya8VU2Uc9BhOI/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Trabajo | Archivero: una pestaña por comparativa; **nombre = campo `Nombre de cotización`** (§2.1 opción 2); `copyTo` desde plantilla |
+| Código | `backend/sgcF28Service.js` |
+| Nota | El archivo sistema conserva histograma; no se escribe en la plantilla ni se reemplaza el libro entero |
+
+### SGC-F-29 · Evaluación de proveedores
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1zDKhcGHhU7QArIidvj45mvtWHe_WuqO-pRqZ5QPT3KE/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1_MsV1j-HuRUr8mdJogU0NmZL0j0zb35Ty5EtQ0cbCfQ/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Historial | `SGCF29-MMAA`, `SGCF29-MMAA_2`, `_3`… (`versionarCadaCambioMes`); sin archivero |
+| Código | `backend/sgcF29Service.js` |
+| Nota | Criterios nuevos se insertan a la derecha de E (Precio→F) con borde; el sistema conserva histograma/hojas legado y no escribe en la plantilla |
 
 ---
 

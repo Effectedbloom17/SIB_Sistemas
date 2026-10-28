@@ -21,7 +21,8 @@ const TEMPLATE_DRIVE_ID = '1PPUDTSmo6mPqkjGMlLt7uKM09TL5MU_DlTxdf9l-cNw';
  */
 const DRIVE_FILE_ID_SISTEMA = '1asICBqzuBkhpvD4tXdfB1VIkFNPyhiOGNv6SxaEcYMw';
 const CARPETA_DRIVE_ID = '1PG9K6nxp3G-CUSDdHsp1DrcOnatsB1rx';
-const CARPETA_PDF_FIRMADOS_ID = '1PG9K6nxp3G-CUSDdHsp1DrcOnatsB1rx';
+/** PDFs firmados (escaneados) — carpeta Documentos Firmados del SGC-F-22. */
+const CARPETA_PDF_FIRMADOS_ID = '15tGmrbjTub0AB7IYm-OgqQqAZcHq96un';
 const NOMBRE_ARCHIVO_DRIVE = 'SGC-F-22 Reporte de daño o perdida de propiedad del cliente o proveedor (sistema)';
 /** Nombre de la pestaña en el archivo plantilla externo. */
 const TEMPLATE_SHEET_TITLE = 'Plantilla';
@@ -35,11 +36,14 @@ const DRIVE_SHEET_OPTIONS = {
     keepSingleSheet: false
 };
 
-/** Mapa de celdas (1-based) verificado contra la plantilla real. */
+/**
+ * Mapa de celdas (1-based) alineado a la plantilla externa
+ * (https://docs.google.com/spreadsheets/d/1PPUDTSmo6mPqkjGMlLt7uKM09TL5MU_DlTxdf9l-cNw).
+ */
 const CELLS = {
     revision: { row: 2, col: 5 },
     fechaRevision: { row: 3, col: 5 },
-    fechaSuceso: { row: 5, col: 5 },
+    fechaSuceso: { row: 6, col: 5 },
     empresaAfectada: { row: 8, col: 3 },
     nombreClienteProveedor: { row: 9, col: 3 },
     nombreBien: { row: 10, col: 3 },
@@ -117,6 +121,31 @@ async function adoptarPlantillaEnSistema(spreadsheetId, tituloDestino = null) {
     return copiada.title;
 }
 
+/**
+ * Sustituye una hoja de folio por una copia fresca de la plantilla externa y escribe datos.
+ * Conserva histograma y demás pestañas del archivo sistema.
+ */
+async function reescribirHojaReporteDesdePlantilla(spreadsheetId, nombreHoja, datos) {
+    if (!spreadsheetId || spreadsheetId === TEMPLATE_DRIVE_ID) {
+        throw new Error('No se puede reescribir sobre el archivo plantilla externo.');
+    }
+    const objetivo = String(nombreHoja || '').trim();
+    if (!objetivo || objetivo === 'Sin-folio') {
+        throw new Error('Nombre de hoja de folio inválido para regenerar desde plantilla.');
+    }
+    const titulos = await driveService.listarHojasGoogleSheet(spreadsheetId);
+    if (titulos.includes(objetivo)) {
+        try {
+            await driveService.eliminarHojasGoogleSheet(spreadsheetId, [objetivo]);
+        } catch (err) {
+            console.warn(`[SGC-F-22] No se pudo eliminar hoja previa «${objetivo}»:`, err.message);
+        }
+    }
+    const tituloFinal = await adoptarPlantillaEnSistema(spreadsheetId, objetivo);
+    await actualizarDatosEnGoogleSheet(spreadsheetId, datos, tituloFinal);
+    return tituloFinal;
+}
+
 function datosConReporteActivo(datos, reporte) {
     return sanitizarDatos({
         ...(datos || {}),
@@ -161,6 +190,7 @@ async function sincronizarHojasReportesEnDrive(spreadsheetId, datos, datosPrevio
         throw new Error('SGC-F-22 solo escribe en el archivo sistema, nunca en la plantilla externa.');
     }
     const crearTodas = !!opciones.crearTodas;
+    const regenerarActivo = !!opciones.regenerarActivo || crearTodas;
     const meta = sanitizarDatos(datos);
     const prev = datosPrevios ? sanitizarDatos(datosPrevios) : null;
     const titulosExistentes = await driveService.listarHojasGoogleSheet(spreadsheetId);
@@ -215,13 +245,33 @@ async function sincronizarHojasReportesEnDrive(spreadsheetId, datos, datosPrevio
         }
 
         const existeHoja = setExistentes.has(nombreHoja);
+        const datosHoja = datosConReporteActivo(meta, reporte);
+
+        // Regenerar desde plantilla externa (guardar con cambios / Actualizar plantilla).
+        if (existeHoja && ((esActivo && regenerarActivo) || crearTodas)) {
+            try {
+                nombreHoja = await reescribirHojaReporteDesdePlantilla(
+                    spreadsheetId,
+                    nombreHoja,
+                    datosHoja
+                );
+                setExistentes.add(nombreHoja);
+                hojasActualizadas.add(nombreHoja);
+                continue;
+            } catch (errRewrite) {
+                console.warn(
+                    `[SGC-F-22] Regenerar «${nombreHoja}» desde plantilla falló; se actualizan celdas:`,
+                    errRewrite.message
+                );
+            }
+        }
+
         if (!existeHoja) {
             // Por defecto no regenerar hojas borradas a mano: solo crear la del reporte activo.
             if (!crearTodas && !esActivo) {
                 continue;
             }
             try {
-                // Estructura siempre desde la plantilla externa (no duplicar una hoja del sistema).
                 nombreHoja = await adoptarPlantillaEnSistema(spreadsheetId, nombreHoja);
                 setExistentes.add(nombreHoja);
             } catch (err) {
@@ -246,11 +296,7 @@ async function sincronizarHojasReportesEnDrive(spreadsheetId, datos, datosPrevio
         }
 
         hojasActualizadas.add(nombreHoja);
-        await actualizarDatosEnGoogleSheet(
-            spreadsheetId,
-            datosConReporteActivo(meta, reporte),
-            nombreHoja
-        );
+        await actualizarDatosEnGoogleSheet(spreadsheetId, datosHoja, nombreHoja);
     }
 
     // Borrar solo hojas de reportes que ya no están en el archivero.
@@ -1112,7 +1158,9 @@ async function guardarFormato(pool, body, options = {}) {
         try {
             const infoDrive = await driveService.obtenerInfoArchivo(driveId).catch(() => null);
             if (infoDrive?.mimeType === 'application/vnd.google-apps.spreadsheet') {
-                await sincronizarHojasReportesEnDrive(driveId, datosEntrada, datosPrevios);
+                await sincronizarHojasReportesEnDrive(driveId, datosEntrada, datosPrevios, {
+                    regenerarActivo: false
+                });
             }
         } catch (err) {
             console.warn('[SGC-F-22] No se pudo re-sincronizar hojas en Drive:', err.message);
@@ -1138,7 +1186,9 @@ async function guardarFormato(pool, body, options = {}) {
                     ? fechaModificacion
                     : fechaOriginal;
 
-                await sincronizarHojasReportesEnDrive(driveId, datosGuardar, datosPrevios);
+                await sincronizarHojasReportesEnDrive(driveId, datosGuardar, datosPrevios, {
+                    regenerarActivo: huboCambio && origen !== 'consulta'
+                });
 
                 const archivoDrive = await driveService
                     .obtenerInfoArchivo(driveId)
@@ -1171,7 +1221,10 @@ async function guardarFormato(pool, body, options = {}) {
             const sistema = await asegurarArchivoSistema(pool, registroPrevio);
             idTrabajo = sistema.id;
         }
-        archivoDrive = await publicarDatosEnDrive(idTrabajo, datosGuardar, datosPrevios);
+        await sincronizarHojasReportesEnDrive(idTrabajo, datosGuardar, datosPrevios, {
+            regenerarActivo: huboCambio && origen !== 'consulta'
+        });
+        archivoDrive = await driveService.obtenerInfoArchivo(idTrabajo).catch(() => ({ id: idTrabajo }));
     } catch (err) {
         console.warn('[SGC-F-22] No se pudo sincronizar con Drive; se guarda solo en BD:', err.message || err);
     }
