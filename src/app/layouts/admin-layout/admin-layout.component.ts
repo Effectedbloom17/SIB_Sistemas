@@ -305,10 +305,10 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
   }
 
   mascotaAvisoFirma(aviso: { tipo?: string }): string {
-    if (aviso?.tipo === 'aprobada') return 'assets/img/biznaguita/Biznaga_firma_autorizada.png';
-    if (aviso?.tipo === 'rechazada') return 'assets/img/biznaguita/Biznaga_firma_rechazada.png';
-    if (aviso?.tipo === 'solicitud') return 'assets/img/biznaguita/Biznaga_solicitud_firma.png';
-    return 'assets/img/biznaguita/mascota-biznaga.png';
+    if (aviso?.tipo === 'aprobada') return 'assets/img/Biznaguita/Biznaga_firma_autorizada.png';
+    if (aviso?.tipo === 'rechazada') return 'assets/img/Biznaguita/Biznaga_firma_rechazada.png';
+    if (aviso?.tipo === 'solicitud') return 'assets/img/Biznaguita/Biznaga_solicitud_firma.png';
+    return 'assets/img/Biznaguita/mascota-biznaga.png';
   }
 
   private iniciarSalidaAvisoFirma(accion: 'cerrar' | 'revisar'): void {
@@ -425,12 +425,12 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
   mascotaAvisoResolutivo(aviso?: { tipo?: string }): string {
     const tipo = String(aviso?.tipo || '');
     if (tipo === 'ventana_diaria') {
-      return 'assets/img/biznaguita/biznaga_aviso_preventivo_reloj.png';
+      return 'assets/img/Biznaguita/biznaga_aviso_preventivo_reloj.png';
     }
     if (tipo === 'urgente_ingreso' || tipo === 'urgente_seguimiento') {
-      return 'assets/img/biznaguita/biznaga_aviso_urgente_papeles.png';
+      return 'assets/img/Biznaguita/biznaga_aviso_urgente_papeles.png';
     }
-    return 'assets/img/biznaguita/mascota-biznaga.png';
+    return 'assets/img/Biznaguita/mascota-biznaga.png';
   }
 
   private iniciarSalidaAvisoResolutivo(accion: 'cerrar' | 'revisar'): void {

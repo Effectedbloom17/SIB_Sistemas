@@ -4,6 +4,7 @@
  * Preventivo 40–21 días restantes → 1 aviso diario al responsable.
  * Urgente 20–1 días (pronto a vencer; NO vencidos) → al ingresar + ~3.5 h,
  * destinatarios: responsable, marisol12, leonel58 y root.
+ * Fuera de esas ventanas (incl. vencidos) no se generan ni se muestran avisos.
  */
 
 const pcResolutivosService = require('./pcResolutivosService');
@@ -54,16 +55,21 @@ function diasRestantesDeRegistro(row) {
     return Number(diasHasta) + 40;
 }
 
-/** 40–20: preventivo diario (al llegar a 20 pasa a urgente). */
+/** 40–21: preventivo diario (al llegar a 20 pasa a urgente). */
 function enVentanaPreventiva(dias) {
     const n = Number(dias);
     return Number.isFinite(n) && n > 20 && n <= 40;
 }
 
-/** 20–0: urgente pronto a vencer; excluye vencidos (días <= 0). */
+/** 20–1: urgente pronto a vencer; excluye vencidos (días <= 0). */
 function enVentanaUrgente(dias) {
     const n = Number(dias);
     return Number.isFinite(n) && n > 0 && n <= 20;
+}
+
+/** Elegible para aviso/popup: solo ventanas 40–21 o 20–1 (nunca vencidos). */
+function enVentanaNotificacion(dias) {
+    return enVentanaPreventiva(dias) || enVentanaUrgente(dias);
 }
 
 async function asegurarTablas(poolPC) {
@@ -164,7 +170,13 @@ async function listarResolutivosElegibles(poolPC, poolUsuarios) {
             estatus: String(row.estatus || ''),
             diasRestantes
         };
-    }).filter((item) => item.resolutivoId > 0 && item.diasRestantes != null);
+    }).filter((item) =>
+        item.resolutivoId > 0
+        && item.diasRestantes != null
+        // Solo "Próximo a vencer" dentro de 40–21 / 20–1 (excluye vencidos).
+        && item.estatus === 'Próximo a vencer'
+        && enVentanaNotificacion(item.diasRestantes)
+    );
 }
 
 function mensajeVentanaDiaria(item) {
@@ -443,20 +455,62 @@ async function listarAvisos(poolPC, poolUsuarios, username) {
         [user, ahora]
     );
 
-    return (rows || []).map((row) => ({
-        id: Number(row.aviso_id),
-        resolutivoId: Number(row.resolutivo_id),
-        tipo: String(row.tipo || 'ventana_diaria'),
-        mensaje: row.mensaje == null ? '' : String(row.mensaje),
-        empresaId: row.empresa_id == null ? null : Number(row.empresa_id),
-        nombreEmpresa: row.nombre_empresa == null ? '' : String(row.nombre_empresa),
-        nombreAsignacion: row.nombre_asignacion == null ? '' : String(row.nombre_asignacion),
-        responsableNombre: row.responsable_nombre == null ? '' : String(row.responsable_nombre),
-        diasRestantes: row.dias_restantes == null ? null : Number(row.dias_restantes),
-        ruta: row.ruta || RUTA_ATENCION,
-        creadoEn: row.creado_en ? String(row.creado_en) : '',
-        mostrarDespues: row.mostrar_despues ? String(row.mostrar_despues) : null
-    }));
+    // Revalida contra el estatus actual: no mostrar avisos de PIPC ya vencidos.
+    let vigentesIds = null;
+    let diasPorResolutivo = new Map();
+    try {
+        const elegibles = await listarResolutivosElegibles(poolPC, poolUsuarios);
+        vigentesIds = new Set(elegibles.map((item) => item.resolutivoId));
+        diasPorResolutivo = new Map(
+            elegibles.map((item) => [item.resolutivoId, item.diasRestantes])
+        );
+    } catch (error) {
+        console.warn('[PC-AVISO] No se pudo revalidar estatus de avisos:', error.message);
+    }
+
+    const avisos = [];
+    const staleIds = [];
+    for (const row of rows || []) {
+        const resolutivoId = Number(row.resolutivo_id);
+        if (vigentesIds && !vigentesIds.has(resolutivoId)) {
+            staleIds.push(Number(row.aviso_id));
+            continue;
+        }
+        const diasActuales = diasPorResolutivo.get(resolutivoId);
+        avisos.push({
+            id: Number(row.aviso_id),
+            resolutivoId,
+            tipo: String(row.tipo || 'ventana_diaria'),
+            mensaje: row.mensaje == null ? '' : String(row.mensaje),
+            empresaId: row.empresa_id == null ? null : Number(row.empresa_id),
+            nombreEmpresa: row.nombre_empresa == null ? '' : String(row.nombre_empresa),
+            nombreAsignacion: row.nombre_asignacion == null ? '' : String(row.nombre_asignacion),
+            responsableNombre: row.responsable_nombre == null ? '' : String(row.responsable_nombre),
+            diasRestantes: diasActuales != null
+                ? Number(diasActuales)
+                : (row.dias_restantes == null ? null : Number(row.dias_restantes)),
+            ruta: row.ruta || RUTA_ATENCION,
+            creadoEn: row.creado_en ? String(row.creado_en) : '',
+            mostrarDespues: row.mostrar_despues ? String(row.mostrar_despues) : null
+        });
+    }
+
+    if (staleIds.length) {
+        try {
+            const placeholders = staleIds.map(() => '?').join(', ');
+            await poolPC.query(
+                `UPDATE pc_resolutivo_aviso
+                 SET descartado = 1
+                 WHERE aviso_id IN (${placeholders})
+                   AND LOWER(username) = ?`,
+                [...staleIds, user]
+            );
+        } catch (error) {
+            console.warn('[PC-AVISO] No se pudieron descartar avisos vencidos:', error.message);
+        }
+    }
+
+    return avisos;
 }
 
 async function descartarAviso(poolPC, avisoId, username) {
