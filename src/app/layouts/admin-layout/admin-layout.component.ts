@@ -269,9 +269,9 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
   }
 
   mascotaAvisoFirma(aviso: { tipo?: string }): string {
-    if (aviso?.tipo === 'aprobada') return 'assets/img/biznaguita/Biznaga_firma_autorizada.png';
-    if (aviso?.tipo === 'rechazada') return 'assets/img/biznaguita/Biznaga_firma_rechazada.png';
-    if (aviso?.tipo === 'solicitud') return 'assets/img/biznaguita/Biznaga_solicitud_firma.png';
+    if (aviso?.tipo === 'aprobada') return 'assets/img/biznaguita/biznaga_firma_autorizada.png';
+    if (aviso?.tipo === 'rechazada') return 'assets/img/biznaguita/biznaga_firma_rechazada.png';
+    if (aviso?.tipo === 'solicitud') return 'assets/img/biznaguita/biznaga_solicitud_firma.png';
     return 'assets/img/biznaguita/mascota-biznaga.png';
   }
 
