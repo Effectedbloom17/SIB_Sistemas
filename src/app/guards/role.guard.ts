@@ -128,6 +128,18 @@ export class RoleGuard implements CanActivate {
       return true;
     }
 
+    // Gestión de usuarios / Directorio: todos los perfiles internos excepto empresa.
+    // La pantalla misma limita edición y pestaña Empresas a admin/root.
+    if (route.routeConfig?.path === 'gestion-usuarios' || state.url.includes('/gestion-usuarios')) {
+      const esEmpresa = userRoles.some(r => r.toLowerCase() === 'empresa')
+        || (userRole && userRole.toLowerCase() === 'empresa');
+      if (esEmpresa) {
+        this.router.navigate(['/curso-activos']);
+        return false;
+      }
+      return true;
+    }
+
     // Recursos Humanos:
     // - Organigrama (Colaboradores): todos los perfiles internos excepto empresa.
     // - Expediente documental y Residentes: solo root, administrador y rrhh.

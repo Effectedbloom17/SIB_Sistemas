@@ -25,6 +25,8 @@ export class GestionUsuariosComponent implements OnInit {
   cargando: boolean = false;
   esRoot: boolean = false;
   esAdministrador: boolean = false;
+  /** true si el usuario no es admin/root: vista de solo lectura (nombre, email, teléfono, puesto). */
+  modoDirectorio: boolean = false;
   areasDropdownAbierto: number | null = null; // ID del usuario cuyo dropdown está abierto
   areasDropdownPosition: { top: number; left: number } = { top: 0, left: 0 };
   areasDropdownArriba: boolean = false;
@@ -71,9 +73,12 @@ export class GestionUsuariosComponent implements OnInit {
   ngOnInit(): void {
     this.esRoot = this.authService.esSuperusuario();
     this.esAdministrador = this.authService.esAdministrador();
+    this.modoDirectorio = !this.esRoot && !this.esAdministrador;
     this.cargarUsuarios();
-    this.cargarRoles();
-    this.cargarAreasTematicas();
+    if (!this.modoDirectorio) {
+      this.cargarRoles();
+      this.cargarAreasTematicas();
+    }
   }
 
   /**
@@ -105,65 +110,85 @@ export class GestionUsuariosComponent implements OnInit {
     this.cargando = true;
     const usuarioActual = this.authService.getUsername(); // Obtener usuario logueado
     // Solo el super administrador (root) ve también los desactivados
-    const incluirInactivos = this.esRoot;
+    const incluirInactivos = this.esRoot && !this.modoDirectorio;
 
-    forkJoin({
-      usuarios: this.backendService.obtenerUsuarios(incluirInactivos),
-      empresas: this.backendService.obtenerEmpresas()
-    }).subscribe({
+    const peticiones: { usuarios: any; empresas?: any } = {
+      usuarios: this.backendService.obtenerUsuarios(incluirInactivos)
+    };
+    // Solo gestión (admin/root) necesita el listado de empresas
+    if (!this.modoDirectorio) {
+      peticiones.empresas = this.backendService.obtenerEmpresas();
+    }
+
+    forkJoin(peticiones).subscribe({
       next: ({ usuarios: response, empresas: respuestaEmpresas }: any) => {
         if (response.success) {
           this.usuarios = response.usuarios;
           this.usuariosFiltrados = [...this.usuarios];
 
-          // Separar usuarios en internos (admin, instructor, consulta) y empresas
-          // Excluir al usuario actual de la lista de internos
+          // Internos = colaboradores Biznaga (no perfil empresa)
+          // En gestión se excluye al usuario actual; en directorio se incluyen todos
           this.usuariosInternos = this.usuarios.filter(u => {
             const rol = u.rol?.toLowerCase();
             const esInterno = rol !== 'empresa' && rol !== 'usuario empresa';
-            const noEsUsuarioActual = u.username !== usuarioActual;
-            return esInterno && noEsUsuarioActual;
+            if (this.modoDirectorio) {
+              return esInterno;
+            }
+            return esInterno && u.username !== usuarioActual;
           });
 
-          this.usuariosEmpresas = this.usuarios.filter(u => {
-            const rol = u.rol?.toLowerCase();
-            return rol === 'empresa' || rol === 'usuario empresa';
-          });
-
-          if (respuestaEmpresas?.success) {
-            const colaboradorasSinUsuario = this.construirEmpresasColaboradorasSinUsuario(
-              respuestaEmpresas.empresas || [],
-              this.usuariosEmpresas
-            );
-            this.usuariosEmpresas = [...this.usuariosEmpresas, ...colaboradorasSinUsuario];
-            this.usuariosEmpresas.sort((a, b) => {
-              const activoDiff = Number(this.usuarioEstaActivo(b)) - Number(this.usuarioEstaActivo(a));
-              if (activoDiff !== 0) return activoDiff;
-              return String(a.nombre_empresa || '').localeCompare(String(b.nombre_empresa || ''), 'es', { sensitivity: 'base' });
+          if (!this.modoDirectorio) {
+            this.usuariosEmpresas = this.usuarios.filter(u => {
+              const rol = u.rol?.toLowerCase();
+              return rol === 'empresa' || rol === 'usuario empresa';
             });
+
+            if (respuestaEmpresas?.success) {
+              const colaboradorasSinUsuario = this.construirEmpresasColaboradorasSinUsuario(
+                respuestaEmpresas.empresas || [],
+                this.usuariosEmpresas
+              );
+              this.usuariosEmpresas = [...this.usuariosEmpresas, ...colaboradorasSinUsuario];
+              this.usuariosEmpresas.sort((a, b) => {
+                const activoDiff = Number(this.usuarioEstaActivo(b)) - Number(this.usuarioEstaActivo(a));
+                if (activoDiff !== 0) return activoDiff;
+                return String(a.nombre_empresa || '').localeCompare(String(b.nombre_empresa || ''), 'es', { sensitivity: 'base' });
+              });
+            }
+          } else {
+            this.usuariosEmpresas = [];
           }
 
-          // Activos primero; dentro de cada grupo: administradores > instructores > ...
-          this.usuariosInternos.sort((a, b) => {
-            const activoDiff = Number(this.usuarioEstaActivo(b)) - Number(this.usuarioEstaActivo(a));
-            if (activoDiff !== 0) return activoDiff;
+          if (this.modoDirectorio) {
+            // Directorio: orden alfabético por nombre
+            this.usuariosInternos.sort((a, b) => {
+              const nombreA = `${a.nombre || ''} ${a.apellido || ''}`.trim();
+              const nombreB = `${b.nombre || ''} ${b.apellido || ''}`.trim();
+              return nombreA.localeCompare(nombreB, 'es', { sensitivity: 'base' });
+            });
+          } else {
+            // Activos primero; dentro de cada grupo: administradores > instructores > ...
+            this.usuariosInternos.sort((a, b) => {
+              const activoDiff = Number(this.usuarioEstaActivo(b)) - Number(this.usuarioEstaActivo(a));
+              if (activoDiff !== 0) return activoDiff;
 
-            const rolA = a.rol?.toLowerCase() || '';
-            const rolB = b.rol?.toLowerCase() || '';
+              const rolA = a.rol?.toLowerCase() || '';
+              const rolB = b.rol?.toLowerCase() || '';
 
-            const prioridades: { [key: string]: number } = {
-              'administrador': 1,
-              'instructor': 2,
-              'doctor': 3,
-              'consulta': 4,
-              'solo consulta': 4
-            };
+              const prioridades: { [key: string]: number } = {
+                'administrador': 1,
+                'instructor': 2,
+                'doctor': 3,
+                'consulta': 4,
+                'solo consulta': 4
+              };
 
-            const prioridadA = prioridades[rolA] || 99;
-            const prioridadB = prioridades[rolB] || 99;
+              const prioridadA = prioridades[rolA] || 99;
+              const prioridadB = prioridades[rolB] || 99;
 
-            return prioridadA - prioridadB;
-          });
+              return prioridadA - prioridadB;
+            });
+          }
 
           this.usuariosInternosFiltrados = [...this.usuariosInternos];
           this.usuariosEmpresasFiltrados = [...this.usuariosEmpresas];
@@ -173,7 +198,7 @@ export class GestionUsuariosComponent implements OnInit {
       error: (error) => {
         console.error('Error:', error);
         this.cargando = false;
-        Swal.fire('Error', 'No se pudieron cargar los usuarios', 'error');
+        Swal.fire('Error', this.modoDirectorio ? 'No se pudo cargar el directorio' : 'No se pudieron cargar los usuarios', 'error');
       }
     });
   }
@@ -231,20 +256,28 @@ export class GestionUsuariosComponent implements OnInit {
   }
 
   /**
-   * Filtra usuarios internos por nombre, usuario, email o rol
+   * Filtra usuarios internos por nombre, usuario, email, rol, teléfono o puesto
    */
   filtrarUsuarios() {
     if (!this.textoBusqueda || this.textoBusqueda.trim() === '') {
       this.usuariosInternosFiltrados = [...this.usuariosInternos];
     } else {
       const filtro = this.textoBusqueda.toLowerCase();
-      this.usuariosInternosFiltrados = this.usuariosInternos.filter(u =>
-        (u.username && u.username.toLowerCase().includes(filtro)) ||
-        (u.nombre && u.nombre.toLowerCase().includes(filtro)) ||
-        (u.apellido && u.apellido.toLowerCase().includes(filtro)) ||
-        (u.email && u.email.toLowerCase().includes(filtro)) ||
-        (u.rol && u.rol.toLowerCase().includes(filtro))
-      );
+      this.usuariosInternosFiltrados = this.usuariosInternos.filter(u => {
+        const nombreCompleto = `${u.nombre || ''} ${u.apellido || ''}`.toLowerCase();
+        if (this.modoDirectorio) {
+          return nombreCompleto.includes(filtro) ||
+            (u.email && u.email.toLowerCase().includes(filtro)) ||
+            (u.telefono && String(u.telefono).toLowerCase().includes(filtro)) ||
+            (u.organigrama && String(u.organigrama).toLowerCase().includes(filtro)) ||
+            (u.area_departamento && String(u.area_departamento).toLowerCase().includes(filtro));
+        }
+        return (u.username && u.username.toLowerCase().includes(filtro)) ||
+          nombreCompleto.includes(filtro) ||
+          (u.email && u.email.toLowerCase().includes(filtro)) ||
+          (u.rol && u.rol.toLowerCase().includes(filtro)) ||
+          (u.organigrama && String(u.organigrama).toLowerCase().includes(filtro));
+      });
     }
   }
 
@@ -272,6 +305,9 @@ export class GestionUsuariosComponent implements OnInit {
    * Cambia la sección activa (internos o empresas)
    */
   cambiarSeccion(seccion: 'internos' | 'empresas') {
+    if (this.modoDirectorio && seccion === 'empresas') {
+      return;
+    }
     this.seccionActiva = seccion;
   }
 

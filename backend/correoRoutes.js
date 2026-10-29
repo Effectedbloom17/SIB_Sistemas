@@ -1242,7 +1242,17 @@ module.exports = function createCorreoRoutes(deps) {
                 });
             }
 
-            const htmlBase = htmlPersonalizado || convertirTextoCorreoHtml(mensaje);
+            // Si el HTML trae \n literales en texto (p. ej. contenteditable con pre-wrap),
+            // los clientes los colapsan. Solo convertir saltos en texto con contenido
+            // (no indentación entre tags de citas/HTML formateado).
+            const htmlBase = htmlPersonalizado
+                ? String(htmlPersonalizado).replace(/(<[^>]+>)|([^<]+)/g, (match, tag, texto) => {
+                    if (tag) return tag;
+                    const t = String(texto || '');
+                    if (!/[^\s\u00A0]/.test(t)) return t;
+                    return t.replace(/\r\n?/g, '\n').replace(/\n/g, '<br>');
+                })
+                : convertirTextoCorreoHtml(mensaje);
             const htmlMensaje = adjuntosResueltos.bloqueHtml
                 ? `${htmlBase}${adjuntosResueltos.bloqueHtml}`
                 : htmlBase;

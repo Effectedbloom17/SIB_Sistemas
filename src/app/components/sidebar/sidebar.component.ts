@@ -46,7 +46,7 @@ const MENU_GROUPS: { title?: string; paths: string[] }[] = [
     { title: 'Seguridad', paths: ['/seguridad/normativas', '/seguridad/asignacion', '/seguridad/gestion'] },
     { title: 'Recursos Humanos', paths: ['/recursos-humanos/residentes', '/recursos-humanos/colaboradores'] },
     { title: 'Ambiental', paths: ['/ambiental', '/control-tramites'] },
-    { title: 'Control de Proyectos', paths: ['/control-proyectos', '/control-oficios'] },
+    { title: 'Control de Proyectos', paths: ['/control-proyectos', '/control-oficios', '/agenda'] },
     { title: 'Sensorización', paths: ['/sensores'] },
     { title: 'Diseño e Innovación', paths: ['/diseno-innovacion', '/diseno-innovacion/repositorio', '/diseno-innovacion/inventario'] },
     { title: 'Mantenimiento', paths: ['/mantenimiento/programa-infraestructura', '/mantenimiento/solicitud'] },
@@ -73,7 +73,8 @@ export const ROUTES: RouteInfo[] = [
     { path: '/correo-empresa', title: 'Correo\nEmpresarial',  icon:'ni-building', class: '', roles: ['root', 'administrador'] },
     { path: '/tickets', title: 'Tickets',  icon:'ni-tag', class: '', roles: ['root'] },
     { path: '/diagramas', title: 'Diagramas', icon: '', iconFa: 'fa-project-diagram', class: '', roles: ['administrador', 'instructor', 'coordinador', 'consulta', 'proteccion_civil', 'doctor', 'sgc', 'ambiental', 'innovacion', 'control_documental', 'rrhh', 'mantenimiento', 'iot'] },
-    { path: '/gestion-usuarios', title: 'Gestión de\nusuarios',  icon:'ni-circle-08', class: '', roles: ['root', 'administrador'], bottomSection: true },
+    // Gestión (admin/root) o Directorio de colaboradores (resto internos). Empresa excluida en filterMenuByRole.
+    { path: '/gestion-usuarios', title: 'Gestión de\nusuarios',  icon:'ni-circle-08', class: '', bottomSection: true },
     { path: '/aviso-privacidad', title: 'Aviso de\nprivacidad',  icon:'ni-circle-08', class: '', roles: ['empresa'], bottomSection: true },
     { path: '/proteccion-civil/asignacion-pipc', title: 'Asignación\nde PIPC',  icon:'ni-books', class: '', roles: ['root', 'administrador', 'proteccion_civil'] },
     { path: '/proteccion-civil', title: 'PIPC\nActivos',  icon:'ni-badge', class: '', roles: ['root', 'administrador', 'empresa', 'proteccion_civil'] },
@@ -101,6 +102,7 @@ export const ROUTES: RouteInfo[] = [
     { path: '/ambiental', title: 'Ambiental', icon: '', iconFa: 'fa-tree', class: '', roles: ['root', 'administrador', 'ambiental'] },
     { path: '/control-tramites', title: 'Control de\nTrámites', icon: '', iconFa: 'fa-clipboard-list', class: '', roles: ['root', 'administrador', 'ambiental'] },
     { path: '/control-oficios', title: 'Control de\nOficios', icon: '', iconFa: 'fa-folder-open', class: '' },
+    { path: '/agenda', title: 'Agenda', icon: '', iconFa: 'fa-clipboard-list', class: '', roles: ['root', 'innovacion'] },
     // De momento solo superadministrador (root); reabrir a administrador/innovacion/sgc cuando corresponda
     { path: '/diseno-innovacion', title: 'Proyectos\nSeñalización', icon: '', iconFa: 'fa-drafting-compass', class: '', roles: ['root'] },
     { path: '/diseno-innovacion/repositorio', title: 'Repositorio', icon: '', iconFa: 'fa-folder-open', class: '', roles: ['root'] },
@@ -520,6 +522,12 @@ export class SidebarComponent implements OnInit, OnDestroy {
         return !esEmpresa;
       }
 
+      // Gestión de usuarios / Directorio: todos los perfiles internos excepto empresa
+      if (item.path === '/gestion-usuarios') {
+        const esEmpresa = userRoles.some(role => role.toLowerCase() === 'empresa') || userRole === 'empresa';
+        return !esEmpresa;
+      }
+
       // Capítulos SGC queda integrado en Centro SGC (ruta principal)
       if (item.path === '/sistema-gestion-calidad/capitulos') {
         return false;
@@ -549,6 +557,16 @@ export class SidebarComponent implements OnInit, OnDestroy {
       return item.roles.some(role =>
         userRoles.includes(role.toLowerCase()) || role.toLowerCase() === userRole
       );
+    }).map(item => {
+      // Admin/root ven "Gestión de usuarios"; el resto de perfiles internos ven "Directorio"
+      if (item.path === '/gestion-usuarios') {
+        const esGestion = this.authService.esSuperusuario() || this.authService.esAdministrador();
+        return {
+          ...item,
+          title: esGestion ? 'Gestión de\nusuarios' : 'Directorio'
+        };
+      }
+      return item;
     });
   }
 

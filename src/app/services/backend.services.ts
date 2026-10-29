@@ -5999,4 +5999,47 @@ export class BackendServices {
     miniaturaDocumentoInnovacionInventario(docId: number): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/innovacion/inventario/documentos/${docId}/miniatura`);
     }
+
+    // ============================================
+    // AGENDA (Control de Proyectos · Diseño e Innovación)
+    // ============================================
+
+    obtenerAgenda(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/agenda`);
+    }
+
+    sincronizarAgenda(payload: {
+        actividades?: any[];
+        estatus?: any[];
+    }): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/agenda/sync`, payload || {});
+    }
+
+    guardarAgendaActividad(payload: any): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/agenda/actividades`, payload || {});
+    }
+
+    actualizarAgendaActividad(clientUuid: string, payload: any): Observable<any> {
+        return this.httpClient.put(`${this.baseUrl}/agenda/actividades/${encodeURIComponent(clientUuid)}`, payload || {});
+    }
+
+    eliminarAgendaActividad(clientUuid: string, updatedAtMs?: number): Observable<any> {
+        return this.httpClient.request('delete', `${this.baseUrl}/agenda/actividades/${encodeURIComponent(clientUuid)}`, {
+            body: { updatedAtMs: updatedAtMs || Date.now() }
+        });
+    }
+
+    guardarAgendaEstatus(payload: any): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/agenda/estatus`, payload || {});
+    }
+
+    actualizarAgendaEstatus(clientUuid: string, payload: any): Observable<any> {
+        return this.httpClient.put(`${this.baseUrl}/agenda/estatus/${encodeURIComponent(clientUuid)}`, payload || {});
+    }
+
+    eliminarAgendaEstatus(clientUuid: string, payload?: any): Observable<any> {
+        return this.httpClient.request('delete', `${this.baseUrl}/agenda/estatus/${encodeURIComponent(clientUuid)}`, {
+            body: payload || { updatedAtMs: Date.now(), eliminado: 1 }
+        });
+    }
 }

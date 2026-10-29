@@ -417,7 +417,9 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     const path = (url || '').split('?')[0];
     this.esProteccionCivil = path.startsWith('/proteccion-civil');
     this.esSistemaGestionCalidad = path.startsWith('/sistema-gestion-calidad');
-    this.esControlProyectos = path.startsWith('/control-proyectos') || path.startsWith('/control-oficios');
+    this.esControlProyectos = path.startsWith('/control-proyectos')
+      || path.startsWith('/control-oficios')
+      || path.startsWith('/agenda');
     this.esSensores = path.startsWith('/sensores');
     this.esRecursosHumanos = path.startsWith('/recursos-humanos');
     this.esDisenoInnovacion = path.startsWith('/diseno-innovacion');

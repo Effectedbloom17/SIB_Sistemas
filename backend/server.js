@@ -43,6 +43,7 @@ const correoImapService = require('./correoImapService');
 const notificacionesOperativasService = require('./notificacionesOperativasService');
 const notasVersionService = require('./notasVersionService');
 const ticketsService = require('./ticketsService');
+const agendaService = require('./agendaService');
 const sgcSolicitudDocumentosService = require('./sgcSolicitudDocumentosService');
 const createSgcFirmasRouter = require('./sgcFirmasRoutes');
 const mantenimientoService = require('./mantenimientoService');
@@ -3029,6 +3030,8 @@ const requireAdminOrAmbiental = requireRole('root', 'administrador', 'ambiental'
 
 /** Acceso al módulo Diseño e Innovación — de momento solo root (antes: root/administrador/innovacion) */
 const requireAdminOrInnovacion = requireRole('root');
+/** Agenda de actividades (Control de Proyectos): root + Diseño e Innovación */
+const requireAgenda = requireRole('root', 'innovacion');
 
 /** Acceso al Programa EIN-F-01 (mantenimiento a la infraestructura) */
 const requireAdminOrMantenimiento = requireRole('root', 'administrador', 'mantenimiento');
@@ -21293,6 +21296,115 @@ app.patch('/api/tickets/:id', authMiddleware, requireRole('root'), async (req, r
 });
 
 // =====================================================
+// AGENDA DE ACTIVIDADES (Control de Proyectos · Diseño e Innovación)
+// =====================================================
+
+app.get('/api/agenda', authMiddleware, requireAgenda, async (req, res) => {
+    try {
+        const snapshot = await agendaService.obtenerSnapshot(pool, req.user.id);
+        res.json({ success: true, ...snapshot, serverTimeMs: Date.now() });
+    } catch (error) {
+        handleError(res, error, 'Error al cargar agenda');
+    }
+});
+
+app.post('/api/agenda/sync', authMiddleware, requireAgenda, async (req, res) => {
+    try {
+        const resultado = await agendaService.sincronizar(pool, req.user.id, req.body || {});
+        res.json({ success: true, ...resultado });
+    } catch (error) {
+        handleError(res, error, 'Error al sincronizar agenda');
+    }
+});
+
+app.post('/api/agenda/actividades', authMiddleware, requireAgenda, async (req, res) => {
+    try {
+        const item = await agendaService.upsertActividad(pool, req.user.id, req.body || {});
+        res.json({ success: true, actividad: item });
+    } catch (error) {
+        const status = error.status || 500;
+        if (status >= 400 && status < 500) {
+            return res.status(status).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'Error al guardar actividad');
+    }
+});
+
+app.put('/api/agenda/actividades/:clientUuid', authMiddleware, requireAgenda, async (req, res) => {
+    try {
+        const item = await agendaService.upsertActividad(pool, req.user.id, {
+            ...(req.body || {}),
+            clientUuid: req.params.clientUuid
+        });
+        res.json({ success: true, actividad: item });
+    } catch (error) {
+        const status = error.status || 500;
+        if (status >= 400 && status < 500) {
+            return res.status(status).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'Error al actualizar actividad');
+    }
+});
+
+app.delete('/api/agenda/actividades/:clientUuid', authMiddleware, requireAgenda, async (req, res) => {
+    try {
+        const item = await agendaService.softDeleteActividad(
+            pool,
+            req.user.id,
+            req.params.clientUuid,
+            req.body?.updatedAtMs || Date.now()
+        );
+        res.json({ success: true, actividad: item });
+    } catch (error) {
+        handleError(res, error, 'Error al eliminar actividad');
+    }
+});
+
+app.post('/api/agenda/estatus', authMiddleware, requireAgenda, async (req, res) => {
+    try {
+        const item = await agendaService.upsertEstatus(pool, req.user.id, req.body || {});
+        res.json({ success: true, estatus: item });
+    } catch (error) {
+        const status = error.status || 500;
+        if (status >= 400 && status < 500) {
+            return res.status(status).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'Error al guardar estatus');
+    }
+});
+
+app.put('/api/agenda/estatus/:clientUuid', authMiddleware, requireAgenda, async (req, res) => {
+    try {
+        const item = await agendaService.upsertEstatus(pool, req.user.id, {
+            ...(req.body || {}),
+            clientUuid: req.params.clientUuid
+        });
+        res.json({ success: true, estatus: item });
+    } catch (error) {
+        const status = error.status || 500;
+        if (status >= 400 && status < 500) {
+            return res.status(status).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'Error al actualizar estatus');
+    }
+});
+
+app.delete('/api/agenda/estatus/:clientUuid', authMiddleware, requireAgenda, async (req, res) => {
+    try {
+        const item = await agendaService.upsertEstatus(pool, req.user.id, {
+            ...(req.body || {}),
+            clientUuid: req.params.clientUuid,
+            etiqueta: (req.body && req.body.etiqueta) || 'Eliminado',
+            eliminado: 1,
+            updatedAtMs: req.body?.updatedAtMs || Date.now()
+        });
+        res.json({ success: true, estatus: item });
+    } catch (error) {
+        handleError(res, error, 'Error al eliminar estatus');
+    }
+});
+
+// =====================================================
 // SOLICITUDES DE CAMBIO A DOCUMENTOS SGC (flujo tipo tickets)
 // =====================================================
 
@@ -25692,6 +25804,14 @@ chatSocketIo = initChatSocket(server, {
         logDebug('  Tabla tickets: OK');
     } catch (e) {
         console.warn('  [WARN] tickets:', e.message);
+    }
+
+    // Agenda de actividades (Control de Proyectos)
+    try {
+        await agendaService.asegurarTabla(pool);
+        logDebug('  Tabla agenda: OK');
+    } catch (e) {
+        console.warn('  [WARN] agenda:', e.message);
     }
 
     // Opiniones y Sugerencias (registro independiente, no SGC)

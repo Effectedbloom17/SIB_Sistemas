@@ -6,6 +6,7 @@ import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
 import { PdfPreviewLoaderService } from 'src/app/services/pdf-preview-loader.service';
+import { lanzarImpresionEnSistema } from 'src/app/utils/in-app-print.util';
 import {
   SGC_INSTRUCTIVOS_CATALOG,
   SgcInstructivoDoc,
@@ -38,6 +39,7 @@ export class SgcInstructivosComponent implements OnInit, OnDestroy {
 
   mostrarVisor = false;
   visorCargando = false;
+  imprimiendo = false;
   visorError: string | null = null;
   documentoActivo: SgcInstructivoDoc | null = null;
   previewBlob: Blob | null = null;
@@ -307,6 +309,63 @@ export class SgcInstructivosComponent implements OnInit, OnDestroy {
         });
       }
     });
+  }
+
+  imprimirDocumento(doc?: SgcInstructivoDoc | null, event?: Event): void {
+    event?.stopPropagation();
+    const destino = doc || this.documentoActivo;
+    if (!destino || this.imprimiendo) {
+      return;
+    }
+
+    const nombre = destino.nombreArchivo || `${destino.codigo}.pdf`;
+    if (
+      this.previewBlob
+      && this.documentoActivo
+      && this.documentoActivo.codigo.toLowerCase() === destino.codigo.toLowerCase()
+    ) {
+      lanzarImpresionEnSistema(this.previewBlob, false);
+      return;
+    }
+
+    const driveId = String(destino.driveFileId || '').trim();
+    if (!driveId) {
+      void Swal.fire({
+        icon: 'info',
+        title: 'Impresión no disponible',
+        text: 'No se encontró el archivo en Drive para imprimirlo.',
+        confirmButtonColor: '#0f766e'
+      });
+      return;
+    }
+
+    this.imprimiendo = true;
+    void Swal.fire({
+      title: 'Preparando impresión…',
+      text: 'Un momento, esto puede tardar unos segundos…',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    this.backend.imprimirArchivoDriveComoPDF(driveId, nombre)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: blob => {
+          this.imprimiendo = false;
+          Swal.close();
+          lanzarImpresionEnSistema(new Blob([blob], { type: 'application/pdf' }), false);
+        },
+        error: () => {
+          this.imprimiendo = false;
+          Swal.close();
+          void Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo preparar el documento para impresión.',
+            confirmButtonColor: '#0f766e'
+          });
+        }
+      });
   }
 
   private dispararDescarga(blob: Blob, nombre: string): void {

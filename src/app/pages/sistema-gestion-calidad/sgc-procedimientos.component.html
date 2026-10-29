@@ -173,6 +173,13 @@
                         <i class="fas fa-expand" aria-hidden="true"></i>
                         Ver procedimiento
                       </span>
+                      <button type="button"
+                              class="sgc-proc-card__print"
+                              title="Imprimir"
+                              (click)="imprimirDocumento(doc, $event)">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        Imprimir
+                      </button>
                       <button *ngIf="puedeGestionar && doc.id"
                               type="button"
                               class="sgc-proc-card__replace"
@@ -229,6 +236,13 @@
         </div>
       </div>
       <div class="sgc-proc-visor__actions">
+        <button type="button"
+                class="btn btn-sm btn-outline-light sgc-proc-visor__btn"
+                (click)="imprimirDocumento(documentoActivo)"
+                [disabled]="(!previewBlob && visorCargando) || imprimiendo">
+          <i class="fas mr-1" [ngClass]="imprimiendo ? 'fa-spinner fa-spin' : 'fa-print'" aria-hidden="true"></i>
+          Imprimir
+        </button>
         <button *ngIf="puedeGestionar"
                 type="button"
                 class="btn btn-sm btn-outline-light sgc-proc-visor__btn"

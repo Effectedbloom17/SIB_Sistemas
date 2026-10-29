@@ -1,0 +1,218 @@
+<div class="header header-bg-image agenda-hero pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+    <div class="row w-100 text-center">
+      <div class="col-12">
+        <div class="d-flex flex-column align-items-center justify-content-center">
+          <div class="agenda-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+            <i class="fas fa-clipboard-list" aria-hidden="true"></i>
+          </div>
+          <h1 class="text-white mb-0 agenda-hero-title">Agenda</h1>
+          <p class="text-white agenda-hero-tagline mb-0">Actividades en gestión · Diseño e Innovación</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid agenda-main mt--6 pb-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-xl-10">
+      <div class="card agenda-shell border-0 shadow">
+        <div class="card-body p-3 p-md-4">
+
+          <div class="agenda-toolbar">
+            <div class="agenda-toolbar__meta">
+              <span class="agenda-pill" [class.agenda-pill--warn]="!online" [class.agenda-pill--ok]="online && !pendienteSync">
+                <i class="fas" [ngClass]="!online ? 'fa-exclamation-triangle' : (sincronizando ? 'fa-sync fa-spin' : (pendienteSync ? 'fa-cloud-upload-alt' : 'fa-check-circle'))" aria-hidden="true"></i>
+                {{ !online ? 'Sin internet · guardado local' : (sincronizando ? 'Sincronizando…' : (pendienteSync ? 'Pendiente de subir' : 'Sincronizado')) }}
+              </span>
+              <span class="agenda-stat" *ngIf="!cargando">{{ contadores.abiertas }} abiertas · {{ contadores.finales }} cerradas</span>
+            </div>
+            <div class="agenda-toolbar__actions">
+              <button type="button" class="btn btn-sm agenda-btn-ghost" (click)="abrirGestionEstatus()" title="Administrar estatus">
+                <i class="fas fa-tags" aria-hidden="true"></i>
+                Estatus
+              </button>
+              <button type="button" class="btn btn-sm agenda-btn-ghost" (click)="sincronizar()" [disabled]="sincronizando || !online">
+                <i class="fas" [ngClass]="sincronizando ? 'fa-spinner fa-spin' : 'fa-sync-alt'" aria-hidden="true"></i>
+                Sync
+              </button>
+              <button type="button" class="btn btn-sm agenda-btn-primary" (click)="abrirCrear()">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                Nueva actividad
+              </button>
+            </div>
+          </div>
+
+          <div class="agenda-filters">
+            <div class="agenda-search">
+              <i class="fas fa-search" aria-hidden="true"></i>
+              <input type="search"
+                     [(ngModel)]="busqueda"
+                     placeholder="Buscar actividad…"
+                     aria-label="Buscar actividad">
+            </div>
+            <select class="agenda-select" [(ngModel)]="filtroEstatus" aria-label="Filtrar por estatus">
+              <option value="">Todos los estatus</option>
+              <option *ngFor="let e of estatus" [value]="e.clave">{{ e.etiqueta }}</option>
+            </select>
+          </div>
+
+          <p class="agenda-error" *ngIf="errorCarga">{{ errorCarga }}</p>
+
+          <div class="agenda-loading text-center py-5" *ngIf="cargando && !actividades.length">
+            <i class="fas fa-spinner fa-spin fa-2x text-muted" aria-hidden="true"></i>
+            <p class="text-muted mt-2 mb-0">Cargando agenda…</p>
+          </div>
+
+          <div class="agenda-empty text-center py-5" *ngIf="!cargando && !actividadesFiltradas.length">
+            <i class="fas fa-clipboard-list fa-2x text-muted mb-2" aria-hidden="true"></i>
+            <p class="text-muted mb-3">
+              {{ actividades.length ? 'Ninguna actividad coincide con el filtro.' : 'Aún no hay actividades. Empieza tu lista.' }}
+            </p>
+            <button type="button" class="btn agenda-btn-primary" *ngIf="!actividades.length" (click)="abrirCrear()">
+              <i class="fas fa-plus" aria-hidden="true"></i>
+              Agregar primera actividad
+            </button>
+          </div>
+
+          <ul class="agenda-list list-unstyled mb-0" *ngIf="actividadesFiltradas.length">
+            <li class="agenda-item"
+                *ngFor="let a of actividadesFiltradas"
+                [class.agenda-item--done]="esFinal(a.estatusClave)">
+              <div class="agenda-item__accent" [style.background]="colorEstatus(a.estatusClave)" aria-hidden="true"></div>
+              <div class="agenda-item__body">
+                <div class="agenda-item__top">
+                  <h3 class="agenda-item__title">{{ a.titulo }}</h3>
+                  <span class="agenda-prio" [attr.data-prio]="a.prioridad">{{ a.prioridad }}</span>
+                </div>
+                <p class="agenda-item__desc" *ngIf="a.descripcion">{{ a.descripcion }}</p>
+                <div class="agenda-item__meta">
+                  <label class="agenda-estatus-select">
+                    <span class="sr-only">Estatus</span>
+                    <select [ngModel]="a.estatusClave"
+                            (ngModelChange)="cambiarEstatus(a, $event)"
+                            [style.borderColor]="colorEstatus(a.estatusClave)">
+                      <option *ngFor="let e of estatus" [value]="e.clave">{{ e.etiqueta }}</option>
+                    </select>
+                  </label>
+                  <span class="agenda-date" *ngIf="a.fechaLimite">
+                    <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                    {{ a.fechaLimite }}
+                  </span>
+                </div>
+              </div>
+              <div class="agenda-item__actions">
+                <button type="button" class="agenda-icon-btn" (click)="abrirEditar(a)" title="Editar">
+                  <i class="fas fa-pen" aria-hidden="true"></i>
+                </button>
+                <button type="button" class="agenda-icon-btn agenda-icon-btn--danger" (click)="eliminarActividad(a)" title="Eliminar">
+                  <i class="fas fa-trash" aria-hidden="true"></i>
+                </button>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal actividad -->
+<div class="agenda-modal-backdrop" *ngIf="mostrarModalActividad" (click)="cerrarModalActividad()"></div>
+<div class="agenda-modal" *ngIf="mostrarModalActividad" role="dialog" aria-modal="true" aria-labelledby="agenda-modal-title">
+  <div class="agenda-modal__head">
+    <h2 id="agenda-modal-title">{{ editandoUuid ? 'Editar actividad' : 'Nueva actividad' }}</h2>
+    <button type="button" class="agenda-icon-btn" (click)="cerrarModalActividad()" aria-label="Cerrar">
+      <i class="fas fa-times" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="agenda-modal__body">
+    <label class="agenda-field">
+      <span>Título</span>
+      <input type="text" [(ngModel)]="form.titulo" maxlength="255" placeholder="Ej. Comprar material para señalización">
+    </label>
+    <label class="agenda-field">
+      <span>Notas / detalle</span>
+      <textarea rows="3" [(ngModel)]="form.descripcion" maxlength="4000" placeholder="Qué falta, a quién contactar, etc."></textarea>
+    </label>
+    <div class="agenda-field-row">
+      <label class="agenda-field">
+        <span>Estatus</span>
+        <select [(ngModel)]="form.estatusClave">
+          <option *ngFor="let e of estatus" [value]="e.clave">{{ e.etiqueta }}</option>
+        </select>
+      </label>
+      <label class="agenda-field">
+        <span>Prioridad</span>
+        <select [(ngModel)]="form.prioridad">
+          <option value="alta">Alta</option>
+          <option value="normal">Normal</option>
+          <option value="baja">Baja</option>
+        </select>
+      </label>
+      <label class="agenda-field">
+        <span>Fecha límite</span>
+        <input type="date" [(ngModel)]="form.fechaLimite">
+      </label>
+    </div>
+  </div>
+  <div class="agenda-modal__foot">
+    <button type="button" class="btn agenda-btn-ghost" (click)="cerrarModalActividad()">Cancelar</button>
+    <button type="button" class="btn agenda-btn-primary" (click)="guardarActividad()">Guardar</button>
+  </div>
+</div>
+
+<!-- Modal estatus -->
+<div class="agenda-modal-backdrop" *ngIf="mostrarModalEstatus" (click)="cerrarModalEstatus()"></div>
+<div class="agenda-modal agenda-modal--wide" *ngIf="mostrarModalEstatus" role="dialog" aria-modal="true" aria-labelledby="agenda-estatus-title">
+  <div class="agenda-modal__head">
+    <h2 id="agenda-estatus-title">Administrar estatus</h2>
+    <button type="button" class="agenda-icon-btn" (click)="cerrarModalEstatus()" aria-label="Cerrar">
+      <i class="fas fa-times" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="agenda-modal__body">
+    <p class="agenda-hint">Define cómo clasificas tus actividades (completado, pendiente de correo, esperando cliente, etc.).</p>
+
+    <ul class="agenda-estatus-admin list-unstyled">
+      <li *ngFor="let e of estatus" class="agenda-estatus-admin__row">
+        <span class="agenda-estatus-dot" [style.background]="e.color" aria-hidden="true"></span>
+        <div class="agenda-estatus-admin__info">
+          <strong>{{ e.etiqueta }}</strong>
+          <small>{{ e.clave }}{{ e.esFinal ? ' · cierre' : '' }}</small>
+        </div>
+        <button type="button" class="agenda-icon-btn" (click)="editarEstatus(e)" title="Editar">
+          <i class="fas fa-pen" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="agenda-icon-btn agenda-icon-btn--danger" (click)="eliminarEstatus(e)" title="Eliminar">
+          <i class="fas fa-trash" aria-hidden="true"></i>
+        </button>
+      </li>
+    </ul>
+
+    <hr class="agenda-divider">
+
+    <h3 class="agenda-subtitle">{{ editandoEstatusUuid ? 'Editar estatus' : 'Nuevo estatus' }}</h3>
+    <div class="agenda-field-row">
+      <label class="agenda-field agenda-field--grow">
+        <span>Nombre</span>
+        <input type="text" [(ngModel)]="formEstatus.etiqueta" maxlength="100" placeholder="Ej. Pendiente de factura">
+      </label>
+      <label class="agenda-field">
+        <span>Color</span>
+        <input type="color" [(ngModel)]="formEstatus.color">
+      </label>
+    </div>
+    <label class="agenda-check">
+      <input type="checkbox" [(ngModel)]="formEstatus.esFinal">
+      <span>Marcar como estatus de cierre (completado / no completado)</span>
+    </label>
+  </div>
+  <div class="agenda-modal__foot">
+    <button type="button" class="btn agenda-btn-ghost" (click)="cerrarModalEstatus()">Cerrar</button>
+    <button type="button" class="btn agenda-btn-primary" (click)="guardarEstatus()">
+      {{ editandoEstatusUuid ? 'Actualizar' : 'Agregar estatus' }}
+    </button>
+  </div>
+</div>

@@ -572,6 +572,26 @@ $pdf-red-dark: #b91c1c;
   border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
+.sgc-proc-card__print {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.28);
+    transform: translateY(-1px);
+  }
+}
+
 .sgc-proc-card__replace {
   display: inline-flex;
   align-items: center;
@@ -693,6 +713,7 @@ $pdf-red-dark: #b91c1c;
   inset: 0;
   background: rgba(9, 82, 74, 0.92);
   backdrop-filter: blur(4px);
+  animation: sgc-proc-visor-backdrop-in 0.28s ease-out both;
 }
 
 .sgc-proc-visor__panel {
@@ -708,6 +729,30 @@ $pdf-red-dark: #b91c1c;
   box-shadow:
     0 24px 80px rgba(0, 0, 0, 0.45),
     0 0 0 1px rgba(255, 255, 255, 0.08);
+  animation: sgc-proc-visor-panel-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes sgc-proc-visor-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sgc-proc-visor-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sgc-proc-visor__backdrop,
+  .sgc-proc-visor__panel {
+    animation: none;
+  }
 }
 
 .sgc-proc-visor__head {

@@ -690,6 +690,16 @@ export class NavbarComponent implements OnInit, OnDestroy {
         keywords: ['oficio', 'documento', 'control documental', 'expediente']
       },
       {
+        id: 'fn-agenda',
+        titulo: 'Agenda',
+        descripcion: 'Actividades en gestión con estatus personalizables',
+        tipo: 'funcion',
+        icono: 'fa-clipboard-list',
+        ruta: '/agenda',
+        keywords: ['agenda', 'notas', 'actividades', 'tareas', 'estatus', 'lista'],
+        roles: ['root', 'innovacion']
+      },
+      {
         id: 'fn-proyectos',
         titulo: 'Control de proyectos',
         descripcion: 'Avance y gestión de proyectos',
@@ -824,16 +834,22 @@ export class NavbarComponent implements OnInit, OnDestroy {
       abreVisor: true
     }));
 
-    const desdeRutas: BusquedaSistemaItem[] = (ROUTES || []).map((route) => ({
-      id: `ruta-${route.path}`,
-      titulo: route.title,
-      descripcion: this.descripcionApartado(route.path, route.title),
-      tipo: 'apartado' as const,
-      icono: route.iconFa || this.iconoDesdeNucleo(route.icon) || 'fa-link',
-      ruta: route.path,
-      keywords: this.keywordsApartado(route.path, route.title),
-      roles: route.roles
-    }));
+    const esGestionUsuarios = this.authService.esSuperusuario() || this.authService.esAdministrador();
+    const desdeRutas: BusquedaSistemaItem[] = (ROUTES || []).map((route) => {
+      const titulo = route.path === '/gestion-usuarios'
+        ? (esGestionUsuarios ? 'Gestión de usuarios' : 'Directorio')
+        : route.title;
+      return {
+        id: `ruta-${route.path}`,
+        titulo,
+        descripcion: this.descripcionApartado(route.path, titulo),
+        tipo: 'apartado' as const,
+        icono: route.iconFa || this.iconoDesdeNucleo(route.icon) || 'fa-link',
+        ruta: route.path,
+        keywords: this.keywordsApartado(route.path, titulo),
+        roles: route.roles
+      };
+    });
 
     const vistos = new Set<string>();
     this.catalogoBusqueda = [...extras, ...formatosInteractivosSgc, ...formatosSgc, ...procedimientosSgc, ...instructivosSgc, ...normativasSgc, ...desdeRutas]
@@ -856,6 +872,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
     if (item.ruta === '/correo' && esEmpresa) return false;
     if (item.ruta === '/mis-empresas' && esEmpresa) return false;
+    if (item.ruta === '/gestion-usuarios' && esEmpresa) return false;
     if (
       (item.ruta === '/sistema-gestion-calidad'
         || item.ruta.startsWith('/sistema-gestion-calidad/')
@@ -908,8 +925,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
       '/diseno-innovacion/inventario': 'Inventario de materiales',
       '/mantenimiento/programa-infraestructura': 'Programa de mantenimiento a la infraestructura',
       '/mantenimiento/solicitud': 'Solicitud de mantenimiento',
-      '/gestion-usuarios': 'Alta y permisos de usuarios',
-      '/sensores': 'Monitoreo de sensores IoT'
+      '/gestion-usuarios': this.authService.esSuperusuario() || this.authService.esAdministrador()
+        ? 'Alta y permisos de usuarios'
+        : 'Directorio de colaboradores Biznaga',
+      '/sensores': 'Monitoreo de sensores IoT',
+      '/agenda': 'Agenda de actividades en gestión'
     };
     return map[path] || `Ir a ${title}`;
   }
@@ -928,6 +948,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       '/sistema-gestion-calidad/instructivos': ['instructivo', 'folio'],
       '/control-proyectos': ['proyecto', 'avance'],
       '/control-oficios': ['oficio', 'documento'],
+      '/agenda': ['agenda', 'notas', 'actividades', 'tareas', 'estatus'],
       '/proteccion-civil': ['pc', 'brigada', 'evacuacion'],
       '/proteccion-civil/historial-pc': ['historial', 'pipc', 'tramite', 'pc'],
       '/expedientes-medicos': ['medico', 'clinica', 'salud'],
@@ -937,7 +958,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
       '/mantenimiento/solicitud': ['solicitud', 'mantenimiento', 'eiff02'],
       '/correo': ['email', 'mail', 'mensajes'],
       '/tickets': ['falla', 'sugerencia', 'funcionamiento'],
-      '/gestion-usuarios': ['usuario', 'rol', 'permiso']
+      '/gestion-usuarios': this.authService.esSuperusuario() || this.authService.esAdministrador()
+        ? ['usuario', 'rol', 'permiso']
+        : ['directorio', 'colaborador', 'correo', 'telefono', 'puesto', 'organigrama']
     };
     return [...base, ...(extra[path] || [])];
   }
@@ -1727,6 +1750,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
     if (titlee.includes('/mis-empresas/') && titlee.includes('/repositorio')) {
       return 'Repositorio Empresarial';
+    }
+
+    if (titlee === '/gestion-usuarios' || titlee.endsWith('/gestion-usuarios')) {
+      return (this.authService.esSuperusuario() || this.authService.esAdministrador())
+        ? 'Gestión de usuarios'
+        : 'Directorio';
     }
 
     for (var item = 0; item < this.listTitles.length; item++) {

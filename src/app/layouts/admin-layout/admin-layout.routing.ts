@@ -92,11 +92,12 @@ export const AdminLayoutRoutes: Routes = [
         canActivate: [RoleGuard],
         data: { roles: ['administrador'] }
     },
-    { 
-        path: 'gestion-usuarios',   
+    {
+        path: 'gestion-usuarios',
         component: GestionUsuariosComponent,
-        canActivate: [RoleGuard],
-        data: { roles: ['administrador'] }
+        canActivate: [RoleGuard]
+        // Acceso: todos los roles autenticados excepto empresa (ver RoleGuard).
+        // Admin/root: gestión completa. Resto: directorio de solo lectura.
     },
     { 
         path: 'mis-empresas',    
@@ -222,6 +223,14 @@ export const AdminLayoutRoutes: Routes = [
         path: 'control-oficios',
         loadChildren: () => import('../../pages/ambiental/ambiental.module').then(m => m.AmbientalModule),
         canActivate: [RoleGuard]
+    },
+
+    // Agenda de actividades (Control de Proyectos) — root + Diseño e Innovación
+    {
+        path: 'agenda',
+        loadChildren: () => import('../../pages/agenda/agenda.module').then(m => m.AgendaModule),
+        canActivate: [RoleGuard],
+        data: { roles: ['root', 'innovacion'] }
     },
 
     // Control de Trámites (SP-F-28 visor) — reutiliza el módulo Ambiental en modo "control-tramites"

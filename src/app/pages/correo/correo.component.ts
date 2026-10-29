@@ -1854,6 +1854,17 @@ export class CorreoComponent implements OnInit, OnDestroy {
       html = '';
     }
 
+    // El editor usa white-space:pre-wrap: Enter queda como \n en nodos de texto.
+    // En HTML de correo esos saltos se colapsan; convertir solo texto con contenido.
+    if (html) {
+      html = html.replace(/(<[^>]+>)|([^<]+)/g, (_m, tag: string, texto: string) => {
+        if (tag) return tag;
+        const t = String(texto || '');
+        if (!/[^\s\u00A0]/.test(t)) return t;
+        return t.replace(/\r\n?/g, '\n').replace(/\n/g, '<br>');
+      });
+    }
+
     const cita = String(borrador.citaHtml || '').trim();
     if (cita) {
       // Conserva el hilo: contestación nueva arriba + mensaje citado debajo (como Gmail).
