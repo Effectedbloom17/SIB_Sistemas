@@ -7,6 +7,7 @@ import { NotificacionesService } from 'src/app/services/notificaciones.service';
 import { HistorialPendientesService } from 'src/app/services/historial-pendientes.service';
 import { SgcDashboardCacheService } from 'src/app/services/sgc-dashboard-cache.service';
 import { ConnectivityService } from 'src/app/services/connectivity.service';
+import { AvisoPopupItem, AvisosPopupService } from 'src/app/services/avisos-popup.service';
 import { Subject, interval, fromEvent } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
 
@@ -28,41 +29,9 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
   esMantenimiento = false;
   /** En correo el footer global compite con la ventana de redacción; se oculta. */
   ocultarFooter = false;
-  avisosCambio: Array<{
-    id: number;
-    cambioId: number;
-    tipo?: string;
-    mensaje: string;
-    empresaId: number | null;
-    folio: string;
-    nombreProyecto: string;
-    solicitadoPor?: string;
-    resueltoPor?: string;
-    estatus?: string;
-  }> = [];
-  avisosFirma: Array<{
-    id: number;
-    solicitudId: number;
-    tipo: string;
-    codigo: string;
-    nombreDocumento: string;
-    solicitadoPor: string;
-    resueltoPor: string;
-    mensaje: string;
-    ruta: string;
-  }> = [];
-  avisosResolutivo: Array<{
-    id: number;
-    resolutivoId: number;
-    tipo: string;
-    mensaje: string;
-    empresaId: number | null;
-    nombreEmpresa: string;
-    nombreAsignacion: string;
-    responsableNombre: string;
-    diasRestantes: number | null;
-    ruta: string;
-  }> = [];
+  avisosCambio: AvisoPopupItem[] = [];
+  avisosFirma: AvisoPopupItem[] = [];
+  avisosResolutivo: AvisoPopupItem[] = [];
   avisoSaliendo = false;
   avisoFirmaSaliendo = false;
   avisoResolutivoSaliendo = false;
@@ -72,7 +41,7 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
   private avisoAccionPendiente: 'cerrar' | 'revisar' | null = null;
   private avisoFirmaAccionPendiente: 'cerrar' | 'revisar' | null = null;
-  private avisoResolutivoAccionPendiente: 'cerrar' | 'revisar' | null = null;
+  private avisoResolutivoAccionPendiente: 'cerrar' | 'revisar' | 'aceptar_todas' | null = null;
   private avisoSalidaTimer: ReturnType<typeof setTimeout> | null = null;
   private avisoFirmaSalidaTimer: ReturnType<typeof setTimeout> | null = null;
   private avisoResolutivoSalidaTimer: ReturnType<typeof setTimeout> | null = null;
@@ -86,7 +55,8 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     private notificacionesService: NotificacionesService,
     private historialPendientes: HistorialPendientesService,
     private sgcDashboardCache: SgcDashboardCacheService,
-    private connectivity: ConnectivityService
+    private connectivity: ConnectivityService,
+    private avisosPopup: AvisosPopupService
   ) { }
 
   ngOnInit() {
@@ -95,12 +65,10 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     );
     const rol = this.authService.getRol()?.toLowerCase();
     this.esDoctor = rol === 'doctor';
-    // Ocultar sidebar para doctores
     if (this.esDoctor) {
       this.sidebarService.hideSidebar();
     }
 
-    // Detectar rutas para tema / layout
     this.actualizarFlagsRuta(this.router.url);
     this.router.events.pipe(
       filter(e => e instanceof NavigationEnd),
@@ -108,22 +76,27 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     ).subscribe((e: NavigationEnd) => {
       this.actualizarFlagsRuta(e.urlAfterRedirects);
       this.cargarNotificaciones();
-      this.cargarAvisosCambio();
-      this.cargarAvisosFirma();
-      this.cargarAvisosResolutivo();
+      this.avisosPopup.sincronizarTrasLoginSiNecesario();
+    });
+
+    this.avisosPopup.firma$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.avisosFirma = this.avisosPopup.firmaPopup;
+    });
+    this.avisosPopup.resolutivo$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.avisosResolutivo = this.avisosPopup.resolutivoPopup;
+    });
+    this.avisosPopup.cambio$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.avisosCambio = this.avisosPopup.cambioPopup;
     });
 
     this.cargarNotificaciones();
-    this.cargarAvisosCambio();
-    this.cargarAvisosFirma();
-    this.cargarAvisosResolutivo();
+    // Primera carga de la sesión: reactiva silenciados y reenvía PC vigentes.
+    this.avisosPopup.sincronizarTrasLoginSiNecesario();
     interval(AdminLayoutComponent.NOTIF_REFRESH_MS)
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
         this.cargarNotificaciones();
-        this.cargarAvisosCambio();
-        this.cargarAvisosFirma();
-        this.cargarAvisosResolutivo();
+        this.avisosPopup.refrescar();
       });
 
     if (typeof document !== 'undefined') {
@@ -131,9 +104,7 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
         .pipe(takeUntil(this.destroy$))
         .subscribe(() => {
           if (document.visibilityState === 'visible') {
-            this.cargarAvisosFirma();
-            this.cargarAvisosCambio();
-            this.cargarAvisosResolutivo();
+            this.avisosPopup.refrescar();
             this.cargarNotificaciones();
           }
         });
@@ -146,7 +117,6 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
         this.sinConexion = !online;
       });
 
-    // Precarga dashboard Centro SGC en idle mientras el usuario navega
     this.sgcDashboardCache.prefetchEnSegundoPlano();
   }
 
@@ -165,13 +135,21 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
           this.notificacionesService.setNotifPersonales(res.notificaciones || []);
         }
       },
-      error: () => {} // silencioso
+      error: () => {}
     });
     this.historialPendientes.refrescar();
   }
 
-  get avisoCambioActual(): typeof this.avisosCambio[number] | null {
+  get avisoCambioActual(): AvisoPopupItem | null {
     return this.avisosCambio[0] || null;
+  }
+
+  get avisoFirmaActual(): AvisoPopupItem | null {
+    return this.avisosFirma[0] || null;
+  }
+
+  get avisoResolutivoActual(): AvisoPopupItem | null {
+    return this.avisosResolutivo[0] || null;
   }
 
   cerrarAvisoCambio(): void {
@@ -197,6 +175,7 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     }
     this.avisoAccionPendiente = accion;
     this.avisoSaliendo = true;
+    this.avisosPopup.bloqueoCambio = true;
     this.avisoSalidaTimer = setTimeout(() => this.completarSalidaAviso(), 700);
   }
 
@@ -214,28 +193,17 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     }
     this.avisoAccionPendiente = null;
     this.avisoSaliendo = false;
+    this.avisosPopup.bloqueoCambio = false;
   }
 
   private ejecutarAccionAviso(accion: 'cerrar' | 'revisar'): void {
     const aviso = this.avisoCambioActual;
     if (!aviso) return;
-    this.avisosCambio = this.avisosCambio.filter((item) => item.id !== aviso.id);
-    this.backendServices.descartarAvisoCambioControlProyecto(aviso.id).subscribe({ error: () => {} });
-    if (accion === 'cerrar') return;
-    if (aviso.tipo === 'respuesta') {
-      this.router.navigate(['/control-proyectos'], {
-        queryParams: {
-          cambioFolio: aviso.folio || null,
-          cambioEmpresaId: aviso.empresaId || null,
-          cambioId: aviso.cambioId || null,
-          solicitudes: null
-        }
-      });
+    if (accion === 'cerrar') {
+      this.avisosPopup.silenciar(aviso);
       return;
     }
-    this.router.navigate(['/control-proyectos'], {
-      queryParams: { solicitudes: 1 }
-    });
+    this.avisosPopup.abrir(aviso);
   }
 
   tituloAvisoCambio(aviso: { tipo?: string }): string {
@@ -274,10 +242,6 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     return 'Respondió';
   }
 
-  get avisoFirmaActual(): typeof this.avisosFirma[number] | null {
-    return this.avisosFirma[0] || null;
-  }
-
   cerrarAvisoFirma(): void {
     this.iniciarSalidaAvisoFirma('cerrar');
   }
@@ -305,10 +269,10 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
   }
 
   mascotaAvisoFirma(aviso: { tipo?: string }): string {
-    if (aviso?.tipo === 'aprobada') return 'assets/img/Biznaguita/Biznaga_firma_autorizada.png';
-    if (aviso?.tipo === 'rechazada') return 'assets/img/Biznaguita/Biznaga_firma_rechazada.png';
-    if (aviso?.tipo === 'solicitud') return 'assets/img/Biznaguita/Biznaga_solicitud_firma.png';
-    return 'assets/img/Biznaguita/mascota-biznaga.png';
+    if (aviso?.tipo === 'aprobada') return 'assets/img/biznaguita/Biznaga_firma_autorizada.png';
+    if (aviso?.tipo === 'rechazada') return 'assets/img/biznaguita/Biznaga_firma_rechazada.png';
+    if (aviso?.tipo === 'solicitud') return 'assets/img/biznaguita/Biznaga_solicitud_firma.png';
+    return 'assets/img/biznaguita/mascota-biznaga.png';
   }
 
   private iniciarSalidaAvisoFirma(accion: 'cerrar' | 'revisar'): void {
@@ -321,6 +285,7 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     }
     this.avisoFirmaAccionPendiente = accion;
     this.avisoFirmaSaliendo = true;
+    this.avisosPopup.bloqueoFirma = true;
     this.avisoFirmaSalidaTimer = setTimeout(() => this.completarSalidaAvisoFirma(), 700);
   }
 
@@ -338,50 +303,17 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     }
     this.avisoFirmaAccionPendiente = null;
     this.avisoFirmaSaliendo = false;
+    this.avisosPopup.bloqueoFirma = false;
   }
 
   private ejecutarAccionAvisoFirma(accion: 'cerrar' | 'revisar'): void {
     const aviso = this.avisoFirmaActual;
     if (!aviso) return;
-    this.avisosFirma = this.avisosFirma.filter((item) => item.id !== aviso.id);
-    this.backendServices.descartarAvisoFirmaSgc(aviso.id).subscribe({ error: () => {} });
-    if (accion === 'cerrar') return;
-    const ruta = String(aviso.ruta || '/sistema-gestion-calidad/firmas').trim();
-    this.router.navigateByUrl(ruta.startsWith('/') ? ruta : `/${ruta}`);
-  }
-
-  private cargarAvisosFirma(): void {
-    if (!this.authService.getUsername()) {
-      this.avisosFirma = [];
+    if (accion === 'cerrar') {
+      this.avisosPopup.silenciar(aviso);
       return;
     }
-    this.backendServices.listarAvisosFirmaSgc().subscribe({
-      next: (res: any) => {
-        if (this.avisoFirmaSaliendo) return;
-        this.avisosFirma = Array.isArray(res?.avisos) ? res.avisos : [];
-      },
-      error: () => {
-        // Si el backend aún no tiene la tabla/ruta, no bloquear el resto del layout.
-      }
-    });
-  }
-
-  private cargarAvisosCambio(): void {
-    if (!this.authService.getUsername()) {
-      this.avisosCambio = [];
-      return;
-    }
-    this.backendServices.listarAvisosCambiosControlProyecto().subscribe({
-      next: (res: any) => {
-        if (this.avisoSaliendo) return;
-        this.avisosCambio = Array.isArray(res?.avisos) ? res.avisos : [];
-      },
-      error: () => {}
-    });
-  }
-
-  get avisoResolutivoActual(): typeof this.avisosResolutivo[number] | null {
-    return this.avisosResolutivo[0] || null;
+    this.avisosPopup.abrir(aviso);
   }
 
   cerrarAvisoResolutivo(): void {
@@ -390,6 +322,10 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
 
   revisarAvisoResolutivo(): void {
     this.iniciarSalidaAvisoResolutivo('revisar');
+  }
+
+  aceptarTodosAvisosResolutivo(): void {
+    this.iniciarSalidaAvisoResolutivo('aceptar_todas');
   }
 
   alTerminarAnimacionAvisoResolutivo(event: AnimationEvent): void {
@@ -421,19 +357,18 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     return n === 1 ? 'Falta 1 día' : `Faltan ${n} días`;
   }
 
-  /** Preventivo = 40-21 días; urgente = 20-1 días (sin vencidos). */
   mascotaAvisoResolutivo(aviso?: { tipo?: string }): string {
     const tipo = String(aviso?.tipo || '');
     if (tipo === 'ventana_diaria') {
-      return 'assets/img/Biznaguita/biznaga_aviso_preventivo_reloj.png';
+      return 'assets/img/biznaguita/biznaga_aviso_preventivo_reloj.png';
     }
     if (tipo === 'urgente_ingreso' || tipo === 'urgente_seguimiento') {
-      return 'assets/img/Biznaguita/biznaga_aviso_urgente_papeles.png';
+      return 'assets/img/biznaguita/biznaga_aviso_urgente_papeles.png';
     }
-    return 'assets/img/Biznaguita/mascota-biznaga.png';
+    return 'assets/img/biznaguita/mascota-biznaga.png';
   }
 
-  private iniciarSalidaAvisoResolutivo(accion: 'cerrar' | 'revisar'): void {
+  private iniciarSalidaAvisoResolutivo(accion: 'cerrar' | 'revisar' | 'aceptar_todas'): void {
     if (this.avisoResolutivoSaliendo || !this.avisoResolutivoActual) return;
     const reduceMotion = typeof window !== 'undefined'
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -443,6 +378,7 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     }
     this.avisoResolutivoAccionPendiente = accion;
     this.avisoResolutivoSaliendo = true;
+    this.avisosPopup.bloqueoResolutivo = true;
     this.avisoResolutivoSalidaTimer = setTimeout(() => this.completarSalidaAvisoResolutivo(), 700);
   }
 
@@ -460,32 +396,21 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     }
     this.avisoResolutivoAccionPendiente = null;
     this.avisoResolutivoSaliendo = false;
+    this.avisosPopup.bloqueoResolutivo = false;
   }
 
-  private ejecutarAccionAvisoResolutivo(accion: 'cerrar' | 'revisar'): void {
+  private ejecutarAccionAvisoResolutivo(accion: 'cerrar' | 'revisar' | 'aceptar_todas'): void {
     const aviso = this.avisoResolutivoActual;
     if (!aviso) return;
-    this.avisosResolutivo = this.avisosResolutivo.filter((item) => item.id !== aviso.id);
-    this.backendServices.descartarAvisoResolutivoPipc(aviso.id).subscribe({ error: () => {} });
-    if (accion === 'cerrar') return;
-    const ruta = String(aviso.ruta || '/proteccion-civil').trim();
-    this.router.navigateByUrl(ruta.startsWith('/') ? ruta : `/${ruta}`);
-  }
-
-  private cargarAvisosResolutivo(): void {
-    if (!this.authService.getUsername()) {
-      this.avisosResolutivo = [];
+    if (accion === 'aceptar_todas') {
+      this.avisosPopup.silenciarTodosResolutivo();
       return;
     }
-    this.backendServices.listarAvisosResolutivosPipc().subscribe({
-      next: (res: any) => {
-        if (this.avisoResolutivoSaliendo) return;
-        this.avisosResolutivo = Array.isArray(res?.avisos) ? res.avisos : [];
-      },
-      error: () => {
-        // Backend sin tablas/ruta aún: no bloquear el layout.
-      }
-    });
+    if (accion === 'cerrar') {
+      this.avisosPopup.silenciar(aviso);
+      return;
+    }
+    this.avisosPopup.abrir(aviso);
   }
 
   private actualizarFlagsRuta(url: string): void {

@@ -323,6 +323,10 @@ app-footer {
     background: linear-gradient(135deg, #d97248 0%, #e8956d 100%);
     color: #fff;
   }
+
+  .cp-aviso-cambio__actions {
+    flex-wrap: wrap;
+  }
 }
 
 // En pantallas pequeñas, el contenido siempre ocupa todo el ancho

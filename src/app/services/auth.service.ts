@@ -202,6 +202,10 @@ export class AuthService {
     sessionStorage.removeItem(this.STORAGE_KEY);
     sessionStorage.removeItem(this.SESSION_EXPIRY_KEY);
     sessionStorage.removeItem(this.TOKEN_KEY);
+    sessionStorage.removeItem('biz_avisos_login_sync');
+    sessionStorage.removeItem('biz_avisos_login_sync_v3');
+    sessionStorage.removeItem('biz_avisos_login_sync_v4');
+    sessionStorage.removeItem('biz_avisos_login_sync_v5');
     this.editorSgcDelegado = false;
     this.formatosSgcDelegados.clear();
     this.usuarioActualSubject.next(null);

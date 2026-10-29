@@ -1,0 +1,73 @@
+<aside
+  class="biz-gestor"
+  [class.is-abierto]="abierto"
+  aria-label="Gestor de avisos Biznaguita">
+
+  <div
+    class="biz-gestor__interactivo"
+    [class.is-abierto]="abierto"
+    (click)="$event.stopPropagation()">
+
+    <div class="biz-gestor__panel" *ngIf="abierto" role="dialog" aria-label="Avisos pendientes">
+      <div class="biz-gestor__cola" aria-hidden="true"></div>
+      <div class="biz-gestor__burbuja">
+        <div class="biz-gestor__tabs" role="tablist" aria-label="Filtrar por área">
+          <button
+            type="button"
+            class="biz-gestor__tab"
+            *ngFor="let tab of tabsVisibles; trackBy: trackByTabKey"
+            role="tab"
+            [attr.aria-selected]="tabActiva === tab.key"
+            [class.is-activa]="tabActiva === tab.key"
+            [style.--tab-color]="tab.color"
+            (mousedown)="$event.preventDefault()"
+            (click)="seleccionarTab(tab.key, $event)">
+            <span>{{ tab.label }}</span>
+            <em>{{ tab.count }}</em>
+          </button>
+        </div>
+
+        <div class="biz-gestor__lista" *ngIf="itemsFiltrados.length; else vacio">
+          <button
+            type="button"
+            class="biz-gestor__item"
+            *ngFor="let item of itemsFiltrados; trackBy: trackByItem"
+            [style.--item-color]="colorArea(item.area)"
+            (click)="abrirItem(item, $event)">
+            <span class="biz-gestor__item-area">{{ labelArea(item.area) }}</span>
+            <strong class="biz-gestor__item-titulo">{{ item.titulo }}</strong>
+            <span class="biz-gestor__item-resumen" [title]="item.resumen">{{ item.resumen }}</span>
+          </button>
+        </div>
+        <ng-template #vacio>
+          <p class="biz-gestor__vacio">No hay avisos pendientes.</p>
+        </ng-template>
+      </div>
+    </div>
+
+    <div
+      class="biz-gestor__trigger"
+      [attr.aria-expanded]="abierto"
+      aria-label="Biznaguita: pasa el mouse para ver avisos">
+      <div class="biz-gestor__imgs" aria-hidden="true">
+        <img
+          class="biz-gestor__img biz-gestor__img--inicial"
+          [class.is-activa]="!abierto"
+          src="assets/img/biznaguita/biznaguita_estado_inicial.png"
+          alt="">
+        <img
+          class="biz-gestor__img biz-gestor__img--final"
+          [class.is-activa]="abierto"
+          src="assets/img/biznaguita/biznaguita_estado_final.png"
+          alt="">
+      </div>
+      <span
+        class="biz-gestor__hit"
+        (mouseenter)="abrirPorCursor()"
+        (click)="toggle($event)"></span>
+      <span class="biz-gestor__badge" *ngIf="total > 0" [attr.aria-label]="total + ' avisos pendientes'">
+        {{ total > 99 ? '99+' : total }}
+      </span>
+    </div>
+  </div>
+</aside>

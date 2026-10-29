@@ -7,6 +7,7 @@ import { FooterComponent } from './footer/footer.component';
 import { DocumentPreviewComponent } from './document-preview/document-preview.component';
 import { PdfCanvasViewerComponent } from './pdf-canvas-viewer/pdf-canvas-viewer.component';
 import { EnvioDocumentoCorreoComponent } from './envio-documento-correo/envio-documento-correo.component';
+import { BiznaguitaGestorAvisosComponent } from './biznaguita-gestor-avisos/biznaguita-gestor-avisos.component';
 import { SafePipe } from '../pipes/safe.pipe';
 import { FechaCursoPipe } from '../pipes/fecha-curso.pipe';
 import { AutoResizeTextareaDirective } from '../directives/auto-resize-textarea.directive';
@@ -29,6 +30,7 @@ import { HttpClientModule } from '@angular/common/http';
     DocumentPreviewComponent,
     PdfCanvasViewerComponent,
     EnvioDocumentoCorreoComponent,
+    BiznaguitaGestorAvisosComponent,
     SafePipe,
     FechaCursoPipe,
     AutoResizeTextareaDirective
@@ -41,6 +43,7 @@ import { HttpClientModule } from '@angular/common/http';
     DocumentPreviewComponent,
     PdfCanvasViewerComponent,
     EnvioDocumentoCorreoComponent,
+    BiznaguitaGestorAvisosComponent,
     SafePipe,
     FechaCursoPipe,
     AutoResizeTextareaDirective
