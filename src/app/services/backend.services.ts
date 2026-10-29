@@ -4536,20 +4536,61 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/control-proyectos/cambios/bandeja`);
     }
 
-    listarAvisosCambiosControlProyecto(): Observable<any> {
-        return this.httpClient.get(`${this.baseUrl}/control-proyectos/cambios/avisos`);
+    listarAvisosCambiosControlProyecto(modo: 'popup' | 'gestor' = 'popup'): Observable<any> {
+        const qs = modo === 'gestor' ? '?modo=gestor' : '';
+        return this.httpClient.get(`${this.baseUrl}/control-proyectos/cambios/avisos${qs}`);
+    }
+
+    reactivarSilenciadosCambioControlProyecto(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/control-proyectos/cambios/avisos/reactivar-silenciados`, {});
+    }
+
+    silenciarAvisoCambioControlProyecto(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/control-proyectos/cambios/avisos/${id}/silenciar`, {});
     }
 
     descartarAvisoCambioControlProyecto(id: number): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/control-proyectos/cambios/avisos/${id}/descartar`, {});
     }
 
-    listarAvisosResolutivosPipc(): Observable<any> {
-        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/resolutivos/avisos`);
+    atenderAvisoCambioControlProyecto(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/control-proyectos/cambios/avisos/${id}/atender`, {});
+    }
+
+    listarAvisosResolutivosPipc(modo: 'popup' | 'gestor' = 'popup', reenviar = false): Observable<any> {
+        const params: string[] = [];
+        if (modo === 'gestor') params.push('modo=gestor');
+        if (reenviar) params.push('reenviar=1');
+        const qs = params.length ? `?${params.join('&')}` : '';
+        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/resolutivos/avisos${qs}`);
+    }
+
+    reenviarAvisosResolutivosPipc(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/resolutivos/avisos/reenviar`, {});
+    }
+
+    reactivarSilenciadosResolutivoPipc(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/resolutivos/avisos/reactivar-silenciados`, {});
+    }
+
+    silenciarAvisoResolutivoPipc(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/resolutivos/avisos/${id}/silenciar`, {});
     }
 
     descartarAvisoResolutivoPipc(id: number): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/proteccion-civil/resolutivos/avisos/${id}/descartar`, {});
+    }
+
+    atenderAvisoResolutivoPipc(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/resolutivos/avisos/${id}/atender`, {});
+    }
+
+    silenciarTodosAvisosResolutivosPipc(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/resolutivos/avisos/silenciar-todos`, {});
+    }
+
+    descartarTodosAvisosResolutivosPipc(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/resolutivos/avisos/descartar-todos`, {});
     }
 
     restaurarControlProyectosEliminados(body: {
@@ -5095,12 +5136,25 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/firmas/mia/revocar`, {});
     }
 
-    listarAvisosFirmaSgc(): Observable<any> {
-        return this.httpClient.get(`${this.baseUrl}/sgc/firmas/avisos`);
+    listarAvisosFirmaSgc(modo: 'popup' | 'gestor' = 'popup'): Observable<any> {
+        const qs = modo === 'gestor' ? '?modo=gestor' : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/firmas/avisos${qs}`);
+    }
+
+    reactivarSilenciadosFirmaSgc(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/firmas/avisos/reactivar-silenciados`, {});
+    }
+
+    silenciarAvisoFirmaSgc(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/firmas/avisos/${id}/silenciar`, {});
     }
 
     descartarAvisoFirmaSgc(id: number): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/firmas/avisos/${id}/descartar`, {});
+    }
+
+    atenderAvisoFirmaSgc(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/firmas/avisos/${id}/atender`, {});
     }
 
     cargarSgcF12Formato(): Observable<any> {

@@ -4,13 +4,15 @@
  * Preventivo 40–21 días restantes → 1 aviso diario al responsable.
  * Urgente 20–1 días (pronto a vencer; NO vencidos) → al ingresar + ~3.5 h,
  * destinatarios: responsable, marisol12, leonel58 y root.
+ * Fuera de esas ventanas (incl. vencidos) no se generan ni se muestran avisos.
  */
 
 const pcResolutivosService = require('./pcResolutivosService');
 
 const SUPERVISORES_URGENTES = ['marisol12', 'leonel58', 'root'];
 const MINUTOS_SEGUIMIENTO = 210; // 3.5 horas (entre 3 y 4)
-const HORAS_NUEVA_SESION = 12;
+/** Tras logout/login debe poder generar de nuevo; 15 min evita spam en F5. */
+const HORAS_NUEVA_SESION = 0.25;
 const RUTA_ATENCION = '/proteccion-civil';
 
 function fechaHoraMexico(fecha = new Date()) {
@@ -54,16 +56,26 @@ function diasRestantesDeRegistro(row) {
     return Number(diasHasta) + 40;
 }
 
-/** 40–20: preventivo diario (al llegar a 20 pasa a urgente). */
+/**
+ * diasRestantes = dias_hasta_contacto + 40 (días hasta “Vencido”).
+ * Avisos SOLO en rango 1–40 (nunca >40 ni vencidos <=0):
+ *  - Preventivo/diario: 40–21
+ *  - Urgente al ingresar: 20–1
+ */
 function enVentanaPreventiva(dias) {
     const n = Number(dias);
     return Number.isFinite(n) && n > 20 && n <= 40;
 }
 
-/** 20–0: urgente pronto a vencer; excluye vencidos (días <= 0). */
+/** Urgente al ingresar: últimos 20 días antes de vencer (20–1). */
 function enVentanaUrgente(dias) {
     const n = Number(dias);
     return Number.isFinite(n) && n > 0 && n <= 20;
+}
+
+/** Rango permitido de avisos: 1–40 días. */
+function enVentanaNotificacion(dias) {
+    return enVentanaPreventiva(dias) || enVentanaUrgente(dias);
 }
 
 async function asegurarTablas(poolPC) {
@@ -92,6 +104,7 @@ async function asegurarTablas(poolPC) {
             dias_restantes INT NULL,
             ruta VARCHAR(255) NOT NULL DEFAULT '/proteccion-civil',
             descartado TINYINT(1) NOT NULL DEFAULT 0,
+            silenciado TINYINT(1) NOT NULL DEFAULT 0,
             mostrar_despues DATETIME NULL,
             creado_en DATETIME NOT NULL,
             PRIMARY KEY (aviso_id),
@@ -100,6 +113,15 @@ async function asegurarTablas(poolPC) {
             INDEX idx_pc_aviso_sesion (sesion_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    const [cols] = await poolPC.query(
+        `SHOW COLUMNS FROM pc_resolutivo_aviso LIKE 'silenciado'`
+    );
+    if (!cols?.length) {
+        await poolPC.query(
+            `ALTER TABLE pc_resolutivo_aviso
+             ADD COLUMN silenciado TINYINT(1) NOT NULL DEFAULT 0 AFTER descartado`
+        );
+    }
 }
 
 async function mapUsernamesPorId(poolUsuarios, ids) {
@@ -164,7 +186,13 @@ async function listarResolutivosElegibles(poolPC, poolUsuarios) {
             estatus: String(row.estatus || ''),
             diasRestantes
         };
-    }).filter((item) => item.resolutivoId > 0 && item.diasRestantes != null);
+    }).filter((item) =>
+        item.resolutivoId > 0
+        && item.diasRestantes != null
+        // Solo "Próximo a vencer" dentro de 40–21 / 20–1 (excluye vencidos).
+        && item.estatus === 'Próximo a vencer'
+        && enVentanaNotificacion(item.diasRestantes)
+    );
 }
 
 function mensajeVentanaDiaria(item) {
@@ -214,6 +242,7 @@ async function yaExisteAvisoHoy(poolPC, resolutivoId, username, tipo, ahora) {
          WHERE resolutivo_id = ?
            AND LOWER(username) = ?
            AND tipo = ?
+           AND descartado = 0
            AND DATE(creado_en) = ?
          LIMIT 1`,
         [resolutivoId, normalizarUsername(username), tipo, dia]
@@ -230,10 +259,154 @@ async function yaExisteAvisoSesion(poolPC, sesionId, resolutivoId, username, tip
            AND resolutivo_id = ?
            AND LOWER(username) = ?
            AND tipo = ?
+           AND descartado = 0
          LIMIT 1`,
         [sesionId, resolutivoId, normalizarUsername(username), tipo]
     );
     return !!(rows && rows.length);
+}
+
+async function tieneAvisoActivo(poolPC, resolutivoId, username, tipo) {
+    const [rows] = await poolPC.query(
+        `SELECT aviso_id
+         FROM pc_resolutivo_aviso
+         WHERE resolutivo_id = ?
+           AND LOWER(username) = ?
+           AND tipo = ?
+           AND descartado = 0
+         LIMIT 1`,
+        [resolutivoId, normalizarUsername(username), tipo]
+    );
+    return !!(rows && rows.length);
+}
+
+async function reactivarSilenciados(poolPC, username) {
+    await asegurarTablas(poolPC);
+    const user = normalizarUsername(username);
+    if (!user) return { reactivados: 0 };
+    const [result] = await poolPC.query(
+        `UPDATE pc_resolutivo_aviso
+         SET silenciado = 0
+         WHERE LOWER(username) = ?
+           AND descartado = 0
+           AND silenciado = 1`,
+        [user]
+    );
+    return { reactivados: Number(result?.affectedRows || 0) };
+}
+
+/**
+ * Asegura avisos activos para el usuario (idempotente).
+ * Cubre preventivo + urgente; no depende del cooldown de sesión.
+ */
+async function asegurarAvisosActivosUsuario(poolPC, poolUsuarios, username, opciones = {}) {
+    await asegurarTablas(poolPC);
+    const user = normalizarUsername(username);
+    if (!user) return { creados: 0 };
+    const forzarPopup = !!opciones.forzarPopup;
+
+    if (forzarPopup) {
+        await reactivarSilenciados(poolPC, user);
+    }
+
+    const ahora = fechaHoraMexico();
+    const seguimientoEn = sumarMinutosMexico(MINUTOS_SEGUIMIENTO);
+    const supervisores = await destinosSupervisores(poolUsuarios);
+    const items = await listarResolutivosElegibles(poolPC, poolUsuarios);
+    let creados = 0;
+
+    for (const item of items) {
+        const dias = Number(item.diasRestantes);
+
+        if (enVentanaUrgente(dias) && usuarioDebeRecibirUrgente(user, item, supervisores)) {
+            if (!(await tieneAvisoActivo(poolPC, item.resolutivoId, user, 'urgente_ingreso'))) {
+                await insertarAviso(poolPC, {
+                    resolutivoId: item.resolutivoId,
+                    sesionId: null,
+                    username: user,
+                    tipo: 'urgente_ingreso',
+                    mensaje: mensajeUrgente(item, false),
+                    empresaId: item.empresaId,
+                    nombreEmpresa: item.nombreEmpresa,
+                    nombreAsignacion: item.nombreAsignacion,
+                    responsableNombre: item.responsableNombre,
+                    diasRestantes: dias,
+                    creadoEn: ahora,
+                    mostrarDespues: null
+                });
+                creados += 1;
+            }
+            if (!(await tieneAvisoActivo(poolPC, item.resolutivoId, user, 'urgente_seguimiento'))) {
+                await insertarAviso(poolPC, {
+                    resolutivoId: item.resolutivoId,
+                    sesionId: null,
+                    username: user,
+                    tipo: 'urgente_seguimiento',
+                    mensaje: mensajeUrgente(item, true),
+                    empresaId: item.empresaId,
+                    nombreEmpresa: item.nombreEmpresa,
+                    nombreAsignacion: item.nombreAsignacion,
+                    responsableNombre: item.responsableNombre,
+                    diasRestantes: dias,
+                    creadoEn: ahora,
+                    mostrarDespues: seguimientoEn
+                });
+                creados += 1;
+            }
+        }
+
+        // Preventivo: responsable ve diario; supervisores también en ingreso al sistema.
+        if (enVentanaPreventiva(dias) && (
+            item.responsableUsername === user || usuarioDebeRecibirUrgente(user, item, supervisores)
+        )) {
+            if (!(await tieneAvisoActivo(poolPC, item.resolutivoId, user, 'ventana_diaria'))) {
+                await insertarAviso(poolPC, {
+                    resolutivoId: item.resolutivoId,
+                    sesionId: null,
+                    username: user,
+                    tipo: 'ventana_diaria',
+                    mensaje: mensajeVentanaDiaria(item),
+                    empresaId: item.empresaId,
+                    nombreEmpresa: item.nombreEmpresa,
+                    nombreAsignacion: item.nombreAsignacion,
+                    responsableNombre: item.responsableNombre,
+                    diasRestantes: dias,
+                    creadoEn: ahora
+                });
+                creados += 1;
+            }
+        }
+    }
+
+    return { creados };
+}
+
+/**
+ * Reenvía avisos vigentes: reactiva silenciados, reinicia contador de sesión
+ * y crea faltantes (aunque se hubieran descartado sin atender).
+ */
+async function reenviarAvisosPendientes(poolPC, poolUsuarios, username) {
+    await asegurarTablas(poolPC);
+    const user = normalizarUsername(username);
+    if (!user) return { reenviados: 0, reactivados: 0 };
+
+    const { reactivados } = await reactivarSilenciados(poolPC, user);
+
+    // Reinicia contador de sesión para que el ingreso vuelva a contar como “nuevo”.
+    const ahora = fechaHoraMexico();
+    const seguimientoEn = sumarMinutosMexico(MINUTOS_SEGUIMIENTO);
+    const [sesionResult] = await poolPC.query(
+        `INSERT INTO pc_resolutivo_aviso_sesion (username, ingreso_en, seguimiento_en)
+         VALUES (?, ?, ?)`,
+        [user, ahora, seguimientoEn]
+    );
+    const sesionId = Number(sesionResult.insertId);
+
+    const { creados } = await asegurarAvisosActivosUsuario(poolPC, poolUsuarios, user, {
+        forzarPopup: true
+    });
+
+    return { reenviados: creados, reactivados, sesionId };
 }
 
 /**
@@ -400,10 +573,20 @@ async function asegurarVentanaDiariaUsuario(poolPC, poolUsuarios, username) {
     }
 }
 
-async function listarAvisos(poolPC, poolUsuarios, username) {
+async function listarAvisos(poolPC, poolUsuarios, username, opciones = {}) {
     await asegurarTablas(poolPC);
     const user = normalizarUsername(username);
     if (!user) return [];
+    const incluirSilenciados = !!opciones.incluirSilenciados;
+    const forzarReenvio = !!opciones.reenviar;
+
+    if (forzarReenvio) {
+        try {
+            await reenviarAvisosPendientes(poolPC, poolUsuarios, user);
+        } catch (error) {
+            console.warn('[PC-AVISO] No se pudieron reenviar avisos pendientes:', error.message);
+        }
+    }
 
     let sesionNueva = false;
     try {
@@ -413,24 +596,27 @@ async function listarAvisos(poolPC, poolUsuarios, username) {
         console.warn('[PC-AVISO] No se pudieron generar urgentes de sesión:', error.message);
     }
 
-    // Diario 40–20 al entrar (la sesión nueva); el job de 15 min cubre el resto del día.
-    if (sesionNueva) {
+    // Al entrar (sesión nueva): reabrir silenciados y completar faltantes de la ventana ampliada.
+    // No recrear en cada poll lo que el usuario descartó a propósito (X / Aceptar todas).
+    if (sesionNueva && !forzarReenvio) {
         try {
-            await asegurarVentanaDiariaUsuario(poolPC, poolUsuarios, user);
+            await reactivarSilenciados(poolPC, user);
+            await asegurarAvisosActivosUsuario(poolPC, poolUsuarios, user, { forzarPopup: true });
         } catch (error) {
-            console.warn('[PC-AVISO] No se pudo asegurar aviso diario del usuario:', error.message);
+            console.warn('[PC-AVISO] No se pudieron asegurar avisos de sesión nueva:', error.message);
         }
     }
 
     const ahora = fechaHoraMexico();
     const [rows] = await poolPC.query(
         `SELECT aviso_id, resolutivo_id, tipo, mensaje, empresa_id, nombre_empresa,
-                nombre_asignacion, responsable_nombre, dias_restantes, ruta,
+                nombre_asignacion, responsable_nombre, dias_restantes, ruta, silenciado,
                 DATE_FORMAT(creado_en, '%Y-%m-%d %H:%i:%s') AS creado_en,
                 DATE_FORMAT(mostrar_despues, '%Y-%m-%d %H:%i:%s') AS mostrar_despues
          FROM pc_resolutivo_aviso
          WHERE LOWER(username) = ?
            AND descartado = 0
+           ${incluirSilenciados ? '' : 'AND silenciado = 0'}
            AND (mostrar_despues IS NULL OR mostrar_despues <= ?)
          ORDER BY CASE tipo
                     WHEN 'urgente_ingreso' THEN 0
@@ -439,24 +625,103 @@ async function listarAvisos(poolPC, poolUsuarios, username) {
                   END,
                   CASE WHEN dias_restantes IS NULL THEN 9999 ELSE dias_restantes END ASC,
                   aviso_id DESC
-         LIMIT 30`,
+         LIMIT 40`,
         [user, ahora]
     );
 
-    return (rows || []).map((row) => ({
-        id: Number(row.aviso_id),
-        resolutivoId: Number(row.resolutivo_id),
-        tipo: String(row.tipo || 'ventana_diaria'),
-        mensaje: row.mensaje == null ? '' : String(row.mensaje),
-        empresaId: row.empresa_id == null ? null : Number(row.empresa_id),
-        nombreEmpresa: row.nombre_empresa == null ? '' : String(row.nombre_empresa),
-        nombreAsignacion: row.nombre_asignacion == null ? '' : String(row.nombre_asignacion),
-        responsableNombre: row.responsable_nombre == null ? '' : String(row.responsable_nombre),
-        diasRestantes: row.dias_restantes == null ? null : Number(row.dias_restantes),
-        ruta: row.ruta || RUTA_ATENCION,
-        creadoEn: row.creado_en ? String(row.creado_en) : '',
-        mostrarDespues: row.mostrar_despues ? String(row.mostrar_despues) : null
-    }));
+    // Revalida contra el estatus actual: no mostrar avisos de PIPC ya vencidos.
+    let vigentesIds = null;
+    let diasPorResolutivo = new Map();
+    try {
+        const elegibles = await listarResolutivosElegibles(poolPC, poolUsuarios);
+        vigentesIds = new Set(elegibles.map((item) => item.resolutivoId));
+        diasPorResolutivo = new Map(
+            elegibles.map((item) => [item.resolutivoId, item.diasRestantes])
+        );
+    } catch (error) {
+        console.warn('[PC-AVISO] No se pudo revalidar estatus de avisos:', error.message);
+    }
+
+    const avisos = [];
+    const staleIds = [];
+    for (const row of rows || []) {
+        const resolutivoId = Number(row.resolutivo_id);
+        const diasActuales = diasPorResolutivo.has(resolutivoId)
+            ? Number(diasPorResolutivo.get(resolutivoId))
+            : (row.dias_restantes == null ? null : Number(row.dias_restantes));
+
+        // Fuera de ventana (vencidos <=0, >40, o resolutivo inexistente): no mostrar y auto-descartar.
+        const fueraDeVentana = vigentesIds
+            ? (!vigentesIds.has(resolutivoId) || !enVentanaNotificacion(diasActuales))
+            : (diasActuales != null && !enVentanaNotificacion(diasActuales));
+        if (fueraDeVentana) {
+            staleIds.push(Number(row.aviso_id));
+            continue;
+        }
+
+        avisos.push({
+            id: Number(row.aviso_id),
+            resolutivoId,
+            tipo: String(row.tipo || 'ventana_diaria'),
+            mensaje: row.mensaje == null ? '' : String(row.mensaje),
+            empresaId: row.empresa_id == null ? null : Number(row.empresa_id),
+            nombreEmpresa: row.nombre_empresa == null ? '' : String(row.nombre_empresa),
+            nombreAsignacion: row.nombre_asignacion == null ? '' : String(row.nombre_asignacion),
+            responsableNombre: row.responsable_nombre == null ? '' : String(row.responsable_nombre),
+            diasRestantes: diasActuales,
+            ruta: row.ruta || RUTA_ATENCION,
+            creadoEn: row.creado_en ? String(row.creado_en) : '',
+            mostrarDespues: row.mostrar_despues ? String(row.mostrar_despues) : null,
+            silenciado: Number(row.silenciado) === 1
+        });
+    }
+
+    if (staleIds.length) {
+        try {
+            const placeholders = staleIds.map(() => '?').join(', ');
+            await poolPC.query(
+                `UPDATE pc_resolutivo_aviso
+                 SET descartado = 1
+                 WHERE aviso_id IN (${placeholders})
+                   AND LOWER(username) = ?`,
+                [...staleIds, user]
+            );
+        } catch (error) {
+            console.warn('[PC-AVISO] No se pudieron descartar avisos vencidos:', error.message);
+        }
+    }
+
+    return avisos;
+}
+
+async function silenciarAviso(poolPC, avisoId, username) {
+    await asegurarTablas(poolPC);
+    const id = Number(avisoId);
+    const user = normalizarUsername(username);
+    if (!Number.isInteger(id) || id <= 0 || !user) return false;
+    await poolPC.query(
+        `UPDATE pc_resolutivo_aviso
+         SET silenciado = 1
+         WHERE aviso_id = ? AND LOWER(username) = ? AND descartado = 0`,
+        [id, user]
+    );
+    return true;
+}
+
+/** Cierra los popups sin descartar: siguen en el gestor hasta que se atiendan. */
+async function silenciarTodosAvisos(poolPC, username) {
+    await asegurarTablas(poolPC);
+    const user = normalizarUsername(username);
+    if (!user) return { silenciados: 0 };
+    const [result] = await poolPC.query(
+        `UPDATE pc_resolutivo_aviso
+         SET silenciado = 1
+         WHERE LOWER(username) = ?
+           AND descartado = 0
+           AND silenciado = 0`,
+        [user]
+    );
+    return { silenciados: Number(result?.affectedRows || 0) };
 }
 
 async function descartarAviso(poolPC, avisoId, username) {
@@ -473,10 +738,31 @@ async function descartarAviso(poolPC, avisoId, username) {
     return true;
 }
 
+/** Descarta todos los avisos abiertos del usuario (visibles y seguimientos pendientes). */
+async function descartarTodosAvisos(poolPC, username) {
+    await asegurarTablas(poolPC);
+    const user = normalizarUsername(username);
+    if (!user) return { descartados: 0 };
+    const [result] = await poolPC.query(
+        `UPDATE pc_resolutivo_aviso
+         SET descartado = 1
+         WHERE LOWER(username) = ?
+           AND descartado = 0`,
+        [user]
+    );
+    return { descartados: Number(result?.affectedRows || 0) };
+}
+
 module.exports = {
     asegurarTablas,
     listarAvisos,
+    silenciarAviso,
+    silenciarTodosAvisos,
+    reactivarSilenciados,
+    reenviarAvisosPendientes,
+    asegurarAvisosActivosUsuario,
     descartarAviso,
+    descartarTodosAvisos,
     procesarVentanaDiaria,
     generarAvisosUrgentesDeSesion,
     MINUTOS_SEGUIMIENTO,

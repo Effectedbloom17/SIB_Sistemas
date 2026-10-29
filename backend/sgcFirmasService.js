@@ -447,10 +447,25 @@ async function asegurarTablaAvisosFirma(poolSgc) {
             mensaje VARCHAR(500) NOT NULL DEFAULT '',
             ruta VARCHAR(255) NOT NULL DEFAULT '',
             descartado TINYINT(1) NOT NULL DEFAULT 0,
+            silenciado TINYINT(1) NOT NULL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_sgc_firma_aviso_user (usuario_id, descartado)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    const [cols] = await poolSgc.query(
+        `SELECT 1 AS ok
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'sgc_firma_aviso'
+           AND COLUMN_NAME = 'silenciado'
+         LIMIT 1`
+    );
+    if (!cols?.length) {
+        await poolSgc.query(
+            `ALTER TABLE sgc_firma_aviso
+             ADD COLUMN silenciado TINYINT(1) NOT NULL DEFAULT 0 AFTER descartado`
+        );
+    }
 }
 
 async function guardarImagenDocumento(executor, firmanteId, png) {
@@ -550,17 +565,20 @@ async function sincronizarAvisosRespuesta(poolSgc, usuarioId) {
     }
 }
 
-async function listarAvisosFirma(poolSgc, usuarioId) {
+async function listarAvisosFirma(poolSgc, usuarioId, opciones = {}) {
     await asegurarTablas(poolSgc);
     await asegurarTablaAvisosFirma(poolSgc);
     const uid = Math.round(Number(usuarioId));
     if (!Number.isFinite(uid) || uid <= 0) return [];
     await sincronizarAvisosPendientes(poolSgc, uid);
     await sincronizarAvisosRespuesta(poolSgc, uid);
+    const incluirSilenciados = !!opciones.incluirSilenciados;
     const [rows] = await poolSgc.query(
-        `SELECT aviso_id, solicitud_id, tipo, codigo, nombre_documento, solicitado_por, resuelto_por, mensaje, ruta
+        `SELECT aviso_id, solicitud_id, tipo, codigo, nombre_documento, solicitado_por, resuelto_por,
+                mensaje, ruta, silenciado
          FROM sgc_firma_aviso
          WHERE usuario_id = ? AND descartado = 0
+           ${incluirSilenciados ? '' : 'AND silenciado = 0'}
          ORDER BY
            CASE tipo
              WHEN 'solicitud' THEN 0
@@ -569,7 +587,7 @@ async function listarAvisosFirma(poolSgc, usuarioId) {
              ELSE 3
            END,
            aviso_id DESC
-         LIMIT 20`,
+         LIMIT 40`,
         [uid]
     );
     return (rows || []).map((row) => ({
@@ -581,8 +599,34 @@ async function listarAvisosFirma(poolSgc, usuarioId) {
         solicitadoPor: row.solicitado_por || '',
         resueltoPor: row.resuelto_por || '',
         mensaje: row.mensaje || '',
-        ruta: row.ruta || '/sistema-gestion-calidad/firmas'
+        ruta: row.ruta || '/sistema-gestion-calidad/firmas',
+        silenciado: Number(row.silenciado) === 1
     }));
+}
+
+async function silenciarAvisoFirma(poolSgc, avisoId, usuarioId) {
+    await asegurarTablaAvisosFirma(poolSgc);
+    const id = Number(avisoId);
+    if (!Number.isInteger(id) || id <= 0) return false;
+    await poolSgc.query(
+        `UPDATE sgc_firma_aviso SET silenciado = 1
+         WHERE aviso_id = ? AND usuario_id = ? AND descartado = 0`,
+        [id, Number(usuarioId)]
+    );
+    return true;
+}
+
+async function reactivarSilenciadosFirma(poolSgc, usuarioId) {
+    await asegurarTablaAvisosFirma(poolSgc);
+    const uid = Math.round(Number(usuarioId));
+    if (!Number.isFinite(uid) || uid <= 0) return { reactivados: 0 };
+    const [result] = await poolSgc.query(
+        `UPDATE sgc_firma_aviso
+         SET silenciado = 0
+         WHERE usuario_id = ? AND descartado = 0 AND silenciado = 1`,
+        [uid]
+    );
+    return { reactivados: Number(result?.affectedRows || 0) };
 }
 
 async function descartarAvisoFirma(poolSgc, avisoId, usuarioId) {
@@ -1751,6 +1795,8 @@ module.exports = {
     pdfConFirma,
     consumirFirma,
     listarAvisosFirma,
+    silenciarAvisoFirma,
+    reactivarSilenciadosFirma,
     descartarAvisoFirma,
     huellaVersion,
     estadoSolicitudDesdeFirmantes,

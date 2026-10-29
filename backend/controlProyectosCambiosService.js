@@ -112,6 +112,7 @@ async function asegurarTabla(pool) {
             nombre_proyecto VARCHAR(500) NOT NULL DEFAULT '',
             solicitado_por VARCHAR(255) NOT NULL DEFAULT '',
             descartado TINYINT(1) NOT NULL DEFAULT 0,
+            silenciado TINYINT(1) NOT NULL DEFAULT 0,
             creado_en DATETIME NULL,
             INDEX idx_cp_cambios_aviso_user (username, descartado),
             INDEX idx_cp_cambios_aviso_cambio (cambio_id)
@@ -124,6 +125,15 @@ async function asegurarTabla(pool) {
         await pool.query(
             `ALTER TABLE sgc_control_proyectos_cambios_avisos
              ADD COLUMN tipo VARCHAR(20) NOT NULL DEFAULT 'revision'`
+        );
+    }
+    const [silenciado] = await pool.query(
+        `SHOW COLUMNS FROM sgc_control_proyectos_cambios_avisos LIKE 'silenciado'`
+    );
+    if (!silenciado || !silenciado.length) {
+        await pool.query(
+            `ALTER TABLE sgc_control_proyectos_cambios_avisos
+             ADD COLUMN silenciado TINYINT(1) NOT NULL DEFAULT 0 AFTER descartado`
         );
     }
 }
@@ -637,18 +647,20 @@ async function listarBandeja(pool) {
     }));
 }
 
-async function listarAvisos(pool, username) {
+async function listarAvisos(pool, username, opciones = {}) {
     await asegurarTabla(pool);
     const usuario = String(username || '').trim().toLowerCase();
     if (!usuario) return [];
+    const incluirSilenciados = !!opciones.incluirSilenciados;
     const [rows] = await pool.query(
         `SELECT a.id, a.cambio_id, a.tipo, a.mensaje, a.empresa_id, a.folio, a.nombre_proyecto, a.solicitado_por,
-                c.estatus AS estatus_cambio, c.resuelto_por,
+                a.silenciado, c.estatus AS estatus_cambio, c.resuelto_por,
                 DATE_FORMAT(a.creado_en, '%Y-%m-%d %H:%i:%s') AS creado_en
          FROM sgc_control_proyectos_cambios_avisos a
          INNER JOIN sgc_control_proyectos_cambios c ON c.id = a.cambio_id AND c.activo = 1
          WHERE LOWER(a.username) = ?
            AND a.descartado = 0
+           ${incluirSilenciados ? '' : 'AND a.silenciado = 0'}
            AND (
                 a.tipo = 'respuesta'
                 OR (c.estatus = 'en_espera' AND a.tipo IN ('revision', 'recordatorio', 'recordatorio_urgente'))
@@ -659,7 +671,7 @@ async function listarAvisos(pool, username) {
                     ELSE 2
                   END,
                   a.id DESC
-         LIMIT 20`,
+         LIMIT 40`,
         [usuario]
     );
     return (rows || []).map((row) => ({
@@ -673,8 +685,36 @@ async function listarAvisos(pool, username) {
         solicitadoPor: row.solicitado_por == null ? '' : String(row.solicitado_por),
         resueltoPor: row.resuelto_por == null ? '' : String(row.resuelto_por),
         estatus: row.estatus_cambio == null ? '' : String(row.estatus_cambio),
-        creadoEn: row.creado_en ? String(row.creado_en) : ''
+        creadoEn: row.creado_en ? String(row.creado_en) : '',
+        silenciado: Number(row.silenciado) === 1
     }));
+}
+
+async function silenciarAviso(pool, id, username) {
+    await asegurarTabla(pool);
+    const avisoId = Number(id);
+    const usuario = String(username || '').trim().toLowerCase();
+    if (!Number.isInteger(avisoId) || avisoId <= 0 || !usuario) return false;
+    await pool.query(
+        `UPDATE sgc_control_proyectos_cambios_avisos
+         SET silenciado = 1
+         WHERE id = ? AND LOWER(username) = ? AND descartado = 0`,
+        [avisoId, usuario]
+    );
+    return true;
+}
+
+async function reactivarSilenciados(pool, username) {
+    await asegurarTabla(pool);
+    const usuario = String(username || '').trim().toLowerCase();
+    if (!usuario) return { reactivados: 0 };
+    const [result] = await pool.query(
+        `UPDATE sgc_control_proyectos_cambios_avisos
+         SET silenciado = 0
+         WHERE LOWER(username) = ? AND descartado = 0 AND silenciado = 1`,
+        [usuario]
+    );
+    return { reactivados: Number(result?.affectedRows || 0) };
 }
 
 async function descartarAviso(pool, id, username) {
@@ -866,6 +906,8 @@ module.exports = {
     guardar,
     resolver,
     listarAvisos,
+    silenciarAviso,
+    reactivarSilenciados,
     descartarAviso,
     procesarRecordatorios,
     usuarioPuedeResolver

@@ -27439,20 +27439,66 @@ app.get('/api/control-proyectos/cambios/bandeja', async (req, res) => {
 app.get('/api/control-proyectos/cambios/avisos', async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const avisos = await controlProyectosCambiosService.listarAvisos(poolBiznagaSgc, req.user?.username);
+        const modo = String(req.query?.modo || '').toLowerCase();
+        const avisos = await controlProyectosCambiosService.listarAvisos(
+            poolBiznagaSgc,
+            req.user?.username,
+            { incluirSilenciados: modo === 'gestor' }
+        );
         return res.json({ success: true, avisos });
     } catch (error) {
         handleError(res, error, 'No se pudieron cargar los avisos de cambio');
     }
 });
 
+app.post('/api/control-proyectos/cambios/avisos/reactivar-silenciados', async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const resultado = await controlProyectosCambiosService.reactivarSilenciados(
+            poolBiznagaSgc,
+            req.user?.username
+        );
+        return res.json({ success: true, ...resultado });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron reactivar los avisos de cambio');
+    }
+});
+
+app.post('/api/control-proyectos/cambios/avisos/:id/silenciar', async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await controlProyectosCambiosService.silenciarAviso(
+            poolBiznagaSgc,
+            req.params.id,
+            req.user?.username
+        );
+        return res.json({ success: true });
+    } catch (error) {
+        handleError(res, error, 'No se pudo silenciar el aviso de cambio');
+    }
+});
+
 app.post('/api/control-proyectos/cambios/avisos/:id/descartar', async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await controlProyectosCambiosService.silenciarAviso(
+            poolBiznagaSgc,
+            req.params.id,
+            req.user?.username
+        );
+        return res.json({ success: true });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cerrar el aviso de cambio');
+    }
+});
+
+app.post('/api/control-proyectos/cambios/avisos/:id/atender', async (req, res) => {
     try {
         await poolBiznagaSgcReady;
         await controlProyectosCambiosService.descartarAviso(poolBiznagaSgc, req.params.id, req.user?.username);
         return res.json({ success: true });
     } catch (error) {
-        handleError(res, error, 'No se pudo cerrar el aviso de cambio');
+        handleError(res, error, 'No se pudo atender el aviso de cambio');
     }
 });
 
@@ -36485,10 +36531,14 @@ app.get('/api/proteccion-civil/resolutivos/avisos', async (req, res) => {
     try {
         await poolProteccionCivilReady;
         await poolReady;
+        const modo = String(req.query?.modo || '').toLowerCase();
+        const reenviar = String(req.query?.reenviar || '') === '1'
+            || String(req.query?.reenviar || '').toLowerCase() === 'true';
         const avisos = await pcResolutivosAvisosService.listarAvisos(
             poolProteccionCivil,
             pool,
-            req.user?.username
+            req.user?.username,
+            { incluirSilenciados: modo === 'gestor', reenviar }
         );
         return res.json({ success: true, avisos });
     } catch (error) {
@@ -36496,7 +36546,89 @@ app.get('/api/proteccion-civil/resolutivos/avisos', async (req, res) => {
     }
 });
 
+app.post('/api/proteccion-civil/resolutivos/avisos/reenviar', async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        await poolReady;
+        const resultado = await pcResolutivosAvisosService.reenviarAvisosPendientes(
+            poolProteccionCivil,
+            pool,
+            req.user?.username
+        );
+        return res.json({ success: true, ...resultado });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron reenviar los avisos de resolutivos PIPC');
+    }
+});
+
+app.post('/api/proteccion-civil/resolutivos/avisos/reactivar-silenciados', async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        const resultado = await pcResolutivosAvisosService.reactivarSilenciados(
+            poolProteccionCivil,
+            req.user?.username
+        );
+        return res.json({ success: true, ...resultado });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron reactivar los avisos de resolutivos PIPC');
+    }
+});
+
+app.post('/api/proteccion-civil/resolutivos/avisos/silenciar-todos', async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        const resultado = await pcResolutivosAvisosService.silenciarTodosAvisos(
+            poolProteccionCivil,
+            req.user?.username
+        );
+        return res.json({ success: true, ...resultado });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron cerrar los avisos de resolutivos PIPC');
+    }
+});
+
+app.post('/api/proteccion-civil/resolutivos/avisos/descartar-todos', async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        const resultado = await pcResolutivosAvisosService.silenciarTodosAvisos(
+            poolProteccionCivil,
+            req.user?.username
+        );
+        return res.json({ success: true, ...resultado });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron cerrar los avisos de resolutivos PIPC');
+    }
+});
+
+app.post('/api/proteccion-civil/resolutivos/avisos/:id/silenciar', async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        await pcResolutivosAvisosService.silenciarAviso(
+            poolProteccionCivil,
+            req.params.id,
+            req.user?.username
+        );
+        return res.json({ success: true });
+    } catch (error) {
+        handleError(res, error, 'No se pudo silenciar el aviso de resolutivo PIPC');
+    }
+});
+
 app.post('/api/proteccion-civil/resolutivos/avisos/:id/descartar', async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        await pcResolutivosAvisosService.silenciarAviso(
+            poolProteccionCivil,
+            req.params.id,
+            req.user?.username
+        );
+        return res.json({ success: true });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cerrar el aviso de resolutivo PIPC');
+    }
+});
+
+app.post('/api/proteccion-civil/resolutivos/avisos/:id/atender', async (req, res) => {
     try {
         await poolProteccionCivilReady;
         await pcResolutivosAvisosService.descartarAviso(
@@ -36506,7 +36638,7 @@ app.post('/api/proteccion-civil/resolutivos/avisos/:id/descartar', async (req, r
         );
         return res.json({ success: true });
     } catch (error) {
-        handleError(res, error, 'No se pudo cerrar el aviso de resolutivo PIPC');
+        handleError(res, error, 'No se pudo atender el aviso de resolutivo PIPC');
     }
 });
 

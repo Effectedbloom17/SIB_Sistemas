@@ -193,45 +193,38 @@ async function notifsProteccionCivil(poolSgc, poolPC, poolBiznaga, user, pcResol
         const empresaId = Number(row.empresa_id_biznaga || 0);
         if (!empresaId) continue;
 
+        // Solo "Próximo a vencer" (nunca vencidos) y dentro de las ventanas 40–21 / 20–1.
+        if (estatus !== 'Próximo a vencer') continue;
+
+        const diasHasta = pcResolutivosService.calcularDiasHastaContacto
+            ? pcResolutivosService.calcularDiasHastaContacto(row.fecha_contacto_empresa)
+            : null;
+        if (diasHasta == null || Number.isNaN(Number(diasHasta))) continue;
+        const diasRestantes = Number(diasHasta) + 40;
+        const urgente = diasRestantes > 0 && diasRestantes <= 20;
+        const preventivo = diasRestantes > 20 && diasRestantes <= 40;
+        if (!urgente && !preventivo) continue;
+
         const ruta = `/proteccion-civil?vista=menuDocumentos&empresaId=${empresaId}&paso=documentacion`;
         const asignacion = row.nombre_asignacion || row.tipo_tramite || 'PIPC';
         const empresa = row.nombre_empresa || `Empresa #${empresaId}`;
         const key = row.resolutivo_id || `${empresaId}-${asignacion}`;
+        const unidad = diasRestantes === 1 ? 'día' : 'días';
 
-        if (estatus === 'Vencido') {
-            out.push(notifBase({
-                notif_id: `pc-vencido-${key}`,
-                tipo: 'danger',
-                icono: 'fa-shield-alt',
-                titulo: `PIPC vencido: ${empresa}`,
-                mensaje: `${asignacion} · Estatus operativo: Vencido. Requiere gestión.`,
-                ruta,
-                categoria: 'pc',
-                prioridad: 10
-            }));
-        } else if (estatus === 'Próximo a vencer') {
-            out.push(notifBase({
-                notif_id: `pc-proximo-${key}`,
-                tipo: 'warning',
-                icono: 'fa-hourglass-half',
-                titulo: `PIPC próximo a vencer: ${empresa}`,
-                mensaje: `${asignacion} · Revisar y actualizar documentación.`,
-                ruta,
-                categoria: 'pc',
-                prioridad: 20
-            }));
-        } else if (estatus === 'En tramite') {
-            out.push(notifBase({
-                notif_id: `pc-tramite-${key}`,
-                tipo: 'warning',
-                icono: 'fa-folder-open',
-                titulo: `PIPC en trámite: ${empresa}`,
-                mensaje: `${asignacion} · Documentación pendiente de completar.`,
-                ruta,
-                categoria: 'pc',
-                prioridad: 35
-            }));
-        }
+        out.push(notifBase({
+            notif_id: urgente ? `pc-urgente-${key}` : `pc-preventivo-${key}`,
+            tipo: urgente ? 'danger' : 'warning',
+            icono: urgente ? 'fa-exclamation-triangle' : 'fa-hourglass-half',
+            titulo: urgente
+                ? `PIPC por vencer (${diasRestantes} ${unidad}): ${empresa}`
+                : `PIPC próximo a vencer (${diasRestantes} ${unidad}): ${empresa}`,
+            mensaje: urgente
+                ? `${asignacion} · Ventana urgente (20–1 días). Revisar y actualizar documentación.`
+                : `${asignacion} · Ventana preventiva (40–21 días). Revisar documentación.`,
+            ruta,
+            categoria: 'pc',
+            prioridad: urgente ? 15 : 25
+        }));
     }
 
     return out;

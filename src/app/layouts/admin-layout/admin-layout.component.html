@@ -102,6 +102,13 @@
     </p>
   </div>
   <div class="cp-aviso-cambio__actions">
+    <button
+      type="button"
+      class="cp-aviso-cambio__cerrar"
+      *ngIf="avisosResolutivo.length > 1"
+      (click)="aceptarTodosAvisosResolutivo()">
+      Cerrar todas
+    </button>
     <button type="button" class="cp-aviso-cambio__cerrar" (click)="cerrarAvisoResolutivo()">Cerrar</button>
     <button type="button" class="cp-aviso-cambio__revisar" (click)="revisarAvisoResolutivo()">
       Abrir Atención
@@ -116,7 +123,7 @@
   role="dialog"
   aria-labelledby="cpAvisoCambioTitulo"
   (animationend)="alTerminarAnimacionAviso($event)">
-  <img class="cp-aviso-cambio__mascota" src="assets/img/mascota-biznaga.png" alt="">
+  <img class="cp-aviso-cambio__mascota" src="assets/img/biznaguita/mascota-biznaga.png" alt="">
   <div class="cp-aviso-cambio__body">
     <p class="cp-aviso-cambio__kicker">Solicitud de cambio</p>
     <h3 id="cpAvisoCambioTitulo">{{ tituloAvisoCambio(aviso) }}</h3>
@@ -152,3 +159,6 @@
     </button>
   </div>
 </section>
+
+<!-- Gestor de avisos popup (Biznaguita) — independiente del navbar -->
+<app-biznaguita-gestor-avisos *ngIf="!esDoctor"></app-biznaguita-gestor-avisos>

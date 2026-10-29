@@ -83,10 +83,35 @@ function createSgcFirmasRouter({
         try {
             const ctx = pools(res);
             if (!ctx) return;
-            const avisos = await sgcFirmasService.listarAvisosFirma(ctx.poolSgc, req.user?.id);
+            const modo = String(req.query?.modo || '').toLowerCase();
+            const avisos = await sgcFirmasService.listarAvisosFirma(ctx.poolSgc, req.user?.id, {
+                incluirSilenciados: modo === 'gestor'
+            });
             res.json({ success: true, avisos });
         } catch (error) {
             responder(res, error, 'No se pudieron cargar los avisos de firma');
+        }
+    });
+
+    router.post('/avisos/reactivar-silenciados', async (req, res) => {
+        try {
+            const ctx = pools(res);
+            if (!ctx) return;
+            const resultado = await sgcFirmasService.reactivarSilenciadosFirma(ctx.poolSgc, req.user?.id);
+            res.json({ success: true, ...resultado });
+        } catch (error) {
+            responder(res, error, 'No se pudieron reactivar los avisos de firma');
+        }
+    });
+
+    router.post('/avisos/:id/silenciar', async (req, res) => {
+        try {
+            const ctx = pools(res);
+            if (!ctx) return;
+            await sgcFirmasService.silenciarAvisoFirma(ctx.poolSgc, req.params.id, req.user?.id);
+            res.json({ success: true });
+        } catch (error) {
+            responder(res, error, 'No se pudo silenciar el aviso de firma');
         }
     });
 
@@ -94,10 +119,23 @@ function createSgcFirmasRouter({
         try {
             const ctx = pools(res);
             if (!ctx) return;
-            await sgcFirmasService.descartarAvisoFirma(ctx.poolSgc, req.params.id, req.user?.id);
+            // Clientes anteriores: «Cerrar» llamaba a descartar y borraba el aviso.
+            // Ahora solo lo silencia para que siga en el gestor.
+            await sgcFirmasService.silenciarAvisoFirma(ctx.poolSgc, req.params.id, req.user?.id);
             res.json({ success: true });
         } catch (error) {
             responder(res, error, 'No se pudo cerrar el aviso de firma');
+        }
+    });
+
+    router.post('/avisos/:id/atender', async (req, res) => {
+        try {
+            const ctx = pools(res);
+            if (!ctx) return;
+            await sgcFirmasService.descartarAvisoFirma(ctx.poolSgc, req.params.id, req.user?.id);
+            res.json({ success: true });
+        } catch (error) {
+            responder(res, error, 'No se pudo atender el aviso de firma');
         }
     });
 
