@@ -1,8 +1,9 @@
 <div class="ambiental-page"
      [class.ambiental-page--oficios]="modo === 'oficios'"
-     [class.ambiental-page--control-tramites]="modo === 'control-tramites'">
+     [class.ambiental-page--control-tramites]="modo === 'control-tramites'"
+     [class.ambiental-page--embebido]="embebido">
   <!-- Header estándar -->
-  <div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+  <div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden" *ngIf="!embebido">
     <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
       <div class="row w-100 text-center">
         <div class="col-12">
@@ -17,7 +18,7 @@
     </div>
   </div>
 
-  <div class="container-fluid ambiental-main mt--5">
+  <div class="container-fluid ambiental-main" [class.mt--5]="!embebido" [class.ambiental-main--embebido]="embebido">
     <div class="row justify-content-center">
       <div class="col-xl-12">
 

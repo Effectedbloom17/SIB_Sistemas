@@ -675,6 +675,35 @@
   flex-direction: column;
 }
 
+.pc-feature-carousel--resumen {
+  --pc-carousel-height: auto;
+
+  .pc-feature-carousel__shell {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .pc-feature-carousel__track {
+    flex-direction: column;
+    height: auto;
+    min-height: 0;
+    gap: 1rem;
+    transform: none !important;
+  }
+
+  .pc-feature-carousel__slide,
+  .pc-feature-carousel__slide-inner {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
 .pc-feature-carousel__slide-inner {
   width: 100%;
   flex: 1;

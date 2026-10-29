@@ -124,12 +124,27 @@
                     <ng-container *ngFor="let col of orgColumnas">
                       <div class="org-col"
                            *ngIf="columnaVisible(col)"
-                           [class.org-col--branch-grid]="col.hijosEnRejilla">
+                           [class.org-col--branch-grid]="col.hijosEnRejilla"
+                           [class.org-col--ramas]="!!col.ramas?.length">
                         <div class="org-col__line" aria-hidden="true"></div>
-                        <ng-container *ngIf="!col.hijosEnRejilla">
+                        <ng-container *ngIf="!col.hijosEnRejilla && !col.ramas?.length">
                           <ng-container *ngFor="let nodo of col.nodos">
                             <ng-container *ngTemplateOutlet="nodoOrg; context: { $implicit: nodo.puesto }"></ng-container>
                           </ng-container>
+                        </ng-container>
+                        <ng-container *ngIf="col.ramas?.length">
+                          <ng-container *ngIf="col.nodos[0] as lead">
+                            <ng-container *ngTemplateOutlet="nodoOrg; context: { $implicit: lead.puesto }"></ng-container>
+                          </ng-container>
+                          <div class="org-col__branch-join" aria-hidden="true"></div>
+                          <div class="org-ramas" aria-label="Puestos de la gerencia">
+                            <span class="org-ramas__fork" aria-hidden="true"></span>
+                            <div class="org-rama" *ngFor="let rama of col.ramas">
+                              <ng-container *ngFor="let nodo of rama.nodos">
+                                <ng-container *ngTemplateOutlet="nodoOrg; context: { $implicit: nodo.puesto }"></ng-container>
+                              </ng-container>
+                            </div>
+                          </div>
                         </ng-container>
                         <ng-container *ngIf="col.hijosEnRejilla">
                           <ng-container *ngIf="col.nodos[0] as lead">

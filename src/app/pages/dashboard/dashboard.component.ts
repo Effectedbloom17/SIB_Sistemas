@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, ComponentRef, Injector, NgModuleRef, OnInit, OnDestroy, ViewChild, ViewContainerRef, createNgModule } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
@@ -61,6 +61,13 @@ interface MetricaCard {
   subtitulo: string;
 }
 
+type VistaPanelControl = 'panel' | 'pipc' | 'ambiental';
+
+interface OpcionVistaPanel {
+  id: VistaPanelControl;
+  label: string;
+}
+
 interface CursoAgenda {
   programado_id: number;
   nombre_curso: string;
@@ -84,7 +91,17 @@ interface CursoAgenda {
 export class DashboardComponent implements OnInit, OnDestroy {
 
   private destroy$ = new Subject<void>();
+  private cargaVistaToken = 0;
+  private vistaRef: ComponentRef<unknown> | null = null;
+  private vistaModule: NgModuleRef<unknown> | null = null;
   private readonly meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+  @ViewChild('vistaHost', { read: ViewContainerRef }) vistaHost?: ViewContainerRef;
+
+  vistaPanel: VistaPanelControl = 'panel';
+  vistasPanel: OpcionVistaPanel[] = [{ id: 'panel', label: 'Panel de control' }];
+  cargandoVista = false;
+  errorVista = false;
 
   private readonly palette = {
     programados: '#5e72e4',
@@ -137,12 +154,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private backendService: BackendServices,
     private authService: AuthService,
     private router: Router,
-    private notificacionesService: NotificacionesService
+    private notificacionesService: NotificacionesService,
+    private injector: Injector
   ) {
     this.initCharts();
   }
 
+  get mostrarCarrusel(): boolean {
+    return this.vistasPanel.length > 1;
+  }
+
   ngOnInit() {
+    this.armarVistasPanel();
     if (this.authService.tieneAlgunRol(['empresa'])) {
       this.router.navigate(['/curso-activos']);
       return;
@@ -152,8 +175,106 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.destruirVistaEmbebida();
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  private armarVistasPanel(): void {
+    const vistas: OpcionVistaPanel[] = [{ id: 'panel', label: 'Panel de control' }];
+    if (this.authService.tieneAlgunRol(['root', 'administrador', 'proteccion_civil'])) {
+      vistas.push({ id: 'pipc', label: 'PIPC activos' });
+    }
+    if (this.authService.tieneAlgunRol(['root', 'administrador', 'ambiental'])) {
+      vistas.push({ id: 'ambiental', label: 'Ambiental' });
+    }
+    this.vistasPanel = vistas;
+  }
+
+  cambiarVista(direccion: number): void {
+    const ids = this.vistasPanel.map((vista) => vista.id);
+    const indice = Math.max(0, ids.indexOf(this.vistaPanel));
+    const siguiente = (indice + direccion + ids.length) % ids.length;
+    this.irVista(ids[siguiente]);
+  }
+
+  reintentarVista(): void {
+    this.irVista(this.vistaPanel, true);
+  }
+
+  irVista(vista: VistaPanelControl, forzar = false): void {
+    if (!forzar && vista === this.vistaPanel && (vista === 'panel' || this.vistaRef)) {
+      return;
+    }
+    this.vistaPanel = vista;
+    const token = ++this.cargaVistaToken;
+    this.destruirVistaEmbebida();
+    this.errorVista = false;
+    if (vista === 'panel') {
+      this.cargandoVista = false;
+      return;
+    }
+    this.cargandoVista = true;
+    const carga = vista === 'pipc' ? this.montarPipc(token) : this.montarAmbiental(token);
+    carga.then(() => {
+      if (token !== this.cargaVistaToken) {
+        return;
+      }
+      this.cargandoVista = false;
+    }).catch(() => {
+      if (token !== this.cargaVistaToken) {
+        return;
+      }
+      this.destruirVistaEmbebida();
+      this.cargandoVista = false;
+      this.errorVista = true;
+    });
+  }
+
+  private async montarPipc(token: number): Promise<void> {
+    const [{ ProteccionCivilModule }, { ProteccionCivilComponent }] = await Promise.all([
+      import('../proteccion-civil/proteccion-civil.module'),
+      import('../proteccion-civil/proteccion-civil.component')
+    ]);
+    if (token !== this.cargaVistaToken) {
+      return;
+    }
+    this.montarComponente(ProteccionCivilModule, ProteccionCivilComponent);
+  }
+
+  private async montarAmbiental(token: number): Promise<void> {
+    const [{ AmbientalModule }, { AmbientalComponent }] = await Promise.all([
+      import('../ambiental/ambiental.module'),
+      import('../ambiental/ambiental.component')
+    ]);
+    if (token !== this.cargaVistaToken) {
+      return;
+    }
+    this.montarComponente(AmbientalModule, AmbientalComponent);
+  }
+
+  private montarComponente(modulo: any, componente: any): void {
+    if (!this.vistaHost) {
+      throw new Error('No está listo el contenedor de la vista');
+    }
+    const moduleRef = createNgModule(modulo, this.injector);
+    this.vistaModule = moduleRef;
+    const ref = this.vistaHost.createComponent(componente, { ngModuleRef: moduleRef });
+    (ref.instance as { embebido: boolean }).embebido = true;
+    ref.changeDetectorRef.detectChanges();
+    this.vistaRef = ref;
+  }
+
+  private destruirVistaEmbebida(): void {
+    if (this.vistaRef) {
+      this.vistaRef.destroy();
+      this.vistaRef = null;
+    }
+    if (this.vistaModule) {
+      this.vistaModule.destroy();
+      this.vistaModule = null;
+    }
+    this.vistaHost?.clear();
   }
 
   cargarDashboard() {

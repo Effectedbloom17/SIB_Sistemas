@@ -5,6 +5,107 @@
 @import './pc-ops-animations';
 @import './proteccion-civil-analytics.scss';
 
+// Dentro del carrusel del Panel de Control el encabezado propio no se muestra.
+.pc-embebido {
+  margin-top: 1.25rem;
+}
+
+.pc-resumen-cumplimiento__card {
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(50, 50, 93, 0.08);
+  padding: 1.25rem 1.5rem 0.5rem;
+}
+
+.pc-resumen-cumplimiento__label {
+  display: block;
+  color: #d97248;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pc-resumen-cumplimiento__title {
+  color: #32325d;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.pc-resumen-cumplimiento__sub {
+  color: #8898aa;
+  font-size: 0.85rem;
+}
+
+.pc-resumen-cumplimiento__body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.pc-resumen-cumplimiento__chart {
+  position: relative;
+  width: min(100%, 320px);
+}
+
+.pc-resumen-cumplimiento__centro {
+  position: absolute;
+  inset: 0 0 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.pc-resumen-cumplimiento__pct {
+  color: #32325d;
+  font-size: 1.8rem;
+  font-weight: 700;
+  line-height: 1;
+
+  small {
+    font-size: 0.95rem;
+  }
+}
+
+.pc-resumen-cumplimiento__centro-label {
+  color: #8898aa;
+  font-size: 0.75rem;
+}
+
+.pc-resumen-cumplimiento__leyenda {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 180px;
+}
+
+.pc-resumen-cumplimiento__item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: #525f7f;
+
+  strong {
+    margin-left: auto;
+    color: #32325d;
+  }
+}
+
+.pc-resumen-cumplimiento__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.pc-resumen-cumplimiento__vacio {
+  text-align: center;
+  padding: 2rem 0;
+}
+
 // Header con imagen de fondo
 .header-bg-image {
   background-image: url('/assets/img/prote_civil.jpg');

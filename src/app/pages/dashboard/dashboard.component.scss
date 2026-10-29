@@ -1641,6 +1641,85 @@ $bg-light: #f7fafc;
 }
 
 :host ::ng-deep .header-bg-image { overflow: visible !important; }
+
+.dash-carrusel-header {
+  padding-bottom: 2.4rem !important;
+}
+
+.dash-carrusel {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+  margin-top: 1.15rem;
+}
+
+.dash-carrusel-opciones {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(8, 30, 48, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  overflow-x: auto;
+  max-width: calc(100vw - 140px);
+}
+
+.dash-carrusel-opcion,
+.dash-carrusel-flecha {
+  border: 0;
+  color: #fff;
+  background: transparent;
+  font-family: 'Open Sans', sans-serif;
+  cursor: pointer;
+}
+
+.dash-carrusel-opcion {
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &.activo {
+    background: #fff;
+    color: #38512F;
+  }
+}
+
+.dash-carrusel-flecha {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  flex: 0 0 auto;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.32);
+  }
+}
+
+.dash-body {
+  margin-top: -1.25rem !important;
+}
+
+.dash-vista-embebida {
+  position: relative;
+  z-index: 10;
+}
+
+.dash-vista-embebida--pipc,
+.dash-vista-embebida--ambiental {
+  margin-top: 0.75rem;
+}
+
+.dash-vista-estado {
+  margin-top: 1.5rem;
+}
 // No sobreescribir overflow del container-fluid para evitar el scroll horizontal
 :host ::ng-deep .container-fluid { max-width: 100%; }
 

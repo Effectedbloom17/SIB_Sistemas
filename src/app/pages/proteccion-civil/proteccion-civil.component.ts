@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, HostListener, NgZone } from '@angular/core';
+import { Component, Input, OnInit, OnDestroy, HostListener, NgZone } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import Swal from 'sweetalert2';
@@ -290,6 +290,8 @@ interface PcWorkflowArchivo {
   styleUrls: ['./proteccion-civil.component.scss']
 })
 export class ProteccionCivilComponent implements OnInit, OnDestroy {
+  /** Dentro del carrusel del Panel de Control: se oculta el encabezado propio. */
+  @Input() embebido = false;
   readonly acceptedPcFileTypes: string = '.pdf,.jpg,.jpeg,.png,.webp,.gif,.bmp,.tif,.tiff,.xls,.xlsx,.ppt,.pptx';
   /** Límite de subida en Protección Civil (debe coincidir con MAX_PC_UPLOAD_MB del backend). */
   readonly maxPcFileMb = 50;
@@ -490,6 +492,9 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   private textoEditandoSubir: Set<number> = new Set<number>();
 
   esRootUser = false;
+
+  cumplimientoChart: any = {};
+  cumplimientoChartReady = false;
 
   resolutivosAnio = new Date().getFullYear();
   cargandoResolutivosEstadisticas = false;
@@ -2014,6 +2019,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
           this.extraerEstadosDeBD();
           this.cargarEmpresasRecientesDesdeStorage();
           this.aplicarEstadoDesdeRuta();
+          this.syncCumplimientoChart();
         }
         this.cargandoEmpresas = false;
       },
@@ -2113,6 +2119,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
           this.extraerEstadosDeBD();
           this.cargarEmpresasRecientesDesdeStorage();
           this.aplicarEstadoDesdeRuta();
+          this.syncCumplimientoChart();
         }
       },
       (error) => {
@@ -2285,6 +2292,41 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
 
   get totalDocumentosAsignados(): number {
     return this.empresasUnicasFiltradas.reduce((acc, e) => acc + (Number(e.documentos_totales) || 0), 0);
+  }
+
+  get documentosCompletosDashboard(): number {
+    return Math.max(this.totalDocumentosAsignados - this.archivosPendientesDashboard, 0);
+  }
+
+  private syncCumplimientoChart(): void {
+    if (!this.embebido) return;
+    const completos = this.documentosCompletosDashboard;
+    const pendientes = this.archivosPendientesDashboard;
+    this.cumplimientoChart = {
+      series: [completos, pendientes],
+      chart: {
+        type: 'donut',
+        height: 260,
+        fontFamily: 'Open Sans, sans-serif',
+        toolbar: { show: false }
+      },
+      labels: ['Completos', 'Pendientes'],
+      colors: ['#2dce89', '#fb6340'],
+      legend: { show: false },
+      dataLabels: { enabled: false },
+      stroke: { width: 3, colors: ['#fff'] },
+      plotOptions: {
+        pie: {
+          expandOnClick: false,
+          donut: { size: '72%', labels: { show: false } }
+        }
+      },
+      tooltip: {
+        theme: 'light',
+        y: { formatter: (val: number) => `${val} documento${val === 1 ? '' : 's'}` }
+      }
+    };
+    this.cumplimientoChartReady = true;
   }
 
   get empresasSinDocumentos(): number {
@@ -6750,6 +6792,11 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     return this.resolutivosAtencion.filter((r) => r.estatus === this.filtroAtencionEstatus);
   }
 
+  get resolutivosAtencionVisibles(): ResolutivoAtencionItem[] {
+    const lista = this.resolutivosAtencionFiltrados;
+    return this.embebido ? lista.slice(0, 5) : lista;
+  }
+
   private rebuildFiltrosAtencionChips(): void {
     const todos = {
       key: null as string | null,
@@ -6949,7 +6996,9 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       next: (response: any) => {
         if (response?.success && response.estadisticas) {
           this.actualizarGraficosResolutivos(response.estadisticas);
-          this.iniciarCarruselResolutivos();
+          if (!this.embebido) {
+            this.iniciarCarruselResolutivos();
+          }
         } else {
           this.limpiarGraficosResolutivos();
         }

@@ -1,4 +1,4 @@
-/** Puestos oficiales del Organigrama Biznaga (ATH-F-01 Rev. 03) y su distribución visual. */
+/** Puestos oficiales del Organigrama Biznaga (ATH-F-01 Rev. 04, 27-10-26) y su distribución visual. */
 
 export interface OrganigramaGrupo {
   grupo: string;
@@ -18,6 +18,11 @@ export interface OrganigramaColumna {
    * en rejilla (pares bajo el jefe), no en cadena vertical.
    */
   hijosEnRejilla?: boolean;
+  /**
+   * Subramas bajo `nodos[0]`. Cada rama es una cadena vertical
+   * que cuelga del jefe (no de Dirección).
+   */
+  ramas?: OrganigramaColumna[];
 }
 
 export interface OrganigramaRama {
@@ -44,13 +49,11 @@ export const ORGANIGRAMA_BIZNAGA_GRUPOS: OrganigramaGrupo[] = [
     puestos: [
       'Especialista Ambiental',
       'Ejecutivo Ambiental',
-      'Ejecutivo de salud ocupacional',
-      'Especialista de sistemas de gestión y capacitación',
-      'Ejecutivo de sistemas de gestión',
-      'Instructor',
-      'Especialista de seguridad industrial',
-      'Ejecutivo de seguridad industrial',
-      'Supervisor de seguridad industrial'
+      'Especialista de Sistemas de Gestión y Capacitación',
+      'Ejecutivo de Sistemas de Calidad',
+      'Especialista de Seguridad Industrial',
+      'Ejecutivo de Seguridad Industrial',
+      'Supervisor de Seguridad Industrial'
     ]
   },
   {
@@ -59,14 +62,17 @@ export const ORGANIGRAMA_BIZNAGA_GRUPOS: OrganigramaGrupo[] = [
       'Gerente de Estrategias e Innovación',
       'Ejecutivo de Arquitectura',
       'Ejecutivo de Tecnologías de la Información',
-      'Ejecutivo de ventas',
-      'Ejecutivo de diseño e Innovación',
-      'Ejecutivo Eléctrico y mantenimiento'
+      'Ejecutivo Eléctrico y Mantenimiento',
+      'Ejecutivo de Diseño e Innovación'
     ]
   }
 ];
 
-/** Variantes de género / mayúsculas → puesto canónico del organigrama. */
+/**
+ * Variantes de género / mayúsculas → puesto canónico.
+ * Los cargos que salieron en la Rev. 04 se conservan como alias para no
+ * reescribir el texto ya guardado en usuarios.
+ */
 export const ORGANIGRAMA_PUESTO_ALIAS: Record<string, string> = {
   'director general': 'Dirección General',
   'directora general': 'Dirección General',
@@ -76,23 +82,24 @@ export const ORGANIGRAMA_PUESTO_ALIAS: Record<string, string> = {
   'ejecutivo de administracion': 'Ejecutivo de Administración',
   'especialista ambiental': 'Especialista Ambiental',
   'ejecutivo ambiental': 'Ejecutivo Ambiental',
-  'ejecutivo de salud ocupacional': 'Ejecutivo de salud ocupacional',
-  'especialista de sistemas de gestion y capacitacion': 'Especialista de sistemas de gestión y capacitación',
-  'ejecutivo de sistemas de gestion': 'Ejecutivo de sistemas de gestión',
-  'instructor': 'Instructor',
-  'especialista de seguridad industrial': 'Especialista de seguridad industrial',
-  'ejecutivo de seguridad industrial': 'Ejecutivo de seguridad industrial',
-  'supervisor de seguridad industrial': 'Supervisor de seguridad industrial',
+  'especialista de sistemas de gestion y capacitacion': 'Especialista de Sistemas de Gestión y Capacitación',
+  'ejecutivo de sistemas de calidad': 'Ejecutivo de Sistemas de Calidad',
+  'especialista de seguridad industrial': 'Especialista de Seguridad Industrial',
+  'ejecutivo de seguridad industrial': 'Ejecutivo de Seguridad Industrial',
+  'supervisor de seguridad industrial': 'Supervisor de Seguridad Industrial',
   'gerente de estrategias e innovación': 'Gerente de Estrategias e Innovación',
   'ejecutivo de arquitectura': 'Ejecutivo de Arquitectura',
-  'ejecutivo de ventas': 'Ejecutivo de ventas',
   'ejecutivo de tecnologias de la informacion': 'Ejecutivo de Tecnologías de la Información',
   'ejecutivo de tecnologías de la información': 'Ejecutivo de Tecnologías de la Información',
-  'ejecutivo de diseño e innovacion': 'Ejecutivo de diseño e Innovación',
-  'ejecutivo de diseño e innovación': 'Ejecutivo de diseño e Innovación',
-  'ejecutivo electrico y mantenimiento': 'Ejecutivo Eléctrico y mantenimiento',
-  'ejecutivo eléctrico y mantenimiento': 'Ejecutivo Eléctrico y mantenimiento',
-  'residente': 'Residente'
+  'ejecutivo de diseño e innovacion': 'Ejecutivo de Diseño e Innovación',
+  'ejecutivo de diseño e innovación': 'Ejecutivo de Diseño e Innovación',
+  'ejecutivo electrico y mantenimiento': 'Ejecutivo Eléctrico y Mantenimiento',
+  'ejecutivo eléctrico y mantenimiento': 'Ejecutivo Eléctrico y Mantenimiento',
+  'residente': 'Residente',
+  'ejecutivo de salud ocupacional': 'Ejecutivo de salud ocupacional',
+  'ejecutivo de sistemas de gestion': 'Ejecutivo de sistemas de gestión',
+  'instructor': 'Instructor',
+  'ejecutivo de ventas': 'Ejecutivo de ventas'
 };
 
 export const AREA_POR_PUESTO: Record<string, string> = {
@@ -101,20 +108,21 @@ export const AREA_POR_PUESTO: Record<string, string> = {
   'Ejecutivo de Administración': 'Administración y Talento Humano',
   'Especialista Ambiental': 'Ambiental',
   'Ejecutivo Ambiental': 'Ambiental',
-  'Ejecutivo de salud ocupacional': 'Salud ocupacional',
-  'Especialista de sistemas de gestión y capacitación': 'Sistemas de gestión y capacitación',
-  'Ejecutivo de sistemas de gestión': 'Sistemas de gestión y capacitación',
-  'Instructor': 'Sistemas de gestión y capacitación',
-  'Especialista de seguridad industrial': 'Seguridad industrial',
-  'Ejecutivo de seguridad industrial': 'Seguridad industrial',
-  'Supervisor de seguridad industrial': 'Seguridad industrial',
+  'Especialista de Sistemas de Gestión y Capacitación': 'Sistemas de gestión y capacitación',
+  'Ejecutivo de Sistemas de Calidad': 'Sistemas de gestión y capacitación',
+  'Especialista de Seguridad Industrial': 'Seguridad industrial',
+  'Ejecutivo de Seguridad Industrial': 'Seguridad industrial',
+  'Supervisor de Seguridad Industrial': 'Seguridad industrial',
   'Gerente de Estrategias e Innovación': 'Estrategias e Innovación',
   'Ejecutivo de Arquitectura': 'Estrategias e Innovación',
-  'Ejecutivo de ventas': 'Estrategias e Innovación',
   'Ejecutivo de Tecnologías de la Información': 'Estrategias e Innovación',
-  'Ejecutivo de diseño e Innovación': 'Estrategias e Innovación',
-  'Ejecutivo Eléctrico y mantenimiento': 'Estrategias e Innovación',
-  'Residente': 'Administración y Talento Humano'
+  'Ejecutivo de Diseño e Innovación': 'Estrategias e Innovación',
+  'Ejecutivo Eléctrico y Mantenimiento': 'Estrategias e Innovación',
+  'Residente': 'Administración y Talento Humano',
+  'Ejecutivo de salud ocupacional': 'Salud ocupacional',
+  'Ejecutivo de sistemas de gestión': 'Sistemas de gestión y capacitación',
+  'Instructor': 'Sistemas de gestión y capacitación',
+  'Ejecutivo de ventas': 'Estrategias e Innovación'
 };
 
 export const ORGANIGRAMA_DIRECCION: OrganigramaNodo = {
@@ -122,9 +130,11 @@ export const ORGANIGRAMA_DIRECCION: OrganigramaNodo = {
 };
 
 /**
- * Tres bloques del ATH-F-01 Rev. 03:
- * izquierda = Gerencia ATH, centro = reportan a Dirección, derecha = Gerencia de Estrategias
- * (5 ejecutivos en rejilla bajo el gerente).
+ * ATH-F-01 Rev. 04:
+ * izquierda = Gerencia ATH (solo Ejecutivo de Administración),
+ * centro = reportan a Dirección (Ambiental, Sistemas, Seguridad),
+ * derecha = Gerencia de Estrategias (4 ejecutivos en rejilla).
+ * Residente se asigna en Gestión de usuarios y no se dibuja.
  */
 export const ORGANIGRAMA_COLUMNAS: OrganigramaColumna[] = [
   {
@@ -144,28 +154,20 @@ export const ORGANIGRAMA_COLUMNAS: OrganigramaColumna[] = [
     ]
   },
   {
-    id: 'salud',
-    area: 'Salud ocupacional',
-    nodos: [
-      { puesto: 'Ejecutivo de salud ocupacional' }
-    ]
-  },
-  {
     id: 'sgc',
     area: 'Sistemas de gestión y capacitación',
     nodos: [
-      { puesto: 'Especialista de sistemas de gestión y capacitación' },
-      { puesto: 'Ejecutivo de sistemas de gestión' },
-      { puesto: 'Instructor' }
+      { puesto: 'Especialista de Sistemas de Gestión y Capacitación' },
+      { puesto: 'Ejecutivo de Sistemas de Calidad' }
     ]
   },
   {
     id: 'seguridad',
     area: 'Seguridad industrial',
     nodos: [
-      { puesto: 'Especialista de seguridad industrial' },
-      { puesto: 'Ejecutivo de seguridad industrial' },
-      { puesto: 'Supervisor de seguridad industrial' }
+      { puesto: 'Especialista de Seguridad Industrial' },
+      { puesto: 'Ejecutivo de Seguridad Industrial' },
+      { puesto: 'Supervisor de Seguridad Industrial' }
     ]
   },
   {
@@ -174,25 +176,30 @@ export const ORGANIGRAMA_COLUMNAS: OrganigramaColumna[] = [
     hijosEnRejilla: true,
     nodos: [
       { puesto: 'Gerente de Estrategias e Innovación' },
-      // Orden columna-mayor ATH-F-01: izq Arquitectura→TI→ventas | der diseño→eléctrico
       { puesto: 'Ejecutivo de Arquitectura' },
       { puesto: 'Ejecutivo de Tecnologías de la Información' },
-      { puesto: 'Ejecutivo de ventas' },
-      { puesto: 'Ejecutivo de diseño e Innovación' },
-      { puesto: 'Ejecutivo Eléctrico y mantenimiento' }
+      { puesto: 'Ejecutivo Eléctrico y Mantenimiento' },
+      { puesto: 'Ejecutivo de Diseño e Innovación' }
     ]
   }
 ];
 
 export const ORGANIGRAMA_RAMAS: OrganigramaRama[] = [
   { id: 'ath', titulo: 'Administración y Talento Humano', columnas: ORGANIGRAMA_COLUMNAS.filter((c) => c.id === 'admin') },
-  { id: 'centro', titulo: 'Reportan a Dirección', columnas: ORGANIGRAMA_COLUMNAS.filter((c) => ['ambiental', 'salud', 'sgc', 'seguridad'].includes(c.id)) },
+  { id: 'centro', titulo: 'Reportan a Dirección', columnas: ORGANIGRAMA_COLUMNAS.filter((c) => ['ambiental', 'sgc', 'seguridad'].includes(c.id)) },
   { id: 'estrategia', titulo: 'Estrategias e Innovación', columnas: ORGANIGRAMA_COLUMNAS.filter((c) => c.id === 'estrategia') }
 ];
 
+export function puestosEnColumna(col: OrganigramaColumna): string[] {
+  return [
+    ...col.nodos.map((nodo) => nodo.puesto),
+    ...(col.ramas || []).flatMap((rama) => puestosEnColumna(rama))
+  ];
+}
+
 export const ORGANIGRAMA_PUESTOS_LAYOUT = new Set<string>([
   ORGANIGRAMA_DIRECCION.puesto,
-  ...ORGANIGRAMA_COLUMNAS.flatMap((col) => col.nodos.map((n) => n.puesto))
+  ...ORGANIGRAMA_COLUMNAS.flatMap((col) => puestosEnColumna(col))
 ]);
 
 export function normalizarTextoPuesto(valor: string): string {

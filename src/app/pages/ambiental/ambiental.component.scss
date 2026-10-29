@@ -20,6 +20,11 @@ $input-border: rgba(56, 81, 47, 0.14);
   color: $gray-800;
 }
 
+:host.ambiental-embebido {
+  height: calc(100vh - 21rem);
+  min-height: 520px;
+}
+
 // ─── Animaciones de entrada ───
 @keyframes ambiental-fade-slide-up {
   from {
@@ -111,6 +116,14 @@ $input-border: rgba(56, 81, 47, 0.14);
 
 .ambiental-page .header {
   flex-shrink: 0;
+}
+
+.ambiental-page--embebido {
+  height: 100%;
+}
+
+.ambiental-main--embebido {
+  margin-top: 0 !important;
 }
 
 .ambiental-main {

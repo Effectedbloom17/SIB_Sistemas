@@ -1,4 +1,4 @@
-import { Component, HostListener, NgZone, OnDestroy, OnInit, QueryList, ViewChild, ViewChildren } from '@angular/core';
+import { Component, HostBinding, HostListener, Input, NgZone, OnDestroy, OnInit, QueryList, ViewChild, ViewChildren } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import {
@@ -115,6 +115,11 @@ export type AmbientalPrioridadChartOptions = {
   styleUrls: ['./ambiental.component.scss']
 })
 export class AmbientalComponent implements OnInit, OnDestroy {
+  /** Dentro del carrusel del Panel de Control: sin encabezado propio y con alto acotado. */
+  @Input()
+  @HostBinding('class.ambiental-embebido')
+  embebido = false;
+
   private destroy$ = new Subject<void>();
 
   readonly pageSize = 20;
@@ -315,7 +320,9 @@ export class AmbientalComponent implements OnInit, OnDestroy {
     this.puedeCrearOficio = !this.authService.esUsuarioEmpresa();
     this.initEstatusChart();
     this.initPrioridadChart();
-    this.aplicarScrollPaginaAmbiental();
+    if (!this.embebido) {
+      this.aplicarScrollPaginaAmbiental();
+    }
     if (this.modo === 'oficios') {
       this.cargarEstadoDriveSpF15();
       this.cargarOficios();

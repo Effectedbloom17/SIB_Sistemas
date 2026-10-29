@@ -1,4 +1,4 @@
-﻿<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+﻿<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden" *ngIf="!embebido">
 
   <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
     <div class="row w-100 text-center">
@@ -15,7 +15,7 @@
   </div>
 </div>
 
-<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+<div class="container-fluid" [class.mt--5]="!embebido" [class.pc-embebido]="embebido" style="position: relative; z-index: 10; margin-bottom: 3rem;">
   <div class="row justify-content-center">
     <div class="col-xl-11">
 
@@ -50,7 +50,7 @@
           <div class="kpi-cell-sub"><span class="kpi-cell-dot" style="background:#2dce89"></span>Total en sistema</div>
         </div>
 
-        <div class="kpi-cell" [style.animation-delay]="'0.18s'" [style.--kpi-accent]="'#11cdef'">
+        <div class="kpi-cell" *ngIf="!embebido" [style.animation-delay]="'0.18s'" [style.--kpi-accent]="'#11cdef'">
           <div class="kpi-cell-icon" style="background: linear-gradient(135deg,#11cdef,#1171ef)">
             <i class="fas fa-percentage"></i>
           </div>
@@ -59,7 +59,7 @@
           <div class="kpi-cell-sub"><span class="kpi-cell-dot" style="background:#11cdef"></span>Documentos completos</div>
         </div>
 
-        <div class="kpi-cell" [style.animation-delay]="'0.24s'" [style.--kpi-accent]="'#fb6340'">
+        <div class="kpi-cell" *ngIf="!embebido" [style.animation-delay]="'0.24s'" [style.--kpi-accent]="'#fb6340'">
           <div class="kpi-cell-icon" style="background: linear-gradient(135deg,#fb6340,#fbb140)">
             <i class="fas fa-clock"></i>
           </div>
@@ -69,6 +69,55 @@
         </div>
 
       </div>
+
+      <section *ngIf="embebido && !esUsuarioEmpresa && vistaActual === 'empresas'"
+               class="pc-resumen-cumplimiento mb-4"
+               aria-label="Cumplimiento documental">
+        <div class="card border-0 pc-resumen-cumplimiento__card">
+          <div class="pc-resumen-cumplimiento__head">
+            <span class="pc-resumen-cumplimiento__label">Documentos</span>
+            <h2 class="pc-resumen-cumplimiento__title mb-0">Cumplimiento documental</h2>
+            <p class="pc-resumen-cumplimiento__sub mb-0">Completos contra pendientes</p>
+          </div>
+          <div class="pc-resumen-cumplimiento__body" *ngIf="!cargandoEmpresas && totalDocumentosAsignados > 0 && cumplimientoChartReady">
+            <div class="pc-resumen-cumplimiento__chart">
+              <apx-chart
+                [series]="cumplimientoChart.series"
+                [chart]="cumplimientoChart.chart"
+                [labels]="cumplimientoChart.labels"
+                [colors]="cumplimientoChart.colors"
+                [legend]="cumplimientoChart.legend"
+                [dataLabels]="cumplimientoChart.dataLabels"
+                [plotOptions]="cumplimientoChart.plotOptions"
+                [stroke]="cumplimientoChart.stroke"
+                [tooltip]="cumplimientoChart.tooltip">
+              </apx-chart>
+              <div class="pc-resumen-cumplimiento__centro">
+                <span class="pc-resumen-cumplimiento__pct">{{ cumplimientoPromedioDashboard }}<small>%</small></span>
+                <span class="pc-resumen-cumplimiento__centro-label">Cumplimiento</span>
+              </div>
+            </div>
+            <div class="pc-resumen-cumplimiento__leyenda">
+              <div class="pc-resumen-cumplimiento__item">
+                <span class="pc-resumen-cumplimiento__dot" style="background:#2dce89"></span>
+                <span>Completos</span>
+                <strong>{{ documentosCompletosDashboard }}</strong>
+              </div>
+              <div class="pc-resumen-cumplimiento__item">
+                <span class="pc-resumen-cumplimiento__dot" style="background:#fb6340"></span>
+                <span>Pendientes</span>
+                <strong>{{ archivosPendientesDashboard }}</strong>
+              </div>
+            </div>
+          </div>
+          <div class="pc-resumen-cumplimiento__vacio" *ngIf="cargandoEmpresas">
+            <div class="spinner-border" style="color:#d97248" role="status"></div>
+          </div>
+          <div class="pc-resumen-cumplimiento__vacio" *ngIf="!cargandoEmpresas && totalDocumentosAsignados === 0">
+            <p class="mb-0 text-muted">Sin documentos asignados</p>
+          </div>
+        </div>
+      </section>
 
       <!-- =====================================================
            VISTA EMPRESA: Mis Documentos de Protección Civil
@@ -545,6 +594,7 @@
            CARRUSEL ANALÍTICA RESOLUTIVOS PIPC
            ===================================================== -->
       <div class="pc-feature-carousel mb-4 pc-resolutivos-analytics"
+           [class.pc-feature-carousel--resumen]="embebido"
            *ngIf="puedeVerGraficaActividadResolutivosPipc && vistaActual === 'empresas'"
            (mouseenter)="onCarruselResolutivosMouseEnter()"
            (mouseleave)="onCarruselResolutivosMouseLeave()">
@@ -552,17 +602,19 @@
         <div class="pc-feature-carousel__shell">
           <button type="button"
                   class="pc-feature-carousel__edge pc-feature-carousel__edge--prev"
+                  *ngIf="!embebido"
                   (click)="carruselResolutivosAnterior()"
                   aria-label="Indicador anterior">
           </button>
           <button type="button"
                   class="pc-feature-carousel__edge pc-feature-carousel__edge--next"
+                  *ngIf="!embebido"
                   (click)="carruselResolutivosSiguiente()"
                   aria-label="Siguiente indicador">
           </button>
 
           <div class="pc-feature-carousel__track"
-               [style.transform]="'translateX(-' + (carruselResolutivosActivo * 100) + '%)'">
+               [style.transform]="embebido ? null : ('translateX(-' + (carruselResolutivosActivo * 100) + '%)')">
 
             <!-- SLIDE 1: Magnitud por estatus + distribución -->
             <article class="pc-feature-carousel__slide">
@@ -769,7 +821,7 @@
                       </div>
 
                       <div class="pc-resolutivo-list" *ngIf="resolutivosAtencionFiltrados.length; else sinAtencionFiltrada">
-                        <ng-container *ngFor="let r of resolutivosAtencionFiltrados; let i = index; trackBy: trackByResolutivoAtencion">
+                        <ng-container *ngFor="let r of resolutivosAtencionVisibles; let i = index; trackBy: trackByResolutivoAtencion">
                           <div class="pc-resolutivo-row"
                                *ngIf="indicadorTiempoAtencion(r) as ind"
                                [ngClass]="ind.clase"
@@ -824,6 +876,10 @@
                           </div>
                         </ng-container>
                       </div>
+                      <p class="pc-resumen-atencion-corte text-muted small mb-0 mt-2"
+                         *ngIf="embebido && resolutivosAtencionFiltrados.length > resolutivosAtencionVisibles.length">
+                        Mostrando {{ resolutivosAtencionVisibles.length }} de {{ resolutivosAtencionFiltrados.length }}
+                      </p>
                       <ng-template #sinAtencionFiltrada>
                         <div class="pc-analytics-empty py-4 text-center">
                           <i class="fas fa-filter fa-lg mb-2" style="color: #d97248; opacity: 0.5;"></i>
@@ -893,7 +949,7 @@
           </div>
         </div>
 
-        <footer class="pc-feature-carousel__footer">
+        <footer class="pc-feature-carousel__footer" *ngIf="!embebido">
           <div class="pc-feature-carousel__footer-main">
             <span class="pc-feature-carousel__timer-text"
                   *ngIf="carruselResolutivosAutoActivo && !carruselResolutivosHover">
@@ -925,7 +981,7 @@
           </button>
         </footer>
 
-        <div class="pc-feature-carousel__dots-wrap">
+        <div class="pc-feature-carousel__dots-wrap" *ngIf="!embebido">
           <div class="pc-feature-carousel__dots" role="tablist" aria-label="Gráficos de resolutivos">
             <button type="button"
                     class="pc-feature-carousel__dot"
@@ -944,7 +1000,7 @@
            ===================================================== -->
 
 
-      <section *ngIf="!esUsuarioEmpresa && vistaActual === 'empresas'"
+      <section *ngIf="!embebido && !esUsuarioEmpresa && vistaActual === 'empresas'"
                class="pc-empresas-selector"
                aria-label="Seleccionar empresa">
 

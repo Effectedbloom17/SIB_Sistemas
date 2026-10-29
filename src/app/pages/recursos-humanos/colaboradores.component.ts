@@ -13,7 +13,8 @@ import {
   OrganigramaColumna,
   areaDePuesto,
   normalizarTextoPuesto,
-  puestoCanonicoOrganigrama
+  puestoCanonicoOrganigrama,
+  puestosEnColumna
 } from './organigrama-biznaga.catalog';
 
 export interface ColaboradorItem {
@@ -252,7 +253,7 @@ export class ColaboradoresComponent implements OnInit, OnDestroy {
   }
 
   private get puestosDelLayout(): string[] {
-    return [this.orgDireccion.puesto, ...this.orgColumnas.flatMap((col) => col.nodos.map((nodo) => nodo.puesto))];
+    return [this.orgDireccion.puesto, ...this.orgColumnas.flatMap((col) => puestosEnColumna(col))];
   }
 
   esPuestoDireccion(puesto?: string | null): boolean {
@@ -346,7 +347,7 @@ export class ColaboradoresComponent implements OnInit, OnDestroy {
   }
 
   columnaVisible(col: OrganigramaColumna): boolean {
-    return col.nodos.some((nodo) => this.personasEn(nodo.puesto).length > 0 || this.mostrarVacante(nodo.puesto));
+    return puestosEnColumna(col).some((puesto) => this.personasEn(puesto).length > 0 || this.mostrarVacante(puesto));
   }
 
   /** Nodos bajo el jefe de rama cuando la columna usa rejilla (ATH-F-01 Estrategias). */
