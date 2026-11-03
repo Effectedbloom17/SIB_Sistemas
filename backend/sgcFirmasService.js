@@ -573,20 +573,34 @@ async function listarAvisosFirma(poolSgc, usuarioId, opciones = {}) {
     await sincronizarAvisosPendientes(poolSgc, uid);
     await sincronizarAvisosRespuesta(poolSgc, uid);
     const incluirSilenciados = !!opciones.incluirSilenciados;
+    await poolSgc.query(
+        `UPDATE sgc_firma_aviso a
+         INNER JOIN sgc_firma_solicitud s ON s.solicitud_id = a.solicitud_id
+         SET a.descartado = 1
+         WHERE a.usuario_id = ?
+           AND a.descartado = 0
+           AND a.tipo = 'solicitud'
+           AND s.estado IN ('autorizada', 'rechazada', 'invalidada')`,
+        [uid]
+    );
     const [rows] = await poolSgc.query(
-        `SELECT aviso_id, solicitud_id, tipo, codigo, nombre_documento, solicitado_por, resuelto_por,
-                mensaje, ruta, silenciado
-         FROM sgc_firma_aviso
-         WHERE usuario_id = ? AND descartado = 0
-           ${incluirSilenciados ? '' : 'AND silenciado = 0'}
+        `SELECT a.aviso_id, a.solicitud_id, a.tipo, a.codigo, a.nombre_documento, a.solicitado_por,
+                a.resuelto_por, a.mensaje, a.ruta, a.silenciado
+         FROM sgc_firma_aviso a
+         LEFT JOIN sgc_firma_solicitud s ON s.solicitud_id = a.solicitud_id
+         WHERE a.usuario_id = ? AND a.descartado = 0
+           ${incluirSilenciados ? '' : 'AND a.silenciado = 0'}
+           ${incluirSilenciados
+             ? `AND a.tipo = 'solicitud' AND s.estado IN ('pendiente', 'parcial')`
+             : ''}
          ORDER BY
-           CASE tipo
+           CASE a.tipo
              WHEN 'solicitud' THEN 0
              WHEN 'rechazada' THEN 1
              WHEN 'aprobada' THEN 2
              ELSE 3
            END,
-           aviso_id DESC
+           a.aviso_id DESC
          LIMIT 40`,
         [uid]
     );

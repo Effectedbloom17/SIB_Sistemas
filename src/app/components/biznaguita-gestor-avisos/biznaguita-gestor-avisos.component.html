@@ -6,9 +6,16 @@
   <div
     class="biz-gestor__interactivo"
     [class.is-abierto]="abierto"
+    (mouseenter)="abrirPorCursor()"
+    (mouseleave)="salirPorCursor()"
     (click)="$event.stopPropagation()">
 
-    <div class="biz-gestor__panel" *ngIf="abierto" role="dialog" aria-label="Avisos pendientes">
+    <div
+      class="biz-gestor__panel"
+      *ngIf="abierto"
+      role="dialog"
+      aria-label="Avisos pendientes"
+      (mouseenter)="abrirPorCursor()">
       <div class="biz-gestor__cola" aria-hidden="true"></div>
       <div class="biz-gestor__burbuja">
         <div class="biz-gestor__tabs" role="tablist" aria-label="Filtrar por área">
@@ -53,18 +60,21 @@
         <img
           class="biz-gestor__img biz-gestor__img--inicial"
           [class.is-activa]="!abierto"
-          src="assets/img/biznaguita/biznaguita_estado_inicial.png"
-          alt="">
+          [src]="imgEstadoInicial"
+          alt=""
+          (error)="onErrorImg($event, 'biznaguita_estado_inicial.png')">
         <img
           class="biz-gestor__img biz-gestor__img--final"
           [class.is-activa]="abierto"
-          src="assets/img/biznaguita/biznaguita_estado_final.png"
-          alt="">
+          [src]="imgEstadoFinal"
+          alt=""
+          (error)="onErrorImg($event, 'biznaguita_estado_final.png')">
       </div>
       <span
         class="biz-gestor__hit"
         (mouseenter)="abrirPorCursor()"
-        (click)="toggle($event)"></span>
+        (mouseleave)="salirPorCursor()"
+        (click)="fijar($event)"></span>
       <span class="biz-gestor__badge" *ngIf="total > 0" [attr.aria-label]="total + ' avisos pendientes'">
         {{ total > 99 ? '99+' : total }}
       </span>

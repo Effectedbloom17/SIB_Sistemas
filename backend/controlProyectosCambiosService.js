@@ -652,6 +652,16 @@ async function listarAvisos(pool, username, opciones = {}) {
     const usuario = String(username || '').trim().toLowerCase();
     if (!usuario) return [];
     const incluirSilenciados = !!opciones.incluirSilenciados;
+    await pool.query(
+        `UPDATE sgc_control_proyectos_cambios_avisos a
+         INNER JOIN sgc_control_proyectos_cambios c ON c.id = a.cambio_id
+         SET a.descartado = 1
+         WHERE LOWER(a.username) = ?
+           AND a.descartado = 0
+           AND a.tipo IN ('revision', 'recordatorio', 'recordatorio_urgente')
+           AND c.estatus IN ('aprobado', 'no_aprobado')`,
+        [usuario]
+    );
     const [rows] = await pool.query(
         `SELECT a.id, a.cambio_id, a.tipo, a.mensaje, a.empresa_id, a.folio, a.nombre_proyecto, a.solicitado_por,
                 a.silenciado, c.estatus AS estatus_cambio, c.resuelto_por,
@@ -662,7 +672,7 @@ async function listarAvisos(pool, username, opciones = {}) {
            AND a.descartado = 0
            ${incluirSilenciados ? '' : 'AND a.silenciado = 0'}
            AND (
-                a.tipo = 'respuesta'
+                ${incluirSilenciados ? '0' : "a.tipo = 'respuesta'"}
                 OR (c.estatus = 'en_espera' AND a.tipo IN ('revision', 'recordatorio', 'recordatorio_urgente'))
            )
          ORDER BY CASE a.tipo
