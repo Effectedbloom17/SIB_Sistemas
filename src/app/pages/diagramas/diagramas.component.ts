@@ -1,4 +1,5 @@
 import { Component, ElementRef, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { DiagramasService, DiagramaDetalle, DiagramaResumen } from 'src/app/services/diagramas.service';
 import { DiagramasSocketService } from 'src/app/services/diagramas-socket.service';
@@ -49,8 +50,10 @@ export class DiagramasComponent implements OnInit, OnDestroy {
   mensajeGuardado = '';
   presentes: Presente[] = [];
   enVivo = false;
+  volverUrl: string | null = null;
 
   private rev = 0;
+  private abiertoPorQuery: number | null = null;
   private readonly fin$ = new Subject<void>();
   private ecosPendientes = 0;
   private ultimoChecksumRemoto: string | null = null;
@@ -66,7 +69,9 @@ export class DiagramasComponent implements OnInit, OnDestroy {
     private diagramasSocket: DiagramasSocketService,
     private authService: AuthService,
     private sanitizer: DomSanitizer,
-    private zone: NgZone
+    private zone: NgZone,
+    private route: ActivatedRoute,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -80,6 +85,15 @@ export class DiagramasComponent implements OnInit, OnDestroy {
     });
     this.diagramasSocket.onCambio().pipe(takeUntil(this.fin$)).subscribe((evento) => {
       this.aplicarCambioRemoto(evento);
+    });
+    this.route.queryParamMap.pipe(takeUntil(this.fin$)).subscribe((params) => {
+      const volver = params.get('volver');
+      this.volverUrl = volver && volver.startsWith('/') ? volver : null;
+      const abrir = Number(params.get('abrir'));
+      if (Number.isFinite(abrir) && abrir > 0 && this.abiertoPorQuery !== abrir) {
+        this.abiertoPorQuery = abrir;
+        this.abrirPorId(abrir);
+      }
     });
     this.cargar();
   }
@@ -192,7 +206,26 @@ export class DiagramasComponent implements OnInit, OnDestroy {
     this.ultimoChecksumRemoto = null;
     this.xmlRemoto = '';
     this.cancelarTimers();
+    if (this.volverUrl) {
+      const destino = this.volverUrl;
+      this.volverUrl = null;
+      this.abiertoPorQuery = null;
+      void this.router.navigateByUrl(destino);
+      return;
+    }
     this.cargar();
+  }
+
+  private abrirPorId(id: number): void {
+    this.error = null;
+    this.diagramasService.obtener(id).subscribe({
+      next: (res) => {
+        if (res?.diagrama) this.mostrarEditor(res.diagrama);
+      },
+      error: (err) => {
+        this.error = this.mensajeError(err, 'No se pudo abrir el diagrama vinculado');
+      }
+    });
   }
 
   guardarTitulo(): void {

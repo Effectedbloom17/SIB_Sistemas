@@ -1,218 +1,628 @@
-<div class="header header-bg-image agenda-hero pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
-  <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
-    <div class="row w-100 text-center">
+<div class="agenda-wrap">
+  <div class="header header-bg-image agenda-hero pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+    <div class="container-fluid d-flex align-items-center justify-content-center position-relative">
+      <div class="row w-100 text-center">
+        <div class="col-12">
+          <div class="d-flex flex-column align-items-center justify-content-center agenda-hero__content">
+            <div class="agenda-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
+              <i class="fas fa-book-open" aria-hidden="true"></i>
+            </div>
+            <h1 class="text-white mb-0 agenda-hero-title">Agenda</h1>
+            <p class="text-white agenda-hero-tagline mb-0">Libreta · Diseño e Innovación</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid agenda-main pb-4">
+    <div class="row justify-content-center">
       <div class="col-12">
-        <div class="d-flex flex-column align-items-center justify-content-center">
-          <div class="agenda-hero-icon icon icon-shape text-white rounded-circle shadow mb-2">
-            <i class="fas fa-clipboard-list" aria-hidden="true"></i>
-          </div>
-          <h1 class="text-white mb-0 agenda-hero-title">Agenda</h1>
-          <p class="text-white agenda-hero-tagline mb-0">Actividades en gestión · Diseño e Innovación</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 
-<div class="container-fluid agenda-main mt--6 pb-5">
-  <div class="row justify-content-center">
-    <div class="col-12 col-xl-10">
-      <div class="card agenda-shell border-0 shadow">
-        <div class="card-body p-3 p-md-4">
-
-          <div class="agenda-toolbar">
-            <div class="agenda-toolbar__meta">
-              <span class="agenda-pill" [class.agenda-pill--warn]="!online" [class.agenda-pill--ok]="online && !pendienteSync">
-                <i class="fas" [ngClass]="!online ? 'fa-exclamation-triangle' : (sincronizando ? 'fa-sync fa-spin' : (pendienteSync ? 'fa-cloud-upload-alt' : 'fa-check-circle'))" aria-hidden="true"></i>
-                {{ !online ? 'Sin internet · guardado local' : (sincronizando ? 'Sincronizando…' : (pendienteSync ? 'Pendiente de subir' : 'Sincronizado')) }}
+        <div class="agenda-topbar">
+          <div class="agenda-topbar__meta">
+            <div class="agenda-topbar__date-block">
+              <span class="agenda-topbar__label">Hoy</span>
+              <span class="agenda-topbar__date">{{ fechaHoy }}</span>
+            </div>
+            <div class="agenda-topbar__chips" aria-label="Resumen">
+              <span class="agenda-chip agenda-chip--open">
+                <strong>{{ contadores.abiertas }}</strong> abiertas
               </span>
-              <span class="agenda-stat" *ngIf="!cargando">{{ contadores.abiertas }} abiertas · {{ contadores.finales }} cerradas</span>
-            </div>
-            <div class="agenda-toolbar__actions">
-              <button type="button" class="btn btn-sm agenda-btn-ghost" (click)="abrirGestionEstatus()" title="Administrar estatus">
-                <i class="fas fa-tags" aria-hidden="true"></i>
-                Estatus
-              </button>
-              <button type="button" class="btn btn-sm agenda-btn-ghost" (click)="sincronizar()" [disabled]="sincronizando || !online">
-                <i class="fas" [ngClass]="sincronizando ? 'fa-spinner fa-spin' : 'fa-sync-alt'" aria-hidden="true"></i>
-                Sync
-              </button>
-              <button type="button" class="btn btn-sm agenda-btn-primary" (click)="abrirCrear()">
-                <i class="fas fa-plus" aria-hidden="true"></i>
-                Nueva actividad
-              </button>
+              <span class="agenda-chip agenda-chip--closed">
+                <strong>{{ contadores.finales }}</strong> cerradas
+              </span>
+              <span class="agenda-chip"
+                    [class.agenda-chip--ok]="online && !pendienteSync"
+                    [class.agenda-chip--warn]="online && pendienteSync"
+                    [class.agenda-chip--off]="!online">
+                <i class="fas"
+                   [ngClass]="!online ? 'fa-exclamation-triangle' : (sincronizando ? 'fa-sync fa-spin' : (pendienteSync ? 'fa-cloud-upload-alt' : 'fa-check'))"
+                   aria-hidden="true"></i>
+                {{ !online ? 'Local' : (sincronizando ? 'Sync…' : (pendienteSync ? 'Pendiente' : 'Guardado')) }}
+              </span>
             </div>
           </div>
 
-          <div class="agenda-filters">
-            <div class="agenda-search">
+          <div class="agenda-topbar__row" role="search">
+            <label class="agenda-toolbar__search">
               <i class="fas fa-search" aria-hidden="true"></i>
-              <input type="search"
-                     [(ngModel)]="busqueda"
-                     placeholder="Buscar actividad…"
-                     aria-label="Buscar actividad">
-            </div>
-            <select class="agenda-select" [(ngModel)]="filtroEstatus" aria-label="Filtrar por estatus">
-              <option value="">Todos los estatus</option>
-              <option *ngFor="let e of estatus" [value]="e.clave">{{ e.etiqueta }}</option>
-            </select>
-          </div>
+              <input type="search" [(ngModel)]="busqueda" placeholder="Buscar actividad…" aria-label="Buscar actividad">
+              <button type="button"
+                      class="agenda-toolbar__clear"
+                      *ngIf="busqueda"
+                      (click)="busqueda = ''"
+                      title="Limpiar"
+                      aria-label="Limpiar búsqueda">
+                <i class="fas fa-times" aria-hidden="true"></i>
+              </button>
+            </label>
 
-          <p class="agenda-error" *ngIf="errorCarga">{{ errorCarga }}</p>
-
-          <div class="agenda-loading text-center py-5" *ngIf="cargando && !actividades.length">
-            <i class="fas fa-spinner fa-spin fa-2x text-muted" aria-hidden="true"></i>
-            <p class="text-muted mt-2 mb-0">Cargando agenda…</p>
-          </div>
-
-          <div class="agenda-empty text-center py-5" *ngIf="!cargando && !actividadesFiltradas.length">
-            <i class="fas fa-clipboard-list fa-2x text-muted mb-2" aria-hidden="true"></i>
-            <p class="text-muted mb-3">
-              {{ actividades.length ? 'Ninguna actividad coincide con el filtro.' : 'Aún no hay actividades. Empieza tu lista.' }}
-            </p>
-            <button type="button" class="btn agenda-btn-primary" *ngIf="!actividades.length" (click)="abrirCrear()">
-              <i class="fas fa-plus" aria-hidden="true"></i>
-              Agregar primera actividad
-            </button>
-          </div>
-
-          <ul class="agenda-list list-unstyled mb-0" *ngIf="actividadesFiltradas.length">
-            <li class="agenda-item"
-                *ngFor="let a of actividadesFiltradas"
-                [class.agenda-item--done]="esFinal(a.estatusClave)">
-              <div class="agenda-item__accent" [style.background]="colorEstatus(a.estatusClave)" aria-hidden="true"></div>
-              <div class="agenda-item__body">
-                <div class="agenda-item__top">
-                  <h3 class="agenda-item__title">{{ a.titulo }}</h3>
-                  <span class="agenda-prio" [attr.data-prio]="a.prioridad">{{ a.prioridad }}</span>
-                </div>
-                <p class="agenda-item__desc" *ngIf="a.descripcion">{{ a.descripcion }}</p>
-                <div class="agenda-item__meta">
-                  <label class="agenda-estatus-select">
-                    <span class="sr-only">Estatus</span>
-                    <select [ngModel]="a.estatusClave"
-                            (ngModelChange)="cambiarEstatus(a, $event)"
-                            [style.borderColor]="colorEstatus(a.estatusClave)">
-                      <option *ngFor="let e of estatus" [value]="e.clave">{{ e.etiqueta }}</option>
-                    </select>
-                  </label>
-                  <span class="agenda-date" *ngIf="a.fechaLimite">
-                    <i class="far fa-calendar-alt" aria-hidden="true"></i>
-                    {{ a.fechaLimite }}
+            <div class="agenda-filter" [class.is-open]="menuFiltroAbierto">
+              <button type="button"
+                      class="agenda-filter__trigger"
+                      (click)="toggleMenuFiltro($event)"
+                      [attr.aria-expanded]="menuFiltroAbierto"
+                      aria-haspopup="listbox"
+                      aria-label="Filtrar por estatus">
+                <span class="agenda-filter__swatch"
+                      *ngIf="filtroEstatus"
+                      [style.background]="colorEstatus(filtroEstatus)"></span>
+                <i class="fas fa-filter" *ngIf="!filtroEstatus" aria-hidden="true"></i>
+                <span class="agenda-filter__label">{{ etiquetaFiltroEstatus }}</span>
+                <i class="fas fa-chevron-down agenda-filter__caret" aria-hidden="true"></i>
+              </button>
+              <div class="agenda-filter__menu" *ngIf="menuFiltroAbierto" role="listbox" (click)="$event.stopPropagation()">
+                <button type="button"
+                        class="agenda-filter__opt"
+                        role="option"
+                        [class.is-active]="!filtroEstatus"
+                        (click)="seleccionarFiltroEstatus('')">
+                  <span class="agenda-filter__dot agenda-filter__dot--all" aria-hidden="true"></span>
+                  <span>Todos los estatus</span>
+                </button>
+                <button type="button"
+                        class="agenda-filter__opt"
+                        role="option"
+                        *ngFor="let e of estatus"
+                        [class.is-active]="filtroEstatus === e.clave"
+                        (click)="seleccionarFiltroEstatus(e.clave)">
+                  <span class="agenda-status-icon agenda-status-icon--sm" [style.--estatus-color]="e.color">
+                    <i class="fas" [ngClass]="iconoEstatus(e.clave)" aria-hidden="true"></i>
                   </span>
+                  <span>{{ e.etiqueta }}</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="agenda-topbar__actions">
+              <button type="button" class="agenda-topbar__btn" (click)="abrirGestionEstatus()" title="Gestionar estatus">
+                <i class="fas fa-tags" aria-hidden="true"></i>
+                <span>Estatus</span>
+              </button>
+              <button type="button"
+                      class="agenda-topbar__btn"
+                      *ngIf="esRoot"
+                      (click)="abrirArchivo()"
+                      title="Archivo desactivado">
+                <i class="fas fa-archive" aria-hidden="true"></i>
+                <span>Archivo</span>
+                <em class="agenda-topbar__badge" *ngIf="totalArchivados">{{ totalArchivados }}</em>
+              </button>
+              <button type="button"
+                      class="agenda-topbar__btn agenda-topbar__btn--primary"
+                      (click)="sincronizar()"
+                      [disabled]="sincronizando || !online"
+                      title="Sincronizar">
+                <i class="fas" [ngClass]="sincronizando ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i>
+                <span>Sync</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <p class="agenda-error" *ngIf="errorCarga">{{ errorCarga }}</p>
+
+        <div class="agenda-desk">
+          <div class="agenda-notebook"
+               role="region"
+               aria-label="Libreta de agenda"
+               [class.is-turning-next]="giroHoja === 'next'"
+               [class.is-turning-prev]="giroHoja === 'prev'">
+            <div class="agenda-notebook__shadow" aria-hidden="true"></div>
+
+            <!-- Izquierda: resumen (+ completadas colapsables) + notas solo en hojas específicas -->
+            <div class="agenda-page agenda-page--left" [class.is-general]="vistaGeneral">
+              <div class="agenda-page__margin" aria-hidden="true"></div>
+
+              <section class="agenda-left-top">
+                <header class="agenda-section-head">
+                  <h2>{{ vistaGeneral ? 'Resumen general' : 'Resumen de esta hoja' }}</h2>
+                  <span class="agenda-section-head__count">{{ resumenHoja.length }}</span>
+                </header>
+
+                <ul class="agenda-resumen list-unstyled" *ngIf="resumenHoja.length">
+                  <li *ngFor="let a of resumenHoja; trackBy: trackByUuid; let i = index"
+                      class="agenda-resumen__item"
+                      [class.is-active]="seleccionadaUuid === a.clientUuid"
+                      [style.--estatus-color]="colorEstatus(a.estatusClave)"
+                      (click)="enfocarNota(a.clientUuid)">
+                    <span class="agenda-resumen__num">{{ i + 1 }}</span>
+                    <span class="agenda-status-icon agenda-status-icon--sm" [style.--estatus-color]="colorEstatus(a.estatusClave)">
+                      <i class="fas" [ngClass]="iconoEstatus(a.estatusClave)" aria-hidden="true"></i>
+                    </span>
+                    <span class="agenda-resumen__title">
+                      <i class="fas fa-project-diagram agenda-resumen__graph" *ngIf="a.diagramaId" title="Tiene gráfico" aria-hidden="true"></i>
+                      {{ a.titulo || 'Sin título' }}
+                    </span>
+                    <span class="agenda-resumen__badge" [style.color]="colorEstatus(a.estatusClave)">{{ etiquetaEstatus(a.estatusClave) }}</span>
+                  </li>
+                </ul>
+                <p class="agenda-resumen__empty" *ngIf="!resumenHoja.length && !cargando">
+                  {{ vistaGeneral ? 'Sin actividades pendientes en la agenda.' : 'Sin actividades pendientes en esta hoja.' }}
+                </p>
+
+                <!-- Hojas específicas: completadas colapsables dentro del resumen -->
+                <div class="agenda-done-fold" *ngIf="!vistaGeneral && actividadesCompletadas.length">
+                  <button type="button"
+                          class="agenda-done-fold__toggle"
+                          (click)="toggleCompletadas($event)"
+                          [attr.aria-expanded]="completadasAbiertas">
+                    <i class="fas" [ngClass]="completadasAbiertas ? 'fa-chevron-down' : 'fa-chevron-right'" aria-hidden="true"></i>
+                    <span>Actividades completas {{ actividadesCompletadas.length }}</span>
+                  </button>
+                  <ul class="agenda-resumen agenda-resumen--done list-unstyled"
+                      *ngIf="completadasAbiertas">
+                    <li *ngFor="let a of actividadesCompletadas; trackBy: trackByUuid"
+                        class="agenda-resumen__item is-done"
+                        [class.is-active]="seleccionadaUuid === a.clientUuid"
+                        [style.--estatus-color]="colorEstatus(a.estatusClave)"
+                        (click)="seleccionarNota(a.clientUuid, $event)">
+                      <span class="agenda-status-icon agenda-status-icon--sm" [style.--estatus-color]="colorEstatus(a.estatusClave)">
+                        <i class="fas" [ngClass]="iconoEstatus(a.estatusClave)" aria-hidden="true"></i>
+                      </span>
+                      <span class="agenda-resumen__title">{{ a.titulo || 'Sin título' }}</span>
+                      <div class="agenda-status-wrap agenda-status-wrap--compact" (click)="$event.stopPropagation()">
+                        <button type="button"
+                                class="agenda-resumen__reopen"
+                                (click)="toggleMenuEstatus($event, a.clientUuid)"
+                                title="Cambiar estatus"
+                                [attr.aria-label]="'Cambiar estatus de ' + (a.titulo || 'actividad')">
+                          <i class="fas fa-undo" aria-hidden="true"></i>
+                        </button>
+                        <div class="agenda-status-menu" *ngIf="menuEstatusUuid === a.clientUuid">
+                          <button type="button"
+                                  class="agenda-status-menu__opt"
+                                  *ngFor="let e of estatus"
+                                  [class.is-active]="e.clave === a.estatusClave"
+                                  (click)="cambiarEstatus(a, e.clave, $event)">
+                            <span class="agenda-status-icon agenda-status-icon--sm" [style.--estatus-color]="e.color">
+                              <i class="fas" [ngClass]="iconoEstatus(e.clave)" aria-hidden="true"></i>
+                            </span>
+                            <span>{{ e.etiqueta }}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+              </section>
+
+              <!-- General: completadas como apartado aparte, siempre visibles -->
+              <section class="agenda-left-done" *ngIf="vistaGeneral && actividadesCompletadas.length">
+                <header class="agenda-section-head">
+                  <h2>Actividades completadas</h2>
+                  <span class="agenda-section-head__count agenda-section-head__count--done">{{ actividadesCompletadas.length }}</span>
+                </header>
+                <ul class="agenda-resumen agenda-resumen--done list-unstyled">
+                  <li *ngFor="let a of actividadesCompletadas; trackBy: trackByUuid"
+                      class="agenda-resumen__item is-done"
+                      [class.is-active]="seleccionadaUuid === a.clientUuid"
+                      [style.--estatus-color]="colorEstatus(a.estatusClave)"
+                      (click)="seleccionarNota(a.clientUuid, $event)">
+                    <span class="agenda-status-icon agenda-status-icon--sm" [style.--estatus-color]="colorEstatus(a.estatusClave)">
+                      <i class="fas" [ngClass]="iconoEstatus(a.estatusClave)" aria-hidden="true"></i>
+                    </span>
+                    <span class="agenda-resumen__title">{{ a.titulo || 'Sin título' }}</span>
+                    <div class="agenda-status-wrap agenda-status-wrap--compact" (click)="$event.stopPropagation()">
+                      <button type="button"
+                              class="agenda-resumen__reopen"
+                              (click)="toggleMenuEstatus($event, a.clientUuid)"
+                              title="Cambiar estatus"
+                              [attr.aria-label]="'Cambiar estatus de ' + (a.titulo || 'actividad')">
+                        <i class="fas fa-undo" aria-hidden="true"></i>
+                      </button>
+                      <div class="agenda-status-menu" *ngIf="menuEstatusUuid === a.clientUuid">
+                        <button type="button"
+                                class="agenda-status-menu__opt"
+                                *ngFor="let e of estatus"
+                                [class.is-active]="e.clave === a.estatusClave"
+                                (click)="cambiarEstatus(a, e.clave, $event)">
+                          <span class="agenda-status-icon agenda-status-icon--sm" [style.--estatus-color]="e.color">
+                            <i class="fas" [ngClass]="iconoEstatus(e.clave)" aria-hidden="true"></i>
+                          </span>
+                          <span>{{ e.etiqueta }}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                </ul>
+              </section>
+
+              <section class="agenda-left-bottom" *ngIf="!vistaGeneral">
+                <header class="agenda-section-head">
+                  <h2>Notas y observaciones</h2>
+                </header>
+                <textarea
+                  class="agenda-obs"
+                  [ngModel]="observacionesHoja"
+                  (ngModelChange)="onObservacionesChange($event)"
+                  placeholder="Recordatorios, acuerdos y detalles de esta hoja…"
+                  maxlength="20000"
+                  aria-label="Notas y observaciones de la hoja"></textarea>
+              </section>
+            </div>
+
+            <div class="agenda-spiral" aria-hidden="true">
+              <span class="agenda-spiral__coil" *ngFor="let r of [1,2,3,4,5,6,7,8,9,10,11,12,13,14]"></span>
+            </div>
+
+            <!-- Derecha: actividades en libreta (layout automático) -->
+            <div class="agenda-page agenda-page--right">
+              <div class="agenda-page__margin" aria-hidden="true"></div>
+
+              <div class="agenda-sheet-head">
+                <button type="button"
+                        class="agenda-sheet-head__title"
+                        (click)="renombrarPaginaActual()"
+                        [disabled]="vistaGeneral"
+                        [attr.title]="vistaGeneral ? 'Hoja general (todas las actividades)' : ('Renombrar ' + tituloHojaActual)">
+                  {{ tituloHojaActual }}
+                </button>
+                <span class="agenda-sheet-head__hint" *ngIf="vistaGeneral">Todas las actividades de la agenda</span>
+              </div>
+
+              <div class="agenda-sheet-bar">
+                <form class="agenda-add" (ngSubmit)="agregarActividad()">
+                  <input
+                    class="agenda-add__input"
+                    type="text"
+                    name="nuevaActividad"
+                    [(ngModel)]="nuevaActividadTitulo"
+                    maxlength="255"
+                    [placeholder]="vistaGeneral ? 'Nueva actividad (se guarda en la 1.ª hoja)…' : 'Nueva actividad…'"
+                    autocomplete="off"
+                    required
+                    aria-label="Nueva actividad">
+                  <select
+                    class="agenda-add__select"
+                    name="nuevaEstatus"
+                    [(ngModel)]="nuevaActividadEstatus"
+                    aria-label="Estatus inicial">
+                    <option *ngFor="let e of estatus" [value]="e.clave">{{ e.etiqueta }}</option>
+                  </select>
+                  <button type="submit" class="agenda-add__btn" [disabled]="!nuevaActividadTitulo.trim()" title="Agregar">
+                    <i class="fas fa-plus" aria-hidden="true"></i>
+                    <span>Agregar</span>
+                  </button>
+                </form>
+
+                <div class="agenda-sheet-bar__dock" aria-label="Navegación de hojas">
+                  <button type="button" class="agenda-sheet-bar__nav" (click)="paginaAnterior()" [disabled]="indicePagina <= 0" title="Hoja anterior">
+                    <i class="fas fa-chevron-left" aria-hidden="true"></i>
+                  </button>
+                  <label class="agenda-sheet-bar__jump" title="Escribe el número de hoja y pulsa Enter">
+                    <input
+                      type="text"
+                      inputmode="numeric"
+                      pattern="[0-9]*"
+                      name="saltoHoja"
+                      [(ngModel)]="saltoHoja"
+                      (keydown.enter)="onSaltoHojaEnter($event)"
+                      (blur)="onSaltoHojaBlur()"
+                      [attr.aria-label]="'Ir a hoja (1 a ' + totalHojasVista + ')'"
+                      maxlength="3">
+                    <span>/ {{ totalHojasVista }}</span>
+                  </label>
+                  <button type="button" class="agenda-sheet-bar__nav" (click)="paginaSiguiente()" [disabled]="indicePagina >= totalHojasVista - 1" title="Hoja siguiente">
+                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                  </button>
+                  <button type="button" class="agenda-sheet-bar__add" (click)="crearPagina()" title="Nueva hoja específica">
+                    <i class="fas fa-plus" aria-hidden="true"></i>
+                  </button>
+                  <button type="button"
+                          class="agenda-sheet-bar__del"
+                          (click)="paginaActiva && eliminarPagina(paginaActiva)"
+                          [disabled]="vistaGeneral || paginas.length <= 1"
+                          title="Desactivar hoja">
+                    <i class="fas fa-archive" aria-hidden="true"></i>
+                  </button>
                 </div>
               </div>
-              <div class="agenda-item__actions">
-                <button type="button" class="agenda-icon-btn" (click)="abrirEditar(a)" title="Editar">
-                  <i class="fas fa-pen" aria-hidden="true"></i>
-                </button>
-                <button type="button" class="agenda-icon-btn agenda-icon-btn--danger" (click)="eliminarActividad(a)" title="Eliminar">
-                  <i class="fas fa-trash" aria-hidden="true"></i>
-                </button>
+
+              <div class="agenda-list" [attr.aria-label]="'Actividades de ' + tituloHojaActual">
+                <article
+                  class="agenda-entry"
+                  *ngFor="let a of actividadesEnHoja; trackBy: trackByUuid; let i = index"
+                  [attr.data-nota-uuid]="a.clientUuid"
+                  [class.is-selected]="seleccionadaUuid === a.clientUuid"
+                  [class.is-done]="esCompletado(a.estatusClave)"
+                  [style.--estatus-color]="colorEstatus(a.estatusClave)"
+                  (click)="seleccionarNota(a.clientUuid, $event)">
+
+                  <span class="agenda-entry__num">{{ i + 1 }}</span>
+
+                  <div class="agenda-status-wrap">
+                    <button type="button"
+                            class="agenda-entry__status"
+                            [style.--estatus-color]="colorEstatus(a.estatusClave)"
+                            (click)="toggleMenuEstatus($event, a.clientUuid)"
+                            [attr.title]="etiquetaEstatus(a.estatusClave)"
+                            [attr.aria-label]="'Estatus: ' + etiquetaEstatus(a.estatusClave)">
+                      <i class="fas" [ngClass]="iconoEstatus(a.estatusClave)" aria-hidden="true"></i>
+                      <span>{{ etiquetaEstatus(a.estatusClave) }}</span>
+                    </button>
+                    <div class="agenda-status-menu" *ngIf="menuEstatusUuid === a.clientUuid" (click)="$event.stopPropagation()">
+                      <button type="button"
+                              class="agenda-status-menu__opt"
+                              *ngFor="let e of estatus"
+                              [class.is-active]="e.clave === a.estatusClave"
+                              (click)="cambiarEstatus(a, e.clave, $event)">
+                        <span class="agenda-status-icon agenda-status-icon--sm" [style.--estatus-color]="e.color">
+                          <i class="fas" [ngClass]="iconoEstatus(e.clave)" aria-hidden="true"></i>
+                        </span>
+                        <span>{{ e.etiqueta }}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <textarea
+                    class="agenda-entry__title"
+                    rows="1"
+                    [ngModel]="a.titulo"
+                    (ngModelChange)="onTituloChange(a, $event)"
+                    (input)="ajustarAltoTitulo($event)"
+                    maxlength="255"
+                    placeholder="Título de la actividad…"
+                    (click)="$event.stopPropagation()"
+                    (keydown.enter)="$event.stopPropagation()"></textarea>
+
+                  <button type="button"
+                          class="agenda-entry__graph"
+                          [class.has-graph]="!!a.diagramaId"
+                          (click)="gestionarGrafico(a, $event)"
+                          [title]="a.diagramaId ? 'Abrir o gestionar gráfico' : 'Agregar gráfico'">
+                    <i class="fas fa-project-diagram" aria-hidden="true"></i>
+                  </button>
+
+                  <button type="button"
+                          class="agenda-entry__del"
+                          (click)="eliminarActividad(a, $event)"
+                          title="Desactivar">
+                    <i class="fas fa-archive" aria-hidden="true"></i>
+                  </button>
+
+                  <div class="agenda-entry__preview"
+                       *ngIf="a.diagramaId"
+                       (click)="$event.stopPropagation()">
+                    <div class="agenda-entry__preview-head">
+                      <span>
+                        <i class="fas fa-project-diagram" aria-hidden="true"></i>
+                        Gráfico
+                      </span>
+                      <button type="button"
+                              class="agenda-entry__preview-edit"
+                              (click)="editarGraficoDesdePreview(a.diagramaId!, $event)">
+                        Editar
+                      </button>
+                    </div>
+                    <ng-container *ngIf="previewDe(a.diagramaId) as pv">
+                      <p class="agenda-entry__preview-msg" *ngIf="pv.loading && !pv.imgUrl">Cargando vista previa…</p>
+                      <p class="agenda-entry__preview-msg is-error" *ngIf="!pv.loading && pv.error && !pv.imgUrl">{{ pv.error }}</p>
+                      <button type="button"
+                              class="agenda-entry__preview-shot"
+                              *ngIf="pv.imgUrl"
+                              (click)="editarGraficoDesdePreview(a.diagramaId!, $event)"
+                              title="Abrir editor">
+                        <img [src]="pv.imgUrl" alt="Vista previa del gráfico" />
+                      </button>
+                    </ng-container>
+                  </div>
+                </article>
+
+                <p class="agenda-list__empty" *ngIf="!actividadesEnHoja.length && !cargando">
+                  {{ vistaGeneral
+                    ? 'No hay actividades pendientes. Las completadas están a la izquierda.'
+                    : 'Aún no hay actividades pendientes en esta hoja. Usa el formulario de arriba.' }}
+                </p>
               </div>
-            </li>
-          </ul>
+            </div>
+          </div>
         </div>
+
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal actividad -->
-<div class="agenda-modal-backdrop" *ngIf="mostrarModalActividad" (click)="cerrarModalActividad()"></div>
-<div class="agenda-modal" *ngIf="mostrarModalActividad" role="dialog" aria-modal="true" aria-labelledby="agenda-modal-title">
-  <div class="agenda-modal__head">
-    <h2 id="agenda-modal-title">{{ editandoUuid ? 'Editar actividad' : 'Nueva actividad' }}</h2>
-    <button type="button" class="agenda-icon-btn" (click)="cerrarModalActividad()" aria-label="Cerrar">
+<!-- Exportador oculto: genera miniaturas PNG para la libreta -->
+<iframe
+  #marcoExport
+  class="agenda-export-frame"
+  *ngIf="exportUrl"
+  [src]="exportUrl"
+  referrerpolicy="no-referrer"
+  title="Exportador de diagramas"
+  aria-hidden="true"
+  tabindex="-1">
+</iframe>
+
+<!-- Editor de gráficos embebido (sin salir de Agenda) -->
+<section class="agenda-grafico" *ngIf="editandoGrafico" role="dialog" aria-modal="true" aria-label="Editor de gráfico">
+  <header class="agenda-grafico__bar">
+    <button type="button" class="agenda-grafico__back" (click)="cerrarEditorGrafico()">
+      <i class="fas fa-arrow-left" aria-hidden="true"></i>
+      Volver a la libreta
+    </button>
+    <input
+      class="agenda-grafico__title"
+      type="text"
+      [(ngModel)]="graficoTitulo"
+      maxlength="180"
+      aria-label="Nombre del gráfico"
+      (blur)="guardarTituloGrafico()"
+      (keyup.enter)="guardarTituloGrafico()">
+    <span class="agenda-grafico__estado"
+          [class.is-error]="graficoEstado === 'error'"
+          [class.is-ok]="graficoEstado === 'guardado'">
+      {{ etiquetaEstadoGrafico }}
+    </span>
+  </header>
+  <p class="agenda-grafico__aviso" *ngIf="graficoError">
+    {{ graficoError }}
+    <button type="button" (click)="reintentarEditorGrafico()">Reintentar</button>
+  </p>
+  <iframe
+    #marcoGrafico
+    class="agenda-grafico__frame"
+    [src]="graficoUrl"
+    referrerpolicy="no-referrer"
+    allow="clipboard-read; clipboard-write"
+    title="Editor de diagrams.net en Agenda">
+  </iframe>
+</section>
+
+<div class="agenda-panel-backdrop"
+     *ngIf="mostrarPanelEstatus || mostrarPanelArchivo || mostrarPanelDiagramas"
+     (click)="cerrarPanelEstatus(); cerrarArchivo(); cerrarSelectorDiagramas()"></div>
+
+<aside class="agenda-panel" *ngIf="mostrarPanelDiagramas" role="dialog" aria-modal="true" aria-labelledby="agenda-diagramas-title">
+  <div class="agenda-panel__head">
+    <h2 id="agenda-diagramas-title">Vincular diagrama</h2>
+    <button type="button" class="agenda-panel__close" (click)="cerrarSelectorDiagramas()" aria-label="Cerrar">
       <i class="fas fa-times" aria-hidden="true"></i>
     </button>
   </div>
-  <div class="agenda-modal__body">
-    <label class="agenda-field">
-      <span>Título</span>
-      <input type="text" [(ngModel)]="form.titulo" maxlength="255" placeholder="Ej. Comprar material para señalización">
+  <div class="agenda-panel__body">
+    <p class="agenda-panel__hint">Elige un diagrama existente del módulo Comunicación → Diagramas.</p>
+    <label class="agenda-panel__field">
+      <span>Buscar</span>
+      <input type="search" [(ngModel)]="busquedaDiagrama" placeholder="Nombre del diagrama…">
     </label>
-    <label class="agenda-field">
-      <span>Notas / detalle</span>
-      <textarea rows="3" [(ngModel)]="form.descripcion" maxlength="4000" placeholder="Qué falta, a quién contactar, etc."></textarea>
-    </label>
-    <div class="agenda-field-row">
-      <label class="agenda-field">
-        <span>Estatus</span>
-        <select [(ngModel)]="form.estatusClave">
-          <option *ngFor="let e of estatus" [value]="e.clave">{{ e.etiqueta }}</option>
-        </select>
-      </label>
-      <label class="agenda-field">
-        <span>Prioridad</span>
-        <select [(ngModel)]="form.prioridad">
-          <option value="alta">Alta</option>
-          <option value="normal">Normal</option>
-          <option value="baja">Baja</option>
-        </select>
-      </label>
-      <label class="agenda-field">
-        <span>Fecha límite</span>
-        <input type="date" [(ngModel)]="form.fechaLimite">
-      </label>
-    </div>
-  </div>
-  <div class="agenda-modal__foot">
-    <button type="button" class="btn agenda-btn-ghost" (click)="cerrarModalActividad()">Cancelar</button>
-    <button type="button" class="btn agenda-btn-primary" (click)="guardarActividad()">Guardar</button>
-  </div>
-</div>
-
-<!-- Modal estatus -->
-<div class="agenda-modal-backdrop" *ngIf="mostrarModalEstatus" (click)="cerrarModalEstatus()"></div>
-<div class="agenda-modal agenda-modal--wide" *ngIf="mostrarModalEstatus" role="dialog" aria-modal="true" aria-labelledby="agenda-estatus-title">
-  <div class="agenda-modal__head">
-    <h2 id="agenda-estatus-title">Administrar estatus</h2>
-    <button type="button" class="agenda-icon-btn" (click)="cerrarModalEstatus()" aria-label="Cerrar">
-      <i class="fas fa-times" aria-hidden="true"></i>
-    </button>
-  </div>
-  <div class="agenda-modal__body">
-    <p class="agenda-hint">Define cómo clasificas tus actividades (completado, pendiente de correo, esperando cliente, etc.).</p>
-
-    <ul class="agenda-estatus-admin list-unstyled">
-      <li *ngFor="let e of estatus" class="agenda-estatus-admin__row">
-        <span class="agenda-estatus-dot" [style.background]="e.color" aria-hidden="true"></span>
-        <div class="agenda-estatus-admin__info">
-          <strong>{{ e.etiqueta }}</strong>
-          <small>{{ e.clave }}{{ e.esFinal ? ' · cierre' : '' }}</small>
+    <p class="agenda-panel__hint" *ngIf="cargandoDiagramas">Cargando diagramas…</p>
+    <ul class="agenda-archivo-list list-unstyled" *ngIf="!cargandoDiagramas && catalogoDiagramasFiltrado.length">
+      <li *ngFor="let d of catalogoDiagramasFiltrado; trackBy: trackByDiagramaId" class="agenda-archivo-list__row">
+        <div class="agenda-archivo-list__info">
+          <strong>{{ d.titulo }}</strong>
+          <small>{{ d.editor_nombre || d.autor_nombre || 'Diagramas SIB' }}</small>
         </div>
-        <button type="button" class="agenda-icon-btn" (click)="editarEstatus(e)" title="Editar">
+        <button type="button" class="agenda-panel__primary agenda-panel__primary--sm" (click)="elegirDiagramaExistente(d)">
+          Vincular
+        </button>
+      </li>
+    </ul>
+    <p class="agenda-panel__hint" *ngIf="!cargandoDiagramas && !catalogoDiagramasFiltrado.length">
+      No hay diagramas para vincular. Crea uno nuevo desde la actividad.
+    </p>
+  </div>
+  <div class="agenda-panel__foot">
+    <button type="button" class="agenda-panel__ghost" (click)="cerrarSelectorDiagramas()">Cerrar</button>
+  </div>
+</aside>
+
+<aside class="agenda-panel" *ngIf="mostrarPanelArchivo && esRoot" role="dialog" aria-modal="true" aria-labelledby="agenda-archivo-title">
+  <div class="agenda-panel__head">
+    <h2 id="agenda-archivo-title">Archivo desactivado</h2>
+    <button type="button" class="agenda-panel__close" (click)="cerrarArchivo()" aria-label="Cerrar">
+      <i class="fas fa-times" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="agenda-panel__body">
+    <p class="agenda-panel__hint">Solo superadministrador. Reactivar conserva títulos, notas y estatus.</p>
+
+    <h3 class="agenda-panel__sub">Hojas ({{ paginasArchivo.length }})</h3>
+    <ul class="agenda-archivo-list list-unstyled" *ngIf="paginasArchivo.length; else sinHojasArch">
+      <li *ngFor="let p of paginasArchivo; trackBy: trackByUuid" class="agenda-archivo-list__row">
+        <div class="agenda-archivo-list__info">
+          <strong>{{ p.titulo || 'Hoja' }}</strong>
+          <small *ngIf="p.observaciones">{{ p.observaciones | slice:0:80 }}{{ p.observaciones.length > 80 ? '…' : '' }}</small>
+        </div>
+        <button type="button" class="agenda-panel__primary agenda-panel__primary--sm" (click)="reactivarPagina(p)">
+          Reactivar
+        </button>
+      </li>
+    </ul>
+    <ng-template #sinHojasArch>
+      <p class="agenda-panel__hint">No hay hojas archivadas.</p>
+    </ng-template>
+
+    <h3 class="agenda-panel__sub">Actividades ({{ actividadesArchivo.length }})</h3>
+    <ul class="agenda-archivo-list list-unstyled" *ngIf="actividadesArchivo.length; else sinActsArch">
+      <li *ngFor="let a of actividadesArchivo; trackBy: trackByUuid" class="agenda-archivo-list__row">
+        <div class="agenda-archivo-list__info">
+          <strong>{{ a.titulo || 'Sin título' }}</strong>
+          <small>{{ etiquetaEstatus(a.estatusClave) }}</small>
+        </div>
+        <button type="button" class="agenda-panel__primary agenda-panel__primary--sm" (click)="reactivarActividad(a)">
+          Reactivar
+        </button>
+      </li>
+    </ul>
+    <ng-template #sinActsArch>
+      <p class="agenda-panel__hint">No hay actividades archivadas.</p>
+    </ng-template>
+  </div>
+  <div class="agenda-panel__foot">
+    <button type="button" class="agenda-panel__ghost" (click)="cerrarArchivo()">Cerrar</button>
+  </div>
+</aside>
+
+<aside class="agenda-panel" *ngIf="mostrarPanelEstatus" role="dialog" aria-modal="true" aria-labelledby="agenda-estatus-title">
+  <div class="agenda-panel__head">
+    <h2 id="agenda-estatus-title">Estatus de la libreta</h2>
+    <button type="button" class="agenda-panel__close" (click)="cerrarPanelEstatus()" aria-label="Cerrar">
+      <i class="fas fa-times" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="agenda-panel__body">
+    <p class="agenda-panel__hint">Personaliza cómo marcas tus notas. Cada estatus tiene un icono.</p>
+    <ul class="agenda-estatus-list list-unstyled">
+      <li *ngFor="let e of estatus" class="agenda-estatus-list__row">
+        <span class="agenda-status-icon agenda-status-icon--sm" [style.--estatus-color]="e.color">
+          <i class="fas" [ngClass]="iconoEstatus(e.clave)" aria-hidden="true"></i>
+        </span>
+        <div class="agenda-estatus-list__info">
+          <strong>{{ e.etiqueta }}</strong>
+          <small>{{ e.esFinal ? 'Cierre' : 'En curso' }}</small>
+        </div>
+        <button type="button" class="agenda-panel__icon" (click)="editarEstatus(e)" title="Editar">
           <i class="fas fa-pen" aria-hidden="true"></i>
         </button>
-        <button type="button" class="agenda-icon-btn agenda-icon-btn--danger" (click)="eliminarEstatus(e)" title="Eliminar">
+        <button type="button" class="agenda-panel__icon is-danger" (click)="eliminarEstatus(e)" title="Eliminar">
           <i class="fas fa-trash" aria-hidden="true"></i>
         </button>
       </li>
     </ul>
-
-    <hr class="agenda-divider">
-
-    <h3 class="agenda-subtitle">{{ editandoEstatusUuid ? 'Editar estatus' : 'Nuevo estatus' }}</h3>
-    <div class="agenda-field-row">
-      <label class="agenda-field agenda-field--grow">
-        <span>Nombre</span>
-        <input type="text" [(ngModel)]="formEstatus.etiqueta" maxlength="100" placeholder="Ej. Pendiente de factura">
-      </label>
-      <label class="agenda-field">
+    <h3 class="agenda-panel__sub">{{ editandoEstatusUuid ? 'Editar' : 'Nuevo estatus' }}</h3>
+    <label class="agenda-panel__field">
+      <span>Nombre</span>
+      <input type="text" [(ngModel)]="formEstatus.etiqueta" maxlength="100" placeholder="Ej. Pendiente de factura">
+    </label>
+    <div class="agenda-panel__row">
+      <label class="agenda-panel__field">
         <span>Color</span>
         <input type="color" [(ngModel)]="formEstatus.color">
       </label>
+      <label class="agenda-panel__check">
+        <input type="checkbox" [(ngModel)]="formEstatus.esFinal">
+        <span>Estatus de cierre</span>
+      </label>
     </div>
-    <label class="agenda-check">
-      <input type="checkbox" [(ngModel)]="formEstatus.esFinal">
-      <span>Marcar como estatus de cierre (completado / no completado)</span>
-    </label>
   </div>
-  <div class="agenda-modal__foot">
-    <button type="button" class="btn agenda-btn-ghost" (click)="cerrarModalEstatus()">Cerrar</button>
-    <button type="button" class="btn agenda-btn-primary" (click)="guardarEstatus()">
-      {{ editandoEstatusUuid ? 'Actualizar' : 'Agregar estatus' }}
+  <div class="agenda-panel__foot">
+    <button type="button" class="agenda-panel__ghost" (click)="cerrarPanelEstatus()">Cerrar</button>
+    <button type="button" class="agenda-panel__primary" (click)="guardarEstatus()">
+      {{ editandoEstatusUuid ? 'Actualizar' : 'Agregar' }}
     </button>
   </div>
-</div>
+</aside>
