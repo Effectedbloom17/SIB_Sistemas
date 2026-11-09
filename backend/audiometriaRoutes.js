@@ -218,11 +218,12 @@ function porcentajeOido(umbrales, lado) {
 }
 
 function porcentajeBinaural(umbrales) {
-    const derecho = porcentajeOido(umbrales, 'Od');
-    const izquierdo = porcentajeOido(umbrales, 'Oi');
+    const derecho = sumaDb(umbrales, 'Od');
+    const izquierdo = sumaDb(umbrales, 'Oi');
     if (derecho == null || izquierdo == null) return null;
-    if (izquierdo > derecho) return ((5 * derecho) + izquierdo) / 6;
-    return ((5 * izquierdo) + derecho) / 6;
+    const mejor = Math.min(derecho, izquierdo);
+    const peor = Math.max(derecho, izquierdo);
+    return ((7 * mejor) + peor) / 8;
 }
 
 function grupoResultado(db) {
@@ -408,8 +409,9 @@ function porcentajeOido(umbrales, lado) {
 
 function porcentajeBinaural(derecho, izquierdo) {
     if (derecho == null || izquierdo == null) return null;
-    if (izquierdo > derecho) return ((5 * derecho) + izquierdo) / 6;
-    return ((5 * izquierdo) + derecho) / 6;
+    const mejor = Math.min(derecho, izquierdo);
+    const peor = Math.max(derecho, izquierdo);
+    return ((7 * mejor) + peor) / 8;
 }
 
 function grupoAuditivo(db) {
@@ -484,7 +486,7 @@ function resumirAudiometrias(rows) {
         if (derecho != null && derecho > 20) oidos.derecho += 1;
         if (izquierdo != null && izquierdo > 20) oidos.izquierdo += 1;
 
-        const binaural = porcentajeBinaural(porcentajeOido(umbrales, 'Od'), porcentajeOido(umbrales, 'Oi'));
+        const binaural = porcentajeBinaural(sumaDb(umbrales, 'Od'), sumaDb(umbrales, 'Oi'));
         if (binaural != null) {
             sumaBinaural += binaural;
             conBinaural += 1;

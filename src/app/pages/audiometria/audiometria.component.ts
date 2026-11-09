@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnDestroy, OnInit, Renderer2 } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit, Renderer2 } from '@angular/core';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
 import { environment } from 'src/environments/environment';
@@ -119,6 +119,7 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
   vistaActual: Vista = 'empresas';
   pasoActual = 1;
   maxPasoAlcanzado = 1;
+  ayudaBinauralAbierta = false;
   guardando = false;
   generandoPdf = false;
 
@@ -268,6 +269,21 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
     if (this.pasoActual > 1) {
       this.pasoActual -= 1;
     }
+  }
+
+  abrirAyudaBinaural(evento: Event): void {
+    evento.preventDefault();
+    evento.stopPropagation();
+    this.ayudaBinauralAbierta = true;
+  }
+
+  cerrarAyudaBinaural(): void {
+    this.ayudaBinauralAbierta = false;
+  }
+
+  @HostListener('document:keydown.escape')
+  cerrarAyudaBinauralConEscape(): void {
+    if (this.ayudaBinauralAbierta) this.cerrarAyudaBinaural();
   }
 
   verReporte(): void {
@@ -488,16 +504,20 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
   }
 
   porcentajeBinaural(): number | null {
-    const derecho = this.porcentajeOido('Od');
-    const izquierdo = this.porcentajeOido('Oi');
+    const derecho = this.sumaDb('Od');
+    const izquierdo = this.sumaDb('Oi');
     if (derecho == null || izquierdo == null) return null;
-    if (izquierdo > derecho) return (5 * derecho + izquierdo) / 6;
-    return (5 * izquierdo + derecho) / 6;
+    const mejor = Math.min(derecho, izquierdo);
+    const peor = Math.max(derecho, izquierdo);
+    return ((7 * mejor) + peor) / 8;
   }
 
   porcentajeDiscapacidad(): number | null {
-    const binaural = this.porcentajeBinaural();
-    if (binaural == null || binaural <= 0) return binaural == null ? null : 0;
+    const derecho = this.porcentajeOido('Od');
+    const izquierdo = this.porcentajeOido('Oi');
+    if (derecho == null || izquierdo == null) return null;
+    const binaural = ((7 * Math.min(derecho, izquierdo)) + Math.max(derecho, izquierdo)) / 8;
+    if (binaural <= 0) return 0;
     const tramos = [
       1.6, 3.2, 4.8, 6.4, 8, 9.6, 11.2, 12.8, 14.4, 16,
       17.6, 19.2, 20.8, 22.4, 23.9, 25.4, 26.9, 28.4, 29.9, 32.5,

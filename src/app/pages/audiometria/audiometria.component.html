@@ -478,32 +478,23 @@
                 </thead>
                 <tbody>
                   <tr>
-                    <th>Media</th>
-                    <td>{{ textoNumero(mediaLado('Od'), 2) }}</td>
-                    <td>{{ textoNumero(mediaLado('Oi'), 2) }}</td>
-                  </tr>
-                  <tr>
                     <th>Suma en dB de niveles</th>
                     <td>{{ textoNumero(sumaDb('Od'), 0) }}</td>
                     <td>{{ textoNumero(sumaDb('Oi'), 0) }}</td>
                   </tr>
                   <tr>
-                    <th>% pérdida</th>
-                    <td>{{ textoNumero(porcentajeOido('Od'), 0) }}</td>
-                    <td>{{ textoNumero(porcentajeOido('Oi'), 0) }}</td>
-                  </tr>
-                  <tr>
-                    <th>% Pérdida SNDA binaural</th>
+                    <th>
+                      <span class="valoracion-etiqueta">
+                        % Pérdida SNDA binaural
+                        <button type="button" class="formula-ayuda-btn no-print"
+                          (click)="abrirAyudaBinaural($event)"
+                          aria-label="Ver cómo se calcula la pérdida SNDA binaural"
+                          title="Ver la fórmula">
+                          <span class="formula-ayuda-btn__simbolo" aria-hidden="true">𝑓𝑥</span>
+                        </button>
+                      </span>
+                    </th>
                     <td colspan="2">{{ textoNumero(porcentajeBinaural(), 1) }}</td>
-                  </tr>
-                  <tr>
-                    <th>% Discapacidad</th>
-                    <td colspan="2">{{ textoNumero(porcentajeDiscapacidad(), 0) }}</td>
-                  </tr>
-                  <tr>
-                    <th>Tipo pérdida dB OD-OI</th>
-                    <td>{{ textoNumero(tipoPerdidaDb(), 2) }}</td>
-                    <td class="valoracion-clase">{{ clasificarTipo(tipoPerdidaDb()) }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -755,6 +746,40 @@
         </div>
       </div>
 
+    </div>
+  </div>
+</div>
+
+<div class="formula-ayuda-backdrop no-print" *ngIf="ayudaBinauralAbierta" (click)="cerrarAyudaBinaural()" (keydown.escape)="cerrarAyudaBinaural()">
+  <div class="formula-ayuda" role="dialog" aria-modal="true" aria-labelledby="ayudaBinauralTitulo" (click)="$event.stopPropagation()">
+    <header class="formula-ayuda__head">
+      <div>
+        <span class="formula-ayuda__badge">Fórmula</span>
+        <h3 id="ayudaBinauralTitulo" class="formula-ayuda__title">% Pérdida SNDA binaural</h3>
+        <p class="formula-ayuda__lead">Este número sale de las dos sumas en dB de la fila de arriba. No se convierten a porcentaje.</p>
+      </div>
+      <button type="button" class="formula-ayuda__close" (click)="cerrarAyudaBinaural()" aria-label="Cerrar">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </header>
+    <div class="formula-ayuda__body">
+      <p class="formula-ayuda__ecuacion">
+        <span class="formula-ayuda__ecuacion-nombre">Pérdida binaural</span>
+        <span class="formula-ayuda__ecuacion-igual">=</span>
+        <span class="formula-ayuda__fraccion">
+          <span>(7 × suma del mejor oído) + (suma del peor oído)</span>
+          <span>8</span>
+        </span>
+      </p>
+      <ul class="formula-ayuda__pasos">
+        <li>El mejor oído es la suma más baja. El peor oído es la suma más alta.</li>
+        <li>Se multiplica la suma del mejor oído por 7, se le suma la del peor y el total se divide entre 8.</li>
+        <li>El resultado se muestra con un decimal.</li>
+      </ul>
+      <p class="formula-ayuda__ejemplo">
+        Si las sumas son 50 dB y 120 dB, el mejor oído es 50 y el peor es 120:
+        (7 × 50 + 120) / 8 = <strong>58.8</strong>
+      </p>
     </div>
   </div>
 </div>
