@@ -26,6 +26,8 @@ export interface AvisoPopupItem {
   empresaId?: number | null;
   nombreEmpresa?: string;
   nombreAsignacion?: string;
+  tipoResolutivo?: string;
+  logoEmpresa?: string;
   responsableNombre?: string;
   diasRestantes?: number | null;
   // Proyectos
@@ -39,7 +41,7 @@ export interface AvisoPopupItem {
 export const AVISO_AREA_META: Record<AvisoPopupArea, { titulo: string; color: string; orden: number }> = {
   sgc: { titulo: 'SGC', color: '#12ad9d', orden: 1 },
   pc: { titulo: 'Protección Civil', color: '#fb6340', orden: 2 },
-  proyectos: { titulo: 'Proyectos', color: '#c2410c', orden: 3 }
+  proyectos: { titulo: 'Proyectos', color: '#2563eb', orden: 3 }
 };
 
 @Injectable({ providedIn: 'root' })
@@ -196,9 +198,14 @@ export class AvisosPopupService {
     this.backend.silenciarTodosAvisosResolutivosPipc().subscribe({ error: () => {} });
   }
 
-  abrir(item: AvisoPopupItem): void {
-    this.descartar(item);
+  /** Cierra el popup y abre el apartado. El aviso sigue en el gestor hasta que el estatus quede resuelto. */
+  ir(item: AvisoPopupItem): void {
+    this.silenciar(item);
     this.navegar(item);
+  }
+
+  abrir(item: AvisoPopupItem): void {
+    this.ir(item);
   }
 
   navegar(item: AvisoPopupItem): void {
@@ -285,6 +292,7 @@ export class AvisosPopupService {
       }
       const empresa = String(row.nombreEmpresa || 'Empresa').trim();
       const asignacion = String(row.nombreAsignacion || '').trim();
+      const tipoResolutivo = String(row.tipoResolutivo || asignacion || 'PIPC').trim() || 'PIPC';
       return {
         id: Number(row.id),
         area: 'pc' as const,
@@ -297,6 +305,8 @@ export class AvisosPopupService {
         empresaId: row.empresaId == null ? null : Number(row.empresaId),
         nombreEmpresa: row.nombreEmpresa || '',
         nombreAsignacion: row.nombreAsignacion || '',
+        tipoResolutivo,
+        logoEmpresa: row.logoEmpresa || '',
         responsableNombre: row.responsableNombre || '',
         diasRestantes: dias == null ? null : Number(dias),
         mensaje: row.mensaje || ''

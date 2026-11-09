@@ -367,9 +367,8 @@ export class ColaboradoresComponent implements OnInit, OnDestroy {
     if (colaborador.fotoFileId && this.avatares[colaborador.fotoFileId]) {
       return this.avatares[colaborador.fotoFileId];
     }
-    const url = String(colaborador.fotoUrl || '').trim();
-    if (url && /^(https?:|data:|blob:|\/)/i.test(url)) return url;
-    return null;
+    // Proxy Drive (mismo patrón que Gestión de usuarios) para que <img> no falle con URLs de Google.
+    return this.backend.resolverUrlDrivePreview(colaborador.fotoUrl);
   }
 
   trackByColaborador(_index: number, item: ColaboradorItem): string {

@@ -163,6 +163,36 @@ async function destinosSupervisores(poolUsuarios) {
     }
 }
 
+/** Uno de los 3 tipos oficiales: PIPC | OTMS | Factibilidad. */
+function normalizarTipoResolutivo(valor) {
+    const raw = String(valor || '').trim().toLowerCase();
+    if (!raw) return 'PIPC';
+    if (raw.includes('factib')) return 'Factibilidad';
+    if (raw.includes('otms')) return 'OTMS';
+    if (raw.includes('pipc')) return 'PIPC';
+    return 'PIPC';
+}
+
+async function mapLogosEmpresas(poolUsuarios, empresaIds) {
+    const mapa = new Map();
+    const unicos = [...new Set((empresaIds || []).map((id) => Number(id)).filter((id) => id > 0))];
+    if (!poolUsuarios?.query || !unicos.length) return mapa;
+    try {
+        const placeholders = unicos.map(() => '?').join(', ');
+        const [rows] = await poolUsuarios.query(
+            `SELECT empresa_id, logo FROM empresa WHERE empresa_id IN (${placeholders})`,
+            unicos
+        );
+        for (const row of rows || []) {
+            const logo = String(row.logo || '').trim();
+            if (logo) mapa.set(Number(row.empresa_id), logo);
+        }
+    } catch (_err) {
+        // sin logos: el front muestra iniciales
+    }
+    return mapa;
+}
+
 async function listarResolutivosElegibles(poolPC, poolUsuarios) {
     const registros = await pcResolutivosService.obtenerDatosControlResolutivos(
         poolPC,
@@ -181,6 +211,7 @@ async function listarResolutivosElegibles(poolPC, poolUsuarios) {
             empresaId: Number(row.empresa_id_biznaga || 0) || null,
             nombreEmpresa: textoPlano(row.nombre_empresa, 255),
             nombreAsignacion: textoPlano(row.nombre_asignacion || row.tipo_tramite || 'PIPC', 255),
+            tipoResolutivo: normalizarTipoResolutivo(row.tipo_tramite || row.nombre_asignacion),
             responsableNombre: textoPlano(row.responsable, 255),
             responsableUsername,
             estatus: String(row.estatus || ''),
@@ -631,23 +662,29 @@ async function listarAvisos(poolPC, poolUsuarios, username, opciones = {}) {
 
     // Revalida contra el estatus actual: no mostrar avisos de PIPC ya vencidos.
     let vigentesIds = null;
-    let diasPorResolutivo = new Map();
+    let metaPorResolutivo = new Map();
     try {
         const elegibles = await listarResolutivosElegibles(poolPC, poolUsuarios);
         vigentesIds = new Set(elegibles.map((item) => item.resolutivoId));
-        diasPorResolutivo = new Map(
-            elegibles.map((item) => [item.resolutivoId, item.diasRestantes])
+        metaPorResolutivo = new Map(
+            elegibles.map((item) => [item.resolutivoId, item])
         );
     } catch (error) {
         console.warn('[PC-AVISO] No se pudo revalidar estatus de avisos:', error.message);
     }
 
+    const logosPorEmpresa = await mapLogosEmpresas(
+        poolUsuarios,
+        (rows || []).map((row) => row.empresa_id)
+    );
+
     const avisos = [];
     const staleIds = [];
     for (const row of rows || []) {
         const resolutivoId = Number(row.resolutivo_id);
-        const diasActuales = diasPorResolutivo.has(resolutivoId)
-            ? Number(diasPorResolutivo.get(resolutivoId))
+        const meta = metaPorResolutivo.get(resolutivoId) || null;
+        const diasActuales = meta?.diasRestantes != null
+            ? Number(meta.diasRestantes)
             : (row.dias_restantes == null ? null : Number(row.dias_restantes));
 
         // Fuera de ventana (vencidos <=0, >40, o resolutivo inexistente): no mostrar y auto-descartar.
@@ -659,14 +696,19 @@ async function listarAvisos(poolPC, poolUsuarios, username, opciones = {}) {
             continue;
         }
 
+        const empresaId = row.empresa_id == null ? null : Number(row.empresa_id);
+        const tipoResolutivo = meta?.tipoResolutivo
+            || normalizarTipoResolutivo(row.nombre_asignacion);
         avisos.push({
             id: Number(row.aviso_id),
             resolutivoId,
             tipo: String(row.tipo || 'ventana_diaria'),
             mensaje: row.mensaje == null ? '' : String(row.mensaje),
-            empresaId: row.empresa_id == null ? null : Number(row.empresa_id),
+            empresaId,
             nombreEmpresa: row.nombre_empresa == null ? '' : String(row.nombre_empresa),
             nombreAsignacion: row.nombre_asignacion == null ? '' : String(row.nombre_asignacion),
+            tipoResolutivo,
+            logoEmpresa: empresaId ? (logosPorEmpresa.get(empresaId) || '') : '',
             responsableNombre: row.responsable_nombre == null ? '' : String(row.responsable_nombre),
             diasRestantes: diasActuales,
             ruta: row.ruta || RUTA_ATENCION,

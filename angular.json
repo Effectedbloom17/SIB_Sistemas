@@ -43,6 +43,11 @@
               "src/favicon.ico",
               "src/assets",
               {
+                "glob": "**/*",
+                "input": "src/assets/img/biznaguita",
+                "output": "/assets/img/Biznaguita"
+              },
+              {
                 "glob": "pdf.worker.min.js",
                 "input": "node_modules/pdfjs-dist/build",
                 "output": "assets/pdfjs"

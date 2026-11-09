@@ -3545,13 +3545,27 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-29`);
     }
 
-    listarCriteriosSgcF29(): Observable<any> {
-        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-29/criterios`);
+    listarAreasSgcF29(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-29/areas`);
+    }
+
+    crearAreaSgcF29(payload: {
+        nombre: string;
+        color?: string;
+    }): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/areas`, payload || {});
+    }
+
+    listarCriteriosSgcF29(areaClave?: string): Observable<any> {
+        const q = areaClave ? `?area=${encodeURIComponent(areaClave)}` : '';
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-29/criterios${q}`);
     }
 
     crearCriterioSgcF29(payload: {
         nombre: string;
-        escala?: 2 | 5 | 6;
+        escala?: 1 | 2 | 3 | 4 | 5 | 6;
+        areaClave?: string;
+        porcentajePersonalizado?: number;
         descripciones?: Record<string, string>;
     }): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/criterios`, payload || {});
@@ -5010,6 +5024,16 @@ export class BackendServices {
 
     autorizarSolicitudDocumentoSgc(id: number): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/solicitud-documentos/${id}/autorizar`, {});
+    }
+
+    declinarSolicitudDocumentoSgc(id: number, motivo?: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/solicitud-documentos/${id}/declinar`, {
+            motivo: motivo || ''
+        });
+    }
+
+    desactivarSolicitudDocumentoSgc(id: number): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/solicitud-documentos/${id}/desactivar`, {});
     }
 
     reemplazarFormatoSolicitudDocumentoSgc(id: number, formData: FormData): Observable<any> {

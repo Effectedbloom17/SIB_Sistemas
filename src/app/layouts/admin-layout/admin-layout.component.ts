@@ -8,6 +8,7 @@ import { HistorialPendientesService } from 'src/app/services/historial-pendiente
 import { SgcDashboardCacheService } from 'src/app/services/sgc-dashboard-cache.service';
 import { ConnectivityService } from 'src/app/services/connectivity.service';
 import { AvisoPopupItem, AvisosPopupService } from 'src/app/services/avisos-popup.service';
+import { biznaguitaAsset, onBiznaguitaAssetError } from 'src/app/utils/biznaguita-assets';
 import { Subject, interval, fromEvent } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
 
@@ -203,7 +204,7 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
       this.avisosPopup.silenciar(aviso);
       return;
     }
-    this.avisosPopup.abrir(aviso);
+    this.avisosPopup.ir(aviso);
   }
 
   tituloAvisoCambio(aviso: { tipo?: string }): string {
@@ -269,10 +270,30 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
   }
 
   mascotaAvisoFirma(aviso: { tipo?: string }): string {
-    if (aviso?.tipo === 'aprobada') return 'assets/img/biznaguita/biznaga_firma_autorizada.png';
-    if (aviso?.tipo === 'rechazada') return 'assets/img/biznaguita/biznaga_firma_rechazada.png';
-    if (aviso?.tipo === 'solicitud') return 'assets/img/biznaguita/biznaga_solicitud_firma.png';
-    return 'assets/img/biznaguita/mascota-biznaga.png';
+    if (aviso?.tipo === 'aprobada') return biznaguitaAsset('biznaga_firma_autorizada.png');
+    if (aviso?.tipo === 'rechazada') return biznaguitaAsset('biznaga_firma_rechazada.png');
+    if (aviso?.tipo === 'solicitud') return biznaguitaAsset('biznaga_solicitud_firma.png');
+    return biznaguitaAsset('mascota-biznaga.png');
+  }
+
+  onErrorMascotaBiznaguita(event: Event, fileName: string): void {
+    onBiznaguitaAssetError(event, fileName);
+  }
+
+  archivoMascotaFirma(aviso: { tipo?: string }): string {
+    if (aviso?.tipo === 'aprobada') return 'biznaga_firma_autorizada.png';
+    if (aviso?.tipo === 'rechazada') return 'biznaga_firma_rechazada.png';
+    if (aviso?.tipo === 'solicitud') return 'biznaga_solicitud_firma.png';
+    return 'mascota-biznaga.png';
+  }
+
+  archivoMascotaResolutivo(aviso?: { tipo?: string }): string {
+    const tipo = String(aviso?.tipo || '');
+    if (tipo === 'ventana_diaria') return 'biznaga_aviso_preventivo_reloj.png';
+    if (tipo === 'urgente_ingreso' || tipo === 'urgente_seguimiento') {
+      return 'biznaga_aviso_urgente_papeles.png';
+    }
+    return 'mascota-biznaga.png';
   }
 
   private iniciarSalidaAvisoFirma(accion: 'cerrar' | 'revisar'): void {
@@ -313,7 +334,7 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
       this.avisosPopup.silenciar(aviso);
       return;
     }
-    this.avisosPopup.abrir(aviso);
+    this.avisosPopup.ir(aviso);
   }
 
   cerrarAvisoResolutivo(): void {
@@ -335,15 +356,11 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
 
   tituloAvisoResolutivo(aviso: { tipo?: string; diasRestantes?: number | null }): string {
     const dias = aviso?.diasRestantes;
-    if (aviso?.tipo === 'urgente_seguimiento') return 'Seguimiento de resolutivo PIPC';
+    if (aviso?.tipo === 'urgente_seguimiento') return 'Seguimiento urgente de resolutivo';
     if (aviso?.tipo === 'urgente_ingreso' || (dias != null && dias > 0 && dias <= 20)) {
-      return 'Resolutivo PIPC por vencer';
+      return 'Atención: resolutivo por vencer';
     }
-    return 'Recordatorio de resolutivo PIPC';
-  }
-
-  leadAvisoResolutivo(aviso: { mensaje?: string }): string {
-    return String(aviso?.mensaje || 'Revisa el resolutivo en Atención de Resolutivos.');
+    return 'Atención: resolutivo próximo a vencer';
   }
 
   etiquetaDiasResolutivo(aviso: { diasRestantes?: number | null }): string {
@@ -357,15 +374,47 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     return n === 1 ? 'Falta 1 día' : `Faltan ${n} días`;
   }
 
+  /** Solo Marisol, Leonel y ROOT ven el recuadro de responsable. */
+  mostrarResponsableAvisoResolutivo(): boolean {
+    const user = String(this.authService.getUsername() || '').trim().toLowerCase();
+    if (user === 'marisol12' || user === 'leonel58' || user === 'root') return true;
+    return this.authService.tieneRol('root');
+  }
+
+  tipoResolutivoAviso(aviso: { tipoResolutivo?: string; nombreAsignacion?: string }): string {
+    const directo = String(aviso?.tipoResolutivo || '').trim();
+    if (directo) return directo;
+    const raw = String(aviso?.nombreAsignacion || '').trim().toLowerCase();
+    if (raw.includes('factib')) return 'Factibilidad';
+    if (raw.includes('otms')) return 'OTMS';
+    return 'PIPC';
+  }
+
+  logoEmpresaAvisoResolutivo(aviso: { logoEmpresa?: string }): string | null {
+    const raw = String(aviso?.logoEmpresa || '').trim();
+    if (!raw) return null;
+    return this.backendServices.resolverUrlDrivePreview(raw);
+  }
+
+  inicialesEmpresaAvisoResolutivo(aviso: { nombreEmpresa?: string }): string {
+    const nombre = String(aviso?.nombreEmpresa || 'EM').trim();
+    const partes = nombre.split(/\s+/).filter(Boolean);
+    if (partes.length >= 2) {
+      return `${partes[0].charAt(0)}${partes[1].charAt(0)}`.toUpperCase();
+    }
+    return nombre.slice(0, 2).toUpperCase() || 'EM';
+  }
+
+  onLogoEmpresaAvisoError(aviso: AvisoPopupItem): void {
+    if (aviso) aviso.logoEmpresa = '';
+  }
+
   mascotaAvisoResolutivo(aviso?: { tipo?: string }): string {
-    const tipo = String(aviso?.tipo || '');
-    if (tipo === 'ventana_diaria') {
-      return 'assets/img/biznaguita/biznaga_aviso_preventivo_reloj.png';
-    }
-    if (tipo === 'urgente_ingreso' || tipo === 'urgente_seguimiento') {
-      return 'assets/img/biznaguita/biznaga_aviso_urgente_papeles.png';
-    }
-    return 'assets/img/biznaguita/mascota-biznaga.png';
+    return biznaguitaAsset(this.archivoMascotaResolutivo(aviso));
+  }
+
+  mascotaAvisoCambio(): string {
+    return biznaguitaAsset('mascota-biznaga.png');
   }
 
   private iniciarSalidaAvisoResolutivo(accion: 'cerrar' | 'revisar' | 'aceptar_todas'): void {
@@ -410,7 +459,7 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
       this.avisosPopup.silenciar(aviso);
       return;
     }
-    this.avisosPopup.abrir(aviso);
+    this.avisosPopup.ir(aviso);
   }
 
   private actualizarFlagsRuta(url: string): void {

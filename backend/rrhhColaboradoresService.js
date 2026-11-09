@@ -311,7 +311,7 @@ async function listarUsuariosOrganigrama(pool) {
     if (!pool || typeof pool.query !== 'function') return [];
     try {
         const [rows] = await pool.query(
-            `SELECT u.id, u.nombre, u.apellido, u.organigrama, u.foto_url, u.email, u.telefono
+            `SELECT u.id, u.nombre, u.apellido, u.organigrama, u.foto_url, u.foto_drive_id, u.email, u.telefono
              FROM usuario u
              JOIN roles r ON u.rol_id = r.rol_id
              WHERE u.activo = 1
@@ -338,6 +338,9 @@ async function enriquecerConOrganigrama(colaboradores, pool) {
         }));
     }
 
+    const fotoPublicaUsuario = (usuario) =>
+        String(usuario?.foto_drive_id || usuario?.foto_url || '').trim() || null;
+
     const usados = new Set();
     const enriquecidos = colaboradores.map((c) => {
         const match = mejorUsuarioParaCarpeta(c.nombre, usuarios, usados);
@@ -346,7 +349,7 @@ async function enriquecerConOrganigrama(colaboradores, pool) {
             ...c,
             organigrama: match?.organigrama ? String(match.organigrama).trim() : null,
             usuarioId: match?.id || null,
-            fotoUrl: match?.foto_url || null,
+            fotoUrl: fotoPublicaUsuario(match),
             email: match?.email || null,
             telefono: match?.telefono || null,
             tieneExpediente: true
@@ -366,7 +369,7 @@ async function enriquecerConOrganigrama(colaboradores, pool) {
             archivos: 0,
             documentos: 0,
             fotoFileId: null,
-            fotoUrl: usuario.foto_url || null,
+            fotoUrl: fotoPublicaUsuario(usuario),
             modificado: null,
             webViewLink: null,
             organigrama: puesto,
@@ -759,6 +762,14 @@ async function archivoPermitido(fileId) {
     return ok;
 }
 
+/** Solo la foto de perfil publicada en el organigrama (no el resto del expediente). */
+async function esAvatarOrganigrama(fileId, { pool = null } = {}) {
+    const id = String(fileId || '').trim();
+    if (!id || !/^[a-zA-Z0-9_-]{10,}$/.test(id)) return false;
+    const payload = await listarColaboradores({ forzar: false, pool });
+    return (payload?.colaboradores || []).some((c) => String(c?.fotoFileId || '') === id);
+}
+
 async function obtenerTokenDrive() {
     const auth = driveService.getAuthClient();
     if (!auth) return null;
@@ -909,5 +920,6 @@ module.exports = {
     reescribirDocumentos,
     moverDocumento,
     servirArchivo,
+    esAvatarOrganigrama,
     invalidarCache
 };

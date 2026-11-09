@@ -48,9 +48,42 @@ const DATA_END_ROW = DATA_START_ROW + MAX_FILAS_BASE - 1;
  */
 const CRITERIOS_BASE_PLANTILLA = 6;
 const ANCHO_COLUMNA_CRITERIO_PX = 90;
-const MIN_CRITERIOS_EVALUACION = 3;
+/** Histórico: ya no se exige mínimo; se permite 0 criterios con aviso en UI. */
+const MIN_CRITERIOS_EVALUACION = 0;
 /** Índice 0-based de F: insertar aquí (= a la derecha de E). */
 const COL_INSERTAR_DERECHA_DE_E_0 = 5;
+
+/** Áreas de evaluación (colores pastel). */
+const AREAS_SISTEMA = [
+    {
+        clave: 'instructores_capacitacion',
+        nombre: 'Instructores / Capacitación',
+        color: '#A8D5CE',
+        orden: 1
+    },
+    {
+        clave: 'servicio_medico',
+        nombre: 'Servicio médico',
+        color: '#F0B7B7',
+        orden: 2
+    },
+    {
+        clave: 'mantto_computo',
+        nombre: 'Mantenimiento de equipo de cómputo',
+        color: '#B8C9E0',
+        orden: 3
+    },
+    {
+        clave: 'lab_calibracion',
+        nombre: 'Laboratorio de Calibración',
+        color: '#E8D4A8',
+        orden: 4
+    }
+];
+const COLORES_AREA_FALLBACK = [
+    '#A8D5CE', '#F0B7B7', '#B8C9E0', '#E8D4A8',
+    '#C5D5A8', '#D4B8E0', '#F0C9A8', '#A8D0E0'
+];
 
 // A No | B Proveedor | C… criterios | Calificación (sin fusión B:C).
 const COLUMNAS = {
@@ -65,13 +98,18 @@ const COLUMNAS = {
     calificacion: 9        // I
 };
 
-/** Escalas de puntaje permitidas por criterio. */
+/**
+ * Escalas fijas (n opciones de 100→0).
+ * escala 1 = personalizado (el % lo escribe el evaluador; al crear basta el nombre).
+ */
 const ESCALAS_PUNTAJE = {
-    2: [0, 100],
-    5: [0, 25, 50, 75, 100],
-    6: [0, 20, 40, 60, 80, 100]
+    2: [100, 0],
+    3: [100, 50, 0],
+    4: [100, 67, 33, 0],
+    5: [100, 75, 50, 25, 0],
+    6: [100, 80, 60, 40, 20, 0]
 };
-const PUNTAJES_TODOS = [0, 20, 25, 40, 50, 60, 75, 80, 100];
+const PUNTAJES_TODOS = [0, 20, 25, 33, 40, 50, 60, 67, 75, 80, 100];
 
 const CRITERIOS_SISTEMA = [
     {
@@ -158,12 +196,29 @@ const CLAVES_SISTEMA = CRITERIOS_SISTEMA.map((c) => c.clave);
 
 function normalizarEscala(valor) {
     const n = Number(valor);
-    if (n === 2 || n === 6) return n;
+    if (n === 1 || n === 2 || n === 3 || n === 4 || n === 6) return n;
     return 5;
 }
 
-function valoresEscala(escala) {
-    return ESCALAS_PUNTAJE[normalizarEscala(escala)] || ESCALAS_PUNTAJE[5];
+function normalizarPorcentajePersonalizado(valor) {
+    let n = Number(String(valor ?? '').trim().replace('%', '').replace(',', '.'));
+    if (!Number.isFinite(n)) return null;
+    n = Math.round(n);
+    if (n < 0 || n > 100) return null;
+    return n;
+}
+
+function valoresEscala(escala, customValores = null) {
+    const e = normalizarEscala(escala);
+    if (e === 1) {
+        // Personalizado libre: el % se captura al evaluar (sin lista fija).
+        // Si aún hay valores legacy guardados, se conservan solo como referencia.
+        const fromCustom = Array.isArray(customValores)
+            ? customValores.map((v) => normalizarPorcentajePersonalizado(v)).filter((v) => v != null)
+            : [];
+        return fromCustom.length ? [...new Set(fromCustom)] : [];
+    }
+    return (ESCALAS_PUNTAJE[e] || ESCALAS_PUNTAJE[5]).slice();
 }
 
 /** Legado: Proveedor B:C fusionado; criterios desde D. */
@@ -252,6 +307,7 @@ const PROVEEDOR_DEFECTO = {
     id: '',
     proveedor: '',
     accion: '',
+    areaClave: '',
     referencia: '',
     fecha: '',
     entregaTiempo: '',
@@ -261,12 +317,12 @@ const PROVEEDOR_DEFECTO = {
     servicio: '',
     calidad: '',
     puntajes: {},
-    criteriosUsados: [...CLAVES_SISTEMA],
+    criteriosUsados: [],
     calificacion: '',
     evaluador: ''
 };
 
-function slugCriterio(texto) {
+function slugTexto(texto, fallback = 'item') {
     const base = String(texto || '')
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
@@ -274,11 +330,46 @@ function slugCriterio(texto) {
         .replace(/[^a-z0-9]+/g, '_')
         .replace(/^_+|_+$/g, '')
         .slice(0, 48);
-    return base || `criterio_${Date.now().toString(36)}`;
+    return base || `${fallback}_${Date.now().toString(36)}`;
 }
 
-function sanitizarDescripcionesEscala(raw, escala) {
-    const vals = valoresEscala(escala);
+function slugCriterio(texto) {
+    return slugTexto(texto, 'criterio');
+}
+
+function slugArea(texto) {
+    return slugTexto(texto, 'area');
+}
+
+function normalizarColorHex(valor, fallback = '#0D7377') {
+    const raw = String(valor || '').trim();
+    if (/^#[0-9A-Fa-f]{6}$/.test(raw)) return raw.toUpperCase();
+    if (/^#[0-9A-Fa-f]{3}$/.test(raw)) {
+        const r = raw[1];
+        const g = raw[2];
+        const b = raw[3];
+        return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
+    }
+    return String(fallback || '#0D7377').toUpperCase();
+}
+
+function sanitizarAreaCatalogo(raw, idx = 0) {
+    const clave = String(raw?.clave || '').trim().slice(0, 64);
+    const nombre = String(raw?.nombre || '').trim().slice(0, 120);
+    if (!clave || !nombre) return null;
+    const colorFallback = COLORES_AREA_FALLBACK[idx % COLORES_AREA_FALLBACK.length];
+    return {
+        clave,
+        nombre,
+        color: normalizarColorHex(raw?.color, colorFallback),
+        esSistema: !!(raw?.esSistema ?? raw?.es_sistema),
+        activo: raw?.activo !== false && raw?.activo !== 0,
+        orden: Number(raw?.orden) || (idx + 1)
+    };
+}
+
+function sanitizarDescripcionesEscala(raw, escala, customValores = null) {
+    const vals = valoresEscala(escala, customValores);
     const src = raw && typeof raw === 'object' ? raw : {};
     const out = {};
     for (const n of vals) {
@@ -296,14 +387,37 @@ function sanitizarCriterioCatalogo(raw, idx = 0) {
     ).trim().slice(0, 80);
     if (!clave || !nombre) return null;
     const escala = normalizarEscala(raw?.escala);
-    const descripciones = sanitizarDescripcionesEscala(raw?.descripciones, escala);
+    let customVals = null;
+    if (escala === 1) {
+        if (Array.isArray(raw?.valores) && raw.valores.length) {
+            customVals = raw.valores;
+        } else if (raw?.descripciones && typeof raw.descripciones === 'object') {
+            customVals = Object.keys(raw.descripciones);
+        } else if (raw?.porcentajePersonalizado != null) {
+            customVals = [raw.porcentajePersonalizado];
+        }
+    }
+    const descripciones = sanitizarDescripcionesEscala(raw?.descripciones, escala, customVals);
+    let valores;
+    if (escala === 1) {
+        const fromDesc = Object.keys(descripciones).map(Number).filter((n) => Number.isFinite(n));
+        const fromCustom = Array.isArray(customVals)
+            ? customVals.map((v) => Number(v)).filter((n) => Number.isFinite(n))
+            : [];
+        valores = [...new Set([...fromDesc, ...fromCustom])].sort((a, b) => b - a);
+        // Libre en evaluación: puede quedar vacío.
+    } else {
+        valores = valoresEscala(escala);
+    }
+    const areaClave = String(raw?.areaClave || raw?.area_clave || '').trim().slice(0, 64);
     return {
         clave,
         nombre,
         corto: nombre,
         largo: nombre,
         escala,
-        valores: valoresEscala(escala).map(String),
+        valores: valores.map(String),
+        areaClave: areaClave || null,
         esSistema: !!(raw?.esSistema ?? raw?.es_sistema),
         activo: raw?.activo !== false && raw?.activo !== 0,
         orden: Number(raw?.orden) || (idx + 1),
@@ -328,8 +442,98 @@ async function asegurarColumnaCriterios(pool, columna, ddl) {
     }
 }
 
+async function asegurarTablaAreas(pool) {
+    if (!pool) return;
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS sgc_f29_areas (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            clave VARCHAR(64) NOT NULL,
+            nombre VARCHAR(120) NOT NULL,
+            color VARCHAR(7) NOT NULL DEFAULT '#0D7377',
+            es_sistema TINYINT(1) NOT NULL DEFAULT 0,
+            activo TINYINT(1) NOT NULL DEFAULT 1,
+            orden INT NOT NULL DEFAULT 100,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_sgc_f29_areas_clave (clave)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    for (const a of AREAS_SISTEMA) {
+        await pool.query(
+            `INSERT IGNORE INTO sgc_f29_areas
+                (clave, nombre, color, es_sistema, activo, orden)
+             VALUES (?, ?, ?, 1, 1, ?)`,
+            [a.clave, a.nombre, normalizarColorHex(a.color), a.orden]
+        );
+        // Mantiene pasteles actuales en áreas de sistema ya existentes.
+        await pool.query(
+            `UPDATE sgc_f29_areas
+             SET nombre = ?, color = ?, orden = ?, es_sistema = 1, activo = 1
+             WHERE clave = ? AND es_sistema = 1`,
+            [a.nombre, normalizarColorHex(a.color), a.orden, a.clave]
+        );
+    }
+}
+
+async function listarAreas(pool) {
+    await asegurarTablaAreas(pool);
+    const [rows] = await pool.query(
+        `SELECT clave, nombre, color, es_sistema, activo, orden
+         FROM sgc_f29_areas
+         WHERE activo = 1
+         ORDER BY orden ASC, id ASC`
+    );
+    const lista = (rows || []).map((r, idx) => sanitizarAreaCatalogo({
+        clave: r.clave,
+        nombre: r.nombre,
+        color: r.color,
+        esSistema: !!r.es_sistema,
+        activo: !!r.activo,
+        orden: r.orden
+    }, idx)).filter(Boolean);
+    return lista.length
+        ? lista
+        : AREAS_SISTEMA.map((a, i) => sanitizarAreaCatalogo({ ...a, esSistema: true, activo: true }, i));
+}
+
+async function crearArea(pool, body = {}) {
+    await asegurarTablaAreas(pool);
+    const nombre = String(body.nombre || '').trim().slice(0, 120);
+    if (!nombre) {
+        const err = new Error('Indica el nombre del área.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const [maxOrd] = await pool.query('SELECT COALESCE(MAX(orden), 0) AS m FROM sgc_f29_areas');
+    const orden = Number(maxOrd?.[0]?.m || 0) + 1;
+    const color = normalizarColorHex(
+        body.color,
+        COLORES_AREA_FALLBACK[(orden - 1) % COLORES_AREA_FALLBACK.length]
+    );
+    let clave = slugArea(nombre);
+    if (AREAS_SISTEMA.some((a) => a.clave === clave) || clave.length < 2) {
+        clave = `${clave}_${crypto.randomBytes(3).toString('hex')}`;
+    }
+    const [existentes] = await pool.query(
+        'SELECT clave FROM sgc_f29_areas WHERE clave = ? OR LOWER(nombre) = LOWER(?) LIMIT 1',
+        [clave, nombre]
+    );
+    if (existentes?.length) {
+        const err = new Error('Ya existe un área con ese nombre.');
+        err.statusCode = 409;
+        throw err;
+    }
+    await pool.query(
+        `INSERT INTO sgc_f29_areas (clave, nombre, color, es_sistema, activo, orden)
+         VALUES (?, ?, ?, 0, 1, ?)`,
+        [clave, nombre, color, orden]
+    );
+    return listarAreas(pool);
+}
+
 async function asegurarTablaCriterios(pool) {
     if (!pool) return;
+    await asegurarTablaAreas(pool);
     await pool.query(`
         CREATE TABLE IF NOT EXISTS sgc_f29_criterios (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -337,6 +541,7 @@ async function asegurarTablaCriterios(pool) {
             corto VARCHAR(80) NOT NULL,
             largo VARCHAR(80) NOT NULL,
             escala TINYINT NOT NULL DEFAULT 5,
+            area_clave VARCHAR(64) NULL,
             es_sistema TINYINT(1) NOT NULL DEFAULT 0,
             activo TINYINT(1) NOT NULL DEFAULT 1,
             orden INT NOT NULL DEFAULT 100,
@@ -347,11 +552,12 @@ async function asegurarTablaCriterios(pool) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     await asegurarColumnaCriterios(pool, 'escala', 'escala TINYINT NOT NULL DEFAULT 5');
+    await asegurarColumnaCriterios(pool, 'area_clave', 'area_clave VARCHAR(64) NULL');
     for (const c of CRITERIOS_SISTEMA) {
         await pool.query(
             `INSERT IGNORE INTO sgc_f29_criterios
-                (clave, corto, largo, escala, es_sistema, activo, orden, descripciones_json)
-             VALUES (?, ?, ?, ?, 1, 1, ?, ?)`,
+                (clave, corto, largo, escala, area_clave, es_sistema, activo, orden, descripciones_json)
+             VALUES (?, ?, ?, ?, NULL, 1, 1, ?, ?)`,
             [
                 c.clave,
                 c.nombre,
@@ -364,14 +570,26 @@ async function asegurarTablaCriterios(pool) {
     }
 }
 
-async function listarCriterios(pool) {
+async function listarCriterios(pool, areaClaveFiltro = null) {
     await asegurarTablaCriterios(pool);
-    const [rows] = await pool.query(
-        `SELECT clave, corto, largo, escala, es_sistema, activo, orden, descripciones_json
-         FROM sgc_f29_criterios
-         WHERE activo = 1
-         ORDER BY orden ASC, id ASC`
-    );
+    const areaFiltro = String(areaClaveFiltro || '').trim().slice(0, 64);
+    let rows;
+    if (areaFiltro) {
+        [rows] = await pool.query(
+            `SELECT clave, corto, largo, escala, area_clave, es_sistema, activo, orden, descripciones_json
+             FROM sgc_f29_criterios
+             WHERE activo = 1 AND area_clave = ?
+             ORDER BY orden ASC, id ASC`,
+            [areaFiltro]
+        );
+    } else {
+        [rows] = await pool.query(
+            `SELECT clave, corto, largo, escala, area_clave, es_sistema, activo, orden, descripciones_json
+             FROM sgc_f29_criterios
+             WHERE activo = 1
+             ORDER BY orden ASC, id ASC`
+        );
+    }
     const lista = (rows || []).map((r, idx) => {
         let descripciones = null;
         try {
@@ -386,17 +604,22 @@ async function listarCriterios(pool) {
             corto: r.corto,
             largo: r.largo,
             escala: r.escala,
+            areaClave: r.area_clave || null,
             esSistema: !!r.es_sistema,
             activo: !!r.activo,
             orden: r.orden,
             descripciones
         }, idx);
     }).filter(Boolean);
-    return lista.length ? lista : CRITERIOS_SISTEMA.map((c, i) => sanitizarCriterioCatalogo({
+    if (lista.length || areaFiltro) {
+        return lista;
+    }
+    return CRITERIOS_SISTEMA.map((c, i) => sanitizarCriterioCatalogo({
         clave: c.clave,
         nombre: c.nombre,
         escala: c.escala,
         descripciones: c.descripciones,
+        areaClave: null,
         esSistema: true,
         activo: true,
         orden: c.orden
@@ -413,14 +636,36 @@ async function crearCriterio(pool, body = {}) {
         err.statusCode = 400;
         throw err;
     }
+    const areaClave = String(body.areaClave || body.area_clave || '').trim().slice(0, 64);
+    if (!areaClave) {
+        const err = new Error('Selecciona el área del criterio.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const areas = await listarAreas(pool);
+    if (!areas.some((a) => a.clave === areaClave)) {
+        const err = new Error('El área indicada no existe.');
+        err.statusCode = 400;
+        throw err;
+    }
     const escala = normalizarEscala(body.escala);
-    const valores = valoresEscala(escala);
-    const descripciones = sanitizarDescripcionesEscala(body.descripciones, escala);
-    for (const n of valores) {
-        if (!descripciones[String(n)]) {
-            const err = new Error(`Registra la descripción del valor ${n}%.`);
-            err.statusCode = 400;
-            throw err;
+    let customVals = null;
+    if (escala === 1) {
+        // Solo nombre: el evaluador escribe el % en la evaluación.
+        const pctOpcional = normalizarPorcentajePersonalizado(
+            body.porcentajePersonalizado ?? body.porcentaje ?? (Array.isArray(body.valores) ? body.valores[0] : null)
+        );
+        customVals = pctOpcional != null ? [pctOpcional] : [];
+    }
+    const valores = valoresEscala(escala, customVals);
+    const descripciones = sanitizarDescripcionesEscala(body.descripciones, escala, customVals);
+    if (escala !== 1) {
+        for (const n of valores) {
+            if (!descripciones[String(n)]) {
+                const err = new Error(`Registra la descripción del valor ${n}%.`);
+                err.statusCode = 400;
+                throw err;
+            }
         }
     }
     let clave = slugCriterio(nombre);
@@ -428,11 +673,14 @@ async function crearCriterio(pool, body = {}) {
         clave = `${clave}_${crypto.randomBytes(3).toString('hex')}`;
     }
     const [existentes] = await pool.query(
-        'SELECT clave FROM sgc_f29_criterios WHERE clave = ? OR LOWER(largo) = LOWER(?) OR LOWER(corto) = LOWER(?) LIMIT 1',
-        [clave, nombre, nombre]
+        `SELECT clave FROM sgc_f29_criterios
+         WHERE clave = ?
+            OR (area_clave = ? AND (LOWER(largo) = LOWER(?) OR LOWER(corto) = LOWER(?)))
+         LIMIT 1`,
+        [clave, areaClave, nombre, nombre]
     );
     if (existentes?.length) {
-        const err = new Error('Ya existe un criterio con ese nombre.');
+        const err = new Error('Ya existe un criterio con ese nombre en el área.');
         err.statusCode = 409;
         throw err;
     }
@@ -440,9 +688,9 @@ async function crearCriterio(pool, body = {}) {
     const orden = Number(maxOrd?.[0]?.m || 0) + 1;
     await pool.query(
         `INSERT INTO sgc_f29_criterios
-            (clave, corto, largo, escala, es_sistema, activo, orden, descripciones_json)
-         VALUES (?, ?, ?, ?, 0, 1, ?, ?)`,
-        [clave, nombre, nombre, escala, orden, JSON.stringify(descripciones)]
+            (clave, corto, largo, escala, area_clave, es_sistema, activo, orden, descripciones_json)
+         VALUES (?, ?, ?, ?, ?, 0, 1, ?, ?)`,
+        [clave, nombre, nombre, escala, areaClave, orden, JSON.stringify(descripciones)]
     );
     return listarCriterios(pool);
 }
@@ -670,14 +918,19 @@ function fechaEvaluacionRegistro(datos) {
     return fechaHoyIso();
 }
 
-function parsearPuntaje(valor, escala = null) {
+function parsearPuntaje(valor, escala = null, valoresCustom = null) {
     const crudo = String(valor ?? '').trim().replace('%', '').replace(',', '.');
     if (!crudo || /^n\/?a$/i.test(crudo)) return '';
     let n = Number(crudo);
     if (!Number.isFinite(n)) return '';
     if (n > 0 && n <= 1) n = n * 100;
     n = Math.round(n);
-    const permitidos = escala != null ? valoresEscala(escala) : PUNTAJES_TODOS;
+    if (n < 0 || n > 100) return '';
+    // Personalizado / sin escala: cualquier entero 0–100 (se escribe al evaluar).
+    if (escala === 1 || (escala == null && !valoresCustom)) {
+        return String(n);
+    }
+    const permitidos = escala != null ? valoresEscala(escala, valoresCustom) : PUNTAJES_TODOS;
     if (permitidos.includes(n)) return String(n);
     let mejor = permitidos[0] ?? 0;
     let dist = Math.abs(n - mejor);
@@ -693,12 +946,20 @@ function parsearPuntaje(valor, escala = null) {
 
 function calcularCalificacion(item) {
     const puntajes = item?.puntajes && typeof item.puntajes === 'object' ? item.puntajes : {};
-    const claves = new Set([
-        ...CLAVES_SISTEMA,
-        ...Object.keys(puntajes)
-    ]);
-    const vals = [...claves]
-        .map((k) => puntajeDeItem(item, k))
+    const usados = Array.isArray(item?.criteriosUsados)
+        ? item.criteriosUsados.map((k) => String(k || '').trim()).filter(Boolean)
+        : null;
+    // Lista explícita (aunque vacía): solo esos criterios cuentan.
+    const claves = usados
+        ? usados
+        : [...new Set([...CLAVES_SISTEMA, ...Object.keys(puntajes)])];
+    const vals = claves
+        .map((k) => {
+            if (puntajes[k] != null && puntajes[k] !== '') {
+                return parsearPuntaje(puntajes[k]);
+            }
+            return puntajeDeItem(item, k);
+        })
         .filter((v) => v !== '')
         .map(Number);
     if (!vals.length) return '';
@@ -716,17 +977,22 @@ function proveedorEstaOculto(item) {
 }
 
 function sanitizarCriteriosUsados(item, puntajes) {
-    const raw = Array.isArray(item?.criteriosUsados) ? item.criteriosUsados : null;
+    const tieneCampo = Array.isArray(item?.criteriosUsados);
+    const raw = tieneCampo ? item.criteriosUsados : null;
     let usados = (raw || [])
         .map((k) => String(k || '').trim().slice(0, 64))
         .filter(Boolean);
+    // Si el cliente envió explícitamente [] se respeta (0 criterios permitidos).
+    if (tieneCampo && !usados.length) {
+        return [];
+    }
     if (!usados.length) {
         usados = Object.keys(puntajes || {}).filter((k) => puntajes[k] !== '');
     }
-    if (!usados.length) {
+    // Solo legado sin área ni lista: conserva criterios de sistema con puntaje.
+    if (!usados.length && !String(item?.areaClave || item?.area_clave || '').trim()) {
         usados = [...CLAVES_SISTEMA];
     }
-    // Conserva solo claves únicas, mín. 3 si hay menos se dejan (validación UI).
     return [...new Set(usados)].slice(0, 40);
 }
 
@@ -758,6 +1024,7 @@ function sanitizarProveedor(item) {
         id: idExistente,
         proveedor: String(item?.proveedor || '').trim(),
         accion: String(item?.accion || '').trim().slice(0, 160),
+        areaClave: String(item?.areaClave || item?.area_clave || '').trim().slice(0, 64),
         referencia: String(item?.referencia || '').trim().slice(0, 120),
         fecha: formatearFechaIso(item?.fecha) || '',
         entregaTiempo: puntajes.entregaTiempo || '',
@@ -2541,6 +2808,10 @@ module.exports = {
     listarCriterios,
     crearCriterio,
     asegurarTablaCriterios,
+    listarAreas,
+    crearArea,
+    asegurarTablaAreas,
     descargarPlantillaPdf,
-    MIN_CRITERIOS_EVALUACION
+    MIN_CRITERIOS_EVALUACION,
+    AREAS_SISTEMA
 };

@@ -13,14 +13,30 @@ export interface AgendaEstatusLocal {
   updatedAtMs: number;
 }
 
+export interface AgendaPaginaLocal {
+  id?: number | null;
+  clientUuid: string;
+  titulo: string;
+  observaciones: string;
+  orden: number;
+  eliminado?: boolean;
+  updatedAtMs: number;
+}
+
 export interface AgendaActividadLocal {
   id?: number | null;
   clientUuid: string;
+  paginaUuid: string | null;
   titulo: string;
   descripcion: string;
   estatusClave: string;
   prioridad: 'alta' | 'normal' | 'baja';
   fechaLimite: string | null;
+  posX: number;
+  posY: number;
+  ancho: number;
+  /** ID del diagrama en Comunicación → Diagramas (draw.io). */
+  diagramaId: number | null;
   orden: number;
   eliminado?: boolean;
   updatedAtMs: number;
@@ -29,6 +45,7 @@ export interface AgendaActividadLocal {
 interface AgendaCache {
   actividades: AgendaActividadLocal[];
   estatus: AgendaEstatusLocal[];
+  paginas: AgendaPaginaLocal[];
   lastSyncAt: number | null;
 }
 
@@ -45,7 +62,7 @@ const ESTATUS_DEFAULT: Omit<AgendaEstatusLocal, 'clientUuid' | 'updatedAtMs'>[] 
 
 @Injectable({ providedIn: 'root' })
 export class AgendaLocalService {
-  private static readonly PREFIX = 'biznaga.agenda.v1:';
+  private static readonly PREFIX = 'biznaga.agenda.v2:';
 
   constructor(private auth: AuthService) {}
 
@@ -83,16 +100,28 @@ export class AgendaLocalService {
         return cache;
       }
       const parsed = JSON.parse(raw);
-      const actividades = Array.isArray(parsed?.actividades) ? parsed.actividades : [];
       let estatus = Array.isArray(parsed?.estatus) ? parsed.estatus : [];
+      let paginas = (Array.isArray(parsed?.paginas) ? parsed.paginas : []).map((p: any) => this.normalizarPagina(p));
+      let actividades = (Array.isArray(parsed?.actividades) ? parsed.actividades : []).map((a: any) => this.normalizarActividad(a));
       let persistir = false;
       if (!estatus.length) {
         estatus = this.estatusDefault();
         persistir = true;
       }
+      if (!paginas.length) {
+        const legado = typeof parsed?.observaciones?.texto === 'string' ? parsed.observaciones.texto : '';
+        paginas = this.paginaDefault(legado);
+        persistir = true;
+      }
+      const paginaUuid = paginas.find((p: AgendaPaginaLocal) => !p.eliminado)?.clientUuid || null;
+      actividades = actividades.map((a: AgendaActividadLocal) => ({
+        ...a,
+        paginaUuid: a.paginaUuid || paginaUuid
+      }));
       const cache: AgendaCache = {
         actividades,
         estatus,
+        paginas,
         lastSyncAt: parsed?.lastSyncAt ?? null
       };
       if (persistir) this.guardar(cache);
@@ -111,6 +140,7 @@ export class AgendaLocalService {
       localStorage.setItem(key, JSON.stringify({
         actividades: cache.actividades || [],
         estatus: cache.estatus || [],
+        paginas: cache.paginas || [],
         lastSyncAt: cache.lastSyncAt ?? null
       }));
     } catch (e) {
@@ -118,84 +148,145 @@ export class AgendaLocalService {
     }
   }
 
-  /**
-   * Tras un sync exitoso, la BD es la fuente de verdad.
-   * Conservamos en local solo filas activas del servidor (+ eliminados marcados
-   * por UUID para no resucitarlas en el próximo push).
-   */
   aplicarSnapshotServidor(payload: {
     actividades?: AgendaActividadLocal[];
     estatus?: AgendaEstatusLocal[];
-    eliminados?: { actividades?: string[]; estatus?: string[] };
+    paginas?: AgendaPaginaLocal[];
+    archivados?: {
+      actividades?: AgendaActividadLocal[];
+      estatus?: AgendaEstatusLocal[];
+      paginas?: AgendaPaginaLocal[];
+    };
+    eliminados?: { actividades?: string[]; estatus?: string[]; paginas?: string[] };
     serverTimeMs?: number;
   }): AgendaCache {
+    const local = this.leer();
     const serverMs = payload.serverTimeMs || Date.now();
-    const acts = (payload.actividades || [])
-      .filter((a) => a?.clientUuid && !a.eliminado)
-      .map((a) => ({ ...a, eliminado: false }));
+    const localActs = new Map((local.actividades || []).map((a) => [a.clientUuid, a]));
+    const localPags = new Map((local.paginas || []).map((p) => [p.clientUuid, p]));
+    const localEsts = new Map((local.estatus || []).map((e) => [e.clientUuid, e]));
+
+    const actsMap = new Map<string, AgendaActividadLocal>();
+    for (const a of payload.actividades || []) {
+      if (!a?.clientUuid) continue;
+      actsMap.set(a.clientUuid, this.normalizarActividad({ ...a, eliminado: false }));
+    }
+    for (const a of payload.archivados?.actividades || []) {
+      if (!a?.clientUuid || actsMap.has(a.clientUuid)) continue;
+      const prev = localActs.get(a.clientUuid);
+      // Preferir datos locales más ricos si el servidor solo mandó uuid legacy
+      const base = prev && prev.titulo && !a.titulo ? { ...a, titulo: prev.titulo, descripcion: prev.descripcion || a.descripcion } : a;
+      actsMap.set(a.clientUuid, this.normalizarActividad({ ...base, eliminado: true }));
+    }
     for (const uuid of payload.eliminados?.actividades || []) {
-      if (!uuid || acts.some((a) => a.clientUuid === uuid)) continue;
-      acts.push({
+      if (!uuid || actsMap.has(uuid)) continue;
+      const prev = localActs.get(uuid);
+      actsMap.set(uuid, this.normalizarActividad({
+        ...(prev || {}),
         clientUuid: uuid,
-        titulo: '(eliminado)',
-        descripcion: '',
-        estatusClave: 'pendiente',
-        prioridad: 'normal',
-        fechaLimite: null,
-        orden: 0,
         eliminado: true,
-        updatedAtMs: serverMs
-      });
+        updatedAtMs: Math.max(prev?.updatedAtMs || 0, serverMs)
+      }));
     }
 
-    const ests = (payload.estatus || [])
-      .filter((e) => e?.clientUuid && !e.eliminado)
-      .map((e) => ({ ...e, eliminado: false }));
-    // Evitar claves duplicadas si el servidor devolviera rarezas
+    const estsMap = new Map<string, AgendaEstatusLocal>();
+    for (const e of payload.estatus || []) {
+      if (!e?.clientUuid) continue;
+      estsMap.set(e.clientUuid, { ...e, eliminado: false });
+    }
+    for (const e of payload.archivados?.estatus || []) {
+      if (!e?.clientUuid || estsMap.has(e.clientUuid)) continue;
+      estsMap.set(e.clientUuid, { ...e, eliminado: true });
+    }
+    for (const uuid of payload.eliminados?.estatus || []) {
+      if (!uuid || estsMap.has(uuid)) continue;
+      const prev = localEsts.get(uuid);
+      if (prev) estsMap.set(uuid, { ...prev, eliminado: true, updatedAtMs: Math.max(prev.updatedAtMs || 0, serverMs) });
+    }
     const porClave = new Map<string, AgendaEstatusLocal>();
-    for (const e of ests) {
+    for (const e of estsMap.values()) {
+      if (e.eliminado) continue;
       const prev = porClave.get(e.clave);
-      if (!prev || (e.updatedAtMs || 0) >= (prev.updatedAtMs || 0)) {
-        porClave.set(e.clave, e);
+      if (!prev || (e.updatedAtMs || 0) >= (prev.updatedAtMs || 0)) porClave.set(e.clave, e);
+    }
+    const estatusActivos = Array.from(porClave.values());
+    const estatusArch = Array.from(estsMap.values()).filter((e) => e.eliminado);
+    const estatusUnicos = [...estatusActivos, ...estatusArch];
+
+    const pagsMap = new Map<string, AgendaPaginaLocal>();
+    for (const p of payload.paginas || []) {
+      if (!p?.clientUuid) continue;
+      const prev = localPags.get(p.clientUuid);
+      if (prev && (prev.updatedAtMs || 0) > (p.updatedAtMs || 0)) {
+        pagsMap.set(p.clientUuid, this.normalizarPagina({ ...prev, eliminado: false }));
+      } else {
+        pagsMap.set(p.clientUuid, this.normalizarPagina({ ...p, eliminado: false }));
       }
     }
-    const estatusUnicos = Array.from(porClave.values());
-    for (const uuid of payload.eliminados?.estatus || []) {
-      if (!uuid || estatusUnicos.some((e) => e.clientUuid === uuid)) continue;
-      estatusUnicos.push({
+    for (const p of payload.archivados?.paginas || []) {
+      if (!p?.clientUuid || pagsMap.has(p.clientUuid)) continue;
+      const prev = localPags.get(p.clientUuid);
+      const base = prev && (!p.observaciones && prev.observaciones) ? { ...p, observaciones: prev.observaciones, titulo: p.titulo || prev.titulo } : p;
+      pagsMap.set(p.clientUuid, this.normalizarPagina({ ...base, eliminado: true }));
+    }
+    for (const uuid of payload.eliminados?.paginas || []) {
+      if (!uuid || pagsMap.has(uuid)) continue;
+      const prev = localPags.get(uuid);
+      pagsMap.set(uuid, this.normalizarPagina({
+        ...(prev || { titulo: 'Hoja', observaciones: '', orden: 0 }),
         clientUuid: uuid,
-        clave: `eliminado_${uuid.slice(0, 8)}`,
-        etiqueta: 'Eliminado',
-        color: '#64748B',
-        orden: 9999,
-        esFinal: false,
         eliminado: true,
-        updatedAtMs: serverMs
-      });
+        updatedAtMs: Math.max(prev?.updatedAtMs || 0, serverMs)
+      }));
+    }
+    let pags = Array.from(pagsMap.values());
+    if (!pags.some((p) => !p.eliminado)) {
+      pags = [...pags, ...this.paginaDefault()];
     }
 
     const cache: AgendaCache = {
-      actividades: acts,
-      estatus: estatusUnicos,
+      actividades: Array.from(actsMap.values()),
+      estatus: estatusUnicos.length ? estatusUnicos : this.estatusDefault(),
+      paginas: pags,
       lastSyncAt: serverMs
     };
     this.guardar(cache);
     return cache;
   }
 
-  payloadParaSync(cache?: AgendaCache): { actividades: AgendaActividadLocal[]; estatus: AgendaEstatusLocal[] } {
+  payloadParaSync(cache?: AgendaCache) {
     const c = cache || this.leer();
     return {
       actividades: (c.actividades || []).map((a) => ({ ...a })),
-      estatus: (c.estatus || []).map((e) => ({ ...e }))
+      estatus: (c.estatus || []).map((e) => ({ ...e })),
+      paginas: (c.paginas || []).map((p) => ({ ...p }))
     };
   }
 
   actividadesActivas(cache?: AgendaCache): AgendaActividadLocal[] {
     const c = cache || this.leer();
+    return (c.actividades || []).filter((a) => !a.eliminado);
+  }
+
+  actividadesArchivadas(cache?: AgendaCache): AgendaActividadLocal[] {
+    const c = cache || this.leer();
     return (c.actividades || [])
-      .filter((a) => !a.eliminado)
-      .sort((a, b) => (a.orden - b.orden) || (b.updatedAtMs - a.updatedAtMs));
+      .filter((a) => !!a.eliminado)
+      .sort((a, b) => (b.updatedAtMs || 0) - (a.updatedAtMs || 0));
+  }
+
+  paginasActivas(cache?: AgendaCache): AgendaPaginaLocal[] {
+    const c = cache || this.leer();
+    return (c.paginas || [])
+      .filter((p) => !p.eliminado)
+      .sort((a, b) => (a.orden - b.orden) || a.titulo.localeCompare(b.titulo, 'es'));
+  }
+
+  paginasArchivadas(cache?: AgendaCache): AgendaPaginaLocal[] {
+    const c = cache || this.leer();
+    return (c.paginas || [])
+      .filter((p) => !!p.eliminado)
+      .sort((a, b) => (b.updatedAtMs || 0) - (a.updatedAtMs || 0));
   }
 
   estatusActivos(cache?: AgendaCache): AgendaEstatusLocal[] {
@@ -205,12 +296,45 @@ export class AgendaLocalService {
       .sort((a, b) => (a.orden - b.orden) || a.etiqueta.localeCompare(b.etiqueta, 'es'));
   }
 
+  private normalizarActividad(a: any): AgendaActividadLocal {
+    return {
+      id: a?.id ?? null,
+      clientUuid: a?.clientUuid || this.nuevoUuid(),
+      paginaUuid: a?.paginaUuid || a?.pagina_uuid || null,
+      titulo: a?.titulo || '',
+      descripcion: a?.descripcion || '',
+      estatusClave: a?.estatusClave || a?.estatus_clave || 'pendiente',
+      prioridad: a?.prioridad || 'normal',
+      fechaLimite: a?.fechaLimite || null,
+      posX: Number.isFinite(Number(a?.posX ?? a?.pos_x)) ? Number(a?.posX ?? a?.pos_x) : 40,
+      posY: Number.isFinite(Number(a?.posY ?? a?.pos_y)) ? Number(a?.posY ?? a?.pos_y) : 40,
+      ancho: Number.isFinite(Number(a?.ancho)) ? Number(a.ancho) : 320,
+      diagramaId: (() => {
+        const n = Number(a?.diagramaId ?? a?.diagrama_id);
+        return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+      })(),
+      orden: Number(a?.orden) || 0,
+      eliminado: !!a?.eliminado,
+      updatedAtMs: Number(a?.updatedAtMs) || Date.now()
+    };
+  }
+
   private cacheVacio(): AgendaCache {
-    return { actividades: [], estatus: [], lastSyncAt: null };
+    return {
+      actividades: [],
+      estatus: [],
+      paginas: [],
+      lastSyncAt: null
+    };
   }
 
   private cacheVacioConDefaults(): AgendaCache {
-    return { actividades: [], estatus: this.estatusDefault(), lastSyncAt: null };
+    return {
+      actividades: [],
+      estatus: this.estatusDefault(),
+      paginas: this.paginaDefault(),
+      lastSyncAt: null
+    };
   }
 
   private estatusDefault(): AgendaEstatusLocal[] {
@@ -220,5 +344,28 @@ export class AgendaLocalService {
       clientUuid: this.nuevoUuid(),
       updatedAtMs: ms + i
     }));
+  }
+
+  private paginaDefault(observaciones = ''): AgendaPaginaLocal[] {
+    return [{
+      clientUuid: this.nuevoUuid(),
+      titulo: 'Hoja 1',
+      observaciones: observaciones || '',
+      orden: 10,
+      eliminado: false,
+      updatedAtMs: this.ahoraMs()
+    }];
+  }
+
+  private normalizarPagina(p: any): AgendaPaginaLocal {
+    return {
+      id: p?.id ?? null,
+      clientUuid: p?.clientUuid || this.nuevoUuid(),
+      titulo: p?.titulo || 'Hoja',
+      observaciones: typeof p?.observaciones === 'string' ? p.observaciones : '',
+      orden: Number(p?.orden) || 0,
+      eliminado: !!p?.eliminado,
+      updatedAtMs: Number(p?.updatedAtMs) || Date.now()
+    };
   }
 }

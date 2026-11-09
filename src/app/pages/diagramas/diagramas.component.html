@@ -77,7 +77,7 @@
   <header class="dg-bar">
     <button type="button" class="btn dg-btn dg-btn--ghost" (click)="cerrarEditor()">
       <i class="fas fa-arrow-left" aria-hidden="true"></i>
-      Volver
+      {{ volverUrl ? 'Volver a Agenda' : 'Volver' }}
     </button>
     <input
       class="dg-titulo"

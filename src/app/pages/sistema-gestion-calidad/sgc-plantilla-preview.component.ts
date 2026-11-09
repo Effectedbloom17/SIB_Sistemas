@@ -1082,14 +1082,26 @@ interface SgcF14EvidenciaDoc {
   fechaSubida: string;
 }
 
+interface SgcF29AreaCatalogo {
+  clave: string;
+  nombre: string;
+  color: string;
+  esSistema: boolean;
+  activo: boolean;
+  orden: number;
+}
+
 interface SgcF29CriterioCatalogo {
   clave: string;
   /** Nombre único (UI y Excel). */
   nombre: string;
   corto: string;
   largo: string;
-  escala: 2 | 5 | 6;
+  /** 1 = personalizado (un solo %), 2–6 = escala fija 100→0. */
+  escala: 1 | 2 | 3 | 4 | 5 | 6;
   valores: string[];
+  /** Área a la que pertenece el criterio (null = legado sin área). */
+  areaClave?: string | null;
   esSistema: boolean;
   activo: boolean;
   orden: number;
@@ -1101,6 +1113,8 @@ interface SgcF29ProveedorItem {
   proveedor: string;
   /** Acción / actividad que realiza la empresa (compartida por evaluaciones del mismo proveedor). */
   accion?: string;
+  /** Área de enfoque de esta evaluación. */
+  areaClave?: string;
   referencia: string;
   /** Fecha de esta evaluación concreta (ISO yyyy-mm-dd). */
   fecha: string;
@@ -1112,7 +1126,7 @@ interface SgcF29ProveedorItem {
   calidad: string;
   /** Puntajes de criterios (sistema + personalizados). */
   puntajes?: Record<string, string>;
-  /** Criterios activos en esta evaluación (mín. 3). */
+  /** Criterios activos en esta evaluación (puede ser 0). */
   criteriosUsados?: string[];
   calificacion: string;
   /** Fuera de la vista y de los gráficos. El registro se conserva. */
@@ -3276,10 +3290,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF29ProveedorSeleccionadoClave: string | null = null;
   sgcF29VisibilidadEnCurso: string | null = null;
   sgcF29BusquedaProveedor = '';
-  readonly sgcF29EscalasOpciones: Array<{ escala: 2 | 5 | 6; etiqueta: string; valores: string[] }> = [
-    { escala: 6, etiqueta: '6 opciones (100–0)', valores: ['100', '80', '60', '40', '20', '0'] },
+  readonly sgcF29EscalasOpciones: Array<{
+    escala: 1 | 2 | 3 | 4 | 5 | 6;
+    etiqueta: string;
+    valores: string[];
+  }> = [
+    { escala: 2, etiqueta: '2 opciones (100 / 0)', valores: ['100', '0'] },
+    { escala: 3, etiqueta: '3 opciones (100 / 50 / 0)', valores: ['100', '50', '0'] },
+    { escala: 4, etiqueta: '4 opciones (100 / 67 / 33 / 0)', valores: ['100', '67', '33', '0'] },
     { escala: 5, etiqueta: '5 opciones (100–0)', valores: ['100', '75', '50', '25', '0'] },
-    { escala: 2, etiqueta: '2 opciones (100 / 0)', valores: ['100', '0'] }
+    { escala: 6, etiqueta: '6 opciones (100–0)', valores: ['100', '80', '60', '40', '20', '0'] },
+    { escala: 1, etiqueta: 'Personalizado (1 porcentaje)', valores: [] }
   ];
   private criterioCatalogoBaseSgcF29(
     clave: string,
@@ -3294,6 +3315,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       largo: nombre,
       escala: 5,
       valores: ['0', '25', '50', '75', '100'],
+      areaClave: null,
       esSistema: true,
       activo: true,
       orden,
@@ -3301,15 +3323,40 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     };
   }
   sgcF29CriteriosCatalogo: SgcF29CriterioCatalogo[] = [];
+  sgcF29AreasCatalogo: SgcF29AreaCatalogo[] = [];
+  /** Área seleccionada para gestionar criterios / alta de criterios. */
+  sgcF29AreaGestionClave = '';
   sgcF29NuevoCriterioAbierto = false;
   sgcF29CriterioGuardando = false;
+  sgcF29NuevaAreaAbierta = false;
+  sgcF29AreaGuardando = false;
+  /** Menú compacto de área (círculo de color en toolbar). */
+  sgcF29AreaPickerOpen = false;
+  /** Menú desplegable de escala en «Nuevo criterio». */
+  sgcF29EscalaMenuOpen = false;
   sgcF29MenuAddCritIdx: number | null = null;
   sgcF29NuevoCriterio: {
     nombre: string;
-    escala: 2 | 5 | 6;
+    escala: 1 | 2 | 3 | 4 | 5 | 6;
+    porcentajePersonalizado: number;
     descripciones: Record<string, string>;
-  } = { nombre: '', escala: 5, descripciones: {} };
-  readonly sgcF29MinCriterios = 3;
+  } = { nombre: '', escala: 5, porcentajePersonalizado: 80, descripciones: {} };
+  sgcF29NuevaArea: { nombre: string; color: string } = {
+    nombre: '',
+    color: '#A8D5CE'
+  };
+  readonly sgcF29ColoresAreaSugeridos = [
+    '#A8D5CE', '#F0B7B7', '#B8C9E0', '#E8D4A8',
+    '#C5D5A8', '#D4B8E0', '#F0C9A8', '#A8D0E0'
+  ];
+  /** Ya no hay mínimo obligatorio; 0 criterios se permite con aviso. */
+  readonly sgcF29MinCriterios = 0;
+  readonly sgcF29AreasSistemaDefault: SgcF29AreaCatalogo[] = [
+    { clave: 'instructores_capacitacion', nombre: 'Instructores / Capacitación', color: '#A8D5CE', esSistema: true, activo: true, orden: 1 },
+    { clave: 'servicio_medico', nombre: 'Servicio médico', color: '#F0B7B7', esSistema: true, activo: true, orden: 2 },
+    { clave: 'mantto_computo', nombre: 'Mantenimiento de equipo de cómputo', color: '#B8C9E0', esSistema: true, activo: true, orden: 3 },
+    { clave: 'lab_calibracion', nombre: 'Laboratorio de Calibración', color: '#E8D4A8', esSistema: true, activo: true, orden: 4 }
+  ];
   readonly sgcF29CriteriosSistemaDefault: SgcF29CriterioCatalogo[] = [
     this.criterioCatalogoBaseSgcF29('entregaTiempo', 'Entrega a tiempo', 1),
     this.criterioCatalogoBaseSgcF29('entregaDomicilio', 'Entrega a Domicilio', 2),
@@ -5500,6 +5547,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.cerrarTipSgcF29();
       return;
     }
+    if (this.sgcF29AreaPickerOpen) {
+      event.preventDefault();
+      this.cerrarAreaPickerSgcF29();
+      return;
+    }
+    if (this.sgcF29EscalaMenuOpen) {
+      event.preventDefault();
+      this.cerrarEscalaMenuSgcF29();
+      return;
+    }
     if (this.sgcF29EvaluadorComboIdx != null) {
       event.preventDefault();
       this.cerrarComboEvaluadorSgcF29();
@@ -6165,7 +6222,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         return;
       }
       if (this.plantillaSlug === 'sgc-f-29') {
-        this.persistirSgcF29();
+        void this.confirmarYPersistirSgcF29();
         return;
       }
       if (this.plantillaSlug === 'sgc-f-28') {
@@ -20009,10 +20066,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private crearFilaProveedorSgcF29Vacia(): SgcF29ProveedorItem {
+    const areaClave = this.sgcF29AreaGestionClave
+      || this.sgcF29AreasActivas[0]?.clave
+      || '';
+    const criteriosArea = areaClave
+      ? this.criteriosDeAreaSgcF29(areaClave).map((c) => c.clave)
+      : [];
     return {
       id: this.generarIdEvaluacionSgcF29(),
       proveedor: '',
       accion: '',
+      areaClave,
       referencia: '',
       fecha: this.fechaHoyIsoLocalSgcF29(),
       entregaTiempo: '',
@@ -20022,22 +20086,70 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       servicio: '',
       calidad: '',
       puntajes: {},
-      criteriosUsados: this.sgcF29CriteriosSistemaDefault.map((c) => c.clave),
+      criteriosUsados: [...criteriosArea],
       calificacion: '',
       oculto: false,
       evaluador: this.nombreEvaluadorActualSgcF29()
     };
   }
 
+  get sgcF29AreasActivas(): SgcF29AreaCatalogo[] {
+    const lista = (this.sgcF29AreasCatalogo?.length
+      ? this.sgcF29AreasCatalogo
+      : this.sgcF29AreasSistemaDefault)
+      .filter((a) => a?.activo !== false)
+      .slice()
+      .sort((a, b) => (a.orden || 0) - (b.orden || 0)
+        || String(a.nombre).localeCompare(String(b.nombre), 'es'));
+    return lista;
+  }
+
+  get puedeAgregarAreaSgcF29(): boolean {
+    return this.puedeOcultarProveedorSgcF29;
+  }
+
+  /** Criterios de sistema / sin área: solo visibles para superadministrador. */
+  private criterioVisibleUsuarioSgcF29(c: SgcF29CriterioCatalogo | null | undefined): boolean {
+    if (!c || c.activo === false) return false;
+    if (this.authService.esSuperusuario()) return true;
+    // Nuevos usuarios: solo criterios ligados a un área (catálogo limpio).
+    return !!String(c.areaClave || '').trim();
+  }
+
   get sgcF29CriteriosActivos(): SgcF29CriterioCatalogo[] {
-    const lista = (this.sgcF29CriteriosCatalogo?.length
+    const base = this.sgcF29CriteriosCatalogo?.length
       ? this.sgcF29CriteriosCatalogo
-      : this.sgcF29CriteriosSistemaDefault)
-      .filter((c) => c?.activo !== false)
+      : (this.authService.esSuperusuario() ? this.sgcF29CriteriosSistemaDefault : []);
+    return base
+      .filter((c) => this.criterioVisibleUsuarioSgcF29(c))
       .slice()
       .sort((a, b) => (a.orden || 0) - (b.orden || 0)
         || String(a.nombre || a.corto).localeCompare(String(b.nombre || b.corto), 'es'));
-    return lista;
+  }
+
+  /** Criterios del área del proveedor activo / área en gestión. */
+  get sgcF29CriteriosAreaGestion(): SgcF29CriterioCatalogo[] {
+    return this.criteriosDeAreaSgcF29(this.sgcF29AreaGestionClave);
+  }
+
+  criteriosDeAreaSgcF29(areaClave: string): SgcF29CriterioCatalogo[] {
+    const area = String(areaClave || '').trim();
+    if (!area) {
+      // Solo superadmin ve el legado sin área.
+      if (!this.authService.esSuperusuario()) return [];
+      return this.sgcF29CriteriosActivos.filter((c) => !c.areaClave);
+    }
+    return this.sgcF29CriteriosActivos.filter((c) => c.areaClave === area);
+  }
+
+  areaPorClaveSgcF29(clave: string | null | undefined): SgcF29AreaCatalogo | null {
+    const k = String(clave || '').trim();
+    if (!k) return null;
+    return this.sgcF29AreasActivas.find((a) => a.clave === k) || null;
+  }
+
+  colorAreaSgcF29(clave: string | null | undefined): string {
+    return this.areaPorClaveSgcF29(clave)?.color || '#A8D5CE';
   }
 
   criterioPorClaveSgcF29(clave: string): SgcF29CriterioCatalogo | null {
@@ -20046,19 +20158,33 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   criteriosUsadosFilaSgcF29(fila: SgcF29ProveedorItem): SgcF29CriterioCatalogo[] {
     if (!fila) return [];
-    let usados = Array.isArray(fila.criteriosUsados) ? fila.criteriosUsados.filter(Boolean) : [];
-    if (!usados.length) {
-      usados = this.sgcF29CriteriosSistemaDefault.map((c) => c.clave);
-      fila.criteriosUsados = [...usados];
-    }
+    const usados = Array.isArray(fila.criteriosUsados) ? fila.criteriosUsados.filter(Boolean) : [];
+    // Filtra por catálogo visible: no-root no ve sistema/ejemplos sin área.
     return usados
       .map((k) => this.criterioPorClaveSgcF29(k))
       .filter((c): c is SgcF29CriterioCatalogo => !!c);
   }
 
   criteriosDisponiblesParaFilaSgcF29(fila: SgcF29ProveedorItem): SgcF29CriterioCatalogo[] {
-    const usados = new Set((fila?.criteriosUsados || []).map(String));
-    return this.sgcF29CriteriosActivos.filter((c) => !usados.has(c.clave));
+    const usados = new Set(
+      this.criteriosUsadosFilaSgcF29(fila).map((c) => c.clave)
+    );
+    const area = String(fila?.areaClave || this.sgcF29AreaGestionClave || '').trim();
+    const pool = area
+      ? this.criteriosDeAreaSgcF29(area)
+      : [];
+    return pool.filter((c) => !usados.has(c.clave));
+  }
+
+  evaluacionSinCriteriosSgcF29(fila: SgcF29ProveedorItem | null | undefined): boolean {
+    if (!fila) return false;
+    return !this.criteriosUsadosFilaSgcF29(fila).length;
+  }
+
+  get sgcF29EvalsSinCriterios(): SgcF29ProveedorItem[] {
+    return (this.sgcF29Form?.proveedores || []).filter(
+      (f) => !this.proveedorOcultoSgcF29(f) && this.evaluacionSinCriteriosSgcF29(f)
+    );
   }
 
   valoresEscalaCriterioSgcF29(clave: string): string[] {
@@ -20075,7 +20201,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const fila = this.sgcF29Form.proveedores[index];
     if (!fila || !clave) return;
     if (!Array.isArray(fila.criteriosUsados)) {
-      fila.criteriosUsados = this.sgcF29CriteriosSistemaDefault.map((c) => c.clave);
+      fila.criteriosUsados = [];
     }
     if (!fila.criteriosUsados.includes(clave)) {
       fila.criteriosUsados = [...fila.criteriosUsados, clave];
@@ -20090,12 +20216,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     event?.stopPropagation();
     const fila = this.sgcF29Form.proveedores[index];
     if (!fila) return;
-    const usados = Array.isArray(fila.criteriosUsados)
-      ? fila.criteriosUsados
-      : this.sgcF29CriteriosSistemaDefault.map((c) => c.clave);
-    if (usados.length <= this.sgcF29MinCriterios) {
-      return;
-    }
+    const usados = Array.isArray(fila.criteriosUsados) ? fila.criteriosUsados : [];
     fila.criteriosUsados = usados.filter((k) => k !== clave);
     if (fila.puntajes) {
       delete fila.puntajes[clave];
@@ -20105,6 +20226,69 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.marcarEvaluadorFilaSgcF29(index);
     this.recalcularCalificacionSgcF29(index);
+  }
+
+  seleccionarAreaGestionSgcF29(clave: string, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const area = String(clave || '').trim();
+    this.sgcF29AreaGestionClave = area;
+    this.cerrarFormNuevoCriterioSgcF29();
+    this.cerrarFormNuevaAreaSgcF29();
+    // Si hay proveedor activo, el área es del proveedor (todas sus evaluaciones).
+    const activo = this.sgcF29ProveedorActivo;
+    if (activo) {
+      this.onAreaGrupoSgcF29Change(activo, area);
+    }
+  }
+
+  areaGrupoSgcF29(grupo: SgcF29GrupoVista | null | undefined): string {
+    const fila = this.filaSgcF29(grupo?.indices?.[0]);
+    return String(fila?.areaClave || '');
+  }
+
+  onAreaGrupoSgcF29Change(grupo: SgcF29GrupoVista, areaClave: string): void {
+    if (!grupo) return;
+    const nueva = String(areaClave || '').trim();
+    const criteriosArea = nueva
+      ? this.criteriosDeAreaSgcF29(nueva).map((c) => c.clave)
+      : [];
+    this.sgcF29AreaGestionClave = nueva;
+    for (const idx of grupo.indices || []) {
+      const fila = this.sgcF29Form.proveedores[idx];
+      if (!fila) continue;
+      const anterior = String(fila.areaClave || '').trim();
+      fila.areaClave = nueva;
+      if (nueva !== anterior) {
+        // Cambia de área: carga criterios del área (vacío si aún no hay) y limpia puntajes.
+        fila.criteriosUsados = [...criteriosArea];
+        fila.puntajes = {};
+        for (const k of [
+          'entregaTiempo',
+          'entregaDomicilio',
+          'precio',
+          'pagoTransferencia',
+          'servicio',
+          'calidad'
+        ] as const) {
+          fila[k] = '';
+        }
+        this.recalcularCalificacionSgcF29(idx);
+      } else if (!nueva) {
+        fila.criteriosUsados = [];
+        this.recalcularCalificacionSgcF29(idx);
+      } else if (!this.authService.esSuperusuario()) {
+        // Misma área: asegura que no queden criterios legado ocultos.
+        fila.criteriosUsados = (fila.criteriosUsados || []).filter((k) =>
+          !!this.criterioPorClaveSgcF29(k)
+        );
+        if (!fila.criteriosUsados.length && criteriosArea.length) {
+          fila.criteriosUsados = [...criteriosArea];
+        }
+        this.recalcularCalificacionSgcF29(idx);
+      }
+    }
+    this.onSgcF29Editado();
   }
 
   toggleMenuAddCritSgcF29(index: number, event?: Event): void {
@@ -20221,9 +20405,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private criteriosPuntajeSgcF29(fila: SgcF29ProveedorItem): string[] {
     this.sincronizarPuntajesFilaSgcF29(fila);
     const mapa = fila?.puntajes || {};
-    const usados = (fila.criteriosUsados?.length
-      ? fila.criteriosUsados
-      : Object.keys(mapa));
+    // Solo criterios visibles para el usuario (no-root excluye sistema/ejemplos).
+    const visibles = this.criteriosUsadosFilaSgcF29(fila).map((c) => c.clave);
+    const usados = visibles.length
+      ? visibles
+      : (this.authService.esSuperusuario()
+        ? (fila.criteriosUsados?.length ? fila.criteriosUsados : Object.keys(mapa))
+        : []);
     return usados
       .map((k) => this.parsearPuntajeSgcF29(mapa[k], k))
       .filter((v) => v !== '');
@@ -20242,10 +20430,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       n = n * 100;
     }
     n = Math.round(n);
+    if (n < 0 || n > 100) {
+      return '';
+    }
     const crit = claveCriterio ? this.criterioPorClaveSgcF29(claveCriterio) : null;
-    const permitidos = (crit?.valores?.length
+    // Personalizado: el evaluador escribe cualquier entero 0–100.
+    if (!crit || crit.escala === 1) {
+      return String(n);
+    }
+    const permitidos = (crit.valores?.length
       ? crit.valores.map(Number)
-      : [0, 20, 25, 40, 50, 60, 75, 80, 100]);
+      : [0, 20, 25, 33, 40, 50, 60, 67, 75, 80, 100]);
     if (permitidos.includes(n)) {
       return String(n);
     }
@@ -20261,12 +20456,37 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return String(mejor);
   }
 
+  esCriterioPersonalizadoSgcF29(clave: string): boolean {
+    return this.criterioPorClaveSgcF29(clave)?.escala === 1;
+  }
+
+  etiquetaEscalaNuevaSgcF29(): string {
+    const opt = this.sgcF29EscalasOpciones.find((e) => e.escala === this.sgcF29NuevoCriterio.escala);
+    return opt?.etiqueta || 'Escala';
+  }
+
   valoresNuevoCriterioSgcF29(): string[] {
+    if (this.sgcF29NuevoCriterio.escala === 1) {
+      // Libre en evaluación: al crear no hay valores fijos.
+      return [];
+    }
     const opt = this.sgcF29EscalasOpciones.find((e) => e.escala === this.sgcF29NuevoCriterio.escala);
     return opt?.valores || ['100', '75', '50', '25', '0'];
   }
 
+  private normalizarPorcentajePersonalizadoSgcF29(valor: unknown): number | null {
+    let n = Number(String(valor ?? '').trim().replace('%', '').replace(',', '.'));
+    if (!Number.isFinite(n)) return null;
+    n = Math.round(n);
+    if (n < 0 || n > 100) return null;
+    return n;
+  }
+
   onEscalaNuevoCriterioSgcF29Change(): void {
+    if (this.sgcF29NuevoCriterio.escala === 1) {
+      this.sgcF29NuevoCriterio.descripciones = {};
+      return;
+    }
     const vals = this.valoresNuevoCriterioSgcF29();
     const next: Record<string, string> = {};
     for (const v of vals) {
@@ -20275,22 +20495,43 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF29NuevoCriterio.descripciones = next;
   }
 
-  seleccionarEscalaNuevoCriterioSgcF29(escala: 2 | 5 | 6, event?: Event): void {
+  toggleEscalaMenuSgcF29(event?: Event): void {
     event?.preventDefault();
     event?.stopPropagation();
-    if (this.sgcF29NuevoCriterio.escala === escala) {
-      return;
-    }
+    this.sgcF29EscalaMenuOpen = !this.sgcF29EscalaMenuOpen;
+  }
+
+  cerrarEscalaMenuSgcF29(): void {
+    this.sgcF29EscalaMenuOpen = false;
+  }
+
+  seleccionarEscalaNuevoCriterioSgcF29(escala: 1 | 2 | 3 | 4 | 5 | 6, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
     this.sgcF29NuevoCriterio.escala = escala;
     this.onEscalaNuevoCriterioSgcF29Change();
+    this.sgcF29EscalaMenuOpen = false;
   }
 
   get puedeGuardarNuevoCriterioSgcF29(): boolean {
     const nombre = String(this.sgcF29NuevoCriterio.nombre || '').trim();
-    if (!nombre || this.sgcF29CriterioGuardando) return false;
-    return this.valoresNuevoCriterioSgcF29().every(
+    const area = String(this.sgcF29AreaGestionClave || '').trim();
+    if (!nombre || !area || this.sgcF29CriterioGuardando) return false;
+    // Personalizado: solo nombre (el % se escribe al evaluar).
+    if (this.sgcF29NuevoCriterio.escala === 1) {
+      return true;
+    }
+    const vals = this.valoresNuevoCriterioSgcF29();
+    if (!vals.length) return false;
+    return vals.every(
       (v) => String(this.sgcF29NuevoCriterio.descripciones[v] || '').trim().length > 0
     );
+  }
+
+  get puedeGuardarNuevaAreaSgcF29(): boolean {
+    return !!String(this.sgcF29NuevaArea.nombre || '').trim()
+      && !this.sgcF29AreaGuardando
+      && this.puedeAgregarAreaSgcF29;
   }
 
   etiquetaPuntajeSgcF29(valor: string): string {
@@ -20324,28 +20565,114 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   private formNuevoCriterioVacioSgcF29(): {
     nombre: string;
-    escala: 2 | 5 | 6;
+    escala: 1 | 2 | 3 | 4 | 5 | 6;
+    porcentajePersonalizado: number;
     descripciones: Record<string, string>;
   } {
-    return { nombre: '', escala: 5, descripciones: { '100': '', '75': '', '50': '', '25': '', '0': '' } };
+    return {
+      nombre: '',
+      escala: 5,
+      porcentajePersonalizado: 80,
+      descripciones: { '100': '', '75': '', '50': '', '25': '', '0': '' }
+    };
+  }
+
+  private formNuevaAreaVaciaSgcF29(): { nombre: string; color: string } {
+    const idx = this.sgcF29AreasActivas.length % this.sgcF29ColoresAreaSugeridos.length;
+    return {
+      nombre: '',
+      color: this.sgcF29ColoresAreaSugeridos[idx] || '#0D7377'
+    };
   }
 
   toggleFormNuevoCriterioSgcF29(event?: Event): void {
     event?.preventDefault();
     event?.stopPropagation();
-    this.sgcF29NuevoCriterioAbierto = !this.sgcF29NuevoCriterioAbierto;
-    if (this.sgcF29NuevoCriterioAbierto) {
-      this.sgcF29NuevoCriterio = this.formNuevoCriterioVacioSgcF29();
-    } else {
-      this.sgcF29NuevoCriterio = this.formNuevoCriterioVacioSgcF29();
+    if (!this.sgcF29AreaGestionClave) {
+      void Swal.fire({
+        icon: 'info',
+        title: 'Selecciona un área',
+        text: 'Elige un área antes de agregar criterios.',
+        timer: 2200,
+        showConfirmButton: false
+      });
+      return;
     }
+    this.sgcF29NuevaAreaAbierta = false;
+    this.sgcF29NuevoCriterioAbierto = !this.sgcF29NuevoCriterioAbierto;
+    this.sgcF29NuevoCriterio = this.formNuevoCriterioVacioSgcF29();
   }
 
   cerrarFormNuevoCriterioSgcF29(event?: Event): void {
     event?.preventDefault();
     event?.stopPropagation();
     this.sgcF29NuevoCriterioAbierto = false;
+    this.sgcF29EscalaMenuOpen = false;
     this.sgcF29NuevoCriterio = this.formNuevoCriterioVacioSgcF29();
+  }
+
+  toggleFormNuevaAreaSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!this.puedeAgregarAreaSgcF29) {
+      return;
+    }
+    this.sgcF29NuevoCriterioAbierto = false;
+    this.sgcF29AreaPickerOpen = false;
+    this.sgcF29NuevaAreaAbierta = !this.sgcF29NuevaAreaAbierta;
+    this.sgcF29NuevaArea = this.formNuevaAreaVaciaSgcF29();
+  }
+
+  cerrarFormNuevaAreaSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.sgcF29NuevaAreaAbierta = false;
+    this.sgcF29NuevaArea = this.formNuevaAreaVaciaSgcF29();
+  }
+
+  toggleAreaPickerSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.sgcF29AreaPickerOpen = !this.sgcF29AreaPickerOpen;
+  }
+
+  cerrarAreaPickerSgcF29(): void {
+    this.sgcF29AreaPickerOpen = false;
+  }
+
+  seleccionarAreaPickerSgcF29(
+    grupo: SgcF29GrupoVista,
+    areaClave: string,
+    event?: Event
+  ): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.onAreaGrupoSgcF29Change(grupo, areaClave);
+    this.sgcF29AreaPickerOpen = false;
+  }
+
+  abrirNuevaAreaDesdePickerSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.sgcF29AreaPickerOpen = false;
+    if (!this.sgcF29NuevaAreaAbierta) {
+      this.toggleFormNuevaAreaSgcF29(event);
+    }
+  }
+
+  abrirNuevoCriterioDesdePickerSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.sgcF29AreaPickerOpen = false;
+    const areaActiva = this.areaGrupoSgcF29(this.sgcF29ProveedorActivo);
+    if (areaActiva) {
+      this.sgcF29AreaGestionClave = areaActiva;
+    }
+    if (this.sgcF29NuevoCriterioAbierto) {
+      this.cerrarFormNuevoCriterioSgcF29(event);
+      return;
+    }
+    this.toggleFormNuevoCriterioSgcF29(event);
   }
 
   guardarNuevoCriterioSgcF29(event?: Event): void {
@@ -20356,12 +20683,26 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     const nombre = String(this.sgcF29NuevoCriterio.nombre || '').trim();
     const escala = this.sgcF29NuevoCriterio.escala;
+    const areaClave = String(this.sgcF29AreaGestionClave || '').trim();
     const descripciones: Record<string, string> = {};
     for (const v of this.valoresNuevoCriterioSgcF29()) {
       descripciones[v] = String(this.sgcF29NuevoCriterio.descripciones[v] || '').trim();
     }
+    const payload: {
+      nombre: string;
+      escala: 1 | 2 | 3 | 4 | 5 | 6;
+      areaClave: string;
+      descripciones: Record<string, string>;
+      valores?: string[];
+    } = {
+      nombre,
+      escala,
+      areaClave,
+      descripciones: escala === 1 ? {} : descripciones,
+      ...(escala === 1 ? { valores: [] } : {})
+    };
     this.sgcF29CriterioGuardando = true;
-    this.backendService.crearCriterioSgcF29({ nombre, escala, descripciones })
+    this.backendService.crearCriterioSgcF29(payload)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
@@ -20370,23 +20711,93 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           this.sgcF29CriterioGuardando = false;
           this.cerrarFormNuevoCriterioSgcF29();
         },
-        error: () => {
+        error: (err) => {
           this.sgcF29CriterioGuardando = false;
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo crear el criterio',
+            text: err?.error?.message || 'Inténtalo de nuevo.'
+          });
         }
       });
+  }
+
+  guardarNuevaAreaSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!this.puedeGuardarNuevaAreaSgcF29) {
+      return;
+    }
+    const nombre = String(this.sgcF29NuevaArea.nombre || '').trim();
+    const color = String(this.sgcF29NuevaArea.color || '').trim();
+    this.sgcF29AreaGuardando = true;
+    this.backendService.crearAreaSgcF29({ nombre, color })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          const lista = Array.isArray(res?.areas) ? res.areas : [];
+          this.aplicarCatalogoAreasSgcF29(lista);
+          const creada = this.sgcF29AreasActivas.find(
+            (a) => a.nombre.toLowerCase() === nombre.toLowerCase()
+          );
+          if (creada) {
+            this.sgcF29AreaGestionClave = creada.clave;
+          }
+          this.sgcF29AreaGuardando = false;
+          this.cerrarFormNuevaAreaSgcF29();
+        },
+        error: (err) => {
+          this.sgcF29AreaGuardando = false;
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo crear el área',
+            text: err?.error?.message || 'Inténtalo de nuevo.'
+          });
+        }
+      });
+  }
+
+  private aplicarCatalogoAreasSgcF29(lista: unknown): void {
+    const arr = Array.isArray(lista) ? lista : [];
+    const normalizados: SgcF29AreaCatalogo[] = arr
+      .map((raw: any, idx: number) => ({
+        clave: String(raw?.clave || '').trim(),
+        nombre: String(raw?.nombre || '').trim(),
+        color: String(raw?.color || this.sgcF29ColoresAreaSugeridos[idx % this.sgcF29ColoresAreaSugeridos.length]).trim(),
+        esSistema: raw?.esSistema === true || raw?.es_sistema === 1 || raw?.es_sistema === true,
+        activo: raw?.activo !== false && raw?.activo !== 0,
+        orden: Number(raw?.orden) || (idx + 1)
+      }))
+      .filter((a) => a.clave && a.nombre);
+    this.sgcF29AreasCatalogo = normalizados.length
+      ? normalizados
+      : [...this.sgcF29AreasSistemaDefault];
+    if (!this.sgcF29AreaGestionClave
+      || !this.sgcF29AreasActivas.some((a) => a.clave === this.sgcF29AreaGestionClave)) {
+      this.sgcF29AreaGestionClave = this.sgcF29AreasActivas[0]?.clave || '';
+    }
   }
 
   private aplicarCatalogoCriteriosSgcF29(lista: unknown): void {
     const arr = Array.isArray(lista) ? lista : [];
     const normalizados: SgcF29CriterioCatalogo[] = arr
       .map((raw: any, idx: number) => {
-        const escala = (Number(raw?.escala) === 2 || Number(raw?.escala) === 6
-          ? Number(raw.escala)
-          : 5) as 2 | 5 | 6;
-        const valores = Array.isArray(raw?.valores) && raw.valores.length
+        const escalaNum = Number(raw?.escala);
+        const escala = ([1, 2, 3, 4, 5, 6].includes(escalaNum) ? escalaNum : 5) as 1 | 2 | 3 | 4 | 5 | 6;
+        let valores = Array.isArray(raw?.valores) && raw.valores.length
           ? raw.valores.map(String)
-          : (this.sgcF29EscalasOpciones.find((e) => e.escala === escala)?.valores || []).slice().reverse();
+          : (this.sgcF29EscalasOpciones.find((e) => e.escala === escala)?.valores || []).slice();
+        if (escala === 1) {
+          // Libre: vacío = el % se escribe al evaluar. Conserva legado si hay claves en descripciones.
+          if (!valores.length || valores.every((v) => !v)) {
+            const fromDesc = raw?.descripciones && typeof raw.descripciones === 'object'
+              ? Object.keys(raw.descripciones)
+              : [];
+            valores = fromDesc.length ? fromDesc.map(String) : [];
+          }
+        }
         const nombre = String(raw?.nombre || raw?.largo || raw?.corto || '').trim();
+        const areaClave = String(raw?.areaClave || raw?.area_clave || '').trim() || null;
         return {
           clave: String(raw?.clave || '').trim(),
           nombre,
@@ -20394,6 +20805,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           largo: nombre,
           escala,
           valores: valores.map(String),
+          areaClave,
           esSistema: raw?.esSistema === true || raw?.es_sistema === 1 || raw?.es_sistema === true,
           activo: raw?.activo !== false && raw?.activo !== 0,
           orden: Number(raw?.orden) || (idx + 1),
@@ -20405,7 +20817,27 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       .filter((c) => c.clave && c.nombre);
     this.sgcF29CriteriosCatalogo = normalizados.length
       ? normalizados
-      : [...this.sgcF29CriteriosSistemaDefault];
+      : (this.authService.esSuperusuario() ? [...this.sgcF29CriteriosSistemaDefault] : []);
+    // Tras cargar catálogo, refresca calificaciones visibles.
+    if (this.sgcF29Listo && this.sgcF29Form?.proveedores?.length) {
+      const prev = this.sgcF29IgnorarAutoSave;
+      this.sgcF29IgnorarAutoSave = true;
+      for (let i = 0; i < this.sgcF29Form.proveedores.length; i++) {
+        this.recalcularCalificacionSgcF29(i);
+      }
+      this.sgcF29IgnorarAutoSave = prev;
+    }
+  }
+
+  private cargarCatalogoAreasSgcF29(): void {
+    this.backendService.listarAreasSgcF29()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.aplicarCatalogoAreasSgcF29(res?.areas),
+        error: () => {
+          this.aplicarCatalogoAreasSgcF29(this.sgcF29AreasSistemaDefault);
+        }
+      });
   }
 
   private cargarCatalogoCriteriosSgcF29(): void {
@@ -20533,10 +20965,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         const puntajesRaw = (item?.puntajes && typeof item.puntajes === 'object')
           ? item.puntajes as Record<string, unknown>
           : {};
+        const areaClave = String(item?.areaClave || (item as any)?.area_clave || '').trim();
+        const criteriosExplicitos = Array.isArray(item?.criteriosUsados);
         const fila: SgcF29ProveedorItem = {
           id: String(item?.id || '').trim() || this.generarIdEvaluacionSgcF29(),
           proveedor: this.textoConSaltosSgcF29(item?.proveedor).trim(),
           accion: String(item?.accion || '').trim().slice(0, 160),
+          areaClave,
           referencia: String(item?.referencia || '').trim(),
           fecha: this.formatearFechaIsoSgcF29(item?.fecha) || fechaHoy,
           entregaTiempo: this.parsearPuntajeSgcF29(item?.entregaTiempo ?? puntajesRaw['entregaTiempo'], 'entregaTiempo'),
@@ -20546,8 +20981,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           servicio: this.parsearPuntajeSgcF29(item?.servicio ?? puntajesRaw['servicio'], 'servicio'),
           calidad: this.parsearPuntajeSgcF29(item?.calidad ?? puntajesRaw['calidad'], 'calidad'),
           puntajes: {},
-          criteriosUsados: Array.isArray(item?.criteriosUsados)
-            ? item.criteriosUsados.map((k: unknown) => String(k || '').trim()).filter(Boolean)
+          criteriosUsados: criteriosExplicitos
+            ? item!.criteriosUsados!.map((k: unknown) => String(k || '').trim()).filter(Boolean)
             : [],
           calificacion: '',
           oculto: this.proveedorOcultoSgcF29(item),
@@ -20558,11 +20993,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           if (v) fila.puntajes![k] = v;
         }
         this.sincronizarPuntajesFilaSgcF29(fila);
-        if (!fila.criteriosUsados?.length) {
+        // Solo legado sin lista ni área: rellena con puntajes existentes o criterios sistema.
+        if (!criteriosExplicitos && !fila.criteriosUsados?.length) {
           const conScore = Object.keys(fila.puntajes || {}).filter((k) => fila.puntajes![k]);
           fila.criteriosUsados = conScore.length
             ? conScore
-            : this.sgcF29CriteriosSistemaDefault.map((c) => c.clave);
+            : (areaClave ? [] : this.sgcF29CriteriosSistemaDefault.map((c) => c.clave));
         }
         const vals = this.criteriosPuntajeSgcF29(fila)
           .filter((v) => v !== '')
@@ -20608,6 +21044,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private cargarSgcF29DesdeServidor(): void {
     this.sgcF29Cargando = true;
     this.sgcF29Listo = false;
+    this.cargarCatalogoAreasSgcF29();
     this.cargarCatalogoCriteriosSgcF29();
     this.cargarCatalogoUsuariosSgcF29();
     this.backendService.cargarSgcF29Formato()
@@ -20716,6 +21153,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     this.sgcF29ProveedorSeleccionadoClave = grupo.clave;
+    const areaProv = this.areaGrupoSgcF29(grupo);
+    if (areaProv) {
+      this.sgcF29AreaGestionClave = areaProv;
+    }
     this.reiniciarAnimacionAgujaSgcF29();
   }
 
@@ -20983,6 +21424,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const nueva = this.crearFilaProveedorSgcF29Vacia();
     nueva.proveedor = origen.proveedor.trim();
     nueva.accion = String(origen.accion || '').trim();
+    // Hereda el área del origen (o la de gestión) y sus criterios vacíos.
+    const areaHeredada = String(origen.areaClave || this.sgcF29AreaGestionClave || '').trim();
+    if (areaHeredada) {
+      nueva.areaClave = areaHeredada;
+      nueva.criteriosUsados = this.criteriosDeAreaSgcF29(areaHeredada).map((c) => c.clave);
+      this.sgcF29AreaGestionClave = areaHeredada;
+    }
     nueva.referencia = '';
     nueva.fecha = this.fechaHoyIsoLocalSgcF29();
     const lista = [...(this.sgcF29Form.proveedores || [])];
@@ -21828,6 +22276,33 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
+  /** Aviso no bloqueante al guardar evaluaciones sin criterios. */
+  private async confirmarYPersistirSgcF29(): Promise<void> {
+    const sinCrit = this.sgcF29EvalsSinCriterios;
+    if (sinCrit.length) {
+      const nombres = [...new Set(
+        sinCrit.map((f) => String(f.proveedor || '').trim() || 'Sin nombre')
+      )].slice(0, 5);
+      const extra = sinCrit.length > 5 ? ` y ${sinCrit.length - 5} más` : '';
+      const result = await Swal.fire({
+        icon: 'warning',
+        title: 'Evaluaciones sin criterios',
+        html: `Hay <strong>${sinCrit.length}</strong> evaluación(es) sin criterios`
+          + (nombres.length ? ` (${nombres.join(', ')}${extra})` : '')
+          + '.<br><br>Puedes guardar de todos modos; la calificación quedará vacía hasta que agregues criterios.',
+        showCancelButton: true,
+        confirmButtonText: 'Guardar de todos modos',
+        cancelButtonText: 'Revisar',
+        confirmButtonColor: '#0f766e',
+        cancelButtonColor: '#64748b'
+      });
+      if (!result.isConfirmed) {
+        return;
+      }
+    }
+    this.persistirSgcF29();
+  }
+
   private persistirSgcF29(): void {
     if (!this.puedeGestionarPlantillasSgc) {
       return;
@@ -21839,7 +22314,6 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF29Form.fechaEvaluacion = this.fechaHoyIsoLocalSgcF29();
     this.sgcF29Guardando = true;
     const editorAbierto = this.mostrarSgcF29Editor;
-    const editorActivo = false;
     this.backendService.guardarSgcF29Formato(this.sgcF29Form, false)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -21956,6 +22430,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       if (sembrarExtras) {
         this.sembrarProveedoresExtraSgcF29SiFaltan();
       }
+      // Recalcula con criterios visibles (no-root no cuenta sistema/ejemplos).
+      for (let i = 0; i < this.sgcF29Form.proveedores.length; i++) {
+        this.recalcularCalificacionSgcF29(i);
+      }
       setTimeout(() => {
         this.sgcF29IgnorarAutoSave = false;
       }, 0);
@@ -21983,7 +22461,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug !== 'sgc-f-29') {
       return '';
     }
-    return 'Evalúa proveedores en el formulario del sistema. Al guardar, se crea/actualiza la hoja del mes (SGCF29-MMAA; si hay más de un guardado en el mismo mes: _2, _3…). El diseño vive en la plantilla externa; el Excel sistema guarda historial e histograma.';
+    return 'Evalúa proveedores por área (capacitación, médico, cómputo, calibración u otras). Cada área tiene sus criterios. Al guardar se actualiza la hoja del mes (SGCF29-MMAA). Puedes guardar sin criterios: el sistema avisa, pero no bloquea.';
   }
 
   // ===================== SGC-F-28 · Comparativa de proveedores =====================
@@ -28582,6 +29060,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       && !target?.closest('.sgc-f-29-libreta__crit-tip-float')) {
       this.cerrarTipSgcF29();
     }
+    if (this.sgcF29AreaPickerOpen && target && !target.closest('.sgc-f-29-area-picker')) {
+      this.cerrarAreaPickerSgcF29();
+    }
+    if (this.sgcF29EscalaMenuOpen && target && !target.closest('.sgc-f-29-escala-menu')) {
+      this.cerrarEscalaMenuSgcF29();
+    }
     if (this.sgcF29EvaluadorComboIdx != null && target && !target.closest('.sgc-f-29-eval-combo')) {
       this.cerrarComboEvaluadorSgcF29();
     }
@@ -34291,7 +34775,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       'sp-f-02': this.spF02Form,
       'sp-f-07': this.spF07Form,
       'af-f-02': this.afF02Form,
-      'dg-f-06': this.dgF06Form
+      'dg-f-06': this.dgF06Form,
+      'dg-f-08': this.dgF08Form
     };
     const form = porSlug[this.plantillaSlug];
     if (form) {
@@ -39531,15 +40016,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.sgcPo01IgnorarAutoSave = true;
       this.sgcPo01Listo = false;
       const d = res.datos;
-      this.sgcPo01Form = {
-        empresa: d.empresa ?? this.sgcPo01Form.empresa,
-        fechaElaboracion: d.fechaElaboracion ?? this.sgcPo01Form.fechaElaboracion,
-        revision: d.revision ?? this.sgcPo01Form.revision,
-        politica: d.politica ?? this.sgcPo01Form.politica,
-        firmante: d.firmante ?? this.sgcPo01Form.firmante,
-        cargoFirmante: d.cargoFirmante ?? this.sgcPo01Form.cargoFirmante,
-        pdfFirmado: d.pdfFirmado ?? res.pdfFirmado ?? this.sgcPo01Form.pdfFirmado
-      };
+      const politicaSrv = typeof d.politica === 'string' ? d.politica : '';
+      this.sgcPo01Form.empresa = d.empresa || this.sgcPo01Form.empresa;
+      this.sgcPo01Form.fechaElaboracion = d.fechaElaboracion || this.sgcPo01Form.fechaElaboracion;
+      this.sgcPo01Form.revision = d.revision || this.sgcPo01Form.revision;
+      if (politicaSrv.trim()) {
+        this.sgcPo01Form.politica = politicaSrv;
+      }
+      this.sgcPo01Form.firmante = d.firmante || this.sgcPo01Form.firmante;
+      this.sgcPo01Form.cargoFirmante = d.cargoFirmante || this.sgcPo01Form.cargoFirmante;
+      this.sgcPo01Form.pdfFirmado = d.pdfFirmado ?? res.pdfFirmado ?? this.sgcPo01Form.pdfFirmado;
     }
     this.sgcPo01UltimaSync = res.ultimaSyncDrive || null;
     this.sgcPo01ContenidoModificado = !!res.contenidoModificado;

@@ -1,9 +1,7 @@
 /**
  * Agenda de actividades (Control de Proyectos).
- * Tabla principal: agenda (BD biznaga / pool).
- * Estatus personalizables por propietario: agenda_estatus.
- *
- * Sync offline: cada fila lleva client_uuid + updated_at_ms (last-write-wins).
+ * Tablas: agenda, agenda_estatus, agenda_observaciones, agenda_paginas (BD biznaga).
+ * Actividades con posición libre (pos_x/pos_y) y página (pagina_uuid).
  */
 const crypto = require('crypto');
 
@@ -90,12 +88,19 @@ function normalizarUuid(valor) {
     return '';
 }
 
+function normalizarEntero(valor, def, min = 0, max = 20000) {
+    const n = Number(valor);
+    if (!Number.isFinite(n)) return def;
+    return Math.min(max, Math.max(min, Math.floor(n)));
+}
+
 function mapActividad(row) {
     if (!row) return null;
     return {
         id: Number(row.agenda_id),
         clientUuid: row.client_uuid,
         usuarioId: Number(row.usuario_id),
+        paginaUuid: row.pagina_uuid || null,
         titulo: row.titulo,
         descripcion: row.descripcion || '',
         estatusClave: row.estatus_clave,
@@ -104,6 +109,12 @@ function mapActividad(row) {
             ? (row.fecha_limite instanceof Date
                 ? row.fecha_limite.toISOString().slice(0, 10)
                 : String(row.fecha_limite).slice(0, 10))
+            : null,
+        posX: Number(row.pos_x) || 40,
+        posY: Number(row.pos_y) || 40,
+        ancho: Number(row.ancho) || 260,
+        diagramaId: row.diagrama_id != null && Number(row.diagrama_id) > 0
+            ? Number(row.diagrama_id)
             : null,
         orden: Number(row.orden) || 0,
         eliminado: !!Number(row.eliminado),
@@ -131,54 +142,145 @@ function mapEstatus(row) {
     };
 }
 
+function mapPagina(row) {
+    if (!row) return null;
+    return {
+        id: Number(row.pagina_id),
+        clientUuid: row.client_uuid,
+        usuarioId: Number(row.usuario_id),
+        titulo: row.titulo,
+        observaciones: row.observaciones || '',
+        orden: Number(row.orden) || 0,
+        eliminado: !!Number(row.eliminado),
+        updatedAtMs: Number(row.updated_at_ms) || 0,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+    };
+}
+
+async function asegurarColumna(pool, tabla, columna, ddl) {
+    try {
+        const [rows] = await pool.query(
+            `SELECT COLUMN_NAME AS nombre
+             FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+            [tabla, columna]
+        );
+        if (rows?.length) return;
+        await pool.query(`ALTER TABLE ${tabla} ADD COLUMN ${ddl}`);
+    } catch (err) {
+        if (err?.code !== 'ER_DUP_FIELDNAME' && err?.errno !== 1060) {
+            console.warn(`[agenda] columna ${tabla}.${columna}:`, err.message);
+        }
+    }
+}
+
 async function asegurarTabla(pool) {
-    if (tablaAsegurada) return;
+    if (!tablaAsegurada) {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS agenda (
+                agenda_id INT AUTO_INCREMENT PRIMARY KEY,
+                client_uuid CHAR(36) NOT NULL,
+                usuario_id INT NOT NULL,
+                titulo VARCHAR(255) NOT NULL DEFAULT '',
+                descripcion TEXT NULL,
+                estatus_clave VARCHAR(64) NOT NULL DEFAULT 'pendiente',
+                prioridad ENUM('alta','normal','baja') NOT NULL DEFAULT 'normal',
+                fecha_limite DATE NULL,
+                orden INT NOT NULL DEFAULT 0,
+                eliminado TINYINT(1) NOT NULL DEFAULT 0,
+                updated_at_ms BIGINT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uk_agenda_usuario_uuid (usuario_id, client_uuid),
+                INDEX idx_agenda_usuario (usuario_id),
+                INDEX idx_agenda_estatus (estatus_clave),
+                INDEX idx_agenda_eliminado (eliminado),
+                INDEX idx_agenda_orden (usuario_id, orden)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS agenda_estatus (
+                estatus_id INT AUTO_INCREMENT PRIMARY KEY,
+                client_uuid CHAR(36) NOT NULL,
+                usuario_id INT NOT NULL,
+                clave VARCHAR(64) NOT NULL,
+                etiqueta VARCHAR(100) NOT NULL,
+                color VARCHAR(20) NOT NULL DEFAULT '#64748B',
+                orden INT NOT NULL DEFAULT 0,
+                es_final TINYINT(1) NOT NULL DEFAULT 0,
+                eliminado TINYINT(1) NOT NULL DEFAULT 0,
+                updated_at_ms BIGINT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uk_agenda_estatus_uuid (usuario_id, client_uuid),
+                UNIQUE KEY uk_agenda_estatus_clave (usuario_id, clave),
+                INDEX idx_agenda_estatus_usuario (usuario_id),
+                INDEX idx_agenda_estatus_orden (usuario_id, orden)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+        tablaAsegurada = true;
+    }
 
     await pool.query(`
-        CREATE TABLE IF NOT EXISTS agenda (
-            agenda_id INT AUTO_INCREMENT PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS agenda_observaciones (
+            usuario_id INT NOT NULL PRIMARY KEY,
+            texto MEDIUMTEXT NULL,
+            updated_at_ms BIGINT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS agenda_paginas (
+            pagina_id INT AUTO_INCREMENT PRIMARY KEY,
             client_uuid CHAR(36) NOT NULL,
             usuario_id INT NOT NULL,
-            titulo VARCHAR(255) NOT NULL,
-            descripcion TEXT NULL,
-            estatus_clave VARCHAR(64) NOT NULL DEFAULT 'pendiente',
-            prioridad ENUM('alta','normal','baja') NOT NULL DEFAULT 'normal',
-            fecha_limite DATE NULL,
+            titulo VARCHAR(120) NOT NULL DEFAULT 'Hoja 1',
             orden INT NOT NULL DEFAULT 0,
             eliminado TINYINT(1) NOT NULL DEFAULT 0,
             updated_at_ms BIGINT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY uk_agenda_usuario_uuid (usuario_id, client_uuid),
-            INDEX idx_agenda_usuario (usuario_id),
-            INDEX idx_agenda_estatus (estatus_clave),
-            INDEX idx_agenda_eliminado (eliminado),
-            INDEX idx_agenda_orden (usuario_id, orden)
+            UNIQUE KEY uk_agenda_pagina_uuid (usuario_id, client_uuid),
+            INDEX idx_agenda_pagina_usuario (usuario_id),
+            INDEX idx_agenda_pagina_orden (usuario_id, orden)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
-    await pool.query(`
-        CREATE TABLE IF NOT EXISTS agenda_estatus (
-            estatus_id INT AUTO_INCREMENT PRIMARY KEY,
-            client_uuid CHAR(36) NOT NULL,
-            usuario_id INT NOT NULL,
-            clave VARCHAR(64) NOT NULL,
-            etiqueta VARCHAR(100) NOT NULL,
-            color VARCHAR(20) NOT NULL DEFAULT '#64748B',
-            orden INT NOT NULL DEFAULT 0,
-            es_final TINYINT(1) NOT NULL DEFAULT 0,
-            eliminado TINYINT(1) NOT NULL DEFAULT 0,
-            updated_at_ms BIGINT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY uk_agenda_estatus_uuid (usuario_id, client_uuid),
-            UNIQUE KEY uk_agenda_estatus_clave (usuario_id, clave),
-            INDEX idx_agenda_estatus_usuario (usuario_id),
-            INDEX idx_agenda_estatus_orden (usuario_id, orden)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
+    await asegurarColumna(pool, 'agenda', 'pagina_uuid', 'pagina_uuid CHAR(36) NULL');
+    await asegurarColumna(pool, 'agenda', 'pos_x', 'pos_x INT NOT NULL DEFAULT 40');
+    await asegurarColumna(pool, 'agenda', 'pos_y', 'pos_y INT NOT NULL DEFAULT 40');
+    await asegurarColumna(pool, 'agenda', 'ancho', 'ancho INT NOT NULL DEFAULT 320');
+    await asegurarColumna(pool, 'agenda', 'diagrama_id', 'diagrama_id INT NULL');
+    await asegurarColumna(pool, 'agenda_paginas', 'observaciones', 'observaciones MEDIUMTEXT NULL');
 
-    tablaAsegurada = true;
+    // Migración puntual: observaciones globales → primera hoja del usuario
+    try {
+        const [globales] = await pool.query(
+            `SELECT usuario_id, texto, updated_at_ms FROM agenda_observaciones
+             WHERE texto IS NOT NULL AND TRIM(texto) <> ''`
+        );
+        for (const g of globales || []) {
+            const [pags] = await pool.query(
+                `SELECT pagina_id, observaciones FROM agenda_paginas
+                 WHERE usuario_id = ? AND eliminado = 0
+                 ORDER BY orden ASC, pagina_id ASC LIMIT 1`,
+                [g.usuario_id]
+            );
+            if (!pags?.length) continue;
+            if (pags[0].observaciones && String(pags[0].observaciones).trim()) continue;
+            await pool.query(
+                `UPDATE agenda_paginas SET observaciones = ?, updated_at_ms = GREATEST(updated_at_ms, ?)
+                 WHERE pagina_id = ?`,
+                [g.texto, Number(g.updated_at_ms) || Date.now(), pags[0].pagina_id]
+            );
+        }
+    } catch (_e) {
+        // tabla antigua puede no existir aún
+    }
 }
 
 async function sembrarEstatusSiVacio(pool, usuarioId) {
@@ -189,8 +291,7 @@ async function sembrarEstatusSiVacio(pool, usuarioId) {
         `SELECT COUNT(*) AS total FROM agenda_estatus WHERE usuario_id = ?`,
         [uid]
     );
-    const total = Number(rows?.[0]?.total || 0);
-    if (total > 0) return;
+    if (Number(rows?.[0]?.total || 0) > 0) return;
 
     const ms = ahoraMs();
     for (const e of ESTATUS_DEFAULT) {
@@ -201,6 +302,34 @@ async function sembrarEstatusSiVacio(pool, usuarioId) {
             [nuevoUuid(), uid, e.clave, e.etiqueta, e.color, e.orden, e.es_final, ms]
         );
     }
+}
+
+async function sembrarPaginaSiVacio(pool, usuarioId) {
+    const uid = Number(usuarioId);
+    if (!Number.isInteger(uid) || uid <= 0) return null;
+
+    const [rows] = await pool.query(
+        `SELECT * FROM agenda_paginas WHERE usuario_id = ? AND eliminado = 0 ORDER BY orden ASC, pagina_id ASC LIMIT 1`,
+        [uid]
+    );
+    if (rows?.length) return mapPagina(rows[0]);
+
+    const uuid = nuevoUuid();
+    const ms = ahoraMs();
+    const [result] = await pool.query(
+        `INSERT INTO agenda_paginas (client_uuid, usuario_id, titulo, orden, eliminado, updated_at_ms)
+         VALUES (?, ?, 'Hoja 1', 10, 0, ?)`,
+        [uuid, uid, ms]
+    );
+
+    // Asignar actividades huérfanas a esta página
+    await pool.query(
+        `UPDATE agenda SET pagina_uuid = ? WHERE usuario_id = ? AND (pagina_uuid IS NULL OR pagina_uuid = '')`,
+        [uuid, uid]
+    );
+
+    const [created] = await pool.query(`SELECT * FROM agenda_paginas WHERE pagina_id = ?`, [result.insertId]);
+    return mapPagina(created[0]);
 }
 
 async function listarEstatus(pool, usuarioId, { incluirEliminados = false } = {}) {
@@ -214,9 +343,21 @@ async function listarEstatus(pool, usuarioId, { incluirEliminados = false } = {}
     return (rows || []).map(mapEstatus);
 }
 
+async function listarPaginas(pool, usuarioId, { incluirEliminados = false } = {}) {
+    await asegurarTabla(pool);
+    await sembrarPaginaSiVacio(pool, usuarioId);
+    const uid = Number(usuarioId);
+    const sql = incluirEliminados
+        ? `SELECT * FROM agenda_paginas WHERE usuario_id = ? ORDER BY orden ASC, pagina_id ASC`
+        : `SELECT * FROM agenda_paginas WHERE usuario_id = ? AND eliminado = 0 ORDER BY orden ASC, pagina_id ASC`;
+    const [rows] = await pool.query(sql, [uid]);
+    return (rows || []).map(mapPagina);
+}
+
 async function listarActividades(pool, usuarioId, { incluirEliminados = false } = {}) {
     await asegurarTabla(pool);
     await sembrarEstatusSiVacio(pool, usuarioId);
+    await sembrarPaginaSiVacio(pool, usuarioId);
     const uid = Number(usuarioId);
     const sql = incluirEliminados
         ? `SELECT * FROM agenda WHERE usuario_id = ? ORDER BY orden ASC, agenda_id DESC`
@@ -225,37 +366,70 @@ async function listarActividades(pool, usuarioId, { incluirEliminados = false } 
     return (rows || []).map(mapActividad);
 }
 
+async function upsertPagina(pool, usuarioId, payload = {}) {
+    await asegurarTabla(pool);
+    const uid = Number(usuarioId);
+    const clientUuid = normalizarUuid(payload.clientUuid || payload.client_uuid) || nuevoUuid();
+    const titulo = normalizarTexto(payload.titulo, 120) || 'Hoja';
+    const observaciones = String(payload.observaciones == null ? '' : payload.observaciones).slice(0, 20000);
+    const orden = Number.isFinite(Number(payload.orden)) ? Math.floor(Number(payload.orden)) : 0;
+    const eliminado = normalizarBool(payload.eliminado);
+    const updatedAtMs = normalizarMs(payload.updatedAtMs || payload.updated_at_ms);
+
+    const [existentes] = await pool.query(
+        `SELECT pagina_id, updated_at_ms FROM agenda_paginas WHERE usuario_id = ? AND client_uuid = ? LIMIT 1`,
+        [uid, clientUuid]
+    );
+
+    if (existentes?.length) {
+        const actual = existentes[0];
+        if (Number(actual.updated_at_ms) > updatedAtMs) {
+            const [rows] = await pool.query(`SELECT * FROM agenda_paginas WHERE pagina_id = ?`, [actual.pagina_id]);
+            return mapPagina(rows[0]);
+        }
+        await pool.query(
+            `UPDATE agenda_paginas
+             SET titulo = ?, observaciones = ?, orden = ?, eliminado = ?, updated_at_ms = ?
+             WHERE pagina_id = ?`,
+            [titulo, observaciones, orden, eliminado, updatedAtMs, actual.pagina_id]
+        );
+        const [rows] = await pool.query(`SELECT * FROM agenda_paginas WHERE pagina_id = ?`, [actual.pagina_id]);
+        return mapPagina(rows[0]);
+    }
+
+    const [result] = await pool.query(
+        `INSERT INTO agenda_paginas
+            (client_uuid, usuario_id, titulo, observaciones, orden, eliminado, updated_at_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [clientUuid, uid, titulo, observaciones, orden, eliminado, updatedAtMs]
+    );
+    const [rows] = await pool.query(`SELECT * FROM agenda_paginas WHERE pagina_id = ?`, [result.insertId]);
+    return mapPagina(rows[0]);
+}
+
 async function obtenerSnapshot(pool, usuarioId) {
-    const [actividades, estatus] = await Promise.all([
+    const [actividades, estatus, paginas] = await Promise.all([
         listarActividades(pool, usuarioId, { incluirEliminados: false }),
-        listarEstatus(pool, usuarioId, { incluirEliminados: false })
+        listarEstatus(pool, usuarioId, { incluirEliminados: false }),
+        listarPaginas(pool, usuarioId, { incluirEliminados: false })
     ]);
-    return { actividades, estatus };
+    return { actividades, estatus, paginas };
 }
 
 async function upsertActividad(pool, usuarioId, payload = {}) {
     await asegurarTabla(pool);
     await sembrarEstatusSiVacio(pool, usuarioId);
+    const primera = await sembrarPaginaSiVacio(pool, usuarioId);
     const uid = Number(usuarioId);
     const clientUuid = normalizarUuid(payload.clientUuid || payload.client_uuid) || nuevoUuid();
-    const titulo = normalizarTexto(payload.titulo, 255);
-    if (!titulo) {
-        const err = new Error('El título es obligatorio');
-        err.status = 400;
-        throw err;
-    }
+    let titulo = String(payload.titulo == null ? '' : payload.titulo)
+        .replace(/\r\n/g, '\n')
+        .replace(/^\n+|\n+$/g, '')
+        .slice(0, 255);
+    // Permitir tarjetas vacías (escritura libre); BD NOT NULL → cadena vacía
     const descripcion = String(payload.descripcion == null ? '' : payload.descripcion).trim().slice(0, 4000);
     let estatusClave = normalizarClave(payload.estatusClave || payload.estatus_clave || 'pendiente');
     if (!estatusClave) estatusClave = 'pendiente';
-
-    const [estatusRows] = await pool.query(
-        `SELECT clave FROM agenda_estatus
-         WHERE usuario_id = ? AND eliminado = 0 AND clave = ? LIMIT 1`,
-        [uid, estatusClave]
-    );
-    if (!estatusRows?.length) {
-        // Si el estatus aún no existe (sync offline), no bloquear: se acepta la clave.
-    }
 
     const prioridad = normalizarPrioridad(payload.prioridad);
     let fechaLimite = payload.fechaLimite || payload.fecha_limite || null;
@@ -268,6 +442,16 @@ async function upsertActividad(pool, usuarioId, payload = {}) {
     const orden = Number.isFinite(Number(payload.orden)) ? Math.floor(Number(payload.orden)) : 0;
     const eliminado = normalizarBool(payload.eliminado);
     const updatedAtMs = normalizarMs(payload.updatedAtMs || payload.updated_at_ms);
+    let paginaUuid = normalizarUuid(payload.paginaUuid || payload.pagina_uuid) || (primera?.clientUuid || null);
+    const posX = normalizarEntero(payload.posX ?? payload.pos_x, 40, 0, 4000);
+    const posY = normalizarEntero(payload.posY ?? payload.pos_y, 40, 0, 6000);
+    const ancho = normalizarEntero(payload.ancho, 320, 180, 1200);
+    const diagramaRaw = payload.diagramaId ?? payload.diagrama_id;
+    const diagramaId = diagramaRaw == null || diagramaRaw === '' || Number(diagramaRaw) <= 0
+        ? null
+        : Math.floor(Number(diagramaRaw));
+
+    // Soft-delete: se conserva el título aunque esté vacío
 
     const [existentes] = await pool.query(
         `SELECT agenda_id, updated_at_ms FROM agenda WHERE usuario_id = ? AND client_uuid = ? LIMIT 1`,
@@ -283,9 +467,13 @@ async function upsertActividad(pool, usuarioId, payload = {}) {
         await pool.query(
             `UPDATE agenda SET
                 titulo = ?, descripcion = ?, estatus_clave = ?, prioridad = ?,
-                fecha_limite = ?, orden = ?, eliminado = ?, updated_at_ms = ?
+                fecha_limite = ?, orden = ?, eliminado = ?, updated_at_ms = ?,
+                pagina_uuid = ?, pos_x = ?, pos_y = ?, ancho = ?, diagrama_id = ?
              WHERE agenda_id = ?`,
-            [titulo, descripcion || null, estatusClave, prioridad, fechaLimite, orden, eliminado, updatedAtMs, actual.agenda_id]
+            [
+                titulo, descripcion || null, estatusClave, prioridad, fechaLimite, orden, eliminado, updatedAtMs,
+                paginaUuid, posX, posY, ancho, diagramaId, actual.agenda_id
+            ]
         );
         const [rows] = await pool.query(`SELECT * FROM agenda WHERE agenda_id = ?`, [actual.agenda_id]);
         return mapActividad(rows[0]);
@@ -294,9 +482,12 @@ async function upsertActividad(pool, usuarioId, payload = {}) {
     const [result] = await pool.query(
         `INSERT INTO agenda
             (client_uuid, usuario_id, titulo, descripcion, estatus_clave, prioridad,
-             fecha_limite, orden, eliminado, updated_at_ms)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [clientUuid, uid, titulo, descripcion || null, estatusClave, prioridad, fechaLimite, orden, eliminado, updatedAtMs]
+             fecha_limite, orden, eliminado, updated_at_ms, pagina_uuid, pos_x, pos_y, ancho, diagrama_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            clientUuid, uid, titulo, descripcion || null, estatusClave, prioridad,
+            fechaLimite, orden, eliminado, updatedAtMs, paginaUuid, posX, posY, ancho, diagramaId
+        ]
     );
     const [rows] = await pool.query(`SELECT * FROM agenda WHERE agenda_id = ?`, [result.insertId]);
     return mapActividad(rows[0]);
@@ -334,8 +525,6 @@ async function upsertEstatus(pool, usuarioId, payload = {}) {
             const [rows] = await pool.query(`SELECT * FROM agenda_estatus WHERE estatus_id = ?`, [actual.estatus_id]);
             return mapEstatus(rows[0]);
         }
-        // Mantener clave estable si ya existe (evita romper UNIQUE al renombrar)
-        const claveFinal = actual.clave;
         await pool.query(
             `UPDATE agenda_estatus SET
                 etiqueta = ?, color = ?, orden = ?, es_final = ?, eliminado = ?, updated_at_ms = ?
@@ -346,9 +535,8 @@ async function upsertEstatus(pool, usuarioId, payload = {}) {
         return mapEstatus(rows[0]);
     }
 
-    // Conflicto de clave: si ya hay otra fila con esa clave, actualizar esa
     const [porClave] = await pool.query(
-        `SELECT estatus_id, updated_at_ms, client_uuid FROM agenda_estatus
+        `SELECT estatus_id, updated_at_ms FROM agenda_estatus
          WHERE usuario_id = ? AND clave = ? LIMIT 1`,
         [uid, clave]
     );
@@ -395,7 +583,7 @@ async function softDeleteActividad(pool, usuarioId, clientUuid, updatedAtMs) {
     if (!existentes?.length) {
         return upsertActividad(pool, usuarioId, {
             clientUuid: uuid,
-            titulo: '(eliminado)',
+            titulo: '',
             eliminado: 1,
             updatedAtMs: ms
         });
@@ -412,16 +600,22 @@ async function softDeleteActividad(pool, usuarioId, clientUuid, updatedAtMs) {
     return mapActividad(rows[0]);
 }
 
-/**
- * Sincronización bidireccional last-write-wins por client_uuid.
- * Acepta lotes de actividades y estatus del cliente (incluye eliminados).
- */
 async function sincronizar(pool, usuarioId, payload = {}) {
     await asegurarTabla(pool);
     await sembrarEstatusSiVacio(pool, usuarioId);
+    await sembrarPaginaSiVacio(pool, usuarioId);
 
+    const paginasIn = Array.isArray(payload.paginas) ? payload.paginas : [];
     const estatusIn = Array.isArray(payload.estatus) ? payload.estatus : [];
     const actividadesIn = Array.isArray(payload.actividades) ? payload.actividades : [];
+
+    for (const p of paginasIn) {
+        try {
+            await upsertPagina(pool, usuarioId, p);
+        } catch (err) {
+            console.warn('[agenda] sync pagina:', err.message);
+        }
+    }
 
     for (const e of estatusIn) {
         try {
@@ -433,27 +627,37 @@ async function sincronizar(pool, usuarioId, payload = {}) {
 
     for (const a of actividadesIn) {
         try {
-            if (a.eliminado && (!a.titulo || !String(a.titulo).trim())) {
-                a.titulo = '(eliminado)';
-            }
+            // Soft-delete: conservar título/datos; no sobrescribir con marcadores
             await upsertActividad(pool, usuarioId, a);
         } catch (err) {
             console.warn('[agenda] sync actividad:', err.message);
         }
     }
 
-    // Snapshot completo (incluye eliminados recientes para que el cliente pueda reconciliar)
-    const [actividadesAll, estatusAll] = await Promise.all([
+    const [actividadesAll, estatusAll, paginasAll] = await Promise.all([
         listarActividades(pool, usuarioId, { incluirEliminados: true }),
-        listarEstatus(pool, usuarioId, { incluirEliminados: true })
+        listarEstatus(pool, usuarioId, { incluirEliminados: true }),
+        listarPaginas(pool, usuarioId, { incluirEliminados: true })
     ]);
+
+    const actsArch = actividadesAll.filter((a) => a.eliminado);
+    const estsArch = estatusAll.filter((e) => e.eliminado);
+    const pagsArch = paginasAll.filter((p) => p.eliminado);
 
     return {
         actividades: actividadesAll.filter((a) => !a.eliminado),
         estatus: estatusAll.filter((e) => !e.eliminado),
+        paginas: paginasAll.filter((p) => !p.eliminado),
+        // Objetos completos para poder reactivar sin perder información
+        archivados: {
+            actividades: actsArch,
+            estatus: estsArch,
+            paginas: pagsArch
+        },
         eliminados: {
-            actividades: actividadesAll.filter((a) => a.eliminado).map((a) => a.clientUuid),
-            estatus: estatusAll.filter((e) => e.eliminado).map((e) => e.clientUuid)
+            actividades: actsArch.map((a) => a.clientUuid),
+            estatus: estsArch.map((e) => e.clientUuid),
+            paginas: pagsArch.map((p) => p.clientUuid)
         },
         serverTimeMs: ahoraMs()
     };
@@ -465,6 +669,8 @@ module.exports = {
     obtenerSnapshot,
     listarActividades,
     listarEstatus,
+    listarPaginas,
+    upsertPagina,
     upsertActividad,
     upsertEstatus,
     softDeleteActividad,

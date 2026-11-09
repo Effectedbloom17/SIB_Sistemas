@@ -28,7 +28,11 @@
   role="dialog"
   aria-labelledby="sgcAvisoFirmaTitulo"
   (animationend)="alTerminarAnimacionAvisoFirma($event)">
-  <img class="cp-aviso-cambio__mascota" [src]="mascotaAvisoFirma(aviso)" alt="">
+  <img
+    class="cp-aviso-cambio__mascota"
+    [src]="mascotaAvisoFirma(aviso)"
+    alt=""
+    (error)="onErrorMascotaBiznaguita($event, archivoMascotaFirma(aviso))">
   <div class="cp-aviso-cambio__body">
     <p class="cp-aviso-cambio__kicker">Firma de documento</p>
     <h3 id="sgcAvisoFirmaTitulo">{{ tituloAvisoFirma(aviso) }}</h3>
@@ -72,31 +76,47 @@
   role="dialog"
   aria-labelledby="pcAvisoResolutivoTitulo"
   (animationend)="alTerminarAnimacionAvisoResolutivo($event)">
-  <img class="cp-aviso-cambio__mascota" [src]="mascotaAvisoResolutivo(aviso)" alt="">
+  <img
+    class="cp-aviso-cambio__mascota"
+    [src]="mascotaAvisoResolutivo(aviso)"
+    alt=""
+    (error)="onErrorMascotaBiznaguita($event, archivoMascotaResolutivo(aviso))">
   <div class="cp-aviso-cambio__body">
-    <p class="cp-aviso-cambio__kicker">Protección Civil · Resolutivos</p>
-    <h3 id="pcAvisoResolutivoTitulo">{{ tituloAvisoResolutivo(aviso) }}</h3>
-    <p class="cp-aviso-cambio__lead">{{ leadAvisoResolutivo(aviso) }}</p>
+    <h3 id="pcAvisoResolutivoTitulo" class="cp-aviso-cambio__titulo-pc">
+      {{ tituloAvisoResolutivo(aviso) }}
+    </h3>
+    <div
+      class="cp-aviso-cambio__empresa"
+      [title]="aviso.nombreEmpresa || 'Empresa'">
+      <div class="cp-aviso-cambio__empresa-logo" aria-hidden="true">
+        <img
+          *ngIf="logoEmpresaAvisoResolutivo(aviso) as logoUrl; else logoInicialesResolutivo"
+          [src]="logoUrl"
+          alt=""
+          (error)="onLogoEmpresaAvisoError(aviso)">
+        <ng-template #logoInicialesResolutivo>
+          <span>{{ inicialesEmpresaAvisoResolutivo(aviso) }}</span>
+        </ng-template>
+      </div>
+      <div class="cp-aviso-cambio__empresa-detalle">
+        <span class="cp-aviso-cambio__proyecto-etiqueta">
+          Empresa
+          <span class="cp-aviso-cambio__sep" aria-hidden="true">|</span>
+          <span class="cp-aviso-cambio__folio">Resolutivo: {{ tipoResolutivoAviso(aviso) }}</span>
+        </span>
+        <strong>{{ aviso.nombreEmpresa || 'Empresa' }}</strong>
+      </div>
+    </div>
     <div class="cp-aviso-cambio__personas">
       <div>
-        <span>Tiempo</span>
+        <span>Tiempo para vencer</span>
         <strong>{{ etiquetaDiasResolutivo(aviso) }}</strong>
       </div>
-      <div *ngIf="aviso.responsableNombre">
+      <div *ngIf="mostrarResponsableAvisoResolutivo() && aviso.responsableNombre">
         <span>Responsable</span>
         <strong>{{ aviso.responsableNombre }}</strong>
       </div>
     </div>
-    <p class="cp-aviso-cambio__proyecto" [title]="aviso.nombreEmpresa">
-      <span class="cp-aviso-cambio__proyecto-etiqueta">
-        Empresa
-        <ng-container *ngIf="aviso.nombreAsignacion">
-          <span class="cp-aviso-cambio__sep" aria-hidden="true">|</span>
-          <span class="cp-aviso-cambio__folio">{{ aviso.nombreAsignacion }}</span>
-        </ng-container>
-      </span>
-      <strong>{{ aviso.nombreEmpresa || 'Empresa' }}</strong>
-    </p>
     <p class="cp-aviso-cambio__extra" *ngIf="avisosResolutivo.length > 1">
       Hay {{ avisosResolutivo.length - 1 }} aviso{{ avisosResolutivo.length - 1 === 1 ? '' : 's' }} más de resolutivos.
     </p>
@@ -123,7 +143,11 @@
   role="dialog"
   aria-labelledby="cpAvisoCambioTitulo"
   (animationend)="alTerminarAnimacionAviso($event)">
-  <img class="cp-aviso-cambio__mascota" src="assets/img/biznaguita/mascota-biznaga.png" alt="">
+  <img
+    class="cp-aviso-cambio__mascota"
+    [src]="mascotaAvisoCambio()"
+    alt=""
+    (error)="onErrorMascotaBiznaguita($event, 'mascota-biznaga.png')">
   <div class="cp-aviso-cambio__body">
     <p class="cp-aviso-cambio__kicker">Solicitud de cambio</p>
     <h3 id="cpAvisoCambioTitulo">{{ tituloAvisoCambio(aviso) }}</h3>

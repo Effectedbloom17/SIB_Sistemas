@@ -9,6 +9,14 @@ import {
   resolverDestinoFormatoSistema,
   tooltipDestinoFormato
 } from './sgc-formato-navegacion.catalog';
+import {
+  resolverPlantillaCentroSgcPorCodigo,
+  tipoIconoPlantilla
+} from './sgc-formatos.catalog';
+import {
+  resolverPlantillaDriveId,
+  resolverSistemaDriveIdFijo
+} from './sgc-plantillas-drive.ids';
 import { TIPO_SOLICITUD_LABELS } from './sgc-solicitud-documentos.util';
 
 /** Responsable por defecto de cambios a la Lista Maestra SGC. */
@@ -16,7 +24,16 @@ export const RESPONSABLE_LISTA_MAESTRA_SGC = 'Ing. Sergio Luis Guzmán Vigueras'
 
 export type PasoFlujoSgc = 'revision' | 'formato' | 'lista_maestra' | 'notificar' | 'cerrado';
 type FiltroGestion = 'todos' | 'autorizar' | 'gestion' | 'completadas';
-type AccionGestion = 'autorizar' | 'reemplazar' | 'formato' | 'lista' | 'cerrar' | 'regresar';
+type AccionGestion =
+  | 'autorizar'
+  | 'declinar'
+  | 'borrar'
+  | 'reemplazar'
+  | 'formato'
+  | 'lista'
+  | 'cerrar'
+  | 'regresar';
+type TipoArchivoGestion = 'pdf' | 'excel' | 'word' | 'pptx' | 'otro';
 
 export interface SgcSolicitudDocumentoItem {
   solicitud_id: number;
@@ -38,6 +55,8 @@ export interface SgcSolicitudDocumentoItem {
   drive_file_id?: string;
   catalog_key?: string;
   notas_cambio?: string;
+  activo?: boolean;
+  declinado?: boolean;
   notificar_sistemas?: boolean | null;
   ticket_sistemas_id?: number | null;
   nombre_solicitante: string;
@@ -68,6 +87,8 @@ interface FormatoDescargaContexto {
   titulo?: string;
   nombre_archivo?: string;
   drive_file_id_actual?: string;
+  plantilla_drive_file_id?: string;
+  sistema_drive_file_id?: string;
   version_actual?: number;
 }
 
@@ -93,6 +114,7 @@ interface ListaMaestraForm {
   especie: string;
   versionVigente: string;
   fechaRevision: string;
+  fechaSolicitud: string;
   nombreDocumento: string;
   responsable: string;
 }
@@ -122,8 +144,11 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
   archivoNuevo: File | null = null;
   editorAbierto = false;
   editorUrl: SafeResourceUrl | null = null;
+  editorCargando = false;
+  editorEsPlantilla = false;
   visorDocumentoAbierto = false;
   visorDocumentoUrl: SafeResourceUrl | null = null;
+  visorCargando = false;
   miniaturaError = false;
   notificarSeleccion: boolean | null = null;
   descripcionSistemas = '';
@@ -137,9 +162,10 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
   ];
 
   readonly pasos = [
-    { numero: 1, titulo: 'Revisión y autorización', corto: 'Revisión' },
-    { numero: 2, titulo: 'Lista Maestra', corto: 'Lista Maestra' },
-    { numero: 3, titulo: 'Notificar a Sistemas', corto: 'Notificar' }
+    { numero: 1, titulo: 'Autorización', corto: 'Autorización' },
+    { numero: 2, titulo: 'Revisión', corto: 'Revisión' },
+    { numero: 3, titulo: 'Cambio en la Lista maestra', corto: 'Lista maestra' },
+    { numero: 4, titulo: 'Notificar a Sistemas', corto: 'Notificar' }
   ];
 
   private readonly destroy$ = new Subject<void>();
@@ -178,7 +204,7 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
       return [
         solicitud.solicitud_id, solicitud.codigo, solicitud.nombre_documento,
         solicitud.motivo, this.tipoSolicitudLabel(solicitud.tipo_solicitud),
-        this.autorLabel(solicitud), this.puestoLabel(solicitud), this.estadoLabel(solicitud.estado),
+        this.autorLabel(solicitud), this.puestoLabel(solicitud), this.estadoLabel(solicitud.estado, solicitud),
         this.pasoLabel(solicitud.paso_flujo)
       ].some((valor) => String(valor || '').toLowerCase().includes(q));
     });
@@ -239,12 +265,33 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
     return this.contexto?.solicitud || null;
   }
 
+  /** Archivo con datos (sistema) para vista previa — nunca la plantilla vacía. */
   get driveFileIdActivo(): string {
+    const fmt = this.contexto?.formatoDescarga;
+    const codigo = this.codigoDocumentoActivo;
     return String(
-      this.contexto?.formatoDescarga?.drive_file_id_actual
+      fmt?.sistema_drive_file_id
+      || resolverSistemaDriveIdFijo(codigo)
+      || fmt?.drive_file_id_actual
       || this.contexto?.solicitud?.drive_file_id
       || ''
     ).trim();
+  }
+
+  /** Plantilla maestra (estructura) para Modificación menor. */
+  get driveFileIdPlantilla(): string {
+    const fmt = this.contexto?.formatoDescarga;
+    const codigo = this.codigoDocumentoActivo;
+    const plantilla = String(
+      fmt?.plantilla_drive_file_id
+      || resolverPlantillaDriveId(codigo)
+      || ''
+    ).trim();
+    // Evitar usar el archivo sistema si por error viene el mismo ID.
+    if (plantilla && plantilla !== this.driveFileIdActivo) {
+      return plantilla;
+    }
+    return plantilla || resolverPlantillaDriveId(codigo);
   }
 
   get miniaturaDocumentoUrl(): string {
@@ -257,6 +304,23 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
     return this.driveFileIdActivo
       ? `https://drive.google.com/uc?export=download&id=${encodeURIComponent(this.driveFileIdActivo)}`
       : '';
+  }
+
+  get editorSubtitulo(): string {
+    const codigo = this.solicitudActiva?.codigo || this.contexto?.formatoDescarga?.codigo || 'Documento';
+    const nombre = this.solicitudActiva?.nombre_documento
+      || this.contexto?.formatoDescarga?.titulo
+      || 'Formato SGC';
+    const tipo = this.tipoArchivoGestion === 'excel'
+      ? 'Excel'
+      : this.tipoArchivoGestion === 'word'
+        ? 'Word'
+        : this.tipoArchivoGestion === 'pptx'
+          ? 'PowerPoint'
+          : 'Documento';
+    return this.editorEsPlantilla
+      ? `${codigo} · ${nombre} · Plantilla ${tipo}`
+      : `${codigo} · ${nombre}`;
   }
 
   get origenDocumentoLabel(): string {
@@ -302,25 +366,53 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
       this.errorGestion = 'Este documento no tiene formato dinámico en el sistema.';
       return;
     }
+    const solicitudId = this.solicitudActiva?.solicitud_id;
     void this.router.navigate([dest.ruta], {
-      queryParams: dest.queryParams || undefined
+      queryParams: {
+        ...(dest.queryParams || {}),
+        ...(solicitudId ? { fromSolicitud: String(solicitudId) } : {})
+      }
     });
   }
 
+  get esSuperAdmin(): boolean {
+    return this.authService.esRoot();
+  }
+
+  /** Clasificación real del archivo (PDF / Office) para reglas del wizard. */
+  get tipoArchivoGestion(): TipoArchivoGestion {
+    return this.detectarTipoArchivoGestion();
+  }
+
+  get esDocumentoPdf(): boolean {
+    return this.tipoArchivoGestion === 'pdf';
+  }
+
+  get esDocumentoOffice(): boolean {
+    return ['excel', 'word', 'pptx'].includes(this.tipoArchivoGestion);
+  }
+
   get tipoArchivoActivo(): 'PDF' | 'Sheet' | 'Doc' {
-    return this.detectarTipoArchivo();
+    const tipo = this.tipoArchivoGestion;
+    if (tipo === 'excel') return 'Sheet';
+    if (tipo === 'word') return 'Doc';
+    return 'PDF';
   }
 
   get iconoArchivoActivo(): string {
-    const tipo = this.tipoArchivoActivo;
-    return tipo === 'PDF' ? 'fa-file-pdf' : tipo === 'Sheet' ? 'fa-file-excel' : 'fa-file-word';
+    const tipo = this.tipoArchivoGestion;
+    if (tipo === 'excel') return 'fa-file-excel';
+    if (tipo === 'word') return 'fa-file-word';
+    if (tipo === 'pptx') return 'fa-file-powerpoint';
+    return 'fa-file-pdf';
   }
 
   get formularioListaValido(): boolean {
     const f = this.listaMaestraForm;
+    const fechaSolicitudOk = !this.esSuperAdmin || !!f.fechaSolicitud;
     return !!(f.codigo.trim() && f.area.trim() && f.tipo.trim() && f.especie.trim()
       && f.versionVigente.trim() && f.fechaRevision && f.nombreDocumento.trim()
-      && f.responsable.trim());
+      && f.responsable.trim() && fechaSolicitudOk);
   }
 
   cargar(): void {
@@ -411,10 +503,85 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
         next: (res) => {
           const msg = this.esEliminacion(res?.solicitud || solicitud)
             ? 'Cambio autorizado. Continúa desactivando el documento en la Lista Maestra.'
-            : 'Cambio autorizado. Ahora actualiza el formato.';
+            : 'Cambio autorizado. Continúa con la revisión del formato.';
           this.actualizarTrasAccion(res?.solicitud, msg);
         },
         error: (err) => this.gestionarError(err, 'No se pudo autorizar el cambio')
+      });
+  }
+
+  declinarCambio(): void {
+    const solicitud = this.solicitudActiva;
+    if (!solicitud || solicitud.paso_flujo !== 'revision') return;
+    if (!window.confirm('¿Declinar este cambio? La solicitud se cerrará sin avanzar el flujo.')) {
+      return;
+    }
+    this.iniciarAccion(solicitud.solicitud_id, 'declinar');
+    this.backend.declinarSolicitudDocumentoSgc(solicitud.solicitud_id)
+      .pipe(this.finalizarAccion())
+      .subscribe({
+        next: (res) => {
+          this.actualizarTrasAccion(res?.solicitud, res?.message || 'Cambio declinado.');
+          this.cerrarPanel();
+          this.cargar();
+        },
+        error: (err) => this.gestionarError(err, 'No se pudo declinar el cambio')
+      });
+  }
+
+  borrarCambio(): void {
+    const solicitud = this.solicitudActiva;
+    if (!solicitud || !this.esSuperAdmin) return;
+    if (!window.confirm('¿Desactivar esta solicitud? No se borrará el registro, solo se marcará como inactiva.')) {
+      return;
+    }
+    this.iniciarAccion(solicitud.solicitud_id, 'borrar');
+    this.backend.desactivarSolicitudDocumentoSgc(solicitud.solicitud_id)
+      .pipe(this.finalizarAccion())
+      .subscribe({
+        next: () => {
+          this.cerrarPanel();
+          this.cargar();
+        },
+        error: (err) => this.gestionarError(err, 'No se pudo desactivar la solicitud')
+      });
+  }
+
+  /**
+   * Modificación menor: abre el editor integrado con la PLANTILLA
+   * (mismo diseño que Centro SGC → Abrir editor integrado).
+   */
+  abrirModificacionMenor(): void {
+    const plantillaId = this.driveFileIdPlantilla;
+    if (plantillaId) {
+      this.abrirEditorIntegrado(plantillaId, true);
+      return;
+    }
+    if (!this.driveFileIdActivo) {
+      this.errorGestion = 'No hay plantilla ni archivo de Drive asociado a este documento.';
+      return;
+    }
+    this.abrirEditorIntegrado(this.driveFileIdActivo, false);
+  }
+
+  /** Salta la revisión de formato y avanza directo a Lista maestra. */
+  irDirectoListaMaestra(): void {
+    const solicitud = this.solicitudActiva;
+    if (!solicitud || solicitud.paso_flujo !== 'formato') return;
+    this.iniciarAccion(solicitud.solicitud_id, 'formato');
+    this.backend.marcarFormatoListoSolicitudDocumentoSgc(solicitud.solicitud_id, {
+      catalogKey: this.contexto?.formatoDescarga?.catalog_key || solicitud.catalog_key,
+      driveFileId: this.driveFileIdActivo,
+      versionNueva: this.contexto?.propuesta?.versionNueva,
+      fechaRevisionNueva: this.contexto?.propuesta?.fechaRevisionNueva
+    })
+      .pipe(this.finalizarAccion())
+      .subscribe({
+        next: (res) => this.actualizarTrasAccion(
+          res?.solicitud,
+          'Sin cambios de formato. Continúa con la Lista Maestra.'
+        ),
+        error: (err) => this.gestionarError(err, 'No se pudo avanzar a Lista Maestra')
       });
   }
 
@@ -453,53 +620,70 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
       });
   }
 
-  abrirEditorIntegrado(): void {
-    const id = this.driveFileIdActivo;
+  abrirEditorIntegrado(fileId?: string, esPlantilla = false): void {
+    const id = String(fileId || this.driveFileIdPlantilla || this.driveFileIdActivo || '').trim();
     if (!id) {
       this.errorGestion = 'Este documento no tiene un archivo de Drive asociado.';
       return;
     }
-    const tipo = this.detectarTipoArchivo();
-    const url = tipo === 'Sheet'
-      ? `https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/edit?usp=sharing`
-      : tipo === 'PDF'
-        ? `https://drive.google.com/file/d/${encodeURIComponent(id)}/preview`
-        : `https://docs.google.com/document/d/${encodeURIComponent(id)}/edit?usp=sharing`;
-    this.editorUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    this.editorEsPlantilla = esPlantilla;
+    this.editorCargando = true;
+    this.editorUrl = null;
     this.editorAbierto = true;
     this.bodyOverflowAnterior = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     document.body.classList.add('sgc-editor-open');
+
+    this.backend.asegurarAccesoEditorDrive(id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => this.montarEditorUrl(id, true),
+        error: () => this.montarEditorUrl(id, true)
+      });
   }
 
   cerrarEditor(): void {
     this.editorAbierto = false;
     this.editorUrl = null;
+    this.editorCargando = false;
+    this.editorEsPlantilla = false;
     document.body.style.overflow = this.bodyOverflowAnterior;
     document.body.classList.remove('sgc-editor-open');
   }
 
+  onEditorIframeLoad(): void {
+    this.editorCargando = false;
+  }
+
   abrirVisorDocumento(): void {
+    // Vista previa: archivo sistema (con información), no la plantilla.
     const id = this.driveFileIdActivo;
     if (!id) {
       this.errorGestion = 'El documento todavía no tiene un archivo de Drive asociado.';
       return;
     }
-    const tipo = this.detectarTipoArchivo();
-    const url = tipo === 'Sheet'
-      ? `https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/preview`
-      : tipo === 'Doc'
-        ? `https://docs.google.com/document/d/${encodeURIComponent(id)}/preview`
-        : `https://drive.google.com/file/d/${encodeURIComponent(id)}/preview`;
-    this.visorDocumentoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    this.visorCargando = true;
+    this.visorDocumentoUrl = null;
     this.visorDocumentoAbierto = true;
     this.bloquearScroll();
+
+    this.backend.asegurarAccesoEditorDrive(id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => this.montarVisorUrl(id),
+        error: () => this.montarVisorUrl(id)
+      });
   }
 
   cerrarVisorDocumento(): void {
     this.visorDocumentoAbierto = false;
     this.visorDocumentoUrl = null;
+    this.visorCargando = false;
     this.restaurarScroll();
+  }
+
+  onVisorIframeLoad(): void {
+    this.visorCargando = false;
   }
 
   onErrorMiniatura(): void {
@@ -527,14 +711,14 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
     this.iniciarAccion(solicitud.solicitud_id, 'formato');
     this.backend.marcarFormatoListoSolicitudDocumentoSgc(solicitud.solicitud_id, {
       catalogKey: this.contexto?.formatoDescarga?.catalog_key || solicitud.catalog_key,
-      driveFileId: this.driveFileIdActivo,
+      driveFileId: this.driveFileIdActivo || this.driveFileIdPlantilla,
       versionNueva: this.contexto?.propuesta?.versionNueva,
       fechaRevisionNueva: this.contexto?.propuesta?.fechaRevisionNueva
     })
       .pipe(this.finalizarAccion())
       .subscribe({
         next: (res) => {
-          this.cerrarEditor();
+          if (this.editorAbierto) this.cerrarEditor();
           this.actualizarTrasAccion(
             res?.solicitud, 'Formato confirmado. Continúa con la Lista Maestra.'
           );
@@ -550,13 +734,19 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
       return;
     }
     const esBaja = this.esEliminacion(solicitud);
+    const payload: Record<string, unknown> = {
+      ...this.listaMaestraForm,
+      vigente: !esBaja
+    };
+    if (this.esSuperAdmin && this.listaMaestraForm.fechaSolicitud) {
+      payload.fechaSolicitud = this.listaMaestraForm.fechaSolicitud;
+    } else {
+      delete payload.fechaSolicitud;
+    }
     this.iniciarAccion(solicitud.solicitud_id, 'lista');
     this.backend.actualizarListaMaestraSolicitudDocumentoSgc(
       solicitud.solicitud_id,
-      {
-        ...this.listaMaestraForm,
-        vigente: !esBaja
-      }
+      payload
     )
       .pipe(this.finalizarAccion())
       .subscribe({
@@ -598,9 +788,10 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
   }
 
   pasoActual(solicitud: SgcSolicitudDocumentoItem): number {
-    if (solicitud.paso_flujo === 'revision' || solicitud.paso_flujo === 'formato') return 1;
-    if (solicitud.paso_flujo === 'lista_maestra') return 2;
-    return 3;
+    if (solicitud.paso_flujo === 'revision') return 1;
+    if (solicitud.paso_flujo === 'formato') return 2;
+    if (solicitud.paso_flujo === 'lista_maestra') return 3;
+    return 4;
   }
 
   pasoCompletado(solicitud: SgcSolicitudDocumentoItem, numero: number): boolean {
@@ -621,8 +812,10 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
   }
 
   tituloLista(solicitud: SgcSolicitudDocumentoItem): string {
-    const doc = solicitud.codigo || solicitud.nombre_documento || 'Documento';
-    return `Ticket #${solicitud.solicitud_id} - ${this.tipoSolicitudLabel(solicitud.tipo_solicitud)} · ${doc}`;
+    const nombre = String(solicitud.nombre_documento || '').trim() || 'Documento';
+    const codigo = String(solicitud.codigo || '').trim();
+    const doc = codigo ? `${nombre} (${codigo})` : nombre;
+    return `Solicitud de cambio #${solicitud.solicitud_id} - ${this.tipoSolicitudLabel(solicitud.tipo_solicitud)} · ${doc}`;
   }
 
   get resumenCierre(): {
@@ -724,7 +917,8 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
     return texto.length > 110 ? `${texto.slice(0, 107)}…` : texto;
   }
 
-  estadoLabel(estado: string): string {
+  estadoLabel(estado: string, solicitud?: SgcSolicitudDocumentoItem | null): string {
+    if (solicitud?.declinado) return 'Declinada';
     const map: Record<string, string> = {
       abierto: 'Por autorizar',
       en_progreso: 'En gestión',
@@ -735,8 +929,11 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
 
   pasoLabel(paso?: PasoFlujoSgc): string {
     const map: Record<string, string> = {
-      revision: 'Revisión', formato: 'Cambio de formato',
-      lista_maestra: 'Lista Maestra', notificar: 'Notificar a Sistemas', cerrado: 'Cerrado'
+      revision: 'Autorización',
+      formato: 'Revisión',
+      lista_maestra: 'Cambio en la Lista maestra',
+      notificar: 'Notificar a Sistemas',
+      cerrado: 'Cerrado'
     };
     return map[paso || 'revision'];
   }
@@ -817,6 +1014,7 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
       fechaRevision: this.fechaInput(
         propuesta.fechaRevisionNueva || solicitud.fecha_revision_nueva || propuesta.fechaHoyMexico
       ),
+      fechaSolicitud: this.fechaInput(solicitud.fecha_solicitud || solicitud.created_at),
       nombreDocumento: maestro.nombreDocumento || solicitud.nombre_documento || '',
       // Siempre Sergio por defecto; el campo permanece editable para casos excepcionales.
       responsable: RESPONSABLE_LISTA_MAESTRA_SGC
@@ -826,7 +1024,8 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
   private crearListaMaestraVacia(): ListaMaestraForm {
     return {
       codigo: '', area: '', tipo: 'Interno', especie: '', versionVigente: '',
-      fechaRevision: '', nombreDocumento: '', responsable: RESPONSABLE_LISTA_MAESTRA_SGC
+      fechaRevision: '', fechaSolicitud: '', nombreDocumento: '',
+      responsable: RESPONSABLE_LISTA_MAESTRA_SGC
     };
   }
 
@@ -924,28 +1123,83 @@ export class SgcSolicitudDocumentosComponent implements OnInit, OnDestroy {
     if (this.visorDocumentoAbierto) this.cerrarVisorDocumento();
   }
 
-  private detectarTipoArchivo(): 'PDF' | 'Sheet' | 'Doc' {
+  private detectarTipoArchivoGestion(): TipoArchivoGestion {
     const formato = this.contexto?.formatoDescarga;
-    const origen = String(formato?.origen || '').toLowerCase();
-    const codigo = String(this.solicitudActiva?.codigo || formato?.codigo || '');
+    const codigo = String(
+      this.solicitudActiva?.codigo || formato?.codigo || this.codigoDocumentoActivo || ''
+    ).trim();
+    const plantillaCentro = resolverPlantillaCentroSgcPorCodigo(
+      codigo,
+      this.authService.esSuperusuario()
+    )?.plantilla;
+    if (plantillaCentro) {
+      const icono = tipoIconoPlantilla(plantillaCentro);
+      if (icono === 'excel' || icono === 'word' || icono === 'pdf') {
+        return icono;
+      }
+    }
+
     const descriptor = [
-      origen,
-      this.solicitudActiva?.tipo_documento,
+      formato?.origen,
       formato?.nombre_archivo,
-      formato?.titulo
+      formato?.titulo,
+      plantillaCentro?.nombre,
+      this.solicitudActiva?.tipo_documento,
+      this.solicitudActiva?.nombre_documento
     ].join(' ').toLowerCase();
 
-    if (origen === 'formato_interactivo'
-      || /-F-\d+/i.test(codigo)
-      || /sheet|hoja|excel|xlsx?|csv/.test(descriptor)) {
-      return 'Sheet';
+    if (/\.pptx?\b|powerpoint|presentaci[oó]n/.test(descriptor)) return 'pptx';
+    if (/\.xlsx?\b|\.xls\b|excel|sheet|hoja de c[aá]lculo/.test(descriptor)) return 'excel';
+    if (/\.docx?\b|\.doc\b|word|documento de texto/.test(descriptor)) return 'word';
+    if (/\.pdf\b|instructivo|procedimiento/.test(descriptor) || String(formato?.origen || '').includes('instructivo')
+      || String(formato?.origen || '').includes('procedimiento')) {
+      return 'pdf';
     }
-    if (origen.includes('instructivo')
-      || origen.includes('procedimiento')
-      || /pdf|powerpoint|presentaci[oó]n|pptx?/.test(descriptor)) {
-      return 'PDF';
+    // Formatos interactivos sin extensión clara: por defecto Excel (Sheets).
+    if (String(formato?.origen || '').toLowerCase() === 'formato_interactivo') {
+      return 'excel';
     }
-    return 'Doc';
+    return 'otro';
+  }
+
+  private montarEditorUrl(id: string, modoEdicion: boolean): void {
+    const tipo = this.tipoArchivoGestion;
+    const modo = modoEdicion ? 'edit?usp=sharing' : 'preview';
+    let url: string;
+    if (tipo === 'excel') {
+      url = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/${modo}`;
+    } else if (tipo === 'word') {
+      url = `https://docs.google.com/document/d/${encodeURIComponent(id)}/${modo}`;
+    } else {
+      // PDF / PPT / binarios: preview de Drive (evita el error de Google Docs).
+      url = `https://drive.google.com/file/d/${encodeURIComponent(id)}/preview`;
+    }
+    this.editorUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    // Si el iframe no dispara load (bloqueado), no dejar el spinner infinito.
+    window.setTimeout(() => {
+      if (this.editorAbierto) this.editorCargando = false;
+    }, 4500);
+  }
+
+  private montarVisorUrl(id: string): void {
+    const tipo = this.tipoArchivoGestion;
+    let url: string;
+    if (tipo === 'excel') {
+      // Mismo patrón que Centro SGC (archivos sistema Sheets).
+      url = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/edit?usp=sharing`;
+    } else if (tipo === 'word') {
+      // Docs nativos (sistema). /preview falla con frecuencia en iframe; edit+sharing es estable.
+      url = `https://docs.google.com/document/d/${encodeURIComponent(id)}/edit?usp=sharing`;
+    } else if (tipo === 'pdf' || tipo === 'pptx') {
+      // Proxy backend evita muro de login / errores de embed en PDF.
+      url = this.backend.obtenerUrlDrivePreview(id);
+    } else {
+      url = `https://drive.google.com/file/d/${encodeURIComponent(id)}/preview`;
+    }
+    this.visorDocumentoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    window.setTimeout(() => {
+      if (this.visorDocumentoAbierto) this.visorCargando = false;
+    }, 4500);
   }
 
   private bloquearScroll(): void {

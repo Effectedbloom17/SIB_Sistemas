@@ -7,6 +7,7 @@ import {
   AVISO_AREA_META,
   AvisosPopupService
 } from 'src/app/services/avisos-popup.service';
+import { biznaguitaAsset, onBiznaguitaAssetError } from 'src/app/utils/biznaguita-assets';
 
 type TabKey = 'todas' | AvisoPopupArea;
 
@@ -17,13 +18,18 @@ type TabKey = 'todas' | AvisoPopupArea;
 })
 export class BiznaguitaGestorAvisosComponent implements OnInit, OnDestroy {
   abierto = false;
+  /** Clic en la mascota o en un apartado: no se cierra al quitar el cursor. */
+  fijado = false;
   tabActiva: TabKey = 'todas';
   items: AvisoPopupItem[] = [];
   itemsFiltrados: AvisoPopupItem[] = [];
   tabsVisibles: Array<{ key: TabKey; label: string; color: string; count: number }> = [];
   readonly areaMeta = AVISO_AREA_META;
+  readonly imgEstadoInicial = biznaguitaAsset('biznaguita_estado_inicial.png');
+  readonly imgEstadoFinal = biznaguitaAsset('biznaguita_estado_final.png');
 
   private destroy$ = new Subject<void>();
+  private closeTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private avisos: AvisosPopupService,
@@ -32,7 +38,7 @@ export class BiznaguitaGestorAvisosComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     const sync = () => {
-      this.items = this.avisos.todos;
+      this.items = this.sinDuplicados(this.avisos.todos);
       if (this.tabActiva !== 'todas' && this.conteoArea(this.tabActiva) === 0) {
         this.tabActiva = 'todas';
       }
@@ -45,6 +51,7 @@ export class BiznaguitaGestorAvisosComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.limpiarCierre();
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -53,19 +60,39 @@ export class BiznaguitaGestorAvisosComponent implements OnInit, OnDestroy {
     return this.items.length;
   }
 
-  toggle(event: Event): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.abrirYDejar(false);
+  abrirPorCursor(): void {
+    this.limpiarCierre();
+    if (!this.abierto) {
+      this.tabActiva = 'todas';
+    }
+    this.abierto = true;
+    this.actualizarVista();
   }
 
-  abrirPorCursor(): void {
-    this.abrirYDejar(false);
+  salirPorCursor(): void {
+    if (this.fijado) return;
+    this.limpiarCierre();
+    this.closeTimer = setTimeout(() => {
+      if (!this.fijado) this.abierto = false;
+      this.closeTimer = null;
+    }, 450);
+  }
+
+  fijar(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.limpiarCierre();
+    this.fijado = true;
+    if (!this.abierto) this.tabActiva = 'todas';
+    this.abierto = true;
+    this.actualizarVista();
   }
 
   seleccionarTab(key: TabKey, event: Event): void {
     event.preventDefault();
     event.stopPropagation();
+    this.limpiarCierre();
+    this.fijado = true;
     this.abierto = true;
     this.tabActiva = key;
     this.actualizarVista();
@@ -74,16 +101,15 @@ export class BiznaguitaGestorAvisosComponent implements OnInit, OnDestroy {
   abrirItem(item: AvisoPopupItem, event: Event): void {
     event.preventDefault();
     event.stopPropagation();
-    this.avisos.abrir(item);
-    this.actualizarVista();
-    this.abierto = false;
+    this.avisos.ir(item);
   }
 
   @HostListener('document:click', ['$event'])
   cerrarSiClicFuera(event: MouseEvent): void {
-    if (!this.abierto) return;
+    if (!this.abierto || !this.fijado) return;
     const target = event.target as Node | null;
     if (target && this.host.nativeElement.contains(target)) return;
+    this.fijado = false;
     this.abierto = false;
   }
 
@@ -95,13 +121,16 @@ export class BiznaguitaGestorAvisosComponent implements OnInit, OnDestroy {
     return this.areaMeta[area]?.titulo || area;
   }
 
-  trackByItem(_i: number, item: AvisoPopupItem): string {
-    return `${item.area}-${item.id}`;
+  onErrorImg(event: Event, fileName: string): void {
+    onBiznaguitaAssetError(event, fileName);
   }
 
-  trackByTabKey(_i: number, tab: { key: TabKey }): string {
-    return tab.key;
-  }
+  /** Arrow: Angular llama trackBy sin `this` del componente. */
+  trackByItem = (_i: number, item: AvisoPopupItem): string => {
+    return BiznaguitaGestorAvisosComponent.claveDeAviso(item);
+  };
+
+  trackByTabKey = (_i: number, tab: { key: TabKey }): string => tab.key;
 
   private actualizarVista(): void {
     this.itemsFiltrados = this.tabActiva === 'todas'
@@ -125,15 +154,55 @@ export class BiznaguitaGestorAvisosComponent implements OnInit, OnDestroy {
     this.tabsVisibles = tabs;
   }
 
-  private abrirYDejar(resetTab: boolean): void {
-    if (!this.abierto || resetTab) {
-      this.tabActiva = 'todas';
-    }
-    this.abierto = true;
-    this.actualizarVista();
-  }
-
   private conteoArea(area: AvisoPopupArea): number {
     return this.items.filter((i) => i.area === area).length;
+  }
+
+  private limpiarCierre(): void {
+    if (this.closeTimer) {
+      clearTimeout(this.closeTimer);
+      this.closeTimer = null;
+    }
+  }
+
+  /** Un aviso por trámite: el popup puede salir más de una vez, el gestor no los clona. */
+  private sinDuplicados(lista: AvisoPopupItem[]): AvisoPopupItem[] {
+    const elegidos = new Map<string, AvisoPopupItem>();
+    for (const item of lista || []) {
+      const clave = BiznaguitaGestorAvisosComponent.claveDeAviso(item);
+      const previo = elegidos.get(clave);
+      if (!previo || this.prioridad(item) < this.prioridad(previo) || (
+        this.prioridad(item) === this.prioridad(previo) && item.id > previo.id
+      )) {
+        elegidos.set(clave, item);
+      }
+    }
+    return [...elegidos.values()];
+  }
+
+  private static claveDeAviso(item: AvisoPopupItem): string {
+    if (!item) return 'x';
+    if (item.area === 'pc' && item.resolutivoId) return `pc-${item.resolutivoId}`;
+    if (item.area === 'sgc' && item.solicitudId) return `sgc-${item.solicitudId}`;
+    if (item.area === 'proyectos' && item.cambioId) return `proy-${item.cambioId}`;
+    return `${item.area}-${item.id}`;
+  }
+
+  private prioridad(item: AvisoPopupItem): number {
+    const tipo = String(item.tipo || '');
+    if (item.area === 'pc') {
+      if (tipo === 'urgente_ingreso') return 0;
+      if (tipo === 'urgente_seguimiento') return 1;
+      return 2;
+    }
+    if (item.area === 'sgc') {
+      if (tipo === 'solicitud') return 0;
+      if (tipo === 'rechazada') return 1;
+      return 2;
+    }
+    if (tipo === 'recordatorio_urgente') return 0;
+    if (tipo === 'revision') return 1;
+    if (tipo === 'recordatorio') return 2;
+    return 3;
   }
 }
