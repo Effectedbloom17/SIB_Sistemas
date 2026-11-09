@@ -1482,7 +1482,6 @@ function mapearResolutivoAtencion(row, estatus) {
         fecha_contacto_iso: toMysqlDate(row.fecha_contacto_empresa),
         municipio: row.municipio || '',
         estado: row.estado || '',
-        origen: normalizarOrigenDespliegue(row.origen),
         dias_hasta_contacto: diasHastaContacto
     };
 }
@@ -1499,21 +1498,17 @@ async function obtenerEstadisticasResolutivosPipc(poolSgc, poolPC = null, poolBi
     );
 
     const atencionResolutivos = [];
-    const cargaResolutivos = [];
     let totalAnio = 0;
     const hoy = new Date();
     const mesActualCal = hoy.getMonth() + 1;
     const anioActual = hoy.getFullYear();
-    const registrosSistema = registros.filter((row) => normalizarOrigenDespliegue(row.origen) === 'sistema');
 
-    for (const row of registrosSistema) {
+    for (const row of registros) {
         const estatus = normalizarEstatusOperativo(row.estatus);
         distribucionMap.set(estatus, (distribucionMap.get(estatus) || 0) + 1);
 
-        const mapeado = mapearResolutivoAtencion(row, estatus);
-        cargaResolutivos.push(mapeado);
         if (ESTATUS_ATENCION_RESOLUTIVO.includes(estatus)) {
-            atencionResolutivos.push(mapeado);
+            atencionResolutivos.push(mapearResolutivoAtencion(row, estatus));
         }
 
         let fechaRef = obtenerFechaBucketResolutivo(row, estatus);
@@ -1590,41 +1585,6 @@ async function obtenerEstadisticasResolutivosPipc(poolSgc, poolPC = null, poolBi
         total: atencionResolutivos.filter((r) => r.estatus === estatus).length
     }));
 
-    const vencimientosPorMes = mesesLabels.map((mesLabel, idx) => ({
-        mes: idx + 1,
-        mes_label: mesLabel,
-        total: 0
-    }));
-    const tiposMap = new Map();
-    for (const row of registrosSistema) {
-        const estatus = normalizarEstatusOperativo(row.estatus);
-        const tipo = String(row.tipo_tramite || '').trim();
-        if (tipo) {
-            if (!tiposMap.has(tipo)) {
-                tiposMap.set(tipo, {
-                    tipo,
-                    vigentes: 0,
-                    proximo: 0,
-                    vencido: 0,
-                    tramite: 0,
-                    total: 0
-                });
-            }
-            const bucket = tiposMap.get(tipo);
-            bucket.total += 1;
-            if (estatus === 'Vigentes') bucket.vigentes += 1;
-            else if (estatus === 'Próximo a vencer') bucket.proximo += 1;
-            else if (estatus === 'Vencido') bucket.vencido += 1;
-            else bucket.tramite += 1;
-        }
-
-        const fv = parseFechaInput(row.fecha_vencimiento);
-        if (fv && fv.getFullYear() === anioNum) {
-            vencimientosPorMes[fv.getMonth()].total += 1;
-        }
-    }
-    const porTipo = [...tiposMap.values()].sort((a, b) => b.total - a.total || a.tipo.localeCompare(b.tipo));
-
     return {
         anio: anioNum,
         total: totalGeneral,
@@ -1633,10 +1593,7 @@ async function obtenerEstadisticasResolutivosPipc(poolSgc, poolPC = null, poolBi
         variacion_mensual: variacionMensual,
         distribucion,
         por_mes: porMes,
-        vencimientos_por_mes: vencimientosPorMes,
-        por_tipo: porTipo,
         estatus_orden: ESTATUS_RESOLUTIVO_ORDEN,
-        carga: cargaResolutivos,
         atencion: {
             total: atencionResolutivos.length,
             por_estatus: atencionPorEstatus,
