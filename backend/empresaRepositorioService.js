@@ -720,6 +720,213 @@ async function renombrarDocumento(pool, empresaId, id, body) {
     return obtenerDocumento(pool, empresaRow.empresa_id, id);
 }
 
+/**
+ * Renombra una carpeta (y actualiza rutas hijas + documentos) en BD y Drive.
+ * Body: { ruta, nombre } o { ruta, nombre_nuevo / nombreNuevo }.
+ */
+async function renombrarCarpeta(pool, empresaId, body) {
+    await asegurarTablas(pool);
+    const empresaRow = await obtenerEmpresaRow(pool, empresaId);
+    const rutaActual = sanitizarCarpetaRelativa(body?.ruta || body?.ruta_actual || body?.rutaActual);
+    if (!rutaActual) {
+        throw new Error('Indica la carpeta a renombrar.');
+    }
+
+    const nombreNuevo = sanitizarTexto(
+        body?.nombre || body?.nombre_nuevo || body?.nombreNuevo || body?.name,
+        120
+    ).replace(/[/\\?%*:|"<>]/g, '_');
+    if (!nombreNuevo) {
+        throw new Error('Indica un nombre para la carpeta.');
+    }
+
+    const partes = rutaActual.split('/');
+    const nombreActual = partes[partes.length - 1] || '';
+    const padre = partes.slice(0, -1).join('/');
+    const rutaNueva = unirRutaCarpeta(padre, nombreNuevo);
+
+    if (!rutaNueva) {
+        throw new Error('Ruta de carpeta inválida.');
+    }
+    if (rutaNueva === rutaActual) {
+        const [mismo] = await pool.query(
+            `SELECT id, empresa_id, ruta, nombre, drive_folder_id, creada_por, created_at
+             FROM empresa_repositorio_carpetas
+             WHERE empresa_id = ? AND ruta = ? LIMIT 1`,
+            [empresaRow.empresa_id, rutaActual]
+        );
+        if (mismo.length) {
+            return formatearCarpeta(mismo[0]);
+        }
+        return {
+            id: null,
+            empresaId: empresaRow.empresa_id,
+            ruta: rutaActual,
+            nombre: nombreActual,
+            driveFolderId: null,
+            creadaPor: null,
+            fechaCreacion: null
+        };
+    }
+
+    // Evitar que la nueva ruta sea ancestro/descendiente conflictiva de sí misma.
+    if (rutaNueva.startsWith(`${rutaActual}/`)) {
+        throw new Error('El nuevo nombre genera una ruta inválida.');
+    }
+
+    const [destinoExistente] = await pool.query(
+        `SELECT id FROM empresa_repositorio_carpetas WHERE empresa_id = ? AND ruta = ? LIMIT 1`,
+        [empresaRow.empresa_id, rutaNueva]
+    );
+    if (destinoExistente.length) {
+        throw new Error(`Ya existe la carpeta «${nombreNuevo}».`);
+    }
+
+    const [docsConflicto] = await pool.query(
+        `SELECT id FROM empresa_repositorio
+         WHERE empresa_id = ? AND (carpeta_relativa = ? OR carpeta_relativa LIKE ?)
+         LIMIT 1`,
+        [empresaRow.empresa_id, rutaNueva, `${rutaNueva}/%`]
+    );
+    if (docsConflicto.length) {
+        throw new Error(`Ya existe contenido en la ruta «${rutaNueva}».`);
+    }
+
+    const [carpetaRows] = await pool.query(
+        `SELECT id, ruta, nombre, drive_folder_id, creada_por, created_at
+         FROM empresa_repositorio_carpetas
+         WHERE empresa_id = ? AND (ruta = ? OR ruta LIKE ?)
+         ORDER BY CHAR_LENGTH(ruta) ASC`,
+        [empresaRow.empresa_id, rutaActual, `${rutaActual}/%`]
+    );
+
+    let driveFolderId = carpetaRows.find((c) => c.ruta === rutaActual)?.drive_folder_id || null;
+    if (!driveFolderId) {
+        const [docRows] = await pool.query(
+            `SELECT carpeta_drive_id
+             FROM empresa_repositorio
+             WHERE empresa_id = ? AND carpeta_relativa = ?
+             LIMIT 1`,
+            [empresaRow.empresa_id, rutaActual]
+        );
+        driveFolderId = docRows[0]?.carpeta_drive_id || null;
+    }
+    if (!driveFolderId) {
+        // Crear/resolver carpeta en Drive si aún no estaba registrada.
+        driveFolderId = await resolverCarpetaDrivePorRuta(pool, empresaRow, rutaActual);
+    }
+
+    if (driveFolderId) {
+        try {
+            await driveService.renombrarCarpetaPorId(driveFolderId, nombreNuevo);
+        } catch (err) {
+            console.warn('[EMP-REPO] No se pudo renombrar carpeta en Drive:', err.message);
+            throw new Error('No se pudo renombrar la carpeta en Google Drive.');
+        }
+    }
+
+    const prefijoLen = rutaActual.length;
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        // Documentos: carpeta exacta + subcarpetas.
+        await conn.query(
+            `UPDATE empresa_repositorio
+             SET carpeta_relativa = CASE
+                    WHEN carpeta_relativa = ? THEN ?
+                    ELSE CONCAT(?, SUBSTRING(carpeta_relativa, ?))
+                  END,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE empresa_id = ?
+               AND (carpeta_relativa = ? OR carpeta_relativa LIKE ?)`,
+            [
+                rutaActual,
+                rutaNueva,
+                rutaNueva,
+                prefijoLen + 1,
+                empresaRow.empresa_id,
+                rutaActual,
+                `${rutaActual}/%`
+            ]
+        );
+
+        if (carpetaRows.length) {
+            // Actualizar de rutas más largas a más cortas para no chocar con UNIQUE.
+            const ordenadas = [...carpetaRows].sort(
+                (a, b) => String(b.ruta || '').length - String(a.ruta || '').length
+            );
+            for (const row of ordenadas) {
+                const rutaVieja = sanitizarCarpetaRelativa(row.ruta);
+                let rutaDestino = rutaNueva;
+                if (rutaVieja !== rutaActual) {
+                    rutaDestino = `${rutaNueva}${rutaVieja.slice(prefijoLen)}`;
+                }
+                const nombreDestino = rutaVieja === rutaActual
+                    ? nombreNuevo
+                    : (rutaDestino.split('/').pop() || row.nombre);
+                await conn.query(
+                    `UPDATE empresa_repositorio_carpetas
+                     SET ruta = ?, nombre = ?, drive_folder_id = COALESCE(drive_folder_id, ?)
+                     WHERE id = ? AND empresa_id = ?`,
+                    [
+                        rutaDestino,
+                        nombreDestino,
+                        rutaVieja === rutaActual ? driveFolderId : null,
+                        row.id,
+                        empresaRow.empresa_id
+                    ]
+                );
+            }
+        } else {
+            await conn.query(
+                `INSERT INTO empresa_repositorio_carpetas
+                    (empresa_id, ruta, nombre, drive_folder_id)
+                 VALUES (?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                    nombre = VALUES(nombre),
+                    drive_folder_id = COALESCE(VALUES(drive_folder_id), drive_folder_id)`,
+                [empresaRow.empresa_id, rutaNueva, nombreNuevo, driveFolderId]
+            );
+        }
+
+        await conn.commit();
+    } catch (err) {
+        try {
+            await conn.rollback();
+        } catch {
+            /* ignore */
+        }
+        // Intentar revertir el nombre en Drive si falló la BD.
+        if (driveFolderId && nombreActual) {
+            try {
+                await driveService.renombrarCarpetaPorId(driveFolderId, nombreActual);
+            } catch (revertErr) {
+                console.warn('[EMP-REPO] No se pudo revertir nombre en Drive:', revertErr.message);
+            }
+        }
+        throw err;
+    } finally {
+        conn.release();
+    }
+
+    const [finalRows] = await pool.query(
+        `SELECT id, empresa_id, ruta, nombre, drive_folder_id, creada_por, created_at
+         FROM empresa_repositorio_carpetas
+         WHERE empresa_id = ? AND ruta = ? LIMIT 1`,
+        [empresaRow.empresa_id, rutaNueva]
+    );
+    return formatearCarpeta(finalRows[0]) || {
+        id: null,
+        empresaId: empresaRow.empresa_id,
+        ruta: rutaNueva,
+        nombre: nombreNuevo,
+        driveFolderId,
+        creadaPor: null,
+        fechaCreacion: null
+    };
+}
+
 async function eliminarCarpeta(pool, empresaId, rutaRelativa) {
     await asegurarTablas(pool);
     const empresaRow = await obtenerEmpresaRow(pool, empresaId);
@@ -1098,6 +1305,7 @@ module.exports = {
     subirDocumento,
     subirDocumentosLote,
     crearCarpeta,
+    renombrarCarpeta,
     moverDocumento,
     renombrarDocumento,
     eliminarCarpeta,

@@ -33,6 +33,9 @@ export interface EmpresaRepoCarpeta {
 
 type VistaPreview = 'pdf' | 'imagen' | 'office' | 'icono';
 type MiniaturaModo = 'imagen' | 'icono';
+type FiltroTipoRepo = 'todos' | 'pdf' | 'documentos' | 'imagenes';
+type OrdenCampoRepo = 'nombre' | 'fecha' | 'tamano' | 'tipo';
+type OrdenDirRepo = 'asc' | 'desc';
 
 interface MiniaturaEstado {
   modo: MiniaturaModo;
@@ -60,6 +63,11 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
   carpetasVista: EmpresaRepoCarpeta[] = [];
   documentosVista: EmpresaRepoItem[] = [];
   busqueda = '';
+  /** Filtro lateral por tipo de archivo. */
+  filtroTipo: FiltroTipoRepo = 'todos';
+  /** Criterio de orden de documentos (y carpetas cuando aplica). */
+  ordenCampo: OrdenCampoRepo = 'nombre';
+  ordenDir: OrdenDirRepo = 'asc';
   cargandoLista = false;
   errorLista: string | null = null;
 
@@ -331,21 +339,144 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
     if (q) {
       // Búsqueda global: muestra archivos que coincidan (sin navegación de carpetas).
       this.carpetasVista = [];
-      this.documentosVista = this.documentos.filter(
-        d =>
-          d.nombreArchivo.toLowerCase().includes(q) ||
-          (d.titulo || '').toLowerCase().includes(q) ||
-          this.normalizarRuta(d.carpetaRelativa).toLowerCase().includes(q)
+      this.documentosVista = this.ordenarDocumentos(
+        this.documentos.filter(
+          d =>
+            this.coincideFiltroTipo(d) &&
+            (d.nombreArchivo.toLowerCase().includes(q) ||
+              (d.titulo || '').toLowerCase().includes(q) ||
+              this.normalizarRuta(d.carpetaRelativa).toLowerCase().includes(q))
+        )
       );
       this.precargarMiniaturas(this.documentosVista);
       return;
     }
 
-    this.carpetasVista = this.obtenerCarpetasHijas(actual);
-    this.documentosVista = this.documentos.filter(
-      d => this.normalizarRuta(d.carpetaRelativa) === actual
+    // Con filtro por tipo solo listamos archivos; las carpetas se ocultan.
+    this.carpetasVista = this.filtroTipo === 'todos'
+      ? this.ordenarCarpetas(this.obtenerCarpetasHijas(actual))
+      : [];
+    this.documentosVista = this.ordenarDocumentos(
+      this.documentos.filter(
+        d => this.normalizarRuta(d.carpetaRelativa) === actual && this.coincideFiltroTipo(d)
+      )
     );
     this.precargarMiniaturas(this.documentosVista);
+  }
+
+  setFiltroTipo(tipo: FiltroTipoRepo): void {
+    this.filtroTipo = tipo;
+    this.aplicarFiltro();
+  }
+
+  setOrdenCampo(campo: OrdenCampoRepo): void {
+    if (this.ordenCampo === campo) {
+      this.ordenDir = this.ordenDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.ordenCampo = campo;
+      this.ordenDir = campo === 'fecha' || campo === 'tamano' ? 'desc' : 'asc';
+    }
+    this.aplicarFiltro();
+  }
+
+  setOrdenDesdeSelect(campo: OrdenCampoRepo | string): void {
+    const next = (campo || 'nombre') as OrdenCampoRepo;
+    if (this.ordenCampo === next) {
+      this.aplicarFiltro();
+      return;
+    }
+    this.ordenCampo = next;
+    this.ordenDir = next === 'fecha' || next === 'tamano' ? 'desc' : 'asc';
+    this.aplicarFiltro();
+  }
+
+  toggleOrdenDir(): void {
+    this.ordenDir = this.ordenDir === 'asc' ? 'desc' : 'asc';
+    this.aplicarFiltro();
+  }
+
+  get etiquetaOrdenActual(): string {
+    const map: Record<OrdenCampoRepo, string> = {
+      nombre: 'Nombre',
+      fecha: 'Fecha',
+      tamano: 'Tamaño',
+      tipo: 'Tipo'
+    };
+    return map[this.ordenCampo] || 'Nombre';
+  }
+
+  private coincideFiltroTipo(doc: EmpresaRepoItem): boolean {
+    switch (this.filtroTipo) {
+      case 'pdf':
+        return this.esTipoPdf(doc);
+      case 'documentos':
+        return this.esTipoDocumento(doc) && !this.esTipoPdf(doc);
+      case 'imagenes':
+        return this.esTipoImagen(doc);
+      default:
+        return true;
+    }
+  }
+
+  private ordenarDocumentos(docs: EmpresaRepoItem[]): EmpresaRepoItem[] {
+    const dir = this.ordenDir === 'asc' ? 1 : -1;
+    return [...docs].sort((a, b) => {
+      let cmp = 0;
+      switch (this.ordenCampo) {
+        case 'fecha': {
+          const ta = new Date(a.fechaSubida || a.fechaActualizacion || 0).getTime() || 0;
+          const tb = new Date(b.fechaSubida || b.fechaActualizacion || 0).getTime() || 0;
+          cmp = ta - tb;
+          break;
+        }
+        case 'tamano':
+          cmp = (Number(a.tamanoBytes) || 0) - (Number(b.tamanoBytes) || 0);
+          break;
+        case 'tipo':
+          cmp = this.etiquetaTipo(a.mimeType, a.nombreArchivo)
+            .localeCompare(this.etiquetaTipo(b.mimeType, b.nombreArchivo), 'es', { sensitivity: 'base' });
+          break;
+        case 'nombre':
+        default:
+          cmp = String(a.nombreArchivo || '').localeCompare(String(b.nombreArchivo || ''), 'es', {
+            sensitivity: 'base',
+            numeric: true
+          });
+          break;
+      }
+      if (cmp === 0) {
+        cmp = String(a.nombreArchivo || '').localeCompare(String(b.nombreArchivo || ''), 'es', {
+          sensitivity: 'base',
+          numeric: true
+        });
+      }
+      return cmp * dir;
+    });
+  }
+
+  private ordenarCarpetas(carpetas: EmpresaRepoCarpeta[]): EmpresaRepoCarpeta[] {
+    const dir = this.ordenDir === 'asc' ? 1 : -1;
+    return [...carpetas].sort((a, b) => {
+      let cmp = 0;
+      if (this.ordenCampo === 'tamano') {
+        cmp = this.tamanoCarpeta(a) - this.tamanoCarpeta(b);
+      } else if (this.ordenCampo === 'fecha') {
+        // Sin fecha propia: por cantidad de archivos como proxy estable.
+        cmp = (a.cantidad || 0) - (b.cantidad || 0);
+      } else {
+        cmp = String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es', {
+          sensitivity: 'base',
+          numeric: true
+        });
+      }
+      if (cmp === 0) {
+        cmp = String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es', {
+          sensitivity: 'base',
+          numeric: true
+        });
+      }
+      return cmp * dir;
+    });
   }
 
   setVistaArchivos(vista: 'grid' | 'lista'): void {
@@ -591,6 +722,146 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
       return;
     }
     this.eliminarCarpeta(carpeta);
+  }
+
+  renombrarCarpetaActual(): void {
+    if (!this.puedeAdministrar) {
+      return;
+    }
+    const carpeta = this.carpetaActualVista;
+    if (!carpeta) {
+      return;
+    }
+    void this.renombrarCarpeta(carpeta);
+  }
+
+  async renombrarCarpeta(carpeta: EmpresaRepoCarpeta, event?: Event): Promise<void> {
+    event?.stopPropagation();
+    if (!this.puedeAdministrar) {
+      return;
+    }
+
+    const nombreActual = String(carpeta.nombre || '').trim();
+    const { value: nombre } = await Swal.fire({
+      title: 'Renombrar carpeta',
+      width: 560,
+      padding: 0,
+      showCancelButton: true,
+      reverseButtons: true,
+      focusConfirm: false,
+      confirmButtonText: '<i class="fas fa-check mr-1" aria-hidden="true"></i> Guardar nombre',
+      cancelButtonText: 'Cancelar',
+      customClass: {
+        container: 'swal2-repo-rename-container',
+        popup: 'swal2-repo-rename',
+        confirmButton: 'swal2-repo-rename__btn-ok',
+        cancelButton: 'swal2-repo-rename__btn-cancel'
+      },
+      html: `
+        <div class="repo-rename-card">
+          <header class="repo-rename-card__head">
+            <span class="repo-rename-card__icon" aria-hidden="true">
+              <i class="fas fa-folder"></i>
+            </span>
+            <div class="repo-rename-card__titles">
+              <p class="repo-rename-card__eyebrow">Repositorio empresarial</p>
+              <h3 class="repo-rename-card__title">Renombrar carpeta</h3>
+              <p class="repo-rename-card__sub">También se actualizará el nombre en Drive.</p>
+            </div>
+          </header>
+          <div class="repo-rename-card__body">
+            <label class="repo-rename-card__label" for="swal-repo-rename-folder">Nuevo nombre</label>
+            <div class="repo-rename-field">
+              <input id="swal-repo-rename-folder"
+                     class="repo-rename-field__input"
+                     type="text"
+                     value="${this.escapeHtml(nombreActual)}"
+                     placeholder="Nombre de la carpeta"
+                     autocomplete="off"
+                     spellcheck="false">
+            </div>
+          </div>
+        </div>
+      `,
+      didOpen: () => {
+        const input = document.getElementById('swal-repo-rename-folder') as HTMLInputElement | null;
+        if (!input) {
+          return;
+        }
+        input.focus();
+        input.select();
+        input.addEventListener('keydown', (ev: KeyboardEvent) => {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            Swal.clickConfirm();
+          }
+        });
+      },
+      preConfirm: () => {
+        const input = document.getElementById('swal-repo-rename-folder') as HTMLInputElement | null;
+        const n = String(input?.value || '').trim();
+        if (!n) {
+          Swal.showValidationMessage('Escribe un nombre para la carpeta.');
+          return false;
+        }
+        if (/[/\\?%*:|"<>]/.test(n)) {
+          Swal.showValidationMessage('El nombre no puede contener caracteres especiales.');
+          return false;
+        }
+        if (n === nombreActual) {
+          Swal.showValidationMessage('El nombre es el mismo que el actual.');
+          return false;
+        }
+        return n;
+      }
+    });
+
+    if (!nombre) {
+      return;
+    }
+
+    const nombreNuevo = String(nombre).trim();
+    const rutaAnterior = this.normalizarRuta(carpeta.ruta);
+    try {
+      const resp: any = await firstValueFrom(
+        this.backend
+          .renombrarEmpresaRepositorioCarpeta(this.empresaId, {
+            ruta: rutaAnterior,
+            nombre: nombreNuevo
+          })
+          .pipe(takeUntil(this.destroy$))
+      );
+      const rutaNueva = this.normalizarRuta(resp?.carpeta?.ruta || '');
+      if (rutaNueva && this.normalizarRuta(this.carpetaActual) === rutaAnterior) {
+        this.carpetaActual = rutaNueva;
+      } else if (rutaNueva) {
+        const actual = this.normalizarRuta(this.carpetaActual);
+        if (actual === rutaAnterior || actual.startsWith(rutaAnterior + '/')) {
+          this.carpetaActual = `${rutaNueva}${actual.slice(rutaAnterior.length)}`;
+        }
+      }
+      this.cargarLista();
+      await Swal.fire({
+        icon: 'success',
+        title: 'Carpeta renombrada',
+        html: `<p class="mb-1">Ahora se llama <strong>${this.escapeHtml(nombreNuevo)}</strong>.</p>
+               <div class="fm-alert-destino"><i class="fab fa-google-drive"></i> También se actualizó en Drive</div>`,
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#38512F',
+        timer: 3200,
+        timerProgressBar: true,
+        customClass: { popup: 'swal2-fm-alert swal2-fm-alert--repo' }
+      });
+    } catch (err: any) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'No se pudo renombrar',
+        text: err?.error?.message || err?.message || 'No se pudo renombrar la carpeta.',
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#38512F',
+        customClass: { popup: 'swal2-fm-alert swal2-fm-alert--repo' }
+      });
+    }
   }
 
   eliminarCarpeta(carpeta: EmpresaRepoCarpeta, event?: Event): void {

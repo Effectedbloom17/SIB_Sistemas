@@ -668,22 +668,31 @@ async function crearCriterio(pool, body = {}) {
             }
         }
     }
-    let clave = slugCriterio(nombre);
-    if (CLAVES_SISTEMA.includes(clave) || clave.length < 2) {
-        clave = `${clave}_${crypto.randomBytes(3).toString('hex')}`;
-    }
-    const [existentes] = await pool.query(
+    // Aviso si el nombre ya existe en la misma área; igual se permite crear.
+    const [dupArea] = await pool.query(
         `SELECT clave FROM sgc_f29_criterios
-         WHERE clave = ?
-            OR (area_clave = ? AND (LOWER(largo) = LOWER(?) OR LOWER(corto) = LOWER(?)))
+         WHERE area_clave = ?
+           AND (LOWER(largo) = LOWER(?) OR LOWER(corto) = LOWER(?))
          LIMIT 1`,
-        [clave, areaClave, nombre, nombre]
+        [areaClave, nombre, nombre]
     );
-    if (existentes?.length) {
-        const err = new Error('Ya existe un criterio con ese nombre en el área.');
-        err.statusCode = 409;
-        throw err;
+    const duplicadoEnArea = !!(dupArea && dupArea.length);
+
+    // Clave única por área: el mismo nombre puede repetirse en otra área.
+    const baseSlug = slugCriterio(nombre);
+    let clave = `${baseSlug}_${areaClave}`.slice(0, 64);
+    if (CLAVES_SISTEMA.includes(clave) || CLAVES_SISTEMA.includes(baseSlug) || clave.length < 2) {
+        clave = `${baseSlug.slice(0, 40)}_${areaClave}_${crypto.randomBytes(2).toString('hex')}`.slice(0, 64);
     }
+    for (let intento = 0; intento < 10; intento += 1) {
+        const [clash] = await pool.query(
+            'SELECT clave FROM sgc_f29_criterios WHERE clave = ? LIMIT 1',
+            [clave]
+        );
+        if (!clash?.length) break;
+        clave = `${baseSlug.slice(0, 36)}_${areaClave}_${crypto.randomBytes(3).toString('hex')}`.slice(0, 64);
+    }
+
     const [maxOrd] = await pool.query('SELECT COALESCE(MAX(orden), 0) AS m FROM sgc_f29_criterios');
     const orden = Number(maxOrd?.[0]?.m || 0) + 1;
     await pool.query(
@@ -692,7 +701,10 @@ async function crearCriterio(pool, body = {}) {
          VALUES (?, ?, ?, ?, ?, 0, 1, ?, ?)`,
         [clave, nombre, nombre, escala, areaClave, orden, JSON.stringify(descripciones)]
     );
-    return listarCriterios(pool);
+    return {
+        criterios: await listarCriterios(pool),
+        duplicadoEnArea
+    };
 }
 
 function puntajeDeItem(item, clave) {

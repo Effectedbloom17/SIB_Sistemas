@@ -2883,8 +2883,8 @@ function esSuperusuarioSgc(req) {
     return userRoles.includes('root');
 }
 
-/** SGC-F-29: ocultar proveedores — Sergio (calidad) o superusuario (root). */
-function puedeOcultarProveedorF29(req) {
+/** SGC-F-29: gestionar catálogo de áreas — Sergio (calidad) o superusuario (root). */
+function puedeGestionarAreasF29(req) {
     return esSuperusuarioSgc(req) || esGestorCalidadSgc(req);
 }
 
@@ -30153,12 +30153,8 @@ app.get('/api/sgc/formatos/sgc-f-29/ocultos', requireAdminOrSgc, async (req, res
 app.post('/api/sgc/formatos/sgc-f-29/visibilidad', requireAdminOrSgc, async (req, res) => {
     try {
         const ocultar = req.body?.oculto === true || req.body?.oculto === 'true' || req.body?.oculto === 1;
-        if (ocultar && !puedeOcultarProveedorF29(req)) {
-            return res.status(403).json({
-                success: false,
-                message: 'No tienes permiso para ocultar proveedores.'
-            });
-        }
+        // Ocultar: cualquier editor con acceso de escritura al formato (requireAdminOrSgc).
+        // Restaurar: solo superusuario.
         if (!ocultar && !esSuperusuarioSgc(req)) {
             return res.status(403).json({
                 success: false,
@@ -30198,7 +30194,7 @@ app.get('/api/sgc/formatos/sgc-f-29/areas', requireAdminOrSgc, async (req, res) 
 
 app.post('/api/sgc/formatos/sgc-f-29/areas', requireAdminOrSgc, async (req, res) => {
     try {
-        if (!puedeOcultarProveedorF29(req)) {
+        if (!puedeGestionarAreasF29(req)) {
             return res.status(403).json({
                 success: false,
                 message: 'Solo Calidad o el superadministrador pueden agregar áreas.'
@@ -30233,11 +30229,16 @@ app.get('/api/sgc/formatos/sgc-f-29/criterios', requireAdminOrSgc, async (req, r
 app.post('/api/sgc/formatos/sgc-f-29/criterios', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const criterios = await sgcF29Service.crearCriterio(poolBiznagaSgc, req.body || {});
+        const result = await sgcF29Service.crearCriterio(poolBiznagaSgc, req.body || {});
+        const criterios = Array.isArray(result) ? result : (result?.criterios || []);
+        const duplicadoEnArea = !Array.isArray(result) && !!result?.duplicadoEnArea;
         return res.json({
             success: true,
-            message: 'Criterio agregado al catálogo.',
-            criterios
+            message: duplicadoEnArea
+                ? 'Criterio agregado. Ya existía uno con el mismo nombre en esta área.'
+                : 'Criterio agregado al catálogo.',
+            criterios,
+            duplicadoEnArea
         });
     } catch (error) {
         if (error.statusCode === 400 || error.statusCode === 409) {
