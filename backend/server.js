@@ -21540,6 +21540,56 @@ app.post('/api/sgc/solicitud-documentos/:id/autorizar', authMiddleware, requireR
 });
 
 /**
+ * POST /api/sgc/solicitud-documentos/:id/declinar
+ * Declina el cambio en autorización (cierra sin avanzar el flujo).
+ */
+app.post('/api/sgc/solicitud-documentos/:id/declinar', authMiddleware, requireRootOCalidadSgc, async (req, res) => {
+    try {
+        const solicitud = await sgcSolicitudDocumentosService.declinar(pool, req.params.id, {
+            usuarioId: req.user?.id,
+            motivo: req.body?.motivo || req.body?.notas || ''
+        });
+        res.json({ success: true, solicitud, message: 'Cambio declinado.' });
+    } catch (error) {
+        const status = error.status || 500;
+        if (status >= 400 && status < 500) {
+            return res.status(status).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'Error al declinar solicitud');
+    }
+});
+
+/**
+ * POST /api/sgc/solicitud-documentos/:id/desactivar
+ * Soft delete (activo = 0). Solo superadministrador (root).
+ */
+app.post('/api/sgc/solicitud-documentos/:id/desactivar', authMiddleware, requireRootOCalidadSgc, async (req, res) => {
+    try {
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        if (!userRoles.includes('root')) {
+            return res.status(403).json({
+                success: false,
+                message: 'Solo el superadministrador puede desactivar solicitudes'
+            });
+        }
+        const solicitud = await sgcSolicitudDocumentosService.desactivar(pool, req.params.id);
+        res.json({
+            success: true,
+            solicitud,
+            message: 'Solicitud desactivada (soft delete).'
+        });
+    } catch (error) {
+        const status = error.status || 500;
+        if (status >= 400 && status < 500) {
+            return res.status(status).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'Error al desactivar solicitud');
+    }
+});
+
+/**
  * POST /api/sgc/solicitud-documentos/:id/reemplazar-formato
  * Reemplaza archivo asociado (descarga o formato interactivo) y avanza a lista maestra.
  */
@@ -21792,6 +21842,19 @@ app.post('/api/sgc/solicitud-documentos/:id/lista-maestra', authMiddleware, requ
         }
 
         const payloadF01 = await sgcSgcF01Service.actualizarDocumento(poolBiznagaSgc, { documento });
+
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const fechaSolicitudNueva = String(req.body?.fechaSolicitud || '').trim().slice(0, 10);
+        if (userRoles.includes('root') && /^\d{4}-\d{2}-\d{2}$/.test(fechaSolicitudNueva)) {
+            await sgcSolicitudDocumentosService.actualizarFechaSolicitud(
+                pool,
+                req.params.id,
+                fechaSolicitudNueva
+            );
+        }
+
         const solicitud = await sgcSolicitudDocumentosService.marcarListaMaestraListo(
             pool,
             req.params.id,
@@ -30123,10 +30186,44 @@ app.post('/api/sgc/formatos/sgc-f-29/visibilidad', requireAdminOrSgc, async (req
     }
 });
 
+app.get('/api/sgc/formatos/sgc-f-29/areas', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const areas = await sgcF29Service.listarAreas(poolBiznagaSgc);
+        return res.json({ success: true, areas });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron listar las áreas de SGC-F-29');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-29/areas', requireAdminOrSgc, async (req, res) => {
+    try {
+        if (!puedeOcultarProveedorF29(req)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Solo Calidad o el superadministrador pueden agregar áreas.'
+            });
+        }
+        await poolBiznagaSgcReady;
+        const areas = await sgcF29Service.crearArea(poolBiznagaSgc, req.body || {});
+        return res.json({
+            success: true,
+            message: 'Área agregada al catálogo.',
+            areas
+        });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 409) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo crear el área de SGC-F-29');
+    }
+});
+
 app.get('/api/sgc/formatos/sgc-f-29/criterios', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const criterios = await sgcF29Service.listarCriterios(poolBiznagaSgc);
+        const areaClave = String(req.query?.area || req.query?.areaClave || '').trim();
+        const criterios = await sgcF29Service.listarCriterios(poolBiznagaSgc, areaClave || null);
         return res.json({ success: true, criterios });
     } catch (error) {
         handleError(res, error, 'No se pudieron listar los criterios de SGC-F-29');
@@ -38015,6 +38112,7 @@ app.get('/api/rrhh/colaboradores', requireInternoNoEmpresa, async (req, res) => 
         const forzar = String(req.query.refresh || '') === '1';
         const payload = await rrhhColaboradoresService.listarColaboradores({ forzar, pool });
         // Organigrama abierto: sin enlaces Drive ni metadatos de expediente.
+        // Sí se expone fotoFileId (solo avatar) para que todos los internos vean fotos.
         if (!esGestionRrhhColaboradores(req)) {
             const colaboradores = Array.isArray(payload?.colaboradores)
                 ? payload.colaboradores.map((c) => ({
@@ -38027,7 +38125,7 @@ app.get('/api/rrhh/colaboradores', requireInternoNoEmpresa, async (req, res) => 
                     email: c.email || null,
                     telefono: c.telefono || null,
                     tieneExpediente: false,
-                    fotoFileId: null,
+                    fotoFileId: c.fotoFileId || null,
                     carpetas: 0,
                     archivos: 0,
                     documentos: 0,
@@ -38051,8 +38149,18 @@ app.get('/api/rrhh/colaboradores', requireInternoNoEmpresa, async (req, res) => 
     }
 });
 
-app.get('/api/rrhh/colaboradores/archivo/:fileId/miniatura', requireAdminOrRrhh, async (req, res) => {
+app.get('/api/rrhh/colaboradores/archivo/:fileId/miniatura', requireInternoNoEmpresa, async (req, res) => {
     try {
+        // Internos no-RH: solo miniatura del avatar del organigrama (no documentos del expediente).
+        if (!esGestionRrhhColaboradores(req)) {
+            const esAvatar = await rrhhColaboradoresService.esAvatarOrganigrama(req.params.fileId, { pool });
+            if (!esAvatar) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'No tiene permisos para ver este archivo'
+                });
+            }
+        }
         const archivo = await rrhhColaboradoresService.servirArchivo(req.params.fileId, { miniatura: true });
         return enviarArchivoRrhhColaborador(res, archivo);
     } catch (error) {

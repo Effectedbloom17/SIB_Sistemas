@@ -52,10 +52,10 @@ function labelTipoSolicitud(tipo) {
 
 function labelPaso(paso) {
     const map = {
-        revision: 'Revisión',
-        formato: 'Cambio de formato',
-        lista_maestra: 'Lista maestra',
-        notificar: 'Notificar sistemas',
+        revision: 'Autorización',
+        formato: 'Revisión',
+        lista_maestra: 'Cambio en la Lista maestra',
+        notificar: 'Notificar a Sistemas',
         cerrado: 'Completado'
     };
     return map[paso] || paso;
@@ -131,7 +131,11 @@ async function asegurarColumnasFlujo(pool) {
         `ALTER TABLE sgc_solicitudes_documento
          ADD COLUMN notificar_sistemas TINYINT(1) NULL AFTER ticket_sistemas_id`,
         `ALTER TABLE sgc_solicitudes_documento
-         ADD COLUMN notas_cambio TEXT NULL AFTER notificar_sistemas`
+         ADD COLUMN notas_cambio TEXT NULL AFTER notificar_sistemas`,
+        `ALTER TABLE sgc_solicitudes_documento
+         ADD COLUMN activo TINYINT(1) NOT NULL DEFAULT 1 AFTER notas_cambio`,
+        `ALTER TABLE sgc_solicitudes_documento
+         ADD COLUMN declinado TINYINT(1) NOT NULL DEFAULT 0 AFTER activo`
     ];
     for (const sql of alters) {
         try {
@@ -172,6 +176,8 @@ async function asegurarTabla(pool) {
             ticket_sistemas_id INT NULL,
             notificar_sistemas TINYINT(1) NULL,
             notas_cambio TEXT NULL,
+            activo TINYINT(1) NOT NULL DEFAULT 1,
+            declinado TINYINT(1) NOT NULL DEFAULT 0,
             nombre_solicitante VARCHAR(255) NOT NULL DEFAULT '',
             puesto_solicitante VARCHAR(255) NOT NULL DEFAULT '',
             fecha_solicitud DATE NOT NULL,
@@ -267,6 +273,8 @@ function mapRow(row) {
         ticket_sistemas_id: row.ticket_sistemas_id != null ? Number(row.ticket_sistemas_id) : null,
         notificar_sistemas: row.notificar_sistemas == null ? null : Number(row.notificar_sistemas) === 1,
         notas_cambio: row.notas_cambio || '',
+        activo: row.activo == null ? true : Number(row.activo) === 1,
+        declinado: Number(row.declinado) === 1,
         nombre_solicitante: row.nombre_solicitante || '',
         puesto_solicitante: String(row.puesto_solicitante || '').trim() || String(row.autor_organigrama || '').trim(),
         fecha_solicitud: row.fecha_solicitud,
@@ -360,12 +368,16 @@ async function crear(pool, payload) {
     return obtenerPorId(pool, solicitudId);
 }
 
-async function listar(pool, { estado, usuarioId = null, paso = null } = {}) {
+async function listar(pool, { estado, usuarioId = null, paso = null, incluirInactivos = false } = {}) {
     await asegurarTabla(pool);
     const estadoFiltro = normalizarEstado(estado);
     const pasoFiltro = normalizarPaso(paso);
     const params = [];
     const clauses = [];
+
+    if (!incluirInactivos) {
+        clauses.push('(s.activo = 1 OR s.activo IS NULL)');
+    }
 
     const uid = Number(usuarioId);
     if (Number.isFinite(uid) && uid > 0) {
@@ -676,11 +688,74 @@ async function listarCatalogoDocumentos(poolSgc, sgcF01Service) {
         }));
 }
 
+/** Servicios SGC con plantilla/sistema conocidos (para no abrir el ID incorrecto). */
+const SERVICIOS_FORMATO_POR_CODIGO = {
+    'DG-F-02': './sgcDgF02Service',
+    'DG-F-03': './sgcDgF03Service',
+    'DG-F-04': './sgcDgF04Service',
+    'DG-F-05': './sgcDgF05Service',
+    'DG-F-07': './sgcDgF07Service',
+    'DG-F-08': './sgcDgF08Service',
+    'SGC-PO-01': './sgcPo01Service',
+    'SGC-F-01': './sgcSgcF01Service',
+    'SGC-F-02': './sgcSgcF02Service',
+    'SGC-F-04': './sgcSgcF04Service',
+    'SGC-F-11': './sgcSgcF11Service',
+    'SGC-F-12': './sgcSgcF12Service',
+    'SGC-F-18': './sgcSgcF18Service',
+    'SGC-F-23': './sgcSgcF23Service'
+};
+
+async function resolverMetaPlantillaSistema(poolSgc, codigo) {
+    const key = String(codigo || '').trim().toUpperCase();
+    const modPath = SERVICIOS_FORMATO_POR_CODIGO[key];
+    if (!modPath) {
+        return { plantillaDriveFileId: '', sistemaDriveFileId: '' };
+    }
+    try {
+        const svc = require(modPath);
+        let plantillaDriveFileId = String(svc.TEMPLATE_DRIVE_ID || '').trim();
+        let sistemaDriveFileId = String(svc.DRIVE_FILE_ID_SISTEMA || '').trim();
+
+        // Word dinámicos: el ID sistema vive en BD (no constante).
+        if ((!sistemaDriveFileId || sistemaDriveFileId === plantillaDriveFileId)
+            && typeof svc.cargarFormato === 'function' && poolSgc) {
+            try {
+                const datos = await svc.cargarFormato(poolSgc);
+                const sistema = String(
+                    datos?.documentoSistemaDriveFileId
+                    || datos?.plantillaSistemaDriveFileId
+                    || datos?.driveFileId
+                    || ''
+                ).trim();
+                if (sistema && sistema !== plantillaDriveFileId) {
+                    sistemaDriveFileId = sistema;
+                }
+                if (!plantillaDriveFileId) {
+                    plantillaDriveFileId = String(datos?.plantillaDriveFileId || '').trim();
+                }
+            } catch (err) {
+                console.warn(`[sgc-sol-doc] meta ${key}:`, err.message);
+            }
+        }
+
+        if (sistemaDriveFileId === plantillaDriveFileId) {
+            sistemaDriveFileId = '';
+        }
+        return { plantillaDriveFileId, sistemaDriveFileId };
+    } catch (err) {
+        console.warn(`[sgc-sol-doc] servicio ${key}:`, err.message);
+        return { plantillaDriveFileId: '', sistemaDriveFileId: '' };
+    }
+}
+
 async function resolverArchivoPorCodigo(poolSgc, formatosDescargaService, codigoRaw) {
     const codigo = String(codigoRaw || '').trim().toUpperCase();
     if (!codigo || !poolSgc) {
         return null;
     }
+
+    const meta = await resolverMetaPlantillaSistema(poolSgc, codigo);
 
     // 1) Formatos interactivos SGC (sgc_formato_cabecera.drive_file_id) — ej. DG-F-04 FODA
     try {
@@ -692,15 +767,19 @@ async function resolverArchivoPorCodigo(poolSgc, formatosDescargaService, codigo
             [codigo]
         );
         const row = rows?.[0];
-        const driveId = String(row?.drive_file_id || '').trim();
-        if (driveId) {
+        const driveIdCabecera = String(row?.drive_file_id || '').trim();
+        // Preferir archivo sistema (con datos) para vista previa; nunca la plantilla vacía.
+        const driveId = meta.sistemaDriveFileId || driveIdCabecera;
+        if (driveId || meta.plantillaDriveFileId) {
             return {
                 origen: 'formato_interactivo',
                 catalog_key: `sgc:${codigo}`,
                 codigo,
                 titulo: codigo,
                 nombre_archivo: codigo,
-                drive_file_id_actual: driveId,
+                drive_file_id_actual: driveId || meta.plantillaDriveFileId,
+                plantilla_drive_file_id: meta.plantillaDriveFileId || '',
+                sistema_drive_file_id: meta.sistemaDriveFileId || driveId || '',
                 version_actual: null,
                 tipo_archivo: 'interactivo'
             };
@@ -725,6 +804,8 @@ async function resolverArchivoPorCodigo(poolSgc, formatosDescargaService, codigo
                     titulo: hit.titulo || '',
                     nombre_archivo: hit.nombre_archivo || '',
                     drive_file_id_actual: hit.drive_file_id_actual,
+                    plantilla_drive_file_id: meta.plantillaDriveFileId || '',
+                    sistema_drive_file_id: meta.sistemaDriveFileId || hit.drive_file_id_actual,
                     version_actual: hit.version_actual,
                     tipo_archivo: 'descarga'
                 };
@@ -911,6 +992,97 @@ async function regresarPaso(pool, solicitudId) {
     return obtenerPorId(pool, actual.solicitud_id);
 }
 
+async function declinar(pool, solicitudId, { usuarioId = null, motivo = '' } = {}) {
+    await asegurarTabla(pool);
+    const actual = await obtenerPorId(pool, solicitudId);
+    if (!actual) {
+        const error = new Error('Solicitud no encontrada');
+        error.status = 404;
+        throw error;
+    }
+    if (!actual.activo) {
+        const error = new Error('La solicitud ya está desactivada');
+        error.status = 400;
+        throw error;
+    }
+    if (actual.estado === 'cerrado' || actual.paso_flujo === 'cerrado') {
+        const error = new Error('La solicitud ya está cerrada');
+        error.status = 400;
+        throw error;
+    }
+    if (actual.paso_flujo !== 'revision') {
+        const error = new Error('Solo se puede declinar en el paso de autorización');
+        error.status = 400;
+        throw error;
+    }
+
+    const notas = normalizarTexto(motivo, 4000)
+        || normalizarTexto(actual.notas_cambio, 4000)
+        || 'Cambio declinado en autorización.';
+
+    await pool.query(
+        `UPDATE sgc_solicitudes_documento
+         SET estado = 'cerrado',
+             paso_flujo = 'cerrado',
+             declinado = 1,
+             notas_cambio = ?,
+             autorizado_at = NULL,
+             autorizado_por = NULL,
+             updated_at = NOW()
+         WHERE solicitud_id = ?`,
+        [notas, actual.solicitud_id]
+    );
+    return obtenerPorId(pool, actual.solicitud_id);
+}
+
+/** Soft delete: activo = 0 (no borra el registro). Solo superadministrador. */
+async function desactivar(pool, solicitudId) {
+    await asegurarTabla(pool);
+    const actual = await obtenerPorId(pool, solicitudId);
+    if (!actual) {
+        const error = new Error('Solicitud no encontrada');
+        error.status = 404;
+        throw error;
+    }
+    if (!actual.activo) {
+        return actual;
+    }
+
+    await pool.query(
+        `UPDATE sgc_solicitudes_documento
+         SET activo = 0,
+             updated_at = NOW()
+         WHERE solicitud_id = ?`,
+        [actual.solicitud_id]
+    );
+    return obtenerPorId(pool, actual.solicitud_id);
+}
+
+async function actualizarFechaSolicitud(pool, solicitudId, fechaSolicitud) {
+    await asegurarTabla(pool);
+    const actual = await obtenerPorId(pool, solicitudId);
+    if (!actual) {
+        const error = new Error('Solicitud no encontrada');
+        error.status = 404;
+        throw error;
+    }
+    const fecha = String(fechaSolicitud || '').trim().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+        const error = new Error('Fecha de solicitud no válida');
+        error.status = 400;
+        throw error;
+    }
+
+    await pool.query(
+        `UPDATE sgc_solicitudes_documento
+         SET fecha_solicitud = ?,
+             updated_at = NOW()
+         WHERE solicitud_id = ?`,
+        [fecha, actual.solicitud_id]
+    );
+    return obtenerPorId(pool, actual.solicitud_id);
+}
+
 module.exports = {
     asegurarTabla,
     crear,
@@ -922,6 +1094,9 @@ module.exports = {
     marcarListaMaestraListo,
     cerrarConNotificacion,
     regresarPaso,
+    declinar,
+    desactivar,
+    actualizarFechaSolicitud,
     listarCatalogoDocumentos,
     resolverContextoGestion,
     resolverArchivoPorCodigo,

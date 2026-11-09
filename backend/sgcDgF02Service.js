@@ -1,14 +1,27 @@
 /**
  * DG-F-02 · Alcance — persistencia en biznaga_sgc, plantilla Word y PDF en Drive (DG-F).
+ *
+ * Flujo plantilla → sistema (análogo a GUIA-PLANTILLA-EXCEL-SGC.md):
+ * - Plantilla externa (solo lectura): placeholders {{codigo}} {{num_rev}} {{fecha}}.
+ * - Documento sistema: copia de trabajo en CARPETA_DRIVE_ID.
+ * - Words viejos al regenerar (cambio de rev / plantilla): CARPETA_HISTORIAL_DRIVE_ID.
+ * - Código / No. Rev / Fecha se rescatan de Lista Maestra (sgc_formato_metadatos / F-01).
  */
+const crypto = require('crypto');
 const { google } = require('googleapis');
 const driveService = require('./driveService');
+const pdfDescargaCache = require('./sgcPdfDescargaCache');
 const { asegurarTablaSgcFormatoDatos, persistirRegistroSgc, obtenerRegistroSgcPersistido } = require('./sgcDgF05Service');
 
 const CODIGO_FORMATO = 'DG-F-02';
+/** Carpeta de trabajo del Word sistema (DG-F-02). */
 const CARPETA_DRIVE_ID = '1xU8fO32D2eF-fwKRzRgAQKN7oo59dvLO';
-const TEMPLATE_DRIVE_ID = '1XNThlQXDznpTDfEyiAobyL45HtNrup0A';
-const DOCUMENTO_SISTEMA_DRIVE_ID_PREFERIDO = '1u6lOOpunb83isnYK__wG9IV9iH14eEzH';
+/** Historial de Versiones — Words sistema previos. */
+const CARPETA_HISTORIAL_DRIVE_ID = '1-G8mPoNXykGaH4cFfg9J-RH6ACz_Z8G4';
+/** Plantilla maestra Word (solo lectura / copy). */
+const TEMPLATE_DRIVE_ID = '1wUZcyt1LzEzlQo_5mMSINaNkjjs4AhOk';
+/** Subir al cambiar placeholders/estructura de contenido de la plantilla. */
+const PLANTILLA_CONTENIDO_VERSION = 2;
 const NOMBRE_PLANTILLA_DOCX = 'DG-F-02 Alcance.docx';
 const NOMBRE_PLANTILLA_SISTEMA = 'DG-F-02 Alcance (sistema).docx';
 const NOMBRE_PDF_ARCHIVO = 'DG-F-02 Alcance.pdf';
@@ -19,6 +32,7 @@ const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingm
 const DATOS_DEFECTO = {
     empresa: 'BIZNAGA RISK AND TECH',
     fechaElaboracion: '2025-07-17',
+    fechaRevision: '2025-07-11',
     revision: '00',
     alcance:
         'El alcance del Sistema de Gestión de Calidad de Biznaga Risk and Tech comprende el servicio de consultoría estratégica sobre gestión de la seguridad industrial, medio ambiente, salud ocupacional, protección civil y sistemas de gestión; desde la firma de la cotización o contrato hasta la entrega del proyecto finalizado.',
@@ -652,14 +666,6 @@ function sanitizarPlantillaSync(raw) {
     return snapshotPlantillaDesdeDatos(raw);
 }
 
-function incrementarRevision(revisionActual) {
-    const num = parseInt(String(revisionActual || '0').trim(), 10);
-    if (Number.isNaN(num)) {
-        return '01';
-    }
-    return String(num + 1).padStart(2, '0');
-}
-
 function formatearRevisionPlantillaDoc(revision) {
     return String(revision || DATOS_DEFECTO.revision).trim().padStart(2, '0');
 }
@@ -671,7 +677,72 @@ function snapshotPlantillaDesdeDatos(datos) {
         alcance: base.alcance,
         requisitosNoAplicables: base.requisitosNoAplicables,
         fechaElaboracion: base.fechaElaboracion,
-        revision: base.revision
+        fechaRevision: base.fechaRevision,
+        revision: base.revision,
+        codigo: CODIGO_FORMATO
+    };
+}
+
+/**
+ * Cabecera oficial del Word: Código / No. Rev / Fecha ← Lista Maestra.
+ * Prioridad: metadatos SGC → datos persistidos → catálogo F-01 → defecto.
+ */
+async function resolverCabeceraListaMaestra(pool, datosActuales = {}) {
+    const base = sanitizarDatos(datosActuales);
+    let revision = formatearRevisionPlantillaDoc(base.revision);
+    let fechaRevision = formatearFechaIso(base.fechaRevision) || DATOS_DEFECTO.fechaRevision;
+    let desdeMetadatos = false;
+
+    if (pool) {
+        try {
+            const [rows] = await pool.query(
+                `SELECT revision, fecha_original
+                   FROM sgc_formato_metadatos
+                  WHERE UPPER(TRIM(codigo_formato)) = ?
+                  LIMIT 1`,
+                [CODIGO_FORMATO]
+            );
+            const meta = rows?.[0];
+            if (meta) {
+                if (meta.revision != null && String(meta.revision).trim() !== '') {
+                    revision = formatearRevisionPlantillaDoc(meta.revision);
+                    desdeMetadatos = true;
+                }
+                const fechaMeta = formatearFechaIso(meta.fecha_original);
+                if (fechaMeta) {
+                    fechaRevision = fechaMeta;
+                    desdeMetadatos = true;
+                }
+            }
+        } catch (err) {
+            console.warn('[DG-F-02] Metadatos lista maestra omitidos:', err.message);
+        }
+    }
+
+    if (!desdeMetadatos) {
+        try {
+            const { CATALOGO_BASE } = require('./sgcSgcF01Service');
+            const fila = (CATALOGO_BASE || []).find(
+                (d) => String(d?.codigo || '').trim().toUpperCase() === CODIGO_FORMATO
+            );
+            if (fila) {
+                if (fila.versionVigente) {
+                    revision = formatearRevisionPlantillaDoc(fila.versionVigente);
+                }
+                const fechaFila = formatearFechaIso(fila.fechaRevision);
+                if (fechaFila) {
+                    fechaRevision = fechaFila;
+                }
+            }
+        } catch (err) {
+            console.warn('[DG-F-02] Catálogo F-01 omitido para cabecera:', err.message);
+        }
+    }
+
+    return {
+        codigo: CODIGO_FORMATO,
+        revision,
+        fechaRevision
     };
 }
 
@@ -709,22 +780,71 @@ function crearReplaceRequest(textoAnterior, textoNuevo) {
     }
     return {
         replaceAllText: {
-            containsText: { text: anterior, matchCase: false },
+            containsText: { text: anterior, matchCase: true },
             replaceText: nuevo
         }
     };
 }
 
+/** Fecha del encabezado Word = fecha de revisión (lista maestra), no la de elaboración. */
+function fechaCabeceraWord(destino) {
+    return formatearFechaPlantillaDoc(destino.fechaRevision || destino.fechaElaboracion);
+}
+
+/**
+ * Placeholders de la plantilla maestra:
+ * cabecera (Código / No. Rev / Fecha) + cuerpo ({{texto_alcance}}).
+ */
+function crearReemplazosPlaceholdersCabecera(destino) {
+    const codigo = String(destino.codigo || CODIGO_FORMATO).trim() || CODIGO_FORMATO;
+    const rev = formatearRevisionPlantillaDoc(destino.revision);
+    const fecha = fechaCabeceraWord(destino);
+    const alcancePlano = htmlATextoPlanoParaDocumento(destino.alcance);
+    return [
+        crearReplaceRequest('{{codigo}}', codigo),
+        crearReplaceRequest('{{num_rev}}', rev),
+        crearReplaceRequest('{{fecha}}', fecha),
+        crearReplaceRequest('{{CODIGO}}', codigo),
+        crearReplaceRequest('{{NUM_REV}}', rev),
+        crearReplaceRequest('{{FECHA}}', fecha),
+        crearReplaceRequest('{{texto_alcance}}', alcancePlano),
+        crearReplaceRequest('{{TEXTO_ALCANCE}}', alcancePlano),
+        crearReplaceRequest('{{alcance}}', alcancePlano)
+    ].filter(Boolean);
+}
+
+function crearReemplazosCodigo(snapshot, destino) {
+    const codigoNuevo = String(destino.codigo || CODIGO_FORMATO).trim() || CODIGO_FORMATO;
+    const nuevo = `Código: ${codigoNuevo}`;
+    const codigos = new Set([
+        String(snapshot.codigo || CODIGO_FORMATO).trim(),
+        CODIGO_FORMATO,
+        codigoNuevo
+    ]);
+    if (snapshot.plantillaSync?.codigo) {
+        codigos.add(String(snapshot.plantillaSync.codigo).trim());
+    }
+    return [...codigos]
+        .filter((c) => c && `Código: ${c}` !== nuevo)
+        .map((c) => crearReplaceRequest(`Código: ${c}`, nuevo))
+        .filter(Boolean);
+}
+
 function crearReemplazosFecha(snapshot, destino) {
-    const nuevo = `Fecha: ${formatearFechaPlantillaDoc(destino.fechaElaboracion)}`;
+    const nuevo = `Fecha: ${fechaCabeceraWord(destino)}`;
     const fechasAnteriores = new Set([
-        formatearFechaPlantillaDoc(snapshot.fechaElaboracion),
+        formatearFechaPlantillaDoc(snapshot.fechaRevision || snapshot.fechaElaboracion),
+        formatearFechaPlantillaDoc(DATOS_DEFECTO.fechaRevision),
         formatearFechaPlantillaDoc(DATOS_DEFECTO.fechaElaboracion),
-        formatearFechaPlantillaDoc(destino.fechaElaboracion),
+        fechaCabeceraWord(destino),
         '11-07-25',
         '17-07-25',
-        '24-05-26'
+        '24-05-26',
+        '01-01-25'
     ]);
+    if (snapshot.plantillaSync?.fechaRevision) {
+        fechasAnteriores.add(formatearFechaPlantillaDoc(snapshot.plantillaSync.fechaRevision));
+    }
     if (snapshot.plantillaSync?.fechaElaboracion) {
         fechasAnteriores.add(formatearFechaPlantillaDoc(snapshot.plantillaSync.fechaElaboracion));
     }
@@ -752,8 +872,14 @@ function crearReemplazosRevision(snapshot, destino) {
 }
 
 function construirRequestsPlantilla(snapshot, destino) {
+    const alcanceAnterior = String(snapshot?.alcance || '').trim();
+    const reemplazoAlcanceLegado = alcanceAnterior.includes('{{')
+        ? null
+        : crearReemplazoTextoUnico(snapshot.alcance, destino.alcance);
     return [
-        crearReemplazoTextoUnico(snapshot.alcance, destino.alcance),
+        ...crearReemplazosPlaceholdersCabecera(destino),
+        ...crearReemplazosCodigo(snapshot, destino),
+        reemplazoAlcanceLegado,
         ...crearReemplazosRevision(snapshot, destino),
         ...crearReemplazosFecha(snapshot, destino)
     ].filter(Boolean);
@@ -825,12 +951,37 @@ async function resolverDocumentoSistemaId(datos) {
     if (idDb && await validarDocumentoSistemaEnDrive(idDb)) {
         return idDb;
     }
-    if (DOCUMENTO_SISTEMA_DRIVE_ID_PREFERIDO
-        && await validarDocumentoSistemaEnDrive(DOCUMENTO_SISTEMA_DRIVE_ID_PREFERIDO)) {
-        return DOCUMENTO_SISTEMA_DRIVE_ID_PREFERIDO;
-    }
     const enDrive = await buscarDocumentoSistemaEnDrive();
     return enDrive?.id || null;
+}
+
+function nombreArchivoHistorialWord(datos = {}) {
+    const rev = formatearRevisionPlantillaDoc(datos.revision || DATOS_DEFECTO.revision);
+    const fecha = formatearFechaIso(datos.fechaRevision || datos.fechaElaboracion) || fechaHoyIso();
+    const stamp = fecha.replace(/-/g, '');
+    return `DG-F-02 Alcance (sistema) - Rev ${rev} - ${stamp}.docx`;
+}
+
+/**
+ * Mueve el Word sistema vigente al Historial de Versiones (no borra).
+ */
+async function archivarDocumentoSistemaActual(sistemaFileId, datos = {}) {
+    const id = String(sistemaFileId || '').trim();
+    if (!id || id === TEMPLATE_DRIVE_ID) {
+        return null;
+    }
+    try {
+        const nombreHist = nombreArchivoHistorialWord(datos);
+        await driveService.renombrarArchivoPorId(id, nombreHist).catch((err) => {
+            console.warn('[DG-F-02] No se pudo renombrar Word antes de archivar:', err.message);
+        });
+        await driveService.moverArchivoDrive(id, CARPETA_HISTORIAL_DRIVE_ID);
+        console.log(`[DG-F-02] Word sistema archivado → Historial: ${nombreHist} (${id})`);
+        return id;
+    } catch (err) {
+        console.warn('[DG-F-02] No se pudo archivar Word sistema:', err.message);
+        return null;
+    }
 }
 
 async function crearDocumentoSistemaDesdePlantilla() {
@@ -851,17 +1002,62 @@ async function crearDocumentoSistemaDesdePlantilla() {
     if (!docId) {
         throw new Error('No se pudo crear el documento DG-F-02 Alcance (sistema).');
     }
-    console.log(`[DG-F-02] Documento sistema creado en Drive: ${NOMBRE_PLANTILLA_SISTEMA} (${docId})`);
+    console.log(`[DG-F-02] Documento sistema creado desde plantilla: ${NOMBRE_PLANTILLA_SISTEMA} (${docId})`);
     return docId;
 }
 
-async function asegurarDocumentoSistema(datos) {
-    const existente = await resolverDocumentoSistemaId(datos);
-    if (existente) {
-        return { fileId: existente, newlyCreated: false };
+/**
+ * true si hay que regenerar el Word sistema desde la plantilla maestra:
+ * - sin origen o plantilla distinta (migración / nueva plantilla)
+ * - versión de contenido de plantilla desactualizada (p. ej. {{texto_alcance}})
+ * - cambio de revisión / fecha de lista maestra respecto al último sync
+ */
+function debeRegenerarDocumentoSistema(datos, cabeceraLista) {
+    const origen = String(datos?.plantillaOrigenDriveId || '').trim();
+    if (!origen || origen !== TEMPLATE_DRIVE_ID) {
+        return true;
     }
+    if (Number(datos?.plantillaContenidoVersion || 0) < PLANTILLA_CONTENIDO_VERSION) {
+        return true;
+    }
+    const sync = datos?.plantillaSync;
+    if (!sync) {
+        return false;
+    }
+    const revSync = formatearRevisionPlantillaDoc(sync.revision);
+    const revLista = formatearRevisionPlantillaDoc(cabeceraLista.revision);
+    if (revSync !== revLista) {
+        return true;
+    }
+    const fechaSync = formatearFechaIso(sync.fechaRevision || sync.fechaElaboracion);
+    const fechaLista = formatearFechaIso(cabeceraLista.fechaRevision);
+    if (fechaSync && fechaLista && fechaSync !== fechaLista) {
+        return true;
+    }
+    return false;
+}
+
+async function asegurarDocumentoSistema(datos, opciones = {}) {
+    const existente = await resolverDocumentoSistemaId(datos);
+    const forzarRegenerar = !!opciones.forzarRegenerar;
+
+    if (existente && !forzarRegenerar) {
+        return { fileId: existente, newlyCreated: false, regenerated: false };
+    }
+
+    if (existente && forzarRegenerar) {
+        await archivarDocumentoSistemaActual(existente, {
+            revision: datos?.plantillaSync?.revision || datos?.revision,
+            fechaRevision: datos?.plantillaSync?.fechaRevision || datos?.fechaRevision
+        });
+    }
+
     const fileId = await crearDocumentoSistemaDesdePlantilla();
-    return { fileId, newlyCreated: true };
+    return {
+        fileId,
+        newlyCreated: !existente,
+        regenerated: !!existente && forzarRegenerar
+    };
 }
 
 function extraerTextoPlanoGoogleDoc(docData) {
@@ -888,11 +1084,28 @@ function inferirSnapshotDesdeTextoDocumento(textoPlano) {
     if (!alcance && !requisitosNoAplicables) {
         return null;
     }
+    const revMatch = texto.match(/No\.\s*Rev:\s*(\d{1,3}|\{\{num_rev\}\})/i);
+    const fechaMatch = texto.match(/Fecha:\s*(\d{1,2}-\d{1,2}-\d{2,4}|\{\{fecha\}\})/i);
+    let fechaRevision = DATOS_DEFECTO.fechaRevision;
+    if (fechaMatch?.[1] && !String(fechaMatch[1]).includes('{')) {
+        const parts = String(fechaMatch[1]).split('-');
+        if (parts.length === 3) {
+            const [d, m, yRaw] = parts;
+            const y = yRaw.length === 2 ? `20${yRaw}` : yRaw;
+            fechaRevision = formatearFechaIso(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`)
+                || DATOS_DEFECTO.fechaRevision;
+        }
+    }
     return {
         empresa: DATOS_DEFECTO.empresa,
+        codigo: CODIGO_FORMATO,
         alcance: alcance || DATOS_DEFECTO.alcance,
         requisitosNoAplicables: requisitosNoAplicables,
-        fechaElaboracion: DATOS_DEFECTO.fechaElaboracion
+        fechaElaboracion: DATOS_DEFECTO.fechaElaboracion,
+        fechaRevision,
+        revision: revMatch?.[1] && !String(revMatch[1]).includes('{')
+            ? formatearRevisionPlantillaDoc(revMatch[1])
+            : DATOS_DEFECTO.revision
     };
 }
 
@@ -958,7 +1171,26 @@ async function resyncCompletoDesdePlantilla(datos, sistemaFileId) {
     const destino = snapshotPlantillaDesdeDatos(datos);
     const { drive, docsApi, docId } = await copiarDocumentoComoGoogleDoc(TEMPLATE_DRIVE_ID);
     try {
-        const requests = construirRequestsPlantilla(snapshotPlantillaDesdeDatos(DATOS_DEFECTO), destino);
+        // 1) Placeholders: cabecera + {{texto_alcance}}
+        const reqPlaceholders = crearReemplazosPlaceholdersCabecera(destino);
+        if (reqPlaceholders.length > 0) {
+            await docsApi.documents.batchUpdate({
+                documentId: docId,
+                requestBody: { requests: reqPlaceholders }
+            });
+        }
+
+        // 2) Legado / texto restante (sin reaplicar placeholders ya resueltos)
+        const snapshotPlantilla = await leerSnapshotDesdeGoogleDocApi(docsApi, docId)
+            || snapshotPlantillaDesdeDatos(DATOS_DEFECTO);
+        const placeholdersAplicados = new Set(
+            reqPlaceholders.map((r) => r?.replaceAllText?.containsText?.text).filter(Boolean)
+        );
+        const requests = construirRequestsPlantilla(snapshotPlantilla, destino)
+            .filter((r) => {
+                const t = r?.replaceAllText?.containsText?.text || '';
+                return t && !placeholdersAplicados.has(t);
+            });
         if (requests.length > 0) {
             await docsApi.documents.batchUpdate({
                 documentId: docId,
@@ -968,7 +1200,9 @@ async function resyncCompletoDesdePlantilla(datos, sistemaFileId) {
         await sincronizarRequisitosEnDocumento(docsApi, docId, datos);
         await aplicarFormatoHtmlEnDoc(docsApi, docId, datos);
         const snapshotDoc = await leerSnapshotDesdeGoogleDocApi(docsApi, docId);
-        if (snapshotDoc && !contenidoEsEquivalente(snapshotDoc, destino)) {
+        const destinoAlcance = htmlATextoPlano(destino.alcance);
+        const docAlcance = htmlATextoPlano(snapshotDoc?.alcance);
+        if (!snapshotDoc || docAlcance !== destinoAlcance || String(docAlcance).includes('{{')) {
             console.warn('[DG-F-02] Resync completo: verificación parcial del contenido en plantilla');
         }
         await persistirDocumentoSistema(drive, docId, sistemaFileId);
@@ -1107,6 +1341,7 @@ function sanitizarDatos(raw) {
     return {
         empresa: String(base.empresa || DATOS_DEFECTO.empresa).trim() || DATOS_DEFECTO.empresa,
         fechaElaboracion: formatearFechaIso(base.fechaElaboracion) || DATOS_DEFECTO.fechaElaboracion,
+        fechaRevision: formatearFechaIso(base.fechaRevision) || DATOS_DEFECTO.fechaRevision,
         revision: formatearRevisionPlantillaDoc(base.revision),
         alcance: sanitizarHtmlCampo(base.alcance || DATOS_DEFECTO.alcance) || DATOS_DEFECTO.alcance,
         requisitosNoAplicables: 'requisitosNoAplicables' in base
@@ -1115,7 +1350,9 @@ function sanitizarDatos(raw) {
         pdfFirmado: sanitizarPdfFirmado(base.pdfFirmado || base.pdf_firmado),
         pdfsHistorial: sanitizarPdfsHistorial(base.pdfsHistorial || base.pdfs_historial),
         plantillaSync,
-        plantillaSistemaDriveFileId: String(base.plantillaSistemaDriveFileId || '').trim() || null
+        plantillaSistemaDriveFileId: String(base.plantillaSistemaDriveFileId || '').trim() || null,
+        plantillaOrigenDriveId: String(base.plantillaOrigenDriveId || '').trim() || null,
+        plantillaContenidoVersion: Number(base.plantillaContenidoVersion || 0) || 0
     };
 }
 
@@ -1199,7 +1436,9 @@ function construirRespuesta(registro, datos, historialPdfs = []) {
         plantillaSistemaDriveFileId: datos.plantillaSistemaDriveFileId || null,
         plantillaSistemaEditorUrl: datos.plantillaSistemaDriveFileId
             ? `https://docs.google.com/document/d/${datos.plantillaSistemaDriveFileId}/edit`
-            : null
+            : null,
+        plantillaOrigenDriveId: datos.plantillaOrigenDriveId || TEMPLATE_DRIVE_ID,
+        carpetaHistorialDriveId: CARPETA_HISTORIAL_DRIVE_ID
     };
 }
 
@@ -1227,8 +1466,21 @@ async function cargarFormato(pool) {
 
     if (!datos) datos = sanitizarDatos(DATOS_DEFECTO);
 
-    let { fileId: sistemaFileId, newlyCreated: documentoNuevo } = await asegurarDocumentoSistema(datos);
-    if (documentoNuevo) {
+    const cabeceraLista = await resolverCabeceraListaMaestra(pool, datos);
+    datos = {
+        ...datos,
+        revision: cabeceraLista.revision,
+        fechaRevision: cabeceraLista.fechaRevision
+    };
+
+    const regenerar = debeRegenerarDocumentoSistema(datos, cabeceraLista);
+    let {
+        fileId: sistemaFileId,
+        newlyCreated: documentoNuevo,
+        regenerated
+    } = await asegurarDocumentoSistema(datos, { forzarRegenerar: regenerar });
+
+    if (documentoNuevo || regenerated) {
         try {
             const syncResult = await sincronizarPlantillaGoogleDoc(
                 datos,
@@ -1239,19 +1491,36 @@ async function cargarFormato(pool) {
             datos = {
                 ...datos,
                 plantillaSistemaDriveFileId: sistemaFileId,
+                plantillaOrigenDriveId: TEMPLATE_DRIVE_ID,
+                plantillaContenidoVersion: PLANTILLA_CONTENIDO_VERSION,
                 plantillaSync: syncResult.plantillaSync
             };
-            if (registro) {
-                await guardarRegistroDb(pool, payloadRegistroDesdeRegistro(registro, datos));
-                registro = await obtenerRegistroDb(pool);
-            }
         } catch (err) {
             console.warn('[DG-F-02] No se pudo sincronizar documento sistema recién creado:', err.message);
-            datos = { ...datos, plantillaSistemaDriveFileId: sistemaFileId };
+            datos = {
+                ...datos,
+                plantillaSistemaDriveFileId: sistemaFileId,
+                plantillaOrigenDriveId: TEMPLATE_DRIVE_ID,
+                plantillaContenidoVersion: PLANTILLA_CONTENIDO_VERSION
+            };
         }
-    } else if (sistemaFileId !== datos.plantillaSistemaDriveFileId) {
-        datos = { ...datos, plantillaSistemaDriveFileId: sistemaFileId };
-        if (registro) {
+        await guardarRegistroDb(pool, payloadRegistroDesdeRegistro(registro, datos));
+        registro = await obtenerRegistroDb(pool);
+    } else {
+        const prev = await leerDatosRegistro(registro);
+        const debePersistir = !prev
+            || sistemaFileId !== prev.plantillaSistemaDriveFileId
+            || prev.plantillaOrigenDriveId !== TEMPLATE_DRIVE_ID
+            || Number(prev.plantillaContenidoVersion || 0) < PLANTILLA_CONTENIDO_VERSION
+            || prev.revision !== datos.revision
+            || prev.fechaRevision !== datos.fechaRevision;
+        datos = {
+            ...datos,
+            plantillaSistemaDriveFileId: sistemaFileId,
+            plantillaOrigenDriveId: TEMPLATE_DRIVE_ID,
+            plantillaContenidoVersion: PLANTILLA_CONTENIDO_VERSION
+        };
+        if (debePersistir) {
             await guardarRegistroDb(pool, payloadRegistroDesdeRegistro(registro, datos));
             registro = await obtenerRegistroDb(pool);
         }
@@ -1288,7 +1557,6 @@ async function guardarFormato(pool, body) {
     let fechaOriginal = formatearFechaIso(registroPrevio?.fecha_elaboracion_original);
     let contenidoModificado = !!registroPrevio?.contenido_modificado;
     let fechaModificacion = formatearFechaIso(registroPrevio?.fecha_modificacion_contenido);
-    let revision = formatearRevisionPlantillaDoc(datosEntrada.revision);
     if (!fechaOriginal) fechaOriginal = DATOS_DEFECTO.fechaElaboracion;
 
     let datosPrevios = null;
@@ -1312,16 +1580,23 @@ async function guardarFormato(pool, body) {
         || datosPrevios?.pdfFirmado
         || datosEntrada.pdfFirmado;
 
-    const { fileId: sistemaFileId } = await asegurarDocumentoSistema(datosPrevios || datosEntrada);
+    // Ver / Fecha Rev: solo Lista Maestra (no subir al editar contenido del alcance).
+    const cabeceraLista = await resolverCabeceraListaMaestra(pool, datosPrevios || datosEntrada);
+    const baseParaDoc = {
+        ...(datosPrevios || datosEntrada),
+        revision: cabeceraLista.revision,
+        fechaRevision: cabeceraLista.fechaRevision
+    };
+    const regenerar = debeRegenerarDocumentoSistema(baseParaDoc, cabeceraLista);
+    const {
+        fileId: sistemaFileId,
+        newlyCreated,
+        regenerated
+    } = await asegurarDocumentoSistema(baseParaDoc, { forzarRegenerar: regenerar });
 
     if (huboCambioContenido && origen !== 'consulta') {
         contenidoModificado = true;
         fechaModificacion = fechaHoyIso();
-    }
-
-    // Ver / Fecha Rev: solo Lista Maestra / Solicitud de Documentos (no subir al editar contenido).
-    if (datosPrevios?.revision) {
-        revision = formatearRevisionPlantillaDoc(datosPrevios.revision);
     }
 
     const fechaElaboracion = contenidoModificado && fechaModificacion
@@ -1333,21 +1608,28 @@ async function guardarFormato(pool, body) {
         alcance: datosEntrada.alcance,
         requisitosNoAplicables: datosEntrada.requisitosNoAplicables,
         fechaElaboracion,
-        revision,
+        fechaRevision: cabeceraLista.fechaRevision,
+        revision: cabeceraLista.revision,
         pdfFirmado: pdfFirmado ? sanitizarPdfFirmado(pdfFirmado) : null,
         pdfsHistorial: sanitizarPdfsHistorial(datosPrevios?.pdfsHistorial || datosEntrada.pdfsHistorial),
         plantillaSync: datosPrevios?.plantillaSync || null,
-        plantillaSistemaDriveFileId: sistemaFileId
+        plantillaSistemaDriveFileId: sistemaFileId,
+        plantillaOrigenDriveId: TEMPLATE_DRIVE_ID,
+        plantillaContenidoVersion: PLANTILLA_CONTENIDO_VERSION
     };
 
     if (origen !== 'consulta') {
         try {
             const syncResult = await sincronizarPlantillaGoogleDoc(
                 datosGuardar,
-                datosPrevios || DATOS_DEFECTO,
-                sistemaFileId
+                (newlyCreated || regenerated)
+                    ? DATOS_DEFECTO
+                    : (datosPrevios || DATOS_DEFECTO),
+                sistemaFileId,
+                { forzarSnapshotPlantilla: newlyCreated || regenerated }
             );
             datosGuardar.plantillaSync = syncResult.plantillaSync;
+            datosGuardar.plantillaContenidoVersion = PLANTILLA_CONTENIDO_VERSION;
         } catch (err) {
             console.error('[DG-F-02] Error sincronizando documento sistema en Drive:', err.message);
         }
@@ -1439,23 +1721,33 @@ async function eliminarPdfHistorial(pool, body, opciones = {}) {
     return construirRespuesta(registro, datosGuardar, historialPdfs);
 }
 
-async function descargarPlantillaPdf(pool) {
-    const respuesta = await cargarFormato(pool);
-    const registro = await obtenerRegistroDb(pool);
-    const datos = respuesta.datos;
-    const { fileId: sistemaFileId, newlyCreated } = await asegurarDocumentoSistema(datos);
+function wordYaReflejaDatos(datos) {
+    const sync = datos?.plantillaSync;
+    if (!sync) return false;
+    if (formatearRevisionPlantillaDoc(sync.revision) !== formatearRevisionPlantillaDoc(datos.revision)) {
+        return false;
+    }
+    const fechaSync = formatearFechaIso(sync.fechaRevision || sync.fechaElaboracion);
+    const fechaDatos = formatearFechaIso(datos.fechaRevision);
+    if (fechaSync && fechaDatos && fechaSync !== fechaDatos) return false;
+    return contenidoEsEquivalente(sync, datos);
+}
 
-    const syncResult = await sincronizarPlantillaGoogleDoc(
-        datos,
-        newlyCreated ? DATOS_DEFECTO : (datos.plantillaSync || resolverSnapshotPlantilla(datos)),
-        sistemaFileId,
-        { forzarSnapshotPlantilla: newlyCreated }
-    );
+function clavePdfDescarga(datos) {
+    return crypto.createHash('sha1').update(JSON.stringify({
+        empresa: datos.empresa || '',
+        alcance: datos.alcance || '',
+        requisitos: datos.requisitosNoAplicables || '',
+        revision: datos.revision || '',
+        fechaRevision: datos.fechaRevision || '',
+        fileId: datos.plantillaSistemaDriveFileId || ''
+    })).digest('hex');
+}
 
-    let pdfBuffer;
+async function exportarPdfDelSistema(sistemaFileId) {
     const { drive, docId } = await copiarDocumentoComoGoogleDoc(sistemaFileId);
     try {
-        pdfBuffer = await exportarPdfSoloPrimeraPagina(drive, docId);
+        return await exportarPdfSoloPrimeraPagina(drive, docId);
     } finally {
         try {
             await drive.files.delete({ fileId: docId });
@@ -1463,15 +1755,66 @@ async function descargarPlantillaPdf(pool) {
             console.warn('[DG-F-02] No se pudo eliminar copia temporal para PDF:', err.message);
         }
     }
+}
 
-    const datosActuales = (await leerDatosRegistro(registro)) || datos;
-    const datosActualizados = {
-        ...datosActuales,
-        plantillaSistemaDriveFileId: sistemaFileId,
-        plantillaSync: syncResult.plantillaSync || datosActuales.plantillaSync || null
+async function descargarPlantillaPdf(pool) {
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    let datos = (await leerDatosRegistro(registro)) || sanitizarDatos(DATOS_DEFECTO);
+    const cabecera = await resolverCabeceraListaMaestra(pool, datos);
+    datos = {
+        ...datos,
+        revision: cabecera.revision,
+        fechaRevision: cabecera.fechaRevision
     };
-    await guardarRegistroDb(pool, payloadRegistroDesdeRegistro(registro, datosActualizados));
 
+    const regenerar = debeRegenerarDocumentoSistema(datos, cabecera);
+    const sistemaFileId = String(datos.plantillaSistemaDriveFileId || '').trim();
+    const exportacionDirecta = !regenerar
+        && !!sistemaFileId
+        && sistemaFileId !== TEMPLATE_DRIVE_ID
+        && wordYaReflejaDatos(datos);
+
+    if (exportacionDirecta) {
+        const clave = clavePdfDescarga(datos);
+        const cache = pdfDescargaCache.leer('DG-F-02', clave);
+        if (cache) {
+            console.log('[DG-F-02] PDF servido desde caché');
+            return cache;
+        }
+        try {
+            const pdfBuffer = await exportarPdfDelSistema(sistemaFileId);
+            pdfDescargaCache.guardar('DG-F-02', clave, pdfBuffer);
+            console.log('[DG-F-02] PDF exportado del Word vigente, sin resincronizar');
+            return pdfBuffer;
+        } catch (err) {
+            console.warn('[DG-F-02] Exportación directa de PDF falló, se regenera el Word:', err.message);
+        }
+    }
+
+    const {
+        fileId,
+        newlyCreated,
+        regenerated
+    } = await asegurarDocumentoSistema(datos, {
+        forzarRegenerar: regenerar || !sistemaFileId
+    });
+    const syncResult = await sincronizarPlantillaGoogleDoc(
+        datos,
+        (newlyCreated || regenerated) ? DATOS_DEFECTO : (datos.plantillaSync || resolverSnapshotPlantilla(datos)),
+        fileId,
+        { forzarSnapshotPlantilla: newlyCreated || regenerated }
+    );
+    const pdfBuffer = await exportarPdfDelSistema(fileId);
+    const datosActualizados = {
+        ...datos,
+        plantillaSistemaDriveFileId: fileId,
+        plantillaOrigenDriveId: TEMPLATE_DRIVE_ID,
+        plantillaContenidoVersion: PLANTILLA_CONTENIDO_VERSION,
+        plantillaSync: syncResult.plantillaSync || datos.plantillaSync || null
+    };
+    pdfDescargaCache.guardar('DG-F-02', clavePdfDescarga(datosActualizados), pdfBuffer);
+    await guardarRegistroDb(pool, payloadRegistroDesdeRegistro(registro, datosActualizados));
     return pdfBuffer;
 }
 
@@ -1481,11 +1824,14 @@ module.exports = {
     NOMBRE_PDF_ARCHIVO,
     NOMBRE_PLANTILLA_SISTEMA,
     TEMPLATE_DRIVE_ID,
+    CARPETA_DRIVE_ID,
+    CARPETA_HISTORIAL_DRIVE_ID,
     cargarFormato,
     guardarFormato,
     subirPdfFirmado,
     eliminarPdfHistorial,
     descargarPlantillaPdf,
     sincronizarPlantillaGoogleDoc,
-    sanitizarDatos
+    sanitizarDatos,
+    resolverCabeceraListaMaestra
 };

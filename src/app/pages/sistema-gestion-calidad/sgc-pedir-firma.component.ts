@@ -1,8 +1,9 @@
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, HostBinding, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import { Subject, interval } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
+import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
 import { SGC_CAPITULOS_CATALOG } from './sgc-formatos.catalog';
 
@@ -32,7 +33,7 @@ interface SolicitudDoc {
 @Component({
   selector: 'app-sgc-pedir-firma',
   template: `
-    <div class="sgc-pedir" (click)="$event.stopPropagation()">
+    <div class="sgc-pedir" *ngIf="firmaDigitalVisible" (click)="$event.stopPropagation()">
       <ng-container *ngIf="solicitud?.estado === 'autorizada' && !otraSolicitud; else pedir">
         <div class="sgc-pedir__sello" *ngIf="!solicitud?.firma_consumida">
           <i class="fas fa-check-circle" aria-hidden="true"></i>
@@ -106,6 +107,7 @@ interface SolicitudDoc {
   `,
   styles: [`
     :host { display: block; max-width: none; overflow: visible; }
+    :host([hidden]) { display: none !important; }
     .sgc-pedir { margin-top: .55rem; width: 100%; max-width: none; }
     .sgc-pedir__sello { width: 100%; box-sizing: border-box; }
     .sgc-pedir__btn, .sgc-pedir__enviar {
@@ -284,12 +286,26 @@ export class SgcPedirFirmaComponent implements OnInit, OnDestroy {
   private marcoImpresion: HTMLIFrameElement | null = null;
   private destroy$ = new Subject<void>();
 
+  /** La solicitud de firma digital solo se muestra al superadministrador (root). */
+  get firmaDigitalVisible(): boolean {
+    return this.auth.esRoot();
+  }
+
+  @HostBinding('attr.hidden')
+  get ocultarHost(): '' | null {
+    return this.firmaDigitalVisible ? null : '';
+  }
+
   constructor(
     private route: ActivatedRoute,
-    private backend: BackendServices
+    private backend: BackendServices,
+    private auth: AuthService
   ) {}
 
   ngOnInit(): void {
+    if (!this.firmaDigitalVisible) {
+      return;
+    }
     const aplicar = () => {
       let cursor: ActivatedRoute | null = this.route;
       let slug = '';

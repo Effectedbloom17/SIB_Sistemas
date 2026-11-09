@@ -97,8 +97,8 @@
                   </span>
                 </span>
                 <span class="sgc-request__meta">
-                  <span class="sgc-status" [attr.data-estado]="solicitud.estado">
-                    {{ estadoLabel(solicitud.estado) }}
+                  <span class="sgc-status" [attr.data-estado]="solicitud.declinado ? 'declinado' : solicitud.estado">
+                    {{ estadoLabel(solicitud.estado, solicitud) }}
                   </span>
                   <small>{{ fechaUi(solicitud.fecha_solicitud || solicitud.created_at) }}</small>
                 </span>
@@ -144,7 +144,7 @@
                       <span class="sgc-wizard-card__icon"><i class="fas fa-clipboard-check"></i></span>
                       <div>
                         <span>Paso 1</span>
-                        <h3>Revisión y autorización</h3>
+                        <h3>Autorización</h3>
                       </div>
                     </header>
 
@@ -198,62 +198,96 @@
                         </aside>
 
                         <div class="sgc-review__info">
-                          <dl class="sgc-facts sgc-facts--review">
-                            <div class="sgc-fact sgc-fact--date">
-                              <dt><i class="fas fa-calendar-alt"></i> Fecha del ticket</dt>
-                              <dd>{{ fechaUi(contexto.solicitud.fecha_solicitud || contexto.solicitud.created_at) }}</dd>
+                          <div class="sgc-meta-grid" role="list" aria-label="Detalles de la solicitud">
+                            <div class="sgc-meta-item" role="listitem">
+                              <span class="sgc-meta-item__icon"><i class="fas fa-file"></i></span>
+                              <div class="sgc-meta-item__content">
+                                <span class="sgc-meta-item__label">Nombre del archivo</span>
+                                <strong class="sgc-meta-item__value">
+                                  {{ contexto.formatoDescarga?.nombre_archivo || contexto.solicitud.codigo || '—' }}
+                                </strong>
+                              </div>
                             </div>
-                            <div class="sgc-fact">
-                              <dt><i class="fas fa-hashtag"></i> Código</dt>
-                              <dd>{{ contexto.solicitud.codigo || '—' }}</dd>
+                            <div class="sgc-meta-item" role="listitem">
+                              <span class="sgc-meta-item__icon"><i class="fas fa-hashtag"></i></span>
+                              <div class="sgc-meta-item__content">
+                                <span class="sgc-meta-item__label">Código</span>
+                                <strong class="sgc-meta-item__value">{{ contexto.solicitud.codigo || '—' }}</strong>
+                              </div>
                             </div>
-                            <div class="sgc-fact">
-                              <dt><i class="fas fa-code-branch"></i> Versión</dt>
-                              <dd>{{ contexto.solicitud.version_actual || '—' }}</dd>
+                            <div class="sgc-meta-item" role="listitem">
+                              <span class="sgc-meta-item__icon"><i class="fas fa-code-branch"></i></span>
+                              <div class="sgc-meta-item__content">
+                                <span class="sgc-meta-item__label">Versión</span>
+                                <strong class="sgc-meta-item__value">{{ contexto.solicitud.version_actual || '—' }}</strong>
+                              </div>
                             </div>
-                            <div class="sgc-fact sgc-fact--wide" *ngIf="tieneFormatoSistema">
-                              <dt><i class="fas fa-desktop"></i> Formato dinámico</dt>
-                              <dd>
-                                <button type="button" class="sgc-btn sgc-btn--secondary sgc-btn--sm"
-                                  (click)="irAlFormatoSistema()"
-                                  [title]="tooltipIrFormatoSistema">
-                                  <i class="fas fa-external-link-alt"></i>
-                                  Ir a {{ destinoFormatoSistema?.area || 'formato' }}
-                                </button>
-                              </dd>
+                            <div class="sgc-meta-item sgc-meta-item--date" role="listitem">
+                              <span class="sgc-meta-item__icon"><i class="fas fa-calendar-alt"></i></span>
+                              <div class="sgc-meta-item__content">
+                                <span class="sgc-meta-item__label">Fecha de Solicitud</span>
+                                <strong class="sgc-meta-item__value">
+                                  {{ fechaUi(contexto.solicitud.fecha_solicitud || contexto.solicitud.created_at) }}
+                                </strong>
+                              </div>
                             </div>
-                            <div class="sgc-fact sgc-fact--wide">
-                              <dt><i class="fas fa-file-alt"></i> Nombre del documento</dt>
-                              <dd>{{ contexto.solicitud.nombre_documento || contexto.formatoDescarga?.titulo || '—' }}</dd>
+                            <div class="sgc-meta-item" role="listitem">
+                              <span class="sgc-meta-item__icon"><i class="fas fa-exchange-alt"></i></span>
+                              <div class="sgc-meta-item__content">
+                                <span class="sgc-meta-item__label">Tipo de solicitud</span>
+                                <strong class="sgc-meta-item__value">
+                                  <span class="sgc-pill" [attr.data-tipo]="contexto.solicitud.tipo_solicitud">
+                                    {{ tipoSolicitudLabel(contexto.solicitud.tipo_solicitud) }}
+                                  </span>
+                                </strong>
+                              </div>
                             </div>
-                            <div class="sgc-fact">
-                              <dt><i class="fas fa-folder-open"></i> Tipo de documento</dt>
-                              <dd>{{ contexto.solicitud.tipo_documento || origenDocumentoLabel || '—' }}</dd>
+                            <div class="sgc-meta-item" role="listitem">
+                              <span class="sgc-meta-item__icon"><i class="fas fa-folder-open"></i></span>
+                              <div class="sgc-meta-item__content">
+                                <span class="sgc-meta-item__label">Tipo de documento</span>
+                                <strong class="sgc-meta-item__value">
+                                  {{ contexto.solicitud.tipo_documento || origenDocumentoLabel || '—' }}
+                                </strong>
+                              </div>
                             </div>
-                            <div class="sgc-fact">
-                              <dt><i class="fas fa-exchange-alt"></i> Tipo de solicitud</dt>
-                              <dd>
-                                <span class="sgc-pill" [attr.data-tipo]="contexto.solicitud.tipo_solicitud">
-                                  {{ tipoSolicitudLabel(contexto.solicitud.tipo_solicitud) }}
-                                </span>
-                              </dd>
+                          </div>
+
+                          <div class="sgc-meta-detail">
+                            <div class="sgc-meta-detail__row">
+                              <span class="sgc-meta-detail__label"><i class="fas fa-file-alt"></i> Nombre del documento</span>
+                              <p>{{ contexto.solicitud.nombre_documento || contexto.formatoDescarga?.titulo || '—' }}</p>
                             </div>
-                            <div class="sgc-fact sgc-fact--motivo">
-                              <dt><i class="fas fa-comment-dots"></i> Motivo</dt>
-                              <dd>{{ contexto.solicitud.motivo || 'Sin motivo registrado.' }}</dd>
+                            <div class="sgc-meta-detail__row sgc-meta-detail__row--motivo">
+                              <span class="sgc-meta-detail__label"><i class="fas fa-comment-dots"></i> Motivo</span>
+                              <p>{{ contexto.solicitud.motivo || 'Sin motivo registrado.' }}</p>
                             </div>
-                          </dl>
+                          </div>
                         </div>
                       </div>
                     </div>
-                    <footer class="sgc-wizard-card__footer sgc-wizard-card__footer--end">
-                      <button type="button" class="sgc-btn sgc-btn--primary" (click)="autorizarCambio()"
-                        [disabled]="estaProcesando()">
-                        <i class="fas" [ngClass]="estaProcesando('autorizar') ? 'fa-spinner fa-spin' : 'fa-check'"></i>
-                        {{ estaProcesando('autorizar')
-                          ? 'Autorizando…'
-                          : (esEliminacion(contexto.solicitud) ? 'Autorizar eliminación' : 'Autorizar cambio') }}
-                      </button>
+                    <footer class="sgc-wizard-card__footer sgc-wizard-card__footer--actions">
+                      <div class="sgc-wizard-card__footer-left">
+                        <button *ngIf="esSuperAdmin" type="button" class="sgc-btn sgc-btn--danger"
+                          (click)="borrarCambio()" [disabled]="estaProcesando()">
+                          <i class="fas" [ngClass]="estaProcesando('borrar') ? 'fa-spinner fa-spin' : 'fa-trash-alt'"></i>
+                          {{ estaProcesando('borrar') ? 'Desactivando…' : 'Borrar cambio' }}
+                        </button>
+                      </div>
+                      <div class="sgc-wizard-card__footer-right">
+                        <button type="button" class="sgc-btn sgc-btn--danger-outline" (click)="declinarCambio()"
+                          [disabled]="estaProcesando()">
+                          <i class="fas" [ngClass]="estaProcesando('declinar') ? 'fa-spinner fa-spin' : 'fa-ban'"></i>
+                          {{ estaProcesando('declinar') ? 'Declinando…' : 'Declinar cambio' }}
+                        </button>
+                        <button type="button" class="sgc-btn sgc-btn--primary" (click)="autorizarCambio()"
+                          [disabled]="estaProcesando()">
+                          <i class="fas" [ngClass]="estaProcesando('autorizar') ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                          {{ estaProcesando('autorizar')
+                            ? 'Autorizando…'
+                            : (esEliminacion(contexto.solicitud) ? 'Autorizar eliminación' : 'Autorizar cambio') }}
+                        </button>
+                      </div>
                     </footer>
                   </section>
 
@@ -262,23 +296,23 @@
                     <header class="sgc-wizard-card__header">
                       <span class="sgc-wizard-card__icon"><i class="fas fa-file-export"></i></span>
                       <div>
-                        <span>Paso 1 · Autorizado</span>
-                        <h3>Cambio de formato</h3>
-                        <p>Elige el método que corresponda al alcance de la modificación.</p>
+                        <span>Paso 2 · Revisión</span>
+                        <h3>Revisión del formato</h3>
+                        <p>Elige el método según el tipo de archivo o continúa directo a Lista maestra.</p>
                       </div>
                     </header>
 
                     <div class="sgc-wizard-card__body">
                       <div class="sgc-wizard-card__deco" aria-hidden="true"></div>
                       <div class="sgc-format-options">
-                        <article class="sgc-format-option">
-                          <span class="sgc-format-option__tag">Opción A</span>
+                        <article class="sgc-format-option" *ngIf="esDocumentoPdf">
+                          <span class="sgc-format-option__tag">PDF</span>
                           <i class="fas fa-cloud-upload-alt"></i>
                           <h4>Reemplazar con versión nueva</h4>
                           <p>Para cambios grandes, carga el archivo final. La versión anterior se enviará al historial.</p>
                           <label class="sgc-file-input">
                             <input type="file" (change)="seleccionarArchivo($event)"
-                              accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.pdf" />
+                              accept=".pdf,.ppt,.pptx" />
                             <i class="fas fa-paperclip"></i>
                             <span>{{ archivoNuevo?.name || 'Seleccionar archivo' }}</span>
                           </label>
@@ -289,35 +323,38 @@
                           </button>
                         </article>
 
-                        <article class="sgc-format-option">
-                          <span class="sgc-format-option__tag">Opción B</span>
-                          <i class="fab fa-google-drive"></i>
+                        <article class="sgc-format-option" *ngIf="esDocumentoOffice || (!esDocumentoPdf && !esDocumentoOffice)">
+                          <span class="sgc-format-option__tag">{{ esDocumentoOffice ? 'Office' : 'Edición' }}</span>
+                          <i class="fas fa-pen"></i>
                           <h4>Modificación menor</h4>
-                          <p>Edita textos o ajustes puntuales directamente en el archivo asociado de Google Drive.</p>
-                          <div class="sgc-drive-warning" *ngIf="!driveFileIdActivo">
+                          <p>
+                            Abre el editor integrado con la <strong>plantilla</strong> del formato
+                            (no el archivo con información).
+                          </p>
+                          <div class="sgc-drive-warning" *ngIf="!driveFileIdPlantilla && !driveFileIdActivo">
                             <i class="fas fa-info-circle"></i>
-                            No hay un archivo de Drive asociado. Usa la opción de reemplazo o registra el formato.
+                            No hay plantilla ni archivo de Drive asociado. Registra el formato o avanza a Lista maestra.
                           </div>
                           <button type="button" class="sgc-btn sgc-btn--secondary sgc-btn--block"
-                            (click)="abrirEditorIntegrado()" [disabled]="!driveFileIdActivo || estaProcesando()">
-                            <i class="fas fa-external-link-alt"></i> Abrir editor integrado
+                            (click)="abrirModificacionMenor()"
+                            [disabled]="estaProcesando() || (!driveFileIdPlantilla && !driveFileIdActivo)"
+                            title="Abrir editor integrado de la plantilla">
+                            <i class="fas fa-external-link-alt"></i>
+                            Abrir editor integrado
                           </button>
                         </article>
 
-                        <article class="sgc-format-option sgc-format-option--centro" *ngIf="tieneFormatoSistema">
-                          <span class="sgc-format-option__tag">{{ destinoFormatoSistema?.area || 'Sistema' }}</span>
-                          <i class="fas fa-desktop"></i>
-                          <h4>Formato dinámico en el sistema</h4>
+                        <article class="sgc-format-option sgc-format-option--centro">
+                          <span class="sgc-format-option__tag">Siguiente</span>
+                          <i class="fas fa-list-alt"></i>
+                          <h4>Ir directo a Lista maestra</h4>
                           <p>
-                            {{ destinoFormatoSistema?.etiqueta || 'Interfaz disponible' }}.
-                            Úsalo para capturar o corregir datos sin cambiar Versión ni Fecha de revisión
-                            (eso solo se hace en Lista Maestra).
+                            Si no hay cambios de formato que aplicar ahora, continúa al editor del documento controlado.
                           </p>
                           <button type="button" class="sgc-btn sgc-btn--primary sgc-btn--block"
-                            (click)="irAlFormatoSistema()" [disabled]="estaProcesando()"
-                            [title]="tooltipIrFormatoSistema">
-                            <i class="fas fa-external-link-alt"></i>
-                            Ir a {{ destinoFormatoSistema?.area || 'formato' }}
+                            (click)="irDirectoListaMaestra()" [disabled]="estaProcesando()">
+                            <i class="fas" [ngClass]="estaProcesando('formato') ? 'fa-spinner fa-spin' : 'fa-forward'"></i>
+                            {{ estaProcesando('formato') ? 'Avanzando…' : 'Ir directo a Lista maestra' }}
                           </button>
                         </article>
                       </div>
@@ -328,7 +365,7 @@
                         <i class="fas" [ngClass]="estaProcesando('regresar') ? 'fa-spinner fa-spin' : 'fa-arrow-left'"></i>
                         {{ estaProcesando('regresar') ? 'Regresando…' : 'Regresar' }}
                       </button>
-                      <span>Vuelve a revisión si necesitas corregir la autorización.</span>
+                      <span>Vuelve a autorización si necesitas corregir la decisión.</span>
                     </footer>
                   </section>
 
@@ -337,7 +374,7 @@
                     <header class="sgc-wizard-card__header">
                       <span class="sgc-wizard-card__icon"><i class="fas fa-list-alt"></i></span>
                       <div>
-                        <span>Paso 2 · Lista Maestra</span>
+                        <span>Paso 3 · Lista maestra</span>
                         <h3>Editar documento controlado</h3>
                         <p *ngIf="esEliminacion(contexto.solicitud)">
                           Esta solicitud es de eliminación: el documento se desactivará en la Lista Maestra sin subir versión ni notificar a Sistemas.
@@ -393,6 +430,11 @@
                           <input type="date" name="fechaRevision" [(ngModel)]="listaMaestraForm.fechaRevision" required />
                           <small><i class="fas fa-map-marker-alt"></i> México: {{ fechaUi(listaMaestraForm.fechaRevision) }}</small>
                         </label>
+                        <label *ngIf="esSuperAdmin" class="sgc-field-fecha-solicitud">
+                          <span>Cambio de Fecha de solicitud <b>*</b></span>
+                          <input type="date" name="fechaSolicitud" [(ngModel)]="listaMaestraForm.fechaSolicitud" required />
+                          <small><i class="fas fa-user-shield"></i> Solo superadministrador</small>
+                        </label>
                         <label class="sgc-field-wide">
                           <span>Nombre del documento <b>*</b></span>
                           <input name="nombreDocumento" [(ngModel)]="listaMaestraForm.nombreDocumento" required />
@@ -436,14 +478,14 @@
                     <header class="sgc-wizard-card__header">
                       <span class="sgc-wizard-card__icon"><i class="fas fa-bell"></i></span>
                       <div>
-                        <span>Paso 3</span>
+                        <span>Paso 4</span>
                         <h3>Notificar a Sistemas</h3>
-                        <p>Si hubo modificaciones grandes al formato, notifica al encargado de Sistemas.</p>
+                        <p>Se requiere notificar al apartado de Sistemas si los cambios necesitan actualización técnica.</p>
                       </div>
                     </header>
 
                     <div class="sgc-decision">
-                      <p>¿Los cambios requieren una actualización técnica en el sistema?</p>
+                      <p>¿Se requiere notificar al apartado de Sistemas?</p>
                       <div class="sgc-decision__buttons">
                         <button type="button" [class.is-selected]="notificarSeleccion === true"
                           (click)="seleccionarNotificacion(true)">
@@ -530,14 +572,6 @@
                             <span>Fecha (México)</span>
                             <strong>{{ resumenCierre.fechaSolicitud }}</strong>
                             <small>{{ resumenCierre.horaSolicitud }} hrs</small>
-                          </div>
-                        </div>
-                        <div class="sgc-result-meta__item" *ngIf="sol.autorizado_at || sol.updated_at">
-                          <i class="fas fa-flag-checkered"></i>
-                          <div>
-                            <span>Cierre</span>
-                            <strong>{{ fechaHoraMexicoUi(sol.updated_at || sol.autorizado_at) }}</strong>
-                            <small>Hora México</small>
                           </div>
                         </div>
                       </div>
@@ -639,9 +673,12 @@
       <div>
         <span class="sgc-editor-header__icon"><i class="fab fa-google-drive"></i></span>
         <div>
-          <h2>{{ solicitudActiva?.codigo || contexto?.formatoDescarga?.codigo || 'Documento' }}
-            · {{ solicitudActiva?.nombre_documento || contexto?.formatoDescarga?.titulo || 'Documento SGC' }}</h2>
-          <p>Vista previa del documento controlado · Google Drive</p>
+          <h2>{{ solicitudActiva?.nombre_documento || contexto?.formatoDescarga?.titulo || 'Documento SGC' }}
+            <ng-container *ngIf="solicitudActiva?.codigo || contexto?.formatoDescarga?.codigo">
+              ({{ solicitudActiva?.codigo || contexto?.formatoDescarga?.codigo }})
+            </ng-container>
+          </h2>
+          <p>Vista previa del documento controlado · archivo sistema</p>
         </div>
       </div>
       <div class="sgc-editor-header__actions sgc-document-viewer__actions">
@@ -654,8 +691,14 @@
       </div>
     </header>
     <div class="sgc-document-viewer__body">
+      <div class="sgc-embed-loading" *ngIf="visorCargando">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>Preparando vista previa…</span>
+      </div>
       <iframe *ngIf="visorDocumentoUrl" [src]="visorDocumentoUrl"
         title="Vista previa del documento en Google Drive"
+        (load)="onVisorIframeLoad()"
+        allow="clipboard-read; clipboard-write"
         referrerpolicy="strict-origin-when-cross-origin"></iframe>
     </div>
   </div>
@@ -666,24 +709,35 @@
   <div class="sgc-stage-panel">
     <header class="sgc-editor-header">
       <div>
-        <span class="sgc-editor-header__icon"><i class="fab fa-google-drive"></i></span>
-        <div><h2>Editor integrado del formato</h2>
-          <p>{{ solicitudActiva?.codigo || 'Documento' }} · {{ solicitudActiva?.nombre_documento || 'Formato SGC' }}</p></div>
+        <span class="sgc-editor-header__icon"><i class="fas fa-th"></i></span>
+        <div>
+          <h2>Editor integrado del formato</h2>
+          <p>{{ editorSubtitulo }}</p>
+        </div>
       </div>
       <div class="sgc-editor-header__actions">
         <button type="button" class="sgc-btn sgc-btn--ghost" (click)="cerrarEditor()"
-          [disabled]="estaProcesando('formato')"><i class="fas fa-times"></i> Cerrar editor</button>
+          [disabled]="estaProcesando('formato')">
+          <i class="fas fa-times"></i> Volver al formato
+        </button>
         <button type="button" class="sgc-btn sgc-btn--primary" (click)="continuarDesdeEditor()"
           [disabled]="estaProcesando()">
           <i class="fas" [ngClass]="estaProcesando('formato') ? 'fa-spinner fa-spin' : 'fa-arrow-right'"></i>
-          {{ estaProcesando('formato') ? 'Confirmando…' : 'Continuar con el siguiente paso' }}
+          {{ estaProcesando('formato') ? 'Confirmando…' : 'Confirmar y continuar' }}
         </button>
       </div>
     </header>
     <div class="sgc-editor-error" *ngIf="errorGestion">
       <i class="fas fa-exclamation-circle"></i> {{ errorGestion }}
     </div>
+    <div class="sgc-embed-loading" *ngIf="editorCargando">
+      <i class="fas fa-spinner fa-spin"></i>
+      <span>Cargando plantilla en Drive…</span>
+    </div>
     <iframe *ngIf="editorUrl" [src]="editorUrl" title="Editor de documento en Google Drive"
-      allow="clipboard-read; clipboard-write" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      (load)="onEditorIframeLoad()"
+      allow="clipboard-read; clipboard-write"
+      referrerpolicy="strict-origin-when-cross-origin"
+      sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-popups-to-escape-sandbox"></iframe>
   </div>
 </div>
