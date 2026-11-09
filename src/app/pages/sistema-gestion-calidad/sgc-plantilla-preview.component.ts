@@ -20104,8 +20104,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return lista;
   }
 
+  /** Crear áreas del catálogo: solo Calidad / superadmin. */
   get puedeAgregarAreaSgcF29(): boolean {
-    return this.puedeOcultarProveedorSgcF29;
+    if (this.authService.esSuperusuario()) {
+      return true;
+    }
+    const username = String(this.authService.getUsername() || '').toLowerCase().trim();
+    return username === 'sergio56' || username === 'calidad';
+  }
+
+  /** Nuevo criterio: cualquier editor del formato (incluye delegados). */
+  get puedeAgregarCriterioSgcF29(): boolean {
+    return this.puedeGestionarPlantillasSgc;
   }
 
   /** Criterios de sistema / sin área: solo visibles para superadministrador. */
@@ -20381,13 +20391,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return item?.oculto === true || item?.oculto === 1 || String(item?.oculto || '').toLowerCase() === 'true';
   }
 
-  /** Sergio (sergio56 / calidad) o superusuario (root). */
+  /** Ocultar proveedor: cualquier editor del formato (incluye delegados). */
   get puedeOcultarProveedorSgcF29(): boolean {
-    if (this.authService.esSuperusuario()) {
-      return true;
-    }
-    const username = String(this.authService.getUsername() || '').toLowerCase().trim();
-    return username === 'sergio56' || username === 'calidad';
+    return this.puedeGestionarPlantillasSgc;
   }
 
   /** Solo el superusuario ve y restaura proveedores ocultos. */
@@ -20710,6 +20716,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           this.aplicarCatalogoCriteriosSgcF29(lista);
           this.sgcF29CriterioGuardando = false;
           this.cerrarFormNuevoCriterioSgcF29();
+          if (res?.duplicadoEnArea) {
+            void Swal.fire({
+              icon: 'warning',
+              title: 'Criterio duplicado en el área',
+              text: 'Ya había un criterio con ese nombre en esta área. Se agregó de todas formas.',
+              timer: 3200,
+              showConfirmButton: true,
+              confirmButtonText: 'Entendido'
+            });
+          }
         },
         error: (err) => {
           this.sgcF29CriterioGuardando = false;
@@ -27133,6 +27149,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     } else {
       r.estado = '';
     }
+    this.onDgF06Editado();
+  }
+
+  onDgF06Editado(): void {
+    this.programarBorradorLocalSgc();
   }
 
   private prepararEditorDgF06(plantilla: PlantillaFormato): void {

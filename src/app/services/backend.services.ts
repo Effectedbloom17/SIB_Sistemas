@@ -375,6 +375,16 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/empresas/${empresaId}/repositorio/carpetas`, payload);
     }
 
+    renombrarEmpresaRepositorioCarpeta(empresaId: number, payload: {
+        ruta: string;
+        nombre: string;
+    }): Observable<any> {
+        return this.httpClient.put(
+            `${this.baseUrl}/empresas/${empresaId}/repositorio/carpetas/renombrar`,
+            payload
+        );
+    }
+
     eliminarEmpresaRepositorioCarpeta(empresaId: number, ruta: string): Observable<any> {
         return this.httpClient.request('delete', `${this.baseUrl}/empresas/${empresaId}/repositorio/carpetas`, {
             body: { ruta }

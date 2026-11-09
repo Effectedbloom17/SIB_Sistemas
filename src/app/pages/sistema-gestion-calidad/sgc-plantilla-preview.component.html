@@ -9229,7 +9229,7 @@
                                 </div>
 
                                 <button type="button" class="sgc-f-29-tool-btn sgc-f-29-tool-btn--crit"
-                                  *ngIf="puedeAgregarAreaSgcF29"
+                                  *ngIf="puedeAgregarCriterioSgcF29"
                                   (click)="abrirNuevoCriterioDesdePickerSgcF29($event)"
                                   [disabled]="!areaGrupoSgcF29(activo)"
                                   [class.is-open]="sgcF29NuevoCriterioAbierto"
@@ -9336,14 +9336,6 @@
                                       <strong>{{ etiquetaEscalaNuevaSgcF29() }}</strong>
                                       <em *ngIf="sgcF29NuevoCriterio.escala === 1">El % se escribe al evaluar</em>
                                     </span>
-                                    <span class="sgc-f-29-escala-menu__trigger-pills" aria-hidden="true"
-                                      *ngIf="sgcF29NuevoCriterio.escala !== 1">
-                                      <i *ngFor="let v of valoresNuevoCriterioSgcF29()">{{ v }}</i>
-                                    </span>
-                                    <span class="sgc-f-29-escala-menu__trigger-pills" aria-hidden="true"
-                                      *ngIf="sgcF29NuevoCriterio.escala === 1">
-                                      <i class="is-edit">%</i>
-                                    </span>
                                     <i class="fas fa-chevron-down sgc-f-29-escala-menu__chev" aria-hidden="true"></i>
                                   </button>
 
@@ -9360,10 +9352,6 @@
                                       <span class="sgc-f-29-escala-menu__opt-main">
                                         <strong>{{ e.escala === 1 ? 'Personalizado' : (e.escala + ' opciones') }}</strong>
                                         <em>{{ e.escala === 1 ? 'Escribes el % al evaluar' : (e.valores.join(' · ')) }}</em>
-                                      </span>
-                                      <span class="sgc-f-29-escala-menu__opt-pills" aria-hidden="true">
-                                        <i *ngFor="let v of e.valores">{{ v }}</i>
-                                        <i *ngIf="e.escala === 1" class="is-edit">%</i>
                                       </span>
                                       <i class="fas fa-check" *ngIf="sgcF29NuevoCriterio.escala === e.escala" aria-hidden="true"></i>
                                     </button>
@@ -14857,7 +14845,8 @@
             </ng-container>
 
             <ng-container *ngSwitchCase="'dg-f-06'">
-              <form class="dg-f05-form dg-f-06-form" (ngSubmit)="$event.preventDefault()">
+              <form class="dg-f05-form dg-f-06-form" (ngSubmit)="$event.preventDefault()"
+                    (input)="onDgF06Editado()" (change)="onDgF06Editado()">
                 <article class="dg-f05-doc dg-f-06-doc" *ngIf="dgF06Vista === 'archivero'">
                   <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'DG-F-06', titulo: 'Cuadro de mando', icono: 'fa-tachometer-alt', extraClass: 'dg-f-06-doc__header' }"></ng-container>
 
@@ -14986,12 +14975,23 @@
                           <span class="dg-f-06-item__kicker">
                             {{ doc.tipo === 'objetivos' ? 'Objetivo' : 'Proceso' }}
                           </span>
-                          <h5 class="dg-f-06-item__title" [attr.title]="fila.proceso">{{ fila.proceso }}</h5>
+                          <textarea class="dg-f05-field dg-f05-field--textarea dg-f-06-item__title-input"
+                            [attr.rows]="filasTexto(fila.proceso)"
+                            [name]="'dgF06_proc_' + fila.id"
+                            [(ngModel)]="fila.proceso"
+                            [attr.aria-label]="(doc.tipo === 'objetivos' ? 'Objetivo' : 'Proceso') + ' ' + fila.no"
+                            placeholder="Describe el objetivo o proceso…"></textarea>
                         </div>
-                        <span class="dg-f-06-item__indicador" [attr.title]="fila.indicador">
+                        <label class="dg-f-06-item__indicador">
                           <i class="fas fa-chart-line" aria-hidden="true"></i>
-                          {{ fila.indicador }}
-                        </span>
+                          <input class="dg-f05-field dg-f-06-item__indicador-input"
+                            type="text"
+                            [name]="'dgF06_ind_' + fila.id"
+                            [(ngModel)]="fila.indicador"
+                            placeholder="Indicador"
+                            [attr.aria-label]="'Indicador ' + fila.no"
+                            autocomplete="off">
+                        </label>
                         <div class="dg-f-06-item__score" aria-label="Resumen de resultados">
                           <span class="dg-f-06-item__score-ok" title="Cumple">{{ conteoEstadoDgF06(fila, 'ok') }}</span>
                           <span class="dg-f-06-item__score-risk" title="No cumple">{{ conteoEstadoDgF06(fila, 'risk') }}</span>
@@ -15004,45 +15004,95 @@
                           <dl class="dg-f-06-facts">
                             <div class="dg-f-06-fact">
                               <dt>Meta</dt>
-                              <dd [attr.title]="fila.meta">{{ fila.meta }}</dd>
+                              <dd>
+                                <textarea class="dg-f05-field dg-f05-field--textarea"
+                                  [attr.rows]="filasTexto(fila.meta)"
+                                  [name]="'dgF06_meta_' + fila.id"
+                                  [(ngModel)]="fila.meta"
+                                  placeholder="Meta…"
+                                  [attr.aria-label]="'Meta ' + fila.no"></textarea>
+                              </dd>
                             </div>
                             <div class="dg-f-06-fact">
                               <dt>Responsable</dt>
-                              <dd [attr.title]="fila.responsable">{{ fila.responsable }}</dd>
+                              <dd>
+                                <textarea class="dg-f05-field dg-f05-field--textarea"
+                                  [attr.rows]="filasTexto(fila.responsable)"
+                                  [name]="'dgF06_resp_' + fila.id"
+                                  [(ngModel)]="fila.responsable"
+                                  placeholder="Responsable…"
+                                  [attr.aria-label]="'Responsable ' + fila.no"></textarea>
+                              </dd>
                             </div>
                             <div class="dg-f-06-fact">
                               <dt>Compromiso</dt>
-                              <dd [attr.title]="fila.fechaCompromiso">{{ fila.fechaCompromiso }}</dd>
+                              <dd>
+                                <input class="dg-f05-field" type="text"
+                                  [name]="'dgF06_comp_' + fila.id"
+                                  [(ngModel)]="fila.fechaCompromiso"
+                                  placeholder="Fecha compromiso"
+                                  [attr.aria-label]="'Compromiso ' + fila.no"
+                                  autocomplete="off">
+                              </dd>
                             </div>
                             <div class="dg-f-06-fact">
                               <dt>Medición</dt>
-                              <dd>{{ fila.freqMedicion }}</dd>
+                              <dd>
+                                <input class="dg-f05-field" type="text"
+                                  [name]="'dgF06_med_' + fila.id"
+                                  [(ngModel)]="fila.freqMedicion"
+                                  placeholder="Frecuencia"
+                                  [attr.aria-label]="'Medición ' + fila.no"
+                                  autocomplete="off">
+                              </dd>
                             </div>
                             <div class="dg-f-06-fact">
                               <dt>Análisis</dt>
-                              <dd>{{ fila.freqAnalisis }}</dd>
+                              <dd>
+                                <input class="dg-f05-field" type="text"
+                                  [name]="'dgF06_ana_' + fila.id"
+                                  [(ngModel)]="fila.freqAnalisis"
+                                  placeholder="Frecuencia"
+                                  [attr.aria-label]="'Análisis ' + fila.no"
+                                  autocomplete="off">
+                              </dd>
                             </div>
                           </dl>
 
                           <div class="dg-f-06-lists">
                             <section class="dg-f-06-list">
                               <h6 class="dg-f-06-list__label">Acciones</h6>
-                              <div class="dg-f-06-list__body" [attr.title]="fila.acciones">
-                                <p>{{ fila.acciones }}</p>
+                              <div class="dg-f-06-list__body">
+                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f-06-list__input"
+                                  [attr.rows]="filasTextoSgcF12(fila.acciones, 3)"
+                                  [name]="'dgF06_acc_' + fila.id"
+                                  [(ngModel)]="fila.acciones"
+                                  placeholder="Acciones…"
+                                  [attr.aria-label]="'Acciones ' + fila.no"></textarea>
                               </div>
                             </section>
                             <section class="dg-f-06-list">
                               <h6 class="dg-f-06-list__label">Recursos</h6>
-                              <div class="dg-f-06-list__body" [attr.title]="fila.recursos">
-                                <p>{{ fila.recursos }}</p>
+                              <div class="dg-f-06-list__body">
+                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f-06-list__input"
+                                  [attr.rows]="filasTextoSgcF12(fila.recursos, 3)"
+                                  [name]="'dgF06_rec_' + fila.id"
+                                  [(ngModel)]="fila.recursos"
+                                  placeholder="Recursos…"
+                                  [attr.aria-label]="'Recursos ' + fila.no"></textarea>
                               </div>
                             </section>
                           </div>
 
                           <section class="dg-f-06-list dg-f-06-list--op">
                             <h6 class="dg-f-06-list__label">Operación</h6>
-                            <div class="dg-f-06-list__body" [attr.title]="fila.operacion">
-                              <p>{{ fila.operacion }}</p>
+                            <div class="dg-f-06-list__body">
+                              <textarea class="dg-f05-field dg-f05-field--textarea dg-f-06-list__input"
+                                [attr.rows]="filasTextoSgcF12(fila.operacion, 2)"
+                                [name]="'dgF06_op_' + fila.id"
+                                [(ngModel)]="fila.operacion"
+                                placeholder="Fórmula / operación…"
+                                [attr.aria-label]="'Operación ' + fila.no"></textarea>
                             </div>
                           </section>
                         </div>

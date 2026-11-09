@@ -137,28 +137,44 @@
                   </p>
                 </div>
 
-                <div class="repo-side-nav" aria-label="Resumen de archivos">
+                <div class="repo-side-nav" role="group" aria-label="Filtrar por tipo">
                   <p class="repo-side-nav__title">Repositorio</p>
-                  <div class="repo-side-nav__item">
+                  <button type="button"
+                          class="repo-side-nav__item"
+                          [class.repo-side-nav__item--active]="filtroTipo === 'todos'"
+                          (click)="setFiltroTipo('todos')"
+                          [attr.aria-pressed]="filtroTipo === 'todos'">
                     <i class="fas fa-folder-open" aria-hidden="true"></i>
                     <span>Todo</span>
                     <em>{{ totalDocumentos }}</em>
-                  </div>
-                  <div class="repo-side-nav__item">
+                  </button>
+                  <button type="button"
+                          class="repo-side-nav__item"
+                          [class.repo-side-nav__item--active]="filtroTipo === 'pdf'"
+                          (click)="setFiltroTipo('pdf')"
+                          [attr.aria-pressed]="filtroTipo === 'pdf'">
                     <i class="fas fa-file-pdf" aria-hidden="true"></i>
                     <span>PDF</span>
                     <em>{{ conteoPdf }}</em>
-                  </div>
-                  <div class="repo-side-nav__item">
+                  </button>
+                  <button type="button"
+                          class="repo-side-nav__item"
+                          [class.repo-side-nav__item--active]="filtroTipo === 'documentos'"
+                          (click)="setFiltroTipo('documentos')"
+                          [attr.aria-pressed]="filtroTipo === 'documentos'">
                     <i class="fas fa-file-alt" aria-hidden="true"></i>
                     <span>Documentos</span>
                     <em>{{ conteoDocumentos }}</em>
-                  </div>
-                  <div class="repo-side-nav__item">
+                  </button>
+                  <button type="button"
+                          class="repo-side-nav__item"
+                          [class.repo-side-nav__item--active]="filtroTipo === 'imagenes'"
+                          (click)="setFiltroTipo('imagenes')"
+                          [attr.aria-pressed]="filtroTipo === 'imagenes'">
                     <i class="fas fa-image" aria-hidden="true"></i>
                     <span>Imágenes</span>
                     <em>{{ conteoImagenes }}</em>
-                  </div>
+                  </button>
                 </div>
 
                 <button *ngIf="puedeAdministrar"
@@ -219,6 +235,27 @@
                   </div>
 
                   <div class="repo-toolbar__right">
+                    <div class="repo-sort" role="group" aria-label="Ordenar archivos">
+                      <label class="repo-sort__label" for="repo-orden-campo">Ordenar</label>
+                      <select id="repo-orden-campo"
+                              class="repo-sort__select"
+                              [ngModel]="ordenCampo"
+                              (ngModelChange)="setOrdenDesdeSelect($event)"
+                              aria-label="Ordenar por">
+                        <option value="nombre">Nombre</option>
+                        <option value="fecha">Fecha</option>
+                        <option value="tamano">Tamaño</option>
+                        <option value="tipo">Tipo</option>
+                      </select>
+                      <button type="button"
+                              class="repo-sort__dir"
+                              (click)="toggleOrdenDir()"
+                              [title]="ordenDir === 'asc' ? 'Ascendente' : 'Descendente'"
+                              [attr.aria-label]="ordenDir === 'asc' ? 'Orden ascendente' : 'Orden descendente'">
+                        <i class="fas" [ngClass]="ordenDir === 'asc' ? 'fa-sort-amount-up-alt' : 'fa-sort-amount-down-alt'" aria-hidden="true"></i>
+                      </button>
+                    </div>
+
                     <div class="repo-view-toggle" role="group" aria-label="Vista de archivos">
                       <button type="button"
                               class="repo-view-toggle__btn"
@@ -249,8 +286,17 @@
 
                     <button *ngIf="puedeAdministrar && carpetaActual && !busqueda.trim()"
                             type="button"
+                            class="btn btn-sm sgc-extra-btn-folder"
+                            (click)="renombrarCarpetaActual()"
+                            title="Renombrar carpeta actual">
+                      <i class="fas fa-i-cursor" aria-hidden="true"></i>
+                    </button>
+
+                    <button *ngIf="puedeAdministrar && carpetaActual && !busqueda.trim()"
+                            type="button"
                             class="btn btn-sm sgc-extra-btn-danger"
-                            (click)="eliminarCarpetaActual()">
+                            (click)="eliminarCarpetaActual()"
+                            title="Eliminar carpeta actual">
                       <i class="fas fa-trash-alt" aria-hidden="true"></i>
                     </button>
                   </div>
@@ -291,6 +337,14 @@
                   <i class="fas fa-folder-open mr-1" aria-hidden="true"></i>
                   {{ etiquetaCarpetaActual }}
                 </span>
+                <button *ngIf="puedeAdministrar"
+                        type="button"
+                        class="btn btn-sm sgc-extra-nav-bar__rename"
+                        (click)="renombrarCarpetaActual()"
+                        title="Renombrar esta carpeta">
+                  <i class="fas fa-pen mr-1" aria-hidden="true"></i>
+                  Renombrar
+                </button>
                 <span class="sgc-extra-nav-bar__hint" *ngIf="dragDocId != null">
                   Suelta en <strong>Regresar</strong> para mover a la carpeta anterior
                 </span>
@@ -312,18 +366,28 @@
                   <i class="fas" [ngClass]="carpetaActual ? 'fa-folder-open' : 'fa-inbox'" aria-hidden="true"></i>
                 </div>
                 <h3 class="sgc-extra-state__title">
-                  {{ carpetaActual ? 'Carpeta vacía' : (busqueda.trim() ? 'Sin resultados' : 'Sin documentos aún') }}
+                  {{ busqueda.trim() || filtroTipo !== 'todos'
+                    ? 'Sin resultados'
+                    : (carpetaActual ? 'Carpeta vacía' : 'Sin documentos aún') }}
                 </h3>
                 <p class="sgc-extra-state__text mb-3">
                   <ng-container *ngIf="busqueda.trim(); else emptySinBusqueda">
                     Prueba con otro término o limpia la búsqueda.
                   </ng-container>
                   <ng-template #emptySinBusqueda>
-                    <ng-container *ngIf="carpetaActual; else emptyRaiz">
-                      Sube documentos aquí o crea subcarpetas para organizar el contenido.
+                    <ng-container *ngIf="filtroTipo !== 'todos'; else emptySinFiltroTipo">
+                      No hay archivos de este tipo aquí.
+                      <button type="button" class="btn btn-link btn-sm p-0 align-baseline" (click)="setFiltroTipo('todos')">
+                        Ver todo
+                      </button>
                     </ng-container>
-                    <ng-template #emptyRaiz>
-                      Crea carpetas y sube o arrastra documentos para organizarlos.
+                    <ng-template #emptySinFiltroTipo>
+                      <ng-container *ngIf="carpetaActual; else emptyRaiz">
+                        Sube documentos aquí o crea subcarpetas para organizar el contenido.
+                      </ng-container>
+                      <ng-template #emptyRaiz>
+                        Crea carpetas y sube o arrastra documentos para organizarlos.
+                      </ng-template>
                     </ng-template>
                   </ng-template>
                 </p>
@@ -338,32 +402,41 @@
               </div>
 
               <!-- Carpetas -->
-              <div *ngIf="!cargandoLista && !errorLista && carpetasVista.length > 0 && !busqueda.trim()"
+              <div *ngIf="!cargandoLista && !errorLista && carpetasVista.length > 0 && !busqueda.trim() && filtroTipo === 'todos'"
                    class="repo-section">
                 <h3 class="repo-section__title">Carpetas</h3>
                 <div class="repo-folders" role="list" aria-label="Carpetas">
-                  <button *ngFor="let carpeta of carpetasVista; trackBy: trackByRuta"
-                          type="button"
-                          class="repo-folder-card"
-                          [class.repo-folder-card--drop]="dropTargetRuta === carpeta.ruta"
-                          role="listitem"
-                          (click)="entrarCarpeta(carpeta.ruta)"
-                          (dragover)="onDragOverCarpeta($event, carpeta.ruta)"
-                          (dragleave)="onDragLeaveCarpeta($event, carpeta.ruta)"
-                          (drop)="onDropEnCarpeta($event, carpeta.ruta)"
-                          [attr.aria-label]="'Abrir carpeta ' + carpeta.nombre"
-                          [title]="'Abrir «' + carpeta.nombre + '»'">
-                    <span class="repo-folder-card__icon">
-                      <i class="fas fa-folder" aria-hidden="true"></i>
-                    </span>
-                    <span class="repo-folder-card__body">
-                      <span class="repo-folder-card__name">{{ carpeta.nombre }}</span>
-                      <span class="repo-folder-card__meta">
-                        {{ carpeta.cantidad }} archivo{{ carpeta.cantidad !== 1 ? 's' : '' }}
-                        · {{ formatearTamano(tamanoCarpeta(carpeta)) }}
+                  <div *ngFor="let carpeta of carpetasVista; trackBy: trackByRuta"
+                       class="repo-folder-card"
+                       [class.repo-folder-card--drop]="dropTargetRuta === carpeta.ruta"
+                       role="listitem"
+                       (dragover)="onDragOverCarpeta($event, carpeta.ruta)"
+                       (dragleave)="onDragLeaveCarpeta($event, carpeta.ruta)"
+                       (drop)="onDropEnCarpeta($event, carpeta.ruta)">
+                    <button type="button"
+                            class="repo-folder-card__main"
+                            (click)="entrarCarpeta(carpeta.ruta)"
+                            [attr.aria-label]="'Abrir carpeta ' + carpeta.nombre"
+                            [title]="'Abrir «' + carpeta.nombre + '»'">
+                      <span class="repo-folder-card__icon">
+                        <i class="fas fa-folder" aria-hidden="true"></i>
                       </span>
-                    </span>
-                  </button>
+                      <span class="repo-folder-card__body">
+                        <span class="repo-folder-card__name">{{ carpeta.nombre }}</span>
+                        <span class="repo-folder-card__meta">
+                          {{ carpeta.cantidad }} archivo{{ carpeta.cantidad !== 1 ? 's' : '' }}
+                          · {{ formatearTamano(tamanoCarpeta(carpeta)) }}
+                        </span>
+                      </span>
+                    </button>
+                    <button *ngIf="puedeAdministrar"
+                            type="button"
+                            class="repo-folder-card__action"
+                            title="Renombrar carpeta"
+                            (click)="renombrarCarpeta(carpeta, $event)">
+                      <i class="fas fa-pen" aria-hidden="true"></i>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -376,6 +449,8 @@
                   </h3>
                   <span class="repo-section__count">
                     {{ documentosVista.length }} archivo{{ documentosVista.length !== 1 ? 's' : '' }}
+                    · {{ etiquetaOrdenActual }}
+                    {{ ordenDir === 'asc' ? '↑' : '↓' }}
                   </span>
                 </div>
                 <div class="sgc-extra-grid" role="list">
@@ -447,15 +522,47 @@
                   </h3>
                   <span class="repo-section__count">
                     {{ documentosVista.length }} archivo{{ documentosVista.length !== 1 ? 's' : '' }}
+                    · {{ etiquetaOrdenActual }}
+                    {{ ordenDir === 'asc' ? '↑' : '↓' }}
                   </span>
                 </div>
                 <div class="repo-table-wrap">
                   <table class="repo-table">
                     <thead>
                       <tr>
-                        <th scope="col">Nombre</th>
-                        <th scope="col">Tamaño</th>
-                        <th scope="col">Modificado</th>
+                        <th scope="col">
+                          <button type="button"
+                                  class="repo-table__sort-btn"
+                                  [class.repo-table__sort-btn--active]="ordenCampo === 'nombre'"
+                                  (click)="setOrdenCampo('nombre')">
+                            Nombre
+                            <i class="fas" *ngIf="ordenCampo === 'nombre'"
+                               [ngClass]="ordenDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down'"
+                               aria-hidden="true"></i>
+                          </button>
+                        </th>
+                        <th scope="col">
+                          <button type="button"
+                                  class="repo-table__sort-btn"
+                                  [class.repo-table__sort-btn--active]="ordenCampo === 'tamano'"
+                                  (click)="setOrdenCampo('tamano')">
+                            Tamaño
+                            <i class="fas" *ngIf="ordenCampo === 'tamano'"
+                               [ngClass]="ordenDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down'"
+                               aria-hidden="true"></i>
+                          </button>
+                        </th>
+                        <th scope="col">
+                          <button type="button"
+                                  class="repo-table__sort-btn"
+                                  [class.repo-table__sort-btn--active]="ordenCampo === 'fecha'"
+                                  (click)="setOrdenCampo('fecha')">
+                            Modificado
+                            <i class="fas" *ngIf="ordenCampo === 'fecha'"
+                               [ngClass]="ordenDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down'"
+                               aria-hidden="true"></i>
+                          </button>
+                        </th>
                         <th scope="col" class="repo-table__actions-col">Acciones</th>
                       </tr>
                     </thead>

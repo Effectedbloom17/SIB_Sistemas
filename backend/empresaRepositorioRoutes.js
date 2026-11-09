@@ -68,7 +68,8 @@ function createEmpresaRepositorioRouter({
             msg.includes('subcarpetas') ||
             msg.includes('Máximo') ||
             msg.includes('logo') ||
-            msg.includes('reservado')
+            msg.includes('reservado') ||
+            msg.includes('Drive')
         ) {
             return res.status(400).json({ success: false, message: msg });
         }
@@ -102,6 +103,20 @@ function createEmpresaRepositorioRouter({
             return res.json({ success: true, message: 'Carpeta creada.', carpeta });
         } catch (error) {
             return responderError(res, error, 'No se pudo crear la carpeta');
+        }
+    });
+
+    router.put('/carpetas/renombrar', requireAdmin, async (req, res) => {
+        try {
+            const empresaId = parseEmpresaId(req);
+            const carpeta = await empresaRepositorioService.renombrarCarpeta(
+                poolOrThrow(),
+                empresaId,
+                req.body || {}
+            );
+            return res.json({ success: true, message: 'Carpeta renombrada.', carpeta });
+        } catch (error) {
+            return responderError(res, error, 'No se pudo renombrar la carpeta');
         }
     });
 
