@@ -224,7 +224,9 @@ interface ResolutivoAtencionItem {
   nombre_empresa?: string;
   nombre_asignacion?: string;
   tipo_tramite?: string;
+  municipio?: string;
   responsable?: string;
+  origen?: string;
   estatus: string;
   fecha_aprobacion?: string;
   fecha_vencimiento?: string;
@@ -238,6 +240,72 @@ interface ResolutivoAtencionCard {
   count: number;
   subtitulo: string;
   color: string;
+}
+
+interface AtencionDumbbellRow {
+  id: number;
+  empresa: string;
+  tipo: string;
+  estatus: string;
+  estatusLabel: string;
+  responsable: string;
+  sinResponsable: boolean;
+  diasTexto: string;
+  color: string;
+}
+
+interface CargaPipcItem {
+  id: number;
+  folio: string;
+  nombre: string;
+  empresa: string;
+  tipo: string;
+  lugar: string;
+  responsable: string;
+  estatus: string;
+  color: string;
+  fecha: string;
+  dias: number;
+  diasValor: string;
+  diasTexto: string;
+  peso: number;
+  tamano: number;
+  empresaId: number | null;
+  inicio: Date | null;
+  fin: Date | null;
+}
+
+interface GanttBarra {
+  left: number;
+  width: number;
+  color: string;
+  transcurrido: boolean;
+  extremo: 'unico' | 'inicio' | 'fin';
+}
+
+interface GanttFila {
+  id: string;
+  etiqueta: string;
+  detalle: string;
+  logoUrl: string | null;
+  iniciales: string;
+  dias: string;
+  color: string;
+  colorDias: string | null;
+  titulo: string;
+  barras: GanttBarra[];
+}
+
+interface CargaPipcPersona {
+  responsable: string;
+  sinResponsable: boolean;
+  total: number;
+  vencidos: number;
+  proximos: number;
+  tramite: number;
+  vigentes: number;
+  pendientes: number;
+  items: CargaPipcItem[];
 }
 
 type PasoCentroOperacionesId = 'asignar' | 'directorio' | 'recorrido' | 'documentacion' | 'oficio' | 'observaciones' | 'resolutivo' | 'recorrido_doc' | 'finalizar';
@@ -371,6 +439,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   
   // Empresas
   empresas: EmpresaPC[] = [];
+  private logosEmpresas = new Map<string, { logo?: string | null; logo_url?: string | null }>();
   empresasFiltradas: EmpresaPC[] = [];
   empresasRecientesIds: number[] = [];
   private readonly PC_EMPRESAS_RECIENTES_MAX = 6;
@@ -493,9 +562,6 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
 
   esRootUser = false;
 
-  cumplimientoChart: any = {};
-  cumplimientoChartReady = false;
-
   resolutivosAnio = new Date().getFullYear();
   cargandoResolutivosEstadisticas = false;
   resolutivosChartsReady = false;
@@ -509,6 +575,16 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     requierenAtencion: 0
   };
   resolutivosLeyendaAnio: { key: string; label: string; color: string; total: number }[] = [];
+  resolutivosPlazoCards: { key: string; label: string; count: number; hint: string; color: string }[] = [];
+  resolutivosVencimientoChart: any = {};
+  resolutivosTipoChart: any = {};
+  resolutivosVencimientoListo = false;
+  private readonly plazoCardsMeta: { key: string; label: string; hint: string; color: string }[] = [
+    { key: 'Vigentes', label: 'Vigentes', hint: 'Les falta tiempo', color: '#2dce89' },
+    { key: 'Próximo a vencer', label: 'Próximo a vencer', hint: 'Se acercan', color: '#fb6340' },
+    { key: 'Vencido', label: 'Vencidos', hint: 'Ya pasó la fecha', color: '#f5365c' },
+    { key: 'En tramite', label: 'En trámite', hint: 'Todavía sin fecha', color: '#5e72e4' }
+  ];
   /** Magnitud por estatus (columnas) + participación (línea), sin eje mensual */
   resolutivosChartModo: 'estatus' = 'estatus';
 
@@ -538,7 +614,18 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
 
   resolutivosAtencion: ResolutivoAtencionItem[] = [];
   resolutivosAtencionTotal = 0;
+  resolutivosCarga: ResolutivoAtencionItem[] = [];
   filtroAtencionEstatus: string | null = null;
+  filtroCargaResponsable: string | null = null;
+  filtroCargaAsignados = false;
+  cargaKpis = { total: 0, personas: 0, proximos: 0, vencidos: 0, sinResponsable: 0 };
+  cargaTopPendientes: { responsable: string; pendientes: number }[] = [];
+  cargaPersonasVisibles: CargaPipcPersona[] = [];
+  ganttVistaAnual = false;
+  ganttMeses: { etiqueta: string; anioOffset: number }[] = [];
+  ganttAnios: { anio: number; columna: string }[] = [];
+  ganttFilas: GanttFila[] = [];
+  ganttHoyPct: number | null = null;
   resolutivosAtencionChartsReady = false;
   resolutivosAtencionDonut!: Partial<ResolutivosAtencionDonutOptions>;
   resumenAtencionCards: ResolutivoAtencionCard[] = [];
@@ -597,6 +684,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   ) {
     this.initResolutivosCharts();
     this.initResolutivosAtencionDonut();
+    this.aplicarVentanaGantt();
   }
 
   ngOnInit(): void {
@@ -2013,13 +2101,14 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       (response: any) => {
         if (response.success) {
           const todas = (response.empresas || []).map((empresa) => this.normalizarEmpresaListado(empresa));
+          todas.forEach((empresa) => this.registrarLogoEmpresa(empresa));
           // PIPC Activos: solo empresas con gestión (plantillas asignadas / ciclo en curso)
           this.empresas = todas.filter((empresa) => this.empresaTieneGestionPipc(empresa));
           this.empresasFiltradas = [...this.empresas];
           this.extraerEstadosDeBD();
           this.cargarEmpresasRecientesDesdeStorage();
           this.aplicarEstadoDesdeRuta();
-          this.syncCumplimientoChart();
+          this.refrescarGanttSiHayCarga();
         }
         this.cargandoEmpresas = false;
       },
@@ -2078,6 +2167,8 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
             pasos_detalle: pasosDetalle
           } as PipcTerminadoReciente;
         });
+        this.pipcTerminadosRecientes.forEach((empresa) => this.registrarLogoEmpresa(empresa));
+        this.refrescarGanttSiHayCarga();
         this.cargandoPipcTerminados = false;
       },
       error: () => {
@@ -2101,7 +2192,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     this.backendService.obtenerEmpresas().subscribe(
       (response: any) => {
         if (response.success) {
-          this.empresas = response.empresas.map((e: any) => this.normalizarEmpresaListado({
+          const todas = response.empresas.map((e: any) => this.normalizarEmpresaListado({
             empresa_id: e.empresa_id,
             nombre_empresa: e.nombre_empresa,
             rfc: e.rfc,
@@ -2114,12 +2205,14 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
             documentos_totales: 0,
             pasos_completados: [],
             ciclo_cerrado: false
-          })).filter((empresa) => this.empresaTieneGestionPipc(empresa));
+          }));
+          todas.forEach((empresa) => this.registrarLogoEmpresa(empresa));
+          this.empresas = todas.filter((empresa) => this.empresaTieneGestionPipc(empresa));
           this.empresasFiltradas = [...this.empresas];
+          this.refrescarGanttSiHayCarga();
           this.extraerEstadosDeBD();
           this.cargarEmpresasRecientesDesdeStorage();
           this.aplicarEstadoDesdeRuta();
-          this.syncCumplimientoChart();
         }
       },
       (error) => {
@@ -2292,41 +2385,6 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
 
   get totalDocumentosAsignados(): number {
     return this.empresasUnicasFiltradas.reduce((acc, e) => acc + (Number(e.documentos_totales) || 0), 0);
-  }
-
-  get documentosCompletosDashboard(): number {
-    return Math.max(this.totalDocumentosAsignados - this.archivosPendientesDashboard, 0);
-  }
-
-  private syncCumplimientoChart(): void {
-    if (!this.embebido) return;
-    const completos = this.documentosCompletosDashboard;
-    const pendientes = this.archivosPendientesDashboard;
-    this.cumplimientoChart = {
-      series: [completos, pendientes],
-      chart: {
-        type: 'donut',
-        height: 260,
-        fontFamily: 'Open Sans, sans-serif',
-        toolbar: { show: false }
-      },
-      labels: ['Completos', 'Pendientes'],
-      colors: ['#2dce89', '#fb6340'],
-      legend: { show: false },
-      dataLabels: { enabled: false },
-      stroke: { width: 3, colors: ['#fff'] },
-      plotOptions: {
-        pie: {
-          expandOnClick: false,
-          donut: { size: '72%', labels: { show: false } }
-        }
-      },
-      tooltip: {
-        theme: 'light',
-        y: { formatter: (val: number) => `${val} documento${val === 1 ? '' : 's'}` }
-      }
-    };
-    this.cumplimientoChartReady = true;
   }
 
   get empresasSinDocumentos(): number {
@@ -6792,9 +6850,450 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     return this.resolutivosAtencion.filter((r) => r.estatus === this.filtroAtencionEstatus);
   }
 
+  atencionBarrasReady = false;
+  atencionDumbbellRows: AtencionDumbbellRow[] = [];
+
   get resolutivosAtencionVisibles(): ResolutivoAtencionItem[] {
-    const lista = this.resolutivosAtencionFiltrados;
-    return this.embebido ? lista.slice(0, 5) : lista;
+    return this.resolutivosAtencionFiltrados;
+  }
+
+  private syncAtencionBarras(): void {
+    if (!this.embebido) {
+      this.atencionBarrasReady = false;
+      this.atencionDumbbellRows = [];
+      return;
+    }
+    const ranked = this.resolutivosAtencionFiltrados
+      .map((r) => ({ r, ind: this.indicadorTiempoAtencion(r), puntaje: this.puntajeUrgenciaAtencion(r) }))
+      .sort((a, b) => b.puntaje - a.puntaje || (a.r.nombre_empresa || '').localeCompare(b.r.nombre_empresa || '', 'es'));
+    this.atencionDumbbellRows = ranked.map(({ r, ind }) => {
+      const responsable = this.nombreResponsableAtencion(r.responsable);
+      return {
+        id: r.resolutivo_id,
+        empresa: (r.nombre_empresa || 'Sin empresa').trim(),
+        tipo: (r.tipo_tramite || '').trim(),
+        estatus: r.estatus,
+        estatusLabel: this.labelEstatusAtencion(r.estatus),
+        responsable,
+        sinResponsable: responsable === 'Sin asignar',
+        diasTexto: this.textoDiasAtencion(ind),
+        color: this.colorEstatusAtencion(r.estatus)
+      };
+    });
+    this.atencionBarrasReady = this.atencionDumbbellRows.length > 0;
+  }
+
+  private nombreResponsableAtencion(valor?: string): string {
+    const limpio = String(valor || '').trim();
+    if (!limpio || limpio === '—' || limpio === '-' || /^sin (responsable|asignar)$/i.test(limpio)) {
+      return 'Sin asignar';
+    }
+    return limpio;
+  }
+
+  private textoDiasAtencion(ind: { modo: string; dias: number }): string {
+    if (ind.modo === 'vencido') {
+      if (ind.dias <= 0) return 'Vencido';
+      return ind.dias === 1 ? '1 día de atraso' : `${ind.dias} días de atraso`;
+    }
+    if (ind.modo === 'restante') {
+      if (ind.dias <= 0) return 'Vence hoy';
+      return ind.dias === 1 ? '1 día restante' : `${ind.dias} días restantes`;
+    }
+    return 'Sin fecha';
+  }
+
+  private puntajeUrgenciaAtencion(r: ResolutivoAtencionItem): number {
+    const ind = this.indicadorTiempoAtencion(r);
+    if (ind.modo === 'vencido') return 1000000 + ind.dias;
+    if (ind.modo === 'restante') return 10000 - ind.dias;
+    if (ind.modo === 'tramite') return 100;
+    return 0;
+  }
+
+  get cargaFiltroActivo(): boolean {
+    return !!(this.filtroAtencionEstatus || this.filtroCargaResponsable || this.filtroCargaAsignados);
+  }
+
+  limpiarFiltrosCarga(): void {
+    this.filtroAtencionEstatus = null;
+    this.filtroCargaResponsable = null;
+    this.filtroCargaAsignados = false;
+    this.armarVistaCarga();
+  }
+
+  alternarEstatusCarga(estatus: string): void {
+    this.filtroAtencionEstatus = this.filtroAtencionEstatus === estatus ? null : estatus;
+    this.armarVistaCarga();
+  }
+
+  alternarSoloAsignados(): void {
+    this.filtroCargaAsignados = !this.filtroCargaAsignados;
+    if (this.filtroCargaAsignados && this.filtroCargaResponsable === 'Sin asignar') {
+      this.filtroCargaResponsable = null;
+    }
+    this.armarVistaCarga();
+  }
+
+  seleccionarResponsableCarga(nombre: string): void {
+    const estabaAbierto = !!this.filtroCargaResponsable;
+    const cambiaAsignados = nombre === 'Sin asignar' && this.filtroCargaAsignados;
+    this.filtroCargaResponsable = this.filtroCargaResponsable === nombre ? null : nombre;
+    if (nombre === 'Sin asignar') this.filtroCargaAsignados = false;
+    const abierto = !!this.filtroCargaResponsable;
+    this.armarVistaCarga(cambiaAsignados || abierto !== estabaAbierto);
+  }
+
+  cerrarDetalleCarga(): void {
+    if (!this.filtroCargaResponsable) return;
+    this.filtroCargaResponsable = null;
+    this.armarVistaCarga(true);
+  }
+
+  trackByCargaPersona(_index: number, persona: CargaPipcPersona): string {
+    return persona.responsable;
+  }
+
+  trackByCargaItem(_index: number, item: CargaPipcItem): number {
+    return item.id;
+  }
+
+  private partesNombrePipc(r: ResolutivoAtencionItem): { tipo: string; lugar: string } {
+    const tipo = (r.tipo_tramite || '').trim() || 'PIPC';
+    const nombre = (r.nombre_asignacion || '').trim();
+    const municipio = (r.municipio || '').trim();
+    const prefijo = new RegExp(`^${tipo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s+`, 'i');
+    let lugar = '';
+    if (nombre && prefijo.test(nombre)) lugar = nombre.replace(prefijo, '').trim();
+    else if (nombre && nombre.toLowerCase() !== tipo.toLowerCase()) lugar = nombre;
+    else lugar = municipio;
+    return { tipo: tipo.toUpperCase(), lugar: lugar.toUpperCase() };
+  }
+
+  private armarVistaCarga(_repintarGrafica = true): void {
+    const fuente = this.resolutivosCarga;
+    const personasTodas = this.agruparCarga(fuente);
+    const conResponsable = personasTodas.filter((p) => !p.sinResponsable);
+    this.cargaKpis = {
+      total: fuente.length,
+      personas: conResponsable.length,
+      proximos: fuente.filter((r) => r.estatus === 'Próximo a vencer').length,
+      vencidos: fuente.filter((r) => r.estatus === 'Vencido').length,
+      sinResponsable: fuente.filter((r) => this.nombreResponsableAtencion(r.responsable) === 'Sin asignar').length
+    };
+    this.cargaTopPendientes = conResponsable
+      .filter((p) => p.pendientes > 0)
+      .sort((a, b) => b.pendientes - a.pendientes || a.responsable.localeCompare(b.responsable, 'es'))
+      .slice(0, 3)
+      .map((p) => ({ responsable: p.responsable, pendientes: p.pendientes }));
+
+    const paraDetalle = fuente.filter((r) => this.pasaFiltroCarga(r, true));
+    this.cargaPersonasVisibles = this.agruparCarga(paraDetalle);
+    this.armarGantt(this.cargaPersonasVisibles);
+  }
+
+  private pasaFiltroCarga(r: ResolutivoAtencionItem, aplicarPersona: boolean): boolean {
+    if (this.filtroAtencionEstatus && r.estatus !== this.filtroAtencionEstatus) return false;
+    const responsable = this.nombreResponsableAtencion(r.responsable);
+    if (this.filtroCargaAsignados && responsable === 'Sin asignar') return false;
+    if (aplicarPersona && this.filtroCargaResponsable && responsable !== this.filtroCargaResponsable) return false;
+    return true;
+  }
+
+  private agruparCarga(lista: ResolutivoAtencionItem[]): CargaPipcPersona[] {
+    const mapa = new Map<string, CargaPipcPersona>();
+    const crudos: { persona: CargaPipcPersona; item: CargaPipcItem; puntaje: number }[] = [];
+    for (const r of lista) {
+      const responsable = this.nombreResponsableAtencion(r.responsable);
+      const sinResponsable = responsable === 'Sin asignar';
+      if (!mapa.has(responsable)) {
+        mapa.set(responsable, {
+          responsable,
+          sinResponsable,
+          total: 0,
+          vencidos: 0,
+          proximos: 0,
+          tramite: 0,
+          vigentes: 0,
+          pendientes: 0,
+          items: []
+        });
+      }
+      const persona = mapa.get(responsable)!;
+      persona.total += 1;
+      if (r.estatus === 'Vencido') persona.vencidos += 1;
+      else if (r.estatus === 'Próximo a vencer') persona.proximos += 1;
+      else if (r.estatus === 'En tramite') persona.tramite += 1;
+      else if (r.estatus === 'Vigentes') persona.vigentes += 1;
+      if (r.estatus !== 'Vigentes') persona.pendientes += 1;
+      const ind = this.indicadorTiempoAtencion(r);
+      const partes = this.partesNombrePipc(r);
+      const item: CargaPipcItem = {
+        id: r.resolutivo_id,
+        folio: r.item != null && String(r.item).trim() ? String(r.item) : '—',
+        nombre: (r.nombre_asignacion || r.tipo_tramite || 'Sin nombre').trim(),
+        empresa: (r.nombre_empresa || 'Sin empresa').trim(),
+        tipo: partes.tipo,
+        lugar: partes.lugar,
+        responsable,
+        estatus: r.estatus,
+        color: this.colorEstatusAtencion(r.estatus),
+        fecha: r.fecha_vencimiento || 'Sin fecha',
+        dias: ind.dias,
+        diasValor: ind.valor === '…' || ind.valor === '—' ? 'Sin fecha' : ind.valor,
+        diasTexto: this.textoDiasAtencion(ind),
+        peso: 16,
+        tamano: 15,
+        empresaId: Number(r.empresa_id) || null,
+        inicio: this.parseFechaMx(r.fecha_aprobacion) || this.parseFechaMx(r.fecha_contacto_empresa),
+        fin: this.parseFechaMx(r.fecha_vencimiento)
+      };
+      crudos.push({ persona, item, puntaje: this.puntajeUrgenciaAtencion(r) });
+    }
+    const maxDias = crudos.reduce((max, row) => Math.max(max, row.item.dias), 0);
+    for (const row of crudos) {
+      const ratio = maxDias > 0 ? row.item.dias / maxDias : 0;
+      row.item.peso = row.item.dias > 0 ? Math.max(8, Math.round(ratio * 100)) : 0;
+      row.item.tamano = row.item.dias > 0 ? Math.round(18 + ratio * 4) : 16;
+      row.persona.items.push(row.item);
+    }
+    for (const persona of mapa.values()) {
+      persona.items.sort((a, b) => {
+        const pa = crudos.find((row) => row.item === a)?.puntaje || 0;
+        const pb = crudos.find((row) => row.item === b)?.puntaje || 0;
+        return pb - pa;
+      });
+    }
+    return [...mapa.values()].sort((a, b) => {
+      if (a.sinResponsable !== b.sinResponsable) return a.sinResponsable ? -1 : 1;
+      return b.total - a.total || a.responsable.localeCompare(b.responsable, 'es');
+    });
+  }
+
+  trackByGanttFila(_index: number, fila: GanttFila): string {
+    return fila.id;
+  }
+
+  ocultarLogoGantt(fila: GanttFila): void {
+    fila.logoUrl = null;
+  }
+
+  private refrescarGanttSiHayCarga(): void {
+    if (this.resolutivosCarga.length) this.armarVistaCarga();
+  }
+
+  private registrarLogoEmpresa(empresa: { empresa_id?: number; nombre_empresa?: string; logo?: string | null; logo_url?: string | null }): void {
+    const logo = empresa?.logo || null;
+    const logoUrl = empresa?.logo_url || empresa?.logo || null;
+    if (!logo && !logoUrl) return;
+    const dato = { logo, logo_url: logoUrl };
+    const id = Number(empresa?.empresa_id) || 0;
+    if (id > 0) this.logosEmpresas.set(`id:${id}`, dato);
+    const nombre = String(empresa?.nombre_empresa || '').trim().toLowerCase();
+    if (nombre) this.logosEmpresas.set(`nom:${nombre}`, dato);
+  }
+
+  private logoDeEmpresa(empresaId: number | null, nombre: string): string | null {
+    const porId = empresaId ? this.logosEmpresas.get(`id:${empresaId}`) : null;
+    const porNombre = this.logosEmpresas.get(`nom:${nombre.trim().toLowerCase()}`);
+    const dato = porId || porNombre;
+    return dato ? this.getLogoEmpresaUrl(dato) : null;
+  }
+
+  private armarGantt(personas: CargaPipcPersona[]): void {
+    this.ganttHoyPct = this.porcentajeHoyGantt();
+    const filas: GanttFila[] = [];
+    for (const persona of personas) {
+      for (const item of persona.items) {
+        const limites = this.limitesItemGantt(item);
+        const detalle = [item.tipo, item.lugar].filter(Boolean).join(' · ');
+        const fuera = limites ? this.fueraDePeriodoGantt(limites.inicio, limites.fin) : false;
+        filas.push({
+          id: `pipc:${item.id}`,
+          etiqueta: item.empresa,
+          detalle,
+          logoUrl: this.logoDeEmpresa(item.empresaId, item.empresa),
+          iniciales: this.getIniciales(item.empresa),
+          dias: this.etiquetaDiasGantt(item),
+          color: item.color,
+          colorDias: item.diasValor === 'Sin fecha' ? null : item.color,
+          titulo: [
+            item.empresa,
+            detalle,
+            item.diasTexto,
+            this.labelEstatusAtencion(item.estatus),
+            item.inicio ? `Desde ${this.formatoFechaCorta(item.inicio)}` : '',
+            item.fin ? `Vence ${this.formatoFechaCorta(item.fin)}` : (item.fecha && item.fecha !== 'Sin fecha' ? `Vence ${item.fecha}` : ''),
+            fuera ? 'Fuera de septiembre a marzo' : ''
+          ].filter(Boolean).join(' · '),
+          barras: limites ? this.barrasAvanceGantt(limites.inicio, limites.fin, item.color) : []
+        });
+      }
+    }
+    this.ganttFilas = filas;
+  }
+
+  private etiquetaDiasGantt(item: CargaPipcItem): string {
+    if (item.diasValor === 'Sin fecha') return 'Sin fecha';
+    const n = Number(item.diasValor);
+    if (!Number.isFinite(n)) return item.diasValor;
+    return n === 1 ? '1 Día' : `${n} Días`;
+  }
+
+  alternarVistaGantt(): void {
+    this.ganttVistaAnual = !this.ganttVistaAnual;
+    this.aplicarVentanaGantt();
+    this.refrescarGanttSiHayCarga();
+  }
+
+  get etiquetaBotonGantt(): string {
+    const anio = this.resolutivosAnio;
+    return this.ganttVistaAnual
+      ? `Sep ${anio} – Mar ${anio + 1}`
+      : `Nov ${anio} – Nov ${anio + 1}`;
+  }
+
+  get textoRangoGantt(): string {
+    const anio = this.resolutivosAnio;
+    const rango = this.ganttVistaAnual
+      ? `Noviembre ${anio} a noviembre ${anio + 1}`
+      : `Septiembre ${anio} a marzo ${anio + 1}`;
+    return `${rango}. El tramo sólido ya pasó de hoy; el claro es lo que falta.`;
+  }
+
+  /** Temporada: septiembre a marzo. Año: noviembre de este año a noviembre del siguiente, inclusive. */
+  private ventanaGantt(): { t0: number; t1: number } {
+    const anio = this.resolutivosAnio;
+    if (this.ganttVistaAnual) {
+      return {
+        t0: new Date(anio, 10, 1).getTime(),
+        t1: new Date(anio + 1, 11, 1).getTime()
+      };
+    }
+    return {
+      t0: new Date(anio, 8, 1).getTime(),
+      t1: new Date(anio + 1, 3, 1).getTime()
+    };
+  }
+
+  private aplicarVentanaGantt(): void {
+    const cortos = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+    const anio = this.resolutivosAnio;
+    const desde = this.ganttVistaAnual ? new Date(anio, 10, 1) : new Date(anio, 8, 1);
+    const hasta = this.ganttVistaAnual ? new Date(anio + 1, 10, 1) : new Date(anio + 1, 2, 1);
+    const meses: { etiqueta: string; anioOffset: number }[] = [];
+    const cursor = new Date(desde);
+    while (cursor.getTime() <= hasta.getTime()) {
+      meses.push({
+        etiqueta: cortos[cursor.getMonth()],
+        anioOffset: cursor.getFullYear() - anio
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    this.ganttMeses = meses;
+    const grupos: { anio: number; columna: string }[] = [];
+    meses.forEach((mes, indice) => {
+      const anioMes = anio + mes.anioOffset;
+      const previo = grupos[grupos.length - 1];
+      if (!previo || previo.anio !== anioMes) {
+        grupos.push({ anio: anioMes, columna: `${indice + 1} / ${indice + 2}` });
+      } else {
+        const inicio = previo.columna.split(' / ')[0];
+        previo.columna = `${inicio} / ${indice + 2}`;
+      }
+    });
+    this.ganttAnios = grupos;
+  }
+
+  /** Sin fecha de inicio, la barra llega hasta el vencimiento desde el 1 de septiembre. */
+  private limitesItemGantt(item: CargaPipcItem): { inicio: Date; fin: Date } | null {
+    const finReal = item.fin || item.inicio;
+    if (!item.inicio && !finReal) return null;
+    const hasta = finReal || item.inicio!;
+    let desde = item.inicio;
+    if (!desde) {
+      const { t0 } = this.ventanaGantt();
+      desde = hasta.getTime() < t0 ? hasta : new Date(t0);
+    }
+    return { inicio: desde, fin: hasta };
+  }
+
+  private geometriaGantt(inicio: Date | null, fin: Date | null): { left: number; width: number } | null {
+    if (!inicio && !fin) return null;
+    const { t0, t1 } = this.ventanaGantt();
+    const span = t1 - t0;
+    let desde = inicio || fin!;
+    let hasta = fin || inicio!;
+    if (desde.getTime() > hasta.getTime()) {
+      const tmp = desde;
+      desde = hasta;
+      hasta = tmp;
+    }
+    const aMs = desde.getTime();
+    const bMs = hasta.getTime() + 86400000;
+    if (bMs <= t0) return { left: 0, width: 2.2 };
+    if (aMs >= t1) return { left: 97.8, width: 2.2 };
+    const left = Math.max(0, ((aMs - t0) / span) * 100);
+    const right = Math.min(100, ((bMs - t0) / span) * 100);
+    const width = Math.max(2.2, right - left);
+    return {
+      left: Math.round(left * 100) / 100,
+      width: Math.round(Math.min(width, 100 - left) * 100) / 100
+    };
+  }
+
+  /** Lo ya marcado por Hoy queda sólido; lo que falta queda claro. */
+  private barrasAvanceGantt(inicio: Date, fin: Date, color: string): GanttBarra[] {
+    const base = this.geometriaGantt(inicio, fin);
+    if (!base) return [];
+    const hoy = this.ganttHoyPct;
+    const claro = this.colorClaroGantt(color);
+    const finBarra = base.left + base.width;
+    if (hoy == null || finBarra <= hoy) {
+      return [{ ...base, color, transcurrido: true, extremo: 'unico' }];
+    }
+    if (base.left >= hoy) {
+      return [{ ...base, color: claro, transcurrido: false, extremo: 'unico' }];
+    }
+    const anchoPasado = Math.round((hoy - base.left) * 100) / 100;
+    const anchoFuturo = Math.round(Math.min(finBarra - hoy, 100 - hoy) * 100) / 100;
+    return [
+      { left: base.left, width: Math.max(0.8, anchoPasado), color, transcurrido: true, extremo: 'inicio' },
+      { left: Math.round(hoy * 100) / 100, width: Math.max(0.8, anchoFuturo), color: claro, transcurrido: false, extremo: 'fin' }
+    ];
+  }
+
+  private colorClaroGantt(hex: string): string {
+    const n = hex.replace('#', '');
+    if (n.length !== 6) return hex;
+    const canal = (inicio: number) => parseInt(n.slice(inicio, inicio + 2), 16);
+    const mix = (c: number) => Math.round(c + (255 - c) * 0.62);
+    return `rgb(${mix(canal(0))}, ${mix(canal(2))}, ${mix(canal(4))})`;
+  }
+
+  private fueraDePeriodoGantt(inicio: Date | null, fin: Date | null): boolean {
+    if (!inicio && !fin) return false;
+    const { t0, t1 } = this.ventanaGantt();
+    const desde = inicio || fin!;
+    const hasta = fin || inicio!;
+    const lo = Math.min(desde.getTime(), hasta.getTime());
+    const hi = Math.max(desde.getTime(), hasta.getTime()) + 86400000;
+    return hi <= t0 || lo >= t1;
+  }
+
+  private porcentajeHoyGantt(): number | null {
+    const hoy = new Date();
+    const { t0, t1 } = this.ventanaGantt();
+    const ms = hoy.getTime();
+    if (ms < t0 || ms >= t1) return null;
+    const pct = ((ms - t0) / (t1 - t0)) * 100;
+    return Math.round(Math.min(100, Math.max(0, pct)) * 100) / 100;
+  }
+
+  private formatoFechaCorta(fecha: Date): string {
+    const dd = String(fecha.getDate()).padStart(2, '0');
+    const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+    return `${dd}/${mm}/${fecha.getFullYear()}`;
   }
 
   private rebuildFiltrosAtencionChips(): void {
@@ -6821,6 +7320,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     event?.stopPropagation();
     event?.preventDefault();
     this.filtroAtencionEstatus = estatus;
+    this.syncAtencionBarras();
     this.reiniciarProgresoCarruselResolutivos();
   }
 
@@ -6828,11 +7328,13 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     event?.stopPropagation();
     event?.preventDefault();
     this.filtroAtencionEstatus = this.filtroAtencionEstatus === estatus ? null : estatus;
+    this.syncAtencionBarras();
     this.reiniciarProgresoCarruselResolutivos();
   }
 
   limpiarFiltroAtencion(): void {
     this.filtroAtencionEstatus = null;
+    this.syncAtencionBarras();
   }
 
   colorEstatusAtencion(estatus: string): string {
@@ -7021,12 +7523,23 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       requierenAtencion: 0
     };
     this.resolutivosLeyendaAnio = [];
+    this.resolutivosPlazoCards = [];
+    this.resolutivosVencimientoListo = false;
     this.resolutivosChartModo = 'estatus';
     this.resolutivosAtencion = [];
     this.resolutivosAtencionTotal = 0;
+    this.resolutivosCarga = [];
+    this.filtroCargaResponsable = null;
+    this.filtroCargaAsignados = false;
+    this.cargaKpis = { total: 0, personas: 0, proximos: 0, vencidos: 0, sinResponsable: 0 };
+    this.cargaTopPendientes = [];
+    this.cargaPersonasVisibles = [];
+    this.ganttFilas = [];
+    this.ganttHoyPct = null;
     this.resumenAtencionCards = [];
     this.filtroAtencionEstatus = null;
     this.rebuildFiltrosAtencionChips();
+    this.syncAtencionBarras();
     this.resetAtencionDonutCentro();
     this.resolutivosChartOptions = {
       ...this.resolutivosChartOptions,
@@ -7040,6 +7553,149 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     this.resolutivosChartsReady = true;
     this.resolutivosAtencionChartsReady = true;
     this.detenerCarruselResolutivos();
+  }
+
+  private armarVistaVencimiento(estadisticas: any): void {
+    const counts = new Map(this.resolutivosEstatusCards.map((card) => [card.key, card.count]));
+    this.resolutivosPlazoCards = this.plazoCardsMeta.map((meta) => ({
+      ...meta,
+      count: counts.get(meta.key) || 0
+    }));
+
+    const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const serieMes = Array.isArray(estadisticas?.vencimientos_por_mes) && estadisticas.vencimientos_por_mes.length
+      ? estadisticas.vencimientos_por_mes
+      : this.vencimientosDesdeAtencion();
+    const categoriasMes = (serieMes.length ? serieMes : meses.map((mesLabel, idx) => ({ mes: idx + 1, mes_label: mesLabel, total: 0 })))
+      .map((item: any) => item.mes_label || meses[(Number(item.mes) || 1) - 1]);
+    const datosMes = (serieMes.length ? serieMes : meses.map(() => ({ total: 0 })))
+      .map((item: any) => Number(item.total) || 0);
+
+    this.resolutivosVencimientoChart = {
+      series: [{ name: 'Vencen', data: datosMes }],
+      chart: {
+        type: 'line',
+        height: 230,
+        toolbar: { show: false },
+        fontFamily: 'Open Sans, sans-serif',
+        zoom: { enabled: false },
+        animations: { enabled: true }
+      },
+      colors: ['#64748b'],
+      stroke: { curve: 'smooth', width: 3 },
+      markers: { size: 4, strokeWidth: 0 },
+      dataLabels: { enabled: false },
+      legend: { show: false },
+      grid: {
+        borderColor: '#eef1f4',
+        strokeDashArray: 4,
+        padding: { top: 8, right: 8, bottom: 0, left: 8 }
+      },
+      xaxis: {
+        categories: categoriasMes,
+        labels: { style: { colors: '#94a3b8', fontSize: '11px' } },
+        axisBorder: { show: false },
+        axisTicks: { show: false }
+      },
+      yaxis: {
+        min: 0,
+        forceNiceScale: true,
+        labels: {
+          style: { colors: '#94a3b8', fontSize: '11px' },
+          formatter: (val: number) => String(Math.round(val))
+        }
+      },
+      tooltip: {
+        theme: 'light',
+        y: { formatter: (val: number) => `${val} resolutivo${val === 1 ? '' : 's'}` }
+      }
+    };
+
+    const tipos = (Array.isArray(estadisticas?.por_tipo) && estadisticas.por_tipo.length
+      ? estadisticas.por_tipo
+      : this.tiposDesdeAtencion()
+    ).filter((item: any) => {
+      const tipo = String(item?.tipo || '').trim();
+      return tipo && tipo !== 'Sin tipo';
+    });
+    const categoriasTipo = tipos.map((item: any) => String(item.tipo).trim());
+    const serieDe = (campo: string) => tipos.map((item: any) => Number(item[campo]) || 0);
+    this.resolutivosTipoChart = {
+      series: [
+        { name: 'Vigentes', data: serieDe('vigentes') },
+        { name: 'Próximo a vencer', data: serieDe('proximo') },
+        { name: 'Vencidos', data: serieDe('vencido') },
+        { name: 'En trámite', data: serieDe('tramite') }
+      ],
+      chart: {
+        type: 'bar',
+        height: 230,
+        stacked: true,
+        toolbar: { show: false },
+        fontFamily: 'Open Sans, sans-serif'
+      },
+      colors: ['#2dce89', '#fb6340', '#f5365c', '#5e72e4'],
+      plotOptions: { bar: { borderRadius: 6, columnWidth: '46%' } },
+      dataLabels: { enabled: false },
+      legend: {
+        show: true,
+        position: 'bottom',
+        fontSize: '11px',
+        markers: { width: 8, height: 8, radius: 8 }
+      },
+      grid: {
+        borderColor: '#eef1f4',
+        strokeDashArray: 4,
+        padding: { top: 8, right: 8, bottom: 0, left: 4 }
+      },
+      xaxis: {
+        categories: categoriasTipo,
+        labels: { style: { colors: '#64748b', fontSize: '11px', fontWeight: 600 }, trim: true },
+        axisBorder: { show: false },
+        axisTicks: { show: false }
+      },
+      yaxis: {
+        min: 0,
+        forceNiceScale: true,
+        labels: {
+          style: { colors: '#94a3b8', fontSize: '11px' },
+          formatter: (val: number) => String(Math.round(val))
+        }
+      },
+      tooltip: { theme: 'light' }
+    };
+    this.resolutivosVencimientoListo = true;
+  }
+
+  private vencimientosDesdeAtencion(): { mes: number; mes_label: string; total: number }[] {
+    const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const serie = meses.map((mesLabel, idx) => ({ mes: idx + 1, mes_label: mesLabel, total: 0 }));
+    for (const item of this.resolutivosAtencion) {
+      const fecha = this.parseFechaMx(item.fecha_vencimiento);
+      if (!fecha || fecha.getFullYear() !== this.resolutivosAnio) continue;
+      serie[fecha.getMonth()].total += 1;
+    }
+    return serie;
+  }
+
+  private tiposDesdeAtencion(): { tipo: string; vigentes: number; proximo: number; vencido: number; tramite: number }[] {
+    const mapa = new Map<string, { tipo: string; vigentes: number; proximo: number; vencido: number; tramite: number }>();
+    for (const item of this.resolutivosAtencion) {
+      const tipo = (item.tipo_tramite || '').trim();
+      if (!tipo) continue;
+      if (!mapa.has(tipo)) mapa.set(tipo, { tipo, vigentes: 0, proximo: 0, vencido: 0, tramite: 0 });
+      const bucket = mapa.get(tipo)!;
+      if (item.estatus === 'Próximo a vencer') bucket.proximo += 1;
+      else if (item.estatus === 'Vencido') bucket.vencido += 1;
+      else bucket.tramite += 1;
+    }
+    return [...mapa.values()];
+  }
+
+  private parseFechaMx(valor?: string): Date | null {
+    const match = String(valor || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!match) return null;
+    return new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
   }
 
   private actualizarGraficosResolutivos(estadisticas: any): void {
@@ -7223,6 +7879,11 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     const atencion = estadisticas.atencion || {};
     this.resolutivosAtencion = Array.isArray(atencion.resolutivos) ? atencion.resolutivos : [];
     this.resolutivosAtencionTotal = Number(atencion.total ?? this.resolutivosAtencion.length) || 0;
+    const cargaCruda = Array.isArray(estadisticas.carga) ? estadisticas.carga : this.resolutivosAtencion;
+    const marcaOrigen = cargaCruda.some((row: ResolutivoAtencionItem) => String(row?.origen || '').trim());
+    this.resolutivosCarga = marcaOrigen
+      ? cargaCruda.filter((row: ResolutivoAtencionItem) => String(row.origen || '').trim().toLowerCase() === 'sistema')
+      : cargaCruda;
 
     const porEstatusAtencion = Array.isArray(atencion.por_estatus) ? atencion.por_estatus : [];
     this.resumenAtencionCards = this.resolutivosAtencionOrder.map((estatus) => {
@@ -7252,6 +7913,9 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       colors: this.resolutivosAtencionOrder.map((k) => this.resolutivosEstatusConfig[k]?.color || '#8898aa')
     };
     this.resetAtencionDonutCentro();
+    this.syncAtencionBarras();
+    this.armarVistaCarga();
+    this.armarVistaVencimiento(estadisticas);
 
     this.resolutivosChartsReady = true;
     this.resolutivosAtencionChartsReady = true;
