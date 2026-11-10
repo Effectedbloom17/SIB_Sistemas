@@ -237,7 +237,7 @@ export const SGC_FORMATOS_DESCARGA_CATALOG: SgcFormatoDescarga[] = [
   fmt('SGC-F-10', 'Informe de auditoría', '1qe83iT5T8pQHEmLpX7T_RWKlwK7kcqVy', 'capitulo-9', 'SGC-F-10 Informe de auditoría.docx'),
   fmt('SGC-F-15', 'Análisis y evaluación de indicadores', '1exxb2RLamONJU4WRHjrfkmVeHgBncS33', 'capitulo-9', 'SGC-F-15 Análisis y evaluación de indicadores.xlsx'),
   fmt('SGC-F-16', 'Minuta', '17iGzIrHLg26lRNUTsQOEIrbrjpE9agyJ', 'capitulo-9', 'SGC-F-16 Minuta.xlsx'),
-  fmt('DG-F-06', 'Cuadro de mando', '1sjnun7HgBMf-o9iDRLvN5C7yH_5vJkKSf7mnaGxGGOI', 'capitulo-9', 'DG-F-06 Cuadro de mando.xlsx'),
+  fmt('DG-F-06', 'Cuadro de mando', '1e3UsatVLswQPzVRs5tVCdd95OAPsFwxCRSfgYx3UMBA', 'capitulo-9', 'DG-F-06 Cuadro de mando.xlsx'),
   fmt('SGC-F-26', 'Encuesta de satisfacción del cliente', '1VwcPTVGE54S2uPKUh5s1uOfPxlAcYNzt', 'capitulo-9', 'SGC-F-26 Encuesta de satisfacción del cliente.doc'),
   fmt('SGC-F-33', 'Lista de asistencia', '1OPLJ385reI8HLQYOShgf972qi2hHklIz', 'capitulo-9', 'SGC-F-33 Lista de asistencia.xls'),
 

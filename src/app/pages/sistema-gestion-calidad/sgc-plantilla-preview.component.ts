@@ -1821,15 +1821,6 @@ interface SgcF27Totales {
 }
 
 type DgF06DocTipo = 'objetivos' | 'indicadores';
-type DgF06MesKey = 'ENE' | 'FEB' | 'MAR' | 'ABR' | 'MAY' | 'JUN' | 'JUL' | 'AGO' | 'SEP' | 'OCT' | 'NOV' | 'DIC';
-type DgF06ResultadoEstado = '' | 'ok' | 'risk';
-
-interface DgF06MesResultado {
-  mes: DgF06MesKey;
-  valor: string;
-  estado: DgF06ResultadoEstado;
-}
-
 interface DgF06Fila {
   id: string;
   no: number;
@@ -1843,27 +1834,23 @@ interface DgF06Fila {
   meta: string;
   freqMedicion: string;
   freqAnalisis: string;
-  resultados: DgF06MesResultado[];
 }
 
-interface DgF06Documento {
+interface DgF06AnioDoc {
   id: string;
   anio: number;
-  tipo: DgF06DocTipo;
   titulo: string;
   hojaExcel: string;
-  filas: DgF06Fila[];
-}
-
-interface DgF06AnioGrupo {
-  anio: number;
-  documentos: DgF06Documento[];
+  objetivos: DgF06Fila[];
+  indicadores: DgF06Fila[];
 }
 
 interface DgF06FormData {
   revision: string;
   fechaRevision: string;
-  documentos: DgF06Documento[];
+  fechaElaboracion?: string;
+  anios: DgF06AnioDoc[];
+  anioActivoId: string | null;
 }
 
 @Component({
@@ -3681,15 +3668,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     { nombre: 'Q3', meta: 95, real: 0 },
     { nombre: 'Q4', meta: 95, real: 0 }
   ];
-  readonly dgF06Meses: DgF06MesKey[] = [
-    'ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'
-  ];
   dgF06Form: DgF06FormData = this.crearDgF06FormVacio();
   dgF06Vista: 'archivero' | 'documento' = 'archivero';
   dgF06AnioExpandido: number | null = null;
-  dgF06DocActivo: DgF06Documento | null = null;
+  dgF06AnioActivo: DgF06AnioDoc | null = null;
   dgF06Busqueda = '';
-  dgF06AniosVista: DgF06AnioGrupo[] = this.agruparAniosDgF06(this.dgF06Form.documentos);
+  dgF06AniosVista: DgF06AnioDoc[] = [];
+  dgF06Listo = false;
+  dgF06Cargando = false;
+  dgF06Guardando = false;
+  dgF06CambiosPendientes = false;
+  dgF06IgnorarAutoSave = false;
+  dgF06UltimaSync: string | null = null;
   dgF06DriveFileId: string | null = null;
   dgF06EditorUrl: string | null = null;
   dgF06EditorEmbedUrlSafe: SafeResourceUrl | null = null;
@@ -4654,11 +4644,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         this.prepararEditorSgcF09(plantillaEncontrada);
       }
       if (codigo === 'dg-f-06') {
-        this.prepararEditorDgF06(plantillaEncontrada);
         this.refrescarAniosDgF06();
-        if (this.dgF06AnioExpandido == null && this.dgF06AniosVista.length) {
-          this.dgF06AnioExpandido = this.dgF06AniosVista[0].anio;
-        }
+        this.cargarDgF06DesdeServidor();
       }
       if (codigo === 'sgc-f-10') {
         this.cargarCatalogosSgcF10();
@@ -5066,6 +5053,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-20') return this.sgcF20Guardando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Guardando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Guardando;
+    if (this.plantillaSlug === 'dg-f-06') return this.dgF06Guardando;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02Guardando;
     if (this.plantillaSlug === 'sp-f-07') return this.spF07Guardando;
     if (this.plantillaSlug === 'ath-f-02') return this.athF02Guardando;
@@ -5109,6 +5097,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-20') return this.sgcF20UltimaSync;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29UltimaSync;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28UltimaSync;
+    if (this.plantillaSlug === 'dg-f-06') return this.dgF06UltimaSync;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02UltimaSync;
     if (this.plantillaSlug === 'sp-f-07') return this.spF07UltimaSync;
     if (this.plantillaSlug === 'ath-f-02') return this.athF02UltimaSync;
@@ -5152,6 +5141,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-20') return this.sgcF20Cargando;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29Cargando;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28Cargando;
+    if (this.plantillaSlug === 'dg-f-06') return this.dgF06Cargando;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02Cargando;
     if (this.plantillaSlug === 'sp-f-07') return this.spF07Cargando;
     if (this.plantillaSlug === 'ath-f-02') return this.athF02Cargando;
@@ -5280,6 +5270,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug === 'sgc-f-20') return this.sgcF20CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-29') return this.sgcF29CambiosPendientes;
     if (this.plantillaSlug === 'sgc-f-28') return this.sgcF28CambiosPendientes;
+    if (this.plantillaSlug === 'dg-f-06') return this.dgF06CambiosPendientes;
     if (this.plantillaSlug === 'sp-f-02') return this.spF02CambiosPendientes;
     if (this.plantillaSlug === 'sp-f-07') return this.spF07CambiosPendientes;
     if (this.plantillaSlug === 'ath-f-02') return this.athF02CambiosPendientes;
@@ -5807,6 +5798,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (slug === 'sgc-f-20') return this.sgcF20Form;
     if (slug === 'sgc-f-25') return this.sgcF25Form;
     if (slug === 'sgc-f-29') return this.sgcF29Form;
+    if (slug === 'dg-f-06') return this.dgF06Listo ? this.dgF06Form : null;
     if (slug === 'ath-f-02') return this.athF02Form;
     if (slug === 'ath-f-09') return this.athF09Form;
     if (slug === 'ath-f-11') return this.athF11Form;
@@ -5891,6 +5883,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (slug === 'sgc-f-20') { this.sgcF20Form = d; this.sgcF20CambiosPendientes = true; return; }
     if (slug === 'sgc-f-25') { this.sgcF25Form = d; this.sgcF25CambiosPendientes = true; return; }
     if (slug === 'sgc-f-29') { this.sgcF29Form = d; this.sgcF29CambiosPendientes = true; return; }
+    if (slug === 'dg-f-06') {
+      this.dgF06IgnorarAutoSave = true;
+      this.dgF06Form = this.normalizarDgF06Form(d);
+      this.dgF06AnioActivo = null;
+      this.dgF06Vista = 'archivero';
+      this.refrescarAniosDgF06();
+      this.dgF06CambiosPendientes = true;
+      setTimeout(() => { this.dgF06IgnorarAutoSave = false; }, 0);
+      return;
+    }
     if (slug === 'ath-f-02') { this.athF02Form = d; this.athF02CambiosPendientes = true; return; }
     if (slug === 'ath-f-09') { this.athF09Form = d; this.athF09CambiosPendientes = true; return; }
     if (slug === 'ath-f-11') { this.athF11Form = d; this.athF11CambiosPendientes = true; return; }
@@ -6009,6 +6011,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (slug === 'sgc-f-28') {
       return this.backendService.guardarSgcF28Formato(this.sgcF28Form, false);
+    }
+    if (slug === 'dg-f-06') {
+      return this.backendService.guardarDgF06Formato(this.dgF06Form, false);
     }
     if (slug === 'sp-f-02') {
       return this.backendService.guardarSpF02Formato(this.spF02Form, false);
@@ -6155,7 +6160,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         return;
       }
       if (this.plantillaSlug === 'dg-f-06') {
-        // Archivero anual + editor Drive; persistencia de captura pendiente.
+        this.persistirDgF06();
         return;
       }
       if (this.plantillaSlug === 'sgc-f-10') {
@@ -6705,7 +6710,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.plantillaSlug !== 'dg-f-06') {
       return '';
     }
-    return 'Archivero anual del cuadro de mando (ISO 9001 · 6.2). Cada año guarda dos hojas: Objetivos de calidad e Indicadores de calidad. Abre un documento para capturar resultados mes a mes.';
+    return 'Archivero por año del cuadro de mando (ISO 9001 · 6.2). Objetivos e indicadores de calidad se editan en una sola vista por año. «Guardar información» sincroniza con el Excel del sistema en Drive.';
   }
 
   get dgF03IntroLead(): string {
@@ -26884,49 +26889,61 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF09Grupos = this.agruparRequisitosSgcF09(this.sgcF09Form?.requisitos || []);
   }
 
-  // ===================== DG-F-06 · Cuadro de mando (archivero anual) =====================
+  // ===================== DG-F-06 · Cuadro de mando (archivero por año) =====================
+
+  private fechaHoyIsoDgF06(): string {
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${mm}-${dd}`;
+  }
 
   private crearDgF06FormVacio(): DgF06FormData {
     const anioActual = new Date().getFullYear();
-    const anios = [anioActual, anioActual - 1];
-    const documentos: DgF06Documento[] = [];
-    for (const anio of anios) {
-      documentos.push(this.crearDocumentoDgF06(anio, 'objetivos'));
-      documentos.push(this.crearDocumentoDgF06(anio, 'indicadores'));
-    }
+    const anios = [
+      this.crearAnioDocDgF06(anioActual),
+      this.crearAnioDocDgF06(anioActual - 1)
+    ];
     return {
       revision: '00',
       fechaRevision: '2025-01-21',
-      documentos
+      fechaElaboracion: this.fechaHoyIsoDgF06(),
+      anios,
+      anioActivoId: anios[0].id
     };
   }
 
-  private crearDocumentoDgF06(anio: number, tipo: DgF06DocTipo): DgF06Documento {
-    const esObjetivos = tipo === 'objetivos';
-    const titulo = esObjetivos
-      ? `Objetivos de calidad ${anio}`
-      : `Indicadores de calidad ${anio}`;
-    const hojaExcel = esObjetivos
-      ? `Objetivos de calidad ${anio}`
-      : `Indicadores de proceso ${anio}`;
+  private crearAnioDocDgF06(anio: number): DgF06AnioDoc {
     return {
-      id: `dg-f06-${tipo}-${anio}`,
+      id: `dg-f06-anio-${anio}`,
       anio,
-      tipo,
-      titulo,
-      hojaExcel,
-      filas: esObjetivos
-        ? this.crearFilasObjetivosDgF06(anio)
-        : this.crearFilasIndicadoresDgF06(anio)
+      titulo: `Cuadro de mando ${anio}`,
+      hojaExcel: `Objetivos e indicadores ${anio}`,
+      objetivos: this.crearFilasObjetivosDgF06(anio),
+      indicadores: this.crearFilasIndicadoresDgF06(anio)
     };
   }
 
-  private crearResultadosVaciosDgF06(): DgF06MesResultado[] {
-    return this.dgF06Meses.map((mes) => ({ mes, valor: '', estado: '' as DgF06ResultadoEstado }));
+  private crearFilaVaciaDgF06(tipo: DgF06DocTipo, anio: number, no: number): DgF06Fila {
+    const pref = tipo === 'objetivos' ? 'obj' : 'ind';
+    return {
+      id: `dg-f06-${pref}-${anio}-${no}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      no,
+      proceso: '',
+      acciones: '',
+      recursos: '',
+      responsable: '',
+      fechaCompromiso: '',
+      indicador: '',
+      operacion: '',
+      meta: '',
+      freqMedicion: '',
+      freqAnalisis: ''
+    };
   }
 
   private crearFilasObjetivosDgF06(anio: number): DgF06Fila[] {
-    const seed: Array<Omit<DgF06Fila, 'id' | 'resultados'>> = [
+    const seed: Array<Omit<DgF06Fila, 'id'>> = [
       {
         no: 1,
         proceso: 'Lograr la satisfacción de nuestros clientes',
@@ -26967,15 +26984,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         freqAnalisis: 'Anual'
       }
     ];
-    return seed.map((fila, idx) => ({
-      ...fila,
-      id: `dg-f06-obj-${anio}-${idx + 1}`,
-      resultados: this.crearResultadosVaciosDgF06()
-    }));
+    return seed.map((fila, idx) => ({ ...fila, id: `dg-f06-obj-${anio}-${idx + 1}` }));
   }
 
   private crearFilasIndicadoresDgF06(anio: number): DgF06Fila[] {
-    const seed: Array<Omit<DgF06Fila, 'id' | 'resultados'>> = [
+    const seed: Array<Omit<DgF06Fila, 'id'>> = [
       {
         no: 1,
         proceso: 'Satisfacción del cliente',
@@ -27029,52 +27042,85 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         freqAnalisis: 'Trimestral'
       }
     ];
-    return seed.map((fila, idx) => {
-      const resultados = this.crearResultadosVaciosDgF06();
-      if (anio === new Date().getFullYear() && idx === 0) {
-        resultados[0] = { mes: 'ENE', valor: '0', estado: 'ok' };
-        resultados[1] = { mes: 'FEB', valor: '0', estado: 'ok' };
-        resultados[2] = { mes: 'MAR', valor: '1', estado: 'risk' };
-      }
-      return {
-        ...fila,
-        id: `dg-f06-ind-${anio}-${idx + 1}`,
-        resultados
-      };
-    });
+    return seed.map((fila, idx) => ({ ...fila, id: `dg-f06-ind-${anio}-${idx + 1}` }));
   }
 
-  private agruparAniosDgF06(documentos: DgF06Documento[]): DgF06AnioGrupo[] {
-    const mapa = new Map<number, DgF06Documento[]>();
-    for (const doc of documentos || []) {
-      const lista = mapa.get(doc.anio) || [];
-      lista.push(doc);
-      mapa.set(doc.anio, lista);
+  private normalizarFilaDgF06(raw: any, tipo: DgF06DocTipo, anio: number, idx: number): DgF06Fila {
+    const base = this.crearFilaVaciaDgF06(tipo, anio, idx + 1);
+    if (!raw || typeof raw !== 'object') {
+      return base;
     }
-    return Array.from(mapa.entries())
-      .sort((a, b) => b[0] - a[0])
-      .map(([anio, docs]) => ({
-        anio,
-        documentos: docs.slice().sort((a, b) => {
-          if (a.tipo === b.tipo) {
-            return 0;
-          }
-          return a.tipo === 'objetivos' ? -1 : 1;
-        })
-      }));
+    const txt = (v: unknown): string => (v == null ? '' : String(v));
+    const no = Number(raw.no);
+    return {
+      id: String(raw.id || base.id),
+      no: Number.isFinite(no) && no > 0 ? no : idx + 1,
+      proceso: txt(raw.proceso),
+      acciones: txt(raw.acciones),
+      recursos: txt(raw.recursos),
+      responsable: txt(raw.responsable),
+      fechaCompromiso: txt(raw.fechaCompromiso),
+      indicador: txt(raw.indicador),
+      operacion: txt(raw.operacion),
+      meta: txt(raw.meta),
+      freqMedicion: txt(raw.freqMedicion),
+      freqAnalisis: txt(raw.freqAnalisis)
+    };
+  }
+
+  private normalizarAnioDocDgF06(raw: any): DgF06AnioDoc | null {
+    const anio = Number(raw?.anio);
+    if (!raw || !Number.isFinite(anio)) {
+      return null;
+    }
+    const filas = (lista: any, tipo: DgF06DocTipo): DgF06Fila[] => {
+      const arr = Array.isArray(lista) ? lista : [];
+      if (!arr.length) {
+        return [this.crearFilaVaciaDgF06(tipo, anio, 1)];
+      }
+      return arr.map((f: any, i: number) => this.normalizarFilaDgF06(f, tipo, anio, i));
+    };
+    return {
+      id: String(raw.id || `dg-f06-anio-${anio}`),
+      anio,
+      titulo: String(raw.titulo || `Cuadro de mando ${anio}`),
+      hojaExcel: String(raw.hojaExcel || `Objetivos e indicadores ${anio}`),
+      objetivos: filas(raw.objetivos, 'objetivos'),
+      indicadores: filas(raw.indicadores, 'indicadores')
+    };
+  }
+
+  private normalizarDgF06Form(datos: Partial<DgF06FormData> | null | undefined): DgF06FormData {
+    const base = this.crearDgF06FormVacio();
+    if (!datos || typeof datos !== 'object') {
+      return base;
+    }
+    const anios = (Array.isArray(datos.anios) ? datos.anios : [])
+      .map((a) => this.normalizarAnioDocDgF06(a))
+      .filter((a): a is DgF06AnioDoc => !!a)
+      .sort((a, b) => b.anio - a.anio);
+    const lista = anios.length ? anios : base.anios;
+    const activo = String(datos.anioActivoId || '').trim();
+    return {
+      revision: String(datos.revision || base.revision),
+      fechaRevision: String(datos.fechaRevision || base.fechaRevision),
+      fechaElaboracion: String(datos.fechaElaboracion || base.fechaElaboracion || ''),
+      anios: lista,
+      anioActivoId: lista.some((a) => a.id === activo) ? activo : (lista[0]?.id || null)
+    };
   }
 
   private refrescarAniosDgF06(): void {
     const q = this.dgF06Busqueda.trim().toLowerCase();
-    const docs = (this.dgF06Form?.documentos || []).filter((d) => {
+    const lista = (this.dgF06Form?.anios || []).filter((a) => {
       if (!q) {
         return true;
       }
-      return d.titulo.toLowerCase().includes(q)
-        || String(d.anio).includes(q)
-        || d.tipo.includes(q);
+      return String(a.anio).includes(q)
+        || String(a.titulo || '').toLowerCase().includes(q)
+        || String(a.hojaExcel || '').toLowerCase().includes(q);
     });
-    this.dgF06AniosVista = this.agruparAniosDgF06(docs);
+    this.dgF06AniosVista = lista.slice().sort((a, b) => b.anio - a.anio);
   }
 
   onBusquedaDgF06(): void {
@@ -27085,113 +27131,214 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.dgF06AnioExpandido = this.dgF06AnioExpandido === anio ? null : anio;
   }
 
-  abrirDocumentoDgF06(doc: DgF06Documento): void {
-    this.dgF06DocActivo = doc;
+  abrirAnioDgF06(anioDoc: DgF06AnioDoc): void {
+    if (!anioDoc) {
+      return;
+    }
+    this.dgF06AnioActivo = anioDoc;
+    this.dgF06Form.anioActivoId = anioDoc.id;
     this.dgF06Vista = 'documento';
   }
 
   volverArchiveroDgF06(): void {
     this.dgF06Vista = 'archivero';
-    this.dgF06DocActivo = null;
+    if (this.dgF06AnioActivo) {
+      this.dgF06AnioExpandido = this.dgF06AnioActivo.anio;
+    }
+    this.dgF06AnioActivo = null;
   }
 
   agregarAnioDgF06(): void {
-    const anios = this.dgF06Form.documentos.map((d) => d.anio);
-    const nuevo = anios.length ? Math.max(...anios) + 1 : new Date().getFullYear();
+    const anios = (this.dgF06Form.anios || []).map((a) => a.anio);
+    const nuevo = anios.length ? anios.reduce((m, v) => (v > m ? v : m), anios[0]) + 1 : new Date().getFullYear();
     if (anios.includes(nuevo)) {
       return;
     }
-    this.dgF06Form.documentos.unshift(this.crearDocumentoDgF06(nuevo, 'objetivos'));
-    this.dgF06Form.documentos.unshift(this.crearDocumentoDgF06(nuevo, 'indicadores'));
+    const doc = this.crearAnioDocDgF06(nuevo);
+    this.dgF06Form.anios = [doc, ...(this.dgF06Form.anios || [])];
+    this.dgF06Form.anioActivoId = doc.id;
     this.dgF06AnioExpandido = nuevo;
     this.refrescarAniosDgF06();
+    this.onDgF06Editado();
   }
 
-  etiquetaTipoDgF06(tipo: DgF06DocTipo): string {
-    return tipo === 'objetivos' ? 'Objetivos de calidad' : 'Indicadores de calidad';
+  agregarFilaDgF06(tipo: DgF06DocTipo): void {
+    const doc = this.dgF06AnioActivo;
+    if (!doc) {
+      return;
+    }
+    const filas = doc[tipo];
+    const siguiente = filas.reduce((m, f) => (Number(f.no) > m ? Number(f.no) : m), 0) + 1;
+    filas.push(this.crearFilaVaciaDgF06(tipo, doc.anio, siguiente));
+    this.onDgF06Editado();
   }
 
-  iconoTipoDgF06(tipo: DgF06DocTipo): string {
-    return tipo === 'objetivos' ? 'fa-bullseye' : 'fa-chart-bar';
+  quitarFilaDgF06(tipo: DgF06DocTipo, fila: DgF06Fila): void {
+    const doc = this.dgF06AnioActivo;
+    if (!doc || doc[tipo].length <= 1) {
+      return;
+    }
+    const idx = doc[tipo].findIndex((f) => f.id === fila.id);
+    if (idx < 0) {
+      return;
+    }
+    doc[tipo].splice(idx, 1);
+    doc[tipo].forEach((f, i) => { f.no = i + 1; });
+    this.onDgF06Editado();
   }
 
-  trackByDgF06Anio(_i: number, g: DgF06AnioGrupo): number {
-    return g.anio;
+  tituloDocumentoDgF06(doc: DgF06AnioDoc | null): string {
+    if (!doc) {
+      return 'Cuadro de mando';
+    }
+    return String(doc.titulo || '').trim() || `Cuadro de mando ${doc.anio}`;
   }
 
-  trackByDgF06Doc(_i: number, d: DgF06Documento): string {
-    return d.id;
+  trackByDgF06Anio(_i: number, a: DgF06AnioDoc): string {
+    return a.id;
   }
 
   trackByDgF06Fila(_i: number, f: DgF06Fila): string {
     return f.id;
   }
 
-  trackByDgF06Mes(_i: number, r: DgF06MesResultado): string {
-    return r.mes;
-  }
-
-  conteoEstadoDgF06(fila: DgF06Fila, estado: DgF06ResultadoEstado): number {
-    if (!fila?.resultados?.length) {
-      return 0;
-    }
-    return fila.resultados.filter((r) => (r.estado || '') === estado).length;
-  }
-
-  cicloEstadoResultadoDgF06(r: DgF06MesResultado): void {
-    if (!r) {
-      return;
-    }
-    if (!r.estado) {
-      r.estado = 'ok';
-    } else if (r.estado === 'ok') {
-      r.estado = 'risk';
-    } else {
-      r.estado = '';
-    }
-    this.onDgF06Editado();
+  totalFilasDgF06(tipo: DgF06DocTipo): number {
+    return (this.dgF06Form?.anios || []).reduce((acc, a) => acc + (a[tipo]?.length || 0), 0);
   }
 
   onDgF06Editado(): void {
+    if (this.dgF06IgnorarAutoSave || !this.dgF06Listo) {
+      return;
+    }
+    this.dgF06CambiosPendientes = true;
     this.programarBorradorLocalSgc();
   }
 
-  private prepararEditorDgF06(plantilla: PlantillaFormato): void {
-    const id = String(plantilla?.driveFileId || '').trim();
-    this.dgF06DriveFileId = id || null;
-    this.dgF06EditorUrl = id
-      ? `https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/edit?usp=sharing`
-      : null;
-    if (this.mostrarDgF06Editor && this.dgF06EditorUrl) {
-      this.fijarEditorEmbedUrlDgF06(this.dgF06EditorUrl, true);
+  private cargarDgF06DesdeServidor(): void {
+    this.dgF06Cargando = true;
+    this.backendService.cargarDgF06Formato().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res) => this.aplicarEstadoDgF06(res),
+      error: () => {
+        this.dgF06Cargando = false;
+        this.dgF06Listo = true;
+      }
+    });
+  }
+
+  private sincronizarDgF06DesdeDrive(): void {
+    this.backendService.sincronizarDgF06DesdeDrive().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res) => this.aplicarEstadoDgF06(res, false, true, true),
+      error: () => { /* silencioso */ }
+    });
+  }
+
+  private persistirDgF06(): void {
+    if (this.dgF06Guardando || !this.dgF06Listo) {
+      return;
+    }
+    this.dgF06Guardando = true;
+    this.backendService.guardarDgF06Formato(this.dgF06Form, this.mostrarDgF06Editor)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.limpiarBorradorLocalSgc();
+          this.aplicarEstadoDgF06(res, true, false, true);
+          this.dgF06CambiosPendientes = false;
+          this.dgF06Guardando = false;
+        },
+        error: () => {
+          this.persistirBorradorLocalSgcAhora();
+          this.dgF06Guardando = false;
+        }
+      });
+  }
+
+  private aplicarEstadoDgF06(
+    res: any,
+    conservarEdicion = false,
+    sincronizacionSilenciosa = false,
+    forzarActualizacionDrive = false
+  ): void {
+    if (!res?.success) {
+      if (!sincronizacionSilenciosa) {
+        this.dgF06Cargando = false;
+      }
+      this.dgF06Listo = true;
+      return;
+    }
+
+    const editorAbierto = this.mostrarDgF06Editor && !forzarActualizacionDrive;
+    const bloquearFormulario = editorAbierto || conservarEdicion;
+
+    if (!bloquearFormulario && res.datos) {
+      this.dgF06IgnorarAutoSave = true;
+      const activoAntes = this.dgF06AnioActivo?.id || this.dgF06Form.anioActivoId;
+      const vistaAntes = this.dgF06Vista;
+      this.dgF06Form = this.normalizarDgF06Form(res.datos);
+      this.sincronizarAnioActivoDgF06(activoAntes, vistaAntes);
+      this.refrescarAniosDgF06();
+      if (this.dgF06AnioExpandido == null && this.dgF06AniosVista.length) {
+        this.dgF06AnioExpandido = this.dgF06AniosVista[0].anio;
+      }
+      setTimeout(() => {
+        this.dgF06IgnorarAutoSave = false;
+      }, 0);
+    } else if (conservarEdicion) {
+      this.refrescarAniosDgF06();
+    }
+
+    this.dgF06DriveFileId = res.driveFileId || null;
+    this.dgF06UltimaSync = res.ultimaSyncDrive || null;
+    if (res.editorUrl && (forzarActualizacionDrive || !this.mostrarDgF06Editor)) {
+      this.fijarEditorEmbedUrlDgF06(res.editorUrl, forzarActualizacionDrive);
+    } else if (!res.editorUrl && this.dgF06DriveFileId && !this.dgF06EditorUrl) {
+      this.fijarEditorEmbedUrlDgF06(this.resolverUrlEditorDrive(null, this.dgF06DriveFileId), false);
+    }
+
+    this.dgF06Listo = true;
+    if (!sincronizacionSilenciosa) {
+      this.dgF06Cargando = false;
     }
   }
 
+  private sincronizarAnioActivoDgF06(activoId: string | null, vista: 'archivero' | 'documento'): void {
+    const anios = this.dgF06Form.anios || [];
+    const encontrado = activoId ? anios.find((a) => a.id === activoId) || null : null;
+    if (vista === 'documento' && encontrado) {
+      this.dgF06AnioActivo = encontrado;
+      this.dgF06Form.anioActivoId = encontrado.id;
+      this.dgF06Vista = 'documento';
+      return;
+    }
+    this.dgF06AnioActivo = null;
+    this.dgF06Vista = 'archivero';
+  }
+
   toggleDgF06Editor(): void {
+    if (this.mostrarDgF06Editor) {
+      this.mostrarDgF06Editor = false;
+      this.dgF06EditorCargando = false;
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      this.sincronizarDgF06DesdeDrive();
+      return;
+    }
     if (!this.dgF06DriveFileId) {
       return;
     }
-    const abrir = !this.mostrarDgF06Editor;
-    this.mostrarDgF06Editor = abrir;
-    if (abrir) {
-
-      this.dgF06EditorIframeListo = false;
-      this.dgF06EditorCargando = true;
-      this.dgF06EditorEmbedUrlSafe = null;
-      document.documentElement.style.overflow = 'hidden';
-      document.body.style.overflow = 'hidden';
-      this.conAccesoDriveEmbed(this.dgF06DriveFileId, () => {
-        if (!this.mostrarDgF06Editor) {
-          return;
-        }
-        const url = this.dgF06EditorUrl
-        || `https://docs.google.com/spreadsheets/d/${encodeURIComponent(this.dgF06DriveFileId)}/edit?usp=sharing`;
-        this.fijarEditorEmbedUrlDgF06(url, true);
-      });
-      return;
-    }
-    document.documentElement.style.overflow = '';
-    document.body.style.overflow = '';
+    this.mostrarDgF06Editor = true;
+    this.dgF06EditorIframeListo = false;
+    this.dgF06EditorCargando = true;
+    this.dgF06EditorEmbedUrlSafe = null;
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    this.conAccesoDriveEmbed(this.dgF06DriveFileId, () => {
+      if (!this.mostrarDgF06Editor) {
+        return;
+      }
+      const url = this.resolverUrlEditorDrive(this.dgF06EditorUrl, this.dgF06DriveFileId);
+      this.fijarEditorEmbedUrlDgF06(url, true);
+    });
   }
 
   onDgF06IframeLoad(): void {
@@ -27211,9 +27358,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.dgF06EditorEmbedUrlSafe = null;
       return;
     }
-    this.dgF06EditorUrl = url;
-    const previewUrl = url.replace(/\/edit(?:\?[^#]*)?/i, '/preview');
-    const embedUrl = this.urlIframeDriveSegunPermiso(url, previewUrl);
+    const resuelta = this.resolverUrlEditorDrive(url, this.dgF06DriveFileId);
+    this.dgF06EditorUrl = resuelta || url;
+    const embedUrl = this.urlIframeDriveSegunPermiso(this.dgF06EditorUrl);
     this.dgF06EditorEmbedUrlSafe = embedUrl
       ? this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl)
       : null;

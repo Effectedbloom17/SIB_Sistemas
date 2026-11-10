@@ -26872,6 +26872,7 @@ const sgcAthF06Service = require('./sgcAthF06Service');
 const sgcF27Service = require('./sgcF27Service');
 const sgcF29Service = require('./sgcF29Service');
 const sgcF28Service = require('./sgcF28Service');
+const sgcDgF06Service = require('./sgcDgF06Service');
 const sgcSpF02Service = require('./sgcSpF02Service');
 const sgcSpF07Service = require('./sgcSpF07Service');
 const sgcF05Service = require('./sgcF05Service');
@@ -30417,6 +30418,61 @@ app.get('/api/sgc/formatos/sgc-f-28/descargar-pdf', requireAdminOrSgc, async (re
         return res.send(resultado.buffer);
     } catch (error) {
         handleError(res, error, 'No se pudo descargar el PDF de SGC-F-28');
+    }
+});
+
+app.get('/api/sgc/formatos/dg-f-06', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        await sgcDgF05Service.asegurarTablaSgcFormatoDatos(poolBiznagaSgc);
+        const payload = await sgcDgF06Service.cargarFormato(poolBiznagaSgc);
+        return res.json({ success: true, ...payload });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el formato DG-F-06');
+    }
+});
+
+app.post('/api/sgc/formatos/dg-f-06/guardar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcDgF06Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: 'Formato DG-F-06 guardado correctamente.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo guardar el formato DG-F-06');
+    }
+});
+
+app.post('/api/sgc/formatos/dg-f-06/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcDgF06Service.sincronizarDesdeDrive(poolBiznagaSgc);
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: 'DG-F-06 sincronizado desde Drive.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo sincronizar DG-F-06');
+    }
+});
+
+app.post('/api/sgc/formatos/dg-f-06/actualizar-plantilla', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const payload = await sgcDgF06Service.actualizarPlantillaDesdeSistema(poolBiznagaSgc);
+        return res.json({
+            success: true,
+            message: 'Plantilla DG-F-06 actualizada.',
+            ...payload
+        });
+    } catch (error) {
+        handleError(res, error, 'No se pudo actualizar la plantilla DG-F-06');
     }
 });
 

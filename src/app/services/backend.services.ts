@@ -3871,6 +3871,26 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-28/actualizar-plantilla`, {});
     }
 
+    cargarDgF06Formato(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/dg-f-06`);
+    }
+
+    guardarDgF06Formato(datos: unknown, editorActivo = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/dg-f-06/guardar`, {
+            datos,
+            origen: 'sistema',
+            editorActivo
+        });
+    }
+
+    sincronizarDgF06DesdeDrive(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/dg-f-06/sincronizar-drive`, {});
+    }
+
+    actualizarPlantillaDgF06(): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/dg-f-06/actualizar-plantilla`, {});
+    }
+
     descargarPdfSgcF28(comparativaId?: string): Observable<Blob> {
         const id = encodeURIComponent(String(comparativaId || '').trim());
         const qs = id ? `?comparativaId=${id}` : '';

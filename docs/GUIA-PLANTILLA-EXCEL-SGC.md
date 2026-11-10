@@ -125,6 +125,7 @@ Referencias:
 | ATH-F-02 · Descripción y perfil de puesto | Campo del formulario: **Puesto** |
 | SGC-F-27 · Verificación de equipos de medición | Campo del formulario: **Instrumento de medición** |
 | SGC-F-28 · Comparativa de proveedores | Campo del formulario: **Nombre de cotización** |
+| DG-F-06 · Cuadro de mando | Campo del formulario: **Año** → `Objetivos e indicadores {año}` |
 | SP-F-02 · Reporte de visita y recorrido | Folio (`SPF02-MMAA`) |
 | SP-F-07 · Plan del curso | Folio (`PC-…`) |
 
@@ -555,6 +556,18 @@ Requisitos:
 | Historial | `SGCF29-MMAA`, `SGCF29-MMAA_2`, `_3`… (`versionarCadaCambioMes`); sin archivero |
 | Código | `backend/sgcF29Service.js` |
 | Nota | Criterios nuevos se insertan a la derecha de E (Precio→F) con borde; el sistema conserva histograma/hojas legado y no escribe en la plantilla |
+
+### DG-F-06 · Cuadro de mando
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1CkWMC7Oc6sR1zq3R6jsN1YFKA6HrPe_5jtzCoUkv4J0/edit` |
+| Sistema | `https://docs.google.com/spreadsheets/d/1e3UsatVLswQPzVRs5tVCdd95OAPsFwxCRSfgYx3UMBA/edit` |
+| Pestaña plantilla | `Plantilla` |
+| Trabajo | Archivero por año: una pestaña por año; **nombre de hoja = `Objetivos e indicadores {año}`** (§2.1 opción 2, campo año); `copyTo` desde plantilla |
+| Layout | Meta en K1:L3 (L2 revisión, L3 fecha DD-MM-YY); datos desde fila 8, A=No., B=Objetivo (B:C combinadas), D–L = acciones…frecuencia de análisis; primero objetivos y luego indicadores, filas continuas |
+| Código | `backend/sgcDgF06Service.js` |
+| Nota | El archivo sistema conserva histograma; no se escribe en la plantilla ni se reemplaza el libro entero |
 
 ---
 

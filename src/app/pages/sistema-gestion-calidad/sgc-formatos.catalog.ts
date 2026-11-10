@@ -501,7 +501,7 @@ export const SGC_CAPITULOS_CATALOG: Record<string, CapituloFormatoConfig> = {
         codigo: 'DG-F-06',
         titulo: 'Cuadro de mando',
         nombre: 'DG-F-06 Cuadro de mando.xlsx',
-        driveFileId: '1sjnun7HgBMf-o9iDRLvN5C7yH_5vJkKSf7mnaGxGGOI',
+        driveFileId: '1e3UsatVLswQPzVRs5tVCdd95OAPsFwxCRSfgYx3UMBA',
         previewSlug: 'dg-f-06',
         previewMode: 'form'
       }

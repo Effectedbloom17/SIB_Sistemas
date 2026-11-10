@@ -345,7 +345,7 @@
                     Actualizar versiones
                   </button>
                   <button
-                    *ngIf="(plantillaSlug === 'ath-f-13' ? athF13PuedeSolicitar : plantillaSlug === 'ath-f-14' ? puedeEditarAthF14 : puedeGestionarPlantillasSgc) && plantillaSlug !== 'sgc-f-05' && (plantillaSlug !== 'sgc-f-10' || sgcF10Vista === 'editor') && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'ath-f-06' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-27-medicion' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'ath-f-03' || plantillaSlug === 'ath-f-13' || plantillaSlug === 'ath-f-14' || plantillaSlug === 'sgc-f-17' || plantillaSlug === 'sgc-f-19' || plantillaSlug === 'sgc-f-20')"
+                    *ngIf="(plantillaSlug === 'ath-f-13' ? athF13PuedeSolicitar : plantillaSlug === 'ath-f-14' ? puedeEditarAthF14 : puedeGestionarPlantillasSgc) && plantillaSlug !== 'sgc-f-05' && (plantillaSlug !== 'sgc-f-10' || sgcF10Vista === 'editor') && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'ath-f-06' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-27-medicion' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || plantillaSlug === 'ath-f-03' || plantillaSlug === 'ath-f-13' || plantillaSlug === 'ath-f-14' || plantillaSlug === 'sgc-f-17' || plantillaSlug === 'sgc-f-19' || plantillaSlug === 'sgc-f-20')"
                     type="button"
                     class="btn btn-sm sgc-btn-save-info"
                     [disabled]="driveSyncCargando || driveSyncGuardando"
@@ -14847,6 +14847,118 @@
             <ng-container *ngSwitchCase="'dg-f-06'">
               <form class="dg-f05-form dg-f-06-form" (ngSubmit)="$event.preventDefault()"
                     (input)="onDgF06Editado()" (change)="onDgF06Editado()">
+
+                <!-- Tabla editable reutilizada por Objetivos e Indicadores -->
+                <ng-template #dgF06Tabla let-tipo="tipo" let-filas="filas">
+                  <div class="dg-f-06-table-wrap">
+                    <table class="dg-f05-table dg-f-06-table" [attr.data-tipo]="tipo">
+                      <colgroup>
+                        <col class="dg-f-06-col dg-f-06-col--no">
+                        <col class="dg-f-06-col dg-f-06-col--proceso">
+                        <col class="dg-f-06-col dg-f-06-col--acciones">
+                        <col class="dg-f-06-col dg-f-06-col--recursos">
+                        <col class="dg-f-06-col dg-f-06-col--responsable">
+                        <col class="dg-f-06-col dg-f-06-col--fecha">
+                        <col class="dg-f-06-col dg-f-06-col--indicador">
+                        <col class="dg-f-06-col dg-f-06-col--operacion">
+                        <col class="dg-f-06-col dg-f-06-col--meta">
+                        <col class="dg-f-06-col dg-f-06-col--freq">
+                        <col class="dg-f-06-col dg-f-06-col--freq">
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th class="dg-f-06-th dg-f-06-th--no">No.</th>
+                          <th class="dg-f-06-th dg-f-06-th--proceso">Objetivo</th>
+                          <th class="dg-f-06-th">Acciones</th>
+                          <th class="dg-f-06-th">Recursos</th>
+                          <th class="dg-f-06-th">Responsable</th>
+                          <th class="dg-f-06-th">Fecha compromiso</th>
+                          <th class="dg-f-06-th">Indicador</th>
+                          <th class="dg-f-06-th">Operación aritmética</th>
+                          <th class="dg-f-06-th">Meta</th>
+                          <th class="dg-f-06-th">Frecuencia de medición</th>
+                          <th class="dg-f-06-th">Frecuencia de análisis</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr *ngFor="let fila of filas; trackBy: trackByDgF06Fila">
+                          <td class="dg-f-06-td dg-f-06-td--no">
+                            <span class="dg-f-06-no">{{ fila.no }}</span>
+                            <button type="button" class="dg-f-06-row-del"
+                              *ngIf="filas.length > 1"
+                              (click)="quitarFilaDgF06(tipo, fila)"
+                              [attr.aria-label]="'Quitar fila ' + fila.no"
+                              title="Quitar fila">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                          </td>
+                          <td class="dg-f-06-td dg-f-06-td--proceso">
+                            <textarea class="dg-f05-field dg-f05-field--textarea" rows="3"
+                              [name]="'dgF06_' + tipo + '_proc_' + fila.id"
+                              [(ngModel)]="fila.proceso"
+                              [attr.aria-label]="'Objetivo ' + fila.no"></textarea>
+                          </td>
+                          <td class="dg-f-06-td">
+                            <textarea class="dg-f05-field dg-f05-field--textarea" rows="3"
+                              [name]="'dgF06_' + tipo + '_acc_' + fila.id"
+                              [(ngModel)]="fila.acciones"
+                              [attr.aria-label]="'Acciones ' + fila.no"></textarea>
+                          </td>
+                          <td class="dg-f-06-td">
+                            <textarea class="dg-f05-field dg-f05-field--textarea" rows="3"
+                              [name]="'dgF06_' + tipo + '_rec_' + fila.id"
+                              [(ngModel)]="fila.recursos"
+                              [attr.aria-label]="'Recursos ' + fila.no"></textarea>
+                          </td>
+                          <td class="dg-f-06-td">
+                            <textarea class="dg-f05-field dg-f05-field--textarea" rows="3"
+                              [name]="'dgF06_' + tipo + '_resp_' + fila.id"
+                              [(ngModel)]="fila.responsable"
+                              [attr.aria-label]="'Responsable ' + fila.no"></textarea>
+                          </td>
+                          <td class="dg-f-06-td">
+                            <textarea class="dg-f05-field dg-f05-field--textarea" rows="3"
+                              [name]="'dgF06_' + tipo + '_comp_' + fila.id"
+                              [(ngModel)]="fila.fechaCompromiso"
+                              [attr.aria-label]="'Fecha compromiso ' + fila.no"></textarea>
+                          </td>
+                          <td class="dg-f-06-td">
+                            <textarea class="dg-f05-field dg-f05-field--textarea" rows="3"
+                              [name]="'dgF06_' + tipo + '_ind_' + fila.id"
+                              [(ngModel)]="fila.indicador"
+                              [attr.aria-label]="'Indicador ' + fila.no"></textarea>
+                          </td>
+                          <td class="dg-f-06-td">
+                            <textarea class="dg-f05-field dg-f05-field--textarea" rows="3"
+                              [name]="'dgF06_' + tipo + '_op_' + fila.id"
+                              [(ngModel)]="fila.operacion"
+                              [attr.aria-label]="'Operación aritmética ' + fila.no"></textarea>
+                          </td>
+                          <td class="dg-f-06-td">
+                            <textarea class="dg-f05-field dg-f05-field--textarea" rows="3"
+                              [name]="'dgF06_' + tipo + '_meta_' + fila.id"
+                              [(ngModel)]="fila.meta"
+                              [attr.aria-label]="'Meta ' + fila.no"></textarea>
+                          </td>
+                          <td class="dg-f-06-td">
+                            <textarea class="dg-f05-field dg-f05-field--textarea" rows="3"
+                              [name]="'dgF06_' + tipo + '_med_' + fila.id"
+                              [(ngModel)]="fila.freqMedicion"
+                              [attr.aria-label]="'Frecuencia de medición ' + fila.no"></textarea>
+                          </td>
+                          <td class="dg-f-06-td">
+                            <textarea class="dg-f05-field dg-f05-field--textarea" rows="3"
+                              [name]="'dgF06_' + tipo + '_ana_' + fila.id"
+                              [(ngModel)]="fila.freqAnalisis"
+                              [attr.aria-label]="'Frecuencia de análisis ' + fila.no"></textarea>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </ng-template>
+
+                <!-- ============ ARCHIVERO ============ -->
                 <article class="dg-f05-doc dg-f-06-doc" *ngIf="dgF06Vista === 'archivero'">
                   <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'DG-F-06', titulo: 'Cuadro de mando', icono: 'fa-tachometer-alt', extraClass: 'dg-f-06-doc__header' }"></ng-container>
 
@@ -14859,8 +14971,8 @@
                         <div>
                           <h4 class="dg-f-06-archivero__title">Archivero por año</h4>
                           <p class="dg-f-06-archivero__hint">
-                            Cada año contiene dos hojas: <strong>Objetivos de calidad</strong> e
-                            <strong>Indicadores de calidad</strong> (como en el Excel de Drive).
+                            Cada año reúne en una sola vista los <strong>Objetivos de calidad</strong> y los
+                            <strong>Indicadores de calidad</strong>. «Guardar información» sincroniza con el Excel del sistema.
                           </p>
                         </div>
                       </div>
@@ -14884,49 +14996,81 @@
                         <strong>{{ dgF06AniosVista.length }}</strong>
                         {{ dgF06AniosVista.length === 1 ? 'año' : 'años' }}
                       </span>
-                      <span class="dg-f-06-archivero__stat dg-f-06-archivero__stat--muted">
-                        {{ dgF06Form.documentos.length }} documentos
+                      <span class="dg-f-06-archivero__stat dg-f-06-archivero__stat--obj">
+                        <i class="fas fa-bullseye" aria-hidden="true"></i>
+                        <strong>{{ totalFilasDgF06('objetivos') }}</strong> objetivos
+                      </span>
+                      <span class="dg-f-06-archivero__stat dg-f-06-archivero__stat--ind">
+                        <i class="fas fa-chart-bar" aria-hidden="true"></i>
+                        <strong>{{ totalFilasDgF06('indicadores') }}</strong> indicadores
+                      </span>
+                      <span class="dg-f-06-archivero__stat dg-f-06-archivero__stat--muted" *ngIf="dgF06Cargando">
+                        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Cargando…
                       </span>
                     </div>
 
                     <div class="dg-f-06-years" *ngIf="dgF06AniosVista.length; else dgF06Vacio">
-                      <section class="dg-f-06-year" *ngFor="let grupo of dgF06AniosVista; trackBy: trackByDgF06Anio"
-                        [class.dg-f-06-year--open]="dgF06AnioExpandido === grupo.anio">
-                        <button type="button" class="dg-f-06-year__head"
-                          (click)="toggleAnioDgF06(grupo.anio)"
-                          [attr.aria-expanded]="dgF06AnioExpandido === grupo.anio">
-                          <span class="dg-f-06-year__folder" aria-hidden="true">
-                            <i class="fas" [ngClass]="dgF06AnioExpandido === grupo.anio ? 'fa-folder-open' : 'fa-folder'"></i>
-                          </span>
-                          <span class="dg-f-06-year__label">Año {{ grupo.anio }}</span>
-                          <span class="dg-f-06-year__count">{{ grupo.documentos.length }} archivos</span>
-                          <i class="fas dg-f-06-year__chevron"
-                            [ngClass]="dgF06AnioExpandido === grupo.anio ? 'fa-chevron-up' : 'fa-chevron-down'"
-                            aria-hidden="true"></i>
-                        </button>
+                      <section class="dg-f-06-year" *ngFor="let anioDoc of dgF06AniosVista; trackBy: trackByDgF06Anio"
+                        [class.dg-f-06-year--open]="dgF06AnioExpandido === anioDoc.anio">
+                        <div class="dg-f-06-year__head">
+                          <button type="button" class="dg-f-06-year__toggle"
+                            (click)="toggleAnioDgF06(anioDoc.anio)"
+                            [attr.aria-expanded]="dgF06AnioExpandido === anioDoc.anio">
+                            <span class="dg-f-06-year__folder" aria-hidden="true">
+                              <i class="fas" [ngClass]="dgF06AnioExpandido === anioDoc.anio ? 'fa-folder-open' : 'fa-folder'"></i>
+                            </span>
+                            <span class="dg-f-06-year__label">Año {{ anioDoc.anio }}</span>
+                            <span class="dg-f-06-year__badges">
+                              <span class="dg-f-06-badge dg-f-06-badge--obj">{{ anioDoc.objetivos.length }} obj.</span>
+                              <span class="dg-f-06-badge dg-f-06-badge--ind">{{ anioDoc.indicadores.length }} ind.</span>
+                            </span>
+                            <i class="fas dg-f-06-year__chevron"
+                              [ngClass]="dgF06AnioExpandido === anioDoc.anio ? 'fa-chevron-up' : 'fa-chevron-down'"
+                              aria-hidden="true"></i>
+                          </button>
+                          <button type="button" class="dg-f-06-year__open" (click)="abrirAnioDgF06(anioDoc)">
+                            <i class="fas fa-folder-open" aria-hidden="true"></i>
+                            Abrir
+                          </button>
+                        </div>
 
-                        <ul class="dg-f-06-year__docs" *ngIf="dgF06AnioExpandido === grupo.anio">
-                          <li *ngFor="let doc of grupo.documentos; trackBy: trackByDgF06Doc">
-                            <button type="button" class="dg-f-06-doc-card"
-                              [attr.data-tipo]="doc.tipo"
-                              (click)="abrirDocumentoDgF06(doc)">
-                              <span class="dg-f-06-doc-card__icon" aria-hidden="true">
-                                <i class="fas" [ngClass]="iconoTipoDgF06(doc.tipo)"></i>
+                        <div class="dg-f-06-year__blocks" *ngIf="dgF06AnioExpandido === anioDoc.anio">
+                          <button type="button" class="dg-f-06-block dg-f-06-block--objetivos"
+                            (click)="abrirAnioDgF06(anioDoc)">
+                            <span class="dg-f-06-block__icon" aria-hidden="true">
+                              <i class="fas fa-bullseye"></i>
+                            </span>
+                            <span class="dg-f-06-block__body">
+                              <span class="dg-f-06-block__title">Objetivos de calidad</span>
+                              <span class="dg-f-06-block__count">{{ anioDoc.objetivos.length }} {{ anioDoc.objetivos.length === 1 ? 'fila' : 'filas' }}</span>
+                              <span class="dg-f-06-block__sheet">
+                                <i class="fas fa-file-excel" aria-hidden="true"></i>
+                                Hoja: {{ anioDoc.hojaExcel }}
                               </span>
-                              <span class="dg-f-06-doc-card__body">
-                                <span class="dg-f-06-doc-card__tipo">{{ etiquetaTipoDgF06(doc.tipo) }}</span>
-                                <span class="dg-f-06-doc-card__title">{{ doc.titulo }}</span>
-                                <span class="dg-f-06-doc-card__sheet">
-                                  <i class="fas fa-file-excel" aria-hidden="true"></i>
-                                  Hoja: {{ doc.hojaExcel }}
-                                </span>
+                            </span>
+                            <span class="dg-f-06-block__cta">
+                              Abrir <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                            </span>
+                          </button>
+
+                          <button type="button" class="dg-f-06-block dg-f-06-block--indicadores"
+                            (click)="abrirAnioDgF06(anioDoc)">
+                            <span class="dg-f-06-block__icon" aria-hidden="true">
+                              <i class="fas fa-chart-bar"></i>
+                            </span>
+                            <span class="dg-f-06-block__body">
+                              <span class="dg-f-06-block__title">Indicadores de calidad</span>
+                              <span class="dg-f-06-block__count">{{ anioDoc.indicadores.length }} {{ anioDoc.indicadores.length === 1 ? 'fila' : 'filas' }}</span>
+                              <span class="dg-f-06-block__sheet">
+                                <i class="fas fa-file-excel" aria-hidden="true"></i>
+                                Hoja: {{ anioDoc.hojaExcel }}
                               </span>
-                              <span class="dg-f-06-doc-card__go" aria-hidden="true">
-                                <i class="fas fa-arrow-right"></i>
-                              </span>
-                            </button>
-                          </li>
-                        </ul>
+                            </span>
+                            <span class="dg-f-06-block__cta">
+                              Abrir <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                            </span>
+                          </button>
+                        </div>
                       </section>
                     </div>
 
@@ -14939,194 +15083,58 @@
                   </div>
                 </article>
 
-                <article class="dg-f05-doc dg-f-06-doc" *ngIf="dgF06Vista === 'documento' && dgF06DocActivo as doc">
+                <!-- ============ DOCUMENTO (objetivos + indicadores del año) ============ -->
+                <article class="dg-f05-doc dg-f-06-doc" *ngIf="dgF06Vista === 'documento' && dgF06AnioActivo as anio">
                   <div class="sgc-f-04-editor-bar">
                     <button type="button" class="sgc-f-04-editor-bar__back" (click)="volverArchiveroDgF06()">
                       <i class="fas fa-arrow-left" aria-hidden="true"></i>
                       Archivero
                     </button>
                   </div>
-                  <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'DG-F-06', titulo: doc.titulo, icono: 'fa-tachometer-alt', extraClass: 'dg-f-06-doc__header' }"></ng-container>
+                  <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'DG-F-06', titulo: tituloDocumentoDgF06(anio), icono: 'fa-tachometer-alt', extraClass: 'dg-f-06-doc__header' }"></ng-container>
 
                   <div class="dg-f-06-doc-intro">
-                    <div class="dg-f-06-doc-intro__icon" [attr.data-tipo]="doc.tipo">
-                      <i class="fas" [ngClass]="iconoTipoDgF06(doc.tipo)" aria-hidden="true"></i>
+                    <div class="dg-f-06-doc-intro__icon" aria-hidden="true">
+                      <i class="fas fa-tachometer-alt"></i>
                     </div>
                     <div class="dg-f-06-doc-intro__copy">
-                      <h4 class="dg-f-06-doc-intro__title">{{ etiquetaTipoDgF06(doc.tipo) }} · {{ doc.anio }}</h4>
+                      <h4 class="dg-f-06-doc-intro__title">Objetivos e indicadores · {{ anio.anio }}</h4>
                       <p class="dg-f-06-doc-intro__hint">
-                        Definición a la izquierda · seguimiento mensual a la derecha.
-                        Clic en el mes = semáforo (cumple / no cumple).
+                        Tablas editables. Edita directamente cada celda y usa «Guardar información» para sincronizar con el Excel.
                       </p>
                     </div>
-                    <div class="dg-f-06-doc-intro__legend" aria-hidden="true">
-                      <span class="dg-f-06-legend dg-f-06-legend--ok">Cumple</span>
-                      <span class="dg-f-06-legend dg-f-06-legend--risk">No cumple</span>
-                      <span class="dg-f-06-legend dg-f-06-legend--empty">Sin dato</span>
-                    </div>
+                    <span class="dg-f-06-doc-intro__sheet">
+                      <i class="fas fa-file-excel" aria-hidden="true"></i>
+                      {{ anio.hojaExcel }}
+                    </span>
                   </div>
 
-                  <div class="dg-f-06-items">
-                    <article class="dg-f-06-item" *ngFor="let fila of doc.filas; trackBy: trackByDgF06Fila"
-                      [attr.data-tipo]="doc.tipo">
-                      <header class="dg-f-06-item__head">
-                        <span class="dg-f-06-item__num">{{ fila.no }}</span>
-                        <div class="dg-f-06-item__titles">
-                          <span class="dg-f-06-item__kicker">
-                            {{ doc.tipo === 'objetivos' ? 'Objetivo' : 'Proceso' }}
-                          </span>
-                          <textarea class="dg-f05-field dg-f05-field--textarea dg-f-06-item__title-input"
-                            [attr.rows]="filasTexto(fila.proceso)"
-                            [name]="'dgF06_proc_' + fila.id"
-                            [(ngModel)]="fila.proceso"
-                            [attr.aria-label]="(doc.tipo === 'objetivos' ? 'Objetivo' : 'Proceso') + ' ' + fila.no"
-                            placeholder="Describe el objetivo o proceso…"></textarea>
-                        </div>
-                        <label class="dg-f-06-item__indicador">
-                          <i class="fas fa-chart-line" aria-hidden="true"></i>
-                          <input class="dg-f05-field dg-f-06-item__indicador-input"
-                            type="text"
-                            [name]="'dgF06_ind_' + fila.id"
-                            [(ngModel)]="fila.indicador"
-                            placeholder="Indicador"
-                            [attr.aria-label]="'Indicador ' + fila.no"
-                            autocomplete="off">
-                        </label>
-                        <div class="dg-f-06-item__score" aria-label="Resumen de resultados">
-                          <span class="dg-f-06-item__score-ok" title="Cumple">{{ conteoEstadoDgF06(fila, 'ok') }}</span>
-                          <span class="dg-f-06-item__score-risk" title="No cumple">{{ conteoEstadoDgF06(fila, 'risk') }}</span>
-                          <span class="dg-f-06-item__score-empty" title="Sin dato">{{ conteoEstadoDgF06(fila, '') }}</span>
-                        </div>
+                  <div class="dg-f-06-sections">
+                    <section class="dg-f-06-section dg-f-06-section--objetivos">
+                      <header class="dg-f-06-section__head">
+                        <span class="dg-f-06-section__icon" aria-hidden="true"><i class="fas fa-bullseye"></i></span>
+                        <h5 class="dg-f-06-section__title">Objetivos de calidad</h5>
+                        <span class="dg-f-06-section__count">{{ anio.objetivos.length }}</span>
+                        <button type="button" class="dg-f-06-section__add" (click)="agregarFilaDgF06('objetivos')">
+                          <i class="fas fa-plus" aria-hidden="true"></i>
+                          Agregar fila
+                        </button>
                       </header>
+                      <ng-container *ngTemplateOutlet="dgF06Tabla; context: { tipo: 'objetivos', filas: anio.objetivos }"></ng-container>
+                    </section>
 
-                      <div class="dg-f-06-item__body">
-                        <div class="dg-f-06-item__def">
-                          <dl class="dg-f-06-facts">
-                            <div class="dg-f-06-fact">
-                              <dt>Meta</dt>
-                              <dd>
-                                <textarea class="dg-f05-field dg-f05-field--textarea"
-                                  [attr.rows]="filasTexto(fila.meta)"
-                                  [name]="'dgF06_meta_' + fila.id"
-                                  [(ngModel)]="fila.meta"
-                                  placeholder="Meta…"
-                                  [attr.aria-label]="'Meta ' + fila.no"></textarea>
-                              </dd>
-                            </div>
-                            <div class="dg-f-06-fact">
-                              <dt>Responsable</dt>
-                              <dd>
-                                <textarea class="dg-f05-field dg-f05-field--textarea"
-                                  [attr.rows]="filasTexto(fila.responsable)"
-                                  [name]="'dgF06_resp_' + fila.id"
-                                  [(ngModel)]="fila.responsable"
-                                  placeholder="Responsable…"
-                                  [attr.aria-label]="'Responsable ' + fila.no"></textarea>
-                              </dd>
-                            </div>
-                            <div class="dg-f-06-fact">
-                              <dt>Compromiso</dt>
-                              <dd>
-                                <input class="dg-f05-field" type="text"
-                                  [name]="'dgF06_comp_' + fila.id"
-                                  [(ngModel)]="fila.fechaCompromiso"
-                                  placeholder="Fecha compromiso"
-                                  [attr.aria-label]="'Compromiso ' + fila.no"
-                                  autocomplete="off">
-                              </dd>
-                            </div>
-                            <div class="dg-f-06-fact">
-                              <dt>Medición</dt>
-                              <dd>
-                                <input class="dg-f05-field" type="text"
-                                  [name]="'dgF06_med_' + fila.id"
-                                  [(ngModel)]="fila.freqMedicion"
-                                  placeholder="Frecuencia"
-                                  [attr.aria-label]="'Medición ' + fila.no"
-                                  autocomplete="off">
-                              </dd>
-                            </div>
-                            <div class="dg-f-06-fact">
-                              <dt>Análisis</dt>
-                              <dd>
-                                <input class="dg-f05-field" type="text"
-                                  [name]="'dgF06_ana_' + fila.id"
-                                  [(ngModel)]="fila.freqAnalisis"
-                                  placeholder="Frecuencia"
-                                  [attr.aria-label]="'Análisis ' + fila.no"
-                                  autocomplete="off">
-                              </dd>
-                            </div>
-                          </dl>
-
-                          <div class="dg-f-06-lists">
-                            <section class="dg-f-06-list">
-                              <h6 class="dg-f-06-list__label">Acciones</h6>
-                              <div class="dg-f-06-list__body">
-                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f-06-list__input"
-                                  [attr.rows]="filasTextoSgcF12(fila.acciones, 3)"
-                                  [name]="'dgF06_acc_' + fila.id"
-                                  [(ngModel)]="fila.acciones"
-                                  placeholder="Acciones…"
-                                  [attr.aria-label]="'Acciones ' + fila.no"></textarea>
-                              </div>
-                            </section>
-                            <section class="dg-f-06-list">
-                              <h6 class="dg-f-06-list__label">Recursos</h6>
-                              <div class="dg-f-06-list__body">
-                                <textarea class="dg-f05-field dg-f05-field--textarea dg-f-06-list__input"
-                                  [attr.rows]="filasTextoSgcF12(fila.recursos, 3)"
-                                  [name]="'dgF06_rec_' + fila.id"
-                                  [(ngModel)]="fila.recursos"
-                                  placeholder="Recursos…"
-                                  [attr.aria-label]="'Recursos ' + fila.no"></textarea>
-                              </div>
-                            </section>
-                          </div>
-
-                          <section class="dg-f-06-list dg-f-06-list--op">
-                            <h6 class="dg-f-06-list__label">Operación</h6>
-                            <div class="dg-f-06-list__body">
-                              <textarea class="dg-f05-field dg-f05-field--textarea dg-f-06-list__input"
-                                [attr.rows]="filasTextoSgcF12(fila.operacion, 2)"
-                                [name]="'dgF06_op_' + fila.id"
-                                [(ngModel)]="fila.operacion"
-                                placeholder="Fórmula / operación…"
-                                [attr.aria-label]="'Operación ' + fila.no"></textarea>
-                            </div>
-                          </section>
-                        </div>
-
-                        <section class="dg-f-06-months">
-                          <div class="dg-f-06-months__head">
-                            <h6 class="dg-f-06-months__title">Resultados {{ doc.anio }}</h6>
-                            <span class="dg-f-06-months__hint">Clic = semáforo</span>
-                          </div>
-                          <div class="dg-f-06-months__grid">
-                            <div class="dg-f-06-month" *ngFor="let r of fila.resultados; trackBy: trackByDgF06Mes"
-                              [attr.data-estado]="r.estado || ''">
-                              <button type="button" class="dg-f-06-month__btn"
-                                [attr.title]="'Marcar ' + r.mes"
-                                [attr.aria-label]="'Estado ' + r.mes + ' ' + fila.indicador"
-                                (click)="cicloEstadoResultadoDgF06(r)">
-                                <span class="dg-f-06-month__label">{{ r.mes }}</span>
-                                <span class="dg-f-06-month__mark" aria-hidden="true">
-                                  <i class="fas fa-check" *ngIf="r.estado === 'ok'"></i>
-                                  <i class="fas fa-times" *ngIf="r.estado === 'risk'"></i>
-                                  <i class="fas fa-minus" *ngIf="!r.estado"></i>
-                                </span>
-                              </button>
-                              <input class="dg-f05-field dg-f-06-month__input"
-                                type="text"
-                                [name]="'dgF06_' + fila.id + '_' + r.mes"
-                                [(ngModel)]="r.valor"
-                                placeholder="—"
-                                [attr.aria-label]="'Valor ' + r.mes">
-                            </div>
-                          </div>
-                        </section>
-                      </div>
-                    </article>
+                    <section class="dg-f-06-section dg-f-06-section--indicadores">
+                      <header class="dg-f-06-section__head">
+                        <span class="dg-f-06-section__icon" aria-hidden="true"><i class="fas fa-chart-bar"></i></span>
+                        <h5 class="dg-f-06-section__title">Indicadores de calidad</h5>
+                        <span class="dg-f-06-section__count">{{ anio.indicadores.length }}</span>
+                        <button type="button" class="dg-f-06-section__add" (click)="agregarFilaDgF06('indicadores')">
+                          <i class="fas fa-plus" aria-hidden="true"></i>
+                          Agregar fila
+                        </button>
+                      </header>
+                      <ng-container *ngTemplateOutlet="dgF06Tabla; context: { tipo: 'indicadores', filas: anio.indicadores }"></ng-container>
+                    </section>
                   </div>
                 </article>
               </form>
