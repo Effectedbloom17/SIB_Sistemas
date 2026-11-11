@@ -703,7 +703,85 @@ async function crearCriterio(pool, body = {}) {
     );
     return {
         criterios: await listarCriterios(pool),
-        duplicadoEnArea
+        duplicadoEnArea,
+        clave
+    };
+}
+
+async function actualizarCriterio(pool, claveParam, body = {}) {
+    await asegurarTablaCriterios(pool);
+    const clave = String(claveParam || body.clave || '').trim().slice(0, 64);
+    if (!clave) {
+        const err = new Error('Indica el criterio a editar.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const [rows] = await pool.query(
+        `SELECT clave, corto, largo, escala, area_clave, es_sistema, activo, orden, descripciones_json
+         FROM sgc_f29_criterios
+         WHERE clave = ?
+         LIMIT 1`,
+        [clave]
+    );
+    if (!rows?.length) {
+        const err = new Error('El criterio no existe.');
+        err.statusCode = 404;
+        throw err;
+    }
+    const actual = rows[0];
+    const nombre = String(
+        body.nombre || body.largo || body.corto || body.etiquetaLarga || body.etiquetaCorta || actual.largo || actual.corto || ''
+    ).trim().slice(0, 80);
+    if (!nombre) {
+        const err = new Error('Indica el nombre del criterio.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const areaClave = String(
+        body.areaClave || body.area_clave || actual.area_clave || ''
+    ).trim().slice(0, 64);
+    if (!areaClave) {
+        const err = new Error('Selecciona el área del criterio.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const areas = await listarAreas(pool);
+    if (!areas.some((a) => a.clave === areaClave)) {
+        const err = new Error('El área indicada no existe.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const escala = normalizarEscala(
+        body.escala != null ? body.escala : actual.escala
+    );
+    let customVals = null;
+    if (escala === 1) {
+        const pctOpcional = normalizarPorcentajePersonalizado(
+            body.porcentajePersonalizado ?? body.porcentaje ?? (Array.isArray(body.valores) ? body.valores[0] : null)
+        );
+        customVals = pctOpcional != null ? [pctOpcional] : [];
+    }
+    const valores = valoresEscala(escala, customVals);
+    const descripciones = sanitizarDescripcionesEscala(body.descripciones, escala, customVals);
+    if (escala !== 1) {
+        for (const n of valores) {
+            if (!descripciones[String(n)]) {
+                const err = new Error(`Registra la descripción del valor ${n}%.`);
+                err.statusCode = 400;
+                throw err;
+            }
+        }
+    }
+    await pool.query(
+        `UPDATE sgc_f29_criterios
+         SET corto = ?, largo = ?, escala = ?, area_clave = ?, descripciones_json = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE clave = ?`,
+        [nombre, nombre, escala, areaClave, JSON.stringify(descripciones), clave]
+    );
+    return {
+        criterios: await listarCriterios(pool),
+        clave
     };
 }
 
@@ -2819,6 +2897,7 @@ module.exports = {
     establecerVisibilidadProveedor,
     listarCriterios,
     crearCriterio,
+    actualizarCriterio,
     asegurarTablaCriterios,
     listarAreas,
     crearArea,

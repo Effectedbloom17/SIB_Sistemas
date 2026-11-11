@@ -9158,6 +9158,8 @@
                         <section class="sgc-f-29-libreta__detalle" *ngIf="sgcF29ProveedorActivo as activo; else sgcF29SinSeleccion"
                           [class.has-area-color]="!!areaGrupoSgcF29(activo)"
                           [class.has-area-picker-open]="sgcF29AreaPickerOpen"
+                          [class.has-crit-form-open]="sgcF29NuevoCriterioAbierto || sgcF29NuevaAreaAbierta"
+                          [class.has-crit-menu-open]="sgcF29MenuAddCritIdx != null"
                           [style.--prov-area-color]="colorAreaSgcF29(areaGrupoSgcF29(activo))">
                           <header class="sgc-f-29-libreta__detalle-head sgc-f-29-libreta__detalle-head--card"
                             role="group" aria-label="Datos del proveedor">
@@ -9307,11 +9309,18 @@
                             <header class="sgc-f-29-libreta__crit-form-head">
                               <span class="sgc-f-29-libreta__crit-form-badge" aria-hidden="true"
                                 [style.background]="colorAreaSgcF29(sgcF29AreaGestionClave)">
-                                <i class="fas fa-sliders-h"></i>
+                                <i class="fas" [ngClass]="sgcF29EditandoCriterio ? 'fa-pen' : 'fa-sliders-h'"></i>
                               </span>
                               <div>
-                                <h4>Nuevo criterio</h4>
-                                <p>Se agregará al área «{{ areaPorClaveSgcF29(sgcF29AreaGestionClave)?.nombre || '—' }}»</p>
+                                <h4>{{ sgcF29EditandoCriterio ? 'Editar criterio' : 'Nuevo criterio' }}</h4>
+                                <p *ngIf="!sgcF29EditandoCriterio">
+                                  Se agregará al área «{{ areaPorClaveSgcF29(sgcF29AreaGestionClave)?.nombre || '—' }}»
+                                  y a las evaluaciones de este proveedor.
+                                </p>
+                                <p *ngIf="sgcF29EditandoCriterio">
+                                  Área «{{ areaPorClaveSgcF29(sgcF29AreaGestionClave)?.nombre || '—' }}» ·
+                                  los cambios aplican al catálogo y a las evaluaciones que lo usen.
+                                </p>
                               </div>
                             </header>
 
@@ -9390,14 +9399,18 @@
                               <button type="button" class="sgc-f-29-libreta__crit-form-save"
                                 (click)="guardarNuevoCriterioSgcF29($event)"
                                 [disabled]="!puedeGuardarNuevoCriterioSgcF29">
-                                {{ sgcF29CriterioGuardando ? 'Guardando…' : 'Guardar criterio' }}
+                                {{ sgcF29CriterioGuardando
+                                  ? 'Guardando…'
+                                  : (sgcF29EditandoCriterio ? 'Actualizar criterio' : 'Guardar criterio') }}
                               </button>
                             </div>
                           </div>
 
-                          <div class="sgc-f-29-libreta__evals">
+                          <div class="sgc-f-29-libreta__evals"
+                            [class.has-add-menu-open]="sgcF29MenuAddCritIdx != null">
                             <ng-container *ngFor="let idx of activo.indices; let ci = index">
                               <article class="sgc-f-29-eval-card" *ngIf="filaSgcF29(idx) as row"
+                                [class.has-crit-menu-open]="sgcF29MenuAddCritIdx === idx"
                                 (click)="onClickEvalCardSgcF29(idx, $event)"
                                 title="Clic en cualquier parte para abrir evidencias">
                                 <header class="sgc-f-29-eval-card__head">
@@ -9532,6 +9545,13 @@
                                     [style.--area-color]="colorAreaSgcF29(areaGrupoSgcF29(activo) || row.areaClave)">
                                     <div class="sgc-f-29-eval-crit__head">
                                       <span class="sgc-f-29-eval-crit__label">{{ textoConSaltosSgcF29(c.nombre) }}</span>
+                                      <button type="button" class="sgc-f-29-eval-crit__edit"
+                                        *ngIf="puedeEditarCriterioSgcF29(c)"
+                                        (click)="abrirEditarCriterioSgcF29(c.clave, $event)"
+                                        title="Editar criterio del catálogo"
+                                        aria-label="Editar criterio">
+                                        <i class="fas fa-pen" aria-hidden="true"></i>
+                                      </button>
                                       <button type="button" class="sgc-f-29-eval-crit__rm"
                                         (click)="quitarCriterioDeFilaSgcF29(idx, c.clave, $event)"
                                         title="Quitar criterio de esta evaluación"
@@ -9573,7 +9593,7 @@
                                     </div>
                                   </div>
                                   <div class="sgc-f-29-eval-crit-add"
-                                    *ngIf="areaGrupoSgcF29(activo) && criteriosDisponiblesParaFilaSgcF29(row).length">
+                                    *ngIf="areaGrupoSgcF29(activo)">
                                     <button type="button" class="sgc-f-29-eval-crit-add__btn"
                                       (click)="toggleMenuAddCritSgcF29(idx, $event)"
                                       [class.is-open]="sgcF29MenuAddCritIdx === idx"
@@ -9581,13 +9601,25 @@
                                       <i class="fas fa-plus" aria-hidden="true"></i>
                                       Criterio
                                     </button>
-                                    <div class="sgc-f-29-eval-crit-add__menu" *ngIf="sgcF29MenuAddCritIdx === idx">
+                                    <div class="sgc-f-29-eval-crit-add__menu" *ngIf="sgcF29MenuAddCritIdx === idx"
+                                      (click)="$event.stopPropagation()">
                                       <p class="sgc-f-29-eval-crit-add__menu-title">Agregar a esta evaluación</p>
                                       <button type="button"
                                         *ngFor="let c of criteriosDisponiblesParaFilaSgcF29(row)"
                                         (click)="agregarCriterioAFilaSgcF29(idx, c.clave, $event)">
                                         <i class="fas fa-plus-circle" aria-hidden="true"></i>
-                                        {{ c.nombre }}
+                                        <span>{{ c.nombre }}</span>
+                                      </button>
+                                      <p class="sgc-f-29-eval-crit-add__menu-empty"
+                                        *ngIf="!criteriosDisponiblesParaFilaSgcF29(row).length">
+                                        No hay más criterios del área para agregar.
+                                      </p>
+                                      <button type="button"
+                                        class="sgc-f-29-eval-crit-add__menu-create"
+                                        *ngIf="puedeAgregarCriterioSgcF29"
+                                        (click)="abrirNuevoCriterioDesdeMenuEvalSgcF29($event)">
+                                        <i class="fas fa-sliders-h" aria-hidden="true"></i>
+                                        <span>Crear nuevo criterio</span>
                                       </button>
                                     </div>
                                   </div>

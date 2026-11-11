@@ -3319,6 +3319,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF29AreaGestionClave = '';
   sgcF29NuevoCriterioAbierto = false;
   sgcF29CriterioGuardando = false;
+  /** Si tiene valor, el formulario de criterio está en modo edición. */
+  sgcF29CriterioEditandoClave: string | null = null;
   sgcF29NuevaAreaAbierta = false;
   sgcF29AreaGuardando = false;
   /** Menú compacto de área (círculo de color en toolbar). */
@@ -5550,6 +5552,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.sgcF29EscalaMenuOpen) {
       event.preventDefault();
       this.cerrarEscalaMenuSgcF29();
+      return;
+    }
+    if (this.sgcF29MenuAddCritIdx != null) {
+      event.preventDefault();
+      this.cerrarMenuAddCritSgcF29();
+      return;
+    }
+    if (this.sgcF29NuevoCriterioAbierto) {
+      event.preventDefault();
+      this.cerrarFormNuevoCriterioSgcF29();
       return;
     }
     if (this.sgcF29EvaluadorComboIdx != null) {
@@ -20228,6 +20240,37 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF29MenuAddCritIdx = null;
     this.marcarEvaluadorFilaSgcF29(index);
     this.recalcularCalificacionSgcF29(index);
+    this.onSgcF29Editado();
+  }
+
+  /** Adjunta un criterio del catálogo a las evaluaciones del proveedor activo (o del área). */
+  private adjuntarCriterioAEvaluacionesSgcF29(clave: string, areaClave: string): void {
+    const k = String(clave || '').trim();
+    const area = String(areaClave || '').trim();
+    if (!k) return;
+    const activo = this.sgcF29ProveedorActivo;
+    const indices = activo?.indices?.length
+      ? [...activo.indices]
+      : (this.sgcF29Form?.proveedores || [])
+        .map((fila, idx) => ({ fila, idx }))
+        .filter(({ fila }) => String(fila?.areaClave || '').trim() === area)
+        .map(({ idx }) => idx);
+    for (const idx of indices) {
+      const fila = this.sgcF29Form.proveedores[idx];
+      if (!fila) continue;
+      if (area && !String(fila.areaClave || '').trim()) {
+        fila.areaClave = area;
+      }
+      if (!Array.isArray(fila.criteriosUsados)) {
+        fila.criteriosUsados = [];
+      }
+      if (!fila.criteriosUsados.includes(k)) {
+        fila.criteriosUsados = [...fila.criteriosUsados, k];
+      }
+      this.marcarEvaluadorFilaSgcF29(idx);
+      this.recalcularCalificacionSgcF29(idx);
+    }
+    this.onSgcF29Editado();
   }
 
   quitarCriterioDeFilaSgcF29(index: number, clave: string, event?: Event): void {
@@ -20245,6 +20288,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     this.marcarEvaluadorFilaSgcF29(index);
     this.recalcularCalificacionSgcF29(index);
+    this.onSgcF29Editado();
   }
 
   seleccionarAreaGestionSgcF29(clave: string, event?: Event): void {
@@ -20313,7 +20357,18 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   toggleMenuAddCritSgcF29(index: number, event?: Event): void {
     event?.preventDefault();
     event?.stopPropagation();
+    this.cerrarFormNuevoCriterioSgcF29();
     this.sgcF29MenuAddCritIdx = this.sgcF29MenuAddCritIdx === index ? null : index;
+  }
+
+  cerrarMenuAddCritSgcF29(): void {
+    this.sgcF29MenuAddCritIdx = null;
+  }
+
+  puedeEditarCriterioSgcF29(c: SgcF29CriterioCatalogo | null | undefined): boolean {
+    if (!c || !this.puedeAgregarCriterioSgcF29) return false;
+    if (c.esSistema && !this.authService.esSuperusuario()) return false;
+    return true;
   }
 
   get sgcF29GruposFiltrados(): SgcF29GrupoVista[] {
@@ -20528,6 +20583,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF29EscalaMenuOpen = false;
   }
 
+  get sgcF29EditandoCriterio(): boolean {
+    return !!String(this.sgcF29CriterioEditandoClave || '').trim();
+  }
+
   get puedeGuardarNuevoCriterioSgcF29(): boolean {
     const nombre = String(this.sgcF29NuevoCriterio.nombre || '').trim();
     const area = String(this.sgcF29AreaGestionClave || '').trim();
@@ -20614,6 +20673,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return;
     }
     this.sgcF29NuevaAreaAbierta = false;
+    this.sgcF29MenuAddCritIdx = null;
+    this.sgcF29CriterioEditandoClave = null;
     this.sgcF29NuevoCriterioAbierto = !this.sgcF29NuevoCriterioAbierto;
     this.sgcF29NuevoCriterio = this.formNuevoCriterioVacioSgcF29();
   }
@@ -20622,8 +20683,52 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     event?.preventDefault();
     event?.stopPropagation();
     this.sgcF29NuevoCriterioAbierto = false;
+    this.sgcF29CriterioEditandoClave = null;
     this.sgcF29EscalaMenuOpen = false;
     this.sgcF29NuevoCriterio = this.formNuevoCriterioVacioSgcF29();
+  }
+
+  abrirEditarCriterioSgcF29(clave: string, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const crit = this.criterioPorClaveSgcF29(clave);
+    if (!crit || !this.puedeEditarCriterioSgcF29(crit)) {
+      return;
+    }
+    const area = String(crit.areaClave || this.sgcF29AreaGestionClave || '').trim();
+    if (!area) {
+      void Swal.fire({
+        icon: 'info',
+        title: 'Sin área',
+        text: 'Este criterio no tiene área asignada.',
+        timer: 2200,
+        showConfirmButton: false
+      });
+      return;
+    }
+    this.sgcF29NuevaAreaAbierta = false;
+    this.sgcF29MenuAddCritIdx = null;
+    this.sgcF29AreaPickerOpen = false;
+    this.sgcF29AreaGestionClave = area;
+    this.sgcF29CriterioEditandoClave = crit.clave;
+    const escala = ([1, 2, 3, 4, 5, 6].includes(crit.escala) ? crit.escala : 5) as 1 | 2 | 3 | 4 | 5 | 6;
+    const descripciones: Record<string, string> = {};
+    const vals = escala === 1
+      ? []
+      : (crit.valores?.length
+        ? crit.valores.map(String)
+        : (this.sgcF29EscalasOpciones.find((e) => e.escala === escala)?.valores || []));
+    for (const v of vals) {
+      descripciones[v] = String(crit.descripciones?.[v] || '').trim();
+    }
+    this.sgcF29NuevoCriterio = {
+      nombre: String(crit.nombre || '').trim(),
+      escala,
+      porcentajePersonalizado: 80,
+      descripciones
+    };
+    this.sgcF29NuevoCriterioAbierto = true;
+    this.sgcF29EscalaMenuOpen = false;
   }
 
   toggleFormNuevaAreaSgcF29(event?: Event): void {
@@ -20679,15 +20784,26 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     event?.preventDefault();
     event?.stopPropagation();
     this.sgcF29AreaPickerOpen = false;
+    this.sgcF29MenuAddCritIdx = null;
     const areaActiva = this.areaGrupoSgcF29(this.sgcF29ProveedorActivo);
     if (areaActiva) {
       this.sgcF29AreaGestionClave = areaActiva;
     }
-    if (this.sgcF29NuevoCriterioAbierto) {
+    if (this.sgcF29NuevoCriterioAbierto && !this.sgcF29EditandoCriterio) {
       this.cerrarFormNuevoCriterioSgcF29(event);
       return;
     }
+    if (this.sgcF29NuevoCriterioAbierto && this.sgcF29EditandoCriterio) {
+      this.cerrarFormNuevoCriterioSgcF29(event);
+    }
     this.toggleFormNuevoCriterioSgcF29(event);
+  }
+
+  abrirNuevoCriterioDesdeMenuEvalSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.sgcF29MenuAddCritIdx = null;
+    this.abrirNuevoCriterioDesdePickerSgcF29(event);
   }
 
   guardarNuevoCriterioSgcF29(event?: Event): void {
@@ -20699,6 +20815,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const nombre = String(this.sgcF29NuevoCriterio.nombre || '').trim();
     const escala = this.sgcF29NuevoCriterio.escala;
     const areaClave = String(this.sgcF29AreaGestionClave || '').trim();
+    const editandoClave = String(this.sgcF29CriterioEditandoClave || '').trim();
     const descripciones: Record<string, string> = {};
     for (const v of this.valoresNuevoCriterioSgcF29()) {
       descripciones[v] = String(this.sgcF29NuevoCriterio.descripciones[v] || '').trim();
@@ -20717,15 +20834,35 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       ...(escala === 1 ? { valores: [] } : {})
     };
     this.sgcF29CriterioGuardando = true;
-    this.backendService.crearCriterioSgcF29(payload)
+    const req$ = editandoClave
+      ? this.backendService.actualizarCriterioSgcF29(editandoClave, payload)
+      : this.backendService.crearCriterioSgcF29(payload);
+    req$
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
           const lista = Array.isArray(res?.criterios) ? res.criterios : [];
           this.aplicarCatalogoCriteriosSgcF29(lista);
           this.sgcF29CriterioGuardando = false;
+          if (!editandoClave) {
+            const claveCreada = String(res?.clave || '').trim()
+              || this.sgcF29CriteriosCatalogo.find((c) =>
+                c.areaClave === areaClave
+                && String(c.nombre || '').trim().toLowerCase() === nombre.toLowerCase()
+              )?.clave
+              || '';
+            if (claveCreada) {
+              this.adjuntarCriterioAEvaluacionesSgcF29(claveCreada, areaClave);
+            }
+          } else {
+            // Recalcula por si cambió la escala de valores permitidos.
+            for (let i = 0; i < (this.sgcF29Form?.proveedores || []).length; i++) {
+              this.recalcularCalificacionSgcF29(i);
+            }
+            this.onSgcF29Editado();
+          }
           this.cerrarFormNuevoCriterioSgcF29();
-          if (res?.duplicadoEnArea) {
+          if (!editandoClave && res?.duplicadoEnArea) {
             void Swal.fire({
               icon: 'warning',
               title: 'Criterio duplicado en el área',
@@ -20740,7 +20877,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           this.sgcF29CriterioGuardando = false;
           void Swal.fire({
             icon: 'error',
-            title: 'No se pudo crear el criterio',
+            title: editandoClave ? 'No se pudo actualizar el criterio' : 'No se pudo crear el criterio',
             text: err?.error?.message || 'Inténtalo de nuevo.'
           });
         }
@@ -29360,6 +29497,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     if (this.sgcF29EscalaMenuOpen && target && !target.closest('.sgc-f-29-escala-menu')) {
       this.cerrarEscalaMenuSgcF29();
+    }
+    if (this.sgcF29MenuAddCritIdx != null && target && !target.closest('.sgc-f-29-eval-crit-add')) {
+      this.cerrarMenuAddCritSgcF29();
     }
     if (this.sgcF29EvaluadorComboIdx != null && target && !target.closest('.sgc-f-29-eval-combo')) {
       this.cerrarComboEvaluadorSgcF29();

@@ -30233,19 +30233,43 @@ app.post('/api/sgc/formatos/sgc-f-29/criterios', requireAdminOrSgc, async (req, 
         const result = await sgcF29Service.crearCriterio(poolBiznagaSgc, req.body || {});
         const criterios = Array.isArray(result) ? result : (result?.criterios || []);
         const duplicadoEnArea = !Array.isArray(result) && !!result?.duplicadoEnArea;
+        const clave = !Array.isArray(result) ? (result?.clave || null) : null;
         return res.json({
             success: true,
             message: duplicadoEnArea
                 ? 'Criterio agregado. Ya existía uno con el mismo nombre en esta área.'
                 : 'Criterio agregado al catálogo.',
             criterios,
-            duplicadoEnArea
+            duplicadoEnArea,
+            clave
         });
     } catch (error) {
         if (error.statusCode === 400 || error.statusCode === 409) {
             return res.status(error.statusCode).json({ success: false, message: error.message });
         }
         handleError(res, error, 'No se pudo crear el criterio de SGC-F-29');
+    }
+});
+
+app.put('/api/sgc/formatos/sgc-f-29/criterios/:clave', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const result = await sgcF29Service.actualizarCriterio(
+            poolBiznagaSgc,
+            req.params.clave,
+            req.body || {}
+        );
+        return res.json({
+            success: true,
+            message: 'Criterio actualizado.',
+            criterios: result?.criterios || [],
+            clave: result?.clave || req.params.clave
+        });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 404 || error.statusCode === 409) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo actualizar el criterio de SGC-F-29');
     }
 });
 

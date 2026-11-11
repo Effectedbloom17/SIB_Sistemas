@@ -3577,8 +3577,21 @@ export class BackendServices {
         areaClave?: string;
         porcentajePersonalizado?: number;
         descripciones?: Record<string, string>;
+        valores?: string[];
     }): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/criterios`, payload || {});
+    }
+
+    actualizarCriterioSgcF29(clave: string, payload: {
+        nombre: string;
+        escala?: 1 | 2 | 3 | 4 | 5 | 6;
+        areaClave?: string;
+        porcentajePersonalizado?: number;
+        descripciones?: Record<string, string>;
+        valores?: string[];
+    }): Observable<any> {
+        const id = encodeURIComponent(String(clave || '').trim());
+        return this.httpClient.put(`${this.baseUrl}/sgc/formatos/sgc-f-29/criterios/${id}`, payload || {});
     }
 
     listarProveedoresOcultosSgcF29(): Observable<any> {
