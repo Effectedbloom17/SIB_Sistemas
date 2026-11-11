@@ -13,7 +13,7 @@
   </div>
 </div>
 
-<div class="container-fluid sgc-ind-wrap mt--5">
+<div class="container-fluid sgc-ind-wrap mt--5 sgc-ind-wrap--mobile">
   <div class="row justify-content-center">
     <div class="col-xl-11">
 
@@ -120,7 +120,8 @@
           <div class="sgc-feature-carousel__track"
                [style.transform]="'translateX(-' + (carruselIndicadorActivo * 100) + '%)'">
 
-            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured">
+            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured"
+              [class.is-active]="carruselIndicadorActivo === 0">
               <div class="sgc-feature-carousel__slide-inner">
                 <div class="sgc-avance-hero-head">
                   <div class="sgc-avance-hero-head__main">
@@ -242,7 +243,8 @@
               </div>
             </article>
 
-            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured sgc-analytics-card--sat-cap">
+            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured sgc-analytics-card--sat-cap"
+              [class.is-active]="carruselIndicadorActivo === 1">
               <div class="sgc-feature-carousel__slide-inner">
                 <div class="sgc-avance-hero-head sgc-avance-hero-head--actions">
                   <div class="sgc-avance-hero-head__main">
@@ -369,7 +371,8 @@
               </div>
             </article>
 
-            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured sgc-analytics-card--accent">
+            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured sgc-analytics-card--accent"
+              [class.is-active]="carruselIndicadorActivo === 2">
               <div class="sgc-feature-carousel__slide-inner">
                 <div class="sgc-avance-hero-head sgc-avance-hero-head--actions">
                   <div class="sgc-avance-hero-head__main">
@@ -520,6 +523,7 @@
 
             <!-- Quejas y Sugerencias (Opiniones y Sugerencias) — después de Satisfacción, antes de Avance -->
             <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured sgc-analytics-card--accent"
+              [class.is-active]="carruselIndicadorActivo === 3"
               [class.sgc-analytics-card--quejas-alerta]="hayQuejasSugerencias && !quejasSugerencias?.optimo">
               <div class="sgc-feature-carousel__slide-inner">
               <div class="sgc-avance-hero-head sgc-avance-hero-head--actions">
@@ -648,7 +652,8 @@
               </div>
             </article>
 
-            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured">
+            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured"
+              [class.is-active]="carruselIndicadorActivo === 4">
               <div class="sgc-feature-carousel__slide-inner">
               <div class="sgc-avance-hero-head">
                 <div class="sgc-avance-hero-head__main">
@@ -890,7 +895,8 @@
               </div>
             </article>
 
-            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured sgc-analytics-card--accent">
+            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured sgc-analytics-card--accent"
+              [class.is-active]="carruselIndicadorActivo === 5">
               <div class="sgc-feature-carousel__slide-inner">
               <div class="sgc-avance-hero-head sgc-avance-hero-head--actions">
                 <div class="sgc-avance-hero-head__main">
@@ -1083,7 +1089,8 @@
               </div>
             </article>
 
-            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured sgc-prov-slide">
+            <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured sgc-prov-slide"
+              [class.is-active]="carruselIndicadorActivo === 6">
               <div class="sgc-feature-carousel__slide-inner">
               <header class="sgc-prov-head">
                 <div class="sgc-prov-head__glow" aria-hidden="true"></div>
@@ -1124,7 +1131,7 @@
               <div class="sgc-analytics-card-body sgc-prov-body">
                 <div *ngIf="cargandoDashboard" class="sgc-shimmer sgc-chart-skeleton sgc-chart-skeleton--wide"></div>
 
-                <div class="sgc-prov-layout" *ngIf="!cargandoDashboard && hayDatosProveedoresF29">
+                <div class="sgc-prov-layout sgc-prov-stack" *ngIf="!cargandoDashboard && hayDatosProveedoresF29">
                   <section class="sgc-prov-rank" aria-label="Proveedores evaluados">
                     <div class="sgc-prov-rank__top">
                       <div class="sgc-prov-rank__heading">

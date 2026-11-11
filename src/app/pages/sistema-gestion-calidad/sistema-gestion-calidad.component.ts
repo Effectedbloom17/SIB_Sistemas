@@ -1127,6 +1127,13 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   private readonly CARRUSEL_SAT_CAP_DONUT_HEIGHT = 220;
   private readonly CARRUSEL_DONUT_HEIGHT = 220;
   private readonly CARRUSEL_AUD_DONUT_HEIGHT = 180;
+  /** Donuts del carrusel en viewport móvil: misma caja centrada que el SCSS. */
+  private readonly CARRUSEL_DONUT_MOBILE = {
+    breakpoint: 768,
+    options: {
+      chart: { height: 200, width: 200, dropShadow: { enabled: false } }
+    }
+  };
 
   private chartBase(): Partial<ApexChart> {
     return {
@@ -1309,7 +1316,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
           }
         }
       },
-      responsive: [{ breakpoint: 480, options: { chart: { height: 180 } } }]
+      responsive: [this.CARRUSEL_DONUT_MOBILE]
     };
 
     this.satisfaccionCapChart = {
@@ -1464,7 +1471,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
         theme: 'dark',
         y: { formatter: (val: number) => `${Math.round(val)} respuesta${val !== 1 ? 's' : ''}` }
       },
-      responsive: [{ breakpoint: 480, options: { chart: { height: 220 } } }]
+      responsive: [this.CARRUSEL_DONUT_MOBILE]
     };
 
     this.satisfaccionChart = {
@@ -1573,7 +1580,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
           formatter: (val: number) => `${Math.round(val)} respuesta${val !== 1 ? 's' : ''}`
         }
       },
-      responsive: [{ breakpoint: 480, options: { chart: { height: 180 } } }]
+      responsive: [this.CARRUSEL_DONUT_MOBILE]
     };
 
     this.quejasChart = {
@@ -1670,7 +1677,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
           }
         }
       },
-      responsive: [{ breakpoint: 480, options: { chart: { height: 180 } } }]
+      responsive: [this.CARRUSEL_DONUT_MOBILE]
     };
 
     this.proveedoresF29Chart = {
@@ -1718,7 +1725,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
           }
         }
       },
-      responsive: [{ breakpoint: 480, options: { chart: { height: 180 } } }]
+      responsive: [this.CARRUSEL_DONUT_MOBILE]
     };
 
     this.eficaciaChart = {
@@ -1774,7 +1781,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
           }
         }
       },
-      responsive: [{ breakpoint: 480, options: { chart: { height: 180 } } }]
+      responsive: [this.CARRUSEL_DONUT_MOBILE]
     };
 
     this.audNcHistogramaChart = {
@@ -1963,7 +1970,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
           }
         }
       },
-      responsive: [{ breakpoint: 480, options: { chart: { height: 180 } } }]
+      responsive: [this.CARRUSEL_DONUT_MOBILE]
     };
   }
 

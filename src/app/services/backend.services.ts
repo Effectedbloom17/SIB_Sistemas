@@ -4646,6 +4646,22 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/proteccion-civil/resolutivos/avisos/silenciar-todos`, {});
     }
 
+    gestionarResolutivoPipc(body: {
+        resolutivoId: number;
+        empresaId?: number | null;
+        nombreEmpresa?: string;
+        nombreAsignacion?: string;
+        acciones: string;
+    }): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/proteccion-civil/resolutivos/avisos/gestionar`, body);
+    }
+
+    listarSeguimientosResolutivosPipc(empresaId: number): Observable<any> {
+        return this.httpClient.get(
+            `${this.baseUrl}/proteccion-civil/resolutivos/seguimientos?empresaId=${encodeURIComponent(String(empresaId))}`
+        );
+    }
+
     descartarTodosAvisosResolutivosPipc(): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/proteccion-civil/resolutivos/avisos/descartar-todos`, {});
     }

@@ -71,6 +71,7 @@ export class ControlResolutivosPipcComponent implements OnInit, OnDestroy {
   private readonly FILTROS_STORAGE_PREFIX = 'control-resolutivos-filtros';
 
   puedeVerControl = false;
+  esRootUser = false;
 
   descargandoControl = false;
   descargandoControlExcel = false;
@@ -168,12 +169,16 @@ export class ControlResolutivosPipcComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.puedeVerControl = this.authService.esAdministradorOSuperior();
+    this.esRootUser = this.authService.esRoot();
     if (!this.puedeVerControl) {
       this.router.navigate(['/proteccion-civil']);
       return;
     }
 
     this.restaurarEstadoFiltros();
+    if (!this.esRootUser && this.filtroOrigen === 'excel') {
+      this.filtroOrigen = '';
+    }
     this.cargarRegistros();
     this.cargarEstadoControlDrive();
     this.cargarCatalogosEdicion();
@@ -248,16 +253,31 @@ export class ControlResolutivosPipcComponent implements OnInit, OnDestroy {
       );
   }
 
+  get opcionesOrigenVisibles(): Array<{ value: string; label: string }> {
+    if (this.esRootUser) return this.opcionesOrigen;
+    return this.opcionesOrigen.filter((op) => op.value !== 'excel');
+  }
+
+  private esOrigenExcel(origen?: string): boolean {
+    return (origen || 'excel') !== 'sistema';
+  }
+
+  /** Excel solo entra a la tabla si quien consulta es Root. */
+  private registrosParaTabla(): RegistroControlResolutivo[] {
+    if (this.esRootUser) return this.registrosBD;
+    return this.registrosBD.filter((r) => !this.esOrigenExcel(r.origen));
+  }
+
   private construirTiposTramiteUnicos(): void {
     const set = new Set<string>();
-    this.registrosBD.forEach((r) => {
+    this.registrosParaTabla().forEach((r) => {
       if (r.tipo_tramite) set.add(r.tipo_tramite);
     });
     this.tiposTramiteUnicos = Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
   }
 
   filtrarRegistros(): void {
-    let resultado = [...this.registrosBD];
+    let resultado = [...this.registrosParaTabla()];
 
     if (this.filtroTipoTramite) {
       resultado = resultado.filter((r) => r.tipo_tramite === this.filtroTipoTramite);
@@ -383,7 +403,7 @@ export class ControlResolutivosPipcComponent implements OnInit, OnDestroy {
   }
 
   get hayRegistrosBase(): boolean {
-    return this.registrosBD.length > 0;
+    return this.registrosParaTabla().length > 0;
   }
 
   get hayRegistrosFiltrados(): boolean {

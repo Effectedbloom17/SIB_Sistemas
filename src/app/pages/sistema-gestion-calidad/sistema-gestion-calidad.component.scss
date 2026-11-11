@@ -2317,7 +2317,6 @@ $sgc-surface: #f8fafb;
   .sgc-kpi-bar--superior,
   .sgc-kpi-bar--inferior {
     width: 100%;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .sgc-kpi-cell {
@@ -2325,12 +2324,7 @@ $sgc-surface: #f8fafb;
   }
 }
 
-@media (max-width: 420px) {
-  .sgc-kpi-bar--superior,
-  .sgc-kpi-bar--inferior {
-    grid-template-columns: 1fr;
-  }
-}
+// Móvil: no apilar a 1 columna (ver bloque ≤767.98px abajo)
 
 .sgc-kpi-cell-icon {
   width: 29px;
@@ -2841,10 +2835,6 @@ $sgc-surface: #f8fafb;
   padding: 0 1.1rem 0.75rem;
 
   &--2 { grid-template-columns: repeat(2, 1fr); }
-
-  @media (max-width: 600px) {
-    grid-template-columns: 1fr;
-  }
 }
 
 .sgc-chart-kpi {
@@ -5418,13 +5408,610 @@ button.sgc-proyecto-row {
 }
 
 @media (max-width: 767.98px) {
+  // Hero: el icono queda bajo la barra; el título no choca con las tarjetas
+  :host .header.header-bg-image.sgc-hero {
+    min-height: 252px;
+    align-items: flex-start !important;
+    padding-top: 4.85rem !important;
+    padding-bottom: 5.6rem !important;
+    background-position: center 38%;
+
+    .sgc-hero-icon {
+      margin-top: 0.15rem;
+      margin-bottom: 0.7rem !important;
+      width: 3rem;
+      height: 3rem;
+      font-size: 1.3rem;
+    }
+
+    .sgc-hero-title {
+      font-size: 1.55rem;
+      line-height: 1.2;
+      margin-bottom: 0.35rem !important;
+      padding: 0 0.75rem;
+    }
+  }
+
+  .sgc-ind-wrap--mobile {
+    margin-top: -1.85rem !important;
+    padding-left: 0.55rem;
+    padding-right: 0.55rem;
+  }
+
+  // KPIs superiores (3): 3 por fila
+  .sgc-kpi-bar--superior {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  // KPIs inferiores (5): 3 + 2 centrados
+  .sgc-kpi-bar--inferior {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+
+    .sgc-kpi-cell {
+      flex: 0 0 33.333%;
+      max-width: 33.333%;
+
+      &:nth-child(3n)::after { display: none; }
+      &:nth-child(4)::after { display: block; }
+      &:nth-child(5)::after { display: none; }
+      &:nth-child(n + 4) {
+        border-top: 1px solid rgba(15, 118, 110, 0.1);
+      }
+    }
+  }
+
+  .sgc-kpi-cell {
+    min-height: 0;
+    padding: 0.65rem 0.28rem 0.55rem;
+
+    .sgc-kpi-cell-valor {
+      font-size: 1.05rem;
+    }
+
+    .sgc-kpi-cell-label {
+      font-size: 0.52rem;
+      letter-spacing: 0.15px;
+    }
+
+    .sgc-kpi-cell-sub {
+      font-size: 0.52rem;
+      white-space: normal;
+      line-height: 1.15;
+    }
+
+    .sgc-kpi-cell-icon {
+      width: 26px;
+      height: 26px;
+      margin-bottom: 2px;
+
+      i { font-size: 0.65rem; }
+    }
+  }
+
+  @media (max-width: 399px) {
+    .sgc-kpi-bar--superior {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .sgc-kpi-bar--inferior .sgc-kpi-cell {
+      flex: 0 0 50%;
+      max-width: 50%;
+
+      &:nth-child(even)::after { display: none; }
+      &:nth-child(odd)::after { display: block; }
+      &:nth-child(3n)::after { display: none; }
+      &:nth-child(4)::after { display: none; }
+      &:nth-child(n + 3) {
+        border-top: 1px solid rgba(15, 118, 110, 0.1);
+      }
+    }
+  }
+
+  .sgc-filter-card {
+    .card-body {
+      padding: 0.9rem 0.85rem !important;
+    }
+
+    .sgc-filter-title {
+      font-size: 1rem;
+      line-height: 1.25;
+    }
+
+    .sgc-filter-subtitle {
+      font-size: 0.72rem;
+      line-height: 1.35;
+    }
+
+    .sgc-filter-select {
+      width: 100%;
+    }
+  }
+
+  // Mini-KPIs del carrusel: mantener 3 / 2 por fila
+  .sgc-chart-kpi-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    padding: 0 0.75rem 0.65rem;
+
+    &--2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .sgc-chart-kpi-row--compact {
+    .sgc-chart-kpi {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.35rem;
+      padding: 0.45rem 0.4rem;
+    }
+
+    .sgc-chart-kpi-label {
+      font-size: 0.55rem;
+    }
+
+    .sgc-chart-kpi-sub {
+      white-space: normal;
+      font-size: 0.55rem;
+      line-height: 1.2;
+    }
+  }
+
+  .sgc-avance-hero-head {
+    padding: 1rem 0.85rem 0.65rem;
+    gap: 0.65rem;
+  }
+
+  .sgc-section-title {
+    font-size: 1rem;
+    line-height: 1.25;
+  }
+
+  .sgc-analytics-desc {
+    font-size: 0.72rem;
+    line-height: 1.35;
+  }
+
+  .sgc-feature-carousel {
+    --sgc-carousel-height: min(680px, 78vh);
+    --sgc-carousel-chart-height: 220px;
+  }
+
+  // Un solo scroll, en la caja del carrusel (no dentro del track con transform)
+  .sgc-feature-carousel__shell {
+    height: min(70vh, 620px) !important;
+    min-height: min(70vh, 620px) !important;
+    max-height: min(70vh, 620px) !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: auto;
+    touch-action: pan-y;
+  }
+
+  .sgc-feature-carousel__track,
+  .sgc-feature-carousel__slide,
+  .sgc-feature-carousel__slide-inner {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    overscroll-behavior: auto;
+    touch-action: pan-y;
+  }
+
+  .sgc-feature-carousel__edge {
+    pointer-events: none;
+  }
+
+  .sgc-feature-carousel__track {
+    align-items: flex-start;
+  }
+
+  .sgc-feature-carousel__slide {
+    height: 0 !important;
+    overflow: hidden !important;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .sgc-feature-carousel__slide.is-active {
+    height: auto !important;
+    min-height: min(70vh, 620px) !important;
+    max-height: none !important;
+    overflow: visible !important;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .sgc-feature-carousel__slide.is-active .sgc-feature-carousel__slide-inner,
+  .sgc-prov-slide.is-active,
+  .sgc-prov-slide.is-active .sgc-feature-carousel__slide-inner {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: min-content !important;
+    overflow: visible !important;
+  }
+
+  // El contenido crece y la tarjeta hace scroll; los paneles no recortan leyenda ni textos
+  .sgc-feature-carousel .sgc-analytics-card-body--aud,
+  .sgc-feature-carousel .sgc-analytics-card-body--avance,
+  .sgc-feature-carousel .sgc-analytics-card-body--carousel-chart,
+  .sgc-feature-carousel .sgc-prov-body {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .sgc-chart-canvas-wrap,
+  apx-chart,
+  .apexcharts-canvas {
+    touch-action: pan-y;
+  }
+
+  // Duales en 1 columna; sin sticky (evita que el donut flote sobre el panel de abajo)
+  .sgc-cap-dual,
+  .sgc-avance-dual,
+  .sgc-aud-dual {
+    grid-template-columns: 1fr !important;
+    gap: 0.65rem;
+    align-items: start;
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  .sgc-avance-panel--donut {
+    position: static !important;
+    top: auto !important;
+    align-self: stretch !important;
+    width: 100%;
+  }
+
+  .sgc-avance-panel,
+  .sgc-aud-panel,
+  .sgc-aud-panel--gauge,
+  .sgc-aud-panel--timeline,
+  .sgc-carousel-panel {
+    overflow: visible !important;
+    flex: 0 0 auto !important;
+    height: auto !important;
+    max-height: none !important;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .sgc-avance-donut-inner {
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+  }
+
+  // Donuts centrados: la caja mide lo mismo que Apex (200px). En 168px el anillo se recortaba y quedaba corrido.
+  .sgc-avance-donut-chart-wrap,
+  .sgc-aud-donut-chart-wrap {
+    width: 200px !important;
+    max-width: 200px !important;
+    height: 200px !important;
+    min-height: 200px !important;
+    margin: 0.15rem auto 0.25rem !important;
+    overflow: visible !important;
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    apx-chart,
+    ::ng-deep .apexcharts-canvas {
+      display: block !important;
+      width: 200px !important;
+      height: 200px !important;
+      max-width: 200px !important;
+      margin: 0 auto !important;
+      flex: 0 0 auto !important;
+      position: relative !important;
+      left: 0 !important;
+      top: 0 !important;
+      transform: none !important;
+    }
+  }
+
+  .sgc-donut-center {
+    width: 104px;
+    max-width: 68%;
+  }
+
+  .sgc-donut-center__val {
+    font-size: 1.25rem;
+  }
+
+  .sgc-donut-center__lbl,
+  .sgc-donut-center__pct {
+    font-size: 0.52rem;
+    letter-spacing: 0.01em;
+    line-height: 1.15;
+    white-space: normal;
+  }
+
+  .sgc-donut-center--eficacia .sgc-donut-center__val {
+    font-size: 1.15rem;
+  }
+
+  .sgc-dash-empty--small {
+    min-height: 0;
+    padding: 0.85rem 0.5rem 1rem;
+  }
+
+  .sgc-eficacia-legend--rules {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+    width: 100%;
+  }
+
+  // Quejas y eficacia: la dona usa 200px (mismo tamaño que Apex). En 168px se recortaba y quedaba corrida.
+  .sgc-aud-panel--gauge {
+    .sgc-avance-donut-inner {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sgc-avance-donut-chart-wrap,
+    .sgc-aud-donut-chart-wrap {
+      width: 200px !important;
+      max-width: 200px !important;
+      height: 200px !important;
+      min-height: 200px !important;
+      margin: 0.2rem auto 0.35rem !important;
+      overflow: visible !important;
+      position: relative !important;
+
+      apx-chart,
+      ::ng-deep .apexcharts-canvas {
+        display: block !important;
+        width: 200px !important;
+        height: 200px !important;
+        max-width: 200px !important;
+        margin: 0 auto !important;
+        position: relative !important;
+        left: 0 !important;
+        top: 0 !important;
+        transform: none !important;
+      }
+    }
+
+    .sgc-donut-center {
+      width: 108px;
+      max-width: 54%;
+    }
+
+    .sgc-eficacia-legend--rules {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: stretch;
+      gap: 0.35rem;
+      width: 100%;
+    }
+
+    .sgc-eficacia-rule-card {
+      flex: 1 1 0;
+      min-width: 0;
+      width: auto;
+      padding: 0.4rem 0.4rem;
+      gap: 0.32rem;
+      align-items: flex-start;
+    }
+
+    .sgc-eficacia-rule-card__range {
+      font-size: 0.68rem;
+      line-height: 1.2;
+      white-space: normal;
+    }
+
+    .sgc-eficacia-rule-card__desc {
+      font-size: 0.58rem;
+      line-height: 1.2;
+    }
+  }
+
+  // Leyenda Excelente / Bueno / Regular / Malo → 2 por fila
+  .sgc-avance-stats-legend.sgc-eficacia-legend--rules {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+    flex-direction: unset;
+    width: 100%;
+  }
+
+  .sgc-avance-stats-legend .sgc-avance-stat-card,
+  .sgc-avance-stats-legend .sgc-eficacia-rule-card {
+    min-width: 0;
+    width: 100%;
+    padding: 0.4rem 0.45rem;
+  }
+
+  .sgc-avance-stats-legend .sgc-eficacia-rule-card__range {
+    font-size: 0.72rem;
+  }
+
+  .sgc-avance-stats-legend .sgc-eficacia-rule-card__desc {
+    font-size: 0.62rem;
+    line-height: 1.2;
+  }
+
+  // Auditorías / quejas: cabecera y acciones en flujo vertical limpio
+  .sgc-avance-hero-head--actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.55rem;
+  }
+
+  .sgc-avance-hero-head__aside {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .sgc-aud-histograma-btn {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .sgc-avance-hero-kpi {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .sgc-analytics-desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .sgc-aud-timeline,
+  .sgc-quejas-timeline {
+    max-height: none;
+    overflow: visible;
+  }
+
+  // Avance por proyecto: la tarjeta contiene barra y porcentaje
+  .sgc-avance-panel--bars,
+  .sgc-proyecto-list {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .sgc-feature-carousel .sgc-proyecto-list,
+  .sgc-proyecto-list {
+    max-height: none !important;
+    overflow: visible !important;
+    overscroll-behavior: auto;
+    touch-action: pan-y;
+    padding-right: 0;
+    scrollbar-gutter: auto;
+  }
+
+  .sgc-proyecto-row,
+  button.sgc-proyecto-row {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .sgc-proyecto-row__head {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .sgc-proyecto-row__chips {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .sgc-proyecto-row__name,
+  .sgc-proyecto-row__resp-line,
+  .sgc-proyecto-row__resp-line span {
+    min-width: 0;
+  }
+
+  .sgc-proyecto-row__progress {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .sgc-proyecto-row__track {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  // Proveedores: ranking y distribución en columna, el donut no se monta
+  .sgc-prov-slide {
+    .sgc-feature-carousel__slide-inner {
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .sgc-prov-body,
+    .sgc-prov-layout {
+      display: flex !important;
+      flex-direction: column !important;
+      grid-template-rows: none !important;
+      grid-template-columns: 1fr !important;
+      height: auto !important;
+      max-height: none !important;
+      overflow: visible !important;
+
+      > * {
+        max-height: none !important;
+        height: auto !important;
+        width: 100%;
+        min-height: 0;
+      }
+    }
+
+    .sgc-prov-rank,
+    .sgc-prov-aside {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      height: auto !important;
+      max-height: none !important;
+      overflow: visible;
+    }
+  }
+
+  .sgc-prov-rank .sgc-prov-rank__list,
+  .sgc-prov-aside .sgc-prov-bars,
+  .sgc-prov-aside .sgc-prov-kpis,
+  .sgc-prov-aside .sgc-prov-aside__chart-block,
+  .sgc-prov-aside .sgc-prov-aside__chart {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 0;
+    max-height: none !important;
+    overflow: visible;
+  }
+
   .sgc-prov-head {
     flex-direction: column;
     align-items: flex-start;
   }
 
+  .sgc-prov-head__aside {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    align-items: stretch;
+  }
+
   .sgc-prov-score {
     width: 100%;
+  }
+
+  .sgc-prov-layout {
+    grid-template-columns: 1fr !important;
+    gap: 0.65rem;
+    padding: 0.7rem 0.7rem 0.85rem;
   }
 
   .sgc-prov-rank__top {
@@ -5440,6 +6027,219 @@ button.sgc-proyecto-row {
 
   .sgc-prov-item__meta {
     justify-content: space-between;
+  }
+
+  .sgc-prov-aside__chart {
+    justify-content: center;
+    align-items: center;
+  }
+
+  .sgc-prov-slide.is-active .sgc-prov-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    grid-template-columns: none !important;
+    grid-template-rows: none !important;
+    align-items: stretch !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    gap: 0.75rem !important;
+  }
+
+  .sgc-prov-slide.is-active .sgc-prov-rank {
+    order: 1;
+    position: relative !important;
+    z-index: 1;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .sgc-prov-slide.is-active .sgc-prov-aside {
+    order: 2;
+    position: relative !important;
+    z-index: 1;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    margin-top: 0.15rem;
+    overflow: visible !important;
+  }
+
+  .sgc-prov-rank__count {
+    white-space: normal;
+  }
+
+  .sgc-prov-aside__chart,
+  .sgc-prov-aside__chart-block {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .sgc-prov-aside__chart-wrap {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    min-height: 200px;
+    margin: 0.2rem auto 0.35rem;
+    overflow: hidden;
+
+    apx-chart {
+      display: block;
+      position: relative !important;
+      width: 200px !important;
+      height: 200px !important;
+      max-height: 200px !important;
+      margin: 0 auto;
+      top: auto !important;
+      left: auto !important;
+    }
+
+    ::ng-deep .apexcharts-canvas {
+      position: relative !important;
+      width: 200px !important;
+      max-width: 200px !important;
+      margin: 0 auto !important;
+      left: auto !important;
+      top: auto !important;
+    }
+  }
+
+  .sgc-prov-bars {
+    max-height: none;
+    overflow: visible;
+  }
+
+  // Ranking completo y, debajo, distribución. Nada se encima.
+  .sgc-prov-slide .sgc-prov-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto auto !important;
+    grid-auto-rows: auto !important;
+    align-items: start !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .sgc-prov-slide .sgc-prov-rank {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .sgc-prov-slide .sgc-prov-rank__list {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: none !important;
+    height: auto !important;
+    min-height: max-content !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .sgc-prov-slide .sgc-prov-item {
+    position: relative !important;
+    flex: none !important;
+    height: auto !important;
+  }
+
+  .sgc-prov-slide .sgc-prov-aside {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    position: relative !important;
+    top: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    margin-top: 0.85rem !important;
+    overflow: visible !important;
+    contain: none;
+  }
+
+  .sgc-cap-dual--sat-cap {
+    .sgc-chart-canvas-wrap {
+      min-height: 200px;
+      height: 200px;
+      max-height: 200px;
+    }
+  }
+
+  // Proveedores: bloques normales, uno debajo del otro
+  .sgc-prov-stack {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    grid-template: none !important;
+  }
+
+  .sgc-prov-stack > .sgc-prov-rank,
+  .sgc-prov-stack > .sgc-prov-aside {
+    display: block !important;
+    position: static !important;
+    float: none !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    flex: none !important;
+    inset: auto !important;
+    transform: none !important;
+  }
+
+  .sgc-prov-stack > .sgc-prov-aside {
+    margin-top: 0.9rem !important;
+  }
+
+  .sgc-prov-stack .sgc-prov-rank__list {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: none !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .sgc-prov-stack .sgc-prov-item {
+    position: relative !important;
+    height: auto !important;
+    flex: none !important;
+  }
+
+  .sgc-prov-stack .sgc-prov-aside__chart-wrap {
+    position: relative !important;
+    width: 200px !important;
+    height: 200px !important;
+    min-height: 200px !important;
+    margin: 0.35rem auto !important;
+    overflow: hidden !important;
+  }
+
+  .sgc-prov-stack .sgc-prov-aside__chart-wrap .apexcharts-canvas,
+  .sgc-prov-stack .sgc-prov-aside__chart-wrap apx-chart {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    width: 200px !important;
+    max-width: 200px !important;
+    height: 200px !important;
+    max-height: 200px !important;
+    transform: none !important;
   }
 }
 

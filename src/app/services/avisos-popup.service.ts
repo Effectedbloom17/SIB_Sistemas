@@ -198,6 +198,22 @@ export class AvisosPopupService {
     this.backend.silenciarTodosAvisosResolutivosPipc().subscribe({ error: () => {} });
   }
 
+  /** Deja de avisar un PIPC ya gestionado y lo quita del gestor. */
+  quitarResolutivoGestionado(resolutivoId: number): void {
+    const id = Number(resolutivoId);
+    this._resolutivo.next(this.resolutivo.filter((item) => item.resolutivoId !== id));
+  }
+
+  registrarGestionPc(item: AvisoPopupItem, acciones: string) {
+    return this.backend.gestionarResolutivoPipc({
+      resolutivoId: Number(item.resolutivoId),
+      empresaId: item.empresaId ?? null,
+      nombreEmpresa: item.nombreEmpresa || '',
+      nombreAsignacion: item.nombreAsignacion || '',
+      acciones
+    });
+  }
+
   /** Cierra el popup y abre el apartado. El aviso sigue en el gestor hasta que el estatus quede resuelto. */
   ir(item: AvisoPopupItem): void {
     this.silenciar(item);

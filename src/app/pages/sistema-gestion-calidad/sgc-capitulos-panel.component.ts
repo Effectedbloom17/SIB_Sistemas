@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, OnDestroy, OnInit, SimpleChanges } from '@angular/core';
+import { Component, ElementRef, Input, OnChanges, OnDestroy, OnInit, SimpleChanges, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
@@ -76,6 +76,8 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
   /** Capítulo inicial forzado (slug), p. ej. desde query param del padre. */
   @Input() capituloInicial: string | null = null;
 
+  @ViewChild('capitulosTrack') capitulosTrack?: ElementRef<HTMLElement>;
+
   busqueda = '';
   formatosFiltrados: FormatoBusquedaItem[] = [];
   capituloSeleccionado: TarjetaCapituloSgc | null = null;
@@ -147,6 +149,19 @@ export class SgcCapitulosPanelComponent implements OnInit, OnChanges, OnDestroy 
         replaceUrl: true
       });
     }
+  }
+
+  /** Flechas: desplazan la fila de capítulos. No cambian el capítulo seleccionado. */
+  desplazarCapitulos(direccion: -1 | 1, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const track = this.capitulosTrack?.nativeElement;
+    if (!track) {
+      return;
+    }
+    const card = track.querySelector('.sgc-cap-nav__item') as HTMLElement | null;
+    const paso = (card?.getBoundingClientRect().width || 200) + 10;
+    track.scrollBy({ left: direccion * paso, behavior: 'smooth' });
   }
 
   esCapituloActivo(c: TarjetaCapituloSgc): boolean {

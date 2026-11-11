@@ -24,13 +24,38 @@
 
 .historial-docs-search {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.5rem;
   align-items: center;
+}
 
-  i {
+.historial-docs-search__field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+
+  > i {
     color: #768D6B;
     margin-left: 0.25rem;
+    flex-shrink: 0;
+    overflow: visible;
+  }
+
+  .form-control {
+    min-width: 0;
+  }
+}
+
+.historial-docs-search__actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.5rem;
+
+  .btn {
+    white-space: nowrap;
   }
 }
 
@@ -308,16 +333,194 @@
   }
 }
 
-@media (max-width: 768px) {
-  .historial-docs-format__grid {
-    grid-template-columns: 1fr;
+@media (max-width: 767px) {
+  .hcd3-hero {
+    padding-top: 4.5rem !important;
+    padding-bottom: 4.4rem !important;
+    min-height: 0;
   }
 
-  .historial-docs-search {
-    grid-template-columns: 1fr;
+  .hcd3-hero__icon {
+    width: 2.4rem !important;
+    height: 2.4rem !important;
+    font-size: 1.15rem !important;
+    margin-bottom: 0.7rem !important;
+  }
+
+  .hcd3-hero__title {
+    font-size: 1.18rem !important;
+    line-height: 1.3;
+    padding: 0 0.75rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .hcd3-main.mt--5,
+  .hcd3-main {
+    margin-top: -2.4rem !important;
+    margin-bottom: 1.75rem !important;
+  }
+
+  .historial-docs-card__header {
+    padding: 1rem 0.85rem !important;
+
+    h2 {
+      font-size: 1.12rem;
+      line-height: 1.3;
+    }
+  }
+
+  .historial-docs-card__body {
+    padding: 0.85rem 0.75rem !important;
+  }
+
+  .historial-docs-format {
+    padding: 0.7rem 0.75rem 0.65rem;
+  }
+
+  .historial-docs-format__head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  .historial-docs-format__title {
+    font-size: 0.92rem;
+    line-height: 1.25;
 
     i {
-      display: none;
+      margin-right: 0.35rem !important;
     }
+  }
+
+  .historial-docs-format__hint {
+    font-size: 0.62rem;
+    line-height: 1.2;
+    white-space: normal;
+    max-width: 100%;
+  }
+
+  .historial-docs-format__chips {
+    gap: 0.22rem;
+  }
+
+  .chip {
+    min-height: 22px;
+    padding: 0.08rem 0.4rem;
+    font-size: 0.72rem;
+  }
+
+  // Leyenda: 2 por fila (menos filas, tipografía legible)
+  .historial-docs-format__grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem 0.55rem;
+    font-size: 0.74rem;
+    line-height: 1.3;
+
+    div {
+      min-width: 0;
+    }
+  }
+
+  // Busqueda a lo ancho; Buscar + Limpiar misma fila
+  .historial-docs-search {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+  }
+
+  .historial-docs-search__field {
+    grid-template-columns: 1fr;
+    position: relative;
+
+    > i {
+      position: absolute;
+      left: 0.85rem;
+      top: 50%;
+      transform: translateY(-50%);
+      margin-left: 0;
+      z-index: 1;
+      font-size: 0.9rem;
+      pointer-events: none;
+      overflow: visible;
+    }
+
+    .form-control {
+      height: 42px;
+      font-size: 0.86rem;
+      padding: 0 0.75rem 0 2.35rem;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+  }
+
+  .historial-docs-search__actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+
+    .btn {
+      width: 100%;
+      min-width: 0;
+      height: 40px;
+      font-size: 0.84rem;
+      padding: 0.35rem 0.5rem;
+    }
+  }
+
+  // Tabla densa: misma tabla + scroll lateral
+  .historial-docs-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-left: -0.15rem;
+    margin-right: -0.15rem;
+    padding-bottom: 0.15rem;
+  }
+
+  .historial-docs-table {
+    width: max-content;
+    min-width: 560px;
+    table-layout: fixed;
+
+    thead th,
+    tbody td {
+      overflow: hidden;
+      max-width: none;
+    }
+
+    .col-participante {
+      width: 160px;
+      min-width: 160px;
+    }
+
+    .col-curso {
+      width: 220px;
+      min-width: 220px;
+    }
+
+    .col-acciones {
+      width: 150px;
+      min-width: 150px;
+    }
+  }
+
+  .historial-cell-name,
+  .historial-cell-curso {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    word-break: break-word;
+  }
+
+  .historial-cell-meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .historial-docs-actions {
+    max-width: 128px;
   }
 }

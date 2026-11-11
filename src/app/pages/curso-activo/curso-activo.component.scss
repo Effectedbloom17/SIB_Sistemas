@@ -173,13 +173,45 @@ $radius: 10px;
 
 .empresa-nombre-completo {
   display: block;
-  max-width: none;
+  max-width: 100%;
+  min-width: 0;
   white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
+  overflow: hidden;
+  text-overflow: ellipsis;
   overflow-wrap: anywhere;
   word-break: break-word;
   line-height: 1.2;
+}
+
+.ca-fecha-cell {
+  overflow: hidden;
+  vertical-align: middle !important;
+}
+
+.ca-fecha-cell__date,
+.ca-fecha-cell__time {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  line-height: 1.2;
+  font-size: 0.85rem;
+
+  i {
+    flex-shrink: 0;
+    font-size: 0.78rem;
+  }
+
+  span {
+    min-width: 0;
+  }
+}
+
+.ca-fecha-cell__time {
+  font-size: 0.75rem;
 }
 
 // Estandar de columnas para tablas de 6 columnas (admin/instructor)
@@ -1823,21 +1855,190 @@ $radius: 10px;
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
+  .ca-hero {
+    padding-top: 4.5rem !important;
+    padding-bottom: 4.4rem !important;
+    min-height: 0;
+  }
+
+  .ca-hero__icon {
+    width: 2.4rem !important;
+    height: 2.4rem !important;
+    font-size: 1.15rem !important;
+    margin-bottom: 0.7rem !important;
+  }
+
+  .ca-hero__title {
+    font-size: 1.28rem !important;
+    line-height: 1.3;
+    padding: 0 0.75rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .ca-main.mt--5,
+  .ca-main {
+    margin-top: -2.4rem !important;
+    margin-bottom: 1.75rem !important;
+  }
+
+  .ca-card-head {
+    padding: 1rem 0.85rem 0.75rem !important;
+  }
+
+  .ca-card-head__title {
+    font-size: 1.15rem !important;
+    line-height: 1.3;
+  }
+
+  .ca-card-head__hint {
+    font-size: 0.7rem !important;
+  }
+
   .search-bar {
-    padding: 0.75rem 1rem;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0.85rem 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .search-input-wrap {
+    min-width: 0;
+    width: 100%;
+    overflow: visible;
+  }
+
+  .search-icon {
+    left: 0.85rem;
+    overflow: visible;
+  }
+
+  .search-input {
+    padding: 0.62rem 0.75rem 0.62rem 2.35rem;
+    font-size: 0.88rem;
   }
 
   .filter-pills {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
     width: 100%;
   }
 
   .filter-select {
-    flex: 1;
-    min-width: 120px;
+    width: 100%;
+    min-width: 0;
+    font-size: 0.78rem;
+    padding: 0.5rem 0.45rem;
   }
 
+  .btn-limpiar {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .dual-table-responsive,
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x pan-y;
+  }
+
+  .dual-cursos-table,
+  .dual-cursos-table.cols-admin,
+  .dual-cursos-table.cols-empresa {
+    width: max-content;
+    max-width: none;
+    min-width: 920px;
+    table-layout: fixed;
+  }
+
+  .dual-cursos-table thead th,
+  .dual-cursos-table tbody td {
+    overflow: hidden;
+    vertical-align: middle;
+  }
+
+  .dual-cursos-table.cols-admin thead th:nth-child(1),
+  .dual-cursos-table.cols-admin .curso-data-row td:nth-child(1) {
+    width: 8.5rem;
+    min-width: 8.5rem;
+  }
+
+  .dual-cursos-table.cols-admin thead th:nth-child(2),
+  .dual-cursos-table.cols-admin .curso-data-row td:nth-child(2) {
+    width: 14rem;
+    min-width: 14rem;
+  }
+
+  .dual-cursos-table.cols-admin thead th:nth-child(3),
+  .dual-cursos-table.cols-admin .curso-data-row td:nth-child(3) {
+    width: 10rem;
+    min-width: 10rem;
+  }
+
+  .dual-cursos-table.cols-admin thead th:nth-child(4),
+  .dual-cursos-table.cols-admin .curso-data-row td:nth-child(4),
+  .ca-fecha-cell {
+    width: 9.5rem;
+    min-width: 9.5rem;
+  }
+
+  .dual-cursos-table.cols-admin thead th:nth-child(5),
+  .dual-cursos-table.cols-admin .curso-data-row td:nth-child(5) {
+    width: 8.5rem;
+    min-width: 8.5rem;
+  }
+
+  .dual-cursos-table.cols-admin thead th:nth-child(6),
+  .dual-cursos-table.cols-admin .curso-data-row td:nth-child(6) {
+    width: 4.5rem;
+    min-width: 4.5rem;
+  }
+
+  .dual-cursos-table.cols-empresa thead th:nth-child(1),
+  .dual-cursos-table.cols-empresa .curso-data-row td:nth-child(1) {
+    width: 14rem;
+    min-width: 14rem;
+  }
+
+  .dual-cursos-table.cols-empresa thead th:nth-child(2),
+  .dual-cursos-table.cols-empresa .curso-data-row td:nth-child(2) {
+    width: 10rem;
+    min-width: 10rem;
+  }
+
+  .dual-cursos-table.cols-empresa thead th:nth-child(3),
+  .dual-cursos-table.cols-empresa .curso-data-row td:nth-child(3),
+  .dual-cursos-table.cols-empresa .ca-fecha-cell {
+    width: 9.5rem;
+    min-width: 9.5rem;
+  }
+
+  .dual-cursos-table.cols-empresa thead th:nth-child(4),
+  .dual-cursos-table.cols-empresa .curso-data-row td:nth-child(4) {
+    width: 8.5rem;
+    min-width: 8.5rem;
+  }
+
+  .dual-cursos-table.cols-empresa thead th:nth-child(5),
+  .dual-cursos-table.cols-empresa .curso-data-row td:nth-child(5) {
+    width: 4.5rem;
+    min-width: 4.5rem;
+  }
+
+  .curso-data-row td {
+    padding: 0.7rem 0.65rem !important;
+  }
+
+  .ca-fecha-cell__date,
+  .ca-fecha-cell__time {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (max-width: 768px) {
   .modal-empleados {
     width: 95%;
     max-height: 95vh;
@@ -1966,23 +2167,38 @@ $radius: 10px;
     padding: 0.35rem 0.55rem 0.65rem;
   }
 
+  // Misma composición que PC: timeline + botón al final (derecha)
   .timeline-preview-bar {
-    flex-direction: column;
-    gap: 0.65rem;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .timeline-preview-stepper {
+    flex: 1;
+    min-width: 0;
   }
 
   .timeline-preview-actions {
+    display: flex;
+    align-items: center;
     justify-content: center;
+    flex-shrink: 0;
+    align-self: center;
     min-width: 0;
-    border-left: 0;
-    padding-left: 0;
-    border-top: 1px solid rgba($primary, 0.1);
-    padding-top: 0.65rem;
+    border-left: 1px solid rgba($primary, 0.1);
+    border-top: 0;
+    padding: 0.1rem 0 0.1rem 0.45rem;
   }
 
   .timeline-preview-open-btn {
     width: auto;
-    max-width: 100%;
+    max-width: 7.6rem;
+    padding: 0.48rem 0.55rem;
+    font-size: 0.68rem;
+    white-space: normal;
+    line-height: 1.2;
+    text-align: center;
   }
 
   .timeline-preview-open-btn-text {

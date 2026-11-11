@@ -331,3 +331,93 @@
     transition: none !important;
   }
 }
+
+.biz-gestion {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.45);
+  pointer-events: auto;
+}
+
+.biz-gestion__caja {
+  width: min(26rem, 100%);
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.1rem 1.15rem 1rem;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22);
+}
+
+.biz-gestion__pipc {
+  margin: 0 0 0.35rem;
+  color: #fb6340;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.biz-gestion__caja h3 {
+  margin: 0 0 0.75rem;
+  color: #1e293b;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.biz-gestion__caja textarea {
+  width: 100%;
+  min-height: 5.5rem;
+  resize: none;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  color: #1e293b;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  outline: none;
+
+  &:focus {
+    border-color: #fb6340;
+  }
+}
+
+.biz-gestion__error {
+  margin: 0.45rem 0 0;
+  color: #e11d48;
+  font-size: 0.8rem;
+}
+
+.biz-gestion__acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+
+  button {
+    border: 0;
+    border-radius: 8px;
+    padding: 0.45rem 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  button[type='button'] {
+    background: #f1f5f9;
+    color: #475569;
+  }
+
+  button[type='submit'] {
+    background: #fb6340;
+    color: #fff;
+  }
+
+  button:disabled {
+    opacity: 0.65;
+    cursor: default;
+  }
+}

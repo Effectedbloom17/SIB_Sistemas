@@ -198,12 +198,16 @@
             </div>
 
             <ng-container *ngIf="puedeVerDetalleEmpleado">
+              <div *ngIf="empleadoSeleccionadoId !== null && !panelModoDesktop"
+                   class="empleado-editor-backdrop"
+                   (click)="cerrarPanelEmpleado()"></div>
               <aside *ngIf="obtenerEmpleadoSeleccionado() as empleadoSeleccionado"
                      class="empleado-editor-panel"
                      [ngStyle]="panelModoDesktop ? panelFlotanteStyle : null"
                      [class.empleado-editor-panel--floating]="panelModoDesktop"
                      [class.empleado-editor-panel--left]="panelModoDesktop && panelLado === 'left'"
-                     [class.empleado-editor-panel--right]="panelModoDesktop && panelLado === 'right'">
+                     [class.empleado-editor-panel--right]="panelModoDesktop && panelLado === 'right'"
+                     [class.empleado-editor-panel--sheet]="!panelModoDesktop">
                 <div class="editor-panel__header">
                   <div>
                     <h4 class="editor-panel__title">{{ puedeGestionarEmpleados ? 'Empleado seleccionado' : 'Detalle del empleado' }}</h4>

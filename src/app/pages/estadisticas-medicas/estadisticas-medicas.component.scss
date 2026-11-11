@@ -156,6 +156,7 @@
 .kpi-bar-stats {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 2px 16px rgba(50,50,93,.08), 0 1px 4px rgba(0,0,0,.04);
@@ -211,10 +212,10 @@
   }
 
   @media (max-width: 500px) {
-    flex: 0 0 50%;
-    &:nth-child(even)::after { display: none; }
-    &:nth-child(odd)::after  { display: block; }
-    &:nth-child(n+3) { border-top: 1px solid #e9ecef; }
+    // Se redefine en ≤767.98px (3 + 2 centrados); aquí no forzar 2 cols
+    flex: 0 0 33.333%;
+    &:nth-child(3n)::after { display: none; }
+    &:nth-child(n+4) { border-top: 1px solid #e9ecef; }
   }
 }
 
@@ -343,11 +344,6 @@
 }
 
 @media (max-width: 768px) {
-  .stat-grid-3,
-  .stat-grid-2 {
-    grid-template-columns: 1fr;
-  }
-
   .stat-header {
     padding: 0.8rem 1rem;
   }
@@ -1020,4 +1016,214 @@
     padding: 0 1.2rem 0.5rem !important;
     overflow: visible !important;
   }
+}
+
+// =====================================================
+// RESPONSIVE — Móvil (≤767px) — guía ADAPTABILIDAD
+// =====================================================
+@media (max-width: 767.98px) {
+  .em-stats-hero {
+    min-height: 228px;
+    padding-top: 1.55rem !important;
+    // Espacio bajo el título + carrusel, para que la tarjeta no lo tape
+    padding-bottom: 7.1rem !important;
+    background-position: center 55%;
+
+    .em-stats-hero__icon {
+      margin-bottom: 0.85rem !important;
+      width: 3.1rem;
+      height: 3.1rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.35rem !important;
+    }
+
+    .em-stats-hero__title {
+      font-size: 1.45rem !important;
+      line-height: 1.2;
+      padding: 0 0.75rem;
+      margin-bottom: 0.15rem;
+    }
+
+    // Carrusel por encima de la zona de solape con la tarjeta
+    .stat-carrusel {
+      bottom: 58px;
+      gap: 5px;
+      max-width: calc(100% - 12px);
+      z-index: 3;
+    }
+
+    .stat-carrusel-opciones {
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .stat-carrusel-opcion {
+      padding: 6px 11px;
+      font-size: 0.74rem;
+    }
+
+    .stat-carrusel-flecha {
+      width: 30px;
+      height: 30px;
+      flex-shrink: 0;
+    }
+  }
+
+  .em-stats-main {
+    // Solape suave: no comerse el carrusel
+    margin-top: -1.55rem !important;
+  }
+
+  .estadisticas-view {
+    padding: 0 0.25rem;
+  }
+
+  .stat-header {
+    padding: 0.9rem 0.85rem !important;
+    border-radius: 12px;
+
+    .stat-main-title {
+      font-size: 1.05rem;
+      line-height: 1.25;
+    }
+  }
+
+  // Controles relacionados en la misma fila
+  .em-stats-header-row {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .em-stats-header-controls {
+    width: 100%;
+    margin-top: 0.65rem !important;
+    display: flex;
+    align-items: stretch;
+    gap: 0.45rem;
+
+    .btn-reporte {
+      flex: 0 0 auto;
+      margin-right: 0 !important;
+      font-size: 0.72rem;
+      padding: 0.4rem 0.55rem;
+    }
+
+    .stat-empresa-select {
+      flex: 1 1 0;
+      min-width: 0;
+      width: auto;
+    }
+  }
+
+  // KPIs: hasta 3 por fila (5 → 3 + 2 centrados)
+  .kpi-bar-stats {
+    justify-content: center;
+  }
+
+  .kpi-cell-stats {
+    flex: 0 0 33.333%;
+    padding: 0.7rem 0.28rem 0.6rem;
+
+    &:not(:last-child)::after { display: block; }
+    &:nth-child(3n)::after { display: none; }
+    &:nth-child(4)::after { display: block; }
+    &:nth-child(5)::after { display: none; }
+    &:nth-child(n+4) { border-top: 1px solid #e9ecef; }
+
+    .kpi-cell-stats-valor {
+      font-size: 1.05rem;
+    }
+
+    .kpi-cell-stats-label {
+      font-size: 0.52rem;
+      letter-spacing: 0.2px;
+    }
+
+    .kpi-cell-stats-sub {
+      font-size: 0.55rem;
+      white-space: normal;
+      line-height: 1.15;
+    }
+  }
+
+  @media (max-width: 399px) {
+    .kpi-cell-stats {
+      flex: 0 0 50%;
+      &:nth-child(even)::after { display: none; }
+      &:nth-child(odd)::after { display: block; }
+      &:nth-child(3n)::after { display: none; }
+      &:nth-child(4)::after { display: none; }
+      &:nth-child(n+3) { border-top: 1px solid #e9ecef; }
+    }
+  }
+
+  // Pares relacionados: 2 por fila; tríos: 1 (leyendas necesitan ancho)
+  .stat-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+
+  .stat-grid-3 {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+  }
+
+  .stat-card {
+    &:hover {
+      box-shadow: 0 1px 6px rgba(14, 74, 111, 0.08);
+    }
+  }
+
+  .stat-card-head {
+    padding: 0.75rem 0.7rem 0.4rem;
+
+    strong {
+      font-size: 0.88rem;
+      line-height: 1.25;
+    }
+  }
+
+  .stat-card-chart {
+    padding: 0.35rem 0.35rem 0.2rem;
+    touch-action: pan-y;
+
+    apx-chart,
+    .apexcharts-canvas,
+    .apexcharts-svg {
+      touch-action: pan-y;
+    }
+  }
+
+  // Leyendas: wrap 2–3 por renglón, sin desborde
+  .apexcharts-legend {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 2px 6px !important;
+    padding: 4px 2px 6px !important;
+    overflow: visible !important;
+  }
+
+  .apexcharts-legend-series {
+    margin: 2px 3px !important;
+  }
+
+  .apexcharts-legend-text {
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+  }
+
+  // Entrada suave escalonada
+  .stat-dashboard > .kpi-bar-stats,
+  .stat-dashboard > .stat-grid-row,
+  .stat-dashboard > .stat-card {
+    animation: fadeInUpStats 0.4s ease-out both;
+  }
+
+  .stat-dashboard > .stat-grid-row:nth-of-type(2) { animation-delay: 0.05s; }
+  .stat-dashboard > .stat-grid-row:nth-of-type(3) { animation-delay: 0.1s; }
+  .stat-dashboard > .stat-grid-row:nth-of-type(4) { animation-delay: 0.15s; }
 }

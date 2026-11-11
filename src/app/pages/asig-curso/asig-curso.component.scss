@@ -640,3 +640,215 @@
   }
 }
 
+// ═══════════════════════════════════════
+// Móvil
+// ═══════════════════════════════════════
+@media (max-width: 767px) {
+  .ac-hero {
+    padding-top: 4.5rem !important;
+    padding-bottom: 4.4rem !important;
+    min-height: 0;
+  }
+
+  .ac-hero__icon {
+    width: 2.4rem !important;
+    height: 2.4rem !important;
+    font-size: 1.15rem !important;
+    margin-bottom: 0.7rem !important;
+  }
+
+  .ac-hero__title {
+    font-size: 1.28rem !important;
+    line-height: 1.3;
+    padding: 0 0.75rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .ac-main.mt--5,
+  .ac-main {
+    margin-top: -2.4rem !important;
+    margin-bottom: 1.75rem !important;
+  }
+
+  .card-programacion-form {
+    overflow: hidden;
+  }
+
+  .ac-form-head {
+    padding: 1rem 0.85rem 0.85rem !important;
+  }
+
+  .ac-form-head__row {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .ac-form-head__title {
+    font-size: 1.15rem !important;
+    line-height: 1.3;
+  }
+
+  .google-calendar-status {
+    width: 100%;
+  }
+
+  .calendar-badge {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    white-space: normal;
+    line-height: 1.3;
+    font-size: 0.72rem;
+    padding: 0.45rem 0.7rem;
+  }
+
+  .ac-form-body {
+    padding: 1rem 0.75rem 1.15rem !important;
+  }
+
+  .ac-section-label {
+    margin-bottom: 0.65rem !important;
+  }
+
+  .ac-form-body .form-control-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    overflow: visible;
+    margin-bottom: 0.35rem !important;
+    font-size: 0.68rem !important;
+    line-height: 1.25;
+
+    i {
+      flex: 0 0 auto;
+      overflow: visible;
+    }
+  }
+
+  .ac-form-body .form-control,
+  .ac-form-body select.form-control,
+  .ac-form-body textarea.form-control {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.88rem;
+    line-height: 1.3;
+  }
+
+  .ac-form-body input[type='date'].form-control,
+  .ac-form-body input[type='time'].form-control,
+  .ac-form-body input[type='number'].form-control {
+    padding-left: 0.55rem;
+    padding-right: 0.4rem;
+    min-width: 0;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .ac-form-body input[type='number'].form-control {
+    padding-left: 0.65rem;
+  }
+
+  .ac-row-info,
+  .ac-row-horario,
+  .ac-row-logistica {
+    margin-left: -0.28rem;
+    margin-right: -0.28rem;
+  }
+
+  .ac-row-info > [class*='col-'],
+  .ac-row-horario > [class*='col-'],
+  .ac-row-logistica > [class*='col-'] {
+    padding-left: 0.28rem;
+    padding-right: 0.28rem;
+  }
+
+  // Curso a lo ancho; empresa + instructor misma fila
+  .ac-row-info > :nth-child(1) {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  .ac-row-info > :nth-child(2),
+  .ac-row-info > :nth-child(3) {
+    flex: 0 0 50%;
+    max-width: 50%;
+  }
+
+  // Fecha + horas en una sola fila
+  .ac-row-horario > [class*='col-'] {
+    flex: 0 0 33.333%;
+    max-width: 33.333%;
+  }
+
+  .ac-row-horario .form-control-label {
+    font-size: 0.62rem !important;
+    white-space: nowrap;
+  }
+
+  .ac-row-horario .form-control {
+    font-size: 0.78rem;
+    padding: 0.45rem 0.3rem;
+  }
+
+  // Modalidad + cupo misma fila; lugar a lo ancho
+  .ac-row-logistica > :nth-child(1),
+  .ac-row-logistica > :nth-child(2) {
+    flex: 0 0 50%;
+    max-width: 50%;
+  }
+
+  .ac-row-logistica > :nth-child(3) {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  .email-section {
+    padding: 0.75rem;
+    overflow: hidden;
+  }
+
+  .correo-chip-input {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .correo-input {
+    min-width: 0;
+    flex: 1 1 8rem;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .chip-email {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ac-actions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: stretch;
+    gap: 0.45rem;
+    text-align: left !important;
+  }
+
+  .ac-btn-limpiar,
+  .ac-btn-programar {
+    flex: 1 1 0;
+    min-width: 0;
+    margin-right: 0 !important;
+    padding: 0.55rem 0.5rem !important;
+    font-size: 0.78rem;
+    white-space: normal;
+    line-height: 1.25;
+  }
+}
+

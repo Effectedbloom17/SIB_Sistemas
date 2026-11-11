@@ -27,6 +27,11 @@ export class BiznaguitaGestorAvisosComponent implements OnInit, OnDestroy {
   readonly areaMeta = AVISO_AREA_META;
   readonly imgEstadoInicial = biznaguitaAsset('biznaguita_estado_inicial.png');
   readonly imgEstadoFinal = biznaguitaAsset('biznaguita_estado_final.png');
+  gestionItem: AvisoPopupItem | null = null;
+  gestionTexto = '';
+  gestionError = '';
+  gestionGuardando = false;
+  gestionTick = 0;
 
   private destroy$ = new Subject<void>();
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -70,10 +75,10 @@ export class BiznaguitaGestorAvisosComponent implements OnInit, OnDestroy {
   }
 
   salirPorCursor(): void {
-    if (this.fijado) return;
+    if (this.fijado || this.gestionItem) return;
     this.limpiarCierre();
     this.closeTimer = setTimeout(() => {
-      if (!this.fijado) this.abierto = false;
+      if (!this.fijado && !this.gestionItem) this.abierto = false;
       this.closeTimer = null;
     }, 450);
   }
@@ -101,11 +106,55 @@ export class BiznaguitaGestorAvisosComponent implements OnInit, OnDestroy {
   abrirItem(item: AvisoPopupItem, event: Event): void {
     event.preventDefault();
     event.stopPropagation();
+    if (item.area === 'pc') {
+      this.limpiarCierre();
+      this.fijado = true;
+      this.gestionItem = item;
+      this.gestionTexto = '';
+      this.gestionError = '';
+      this.gestionGuardando = false;
+      this.gestionTick += 1;
+      return;
+    }
     this.avisos.ir(item);
+  }
+
+  cerrarGestion(): void {
+    if (this.gestionGuardando) return;
+    this.gestionItem = null;
+    this.gestionTexto = '';
+    this.gestionError = '';
+  }
+
+  guardarGestion(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const item = this.gestionItem;
+    const acciones = this.gestionTexto.trim();
+    if (!item || this.gestionGuardando) return;
+    if (!acciones) {
+      this.gestionError = 'Escribe las acciones realizadas';
+      return;
+    }
+    this.gestionGuardando = true;
+    this.gestionError = '';
+    this.avisos.registrarGestionPc(item, acciones).subscribe({
+      next: () => {
+        this.avisos.quitarResolutivoGestionado(Number(item.resolutivoId));
+        this.gestionGuardando = false;
+        this.gestionItem = null;
+        this.gestionTexto = '';
+      },
+      error: (err) => {
+        this.gestionGuardando = false;
+        this.gestionError = err?.error?.message || 'No se pudo guardar la gestión';
+      }
+    });
   }
 
   @HostListener('document:click', ['$event'])
   cerrarSiClicFuera(event: MouseEvent): void {
+    if (this.gestionItem) return;
     if (!this.abierto || !this.fijado) return;
     const target = event.target as Node | null;
     if (target && this.host.nativeElement.contains(target)) return;

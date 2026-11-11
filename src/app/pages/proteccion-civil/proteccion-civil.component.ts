@@ -192,6 +192,7 @@ type ResolutivosChartOptions = {
   plotOptions: ApexPlotOptions;
   legend: ApexLegend;
   markers?: any;
+  responsive?: ApexResponsive[];
 };
 
 type ResolutivosAtencionDonutOptions = {
@@ -351,6 +352,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   opsCicloCerrado = false;
   opsArchivosWorkflow: Partial<Record<PcWorkflowClave, PcWorkflowArchivo>> = {};
   opsFechaIngresoTramite = '';
+  opsInicioPipc = '';
   opsFechaOficioObservaciones = '';
   opsFechaAprobacionPipc = '';
   opsFechaAprobacionFactibilidad = '';
@@ -519,6 +521,16 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     'En tramite': { label: 'En trámite', color: '#5e72e4', icono: 'fa-hourglass-half' }
   };
   private readonly resolutivosEstatusOrder = ['En tramite', 'Vigentes', 'Próximo a vencer', 'Vencido'];
+
+  private etiquetaCortaResolutivo(label: string): string {
+    const cortas: Record<string, string> = {
+      'En trámite': 'Trámite',
+      'Vigentes': 'Vigente',
+      'Próximo a vencer': 'Por vencer',
+      'Vencido': 'Vencido'
+    };
+    return cortas[label] || label;
+  }
   private readonly resolutivosAtencionOrder = ['En tramite', 'Próximo a vencer', 'Vencido'];
 
   // Carrusel de gráficos resolutivos
@@ -547,6 +559,13 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   atencionDonutCentroValor = '0';
   atencionDonutCentroEtiqueta = 'Atención';
   atencionDonutCentroPct: number | null = null;
+  indiceResolutivoAtencion = 0;
+  readonly tamanoPaginaResolutivos = 5;
+  direccionPaginaResolutivos: -1 | 0 | 1 = 0;
+  marcasPaginaResolutivo = [0];
+  private toqueResolutivoX = 0;
+  private toqueResolutivoY = 0;
+  private resolutivoDeslizEn = 0;
 
   // Actualizar posición del dropdown al hacer scroll
   @HostListener('window:scroll', ['$event'])
@@ -575,6 +594,27 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
       event.preventDefault();
       this.cerrarModalVisualizadorCatalogo();
     }
+  }
+
+  textoFechaInicioPipc(): string {
+    const iso = String(this.opsInicioPipc || '').slice(0, 10);
+    const partes = iso.split('-').map((n) => Number(n));
+    if (partes.length < 3 || partes.some((n) => !n)) return '';
+    const fecha = new Date(partes[0], partes[1] - 1, partes[2]);
+    return fecha.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  textoDiasActivoPipc(): string {
+    const iso = String(this.opsInicioPipc || '').slice(0, 10);
+    const partes = iso.split('-').map((n) => Number(n));
+    if (partes.length < 3 || partes.some((n) => !n)) return '';
+    const inicio = new Date(partes[0], partes[1] - 1, partes[2]);
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const dias = Math.round((hoy.getTime() - inicio.getTime()) / 86400000);
+    const n = dias < 0 ? 0 : dias;
+    if (n === 0) return 'Hoy';
+    return n === 1 ? '1 día' : `${n} días`;
   }
 
   private actualizarPosicionDropdown(): void {
@@ -2633,12 +2673,15 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
   }
 
   cargarCentroOperaciones(empresaId: number, onLoaded?: () => void): void {
+    this.opsInicioPipc = '';
     this.opsCargandoEstado = true;
     this.backendService.obtenerCentroOperacionesPC(empresaId).subscribe({
       next: (resp: any) => {
         if (resp?.success) {
           this.opsPasosCompletados = (resp.ciclo?.pasos_completados || []) as PasoCentroOperacionesId[];
           this.opsCicloCerrado = !!resp.ciclo?.ciclo_cerrado;
+          this.opsInicioPipc = this.formatFechaInput(resp.ciclo?.fecha_creacion)
+            || this.formatFechaInput(resp.ciclo?.fecha_ingreso_tramite);
           this.opsFechaIngresoTramite = this.formatFechaInput(resp.ciclo?.fecha_ingreso_tramite);
           this.opsFechaOficioObservaciones = this.formatFechaInput(resp.ciclo?.fecha_oficio_observaciones);
           this.opsFechaAprobacionPipc = this.formatFechaInput(resp.ciclo?.fecha_aprobacion_pipc);
@@ -6821,6 +6864,7 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     event?.stopPropagation();
     event?.preventDefault();
     this.filtroAtencionEstatus = estatus;
+    this.reiniciarPaginaResolutivos();
     this.reiniciarProgresoCarruselResolutivos();
   }
 
@@ -6828,11 +6872,73 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
     event?.stopPropagation();
     event?.preventDefault();
     this.filtroAtencionEstatus = this.filtroAtencionEstatus === estatus ? null : estatus;
+    this.reiniciarPaginaResolutivos();
     this.reiniciarProgresoCarruselResolutivos();
   }
 
   limpiarFiltroAtencion(): void {
     this.filtroAtencionEstatus = null;
+    this.reiniciarPaginaResolutivos();
+  }
+
+  get totalPaginasResolutivos(): number {
+    const total = this.resolutivosAtencionFiltrados.length;
+    if (!total) return 0;
+    return Math.ceil(total / this.tamanoPaginaResolutivos);
+  }
+
+  get resolutivosAtencionPagina(): ResolutivoAtencionItem[] {
+    const inicio = this.indiceResolutivoNormalizado * this.tamanoPaginaResolutivos;
+    return this.resolutivosAtencionFiltrados.slice(inicio, inicio + this.tamanoPaginaResolutivos);
+  }
+
+  get posicionResolutivoAtencion(): number {
+    return this.indiceResolutivoNormalizado + 1;
+  }
+
+  trackMarcaPaginaResolutivo(_index: number, marca: number): number {
+    return marca;
+  }
+
+  onFlechaResolutivo(direccion: number): void {
+    if (Date.now() - this.resolutivoDeslizEn < 450) return;
+    this.moverResolutivoAtencion(direccion);
+  }
+
+  moverResolutivoAtencion(direccion: number): void {
+    const total = this.totalPaginasResolutivos;
+    if (total <= 1) return;
+    this.direccionPaginaResolutivos = direccion < 0 ? -1 : 1;
+    this.indiceResolutivoAtencion = (this.indiceResolutivoNormalizado + this.direccionPaginaResolutivos + total) % total;
+    this.marcasPaginaResolutivo = [this.marcasPaginaResolutivo[0] + 1];
+  }
+
+  private reiniciarPaginaResolutivos(): void {
+    this.indiceResolutivoAtencion = 0;
+    this.direccionPaginaResolutivos = 0;
+  }
+
+  onResolutivoTouchStart(event: TouchEvent): void {
+    const toque = event.changedTouches[0];
+    if (!toque) return;
+    this.toqueResolutivoX = toque.clientX;
+    this.toqueResolutivoY = toque.clientY;
+  }
+
+  onResolutivoTouchEnd(event: TouchEvent): void {
+    const toque = event.changedTouches[0];
+    if (!toque) return;
+    const dx = toque.clientX - this.toqueResolutivoX;
+    const dy = toque.clientY - this.toqueResolutivoY;
+    if (Math.abs(dx) < 48 || Math.abs(dx) <= Math.abs(dy)) return;
+    this.resolutivoDeslizEn = Date.now();
+    this.moverResolutivoAtencion(dx < 0 ? 1 : -1);
+  }
+
+  private get indiceResolutivoNormalizado(): number {
+    const total = this.totalPaginasResolutivos;
+    if (total <= 0) return 0;
+    return ((this.indiceResolutivoAtencion % total) + total) % total;
   }
 
   colorEstatusAtencion(estatus: string): string {
@@ -7180,7 +7286,54 @@ export class ProteccionCivilComponent implements OnInit, OnDestroy {
             return `${n} resolutivo${n !== 1 ? 's' : ''} (${pct}%)`;
           }
         }
-      }
+      },
+      responsive: [{
+        breakpoint: 680,
+        options: {
+          chart: { height: 250 },
+          plotOptions: {
+            bar: {
+              horizontal: false,
+              columnWidth: '52%',
+              borderRadius: 6,
+              borderRadiusApplication: 'end',
+              distributed: true,
+              dataLabels: { position: 'top' }
+            }
+          },
+          dataLabels: {
+            enabled: true,
+            formatter: (val: number) => {
+              const n = Number(val) || 0;
+              return n > 0 ? String(n) : '';
+            },
+            offsetY: -14,
+            style: { fontSize: '10px', fontWeight: 800, colors: ['#32325d'] },
+            background: { enabled: false }
+          },
+          xaxis: {
+            categories: labels.map((label) => this.etiquetaCortaResolutivo(label)),
+            labels: {
+              rotate: 0,
+              hideOverlappingLabels: false,
+              trim: false,
+              style: {
+                colors: colors.map(() => '#525f7f'),
+                fontSize: '10px',
+                fontWeight: 700
+              }
+            }
+          },
+          yaxis: {
+            title: { text: '' },
+            labels: {
+              style: { colors: '#adb5bd', fontSize: '10px' },
+              formatter: (val: number) => Math.round(val).toString()
+            }
+          },
+          grid: { padding: { top: 18, right: 4, bottom: 0, left: 0 } }
+        }
+      }]
     };
 
     let dominanteLabel = '—';

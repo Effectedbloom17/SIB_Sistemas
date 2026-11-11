@@ -1504,6 +1504,9 @@ async function obtenerEstadisticasResolutivosPipc(poolSgc, poolPC = null, poolBi
     const anioActual = hoy.getFullYear();
 
     for (const row of registros) {
+        // Referencia histórica de Excel: visible en la tabla solo para Root, nunca en indicadores.
+        if (normalizarOrigenDespliegue(row.origen) === 'excel') continue;
+
         const estatus = normalizarEstatusOperativo(row.estatus);
         distribucionMap.set(estatus, (distribucionMap.get(estatus) || 0) + 1);
 

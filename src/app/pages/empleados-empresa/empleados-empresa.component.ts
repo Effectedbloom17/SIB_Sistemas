@@ -168,6 +168,8 @@ export class EmpleadosEmpresaComponent implements OnInit, OnDestroy {
       clearTimeout(this.panelPositionTimeout);
       this.panelPositionTimeout = null;
     }
+
+    this.sincronizarScrollPanelMovil(false);
   }
 
   @HostListener('window:resize')
@@ -489,6 +491,7 @@ export class EmpleadosEmpresaComponent implements OnInit, OnDestroy {
       puesto: String(empleado?.puesto || '').trim()
     };
 
+    this.sincronizarScrollPanelMovil(true);
     this.actualizarEmpleadosVista();
     this.animarMorphHaciaPanel(origenRect);
   }
@@ -512,7 +515,17 @@ export class EmpleadosEmpresaComponent implements OnInit, OnDestroy {
     this.empleadoSeleccionadoId = null;
     this.editorLateral = { nombre: '', curp: '', puesto: '' };
     this.panelFlotanteStyle = {};
+    this.sincronizarScrollPanelMovil(false);
     this.actualizarEmpleadosVista();
+  }
+
+  private sincronizarScrollPanelMovil(bloqueado: boolean): void {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return;
+    if (window.innerWidth > 767) {
+      document.body.style.overflow = '';
+      return;
+    }
+    document.body.style.overflow = bloqueado ? 'hidden' : '';
   }
 
   guardarCambiosPanel(): void {

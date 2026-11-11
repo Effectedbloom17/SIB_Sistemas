@@ -73,6 +73,10 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
 
   /** Vista de archivos: cuadrícula o tabla. */
   vistaArchivos: 'grid' | 'lista' = 'grid';
+  /** En teléfono: qué panel de la fila empresa/almacenamiento está abierto. */
+  panelRepoMovil: 'empresa' | 'almacen' | null = null;
+  /** En teléfono: botón de la barra que ya mostró su nombre y espera el segundo toque. */
+  accionToolbarMovil: 'subir' | 'carpeta' | 'eliminar' | null = null;
   /** Zona de arrastre para subir archivos desde el escritorio. */
   dropzoneActiva = false;
 
@@ -481,6 +485,43 @@ export class EmpresaRepositorioComponent implements OnInit, OnDestroy {
 
   setVistaArchivos(vista: 'grid' | 'lista'): void {
     this.vistaArchivos = vista;
+  }
+
+  alternarPanelRepoMovil(panel: 'empresa' | 'almacen'): void {
+    if (typeof window !== 'undefined' && window.innerWidth > 767) return;
+    this.panelRepoMovil = this.panelRepoMovil === panel ? null : panel;
+  }
+
+  private ignorarCierreToolbar = false;
+
+  onAccionToolbarMovil(accion: 'subir' | 'carpeta' | 'eliminar', event: Event): void {
+    event.stopPropagation();
+    if (typeof window !== 'undefined' && window.innerWidth > 767) {
+      this.ejecutarAccionToolbar(accion);
+      return;
+    }
+    this.ignorarCierreToolbar = true;
+    if (this.accionToolbarMovil !== accion) {
+      this.accionToolbarMovil = accion;
+      return;
+    }
+    this.accionToolbarMovil = null;
+    this.ejecutarAccionToolbar(accion);
+  }
+
+  @HostListener('document:click')
+  cerrarAccionToolbarMovil(): void {
+    if (this.ignorarCierreToolbar) {
+      this.ignorarCierreToolbar = false;
+      return;
+    }
+    this.accionToolbarMovil = null;
+  }
+
+  private ejecutarAccionToolbar(accion: 'subir' | 'carpeta' | 'eliminar'): void {
+    if (accion === 'subir') this.abrirPanelSubida();
+    else if (accion === 'carpeta') this.crearCarpeta();
+    else this.eliminarCarpetaActual();
   }
 
   tamanoCarpeta(carpeta: EmpresaRepoCarpeta): number {

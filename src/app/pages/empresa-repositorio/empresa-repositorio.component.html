@@ -19,7 +19,9 @@
     <div class="col-12 sgc-content-col">
       <div class="card sgc-shell border-0 shadow-sm">
         <div class="sgc-shell-accent" aria-hidden="true"></div>
-        <div class="card-body sgc-shell-body">
+        <div class="card-body sgc-shell-body"
+             [class.em-repo-movil-empresa]="panelRepoMovil === 'empresa'"
+             [class.em-repo-movil-almacen]="panelRepoMovil === 'almacen'">
           <nav class="sgc-crumb" aria-label="Navegación">
             <ol class="sgc-crumb__trail list-unstyled mb-0">
               <li class="sgc-crumb__step">
@@ -79,14 +81,18 @@
             </button>
           </header>
 
-          <section class="em-repo-ficha" *ngIf="empresa" aria-label="Información de la empresa">
+          <section class="em-repo-ficha" *ngIf="empresa" aria-label="Información de la empresa"
+                   (click)="alternarPanelRepoMovil('empresa')">
+            <span class="em-repo-ficha__encabezado">{{ empresa.nombre_empresa }}</span>
             <div class="em-repo-ficha__logo" [class.em-repo-ficha__logo--fallback]="!logoEmpresaUrl">
               <img *ngIf="logoEmpresaUrl as logoUrl" [src]="logoUrl" alt="Logo" (error)="onLogoFichaError()">
               <span *ngIf="!logoEmpresaUrl">{{ inicialesEmpresa }}</span>
             </div>
             <div class="em-repo-ficha__body">
-              <h3 class="em-repo-ficha__name">{{ empresa.nombre_empresa }}</h3>
-              <p class="em-repo-ficha__rfc mb-0" *ngIf="empresa.rfc">RFC {{ empresa.rfc }}</p>
+              <div class="em-repo-ficha__identidad">
+                <h3 class="em-repo-ficha__name">{{ empresa.nombre_empresa }}</h3>
+                <p class="em-repo-ficha__rfc mb-0" *ngIf="empresa.rfc">RFC {{ empresa.rfc }}</p>
+              </div>
               <dl class="em-repo-ficha__meta">
                 <div *ngIf="empresa.email">
                   <dt>Email</dt>
@@ -121,7 +127,8 @@
 
           <div class="repo-fm">
             <!-- Panel lateral: almacenamiento + categorías -->
-            <aside class="repo-fm__side" aria-label="Almacenamiento y filtros">
+            <aside class="repo-fm__side" aria-label="Almacenamiento y filtros"
+                   (click)="alternarPanelRepoMovil('almacen')">
               <div class="repo-side-card">
                 <div class="repo-storage">
                   <div class="repo-storage__head">
@@ -180,7 +187,7 @@
                 <button *ngIf="puedeAdministrar"
                         type="button"
                         class="repo-side-cta"
-                        (click)="abrirPanelSubida()">
+                        (click)="abrirPanelSubida(); $event.stopPropagation()">
                   <i class="fas fa-cloud-upload-alt mr-1" aria-hidden="true"></i>
                   Subir documento
                 </button>
@@ -228,9 +235,12 @@
                              (ngModelChange)="aplicarFiltro()"
                              aria-label="Buscar documentos">
                     </div>
-                    <button *ngIf="puedeAdministrar" type="button" class="btn btn-sm sgc-extra-btn-upload" (click)="abrirPanelSubida()">
+                    <button *ngIf="puedeAdministrar" type="button"
+                            class="btn btn-sm sgc-extra-btn-upload em-repo-accion"
+                            [class.em-repo-accion--abierta]="accionToolbarMovil === 'subir'"
+                            (click)="onAccionToolbarMovil('subir', $event)">
                       <i class="fas fa-arrow-up mr-1" aria-hidden="true"></i>
-                      Subir
+                      <span>Subir</span>
                     </button>
                   </div>
 
@@ -277,11 +287,12 @@
 
                     <button *ngIf="puedeAdministrar"
                             type="button"
-                            class="btn btn-sm sgc-extra-btn-folder"
-                            (click)="crearCarpeta()"
+                            class="btn btn-sm sgc-extra-btn-folder em-repo-accion"
+                            [class.em-repo-accion--abierta]="accionToolbarMovil === 'carpeta'"
+                            (click)="onAccionToolbarMovil('carpeta', $event)"
                             [disabled]="!!busqueda.trim()">
                       <i class="fas fa-folder-plus mr-1" aria-hidden="true"></i>
-                      Nueva carpeta
+                      <span>Nueva carpeta</span>
                     </button>
 
                     <button *ngIf="puedeAdministrar && carpetaActual && !busqueda.trim()"
@@ -294,10 +305,11 @@
 
                     <button *ngIf="puedeAdministrar && carpetaActual && !busqueda.trim()"
                             type="button"
-                            class="btn btn-sm sgc-extra-btn-danger"
-                            (click)="eliminarCarpetaActual()"
-                            title="Eliminar carpeta actual">
-                      <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            class="btn btn-sm sgc-extra-btn-danger em-repo-accion"
+                            [class.em-repo-accion--abierta]="accionToolbarMovil === 'eliminar'"
+                            (click)="onAccionToolbarMovil('eliminar', $event)">
+                      <i class="fas fa-trash-alt mr-1" aria-hidden="true"></i>
+                      <span>Eliminar</span>
                     </button>
                   </div>
                 </div>

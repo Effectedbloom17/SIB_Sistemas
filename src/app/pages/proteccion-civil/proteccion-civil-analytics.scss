@@ -1,4 +1,4 @@
-﻿// Analítica de resolutivos PIPC (inspirada en dashboard, tema PC)
+// Analítica de resolutivos PIPC (inspirada en dashboard, tema PC)
 .pc-resolutivos-analytics {
   animation: softRevealUp 0.4s ease-out both;
 }
@@ -1099,6 +1099,16 @@
   to   { opacity: 1; transform: translateX(0); }
 }
 
+@keyframes pcPaginaSiguiente {
+  from { opacity: 0.35; transform: translateX(36px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pcPaginaAnterior {
+  from { opacity: 0.35; transform: translateX(-36px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
 @keyframes pcTimePulse {
   0%, 100% { opacity: 0.35; transform: scale(0.85); }
   50% { opacity: 0.9; transform: scale(1.15); }
@@ -1144,6 +1154,80 @@
 
 .pc-resolutivo-list > .pc-resolutivo-row {
   flex: 0 0 auto;
+}
+
+.pc-resolutivo-stage {
+  position: relative;
+  touch-action: pan-y;
+  padding: 0 1.85rem 0.1rem;
+}
+
+.pc-resolutivo-viewport {
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.pc-resolutivo-pagina {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+
+  &--siguiente {
+    animation: pcPaginaSiguiente 0.42s ease;
+  }
+
+  &--anterior {
+    animation: pcPaginaAnterior 0.42s ease;
+  }
+}
+
+.pc-resolutivo-flecha {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 48px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+
+  &::after {
+    content: '';
+    display: block;
+    width: 11px;
+    height: 11px;
+    margin: 0 auto;
+    border-style: solid;
+    border-color: rgba(217, 114, 72, 0.8);
+    border-width: 0 2.5px 2.5px 0;
+  }
+
+  &--prev {
+    left: 0;
+
+    &::after {
+      transform: rotate(135deg);
+    }
+  }
+
+  &--next {
+    right: 0;
+
+    &::after {
+      transform: rotate(-45deg);
+    }
+  }
+}
+
+.pc-resolutivo-stage__cuenta {
+  margin: 0.4rem 0 0;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #8898aa;
 }
 
 .pc-resolutivo-row {
@@ -1582,14 +1666,21 @@
     overflow: visible;
   }
 
-  .pc-avance-panel--bars {
-    max-height: min(420px, 55vh);
+  .pc-avance-panel--bars,
+  .pc-avance-dual,
+  .pc-avance-panel,
+  .pc-analytics-status-body,
+  .pc-resolutivo-list,
+  .pc-resolutivo-stage {
+    overflow: visible;
+    overscroll-behavior: auto;
+    max-height: none;
+    height: auto;
+    touch-action: pan-y;
   }
 
   .pc-resolutivo-list {
-    height: auto;
     flex: 1 1 auto;
-    max-height: min(360px, 48vh);
   }
 
   .pc-avance-hero-tools {
@@ -1610,7 +1701,164 @@
     grid-template-columns: minmax(0, 1fr) 104px;
   }
 
+  .pc-historico-head .pc-analytics-subtitle {
+    display: none;
+  }
+
+  .pc-historico-chart-wrap {
+    min-height: 0;
+    overflow: hidden;
+    padding: 0.15rem 0.1rem 0;
+  }
+
+  .pc-historico-kpis {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+    width: 100%;
+  }
+
+  .pc-historico-kpi {
+    flex: none;
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+    padding: 0.45rem 0.4rem 0.5rem;
+
+    &__key {
+      font-size: 0.58rem;
+    }
+
+    &__val {
+      font-size: 1.05rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    &__val--sm {
+      font-size: 0.78rem;
+      white-space: normal;
+      line-height: 1.15;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    &__hint {
+      font-size: 0.58rem;
+      line-height: 1.2;
+      white-space: normal;
+    }
+  }
+
+  // Estatus operativo: 2 por fila, métricas completas
+  .pc-status-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .pc-status-item {
+    min-width: 0;
+    min-height: 0;
+    padding: 0.55rem 0.55rem 0.5rem;
+  }
+
+  .pc-status-item-row {
+    flex-wrap: wrap;
+    gap: 0.25rem 0.4rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .pc-status-item-label {
+    font-size: 0.72rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pc-status-item-metric {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 0.3rem;
+
+    strong {
+      font-size: 0.9rem;
+    }
+
+    small {
+      font-size: 0.68rem;
+      flex-shrink: 0;
+    }
+  }
+
+  .pc-avance-hero-tools {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+  }
+
+  .pc-avance-filter-bar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+    width: 100%;
+  }
+
+  .pc-avance-filter-chip {
+    min-width: 0;
+    justify-content: center;
+  }
+
+  .pc-avance-hero-kpi,
+  .pc-avance-open-link--top {
+    width: 100%;
+  }
+
+  .pc-avance-open-link--top {
+    justify-content: center;
+  }
+
+  // KPI + Abrir en la misma fila cuando caben
+  @media (min-width: 400px) {
+    .pc-avance-hero-tools {
+      grid-template-columns: auto 1fr;
+      align-items: stretch;
+    }
+
+    .pc-avance-filter-bar {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .pc-avance-stats-legend {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pc-avance-stat-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    padding: 0.4rem 0.35rem;
+  }
+
+  .pc-avance-stat-card__range,
+  .pc-avance-stat-card__desc {
+    white-space: normal;
+    line-height: 1.15;
+  }
+
   .pc-time-meter__value {
     font-size: 1.35rem;
   }
+
+  .pc-analytics-card--historico,
+  .pc-analytics-card--estatus,
+  .pc-analytics-card--atencion {
+    apx-chart {
+      touch-action: pan-y;
+    }
+  }
 }
+

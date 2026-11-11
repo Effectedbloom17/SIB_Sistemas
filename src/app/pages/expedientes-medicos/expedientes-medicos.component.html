@@ -1,37 +1,37 @@
-<div class="header header-bg-image pb-4 pt-3 pt-md-4 d-flex align-items-center position-relative overflow-hidden no-print">
+<div class="header header-bg-image em-hero pb-4 pt-3 pt-md-4 d-flex align-items-center position-relative overflow-hidden no-print">
   
   <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
     <div class="row w-100 text-center">
       <div class="col-12">
         <div class="d-flex flex-column align-items-center justify-content-center">
-          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2 em-hero__icon"
                style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
             <i class="fas fa-file-medical"></i>
           </div>
-          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">Expedientes Médicos</h1>
+          <h1 class="text-white mb-0 em-hero__title" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">Expedientes Médicos</h1>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="container-fluid mt--3" style="position: relative; z-index: 10; margin-bottom: 2rem;">
+<div class="container-fluid mt--3 em-main" style="position: relative; z-index: 10; margin-bottom: 2rem;">
   <div class="row justify-content-center">
     <div class="col-xl-11">
 
       <!-- =====================================================
            VISTA SELECTOR DE EMPRESAS
            ===================================================== -->
-      <div *ngIf="vistaActual === 'empresas'" class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+      <div *ngIf="vistaActual === 'empresas'" class="card shadow-lg border-0 em-empresas-card" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
         
         <!-- Header -->
-        <div class="card-header border-0" style="padding: 1.5rem 2rem;">
-          <div class="row align-items-center mb-3">
+        <div class="card-header border-0 em-empresas-card__header" style="padding: 1.5rem 2rem;">
+          <div class="row align-items-center mb-3 em-empresas-card__title-row">
             <div class="col-lg-8 col-md-6">
               <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">Gestión</h6>
-              <h2 class="mb-0" style="color: #38512F; font-weight: 700; font-size: 1.5rem;">Seleccionar Empresa ({{ empresasFiltradas.length }})</h2>
+              <h2 class="mb-0 em-empresas-card__title" style="color: #38512F; font-weight: 700; font-size: 1.5rem;">Seleccionar Empresa ({{ empresasFiltradas.length }})</h2>
             </div>
-            <div class="col-lg-5 col-md-7 col-sm-10 ml-auto">
+            <div class="col-lg-5 col-md-7 col-sm-10 ml-auto em-empresas-card__search-col">
               <div class="top-nav-med d-flex align-items-center">
                 <div class="input-group input-group-alternative flex-grow-1 top-search-group">
                   <div class="input-group-prepend">
@@ -61,35 +61,35 @@
           </div>
 
           <!-- Grid de Empresas -->
-          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length > 0" class="row px-4 py-3">
-            <div *ngFor="let empresa of empresasFiltradas; let i = index" class="col-lg-4 col-md-6 mb-4">
+          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length > 0" class="em-empresas-grid px-4 py-3">
+            <div *ngFor="let empresa of empresasFiltradas; let i = index" class="em-empresa-col">
               <div class="card h-100 shadow-sm border-0 empresa-card" 
                    style="border-radius: 12px; cursor: pointer; transition: all 0.3s ease;"
                    (click)="seleccionarEmpresa(empresa)">
                 <div class="card-body">
-                  <div class="d-flex align-items-center mb-3">
+                  <div class="d-flex align-items-center mb-3 em-empresa-card__head">
                     <span *ngIf="!getLogoEmpresaUrl(empresa)"
-                        class="avatar rounded-circle mr-3 shadow-sm text-white d-flex align-items-center justify-content-center"
+                        class="avatar rounded-circle mr-3 shadow-sm text-white d-flex align-items-center justify-content-center em-empresa-card__avatar"
                         style="width: 50px; height: 50px; min-width: 50px; min-height: 50px; flex-shrink: 0; font-size: 1.1rem; background: linear-gradient(135deg, #38512F 0%, #5a7456 100%);">
                       {{ getInicialesEmpresa(empresa.nombre_empresa) }}
                     </span>
                     <img *ngIf="getLogoEmpresaUrl(empresa)"
                          [src]="getLogoEmpresaUrl(empresa)"
                          [alt]="empresa.nombre_empresa"
-                         class="mr-3 shadow-sm bg-white"
+                         class="mr-3 shadow-sm bg-white em-empresa-card__avatar"
                          style="width: 50px; height: 50px; min-width: 50px; min-height: 50px; flex-shrink: 0; object-fit: contain; border-radius: 50%; padding: 0.35rem;"
                          (error)="onLogoEmpresaError(empresa)">
-                    <div class="flex-grow-1">
-                      <h5 class="mb-0 font-weight-bold" style="color: #38512F;">{{ empresa.nombre_empresa }}</h5>
-                      <small class="text-muted d-block">RFC: {{ empresa.rfc }}</small>
-                      <small class="text-muted" *ngIf="empresa.ciudad || empresa.estado">
+                    <div class="flex-grow-1 min-width-0">
+                      <h5 class="mb-0 font-weight-bold em-empresa-card__name" style="color: #38512F;">{{ empresa.nombre_empresa }}</h5>
+                      <small class="text-muted d-block em-empresa-card__rfc">RFC: {{ empresa.rfc }}</small>
+                      <small class="text-muted em-empresa-card__loc" *ngIf="empresa.ciudad || empresa.estado">
                         <i class="fas fa-map-marker-alt mr-1"></i>{{ empresa.ciudad || '' }}{{ empresa.ciudad && empresa.estado ? ', ' : '' }}{{ empresa.estado || '' }}
                       </small>
                     </div>
                   </div>
                   
                   <!-- Conteo de historias -->
-                  <div class="mb-2">
+                  <div class="mb-2 em-empresa-card__progress">
                     <div class="d-flex justify-content-between mb-1">
                       <small class="text-muted">Historias clínicas</small>
                       <small class="font-weight-bold">{{ empresa.historias_totales || 0 }}</small>
@@ -102,7 +102,7 @@
                   </div>
 
                   <div class="text-right">
-                    <span class="font-weight-bold" style="font-size: 0.85rem; color: #38512F;">
+                    <span class="font-weight-bold em-empresa-card__cta" style="font-size: 0.85rem; color: #38512F;">
                       Ver expedientes <i class="fas fa-arrow-right ml-1"></i>
                     </span>
                   </div>
@@ -146,11 +146,11 @@
         </div>
 
         <!-- Contenido: dos botones de acción -->
-        <div class="card-body" style="padding: 1.5rem 2rem;">
-          <div class="row justify-content-center py-2">
+        <div class="card-body em-menu-body" style="padding: 1.5rem 2rem;">
+          <div class="row justify-content-center py-2 em-menu-actions">
             
             <!-- Tarjeta Iniciar Formulario -->
-            <div class="col-lg-4 col-md-6 mb-4">
+            <div class="col-lg-4 col-md-6 mb-4 em-menu-action-col">
               <div class="card h-100 shadow-sm border-0 accion-card" 
                    style="border-radius: 15px; cursor: pointer; transition: all 0.3s ease;"
                    (click)="abrirFormulario()">
@@ -166,7 +166,7 @@
             </div>
 
             <!-- Tarjeta Historial -->
-            <div class="col-lg-4 col-md-6 mb-4">
+            <div class="col-lg-4 col-md-6 mb-4 em-menu-action-col">
               <div class="card h-100 shadow-sm border-0 accion-card" 
                    style="border-radius: 15px; cursor: pointer; transition: all 0.3s ease;"
                    (click)="verHistorial()">
@@ -286,8 +286,8 @@
             </div>
           </div>
 
-          <!-- Fecha Elaboración | Matrícula | Área -->
-          <div class="row">
+          <!-- Fecha Elaboración | Matrícula | Área (móvil: 3/fila) -->
+          <div class="row em-fields-3">
             <div class="col-lg-4 col-md-4">
               <div class="form-group">
                 <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
@@ -357,8 +357,8 @@
             </div>
           </div>
 
-          <!-- Escolaridad | Estado Civil | Edad -->
-          <div class="row">
+          <!-- Escolaridad | Estado Civil | Edad (móvil: 3/fila) -->
+          <div class="row em-fields-3">
             <div class="col-lg-4 col-md-4">
               <div class="form-group">
                 <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
@@ -442,9 +442,9 @@
             </div>
           </div>
 
-          <!-- Domicilio -->
+          <!-- Domicilio (ancho completo) -->
           <div class="row">
-            <div class="col-12">
+            <div class="col-12 em-field-full">
               <div class="form-group">
                 <label class="form-control-label text-muted text-uppercase ls-1 font-weight-bold mb-2" style="font-size: 0.7rem;">
                   Domicilio
@@ -1861,8 +1861,8 @@
           </div> <!-- Cierre paso 9 -->
 
           <!-- Botones de navegación -->
-          <div class="row mt-4">
-            <div class="col-6">
+          <div class="row mt-4 em-form-nav">
+            <div class="col-6 em-form-nav__prev">
               <button *ngIf="pasoActual === 1" class="btn btn-outline-secondary"
                       style="padding: 0.6rem 1.5rem; border-radius: 8px;"
                       (click)="volverAlMenu()">
@@ -1874,7 +1874,7 @@
                 <i class="fas fa-arrow-left mr-2"></i>Anterior
               </button>
             </div>
-            <div class="col-6 text-right">
+            <div class="col-6 text-right em-form-nav__next">
               <button *ngIf="!esUltimoPaso" class="btn btn-success shadow"
                       style="background: linear-gradient(135deg, #38512F 0%, #5a7456 100%); border: none; padding: 0.6rem 1.5rem; font-weight: 600;"
                       (click)="siguientePaso()">
@@ -2569,21 +2569,21 @@
       <!-- =====================================================
            VISTA HISTORIAL — Registros de Historias Clínicas
            ===================================================== -->
-      <div *ngIf="vistaActual === 'historial'" class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
+      <div *ngIf="vistaActual === 'historial'" class="card shadow-lg border-0 em-historial-card" style="border-radius: 15px; overflow: hidden; background-color: #fff;">
         
         <!-- Header consistente (Variant A) -->
-        <div class="card-header border-0" style="padding: 1.5rem 2rem 1rem;">
-          <div class="row align-items-center">
-            <div class="col">
+        <div class="card-header border-0 em-historial-card__header" style="padding: 1.5rem 2rem 1rem;">
+          <div class="row align-items-center em-historial-card__title-row">
+            <div class="col em-historial-card__title-col">
               <button class="btn btn-link p-0 text-muted mb-2" (click)="volverAlMenuDesdeHistorial()" style="font-size: 0.9rem;">
                 <i class="fas fa-arrow-left mr-1"></i> Volver al menú
               </button>
               <h6 class="text-uppercase text-muted ls-1 mb-1" style="font-size: 0.85rem; font-weight: 600; letter-spacing: 1px;">
                 {{ empresaSeleccionada?.nombre_empresa || 'Control y seguimiento' }}
               </h6>
-              <h2 class="mb-0" style="color: #0f3661; font-weight: 700; font-size: 1.5rem;">Historial de Historias Clínicas</h2>
+              <h2 class="mb-0 em-historial-card__title" style="color: #0f3661; font-weight: 700; font-size: 1.5rem;">Historial de Historias Clínicas</h2>
             </div>
-            <div class="col-auto">
+            <div class="col-auto em-historial-card__action-col">
               <button class="btn btn-success shadow-sm" 
                       style="background: linear-gradient(135deg, #0f3661 0%, #0b6988 100%); border: none; padding: 0.5rem 1.2rem; font-weight: 600; font-size: 0.85rem;"
                       (click)="abrirFormulario()">
@@ -2593,7 +2593,7 @@
           </div>
         </div>
 
-        <div class="card-body" style="padding: 0 2rem 2rem;">
+        <div class="card-body em-historial-card__body" style="padding: 0 2rem 2rem;">
 
           <!-- KPI Bar de estadísticas -->
           <div class="kpi-bar-hist mb-4">

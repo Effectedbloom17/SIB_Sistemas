@@ -1,4 +1,4 @@
-<div class="header header-bg-image pb-4 pt-3 pt-md-4 d-flex align-items-center position-relative overflow-hidden no-print">
+<div class="header header-bg-image aud-hero pb-4 pt-3 pt-md-4 d-flex align-items-center position-relative overflow-hidden no-print">
   <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
     <div class="text-center">
       <div class="icon icon-shape text-white rounded-circle shadow mb-2 header-icon">
@@ -9,21 +9,21 @@
   </div>
 </div>
 
-<div class="container-fluid mt--3 audiometria-page">
+<div class="container-fluid mt--3 audiometria-page aud-main">
   <div class="row justify-content-center">
     <div class="col-xl-11">
 
-      <div *ngIf="vistaActual === 'empresas'" class="card shadow-lg border-0 panel">
-        <div class="card-header border-0 panel-header">
-          <div class="row align-items-center">
+      <div *ngIf="vistaActual === 'empresas'" class="card shadow-lg border-0 panel aud-empresas-card">
+        <div class="card-header border-0 panel-header aud-empresas-card__header">
+          <div class="row align-items-center aud-empresas-card__title-row">
             <div class="col-lg-7">
               <h6 class="text-uppercase text-muted ls-1 mb-1">Gestión</h6>
               <h2 class="panel-title mb-0">Seleccionar empresa ({{ empresasFiltradas.length }})</h2>
             </div>
-            <div class="col-lg-5 mt-3 mt-lg-0">
-              <div class="input-group input-group-alternative">
+            <div class="col-lg-5 mt-3 mt-lg-0 aud-empresas-card__search-col">
+              <div class="input-group input-group-alternative aud-search-group">
                 <div class="input-group-prepend">
-                  <span class="input-group-text"><i class="fas fa-search"></i></span>
+                  <span class="input-group-text aud-search-icon"><i class="fas fa-search"></i></span>
                 </div>
                 <input class="form-control" placeholder="Buscar por nombre o RFC..." [(ngModel)]="textoBusquedaEmpresa" (input)="filtrarEmpresas()">
               </div>
@@ -39,17 +39,17 @@
             <i class="fas fa-building fa-2x"></i>
             <p class="mt-2 mb-0">No hay empresas registradas</p>
           </div>
-          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length > 0" class="row">
-            <div *ngFor="let empresa of empresasFiltradas" class="col-lg-4 col-md-6 mb-4">
+          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length > 0" class="aud-empresas-grid">
+            <div *ngFor="let empresa of empresasFiltradas" class="aud-empresa-col">
               <div class="card h-100 shadow-sm border-0 empresa-card" (click)="seleccionarEmpresa(empresa)">
                 <div class="card-body">
-                  <div class="d-flex align-items-center mb-3">
+                  <div class="d-flex align-items-center mb-3 aud-empresa-card__head">
                     <span *ngIf="!getLogoEmpresaUrl(empresa)" class="avatar-empresa">{{ getInicialesEmpresa(empresa.nombre_empresa) }}</span>
                     <img *ngIf="getLogoEmpresaUrl(empresa)" [src]="getLogoEmpresaUrl(empresa)" [alt]="empresa.nombre_empresa" class="logo-empresa" (error)="onLogoEmpresaError(empresa)">
-                    <div>
-                      <h5 class="mb-0 empresa-nombre">{{ empresa.nombre_empresa }}</h5>
-                      <small class="text-muted d-block">RFC: {{ empresa.rfc }}</small>
-                      <small class="text-muted" *ngIf="empresa.ciudad || empresa.estado">
+                    <div class="min-width-0 flex-grow-1">
+                      <h5 class="mb-0 empresa-nombre aud-empresa-card__name">{{ empresa.nombre_empresa }}</h5>
+                      <small class="text-muted d-block aud-empresa-card__meta">RFC: {{ empresa.rfc }}</small>
+                      <small class="text-muted aud-empresa-card__meta" *ngIf="empresa.ciudad || empresa.estado">
                         {{ empresa.ciudad }}{{ empresa.ciudad && empresa.estado ? ', ' : '' }}{{ empresa.estado }}
                       </small>
                     </div>
@@ -58,7 +58,7 @@
                     <small class="text-muted">Audiometrías</small>
                     <small class="font-weight-bold">{{ empresa.audiometrias_totales || 0 }}</small>
                   </div>
-                  <div class="text-right mt-3 ver-link">Ver audiometrías <i class="fas fa-arrow-right ml-1"></i></div>
+                  <div class="text-right mt-3 ver-link aud-empresa-card__cta">Ver audiometrías <i class="fas fa-arrow-right ml-1"></i></div>
                 </div>
               </div>
             </div>
@@ -66,7 +66,7 @@
         </div>
       </div>
 
-      <div *ngIf="vistaActual === 'menu'" class="card shadow-lg border-0 panel">
+      <div *ngIf="vistaActual === 'menu'" class="card shadow-lg border-0 panel aud-menu-card">
         <div class="card-header border-0 panel-header">
           <button class="btn btn-link p-0 text-muted mb-2" (click)="volverAEmpresas()"><i class="fas fa-arrow-left mr-1"></i> Volver a empresas</button>
           <div class="d-flex align-items-center">
@@ -77,9 +77,9 @@
             </div>
           </div>
         </div>
-        <div class="card-body">
-          <div class="row justify-content-center">
-            <div class="col-lg-4 col-md-6 mb-4">
+        <div class="card-body aud-menu-body">
+          <div class="row justify-content-center aud-menu-actions">
+            <div class="col-lg-4 col-md-6 mb-4 aud-menu-action-col">
               <div class="card h-100 shadow-sm border-0 accion-card" (click)="abrirFormulario()">
                 <div class="card-body text-center py-4">
                   <div class="accion-icon"><i class="fas fa-file-medical-alt"></i></div>
@@ -88,7 +88,7 @@
                 </div>
               </div>
             </div>
-            <div class="col-lg-4 col-md-6 mb-4">
+            <div class="col-lg-4 col-md-6 mb-4 aud-menu-action-col">
               <div class="card h-100 shadow-sm border-0 accion-card" (click)="verHistorial()">
                 <div class="card-body text-center py-4">
                   <div class="accion-icon accion-icon-suave"><i class="fas fa-history"></i></div>
@@ -101,7 +101,7 @@
         </div>
       </div>
 
-      <div *ngIf="vistaActual === 'formulario'" class="card shadow-lg border-0 panel">
+      <div *ngIf="vistaActual === 'formulario'" class="card shadow-lg border-0 panel aud-form-card">
         <div class="card-header border-0 panel-header">
           <button class="btn btn-link p-0 text-muted mb-2" (click)="volverAlMenu()"><i class="fas fa-arrow-left mr-1"></i> Volver al menú</button>
           <h6 class="text-uppercase text-muted ls-1 mb-1">{{ editandoId ? 'Editar registro' : 'Nuevo registro' }}</h6>
@@ -119,8 +119,8 @@
           </button>
         </div>
 
-        <div class="card-body">
-          <div *ngIf="pasoActual === 1">
+        <div class="card-body aud-form-body">
+          <div *ngIf="pasoActual === 1" class="aud-wizard-step">
             <h4 class="seccion-titulo">Datos generales</h4>
             <div class="form-row">
               <div class="form-group col-md-4">
@@ -135,7 +135,7 @@
                 <input class="form-control" [(ngModel)]="formulario.nombre" placeholder="Nombre completo">
               </div>
             </div>
-            <div class="form-row">
+            <div class="form-row aud-fields-3">
               <div class="form-group col-md-4">
                 <label>Fecha de elaboración</label>
                 <input type="date" class="form-control" [(ngModel)]="formulario.fechaElaboracion">
@@ -198,7 +198,7 @@
             </div>
             <div class="bloque-antecedente">
               <div class="font-weight-bold mb-2">Familiar con alguna enfermedad de oído</div>
-              <div class="form-row">
+              <div class="form-row aud-fields-3">
                 <div class="form-group col-md-4">
                   <label>Súbita</label>
                   <select class="form-control" [(ngModel)]="formulario.enfermedadSubita">
@@ -238,7 +238,7 @@
               </div>
             </div>
             <div class="bloque-antecedente">
-              <div class="form-row">
+              <div class="form-row aud-fields-3">
                 <div class="form-group col-md-4">
                   <label>Familiar con alguna enfermedad de oído</label>
                   <select class="form-control" [(ngModel)]="formulario.enfermedadOido">
@@ -257,7 +257,7 @@
               </div>
             </div>
             <div class="bloque-antecedente">
-              <div class="form-row">
+              <div class="form-row aud-fields-3">
                 <div class="form-group col-md-4">
                   <label>Trastornos de comunicación</label>
                   <select class="form-control" [(ngModel)]="formulario.trastornosComunicacion">
@@ -533,7 +533,7 @@
             </div>
           </div>
 
-          <div class="d-flex justify-content-between mt-4">
+          <div class="d-flex justify-content-between mt-4 aud-form-nav">
             <button type="button" class="btn btn-outline-secondary" (click)="pasoAnterior()" [disabled]="pasoActual === 1">Anterior</button>
             <button *ngIf="pasoActual < pasos.length" type="button" class="btn btn-success" (click)="pasoSiguiente()">Siguiente</button>
             <button *ngIf="pasoActual === pasos.length" type="button" class="btn btn-success" (click)="verReporte()">Ver reporte</button>
@@ -701,15 +701,15 @@
         </div>
       </div>
 
-      <div *ngIf="vistaActual === 'historial'" class="card shadow-lg border-0 panel">
+      <div *ngIf="vistaActual === 'historial'" class="card shadow-lg border-0 panel aud-historial-card">
         <div class="card-header border-0 panel-header">
           <button class="btn btn-link p-0 text-muted mb-2" (click)="volverAlMenu()"><i class="fas fa-arrow-left mr-1"></i> Volver al menú</button>
-          <div class="row align-items-center">
+          <div class="row align-items-center aud-historial-card__title-row">
             <div class="col-md-7">
               <h2 class="panel-title mb-0">Historial de audiometrías</h2>
             </div>
-            <div class="col-md-5 mt-3 mt-md-0">
-              <input class="form-control" placeholder="Buscar por nombre, folio o área de trabajo" [(ngModel)]="filtroHistorial" (input)="filtrarHistorial()">
+            <div class="col-md-5 mt-3 mt-md-0 aud-historial-card__search-col">
+              <input class="form-control" placeholder="Buscar por nombre, folio o área..." [(ngModel)]="filtroHistorial" (input)="filtrarHistorial()">
             </div>
           </div>
         </div>
@@ -717,7 +717,7 @@
           <div *ngIf="cargandoHistorial" class="text-center py-5 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>
           <div *ngIf="!cargandoHistorial && registrosFiltrados.length === 0" class="text-center py-5 text-muted">No hay audiometrías registradas</div>
           <div class="table-responsive" *ngIf="!cargandoHistorial && registrosFiltrados.length > 0">
-            <table class="table align-items-center mb-0">
+            <table class="table align-items-center mb-0 aud-historial-table">
               <thead>
                 <tr>
                   <th>Folio</th>

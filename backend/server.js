@@ -36898,6 +36898,41 @@ app.post('/api/proteccion-civil/resolutivos/avisos/descartar-todos', async (req,
     }
 });
 
+app.post('/api/proteccion-civil/resolutivos/avisos/gestionar', async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        const body = req.body || {};
+        const resultado = await pcResolutivosAvisosService.registrarGestionResolutivo(
+            poolProteccionCivil,
+            {
+                resolutivoId: body.resolutivoId,
+                empresaId: body.empresaId,
+                nombreEmpresa: body.nombreEmpresa,
+                nombreAsignacion: body.nombreAsignacion,
+                acciones: body.acciones,
+                username: req.user?.username
+            }
+        );
+        return res.json({ success: true, ...resultado });
+    } catch (error) {
+        handleError(res, error, 'No se pudo registrar la gestión del PIPC');
+    }
+});
+
+app.get('/api/proteccion-civil/resolutivos/seguimientos', async (req, res) => {
+    try {
+        await poolProteccionCivilReady;
+        const seguimientos = await pcResolutivosAvisosService.listarSeguimientosEmpresa(
+            poolProteccionCivil,
+            req.query?.empresaId,
+            pool
+        );
+        return res.json({ success: true, seguimientos });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar el seguimiento del PIPC');
+    }
+});
+
 app.post('/api/proteccion-civil/resolutivos/avisos/:id/silenciar', async (req, res) => {
     try {
         await poolProteccionCivilReady;

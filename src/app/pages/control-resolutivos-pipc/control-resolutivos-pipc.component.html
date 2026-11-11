@@ -1,20 +1,20 @@
-<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+<div class="header header-bg-image cr-hero pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
   <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
     <div class="row w-100 text-center">
       <div class="col-12">
         <div class="d-flex flex-column align-items-center justify-content-center">
-          <div class="icon icon-shape text-white rounded-circle shadow mb-2 pc-header-icon">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2 pc-header-icon cr-hero__icon">
             <i class="fas fa-file-contract"></i>
           </div>
-          <h1 class="text-white mb-0 pc-header-title">Control de Resolutivos PIPC</h1>
-          <small class="text-white-50 mt-1">Formato SP-F-29</small>
+          <h1 class="text-white mb-0 pc-header-title cr-hero__title">Control de Resolutivos PIPC</h1>
+          <small class="text-white-50 mt-1 cr-hero__sub">Formato SP-F-29</small>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="container-fluid mt--5 control-resolutivos-page" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+<div class="container-fluid mt--5 control-resolutivos-page cr-main" style="position: relative; z-index: 10; margin-bottom: 3rem;">
   <div class="row justify-content-center">
     <div class="col-xl-12">
 
@@ -154,7 +154,7 @@
             </select>
             <select class="filter-select"
                     [(ngModel)]="filtroOrigen" (ngModelChange)="filtrarRegistros()">
-              <option *ngFor="let op of opcionesOrigen" [value]="op.value">{{ op.label }}</option>
+              <option *ngFor="let op of opcionesOrigenVisibles" [value]="op.value">{{ op.label }}</option>
             </select>
             <label class="filter-date-wrap mb-0">
               <span class="filter-date-label">Fecha de aprobación</span>
@@ -195,8 +195,8 @@
                    [class.control-table--compact]="vistaCompacta">
               <thead>
                 <tr>
-                  <th>Item</th>
-                  <th>Nombre de la empresa</th>
+                  <th class="th-sticky th-sticky--item">Item</th>
+                  <th class="th-sticky th-sticky--empresa">Nombre de la empresa</th>
                   <ng-container *ngIf="vistaCompacta">
                     <th>Responsable</th>
                     <th>Tipo de trámite</th>
@@ -249,8 +249,8 @@
                     class="control-row-clickable"
                     (click)="abrirEditarRegistro(row)"
                     title="Clic para editar">
-                  <td class="text-center col-item">{{ row.item }}</td>
-                  <td class="col-empresa"><strong>{{ row.nombre_empresa }}</strong></td>
+                  <td class="text-center col-item col-sticky col-sticky--item">{{ row.item }}</td>
+                  <td class="col-empresa col-sticky col-sticky--empresa"><strong>{{ row.nombre_empresa }}</strong></td>
                   <ng-container *ngIf="vistaCompacta">
                     <td class="col-responsable">{{ row.responsable }}</td>
                     <td class="text-center">{{ row.tipo_tramite }}</td>

@@ -1,4 +1,4 @@
-﻿# Abre el MariaDB de Docker (biznaga_mariadb) a otras PCs de la misma LAN.
+# Abre el MariaDB de Docker (biznaga_mariadb) a otras PCs de la misma LAN.
 # Ejecutar en la PC que corre el contenedor.
 # Si el firewall pide administrador: PowerShell -> Ejecutar como administrador.
 

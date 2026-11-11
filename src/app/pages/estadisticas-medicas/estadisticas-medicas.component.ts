@@ -553,7 +553,7 @@ export class EstadisticasMedicasComponent implements OnInit, OnDestroy {
       colors: ['#006064', '#00838F', '#0097A7', '#00ACC1'],
       dataLabels: { enabled: true, style: { fontSize: '11px', fontWeight: 700, colors: ['#fff'] }, offsetY: -1 },
       xaxis: {
-        categories: ['EspirometrÃ­a', 'AudiometrÃ­a', 'Tele de tÃ³rax', 'ClÃ­nica sanguÃ­nea'],
+        categories: ['Espirometría', 'Audiometría', 'Tele de tórax', 'Clínica sanguínea'],
         labels: { style: { fontSize: '10px', colors: '#64748b' } },
         axisBorder: { show: false }, axisTicks: { show: false }
       },
@@ -568,17 +568,17 @@ export class EstadisticasMedicasComponent implements OnInit, OnDestroy {
     const patAll = [
       { label: 'Dentales', val: parseInt(pat.dentales) || 0 },
       { label: 'Alergias', val: parseInt(pat.alergias) || 0 },
-      { label: 'MÃºsculo-esquelÃ©ticas', val: parseInt(pat.musculo_esqueleticas) || 0 },
+      { label: 'Músculo-esqueléticas', val: parseInt(pat.musculo_esqueleticas) || 0 },
       { label: 'Digestivas', val: parseInt(pat.digestivas) || 0 },
       { label: 'Endocrinas', val: parseInt(pat.endocrinas) || 0 },
       { label: 'Cardiovasculares', val: parseInt(pat.cardiovasculares) || 0 },
-      { label: 'DermatolÃ³gicas', val: parseInt(pat.dermatologicas) || 0 },
+      { label: 'Dermatológicas', val: parseInt(pat.dermatologicas) || 0 },
       { label: 'Pulmonares', val: parseInt(pat.pulmonares) || 0 },
       { label: 'Urinarias', val: parseInt(pat.urinarias) || 0 },
       { label: 'Otras', val: parseInt(pat.otras) || 0 },
-      { label: 'PsiquiÃ¡tricas', val: parseInt(pat.psiquiatricas) || 0 },
+      { label: 'Psiquiátricas', val: parseInt(pat.psiquiatricas) || 0 },
       { label: 'Infecto-contagiosas', val: parseInt(pat.infecto_contagiosas) || 0 },
-      { label: 'CongÃ©nitas', val: parseInt(pat.congenitas) || 0 }
+      { label: 'Congénitas', val: parseInt(pat.congenitas) || 0 }
     ].sort((a, b) => b.val - a.val).slice(0, 8);
 
     this.chartPatologias = {
@@ -610,9 +610,9 @@ export class EstadisticasMedicasComponent implements OnInit, OnDestroy {
     const hf = data.heredoFamiliares || {};
     const hfAll = [
       { label: 'Diabetes', val: parseInt(hf.diabetes) || 0 },
-      { label: 'HipertensiÃ³n', val: parseInt(hf.hipertension) || 0 },
-      { label: 'CÃ¡ncer', val: parseInt(hf.cancer) || 0 },
-      { label: 'CardÃ­acos', val: parseInt(hf.cardiacos) || 0 },
+      { label: 'Hipertensión', val: parseInt(hf.hipertension) || 0 },
+      { label: 'Cáncer', val: parseInt(hf.cancer) || 0 },
+      { label: 'Cardíacos', val: parseInt(hf.cardiacos) || 0 },
       { label: 'Asma', val: parseInt(hf.asma) || 0 },
       { label: 'Alergias', val: parseInt(hf.alergias) || 0 },
       { label: 'Renales', val: parseInt(hf.renales) || 0 },
@@ -661,7 +661,7 @@ export class EstadisticasMedicasComponent implements OnInit, OnDestroy {
       colors: ['#059669', '#10b981', '#34d399', '#6ee7b7', '#a7f3d0'],
       dataLabels: { enabled: true, style: { fontSize: '11px', fontWeight: 700, colors: ['#fff'] }, offsetY: -1 },
       xaxis: {
-        categories: ['SarampiÃ³n', 'RubÃ©ola', 'Influenza', 'TÃ©tanos', 'COVID'],
+        categories: ['Sarampión', 'Rubéola', 'Influenza', 'Tétanos', 'COVID'],
         labels: { style: { fontSize: '10px', colors: '#64748b' } },
         axisBorder: { show: false }, axisTicks: { show: false }
       },
@@ -676,7 +676,7 @@ export class EstadisticasMedicasComponent implements OnInit, OnDestroy {
     this.chartEjercicio = {
       series: [parseInt(ej.realiza) || 0, parseInt(ej.no_realiza) || 0],
       chart: { type: 'donut', height: 270 },
-      labels: ['SÃ­ realiza', 'No realiza'],
+      labels: ['Sí realiza', 'No realiza'],
       colors: ['#059669', '#e11d48'],
       legend: {
         position: 'bottom', fontSize: '12px', fontWeight: 600,
@@ -708,13 +708,13 @@ export class EstadisticasMedicasComponent implements OnInit, OnDestroy {
     const osAll = [
       { label: 'Cabeza/Cuello', val: parseInt(os.cabeza_cuello) || 0 },
       { label: 'Ojos', val: parseInt(os.ojos) || 0 },
-      { label: 'OÃ­dos', val: parseInt(os.oidos) || 0 },
+      { label: 'Oídos', val: parseInt(os.oidos) || 0 },
       { label: 'Nariz', val: parseInt(os.nariz) || 0 },
       { label: 'Orofaringe', val: parseInt(os.orofaringe) || 0 },
-      { label: 'TÃ³rax', val: parseInt(os.torax) || 0 },
+      { label: 'Tórax', val: parseInt(os.torax) || 0 },
       { label: 'Abdomen', val: parseInt(os.abdomen) || 0 },
       { label: 'Extremidades', val: parseInt(os.extremidades) || 0 },
-      { label: 'NeurolÃ³gico', val: parseInt(os.neurologico) || 0 },
+      { label: 'Neurológico', val: parseInt(os.neurologico) || 0 },
       { label: 'Piel', val: parseInt(os.piel) || 0 }
     ].sort((a, b) => b.val - a.val);
 

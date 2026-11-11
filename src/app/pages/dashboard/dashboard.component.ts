@@ -1,4 +1,4 @@
-import { Component, ComponentRef, Injector, NgModuleRef, OnInit, OnDestroy, ViewChild, ViewContainerRef, createNgModule } from '@angular/core';
+import { Component, ComponentRef, HostListener, Injector, NgModuleRef, OnInit, OnDestroy, ViewChild, ViewContainerRef, createNgModule } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
@@ -91,6 +91,7 @@ interface CursoAgenda {
 export class DashboardComponent implements OnInit, OnDestroy {
 
   private destroy$ = new Subject<void>();
+  private chartsCompactos: boolean | null = null;
   private cargaVistaToken = 0;
   private vistaRef: ComponentRef<unknown> | null = null;
   private vistaModule: NgModuleRef<unknown> | null = null;
@@ -149,6 +150,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   cursoHoy: CursoAgenda | null = null;
   cursosHoy: CursoAgenda[] = [];
   proximosCursosProgramados: CursoAgenda[] = [];
+  cursoDetalle: CursoAgenda | null = null;
 
   constructor(
     private backendService: BackendServices,
@@ -175,9 +177,25 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.cerrarCurso();
     this.destruirVistaEmbebida();
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  abrirCurso(curso: CursoAgenda): void {
+    this.cursoDetalle = curso;
+    document.body.style.overflow = 'hidden';
+  }
+
+  cerrarCurso(): void {
+    this.cursoDetalle = null;
+    document.body.style.overflow = '';
+  }
+
+  @HostListener('document:keydown.escape')
+  cerrarCursoConEscape(): void {
+    if (this.cursoDetalle) this.cerrarCurso();
   }
 
   private armarVistasPanel(): void {
@@ -591,6 +609,74 @@ export class DashboardComponent implements OnInit, OnDestroy {
         x: { show: true },
         y: { formatter: (val: number) => `${Math.round(val)} constancia${val !== 1 ? 's' : ''}` }
       }
+    };
+    this.sincronizarChartsViewport();
+  }
+
+  @HostListener('window:resize')
+  alCambiarVentana(): void {
+    this.sincronizarChartsViewport();
+  }
+
+  private sincronizarChartsViewport(): void {
+    if (typeof window === 'undefined') return;
+    if (!this.panoramaChartOptions?.chart || !this.constanciasChartOptions?.chart) return;
+
+    const compacto = window.innerWidth <= 640;
+    if (this.chartsCompactos === compacto) return;
+    this.chartsCompactos = compacto;
+
+    const ejeXPanorama = (this.panoramaChartOptions.xaxis || {}) as ApexXAxis;
+    this.panoramaChartOptions = {
+      ...this.panoramaChartOptions,
+      chart: { ...this.panoramaChartOptions.chart, height: compacto ? 250 : 360 },
+      xaxis: {
+        ...ejeXPanorama,
+        labels: {
+          ...(ejeXPanorama.labels || {}),
+          rotate: 0,
+          hideOverlappingLabels: true,
+          style: { colors: '#94a3b8', fontSize: compacto ? '10px' : '12px', fontWeight: 500 }
+        }
+      },
+      grid: {
+        ...this.panoramaChartOptions.grid,
+        padding: { top: compacto ? 4 : 12, right: compacto ? 4 : 12, bottom: 0, left: compacto ? 0 : 8 }
+      }
+    };
+
+    const ejeXConstancias = (this.constanciasChartOptions.xaxis || {}) as ApexXAxis;
+    const leyenda = this.constanciasChartOptions.legend;
+    this.constanciasChartOptions = {
+      ...this.constanciasChartOptions,
+      chart: {
+        ...this.constanciasChartOptions.chart,
+        height: compacto ? 230 : 240,
+        stacked: compacto
+      },
+      plotOptions: {
+        bar: {
+          horizontal: false,
+          columnWidth: compacto ? '52%' : '62%',
+          borderRadius: compacto ? 4 : 7,
+          borderRadiusApplication: 'end'
+        }
+      },
+      stroke: { show: true, width: compacto ? 0 : 2, colors: ['transparent'] },
+      xaxis: {
+        ...ejeXConstancias,
+        labels: {
+          ...(ejeXConstancias.labels || {}),
+          rotate: 0,
+          hideOverlappingLabels: false,
+          style: { colors: '#94a3b8', fontSize: compacto ? '10px' : '11px', fontWeight: 600 }
+        }
+      },
+      legend: leyenda ? {
+        ...leyenda,
+        fontSize: compacto ? '11px' : '12px',
+        itemMargin: { horizontal: compacto ? 6 : 16, vertical: 2 }
+      } : leyenda
     };
   }
 

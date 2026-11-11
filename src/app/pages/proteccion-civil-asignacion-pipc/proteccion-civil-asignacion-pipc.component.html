@@ -53,7 +53,8 @@
                     [attr.aria-selected]="pestanaActiva === 'desplegar'"
                     (click)="setPestana('desplegar')">
               <i class="fas fa-building" aria-hidden="true"></i>
-              Desplegar por empresa
+              <span class="asig-pipc-tabs__text asig-pipc-tabs__text--long">Desplegar por empresa</span>
+              <span class="asig-pipc-tabs__text asig-pipc-tabs__text--short">Desplegar</span>
             </button>
             <button type="button"
                     class="asig-pipc-tabs__btn"
@@ -62,7 +63,8 @@
                     [attr.aria-selected]="pestanaActiva === 'gestion'"
                     (click)="setPestana('gestion')">
               <i class="fas fa-folder-open" aria-hidden="true"></i>
-              Gestión de PIPC
+              <span class="asig-pipc-tabs__text asig-pipc-tabs__text--long">Gestión de PIPC</span>
+              <span class="asig-pipc-tabs__text asig-pipc-tabs__text--short">PIPC</span>
             </button>
             <button type="button"
                     class="asig-pipc-tabs__btn"
@@ -71,7 +73,8 @@
                     [attr.aria-selected]="pestanaActiva === 'directorios'"
                     (click)="setPestana('directorios')">
               <i class="fas fa-address-book" aria-hidden="true"></i>
-              Gestión de Directorios
+              <span class="asig-pipc-tabs__text asig-pipc-tabs__text--long">Gestión de Directorios</span>
+              <span class="asig-pipc-tabs__text asig-pipc-tabs__text--short">Directorios</span>
             </button>
           </div>
         </div>
