@@ -14,6 +14,7 @@ const FIRMAS_CORREO_DEFECTO = {
     'fernanda_talentohumano@biznaga.com.mx': '1EvEqmifoFQzWHTuShmks99n0uNUM2oJc', // mafer295
     'fernando_design@biznaga.com.mx': '1aVxvu_0IYVgi05jbobZFXW4lpGPjlEY-', // pumba24
     'hector_ti@biznaga.com.mx': '1kUm75eH_B5Jd6tMJfD8cMI5AyMgO9q9l', // Hector
+    'joana_talentohumano@biznaga.com.mx': '1kq9vWajSWBwI-5EttXXt79uzpdkh7uaC', // joana
     'joseluis_ambiental@biznaga.com.mx': '1yEXCzyvwIsg7Rfa071nJHAKwfBJgVqNp', // joseluis_ambiental
     'leonel_innovacion@biznaga.com.mx': '16j3LFi09Zi3-HHZfLRtoqsUcEVf63_Y8', // leonel58
     'mariana_administracion@biznaga.com.mx': '1dntOoHOzkZl8IVBeu8W-OO-TiyuBvM-X', // Mar

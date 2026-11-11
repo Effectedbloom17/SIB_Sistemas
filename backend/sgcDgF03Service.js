@@ -1056,6 +1056,20 @@ async function guardarFormato(pool, body) {
         contenidoModificado
     });
 
+    // Refleja altas/cambios de objetivos en Cuadro de mando 2026 (DG-F-06).
+    if (origen !== 'consulta' && huboCambioContenido) {
+        try {
+            const sgcDgF06Service = require('./sgcDgF06Service');
+            const items = extraerItemsObjetivos(datosGuardar.objetivos);
+            await sgcDgF06Service.sincronizarObjetivosDesdeDgF03(pool, {
+                items,
+                forzarPersistir: true
+            });
+        } catch (err) {
+            console.warn('[DG-F-03] No se pudo sincronizar objetivos hacia DG-F-06:', err.message);
+        }
+    }
+
     const registro = await obtenerRegistroDb(pool);
     const archivoDrive = await driveService.obtenerInfoArchivo(sistemaFileId).catch(() => null);
     const historialPdfs = await listarPdfsHistorialDrive().catch(() => []);

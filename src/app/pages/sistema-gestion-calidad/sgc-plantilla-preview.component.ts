@@ -1834,6 +1834,10 @@ interface DgF06Fila {
   meta: string;
   freqMedicion: string;
   freqAnalisis: string;
+  /** Soft-delete: false = desactivada (visible en gris solo para root). */
+  activo: boolean;
+  /** Índice en DG-F-03; null = fila no ligada (p. ej. indicadores). */
+  origenDgF03Indice: number | null;
 }
 
 interface DgF06AnioDoc {
@@ -26899,10 +26903,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private crearDgF06FormVacio(): DgF06FormData {
-    const anioActual = new Date().getFullYear();
     const anios = [
-      this.crearAnioDocDgF06(anioActual),
-      this.crearAnioDocDgF06(anioActual - 1)
+      this.crearAnioDocDgF06(2026),
+      this.crearAnioDocDgF06(2025)
     ];
     return {
       revision: '00',
@@ -26938,8 +26941,56 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       operacion: '',
       meta: '',
       freqMedicion: '',
-      freqAnalisis: ''
+      freqAnalisis: '',
+      activo: true,
+      origenDgF03Indice: null
     };
+  }
+
+  /** Super administrador (root): ve filas desactivadas en gris y puede reactivarlas. */
+  get esSuperAdminDgF06(): boolean {
+    return this.authService.esRoot();
+  }
+
+  /** Objetivos del cuadro 2026 solo se dan de alta en DG-F-03. */
+  irADgF03DesdeDgF06(): void {
+    void this.router.navigate(['/sistema-gestion-calidad', 'capitulo-6', 'plantilla', 'dg-f-03']);
+  }
+
+  esObjetivoReadonlyDgF06(tipo: DgF06DocTipo, fila: DgF06Fila): boolean {
+    if (fila?.activo === false) {
+      return true;
+    }
+    return tipo === 'objetivos';
+  }
+
+  /**
+   * Filas de la matriz (columnas = objetivos/indicadores).
+   * El texto principal (proceso) va en la fila superior tipo tarjeta.
+   */
+  readonly dgF06CamposMatriz: Array<{ key: keyof DgF06Fila; label: string }> = [
+    { key: 'acciones', label: 'Acciones' },
+    { key: 'recursos', label: 'Recursos' },
+    { key: 'responsable', label: 'Responsable' },
+    { key: 'fechaCompromiso', label: 'Fecha compromiso' },
+    { key: 'indicador', label: 'Indicador' },
+    { key: 'operacion', label: 'Operación / aritmética' },
+    { key: 'meta', label: 'Meta' },
+    { key: 'freqMedicion', label: 'Frecuencia de medición' },
+    { key: 'freqAnalisis', label: 'Frecuencia de análisis' }
+  ];
+
+  valorCampoDgF06(fila: DgF06Fila, key: keyof DgF06Fila): string {
+    const v = fila?.[key];
+    return v == null ? '' : String(v);
+  }
+
+  setValorCampoDgF06(fila: DgF06Fila, key: keyof DgF06Fila, valor: string): void {
+    if (!fila || key === 'id' || key === 'no' || key === 'activo' || key === 'origenDgF03Indice') {
+      return;
+    }
+    (fila as any)[key] = valor;
+    this.onDgF06Editado();
   }
 
   private crearFilasObjetivosDgF06(anio: number): DgF06Fila[] {
@@ -26955,7 +27006,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         operacion: '% personas que respondieron positivamente / total de respuestas',
         meta: 'Mayor o igual a 90%',
         freqMedicion: 'Mensual',
-        freqAnalisis: 'Trimestral'
+        freqAnalisis: 'Trimestral',
+        activo: true,
+        origenDgF03Indice: null
       },
       {
         no: 2,
@@ -26968,7 +27021,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         operacion: 'Evaluaciones aprobadas / evaluaciones aplicadas',
         meta: 'Mayor o igual a 90%',
         freqMedicion: 'Por curso',
-        freqAnalisis: 'Semestral'
+        freqAnalisis: 'Semestral',
+        activo: true,
+        origenDgF03Indice: null
       },
       {
         no: 3,
@@ -26981,10 +27036,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         operacion: 'Auditorías realizadas / programadas',
         meta: '100%',
         freqMedicion: 'Semestral',
-        freqAnalisis: 'Anual'
+        freqAnalisis: 'Anual',
+        activo: true,
+        origenDgF03Indice: null
       }
     ];
-    return seed.map((fila, idx) => ({ ...fila, id: `dg-f06-obj-${anio}-${idx + 1}` }));
+    return seed.map((fila, idx) => ({
+      ...fila,
+      id: `dg-f06-obj-${anio}-${idx + 1}`,
+      origenDgF03Indice: anio === 2026 ? idx : null
+    }));
   }
 
   private crearFilasIndicadoresDgF06(anio: number): DgF06Fila[] {
@@ -27000,7 +27061,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         operacion: 'No aplica',
         meta: '0 quejas',
         freqMedicion: 'Mensual',
-        freqAnalisis: 'Mensual'
+        freqAnalisis: 'Mensual',
+        activo: true,
+        origenDgF03Indice: null
       },
       {
         no: 2,
@@ -27013,7 +27076,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         operacion: 'Aprobados / evaluados × 100',
         meta: 'Mayor o igual a 90%',
         freqMedicion: 'Por curso',
-        freqAnalisis: 'Semestral'
+        freqAnalisis: 'Semestral',
+        activo: true,
+        origenDgF03Indice: null
       },
       {
         no: 3,
@@ -27026,7 +27091,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         operacion: 'Nivel de riesgo según matriz',
         meta: 'Nivel de riesgo NULO',
         freqMedicion: 'Anual',
-        freqAnalisis: 'Anual'
+        freqAnalisis: 'Anual',
+        activo: true,
+        origenDgF03Indice: null
       },
       {
         no: 4,
@@ -27039,10 +27106,16 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         operacion: 'Clasificación de hallazgos',
         meta: 'Sin condiciones de riesgo alto',
         freqMedicion: 'Mensual',
-        freqAnalisis: 'Trimestral'
+        freqAnalisis: 'Trimestral',
+        activo: true,
+        origenDgF03Indice: null
       }
     ];
-    return seed.map((fila, idx) => ({ ...fila, id: `dg-f06-ind-${anio}-${idx + 1}` }));
+    return seed.map((fila, idx) => ({
+      ...fila,
+      id: `dg-f06-ind-${anio}-${idx + 1}`,
+      origenDgF03Indice: null
+    }));
   }
 
   private normalizarFilaDgF06(raw: any, tipo: DgF06DocTipo, anio: number, idx: number): DgF06Fila {
@@ -27052,6 +27125,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     }
     const txt = (v: unknown): string => (v == null ? '' : String(v));
     const no = Number(raw.no);
+    const activoRaw = raw.activo;
+    const activo = activoRaw === false || activoRaw === 0 || activoRaw === '0' || String(activoRaw).toLowerCase() === 'false'
+      ? false
+      : true;
+    const origenRaw = Number(raw.origenDgF03Indice);
+    const origenDgF03Indice = Number.isFinite(origenRaw) && origenRaw >= 0
+      ? Math.floor(origenRaw)
+      : (tipo === 'objetivos' && anio === 2026 ? idx : null);
     return {
       id: String(raw.id || base.id),
       no: Number.isFinite(no) && no > 0 ? no : idx + 1,
@@ -27064,7 +27145,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       operacion: txt(raw.operacion),
       meta: txt(raw.meta),
       freqMedicion: txt(raw.freqMedicion),
-      freqAnalisis: txt(raw.freqAnalisis)
+      freqAnalisis: txt(raw.freqAnalisis),
+      activo,
+      origenDgF03Indice
     };
   }
 
@@ -27112,12 +27195,24 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   private refrescarAniosDgF06(): void {
     const q = this.dgF06Busqueda.trim().toLowerCase();
+    /** 2026 para todos; 2025 solo super administrador. */
     const lista = (this.dgF06Form?.anios || []).filter((a) => {
+      const anio = Number(a.anio);
+      if (anio === 2026) {
+        // ok
+      } else if (anio === 2025) {
+        if (!this.esSuperAdminDgF06) {
+          return false;
+        }
+      } else {
+        return false;
+      }
       if (!q) {
         return true;
       }
       return String(a.anio).includes(q)
         || String(a.titulo || '').toLowerCase().includes(q)
+        || `cuadro de mando ${a.anio}`.includes(q)
         || String(a.hojaExcel || '').toLowerCase().includes(q);
     });
     this.dgF06AniosVista = lista.slice().sort((a, b) => b.anio - a.anio);
@@ -27135,6 +27230,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!anioDoc) {
       return;
     }
+    if (Number(anioDoc.anio) === 2025 && !this.esSuperAdminDgF06) {
+      return;
+    }
     this.dgF06AnioActivo = anioDoc;
     this.dgF06Form.anioActivoId = anioDoc.id;
     this.dgF06Vista = 'documento';
@@ -27148,21 +27246,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.dgF06AnioActivo = null;
   }
 
-  agregarAnioDgF06(): void {
-    const anios = (this.dgF06Form.anios || []).map((a) => a.anio);
-    const nuevo = anios.length ? anios.reduce((m, v) => (v > m ? v : m), anios[0]) + 1 : new Date().getFullYear();
-    if (anios.includes(nuevo)) {
+  agregarFilaDgF06(tipo: DgF06DocTipo): void {
+    // Objetivos: solo desde DG-F-03.
+    if (tipo === 'objetivos') {
+      this.irADgF03DesdeDgF06();
       return;
     }
-    const doc = this.crearAnioDocDgF06(nuevo);
-    this.dgF06Form.anios = [doc, ...(this.dgF06Form.anios || [])];
-    this.dgF06Form.anioActivoId = doc.id;
-    this.dgF06AnioExpandido = nuevo;
-    this.refrescarAniosDgF06();
-    this.onDgF06Editado();
-  }
-
-  agregarFilaDgF06(tipo: DgF06DocTipo): void {
     const doc = this.dgF06AnioActivo;
     if (!doc) {
       return;
@@ -27173,17 +27262,47 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.onDgF06Editado();
   }
 
-  quitarFilaDgF06(tipo: DgF06DocTipo, fila: DgF06Fila): void {
+  /** Filas visibles: activas para todos; desactivadas solo para root. */
+  filasVisiblesDgF06(filas: DgF06Fila[] | null | undefined): DgF06Fila[] {
+    const lista = Array.isArray(filas) ? filas : [];
+    if (this.esSuperAdminDgF06) {
+      return lista;
+    }
+    return lista.filter((f) => f.activo !== false);
+  }
+
+  conteoFilasActivasDgF06(filas: DgF06Fila[] | null | undefined): number {
+    return (filas || []).filter((f) => f.activo !== false).length;
+  }
+
+  puedeDesactivarFilaDgF06(tipo: DgF06DocTipo, fila: DgF06Fila): boolean {
+    if (!fila || fila.activo === false) {
+      return false;
+    }
     const doc = this.dgF06AnioActivo;
-    if (!doc || doc[tipo].length <= 1) {
+    if (!doc) {
+      return false;
+    }
+    return this.conteoFilasActivasDgF06(doc[tipo]) > 1;
+  }
+
+  puedeReactivarFilaDgF06(fila: DgF06Fila): boolean {
+    return this.esSuperAdminDgF06 && !!fila && fila.activo === false;
+  }
+
+  desactivarFilaDgF06(tipo: DgF06DocTipo, fila: DgF06Fila): void {
+    if (!this.puedeDesactivarFilaDgF06(tipo, fila)) {
       return;
     }
-    const idx = doc[tipo].findIndex((f) => f.id === fila.id);
-    if (idx < 0) {
+    fila.activo = false;
+    this.onDgF06Editado();
+  }
+
+  reactivarFilaDgF06(fila: DgF06Fila): void {
+    if (!this.puedeReactivarFilaDgF06(fila)) {
       return;
     }
-    doc[tipo].splice(idx, 1);
-    doc[tipo].forEach((f, i) => { f.no = i + 1; });
+    fila.activo = true;
     this.onDgF06Editado();
   }
 
@@ -27191,7 +27310,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!doc) {
       return 'Cuadro de mando';
     }
-    return String(doc.titulo || '').trim() || `Cuadro de mando ${doc.anio}`;
+    return `Cuadro de mando ${doc.anio}`;
   }
 
   trackByDgF06Anio(_i: number, a: DgF06AnioDoc): string {
@@ -27203,7 +27322,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   totalFilasDgF06(tipo: DgF06DocTipo): number {
-    return (this.dgF06Form?.anios || []).reduce((acc, a) => acc + (a[tipo]?.length || 0), 0);
+    return (this.dgF06Form?.anios || [])
+      .filter((a) => {
+        if (a.anio === 2026) return true;
+        if (a.anio === 2025) return this.esSuperAdminDgF06;
+        return false;
+      })
+      .reduce((acc, a) => acc + this.conteoFilasActivasDgF06(a[tipo]), 0);
   }
 
   onDgF06Editado(): void {
@@ -27304,7 +27429,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private sincronizarAnioActivoDgF06(activoId: string | null, vista: 'archivero' | 'documento'): void {
     const anios = this.dgF06Form.anios || [];
     const encontrado = activoId ? anios.find((a) => a.id === activoId) || null : null;
-    if (vista === 'documento' && encontrado) {
+    const permitido = !!encontrado
+      && !(Number(encontrado.anio) === 2025 && !this.esSuperAdminDgF06);
+    if (vista === 'documento' && permitido) {
       this.dgF06AnioActivo = encontrado;
       this.dgF06Form.anioActivoId = encontrado.id;
       this.dgF06Vista = 'documento';

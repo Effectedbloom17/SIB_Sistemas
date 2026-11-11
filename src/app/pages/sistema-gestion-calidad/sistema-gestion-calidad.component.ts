@@ -201,7 +201,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   satisfaccionCapacitacion: any = null;
   satisfaccionCurso: any = null;
   satisfaccionCiclos: any[] = [];
-  cicloSatisfaccionId = '2026-2027';
+  cicloSatisfaccionId = '2027';
   quejasCliente: any = null;
   evaluacionProveedores: any = null;
   avanceProyectos: any = null;

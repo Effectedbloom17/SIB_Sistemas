@@ -37,7 +37,7 @@ const CICLOS_SATISFACCION_CLIENTE = [
     },
     {
         id: '2026-2027',
-        etiqueta: '2026-2027',
+        etiqueta: '2027',
         formId: process.env.SGC_SATISFACCION_CLIENTE_FORM_ID_2627
             || '1U1--K0OLk5iVe-17NIlB2kyeB620S-PMnpy8akkc9qo',
         vigente: true

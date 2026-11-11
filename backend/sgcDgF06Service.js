@@ -155,7 +155,7 @@ function crearFilasObjetivosSeed(anio) {
             freqAnalisis: 'Anual'
         }
     ];
-    return seed.map((fila, idx) => ({ ...fila, id: `dg-f06-obj-${anio}-${idx + 1}` }));
+    return seed.map((fila, idx) => ({ ...fila, id: `dg-f06-obj-${anio}-${idx + 1}`, activo: true }));
 }
 
 function crearFilasIndicadoresSeed(anio) {
@@ -213,7 +213,7 @@ function crearFilasIndicadoresSeed(anio) {
             freqAnalisis: 'Trimestral'
         }
     ];
-    return seed.map((fila, idx) => ({ ...fila, id: `dg-f06-ind-${anio}-${idx + 1}` }));
+    return seed.map((fila, idx) => ({ ...fila, id: `dg-f06-ind-${anio}-${idx + 1}`, activo: true }));
 }
 
 function anioActualMexico() {
@@ -273,6 +273,13 @@ function sanitizarAnioNumero(valor) {
     return anioActualMexico();
 }
 
+function esFilaActiva(raw) {
+    const v = raw?.activo;
+    if (v === false || v === 0 || v === '0') return false;
+    if (typeof v === 'string' && v.trim().toLowerCase() === 'false') return false;
+    return true;
+}
+
 function sanitizarFila(raw, idx = 0) {
     const base = raw && typeof raw === 'object' ? raw : {};
     const noRaw = base.no;
@@ -291,7 +298,14 @@ function sanitizarFila(raw, idx = 0) {
         operacion: normalizarTexto(base.operacion),
         meta: normalizarTexto(base.meta),
         freqMedicion: normalizarTexto(base.freqMedicion),
-        freqAnalisis: normalizarTexto(base.freqAnalisis)
+        freqAnalisis: normalizarTexto(base.freqAnalisis),
+        // Soft-delete: se conserva en JSON; Excel solo recibe activas.
+        activo: esFilaActiva(base),
+        // Ligado a DG-F-03 (índice del listado de objetivos). null = fila manual (indicadores u huérfana).
+        origenDgF03Indice: (() => {
+            const n = Number(base.origenDgF03Indice);
+            return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
+        })()
     };
     // Resultados mensuales (solo UI; no se escriben a Excel). Se conservan si llegan.
     if (Array.isArray(base.resultados)) {
@@ -513,7 +527,135 @@ function rangoSheet(a1, sheetTitle) {
 }
 
 function unirFilasAnio(anioDoc) {
-    return [...(anioDoc?.objetivos || []), ...(anioDoc?.indicadores || [])];
+    // Solo filas activas van al Excel; las desactivadas permanecen en el JSON del sistema.
+    const activas = (lista) => (lista || []).filter((f) => esFilaActiva(f));
+    return [...activas(anioDoc?.objetivos), ...activas(anioDoc?.indicadores)];
+}
+
+/** Año del cuadro de mando ligado a DG-F-03 (objetivos solo se agregan desde F-03). */
+const ANIO_OBJETIVOS_DG_F_03 = 2026;
+
+function normalizarTextoObjetivoF03(texto) {
+    return String(texto || '')
+        .replace(/\r\n/g, '\n')
+        .trim()
+        .replace(/^\d+\.\s*/, '')
+        .trim()
+        .toLowerCase();
+}
+
+/**
+ * Reescribe objetivos del año 2026 a partir del listado de DG-F-03.
+ * Conserva datos editables (acciones, meta, …) al emparejar por texto / índice;
+ * altas nuevas llegan vacías; filas que ya no están en F-03 se desactivan.
+ */
+function sincronizarObjetivosAnioDesdeItems(anioDoc, items) {
+    const lista = Array.isArray(items)
+        ? items.map((t) => String(t || '').trim().replace(/^\d+\.\s*/, '').trim()).filter(Boolean)
+        : [];
+    const prev = Array.isArray(anioDoc?.objetivos) ? anioDoc.objetivos.map((f) => sanitizarFila(f)) : [];
+    const usados = new Set();
+    const resultado = [];
+
+    lista.forEach((texto, i) => {
+        const norm = normalizarTextoObjetivoF03(texto);
+        let idx = prev.findIndex((f, fi) => (
+            !usados.has(fi) && normalizarTextoObjetivoF03(f.proceso) === norm
+        ));
+        if (idx < 0) {
+            idx = prev.findIndex((f, fi) => (
+                !usados.has(fi) && f.origenDgF03Indice === i
+            ));
+        }
+        if (idx >= 0) {
+            usados.add(idx);
+            const f = prev[idx];
+            resultado.push(sanitizarFila({
+                ...f,
+                no: i + 1,
+                proceso: texto,
+                origenDgF03Indice: i,
+                activo: f.activo !== false
+            }, i));
+            return;
+        }
+        resultado.push(sanitizarFila({
+            id: `dg-f06-obj-f03-${ANIO_OBJETIVOS_DG_F_03}-${i + 1}`,
+            no: i + 1,
+            proceso: texto,
+            origenDgF03Indice: i,
+            activo: true
+        }, i));
+    });
+
+    prev.forEach((f, fi) => {
+        if (usados.has(fi)) return;
+        resultado.push(sanitizarFila({
+            ...f,
+            activo: false
+        }, resultado.length));
+    });
+
+    return sanitizarAnio({
+        ...anioDoc,
+        objetivos: resultado
+    });
+}
+
+function aplicarObjetivosDgF03ADatos(datos, items) {
+    const meta = sanitizarDatos(datos);
+    const anios = meta.anios.map((a) => (
+        Number(a.anio) === ANIO_OBJETIVOS_DG_F_03
+            ? sincronizarObjetivosAnioDesdeItems(a, items)
+            : a
+    ));
+    return sanitizarDatos({ ...meta, anios });
+}
+
+/**
+ * Lee objetivos de DG-F-03 y los refleja en el Cuadro de mando 2026.
+ * Persiste solo si hubo cambio. No escribe Excel (eso ocurre al guardar F-06).
+ */
+async function sincronizarObjetivosDesdeDgF03(pool, opciones = {}) {
+    const forzarPersistir = !!opciones.forzarPersistir;
+    let items = Array.isArray(opciones.items) ? opciones.items : null;
+    if (!items) {
+        try {
+            const sgcDgF03Service = require('./sgcDgF03Service');
+            const payload = await sgcDgF03Service.cargarFormato(pool);
+            const texto = payload?.datos?.objetivos || '';
+            items = String(texto || '')
+                .split(/\n+/)
+                .map((l) => l.trim())
+                .filter(Boolean)
+                .map((l) => l.replace(/^\d+\.\s*/, '').trim())
+                .filter(Boolean);
+        } catch (err) {
+            console.warn('[DG-F-06] No se pudieron leer objetivos de DG-F-03:', err.message);
+            return null;
+        }
+    }
+
+    await asegurarTablaSgcFormatoDatos(pool);
+    const registro = await obtenerRegistroDb(pool);
+    const datosDb = await leerDatosRegistro(registro);
+    const base = datosDb && datosDb.anios.length ? datosDb : crearDatosDefecto();
+    const sincronizados = aplicarObjetivosDgF03ADatos(base, items);
+
+    if (!forzarPersistir && contenidoEsEquivalente(base, sincronizados)) {
+        return { datos: sincronizados, cambiado: false };
+    }
+
+    await guardarRegistroDb(pool, {
+        driveFileId: registro?.drive_file_id || null,
+        datos: sincronizados,
+        fechaElaboracionOriginal: formatearFechaIso(registro?.fecha_elaboracion_original)
+            || sincronizados.fechaElaboracion,
+        fechaModificacionContenido: excelHistorial.fechaAhoraMexicoIso(),
+        contenidoModificado: true
+    });
+
+    return { datos: sincronizados, cambiado: true };
 }
 
 function valorNo(no) {
@@ -946,34 +1088,52 @@ async function sincronizarHojasAniosEnDrive(spreadsheetId, datos, datosPrevios =
 async function leerDesdeHoja(spreadsheetId, sheetTitle, anioBase) {
     const objetivosBase = anioBase?.objetivos || [];
     const indicadoresBase = anioBase?.indicadores || [];
-    const total = objetivosBase.length + indicadoresBase.length;
-    if (!total) return sanitizarAnio({ ...anioBase, hojaExcel: sheetTitle });
+    const totalBase = objetivosBase.length + indicadoresBase.length;
+    if (!totalBase) return sanitizarAnio({ ...anioBase, hojaExcel: sheetTitle });
 
-    const fin = FILA_DATOS_INICIO + total - 1;
+    // Excel solo guarda filas activas; las desactivadas se conservan del JSON.
+    const totalActivas = [...objetivosBase, ...indicadoresBase].filter(esFilaActiva).length;
+    if (!totalActivas) {
+        return sanitizarAnio({ ...anioBase, hojaExcel: sheetTitle });
+    }
+
+    const fin = FILA_DATOS_INICIO + totalActivas - 1;
     const rows = await driveService.leerRangoGoogleSheet(
         spreadsheetId,
         rangoSheet(`A${FILA_DATOS_INICIO}:L${fin}`, sheetTitle)
     );
     const get = (r, c) => String((rows[r] || [])[c] ?? '').trim();
 
-    const leerFila = (filaBase, r) => sanitizarFila({
-        ...filaBase,
-        no: get(r, 0) || filaBase.no,
-        proceso: get(r, 1),
-        acciones: get(r, 3),
-        recursos: get(r, 4),
-        responsable: get(r, 5),
-        fechaCompromiso: get(r, 6),
-        indicador: get(r, 7),
-        operacion: get(r, 8),
-        meta: get(r, 9),
-        freqMedicion: get(r, 10),
-        freqAnalisis: get(r, 11)
-    }, r);
+    let excelIdx = 0;
+    const leerFilaActiva = (filaBase) => {
+        const r = excelIdx++;
+        return sanitizarFila({
+            ...filaBase,
+            no: get(r, 0) || filaBase.no,
+            proceso: get(r, 1),
+            acciones: get(r, 3),
+            recursos: get(r, 4),
+            responsable: get(r, 5),
+            fechaCompromiso: get(r, 6),
+            indicador: get(r, 7),
+            operacion: get(r, 8),
+            meta: get(r, 9),
+            freqMedicion: get(r, 10),
+            freqAnalisis: get(r, 11),
+            activo: true
+        }, r);
+    };
 
-    const objetivos = objetivosBase.map((f, i) => leerFila(f, i));
-    const indicadores = indicadoresBase.map((f, i) => leerFila(f, objetivosBase.length + i));
-    return sanitizarAnio({ ...anioBase, objetivos, indicadores, hojaExcel: sheetTitle });
+    const mapearBloque = (lista) => (lista || []).map((f) => (
+        esFilaActiva(f) ? leerFilaActiva(f) : sanitizarFila(f)
+    ));
+
+    return sanitizarAnio({
+        ...anioBase,
+        objetivos: mapearBloque(objetivosBase),
+        indicadores: mapearBloque(indicadoresBase),
+        hojaExcel: sheetTitle
+    });
 }
 
 /* ───────────────────────────── Persistencia ───────────────────────────── */
@@ -990,7 +1150,9 @@ function firmaAnio(a) {
         operacion: f.operacion,
         meta: f.meta,
         freqMedicion: f.freqMedicion,
-        freqAnalisis: f.freqAnalisis
+        freqAnalisis: f.freqAnalisis,
+        activo: esFilaActiva(f),
+        origenDgF03Indice: f.origenDgF03Indice == null ? null : Number(f.origenDgF03Indice)
     });
     return JSON.stringify({
         anio: a.anio,
@@ -1150,7 +1312,20 @@ async function cargarFormato(pool) {
     await asegurarTablaSgcFormatoDatos(pool);
     let registro = await obtenerRegistroDb(pool);
     let archivoDrive = null;
-    const datosDb = await leerDatosRegistro(registro);
+    let datosDb = await leerDatosRegistro(registro);
+
+    // Objetivos del 2026 siempre alineados con DG-F-03.
+    try {
+        const syncF03 = await sincronizarObjetivosDesdeDgF03(pool, { forzarPersistir: false });
+        if (syncF03?.datos) {
+            datosDb = syncF03.datos;
+            if (syncF03.cambiado) {
+                registro = await obtenerRegistroDb(pool);
+            }
+        }
+    } catch (err) {
+        console.warn('[DG-F-06] Sync objetivos DG-F-03 en carga:', err.message);
+    }
 
     const driveFileId = await asegurarArchivoSistema(pool, registro).catch(() => null);
     if (driveFileId) {
@@ -1377,9 +1552,12 @@ module.exports = {
     CODIGO_FORMATO,
     TEMPLATE_DRIVE_ID,
     DRIVE_FILE_ID_SISTEMA,
+    ANIO_OBJETIVOS_DG_F_03,
     cargarFormato,
     guardarFormato,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
+    sincronizarObjetivosDesdeDgF03,
+    aplicarObjetivosDgF03ADatos,
     sanitizarDatos
 };
