@@ -1,6 +1,10 @@
 /**
  * Pop-ups de resolutivos PIPC (Protección Civil).
  *
+ * Solo resolutivos con origen = 'sistema' (despliegue desde centro de operaciones /
+ * asignación PC). Los de origen 'excel' (referencia histórica SP-F-29) no generan
+ * ni se muestran en popup ni en el notification manager.
+ *
  * Preventivo 40–21 días restantes → 1 aviso diario al responsable.
  * Urgente 20–1 días (pronto a vencer; NO vencidos) → al ingresar + ~3.5 h,
  * destinatarios: responsable, marisol12, leonel58 y root.
@@ -220,12 +224,16 @@ async function listarResolutivosElegibles(poolPC, poolUsuarios) {
         poolPC,
         poolUsuarios
     );
+    // Solo despliegues del sistema; excel es referencia histórica y no avisa.
+    const registrosSistema = (registros || []).filter(
+        (row) => pcResolutivosService.normalizarOrigenDespliegue(row.origen) === 'sistema'
+    );
     const usernames = await mapUsernamesPorId(
         poolUsuarios,
-        registros.map((r) => r.responsable_usuario_id)
+        registrosSistema.map((r) => r.responsable_usuario_id)
     );
     const gestionados = await idsResolutivosGestionados(poolPC);
-    return (registros || []).map((row) => {
+    return registrosSistema.map((row) => {
         const diasRestantes = diasRestantesDeRegistro(row);
         const responsableUsername = usernames.get(Number(row.responsable_usuario_id || 0)) || '';
         return {
