@@ -11150,6 +11150,71 @@ $dg06-act-col: 4.4rem;
   }
 }
 
+// Tablet y teléfono: 8 columnas no caben sin partir fechas ni recortar vigencia.
+// Misma tabla, anchos mínimos y scroll horizontal. Escritorio (desde 1200px) no cambia.
+@media (max-width: 1199.98px) {
+  .sgc-f18-table-wrap,
+  .sgc-preview-page--dg-f-05 .dg-f05-table-wrap.sgc-f18-table-wrap,
+  .sgc-preview-page--sgc-f-18 .dg-f05-table-wrap.sgc-f18-table-wrap,
+  :host.sgc-preview--sgc-f-18 .dg-f05-table-wrap.sgc-f18-table-wrap {
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+  }
+
+  .dg-f05-table.sgc-f18-table {
+    $anchos: 15rem, 10rem, 8.75rem, 13.5rem, 7.75rem, 9rem, 11rem, 2.4rem;
+
+    width: 77.4rem !important;
+    min-width: 77.4rem !important;
+    max-width: none !important;
+
+    @for $i from 1 through length($anchos) {
+      $w: nth($anchos, $i);
+
+      col:nth-child(#{$i}) {
+        width: $w;
+      }
+
+      thead th:nth-child(#{$i}),
+      tbody td:nth-child(#{$i}) {
+        width: $w;
+        min-width: $w;
+        max-width: $w;
+        overflow: hidden;
+      }
+    }
+
+    thead th {
+      font-size: 0.64rem;
+      line-height: 1.25;
+    }
+
+    .sgc-f18-field {
+      overflow-wrap: break-word;
+      word-break: normal;
+    }
+
+    .sgc-f18-col-fecha .sgc-f18-field {
+      overflow-wrap: normal;
+      word-break: keep-all;
+    }
+
+    td.sgc-f18-col-vigencia .sgc-f18-vigencia-select {
+      display: block !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box;
+      white-space: nowrap;
+      font-size: 0.72rem;
+      line-height: 1.25;
+      padding: 0.28rem 0.35rem !important;
+    }
+  }
+}
+
 .dg-f05-doc__meta--sgc-f18 {
   align-items: center;
   justify-content: center;
@@ -16581,6 +16646,21 @@ $dg-f02-layout-max: 46.5rem;
   }
 }
 
+.sgc-f-11-table-wrap--unida {
+  overflow: auto !important;
+  max-height: calc(100dvh - 12.5rem);
+  max-width: 100%;
+
+  &::after {
+    display: none;
+  }
+
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+}
+
 .sgc-f-11-table-wrap {
   position: relative;
   overflow-x: auto !important;
@@ -16678,6 +16758,73 @@ $dg-f02-layout-max: 46.5rem;
     background: rgba(15, 118, 110, 0.04) !important;
   }
 
+  &--unida {
+    --sgc-f11-idx: 2.75rem;
+    width: max-content;
+    min-width: max-content;
+    max-width: none;
+
+    col.sgc-f-11-col--idx { width: var(--sgc-f11-idx); }
+    col.sgc-f-11-col--etapa { width: 11.5rem; }
+    col.sgc-f-11-col--modo { width: 14rem; }
+    col.sgc-f-11-col--text { width: 12.5rem; }
+    col.sgc-f-11-col--num { width: 4.5rem; }
+    col.sgc-f-11-col--rpn { width: 3.8rem; }
+    col.sgc-f-11-col--text-lg { width: 14.5rem; }
+    col.sgc-f-11-col--fecha { width: 10.25rem; }
+    col.sgc-f-11-col--evid { width: 4.4rem; }
+    col.sgc-f-11-col--act { width: 2.6rem; }
+
+    .sgc-f-11-stick {
+      position: sticky;
+      z-index: 2;
+    }
+
+    .sgc-f-11-stick--idx {
+      left: 0;
+      width: var(--sgc-f11-idx);
+      min-width: var(--sgc-f11-idx);
+      max-width: var(--sgc-f11-idx);
+      box-shadow: none;
+    }
+
+    .sgc-f-11-stick--modo {
+      left: var(--sgc-f11-idx);
+      min-width: 14rem;
+      background: #fff !important;
+      box-shadow: 8px 0 12px -6px rgba(15, 23, 42, 0.28);
+    }
+
+    thead th {
+      z-index: 3;
+    }
+
+    thead .sgc-f-11-stick {
+      z-index: 5;
+      top: 0;
+    }
+
+    thead .sgc-f-11-stick--modo {
+      background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%) !important;
+    }
+
+    tbody tr:nth-child(even) td.sgc-f-11-stick--modo {
+      background: #fafbfc !important;
+    }
+
+    tbody tr.sgc-f-11-table__row:hover td.sgc-f-11-stick--idx {
+      background: #e7f6f3 !important;
+    }
+
+    tbody tr.sgc-f-11-table__row:hover td.sgc-f-11-stick--modo {
+      background: #f4fbfa !important;
+    }
+
+    tbody tr:nth-child(even).sgc-f-11-table__row:hover td.sgc-f-11-stick--modo {
+      background: #f3f7f8 !important;
+    }
+  }
+
   &__col--idx {
     text-align: center;
   }
@@ -16700,6 +16847,10 @@ $dg-f02-layout-max: 46.5rem;
     left: 0;
     z-index: 3;
     background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%) !important;
+  }
+
+  &--unida thead th.sgc-f-11-stick {
+    z-index: 6;
   }
 
   .sgc-f-11-td {
@@ -17125,7 +17276,8 @@ $dg-f02-layout-max: 46.5rem;
   flex: 1 1 auto;
 }
 
-.sgc-f-11-table--acciones {
+.sgc-f-11-table--acciones,
+.sgc-f-11-table--unida {
   thead .sgc-f-11-table__col--seguimiento {
     color: #0e7490 !important;
     background: linear-gradient(180deg, #ecfeff 0%, #cffafe 100%) !important;
@@ -17160,7 +17312,8 @@ $dg-f02-layout-max: 46.5rem;
     pointer-events: none;
   }
 
-  .sgc-f-11-table--acciones .sgc-f-11-td--seguimiento .sgc-f-11-table__num {
+  .sgc-f-11-table--acciones .sgc-f-11-td--seguimiento .sgc-f-11-table__num,
+  .sgc-f-11-table--unida .sgc-f-11-td--seguimiento .sgc-f-11-table__num {
     background: #fff;
     border-color: rgba(14, 116, 144, 0.45);
     box-shadow: 0 0 0 2px rgba(14, 116, 144, 0.1);
@@ -17199,8 +17352,8 @@ $dg-f02-layout-max: 46.5rem;
     padding: 0.85rem 1rem 0.8rem;
   }
 
-  // Sin scroll horizontal: la tabla se comprime al ancho disponible (zoom alto).
-  .dg-f05-table-wrap.sgc-f-11-table-wrap {
+  // La matriz unida se consulta con scroll; el resto de tablas SGC-F-11 se comprime.
+  .dg-f05-table-wrap.sgc-f-11-table-wrap:not(.sgc-f-11-table-wrap--unida) {
     overflow-x: hidden !important;
     overflow-y: visible !important;
     max-width: 100%;
@@ -17210,12 +17363,25 @@ $dg-f02-layout-max: 46.5rem;
     }
   }
 
+  .dg-f05-table-wrap.sgc-f-11-table-wrap--unida {
+    overflow: auto !important;
+    max-height: calc(100dvh - 12.5rem);
+    max-width: 100%;
+  }
+
   .sgc-f-11-table.sgc-f-11-table--analisis,
   .sgc-f-11-table.sgc-f-11-table--acciones,
-  .sgc-f-11-table {
+  .sgc-f-11-table:not(.sgc-f-11-table--unida) {
     width: 100% !important;
     min-width: 0 !important;
     max-width: 100%;
+    table-layout: fixed;
+  }
+
+  .sgc-f-11-table.sgc-f-11-table--unida {
+    width: max-content !important;
+    min-width: max-content !important;
+    max-width: none !important;
     table-layout: fixed;
   }
 
@@ -17397,7 +17563,7 @@ $dg-f02-layout-max: 46.5rem;
       }
     }
 
-    .dg-f05-table-wrap.sgc-f-11-table-wrap {
+    .dg-f05-table-wrap.sgc-f-11-table-wrap:not(.sgc-f-11-table-wrap--unida) {
       overflow-x: hidden !important;
     }
   }

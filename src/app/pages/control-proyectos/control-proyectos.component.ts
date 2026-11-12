@@ -7,6 +7,7 @@ import { EChartsOption } from 'echarts';
 import Swal from 'sweetalert2';
 import { BackendServices } from 'src/app/services/backend.services';
 import { AuthService } from 'src/app/services/auth.service';
+import { AvisosPopupService } from 'src/app/services/avisos-popup.service';
 import { DocumentPreviewService } from 'src/app/services/document-preview.service';
 
 type VistaControlProyectos = 'dashboard' | 'gestion' | 'solicitudes' | 'tablero' | 'cronograma' | 'actividades' | 'eliminados';
@@ -188,6 +189,27 @@ interface GrupoGestionProyecto {
   actividades: Array<{ proyecto: ProyectoTableroItem; indice: number }>;
 }
 
+interface PedidoCambioPendiente {
+  id: number;
+  empresaId: number | null;
+  folio: string;
+  nombreProyecto: string;
+  nota: string;
+  solicitadoPor: string;
+}
+
+interface EncargadoPedidoCambio {
+  usuarioId: number;
+  username: string;
+  nombre: string;
+}
+
+interface ProyectoPedidoOpcion {
+  empresaId: number | null;
+  folio: string;
+  nombreProyecto: string;
+}
+
 interface AccionCambioFila {
   descripcion: string;
   responsable: string;
@@ -226,7 +248,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   @ViewChild('timelineScroll') timelineScroll?: ElementRef<HTMLDivElement>;
 
   @HostBinding('class.cp-modal-open') get modalRegistroAbierto(): boolean {
-    return this.mostrarRegistro || this.panelActividadAbierto || this.cambiosProyectoAbierto;
+    return this.mostrarRegistro || this.panelActividadAbierto || this.cambiosProyectoAbierto || this.pedidoDialogoAbierto;
   }
 
   readonly menuOpciones: MenuOpcion[] = [
@@ -612,10 +634,26 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   private correccionClon: CambioProyectoFila | null = null;
   private cambiosAlCargar: { vista: 'editor' | 'resumen'; cambioId: number } | null = null;
   private empresaQueryPendiente = '';
+  private cambioModoQuery: 'llenar' | 'resumen' = 'resumen';
+  private pedidosListos = false;
+  pedidosMios: PedidoCambioPendiente[] = [];
+  pedidoEnEdicion: PedidoCambioPendiente | null = null;
+  pedidoDialogoAbierto = false;
+  pedidoEmpresaId: number | null = null;
+  pedidoProyectos: ProyectoPedidoOpcion[] = [];
+  pedidoProyectoIndice = -1;
+  pedidoEncargados: EncargadoPedidoCambio[] = [];
+  pedidoDestinoIds: number[] = [];
+  pedidoNota = '';
+  pedidoNotaAviso = '';
+  pedidoCargando = false;
+  pedidoEnviando = false;
+  pedidoError = '';
 
   constructor(
     private backend: BackendServices,
     private auth: AuthService,
+    private avisosPopup: AvisosPopupService,
     private documentPreview: DocumentPreviewService,
     private router: Router,
     private route: ActivatedRoute
@@ -632,22 +670,14 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       this.vistaActiva = 'gestion';
     }
     this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe((params) => {
-      if (params.get('solicitudes') === '1' && this.puedeResolverCambiosProyecto) {
-        this.vistaActiva = 'solicitudes';
-        this.cargarSolicitudesCambio();
-        this.router.navigate([], {
-          relativeTo: this.route,
-          queryParams: { solicitudes: null },
-          queryParamsHandling: 'merge',
-          replaceUrl: true
-        });
-        return;
-      }
       const folio = (params.get('cambioFolio') || '').trim();
+      const proyecto = (params.get('cambioProyecto') || '').trim();
+      if (!folio && !proyecto) return;
       const cambioId = Number(params.get('cambioId') || 0);
-      if (!folio) return;
-      const mismoPendiente = folio === this.folioQueryPendiente
-        && cambioId === (this.cambioRevisionPendiente?.cambioId || 0);
+      const modo = params.get('cambioModo') === 'llenar' ? 'llenar' : 'resumen';
+      const mismoPendiente = (folio || proyecto) === this.folioQueryPendiente
+        && cambioId === (this.cambioRevisionPendiente?.cambioId || 0)
+        && modo === this.cambioModoQuery;
       if (mismoPendiente) return;
       this.prepararRevisionCambioDesdeQuery(params);
       if (this.cargando) return;
@@ -658,11 +688,13 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       this.vistaActiva = 'gestion';
       const empresaId = Number(this.auth.getEmpresaId() || 0);
       this.empresaSeleccionadaId = Number.isInteger(empresaId) && empresaId > 0 ? empresaId : null;
+      this.cargarPedidosMios();
       this.cargarDashboard();
       return;
     }
     this.cargarEmpresasControl();
     this.cargarUsuariosInternos();
+    this.cargarPedidosMios();
     this.cargarDashboard();
     this.cargarPizarron();
     this.iniciarCarruselDashboard();
@@ -725,6 +757,12 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   @HostListener('document:keydown.escape', ['$event'])
   onDocumentEscape(event: KeyboardEvent): void {
+    if (this.pedidoDialogoAbierto) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.cerrarPedidoCambio();
+      return;
+    }
     if (this.cambiosProyectoAbierto) {
       event.preventDefault();
       event.stopPropagation();
@@ -792,10 +830,9 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     if (vista === 'eliminados' && !this.esSuperAdministrador) {
       return;
     }
-    if (vista === 'solicitudes' && !this.puedeResolverCambiosProyecto) {
+    if (vista === 'solicitudes' && !this.puedeResolverCambiosProyecto && !this.puedePedirCambioProyecto) {
       return;
     }
-
     if (this.vistaActiva === 'gestion' && vista !== 'gestion') {
       this.autoGuardarGestionSiPendiente();
     }
@@ -1426,7 +1463,10 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     opciones?: { vista?: 'editor' | 'resumen'; cambioId?: number }
   ): void {
     event?.stopPropagation();
-    if (!grupo || !this.puedeUsarCambiosProyecto) return;
+    const pedido = this.pedidoPendienteDe(grupo);
+    if (!grupo || (!pedido && !this.puedeUsarCambiosProyecto)) return;
+    this.pedidoEnEdicion = pedido;
+    this.pedidoNotaAviso = pedido?.nota || '';
     this.cambiosProyectoMeta = {
       empresaId: grupo.empresaId ?? null,
       folio: String(grupo.folio || '').trim(),
@@ -1434,7 +1474,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     };
     this.cambiosProyectoTitulo = this.cambiosProyectoMeta.nombreProyecto || 'Proyecto';
     this.cambiosProyectoFolio = this.cambiosProyectoMeta.folio;
-    this.cambiosProyectoSoloLectura = false;
+    this.cambiosProyectoSoloLectura = !pedido;
     this.cambiosProyectoAbierto = true;
     this.cambiosProyectoSnapshot = '';
     this.errorCambiosProyecto = '';
@@ -1443,13 +1483,13 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.cambiosProyectoActivo = 0;
     this.cambiosProyectoPagina = 0;
     this.cambiosProyectoPreview = null;
-    this.cambiosProyectoVista = opciones?.vista || 'editor';
+    this.cambiosProyectoVista = pedido ? 'editor' : 'resumen';
     this.quitarCambioDescubierto = false;
     this.corrigiendoCambioIndice = -1;
     this.correccionClon = null;
     this.cambiosAlCargar = {
-      vista: opciones?.vista || 'editor',
-      cambioId: Number(opciones?.cambioId || 0)
+      vista: pedido ? 'editor' : 'resumen',
+      cambioId: pedido ? 0 : Number(opciones?.cambioId || 0)
     };
     this.cargarCambiosProyecto();
   }
@@ -1480,6 +1520,8 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.quitarCambioDescubierto = false;
     this.corrigiendoCambioIndice = -1;
     this.correccionClon = null;
+    this.pedidoEnEdicion = null;
+    this.pedidoNotaAviso = '';
   }
 
   cargarCambiosProyecto(): void {
@@ -1499,6 +1541,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
               : (this.cambiosProyectoSoloLectura ? [] : [this.filaCambioVacia()])
           );
           this.ubicarCambioCargado();
+          this.enfocarBorradorPedido();
         },
         error: (err) => {
           this.cargandoCambiosProyecto = false;
@@ -1761,12 +1804,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   }
 
   puedeCorregirCambioActivo(): boolean {
-    const fila = this.cambioActivoProyecto();
-    return !!fila
-      && fila.estatus === 'en_espera'
-      && this.esAutorCambio(fila)
-      && this.corrigiendoCambioIndice !== this.cambiosProyectoActivo
-      && !this.cambiosProyectoSoloLectura;
+    return false;
   }
 
   get cambiosSolicitadosCount(): number {
@@ -1874,15 +1912,8 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   guardarCambiosProyecto(): void {
     const meta = this.cambiosProyectoMeta;
     const activo = this.cambioActivoProyecto();
-    if (!meta || !activo || !this.puedeUsarCambiosProyecto || this.cambiosProyectoSoloLectura || this.guardandoCambiosProyecto) return;
+    if (!meta || !activo || !this.pedidoEnEdicion || this.cambiosProyectoSoloLectura || this.guardandoCambiosProyecto) return;
     if (!this.puedeSolicitarCambioActivo()) return;
-    const corrigiendo = this.corrigiendoCambioIndice === this.cambiosProyectoActivo;
-    if (corrigiendo && this.correccionClon && this.serializarCambiosProyecto([activo]) === this.serializarCambiosProyecto([this.correccionClon])) {
-      this.cancelarCorreccionCambio();
-      this.exitoCambiosProyecto = 'No hubo correcciones que registrar.';
-      this.errorCambiosProyecto = '';
-      return;
-    }
     if (!this.solicitudCambioCompleta(activo)) {
       this.cambiosIntentoEnvio = true;
       this.errorCambiosProyecto = 'Completa los campos marcados antes de enviar la solicitud.';
@@ -1891,23 +1922,19 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       return;
     }
     this.cambiosIntentoEnvio = false;
-    const filas = this.cambiosProyectoFilas.filter((fila) => this.filaCambioTieneDatos(fila));
     this.guardandoCambiosProyecto = true;
     this.errorCambiosProyecto = '';
     this.exitoCambiosProyecto = '';
-    this.backend.guardarCambiosControlProyecto({
+    this.backend.llenarPedidoCambioControlProyecto({
       ...meta,
-      cambios: filas.map((fila) => ({
-        id: fila.id,
-        tipoRequisitos: fila.tipoRequisitos,
-        tipoDiseno: fila.tipoDiseno,
-        tipoProduccion: fila.tipoProduccion,
-        descripcion: fila.descripcion,
-        motivo: fila.motivo,
-        accionesFilas: fila.accionesFilas,
-        solicitar: fila === activo && (fila.estatus || 'borrador') === 'borrador',
-        corregir: fila === activo && corrigiendo
-      }))
+      cambios: [{
+        tipoRequisitos: activo.tipoRequisitos,
+        tipoDiseno: activo.tipoDiseno,
+        tipoProduccion: activo.tipoProduccion,
+        descripcion: activo.descripcion,
+        motivo: activo.motivo,
+        accionesFilas: activo.accionesFilas
+      }]
     }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (res: any) => {
         this.guardandoCambiosProyecto = false;
@@ -1916,22 +1943,23 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
           return;
         }
         const lista = Array.isArray(res?.cambios) ? res.cambios : [];
+        const pedidoId = this.pedidoEnEdicion?.id;
         this.corrigiendoCambioIndice = -1;
         this.correccionClon = null;
+        this.pedidosMios = this.pedidosMios.filter((pedido) => pedido.id !== pedidoId);
+        this.pedidoEnEdicion = null;
+        this.cambiosProyectoSoloLectura = true;
         this.aplicarFilasCambiosProyecto(
-          lista.length ? lista.map((fila: any) => this.mapearCambioProyecto(fila)) : [this.filaCambioVacia()]
+          lista.length ? lista.map((fila: any) => this.mapearCambioProyecto(fila)) : []
         );
-        if (!corrigiendo) {
-          const vacio = this.cambiosProyectoFilas.findIndex((fila) => !fila.id && (fila.estatus || 'borrador') === 'borrador');
-          if (vacio >= 0) {
-            this.cambiosProyectoActivo = vacio;
-            this.ubicarPaginaCambios(vacio);
-            this.cambiosProyectoVista = 'editor';
-          }
+        const ultimo = this.cambiosProyectoFilas.length - 1;
+        if (ultimo >= 0) {
+          this.cambiosProyectoActivo = ultimo;
+          this.ubicarPaginaCambios(ultimo);
         }
-        this.exitoCambiosProyecto = corrigiendo
-          ? 'Corrección registrada. La solicitud sigue en espera.'
-          : 'Solicitud enviada. Quedó en espera de revisión.';
+        this.cambiosProyectoVista = 'resumen';
+        this.avisosPopup.refrescar();
+        this.exitoCambiosProyecto = 'Cambio registrado. Quedó aceptado.';
       },
       error: (err) => {
         this.guardandoCambiosProyecto = false;
@@ -3527,20 +3555,28 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
   private prepararRevisionCambioDesdeQuery(params: { get(name: string): string | null }): void {
     const folio = (params.get('cambioFolio') || '').trim();
-    if (!folio) return;
+    const proyecto = (params.get('cambioProyecto') || '').trim();
+    if (!folio && !proyecto) return;
     const cambioId = Number(params.get('cambioId') || 0);
     const empresaId = Number(params.get('cambioEmpresaId') || 0);
-    this.folioQueryPendiente = folio;
+    this.folioQueryPendiente = folio || proyecto;
+    this.cambioModoQuery = params.get('cambioModo') === 'llenar' ? 'llenar' : 'resumen';
     this.cambioRevisionPendiente = {
       cambioId: Number.isInteger(cambioId) && cambioId > 0 ? cambioId : 0,
       empresaId: Number.isInteger(empresaId) && empresaId > 0 ? empresaId : 0
     };
     this.vistaActiva = 'gestion';
+    if (this.cambioRevisionPendiente.empresaId
+      && this.cambioRevisionPendiente.empresaId !== Number(this.empresaSeleccionadaId || 0)) {
+      this.empresaSeleccionadaId = this.cambioRevisionPendiente.empresaId;
+      this.cargarDashboard();
+    }
   }
 
   private abrirProyectoDesdeQuery(): void {
     const folio = this.normalizar(this.folioQueryPendiente);
     if (!folio || !this.gestionAgrupadaLista.length) return;
+    if (this.cambioModoQuery === 'llenar' && !this.pedidosListos) return;
     const empresa = this.normalizar(this.empresaQueryPendiente);
     const revision = this.cambioRevisionPendiente;
     const porFolio = this.gestionAgrupadaLista.filter((g) => this.normalizar(g.folio) === folio);
@@ -3557,12 +3593,12 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.cambioRevisionPendiente = null;
     if (!grupo) return;
     this.seleccionarProyectoGestion(grupo.clave);
-    if (revision) {
-      this.abrirCambiosProyecto(grupo, undefined, {
-        vista: 'resumen',
-        cambioId: revision.cambioId
-      });
-    }
+    const llenar = this.cambioModoQuery === 'llenar';
+    this.abrirCambiosProyecto(grupo, undefined, {
+      vista: llenar ? 'editor' : 'resumen',
+      cambioId: llenar ? 0 : revision?.cambioId
+    });
+    this.cambioModoQuery = 'resumen';
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: {
@@ -3571,6 +3607,8 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
         empresa: null,
         cambioFolio: null,
         cambioEmpresaId: null,
+        cambioProyecto: null,
+        cambioModo: null,
         cambioId: null
       },
       queryParamsHandling: 'merge',
@@ -3772,6 +3810,204 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   /** Control de cambios del proyecto: administradores, instructores y root. */
   get puedeUsarCambiosProyecto(): boolean {
     return this.auth.tieneAlgunRol(['root', 'administrador', 'instructor']);
+  }
+
+  get puedePedirCambioProyecto(): boolean {
+    const username = String(this.auth.getUsername() || '').toLowerCase().trim();
+    return this.esSuperAdministrador || username === 'marisol12' || username === 'root';
+  }
+
+  puedeAbrirCambiosGrupo(grupo: GrupoGestionProyecto | null | undefined): boolean {
+    if (!grupo) return false;
+    return !!this.pedidoPendienteDe(grupo) || this.puedeUsarCambiosProyecto;
+  }
+
+  pedidoPendienteDe(grupo: { empresaId?: number | null; folio?: string; nombreProyecto?: string } | null | undefined): PedidoCambioPendiente | null {
+    if (!grupo) return null;
+    const clave = this.claveGrupoGestion(grupo as ProyectoTableroItem);
+    return this.pedidosMios.find((pedido) => this.claveGrupoGestion({
+      empresaId: pedido.empresaId,
+      folio: pedido.folio,
+      nombreProyecto: pedido.nombreProyecto
+    } as ProyectoTableroItem) === clave) || null;
+  }
+
+  private enfocarBorradorPedido(): void {
+    if (!this.pedidoEnEdicion) return;
+    const vacio = this.cambiosProyectoFilas.findIndex((fila) => !fila.id);
+    if (vacio >= 0) {
+      this.cambiosProyectoActivo = vacio;
+      this.ubicarPaginaCambios(vacio);
+    }
+    this.cambiosProyectoVista = 'editor';
+  }
+
+  private cargarPedidosMios(alTerminar?: () => void): void {
+    this.backend.listarPedidosCambioMios()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          const lista = Array.isArray(res?.pedidos) ? res.pedidos : [];
+          this.pedidosMios = lista.map((pedido: any) => ({
+            id: Number(pedido?.id) || 0,
+            empresaId: pedido?.empresaId == null ? null : Number(pedido.empresaId),
+            folio: String(pedido?.folio || ''),
+            nombreProyecto: String(pedido?.nombreProyecto || ''),
+            nota: String(pedido?.nota || ''),
+            solicitadoPor: String(pedido?.solicitadoPor || '')
+          })).filter((pedido: PedidoCambioPendiente) => pedido.id > 0);
+          this.pedidosListos = true;
+          if (this.folioQueryPendiente && this.gestionAgrupadaLista.length) {
+            this.abrirProyectoDesdeQuery();
+          }
+          alTerminar?.();
+        },
+        error: () => {
+          this.pedidosListos = true;
+          if (this.folioQueryPendiente && this.gestionAgrupadaLista.length) {
+            this.abrirProyectoDesdeQuery();
+          }
+          alTerminar?.();
+        }
+      });
+  }
+
+  abrirPedidoCambio(): void {
+    if (!this.puedePedirCambioProyecto) return;
+    this.pedidoDialogoAbierto = true;
+    this.pedidoError = '';
+    this.pedidoNota = '';
+    this.pedidoProyectos = [];
+    this.pedidoProyectoIndice = -1;
+    this.pedidoEncargados = [];
+    this.pedidoDestinoIds = [];
+    this.pedidoEmpresaId = this.empresaSeleccionadaId;
+    if (this.pedidoEmpresaId) this.cargarProyectosPedido();
+  }
+
+  cerrarPedidoCambio(): void {
+    if (this.pedidoEnviando) return;
+    this.pedidoDialogoAbierto = false;
+  }
+
+  cambiarEmpresaPedido(valor: string): void {
+    const id = Number(valor);
+    this.pedidoEmpresaId = Number.isInteger(id) && id > 0 ? id : null;
+    this.pedidoProyectos = [];
+    this.pedidoProyectoIndice = -1;
+    this.pedidoEncargados = [];
+    this.pedidoDestinoIds = [];
+    this.pedidoError = '';
+    if (this.pedidoEmpresaId) this.cargarProyectosPedido();
+  }
+
+  private cargarProyectosPedido(): void {
+    if (!this.pedidoEmpresaId) return;
+    this.pedidoCargando = true;
+    this.pedidoError = '';
+    this.backend.listarProyectosPedidoCambio(this.pedidoEmpresaId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          this.pedidoCargando = false;
+          const lista = Array.isArray(res?.proyectos) ? res.proyectos : [];
+          this.pedidoProyectos = lista.map((proyecto: any) => ({
+            empresaId: proyecto?.empresaId == null ? null : Number(proyecto.empresaId),
+            folio: String(proyecto?.folio || ''),
+            nombreProyecto: String(proyecto?.nombreProyecto || '')
+          }));
+        },
+        error: (err) => {
+          this.pedidoCargando = false;
+          this.pedidoError = err?.error?.message || 'No se pudieron cargar los proyectos.';
+        }
+      });
+  }
+
+  cambiarProyectoPedido(valor: string): void {
+    const indice = Number(valor);
+    this.pedidoProyectoIndice = Number.isInteger(indice) && indice >= 0 ? indice : -1;
+    this.pedidoEncargados = [];
+    this.pedidoDestinoIds = [];
+    this.pedidoError = '';
+    const proyecto = this.pedidoProyectos[this.pedidoProyectoIndice];
+    if (!proyecto) return;
+    this.pedidoCargando = true;
+    this.backend.listarEncargadosPedidoCambio(proyecto)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          this.pedidoCargando = false;
+          const lista = Array.isArray(res?.encargados) ? res.encargados : [];
+          this.pedidoEncargados = lista.map((item: any) => ({
+            usuarioId: Number(item?.usuarioId) || 0,
+            username: String(item?.username || ''),
+            nombre: String(item?.nombre || '')
+          })).filter((item: EncargadoPedidoCambio) => item.usuarioId > 0);
+          this.pedidoDestinoIds = this.pedidoEncargados.length === 1
+            ? [this.pedidoEncargados[0].usuarioId]
+            : [];
+          if (res?.pedidoPendiente) {
+            this.pedidoError = 'Este proyecto ya tiene un pedido pendiente.';
+          }
+        },
+        error: (err) => {
+          this.pedidoCargando = false;
+          this.pedidoError = err?.error?.message || 'No se pudieron cargar los encargados.';
+        }
+      });
+  }
+
+  toggleDestinoPedido(usuarioId: number): void {
+    if (this.pedidoDestinoIds.includes(usuarioId)) {
+      this.pedidoDestinoIds = this.pedidoDestinoIds.filter((id) => id !== usuarioId);
+      return;
+    }
+    this.pedidoDestinoIds = [...this.pedidoDestinoIds, usuarioId];
+  }
+
+  get puedeEnviarPedido(): boolean {
+    return !!this.pedidoEmpresaId
+      && this.pedidoProyectoIndice >= 0
+      && this.pedidoEncargados.length > 0
+      && this.pedidoDestinoIds.length > 0
+      && !this.pedidoError
+      && !this.pedidoCargando
+      && !this.pedidoEnviando;
+  }
+
+  enviarPedidoCambio(): void {
+    const proyecto = this.pedidoProyectos[this.pedidoProyectoIndice];
+    if (!proyecto || !this.puedeEnviarPedido) return;
+    this.pedidoEnviando = true;
+    this.pedidoError = '';
+    this.backend.crearPedidoCambioControlProyecto({
+      empresaId: proyecto.empresaId,
+      folio: proyecto.folio,
+      nombreProyecto: proyecto.nombreProyecto,
+      nota: this.pedidoNota.trim(),
+      destinatarioIds: this.pedidoDestinoIds
+    }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res: any) => {
+        this.pedidoEnviando = false;
+        if (!res?.success) {
+          this.pedidoError = res?.message || 'No se pudo enviar el pedido.';
+          return;
+        }
+        this.pedidoDialogoAbierto = false;
+        this.avisosPopup.refrescar();
+        Swal.fire({
+          icon: 'success',
+          title: 'Pedido enviado',
+          text: 'El encargado ya puede registrar el formato.',
+          confirmButtonColor: '#2563eb'
+        });
+      },
+      error: (err) => {
+        this.pedidoEnviando = false;
+        this.pedidoError = err?.error?.message || 'No se pudo enviar el pedido.';
+      }
+    });
   }
 
   get totalGruposGestionSinFiltro(): number {

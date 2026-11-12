@@ -4593,6 +4593,58 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/control-proyectos/cambios/bandeja`);
     }
 
+    listarProyectosPedidoCambio(empresaId: number): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/control-proyectos/pedidos/proyectos?empresaId=${empresaId}`);
+    }
+
+    listarEncargadosPedidoCambio(meta: {
+        empresaId?: number | null;
+        folio?: string;
+        nombreProyecto?: string;
+    }): Observable<any> {
+        const params = new URLSearchParams();
+        if (meta?.empresaId) params.set('empresaId', String(meta.empresaId));
+        if (meta?.folio) params.set('folio', meta.folio);
+        if (meta?.nombreProyecto) params.set('nombreProyecto', meta.nombreProyecto);
+        const query = params.toString();
+        return this.httpClient.get(`${this.baseUrl}/control-proyectos/pedidos/encargados${query ? `?${query}` : ''}`);
+    }
+
+    crearPedidoCambioControlProyecto(body: {
+        empresaId?: number | null;
+        folio?: string;
+        nombreProyecto?: string;
+        nota?: string;
+        destinatarioIds?: number[];
+    }): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/control-proyectos/pedidos`, body || {});
+    }
+
+    listarPedidosCambioMios(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/control-proyectos/pedidos/mios`);
+    }
+
+    llenarPedidoCambioControlProyecto(body: {
+        empresaId?: number | null;
+        folio?: string;
+        nombreProyecto?: string;
+        cambios: Array<{
+            tipoRequisitos?: boolean;
+            tipoDiseno?: boolean;
+            tipoProduccion?: boolean;
+            descripcion?: string;
+            motivo?: string;
+            accionesFilas?: Array<{
+                descripcion?: string;
+                responsable?: string;
+                responsableUsuarioId?: number | null;
+                fechaCompromiso?: string;
+            }>;
+        }>;
+    }): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/control-proyectos/pedidos/llenar`, body);
+    }
+
     listarAvisosCambiosControlProyecto(modo: 'popup' | 'gestor' = 'popup'): Observable<any> {
         const qs = modo === 'gestor' ? '?modo=gestor' : '';
         return this.httpClient.get(`${this.baseUrl}/control-proyectos/cambios/avisos${qs}`);

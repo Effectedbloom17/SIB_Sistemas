@@ -208,14 +208,18 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
   }
 
   tituloAvisoCambio(aviso: { tipo?: string }): string {
+    if (aviso?.tipo === 'confirmacion') return 'El cambio ya quedó registrado';
     if (aviso?.tipo === 'respuesta') return 'Tu solicitud fue atendida';
+    if (aviso?.tipo === 'pedido') return 'Te solicitaron un cambio';
     if (aviso?.tipo === 'recordatorio_urgente') return 'La fecha de compromiso está cerca';
     if (aviso?.tipo === 'recordatorio') return 'Solicitud pendiente de revisión';
     return 'Hay una solicitud por revisar';
   }
 
   leadAvisoCambio(aviso: { tipo?: string }): string {
+    if (aviso?.tipo === 'confirmacion') return 'El encargado ya registró el cambio que pediste.';
     if (aviso?.tipo === 'respuesta') return 'Ya puedes consultar el estatus de tu petición.';
+    if (aviso?.tipo === 'pedido') return 'Llena el formato del proyecto para dejarlo registrado.';
     if (aviso?.tipo === 'recordatorio_urgente') return 'Sigue sin atenderse y la fecha está próxima.';
     if (aviso?.tipo === 'recordatorio') return 'Sigue en espera de autorización o rechazo.';
     return 'Revísala para autorizarla o rechazarla.';
@@ -237,7 +241,8 @@ export class AdminLayoutComponent implements OnInit, OnDestroy {
     return coincidencia?.[1]?.trim() || '';
   }
 
-  etiquetaResolutor(aviso: { estatus?: string }): string {
+  etiquetaResolutor(aviso: { estatus?: string; tipo?: string }): string {
+    if (aviso?.tipo === 'confirmacion') return 'Registró';
     if (aviso?.estatus === 'aprobado') return 'Aprobó';
     if (aviso?.estatus === 'no_aprobado') return 'No aprobó';
     return 'Respondió';

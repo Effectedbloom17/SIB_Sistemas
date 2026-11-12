@@ -27552,7 +27552,7 @@ app.post('/api/control-proyectos/proyectos/desactivar', denyEmpresa, requireDesa
     }
 });
 
-app.get('/api/control-proyectos/cambios', requireRole('administrador', 'instructor'), async (req, res) => {
+app.get('/api/control-proyectos/cambios', async (req, res) => {
     try {
         const filtro = filtroEmpresaIdControlProyectos(req, req.query.empresaId);
         if (filtro.error) {
@@ -27600,10 +27600,129 @@ app.post('/api/control-proyectos/cambios/guardar', requireRole('administrador', 
             cambios
         });
     } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 403) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo guardar el control de cambios del proyecto');
+    }
+});
+
+app.get('/api/control-proyectos/pedidos/proyectos', async (req, res) => {
+    try {
+        if (!controlProyectosCambiosService.usuarioPuedePedir(req.user)) {
+            return res.status(403).json({ success: false, message: 'Solo Marisol o root pueden solicitar un cambio.' });
+        }
+        const filtro = filtroEmpresaIdControlProyectos(req, req.query.empresaId);
+        if (filtro.error) {
+            return res.status(403).json({ success: false, message: filtro.error });
+        }
+        await poolBiznagaSgcReady;
+        const proyectos = await controlProyectosCambiosService.listarProyectosEmpresa(
+            poolBiznagaSgc,
+            filtro.empresaId
+        );
+        return res.json({ success: true, proyectos });
+    } catch (error) {
         if (error.statusCode === 400) {
             return res.status(400).json({ success: false, message: error.message });
         }
-        handleError(res, error, 'No se pudo guardar el control de cambios del proyecto');
+        handleError(res, error, 'No se pudieron cargar los proyectos');
+    }
+});
+
+app.get('/api/control-proyectos/pedidos/encargados', async (req, res) => {
+    try {
+        if (!controlProyectosCambiosService.usuarioPuedePedir(req.user)) {
+            return res.status(403).json({ success: false, message: 'Solo Marisol o root pueden solicitar un cambio.' });
+        }
+        const filtro = filtroEmpresaIdControlProyectos(req, req.query.empresaId);
+        if (filtro.error) {
+            return res.status(403).json({ success: false, message: filtro.error });
+        }
+        await poolBiznagaSgcReady;
+        await poolReady;
+        const resultado = await controlProyectosCambiosService.listarEncargados(poolBiznagaSgc, pool, {
+            empresaId: filtro.empresaId,
+            folio: req.query.folio,
+            nombreProyecto: req.query.nombreProyecto
+        });
+        return res.json({ success: true, ...resultado });
+    } catch (error) {
+        if (error.statusCode === 400) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudieron cargar los encargados del proyecto');
+    }
+});
+
+app.get('/api/control-proyectos/pedidos/mios', async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const pedidos = await controlProyectosCambiosService.listarPedidosMios(
+            poolBiznagaSgc,
+            Number(req.user?.id || req.user?.usuario_id || 0),
+            req.user?.username
+        );
+        return res.json({ success: true, pedidos });
+    } catch (error) {
+        handleError(res, error, 'No se pudieron cargar los pedidos de cambio');
+    }
+});
+
+app.post('/api/control-proyectos/pedidos', async (req, res) => {
+    try {
+        const filtro = filtroEmpresaIdControlProyectos(req, req.body?.empresaId);
+        if (filtro.error) {
+            return res.status(403).json({ success: false, message: filtro.error });
+        }
+        await poolBiznagaSgcReady;
+        await poolReady;
+        const pedido = await controlProyectosCambiosService.crearPedido(poolBiznagaSgc, {
+            user: req.user,
+            empresaId: filtro.empresaId,
+            folio: req.body?.folio,
+            nombreProyecto: req.body?.nombreProyecto,
+            nota: req.body?.nota,
+            destinatarioIds: req.body?.destinatarioIds,
+            usuarioNombre: obtenerNombreUsuarioAccion(req),
+            usuarioId: Number(req.user?.id || req.user?.usuario_id || 0),
+            fechaHora: obtenerFechaHoraMexicoMySQL(),
+            poolUsuarios: pool
+        });
+        return res.json({ success: true, message: 'Pedido de cambio enviado.', pedido });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 403 || error.statusCode === 409) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo enviar el pedido de cambio');
+    }
+});
+
+app.post('/api/control-proyectos/pedidos/llenar', async (req, res) => {
+    try {
+        const filtro = filtroEmpresaIdControlProyectos(req, req.body?.empresaId);
+        if (filtro.error) {
+            return res.status(403).json({ success: false, message: filtro.error });
+        }
+        await poolBiznagaSgcReady;
+        await poolReady;
+        const cambios = await controlProyectosCambiosService.llenarPedido(poolBiznagaSgc, {
+            empresaId: filtro.empresaId,
+            folio: req.body?.folio,
+            nombreProyecto: req.body?.nombreProyecto,
+            cambios: req.body?.cambios,
+            usuarioNombre: obtenerNombreUsuarioAccion(req),
+            usuarioId: Number(req.user?.id || req.user?.usuario_id || 0),
+            username: req.user?.username,
+            fechaHora: obtenerFechaHoraMexicoMySQL(),
+            poolUsuarios: pool
+        });
+        return res.json({ success: true, message: 'Cambio registrado.', cambios });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 403 || error.statusCode === 409) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo registrar el cambio');
     }
 });
 
@@ -27712,22 +27831,6 @@ app.post('/api/control-proyectos/cambios/resolver', async (req, res) => {
         handleError(res, error, 'No se pudo resolver la solicitud de cambio');
     }
 });
-
-function iniciarRecordatoriosCambiosProyecto() {
-    const ejecutar = async () => {
-        try {
-            await poolBiznagaSgcReady;
-            await poolReady;
-            await controlProyectosCambiosService.procesarRecordatorios(poolBiznagaSgc, pool);
-        } catch (error) {
-            console.warn('[cambios] No se pudieron preparar los recordatorios:', error.message);
-        }
-    };
-    setTimeout(ejecutar, 25 * 1000);
-    setInterval(ejecutar, 15 * 60 * 1000);
-}
-
-iniciarRecordatoriosCambiosProyecto();
 
 /** Soft-deleted: solo Super Administrador (root). */
 app.get('/api/control-proyectos/eliminados', requireRole('root'), async (req, res) => {

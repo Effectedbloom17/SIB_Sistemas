@@ -321,6 +321,19 @@ Ejemplo: **Cursos de hoy** + **Próximos cursos**.
 - Capítulos en **carrusel de 1 fila** (flechas y deslizan; el toque selecciona).
 - Documentos del capítulo en **2 por fila**.
 
+### 4.1u2 Plantilla AMEF (`/sistema-gestion-calidad/capitulo-6/plantilla/sgc-f-11`)
+
+- Una sola tabla (análisis y plan de acción) con **scroll horizontal**.
+- Títulos, columna **#** y **Modo de falla** fijos. Al desplazar, Etapa se oculta y Modo de falla queda pegado junto al número.
+
+### 4.1u3 Plantilla SGC-F-18 (`/sistema-gestion-calidad/capitulo-5/plantilla/sgc-f-18`)
+
+En tablet y teléfono (hasta 1199px). Escritorio no cambia.
+
+- Misma tabla de 8 columnas, con **scroll horizontal**.
+- Ancho mínimo por columna para que fechas (`2018-11-20`, `Última reforma`) y la pastilla de vigencia (`Vigente`, `En trámite`, `No vigente`) no se partan ni se recorten.
+- El texto largo salta de renglón en los espacios, no a mitad de palabra.
+
 ### 4.2 Directorio de empresas (`/mis-empresas`)
 
 - **Cuadrícula de cuadros:** foto grande arriba; debajo nombre y RFC.
