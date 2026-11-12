@@ -441,6 +441,25 @@
   }
 }
 
+.cp-solicitudes__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+@media (max-width: 767px) {
+  .cp-solicitudes__head-actions {
+    width: 100%;
+
+    .cp-btn,
+    .cp-solicitudes__refresh {
+      flex: 1;
+      justify-content: center;
+    }
+  }
+}
+
 .cp-solicitudes__refresh {
   display: inline-flex;
   align-items: center;
@@ -12926,5 +12945,139 @@ thead .cp-activities-table__sticky {
     background: #2563eb;
     border-color: #2563eb;
     color: #fff;
+  }
+}
+
+.cp-pedido-nota {
+  margin: 0.35rem 0 0;
+  color: #1e3a8a;
+  font-size: 0.92rem;
+  line-height: 1.35;
+
+  strong,
+  span {
+    display: block;
+  }
+
+  span {
+    margin-top: 0.2rem;
+    color: #334155;
+    white-space: pre-wrap;
+  }
+}
+
+.cp-pedido {
+  position: fixed;
+  z-index: 1090;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(32rem, calc(100vw - 1.5rem));
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.28);
+  display: flex;
+  flex-direction: column;
+
+  &__head,
+  &__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1rem 1.1rem;
+  }
+
+  &__head {
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  &__foot {
+    border-top: 1px solid #e2e8f0;
+    justify-content: flex-end;
+  }
+
+  &__eyebrow {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  h2 {
+    margin: 0.15rem 0 0;
+    font-size: 1.25rem;
+  }
+
+  &__body {
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  &__campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin: 0;
+    border: 0;
+    padding: 0;
+    min-width: 0;
+
+    span,
+    legend {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 0.55rem 0.7rem;
+      font: inherit;
+      background: #fff;
+    }
+
+    label {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-weight: 500;
+    }
+  }
+
+  &__aviso,
+  &__error {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+
+  &__error {
+    color: #b91c1c;
+  }
+}
+
+@media (max-width: 767px) {
+  .cp-pedido {
+    width: calc(100vw - 1rem);
+    top: auto;
+    bottom: 0.5rem;
+    transform: translate(-50%, 0);
+    max-height: calc(100vh - 1rem);
+
+    &__foot {
+      flex-wrap: nowrap;
+
+      .cp-cambios-btn {
+        flex: 1;
+      }
+    }
   }
 }

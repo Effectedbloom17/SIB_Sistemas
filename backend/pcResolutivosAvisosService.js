@@ -45,6 +45,12 @@ function textoPlano(valor, max = 255) {
     return texto.length <= max ? texto : `${texto.slice(0, Math.max(0, max - 1)).trim()}…`;
 }
 
+function textoMultilinea(valor, max = 4000) {
+    const texto = String(valor == null ? '' : valor).replace(/\r\n/g, '\n').trim();
+    if (!texto) return '';
+    return texto.length <= max ? texto : texto.slice(0, max).trim();
+}
+
 function normalizarUsername(valor) {
     return String(valor || '').trim().toLowerCase();
 }
@@ -122,6 +128,21 @@ async function asegurarTablas(poolPC) {
              ADD COLUMN silenciado TINYINT(1) NOT NULL DEFAULT 0 AFTER descartado`
         );
     }
+    await poolPC.query(`
+        CREATE TABLE IF NOT EXISTS pc_resolutivo_gestion (
+            gestion_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            resolutivo_id INT UNSIGNED NOT NULL,
+            empresa_id INT UNSIGNED NULL,
+            nombre_empresa VARCHAR(255) NOT NULL DEFAULT '',
+            nombre_asignacion VARCHAR(255) NOT NULL DEFAULT '',
+            acciones TEXT NOT NULL,
+            username VARCHAR(80) NOT NULL,
+            gestionado_en DATETIME NOT NULL,
+            PRIMARY KEY (gestion_id),
+            UNIQUE KEY uk_pc_gestion_resolutivo (resolutivo_id),
+            INDEX idx_pc_gestion_empresa (empresa_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 }
 
 async function mapUsernamesPorId(poolUsuarios, ids) {
@@ -203,6 +224,7 @@ async function listarResolutivosElegibles(poolPC, poolUsuarios) {
         poolUsuarios,
         registros.map((r) => r.responsable_usuario_id)
     );
+    const gestionados = await idsResolutivosGestionados(poolPC);
     return (registros || []).map((row) => {
         const diasRestantes = diasRestantesDeRegistro(row);
         const responsableUsername = usernames.get(Number(row.responsable_usuario_id || 0)) || '';
@@ -223,7 +245,110 @@ async function listarResolutivosElegibles(poolPC, poolUsuarios) {
         // Solo "Próximo a vencer" dentro de 40–21 / 20–1 (excluye vencidos).
         && item.estatus === 'Próximo a vencer'
         && enVentanaNotificacion(item.diasRestantes)
+        && !gestionados.has(item.resolutivoId)
     );
+}
+
+async function idsResolutivosGestionados(poolPC) {
+    await asegurarTablas(poolPC);
+    const [rows] = await poolPC.query(`SELECT resolutivo_id FROM pc_resolutivo_gestion`);
+    return new Set((rows || []).map((row) => Number(row.resolutivo_id)));
+}
+
+async function registrarGestionResolutivo(poolPC, datos) {
+    await asegurarTablas(poolPC);
+    const resolutivoId = Number(datos.resolutivoId);
+    const acciones = textoMultilinea(datos.acciones, 4000);
+    const user = normalizarUsername(datos.username);
+    if (!Number.isInteger(resolutivoId) || resolutivoId <= 0) {
+        const error = new Error('Resolutivo no válido');
+        error.statusCode = 400;
+        throw error;
+    }
+    if (!acciones) {
+        const error = new Error('Escribe las acciones realizadas');
+        error.statusCode = 400;
+        throw error;
+    }
+    const ahora = fechaHoraMexico();
+    await poolPC.query(
+        `INSERT INTO pc_resolutivo_gestion
+            (resolutivo_id, empresa_id, nombre_empresa, nombre_asignacion, acciones, username, gestionado_en)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+            empresa_id = VALUES(empresa_id),
+            nombre_empresa = VALUES(nombre_empresa),
+            nombre_asignacion = VALUES(nombre_asignacion),
+            acciones = VALUES(acciones),
+            username = VALUES(username),
+            gestionado_en = VALUES(gestionado_en)`,
+        [
+            resolutivoId,
+            datos.empresaId == null ? null : Number(datos.empresaId) || null,
+            textoPlano(datos.nombreEmpresa, 255),
+            textoPlano(datos.nombreAsignacion, 255),
+            acciones,
+            user,
+            ahora
+        ]
+    );
+    await poolPC.query(
+        `UPDATE pc_resolutivo_aviso SET descartado = 1 WHERE resolutivo_id = ? AND descartado = 0`,
+        [resolutivoId]
+    );
+    return { resolutivoId, acciones };
+}
+
+async function mapNombresPorUsername(poolUsuarios, usernames) {
+    const mapa = new Map();
+    const unicos = [...new Set((usernames || []).map((valor) => normalizarUsername(valor)).filter(Boolean))];
+    if (!poolUsuarios?.query || !unicos.length) return mapa;
+    const placeholders = unicos.map(() => '?').join(', ');
+    const [rows] = await poolUsuarios.query(
+        `SELECT username, nombre, apellido
+         FROM usuario
+         WHERE LOWER(username) IN (${placeholders})`,
+        unicos
+    );
+    for (const row of rows || []) {
+        const username = normalizarUsername(row.username);
+        const nombre = [row.nombre, row.apellido]
+            .map((parte) => String(parte || '').trim())
+            .filter(Boolean)
+            .join(' ');
+        if (username && nombre) mapa.set(username, nombre);
+    }
+    return mapa;
+}
+
+async function listarSeguimientosEmpresa(poolPC, empresaId, poolUsuarios) {
+    await asegurarTablas(poolPC);
+    const id = Number(empresaId);
+    if (!Number.isInteger(id) || id <= 0) return [];
+    const [rows] = await poolPC.query(
+        `SELECT resolutivo_id, nombre_empresa, nombre_asignacion, acciones, username,
+                DATE_FORMAT(gestionado_en, '%Y-%m-%d %H:%i') AS gestionado_en
+         FROM pc_resolutivo_gestion
+         WHERE empresa_id = ?
+         ORDER BY gestionado_en DESC, gestion_id DESC`,
+        [id]
+    );
+    const nombres = await mapNombresPorUsername(
+        poolUsuarios,
+        (rows || []).map((row) => row.username)
+    );
+    return (rows || []).map((row) => {
+        const username = row.username || '';
+        return {
+            resolutivoId: Number(row.resolutivo_id),
+            nombreEmpresa: row.nombre_empresa || '',
+            nombreAsignacion: row.nombre_asignacion || 'PIPC',
+            acciones: row.acciones || '',
+            username,
+            nombreUsuario: nombres.get(normalizarUsername(username)) || '',
+            gestionadoEn: row.gestionado_en || ''
+        };
+    });
 }
 
 function mensajeVentanaDiaria(item) {
@@ -677,6 +802,12 @@ async function listarAvisos(poolPC, poolUsuarios, username, opciones = {}) {
         poolUsuarios,
         (rows || []).map((row) => row.empresa_id)
     );
+    let gestionados = new Set();
+    try {
+        gestionados = await idsResolutivosGestionados(poolPC);
+    } catch (_error) {
+        gestionados = new Set();
+    }
 
     const avisos = [];
     const staleIds = [];
@@ -691,7 +822,7 @@ async function listarAvisos(poolPC, poolUsuarios, username, opciones = {}) {
         const fueraDeVentana = vigentesIds
             ? (!vigentesIds.has(resolutivoId) || !enVentanaNotificacion(diasActuales))
             : (diasActuales != null && !enVentanaNotificacion(diasActuales));
-        if (fueraDeVentana) {
+        if (fueraDeVentana || gestionados.has(resolutivoId)) {
             staleIds.push(Number(row.aviso_id));
             continue;
         }
@@ -803,6 +934,8 @@ module.exports = {
     reactivarSilenciados,
     reenviarAvisosPendientes,
     asegurarAvisosActivosUsuario,
+    registrarGestionResolutivo,
+    listarSeguimientosEmpresa,
     descartarAviso,
     descartarTodosAvisos,
     procesarVentanaDiaria,

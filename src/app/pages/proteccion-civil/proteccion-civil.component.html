@@ -1,21 +1,21 @@
-﻿<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden" *ngIf="!embebido">
+<div class="header header-bg-image pc-activos-hero pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden" *ngIf="!embebido">
 
   <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
     <div class="row w-100 text-center">
       <div class="col-12">
         <div class="d-flex flex-column align-items-center justify-content-center">
-          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2 pc-activos-hero__icon"
                style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
             <i class="fas fa-shield-alt"></i>
           </div>
-          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">PIPC Activos</h1>
+          <h1 class="text-white mb-0 pc-activos-hero__title" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">PIPC Activos</h1>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="container-fluid" [class.mt--5]="!embebido" [class.pc-embebido]="embebido" style="position: relative; z-index: 10; margin-bottom: 3rem;">
+<div class="container-fluid pc-activos-main" [class.mt--5]="!embebido" [class.pc-embebido]="embebido" style="position: relative; z-index: 10; margin-bottom: 3rem;">
   <div class="row justify-content-center">
     <div class="col-xl-11">
 
@@ -675,7 +675,8 @@
                             [colors]="resolutivosChartOptions.colors"
                             [plotOptions]="resolutivosChartOptions.plotOptions"
                             [legend]="resolutivosChartOptions.legend"
-                            [markers]="resolutivosChartOptions.markers">
+                            [markers]="resolutivosChartOptions.markers"
+                            [responsive]="resolutivosChartOptions.responsive">
                           </apx-chart>
                         </div>
                         <div *ngIf="!cargandoResolutivosEstadisticas && resolutivosEstatusResumen.total === 0" class="pc-analytics-empty py-5 text-center">
@@ -820,13 +821,31 @@
                         </div>
                       </div>
 
-                      <div class="pc-resolutivo-list" *ngIf="resolutivosAtencionFiltrados.length; else sinAtencionFiltrada">
-                        <ng-container *ngFor="let r of resolutivosAtencionVisibles; let i = index; trackBy: trackByResolutivoAtencion">
-                          <div class="pc-resolutivo-row"
-                               *ngIf="indicadorTiempoAtencion(r) as ind"
-                               [ngClass]="ind.clase"
-                               [style.--row-accent]="colorEstatusAtencion(r.estatus)"
-                               [style.--row-delay]="(i * 0.05) + 's'">
+                      <div class="pc-resolutivo-stage"
+                           *ngIf="resolutivosAtencionFiltrados.length; else sinAtencionFiltrada"
+                           (touchstart)="onResolutivoTouchStart($event)"
+                           (touchend)="onResolutivoTouchEnd($event)">
+                        <button type="button"
+                                class="pc-resolutivo-flecha pc-resolutivo-flecha--prev"
+                                *ngIf="totalPaginasResolutivos > 1"
+                                (click)="onFlechaResolutivo(-1)"
+                                aria-label="Página anterior"></button>
+                        <button type="button"
+                                class="pc-resolutivo-flecha pc-resolutivo-flecha--next"
+                                *ngIf="totalPaginasResolutivos > 1"
+                                (click)="onFlechaResolutivo(1)"
+                                aria-label="Página siguiente"></button>
+                        <div class="pc-resolutivo-viewport">
+                          <div class="pc-resolutivo-pagina"
+                               *ngFor="let marca of marcasPaginaResolutivo; trackBy: trackMarcaPaginaResolutivo"
+                               [class.pc-resolutivo-pagina--siguiente]="direccionPaginaResolutivos === 1"
+                               [class.pc-resolutivo-pagina--anterior]="direccionPaginaResolutivos === -1">
+                            <ng-container *ngFor="let r of resolutivosAtencionPagina; let i = index; trackBy: trackByResolutivoAtencion">
+                              <div class="pc-resolutivo-row"
+                                   *ngIf="indicadorTiempoAtencion(r) as ind"
+                                   [ngClass]="ind.clase"
+                                   [style.--row-accent]="colorEstatusAtencion(r.estatus)"
+                                   [style.--row-delay]="(i * 0.04) + 's'">
                             <div class="pc-resolutivo-row__main">
                               <div class="pc-resolutivo-row__body">
                                 <div class="pc-resolutivo-row__head">
@@ -873,13 +892,15 @@
                                    aria-hidden="true"></i>
                               </div>
                             </div>
+                              </div>
+                            </ng-container>
                           </div>
-                        </ng-container>
+                        </div>
+                        <p class="pc-resolutivo-stage__cuenta"
+                           *ngIf="totalPaginasResolutivos > 1">
+                          {{ posicionResolutivoAtencion }} / {{ totalPaginasResolutivos }}
+                        </p>
                       </div>
-                      <p class="pc-resumen-atencion-corte text-muted small mb-0 mt-2"
-                         *ngIf="embebido && resolutivosAtencionFiltrados.length > resolutivosAtencionVisibles.length">
-                        Mostrando {{ resolutivosAtencionVisibles.length }} de {{ resolutivosAtencionFiltrados.length }}
-                      </p>
                       <ng-template #sinAtencionFiltrada>
                         <div class="pc-analytics-empty py-4 text-center">
                           <i class="fas fa-filter fa-lg mb-2" style="color: #d97248; opacity: 0.5;"></i>
@@ -1436,12 +1457,21 @@
                 </div>
               </div>
             </div>
-            <button type="button"
-                    class="btn btn-sm bg-white border-0 pc-ops-timeline-back-btn"
-                    (click)="volverAEmpresas()"
-                    aria-label="Volver a empresas">
-              <i class="fas fa-arrow-left mr-1"></i>Volver
-            </button>
+            <div class="pc-ops-timeline-actions">
+              <div class="pc-ops-timeline-vigencia" *ngIf="opsInicioPipc">
+                <span class="pc-ops-timeline-vigencia__fecha">
+                  <small>Inicio</small>
+                  {{ textoFechaInicioPipc() }}
+                </span>
+                <span class="pc-ops-timeline-vigencia__dias">{{ textoDiasActivoPipc() }}</span>
+              </div>
+              <button type="button"
+                      class="btn btn-sm bg-white border-0 pc-ops-timeline-back-btn"
+                      (click)="volverAEmpresas()"
+                      aria-label="Volver a empresas">
+                <i class="fas fa-arrow-left mr-1"></i>Volver
+              </button>
+            </div>
           </div>
         </div>
 

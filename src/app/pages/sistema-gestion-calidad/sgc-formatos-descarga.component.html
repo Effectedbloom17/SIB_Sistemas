@@ -90,7 +90,14 @@
               <span class="sgc-cap-nav__label">Capítulos</span>
               <span class="sgc-cap-nav__count">{{ categorias.length }}</span>
             </div>
-            <nav class="sgc-cap-nav__list" role="tablist" aria-orientation="vertical">
+            <div class="sgc-cap-nav__carousel">
+              <button type="button"
+                      class="sgc-cap-nav__edge sgc-cap-nav__edge--prev"
+                      (click)="desplazarCapitulos(-1, $event)"
+                      aria-label="Capítulos anteriores">
+                <i class="fas fa-chevron-left" aria-hidden="true"></i>
+              </button>
+              <nav #capitulosTrack class="sgc-cap-nav__list" role="tablist" aria-orientation="horizontal" aria-label="Lista de capítulos">
               <button *ngFor="let cat of categorias; trackBy: trackByCategoria"
                       type="button"
                       class="sgc-cap-nav__item"
@@ -112,7 +119,14 @@
                   </span>
                 </span>
               </button>
-            </nav>
+              </nav>
+              <button type="button"
+                      class="sgc-cap-nav__edge sgc-cap-nav__edge--next"
+                      (click)="desplazarCapitulos(1, $event)"
+                      aria-label="Capítulos siguientes">
+                <i class="fas fa-chevron-right" aria-hidden="true"></i>
+              </button>
+            </div>
           </aside>
 
           <div class="sgc-cap-content" aria-live="polite">

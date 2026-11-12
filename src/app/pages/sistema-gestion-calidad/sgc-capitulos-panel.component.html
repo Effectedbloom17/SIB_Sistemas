@@ -36,27 +36,45 @@
         <span class="sgc-cap-nav__label">Capítulos</span>
         <span class="sgc-cap-nav__count">{{ capitulos.length }}</span>
       </div>
-      <nav class="sgc-cap-nav__list" role="tablist" aria-orientation="vertical">
-        <button *ngFor="let c of capitulos; trackBy: trackByCapitulo"
-                type="button"
-                class="sgc-cap-nav__item"
-                role="tab"
-                [class.sgc-cap-nav__item--active]="esCapituloActivo(c)"
-                [attr.aria-selected]="esCapituloActivo(c)"
-                (click)="seleccionarCapitulo(c)">
-          <span class="sgc-cap-nav__rail" aria-hidden="true"></span>
-          <span class="sgc-cap-nav__icon" aria-hidden="true">
-            <i [class]="c.iconClass"></i>
-          </span>
-          <span class="sgc-cap-nav__text">
-            <span class="sgc-cap-nav__num">Cap. {{ c.numero }}</span>
-            <span class="sgc-cap-nav__title">{{ c.titulo }}</span>
-            <span class="sgc-cap-nav__meta">
-              {{ c.totalFormatos === 0 ? 'En preparación' : c.totalFormatos + ' formato' + (c.totalFormatos !== 1 ? 's' : '') }}
-            </span>
-          </span>
+      <div class="sgc-cap-nav__carousel">
+        <button type="button"
+                class="sgc-cap-nav__edge sgc-cap-nav__edge--prev"
+                (click)="desplazarCapitulos(-1, $event)"
+                aria-label="Capítulo anterior">
+          <i class="fas fa-chevron-left" aria-hidden="true"></i>
         </button>
-      </nav>
+        <nav #capitulosTrack
+             class="sgc-cap-nav__list"
+             role="tablist"
+             aria-orientation="horizontal"
+             aria-label="Lista de capítulos">
+          <button *ngFor="let c of capitulos; trackBy: trackByCapitulo"
+                  type="button"
+                  class="sgc-cap-nav__item"
+                  role="tab"
+                  [class.sgc-cap-nav__item--active]="esCapituloActivo(c)"
+                  [attr.aria-selected]="esCapituloActivo(c)"
+                  (click)="seleccionarCapitulo(c)">
+            <span class="sgc-cap-nav__rail" aria-hidden="true"></span>
+            <span class="sgc-cap-nav__icon" aria-hidden="true">
+              <i [class]="c.iconClass"></i>
+            </span>
+            <span class="sgc-cap-nav__text">
+              <span class="sgc-cap-nav__num">Cap. {{ c.numero }}</span>
+              <span class="sgc-cap-nav__title">{{ c.titulo }}</span>
+              <span class="sgc-cap-nav__meta">
+                {{ c.totalFormatos === 0 ? 'En preparación' : c.totalFormatos + ' formato' + (c.totalFormatos !== 1 ? 's' : '') }}
+              </span>
+            </span>
+          </button>
+        </nav>
+        <button type="button"
+                class="sgc-cap-nav__edge sgc-cap-nav__edge--next"
+                (click)="desplazarCapitulos(1, $event)"
+                aria-label="Capítulo siguiente">
+          <i class="fas fa-chevron-right" aria-hidden="true"></i>
+        </button>
+      </div>
     </aside>
 
     <div class="sgc-cap-content" aria-live="polite">

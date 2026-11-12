@@ -80,6 +80,8 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
   ];
 
   modoVisual: 'normal' | 'compacto' = 'normal';
+  /** En móvil Compacto no aplica: se fuerza Normal y se oculta el toggle. */
+  esVistaMovil = false;
   vista: 'lista' | 'detalle' = 'lista';
   cargando = false;
   cargandoCiclos = false;
@@ -88,6 +90,15 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
   empresas: EmpresaHistorialPc[] = [];
   empresasFiltradas: EmpresaHistorialPc[] = [];
   empresaSeleccionada: EmpresaHistorialPc | null = null;
+  seguimientoAbierto = false;
+  seguimientosPipc: Array<{
+    resolutivoId: number;
+    nombreAsignacion: string;
+    acciones: string;
+    username: string;
+    nombreUsuario: string;
+    gestionadoEn: string;
+  }> = [];
   textoBusquedaEmpresa = '';
   estadoSeleccionado = '';
   municipioSeleccionado = '';
@@ -147,6 +158,7 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    this.actualizarVistaMovil();
     this.routeSub = this.route.queryParamMap.subscribe((params) => {
       const empresaId = Number(params.get('empresaId') || 0) || null;
       const operacionId = Number(params.get('operacionId') || 0) || null;
@@ -160,6 +172,19 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     });
   }
 
+  @HostListener('window:resize')
+  onVentanaResize(): void {
+    this.actualizarVistaMovil();
+  }
+
+  private actualizarVistaMovil(): void {
+    const movil = typeof window !== 'undefined' && window.innerWidth <= 767;
+    this.esVistaMovil = movil;
+    if (movil && this.modoVisual === 'compacto') {
+      this.modoVisual = 'normal';
+    }
+  }
+
   ngOnDestroy(): void {
     this.visorSeq += 1;
     this.visorSub?.unsubscribe();
@@ -170,9 +195,53 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
+    if (this.seguimientoAbierto) {
+      this.seguimientoAbierto = false;
+      return;
+    }
     if (this.mostrarVisor) {
       this.cerrarVisor();
     }
+  }
+
+  @HostListener('document:click', ['$event'])
+  cerrarSeguimientoSiClicFuera(event: MouseEvent): void {
+    if (!this.seguimientoAbierto) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('.pc-hist-seguimiento')) return;
+    this.seguimientoAbierto = false;
+  }
+
+  alternarSeguimiento(event: Event): void {
+    event.stopPropagation();
+    this.seguimientoAbierto = !this.seguimientoAbierto;
+  }
+
+  textoFechaSeguimiento(valor: string): string {
+    const texto = String(valor || '').trim();
+    if (!texto) return '';
+    const fecha = new Date(texto.replace(' ', 'T'));
+    if (Number.isNaN(fecha.getTime())) return texto;
+    return fecha.toLocaleString('es-MX', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  private cargarSeguimientosPipc(empresaId: number): void {
+    this.seguimientoAbierto = false;
+    this.seguimientosPipc = [];
+    this.backendService.listarSeguimientosResolutivosPipc(empresaId).subscribe({
+      next: (resp: any) => {
+        this.seguimientosPipc = Array.isArray(resp?.seguimientos) ? resp.seguimientos : [];
+      },
+      error: () => {
+        this.seguimientosPipc = [];
+      }
+    });
   }
 
   get empresasPageSizeActual(): number {
@@ -411,6 +480,16 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     this.anoSeleccionado = 0;
     this.mesSeleccionado = 0;
     this.cargarCiclos();
+    this.enfocarPanelCiclosEnMovil();
+  }
+
+  private enfocarPanelCiclosEnMovil(): void {
+    if (!this.esVistaMovil || typeof document === 'undefined') {
+      return;
+    }
+    setTimeout(() => {
+      document.querySelector('.courses-pane')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
   }
 
   limpiarSeleccionEmpresa(): void {
@@ -463,6 +542,7 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     this.filtroTexto = '';
     this.seccionFiltro = 'todos';
     this.cargandoDetalle = true;
+    this.cargarSeguimientosPipc(this.empresaSeleccionada.empresa_id);
     this.backendService.obtenerDetalleCicloHistorialPC(
       this.empresaSeleccionada.empresa_id,
       ciclo.operacion_id
@@ -486,6 +566,8 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     this.vista = 'lista';
     this.cicloSeleccionado = null;
     this.items = [];
+    this.seguimientoAbierto = false;
+    this.seguimientosPipc = [];
     this.cerrarVisor();
   }
 
@@ -507,6 +589,9 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
   }
 
   cambiarModoVisual(modo: 'normal' | 'compacto'): void {
+    if (this.esVistaMovil) {
+      modo = 'normal';
+    }
     this.modoVisual = modo;
   }
 

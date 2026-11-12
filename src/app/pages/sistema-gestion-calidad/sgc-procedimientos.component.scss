@@ -1139,7 +1139,170 @@ $pdf-red-dark: #b91c1c;
   }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
+  :host .header.header-bg-image.sgc-hero {
+    min-height: 228px;
+    align-items: flex-start !important;
+    padding-top: 4.7rem !important;
+    padding-bottom: 5.1rem !important;
+    background-position: center 38%;
+
+    .sgc-hero-icon {
+      margin-bottom: 0.55rem !important;
+      width: 2.7rem;
+      height: 2.7rem;
+      font-size: 1.15rem;
+    }
+
+    .sgc-hero-tagline {
+      margin-bottom: 0.2rem !important;
+      font-size: 0.68rem;
+    }
+
+    .sgc-hero-title {
+      font-size: 1.45rem;
+      line-height: 1.2;
+      padding: 0 0.75rem;
+    }
+  }
+
+  .sgc-main-wrap {
+    margin-top: -1.75rem !important;
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+
+  .sgc-proc-panel__header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.7rem;
+    padding: 0.9rem 0.8rem 0.8rem;
+  }
+
+  .sgc-proc-panel__lead {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .sgc-proc-panel__tools {
+    flex: 0 0 auto;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0.55rem;
+  }
+
+  .sgc-proc-btn-upload {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .sgc-proc-panel__search {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: none;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+
+    input {
+      height: 2.45rem;
+    }
+  }
+
+  .sgc-proc-workspace {
+    min-height: 0;
+  }
+
+  .sgc-proc-nav {
+    padding: 0.65rem 0.55rem 0.75rem;
+  }
+
+  .sgc-proc-nav__list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .sgc-proc-nav__item {
+    min-width: 0;
+    padding: 0.5rem 0.4rem 0.5rem 0.5rem;
+    align-items: flex-start;
+  }
+
+  .sgc-proc-nav__icon {
+    width: 1.7rem;
+    height: 1.7rem;
+    font-size: 0.75rem;
+  }
+
+  .sgc-proc-nav__title {
+    font-size: 0.74rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .sgc-proc-content {
+    padding: 0.75rem 0.65rem 0.9rem;
+  }
+
+  .sgc-proc-content__banner {
+    margin-bottom: 0.7rem;
+    padding: 0.7rem 0.75rem;
+  }
+
+  .sgc-proc-content__desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .sgc-proc-docs {
+    padding: 0.75rem;
+  }
+
+  .sgc-proc-docs__head {
+    align-items: center;
+    margin-bottom: 0.65rem;
+  }
+
+  .sgc-proc-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .sgc-proc-card {
+    animation: sgc-proc-card-in 0.32s ease both;
+
+    @for $i from 1 through 8 {
+      &:nth-child(#{$i}) {
+        animation-delay: #{($i - 1) * 0.04}s;
+      }
+    }
+  }
+
+  .sgc-proc-card__frame {
+    inset: 0.35rem 0.35rem 0.2rem;
+  }
+
+  .sgc-proc-card__body {
+    padding: 0.45rem 0.5rem 0.5rem;
+  }
+
+  .sgc-proc-card__name {
+    font-size: 0.74rem;
+  }
+
+  .sgc-proc-card__footer {
+    margin-top: 0.35rem;
+  }
+
   .sgc-proc-visor {
     padding: 0;
   }
@@ -1150,20 +1313,53 @@ $pdf-red-dark: #b91c1c;
     border-radius: 0;
   }
 
-  .sgc-proc-visor__subtitle {
-    max-width: 14rem;
-  }
-
-  .sgc-proc-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .sgc-proc-panel__tools {
-    flex-direction: column;
+  .sgc-proc-visor__head {
     align-items: stretch;
+    gap: 0.55rem;
+    padding: 0.7rem 0.75rem;
+  }
 
-    .sgc-proc-panel__search {
-      max-width: none;
+  .sgc-proc-visor__subtitle {
+    max-width: 100%;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .sgc-proc-visor__actions {
+    width: 100%;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+  }
+
+  .sgc-proc-visor__btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+    font-size: 0.68rem;
+    white-space: normal;
+    line-height: 1.15;
+  }
+
+  .sgc-proc-modal__foot {
+    flex-wrap: nowrap;
+
+    .btn {
+      flex: 1 1 0;
     }
+  }
+}
+
+@keyframes sgc-proc-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

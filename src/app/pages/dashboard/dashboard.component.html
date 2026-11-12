@@ -1,21 +1,20 @@
 <!-- ============================================================ -->
 <!-- HEADER -->
 <!-- ============================================================ -->
-<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden"
+<div class="header header-bg-image dash-hero pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden"
      [class.flex-column]="mostrarCarrusel"
      [class.dash-carrusel-header]="mostrarCarrusel">
   <div class="container-fluid w-100 d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
     <div class="row w-100 text-center">
       <div class="col-12">
         <div class="d-flex flex-column align-items-center">
-          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
-            style="background: rgba(255,255,255,0.15); font-size: 1.8rem;">
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2 dash-hero-mark">
             <i class="fas fa-chart-line"></i>
           </div>
-          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.5px;">
+          <h1 class="text-white mb-0 dash-hero-title">
             Panel de Control
           </h1>
-          <p class="text-white mt-1 mb-0" style="opacity: 0.7; font-size: 0.9rem;" *ngIf="vistaPanel === 'panel' && !cargando">
+          <p class="text-white mt-1 mb-0 dash-hero-sub" *ngIf="vistaPanel === 'panel' && !cargando">
             Última actualización: ahora
             &nbsp;·&nbsp; {{ dashboardFiltros.anio }}
           </p>
@@ -59,10 +58,9 @@
   <ng-container #vistaHost></ng-container>
 </div>
 
-<div class="container-fluid" *ngIf="vistaPanel === 'panel'"
+<div class="container-fluid dash-panel" *ngIf="vistaPanel === 'panel'"
      [class.mt--5]="!mostrarCarrusel"
-     [class.dash-body]="mostrarCarrusel"
-     style="position: relative; z-index: 10; margin-bottom: 3rem; overflow-x: hidden;">
+     [class.dash-body]="mostrarCarrusel">
   <div class="row justify-content-center">
     <div class="col-xl-11">
 
@@ -264,7 +262,8 @@
             <div class="analytics-card-body px-3 pb-3">
               <div *ngIf="cargando" class="loading-shimmer chart-skeleton chart-skeleton--agenda"></div>
 
-              <div *ngIf="!cargando && cursosHoy.length > 0; else sinCursoHoy" class="agenda-today-list">
+              <div *ngIf="!cargando && cursosHoy.length > 0; else sinCursoHoy">
+              <div class="agenda-today-list agenda-today-list--desk">
                 <div *ngFor="let curso of cursosHoy" class="agenda-today-card agenda-today-card--compact">
                   <div class="agenda-today-card__top">
                     <h4 class="agenda-today-title mb-0">{{ curso.nombre_curso }}</h4>
@@ -297,6 +296,17 @@
                   </div>
                 </div>
               </div>
+              <div class="agenda-hit-list">
+                <button type="button" class="agenda-hit" *ngFor="let curso of cursosHoy" (click)="abrirCurso(curso)">
+                  <span class="agenda-hit__empresa">{{ curso.nombre_curso }}</span>
+                  <span class="agenda-hit__hora">
+                    <i class="fas fa-clock"></i>
+                    {{ formatearRangoHorario(curso.hora_inicio, curso.hora_fin) }}
+                  </span>
+                  <i class="fas fa-chevron-right agenda-hit__go"></i>
+                </button>
+              </div>
+              </div>
 
               <ng-template #sinCursoHoy>
                 <div *ngIf="!cargando" class="dash-empty dash-empty--small">
@@ -320,6 +330,17 @@
           <div class="analytics-card-body px-0 pb-0">
             <div *ngIf="cargando" class="px-3 pb-3">
               <div class="loading-shimmer chart-skeleton chart-skeleton--table"></div>
+            </div>
+
+            <div *ngIf="!cargando && proximosCursosProgramados.length > 0" class="agenda-mobile-list">
+              <button type="button" class="agenda-hit" *ngFor="let curso of proximosCursosProgramados" (click)="abrirCurso(curso)">
+                <span class="agenda-hit__empresa">{{ curso.nombre_curso }}</span>
+                <span class="agenda-hit__hora">
+                  <i class="fas fa-clock"></i>
+                  {{ formatearRangoHorario(curso.hora_inicio, curso.hora_fin) }}
+                </span>
+                <i class="fas fa-chevron-right agenda-hit__go"></i>
+              </button>
             </div>
 
             <div *ngIf="!cargando && proximosCursosProgramados.length > 0" class="agenda-table-wrap">
@@ -428,6 +449,62 @@
         </div>
       </div>
 
+    </div>
+  </div>
+</div>
+
+<div class="dash-modal" *ngIf="cursoDetalle" (click)="cerrarCurso()">
+  <div class="dash-modal__panel" role="dialog" aria-modal="true" aria-labelledby="dash-curso-titulo" (click)="$event.stopPropagation()">
+    <div class="dash-modal__head">
+      <div>
+        <span class="section-label">Detalle del curso</span>
+        <h3 id="dash-curso-titulo" class="dash-modal__title">{{ cursoDetalle.nombre_curso }}</h3>
+      </div>
+      <button type="button" class="dash-modal__close" (click)="cerrarCurso()" aria-label="Cerrar">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <ul class="dash-modal__facts">
+      <li>
+        <i class="fas fa-building"></i>
+        <span>{{ cursoDetalle.nombre_empresa }}</span>
+      </li>
+      <li>
+        <i class="fas fa-user-tie"></i>
+        <span>{{ cursoDetalle.instructor }}</span>
+      </li>
+      <li>
+        <i class="far fa-calendar-alt"></i>
+        <span>
+          {{ formatearFechaCurso(cursoDetalle.fecha_inicio) }}
+          <ng-container *ngIf="cursoDetalle.fecha_fin && cursoDetalle.fecha_fin !== cursoDetalle.fecha_inicio">
+            – {{ formatearFechaCurso(cursoDetalle.fecha_fin) }}
+          </ng-container>
+        </span>
+      </li>
+      <li>
+        <i class="far fa-clock"></i>
+        <span>{{ formatearRangoHorario(cursoDetalle.hora_inicio, cursoDetalle.hora_fin) }}</span>
+      </li>
+      <li>
+        <i class="fas fa-users"></i>
+        <span>{{ cursoDetalle.participantes_cargados }}/{{ cursoDetalle.cupo }} participantes</span>
+      </li>
+      <li>
+        <i class="far fa-calendar-check"></i>
+        <span>{{ etiquetaDiasFaltantes(cursoDetalle.dias_faltantes) }}</span>
+      </li>
+    </ul>
+    <div class="dash-modal__bar">
+      <div class="progress agenda-participants__bar">
+        <div class="progress-bar"
+             [class.bg-danger]="!esCursoListo(cursoDetalle)"
+             [class.bg-success]="esCursoListo(cursoDetalle)"
+             [style.width.%]="getPorcentajeOcupacion(cursoDetalle)"
+             role="progressbar">
+        </div>
+      </div>
+      <small class="agenda-participants__pct">{{ getPorcentajeOcupacion(cursoDetalle) | number:'1.0-0' }}% ocupado</small>
     </div>
   </div>
 </div>

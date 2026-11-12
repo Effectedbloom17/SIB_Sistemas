@@ -156,6 +156,41 @@ html, body {
   touch-action: pan-y;
 }
 
+// El gesto vertical que empieza sobre una gráfica o una tarjeta debe mover la página.
+@media (max-width: 991px) {
+  .apexcharts-canvas,
+  .apexcharts-canvas svg,
+  .apexcharts-inner,
+  .apexcharts-graphical,
+  .apexcharts-legend,
+  .apexcharts-xaxis,
+  .apexcharts-yaxis,
+  .apexcharts-tooltip {
+    touch-action: pan-y !important;
+  }
+
+  .analytics-card,
+  .analytics-card-body,
+  .kpi-bar,
+  .agenda-today-list,
+  .pc-analytics-card,
+  .pc-analytics-status-body,
+  .pc-avance-dual,
+  .pc-avance-panel,
+  .pc-resolutivo-list,
+  .pc-historico-chart-wrap,
+  .pc-resumen-cumplimiento__card,
+  .pc-resumen-cumplimiento__chart {
+    touch-action: pan-y;
+    overscroll-behavior: auto;
+  }
+
+  .agenda-today-list {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
 .container-fluid {
   max-width: 100%;
   overflow-x: hidden;

@@ -157,7 +157,7 @@
         <span>Solicitó</span>
         <strong>{{ aviso.solicitadoPor || 'Un usuario' }}</strong>
       </div>
-      <div *ngIf="aviso.tipo === 'respuesta' && resolutorAviso(aviso) as quien">
+      <div *ngIf="(aviso.tipo === 'respuesta' || aviso.tipo === 'confirmacion') && resolutorAviso(aviso) as quien">
         <span>{{ etiquetaResolutor(aviso) }}</span>
         <strong>{{ quien }}</strong>
       </div>
@@ -179,7 +179,7 @@
   <div class="cp-aviso-cambio__actions">
     <button type="button" class="cp-aviso-cambio__cerrar" (click)="cerrarAvisoCambio()">Cerrar</button>
     <button type="button" class="cp-aviso-cambio__revisar" (click)="revisarAvisoCambio()">
-      {{ aviso.tipo === 'respuesta' ? 'Consultar estatus' : 'Revisar solicitud' }}
+      {{ aviso.tipo === 'pedido' ? 'Registrar cambio' : (aviso.tipo === 'respuesta' || aviso.tipo === 'confirmacion' ? 'Consultar estatus' : 'Revisar solicitud') }}
     </button>
   </div>
 </section>

@@ -81,3 +81,23 @@
     </div>
   </div>
 </aside>
+
+<div class="biz-gestion" *ngIf="gestionItem" (click)="cerrarGestion()">
+  <form class="biz-gestion__caja" (click)="$event.stopPropagation()" (ngSubmit)="guardarGestion($event)">
+    <p class="biz-gestion__pipc">{{ gestionItem.resumen }}</p>
+    <h3>¿Ya gestionaste este PIPC?</h3>
+    <textarea
+      appAutoResize
+      [appAutoResizeRefresh]="gestionTick"
+      rows="3"
+      name="acciones"
+      [(ngModel)]="gestionTexto"
+      placeholder="Escribe las acciones realizadas"
+      [disabled]="gestionGuardando"></textarea>
+    <p class="biz-gestion__error" *ngIf="gestionError">{{ gestionError }}</p>
+    <div class="biz-gestion__acciones">
+      <button type="button" (click)="cerrarGestion()" [disabled]="gestionGuardando">Cancelar</button>
+      <button type="submit" [disabled]="gestionGuardando">{{ gestionGuardando ? 'Guardando…' : 'Guardar' }}</button>
+    </div>
+  </form>
+</div>

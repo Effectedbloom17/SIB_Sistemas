@@ -136,6 +136,54 @@ async function asegurarTabla(pool) {
              ADD COLUMN silenciado TINYINT(1) NOT NULL DEFAULT 0 AFTER descartado`
         );
     }
+    const [cambioIdCol] = await pool.query(
+        `SHOW COLUMNS FROM sgc_control_proyectos_cambios_avisos LIKE 'cambio_id'`
+    );
+    if (cambioIdCol?.[0] && String(cambioIdCol[0].Null || '').toUpperCase() === 'NO') {
+        await pool.query(
+            `ALTER TABLE sgc_control_proyectos_cambios_avisos MODIFY cambio_id INT NULL`
+        );
+    }
+    await asegurarColumnaAvisos(pool, 'pedido_id', 'pedido_id INT NULL');
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS sgc_control_proyectos_pedidos (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            empresa_id INT NULL,
+            folio VARCHAR(255) NOT NULL DEFAULT '',
+            nombre_proyecto VARCHAR(500) NOT NULL DEFAULT '',
+            clave_proyecto VARCHAR(700) NOT NULL,
+            nota TEXT NULL,
+            solicitado_por VARCHAR(255) NOT NULL DEFAULT '',
+            solicitado_usuario_id INT NULL,
+            estatus VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+            cambio_id INT NULL,
+            creado_en DATETIME NULL,
+            llenado_en DATETIME NULL,
+            INDEX idx_cp_pedidos_clave (clave_proyecto, estatus),
+            INDEX idx_cp_pedidos_empresa (empresa_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS sgc_control_proyectos_pedidos_destinatarios (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            pedido_id INT NOT NULL,
+            usuario_id INT NOT NULL,
+            username VARCHAR(80) NOT NULL DEFAULT '',
+            nombre VARCHAR(255) NOT NULL DEFAULT '',
+            INDEX idx_cp_pedido_dest (pedido_id),
+            INDEX idx_cp_pedido_dest_user (usuario_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+}
+
+async function asegurarColumnaAvisos(pool, nombre, definicion) {
+    const [columnas] = await pool.query(
+        `SHOW COLUMNS FROM sgc_control_proyectos_cambios_avisos LIKE ?`,
+        [nombre]
+    );
+    if (!columnas || !columnas.length) {
+        await pool.query(`ALTER TABLE sgc_control_proyectos_cambios_avisos ADD COLUMN ${definicion}`);
+    }
 }
 
 async function asegurarColumna(pool, nombre, definicion) {
@@ -150,13 +198,22 @@ async function asegurarColumna(pool, nombre, definicion) {
 
 const APROBADORES_CAMBIO = ['marisol12', 'leonel58', 'root'];
 
-function usuarioPuedeResolver(user = {}) {
-    const username = String(user.username || '').toLowerCase().trim();
+function rolesDe(user = {}) {
     const roles = Array.isArray(user.roles)
         ? user.roles.map((rol) => String(rol || '').toLowerCase())
         : [];
     if (user.rol) roles.push(String(user.rol).toLowerCase());
-    return roles.includes('root') || APROBADORES_CAMBIO.includes(username);
+    return roles;
+}
+
+function usuarioPuedeResolver(user = {}) {
+    const username = String(user.username || '').toLowerCase().trim();
+    return rolesDe(user).includes('root') || APROBADORES_CAMBIO.includes(username);
+}
+
+function usuarioPuedePedir(user = {}) {
+    const username = String(user.username || '').toLowerCase().trim();
+    return rolesDe(user).includes('root') || username === 'root' || username === 'marisol12';
 }
 
 function estatusCambio(valor) {
@@ -384,7 +441,6 @@ async function guardar(pool, opciones = {}) {
     const usuario = textoPlano(opciones.usuarioNombre, 255).trim() || 'Usuario';
     const fechaHora = textoPlano(opciones.fechaHora, 32).trim() || null;
     const esRoot = opciones.esRoot === true;
-    const pendientesAviso = [];
 
     const conn = await pool.getConnection();
     try {
@@ -409,10 +465,13 @@ async function guardar(pool, opciones = {}) {
             const fila = filas[i];
             const previa = fila.id ? porId.get(fila.id) : null;
             if (previa) {
+                if (fila.solicitar || fila.corregir) {
+                    throw errorEstado('El formato se registra cuando hay un pedido de cambio.', 400);
+                }
                 const estatusPrevio = estatusCambio(previa.estatus);
                 const bloqueado = estatusPrevio === 'aprobado' || estatusPrevio === 'no_aprobado';
-                const corregir = estatusPrevio === 'en_espera' && fila.corregir;
-                const solicitar = estatusPrevio === 'borrador' && fila.solicitar;
+                const corregir = false;
+                const solicitar = false;
                 const conservar = bloqueado || (estatusPrevio === 'en_espera' && !corregir);
                 const contenido = conservar ? contenidoDesdeRegistro(previa) : contenidoGuardado(fila);
                 const estatus = solicitar ? 'en_espera' : estatusPrevio;
@@ -444,11 +503,11 @@ async function guardar(pool, opciones = {}) {
                     ]
                 );
                 conservados.push(fila.id);
-                if (solicitar) {
-                    pendientesAviso.push({ cambioId: fila.id, solicitadoPor: usuario });
-                }
             } else {
-                const estatus = fila.solicitar ? 'en_espera' : 'borrador';
+                if (!esRoot || fila.solicitar) {
+                    throw errorEstado('El formato se habilita cuando hay un pedido de cambio pendiente.', 403);
+                }
+                const estatus = 'borrador';
                 const contenido = contenidoGuardado(fila);
                 const [result] = await conn.query(
                     `INSERT INTO sgc_control_proyectos_cambios
@@ -471,12 +530,7 @@ async function guardar(pool, opciones = {}) {
                     ]
                 );
                 const nuevoId = Number(result?.insertId || 0);
-                if (nuevoId) {
-                    conservados.push(nuevoId);
-                    if (estatus === 'en_espera') {
-                        pendientesAviso.push({ cambioId: nuevoId, solicitadoPor: usuario });
-                    }
-                }
+                if (nuevoId) conservados.push(nuevoId);
             }
         }
 
@@ -503,17 +557,6 @@ async function guardar(pool, opciones = {}) {
         throw error;
     } finally {
         conn.release();
-    }
-
-    for (const aviso of pendientesAviso) {
-        await notificarAprobadores(pool, opciones.poolUsuarios, {
-            cambioId: aviso.cambioId,
-            empresaId,
-            folio,
-            nombreProyecto,
-            solicitadoPor: aviso.solicitadoPor,
-            fechaHora
-        });
     }
 
     return listar(pool, { empresaId, folio, nombreProyecto });
@@ -575,50 +618,6 @@ async function resolver(pool, opciones = {}) {
     return listar(pool, { empresaId, folio, nombreProyecto });
 }
 
-function mensajeSolicitud(nombre, proyecto) {
-    const quien = recortarTexto(nombre, 80) || 'Un usuario';
-    const proy = recortarTexto(proyecto, 72) || 'un proyecto';
-    return `${quien} solicitó un cambio en «${proy}».`;
-}
-
-async function notificarAprobadores(pool, poolUsuarios, aviso) {
-    if (!poolUsuarios) return;
-    try {
-        const [users] = await poolUsuarios.query(
-            `SELECT u.username
-             FROM usuario u
-             LEFT JOIN roles r ON u.rol_id = r.rol_id
-             WHERE u.activo = 1
-               AND (
-                    LOWER(u.username) IN ('marisol12', 'leonel58', 'root')
-                    OR LOWER(COALESCE(r.nombre_rol, '')) = 'root'
-               )`
-        );
-        const destinos = new Set(
-            (users || [])
-                .map((row) => String(row.username || '').trim().toLowerCase())
-                .filter(Boolean)
-        );
-        if (!destinos.size) return;
-        const mensaje = mensajeSolicitud(aviso.solicitadoPor, aviso.nombreProyecto);
-        for (const username of destinos) {
-            await insertarAviso(pool, {
-                cambioId: aviso.cambioId,
-                username,
-                mensaje,
-                empresaId: aviso.empresaId,
-                folio: aviso.folio,
-                nombreProyecto: aviso.nombreProyecto,
-                solicitadoPor: aviso.solicitadoPor,
-                tipo: 'revision',
-                fechaHora: aviso.fechaHora
-            });
-        }
-    } catch (error) {
-        console.warn('[cambios] No se pudo avisar a los aprobadores:', error.message);
-    }
-}
-
 async function listarBandeja(pool) {
     await asegurarTabla(pool);
     const [rows] = await pool.query(
@@ -662,23 +661,38 @@ async function listarAvisos(pool, username, opciones = {}) {
            AND c.estatus IN ('aprobado', 'no_aprobado')`,
         [usuario]
     );
+    await pool.query(
+        `UPDATE sgc_control_proyectos_cambios_avisos a
+         INNER JOIN sgc_control_proyectos_pedidos p ON p.id = a.pedido_id
+         SET a.descartado = 1
+         WHERE LOWER(a.username) = ?
+           AND a.descartado = 0
+           AND a.tipo = 'pedido'
+           AND p.estatus <> 'pendiente'`,
+        [usuario]
+    );
     const [rows] = await pool.query(
-        `SELECT a.id, a.cambio_id, a.tipo, a.mensaje, a.empresa_id, a.folio, a.nombre_proyecto, a.solicitado_por,
+        `SELECT a.id, a.cambio_id, a.pedido_id, a.tipo, a.mensaje, a.empresa_id, a.folio, a.nombre_proyecto, a.solicitado_por,
                 a.silenciado, c.estatus AS estatus_cambio, c.resuelto_por,
                 DATE_FORMAT(a.creado_en, '%Y-%m-%d %H:%i:%s') AS creado_en
          FROM sgc_control_proyectos_cambios_avisos a
-         INNER JOIN sgc_control_proyectos_cambios c ON c.id = a.cambio_id AND c.activo = 1
+         LEFT JOIN sgc_control_proyectos_cambios c ON c.id = a.cambio_id AND c.activo = 1
+         LEFT JOIN sgc_control_proyectos_pedidos p ON p.id = a.pedido_id
          WHERE LOWER(a.username) = ?
            AND a.descartado = 0
            ${incluirSilenciados ? '' : 'AND a.silenciado = 0'}
            AND (
-                ${incluirSilenciados ? '0' : "a.tipo = 'respuesta'"}
+                (a.tipo = 'pedido' AND p.estatus = 'pendiente')
+                OR a.tipo = 'confirmacion'
+                OR ${incluirSilenciados ? '0' : "a.tipo = 'respuesta'"}
                 OR (c.estatus = 'en_espera' AND a.tipo IN ('revision', 'recordatorio', 'recordatorio_urgente'))
            )
          ORDER BY CASE a.tipo
-                    WHEN 'respuesta' THEN 0
-                    WHEN 'recordatorio_urgente' THEN 1
-                    ELSE 2
+                    WHEN 'pedido' THEN 0
+                    WHEN 'confirmacion' THEN 1
+                    WHEN 'respuesta' THEN 1
+                    WHEN 'recordatorio_urgente' THEN 2
+                    ELSE 3
                   END,
                   a.id DESC
          LIMIT 40`,
@@ -686,7 +700,8 @@ async function listarAvisos(pool, username, opciones = {}) {
     );
     return (rows || []).map((row) => ({
         id: Number(row.id),
-        cambioId: Number(row.cambio_id),
+        cambioId: Number(row.cambio_id) > 0 ? Number(row.cambio_id) : null,
+        pedidoId: Number(row.pedido_id) > 0 ? Number(row.pedido_id) : null,
         tipo: row.tipo == null ? 'revision' : String(row.tipo),
         mensaje: row.mensaje == null ? '' : String(row.mensaje),
         empresaId: row.empresa_id == null ? null : Number(row.empresa_id),
@@ -732,6 +747,14 @@ async function descartarAviso(pool, id, username) {
     const avisoId = Number(id);
     const usuario = String(username || '').trim().toLowerCase();
     if (!Number.isInteger(avisoId) || avisoId <= 0 || !usuario) return false;
+    const [rows] = await pool.query(
+        `SELECT tipo FROM sgc_control_proyectos_cambios_avisos
+         WHERE id = ? AND LOWER(username) = ? AND descartado = 0
+         LIMIT 1`,
+        [avisoId, usuario]
+    );
+    const tipo = String(rows?.[0]?.tipo || '');
+    if (!tipo || tipo === 'pedido') return false;
     await pool.query(
         `UPDATE sgc_control_proyectos_cambios_avisos
          SET descartado = 1
@@ -744,10 +767,11 @@ async function descartarAviso(pool, id, username) {
 async function insertarAviso(pool, aviso) {
     await pool.query(
         `INSERT INTO sgc_control_proyectos_cambios_avisos
-            (cambio_id, username, tipo, mensaje, empresa_id, folio, nombre_proyecto, solicitado_por, descartado, creado_en)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+            (cambio_id, pedido_id, username, tipo, mensaje, empresa_id, folio, nombre_proyecto, solicitado_por, descartado, creado_en)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
         [
-            aviso.cambioId,
+            Number(aviso.cambioId) > 0 ? Number(aviso.cambioId) : null,
+            Number(aviso.pedidoId) > 0 ? Number(aviso.pedidoId) : null,
             String(aviso.username || '').trim().toLowerCase(),
             aviso.tipo || 'revision',
             aviso.mensaje,
@@ -811,103 +835,433 @@ function fechaHoraMexico(fecha = new Date()) {
     return `${valor('year')}-${valor('month')}-${valor('day')} ${hora}:${valor('minute')}:${valor('second')}`;
 }
 
-function fechaMexico(fecha = new Date()) {
-    return fechaHoraMexico(fecha).slice(0, 10);
-}
-
-function sumarDiasIso(iso, dias) {
-    const base = new Date(`${iso}T00:00:00Z`);
-    base.setUTCDate(base.getUTCDate() + dias);
-    return base.toISOString().slice(0, 10);
-}
-
-function fechaCompromisoMasProxima(row) {
-    const fechas = [];
-    const columna = String(row?.fecha_compromiso || '').slice(0, 10);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(columna)) fechas.push(columna);
-    let filas = row?.acciones_filas;
-    if (typeof filas === 'string') {
-        try { filas = JSON.parse(filas); } catch (_error) { filas = []; }
+function parseIdsResponsable(valor) {
+    if (Array.isArray(valor)) {
+        return valor.map((item) => Number(item)).filter((n) => Number.isInteger(n) && n > 0);
     }
-    if (Array.isArray(filas)) {
-        filas.forEach((accion) => {
-            const fecha = String(accion?.fechaCompromiso || accion?.fecha_compromiso || '').slice(0, 10);
-            if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) fechas.push(fecha);
-        });
+    const texto = String(valor || '').trim();
+    if (!texto) return [];
+    if (texto.startsWith('[')) {
+        try {
+            const parsed = JSON.parse(texto);
+            if (Array.isArray(parsed)) {
+                return parsed.map((item) => Number(item)).filter((n) => Number.isInteger(n) && n > 0);
+            }
+        } catch (_error) {
+            /* texto plano */
+        }
     }
-    return fechas.sort()[0] || '';
+    return texto.split(/\s*\|\s*/)
+        .map((item) => Number(String(item || '').trim()))
+        .filter((n) => Number.isInteger(n) && n > 0);
 }
 
-async function destinosAprobadores(poolUsuarios) {
+function parseNombresResponsable(valor) {
+    const texto = String(valor || '').trim();
+    if (!texto) return [];
+    if (texto.startsWith('[')) {
+        try {
+            const parsed = JSON.parse(texto);
+            if (Array.isArray(parsed)) {
+                return parsed.map((item) => String(item || '').trim()).filter(Boolean);
+            }
+        } catch (_error) {
+            /* texto plano */
+        }
+    }
+    return texto.split(/\s*\|\s*/).map((item) => item.trim()).filter(Boolean);
+}
+
+function nombreUsuario(row) {
+    const completo = [row?.nombre, row?.apellido].filter(Boolean).join(' ').trim();
+    return completo || String(row?.username || '').trim();
+}
+
+async function usuariosInternosActivos(poolUsuarios) {
     if (!poolUsuarios) return [];
     const [users] = await poolUsuarios.query(
-        `SELECT u.username
+        `SELECT u.id, u.username, u.nombre, u.apellido
          FROM usuario u
          LEFT JOIN roles r ON u.rol_id = r.rol_id
          WHERE u.activo = 1
-           AND (
-                LOWER(u.username) IN ('marisol12', 'leonel58', 'root')
-                OR LOWER(COALESCE(r.nombre_rol, '')) = 'root'
-           )`
+           AND LOWER(COALESCE(r.nombre_rol, '')) NOT IN ('empresa', 'usuario empresa')`
     );
-    return [...new Set(
-        (users || [])
-            .map((row) => String(row.username || '').trim().toLowerCase())
-            .filter(Boolean)
-    )];
+    return users || [];
 }
 
-async function procesarRecordatorios(pool, poolUsuarios) {
-    await asegurarTabla(pool);
-    const destinos = await destinosAprobadores(poolUsuarios);
-    if (!destinos.length) return { enviados: 0 };
-    const ahora = fechaHoraMexico();
-    const manana = sumarDiasIso(fechaMexico(), 1);
-    const [pendientes] = await pool.query(
-        `SELECT id, empresa_id, folio, nombre_proyecto, creado_por,
-                DATE_FORMAT(fecha_compromiso, '%Y-%m-%d') AS fecha_compromiso,
-                acciones_filas
-         FROM sgc_control_proyectos_cambios
-         WHERE activo = 1 AND estatus = 'en_espera'`
+async function filasProyecto(pool, empresaId, folio, nombreProyecto) {
+    const clave = claveProyecto(empresaId, folio, nombreProyecto);
+    if (!clave) return [];
+    const params = [];
+    let sql = `SELECT empresa_id, folio, nombre_proyecto, responsable, responsable_usuario_ids
+               FROM sgc_control_proyectos
+               WHERE activo = 1`;
+    if (empresaId) {
+        sql += ' AND empresa_id = ?';
+        params.push(empresaId);
+    } else {
+        sql += ' AND (empresa_id IS NULL OR empresa_id = 0)';
+    }
+    const [rows] = await pool.query(sql, params);
+    return (rows || []).filter((row) => claveProyecto(row.empresa_id, row.folio, row.nombre_proyecto) === clave);
+}
+
+function encargadosDesdeFilas(filas, usuarios) {
+    const porId = new Map();
+    const porNombre = new Map();
+    (usuarios || []).forEach((user) => {
+        const id = Number(user.id);
+        if (!Number.isInteger(id) || id <= 0) return;
+        porId.set(id, user);
+        const nombre = normalizar(nombreUsuario(user));
+        if (nombre) porNombre.set(nombre, user);
+    });
+    const elegidos = new Map();
+    const tomar = (user) => {
+        const id = Number(user?.id);
+        if (!Number.isInteger(id) || id <= 0 || elegidos.has(id)) return;
+        elegidos.set(id, {
+            usuarioId: id,
+            username: String(user.username || '').trim().toLowerCase(),
+            nombre: nombreUsuario(user)
+        });
+    };
+    (filas || []).forEach((fila) => {
+        parseIdsResponsable(fila.responsable_usuario_ids).forEach((id) => {
+            if (porId.has(id)) tomar(porId.get(id));
+        });
+        parseNombresResponsable(fila.responsable).forEach((nombre) => {
+            const user = porNombre.get(normalizar(nombre));
+            if (user) tomar(user);
+        });
+    });
+    return [...elegidos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+}
+
+async function pedidoPendienteDeClave(pool, clave) {
+    const [rows] = await pool.query(
+        `SELECT id, empresa_id, folio, nombre_proyecto, nota, solicitado_por, solicitado_usuario_id, estatus
+         FROM sgc_control_proyectos_pedidos
+         WHERE clave_proyecto = ? AND estatus = 'pendiente'
+         ORDER BY id DESC
+         LIMIT 1`,
+        [clave]
     );
-    let enviados = 0;
-    for (const cambio of pendientes || []) {
-        const compromiso = fechaCompromisoMasProxima(cambio);
-        const urgente = !!compromiso && compromiso <= manana;
-        const tipo = urgente ? 'recordatorio_urgente' : 'recordatorio';
-        const minutos = urgente ? 60 : 24 * 60;
-        const proyecto = recortarTexto(cambio.nombre_proyecto, 72) || 'un proyecto';
-        const quien = recortarTexto(cambio.creado_por, 80) || 'Un usuario';
-        const mensaje = urgente
-            ? `${quien} tiene un cambio en «${proyecto}» con la fecha de compromiso próxima.`
-            : `${quien} tiene un cambio en «${proyecto}» que sigue en espera.`;
-        for (const username of destinos) {
-            const [previos] = await pool.query(
-                `SELECT
-                    SUM(CASE WHEN descartado = 0 AND tipo IN ('revision', 'recordatorio', 'recordatorio_urgente') THEN 1 ELSE 0 END) AS abiertos,
-                    TIMESTAMPDIFF(MINUTE, MAX(creado_en), ?) AS minutos
-                 FROM sgc_control_proyectos_cambios_avisos
-                 WHERE cambio_id = ? AND LOWER(username) = ?`,
-                [ahora, cambio.id, username]
-            );
-            const estado = previos?.[0] || {};
-            if (Number(estado.abiertos) > 0) continue;
-            if (estado.minutos != null && Number(estado.minutos) < minutos) continue;
-            await insertarAviso(pool, {
-                cambioId: cambio.id,
-                username,
-                tipo,
-                mensaje,
-                empresaId: cambio.empresa_id,
-                folio: cambio.folio,
-                nombreProyecto: cambio.nombre_proyecto,
-                solicitadoPor: cambio.creado_por,
-                fechaHora: ahora
-            });
-            enviados += 1;
+    return rows?.[0] || null;
+}
+
+function mapearPedido(row) {
+    if (!row) return null;
+    return {
+        id: Number(row.id),
+        empresaId: row.empresa_id == null ? null : Number(row.empresa_id),
+        folio: row.folio == null ? '' : String(row.folio),
+        nombreProyecto: row.nombre_proyecto == null ? '' : String(row.nombre_proyecto),
+        nota: row.nota == null ? '' : String(row.nota),
+        solicitadoPor: row.solicitado_por == null ? '' : String(row.solicitado_por),
+        solicitadoUsuarioId: Number(row.solicitado_usuario_id) > 0 ? Number(row.solicitado_usuario_id) : null
+    };
+}
+
+async function listarProyectosEmpresa(pool, empresaId) {
+    await asegurarTabla(pool);
+    const id = empresaIdValor(empresaId);
+    if (!id) return [];
+    const [rows] = await pool.query(
+        `SELECT empresa_id, folio, nombre_proyecto
+         FROM sgc_control_proyectos
+         WHERE activo = 1 AND empresa_id = ?
+         ORDER BY nombre_proyecto ASC, folio ASC`,
+        [id]
+    );
+    const vistos = new Map();
+    (rows || []).forEach((row) => {
+        const clave = claveProyecto(row.empresa_id, row.folio, row.nombre_proyecto);
+        if (!clave || vistos.has(clave)) return;
+        vistos.set(clave, {
+            empresaId: Number(row.empresa_id),
+            folio: row.folio == null ? '' : String(row.folio),
+            nombreProyecto: row.nombre_proyecto == null ? '' : String(row.nombre_proyecto)
+        });
+    });
+    return [...vistos.values()];
+}
+
+async function listarEncargados(pool, poolUsuarios, opciones = {}) {
+    await asegurarTabla(pool);
+    const empresaId = empresaIdValor(opciones.empresaId);
+    const folio = textoPlano(opciones.folio, 255).trim();
+    const nombreProyecto = textoPlano(opciones.nombreProyecto, 500).trim();
+    const clave = claveProyecto(empresaId, folio, nombreProyecto);
+    if (!clave) {
+        throw errorEstado('Elige un proyecto para ver a sus encargados.', 400);
+    }
+    const filas = await filasProyecto(pool, empresaId, folio, nombreProyecto);
+    const usuarios = await usuariosInternosActivos(poolUsuarios);
+    const encargados = encargadosDesdeFilas(filas, usuarios);
+    const pendiente = await pedidoPendienteDeClave(pool, clave);
+    return {
+        encargados,
+        pedidoPendiente: pendiente ? mapearPedido(pendiente) : null
+    };
+}
+
+function mensajePedido(nombre, proyecto, nota) {
+    const quien = recortarTexto(nombre, 80) || 'Marisol';
+    const proy = recortarTexto(proyecto, 72) || 'un proyecto';
+    const base = `${quien} solicitó cambios en «${proy}».`;
+    const extra = recortarTexto(nota, 180);
+    return extra ? `${base} ${extra}` : base;
+}
+
+async function crearPedido(pool, opciones = {}) {
+    await asegurarTabla(pool);
+    if (!usuarioPuedePedir(opciones.user)) {
+        throw errorEstado('Solo Marisol o root pueden solicitar un cambio.', 403);
+    }
+    const empresaId = empresaIdValor(opciones.empresaId);
+    const folio = textoPlano(opciones.folio, 255).trim();
+    const nombreProyecto = textoPlano(opciones.nombreProyecto, 500).trim();
+    const clave = claveProyecto(empresaId, folio, nombreProyecto);
+    if (!clave) {
+        throw errorEstado('Elige la empresa y el proyecto.', 400);
+    }
+    const nota = textoPlano(opciones.nota, 2000).trim();
+    const consulta = await listarEncargados(pool, opciones.poolUsuarios, {
+        empresaId, folio, nombreProyecto
+    });
+    if (consulta.pedidoPendiente) {
+        throw errorEstado('Este proyecto ya tiene un pedido de cambio pendiente.', 409);
+    }
+    const encargados = consulta.encargados;
+    if (!encargados.length) {
+        throw errorEstado('Este proyecto no tiene un encargado con usuario.', 400);
+    }
+    let destinos = encargados;
+    if (encargados.length > 1) {
+        const ids = new Set(
+            (Array.isArray(opciones.destinatarioIds) ? opciones.destinatarioIds : [])
+                .map((id) => Number(id))
+                .filter((id) => Number.isInteger(id) && id > 0)
+        );
+        destinos = encargados.filter((item) => ids.has(item.usuarioId));
+        if (!destinos.length) {
+            throw errorEstado('Elige al menos un encargado.', 400);
         }
     }
-    return { enviados };
+    const usuario = textoPlano(opciones.usuarioNombre, 255).trim() || 'Usuario';
+    const fechaHora = textoPlano(opciones.fechaHora, 32).trim() || fechaHoraMexico();
+    const usuarioId = Number(opciones.usuarioId) > 0 ? Number(opciones.usuarioId) : null;
+    const conn = await pool.getConnection();
+    let pedidoId = 0;
+    try {
+        await conn.beginTransaction();
+        const [existente] = await conn.query(
+            `SELECT id FROM sgc_control_proyectos_pedidos
+             WHERE clave_proyecto = ? AND estatus = 'pendiente'
+             LIMIT 1`,
+            [clave]
+        );
+        if (existente?.length) {
+            throw errorEstado('Este proyecto ya tiene un pedido de cambio pendiente.', 409);
+        }
+        const [result] = await conn.query(
+            `INSERT INTO sgc_control_proyectos_pedidos
+                (empresa_id, folio, nombre_proyecto, clave_proyecto, nota,
+                 solicitado_por, solicitado_usuario_id, estatus, creado_en)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'pendiente', ?)`,
+            [empresaId, folio, nombreProyecto, clave, nota || null, usuario, usuarioId, fechaHora]
+        );
+        pedidoId = Number(result?.insertId || 0);
+        for (const destino of destinos) {
+            await conn.query(
+                `INSERT INTO sgc_control_proyectos_pedidos_destinatarios
+                    (pedido_id, usuario_id, username, nombre)
+                 VALUES (?, ?, ?, ?)`,
+                [pedidoId, destino.usuarioId, destino.username, destino.nombre]
+            );
+            await insertarAviso(conn, {
+                pedidoId,
+                username: destino.username,
+                tipo: 'pedido',
+                mensaje: mensajePedido(usuario, nombreProyecto || folio, nota),
+                empresaId,
+                folio,
+                nombreProyecto,
+                solicitadoPor: usuario,
+                fechaHora
+            });
+        }
+        await conn.commit();
+    } catch (error) {
+        await conn.rollback();
+        throw error;
+    } finally {
+        conn.release();
+    }
+    return { id: pedidoId, destinatarios: destinos.length };
+}
+
+async function listarPedidosMios(pool, usuarioId, username) {
+    await asegurarTabla(pool);
+    const id = Number(usuarioId) > 0 ? Number(usuarioId) : 0;
+    const user = String(username || '').trim().toLowerCase();
+    if (!id && !user) return [];
+    const [rows] = await pool.query(
+        `SELECT p.id, p.empresa_id, p.folio, p.nombre_proyecto, p.nota,
+                p.solicitado_por, p.solicitado_usuario_id
+         FROM sgc_control_proyectos_pedidos p
+         INNER JOIN sgc_control_proyectos_pedidos_destinatarios d ON d.pedido_id = p.id
+         WHERE p.estatus = 'pendiente'
+           AND (d.usuario_id = ? OR LOWER(d.username) = ?)
+         ORDER BY p.id DESC`,
+        [id, user]
+    );
+    const vistos = new Map();
+    (rows || []).forEach((row) => {
+        if (!vistos.has(Number(row.id))) vistos.set(Number(row.id), mapearPedido(row));
+    });
+    return [...vistos.values()];
+}
+
+async function llenarPedido(pool, opciones = {}) {
+    await asegurarTabla(pool);
+    const empresaId = empresaIdValor(opciones.empresaId);
+    const folio = textoPlano(opciones.folio, 255).trim();
+    const nombreProyecto = textoPlano(opciones.nombreProyecto, 500).trim();
+    const clave = claveProyecto(empresaId, folio, nombreProyecto);
+    if (!clave) {
+        throw errorEstado('El proyecto no tiene folio ni nombre para registrar el cambio.', 400);
+    }
+    const usuarioId = Number(opciones.usuarioId) > 0 ? Number(opciones.usuarioId) : 0;
+    const username = String(opciones.username || '').trim().toLowerCase();
+    const usuario = textoPlano(opciones.usuarioNombre, 255).trim() || 'Usuario';
+    const fechaHora = textoPlano(opciones.fechaHora, 32).trim() || fechaHoraMexico();
+    const filas = normalizarFilas(Array.isArray(opciones.cambios) ? opciones.cambios : [opciones.cambio]);
+    const fila = filas.find((item) => !item.id) || filas[0];
+    if (!fila) {
+        throw errorEstado('Completa el formato del cambio.', 400);
+    }
+    validarSolicitudCompleta(fila, fila.accionesFilas);
+    const contenido = contenidoGuardado(fila);
+    const conn = await pool.getConnection();
+    let cambioId = 0;
+    let pedido = null;
+    try {
+        await conn.beginTransaction();
+        const [pedidos] = await conn.query(
+            `SELECT p.id, p.empresa_id, p.folio, p.nombre_proyecto, p.nota,
+                    p.solicitado_por, p.solicitado_usuario_id
+             FROM sgc_control_proyectos_pedidos p
+             INNER JOIN sgc_control_proyectos_pedidos_destinatarios d ON d.pedido_id = p.id
+             WHERE p.clave_proyecto = ? AND p.estatus = 'pendiente'
+               AND (d.usuario_id = ? OR LOWER(d.username) = ?)
+             ORDER BY p.id DESC
+             LIMIT 1`,
+            [clave, usuarioId, username]
+        );
+        pedido = pedidos?.[0] || null;
+        if (!pedido) {
+            throw errorEstado('No tienes un pedido de cambio pendiente para este proyecto.', 403);
+        }
+        const [ordenRows] = await conn.query(
+            `SELECT COALESCE(MAX(orden), 0) AS orden
+             FROM sgc_control_proyectos_cambios
+             WHERE clave_proyecto = ? AND activo = 1`,
+            [clave]
+        );
+        const orden = Number(ordenRows?.[0]?.orden || 0) + 1;
+        const [result] = await conn.query(
+            `INSERT INTO sgc_control_proyectos_cambios
+                (empresa_id, folio, nombre_proyecto, clave_proyecto,
+                 tipo_requisitos, tipo_diseno, tipo_produccion,
+                 descripcion, motivo, acciones,
+                 responsable, responsable_usuario_id, fecha_compromiso, acciones_filas,
+                 orden, estatus, solicitado_en, editado_en,
+                 modificado_por, modificado_en, creado_por, creado_en,
+                 solicitado_usuario_id, resuelto_por, resuelto_en, activo)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'aprobado', ?, NULL, ?, ?, ?, ?, ?, ?, ?, 1)`,
+            [
+                empresaId, folio, nombreProyecto, clave,
+                contenido.tipoRequisitos, contenido.tipoDiseno, contenido.tipoProduccion,
+                contenido.descripcion, contenido.motivo, contenido.acciones,
+                contenido.responsable, contenido.responsableUsuarioId, contenido.fechaCompromiso,
+                contenido.accionesFilas,
+                orden, fechaHora,
+                usuario, fechaHora, usuario, fechaHora,
+                usuarioId || null,
+                usuario, fechaHora
+            ]
+        );
+        cambioId = Number(result?.insertId || 0);
+        await conn.query(
+            `UPDATE sgc_control_proyectos_pedidos
+             SET estatus = 'llenado', cambio_id = ?, llenado_en = ?
+             WHERE id = ? AND estatus = 'pendiente'`,
+            [cambioId || null, fechaHora, pedido.id]
+        );
+        await conn.query(
+            `UPDATE sgc_control_proyectos_cambios_avisos
+             SET descartado = 1
+             WHERE pedido_id = ? AND tipo = 'pedido' AND descartado = 0`,
+            [pedido.id]
+        );
+        await conn.commit();
+    } catch (error) {
+        await conn.rollback();
+        throw error;
+    } finally {
+        conn.release();
+    }
+    if (pedido && opciones.poolUsuarios && cambioId) {
+        await notificarConfirmacionPedido(pool, opciones.poolUsuarios, {
+            pedido,
+            cambioId,
+            empresaId,
+            folio,
+            nombreProyecto,
+            registradoPor: usuario,
+            fechaHora
+        });
+    }
+    return listar(pool, { empresaId, folio, nombreProyecto });
+}
+
+async function notificarConfirmacionPedido(pool, poolUsuarios, aviso) {
+    const userId = Number(aviso.pedido?.solicitado_usuario_id);
+    if (!Number.isInteger(userId) || userId <= 0) return;
+    try {
+        const [users] = await poolUsuarios.query(
+            `SELECT username, nombre, apellido
+             FROM usuario
+             WHERE id = ? AND activo = 1
+             LIMIT 1`,
+            [userId]
+        );
+        const persona = users?.[0];
+        const username = String(persona?.username || '').trim().toLowerCase();
+        if (!username) return;
+        const quien = recortarTexto(aviso.registradoPor, 80) || 'El encargado';
+        const proyecto = recortarTexto(aviso.nombreProyecto || aviso.folio, 72) || 'el proyecto';
+        await insertarAviso(pool, {
+            cambioId: aviso.cambioId,
+            pedidoId: aviso.pedido.id,
+            username,
+            tipo: 'confirmacion',
+            mensaje: `${quien} registró el cambio que solicitaste en «${proyecto}».`,
+            empresaId: aviso.empresaId,
+            folio: aviso.folio,
+            nombreProyecto: aviso.nombreProyecto,
+            solicitadoPor: aviso.pedido.solicitado_por || nombreUsuario(persona),
+            fechaHora: aviso.fechaHora
+        });
+    } catch (error) {
+        console.warn('[cambios] No se pudo confirmar el pedido:', error.message);
+    }
+}
+
+async function procesarRecordatorios() {
+    return { enviados: 0 };
 }
 
 module.exports = {
@@ -920,5 +1274,11 @@ module.exports = {
     reactivarSilenciados,
     descartarAviso,
     procesarRecordatorios,
-    usuarioPuedeResolver
+    usuarioPuedeResolver,
+    usuarioPuedePedir,
+    listarProyectosEmpresa,
+    listarEncargados,
+    crearPedido,
+    listarPedidosMios,
+    llenarPedido
 };

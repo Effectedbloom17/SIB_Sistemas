@@ -60,6 +60,7 @@ export class SgcFormatosDescargaComponent implements OnInit, OnDestroy {
   readonly DOCS_POR_PAGINA = 6;
 
   @ViewChild('inputReemplazo') inputReemplazo?: ElementRef<HTMLInputElement>;
+  @ViewChild('capitulosTrack') capitulosTrack?: ElementRef<HTMLElement>;
   private docPendienteReemplazo: SgcFormatoDescarga | null = null;
   private visorSub?: Subscription;
   private visorSeq = 0;
@@ -491,6 +492,19 @@ export class SgcFormatosDescargaComponent implements OnInit, OnDestroy {
       replaceUrl: true
     });
     this.aplicarFiltro();
+  }
+
+  /** Flechas: desplazan la fila de capítulos. No cambian el capítulo seleccionado. */
+  desplazarCapitulos(direccion: -1 | 1, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const track = this.capitulosTrack?.nativeElement;
+    if (!track) {
+      return;
+    }
+    const card = track.querySelector('.sgc-cap-nav__item') as HTMLElement | null;
+    const paso = (card?.getBoundingClientRect().width || 200) + 10;
+    track.scrollBy({ left: direccion * paso, behavior: 'smooth' });
   }
 
   esCategoriaActiva(cat: SgcFormatoCategoria): boolean {

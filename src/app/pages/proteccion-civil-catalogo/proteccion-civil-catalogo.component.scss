@@ -1255,3 +1255,222 @@
 
   .pc-doc-btn { flex: 1; justify-content: center; }
 }
+
+@media (max-width: 767px) {
+  .sidebar-categorias {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .sidebar-categorias .list-group-item {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+    font-size: 0.84rem;
+    padding: 0.65rem 0.75rem;
+  }
+
+  .catalogo-header-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
+
+    .btn {
+      width: 100%;
+      justify-content: center;
+      white-space: nowrap;
+    }
+  }
+
+  .catalogo-section-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+  }
+
+  .catalogo-search-wrap {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .catalogo-search .input-group-text i {
+    overflow: visible;
+  }
+
+  .pipc-workbook-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.9rem 0.85rem;
+  }
+
+  .pipc-workbook-card__body {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .pipc-workbook-card__title {
+    font-size: 0.92rem;
+    line-height: 1.3;
+  }
+
+  .pipc-workbook-card__meta,
+  .pipc-workbook-card__hint {
+    font-size: 0.74rem;
+    line-height: 1.35;
+  }
+
+  .pipc-workbook-card__actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.4rem;
+  }
+
+  // Listados tipo tarjeta: 3 por fila; si angosto, 2
+  .pipc-hojas-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .pipc-hoja-card {
+    min-width: 0;
+    padding: 0.55rem 0.5rem 0.5rem;
+    gap: 0.35rem;
+    border-radius: 10px;
+  }
+
+  .pipc-hoja-card__badge {
+    font-size: 0.58rem;
+    padding: 0.12rem 0.35rem;
+  }
+
+  .pipc-hoja-card__menu {
+    width: 24px;
+    height: 24px;
+  }
+
+  .pipc-hoja-card__title {
+    font-size: 0.72rem;
+    line-height: 1.2;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .pipc-hoja-card__subtitle {
+    display: block;
+    font-size: 0.62rem;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pipc-hoja-card__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.58rem;
+    line-height: 1.2;
+
+    span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    i {
+      margin-right: 0.15rem;
+    }
+  }
+
+  .pipc-hoja-card__actions {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.3rem;
+    padding-top: 0.2rem;
+  }
+
+  .pipc-hoja-action {
+    min-width: 0;
+    padding: 0.35rem 0.2rem;
+    font-size: 0.58rem;
+    line-height: 1.1;
+    border-radius: 8px;
+    justify-content: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    i {
+      font-size: 0.72rem;
+      margin: 0;
+    }
+  }
+
+  .pipc-hoja-action--editor,
+  .pipc-hoja-action--primary {
+    flex: none;
+  }
+
+  // Otras categorías: misma tabla + scroll lateral
+  .catalogo-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .catalogo-table {
+    width: max-content;
+    min-width: 640px;
+
+    th, td {
+      overflow: hidden;
+      max-width: 220px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .pc-catalog-editor-fullscreen__actions {
+    gap: 0.3rem;
+  }
+
+  .pc-catalog-editor-fullscreen__btn-volver {
+    font-size: 0.78rem;
+    padding: 0.35rem 0.55rem;
+  }
+}
+
+@media (max-width: 399px) {
+  .pipc-hojas-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .pipc-hoja-card {
+    padding: 0.65rem 0.55rem 0.55rem;
+  }
+
+  .pipc-hoja-card__title {
+    font-size: 0.8rem;
+  }
+
+  .pipc-hoja-card__subtitle {
+    font-size: 0.66rem;
+  }
+
+  .pipc-hoja-card__meta {
+    font-size: 0.62rem;
+  }
+
+  .pipc-hoja-action {
+    font-size: 0.62rem;
+    padding: 0.38rem 0.3rem;
+  }
+}

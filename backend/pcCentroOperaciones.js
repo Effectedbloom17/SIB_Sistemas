@@ -812,6 +812,25 @@ async function ensureWorkflowDocuments(poolProteccionCivil, empresaId, allDocs =
     return archivos;
 }
 
+function fechaDiaMexico(valor) {
+    if (!valor) return null;
+    if (!(valor instanceof Date)) {
+        const texto = String(valor).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) return texto;
+    }
+    const fecha = valor instanceof Date ? valor : new Date(valor);
+    if (Number.isNaN(fecha.getTime())) {
+        const texto = String(valor);
+        return /^\d{4}-\d{2}-\d{2}/.test(texto) ? texto.slice(0, 10) : null;
+    }
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Mexico_City',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(fecha);
+}
+
 function buildCicloResponse(ciclo, reglas, extras = {}) {
     const fechasWf = parseFechasWorkflow(ciclo.fechas_workflow);
     const notasWf = parseNotasWorkflow(ciclo.notas_workflow);
@@ -821,6 +840,7 @@ function buildCicloResponse(ciclo, reglas, extras = {}) {
         pasos_completados: reglas.pasos_completados,
         responsable_pipc_usuario_id: responsableId,
         responsable_pipc_nombre: extras.responsable_pipc_nombre || null,
+        fecha_creacion: fechaDiaMexico(ciclo.fecha_creacion),
         fecha_ingreso_tramite: ciclo.fecha_ingreso_tramite,
         fecha_oficio_observaciones: ciclo.fecha_oficio_observaciones,
         fecha_aprobacion_pipc: ciclo.fecha_aprobacion_pipc || ciclo.fecha_aprobacion || null,

@@ -79,6 +79,8 @@ export class HistorialCursosComponent implements OnInit {
   readonly cursosPageSizeNormal = 5;
   readonly cursosPageSizeCompacto = 8;
   modoVisual: 'normal' | 'compacto' = 'normal';
+  /** En móvil Compacto no aplica: se fuerza Normal y se oculta el toggle. */
+  esVistaMovil = false;
 
   empresasVisibleLimit = this.empresasPageSize;
   cursosVisibleLimit = this.cursosPageSize;
@@ -136,6 +138,7 @@ export class HistorialCursosComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    this.actualizarVistaMovil();
     this.empresaUsuarioId = this.authService.getEmpresaId();
     this.instructorUsuarioId = this.authService.getInstructorId();
     this.esPerfilAdmin = this.authService.esAdministradorOSuperior()
@@ -150,6 +153,7 @@ export class HistorialCursosComponent implements OnInit {
     if (!this.empresaSeleccionadaIdRestaurada && !this.filtroAnexoSubido && !this.programadoIdDeepLink) {
       this.restaurarEstadoFiltros();
     }
+    this.actualizarVistaMovil();
     this.restaurandoEstadoFiltros = true;
     this.cargarCursosConHistorial();
 
@@ -158,6 +162,23 @@ export class HistorialCursosComponent implements OnInit {
       this.historialPendientes.items$.subscribe((items) => {
         this.cursosPendientesGestion = items || [];
       });
+    }
+  }
+
+  @HostListener('window:resize')
+  onVentanaResize(): void {
+    this.actualizarVistaMovil();
+  }
+
+  private actualizarVistaMovil(): void {
+    const movil = typeof window !== 'undefined' && window.innerWidth <= 767;
+    this.esVistaMovil = movil;
+    if (movil && this.modoVisual === 'compacto') {
+      this.modoVisual = 'normal';
+      this.empresasVisibleLimit = Math.max(this.empresasVisibleLimit, this.empresasPageSize);
+      this.cursosVisibleLimit = Math.max(this.cursosVisibleLimit, this.cursosPageSize);
+      this.empresasCurrentPage = Math.min(this.empresasCurrentPage, this.totalEmpresasPages);
+      this.cursosCurrentPage = Math.min(this.cursosCurrentPage, this.totalCursosPages);
     }
   }
 
@@ -1573,6 +1594,18 @@ export class HistorialCursosComponent implements OnInit {
     this.actualizarAnosDisponibles();
     this.filtrarCursosEmpresa();
     this.guardarEstadoFiltros();
+    this.enfocarPanelCursosEnMovil();
+  }
+
+  /** En móvil, al elegir empresa se muestra el panel de cursos (la lista se oculta). */
+  private enfocarPanelCursosEnMovil(): void {
+    if (typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches) {
+      return;
+    }
+    setTimeout(() => {
+      const panel = document.querySelector('.courses-pane:not(.courses-pane-empty)') as HTMLElement | null;
+      panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
   }
 
   actualizarAnosDisponibles(): void {
@@ -1892,6 +1925,9 @@ export class HistorialCursosComponent implements OnInit {
   }
 
   cambiarModoVisual(modo: 'normal' | 'compacto'): void {
+    if (this.esVistaMovil) {
+      modo = 'normal';
+    }
     if (this.modoVisual === modo) {
       return;
     }

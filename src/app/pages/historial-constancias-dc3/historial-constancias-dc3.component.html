@@ -1,13 +1,13 @@
-<div class="header header-bg-image pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
+<div class="header header-bg-image hcd3-hero pb-6 pt-4 pt-md-6 d-flex align-items-center position-relative overflow-hidden">
   <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
     <div class="row w-100 text-center">
       <div class="col-12">
         <div class="d-flex flex-column align-items-center justify-content-center">
-          <div class="icon icon-shape text-white rounded-circle shadow mb-2"
+          <div class="icon icon-shape text-white rounded-circle shadow mb-2 hcd3-hero__icon"
                style="background: rgba(255,255,255,0.15); font-size: 1.65rem;">
             <i class="fas fa-certificate" aria-hidden="true"></i>
           </div>
-          <h1 class="text-white mb-0" style="font-weight: 700; font-size: 2rem; letter-spacing: -0.3px;">
+          <h1 class="text-white mb-0 hcd3-hero__title" style="font-weight: 700; font-size: 2rem; letter-spacing: -0.3px;">
             Historial de Constancias y DC-3
           </h1>
         </div>
@@ -16,7 +16,7 @@
   </div>
 </div>
 
-<div class="container-fluid mt--5" style="position: relative; z-index: 10; margin-bottom: 2.5rem;">
+<div class="container-fluid mt--5 hcd3-main" style="position: relative; z-index: 10; margin-bottom: 2.5rem;">
   <div class="row justify-content-center">
     <div class="col-xl-11">
       <div class="card shadow-lg border-0 historial-docs-card">
@@ -24,7 +24,7 @@
           <h2 class="mb-0">Buscador por folio</h2>
         </div>
 
-        <div class="card-body">
+        <div class="card-body historial-docs-card__body">
           <div class="historial-docs-format mb-3">
             <div class="historial-docs-format__head mb-2">
               <h3 class="historial-docs-format__title mb-0">
@@ -56,20 +56,24 @@
           </div>
 
           <div class="historial-docs-search">
-            <i class="fas fa-search"></i>
-            <input
-              type="text"
-              class="form-control"
-              placeholder="Escribe folio, CURP o participante"
-              [(ngModel)]="terminoBusqueda"
-              (ngModelChange)="onTerminoChange($event)"
-              (keyup.enter)="buscar()"
-            >
-            <button class="btn btn-outline-primary" type="button" [disabled]="buscando || !terminoBusqueda.trim()" (click)="buscar()">
-              <span *ngIf="!buscando"><i class="fas fa-search mr-1"></i>Buscar</span>
-              <span *ngIf="buscando"><i class="fas fa-spinner fa-spin mr-1"></i>Buscando...</span>
-            </button>
-            <button class="btn btn-outline-secondary" type="button" (click)="limpiar()">Limpiar</button>
+            <div class="historial-docs-search__field">
+              <i class="fas fa-search" aria-hidden="true"></i>
+              <input
+                type="text"
+                class="form-control"
+                placeholder="Escribe folio, CURP o participante"
+                [(ngModel)]="terminoBusqueda"
+                (ngModelChange)="onTerminoChange($event)"
+                (keyup.enter)="buscar()"
+              >
+            </div>
+            <div class="historial-docs-search__actions">
+              <button class="btn btn-outline-primary" type="button" [disabled]="buscando || !terminoBusqueda.trim()" (click)="buscar()">
+                <span *ngIf="!buscando"><i class="fas fa-search mr-1"></i>Buscar</span>
+                <span *ngIf="buscando"><i class="fas fa-spinner fa-spin mr-1"></i>Buscando...</span>
+              </button>
+              <button class="btn btn-outline-secondary" type="button" (click)="limpiar()">Limpiar</button>
+            </div>
           </div>
 
           <div *ngIf="error" class="alert alert-light border mt-3 mb-0 py-2">

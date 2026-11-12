@@ -32,6 +32,7 @@ export interface AvisoPopupItem {
   diasRestantes?: number | null;
   // Proyectos
   cambioId?: number;
+  pedidoId?: number | null;
   folio?: string;
   nombreProyecto?: string;
   estatus?: string;
@@ -198,8 +199,29 @@ export class AvisosPopupService {
     this.backend.silenciarTodosAvisosResolutivosPipc().subscribe({ error: () => {} });
   }
 
+  /** Deja de avisar un PIPC ya gestionado y lo quita del gestor. */
+  quitarResolutivoGestionado(resolutivoId: number): void {
+    const id = Number(resolutivoId);
+    this._resolutivo.next(this.resolutivo.filter((item) => item.resolutivoId !== id));
+  }
+
+  registrarGestionPc(item: AvisoPopupItem, acciones: string) {
+    return this.backend.gestionarResolutivoPipc({
+      resolutivoId: Number(item.resolutivoId),
+      empresaId: item.empresaId ?? null,
+      nombreEmpresa: item.nombreEmpresa || '',
+      nombreAsignacion: item.nombreAsignacion || '',
+      acciones
+    });
+  }
+
   /** Cierra el popup y abre el apartado. El aviso sigue en el gestor hasta que el estatus quede resuelto. */
   ir(item: AvisoPopupItem): void {
+    if (item.area === 'proyectos' && (item.tipo === 'confirmacion' || item.tipo === 'respuesta')) {
+      this.descartar(item);
+      this.navegar(item);
+      return;
+    }
     this.silenciar(item);
     this.navegar(item);
   }
@@ -210,18 +232,17 @@ export class AvisosPopupService {
 
   navegar(item: AvisoPopupItem): void {
     if (item.area === 'proyectos') {
-      if (item.tipo === 'respuesta') {
-        this.router.navigate(['/control-proyectos'], {
-          queryParams: {
-            cambioFolio: item.folio || null,
-            cambioEmpresaId: item.empresaId || null,
-            cambioId: item.cambioId || null,
-            solicitudes: null
-          }
-        });
-        return;
-      }
-      this.router.navigate(['/control-proyectos'], { queryParams: { solicitudes: 1 } });
+      const llenar = item.tipo === 'pedido';
+      this.router.navigate(['/control-proyectos'], {
+        queryParams: {
+          cambioFolio: item.folio || null,
+          cambioProyecto: item.nombreProyecto || null,
+          cambioEmpresaId: item.empresaId || null,
+          cambioId: llenar ? null : (item.cambioId || null),
+          cambioModo: llenar ? 'llenar' : null,
+          solicitudes: null
+        }
+      });
       return;
     }
     const ruta = String(item.ruta || (item.area === 'pc' ? '/proteccion-civil' : '/sistema-gestion-calidad/firmas')).trim();
@@ -317,13 +338,17 @@ export class AvisosPopupService {
   private mapCambio(rows: any[]): AvisoPopupItem[] {
     return (rows || []).map((row) => {
       const tipo = String(row.tipo || 'revision');
-      const titulo = tipo === 'respuesta'
-        ? 'Solicitud de cambio atendida'
-        : tipo === 'recordatorio_urgente'
-          ? 'Cambio: fecha de compromiso cerca'
-          : tipo === 'recordatorio'
-            ? 'Cambio pendiente de revisión'
-            : 'Solicitud de cambio por revisar';
+      const titulo = tipo === 'confirmacion'
+        ? 'Cambio registrado'
+        : tipo === 'respuesta'
+          ? 'Solicitud de cambio atendida'
+          : tipo === 'pedido'
+            ? 'Te solicitaron un cambio'
+            : tipo === 'recordatorio_urgente'
+              ? 'Cambio: fecha de compromiso cerca'
+              : tipo === 'recordatorio'
+                ? 'Cambio pendiente de revisión'
+                : 'Solicitud de cambio por revisar';
       const proyecto = String(row.nombreProyecto || 'Proyecto').replace(/\s+/g, ' ').trim();
       const folio = String(row.folio || '').trim();
       return {
@@ -333,7 +358,8 @@ export class AvisosPopupService {
         titulo,
         resumen: folio ? `${folio} · ${proyecto}` : proyecto,
         silenciado: !!row.silenciado,
-        cambioId: Number(row.cambioId),
+        cambioId: Number(row.cambioId) > 0 ? Number(row.cambioId) : undefined,
+        pedidoId: Number(row.pedidoId) > 0 ? Number(row.pedidoId) : null,
         empresaId: row.empresaId == null ? null : Number(row.empresaId),
         folio: row.folio || '',
         nombreProyecto: row.nombreProyecto || '',

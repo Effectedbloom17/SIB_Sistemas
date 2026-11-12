@@ -1133,6 +1133,249 @@
   }
 }
 
+@media (max-width: 767px) {
+  .hc-hero {
+    padding-top: 4.5rem !important;
+    padding-bottom: 4.4rem !important;
+    min-height: 0;
+  }
+
+  .hc-hero__icon {
+    width: 2.4rem !important;
+    height: 2.4rem !important;
+    font-size: 1.15rem !important;
+    margin-bottom: 0.7rem !important;
+  }
+
+  .hc-hero__title {
+    font-size: 1.22rem !important;
+    line-height: 1.3;
+    padding: 0 0.75rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .hc-main.mt--5,
+  .hc-main {
+    margin-top: -2.4rem !important;
+    margin-bottom: 1.75rem !important;
+  }
+
+  .history-header {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1rem 0.85rem !important;
+    gap: 0.65rem;
+  }
+
+  .history-title-main {
+    font-size: 1.12rem !important;
+    line-height: 1.3;
+  }
+
+  .history-actions {
+    width: 100%;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem;
+  }
+
+  .history-actions.solo-alertas {
+    justify-content: flex-end;
+  }
+
+  .history-alerts-btn {
+    white-space: nowrap;
+  }
+
+  .history-main-card > .card-body {
+    padding: 0.85rem 0.75rem !important;
+  }
+
+  // Menos filas: buscar a lo ancho; estado+municipio; anexo a lo ancho
+  .history-filters {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .history-filters .search-input-wrap {
+    grid-column: 1 / -1;
+  }
+
+  .history-filters .filter-select:last-of-type {
+    grid-column: 1 / -1;
+  }
+
+  .search-input-wrap {
+    overflow: visible;
+  }
+
+  .search-icon {
+    left: 0.85rem;
+    overflow: visible;
+  }
+
+  .search-input,
+  .filter-select {
+    height: 40px;
+    font-size: 0.82rem;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .search-input {
+    padding: 0 0.7rem 0 2.3rem;
+  }
+
+  .history-intro-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+    padding: 0.55rem 0.7rem;
+  }
+
+  .history-intro-item {
+    font-size: 0.72rem;
+    line-height: 1.3;
+  }
+
+  .companies-pane {
+    padding: 0.55rem;
+  }
+
+  .pane-header-row {
+    padding: 0.15rem 0.35rem 0.5rem;
+    gap: 0.5rem;
+  }
+
+  .company-card {
+    padding: 0.7rem 0.75rem;
+  }
+
+  .company-foot {
+    padding-right: 0.1rem;
+  }
+
+  .company-foot-value {
+    flex-shrink: 0;
+    padding-left: 0.5rem;
+  }
+
+  // Año + mes en la misma fila
+  .courses-filters {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+  }
+
+  // Stats del empty state: 2 en una fila
+  .empty-selection-stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+  }
+
+  .empty-stat-card {
+    min-width: 0;
+    padding: 0.65rem 0.55rem;
+  }
+
+  .empty-stat-value {
+    font-size: 1rem;
+  }
+
+  .course-item {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0.55rem;
+  }
+
+  .course-actions {
+    flex-shrink: 0;
+    width: auto;
+    justify-content: flex-end;
+  }
+
+  .course-meta-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.25rem 0.5rem;
+
+    span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .courses-pane {
+    padding: 0.7rem;
+  }
+
+  .courses-pane-title {
+    font-size: 1.05rem;
+    line-height: 1.25;
+  }
+
+  .history-layout {
+    min-height: 0;
+    grid-template-columns: 1fr;
+  }
+
+  // Compacto no existe en móvil: si quedara la clase, nunca forzar 2 columnas
+  .history-main-card.compact-mode .history-layout {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  // Instrucciones debajo de la lista (no al costado); se ocultan al elegir empresa
+  .courses-pane-empty {
+    display: block;
+    margin-top: 0.35rem;
+  }
+
+  .empty-selection-wrap {
+    min-height: 0;
+    padding: 1.1rem 0.75rem;
+  }
+
+  .empty-selection-title {
+    font-size: 1.02rem;
+  }
+
+  .empty-selection-text {
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+
+  // Al seleccionar empresa en móvil: solo el panel de cursos
+  .history-layout.has-empresa-seleccionada {
+    .companies-pane {
+      display: none;
+    }
+
+    .courses-pane-empty {
+      display: none;
+    }
+
+    .courses-pane {
+      display: block;
+    }
+  }
+
+  .btn-reset-company {
+    white-space: nowrap;
+  }
+
+  .courses-pane-header {
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    align-items: flex-start;
+  }
+}
+
 @media (max-width: 768px) {
   .history-header {
     flex-direction: column;
@@ -1147,31 +1390,5 @@
   .history-intro-banner {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .history-filters {
-    grid-template-columns: 1fr;
-  }
-
-  .courses-filters {
-    grid-template-columns: 1fr;
-  }
-
-  .empty-selection-stats {
-    grid-template-columns: 1fr;
-  }
-
-  .course-item {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .course-actions {
-    width: 100%;
-    justify-content: flex-end;
-  }
-
-  .course-meta-grid {
-    grid-template-columns: 1fr;
   }
 }

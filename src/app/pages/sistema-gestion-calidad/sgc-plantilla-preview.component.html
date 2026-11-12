@@ -15497,7 +15497,7 @@
                         <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-table" aria-hidden="true"></i></div>
                         <div>
                           <h4 class="sgc-f-11-matriz__title">Matriz AMEF</h4>
-                          <p class="sgc-f-11-matriz__hint">Análisis de riesgo y plan de acción en dos bloques; cada fila corresponde a la misma operación. Docs abre solo las evidencias de ese punto. Si bloqueas la edición, solo quedan abiertos Sev., Oc. y Det. posteriores.</p>
+                          <p class="sgc-f-11-matriz__hint">Análisis de riesgo y plan de acción en una sola tabla. Desplaza en horizontal para ver el resto: el número y el modo de falla permanecen fijos y la etapa se oculta al desplazarse. Docs abre solo las evidencias de ese punto. Si bloqueas la edición, solo quedan abiertos Sev., Oc. y Det. posteriores.</p>
                         </div>
                       </div>
                     </div>
@@ -15547,289 +15547,241 @@
                     </div>
 
                     <div class="dg-f05-table-panel sgc-f-11-matriz">
-                      <section class="sgc-f-11-split-block" aria-labelledby="sgc-f-11-block-analisis">
-                        <header class="sgc-f-11-split-block__head" id="sgc-f-11-block-analisis">
-                          <span class="sgc-f-11-split-block__badge">1</span>
-                          <div>
-                            <strong class="sgc-f-11-split-block__title">Análisis de riesgo</strong>
-                            <span class="sgc-f-11-split-block__subtitle">Modo de falla, efectos y controles</span>
-                          </div>
-                        </header>
-                        <div class="dg-f05-table-wrap sgc-f-11-table-wrap" tabindex="0">
-                          <table class="dg-f05-table sgc-f-11-table sgc-f-11-table--analisis">
-                            <colgroup>
-                              <col class="sgc-f-11-col--idx">
-                              <col class="sgc-f-11-col--text">
-                              <col class="sgc-f-11-col--text">
-                              <col class="sgc-f-11-col--text">
-                              <col class="sgc-f-11-col--num">
-                              <col class="sgc-f-11-col--text">
-                              <col class="sgc-f-11-col--num">
-                              <col class="sgc-f-11-col--text">
-                              <col class="sgc-f-11-col--text">
-                              <col class="sgc-f-11-col--num">
-                              <col class="sgc-f-11-col--rpn">
-                              <col class="sgc-f-11-col--evid">
-                            </colgroup>
-                            <thead>
-                              <tr>
-                                <th class="sgc-f-11-table__col--idx">#</th>
-                                <th>Etapa</th>
-                                <th>Modo de falla</th>
-                                <th>Causas</th>
-                                <th class="sgc-f-11-table__col--num">
-                                  <span class="sgc-f-11-guia-trigger" tabindex="0"
-                                    (mouseenter)="abrirGuiaSgcF11('ocurrencia', $event)"
-                                    (mouseleave)="cerrarGuiaSgcF11()"
-                                    (focus)="abrirGuiaSgcF11('ocurrencia', $event)"
-                                    (blur)="cerrarGuiaSgcF11()">Oc.</span>
-                                </th>
-                                <th>Efecto</th>
-                                <th class="sgc-f-11-table__col--num">
-                                  <span class="sgc-f-11-guia-trigger" tabindex="0"
-                                    (mouseenter)="abrirGuiaSgcF11('severidad', $event)"
-                                    (mouseleave)="cerrarGuiaSgcF11()"
-                                    (focus)="abrirGuiaSgcF11('severidad', $event)"
-                                    (blur)="cerrarGuiaSgcF11()">Sev.</span>
-                                </th>
-                                <th>Controles preventivos</th>
-                                <th>Controles detección</th>
-                                <th class="sgc-f-11-table__col--num">
-                                  <span class="sgc-f-11-guia-trigger" tabindex="0"
-                                    (mouseenter)="abrirGuiaSgcF11('deteccion', $event)"
-                                    (mouseleave)="cerrarGuiaSgcF11()"
-                                    (focus)="abrirGuiaSgcF11('deteccion', $event)"
-                                    (blur)="cerrarGuiaSgcF11()">Det.</span>
-                                </th>
-                                <th class="sgc-f-11-table__col--num">RPN</th>
-                                <th class="sgc-f-11-table__col--evid" title="Evidencias de este punto">Docs</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <tr *ngFor="let fila of sgcF11Form.filas; trackBy: trackByIdx; let i = index"
-                                class="sgc-f-11-table__row" [attr.data-row]="i + 1">
-                                <td class="sgc-f-11-table__idx">{{ i + 1 }}</td>
-                                <td class="sgc-f-11-td">
-                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
-                                    rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.etapa" [name]="'sgcF11_et' + i"
-                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
-                                </td>
-                                <td class="sgc-f-11-td">
-                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
-                                    rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.modoFalla" [name]="'sgcF11_mf' + i"
-                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
-                                </td>
-                                <td class="sgc-f-11-td">
-                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
-                                    rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.causas" [name]="'sgcF11_ca' + i"
-                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
-                                </td>
-                                <td class="sgc-f-11-td sgc-f-11-td--num">
-                                  <select class="dg-f05-field sgc-f-11-table__escala"
-                                    [(ngModel)]="fila.ocurrencia" [name]="'sgcF11_oc' + i"
-                                    [disabled]="sgcF11Form.edicionBloqueada"
-                                    (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
-                                    <option value=""></option>
-                                    <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
-                                  </select>
-                                </td>
-                                <td class="sgc-f-11-td">
-                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
-                                    rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.efecto" [name]="'sgcF11_ef' + i"
-                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
-                                </td>
-                                <td class="sgc-f-11-td sgc-f-11-td--num">
-                                  <select class="dg-f05-field sgc-f-11-table__escala"
-                                    [(ngModel)]="fila.severidad" [name]="'sgcF11_sev' + i"
-                                    [disabled]="sgcF11Form.edicionBloqueada"
-                                    (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
-                                    <option value=""></option>
-                                    <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
-                                  </select>
-                                </td>
-                                <td class="sgc-f-11-td">
-                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
-                                    rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.controlesPreventivos" [name]="'sgcF11_cp' + i"
-                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
-                                </td>
-                                <td class="sgc-f-11-td">
-                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
-                                    rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.controlesDeteccion" [name]="'sgcF11_cd' + i"
-                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
-                                </td>
-                                <td class="sgc-f-11-td sgc-f-11-td--num">
-                                  <select class="dg-f05-field sgc-f-11-table__escala"
-                                    [(ngModel)]="fila.deteccion" [name]="'sgcF11_det' + i"
-                                    [disabled]="sgcF11Form.edicionBloqueada"
-                                    (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
-                                    <option value=""></option>
-                                    <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
-                                  </select>
-                                </td>
-                                <td class="sgc-f-11-td sgc-f-11-td--num">
-                                  <span class="sgc-f-11-table__rpn-badge"
-                                    [class.sgc-f-11-table__rpn-badge--vacio]="formatearRpnDisplay(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion) === '0'"
-                                    [class.sgc-f-11-table__rpn-badge--alto]="esRpnAlto(formatearRpnDisplay(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion))">
-                                    {{ formatearRpnDisplay(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion) }}
-                                  </span>
-                                </td>
-                                <td class="sgc-f-11-td sgc-f-11-td--evid">
-                                  <button type="button" class="sgc-f-11-evid-chip"
-                                    [class.is-on]="conteoEvidenciasFilaSgcF11(fila) > 0"
-                                    (click)="abrirEvidenciasFilaSgcF11(i, $event)"
-                                    [attr.aria-label]="'Evidencias del punto ' + (i + 1)"
-                                    [title]="etiquetaVisiblePuntoSgcF11(fila, i)">
-                                    <i class="fas fa-folder-open" aria-hidden="true"></i>
-                                    <em>{{ conteoEvidenciasFilaSgcF11(fila) }}</em>
-                                  </button>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </section>
-
-                      <section class="sgc-f-11-split-block sgc-f-11-split-block--acciones" aria-labelledby="sgc-f-11-block-acciones">
-                        <header class="sgc-f-11-split-block__head" id="sgc-f-11-block-acciones">
-                          <span class="sgc-f-11-split-block__badge sgc-f-11-split-block__badge--acciones">2</span>
-                          <div class="sgc-f-11-split-block__copy">
-                            <strong class="sgc-f-11-split-block__title">Plan de acción y seguimiento</strong>
-                            <span class="sgc-f-11-split-block__subtitle">{{ sgcF11Form.edicionBloqueada ? 'Solo Sev., Oc. y Det. posteriores siguen abiertos. El RPN se recalcula.' : 'Acciones correctivas y RPN posterior' }}</span>
-                          </div>
-                        </header>
-                        <div class="dg-f05-table-wrap sgc-f-11-table-wrap sgc-f-11-table-wrap--full" tabindex="0">
-                          <table class="dg-f05-table sgc-f-11-table sgc-f-11-table--acciones">
-                            <colgroup>
-                              <col class="sgc-f-11-col--idx">
-                              <col class="sgc-f-11-col--text-lg">
-                              <col class="sgc-f-11-col--text">
-                              <col class="sgc-f-11-col--fecha">
-                              <col class="sgc-f-11-col--text-lg">
-                              <col class="sgc-f-11-col--num">
-                              <col class="sgc-f-11-col--num">
-                              <col class="sgc-f-11-col--num">
-                              <col class="sgc-f-11-col--rpn">
-                              <col class="sgc-f-11-col--evid">
-                              <col class="sgc-f-11-col--act">
-                            </colgroup>
-                            <thead>
-                              <tr>
-                                <th class="sgc-f-11-table__col--idx">#</th>
-                                <th>Acciones</th>
-                                <th>Responsable</th>
-                                <th>Fecha compromiso</th>
-                                <th>Resultado</th>
-                                <th class="sgc-f-11-table__col--num sgc-f-11-table__col--seguimiento">
-                                  <span class="sgc-f-11-guia-trigger" tabindex="0"
-                                    (mouseenter)="abrirGuiaSgcF11('severidad', $event)"
-                                    (mouseleave)="cerrarGuiaSgcF11()"
-                                    (focus)="abrirGuiaSgcF11('severidad', $event)"
-                                    (blur)="cerrarGuiaSgcF11()">Sev.</span>
-                                </th>
-                                <th class="sgc-f-11-table__col--num sgc-f-11-table__col--seguimiento">
-                                  <span class="sgc-f-11-guia-trigger" tabindex="0"
-                                    (mouseenter)="abrirGuiaSgcF11('ocurrencia', $event)"
-                                    (mouseleave)="cerrarGuiaSgcF11()"
-                                    (focus)="abrirGuiaSgcF11('ocurrencia', $event)"
-                                    (blur)="cerrarGuiaSgcF11()">Oc.</span>
-                                </th>
-                                <th class="sgc-f-11-table__col--num sgc-f-11-table__col--seguimiento">
-                                  <span class="sgc-f-11-guia-trigger" tabindex="0"
-                                    (mouseenter)="abrirGuiaSgcF11('deteccion', $event)"
-                                    (mouseleave)="cerrarGuiaSgcF11()"
-                                    (focus)="abrirGuiaSgcF11('deteccion', $event)"
-                                    (blur)="cerrarGuiaSgcF11()">Det.</span>
-                                </th>
-                                <th class="sgc-f-11-table__col--num sgc-f-11-table__col--seguimiento">RPN</th>
-                                <th class="sgc-f-11-table__col--evid" title="Evidencias de este punto">Docs</th>
-                                <th class="dg-f05-table__act" aria-label="Acciones"></th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <tr *ngFor="let fila of sgcF11Form.filas; trackBy: trackByIdx; let i = index"
-                                class="sgc-f-11-table__row" [attr.data-row]="i + 1">
-                                <td class="sgc-f-11-table__idx">{{ i + 1 }}</td>
-                                <td class="sgc-f-11-td">
-                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
-                                    rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.acciones" [name]="'sgcF11_ac' + i"
-                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
-                                </td>
-                                <td class="sgc-f-11-td">
-                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
-                                    rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.responsable" [name]="'sgcF11_res' + i"
-                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
-                                </td>
-                                <td class="sgc-f-11-table__fecha sgc-f-11-td sgc-f-11-td--num">
-                                  <input class="dg-f05-field dg-f05-field--date" type="date"
-                                    [(ngModel)]="fila.fechaCompromiso" [name]="'sgcF11_fc' + i"
-                                    [readonly]="sgcF11Form.edicionBloqueada">
-                                </td>
-                                <td class="sgc-f-11-td">
-                                  <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
-                                    rows="1" (input)="onSgcF11TextareaInput($event)"
-                                    [(ngModel)]="fila.resultado" [name]="'sgcF11_re' + i"
-                                    [readonly]="sgcF11Form.edicionBloqueada"></textarea>
-                                </td>
-                                <td class="sgc-f-11-td sgc-f-11-td--num sgc-f-11-td--seguimiento">
-                                  <select class="dg-f05-field sgc-f-11-table__escala"
-                                    [(ngModel)]="fila.severidadPost" [name]="'sgcF11_sp' + i"
-                                    (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
-                                    <option value=""></option>
-                                    <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
-                                  </select>
-                                </td>
-                                <td class="sgc-f-11-td sgc-f-11-td--num sgc-f-11-td--seguimiento">
-                                  <select class="dg-f05-field sgc-f-11-table__escala"
-                                    [(ngModel)]="fila.ocurrenciaPost" [name]="'sgcF11_opo' + i"
-                                    (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
-                                    <option value=""></option>
-                                    <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
-                                  </select>
-                                </td>
-                                <td class="sgc-f-11-td sgc-f-11-td--num sgc-f-11-td--seguimiento">
-                                  <select class="dg-f05-field sgc-f-11-table__escala"
-                                    [(ngModel)]="fila.deteccionPost" [name]="'sgcF11_dpo' + i"
-                                    (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
-                                    <option value=""></option>
-                                    <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
-                                  </select>
-                                </td>
-                                <td class="sgc-f-11-td sgc-f-11-td--num sgc-f-11-td--seguimiento">
-                                  <span class="sgc-f-11-table__rpn-badge sgc-f-11-table__rpn-badge--post"
-                                    [class.sgc-f-11-table__rpn-badge--vacio]="formatearRpnDisplay(fila.rpnPost, fila.ocurrenciaPost, fila.severidadPost, fila.deteccionPost) === '0'"
-                                    [class.sgc-f-11-table__rpn-badge--alto]="esRpnAlto(formatearRpnDisplay(fila.rpnPost, fila.ocurrenciaPost, fila.severidadPost, fila.deteccionPost))">
-                                    {{ formatearRpnDisplay(fila.rpnPost, fila.ocurrenciaPost, fila.severidadPost, fila.deteccionPost) }}
-                                  </span>
-                                </td>
-                                <td class="sgc-f-11-td sgc-f-11-td--evid">
-                                  <button type="button" class="sgc-f-11-evid-chip"
-                                    [class.is-on]="conteoEvidenciasFilaSgcF11(fila) > 0"
-                                    (click)="abrirEvidenciasFilaSgcF11(i, $event)"
-                                    [attr.aria-label]="'Evidencias del punto ' + (i + 1)"
-                                    [title]="etiquetaVisiblePuntoSgcF11(fila, i)">
-                                    <i class="fas fa-folder-open" aria-hidden="true"></i>
-                                    <em>{{ conteoEvidenciasFilaSgcF11(fila) }}</em>
-                                  </button>
-                                </td>
-                                <td class="dg-f05-table__act">
-                                  <button type="button" class="dg-f05-row-btn" (click)="quitarFilaSgcF11(i)"
-                                    [disabled]="sgcF11Form.edicionBloqueada || sgcF11Form.filas.length <= 1" title="Quitar fila">
-                                    <i class="fas fa-times" aria-hidden="true"></i>
-                                  </button>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </section>
+                      <div class="dg-f05-table-wrap sgc-f-11-table-wrap sgc-f-11-table-wrap--unida" tabindex="0"
+                        aria-label="Matriz AMEF">
+                        <table class="dg-f05-table sgc-f-11-table sgc-f-11-table--unida">
+                          <colgroup>
+                            <col class="sgc-f-11-col--idx">
+                            <col class="sgc-f-11-col--etapa">
+                            <col class="sgc-f-11-col--modo">
+                            <col class="sgc-f-11-col--text">
+                            <col class="sgc-f-11-col--num">
+                            <col class="sgc-f-11-col--text">
+                            <col class="sgc-f-11-col--num">
+                            <col class="sgc-f-11-col--text">
+                            <col class="sgc-f-11-col--text">
+                            <col class="sgc-f-11-col--num">
+                            <col class="sgc-f-11-col--rpn">
+                            <col class="sgc-f-11-col--text-lg">
+                            <col class="sgc-f-11-col--text">
+                            <col class="sgc-f-11-col--fecha">
+                            <col class="sgc-f-11-col--text-lg">
+                            <col class="sgc-f-11-col--num">
+                            <col class="sgc-f-11-col--num">
+                            <col class="sgc-f-11-col--num">
+                            <col class="sgc-f-11-col--rpn">
+                            <col class="sgc-f-11-col--evid">
+                            <col class="sgc-f-11-col--act">
+                          </colgroup>
+                          <thead>
+                            <tr>
+                              <th class="sgc-f-11-table__col--idx sgc-f-11-stick sgc-f-11-stick--idx">#</th>
+                              <th>Etapa</th>
+                              <th class="sgc-f-11-stick sgc-f-11-stick--modo">Modo de falla</th>
+                              <th>Causas</th>
+                              <th class="sgc-f-11-table__col--num">
+                                <span class="sgc-f-11-guia-trigger" tabindex="0"
+                                  (mouseenter)="abrirGuiaSgcF11('ocurrencia', $event)"
+                                  (mouseleave)="cerrarGuiaSgcF11()"
+                                  (focus)="abrirGuiaSgcF11('ocurrencia', $event)"
+                                  (blur)="cerrarGuiaSgcF11()">Oc.</span>
+                              </th>
+                              <th>Efecto</th>
+                              <th class="sgc-f-11-table__col--num">
+                                <span class="sgc-f-11-guia-trigger" tabindex="0"
+                                  (mouseenter)="abrirGuiaSgcF11('severidad', $event)"
+                                  (mouseleave)="cerrarGuiaSgcF11()"
+                                  (focus)="abrirGuiaSgcF11('severidad', $event)"
+                                  (blur)="cerrarGuiaSgcF11()">Sev.</span>
+                              </th>
+                              <th>Controles preventivos</th>
+                              <th>Controles detección</th>
+                              <th class="sgc-f-11-table__col--num">
+                                <span class="sgc-f-11-guia-trigger" tabindex="0"
+                                  (mouseenter)="abrirGuiaSgcF11('deteccion', $event)"
+                                  (mouseleave)="cerrarGuiaSgcF11()"
+                                  (focus)="abrirGuiaSgcF11('deteccion', $event)"
+                                  (blur)="cerrarGuiaSgcF11()">Det.</span>
+                              </th>
+                              <th class="sgc-f-11-table__col--num">RPN</th>
+                              <th>Acciones</th>
+                              <th>Responsable</th>
+                              <th>Fecha compromiso</th>
+                              <th>Resultado</th>
+                              <th class="sgc-f-11-table__col--num sgc-f-11-table__col--seguimiento">
+                                <span class="sgc-f-11-guia-trigger" tabindex="0"
+                                  (mouseenter)="abrirGuiaSgcF11('severidad', $event)"
+                                  (mouseleave)="cerrarGuiaSgcF11()"
+                                  (focus)="abrirGuiaSgcF11('severidad', $event)"
+                                  (blur)="cerrarGuiaSgcF11()">Sev.</span>
+                              </th>
+                              <th class="sgc-f-11-table__col--num sgc-f-11-table__col--seguimiento">
+                                <span class="sgc-f-11-guia-trigger" tabindex="0"
+                                  (mouseenter)="abrirGuiaSgcF11('ocurrencia', $event)"
+                                  (mouseleave)="cerrarGuiaSgcF11()"
+                                  (focus)="abrirGuiaSgcF11('ocurrencia', $event)"
+                                  (blur)="cerrarGuiaSgcF11()">Oc.</span>
+                              </th>
+                              <th class="sgc-f-11-table__col--num sgc-f-11-table__col--seguimiento">
+                                <span class="sgc-f-11-guia-trigger" tabindex="0"
+                                  (mouseenter)="abrirGuiaSgcF11('deteccion', $event)"
+                                  (mouseleave)="cerrarGuiaSgcF11()"
+                                  (focus)="abrirGuiaSgcF11('deteccion', $event)"
+                                  (blur)="cerrarGuiaSgcF11()">Det.</span>
+                              </th>
+                              <th class="sgc-f-11-table__col--num sgc-f-11-table__col--seguimiento">RPN</th>
+                              <th class="sgc-f-11-table__col--evid" title="Evidencias de este punto">Docs</th>
+                              <th class="dg-f05-table__act" aria-label="Acciones"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr *ngFor="let fila of sgcF11Form.filas; trackBy: trackByIdx; let i = index"
+                              class="sgc-f-11-table__row" [attr.data-row]="i + 1">
+                              <td class="sgc-f-11-table__idx sgc-f-11-stick sgc-f-11-stick--idx">{{ i + 1 }}</td>
+                              <td class="sgc-f-11-td">
+                                <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                  rows="1" (input)="onSgcF11TextareaInput($event)"
+                                  [(ngModel)]="fila.etapa" [name]="'sgcF11_et' + i"
+                                  [readonly]="sgcF11Form.edicionBloqueada"></textarea>
+                              </td>
+                              <td class="sgc-f-11-td sgc-f-11-stick sgc-f-11-stick--modo">
+                                <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                  rows="1" (input)="onSgcF11TextareaInput($event)"
+                                  [(ngModel)]="fila.modoFalla" [name]="'sgcF11_mf' + i"
+                                  [readonly]="sgcF11Form.edicionBloqueada"></textarea>
+                              </td>
+                              <td class="sgc-f-11-td">
+                                <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                  rows="1" (input)="onSgcF11TextareaInput($event)"
+                                  [(ngModel)]="fila.causas" [name]="'sgcF11_ca' + i"
+                                  [readonly]="sgcF11Form.edicionBloqueada"></textarea>
+                              </td>
+                              <td class="sgc-f-11-td sgc-f-11-td--num">
+                                <select class="dg-f05-field sgc-f-11-table__escala"
+                                  [(ngModel)]="fila.ocurrencia" [name]="'sgcF11_oc' + i"
+                                  [disabled]="sgcF11Form.edicionBloqueada"
+                                  (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
+                                  <option value=""></option>
+                                  <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
+                                </select>
+                              </td>
+                              <td class="sgc-f-11-td">
+                                <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                  rows="1" (input)="onSgcF11TextareaInput($event)"
+                                  [(ngModel)]="fila.efecto" [name]="'sgcF11_ef' + i"
+                                  [readonly]="sgcF11Form.edicionBloqueada"></textarea>
+                              </td>
+                              <td class="sgc-f-11-td sgc-f-11-td--num">
+                                <select class="dg-f05-field sgc-f-11-table__escala"
+                                  [(ngModel)]="fila.severidad" [name]="'sgcF11_sev' + i"
+                                  [disabled]="sgcF11Form.edicionBloqueada"
+                                  (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
+                                  <option value=""></option>
+                                  <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
+                                </select>
+                              </td>
+                              <td class="sgc-f-11-td">
+                                <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                  rows="1" (input)="onSgcF11TextareaInput($event)"
+                                  [(ngModel)]="fila.controlesPreventivos" [name]="'sgcF11_cp' + i"
+                                  [readonly]="sgcF11Form.edicionBloqueada"></textarea>
+                              </td>
+                              <td class="sgc-f-11-td">
+                                <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                  rows="1" (input)="onSgcF11TextareaInput($event)"
+                                  [(ngModel)]="fila.controlesDeteccion" [name]="'sgcF11_cd' + i"
+                                  [readonly]="sgcF11Form.edicionBloqueada"></textarea>
+                              </td>
+                              <td class="sgc-f-11-td sgc-f-11-td--num">
+                                <select class="dg-f05-field sgc-f-11-table__escala"
+                                  [(ngModel)]="fila.deteccion" [name]="'sgcF11_det' + i"
+                                  [disabled]="sgcF11Form.edicionBloqueada"
+                                  (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
+                                  <option value=""></option>
+                                  <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
+                                </select>
+                              </td>
+                              <td class="sgc-f-11-td sgc-f-11-td--num">
+                                <span class="sgc-f-11-table__rpn-badge"
+                                  [class.sgc-f-11-table__rpn-badge--vacio]="formatearRpnDisplay(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion) === '0'"
+                                  [class.sgc-f-11-table__rpn-badge--alto]="esRpnAlto(formatearRpnDisplay(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion))">
+                                  {{ formatearRpnDisplay(fila.rpn, fila.ocurrencia, fila.severidad, fila.deteccion) }}
+                                </span>
+                              </td>
+                              <td class="sgc-f-11-td">
+                                <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                  rows="1" (input)="onSgcF11TextareaInput($event)"
+                                  [(ngModel)]="fila.acciones" [name]="'sgcF11_ac' + i"
+                                  [readonly]="sgcF11Form.edicionBloqueada"></textarea>
+                              </td>
+                              <td class="sgc-f-11-td">
+                                <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                  rows="1" (input)="onSgcF11TextareaInput($event)"
+                                  [(ngModel)]="fila.responsable" [name]="'sgcF11_res' + i"
+                                  [readonly]="sgcF11Form.edicionBloqueada"></textarea>
+                              </td>
+                              <td class="sgc-f-11-table__fecha sgc-f-11-td sgc-f-11-td--num">
+                                <input class="dg-f05-field dg-f05-field--date" type="date"
+                                  [(ngModel)]="fila.fechaCompromiso" [name]="'sgcF11_fc' + i"
+                                  [readonly]="sgcF11Form.edicionBloqueada">
+                              </td>
+                              <td class="sgc-f-11-td">
+                                <textarea class="dg-f05-field dg-f05-field--textarea sgc-f-11-field"
+                                  rows="1" (input)="onSgcF11TextareaInput($event)"
+                                  [(ngModel)]="fila.resultado" [name]="'sgcF11_re' + i"
+                                  [readonly]="sgcF11Form.edicionBloqueada"></textarea>
+                              </td>
+                              <td class="sgc-f-11-td sgc-f-11-td--num sgc-f-11-td--seguimiento">
+                                <select class="dg-f05-field sgc-f-11-table__escala"
+                                  [(ngModel)]="fila.severidadPost" [name]="'sgcF11_sp' + i"
+                                  (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
+                                  <option value=""></option>
+                                  <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
+                                </select>
+                              </td>
+                              <td class="sgc-f-11-td sgc-f-11-td--num sgc-f-11-td--seguimiento">
+                                <select class="dg-f05-field sgc-f-11-table__escala"
+                                  [(ngModel)]="fila.ocurrenciaPost" [name]="'sgcF11_opo' + i"
+                                  (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
+                                  <option value=""></option>
+                                  <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
+                                </select>
+                              </td>
+                              <td class="sgc-f-11-td sgc-f-11-td--num sgc-f-11-td--seguimiento">
+                                <select class="dg-f05-field sgc-f-11-table__escala"
+                                  [(ngModel)]="fila.deteccionPost" [name]="'sgcF11_dpo' + i"
+                                  (ngModelChange)="onSgcF11FilaRpnEditada(fila)">
+                                  <option value=""></option>
+                                  <option *ngFor="let n of sgcF11Escala" [value]="n">{{ n }}</option>
+                                </select>
+                              </td>
+                              <td class="sgc-f-11-td sgc-f-11-td--num sgc-f-11-td--seguimiento">
+                                <span class="sgc-f-11-table__rpn-badge sgc-f-11-table__rpn-badge--post"
+                                  [class.sgc-f-11-table__rpn-badge--vacio]="formatearRpnDisplay(fila.rpnPost, fila.ocurrenciaPost, fila.severidadPost, fila.deteccionPost) === '0'"
+                                  [class.sgc-f-11-table__rpn-badge--alto]="esRpnAlto(formatearRpnDisplay(fila.rpnPost, fila.ocurrenciaPost, fila.severidadPost, fila.deteccionPost))">
+                                  {{ formatearRpnDisplay(fila.rpnPost, fila.ocurrenciaPost, fila.severidadPost, fila.deteccionPost) }}
+                                </span>
+                              </td>
+                              <td class="sgc-f-11-td sgc-f-11-td--evid">
+                                <button type="button" class="sgc-f-11-evid-chip"
+                                  [class.is-on]="conteoEvidenciasFilaSgcF11(fila) > 0"
+                                  (click)="abrirEvidenciasFilaSgcF11(i, $event)"
+                                  [attr.aria-label]="'Evidencias del punto ' + (i + 1)"
+                                  [title]="etiquetaVisiblePuntoSgcF11(fila, i)">
+                                  <i class="fas fa-folder-open" aria-hidden="true"></i>
+                                  <em>{{ conteoEvidenciasFilaSgcF11(fila) }}</em>
+                                </button>
+                              </td>
+                              <td class="dg-f05-table__act">
+                                <button type="button" class="dg-f05-row-btn" (click)="quitarFilaSgcF11(i)"
+                                  [disabled]="sgcF11Form.edicionBloqueada || sgcF11Form.filas.length <= 1" title="Quitar fila">
+                                  <i class="fas fa-times" aria-hidden="true"></i>
+                                </button>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
 
                       <div class="dg-f05-table-foot">
                         <button type="button" class="dg-f05-add-btn" (click)="agregarFilaSgcF11()"
