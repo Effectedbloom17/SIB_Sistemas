@@ -24,6 +24,10 @@ export interface ResidenteForm {
     correo_asesor: string;
     tutor_nombre: string;
     tutor_telefono: string;
+    tutor2_nombre: string;
+    tutor2_telefono: string;
+    tutor2_nss: string;
+    tutor2_direccion: string;
     direccion: string;
     nss: string;
     foto_url?: string | null;
@@ -73,6 +77,8 @@ export class ResidentesComponent implements OnInit, OnDestroy {
     form: ResidenteForm = this.formVacio();
     fotoPreview: string | null = null;
     borradorRestaurado = false;
+    /** Segundo contacto de emergencia opcional (máx. 2). */
+    mostrarSegundoContacto = false;
 
     readonly supervisoresSugeridos = [
         'Ing. Leonel Pérez',
@@ -126,10 +132,44 @@ export class ResidentesComponent implements OnInit, OnDestroy {
             correo_asesor: '',
             tutor_nombre: '',
             tutor_telefono: '',
+            tutor2_nombre: '',
+            tutor2_telefono: '',
+            tutor2_nss: '',
+            tutor2_direccion: '',
             direccion: '',
             nss: '',
             foto_url: null
         };
+    }
+
+    private tieneDatosSegundoContacto(r: ResidenteForm | null | undefined): boolean {
+        if (!r) return false;
+        return !!(
+            String(r.tutor2_nombre || '').trim()
+            || String(r.tutor2_telefono || '').trim()
+            || String(r.tutor2_nss || '').trim()
+            || String(r.tutor2_direccion || '').trim()
+        );
+    }
+
+    /** Detalle: layout dual solo si hay (o se está agregando) un segundo contacto. */
+    get detalleConSegundoContacto(): boolean {
+        if (this.editandoDetalle) return this.mostrarSegundoContacto;
+        return this.tieneDatosSegundoContacto(this.residenteDetalle);
+    }
+
+    agregarSegundoContacto(): void {
+        this.mostrarSegundoContacto = true;
+        this.persistirBorradorNuevo(true);
+    }
+
+    quitarSegundoContacto(): void {
+        this.mostrarSegundoContacto = false;
+        this.form.tutor2_nombre = '';
+        this.form.tutor2_telefono = '';
+        this.form.tutor2_nss = '';
+        this.form.tutor2_direccion = '';
+        this.persistirBorradorNuevo(true);
     }
 
     private clonarResidente(r: ResidenteForm): ResidenteForm {
@@ -166,7 +206,9 @@ export class ResidentesComponent implements OnInit, OnDestroy {
             'nombre', 'estancia', 'escuela_procedencia', 'carrera', 'fecha_ingreso',
             'fecha_terminacion', 'nombre_proyecto', 'supervision_a_cargo', 'telefono',
             'correo_personal', 'correo_institucional', 'matricula', 'asesor_academico',
-            'correo_asesor', 'tutor_nombre', 'tutor_telefono', 'direccion', 'nss'
+            'correo_asesor', 'tutor_nombre', 'tutor_telefono',
+            'tutor2_nombre', 'tutor2_telefono', 'tutor2_nss', 'tutor2_direccion',
+            'direccion', 'nss'
         ];
         if (camposTexto.some((c) => String(form[c] || '').trim())) return true;
         if (form.edad != null && form.edad !== ('' as any)) return true;
@@ -219,6 +261,7 @@ export class ResidentesComponent implements OnInit, OnDestroy {
         this.editandoId = null;
         this.editandoDetalle = false;
         this.form = this.clonarResidente(data.form);
+        this.mostrarSegundoContacto = this.tieneDatosSegundoContacto(this.form);
         this.fotoPreview = this.form.foto_url || null;
         this.formPaso = data.formPaso;
         this.mostrarDetalle = false;
@@ -236,6 +279,7 @@ export class ResidentesComponent implements OnInit, OnDestroy {
         this.aplicarBorrador(data, !!data.abierto);
         if (!data.abierto) {
             this.form = this.clonarResidente(data.form);
+            this.mostrarSegundoContacto = this.tieneDatosSegundoContacto(this.form);
             this.fotoPreview = this.form.foto_url || null;
             this.formPaso = data.formPaso;
             this.borradorRestaurado = true;
@@ -301,6 +345,7 @@ export class ResidentesComponent implements OnInit, OnDestroy {
             this.aplicarBorrador(data, true);
         } else {
             this.form = this.formVacio();
+            this.mostrarSegundoContacto = false;
             this.fotoPreview = null;
             this.formPaso = 1;
             this.borradorRestaurado = false;
@@ -334,6 +379,7 @@ export class ResidentesComponent implements OnInit, OnDestroy {
         this.editandoId = null;
         this.formPaso = 1;
         this.form = this.formVacio();
+        this.mostrarSegundoContacto = false;
         this.fotoPreview = null;
         this.errorCarga = '';
         this.mensajeOk = 'Borrador descartado.';
@@ -353,6 +399,7 @@ export class ResidentesComponent implements OnInit, OnDestroy {
         this.editandoDetalle = false;
         this.editandoId = null;
         this.form = this.formVacio();
+        this.mostrarSegundoContacto = this.tieneDatosSegundoContacto(r);
         this.fotoPreview = null;
         this.errorCarga = '';
         this.mostrarDetalle = true;
@@ -365,6 +412,7 @@ export class ResidentesComponent implements OnInit, OnDestroy {
         this.residenteDetalle = null;
         this.editandoId = null;
         this.form = this.formVacio();
+        this.mostrarSegundoContacto = false;
         this.fotoPreview = null;
         this.errorCarga = '';
     }
@@ -373,6 +421,7 @@ export class ResidentesComponent implements OnInit, OnDestroy {
         if (!this.residenteDetalle) return;
         this.editandoId = this.residenteDetalle.id ? Number(this.residenteDetalle.id) : null;
         this.form = this.clonarResidente(this.residenteDetalle);
+        this.mostrarSegundoContacto = this.tieneDatosSegundoContacto(this.form);
         this.fotoPreview = this.residenteDetalle.foto_url || null;
         this.editandoDetalle = true;
         this.errorCarga = '';
@@ -384,6 +433,7 @@ export class ResidentesComponent implements OnInit, OnDestroy {
         this.editandoDetalle = false;
         this.editandoId = null;
         this.form = this.formVacio();
+        this.mostrarSegundoContacto = this.tieneDatosSegundoContacto(this.residenteDetalle);
         this.fotoPreview = null;
         this.errorCarga = '';
     }
@@ -412,6 +462,7 @@ export class ResidentesComponent implements OnInit, OnDestroy {
                     this.editandoDetalle = false;
                     this.editandoId = null;
                     this.form = this.formVacio();
+                    this.mostrarSegundoContacto = this.tieneDatosSegundoContacto(actualizado);
                     this.fotoPreview = null;
                     this.cargar();
                 },
@@ -498,6 +549,7 @@ export class ResidentesComponent implements OnInit, OnDestroy {
                 this.editandoId = null;
                 this.formPaso = 1;
                 this.form = this.formVacio();
+                this.mostrarSegundoContacto = false;
                 this.fotoPreview = null;
                 this.detenerAutoGuardadoBorrador();
                 this.limpiarBorradorNuevo();

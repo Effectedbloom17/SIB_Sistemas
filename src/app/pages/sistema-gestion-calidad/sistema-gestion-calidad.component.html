@@ -122,19 +122,58 @@
 
             <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured">
               <div class="sgc-feature-carousel__slide-inner">
-                <div class="sgc-avance-hero-head">
+                <div class="sgc-avance-hero-head sgc-avance-hero-head--actions">
                   <div class="sgc-avance-hero-head__main">
                     <div class="sgc-avance-hero-badge sgc-avance-hero-badge--cap"><i class="fas fa-graduation-cap"></i></div>
                     <div>
                       <h2 class="sgc-section-title mb-0">Eficacia de la capacitación</h2>
-                      <p class="sgc-analytics-desc mb-0">Tasa de aprobación (resultado A) y evaluados por mes.</p>
+                      <p class="sgc-analytics-desc mb-0">Tasa de aprobación (resultado A), cursos y calificación promedio por periodo.</p>
                     </div>
                   </div>
-                  <div class="sgc-avance-hero-kpi sgc-avance-hero-kpi--cap sgc-hero-metric" *ngIf="!cargandoDashboard && hayDatosEficaciaCap">
-                    <div class="sgc-hero-metric__accent" aria-hidden="true"></div>
-                    <div class="sgc-hero-metric__body">
-                      <span class="sgc-hero-metric__val">{{ eficaciaCapacitacion?.tasaAprobacion || 0 }}<small>%</small></span>
-                      <span class="sgc-hero-metric__lbl">Aprobación</span>
+                  <div class="sgc-avance-hero-head__aside">
+                    <div class="sgc-cap-semestre-filter"
+                         *ngIf="!cargandoDashboard && hayDatosEficaciaCap"
+                         role="group"
+                         aria-label="Filtrar eficacia de capacitación por periodo">
+                      <button type="button"
+                              class="sgc-cap-semestre-filter__btn"
+                              [class.is-active]="vistaEficaciaCap === 'anual'"
+                              (click)="seleccionarVistaEficaciaCap('anual', $event)"
+                              [attr.aria-pressed]="vistaEficaciaCap === 'anual'">
+                        Año
+                      </button>
+                      <button type="button"
+                              class="sgc-cap-semestre-filter__btn"
+                              [class.is-active]="vistaEficaciaCap === 's1'"
+                              (click)="seleccionarVistaEficaciaCap('s1', $event)"
+                              [attr.aria-pressed]="vistaEficaciaCap === 's1'">
+                        1er semestre
+                      </button>
+                      <button type="button"
+                              class="sgc-cap-semestre-filter__btn"
+                              [class.is-active]="vistaEficaciaCap === 's2'"
+                              (click)="seleccionarVistaEficaciaCap('s2', $event)"
+                              [attr.aria-pressed]="vistaEficaciaCap === 's2'">
+                        2do semestre
+                      </button>
+                      <button type="button"
+                              class="sgc-cap-semestre-filter__btn sgc-cap-semestre-filter__btn--comparativa"
+                              [class.is-active]="vistaEficaciaCap === 'comparativa'"
+                              (click)="seleccionarVistaEficaciaCap('comparativa', $event)"
+                              [attr.aria-pressed]="vistaEficaciaCap === 'comparativa'">
+                        Comparativa
+                      </button>
+                    </div>
+                    <div class="sgc-avance-hero-kpi sgc-avance-hero-kpi--cap sgc-hero-metric" *ngIf="!cargandoDashboard && hayDatosEficaciaCap">
+                      <div class="sgc-hero-metric__accent" aria-hidden="true"></div>
+                      <div class="sgc-hero-metric__body" *ngIf="!esComparativaEficaciaCap">
+                        <span class="sgc-hero-metric__val">{{ eficaciaCapActiva.tasaAprobacion || 0 }}<small>%</small></span>
+                        <span class="sgc-hero-metric__lbl">Aprobación</span>
+                      </div>
+                      <div class="sgc-hero-metric__body" *ngIf="esComparativaEficaciaCap">
+                        <span class="sgc-hero-metric__val">{{ comparativaEficaciaCap.deltas[1].deltaLabel }}</span>
+                        <span class="sgc-hero-metric__lbl">Δ Calificación</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -152,13 +191,182 @@
 
                 <div class="sgc-analytics-card-body sgc-analytics-card-body--carousel-chart">
                   <div *ngIf="cargandoDashboard" class="sgc-shimmer sgc-chart-skeleton sgc-chart-skeleton--carousel"></div>
-                  <div class="sgc-cap-dual" *ngIf="!cargandoDashboard && chartsReady && hayDatosEficaciaCap">
+                  <div class="sgc-cap-comparativa-panel"
+                       *ngIf="!cargandoDashboard && chartsReady && hayDatosEficaciaCap && esComparativaEficaciaCap">
+                    <div class="sgc-cap-comparativa-panel__head">
+                      <div class="sgc-avance-panel__header">
+                        <span class="sgc-avance-panel__icon"><i class="fas fa-balance-scale"></i></span>
+                        <div>
+                          <span class="sgc-avance-panel__title">Comparativa semestral</span>
+                          <span class="sgc-avance-panel__sub">Cursos tomados y calificación promedio · {{ anioSeleccionado }}</span>
+                        </div>
+                      </div>
+                      <p class="sgc-cap-comparativa__resumen sgc-cap-comparativa__resumen--compact">{{ comparativaEficaciaCap.resumen }}</p>
+                    </div>
+
+                    <div class="sgc-cap-comparativa-sems">
+                      <article class="sgc-cap-comparativa-sem sgc-cap-comparativa-sem--s1">
+                        <header class="sgc-cap-comparativa-sem__head">
+                          <span class="sgc-cap-comparativa-sem__badge">1er semestre</span>
+                          <span class="sgc-cap-comparativa-sem__range">Ene–Jun</span>
+                        </header>
+                        <div class="sgc-cap-comparativa-sem__metrics">
+                          <div class="sgc-cap-comparativa-sem__metric">
+                            <span class="sgc-cap-comparativa-sem__metric-lbl">Cursos</span>
+                            <strong class="sgc-cap-comparativa-sem__metric-val">{{ comparativaEficaciaCap.s1.totalCursos }}</strong>
+                          </div>
+                          <div class="sgc-cap-comparativa-sem__metric">
+                            <span class="sgc-cap-comparativa-sem__metric-lbl">Promedio</span>
+                            <strong class="sgc-cap-comparativa-sem__metric-val">{{ comparativaEficaciaCap.s1.promedioCalificacion.toFixed(1) }}<small>/10</small></strong>
+                          </div>
+                          <div class="sgc-cap-comparativa-sem__metric">
+                            <span class="sgc-cap-comparativa-sem__metric-lbl">Aprobación</span>
+                            <strong class="sgc-cap-comparativa-sem__metric-val">{{ comparativaEficaciaCap.s1.tasaAprobacion }}<small>%</small></strong>
+                          </div>
+                        </div>
+                      </article>
+
+                      <div class="sgc-cap-comparativa-sem__vs" aria-hidden="true">vs</div>
+
+                      <article class="sgc-cap-comparativa-sem sgc-cap-comparativa-sem--s2">
+                        <header class="sgc-cap-comparativa-sem__head">
+                          <span class="sgc-cap-comparativa-sem__badge">2do semestre</span>
+                          <span class="sgc-cap-comparativa-sem__range">Jul–Dic</span>
+                        </header>
+                        <div class="sgc-cap-comparativa-sem__metrics">
+                          <div class="sgc-cap-comparativa-sem__metric">
+                            <span class="sgc-cap-comparativa-sem__metric-lbl">Cursos</span>
+                            <strong class="sgc-cap-comparativa-sem__metric-val">{{ comparativaEficaciaCap.s2.totalCursos }}</strong>
+                          </div>
+                          <div class="sgc-cap-comparativa-sem__metric">
+                            <span class="sgc-cap-comparativa-sem__metric-lbl">Promedio</span>
+                            <strong class="sgc-cap-comparativa-sem__metric-val">{{ comparativaEficaciaCap.s2.promedioCalificacion.toFixed(1) }}<small>/10</small></strong>
+                          </div>
+                          <div class="sgc-cap-comparativa-sem__metric">
+                            <span class="sgc-cap-comparativa-sem__metric-lbl">Aprobación</span>
+                            <strong class="sgc-cap-comparativa-sem__metric-val">{{ comparativaEficaciaCap.s2.tasaAprobacion }}<small>%</small></strong>
+                          </div>
+                        </div>
+                      </article>
+                    </div>
+
+                    <div class="sgc-cap-comparativa-meters">
+                      <section class="sgc-cap-comparativa-meter sgc-cap-comparativa-meter--cursos">
+                        <div class="sgc-cap-comparativa-meter__title">
+                          <span class="sgc-cap-comparativa-meter__title-main">
+                            <span class="sgc-cap-comparativa-meter__icon sgc-cap-comparativa-meter__icon--cursos" aria-hidden="true">
+                              <i class="fas fa-book-open"></i>
+                            </span>
+                            <span class="sgc-cap-comparativa-meter__title-text">
+                              <strong>Cursos tomados</strong>
+                              <small>Volumen por semestre</small>
+                            </span>
+                          </span>
+                          <span class="sgc-cap-comparativa-meter__chip"
+                                [class.sgc-cap-comparativa-meter__chip--mejora]="comparativaEficaciaCap.deltas[0].sentido === 'mejora'"
+                                [class.sgc-cap-comparativa-meter__chip--baja]="comparativaEficaciaCap.deltas[0].sentido === 'baja'">
+                            {{ comparativaEficaciaCap.deltas[0].deltaLabel }}
+                          </span>
+                        </div>
+
+                        <div class="sgc-cap-race">
+                          <div class="sgc-cap-race__row">
+                            <div class="sgc-cap-race__meta">
+                              <span class="sgc-cap-race__dot sgc-cap-race__dot--s1"></span>
+                              <span class="sgc-cap-race__name">1er semestre</span>
+                              <span class="sgc-cap-race__share">{{ metrosComparativaEficaciaCap.cursosS1 }}%</span>
+                            </div>
+                            <div class="sgc-cap-race__bar-wrap">
+                              <div class="sgc-cap-race__grid" aria-hidden="true"></div>
+                              <div class="sgc-cap-race__bar sgc-cap-race__bar--s1"
+                                   [style.width.%]="metrosComparativaEficaciaCap.cursosS1">
+                                <span class="sgc-cap-race__shine" aria-hidden="true"></span>
+                                <span class="sgc-cap-race__pill">{{ comparativaEficaciaCap.s1.totalCursos }}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="sgc-cap-race__row">
+                            <div class="sgc-cap-race__meta">
+                              <span class="sgc-cap-race__dot sgc-cap-race__dot--s2"></span>
+                              <span class="sgc-cap-race__name">2do semestre</span>
+                              <span class="sgc-cap-race__share">{{ metrosComparativaEficaciaCap.cursosS2 }}%</span>
+                            </div>
+                            <div class="sgc-cap-race__bar-wrap">
+                              <div class="sgc-cap-race__grid" aria-hidden="true"></div>
+                              <div class="sgc-cap-race__bar sgc-cap-race__bar--s2"
+                                   [style.width.%]="metrosComparativaEficaciaCap.cursosS2">
+                                <span class="sgc-cap-race__shine" aria-hidden="true"></span>
+                                <span class="sgc-cap-race__pill">{{ comparativaEficaciaCap.s2.totalCursos }}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="sgc-cap-race__scale" aria-hidden="true">
+                            <span *ngFor="let tick of metrosComparativaEficaciaCap.escalaCursos">{{ tick }}</span>
+                          </div>
+                        </div>
+                      </section>
+
+                      <section class="sgc-cap-comparativa-meter sgc-cap-comparativa-meter--promedio">
+                        <div class="sgc-cap-comparativa-meter__title">
+                          <span class="sgc-cap-comparativa-meter__title-main">
+                            <span class="sgc-cap-comparativa-meter__icon sgc-cap-comparativa-meter__icon--promedio" aria-hidden="true">
+                              <i class="fas fa-star"></i>
+                            </span>
+                            <span class="sgc-cap-comparativa-meter__title-text">
+                              <strong>Calificación promedio</strong>
+                              <small>Escala 0–10</small>
+                            </span>
+                          </span>
+                          <span class="sgc-cap-comparativa-meter__chip"
+                                [class.sgc-cap-comparativa-meter__chip--mejora]="comparativaEficaciaCap.deltas[1].sentido === 'mejora'"
+                                [class.sgc-cap-comparativa-meter__chip--baja]="comparativaEficaciaCap.deltas[1].sentido === 'baja'">
+                            {{ comparativaEficaciaCap.deltas[1].deltaLabel }}
+                          </span>
+                        </div>
+
+                        <div class="sgc-cap-gauges">
+                          <div class="sgc-cap-gauge sgc-cap-gauge--s1">
+                            <div class="sgc-cap-gauge__glow" aria-hidden="true"></div>
+                            <div class="sgc-cap-gauge__ring"
+                                 [style.background]="'conic-gradient(from -90deg, #1d4ed8 0%, #60a5fa ' + metrosComparativaEficaciaCap.promedioS1 + '%, #e8eef7 0)'">
+                              <div class="sgc-cap-gauge__hole">
+                                <strong>{{ comparativaEficaciaCap.s1.promedioCalificacion.toFixed(1) }}</strong>
+                                <span>/10</span>
+                              </div>
+                            </div>
+                            <span class="sgc-cap-gauge__lbl">1er semestre</span>
+                            <span class="sgc-cap-gauge__sub">{{ comparativaEficaciaCap.s1.tasaAprobacion }}% aprobación</span>
+                          </div>
+
+                          <div class="sgc-cap-gauge sgc-cap-gauge--s2">
+                            <div class="sgc-cap-gauge__glow" aria-hidden="true"></div>
+                            <div class="sgc-cap-gauge__ring"
+                                 [style.background]="'conic-gradient(from -90deg, #0f766e 0%, #2dd4bf ' + metrosComparativaEficaciaCap.promedioS2 + '%, #e7f4f2 0)'">
+                              <div class="sgc-cap-gauge__hole">
+                                <strong>{{ comparativaEficaciaCap.s2.promedioCalificacion.toFixed(1) }}</strong>
+                                <span>/10</span>
+                              </div>
+                            </div>
+                            <span class="sgc-cap-gauge__lbl">2do semestre</span>
+                            <span class="sgc-cap-gauge__sub">{{ comparativaEficaciaCap.s2.tasaAprobacion }}% aprobación</span>
+                          </div>
+                        </div>
+
+                        <p class="sgc-cap-comparativa-meter__hint">A = 10 · NA = 0 (ATH-F-08)</p>
+                      </section>
+                    </div>
+                  </div>
+
+                  <div class="sgc-cap-dual"
+                       *ngIf="!cargandoDashboard && chartsReady && hayDatosEficaciaCap && !esComparativaEficaciaCap">
                     <div class="sgc-cap-dual__chart">
                       <div class="sgc-avance-panel__header">
                         <span class="sgc-avance-panel__icon"><i class="fas fa-chart-line"></i></span>
                         <div>
                           <span class="sgc-avance-panel__title">Evolución mensual</span>
-                          <span class="sgc-avance-panel__sub">Tasa de aprobación y evaluados por mes · {{ anioSeleccionado }}</span>
+                          <span class="sgc-avance-panel__sub">{{ etiquetaVistaEficaciaCap }}</span>
                         </div>
                       </div>
                       <div class="sgc-chart-canvas-wrap">
@@ -184,8 +392,8 @@
                       <div class="sgc-avance-panel__header">
                         <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
                         <div>
-                          <span class="sgc-avance-panel__title">Resumen del año</span>
-                          <span class="sgc-avance-panel__sub">Vista consolidada ATH-F-08</span>
+                          <span class="sgc-avance-panel__title">{{ vistaEficaciaCap === 'anual' ? 'Resumen del año' : 'Resumen del semestre' }}</span>
+                          <span class="sgc-avance-panel__sub">{{ etiquetaVistaEficaciaCap }}</span>
                         </div>
                       </div>
                       <div class="sgc-avance-donut-inner">
@@ -393,6 +601,25 @@
                         {{ ciclo.etiqueta || ciclo.ciclo }}
                       </button>
                     </div>
+                    <div class="sgc-sat-periodo-filter"
+                         *ngIf="!cargandoDashboard && hayDatosSatisfaccion"
+                         role="group"
+                         aria-label="Vista temporal de satisfacción del cliente">
+                      <button type="button"
+                              class="sgc-sat-periodo-filter__btn"
+                              [class.is-active]="vistaSatisfaccionCliente === 'mensual'"
+                              (click)="seleccionarVistaSatisfaccionCliente('mensual', $event)"
+                              [attr.aria-pressed]="vistaSatisfaccionCliente === 'mensual'">
+                        Mensual
+                      </button>
+                      <button type="button"
+                              class="sgc-sat-periodo-filter__btn sgc-sat-periodo-filter__btn--cuatri"
+                              [class.is-active]="vistaSatisfaccionCliente === 'cuatrimestral'"
+                              (click)="seleccionarVistaSatisfaccionCliente('cuatrimestral', $event)"
+                              [attr.aria-pressed]="vistaSatisfaccionCliente === 'cuatrimestral'">
+                        Cuatrimestral
+                      </button>
+                    </div>
                     <button
                       type="button"
                       class="sgc-sat-comentarios-btn"
@@ -443,15 +670,45 @@
                 <div class="sgc-analytics-card-body sgc-analytics-card-body--carousel-chart">
                   <div *ngIf="cargandoDashboard" class="sgc-shimmer sgc-chart-skeleton sgc-chart-skeleton--carousel"></div>
                   <div class="sgc-cap-dual" *ngIf="!cargandoDashboard && chartsReady && hayDatosSatisfaccion">
-                    <div class="sgc-cap-dual__chart">
+                    <div class="sgc-cap-dual__chart" [class.sgc-cap-dual__chart--cuatri]="esCuatrimestralSatisfaccion">
                       <div class="sgc-avance-panel__header">
-                        <span class="sgc-avance-panel__icon"><i class="fas fa-chart-line"></i></span>
-                        <div>
-                          <span class="sgc-avance-panel__title">Evolución mensual</span>
-                          <span class="sgc-avance-panel__sub">Índice de satisfacción y respuestas por mes · {{ etiquetaCicloSatisfaccion }}</span>
+                        <div class="sgc-avance-panel__header-main">
+                          <span class="sgc-avance-panel__icon"><i class="fas fa-chart-line"></i></span>
+                          <div>
+                            <span class="sgc-avance-panel__title">{{ esCuatrimestralSatisfaccion ? 'Comparativa cuatrimestral' : 'Evolución mensual' }}</span>
+                            <span class="sgc-avance-panel__sub">{{ etiquetaVistaSatisfaccionCliente }}</span>
+                          </div>
                         </div>
                       </div>
-                      <div class="sgc-chart-canvas-wrap">
+
+                      <div class="sgc-sat-cuatri-band" *ngIf="esCuatrimestralSatisfaccion" aria-label="Resumen por cuatrimestre">
+                        <div class="sgc-sat-cuatri-band__item"
+                             *ngFor="let c of cuatrimestresSatisfaccion"
+                             [class.is-empty]="!c.tieneDatos"
+                             [attr.data-cuatri]="c.id">
+                          <div class="sgc-sat-cuatri-band__meta">
+                            <span class="sgc-sat-cuatri-band__chip">{{ c.clave }}</span>
+                            <span class="sgc-sat-cuatri-band__rango">{{ c.rango }}</span>
+                          </div>
+                          <div class="sgc-sat-cuatri-band__pct">
+                            <ng-container *ngIf="c.tieneDatos; else sinDatosCuatri">
+                              <strong>{{ c.positivasPct }}%</strong>
+                              <span>positivas</span>
+                            </ng-container>
+                            <ng-template #sinDatosCuatri>
+                              <strong class="is-muted">—</strong>
+                              <span>sin datos</span>
+                            </ng-template>
+                          </div>
+                          <span class="sgc-sat-cuatri-band__resp" *ngIf="c.tieneDatos">{{ c.respuestas }} resp.</span>
+                        </div>
+                      </div>
+
+                      <div class="sgc-chart-canvas-wrap"
+                           [class.sgc-chart-canvas-wrap--cuatri]="esCuatrimestralSatisfaccion">
+                        <div class="sgc-sat-cuatri-guides" *ngIf="esCuatrimestralSatisfaccion" aria-hidden="true">
+                          <span class="sgc-sat-cuatri-guides__col" *ngFor="let c of cuatrimestresSatisfaccion"></span>
+                        </div>
                         <apx-chart
                           [series]="satisfaccionChart.series" [chart]="satisfaccionChart.chart"
                           [xaxis]="satisfaccionChart.xaxis" [yaxis]="satisfaccionChart.yaxis"
@@ -461,16 +718,19 @@
                           [markers]="satisfaccionChart.markers"
                           [legend]="satisfaccionChart.legend"
                           [plotOptions]="satisfaccionChart.plotOptions"
+                          [annotations]="satisfaccionChart.annotations"
                         ></apx-chart>
                       </div>
                     </div>
 
                     <div class="sgc-cap-dual__gauge sgc-avance-panel sgc-avance-panel--donut">
                       <div class="sgc-avance-panel__header">
-                        <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
-                        <div>
-                          <span class="sgc-avance-panel__title">Respuestas positivas y negativas</span>
-                          <span class="sgc-avance-panel__sub">Excelente y Bueno vs. Regular y Malo</span>
+                        <div class="sgc-avance-panel__header-main">
+                          <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
+                          <div>
+                            <span class="sgc-avance-panel__title">Positivas / negativas</span>
+                            <span class="sgc-avance-panel__sub">Excelente+Bueno vs Regular+Malo</span>
+                          </div>
                         </div>
                       </div>
                       <div class="sgc-avance-donut-inner">
@@ -650,17 +910,23 @@
 
             <article class="sgc-feature-carousel__slide sgc-analytics-card sgc-analytics-card--hero sgc-analytics-card--featured">
               <div class="sgc-feature-carousel__slide-inner">
-              <div class="sgc-avance-hero-head">
+              <div class="sgc-avance-hero-head sgc-avance-hero-head--actions">
                 <div class="sgc-avance-hero-head__main">
                   <div class="sgc-avance-hero-badge"><i class="fas fa-project-diagram"></i></div>
                   <div>
                     <h2 class="sgc-section-title mb-0">
-                      {{ hayProyectoAvanceSeleccionado ? nombreProyectoDisplay(proyectoAvanceSeleccionado) : 'Avance de proyectos' }}
+                      {{ hayProyectoAvanceSeleccionado && !esComparativaAvance
+                          ? nombreProyectoDisplay(proyectoAvanceSeleccionado)
+                          : 'Avance de proyectos' }}
                     </h2>
-                    <p class="sgc-analytics-desc mb-0" *ngIf="!hayProyectoAvanceSeleccionado">
+                    <p class="sgc-analytics-desc mb-0" *ngIf="!hayProyectoAvanceSeleccionado && !esComparativaAvance">
                       Bitácora de proyectos de mejora (SGC-F-14). El promedio no incluye altas sin porcentaje.
                     </p>
-                    <p class="sgc-analytics-desc mb-0" *ngIf="hayProyectoAvanceSeleccionado">
+                    <p class="sgc-analytics-desc mb-0" *ngIf="esComparativaAvance">
+                      Comparativa semestral del ciclo {{ cicloComparativaAvance }}
+                      (lanzamiento en agosto). La barra marca en ámbar el avance ganado entre cortes.
+                    </p>
+                    <p class="sgc-analytics-desc mb-0" *ngIf="hayProyectoAvanceSeleccionado && !esComparativaAvance">
                       {{ proyectoAvanceSeleccionado?.folio }}
                       <ng-container *ngIf="proyectoAvanceSeleccionado?.totalActividades; else sinActividadesAvance">
                         · {{ proyectoAvanceSeleccionado.totalActividades }}
@@ -673,16 +939,47 @@
                     </p>
                   </div>
                 </div>
-                <div class="sgc-avance-hero-kpi" *ngIf="!cargandoDashboard && hayDatosAvance">
-                  <span class="sgc-avance-hero-kpi__val">{{ kpiAvanceVista }}%</span>
-                  <span class="sgc-avance-hero-kpi__lbl">{{ hayProyectoAvanceSeleccionado ? 'Avance del proyecto' : 'Avance promedio' }}</span>
+                <div class="sgc-avance-hero-head__aside">
+                  <div class="sgc-cap-semestre-filter sgc-cap-semestre-filter--teal"
+                       *ngIf="!cargandoDashboard && hayDatosAvance"
+                       role="group"
+                       aria-label="Vista de avance de proyectos">
+                    <button type="button"
+                            class="sgc-cap-semestre-filter__btn"
+                            [class.is-active]="vistaAvanceProyectos === 'actual'"
+                            (click)="seleccionarVistaAvance('actual', $event)"
+                            [attr.aria-pressed]="vistaAvanceProyectos === 'actual'">
+                      Actual
+                    </button>
+                    <button type="button"
+                            class="sgc-cap-semestre-filter__btn sgc-cap-semestre-filter__btn--comparativa"
+                            [class.is-active]="vistaAvanceProyectos === 'comparativa'"
+                            (click)="seleccionarVistaAvance('comparativa', $event)"
+                            [attr.aria-pressed]="vistaAvanceProyectos === 'comparativa'">
+                      Comparativa
+                    </button>
+                  </div>
+                  <div class="sgc-avance-hero-kpi" *ngIf="!cargandoDashboard && hayDatosAvance && !esComparativaAvance">
+                    <span class="sgc-avance-hero-kpi__val">{{ kpiAvanceVista }}%</span>
+                    <span class="sgc-avance-hero-kpi__lbl">{{ hayProyectoAvanceSeleccionado ? 'Avance del proyecto' : 'Avance promedio' }}</span>
+                  </div>
+                  <div class="sgc-avance-hero-kpi sgc-avance-hero-kpi--cmp" *ngIf="!cargandoDashboard && hayDatosAvance && esComparativaAvance && comparativaAvance">
+                    <span class="sgc-avance-hero-kpi__val">
+                      {{ comparativaAvance?.avancePromedioActual || 0 }}%
+                      <small *ngIf="(comparativaAvance?.deltaPromedio || 0) > 0">+{{ comparativaAvance.deltaPromedio }}</small>
+                    </span>
+                    <span class="sgc-avance-hero-kpi__lbl">
+                      {{ (comparativaAvance?.deltaPromedio || 0) > 0 ? 'Promedio · avance ganado' : 'Avance promedio' }}
+                    </span>
+                  </div>
                 </div>
               </div>
 
               <div class="sgc-analytics-card-body sgc-analytics-card-body--avance">
                 <div *ngIf="cargandoDashboard" class="sgc-shimmer sgc-chart-skeleton sgc-chart-skeleton--wide"></div>
 
-                <div class="sgc-avance-dual" *ngIf="!cargandoDashboard && hayDatosAvance">
+                <!-- Vista actual -->
+                <div class="sgc-avance-dual" *ngIf="!cargandoDashboard && hayDatosAvance && !esComparativaAvance">
                   <div class="sgc-avance-panel sgc-avance-panel--bars">
                     <div class="sgc-avance-panel__header">
                       <div class="sgc-avance-panel__header-main">
@@ -875,6 +1172,242 @@
                       routerLink="/control-proyectos">
                       <i class="fas fa-project-diagram mr-1"></i> Abrir Control de proyectos
                     </a>
+                  </div>
+                </div>
+
+                <!-- Vista comparativa semestral -->
+                <div class="sgc-avance-cmp" *ngIf="!cargandoDashboard && hayDatosAvance && esComparativaAvance">
+                  <div class="sgc-avance-cmp__toolbar">
+                    <div class="sgc-avance-year-filter" role="group" aria-label="Ciclo de lanzamiento">
+                      <span class="sgc-avance-year-filter__label">Ciclo</span>
+                      <button type="button"
+                              class="sgc-avance-year-filter__btn"
+                              *ngFor="let ciclo of opcionesCicloComparativaAvance"
+                              [class.is-active]="cicloComparativaAvance === ciclo"
+                              (click)="seleccionarCicloComparativaAvance(ciclo, $event)"
+                              [attr.aria-pressed]="cicloComparativaAvance === ciclo">
+                        {{ ciclo }}
+                      </button>
+                    </div>
+                    <span class="sgc-avance-cmp__sim-badge" *ngIf="comparativaAvance?.simulacionLocal">
+                      Simulación local
+                    </span>
+                    <p class="sgc-avance-cmp__mensaje" *ngIf="comparativaAvance?.mensaje">
+                      <i class="fas fa-info-circle" aria-hidden="true"></i>
+                      {{ comparativaAvance.mensaje }}
+                    </p>
+                    <div class="sgc-avance-cmp__actions">
+                      <button type="button"
+                              class="sgc-btn-add-text"
+                              *ngIf="puedeCapturarSem1Avance && !comparativaAvance?.simulacionLocal"
+                              [disabled]="capturandoCorteAvance"
+                              (click)="capturarCorteComparativaAvance(1, $event)">
+                        <i class="fas fa-save mr-1"></i> Guardar corte 1er semestre
+                      </button>
+                      <button type="button"
+                              class="sgc-btn-add-text"
+                              *ngIf="puedeCapturarSem2Avance && !comparativaAvance?.simulacionLocal"
+                              [disabled]="capturandoCorteAvance"
+                              (click)="capturarCorteComparativaAvance(2, $event)">
+                        <i class="fas fa-save mr-1"></i> Guardar corte 2do semestre
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="sgc-shimmer sgc-chart-skeleton sgc-chart-skeleton--wide" *ngIf="cargandoComparativaAvance"></div>
+
+                  <div class="sgc-avance-cmp__grid" *ngIf="!cargandoComparativaAvance && comparativaAvance">
+                    <aside class="sgc-avance-panel sgc-avance-panel--donut sgc-avance-cmp__side sgc-avance-cmp__side--s1">
+                      <div class="sgc-avance-panel__header">
+                        <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
+                        <div>
+                          <span class="sgc-avance-panel__title">{{ comparativaAvance?.s1?.titulo || '1er semestre' }}</span>
+                          <span class="sgc-avance-panel__sub">{{ comparativaAvance?.s1?.rango }}</span>
+                        </div>
+                      </div>
+                      <div class="sgc-avance-cmp__pill"
+                           [class.sgc-avance-cmp__pill--ok]="comparativaAvance?.s1?.yaCapturado"
+                           [class.sgc-avance-cmp__pill--live]="comparativaAvance?.s1?.enVivo"
+                           [class.sgc-avance-cmp__pill--wait]="!comparativaAvance?.s1?.yaCapturado && !comparativaAvance?.s1?.enVivo">
+                        <ng-container *ngIf="comparativaAvance?.s1?.yaCapturado">Congelado · {{ comparativaAvance?.s1?.corteLabel }}</ng-container>
+                        <ng-container *ngIf="!comparativaAvance?.s1?.yaCapturado">Pendiente · {{ comparativaAvance?.s1?.corteLabel }}</ng-container>
+                      </div>
+                      <div class="sgc-avance-donut-inner" *ngIf="comparativaAvance?.s1?.disponible; else sem1Vacio">
+                        <div class="sgc-avance-donut-chart-wrap sgc-avance-cmp__donut sgc-avance-cmp__donut--gauge">
+                          <apx-chart *ngIf="chartsReady"
+                            [series]="avanceSem1Chart.series" [chart]="avanceSem1Chart.chart"
+                            [labels]="avanceSem1Chart.labels" [colors]="avanceSem1Chart.colors"
+                            [plotOptions]="avanceSem1Chart.plotOptions" [fill]="avanceSem1Chart.fill"
+                            [dataLabels]="avanceSem1Chart.dataLabels" [stroke]="avanceSem1Chart.stroke"
+                            [legend]="avanceSem1Chart.legend" [tooltip]="avanceSem1Chart.tooltip"
+                            [responsive]="avanceSem1Chart.responsive"
+                          ></apx-chart>
+                        </div>
+                        <div class="sgc-avance-cmp__avg">
+                          {{ comparativaAvance?.s1?.total || 0 }} proyecto{{ (comparativaAvance?.s1?.total || 0) !== 1 ? 's' : '' }}
+                        </div>
+                      </div>
+                      <ng-template #sem1Vacio>
+                        <div class="sgc-dash-empty sgc-dash-empty--small sgc-avance-cmp__empty">
+                          <i class="fas fa-hourglass-half fa-lg mb-2"></i>
+                          <p class="mb-0">El corte se guarda en {{ comparativaAvance?.s1?.corteLabel }}.</p>
+                        </div>
+                      </ng-template>
+                      <div class="sgc-eficacia-legend sgc-eficacia-legend--rules sgc-avance-stats-legend"
+                           *ngIf="comparativaAvance?.s1?.disponible">
+                        <div class="sgc-eficacia-rule-card sgc-avance-stat-card"
+                             *ngFor="let item of resumenComparativaSem1"
+                             [class.sgc-avance-stat-card--concluido]="item.label === 'Concluidos'"
+                             [class.sgc-avance-stat-card--proceso]="item.label === 'En proceso'"
+                             [class.sgc-avance-stat-card--pendiente]="item.label === 'No iniciados'">
+                          <span class="sgc-eficacia-rule-card__dot"></span>
+                          <div class="sgc-eficacia-rule-card__body">
+                            <span class="sgc-eficacia-rule-card__range">{{ item.label }}</span>
+                            <span class="sgc-eficacia-rule-card__desc">{{ item.subtitulo }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </aside>
+
+                    <section class="sgc-avance-panel sgc-avance-panel--bars sgc-avance-cmp__list">
+                      <div class="sgc-avance-panel__header">
+                        <div class="sgc-avance-panel__header-main">
+                          <span class="sgc-avance-panel__icon"><i class="fas fa-balance-scale"></i></span>
+                          <div>
+                            <span class="sgc-avance-panel__title">Proyectos del ciclo</span>
+                            <span class="sgc-avance-panel__sub">
+                              {{ filasComparativaAvance.length }} registrados
+                              <ng-container *ngIf="(comparativaAvance?.totalConAvance || 0) > 0">
+                                · {{ comparativaAvance.totalConAvance }} con avance ganado
+                              </ng-container>
+                            </span>
+                          </div>
+                        </div>
+                        <div class="sgc-avance-cmp__legend" aria-hidden="true">
+                          <span><i class="sgc-avance-cmp__swatch sgc-avance-cmp__swatch--base"></i> Corte base</span>
+                          <span><i class="sgc-avance-cmp__swatch sgc-avance-cmp__swatch--delta"></i> Avance ganado</span>
+                        </div>
+                      </div>
+
+                      <div class="sgc-proyecto-list sgc-proyecto-list--cmp" *ngIf="filasComparativaAvance.length">
+                        <div class="sgc-proyecto-row sgc-proyecto-row--cmp"
+                             *ngFor="let p of filasComparativaAvance; let i = index"
+                             [class.sgc-proyecto-row--intro]="indicadoresIntro"
+                             [class.sgc-proyecto-row--done]="p.yaTerminadoEnBase"
+                             [style.--row-accent]="p.huboAvance ? '#f59e0b' : (p.yaTerminadoEnBase ? '#16a34a' : '#15a596')"
+                             [style.--row-delay]="(i * 0.07) + 's'">
+                          <div class="sgc-proyecto-row__body">
+                            <div class="sgc-proyecto-row__head">
+                              <span class="sgc-proyecto-row__folio" *ngIf="p.folio">{{ p.folio }}</span>
+                              <div class="sgc-proyecto-row__chips">
+                                <span class="sgc-proyecto-row__prio"
+                                      [ngClass]="clasePrioridadProyecto(p.prioridad)"
+                                      *ngIf="p.prioridad">
+                                  <i class="fas fa-flag" aria-hidden="true"></i>{{ p.prioridad }}
+                                </span>
+                                <span class="sgc-proyecto-row__badge"
+                                      [ngClass]="claseEstatusProyecto(p.estatusActual, p.avanceActual)">
+                                  {{ labelEstatusProyecto(p.estatusActual, p.avanceActual) }}
+                                </span>
+                                <span class="sgc-proyecto-row__delta" *ngIf="p.huboAvance">+{{ p.delta }}%</span>
+                              </div>
+                            </div>
+                            <h4 class="sgc-proyecto-row__name">{{ nombreProyectoDisplay(p) }}</h4>
+                            <div class="sgc-proyecto-row__resp-line">
+                              <i class="fas fa-user" aria-hidden="true"></i>
+                              <span>{{ p.responsable || 'Sin responsable asignado' }}</span>
+                              <span class="sgc-proyecto-row__acts" *ngIf="comparativaAvance?.s1?.yaCapturado && p.huboAvance">
+                                · {{ p.avanceBase || 0 }}% → {{ p.avanceActual || 0 }}%
+                              </span>
+                              <span class="sgc-proyecto-row__acts" *ngIf="p.yaTerminadoEnBase">
+                                · Completo desde el 1er corte
+                              </span>
+                            </div>
+                          </div>
+                          <div class="sgc-proyecto-row__progress">
+                            <div class="sgc-proyecto-row__track sgc-proyecto-row__track--cmp">
+                              <!-- Terminado al 100% en base: barra sólida verde, sin delta -->
+                              <div class="sgc-proyecto-row__fill sgc-proyecto-row__fill--done"
+                                   *ngIf="p.yaTerminadoEnBase"
+                                   [style.width.%]="100"></div>
+                              <ng-container *ngIf="!p.yaTerminadoEnBase">
+                                <div class="sgc-proyecto-row__fill sgc-proyecto-row__fill--base"
+                                     [style.width.%]="comparativaAvance?.s1?.yaCapturado ? (p.avanceBase || 0) : (p.avanceActual || 0)"></div>
+                                <div class="sgc-proyecto-row__fill sgc-proyecto-row__fill--delta"
+                                     *ngIf="p.huboAvance"
+                                     [style.left.%]="p.avanceBase || 0"
+                                     [style.width.%]="p.delta || 0"></div>
+                              </ng-container>
+                            </div>
+                            <span class="sgc-proyecto-row__pct-badge"
+                                  [style.--pct-color]="p.huboAvance ? '#b45309' : (p.yaTerminadoEnBase ? '#15803d' : '#0f766e')">
+                              {{ p.avanceActual || 0 }}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div *ngIf="!filasComparativaAvance.length" class="sgc-dash-empty sgc-dash-empty--small">
+                        <i class="fas fa-list-ul fa-lg mb-2"></i>
+                        <p class="mb-0">No hay proyectos del ciclo {{ cicloComparativaAvance }} en SGC-F-14.</p>
+                      </div>
+                      <a class="sgc-btn-add-text sgc-aud-panel__register mt-2"
+                         routerLink="/sistema-gestion-calidad/capitulo-10/plantilla/sgc-f-14">
+                        <i class="fas fa-file-alt mr-1"></i> Abrir SGC-F-14
+                      </a>
+                    </section>
+
+                    <aside class="sgc-avance-panel sgc-avance-panel--donut sgc-avance-cmp__side sgc-avance-cmp__side--s2">
+                      <div class="sgc-avance-panel__header">
+                        <span class="sgc-avance-panel__icon sgc-avance-panel__icon--donut"><i class="fas fa-chart-pie"></i></span>
+                        <div>
+                          <span class="sgc-avance-panel__title">{{ comparativaAvance?.s2?.titulo || '2do semestre' }}</span>
+                          <span class="sgc-avance-panel__sub">{{ comparativaAvance?.s2?.rango }}</span>
+                        </div>
+                      </div>
+                      <div class="sgc-avance-cmp__pill"
+                           [class.sgc-avance-cmp__pill--ok]="comparativaAvance?.s2?.yaCapturado"
+                           [class.sgc-avance-cmp__pill--live]="comparativaAvance?.s2?.enVivo"
+                           [class.sgc-avance-cmp__pill--wait]="!comparativaAvance?.s2?.yaCapturado && !comparativaAvance?.s2?.enVivo">
+                        <ng-container *ngIf="comparativaAvance?.s2?.yaCapturado">Congelado · {{ comparativaAvance?.s2?.corteLabel }}</ng-container>
+                        <ng-container *ngIf="comparativaAvance?.s2?.enVivo && !comparativaAvance?.s2?.yaCapturado">En vivo</ng-container>
+                        <ng-container *ngIf="!comparativaAvance?.s2?.yaCapturado && !comparativaAvance?.s2?.enVivo">Pendiente · {{ comparativaAvance?.s2?.corteLabel }}</ng-container>
+                      </div>
+                      <div class="sgc-avance-donut-inner" *ngIf="comparativaAvance?.s2?.disponible; else sem2Vacio">
+                        <div class="sgc-avance-donut-chart-wrap sgc-avance-cmp__donut sgc-avance-cmp__donut--gauge">
+                          <apx-chart *ngIf="chartsReady"
+                            [series]="avanceSem2Chart.series" [chart]="avanceSem2Chart.chart"
+                            [labels]="avanceSem2Chart.labels" [colors]="avanceSem2Chart.colors"
+                            [plotOptions]="avanceSem2Chart.plotOptions" [fill]="avanceSem2Chart.fill"
+                            [dataLabels]="avanceSem2Chart.dataLabels" [stroke]="avanceSem2Chart.stroke"
+                            [legend]="avanceSem2Chart.legend" [tooltip]="avanceSem2Chart.tooltip"
+                            [responsive]="avanceSem2Chart.responsive"
+                          ></apx-chart>
+                        </div>
+                        <div class="sgc-avance-cmp__avg">
+                          {{ comparativaAvance?.s2?.total || 0 }} proyecto{{ (comparativaAvance?.s2?.total || 0) !== 1 ? 's' : '' }}
+                        </div>
+                      </div>
+                      <ng-template #sem2Vacio>
+                        <div class="sgc-dash-empty sgc-dash-empty--small sgc-avance-cmp__empty">
+                          <i class="fas fa-hourglass-half fa-lg mb-2"></i>
+                          <p class="mb-0">Sin datos del 2do semestre todavía.</p>
+                        </div>
+                      </ng-template>
+                      <div class="sgc-eficacia-legend sgc-eficacia-legend--rules sgc-avance-stats-legend"
+                           *ngIf="comparativaAvance?.s2?.disponible">
+                        <div class="sgc-eficacia-rule-card sgc-avance-stat-card"
+                             *ngFor="let item of resumenComparativaSem2"
+                             [class.sgc-avance-stat-card--concluido]="item.label === 'Concluidos'"
+                             [class.sgc-avance-stat-card--proceso]="item.label === 'En proceso'"
+                             [class.sgc-avance-stat-card--pendiente]="item.label === 'No iniciados'">
+                          <span class="sgc-eficacia-rule-card__dot"></span>
+                          <div class="sgc-eficacia-rule-card__body">
+                            <span class="sgc-eficacia-rule-card__range">{{ item.label }}</span>
+                            <span class="sgc-eficacia-rule-card__desc">{{ item.subtitulo }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </aside>
                   </div>
                 </div>
 

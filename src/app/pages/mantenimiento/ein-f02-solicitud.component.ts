@@ -24,10 +24,12 @@ import {
   cargarSolicitudesLocal,
   conservarReportesManuales,
   formatearFechaCorta,
+  fusionarSolicitudes,
   generarIdSerie,
   guardarSolicitudesLocal,
   parseFechaIso,
-  sincronizarCasosDesdeForms
+  sincronizarCasosDesdeForms,
+  soloActivos
 } from './ein-f02-solicitud.catalog';
 import {
   EIN_F03_TEMPLATE_ID,
@@ -61,6 +63,7 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
   editorDriveUrlSafe: SafeResourceUrl | '' = '';
   private pendingTextareaResize = false;
   private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private syncServidorTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingDriveSave = false;
   private abrirEditorTrasGuardar = false;
   private editorMontadoEnBody = false;
@@ -102,6 +105,10 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
     if (this.autoSaveTimer) {
       clearTimeout(this.autoSaveTimer);
     }
+    if (this.syncServidorTimer) {
+      clearTimeout(this.syncServidorTimer);
+      this.syncServidorTimer = null;
+    }
     this.persistir();
     if (this.pendingDriveSave) {
       this.guardarInformacionDrive(true);
@@ -116,16 +123,18 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
   }
 
   @HostListener('window:biznaga:ein-f02:cambio', ['$event'])
-  onSolicitudesCambio(ev: CustomEvent<{ eliminadoId?: string }>): void {
-    const id = ev?.detail?.eliminadoId;
+  onSolicitudesCambio(ev: CustomEvent<{ eliminadoId?: string; desactivadoId?: string }>): void {
+    const id = ev?.detail?.desactivadoId || ev?.detail?.eliminadoId;
     if (!id) {
       return;
     }
-    this.filas = this.filas.filter(f => f.id !== id);
+    this.filas = this.filas
+      .map(f => (f.id === id ? { ...f, activo: false } : f))
+      .filter(f => f.activo !== false);
   }
 
   get filasBitacora(): EinF02Solicitud[] {
-    return this.filas;
+    return soloActivos(this.filas);
   }
 
   guardarInformacionDrive(silencioso = false): void {
@@ -470,8 +479,9 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
         if (!casos.length) {
           return;
         }
-        const { lista, nuevos, eliminados } = sincronizarCasosDesdeForms(this.filas, casos);
-        this.filas = lista;
+        const base = conservarReportesManuales(this.filas, cargarSolicitudesLocal());
+        const { lista, nuevos, eliminados } = sincronizarCasosDesdeForms(base, casos);
+        this.filas = soloActivos(lista);
         this.persistir();
         this.pendingTextareaResize = true;
         this.programarAutoGuardadoDrive();
@@ -537,7 +547,7 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
   }
 
   private cargar(): void {
-    this.filas = cargarSolicitudesLocal();
+    this.filas = soloActivos(cargarSolicitudesLocal());
     for (const f of this.filas) {
       asegurarIdSerie(f, this.filas);
       f.bitacoraDriveFileId = EIN_F03_TEMPLATE_ID;
@@ -545,6 +555,37 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
     }
     this.guardadoLocal = this.filas.length > 0;
     this.pendingTextareaResize = true;
+    this.cargarDesdeServidor();
+  }
+
+  private cargarDesdeServidor(): void {
+    this.backend.listarSolicitudesMantenimiento(true).subscribe({
+      next: (res) => {
+        if (this.destruido) {
+          return;
+        }
+        const remoto = Array.isArray(res?.solicitudes) ? res.solicitudes : [];
+        const local = conservarReportesManuales(this.filas, cargarSolicitudesLocal());
+        const fusion = fusionarSolicitudes(local, remoto);
+        this.filas = soloActivos(fusion);
+        for (const f of this.filas) {
+          asegurarIdSerie(f, this.filas);
+          f.bitacoraDriveFileId = EIN_F03_TEMPLATE_ID;
+          f.bitacoraWebViewLink = this.urlDocumentoEinF03();
+        }
+        this.guardadoLocal = guardarSolicitudesLocal(fusion);
+        this.pendingTextareaResize = true;
+        const pendientesSubir = soloActivos(fusion).filter(s =>
+          !remoto.some((r: any) => r?.id === s.id)
+        );
+        if (pendientesSubir.length) {
+          this.programarSyncServidor(true);
+        }
+      },
+      error: () => {
+        /* sin servidor: se sigue con localStorage */
+      }
+    });
   }
 
   private persistir(): void {
@@ -553,6 +594,32 @@ export class EinF02SolicitudComponent implements OnInit, AfterViewChecked, OnDes
     if (!this.guardadoLocal) {
       this.flash('No se pudo guardar localmente.');
     }
+    this.programarSyncServidor();
+  }
+
+  private programarSyncServidor(inmediato = false): void {
+    if (this.syncServidorTimer) {
+      clearTimeout(this.syncServidorTimer);
+      this.syncServidorTimer = null;
+    }
+    const run = () => {
+      this.syncServidorTimer = null;
+      if (this.destruido) {
+        return;
+      }
+      const payload = cargarSolicitudesLocal();
+      if (!payload.length) {
+        return;
+      }
+      this.backend.guardarSolicitudesMantenimiento(payload).subscribe({
+        error: () => { /* reintento en el próximo persistir */ }
+      });
+    };
+    if (inmediato) {
+      run();
+      return;
+    }
+    this.syncServidorTimer = setTimeout(run, 600);
   }
 
   private flash(msg: string): void {

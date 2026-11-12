@@ -60,6 +60,8 @@ export interface EinF02Solicitud {
   prioridad?: string;
   /** PDF firmado EIN-F-04 */
   pdfFirmado?: EinF02PdfFirmado;
+  /** false = desactivado (no se borra; se oculta del archivero/bitácora) */
+  activo?: boolean;
   creadoEn: string;
   actualizadoEn: string;
 }
@@ -266,9 +268,59 @@ export function normalizarSolicitud(raw: any): EinF02Solicitud {
           fechaSubida: raw.pdfFirmado.fechaSubida || undefined
         }
       : undefined,
+    activo: raw?.activo === false || raw?.activo === 0 || raw?.activo === '0' ? false : true,
     creadoEn: String(raw?.creadoEn || new Date().toISOString()),
     actualizadoEn: String(raw?.actualizadoEn || new Date().toISOString())
   };
+}
+
+export function estaActivo(s: EinF02Solicitud | null | undefined): boolean {
+  return !s || s.activo !== false;
+}
+
+export function soloActivos(lista: EinF02Solicitud[]): EinF02Solicitud[] {
+  return (lista || []).filter(estaActivo);
+}
+
+/** Une local + remoto por id; gana el más reciente por actualizadoEn. */
+export function fusionarSolicitudes(
+  local: EinF02Solicitud[],
+  remoto: EinF02Solicitud[]
+): EinF02Solicitud[] {
+  const map = new Map<string, EinF02Solicitud>();
+  for (const raw of [...(remoto || []), ...(local || [])]) {
+    const s = normalizarSolicitud(raw);
+    if (!s.id) {
+      continue;
+    }
+    const prev = map.get(s.id);
+    if (!prev || String(s.actualizadoEn || '') >= String(prev.actualizadoEn || '')) {
+      map.set(s.id, s);
+    }
+  }
+  return Array.from(map.values()).sort((a, b) =>
+    String(b.actualizadoEn || '').localeCompare(String(a.actualizadoEn || ''))
+  );
+}
+
+/** Busca por id primero; si no, por folio (manual antes que Forms). */
+export function encontrarSolicitudPorClave(
+  lista: EinF02Solicitud[],
+  clave: string
+): EinF02Solicitud | undefined {
+  const key = String(clave || '').trim();
+  if (!key) {
+    return undefined;
+  }
+  const porId = (lista || []).find(s => s.id === key);
+  if (porId) {
+    return porId;
+  }
+  const porFolio = (lista || []).filter(s => s.folio === key);
+  if (!porFolio.length) {
+    return undefined;
+  }
+  return porFolio.find(s => !esRegistroForms(s)) || porFolio[0];
 }
 
 export function cargarSolicitudesLocal(): EinF02Solicitud[] {
@@ -325,6 +377,7 @@ export function crearSolicitudVacia(
     observacionesBitacora: '',
     ubicacion: '',
     prioridad: '',
+    activo: true,
     creadoEn: ahora,
     actualizadoEn: ahora
   };
@@ -421,7 +474,9 @@ export function sincronizarCasosDesdeForms(
       continue;
     }
 
-    const sol = crearSolicitudVacia(lista, {
+    // Folios e ID serie deben considerar también los manuales para no colisionar.
+    const baseFolio = [...lista, ...manuales];
+    const sol = crearSolicitudVacia(baseFolio, {
       nombreSolicitante: caso.nombreSolicitante || '',
       puesto: caso.puesto || '',
       area: caso.area || caso.ubicacion || ''
@@ -442,19 +497,20 @@ export function sincronizarCasosDesdeForms(
     sol.ubicacion = caso.ubicacion || '';
     sol.prioridad = caso.prioridad || '';
     sol.tipoMantenimiento = 'Correctivo';
-    asegurarIdSerie(sol, lista);
+    asegurarIdSerie(sol, baseFolio);
     lista = [sol, ...lista];
     byForms.set(rid, sol);
     nuevos += 1;
   }
 
-  for (const s of lista) {
-    asegurarIdSerie(s, lista);
+  const listaCompleta = [...lista, ...manuales];
+  for (const s of listaCompleta) {
+    asegurarIdSerie(s, listaCompleta);
   }
 
   const conservados = lista.length - nuevos;
   return {
-    lista: [...lista, ...manuales],
+    lista: listaCompleta,
     nuevos,
     eliminados: Math.max(0, formsAntes - conservados)
   };

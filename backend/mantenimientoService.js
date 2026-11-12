@@ -485,6 +485,163 @@ function rutaLogoBiznaga() {
   return null;
 }
 
+let esquemaSolicitudesListo = false;
+
+async function asegurarEsquemaSolicitudes(pool) {
+  if (esquemaSolicitudesListo || !pool) {
+    return;
+  }
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS mantenimiento_solicitud (
+      id VARCHAR(80) NOT NULL PRIMARY KEY,
+      folio VARCHAR(80) NOT NULL,
+      forms_response_id VARCHAR(160) NULL,
+      activo TINYINT(1) NOT NULL DEFAULT 1,
+      datos_json LONGTEXT NOT NULL,
+      creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_mant_sol_folio (folio),
+      INDEX idx_mant_sol_activo (activo),
+      INDEX idx_mant_sol_forms (forms_response_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  esquemaSolicitudesListo = true;
+}
+
+function parseDatosJson(raw) {
+  if (!raw) {
+    return null;
+  }
+  if (typeof raw === 'object') {
+    return raw;
+  }
+  try {
+    return JSON.parse(String(raw));
+  } catch {
+    return null;
+  }
+}
+
+function normalizarSolicitudDb(raw, meta = {}) {
+  const base = raw && typeof raw === 'object' ? { ...raw } : {};
+  const id = String(base.id || meta.id || '').trim();
+  if (!id) {
+    return null;
+  }
+  const activoMeta =
+    meta.activo === undefined || meta.activo === null
+      ? undefined
+      : Number(meta.activo) !== 0;
+  return {
+    ...base,
+    id,
+    folio: String(base.folio || meta.folio || '').trim(),
+    formsResponseId: base.formsResponseId
+      ? String(base.formsResponseId)
+      : meta.forms_response_id
+        ? String(meta.forms_response_id)
+        : undefined,
+    activo: activoMeta === undefined
+      ? base.activo !== false && base.activo !== 0 && base.activo !== '0'
+      : activoMeta,
+    creadoEn: String(base.creadoEn || meta.creado_en || new Date().toISOString()),
+    actualizadoEn: String(
+      base.actualizadoEn || meta.actualizado_en || new Date().toISOString()
+    )
+  };
+}
+
+/**
+ * Lista solicitudes compartidas (archivero EIN-F-04 / bitácora F-03).
+ * Por defecto solo activas.
+ */
+async function listarSolicitudesCatalogo(pool, { incluirInactivos = false } = {}) {
+  await asegurarEsquemaSolicitudes(pool);
+  const sql = incluirInactivos
+    ? `SELECT id, folio, forms_response_id, activo, datos_json, creado_en, actualizado_en
+       FROM mantenimiento_solicitud
+       ORDER BY actualizado_en DESC`
+    : `SELECT id, folio, forms_response_id, activo, datos_json, creado_en, actualizado_en
+       FROM mantenimiento_solicitud
+       WHERE activo = 1
+       ORDER BY actualizado_en DESC`;
+  const [rows] = await pool.query(sql);
+  const solicitudes = [];
+  for (const row of rows || []) {
+    const parsed = normalizarSolicitudDb(parseDatosJson(row.datos_json), row);
+    if (parsed) {
+      solicitudes.push(parsed);
+    }
+  }
+  return solicitudes;
+}
+
+/** Upsert por id. Conserva desactivados si llegan con activo=false. */
+async function guardarSolicitudesCatalogo(pool, lista) {
+  await asegurarEsquemaSolicitudes(pool);
+  const items = Array.isArray(lista) ? lista : [];
+  let guardados = 0;
+  for (const raw of items) {
+    const sol = normalizarSolicitudDb(raw);
+    if (!sol?.id) {
+      continue;
+    }
+    const activo = sol.activo === false ? 0 : 1;
+    const folio = String(sol.folio || '').trim() || sol.id;
+    const formsId = sol.formsResponseId ? String(sol.formsResponseId).trim() : null;
+    const payload = JSON.stringify({ ...sol, activo: activo === 1 });
+    await pool.query(
+      `INSERT INTO mantenimiento_solicitud
+        (id, folio, forms_response_id, activo, datos_json, creado_en, actualizado_en)
+       VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+       ON DUPLICATE KEY UPDATE
+         folio = VALUES(folio),
+         forms_response_id = VALUES(forms_response_id),
+         activo = VALUES(activo),
+         datos_json = VALUES(datos_json),
+         actualizado_en = NOW()`,
+      [sol.id, folio, formsId, activo, payload]
+    );
+    guardados += 1;
+  }
+  return { guardados };
+}
+
+async function desactivarSolicitudCatalogo(pool, id) {
+  await asegurarEsquemaSolicitudes(pool);
+  const key = String(id || '').trim();
+  if (!key) {
+    const err = new Error('Id de solicitud requerido');
+    err.status = 400;
+    throw err;
+  }
+  const [rows] = await pool.query(
+    `SELECT id, folio, forms_response_id, activo, datos_json, creado_en, actualizado_en
+     FROM mantenimiento_solicitud WHERE id = ? LIMIT 1`,
+    [key]
+  );
+  const row = rows && rows[0];
+  if (!row) {
+    const err = new Error('Solicitud no encontrada');
+    err.status = 404;
+    throw err;
+  }
+  const datos = normalizarSolicitudDb(parseDatosJson(row.datos_json), row) || {
+    id: key,
+    folio: row.folio,
+    activo: false
+  };
+  datos.activo = false;
+  datos.actualizadoEn = new Date().toISOString();
+  await pool.query(
+    `UPDATE mantenimiento_solicitud
+     SET activo = 0, datos_json = ?, actualizado_en = NOW()
+     WHERE id = ?`,
+    [JSON.stringify(datos), key]
+  );
+  return datos;
+}
+
 module.exports = {
   CARPETA_MANTENIMIENTO_ID,
   CARPETA_FIRMADOS_F04_ID,
@@ -500,5 +657,8 @@ module.exports = {
   descargarPdfReporteEinF04,
   obtenerEstadisticasFormsF02,
   carpetaSolicitud,
-  rutaLogoBiznaga
+  rutaLogoBiznaga,
+  listarSolicitudesCatalogo,
+  guardarSolicitudesCatalogo,
+  desactivarSolicitudCatalogo
 };

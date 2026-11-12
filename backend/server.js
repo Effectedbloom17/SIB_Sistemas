@@ -20823,6 +20823,75 @@ app.get('/api/tickets/tipos', authMiddleware, (_req, res) => {
 // MANTENIMIENTO (EIN-F-02 evidencias + EIN-F-04 reporte)
 // =====================================================
 
+/** Catálogo compartido de solicitudes/reportes (archivero + bitácora). */
+app.get(
+    '/api/mantenimiento/solicitudes',
+    authMiddleware,
+    denyEmpresa,
+    requireAdminOrMantenimiento,
+    async (req, res) => {
+        try {
+            const incluirInactivos =
+                String(req.query.incluirInactivos || '').toLowerCase() === '1' ||
+                String(req.query.incluirInactivos || '').toLowerCase() === 'true';
+            const solicitudes = await mantenimientoService.listarSolicitudesCatalogo(pool, {
+                incluirInactivos
+            });
+            res.json({ success: true, solicitudes });
+        } catch (error) {
+            console.error('[mantenimiento] listar solicitudes:', error);
+            res.status(500).json({
+                success: false,
+                message: error.message || 'No se pudieron cargar las solicitudes'
+            });
+        }
+    }
+);
+
+app.put(
+    '/api/mantenimiento/solicitudes',
+    authMiddleware,
+    denyEmpresa,
+    requireAdminOrMantenimiento,
+    async (req, res) => {
+        try {
+            const lista = Array.isArray(req.body?.solicitudes)
+                ? req.body.solicitudes
+                : Array.isArray(req.body)
+                    ? req.body
+                    : [];
+            const result = await mantenimientoService.guardarSolicitudesCatalogo(pool, lista);
+            res.json({ success: true, ...result });
+        } catch (error) {
+            console.error('[mantenimiento] guardar solicitudes:', error);
+            res.status(500).json({
+                success: false,
+                message: error.message || 'No se pudieron guardar las solicitudes'
+            });
+        }
+    }
+);
+
+app.patch(
+    '/api/mantenimiento/solicitudes/:id/desactivar',
+    authMiddleware,
+    denyEmpresa,
+    requireAdminOrMantenimiento,
+    async (req, res) => {
+        try {
+            const id = decodeURIComponent(String(req.params.id || '').trim());
+            const solicitud = await mantenimientoService.desactivarSolicitudCatalogo(pool, id);
+            res.json({ success: true, solicitud });
+        } catch (error) {
+            console.error('[mantenimiento] desactivar solicitud:', error);
+            res.status(error.status || 500).json({
+                success: false,
+                message: error.message || 'No se pudo desactivar la solicitud'
+            });
+        }
+    }
+);
+
 app.post(
     '/api/mantenimiento/solicitudes/:folio/evidencias',
     authMiddleware,
@@ -26856,6 +26925,7 @@ const sgcF08Service = require('./sgcF08Service');
 const sgcF09Service = require('./sgcF09Service');
 const sgcF10Service = require('./sgcF10Service');
 const sgcF14Service = require('./sgcF14Service');
+const sgcF14AvanceSemestreService = require('./sgcF14AvanceSemestreService');
 const sgcF25Service = require('./sgcF25Service');
 const sgcF27MedicionService = require('./sgcF27MedicionService');
 const sgcF17Service = require('./sgcF17Service');
@@ -28800,6 +28870,61 @@ app.get('/api/sgc/formatos/sgc-f-14/descargar-pdf', requireAdminOrSgc, async (re
     }
 });
 
+app.get('/api/sgc/formatos/sgc-f-14/comparativa-semestral', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const cicloAnio = Number(req.query.cicloAnio || req.query.anio) || new Date().getFullYear();
+        const autoCapturar = String(req.query.autoCapturar || '1') !== '0';
+        const payload = await sgcF14AvanceSemestreService.obtenerComparativa(
+            poolBiznagaSgc,
+            cicloAnio,
+            {
+                autoCapturar,
+                capturadoPor: obtenerNombreUsuarioAccion(req) || 'sistema'
+            }
+        );
+        const ciclos = await sgcF14AvanceSemestreService.listarCiclosDisponibles(poolBiznagaSgc);
+        return res.json({ success: true, ...payload, ...ciclos });
+    } catch (error) {
+        handleError(res, error, 'No se pudo cargar la comparativa semestral de SGC-F-14');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-14/comparativa-semestral/capturar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const body = req.body || {};
+        const cicloAnio = Number(body.cicloAnio || body.anio) || new Date().getFullYear();
+        const semestre = Number(body.semestre);
+        const rolesUser = Array.isArray(req.user?.roles)
+            ? req.user.roles.map((r) => String(r).toLowerCase())
+            : (req.user?.rol ? [String(req.user.rol).toLowerCase()] : []);
+        const forzar = !!body.forzar && rolesUser.includes('root');
+        const resultado = await sgcF14AvanceSemestreService.capturarCorte(
+            poolBiznagaSgc,
+            cicloAnio,
+            semestre,
+            {
+                forzar,
+                capturadoPor: obtenerNombreUsuarioAccion(req) || 'usuario'
+            }
+        );
+        sgcDashboardService.invalidarCacheDashboard();
+        return res.json({
+            success: true,
+            message: resultado.yaExistia
+                ? `El corte del semestre ${semestre} del ciclo ${cicloAnio} ya estaba guardado.`
+                : `Corte del semestre ${semestre} (ciclo ${cicloAnio}) guardado correctamente.`,
+            ...resultado
+        });
+    } catch (error) {
+        if (error?.status === 400) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo capturar el corte semestral de SGC-F-14');
+    }
+});
+
 app.use('/api/sgc/formatos/sgc-f-14/evidencias', async (req, res, next) => {
     try {
         await poolBiznagaSgcReady;
@@ -30220,7 +30345,15 @@ app.get('/api/sgc/formatos/sgc-f-29/criterios', requireAdminOrSgc, async (req, r
     try {
         await poolBiznagaSgcReady;
         const areaClave = String(req.query?.area || req.query?.areaClave || '').trim();
-        const criterios = await sgcF29Service.listarCriterios(poolBiznagaSgc, areaClave || null);
+        const pedirInactivos = ['1', 'true', 'yes'].includes(
+            String(req.query?.incluirInactivos || req.query?.inactivos || '').toLowerCase()
+        );
+        const incluirInactivos = pedirInactivos && esSuperusuarioSgc(req);
+        const criterios = await sgcF29Service.listarCriterios(
+            poolBiznagaSgc,
+            areaClave || null,
+            { incluirInactivos }
+        );
         return res.json({ success: true, criterios });
     } catch (error) {
         handleError(res, error, 'No se pudieron listar los criterios de SGC-F-29');
@@ -30270,6 +30403,63 @@ app.put('/api/sgc/formatos/sgc-f-29/criterios/:clave', requireAdminOrSgc, async 
             return res.status(error.statusCode).json({ success: false, message: error.message });
         }
         handleError(res, error, 'No se pudo actualizar el criterio de SGC-F-29');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-29/criterios/:clave/desactivar', requireAdminOrSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const result = await sgcF29Service.desactivarCriterio(poolBiznagaSgc, req.params.clave);
+        return res.json({
+            success: true,
+            message: 'Criterio desactivado. Ya no aparece en el catálogo activo.',
+            criterios: result?.criterios || [],
+            clave: result?.clave || req.params.clave,
+            activo: false
+        });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 404) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo desactivar el criterio de SGC-F-29');
+    }
+});
+
+app.post('/api/sgc/formatos/sgc-f-29/criterios/:clave/reactivar', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const result = await sgcF29Service.reactivarCriterio(poolBiznagaSgc, req.params.clave);
+        return res.json({
+            success: true,
+            message: 'Criterio reactivado.',
+            criterios: result?.criterios || [],
+            clave: result?.clave || req.params.clave,
+            activo: true
+        });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 404) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo reactivar el criterio de SGC-F-29');
+    }
+});
+
+app.delete('/api/sgc/formatos/sgc-f-29/criterios/:clave', requireRole('root'), async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const result = await sgcF29Service.eliminarCriterioDefinitivo(poolBiznagaSgc, req.params.clave);
+        return res.json({
+            success: true,
+            message: 'Criterio borrado definitivamente de la base de datos.',
+            criterios: result?.criterios || [],
+            clave: result?.clave || req.params.clave,
+            eliminado: true
+        });
+    } catch (error) {
+        if (error.statusCode === 400 || error.statusCode === 404) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo borrar el criterio de SGC-F-29');
     }
 });
 

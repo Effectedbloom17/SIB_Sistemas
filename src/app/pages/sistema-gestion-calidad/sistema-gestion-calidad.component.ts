@@ -21,7 +21,8 @@ import {
   ApexLegend,
   ApexMarkers,
   ApexPlotOptions,
-  ApexResponsive
+  ApexResponsive,
+  ApexAnnotations
 } from 'ng-apexcharts';
 
 export type SgcAreaChartOptions = {
@@ -38,6 +39,7 @@ export type SgcAreaChartOptions = {
   legend?: ApexLegend;
   markers?: ApexMarkers;
   plotOptions?: ApexPlotOptions;
+  annotations?: ApexAnnotations;
 };
 
 export type SgcRadialChartOptions = {
@@ -130,6 +132,51 @@ interface ChartKpiBadge {
   clave?: string;
 }
 
+type VistaEficaciaCap = 'anual' | 's1' | 's2' | 'comparativa';
+type VistaSatisfaccionCliente = 'mensual' | 'cuatrimestral';
+type VistaAvanceProyectos = 'actual' | 'comparativa';
+
+interface SatCuatrimestreResumen {
+  id: 'c1' | 'c2' | 'c3';
+  clave: string;
+  etiqueta: string;
+  rango: string;
+  positivasPct: number | null;
+  respuestas: number;
+  indice: number;
+  tieneDatos: boolean;
+}
+
+interface EficaciaCapResumen {
+  totalEvaluados: number;
+  totalAprobados: number;
+  totalCursos: number;
+  tasaAprobacion: number;
+  /** Promedio 0–10 derivado de A=10 / NA=0 en ATH-F-08. */
+  promedioCalificacion: number;
+  serieMensual: Array<{
+    mes_num: number;
+    mes: string;
+    cursos?: number;
+    evaluados: number;
+    aprobados: number;
+    tasaAprobacion: number;
+  }>;
+  etiqueta: string;
+  subetiqueta: string;
+}
+
+interface EficaciaCapDelta {
+  clave: string;
+  label: string;
+  s1: number | string;
+  s2: number | string;
+  delta: number;
+  deltaLabel: string;
+  sentido: 'mejora' | 'baja' | 'igual';
+  unidad: 'pts' | 'abs';
+}
+
 @Component({
   selector: 'app-sistema-gestion-calidad',
   templateUrl: './sistema-gestion-calidad.component.html',
@@ -178,6 +225,9 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   capDonutCentroValor: number | string = '0%';
   capDonutCentroEtiqueta = 'Aprobación';
   capDonutCentroSub = '';
+  /** Vista del indicador de eficacia: año completo, semestre o comparativa. */
+  vistaEficaciaCap: VistaEficaciaCap = 'anual';
+  vistaSatisfaccionCliente: VistaSatisfaccionCliente = 'mensual';
 
   satDonutCentroValor: number | string = 0;
   satDonutCentroEtiqueta = 'Respuestas';
@@ -209,6 +259,18 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   private folioAvanceQueryInicial = '';
   /** null = todos los años del folio PM-DDMMYY-NN */
   filtroAnioAvance: number | null = null;
+  /** Vista actual (lista + donut) o comparativa semestral Ago→Feb→Ago. */
+  vistaAvanceProyectos: VistaAvanceProyectos = 'actual';
+  comparativaAvance: any = null;
+  cargandoComparativaAvance = false;
+  capturandoCorteAvance = false;
+  cicloComparativaAvance = new Date().getFullYear();
+  donutSem1CentroValor: number | string = 0;
+  donutSem1CentroEtiqueta = 'Proyectos';
+  donutSem1CentroPct = 0;
+  donutSem2CentroValor: number | string = 0;
+  donutSem2CentroEtiqueta = 'Proyectos';
+  donutSem2CentroPct = 0;
   proveedoresF29: any = null;
   proveedoresF29Expandido: string | null = null;
   criteriosProveedoresF29List: Array<{ label: string; valor: number }> = [];
@@ -225,6 +287,8 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   quejasChart: Partial<SgcAreaChartOptions>;
   proveedoresChart: Partial<SgcAreaChartOptions>;
   avanceChart: Partial<SgcRadialChartOptions>;
+  avanceSem1Chart: Partial<SgcRadialChartOptions> = {};
+  avanceSem2Chart: Partial<SgcRadialChartOptions> = {};
   eficaciaChart: Partial<SgcRadialChartOptions>;
   audNcHistogramaChart: Partial<SgcAreaChartOptions>;
   audNcEstatusChart: Partial<SgcRadialChartOptions>;
@@ -564,6 +628,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     if (opts.resetSeleccion) {
       this.auditoriaSeleccionada = null;
       this.eficaciaChartModo = 'eficacia';
+      this.vistaEficaciaCap = this.semestreEficaciaCapPorDefecto();
     }
     this.sincronizarNcActualesDesdeListado();
     this.construirKpis();
@@ -605,8 +670,71 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     this.resetSatDonutCentro();
   }
 
+  seleccionarVistaSatisfaccionCliente(vista: VistaSatisfaccionCliente, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (vista === this.vistaSatisfaccionCliente) return;
+    this.vistaSatisfaccionCliente = vista;
+    this.actualizarChartsSatisfaccionCliente();
+  }
+
+  get esCuatrimestralSatisfaccion(): boolean {
+    return this.vistaSatisfaccionCliente === 'cuatrimestral';
+  }
+
   get etiquetaCicloSatisfaccion(): string {
     return this.satisfaccionCurso?.etiqueta || this.satisfaccionCurso?.ciclo || this.cicloSatisfaccionId;
+  }
+
+  get etiquetaVistaSatisfaccionCliente(): string {
+    if (this.esCuatrimestralSatisfaccion) {
+      return `C1–C3 · ${this.etiquetaCicloSatisfaccion}`;
+    }
+    return `Por mes · ${this.etiquetaCicloSatisfaccion}`;
+  }
+
+  get cuatrimestresSatisfaccion(): SatCuatrimestreResumen[] {
+    const defs: Array<{ id: SatCuatrimestreResumen['id']; clave: string; etiqueta: string; rango: string; meses: number[] }> = [
+      { id: 'c1', clave: 'C1', etiqueta: '1er cuatrimestre', rango: 'Ene–Abr', meses: [1, 2, 3, 4] },
+      { id: 'c2', clave: 'C2', etiqueta: '2do cuatrimestre', rango: 'May–Ago', meses: [5, 6, 7, 8] },
+      { id: 'c3', clave: 'C3', etiqueta: '3er cuatrimestre', rango: 'Sep–Dic', meses: [9, 10, 11, 12] }
+    ];
+    const serie = (this.satisfaccionCurso?.serieMensual || []) as any[];
+    return defs.map((def) => {
+      const meses = serie.filter((s) => def.meses.includes(Number(s.mes_num) || 0));
+      const respuestas = meses.reduce((acc, m) => acc + (Number(m.respuestas) || 0), 0);
+      const positivas = meses.reduce((acc, m) => acc + (Number(m.positivas) || 0), 0);
+      const totalEval = meses.reduce((acc, m) => acc + (Number(m.total_eval) || 0), 0);
+      const indicePonderado = (() => {
+        const peso = meses.reduce((acc, m) => acc + (Number(m.respuestas) || 0), 0);
+        if (!peso) return 0;
+        return Math.round(
+          meses.reduce((acc, m) => acc + (Number(m.indice) || 0) * (Number(m.respuestas) || 0), 0) / peso
+        );
+      })();
+      const positivasPct = (() => {
+        if (totalEval > 0) return Math.round((positivas / totalEval) * 100);
+        if (!respuestas) return null;
+        const conDatos = meses.filter((m) => (Number(m.respuestas) || 0) > 0);
+        if (!conDatos.length) return null;
+        // Fallback si el backend aún no envía totales de escala por mes.
+        const suma = conDatos.reduce(
+          (acc, m) => acc + (Number(m.positivas_pct) || Number(m.indice) || 0),
+          0
+        );
+        return Math.round(suma / conDatos.length);
+      })();
+      return {
+        id: def.id,
+        clave: def.clave,
+        etiqueta: def.etiqueta,
+        rango: def.rango,
+        positivasPct,
+        respuestas,
+        indice: indicePonderado,
+        tieneDatos: respuestas > 0
+      };
+    });
   }
 
   onAnioChange(): void {
@@ -619,11 +747,271 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     this.mostrarPreguntasSatCap = false;
     this.mostrarPreguntasSatisfaccion = false;
     this.mostrarHistogramaAud = false;
+    this.vistaEficaciaCap = this.semestreEficaciaCapPorDefecto();
     this.cargarDashboard(true);
   }
 
   get hayDatosEficaciaCap(): boolean {
     return !!this.eficaciaCapacitacion && (this.eficaciaCapacitacion.totalEvaluados || 0) > 0;
+  }
+
+  get esComparativaEficaciaCap(): boolean {
+    return this.vistaEficaciaCap === 'comparativa';
+  }
+
+  get etiquetaVistaEficaciaCap(): string {
+    if (this.vistaEficaciaCap === 'anual') return `Año completo · Ene–Dic ${this.anioSeleccionado}`;
+    if (this.vistaEficaciaCap === 's1') return `1er semestre · Ene–Jun ${this.anioSeleccionado}`;
+    if (this.vistaEficaciaCap === 's2') return `2do semestre · Jul–Dic ${this.anioSeleccionado}`;
+    return `Comparativa semestral · ${this.anioSeleccionado}`;
+  }
+
+  get eficaciaCapActiva(): EficaciaCapResumen {
+    if (this.vistaEficaciaCap === 's1') return this.resumenSemestreEficaciaCap(1);
+    if (this.vistaEficaciaCap === 's2') return this.resumenSemestreEficaciaCap(2);
+    return this.resumenAnualEficaciaCap();
+  }
+
+  get comparativaEficaciaCap(): {
+    s1: EficaciaCapResumen;
+    s2: EficaciaCapResumen;
+    deltas: EficaciaCapDelta[];
+    resumen: string;
+  } {
+    const s1 = this.resumenSemestreEficaciaCap(1);
+    const s2 = this.resumenSemestreEficaciaCap(2);
+    const deltas: EficaciaCapDelta[] = [
+      this.deltaEficaciaCap('cursos', 'Cursos', s1.totalCursos, s2.totalCursos, 'abs'),
+      this.deltaEficaciaCap('promedio', 'Calificación promedio', s1.promedioCalificacion, s2.promedioCalificacion, 'pts'),
+      this.deltaEficaciaCap('aprobacion', 'Aprobación', s1.tasaAprobacion, s2.tasaAprobacion, 'pts'),
+      this.deltaEficaciaCap('evaluados', 'Evaluados', s1.totalEvaluados, s2.totalEvaluados, 'abs')
+    ];
+    const dCursos = deltas[0];
+    const dProm = deltas[1];
+    let resumen = 'Ambos semestres tienen el mismo volumen de cursos y calificación promedio.';
+    if (!s1.totalCursos && !s2.totalCursos) {
+      resumen = 'Aún no hay cursos evaluados para comparar semestres.';
+    } else if (!s1.totalCursos) {
+      resumen = 'Solo hay cursos en el 2do semestre; el 1er semestre aún no registra evaluaciones.';
+    } else if (!s2.totalCursos) {
+      resumen = 'Solo hay cursos en el 1er semestre; el 2do semestre aún no registra evaluaciones.';
+    } else {
+      const partes: string[] = [];
+      if (dCursos.sentido === 'mejora') {
+        partes.push(`el 2do semestre suma ${dCursos.deltaLabel} cursos`);
+      } else if (dCursos.sentido === 'baja') {
+        partes.push(`el 2do semestre tiene ${dCursos.deltaLabel.replace('-', '')} cursos menos`);
+      }
+      if (dProm.sentido === 'mejora') {
+        partes.push(`la calificación promedio sube ${dProm.deltaLabel}`);
+      } else if (dProm.sentido === 'baja') {
+        partes.push(`la calificación promedio baja ${dProm.deltaLabel.replace('-', '')}`);
+      }
+      if (partes.length) {
+        resumen = `Comparativa ${this.anioSeleccionado}: ${partes.join(' y ')}.`;
+      }
+    }
+    return { s1, s2, deltas, resumen };
+  }
+
+  seleccionarVistaEficaciaCap(vista: VistaEficaciaCap, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (vista === this.vistaEficaciaCap) return;
+    this.vistaEficaciaCap = vista;
+    this.actualizarChartsEficaciaCap();
+    this.resetCapDonutCentro();
+  }
+
+  private semestreEficaciaCapPorDefecto(): VistaEficaciaCap {
+    return 'anual';
+  }
+
+  private promedioCalificacionDesdeAprobacion(aprobados: number, evaluados: number): number {
+    if (!evaluados) return 0;
+    // ATH-F-08: A = 10, NA = 0 → promedio 0–10.
+    return Math.round(((aprobados * 10) / evaluados) * 10) / 10;
+  }
+
+  private resumenDesdeSerie(
+    serie: EficaciaCapResumen['serieMensual'],
+    etiqueta: string,
+    subetiqueta: string
+  ): EficaciaCapResumen {
+    const totalEvaluados = serie.reduce((acc, m) => acc + (Number(m.evaluados) || 0), 0);
+    const totalAprobados = serie.reduce((acc, m) => acc + (Number(m.aprobados) || 0), 0);
+    const totalCursos = serie.reduce((acc, m) => acc + (Number(m.cursos) || 0), 0);
+    return {
+      totalEvaluados,
+      totalAprobados,
+      totalCursos,
+      tasaAprobacion: totalEvaluados ? Math.round((totalAprobados / totalEvaluados) * 100) : 0,
+      promedioCalificacion: this.promedioCalificacionDesdeAprobacion(totalAprobados, totalEvaluados),
+      serieMensual: serie,
+      etiqueta,
+      subetiqueta
+    };
+  }
+
+  private resumenAnualEficaciaCap(): EficaciaCapResumen {
+    const serieFull = (this.eficaciaCapacitacion?.serieMensual || []) as EficaciaCapResumen['serieMensual'];
+    if (serieFull.length) {
+      return this.resumenDesdeSerie(serieFull, 'Año completo', 'Ene–Dic');
+    }
+    const totalEvaluados = Number(this.eficaciaCapacitacion?.totalEvaluados) || 0;
+    const totalAprobados = Number(this.eficaciaCapacitacion?.totalAprobados) || 0;
+    const totalCursos = Number(this.eficaciaCapacitacion?.totalCursos) || 0;
+    return {
+      totalEvaluados,
+      totalAprobados,
+      totalCursos,
+      tasaAprobacion: Number(this.eficaciaCapacitacion?.tasaAprobacion) || 0,
+      promedioCalificacion: this.promedioCalificacionDesdeAprobacion(totalAprobados, totalEvaluados),
+      serieMensual: [],
+      etiqueta: 'Año completo',
+      subetiqueta: 'Ene–Dic'
+    };
+  }
+
+  private resumenSemestreEficaciaCap(semestre: 1 | 2): EficaciaCapResumen {
+    const serieFull = (this.eficaciaCapacitacion?.serieMensual || []) as EficaciaCapResumen['serieMensual'];
+    const desde = semestre === 1 ? 1 : 7;
+    const hasta = semestre === 1 ? 6 : 12;
+    const serie = serieFull.filter((m) => {
+      const n = Number(m?.mes_num) || 0;
+      return n >= desde && n <= hasta;
+    });
+    return this.resumenDesdeSerie(
+      serie,
+      semestre === 1 ? '1er semestre' : '2do semestre',
+      semestre === 1 ? 'Ene–Jun' : 'Jul–Dic'
+    );
+  }
+
+  private deltaEficaciaCap(
+    clave: string,
+    label: string,
+    v1: number,
+    v2: number,
+    unidad: 'pts' | 'abs'
+  ): EficaciaCapDelta {
+    const n1 = Number(v1) || 0;
+    const n2 = Number(v2) || 0;
+    const deltaRaw = n2 - n1;
+    const delta = clave === 'promedio'
+      ? Math.round(deltaRaw * 10) / 10
+      : Math.round(deltaRaw);
+    const sentido: EficaciaCapDelta['sentido'] =
+      delta > 0 ? 'mejora' : delta < 0 ? 'baja' : 'igual';
+    const signo = delta > 0 ? '+' : '';
+    let s1Label: number | string = n1;
+    let s2Label: number | string = n2;
+    let deltaLabel = `${signo}${delta}`;
+    if (clave === 'aprobacion') {
+      s1Label = `${n1}%`;
+      s2Label = `${n2}%`;
+      deltaLabel = `${signo}${delta} pts`;
+    } else if (clave === 'promedio') {
+      s1Label = n1.toFixed(1);
+      s2Label = n2.toFixed(1);
+      deltaLabel = `${signo}${delta.toFixed(1)}`;
+    }
+    return {
+      clave,
+      label,
+      s1: s1Label,
+      s2: s2Label,
+      delta,
+      deltaLabel,
+      sentido,
+      unidad
+    };
+  }
+
+  private actualizarChartsEficaciaCap(): void {
+    const ec = this.eficaciaCapActiva;
+    const cursos = Number(ec.totalCursos) || 0;
+    const personas = Number(ec.totalEvaluados) || 0;
+    const aprobados = Number(ec.totalAprobados) || 0;
+    const self = this;
+    this.eficaciaCapChart = {
+      ...this.eficaciaCapChart,
+      series: [Math.max(aprobados, 0), Math.max(cursos, 0), Math.max(personas, 0)],
+      chart: {
+        ...this.eficaciaCapChart.chart,
+        height: this.CARRUSEL_DONUT_HEIGHT,
+        events: {
+          dataPointMouseEnter(_e: unknown, _chart: unknown, config: { dataPointIndex: number }) {
+            self.onCapDonutHover(config.dataPointIndex);
+          },
+          dataPointMouseLeave() {
+            self.resetCapDonutCentro();
+          }
+        }
+      },
+      tooltip: {
+        ...this.eficaciaCapChart.tooltip,
+        y: {
+          formatter: (val: number, opts?: { seriesIndex?: number }) => {
+            const vista = self.eficaciaCapActiva;
+            const idx = opts?.seriesIndex ?? 0;
+            if (idx === 0) {
+              return `${Number(vista.totalAprobados) || 0} con resultado A (${vista.tasaAprobacion}%)`;
+            }
+            if (idx === 1) return `${val} curso${val !== 1 ? 's' : ''} evaluado${val !== 1 ? 's' : ''}`;
+            return `${val} persona${val !== 1 ? 's' : ''} evaluada${val !== 1 ? 's' : ''}`;
+          }
+        }
+      }
+    };
+
+    const ecSerie = ec.serieMensual || [];
+    this.eficaciaCapMensualChart = {
+      ...this.eficaciaCapMensualChart,
+      series: [
+        { name: 'Tasa de aprobación', type: 'area', data: ecSerie.map(s => Number(s.tasaAprobacion) || 0) },
+        { name: 'Evaluados', type: 'column', data: ecSerie.map(s => Number(s.evaluados) || 0) }
+      ],
+      xaxis: { ...this.eficaciaCapMensualChart.xaxis, categories: ecSerie.map(s => s.mes) },
+      yaxis: [
+        {
+          seriesName: 'Tasa de aprobación',
+          min: 0, max: 100, tickAmount: 5,
+          labels: { style: { colors: '#94a3b8', fontSize: '10px' }, formatter: (v: number) => `${Math.round(v)}%` }
+        },
+        {
+          seriesName: 'Evaluados',
+          opposite: true, min: 0, forceNiceScale: true,
+          labels: { style: { colors: '#cbd5e1', fontSize: '10px' }, formatter: (v: number) => `${Math.round(v)}` }
+        }
+      ]
+    };
+
+  }
+
+  /** Anchos relativos (0–100) y escala para la comparativa visual. */
+  get metrosComparativaEficaciaCap(): {
+    cursosS1: number;
+    cursosS2: number;
+    promedioS1: number;
+    promedioS2: number;
+    maxCursos: number;
+    escalaCursos: number[];
+  } {
+    const { s1, s2 } = this.comparativaEficaciaCap;
+    const maxCursos = Math.max(s1.totalCursos, s2.totalCursos, 1);
+    const mid = Math.round(maxCursos / 2);
+    const escalaCursos = mid > 0 && mid !== maxCursos
+      ? [0, mid, maxCursos]
+      : [0, maxCursos];
+    return {
+      cursosS1: Math.round((s1.totalCursos / maxCursos) * 100),
+      cursosS2: Math.round((s2.totalCursos / maxCursos) * 100),
+      promedioS1: Math.round((s1.promedioCalificacion / 10) * 100),
+      promedioS2: Math.round((s2.promedioCalificacion / 10) * 100),
+      maxCursos,
+      escalaCursos
+    };
   }
 
   get hayDatosSatisfaccionCap(): boolean {
@@ -704,6 +1092,287 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       this.proyectoAvanceSeleccionadoFolio = null;
     }
     this.actualizarAvanceChart();
+  }
+
+  get esComparativaAvance(): boolean {
+    return this.vistaAvanceProyectos === 'comparativa';
+  }
+
+  get opcionesCicloComparativaAvance(): number[] {
+    const desdeApi = Array.isArray(this.comparativaAvance?.ciclos)
+      ? this.comparativaAvance.ciclos.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n))
+      : [];
+    const anios = new Set<number>([
+      ...desdeApi,
+      this.anioActual,
+      this.anioActual - 1,
+      this.cicloComparativaAvance
+    ]);
+    for (const opt of this.opcionesAnioAvance) {
+      if (opt.valor != null) anios.add(opt.valor);
+    }
+    return Array.from(anios).sort((a, b) => b - a);
+  }
+
+  get filasComparativaAvance(): any[] {
+    return Array.isArray(this.comparativaAvance?.proyectos) ? this.comparativaAvance.proyectos : [];
+  }
+
+  get puedeCapturarSem1Avance(): boolean {
+    return !!this.comparativaAvance?.s1?.puedeCapturar && !this.comparativaAvance?.s1?.yaCapturado;
+  }
+
+  get puedeCapturarSem2Avance(): boolean {
+    return !!this.comparativaAvance?.s2?.puedeCapturar && !this.comparativaAvance?.s2?.yaCapturado;
+  }
+
+  get resumenComparativaSem1(): ChartKpiBadge[] {
+    return this.resumenLadoComparativaAvance(this.comparativaAvance?.s1);
+  }
+
+  get resumenComparativaSem2(): ChartKpiBadge[] {
+    return this.resumenLadoComparativaAvance(this.comparativaAvance?.s2);
+  }
+
+  private resumenLadoComparativaAvance(lado: any): ChartKpiBadge[] {
+    const total = Number(lado?.total) || 0;
+    const totalGraf = Number(lado?.totalEnGrafico) || 0;
+    const concluidos = Number(lado?.concluidos) || 0;
+    const enProceso = Number(lado?.enProceso) || 0;
+    const noIniciados = Number(lado?.noIniciados) || 0;
+    return [
+      {
+        label: 'Concluidos',
+        subtitulo: totalGraf ? `${concluidos} de ${totalGraf} en gráfica` : `${concluidos} de ${total}`,
+        icono: 'fa-check-circle',
+        color: this.palette.verde,
+        gradiente: 'linear-gradient(135deg, #15803d 0%, #4ade80 100%)'
+      },
+      {
+        label: 'En proceso',
+        subtitulo: `${enProceso} activo${enProceso !== 1 ? 's' : ''}`,
+        icono: 'fa-spinner',
+        color: this.palette.teal,
+        gradiente: `linear-gradient(135deg, ${this.palette.tealDark} 0%, ${this.palette.teal} 100%)`
+      },
+      {
+        label: 'No iniciados',
+        subtitulo: `${noIniciados} fuera de gráfica`,
+        icono: 'fa-clock',
+        color: this.palette.gris,
+        gradiente: 'linear-gradient(135deg, #64748b 0%, #cbd5e1 100%)'
+      }
+    ];
+  }
+
+  seleccionarVistaAvance(vista: VistaAvanceProyectos, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (this.vistaAvanceProyectos === vista) return;
+    this.vistaAvanceProyectos = vista;
+    if (vista === 'comparativa') {
+      this.proyectoAvanceSeleccionadoFolio = null;
+      if (!this.cicloComparativaAvance) {
+        this.cicloComparativaAvance = this.filtroAnioAvance || this.anioActual;
+      }
+      this.cargarComparativaAvance();
+    } else {
+      this.actualizarAvanceChart();
+    }
+  }
+
+  seleccionarCicloComparativaAvance(ciclo: number, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (this.cicloComparativaAvance === ciclo) return;
+    this.cicloComparativaAvance = ciclo;
+    this.cargarComparativaAvance();
+  }
+
+  cargarComparativaAvance(): void {
+    const ciclo = Number(this.cicloComparativaAvance) || this.anioActual;
+    this.cicloComparativaAvance = ciclo;
+    this.cargandoComparativaAvance = true;
+    this.backendService.obtenerComparativaSemestralSgcF14(ciclo, true).subscribe({
+      next: (res) => {
+        this.comparativaAvance = res || null;
+        this.actualizarChartsComparativaAvance();
+        this.cargandoComparativaAvance = false;
+      },
+      error: () => {
+        this.cargandoComparativaAvance = false;
+        Swal.fire({
+          icon: 'error',
+          title: 'Comparativa semestral',
+          text: 'No se pudo cargar la comparativa de avance de proyectos.',
+          confirmButtonColor: this.palette.teal
+        });
+      }
+    });
+  }
+
+  capturarCorteComparativaAvance(semestre: 1 | 2, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (this.capturandoCorteAvance) return;
+    const ciclo = Number(this.cicloComparativaAvance) || this.anioActual;
+    const etiqueta = semestre === 1 ? '1er semestre' : '2do semestre';
+    Swal.fire({
+      icon: 'question',
+      title: `Guardar corte · ${etiqueta}`,
+      html: `Se congelará el % de avance actual de los proyectos del ciclo <strong>${ciclo}</strong> como base del ${etiqueta}.`,
+      showCancelButton: true,
+      confirmButtonText: 'Guardar corte',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: this.palette.teal
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      this.capturandoCorteAvance = true;
+      this.backendService.capturarCorteSemestralSgcF14(ciclo, semestre, false).subscribe({
+        next: (res) => {
+          this.capturandoCorteAvance = false;
+          if (res?.comparativa) {
+            this.comparativaAvance = { ...this.comparativaAvance, ...res.comparativa };
+            if (Array.isArray(res.ciclos)) this.comparativaAvance.ciclos = res.ciclos;
+            this.actualizarChartsComparativaAvance();
+          } else {
+            this.cargarComparativaAvance();
+          }
+          Swal.fire({
+            icon: 'success',
+            title: 'Corte guardado',
+            text: res?.message || `Corte del ${etiqueta} registrado.`,
+            confirmButtonColor: this.palette.teal,
+            timer: 2200,
+            showConfirmButton: false
+          });
+        },
+        error: (err) => {
+          this.capturandoCorteAvance = false;
+          Swal.fire({
+            icon: 'error',
+            title: 'No se pudo guardar',
+            text: err?.error?.message || 'Error al capturar el corte semestral.',
+            confirmButtonColor: this.palette.teal
+          });
+        }
+      });
+    });
+  }
+
+  private crearRadialPorcentajeComparativa(ladoId: 's1' | 's2' = 's1'): Partial<SgcRadialChartOptions> {
+    const esS1 = ladoId === 's1';
+    return {
+      series: [0],
+      chart: {
+        ...this.chartBase(),
+        type: 'radialBar',
+        height: 158
+      },
+      labels: ['Avance'],
+      colors: [esS1 ? '#2563eb' : '#15a596'],
+      stroke: { lineCap: 'round' },
+      fill: {
+        type: 'gradient',
+        gradient: {
+          shade: 'light',
+          type: 'horizontal',
+          shadeIntensity: 0.35,
+          gradientToColors: [esS1 ? '#60a5fa' : '#5eead4'],
+          opacityFrom: 1,
+          opacityTo: 1,
+          stops: [0, 100]
+        }
+      },
+      legend: { show: false },
+      dataLabels: { enabled: false },
+      plotOptions: {
+        radialBar: {
+          startAngle: -135,
+          endAngle: 135,
+          hollow: {
+            size: '64%',
+            background: 'transparent'
+          },
+          track: {
+            background: esS1 ? 'rgba(37, 99, 235, 0.1)' : 'rgba(21, 165, 150, 0.1)',
+            strokeWidth: '100%',
+            margin: 0
+          },
+          dataLabels: {
+            show: true,
+            name: {
+              show: true,
+              offsetY: 22,
+              color: '#64748b',
+              fontSize: '0.68rem',
+              fontWeight: 700
+            },
+            value: {
+              show: true,
+              offsetY: -10,
+              color: esS1 ? '#1d4ed8' : '#0f766e',
+              fontSize: '1.45rem',
+              fontWeight: 800,
+              formatter: (val: number) => `${Math.round(Number(val) || 0)}%`
+            }
+          }
+        }
+      },
+      tooltip: {
+        enabled: true,
+        theme: 'dark',
+        fillSeriesColor: false,
+        y: {
+          formatter: (val: number) => `${Math.round(Number(val) || 0)}% avance promedio`
+        }
+      },
+      responsive: [{ breakpoint: 480, options: { chart: { height: 140 } } }]
+    };
+  }
+
+  private actualizarChartsComparativaAvance(): void {
+    const s1 = this.comparativaAvance?.s1 || {};
+    const s2 = this.comparativaAvance?.s2 || {};
+    this.avanceSem1Chart = this.construirChartLadoComparativa(s1, 's1');
+    this.avanceSem2Chart = this.construirChartLadoComparativa(s2, 's2');
+    this.resetDonutComparativaCentro('s1');
+    this.resetDonutComparativaCentro('s2');
+  }
+
+  private construirChartLadoComparativa(lado: any, ladoId: 's1' | 's2'): Partial<SgcRadialChartOptions> {
+    const base = this.crearRadialPorcentajeComparativa(ladoId);
+    const pct = Math.max(0, Math.min(100, Number(lado?.avancePromedio) || 0));
+    const total = Number(lado?.total) || 0;
+    return {
+      ...base,
+      series: [pct],
+      labels: ['Avance'],
+      tooltip: {
+        ...base.tooltip,
+        y: {
+          formatter: (val: number) => {
+            const n = Math.round(Number(val) || 0);
+            return `${n}% promedio · ${total} proyecto${total !== 1 ? 's' : ''}`;
+          }
+        }
+      }
+    };
+  }
+
+  private resetDonutComparativaCentro(ladoId: 's1' | 's2'): void {
+    const lado = ladoId === 's1' ? this.comparativaAvance?.s1 : this.comparativaAvance?.s2;
+    const pct = Math.max(0, Math.min(100, Number(lado?.avancePromedio) || 0));
+    const total = Number(lado?.total) || 0;
+    if (ladoId === 's1') {
+      this.donutSem1CentroValor = `${pct}%`;
+      this.donutSem1CentroEtiqueta = 'Avance';
+      this.donutSem1CentroPct = total;
+    } else {
+      this.donutSem2CentroValor = `${pct}%`;
+      this.donutSem2CentroEtiqueta = 'Avance';
+      this.donutSem2CentroPct = total;
+    }
   }
 
   private actualizarAvanceChart(): void {
@@ -1515,6 +2184,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
         padding: { top: 8, right: 12, bottom: 10, left: 8 }
       },
       legend: carouselLegend,
+      annotations: { xaxis: [], points: [] },
       tooltip: {
         theme: 'light',
         shared: true,
@@ -1672,6 +2342,9 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       },
       responsive: [{ breakpoint: 480, options: { chart: { height: 180 } } }]
     };
+
+    this.avanceSem1Chart = this.crearRadialPorcentajeComparativa('s1');
+    this.avanceSem2Chart = this.crearRadialPorcentajeComparativa('s2');
 
     this.proveedoresF29Chart = {
       series: [],
@@ -1967,39 +2640,99 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     };
   }
 
-  private actualizarCharts(): void {
-    const ec = this.eficaciaCapacitacion || {};
-    const cursos = Number(ec.totalCursos) || 0;
-    const personas = Number(ec.totalEvaluados) || 0;
-    const aprobados = Number(ec.totalAprobados) || 0;
+  private actualizarChartsSatisfaccionCliente(): void {
     const self = this;
-    this.eficaciaCapChart = {
-      ...this.eficaciaCapChart,
-      series: [Math.max(aprobados, 0), Math.max(cursos, 0), Math.max(personas, 0)],
+    const scSerie = (this.satisfaccionCurso?.serieMensual || []) as any[];
+    const cuatrimestral = this.esCuatrimestralSatisfaccion;
+
+    let categories: string[] = scSerie.map((s) => String(s.mes || ''));
+    let indiceData: Array<number | null> = scSerie.map((s) => Number(s.indice) || 0);
+    let respuestasData: Array<number | null> = scSerie.map((s) => Number(s.respuestas) || 0);
+    let annotations: ApexAnnotations = { xaxis: [], points: [] };
+    let gridPaddingTop = 8;
+
+    if (cuatrimestral && scSerie.length) {
+      const byMes = new Map<number, any>();
+      for (const item of scSerie) {
+        const mesNum = Number(item.mes_num) || 0;
+        if (mesNum >= 1 && mesNum <= 12) byMes.set(mesNum, item);
+      }
+      const fallbackMes = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+      const mesLabel = (n: number) => byMes.get(n)?.mes || fallbackMes[n - 1];
+      // Huecos entre cuatrimestres: cortan el área en 3 “olas” separadas.
+      const gap1 = '\u200B';
+      const gap2 = '\u200B\u200B';
+      categories = [
+        mesLabel(1), mesLabel(2), mesLabel(3), mesLabel(4), gap1,
+        mesLabel(5), mesLabel(6), mesLabel(7), mesLabel(8), gap2,
+        mesLabel(9), mesLabel(10), mesLabel(11), mesLabel(12)
+      ];
+      const valorMes = (n: number, campo: 'indice' | 'respuestas'): number =>
+        Number(byMes.get(n)?.[campo]) || 0;
+      indiceData = [
+        valorMes(1, 'indice'), valorMes(2, 'indice'), valorMes(3, 'indice'), valorMes(4, 'indice'), null,
+        valorMes(5, 'indice'), valorMes(6, 'indice'), valorMes(7, 'indice'), valorMes(8, 'indice'), null,
+        valorMes(9, 'indice'), valorMes(10, 'indice'), valorMes(11, 'indice'), valorMes(12, 'indice')
+      ];
+      respuestasData = [
+        valorMes(1, 'respuestas'), valorMes(2, 'respuestas'), valorMes(3, 'respuestas'), valorMes(4, 'respuestas'), null,
+        valorMes(5, 'respuestas'), valorMes(6, 'respuestas'), valorMes(7, 'respuestas'), valorMes(8, 'respuestas'), null,
+        valorMes(9, 'respuestas'), valorMes(10, 'respuestas'), valorMes(11, 'respuestas'), valorMes(12, 'respuestas')
+      ];
+      // Separadores visuales solo con el overlay CSS (sin annotations = sin doble línea).
+      annotations = { xaxis: [], points: [] };
+      gridPaddingTop = 14;
+    }
+
+    this.satisfaccionChart = {
+      ...this.satisfaccionChart,
+      series: [
+        { name: 'Índice de satisfacción', type: 'area', data: indiceData as any },
+        { name: 'Respuestas', type: 'column', data: respuestasData as any }
+      ],
+      xaxis: { ...this.satisfaccionChart.xaxis, categories },
+      grid: {
+        ...this.satisfaccionChart.grid,
+        padding: {
+          ...(this.satisfaccionChart.grid as any)?.padding,
+          top: gridPaddingTop,
+          right: 12,
+          bottom: 10,
+          left: 8
+        }
+      },
+      annotations
+    };
+
+    const scDistribucion = this.satisfaccionCurso?.distribucion || {};
+    const satSeries = [
+      (Number(scDistribucion.excelente) || 0) + (Number(scDistribucion.bueno) || 0),
+      (Number(scDistribucion.regular) || 0) + (Number(scDistribucion.malo) || 0)
+    ];
+    this.satisfaccionRespuestasChart = {
+      ...this.satisfaccionRespuestasChart,
+      series: satSeries,
+      labels: ['Positivas', 'Negativas'],
       chart: {
-        ...this.eficaciaCapChart.chart,
+        ...this.satisfaccionRespuestasChart.chart,
         height: this.CARRUSEL_DONUT_HEIGHT,
         events: {
           dataPointMouseEnter(_e: unknown, _chart: unknown, config: { dataPointIndex: number }) {
-            self.onCapDonutHover(config.dataPointIndex);
+            self.onSatDonutHover(config.dataPointIndex);
           },
           dataPointMouseLeave() {
-            self.resetCapDonutCentro();
+            self.resetSatDonutCentro();
           }
         }
       }
     };
-    this.resetCapDonutCentro();
+    this.resetSatDonutCentro();
+  }
 
-    const ecSerie = (ec.serieMensual || []) as any[];
-    this.eficaciaCapMensualChart = {
-      ...this.eficaciaCapMensualChart,
-      series: [
-        { name: 'Tasa de aprobación', type: 'area', data: ecSerie.map(s => Number(s.tasaAprobacion) || 0) },
-        { name: 'Evaluados', type: 'column', data: ecSerie.map(s => Number(s.evaluados) || 0) }
-      ],
-      xaxis: { ...this.eficaciaCapMensualChart.xaxis, categories: ecSerie.map(s => s.mes) }
-    };
+  private actualizarCharts(): void {
+    const self = this;
+    this.actualizarChartsEficaciaCap();
+    this.resetCapDonutCentro();
 
     const scap = this.satisfaccionCapacitacion || {};
     const scapSerie = (scap.serieMensual || []) as any[];
@@ -2048,39 +2781,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     };
     this.resetSatCapDonutCentro();
 
-    const scSerie = (this.satisfaccionCurso?.serieMensual || []) as any[];
-    this.satisfaccionChart = {
-      ...this.satisfaccionChart,
-      series: [
-        { name: 'Índice de satisfacción', type: 'area', data: scSerie.map(s => Number(s.indice) || 0) },
-        { name: 'Respuestas', type: 'column', data: scSerie.map(s => Number(s.respuestas) || 0) }
-      ],
-      xaxis: { ...this.satisfaccionChart.xaxis, categories: scSerie.map(s => s.mes) }
-    };
-
-    const scDistribucion = this.satisfaccionCurso?.distribucion || {};
-    const satSeries = [
-      (Number(scDistribucion.excelente) || 0) + (Number(scDistribucion.bueno) || 0),
-      (Number(scDistribucion.regular) || 0) + (Number(scDistribucion.malo) || 0)
-    ];
-    this.satisfaccionRespuestasChart = {
-      ...this.satisfaccionRespuestasChart,
-      series: satSeries,
-      labels: ['Positivas', 'Negativas'],
-      chart: {
-        ...this.satisfaccionRespuestasChart.chart,
-        height: this.CARRUSEL_DONUT_HEIGHT,
-        events: {
-          dataPointMouseEnter(_e: unknown, _chart: unknown, config: { dataPointIndex: number }) {
-            self.onSatDonutHover(config.dataPointIndex);
-          },
-          dataPointMouseLeave() {
-            self.resetSatDonutCentro();
-          }
-        }
-      }
-    };
-    this.resetSatDonutCentro();
+    this.actualizarChartsSatisfaccionCliente();
 
     const qSerie = (this.quejasCliente?.serieMensual || []) as any[];
     this.quejasChart = {
@@ -2535,10 +3236,13 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
 
   resetCapDonutCentro(): void {
     this.ngZone.run(() => {
-      const tasa = Number(this.eficaciaCapacitacion?.tasaAprobacion) || 0;
+      const ec = this.eficaciaCapActiva;
+      const tasa = Number(ec.tasaAprobacion) || 0;
       this.capDonutCentroValor = `${tasa}%`;
       this.capDonutCentroEtiqueta = 'Aprobación';
-      this.capDonutCentroSub = '';
+      this.capDonutCentroSub = ec.promedioCalificacion
+        ? `Prom. ${ec.promedioCalificacion.toFixed(1)}/10`
+        : '';
     });
   }
 
@@ -2610,7 +3314,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
 
   onCapDonutHover(index: number): void {
     this.ngZone.run(() => {
-      const ec = this.eficaciaCapacitacion || {};
+      const ec = this.eficaciaCapActiva;
       const aprobados = Number(ec.totalAprobados) || 0;
       const cursos = Number(ec.totalCursos) || 0;
       const personas = Number(ec.totalEvaluados) || 0;
@@ -2687,7 +3391,40 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   }
 
   get resumenEficaciaCap(): ChartKpiBadge[] {
-    const ec = this.eficaciaCapacitacion || {};
+    if (this.esComparativaEficaciaCap) {
+      const { s1, s2, deltas } = this.comparativaEficaciaCap;
+      const dCursos = deltas[0];
+      const dProm = deltas[1];
+      return [
+        {
+          label: 'Cursos',
+          subtitulo: `${s1.totalCursos} → ${s2.totalCursos} · ${dCursos.deltaLabel}`,
+          icono: 'fa-book-open',
+          color: this.palette.azul,
+          gradiente: 'linear-gradient(135deg, #1d4ed8 0%, #60a5fa 100%)'
+        },
+        {
+          label: 'Calificación prom.',
+          subtitulo: `${s1.promedioCalificacion.toFixed(1)} → ${s2.promedioCalificacion.toFixed(1)} · ${dProm.deltaLabel}`,
+          icono: 'fa-star',
+          color: this.palette.ambar,
+          gradiente: 'linear-gradient(135deg, #b45309 0%, #fbbf24 100%)'
+        },
+        {
+          label: 'Δ Calificación',
+          subtitulo: dProm.deltaLabel,
+          icono: dProm.sentido === 'mejora' ? 'fa-arrow-up' : dProm.sentido === 'baja' ? 'fa-arrow-down' : 'fa-minus',
+          color: dProm.sentido === 'mejora' ? this.palette.verde : dProm.sentido === 'baja' ? this.palette.rojo : this.palette.gris,
+          gradiente: dProm.sentido === 'mejora'
+            ? 'linear-gradient(135deg, #15803d 0%, #4ade80 100%)'
+            : dProm.sentido === 'baja'
+              ? 'linear-gradient(135deg, #be123c 0%, #fb7185 100%)'
+              : 'linear-gradient(135deg, #64748b 0%, #cbd5e1 100%)'
+        }
+      ];
+    }
+
+    const ec = this.eficaciaCapActiva;
     const cursos = Number(ec.totalCursos) || 0;
     const evaluados = Number(ec.totalEvaluados) || 0;
     const aprobados = Number(ec.totalAprobados) || 0;
@@ -2709,7 +3446,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       },
       {
         label: 'Cursos',
-        subtitulo: `${cursos} evaluado${cursos !== 1 ? 's' : ''} · ${aprobados} A`,
+        subtitulo: `${cursos} evaluado${cursos !== 1 ? 's' : ''} · prom. ${ec.promedioCalificacion.toFixed(1)}/10`,
         icono: 'fa-book-open',
         color: this.palette.ambar,
         gradiente: 'linear-gradient(135deg, #b45309 0%, #fbbf24 100%)'
@@ -2719,7 +3456,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
 
   /** Tarjetas del donut (mismo patrón que Distribución por estatus). */
   get resumenEficaciaCapDonut(): ChartKpiBadge[] {
-    const ec = this.eficaciaCapacitacion || {};
+    const ec = this.eficaciaCapActiva;
     const cursos = Number(ec.totalCursos) || 0;
     const evaluados = Number(ec.totalEvaluados) || 0;
     const aprobados = Number(ec.totalAprobados) || 0;

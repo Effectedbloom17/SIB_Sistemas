@@ -105,10 +105,11 @@ const COLUMNAS = {
 const ESCALAS_PUNTAJE = {
     2: [100, 0],
     3: [100, 50, 0],
-    4: [100, 67, 33, 0],
+    4: [100, 75, 50, 0],
     5: [100, 75, 50, 25, 0],
     6: [100, 80, 60, 40, 20, 0]
 };
+/** Incluye 67/33 por compatibilidad con evaluaciones antiguas de escala 4. */
 const PUNTAJES_TODOS = [0, 20, 25, 33, 40, 50, 60, 67, 75, 80, 100];
 
 const CRITERIOS_SISTEMA = [
@@ -370,7 +371,16 @@ function sanitizarAreaCatalogo(raw, idx = 0) {
 
 function sanitizarDescripcionesEscala(raw, escala, customValores = null) {
     const vals = valoresEscala(escala, customValores);
-    const src = raw && typeof raw === 'object' ? raw : {};
+    const src = raw && typeof raw === 'object' ? { ...raw } : {};
+    // Migración suave: escala 4 pasó de 100/67/33/0 → 100/75/50/0.
+    if (normalizarEscala(escala) === 4) {
+        if (!String(src['75'] || '').trim() && String(src['67'] || '').trim()) {
+            src['75'] = src['67'];
+        }
+        if (!String(src['50'] || '').trim() && String(src['33'] || '').trim()) {
+            src['50'] = src['33'];
+        }
+    }
     const out = {};
     for (const n of vals) {
         const k = String(n);
@@ -570,24 +580,26 @@ async function asegurarTablaCriterios(pool) {
     }
 }
 
-async function listarCriterios(pool, areaClaveFiltro = null) {
+async function listarCriterios(pool, areaClaveFiltro = null, opciones = {}) {
     await asegurarTablaCriterios(pool);
     const areaFiltro = String(areaClaveFiltro || '').trim().slice(0, 64);
+    const incluirInactivos = !!(opciones && opciones.incluirInactivos);
+    const filtroActivo = incluirInactivos ? '1=1' : 'activo = 1';
     let rows;
     if (areaFiltro) {
         [rows] = await pool.query(
             `SELECT clave, corto, largo, escala, area_clave, es_sistema, activo, orden, descripciones_json
              FROM sgc_f29_criterios
-             WHERE activo = 1 AND area_clave = ?
-             ORDER BY orden ASC, id ASC`,
+             WHERE ${filtroActivo} AND area_clave = ?
+             ORDER BY activo DESC, orden ASC, id ASC`,
             [areaFiltro]
         );
     } else {
         [rows] = await pool.query(
             `SELECT clave, corto, largo, escala, area_clave, es_sistema, activo, orden, descripciones_json
              FROM sgc_f29_criterios
-             WHERE activo = 1
-             ORDER BY orden ASC, id ASC`
+             WHERE ${filtroActivo}
+             ORDER BY activo DESC, orden ASC, id ASC`
         );
     }
     const lista = (rows || []).map((r, idx) => {
@@ -702,7 +714,7 @@ async function crearCriterio(pool, body = {}) {
         [clave, nombre, nombre, escala, areaClave, orden, JSON.stringify(descripciones)]
     );
     return {
-        criterios: await listarCriterios(pool),
+        criterios: await listarCriterios(pool, null, { incluirInactivos: true }),
         duplicadoEnArea,
         clave
     };
@@ -780,8 +792,105 @@ async function actualizarCriterio(pool, claveParam, body = {}) {
         [nombre, nombre, escala, areaClave, JSON.stringify(descripciones), clave]
     );
     return {
-        criterios: await listarCriterios(pool),
+        criterios: await listarCriterios(pool, null, { incluirInactivos: true }),
         clave
+    };
+}
+
+async function desactivarCriterio(pool, claveParam) {
+    await asegurarTablaCriterios(pool);
+    const clave = String(claveParam || '').trim().slice(0, 64);
+    if (!clave) {
+        const err = new Error('Indica el criterio a desactivar.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const [rows] = await pool.query(
+        `SELECT clave, activo FROM sgc_f29_criterios WHERE clave = ? LIMIT 1`,
+        [clave]
+    );
+    if (!rows?.length) {
+        const err = new Error('El criterio no existe.');
+        err.statusCode = 404;
+        throw err;
+    }
+    if (!rows[0].activo) {
+        return {
+            criterios: await listarCriterios(pool, null, { incluirInactivos: true }),
+            clave,
+            activo: false
+        };
+    }
+    await pool.query(
+        `UPDATE sgc_f29_criterios
+         SET activo = 0, updated_at = CURRENT_TIMESTAMP
+         WHERE clave = ?`,
+        [clave]
+    );
+    return {
+        criterios: await listarCriterios(pool, null, { incluirInactivos: true }),
+        clave,
+        activo: false
+    };
+}
+
+async function reactivarCriterio(pool, claveParam) {
+    await asegurarTablaCriterios(pool);
+    const clave = String(claveParam || '').trim().slice(0, 64);
+    if (!clave) {
+        const err = new Error('Indica el criterio a reactivar.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const [rows] = await pool.query(
+        `SELECT clave, activo FROM sgc_f29_criterios WHERE clave = ? LIMIT 1`,
+        [clave]
+    );
+    if (!rows?.length) {
+        const err = new Error('El criterio no existe.');
+        err.statusCode = 404;
+        throw err;
+    }
+    await pool.query(
+        `UPDATE sgc_f29_criterios
+         SET activo = 1, updated_at = CURRENT_TIMESTAMP
+         WHERE clave = ?`,
+        [clave]
+    );
+    return {
+        criterios: await listarCriterios(pool, null, { incluirInactivos: true }),
+        clave,
+        activo: true
+    };
+}
+
+async function eliminarCriterioDefinitivo(pool, claveParam) {
+    await asegurarTablaCriterios(pool);
+    const clave = String(claveParam || '').trim().slice(0, 64);
+    if (!clave) {
+        const err = new Error('Indica el criterio a borrar.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const [rows] = await pool.query(
+        `SELECT clave, es_sistema, corto, largo FROM sgc_f29_criterios WHERE clave = ? LIMIT 1`,
+        [clave]
+    );
+    if (!rows?.length) {
+        const err = new Error('El criterio no existe.');
+        err.statusCode = 404;
+        throw err;
+    }
+    if (rows[0].es_sistema) {
+        const err = new Error('No se puede borrar un criterio de sistema.');
+        err.statusCode = 400;
+        throw err;
+    }
+    await pool.query('DELETE FROM sgc_f29_criterios WHERE clave = ?', [clave]);
+    return {
+        criterios: await listarCriterios(pool, null, { incluirInactivos: true }),
+        clave,
+        eliminado: true
     };
 }
 
@@ -2898,6 +3007,9 @@ module.exports = {
     listarCriterios,
     crearCriterio,
     actualizarCriterio,
+    desactivarCriterio,
+    reactivarCriterio,
+    eliminarCriterioDefinitivo,
     asegurarTablaCriterios,
     listarAreas,
     crearArea,

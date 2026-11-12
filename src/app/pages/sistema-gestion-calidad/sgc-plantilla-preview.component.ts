@@ -3288,7 +3288,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }> = [
     { escala: 2, etiqueta: '2 opciones (100 / 0)', valores: ['100', '0'] },
     { escala: 3, etiqueta: '3 opciones (100 / 50 / 0)', valores: ['100', '50', '0'] },
-    { escala: 4, etiqueta: '4 opciones (100 / 67 / 33 / 0)', valores: ['100', '67', '33', '0'] },
+    { escala: 4, etiqueta: '4 opciones (100 / 75 / 50 / 0)', valores: ['100', '75', '50', '0'] },
     { escala: 5, etiqueta: '5 opciones (100–0)', valores: ['100', '75', '50', '25', '0'] },
     { escala: 6, etiqueta: '6 opciones (100–0)', valores: ['100', '80', '60', '40', '20', '0'] },
     { escala: 1, etiqueta: 'Personalizado (1 porcentaje)', valores: [] }
@@ -3319,6 +3319,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF29AreaGestionClave = '';
   sgcF29NuevoCriterioAbierto = false;
   sgcF29CriterioGuardando = false;
+  /** Soft-delete / reactivar / borrado definitivo en curso. */
+  sgcF29CriterioAccionEnCurso = false;
   /** Si tiene valor, el formulario de criterio está en modo edición. */
   sgcF29CriterioEditandoClave: string | null = null;
   sgcF29NuevaAreaAbierta = false;
@@ -20158,6 +20160,25 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         || String(a.nombre || a.corto).localeCompare(String(b.nombre || b.corto), 'es'));
   }
 
+  /** Criterios desactivados (solo superadmin; para reactivar o borrar). */
+  get sgcF29CriteriosInactivosAreaGestion(): SgcF29CriterioCatalogo[] {
+    if (!this.authService.esSuperusuario()) {
+      return [];
+    }
+    const area = String(this.sgcF29AreaGestionClave || this.areaGrupoSgcF29(this.sgcF29ProveedorActivo) || '').trim();
+    return (this.sgcF29CriteriosCatalogo || [])
+      .filter((c) => c && c.activo === false && (!area || c.areaClave === area || (!c.areaClave && !area)))
+      .slice()
+      .sort((a, b) => String(a.nombre || a.corto).localeCompare(String(b.nombre || b.corto), 'es'));
+  }
+
+  get sgcF29CriterioEditandoActivo(): boolean {
+    const clave = String(this.sgcF29CriterioEditandoClave || '').trim();
+    if (!clave) return true;
+    const crit = this.sgcF29CriteriosCatalogo.find((c) => c.clave === clave);
+    return crit ? crit.activo !== false : true;
+  }
+
   /** Criterios del área del proveedor activo / área en gestión. */
   get sgcF29CriteriosAreaGestion(): SgcF29CriterioCatalogo[] {
     return this.criteriosDeAreaSgcF29(this.sgcF29AreaGestionClave);
@@ -20184,7 +20205,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   criterioPorClaveSgcF29(clave: string): SgcF29CriterioCatalogo | null {
-    return this.sgcF29CriteriosActivos.find((c) => c.clave === clave) || null;
+    const k = String(clave || '').trim();
+    if (!k) return null;
+    return this.sgcF29CriteriosActivos.find((c) => c.clave === k) || null;
+  }
+
+  /** Incluye desactivados (solo para edición / gestión de catálogo). */
+  criterioCatalogoPorClaveSgcF29(clave: string): SgcF29CriterioCatalogo | null {
+    const k = String(clave || '').trim();
+    if (!k) return null;
+    return this.sgcF29CriteriosCatalogo.find((c) => c.clave === k)
+      || this.criterioPorClaveSgcF29(k);
   }
 
   criteriosUsadosFilaSgcF29(fila: SgcF29ProveedorItem): SgcF29CriterioCatalogo[] {
@@ -20367,8 +20398,34 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   puedeEditarCriterioSgcF29(c: SgcF29CriterioCatalogo | null | undefined): boolean {
     if (!c || !this.puedeAgregarCriterioSgcF29) return false;
+    if (c.activo === false && !this.authService.esSuperusuario()) return false;
     if (c.esSistema && !this.authService.esSuperusuario()) return false;
     return true;
+  }
+
+  get puedeDesactivarCriterioEditandoSgcF29(): boolean {
+    return this.sgcF29EditandoCriterio
+      && this.sgcF29CriterioEditandoActivo
+      && !this.sgcF29CriterioGuardando
+      && !this.sgcF29CriterioAccionEnCurso;
+  }
+
+  get puedeReactivarCriterioEditandoSgcF29(): boolean {
+    return this.authService.esSuperusuario()
+      && this.sgcF29EditandoCriterio
+      && !this.sgcF29CriterioEditandoActivo
+      && !this.sgcF29CriterioGuardando
+      && !this.sgcF29CriterioAccionEnCurso;
+  }
+
+  get puedeBorrarDefinitivoCriterioEditandoSgcF29(): boolean {
+    if (!this.authService.esSuperusuario() || !this.sgcF29EditandoCriterio) {
+      return false;
+    }
+    const clave = String(this.sgcF29CriterioEditandoClave || '').trim();
+    const crit = this.sgcF29CriteriosCatalogo.find((c) => c.clave === clave);
+    if (!crit || crit.esSistema) return false;
+    return !this.sgcF29CriterioGuardando && !this.sgcF29CriterioAccionEnCurso;
   }
 
   get sgcF29GruposFiltrados(): SgcF29GrupoVista[] {
@@ -20691,7 +20748,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   abrirEditarCriterioSgcF29(clave: string, event?: Event): void {
     event?.preventDefault();
     event?.stopPropagation();
-    const crit = this.criterioPorClaveSgcF29(clave);
+    const crit = this.criterioCatalogoPorClaveSgcF29(clave);
     if (!crit || !this.puedeEditarCriterioSgcF29(crit)) {
       return;
     }
@@ -20713,13 +20770,20 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF29CriterioEditandoClave = crit.clave;
     const escala = ([1, 2, 3, 4, 5, 6].includes(crit.escala) ? crit.escala : 5) as 1 | 2 | 3 | 4 | 5 | 6;
     const descripciones: Record<string, string> = {};
+    // Escala fija: usa siempre la definición actual (p. ej. 4 → 100/75/50/0).
     const vals = escala === 1
       ? []
-      : (crit.valores?.length
-        ? crit.valores.map(String)
-        : (this.sgcF29EscalasOpciones.find((e) => e.escala === escala)?.valores || []));
+      : (this.sgcF29EscalasOpciones.find((e) => e.escala === escala)?.valores
+        || crit.valores?.map(String)
+        || []);
     for (const v of vals) {
-      descripciones[v] = String(crit.descripciones?.[v] || '').trim();
+      let texto = String(crit.descripciones?.[v] || '').trim();
+      // Compatibilidad con escala 4 antigua (67/33).
+      if (!texto && escala === 4) {
+        if (v === '75') texto = String(crit.descripciones?.['67'] || '').trim();
+        if (v === '50') texto = String(crit.descripciones?.['33'] || '').trim();
+      }
+      descripciones[v] = texto;
     }
     this.sgcF29NuevoCriterio = {
       nombre: String(crit.nombre || '').trim(),
@@ -21003,7 +21067,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private cargarCatalogoCriteriosSgcF29(): void {
-    this.backendService.listarCriteriosSgcF29()
+    this.backendService.listarCriteriosSgcF29(undefined, this.authService.esSuperusuario())
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => this.aplicarCatalogoCriteriosSgcF29(res?.criterios),
@@ -21011,6 +21075,135 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
           this.sgcF29CriteriosCatalogo = [...this.sgcF29CriteriosSistemaDefault];
         }
       });
+  }
+
+  private aplicarRespuestaCatalogoCriteriosSgcF29(res: any): void {
+    const lista = Array.isArray(res?.criterios) ? res.criterios : [];
+    this.aplicarCatalogoCriteriosSgcF29(lista);
+  }
+
+  desactivarCriterioEditandoSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const clave = String(this.sgcF29CriterioEditandoClave || '').trim();
+    if (!clave || !this.puedeDesactivarCriterioEditandoSgcF29) {
+      return;
+    }
+    const nombre = String(this.sgcF29NuevoCriterio.nombre || clave).trim();
+    void Swal.fire({
+      icon: 'warning',
+      title: '¿Desactivar criterio?',
+      html: `Se ocultará <strong>${nombre}</strong> del catálogo activo.<br>
+        No se borra de la base de datos; el superadministrador puede reactivarlo.`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, desactivar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b45309'
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      this.sgcF29CriterioAccionEnCurso = true;
+      this.backendService.desactivarCriterioSgcF29(clave)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.aplicarRespuestaCatalogoCriteriosSgcF29(res);
+            this.sgcF29CriterioAccionEnCurso = false;
+            this.cerrarFormNuevoCriterioSgcF29();
+            void Swal.fire({
+              icon: 'success',
+              title: 'Criterio desactivado',
+              timer: 1800,
+              showConfirmButton: false
+            });
+          },
+          error: (err) => {
+            this.sgcF29CriterioAccionEnCurso = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo desactivar',
+              text: err?.error?.message || 'Inténtalo de nuevo.'
+            });
+          }
+        });
+    });
+  }
+
+  reactivarCriterioEditandoSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const clave = String(this.sgcF29CriterioEditandoClave || '').trim();
+    if (!clave || !this.puedeReactivarCriterioEditandoSgcF29) {
+      return;
+    }
+    this.sgcF29CriterioAccionEnCurso = true;
+    this.backendService.reactivarCriterioSgcF29(clave)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.aplicarRespuestaCatalogoCriteriosSgcF29(res);
+          this.sgcF29CriterioAccionEnCurso = false;
+          void Swal.fire({
+            icon: 'success',
+            title: 'Criterio reactivado',
+            timer: 1600,
+            showConfirmButton: false
+          });
+        },
+        error: (err) => {
+          this.sgcF29CriterioAccionEnCurso = false;
+          void Swal.fire({
+            icon: 'error',
+            title: 'No se pudo reactivar',
+            text: err?.error?.message || 'Inténtalo de nuevo.'
+          });
+        }
+      });
+  }
+
+  borrarDefinitivoCriterioEditandoSgcF29(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const clave = String(this.sgcF29CriterioEditandoClave || '').trim();
+    if (!clave || !this.puedeBorrarDefinitivoCriterioEditandoSgcF29) {
+      return;
+    }
+    const nombre = String(this.sgcF29NuevoCriterio.nombre || clave).trim();
+    void Swal.fire({
+      icon: 'warning',
+      title: '¿Borrar información?',
+      html: `Se eliminará <strong>${nombre}</strong> de forma definitiva de la base de datos.<br>
+        Esta acción no se puede deshacer.`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, borrar definitivamente',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c'
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      this.sgcF29CriterioAccionEnCurso = true;
+      this.backendService.eliminarCriterioDefinitivoSgcF29(clave)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res) => {
+            this.aplicarRespuestaCatalogoCriteriosSgcF29(res);
+            this.sgcF29CriterioAccionEnCurso = false;
+            this.cerrarFormNuevoCriterioSgcF29();
+            void Swal.fire({
+              icon: 'success',
+              title: 'Criterio borrado',
+              timer: 1600,
+              showConfirmButton: false
+            });
+          },
+          error: (err) => {
+            this.sgcF29CriterioAccionEnCurso = false;
+            void Swal.fire({
+              icon: 'error',
+              title: 'No se pudo borrar',
+              text: err?.error?.message || 'Inténtalo de nuevo.'
+            });
+          }
+        });
+    });
   }
 
   toggleTipSgcF06(campo: string, event?: Event): void {
@@ -21377,10 +21570,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
   valorCriterioSgcF29(fila: SgcF29ProveedorItem, campo: string): string {
     if (!fila) return '';
-    if (this.esCampoSistemaSgcF29(campo)) {
-      return String((fila as any)?.[campo] ?? fila.puntajes?.[campo] ?? '');
+    const crudo = this.esCampoSistemaSgcF29(campo)
+      ? String((fila as any)?.[campo] ?? fila.puntajes?.[campo] ?? '')
+      : String(fila.puntajes?.[campo] ?? '');
+    if (!crudo) return '';
+    // Escala 4 antigua (67/33) → valores actuales (75/50) al mostrar en el select.
+    const crit = this.criterioPorClaveSgcF29(campo);
+    if (crit?.escala === 4) {
+      if (crudo === '67') return '75';
+      if (crudo === '33') return '50';
     }
-    return String(fila.puntajes?.[campo] ?? '');
+    return crudo;
   }
 
   setCriterioSgcF29(index: number, campo: string, valor: string): void {

@@ -1147,7 +1147,7 @@ $rrhh-surface: #fff7fb;
 .rrhh-detail-hero {
   position: relative;
   overflow: hidden;
-  padding: 1.15rem 1.25rem 1.2rem;
+  padding: 1.15rem 1.25rem 1.9rem;
   color: #fff;
 }
 
@@ -1257,6 +1257,8 @@ $rrhh-surface: #fff7fb;
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+  margin-top: 0.2rem;
+  margin-bottom: 0.55rem;
 
   span {
     display: inline-flex;
@@ -1286,6 +1288,16 @@ $rrhh-surface: #fff7fb;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.95rem;
+  align-items: start;
+}
+
+.rrhh-panel--contact,
+.rrhh-panel--emergency {
+  grid-column: 1 / -1;
+}
+
+.rrhh-panel__grid--contact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .rrhh-panel {
@@ -1371,6 +1383,108 @@ $rrhh-surface: #fff7fb;
   gap: 0.7rem 0.75rem;
 
   &--single {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rrhh-contacts-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+
+  &--dual {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.rrhh-contact-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.7rem 0.75rem 0.8rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(244, 114, 182, 0.16);
+
+  &--add {
+    align-items: stretch;
+    justify-content: center;
+    background: rgba(255, 241, 247, 0.45);
+    border-style: dashed;
+  }
+}
+
+.rrhh-contact-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #9d174d;
+}
+
+.rrhh-kv--wide {
+  grid-column: 1 / -1;
+}
+
+.rrhh-contact-action {
+  border: none;
+  background: transparent;
+  color: #be123c;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+  border-radius: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+
+  &:hover {
+    background: rgba(190, 18, 60, 0.08);
+  }
+}
+
+.rrhh-contact-add {
+  width: 100%;
+  min-height: 7.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 1px dashed rgba(219, 39, 119, 0.35);
+  background: rgba(255, 241, 247, 0.7);
+  color: #9d174d;
+  border-radius: 9px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+
+  &:hover {
+    background: rgba(253, 242, 248, 0.95);
+    border-color: rgba(219, 39, 119, 0.55);
+  }
+
+  &--inline {
+    min-height: 0;
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.7rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .rrhh-panel__grid--contact {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .rrhh-contacts-row--dual {
     grid-template-columns: 1fr;
   }
 }
@@ -1620,7 +1734,8 @@ $rrhh-surface: #fff7fb;
   .rrhh-form-with-photo,
   .rrhh-form-layout,
   .rrhh-detail-panels,
-  .rrhh-panel__grid {
+  .rrhh-panel__grid,
+  .rrhh-panel__grid--contact {
     grid-template-columns: 1fr;
   }
 

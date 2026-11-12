@@ -416,6 +416,9 @@ export class SolicitudMantenimientoFormsComponent implements OnInit {
     const existentes = cargarSolicitudesLocal();
     const { lista, nuevos } = sincronizarCasosDesdeForms(existentes, casos);
     guardarSolicitudesLocal(lista);
+    this.backend.guardarSolicitudesMantenimiento(lista).subscribe({
+      error: () => { /* el archivero reintentará al abrirse */ }
+    });
     this.mensajeSync = nuevos
       ? `Se incorporaron ${nuevos} respuesta(s) a bitácora y reportes.`
       : 'Bitácora y reportes ya estaban al día con Forms.';

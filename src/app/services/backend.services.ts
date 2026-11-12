@@ -618,6 +618,25 @@ export class BackendServices {
         return this.httpClient.get(`${this.baseUrl}/tickets/areas`);
     }
 
+    /** Catálogo compartido EIN-F-02/F-03/F-04 (archivero visible para todos) */
+    listarSolicitudesMantenimiento(incluirInactivos = false): Observable<any> {
+        const q = incluirInactivos ? '?incluirInactivos=1' : '';
+        return this.httpClient.get(`${this.baseUrl}/mantenimiento/solicitudes${q}`);
+    }
+
+    guardarSolicitudesMantenimiento(solicitudes: unknown[]): Observable<any> {
+        return this.httpClient.put(`${this.baseUrl}/mantenimiento/solicitudes`, {
+            solicitudes: solicitudes || []
+        });
+    }
+
+    desactivarSolicitudMantenimiento(id: string): Observable<any> {
+        return this.httpClient.patch(
+            `${this.baseUrl}/mantenimiento/solicitudes/${encodeURIComponent(id)}/desactivar`,
+            {}
+        );
+    }
+
     /** Mantenimiento EIN-F-02: subir evidencias a Drive (con progreso) */
     subirEvidenciasMantenimiento(folio: string, archivos: File[]): Observable<HttpEvent<any>> {
         const formData = new FormData();
@@ -3078,6 +3097,22 @@ export class BackendServices {
         });
     }
 
+    obtenerComparativaSemestralSgcF14(cicloAnio: number, autoCapturar = true): Observable<any> {
+        const params: any = {
+            cicloAnio: String(cicloAnio),
+            autoCapturar: autoCapturar ? '1' : '0'
+        };
+        return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-14/comparativa-semestral`, { params });
+    }
+
+    capturarCorteSemestralSgcF14(cicloAnio: number, semestre: 1 | 2, forzar = false): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-14/comparativa-semestral/capturar`, {
+            cicloAnio,
+            semestre,
+            forzar
+        });
+    }
+
     cargarSgcF25Formato(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-25`);
     }
@@ -3566,8 +3601,15 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/areas`, payload || {});
     }
 
-    listarCriteriosSgcF29(areaClave?: string): Observable<any> {
-        const q = areaClave ? `?area=${encodeURIComponent(areaClave)}` : '';
+    listarCriteriosSgcF29(areaClave?: string, incluirInactivos = false): Observable<any> {
+        const params: string[] = [];
+        if (areaClave) {
+            params.push(`area=${encodeURIComponent(areaClave)}`);
+        }
+        if (incluirInactivos) {
+            params.push('incluirInactivos=1');
+        }
+        const q = params.length ? `?${params.join('&')}` : '';
         return this.httpClient.get(`${this.baseUrl}/sgc/formatos/sgc-f-29/criterios${q}`);
     }
 
@@ -3592,6 +3634,21 @@ export class BackendServices {
     }): Observable<any> {
         const id = encodeURIComponent(String(clave || '').trim());
         return this.httpClient.put(`${this.baseUrl}/sgc/formatos/sgc-f-29/criterios/${id}`, payload || {});
+    }
+
+    desactivarCriterioSgcF29(clave: string): Observable<any> {
+        const id = encodeURIComponent(String(clave || '').trim());
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/criterios/${id}/desactivar`, {});
+    }
+
+    reactivarCriterioSgcF29(clave: string): Observable<any> {
+        const id = encodeURIComponent(String(clave || '').trim());
+        return this.httpClient.post(`${this.baseUrl}/sgc/formatos/sgc-f-29/criterios/${id}/reactivar`, {});
+    }
+
+    eliminarCriterioDefinitivoSgcF29(clave: string): Observable<any> {
+        const id = encodeURIComponent(String(clave || '').trim());
+        return this.httpClient.delete(`${this.baseUrl}/sgc/formatos/sgc-f-29/criterios/${id}`);
     }
 
     listarProveedoresOcultosSgcF29(): Observable<any> {

@@ -14,11 +14,14 @@ import {
   cargarSolicitudesLocal,
   conservarReportesManuales,
   crearSolicitudVacia,
+  encontrarSolicitudPorClave,
   esRegistroForms,
   formatearFechaCorta,
+  fusionarSolicitudes,
   guardarSolicitudesLocal,
   puestoDesdeRol,
-  sincronizarCasosDesdeForms
+  sincronizarCasosDesdeForms,
+  soloActivos
 } from './ein-f02-solicitud.catalog';
 
 /** Alineado con el límite de multer en backend (`evidencias`, 12). */
@@ -55,6 +58,8 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
   private previewPendientes = new Map<File, SafeUrl>();
   /** Hash del payload sincronizado en Word/Drive por folio (para detectar cambios sin guardar). */
   private hashesGuardadosDrive = new Map<string, string>();
+  private syncServidorTimer: ReturnType<typeof setTimeout> | null = null;
+  private claveAbrirPendiente: string | null = null;
 
   lightboxAbierto = false;
   lightboxUrl = '';
@@ -80,25 +85,21 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
 
     const folioRoute = this.route.snapshot.paramMap.get('folio');
     const folioQuery = this.route.snapshot.queryParamMap.get('folio');
+    const idQuery = this.route.snapshot.queryParamMap.get('id');
 
-    if (folioQuery && this.embebido) {
-      this.router.navigate(['/mantenimiento/reporte', folioQuery]);
+    if ((folioQuery || idQuery) && this.embebido) {
+      this.router.navigate(['/mantenimiento/reporte', idQuery || folioQuery]);
       return;
     }
 
     if (folioRoute) {
-      const open = () => {
-        const found = this.solicitudes.find(s => s.folio === folioRoute);
-        if (found) {
-          this.abrirEditorLocal(found);
-        }
-      };
-      open();
+      this.claveAbrirPendiente = folioRoute;
+      this.intentarAbrirPorClave(folioRoute);
       setTimeout(() => {
         if (!this.destruido) {
-          open();
+          this.intentarAbrirPorClave(folioRoute);
         }
-      }, 800);
+      }, 900);
     } else if (!this.embebido && this.route.snapshot.queryParamMap.get('nueva') === '1') {
       this.nuevoReporte();
       this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
@@ -116,16 +117,20 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
       clearTimeout(this.guiaSolicitanteTimer);
       this.guiaSolicitanteTimer = null;
     }
+    if (this.syncServidorTimer) {
+      clearTimeout(this.syncServidorTimer);
+      this.syncServidorTimer = null;
+    }
     this.limpiarPreviewsPendientes();
     this.setEditorBodyState(false);
   }
 
   get solicitudesForms(): EinF02Solicitud[] {
-    return this.solicitudes.filter(s => esRegistroForms(s));
+    return soloActivos(this.solicitudes).filter(s => esRegistroForms(s));
   }
 
   get solicitudesManuales(): EinF02Solicitud[] {
-    return this.solicitudes.filter(s => !esRegistroForms(s));
+    return soloActivos(this.solicitudes).filter(s => !esRegistroForms(s));
   }
 
   get reportesFormsFiltrados(): EinF02Solicitud[] {
@@ -259,12 +264,24 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     this.flash(`Nuevo reporte ${sol.folio}`);
   }
 
-  /** Abre el reporte en página dedicada */
+  /** Abre el reporte en página dedicada (por id único; evita abrir otro con el mismo folio). */
   abrirRegistro(sol: EinF02Solicitud): void {
-    if (!sol?.folio) {
+    const clave = sol?.id || sol?.folio;
+    if (!clave) {
       return;
     }
-    this.router.navigate(['/mantenimiento/reporte', sol.folio]);
+    this.claveAbrirPendiente = clave;
+    this.router.navigate(['/mantenimiento/reporte', clave]);
+  }
+
+  private intentarAbrirPorClave(clave: string): void {
+    const found = encontrarSolicitudPorClave(soloActivos(this.solicitudes), clave);
+    if (found) {
+      this.abrirEditorLocal(found);
+      if (found.id === this.claveAbrirPendiente || found.folio === this.claveAbrirPendiente) {
+        this.claveAbrirPendiente = null;
+      }
+    }
   }
 
   abrirEditorLocal(sol: EinF02Solicitud): void {
@@ -299,10 +316,10 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
   }
 
   abrirEnPaginaCompleta(): void {
-    if (!this.seleccionada?.folio) {
+    if (!this.seleccionada) {
       return;
     }
-    this.router.navigate(['/mantenimiento/reporte', this.seleccionada.folio]);
+    this.abrirRegistro(this.seleccionada);
   }
 
   sincronizarDesdeForms(): void {
@@ -317,17 +334,21 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
         if (!casos.length) {
           return;
         }
-        const { lista, nuevos, eliminados } = sincronizarCasosDesdeForms(this.solicitudes, casos);
+        const base = conservarReportesManuales(this.solicitudes, cargarSolicitudesLocal());
+        const { lista, nuevos, eliminados } = sincronizarCasosDesdeForms(base, casos);
         this.solicitudes = lista;
         this.persistir();
         if (this.seleccionada) {
-          const refreshed = lista.find(s => s.id === this.seleccionada!.id);
-          if (refreshed) {
+          const refreshed = encontrarSolicitudPorClave(lista, this.seleccionada.id);
+          if (refreshed && refreshed.activo !== false) {
             this.seleccionada = refreshed;
           } else {
             this.seleccionada = null;
             this.vista = 'archivero';
           }
+        }
+        if (this.claveAbrirPendiente) {
+          this.intentarAbrirPorClave(this.claveAbrirPendiente);
         }
         const partes: string[] = [];
         if (nuevos) {
@@ -825,28 +846,42 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     }
     const result = await Swal.fire({
       icon: 'warning',
-      title: 'Eliminar reporte',
-      html: `Se quita <strong>${sol.folio}</strong> del archivero y de la bitácora.`,
+      title: 'Desactivar reporte',
+      html: `Se desactiva <strong>${sol.folio}</strong> del archivero y de la bitácora. No se borra; puedes recuperarlo desde soporte si hace falta.`,
       showCancelButton: true,
-      confirmButtonText: 'Eliminar',
+      confirmButtonText: 'Desactivar',
       cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#b91c1c',
+      confirmButtonColor: '#b45309',
       reverseButtons: true
     });
     if (!result.isConfirmed) {
       return;
     }
-    const actuales = cargarSolicitudesLocal().filter(s => s.id !== sol.id);
-    guardarSolicitudesLocal(actuales);
-    this.solicitudes = this.solicitudes.filter(s => s.id !== sol.id);
+    sol.activo = false;
+    sol.actualizadoEn = new Date().toISOString();
+    const disco = cargarSolicitudesLocal().map(s =>
+      s.id === sol.id ? { ...s, activo: false, actualizadoEn: sol.actualizadoEn } : s
+    );
+    if (!disco.some(s => s.id === sol.id)) {
+      disco.push({ ...sol, activo: false });
+    }
+    guardarSolicitudesLocal(disco);
+    this.solicitudes = this.solicitudes.map(s =>
+      s.id === sol.id ? { ...s, activo: false, actualizadoEn: sol.actualizadoEn } : s
+    );
     this.guardadoLocal = true;
+    this.backend.desactivarSolicitudMantenimiento(sol.id).subscribe({
+      error: () => {
+        /* local ya quedó desactivado; el próximo sync reintentará */
+      }
+    });
     if (this.seleccionada?.id === sol.id) {
       this.volverArchivero();
     }
     window.dispatchEvent(new CustomEvent('biznaga:ein-f02:cambio', {
-      detail: { eliminadoId: sol.id }
+      detail: { eliminadoId: sol.id, desactivadoId: sol.id }
     }));
-    this.flash('Reporte eliminado.');
+    this.flash('Reporte desactivado.');
   }
 
   irABitacoraF03(_sol?: EinF02Solicitud): void {
@@ -962,8 +997,41 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
   }
 
   private cargar(): void {
-    this.solicitudes = cargarSolicitudesLocal();
+    this.solicitudes = soloActivos(cargarSolicitudesLocal());
     this.guardadoLocal = this.solicitudes.length > 0;
+    this.cargarDesdeServidor();
+  }
+
+  private cargarDesdeServidor(): void {
+    this.backend.listarSolicitudesMantenimiento(true).subscribe({
+      next: (res) => {
+        if (this.destruido) {
+          return;
+        }
+        const remoto = Array.isArray(res?.solicitudes) ? res.solicitudes : [];
+        const local = conservarReportesManuales(this.solicitudes, cargarSolicitudesLocal());
+        const fusion = fusionarSolicitudes(local, remoto);
+        this.solicitudes = fusion;
+        this.guardadoLocal = guardarSolicitudesLocal(fusion);
+        const pendientesSubir = soloActivos(fusion).filter(s =>
+          !remoto.some((r: any) => r?.id === s.id)
+        );
+        if (pendientesSubir.length) {
+          this.programarSyncServidor(true);
+        }
+        if (this.claveAbrirPendiente) {
+          this.intentarAbrirPorClave(this.claveAbrirPendiente);
+        } else if (this.seleccionada) {
+          const refreshed = encontrarSolicitudPorClave(soloActivos(fusion), this.seleccionada.id);
+          if (refreshed) {
+            this.seleccionada = refreshed;
+          }
+        }
+      },
+      error: () => {
+        /* sin servidor: se sigue con localStorage */
+      }
+    });
   }
 
   private persistir(): void {
@@ -972,6 +1040,34 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     if (!this.guardadoLocal) {
       this.flash('No se pudo guardar localmente.');
     }
+    this.programarSyncServidor();
+  }
+
+  private programarSyncServidor(inmediato = false): void {
+    if (this.syncServidorTimer) {
+      clearTimeout(this.syncServidorTimer);
+      this.syncServidorTimer = null;
+    }
+    const run = () => {
+      this.syncServidorTimer = null;
+      if (this.destruido) {
+        return;
+      }
+      const payload = cargarSolicitudesLocal();
+      if (!payload.length) {
+        return;
+      }
+      this.backend.guardarSolicitudesMantenimiento(payload).subscribe({
+        error: () => {
+          /* reintento en el próximo persistir */
+        }
+      });
+    };
+    if (inmediato) {
+      run();
+      return;
+    }
+    this.syncServidorTimer = setTimeout(run, 600);
   }
 
   private flash(msg: string): void {

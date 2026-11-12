@@ -24,6 +24,7 @@ const CAMPOS = [
   'fecha_ingreso', 'fecha_terminacion', 'nombre_proyecto', 'supervision_a_cargo',
   'telefono', 'correo_personal', 'correo_institucional', 'matricula',
   'asesor_academico', 'correo_asesor', 'tutor_nombre', 'tutor_telefono',
+  'tutor2_nombre', 'tutor2_telefono', 'tutor2_nss', 'tutor2_direccion',
   'direccion', 'nss', 'foto_url'
 ];
 

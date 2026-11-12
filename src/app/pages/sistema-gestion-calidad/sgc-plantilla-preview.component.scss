@@ -25952,14 +25952,35 @@ $amef-slide-ratio: math.div(16, 9);
 
 .sgc-f-29-libreta__crit-form-actions {
   display: flex;
-  justify-content: flex-end;
-  gap: 0.45rem;
-  padding-top: 0.15rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.55rem;
+  padding-top: 0.35rem;
   border-top: 1px solid #f1f5f9;
 }
 
+.sgc-f-29-libreta__crit-form-actions-danger,
+.sgc-f-29-libreta__crit-form-actions-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.sgc-f-29-libreta__crit-form-actions-danger {
+  justify-content: flex-start;
+}
+
+.sgc-f-29-libreta__crit-form-actions-main {
+  justify-content: flex-end;
+}
+
 .sgc-f-29-libreta__crit-form-cancel,
-.sgc-f-29-libreta__crit-form-save {
+.sgc-f-29-libreta__crit-form-save,
+.sgc-f-29-libreta__crit-form-deactivate,
+.sgc-f-29-libreta__crit-form-reactivate,
+.sgc-f-29-libreta__crit-form-purge {
   border: 0;
   border-radius: 999px;
   font-size: 0.74rem;
@@ -25967,6 +25988,14 @@ $amef-slide-ratio: math.div(16, 9);
   padding: 0.42rem 0.9rem;
   cursor: pointer;
   transition: background 0.12s ease, transform 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  isolation: isolate;
+  max-width: 100%;
 }
 
 .sgc-f-29-libreta__crit-form-cancel {
@@ -25982,6 +26011,7 @@ $amef-slide-ratio: math.div(16, 9);
   background: linear-gradient(135deg, #14b8a6 0%, #0f766e 100%);
   color: #fff;
   box-shadow: 0 4px 12px rgba(15, 118, 110, 0.25);
+  z-index: 2;
 
   &:hover:not(:disabled) {
     transform: translateY(-1px);
@@ -25991,6 +26021,146 @@ $amef-slide-ratio: math.div(16, 9);
     opacity: 0.5;
     cursor: not-allowed;
     box-shadow: none;
+  }
+}
+
+.sgc-f-29-libreta__crit-form-deactivate {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+
+  &:hover:not(:disabled) {
+    background: #ffedd5;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.sgc-f-29-libreta__crit-form-reactivate {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #6ee7b7;
+
+  &:hover:not(:disabled) {
+    background: #d1fae5;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.sgc-f-29-libreta__crit-form-purge {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+
+  &:hover:not(:disabled) {
+    background: #fee2e2;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.sgc-f-29-libreta__crit-form-off {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9a3412;
+  background: #ffedd5;
+  vertical-align: middle;
+}
+
+.sgc-f-29-crit-inactivos {
+  margin: 0.55rem 0 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+}
+
+.sgc-f-29-crit-inactivos__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.45rem;
+
+  h4 {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #475569;
+  }
+
+  p {
+    margin: 0.15rem 0 0;
+    font-size: 0.66rem;
+    color: #64748b;
+  }
+
+  em {
+    font-style: normal;
+    font-weight: 800;
+    font-size: 0.78rem;
+    color: #94a3b8;
+  }
+}
+
+.sgc-f-29-crit-inactivos__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.sgc-f-29-crit-inactivos__list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+
+.sgc-f-29-crit-inactivos__name {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.sgc-f-29-crit-inactivos__edit {
+  border: 0;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.28rem 0.65rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+
+  &:hover {
+    background: #cbd5e1;
   }
 }
 

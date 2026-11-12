@@ -29,7 +29,7 @@ const { obtenerRegistroSgcPersistido } = require('./sgcDgF05Service');
 const CICLOS_SATISFACCION_CLIENTE = [
     {
         id: '2025-2026',
-        etiqueta: '2025-2026',
+        etiqueta: '2026',
         formId: process.env.SGC_SATISFACCION_CLIENTE_FORM_ID_2526
             || process.env.SGC_SATISFACCION_CLIENTE_FORM_ID
             || '1otY7kAA7Ko5CICg2-HwpdLjVEU5hsj6onUM-0NC5tDs',
@@ -244,9 +244,29 @@ function payloadSatisfaccionVacio(anioNum, extra = {}) {
             mes,
             indice: 0,
             respuestas: 0,
+            positivas: 0,
+            negativas: 0,
+            total_eval: 0,
+            positivas_pct: 0,
             recomienda_pct: 0
         })),
         ...extra
+    };
+}
+
+function resumenEscalaMensual(bucket) {
+    const evaluacion = bucket?.evaluacion || nuevaCeldaEscala();
+    const positivas = (evaluacion.excelente || 0) + (evaluacion.bueno || 0);
+    const negativas = (evaluacion.regular || 0) + (evaluacion.malo || 0);
+    const totalEval = evaluacion.total || (positivas + negativas);
+    return {
+        indice: indiceEscalaCuatro(evaluacion),
+        respuestas: bucket?.respuestas || 0,
+        positivas,
+        negativas,
+        total_eval: totalEval,
+        positivas_pct: totalEval > 0 ? Math.round((positivas / totalEval) * 100) : 0,
+        recomienda_pct: 0
     };
 }
 
@@ -260,9 +280,7 @@ function serieMensualDesdeBuckets(buckets, anioRespaldo) {
                 mes_num: i + 1,
                 anio: year,
                 mes: MESES_CORTOS[i],
-                indice: indiceEscalaCuatro(bucket?.evaluacion || nuevaCeldaEscala()),
-                respuestas: bucket?.respuestas || 0,
-                recomienda_pct: 0
+                ...resumenEscalaMensual(bucket)
             };
         });
     }
@@ -280,9 +298,7 @@ function serieMensualDesdeBuckets(buckets, anioRespaldo) {
             mes_num: monthIdx + 1,
             anio: year,
             mes: `${MESES_CORTOS[monthIdx]} ${String(year).slice(2)}`,
-            indice: indiceEscalaCuatro(bucket?.evaluacion || nuevaCeldaEscala()),
-            respuestas: bucket?.respuestas || 0,
-            recomienda_pct: 0
+            ...resumenEscalaMensual(bucket)
         });
         monthIdx += 1;
         if (monthIdx > 11) {

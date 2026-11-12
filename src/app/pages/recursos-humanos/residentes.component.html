@@ -184,11 +184,19 @@
                  name="detalle_nombre"
                  placeholder="Nombre del residente">
           <div class="rrhh-detail-hero__pills" *ngIf="!editandoDetalle">
+            <span><i class="fas fa-id-badge"></i> Matrícula {{ valorOGuion(residenteDetalle.matricula) }}</span>
+            <span><i class="fas fa-sign-in-alt"></i> Ingreso {{ valorOGuion(residenteDetalle.fecha_ingreso) }}</span>
             <span><i class="fas fa-id-card"></i> NSS {{ valorOGuion(residenteDetalle.nss) }}</span>
             <span><i class="fas fa-calendar-check"></i> Vigencia {{ valorOGuion(residenteDetalle.fecha_terminacion) }}</span>
             <span *ngIf="residenteDetalle.anio"><i class="fas fa-calendar"></i> Año {{ residenteDetalle.anio }}</span>
           </div>
           <div class="rrhh-detail-hero__pills" *ngIf="editandoDetalle">
+            <span><i class="fas fa-id-badge"></i>
+              <input class="rrhh-detail-hero__pill-input" type="text" [(ngModel)]="form.matricula" name="detalle_matricula_hero" placeholder="Matrícula">
+            </span>
+            <span><i class="fas fa-sign-in-alt"></i>
+              <input class="rrhh-detail-hero__pill-input" type="text" [(ngModel)]="form.fecha_ingreso" name="detalle_ingreso_hero" placeholder="Ingreso">
+            </span>
             <span><i class="fas fa-id-card"></i>
               <input class="rrhh-detail-hero__pill-input" type="text" [(ngModel)]="form.nss" name="detalle_nss" placeholder="NSS">
             </span>
@@ -239,16 +247,6 @@
               <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.estancia) }}</strong>
               <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.estancia" name="detalle_estancia">
             </div>
-            <div class="rrhh-kv">
-              <span>Matrícula</span>
-              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.matricula) }}</strong>
-              <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.matricula" name="detalle_matricula">
-            </div>
-            <div class="rrhh-kv">
-              <span>Ingreso</span>
-              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.fecha_ingreso) }}</strong>
-              <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.fecha_ingreso" name="detalle_ingreso" placeholder="Ej. 11-may-26">
-            </div>
           </div>
         </article>
 
@@ -294,7 +292,8 @@
           </div>
         </article>
 
-        <article class="rrhh-panel">
+        <article class="rrhh-panel"
+                 [class.rrhh-panel--contact]="detalleConSegundoContacto">
           <header class="rrhh-panel__head">
             <span class="rrhh-panel__icon"><i class="fas fa-address-book"></i></span>
             <div>
@@ -302,18 +301,19 @@
               <p>Teléfono, correos y asesor académico</p>
             </div>
           </header>
-          <div class="rrhh-panel__grid">
-            <div class="rrhh-kv">
+          <div class="rrhh-panel__grid"
+               [class.rrhh-panel__grid--contact]="detalleConSegundoContacto">
+            <div class="rrhh-kv" [class.rrhh-kv--wide]="!detalleConSegundoContacto">
               <span>Teléfono</span>
               <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.telefono) }}</strong>
               <input *ngIf="editandoDetalle" type="tel" [(ngModel)]="form.telefono" name="detalle_tel">
             </div>
-            <div class="rrhh-kv">
+            <div class="rrhh-kv" [class.rrhh-kv--wide]="!detalleConSegundoContacto">
               <span>Correo personal</span>
               <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.correo_personal) }}</strong>
               <input *ngIf="editandoDetalle" type="email" [(ngModel)]="form.correo_personal" name="detalle_correo">
             </div>
-            <div class="rrhh-kv rrhh-kv--wide">
+            <div class="rrhh-kv" [class.rrhh-kv--wide]="!detalleConSegundoContacto">
               <span>Correo institucional</span>
               <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.correo_institucional) }}</strong>
               <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.correo_institucional" name="detalle_correo_inst">
@@ -323,7 +323,7 @@
               <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.asesor_academico) }}</strong>
               <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.asesor_academico" name="detalle_asesor">
             </div>
-            <div class="rrhh-kv">
+            <div class="rrhh-kv" [class.rrhh-kv--wide]="detalleConSegundoContacto">
               <span>Correo del asesor</span>
               <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.correo_asesor) }}</strong>
               <input *ngIf="editandoDetalle" type="email" [(ngModel)]="form.correo_asesor" name="detalle_correo_asesor">
@@ -331,34 +331,104 @@
           </div>
         </article>
 
-        <article class="rrhh-panel rrhh-panel--warn">
+        <article class="rrhh-panel rrhh-panel--warn"
+                 [class.rrhh-panel--emergency]="detalleConSegundoContacto">
           <header class="rrhh-panel__head">
             <span class="rrhh-panel__icon"><i class="fas fa-heartbeat"></i></span>
             <div>
               <h3>Información de emergencia</h3>
-              <p>Tutor, contacto y NSS del residente</p>
+              <p>{{ detalleConSegundoContacto ? '2 contactos con datos individuales' : 'Tutor, contacto y NSS del residente' }}</p>
             </div>
           </header>
-          <div class="rrhh-panel__grid">
-            <div class="rrhh-kv rrhh-kv--wide">
-              <span>Padre/madre o tutor</span>
-              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.tutor_nombre) }}</strong>
-              <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.tutor_nombre" name="detalle_tutor">
+
+          <!-- 1 contacto: tutor arriba; número | NSS; dirección abajo -->
+          <ng-container *ngIf="!detalleConSegundoContacto">
+            <div class="rrhh-panel__grid">
+              <div class="rrhh-kv rrhh-kv--wide">
+                <span>Padre/madre o tutor</span>
+                <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.tutor_nombre) }}</strong>
+                <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.tutor_nombre" name="detalle_tutor">
+              </div>
+              <div class="rrhh-kv">
+                <span>Número de contacto</span>
+                <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.tutor_telefono) }}</strong>
+                <input *ngIf="editandoDetalle" type="tel" [(ngModel)]="form.tutor_telefono" name="detalle_tutor_tel">
+              </div>
+              <div class="rrhh-kv">
+                <span>NSS</span>
+                <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.nss) }}</strong>
+                <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.nss" name="detalle_nss_c1">
+              </div>
+              <div class="rrhh-kv rrhh-kv--wide">
+                <span>Dirección</span>
+                <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.direccion) }}</strong>
+                <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.direccion" name="detalle_dir_c1">
+              </div>
             </div>
-            <div class="rrhh-kv">
-              <span>Número de contacto</span>
-              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.tutor_telefono) }}</strong>
-              <input *ngIf="editandoDetalle" type="tel" [(ngModel)]="form.tutor_telefono" name="detalle_tutor_tel">
+            <button *ngIf="editandoDetalle"
+                    type="button"
+                    class="rrhh-contact-add rrhh-contact-add--inline"
+                    (click)="agregarSegundoContacto()">
+              <i class="fas fa-user-plus"></i> Agregar segundo contacto
+            </button>
+          </ng-container>
+
+          <!-- 2 contactos: ancho completo, lado a lado -->
+          <div class="rrhh-contacts-row rrhh-contacts-row--dual" *ngIf="detalleConSegundoContacto">
+            <div class="rrhh-contact-card">
+              <div class="rrhh-contact-label">Contacto 1</div>
+              <div class="rrhh-kv">
+                <span>Padre/madre o tutor</span>
+                <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.tutor_nombre) }}</strong>
+                <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.tutor_nombre" name="detalle_tutor_d">
+              </div>
+              <div class="rrhh-kv">
+                <span>Número de contacto</span>
+                <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.tutor_telefono) }}</strong>
+                <input *ngIf="editandoDetalle" type="tel" [(ngModel)]="form.tutor_telefono" name="detalle_tutor_tel_d">
+              </div>
+              <div class="rrhh-kv">
+                <span>NSS</span>
+                <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.nss) }}</strong>
+                <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.nss" name="detalle_nss_c1_d">
+              </div>
+              <div class="rrhh-kv">
+                <span>Dirección</span>
+                <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.direccion) }}</strong>
+                <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.direccion" name="detalle_dir_c1_d">
+              </div>
             </div>
-            <div class="rrhh-kv">
-              <span>NSS</span>
-              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.nss) }}</strong>
-              <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.nss" name="detalle_nss2">
-            </div>
-            <div class="rrhh-kv rrhh-kv--wide">
-              <span>Dirección</span>
-              <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.direccion) }}</strong>
-              <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.direccion" name="detalle_dir">
+
+            <div class="rrhh-contact-card">
+              <div class="rrhh-contact-label">
+                Contacto 2
+                <button *ngIf="editandoDetalle"
+                        type="button"
+                        class="rrhh-contact-action"
+                        (click)="quitarSegundoContacto()">
+                  <i class="fas fa-times"></i> Quitar
+                </button>
+              </div>
+              <div class="rrhh-kv">
+                <span>Padre/madre o tutor</span>
+                <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.tutor2_nombre) }}</strong>
+                <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.tutor2_nombre" name="detalle_tutor2">
+              </div>
+              <div class="rrhh-kv">
+                <span>Número de contacto</span>
+                <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.tutor2_telefono) }}</strong>
+                <input *ngIf="editandoDetalle" type="tel" [(ngModel)]="form.tutor2_telefono" name="detalle_tutor2_tel">
+              </div>
+              <div class="rrhh-kv">
+                <span>NSS</span>
+                <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.tutor2_nss) }}</strong>
+                <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.tutor2_nss" name="detalle_nss_c2">
+              </div>
+              <div class="rrhh-kv">
+                <span>Dirección</span>
+                <strong *ngIf="!editandoDetalle">{{ valorOGuion(residenteDetalle.tutor2_direccion) }}</strong>
+                <input *ngIf="editandoDetalle" type="text" [(ngModel)]="form.tutor2_direccion" name="detalle_dir_c2">
+              </div>
             </div>
           </div>
         </article>
@@ -462,7 +532,7 @@
           <h6 *ngIf="formPaso === 2">Datos de contacto e información de emergencia</h6>
           <h6 *ngIf="formPaso === 3">Resumen del registro</h6>
           <p *ngIf="formPaso === 1">Datos personales, foto y proyecto asignado</p>
-          <p *ngIf="formPaso === 2">Teléfonos, correos y contacto de emergencia</p>
+          <p *ngIf="formPaso === 2">Teléfonos, correos y hasta 2 contactos de emergencia</p>
           <p *ngIf="formPaso === 3">Revisa la información antes de guardar</p>
         </div>
         <span class="rrhh-wizard__badge">Paso {{ formPaso }} de 3</span>
@@ -666,28 +736,114 @@
               <i class="fas fa-heartbeat"></i>
               <span>Información de emergencia</span>
             </header>
-            <div class="rrhh-grid">
-              <label class="rrhh-field rrhh-field--wide">
-                <span>Nombre del padre/madre o tutor</span>
-                <div class="rrhh-field__control">
-                  <i class="fas fa-user-friends"></i>
-                  <input type="text" [(ngModel)]="form.tutor_nombre" name="tutor">
+
+            <!-- 1 contacto: tutor arriba; número | NSS; dirección abajo -->
+            <ng-container *ngIf="!mostrarSegundoContacto">
+              <div class="rrhh-grid">
+                <label class="rrhh-field rrhh-field--wide">
+                  <span>Padre/madre o tutor</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-user-friends"></i>
+                    <input type="text" [(ngModel)]="form.tutor_nombre" name="tutor">
+                  </div>
+                </label>
+                <label class="rrhh-field">
+                  <span>Número de contacto</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-phone"></i>
+                    <input type="tel" [(ngModel)]="form.tutor_telefono" name="tutor_tel">
+                  </div>
+                </label>
+                <label class="rrhh-field">
+                  <span>NSS</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-id-card"></i>
+                    <input type="text" [(ngModel)]="form.nss" name="nss_c1" placeholder="NSS del contacto">
+                  </div>
+                </label>
+                <label class="rrhh-field rrhh-field--wide">
+                  <span>Dirección</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <input type="text" [(ngModel)]="form.direccion" name="direccion_c1">
+                  </div>
+                </label>
+              </div>
+              <button type="button" class="rrhh-contact-add rrhh-contact-add--inline" (click)="agregarSegundoContacto()">
+                <i class="fas fa-user-plus"></i> Agregar segundo contacto
+              </button>
+            </ng-container>
+
+            <!-- 2 contactos: lado a lado -->
+            <div class="rrhh-contacts-row rrhh-contacts-row--dual" *ngIf="mostrarSegundoContacto">
+              <div class="rrhh-contact-card">
+                <div class="rrhh-contact-label">Contacto 1</div>
+                <label class="rrhh-field">
+                  <span>Padre/madre o tutor</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-user-friends"></i>
+                    <input type="text" [(ngModel)]="form.tutor_nombre" name="tutor_d">
+                  </div>
+                </label>
+                <label class="rrhh-field">
+                  <span>Número de contacto</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-phone"></i>
+                    <input type="tel" [(ngModel)]="form.tutor_telefono" name="tutor_tel_d">
+                  </div>
+                </label>
+                <label class="rrhh-field">
+                  <span>NSS</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-id-card"></i>
+                    <input type="text" [(ngModel)]="form.nss" name="nss_c1_d" placeholder="NSS del contacto">
+                  </div>
+                </label>
+                <label class="rrhh-field">
+                  <span>Dirección</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <input type="text" [(ngModel)]="form.direccion" name="direccion_c1_d">
+                  </div>
+                </label>
+              </div>
+
+              <div class="rrhh-contact-card">
+                <div class="rrhh-contact-label">
+                  Contacto 2
+                  <button type="button" class="rrhh-contact-action" (click)="quitarSegundoContacto()">
+                    <i class="fas fa-times"></i> Quitar
+                  </button>
                 </div>
-              </label>
-              <label class="rrhh-field">
-                <span>Número de contacto</span>
-                <div class="rrhh-field__control">
-                  <i class="fas fa-phone"></i>
-                  <input type="tel" [(ngModel)]="form.tutor_telefono" name="tutor_tel">
-                </div>
-              </label>
-              <label class="rrhh-field rrhh-field--wide">
-                <span>Dirección</span>
-                <div class="rrhh-field__control">
-                  <i class="fas fa-map-marker-alt"></i>
-                  <input type="text" [(ngModel)]="form.direccion" name="direccion">
-                </div>
-              </label>
+                <label class="rrhh-field">
+                  <span>Padre/madre o tutor</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-user-friends"></i>
+                    <input type="text" [(ngModel)]="form.tutor2_nombre" name="tutor2">
+                  </div>
+                </label>
+                <label class="rrhh-field">
+                  <span>Número de contacto</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-phone"></i>
+                    <input type="tel" [(ngModel)]="form.tutor2_telefono" name="tutor2_tel">
+                  </div>
+                </label>
+                <label class="rrhh-field">
+                  <span>NSS</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-id-card"></i>
+                    <input type="text" [(ngModel)]="form.tutor2_nss" name="nss_c2" placeholder="NSS del contacto">
+                  </div>
+                </label>
+                <label class="rrhh-field">
+                  <span>Dirección</span>
+                  <div class="rrhh-field__control">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <input type="text" [(ngModel)]="form.tutor2_direccion" name="direccion_c2">
+                  </div>
+                </label>
+              </div>
             </div>
           </section>
         </div>
@@ -716,10 +872,16 @@
             <div><span>Teléfono</span><strong>{{ valorOGuion(form.telefono) }}</strong></div>
             <div><span>Correo</span><strong>{{ valorOGuion(form.correo_personal) }}</strong></div>
             <div><span>Matrícula</span><strong>{{ valorOGuion(form.matricula) }}</strong></div>
-            <div><span>NSS</span><strong>{{ valorOGuion(form.nss) }}</strong></div>
-            <div class="rrhh-summary-grid__wide"><span>Tutor</span><strong>{{ valorOGuion(form.tutor_nombre) }}</strong></div>
-            <div><span>Contacto emergencia</span><strong>{{ valorOGuion(form.tutor_telefono) }}</strong></div>
-            <div class="rrhh-summary-grid__wide"><span>Dirección</span><strong>{{ valorOGuion(form.direccion) }}</strong></div>
+            <div class="rrhh-summary-grid__wide"><span>Contacto 1</span><strong>{{ valorOGuion(form.tutor_nombre) }}</strong></div>
+            <div><span>Tel. contacto 1</span><strong>{{ valorOGuion(form.tutor_telefono) }}</strong></div>
+            <div><span>NSS contacto 1</span><strong>{{ valorOGuion(form.nss) }}</strong></div>
+            <div class="rrhh-summary-grid__wide"><span>Dir. contacto 1</span><strong>{{ valorOGuion(form.direccion) }}</strong></div>
+            <ng-container *ngIf="mostrarSegundoContacto || form.tutor2_nombre || form.tutor2_telefono || form.tutor2_nss || form.tutor2_direccion">
+              <div class="rrhh-summary-grid__wide"><span>Contacto 2</span><strong>{{ valorOGuion(form.tutor2_nombre) }}</strong></div>
+              <div><span>Tel. contacto 2</span><strong>{{ valorOGuion(form.tutor2_telefono) }}</strong></div>
+              <div><span>NSS contacto 2</span><strong>{{ valorOGuion(form.tutor2_nss) }}</strong></div>
+              <div class="rrhh-summary-grid__wide"><span>Dir. contacto 2</span><strong>{{ valorOGuion(form.tutor2_direccion) }}</strong></div>
+            </ng-container>
           </div>
         </div>
       </div>

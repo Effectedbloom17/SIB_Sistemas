@@ -3339,13 +3339,6 @@
                         </div>
                       </section>
 
-                      <footer class="dg-f02-page__footer">
-                        <span>www.biznaga.com.mx</span>
-                        <span class="dg-f02-page__footer-sep">·</span>
-                        <span>722 168 5086 · 722 168 5087</span>
-                        <span class="dg-f02-page__footer-sep">·</span>
-                        <span>Av. Juárez 801, Col. Centro, Toluca, Edo. de México</span>
-                      </footer>
                     </div>
                     </article>
 
@@ -3510,13 +3503,6 @@
                         </label>
                       </footer>
 
-                      <footer class="dg-f02-page__footer">
-                        <span>www.biznaga.com.mx</span>
-                        <span class="dg-f02-page__footer-sep">·</span>
-                        <span>722 168 5086 · 722 168 5087</span>
-                        <span class="dg-f02-page__footer-sep">·</span>
-                        <span>Av. Juárez 801, Col. Centro, Toluca, Edo. de México</span>
-                      </footer>
                     </div>
                   </article>
 
@@ -3686,11 +3672,6 @@
                         </div>
                       </section>
 
-                      <footer class="dg-f02-page__footer">
-                        <span>www.biznaga.com.mx</span>
-                        <span class="dg-f02-page__footer-sep">·</span>
-                        <span>contacto@biznaga.mx</span>
-                      </footer>
                     </div>
                   </article>
 
@@ -4121,11 +4102,6 @@
                         </div>
                       </section>
 
-                      <footer class="dg-f02-page__footer">
-                        <span>www.biznaga.com.mx</span>
-                        <span class="dg-f02-page__footer-sep">·</span>
-                        <span>contacto@biznaga.mx</span>
-                      </footer>
                     </div>
                   </article>
 
@@ -4377,11 +4353,6 @@
                         </label>
                       </footer>
 
-                      <footer class="dg-f02-page__footer">
-                        <span>www.biznaga.com.mx</span>
-                        <span class="dg-f02-page__footer-sep">·</span>
-                        <span>contacto@biznaga.mx</span>
-                      </footer>
                     </div>
                   </article>
                 </div>
@@ -9312,14 +9283,22 @@
                                 <i class="fas" [ngClass]="sgcF29EditandoCriterio ? 'fa-pen' : 'fa-sliders-h'"></i>
                               </span>
                               <div>
-                                <h4>{{ sgcF29EditandoCriterio ? 'Editar criterio' : 'Nuevo criterio' }}</h4>
+                                <h4>
+                                  {{ sgcF29EditandoCriterio ? 'Editar criterio' : 'Nuevo criterio' }}
+                                  <em class="sgc-f-29-libreta__crit-form-off"
+                                    *ngIf="sgcF29EditandoCriterio && !sgcF29CriterioEditandoActivo">Desactivado</em>
+                                </h4>
                                 <p *ngIf="!sgcF29EditandoCriterio">
                                   Se agregará al área «{{ areaPorClaveSgcF29(sgcF29AreaGestionClave)?.nombre || '—' }}»
                                   y a las evaluaciones de este proveedor.
                                 </p>
-                                <p *ngIf="sgcF29EditandoCriterio">
+                                <p *ngIf="sgcF29EditandoCriterio && sgcF29CriterioEditandoActivo">
                                   Área «{{ areaPorClaveSgcF29(sgcF29AreaGestionClave)?.nombre || '—' }}» ·
                                   los cambios aplican al catálogo y a las evaluaciones que lo usen.
+                                </p>
+                                <p *ngIf="sgcF29EditandoCriterio && !sgcF29CriterioEditandoActivo">
+                                  Criterio desactivado · no aparece en evaluaciones nuevas.
+                                  Solo el superadministrador puede reactivarlo o borrarlo.
                                 </p>
                               </div>
                             </header>
@@ -9393,18 +9372,70 @@
                               </div>
                             </div>
 
-                            <div class="sgc-f-29-libreta__crit-form-actions">
-                              <button type="button" class="sgc-f-29-libreta__crit-form-cancel"
-                                (click)="cerrarFormNuevoCriterioSgcF29($event)">Cancelar</button>
-                              <button type="button" class="sgc-f-29-libreta__crit-form-save"
-                                (click)="guardarNuevoCriterioSgcF29($event)"
-                                [disabled]="!puedeGuardarNuevoCriterioSgcF29">
-                                {{ sgcF29CriterioGuardando
-                                  ? 'Guardando…'
-                                  : (sgcF29EditandoCriterio ? 'Actualizar criterio' : 'Guardar criterio') }}
-                              </button>
+                            <div class="sgc-f-29-libreta__crit-form-actions"
+                              [class.has-danger]="sgcF29EditandoCriterio">
+                              <div class="sgc-f-29-libreta__crit-form-actions-danger" *ngIf="sgcF29EditandoCriterio">
+                                <button type="button" class="sgc-f-29-libreta__crit-form-deactivate"
+                                  *ngIf="puedeDesactivarCriterioEditandoSgcF29"
+                                  (click)="desactivarCriterioEditandoSgcF29($event)"
+                                  [disabled]="sgcF29CriterioAccionEnCurso"
+                                  title="Desactiva el criterio sin borrarlo de la base de datos">
+                                  <i class="fas fa-eye-slash" aria-hidden="true"></i>
+                                  {{ sgcF29CriterioAccionEnCurso ? 'Desactivando…' : 'Desactivar criterio' }}
+                                </button>
+                                <button type="button" class="sgc-f-29-libreta__crit-form-reactivate"
+                                  *ngIf="puedeReactivarCriterioEditandoSgcF29"
+                                  (click)="reactivarCriterioEditandoSgcF29($event)"
+                                  [disabled]="sgcF29CriterioAccionEnCurso"
+                                  title="Vuelve a mostrar el criterio en el catálogo">
+                                  <i class="fas fa-undo" aria-hidden="true"></i>
+                                  {{ sgcF29CriterioAccionEnCurso ? 'Reactivando…' : 'Reactivar criterio' }}
+                                </button>
+                                <button type="button" class="sgc-f-29-libreta__crit-form-purge"
+                                  *ngIf="puedeBorrarDefinitivoCriterioEditandoSgcF29"
+                                  (click)="borrarDefinitivoCriterioEditandoSgcF29($event)"
+                                  [disabled]="sgcF29CriterioAccionEnCurso"
+                                  title="Borra la información de forma definitiva">
+                                  <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                                  {{ sgcF29CriterioAccionEnCurso ? 'Borrando…' : 'Borrar información' }}
+                                </button>
+                              </div>
+                              <div class="sgc-f-29-libreta__crit-form-actions-main">
+                                <button type="button" class="sgc-f-29-libreta__crit-form-cancel"
+                                  (click)="cerrarFormNuevoCriterioSgcF29($event)">Cancelar</button>
+                                <button type="button" class="sgc-f-29-libreta__crit-form-save"
+                                  (click)="guardarNuevoCriterioSgcF29($event)"
+                                  [disabled]="!puedeGuardarNuevoCriterioSgcF29 || !sgcF29CriterioEditandoActivo">
+                                  {{ sgcF29CriterioGuardando
+                                    ? 'Guardando…'
+                                    : (sgcF29EditandoCriterio ? 'Actualizar criterio' : 'Guardar criterio') }}
+                                </button>
+                              </div>
                             </div>
                           </div>
+
+                          <section class="sgc-f-29-crit-inactivos"
+                            *ngIf="sgcF29CriteriosInactivosAreaGestion.length"
+                            aria-label="Criterios desactivados">
+                            <header class="sgc-f-29-crit-inactivos__head">
+                              <div>
+                                <h4>Criterios desactivados</h4>
+                                <p>Solo visibles para superadministrador. Puedes reactivarlos o borrarlos.</p>
+                              </div>
+                              <em>{{ sgcF29CriteriosInactivosAreaGestion.length }}</em>
+                            </header>
+                            <ul class="sgc-f-29-crit-inactivos__list">
+                              <li *ngFor="let c of sgcF29CriteriosInactivosAreaGestion">
+                                <span class="sgc-f-29-crit-inactivos__name">{{ c.nombre }}</span>
+                                <button type="button" class="sgc-f-29-crit-inactivos__edit"
+                                  (click)="abrirEditarCriterioSgcF29(c.clave, $event)"
+                                  title="Abrir criterio desactivado">
+                                  <i class="fas fa-pen" aria-hidden="true"></i>
+                                  Gestionar
+                                </button>
+                              </li>
+                            </ul>
+                          </section>
 
                           <div class="sgc-f-29-libreta__evals"
                             [class.has-add-menu-open]="sgcF29MenuAddCritIdx != null">
@@ -18246,11 +18277,6 @@
                           <input class="dg-f02-page__meta-input" type="text" name="dgF03_firmante" [(ngModel)]="dgF03Form.firmante"></label>
                         <label class="dg-f02-page__meta-item"><span class="dg-f02-page__meta-label">Cargo</span>
                           <input class="dg-f02-page__meta-input" type="text" name="dgF03_cargo" [(ngModel)]="dgF03Form.cargoFirmante"></label>
-                      </footer>
-                      <footer class="dg-f02-page__footer">
-                        <span>www.biznaga.com.mx</span><span class="dg-f02-page__footer-sep">·</span>
-                        <span>722 168 5086 · 722 168 5087</span><span class="dg-f02-page__footer-sep">·</span>
-                        <span>Av. Juárez 801, Col. Centro, Toluca, Edo. de México</span>
                       </footer>
                     </div>
                   </article>

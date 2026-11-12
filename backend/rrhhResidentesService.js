@@ -27,6 +27,10 @@ const CAMPOS = [
     'correo_asesor',
     'tutor_nombre',
     'tutor_telefono',
+    'tutor2_nombre',
+    'tutor2_telefono',
+    'tutor2_nss',
+    'tutor2_direccion',
     'direccion',
     'nss'
 ];
@@ -196,7 +200,10 @@ function normalizarPayload(body = {}) {
             const n = Number(body[campo]);
             out[campo] = Number.isFinite(n) ? Math.trunc(n) : null;
         } else {
-            out[campo] = txt(body[campo], campo === 'direccion' || campo === 'nombre_proyecto' ? 500 : 255);
+            out[campo] = txt(
+                body[campo],
+                campo === 'direccion' || campo === 'tutor2_direccion' || campo === 'nombre_proyecto' ? 500 : 255
+            );
         }
     }
     if (!out.nombre) {
@@ -296,6 +303,10 @@ async function asegurarTabla(pool) {
             correo_asesor VARCHAR(255) NULL,
             tutor_nombre VARCHAR(255) NULL,
             tutor_telefono VARCHAR(50) NULL,
+            tutor2_nombre VARCHAR(255) NULL,
+            tutor2_telefono VARCHAR(50) NULL,
+            tutor2_nss VARCHAR(50) NULL,
+            tutor2_direccion VARCHAR(500) NULL,
             direccion VARCHAR(500) NULL,
             nss VARCHAR(50) NULL,
             foto_url MEDIUMTEXT NULL,
@@ -350,6 +361,30 @@ async function asegurarTabla(pool) {
     } catch (e) {
         console.warn('[RRHH] No se pudo asegurar columna vigente:', e.message);
     }
+
+    // Migración suave: segundo contacto de emergencia (opcional, con NSS y dirección propios)
+    for (const col of [
+        { name: 'tutor2_nombre', ddl: 'ADD COLUMN tutor2_nombre VARCHAR(255) NULL AFTER tutor_telefono' },
+        { name: 'tutor2_telefono', ddl: 'ADD COLUMN tutor2_telefono VARCHAR(50) NULL AFTER tutor2_nombre' },
+        { name: 'tutor2_nss', ddl: 'ADD COLUMN tutor2_nss VARCHAR(50) NULL AFTER tutor2_telefono' },
+        { name: 'tutor2_direccion', ddl: 'ADD COLUMN tutor2_direccion VARCHAR(500) NULL AFTER tutor2_nss' }
+    ]) {
+        try {
+            const [cols] = await pool.query(
+                `SELECT COLUMN_NAME AS c
+                 FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = 'RRHH_residentes'
+                   AND COLUMN_NAME = ?`,
+                [col.name]
+            );
+            if (!cols?.length) {
+                await pool.query(`ALTER TABLE RRHH_residentes ${col.ddl}`);
+            }
+        } catch (e) {
+            console.warn(`[RRHH] No se pudo asegurar columna ${col.name}:`, e.message);
+        }
+    }
 }
 
 /**
@@ -396,6 +431,7 @@ function celdasDesdeResidente(datos, sheetTitle) {
         { range: `'${tab}'!C22`, values: [[v('tutor_nombre')]] },
         { range: `'${tab}'!C23`, values: [[v('tutor_telefono')]] },
         { range: `'${tab}'!C24`, values: [[v('nss')]] }
+        // tutor2_* se guarda en BD; la plantilla de Sheets solo contempla un contacto.
     ];
 }
 
@@ -674,8 +710,9 @@ async function crear(pool, body, usuario = null) {
             fecha_ingreso, fecha_terminacion, nombre_proyecto, supervision_a_cargo,
             telefono, correo_personal, correo_institucional, matricula,
             asesor_academico, correo_asesor, tutor_nombre, tutor_telefono,
+            tutor2_nombre, tutor2_telefono, tutor2_nss, tutor2_direccion,
             direccion, nss, foto_url, vigente, creado_por, actualizado_por
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             datos.anio,
             datos.nombre,
@@ -695,6 +732,10 @@ async function crear(pool, body, usuario = null) {
             datos.correo_asesor || null,
             datos.tutor_nombre || null,
             datos.tutor_telefono || null,
+            datos.tutor2_nombre || null,
+            datos.tutor2_telefono || null,
+            datos.tutor2_nss || null,
+            datos.tutor2_direccion || null,
             datos.direccion || null,
             datos.nss || null,
             fotoUrl,
@@ -728,8 +769,9 @@ async function actualizar(pool, id, body, usuario = null) {
             carrera = ?, fecha_ingreso = ?, fecha_terminacion = ?, nombre_proyecto = ?,
             supervision_a_cargo = ?, telefono = ?, correo_personal = ?,
             correo_institucional = ?, matricula = ?, asesor_academico = ?,
-            correo_asesor = ?, tutor_nombre = ?, tutor_telefono = ?, direccion = ?,
-            nss = ?, foto_url = ?, vigente = ?, actualizado_por = ?
+            correo_asesor = ?, tutor_nombre = ?, tutor_telefono = ?,
+            tutor2_nombre = ?, tutor2_telefono = ?, tutor2_nss = ?, tutor2_direccion = ?,
+            direccion = ?, nss = ?, foto_url = ?, vigente = ?, actualizado_por = ?
          WHERE id = ? AND activo = 1`,
         [
             datos.anio,
@@ -750,6 +792,10 @@ async function actualizar(pool, id, body, usuario = null) {
             datos.correo_asesor || null,
             datos.tutor_nombre || null,
             datos.tutor_telefono || null,
+            datos.tutor2_nombre || null,
+            datos.tutor2_telefono || null,
+            datos.tutor2_nss || null,
+            datos.tutor2_direccion || null,
             datos.direccion || null,
             datos.nss || null,
             fotoUrl,
