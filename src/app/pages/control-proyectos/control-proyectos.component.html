@@ -1859,7 +1859,7 @@
               <div class="cp-solicitudes__barra">
                 <div class="cp-solicitudes__barra-copy">
                   <span>{{ etiquetaFiltroSolicitudes() }}</span>
-                  <small>{{ solicitudesFiltradas.length }} solicitud{{ solicitudesFiltradas.length === 1 ? '' : 'es' }}</small>
+                  <small>{{ solicitudesPorProyecto.length }} proyecto{{ solicitudesPorProyecto.length === 1 ? '' : 's' }}</small>
                 </div>
                 <div
                   class="cp-company-combo cp-solicitudes__combo"
@@ -1907,164 +1907,26 @@
                 <i class="fas fa-spinner fa-spin"></i>
                 Cargando solicitudes…
               </div>
-              <p class="cp-solicitudes__vacio" *ngIf="!cargandoSolicitudesCambio && !solicitudesFiltradas.length">No hay solicitudes en esta vista.</p>
-              <div class="cp-solicitudes__visor" *ngIf="!cargandoSolicitudesCambio && solicitudBandejaActiva as fila">
-                <button type="button" class="cp-solicitudes__arrow" (click)="moverSolicitudBandeja(-1)" aria-label="Solicitud anterior">
-                  <i class="fas fa-chevron-left" aria-hidden="true"></i>
-                </button>
-                <div class="cp-solicitudes__panel" [class.cp-solicitudes__panel--vista]="solicitudBandejaPreview !== null">
-                  <div
-                    class="cp-solicitudes__hover"
-                    (mouseleave)="ocultarVistaSolicitudBandeja($event)"
-                    (focusout)="ocultarVistaSolicitudBandeja($event)"
-                  >
-                    <div class="cp-solicitudes__nums" role="tablist" aria-label="Solicitudes">
-                      <button
-                        type="button"
-                        class="cp-cambios-tab"
-                        *ngFor="let item of solicitudesFiltradas; let i = index"
-                        role="tab"
-                        [attr.aria-selected]="i === solicitudBandejaIndice"
-                        [class.cp-cambios-tab--activo]="i === solicitudBandejaIndice"
-                        [ngClass]="claseNumeroCambio(item)"
-                        (click)="seleccionarSolicitudBandeja(i)"
-                        (mouseenter)="mostrarVistaSolicitudBandeja(i)"
-                        (focus)="mostrarVistaSolicitudBandeja(i)"
-                        [attr.aria-label]="'Solicitud ' + (i + 1)"
-                      >{{ i + 1 }}</button>
-                    </div>
-                    <div class="cp-cambios-preview cp-solicitudes__preview" *ngIf="solicitudBandejaPreviewFila() as prev">
-                      <div class="cp-cambios-preview__head">
-                        <span class="cp-cambios-preview__num" [ngClass]="claseNumeroCambio(prev)">{{ (solicitudBandejaPreview || 0) + 1 }}</span>
-                        <strong>{{ prev.nombreProyecto || 'Solicitud' }}</strong>
-                      </div>
-                      <div class="cp-cambios-preview__tipos">
-                        <span
-                          class="cp-cambios-chip"
-                          *ngFor="let tipo of etiquetasTipoCambio(prev)"
-                          [class.cp-cambios-chip--req]="tipo.clave === 'req'"
-                          [class.cp-cambios-chip--dis]="tipo.clave === 'dis'"
-                          [class.cp-cambios-chip--prod]="tipo.clave === 'prod'"
-                        >{{ tipo.texto }}</span>
-                        <span class="cp-cambios-chip cp-cambios-chip--vacio" *ngIf="!etiquetasTipoCambio(prev).length">Sin tipo de cambio</span>
-                      </div>
-                      <p class="cp-cambios-preview__desc">{{ prev.descripcion.trim() || 'Sin descripción' }}</p>
-                    </div>
-                  </div>
-                  <article class="cp-cambios-resumen__card cp-solicitudes__card">
-                    <ng-container *ngTemplateOutlet="solicitudCambioCard; context: { $implicit: fila }"></ng-container>
-                  </article>
-                </div>
-                <button type="button" class="cp-solicitudes__arrow" (click)="moverSolicitudBandeja(1)" aria-label="Solicitud siguiente">
-                  <i class="fas fa-chevron-right" aria-hidden="true"></i>
+              <p class="cp-solicitudes__vacio" *ngIf="!cargandoSolicitudesCambio && !solicitudesPorProyecto.length">No hay solicitudes en esta vista.</p>
+              <div class="cp-solicitudes-catalog" *ngIf="!cargandoSolicitudesCambio && solicitudesPorProyecto.length">
+                <button
+                  type="button"
+                  class="cp-sol-card"
+                  *ngFor="let grupo of solicitudesPorProyecto; trackBy: trackSolicitudProyecto"
+                  (click)="abrirHistorialSolicitud(grupo.clave)"
+                >
+                  <span class="cp-sol-card__icon" aria-hidden="true"><i class="fas fa-folder-open"></i></span>
+                  <span class="cp-sol-card__body">
+                    <strong class="cp-sol-card__name" [title]="grupo.nombreProyecto">{{ grupo.nombreProyecto }}</strong>
+                    <span class="cp-sol-card__meta">
+                      <span class="cp-sol-card__folio" *ngIf="grupo.folio">{{ grupo.folio }}</span>
+                      <span class="cp-sol-card__count">{{ grupo.cambios.length }} cambio{{ grupo.cambios.length === 1 ? '' : 's' }}</span>
+                    </span>
+                  </span>
+                  <span class="cp-sol-card__go">Ver historial <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
                 </button>
               </div>
             </section>
-            <ng-template #solicitudCambioCard let-fila>
-              <div class="cp-solicitudes__proyecto">
-                <strong>{{ fila.nombreProyecto || 'Proyecto' }}</strong>
-                <span *ngIf="fila.folio">{{ fila.folio }}</span>
-              </div>
-              <div class="cp-cambios-resumen__meta">
-                <div class="cp-cambios-resumen__tipo">
-                  <span>Tipo de cambio</span>
-                  <div class="cp-cambios-preview__tipos">
-                    <span
-                      class="cp-cambios-chip"
-                      *ngFor="let tipo of etiquetasTipoCambio(fila)"
-                      [class.cp-cambios-chip--req]="tipo.clave === 'req'"
-                      [class.cp-cambios-chip--dis]="tipo.clave === 'dis'"
-                      [class.cp-cambios-chip--prod]="tipo.clave === 'prod'"
-                    >{{ tipo.texto }}</span>
-                    <span class="cp-cambios-chip cp-cambios-chip--vacio" *ngIf="!etiquetasTipoCambio(fila).length">Sin tipo de cambio</span>
-                  </div>
-                </div>
-                <div class="cp-cambios-resumen__solicitud">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Fecha de solicitud</th>
-                        <th>Solicitó</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>
-                          <div>{{ fechaSolicitudCambio(fila) }}</div>
-                          <p class="cp-cambios-correccion" *ngIf="fechaCorreccionCambio(fila)">Corregido el {{ fechaCorreccionCambio(fila) }}</p>
-                        </td>
-                        <td>{{ solicitoCambio(fila) }}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <dl class="cp-cambios-resumen__datos">
-                <div>
-                  <dt>Descripción</dt>
-                  <dd>{{ fila.descripcion.trim() || '—' }}</dd>
-                </div>
-                <div>
-                  <dt>Motivo</dt>
-                  <dd *ngIf="fila.motivo.trim(); else motivoBandejaVacio">
-                    <ul>
-                      <li *ngFor="let linea of lineasMotivoCambio(fila)">{{ linea }}</li>
-                    </ul>
-                  </dd>
-                  <ng-template #motivoBandejaVacio><dd>—</dd></ng-template>
-                </div>
-              </dl>
-              <div class="cp-cambios-acciones cp-cambios-acciones--resumen">
-                <h3>Acciones derivadas de la revisión o para prevenir impactos adversos</h3>
-                <div class="cp-cambios-acciones__tabla">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Acciones</th>
-                        <th>Responsable</th>
-                        <th>Fecha compromiso</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr *ngFor="let accion of accionesResumenCambio(fila)">
-                        <td>{{ accion.descripcion.trim() || '—' }}</td>
-                        <td>{{ accion.responsable.trim() || '—' }}</td>
-                        <td>{{ accion.fechaCompromiso ? formatearFechaProyecto(accion.fechaCompromiso) : '—' }}</td>
-                      </tr>
-                      <tr *ngIf="!accionesResumenCambio(fila).length">
-                        <td>—</td>
-                        <td>—</td>
-                        <td>—</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <footer class="cp-cambios-resumen__estado">
-                <span
-                  class="cp-cambios-estatus"
-                  [class.cp-cambios-estatus--espera]="fila.estatus === 'en_espera'"
-                  [class.cp-cambios-estatus--aprobado]="fila.estatus === 'aprobado'"
-                  [class.cp-cambios-estatus--rechazado]="fila.estatus === 'no_aprobado'"
-                >
-                  <i class="fas" [ngClass]="iconoEstatusCambio(fila)" aria-hidden="true"></i>
-                  {{ etiquetaEstatusCambio(fila) }}
-                </span>
-                <div
-                  class="cp-cambios-resolutor"
-                  *ngIf="fila.resueltoPor"
-                  [class.cp-cambios-resolutor--aprobado]="fila.estatus === 'aprobado'"
-                  [class.cp-cambios-resolutor--rechazado]="fila.estatus !== 'aprobado'"
-                >
-                  <i class="fas" [ngClass]="fila.estatus === 'aprobado' ? 'fa-user-check' : 'fa-user-times'" aria-hidden="true"></i>
-                  <div>
-                    <span>{{ fila.estatus === 'aprobado' ? 'Aprobado por' : 'No aprobado por' }}</span>
-                    <strong>{{ fila.resueltoPor }}</strong>
-                  </div>
-                  <time *ngIf="fechaResolucionCambio(fila)">{{ fechaResolucionCambio(fila) }}</time>
-                </div>
-              </footer>
-            </ng-template>
           </ng-container>
 
           <ng-container *ngIf="!cargando && !errorCarga && vistaActiva === 'eliminados' && esSuperAdministrador">
@@ -2872,98 +2734,12 @@
       *ngIf="!cargandoCambiosProyecto && cambiosProyectoFilas.length"
       [class.cp-cambios-board--vista]="cambiosProyectoPreview !== null"
     >
-      <div
-        class="cp-cambios-nav"
-        (mouseleave)="ocultarVistaCambioProyecto($event)"
-        (focusout)="ocultarVistaCambioProyecto($event)"
-      >
-        <div class="cp-cambios-nav__slot" aria-hidden="true"></div>
-        <div class="cp-cambios-nav__pager">
-          <button
-            type="button"
-            class="cp-cambios-arrow"
-            *ngIf="totalPaginasCambios() > 1"
-            (click)="moverPaginaCambios(-1)"
-            [disabled]="cambiosProyectoPagina === 0"
-            aria-label="Cambios anteriores"
-          >
-            <i class="fas fa-chevron-left" aria-hidden="true"></i>
-          </button>
-          <div class="cp-cambios-nav__tabs" role="tablist" aria-label="Cambios del proyecto">
-            <button
-              type="button"
-              class="cp-cambios-tab"
-              *ngFor="let i of indicesPaginaCambios()"
-              role="tab"
-              [attr.aria-selected]="numeroCambioResaltado(i)"
-              [class.cp-cambios-tab--activo]="numeroCambioResaltado(i)"
-              [ngClass]="claseNumeroCambio(cambiosProyectoFilas[i])"
-              (click)="elegirNumeroCambioProyecto(i)"
-              (mouseenter)="mostrarVistaCambioProyecto(i)"
-              (focus)="mostrarVistaCambioProyecto(i)"
-              [attr.aria-label]="'Cambio ' + (i + 1)"
-            >{{ i + 1 }}</button>
-          </div>
-          <button
-            type="button"
-            class="cp-cambios-arrow"
-            *ngIf="totalPaginasCambios() > 1"
-            (click)="moverPaginaCambios(1)"
-            [disabled]="cambiosProyectoPagina >= totalPaginasCambios() - 1"
-            aria-label="Cambios siguientes"
-          >
-            <i class="fas fa-chevron-right" aria-hidden="true"></i>
-          </button>
-        </div>
-        <div class="cp-cambios-nav__slot">
-        <div class="cp-cambios-nav__tools">
-          <button
-            type="button"
-            class="cp-cambios-nav__add"
-            *ngIf="puedeCorregirCambioActivo()"
-            (click)="corregirCambioActivo()"
-            [disabled]="guardandoCambiosProyecto"
-          >
-            <i class="fas fa-pen" aria-hidden="true"></i>
-            Corregir cambio
-          </button>
-          <button
-            type="button"
-            class="cp-cambios-nav__resumen"
-            [class.cp-cambios-nav__resumen--activo]="cambiosProyectoVista === 'resumen'"
-            (click)="abrirResumenCambiosProyecto()"
-          >
-            <i class="fas fa-list-ul" aria-hidden="true"></i>
-            Resumen
-          </button>
-        </div>
-        </div>
-
-        <div class="cp-cambios-preview" *ngIf="cambioPreviewProyecto() as prev">
-          <div class="cp-cambios-preview__head">
-            <span class="cp-cambios-preview__num">{{ cambiosProyectoPreview + 1 }}</span>
-            <strong>Cambio {{ cambiosProyectoPreview + 1 }}</strong>
-          </div>
-          <div class="cp-cambios-preview__tipos" *ngIf="etiquetasTipoCambio(prev) as tipos">
-            <span
-              class="cp-cambios-chip"
-              *ngFor="let tipo of tipos"
-              [class.cp-cambios-chip--req]="tipo.clave === 'req'"
-              [class.cp-cambios-chip--dis]="tipo.clave === 'dis'"
-              [class.cp-cambios-chip--prod]="tipo.clave === 'prod'"
-            >{{ tipo.texto }}</span>
-            <span class="cp-cambios-chip cp-cambios-chip--vacio" *ngIf="!tipos.length">Sin tipo de cambio</span>
-          </div>
-          <p class="cp-cambios-preview__desc">{{ prev.descripcion.trim() || 'Sin descripción' }}</p>
-        </div>
-      </div>
-
       <div class="cp-cambios-cuerpo">
-        <ng-container *ngIf="cambiosProyectoVista === 'editor'">
+        <ng-container *ngIf="pedidoEnEdicion">
         <ng-container *ngFor="let activo of [cambiosProyectoActivo]">
         <ng-container *ngIf="cambioActivoProyecto() as fila">
           <div class="cp-cambios-editor__head">
-            <span>Cambio {{ cambiosProyectoActivo + 1 }}</span>
+            <span>Registrar cambio</span>
             <div class="cp-cambios-editor__estado">
               <span
                 class="cp-cambios-estatus"
@@ -3125,131 +2901,25 @@
         </ng-container>
         </ng-container>
 
-        <section class="cp-cambios-resumen" *ngIf="cambiosProyectoVista === 'resumen'" aria-label="Resumen de cambios">
-          <header class="cp-cambios-resumen__head">
-            <button type="button" class="cp-cambios-resumen__volver" (click)="volverEditorCambiosProyecto()">
-              <i class="fas fa-arrow-left" aria-hidden="true"></i>
-              Volver
-            </button>
-            <div class="cp-cambios-resumen__titulo">
-              <h3>Resumen de cambios</h3>
-              <p>{{ cambiosSolicitadosCount }} cambio{{ cambiosSolicitadosCount === 1 ? '' : 's' }} en este proyecto</p>
+        <section class="cp-cambios-resumen" *ngIf="!pedidoEnEdicion" aria-label="Historial de cambios">
+          <header class="cp-hist-head">
+            <div>
+              <h3>Historial de cambios</h3>
+              <p>Acciones, responsable y fecha de compromiso</p>
+            </div>
+            <div class="cp-hist-head__tools">
+              <div class="cp-hist-switch" [class.is-reciente]="historialRecientePrimero" role="group" aria-label="Orden del historial">
+                <span class="cp-hist-switch__thumb" aria-hidden="true"></span>
+                <button type="button" class="cp-hist-switch__opt" [class.is-on]="!historialRecientePrimero" [attr.aria-pressed]="!historialRecientePrimero" (click)="elegirOrdenHistorial(false)">Más antiguo</button>
+                <button type="button" class="cp-hist-switch__opt" [class.is-on]="historialRecientePrimero" [attr.aria-pressed]="historialRecientePrimero" (click)="elegirOrdenHistorial(true)">Más reciente</button>
+              </div>
+              <span class="cp-hist-head__count">{{ historialCambiosProyecto.length }} cambio{{ historialCambiosProyecto.length === 1 ? '' : 's' }}</span>
             </div>
           </header>
-          <div class="cp-cambios-resumen__visor" *ngIf="cambioResumenVisible() as fila">
-            <button type="button" class="cp-cambios-resumen__arrow" *ngIf="puedeNavegarResumenCambios()" (click)="moverResumenCambio(-1)" aria-label="Cambio anterior">
-              <i class="fas fa-chevron-left" aria-hidden="true"></i>
-            </button>
-            <article class="cp-cambios-resumen__card">
-            <div class="cp-cambios-resumen__card-head">
-              <span class="cp-cambios-preview__num" [ngClass]="claseNumeroCambio(fila)">{{ cambiosProyectoActivo + 1 }}</span>
-              <strong>Cambio {{ cambiosProyectoActivo + 1 }}</strong>
-              <button type="button" class="cp-cambios-resumen__abrir" (click)="seleccionarCambioProyecto(cambiosProyectoActivo)">Abrir</button>
-            </div>
-            <div class="cp-cambios-resumen__meta">
-              <div class="cp-cambios-resumen__tipo">
-                <span>Tipo de cambio</span>
-                <div class="cp-cambios-preview__tipos">
-                  <span
-                    class="cp-cambios-chip"
-                    *ngFor="let tipo of etiquetasTipoCambio(fila)"
-                    [class.cp-cambios-chip--req]="tipo.clave === 'req'"
-                    [class.cp-cambios-chip--dis]="tipo.clave === 'dis'"
-                    [class.cp-cambios-chip--prod]="tipo.clave === 'prod'"
-                  >{{ tipo.texto }}</span>
-                  <span class="cp-cambios-chip cp-cambios-chip--vacio" *ngIf="!etiquetasTipoCambio(fila).length">Sin tipo de cambio</span>
-                </div>
-              </div>
-              <div class="cp-cambios-resumen__solicitud">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Fecha de solicitud</th>
-                      <th>Solicitó</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>
-                        <div>{{ fechaSolicitudCambio(fila) }}</div>
-                        <p class="cp-cambios-correccion" *ngIf="fechaCorreccionCambio(fila)">Corregido el {{ fechaCorreccionCambio(fila) }}</p>
-                      </td>
-                      <td>{{ solicitoCambio(fila) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <dl class="cp-cambios-resumen__datos">
-              <div>
-                <dt>Descripción</dt>
-                <dd>{{ fila.descripcion.trim() || '—' }}</dd>
-              </div>
-              <div>
-                <dt>Motivo</dt>
-                <dd *ngIf="fila.motivo.trim(); else motivoCambioVacio">
-                  <ul>
-                    <li *ngFor="let linea of lineasMotivoCambio(fila)">{{ linea }}</li>
-                  </ul>
-                </dd>
-                <ng-template #motivoCambioVacio><dd>—</dd></ng-template>
-              </div>
-            </dl>
-            <div class="cp-cambios-acciones cp-cambios-acciones--resumen">
-              <h3>Acciones derivadas de la revisión o para prevenir impactos adversos</h3>
-              <div class="cp-cambios-acciones__tabla">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Acciones</th>
-                      <th>Responsable</th>
-                      <th>Fecha compromiso</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr *ngFor="let accion of accionesResumenCambio(fila)">
-                      <td>{{ accion.descripcion.trim() || '—' }}</td>
-                      <td>{{ accion.responsable.trim() || '—' }}</td>
-                      <td>{{ accion.fechaCompromiso ? formatearFechaProyecto(accion.fechaCompromiso) : '—' }}</td>
-                    </tr>
-                    <tr *ngIf="!accionesResumenCambio(fila).length">
-                      <td>—</td>
-                      <td>—</td>
-                      <td>—</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <footer class="cp-cambios-resumen__estado" *ngIf="fila.estatus !== 'borrador'">
-              <span
-                class="cp-cambios-estatus"
-                [class.cp-cambios-estatus--espera]="fila.estatus === 'en_espera'"
-                [class.cp-cambios-estatus--aprobado]="fila.estatus === 'aprobado'"
-                [class.cp-cambios-estatus--rechazado]="fila.estatus === 'no_aprobado'"
-              >
-                <i class="fas" [ngClass]="iconoEstatusCambio(fila)" aria-hidden="true"></i>
-                {{ etiquetaEstatusCambio(fila) }}
-              </span>
-              <div
-                class="cp-cambios-resolutor"
-                *ngIf="fila.resueltoPor"
-                [class.cp-cambios-resolutor--aprobado]="fila.estatus === 'aprobado'"
-                [class.cp-cambios-resolutor--rechazado]="fila.estatus !== 'aprobado'"
-              >
-                <i class="fas" [ngClass]="fila.estatus === 'aprobado' ? 'fa-user-check' : 'fa-user-times'" aria-hidden="true"></i>
-                <div>
-                  <span>{{ fila.estatus === 'aprobado' ? 'Aprobado por' : 'No aprobado por' }}</span>
-                  <strong>{{ fila.resueltoPor }}</strong>
-                </div>
-                <time *ngIf="fechaResolucionCambio(fila)">{{ fechaResolucionCambio(fila) }}</time>
-              </div>
-            </footer>
-            </article>
-            <button type="button" class="cp-cambios-resumen__arrow" *ngIf="puedeNavegarResumenCambios()" (click)="moverResumenCambio(1)" aria-label="Cambio siguiente">
-              <i class="fas fa-chevron-right" aria-hidden="true"></i>
-            </button>
-          </div>
+          <p class="cp-solicitudes__vacio" *ngIf="!historialCambiosProyecto.length">Este proyecto aún no tiene cambios registrados.</p>
+          <ng-container *ngFor="let item of ordenarHistorial(historialCambiosProyecto); trackBy: trackHistorialItem">
+            <ng-container *ngTemplateOutlet="histCard; context: { $implicit: item.fila, numero: item.numero }"></ng-container>
+          </ng-container>
         </section>
       </div>
     </div>
@@ -3293,6 +2963,83 @@
         <i class="fas" [ngClass]="guardandoCambiosProyecto ? 'fa-spinner fa-spin' : 'fa-paper-plane'" aria-hidden="true"></i>
         Registrar cambio
       </button>
+    </div>
+  </footer>
+</section>
+
+<ng-template #histCard let-fila let-numero="numero">
+  <article class="cp-hist-card" [ngClass]="claseNumeroCambio(fila)">
+    <header class="cp-hist-card__head">
+      <span class="cp-cambios-preview__num" [ngClass]="claseNumeroCambio(fila)">{{ numero }}</span>
+      <strong>Cambio {{ numero }}</strong>
+    </header>
+    <div class="cp-hist-card__tabla">
+      <table>
+        <thead>
+          <tr>
+            <th>Acciones</th>
+            <th>Responsable</th>
+            <th>Fecha compromiso</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let accion of accionesResumenCambio(fila)">
+            <td>{{ (accion.descripcion || '').trim() || '—' }}</td>
+            <td>{{ (accion.responsable || '').trim() || '—' }}</td>
+            <td>{{ accion.fechaCompromiso ? formatearFechaProyecto(accion.fechaCompromiso) : '—' }}</td>
+          </tr>
+          <tr *ngIf="!accionesResumenCambio(fila).length">
+            <td>—</td>
+            <td>—</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
+</ng-template>
+
+<div class="cp-cambios-backdrop" *ngIf="solicitudHistorialAbierto" (click)="cerrarHistorialSolicitud()" aria-hidden="true"></div>
+<section
+  class="cp-cambios-modal"
+  *ngIf="solicitudHistorialAbierto as grupo"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="cp-sol-hist-title"
+>
+  <header class="cp-cambios-modal__head">
+    <div>
+      <p class="cp-cambios-modal__eyebrow">Historial de cambios</p>
+      <h2 id="cp-sol-hist-title" class="cp-cambios-modal__title">{{ grupo.nombreProyecto }}</h2>
+      <p class="cp-cambios-modal__folio" *ngIf="grupo.folio">{{ grupo.folio }}</p>
+    </div>
+    <button type="button" class="cp-cambios-modal__close" (click)="cerrarHistorialSolicitud()" aria-label="Cerrar historial">
+      <i class="fas fa-times"></i>
+    </button>
+  </header>
+  <div class="cp-cambios-modal__body">
+    <header class="cp-hist-head">
+      <div>
+        <h3>Cambios del proyecto</h3>
+        <p>Acciones, responsable y fecha de compromiso</p>
+      </div>
+      <div class="cp-hist-head__tools">
+        <div class="cp-hist-switch" [class.is-reciente]="historialRecientePrimero" role="group" aria-label="Orden del historial">
+          <span class="cp-hist-switch__thumb" aria-hidden="true"></span>
+          <button type="button" class="cp-hist-switch__opt" [class.is-on]="!historialRecientePrimero" [attr.aria-pressed]="!historialRecientePrimero" (click)="elegirOrdenHistorial(false)">Más antiguo</button>
+          <button type="button" class="cp-hist-switch__opt" [class.is-on]="historialRecientePrimero" [attr.aria-pressed]="historialRecientePrimero" (click)="elegirOrdenHistorial(true)">Más reciente</button>
+        </div>
+        <span class="cp-hist-head__count">{{ grupo.cambios.length }} cambio{{ grupo.cambios.length === 1 ? '' : 's' }}</span>
+      </div>
+    </header>
+    <ng-container *ngFor="let item of ordenarHistorial(grupo.cambios); trackBy: trackHistorialItem">
+      <ng-container *ngTemplateOutlet="histCard; context: { $implicit: item.fila, numero: item.numero }"></ng-container>
+    </ng-container>
+  </div>
+  <footer class="cp-cambios-modal__foot">
+    <div class="cp-cambios-modal__actions">
+      <span class="cp-cambios-modal__spacer"></span>
+      <button type="button" class="cp-cambios-btn cp-cambios-btn--ghost" (click)="cerrarHistorialSolicitud()">Cerrar</button>
     </div>
   </footer>
 </section>

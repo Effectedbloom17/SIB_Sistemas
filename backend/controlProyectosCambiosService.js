@@ -683,13 +683,11 @@ async function listarAvisos(pool, username, opciones = {}) {
            ${incluirSilenciados ? '' : 'AND a.silenciado = 0'}
            AND (
                 (a.tipo = 'pedido' AND p.estatus = 'pendiente')
-                OR a.tipo = 'confirmacion'
                 OR ${incluirSilenciados ? '0' : "a.tipo = 'respuesta'"}
                 OR (c.estatus = 'en_espera' AND a.tipo IN ('revision', 'recordatorio', 'recordatorio_urgente'))
            )
          ORDER BY CASE a.tipo
                     WHEN 'pedido' THEN 0
-                    WHEN 'confirmacion' THEN 1
                     WHEN 'respuesta' THEN 1
                     WHEN 'recordatorio_urgente' THEN 2
                     ELSE 3
@@ -1213,51 +1211,7 @@ async function llenarPedido(pool, opciones = {}) {
     } finally {
         conn.release();
     }
-    if (pedido && opciones.poolUsuarios && cambioId) {
-        await notificarConfirmacionPedido(pool, opciones.poolUsuarios, {
-            pedido,
-            cambioId,
-            empresaId,
-            folio,
-            nombreProyecto,
-            registradoPor: usuario,
-            fechaHora
-        });
-    }
     return listar(pool, { empresaId, folio, nombreProyecto });
-}
-
-async function notificarConfirmacionPedido(pool, poolUsuarios, aviso) {
-    const userId = Number(aviso.pedido?.solicitado_usuario_id);
-    if (!Number.isInteger(userId) || userId <= 0) return;
-    try {
-        const [users] = await poolUsuarios.query(
-            `SELECT username, nombre, apellido
-             FROM usuario
-             WHERE id = ? AND activo = 1
-             LIMIT 1`,
-            [userId]
-        );
-        const persona = users?.[0];
-        const username = String(persona?.username || '').trim().toLowerCase();
-        if (!username) return;
-        const quien = recortarTexto(aviso.registradoPor, 80) || 'El encargado';
-        const proyecto = recortarTexto(aviso.nombreProyecto || aviso.folio, 72) || 'el proyecto';
-        await insertarAviso(pool, {
-            cambioId: aviso.cambioId,
-            pedidoId: aviso.pedido.id,
-            username,
-            tipo: 'confirmacion',
-            mensaje: `${quien} registró el cambio que solicitaste en «${proyecto}».`,
-            empresaId: aviso.empresaId,
-            folio: aviso.folio,
-            nombreProyecto: aviso.nombreProyecto,
-            solicitadoPor: aviso.pedido.solicitado_por || nombreUsuario(persona),
-            fechaHora: aviso.fechaHora
-        });
-    } catch (error) {
-        console.warn('[cambios] No se pudo confirmar el pedido:', error.message);
-    }
 }
 
 async function procesarRecordatorios() {

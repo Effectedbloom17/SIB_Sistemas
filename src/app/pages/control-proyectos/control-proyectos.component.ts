@@ -629,6 +629,8 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
   filtroSolicitudesAbierto = false;
   solicitudBandejaIndice = 0;
   solicitudBandejaPreview: number | null = null;
+  solicitudProyectoAbierta = '';
+  historialRecientePrimero = false;
   quitarCambioDescubierto = false;
   corrigiendoCambioIndice = -1;
   private correccionClon: CambioProyectoFila | null = null;
@@ -763,6 +765,12 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
       this.cerrarPedidoCambio();
       return;
     }
+    if (this.solicitudProyectoAbierta) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.cerrarHistorialSolicitud();
+      return;
+    }
     if (this.cambiosProyectoAbierto) {
       event.preventDefault();
       event.stopPropagation();
@@ -839,6 +847,11 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
 
     const yaEstabaEnGestion = this.vistaActiva === 'gestion';
     this.vistaActiva = vista;
+    if (vista === 'dashboard') {
+      if (!this.carruselDashTimer) this.iniciarCarruselDashboard();
+    } else {
+      this.detenerCarruselDashboard();
+    }
 
     if (vista === 'gestion') {
       // Evita refrescar si ya estás en Gestión o hay ediciones en curso (rompe la tabla).
@@ -1811,6 +1824,10 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     return this.cambiosProyectoFilas.filter((fila) => fila.estatus !== 'borrador').length;
   }
 
+  get historialCambiosProyecto(): CambioProyectoFila[] {
+    return this.cambiosProyectoFilas.filter((fila) => !!fila.id);
+  }
+
   puedeSolicitarCambioActivo(): boolean {
     const fila = this.cambioActivoProyecto();
     if (!fila || this.cambiosProyectoSoloLectura || this.cambiosProyectoVista !== 'editor') return false;
@@ -1982,6 +1999,82 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     return this.solicitudesCambio;
   }
 
+  get solicitudesPorProyecto(): Array<{
+    clave: string;
+    folio: string;
+    nombreProyecto: string;
+    cambios: Array<CambioProyectoFila & { empresaId: number | null; folio: string; nombreProyecto: string }>;
+  }> {
+    const grupos = new Map<string, {
+      clave: string;
+      folio: string;
+      nombreProyecto: string;
+      cambios: Array<CambioProyectoFila & { empresaId: number | null; folio: string; nombreProyecto: string }>;
+    }>();
+    this.solicitudesFiltradas.forEach((fila) => {
+      const clave = `${fila.empresaId || 'sin-empresa'}|${this.normalizar(fila.folio || fila.nombreProyecto)}`;
+      const grupo = grupos.get(clave) || {
+        clave,
+        folio: fila.folio,
+        nombreProyecto: fila.nombreProyecto || 'Proyecto',
+        cambios: []
+      };
+      grupo.cambios.push(fila);
+      grupos.set(clave, grupo);
+    });
+    return [...grupos.values()];
+  }
+
+  elegirOrdenHistorial(reciente: boolean): void {
+    this.historialRecientePrimero = reciente;
+  }
+
+  ordenarHistorial<T extends CambioProyectoFila>(filas: T[]): Array<{ fila: T; numero: number }> {
+    const numerados = filas
+      .map((fila) => ({ fila, marca: this.marcaTiempoCambio(fila) }))
+      .sort((a, b) => a.marca - b.marca || (Number(a.fila.id) || 0) - (Number(b.fila.id) || 0))
+      .map((item, indice) => ({ fila: item.fila, numero: indice + 1 }));
+    return this.historialRecientePrimero ? numerados.reverse() : numerados;
+  }
+
+  trackHistorialItem(indice: number, item: { fila: { id?: number | null } }): number {
+    return item?.fila?.id || indice;
+  }
+
+  private marcaTiempoCambio(fila: { id?: number | null; solicitadoEn?: string; creadoEn?: string }): number {
+    const texto = String(fila?.solicitadoEn || fila?.creadoEn || '').trim().replace(' ', 'T');
+    const tiempo = Date.parse(texto);
+    if (Number.isFinite(tiempo)) return tiempo;
+    return Number(fila?.id) || 0;
+  }
+
+  abrirHistorialSolicitud(clave: string): void {
+    this.solicitudProyectoAbierta = clave;
+    this.filtroSolicitudesAbierto = false;
+  }
+
+  cerrarHistorialSolicitud(): void {
+    this.solicitudProyectoAbierta = '';
+  }
+
+  get solicitudHistorialAbierto(): {
+    clave: string;
+    folio: string;
+    nombreProyecto: string;
+    cambios: Array<CambioProyectoFila & { empresaId: number | null; folio: string; nombreProyecto: string }>;
+  } | null {
+    if (!this.solicitudProyectoAbierta) return null;
+    return this.solicitudesPorProyecto.find((grupo) => grupo.clave === this.solicitudProyectoAbierta) || null;
+  }
+
+  trackSolicitudProyecto(_indice: number, grupo: { clave: string }): string {
+    return grupo.clave;
+  }
+
+  trackCambioSolicitud(indice: number, fila: { id?: number | null }): number {
+    return fila?.id || indice;
+  }
+
   get solicitudBandejaActiva(): (CambioProyectoFila & { empresaId: number | null; folio: string; nombreProyecto: string }) | null {
     const lista = this.solicitudesFiltradas;
     if (!lista.length) return null;
@@ -1999,6 +2092,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     this.filtroSolicitudesCambio = filtro;
     this.solicitudBandejaIndice = 0;
     this.solicitudBandejaPreview = null;
+    this.solicitudProyectoAbierta = '';
     this.filtroSolicitudesAbierto = false;
   }
 
@@ -3832,6 +3926,20 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
     } as ProyectoTableroItem) === clave) || null;
   }
 
+  private enfocarPedidoEnModalAbierto(): void {
+    if (!this.cambiosProyectoAbierto || !this.cambiosProyectoMeta || this.pedidoEnEdicion) return;
+    const pedido = this.pedidoPendienteDe(this.cambiosProyectoMeta);
+    if (!pedido) return;
+    this.pedidoEnEdicion = pedido;
+    this.pedidoNotaAviso = pedido.nota || '';
+    this.cambiosProyectoSoloLectura = false;
+    this.cambiosProyectoVista = 'editor';
+    if (!this.cambiosProyectoFilas.some((fila) => !fila.id)) {
+      this.cambiosProyectoFilas = [...this.cambiosProyectoFilas, this.filaCambioVacia()];
+    }
+    this.enfocarBorradorPedido();
+  }
+
   private enfocarBorradorPedido(): void {
     if (!this.pedidoEnEdicion) return;
     const vacio = this.cambiosProyectoFilas.findIndex((fila) => !fila.id);
@@ -3857,6 +3965,7 @@ export class ControlProyectosComponent implements OnInit, OnDestroy {
             solicitadoPor: String(pedido?.solicitadoPor || '')
           })).filter((pedido: PedidoCambioPendiente) => pedido.id > 0);
           this.pedidosListos = true;
+          this.enfocarPedidoEnModalAbierto();
           if (this.folioQueryPendiente && this.gestionAgrupadaLista.length) {
             this.abrirProyectoDesdeQuery();
           }
