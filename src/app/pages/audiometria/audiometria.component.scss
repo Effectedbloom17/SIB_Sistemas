@@ -402,20 +402,12 @@
 }
 
 .formula-ayuda__pasos {
-  margin: 0 0 0.9rem;
+  margin: 0;
   padding-left: 1.15rem;
 
   li + li {
     margin-top: 0.35rem;
   }
-}
-
-.formula-ayuda__ejemplo {
-  margin: 0;
-  padding: 0.75rem 0.9rem;
-  background: #f4f8fc;
-  border-radius: 10px;
-  color: #3d5a73;
 }
 
 .interpretacion-card {

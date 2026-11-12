@@ -1,0 +1,218 @@
+<div class="header header-bg-image pb-4 pt-3 pt-md-4 d-flex align-items-center position-relative overflow-hidden">
+  <div class="container-fluid d-flex align-items-center justify-content-center position-relative" style="z-index: 2;">
+    <div class="text-center">
+      <div class="icon icon-shape text-white rounded-circle shadow mb-2 header-icon">
+        <i class="fas fa-calendar-check"></i>
+      </div>
+      <h1 class="text-white mb-0 header-title">Programación de estudios médicos</h1>
+      <p class="text-white-50 mb-0 mt-1">SP-F-30</p>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt--3 programacion-page">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+
+      <div *ngIf="vistaActual === 'empresas'" class="card shadow-lg border-0 panel">
+        <div class="card-header border-0 panel-header">
+          <div class="row align-items-center">
+            <div class="col-lg-7">
+              <h6 class="text-uppercase text-muted ls-1 mb-1">Gestión</h6>
+              <h2 class="panel-title mb-0">Seleccionar empresa ({{ empresasFiltradas.length }})</h2>
+            </div>
+            <div class="col-lg-5 mt-3 mt-lg-0">
+              <div class="input-group input-group-alternative">
+                <div class="input-group-prepend">
+                  <span class="input-group-text"><i class="fas fa-search"></i></span>
+                </div>
+                <input class="form-control" placeholder="Buscar por nombre o RFC..." [(ngModel)]="textoBusquedaEmpresa" (input)="filtrarEmpresas()">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div *ngIf="cargandoEmpresas" class="text-center py-5 text-muted">
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+            <p class="mt-2 mb-0">Cargando empresas...</p>
+          </div>
+          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length === 0" class="text-center py-5 text-muted">
+            <i class="fas fa-building fa-2x"></i>
+            <p class="mt-2 mb-0">No hay empresas registradas</p>
+          </div>
+          <div *ngIf="!cargandoEmpresas && empresasFiltradas.length > 0" class="row">
+            <div *ngFor="let empresa of empresasFiltradas" class="col-lg-4 col-md-6 mb-4">
+              <div class="card h-100 shadow-sm border-0 empresa-card" (click)="seleccionarEmpresa(empresa)">
+                <div class="card-body">
+                  <div class="d-flex align-items-center mb-3">
+                    <span *ngIf="!getLogoEmpresaUrl(empresa)" class="avatar-empresa">{{ getInicialesEmpresa(empresa.nombre_empresa) }}</span>
+                    <img *ngIf="getLogoEmpresaUrl(empresa)" [src]="getLogoEmpresaUrl(empresa)" [alt]="empresa.nombre_empresa" class="logo-empresa" (error)="onLogoEmpresaError(empresa)">
+                    <div>
+                      <h5 class="mb-0 empresa-nombre">{{ empresa.nombre_empresa }}</h5>
+                      <small class="text-muted d-block">RFC: {{ empresa.rfc || '—' }}</small>
+                    </div>
+                  </div>
+                  <div class="d-flex justify-content-between">
+                    <small class="text-muted">Programaciones</small>
+                    <small class="font-weight-bold">{{ empresa.programaciones_totales || 0 }}</small>
+                  </div>
+                  <div class="text-right mt-3 ver-link">Ver programaciones <i class="fas fa-arrow-right ml-1"></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="vistaActual === 'lista'" class="card shadow-lg border-0 panel">
+        <div class="card-header border-0 panel-header">
+          <button class="btn btn-link p-0 text-muted mb-2" type="button" (click)="volverAEmpresas()">
+            <i class="fas fa-arrow-left mr-1"></i> Volver a empresas
+          </button>
+          <div class="d-flex align-items-center justify-content-between flex-wrap">
+            <div class="d-flex align-items-center mb-2">
+              <img *ngIf="getLogoEmpresaUrl()" [src]="getLogoEmpresaUrl()" class="logo-empresa mr-3" [alt]="empresaSeleccionada?.nombre_empresa" (error)="onLogoEmpresaError()">
+              <div>
+                <h2 class="panel-title mb-0">{{ empresaSeleccionada?.nombre_empresa }}</h2>
+                <h6 class="text-uppercase text-muted ls-1 mb-0 mt-1">Archivero SP-F-30</h6>
+              </div>
+            </div>
+            <button class="btn btn-primary mb-2" type="button" (click)="nuevaProgramacion()">
+              <i class="fas fa-plus mr-1"></i> Nueva programación
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div *ngIf="cargandoLista" class="text-center py-5 text-muted">
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+          </div>
+          <div *ngIf="!cargandoLista && programaciones.length === 0" class="text-center py-5 text-muted">
+            <p class="mb-0">Esta empresa todavía no tiene programaciones.</p>
+          </div>
+          <div class="table-responsive" *ngIf="!cargandoLista && programaciones.length">
+            <table class="table align-items-center mb-0">
+              <thead>
+                <tr>
+                  <th>Hoja</th>
+                  <th>Fecha de programación</th>
+                  <th>Persona que acude</th>
+                  <th>Estudios</th>
+                  <th>Firmado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let item of programaciones">
+                  <td class="font-weight-bold">{{ item.hoja_titulo }}</td>
+                  <td>{{ item.fecha_programacion }}</td>
+                  <td>{{ item.persona_acude || '—' }}</td>
+                  <td>{{ item.fecha_realizacion || '—' }}</td>
+                  <td>
+                    <a *ngIf="item.pdf_url" [href]="item.pdf_url" target="_blank" rel="noopener">PDF</a>
+                    <span *ngIf="!item.pdf_url" class="text-muted">Pendiente</span>
+                  </td>
+                  <td class="text-right text-nowrap">
+                    <button class="btn btn-sm btn-outline-primary mr-2" type="button" (click)="editarProgramacion(item)">Abrir</button>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" (click)="quitarProgramacion(item)">Quitar</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="vistaActual === 'formulario'" class="card shadow-lg border-0 panel">
+        <div class="card-header border-0 panel-header">
+          <button class="btn btn-link p-0 text-muted mb-2" type="button" (click)="volverALista()">
+            <i class="fas fa-arrow-left mr-1"></i> Volver al archivero
+          </button>
+          <h2 class="panel-title mb-1">{{ editandoId ? 'Editar programación' : 'Nueva programación' }}</h2>
+          <p class="text-muted mb-0">
+            La plantilla de Excel no se modifica. Cada guardado escribe una hoja en el archivero.
+            <span *ngIf="nombreHoja"> El nombre de la hoja será <strong>{{ nombreHoja }}</strong>.</span>
+          </p>
+        </div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="form-group col-md-4">
+              <label>Fecha de la programación</label>
+              <input class="form-control" type="date" [(ngModel)]="formulario.fechaProgramacion">
+            </div>
+            <div class="form-group col-md-3">
+              <label>Siglas de la empresa</label>
+              <input class="form-control text-uppercase" maxlength="12" [(ngModel)]="formulario.siglas">
+            </div>
+            <div class="form-group col-md-5">
+              <label>Persona que acude</label>
+              <input class="form-control" [(ngModel)]="formulario.personaAcude">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group col-md-4">
+              <label>Fecha de realización de estudios</label>
+              <input class="form-control" type="date" [(ngModel)]="formulario.fechaRealizacion">
+            </div>
+            <div class="form-group col-md-8 d-flex align-items-end">
+              <p class="text-muted mb-3">Empresa: {{ empresaSeleccionada?.nombre_empresa }}</p>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Trabajadores</h5>
+            <button class="btn btn-sm btn-outline-primary" type="button" (click)="agregarFila()">Agregar fila</button>
+          </div>
+          <div class="table-responsive mb-3">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Día</th>
+                  <th>Nombre</th>
+                  <th>Área / puesto</th>
+                  <th>Tipo de estudio</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let fila of formulario.filas; let i = index">
+                  <td><input class="form-control form-control-sm" [(ngModel)]="fila.dia" placeholder="Día"></td>
+                  <td><input class="form-control form-control-sm" [(ngModel)]="fila.nombre"></td>
+                  <td><input class="form-control form-control-sm" [(ngModel)]="fila.areaPuesto"></td>
+                  <td>
+                    <div class="tipos-estudio">
+                      <label *ngFor="let tipo of tiposEstudio" class="tipo-check">
+                        <input type="checkbox" [checked]="tieneTipo(fila, tipo)" (change)="cambiarTipo(fila, tipo, $event)">
+                        {{ tipo }}
+                      </label>
+                    </div>
+                  </td>
+                  <td><button class="btn btn-sm btn-link text-danger" type="button" (click)="quitarFila(i)">Quitar</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="form-group">
+            <label>Observaciones</label>
+            <textarea class="form-control" rows="3" [(ngModel)]="formulario.observaciones"></textarea>
+          </div>
+
+          <div class="d-flex flex-wrap align-items-center">
+            <button class="btn btn-primary mr-2 mb-2" type="button" (click)="guardar()" [disabled]="guardando">
+              <i class="fas fa-save mr-1"></i> {{ guardando ? 'Guardando...' : 'Guardar' }}
+            </button>
+            <button class="btn btn-outline-primary mr-2 mb-2" type="button" (click)="abrirExcel()" [disabled]="!driveUrl">
+              Abrir Excel
+            </button>
+            <label class="btn btn-outline-secondary mb-2 mr-2" [class.disabled]="!editandoId || subiendoPdf">
+              {{ subiendoPdf ? 'Subiendo PDF...' : 'Subir versión firmada' }}
+              <input type="file" accept="application/pdf,.pdf" hidden (change)="onPdfSeleccionado($event)" [disabled]="!editandoId || subiendoPdf">
+            </label>
+            <button *ngIf="pdfUrl" class="btn btn-link mb-2" type="button" (click)="abrirPdf()">{{ pdfNombre || 'Ver PDF firmado' }}</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

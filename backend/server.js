@@ -2896,6 +2896,11 @@ function puedeEditarFechaElaboracionDgF04(req) {
     return userRoles.includes('root') || esGestorCalidadSgc(req);
 }
 
+/** DG-F-05: la fecha del listado usa el mismo privilegio (root o Calidad). */
+function puedeEditarFechaDgF05(req) {
+    return puedeEditarFechaElaboracionDgF04(req);
+}
+
 function extraerFormatoCodigoSgcDeRuta(req) {
     const raw = String(req.originalUrl || req.url || req.path || '');
     const pathOnly = raw.split('?')[0];
@@ -24747,6 +24752,14 @@ registrarRutasAudiometria(app, {
     dbMedicos: DB_NAME_MEDICOS
 });
 
+const { registrarRutasProgramacionEstudios } = require('./programacionEstudiosRoutes');
+registrarRutasProgramacionEstudios(app, {
+    getPoolMedicos: () => poolMedicos,
+    poolMedicosReady,
+    getPool: () => pool,
+    dbMedicos: DB_NAME_MEDICOS
+});
+
 // =====================================================
 // GENERAR REPORTE DE SALUD EN GOOGLE SLIDES
 // =====================================================
@@ -28246,7 +28259,9 @@ app.get('/api/sgc/formatos/dg-f-05', requireAdminOrSgc, async (req, res) => {
 app.post('/api/sgc/formatos/dg-f-05/guardar', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const payload = await sgcDgF05Service.guardarFormato(poolBiznagaSgc, req.body || {});
+        const payload = await sgcDgF05Service.guardarFormato(poolBiznagaSgc, req.body || {}, {
+            respetarFechaElaboracion: puedeEditarFechaDgF05(req)
+        });
         return res.json({
             success: true,
             message: 'Formato DG-F-05 guardado y sincronizado con Drive.',
@@ -28260,7 +28275,9 @@ app.post('/api/sgc/formatos/dg-f-05/guardar', requireAdminOrSgc, async (req, res
 app.post('/api/sgc/formatos/dg-f-05/sincronizar-drive', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
-        const payload = await sgcDgF05Service.sincronizarDesdeDrive(poolBiznagaSgc);
+        const payload = await sgcDgF05Service.sincronizarDesdeDrive(poolBiznagaSgc, {
+            respetarFechaElaboracion: puedeEditarFechaDgF05(req)
+        });
         return res.json({
             success: true,
             message: 'Cambios del editor integrado importados desde Drive.',

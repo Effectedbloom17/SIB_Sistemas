@@ -585,8 +585,11 @@ function formatearUltimaSyncDisplay(registro, archivoDrive) {
     return null;
 }
 
-function fechaHoyIso() {
-    return formatearFechaIso(new Date());
+function fechaVisibleRegistro(contenidoModificado, fechaModificacion, fechaOriginal) {
+    const mod = formatearFechaIso(fechaModificacion);
+    const original = formatearFechaIso(fechaOriginal);
+    if (contenidoModificado && mod) return mod;
+    return original || '';
 }
 
 function sanitizarFilas(filas) {
@@ -2329,6 +2332,15 @@ async function guardarFormatoInterno(pool, body, options = {}) {
         }
     }
 
+    // Solo root o Calidad pueden fijar la fecha. El resto conserva la que ya está en BD.
+    const fechaManual = options.respetarFechaElaboracion
+        ? formatearFechaIso(datosEntrada.fechaElaboracion)
+        : '';
+    const fechaVisiblePrevia = fechaVisibleRegistro(contenidoModificado, fechaModificacion, fechaOriginal)
+        || DATOS_DEFECTO.fechaElaboracion;
+    const fechaParaHoja = fechaManual || fechaVisiblePrevia;
+    datosEntrada.fechaElaboracion = fechaParaHoja;
+
     const huboCambio = !datosPrevios || !datosSonEquivalentes(datosPrevios, datosEntrada);
 
     if (!huboCambio && registroPrevio?.drive_file_id) {
@@ -2341,14 +2353,30 @@ async function guardarFormatoInterno(pool, body, options = {}) {
     const driveId = await resolverDriveFileId(registroPrevio);
     let datosGuardar = { ...datosEntrada };
 
+    const aplicarFechaGuardada = () => {
+        if (fechaManual) {
+            if (contenidoModificado) {
+                fechaModificacion = fechaManual;
+            } else {
+                fechaOriginal = fechaManual;
+            }
+        } else if (contenidoModificado && !fechaModificacion) {
+            fechaModificacion = fechaVisiblePrevia;
+        }
+        datosGuardar.fechaElaboracion = fechaVisibleRegistro(
+            contenidoModificado,
+            fechaModificacion,
+            fechaOriginal
+        ) || fechaParaHoja;
+    };
+
     if (driveId && driveId !== TEMPLATE_DRIVE_ID) {
         try {
             const infoDrive = await driveService.obtenerInfoArchivo(driveId).catch(() => null);
             if (infoDrive?.mimeType === 'application/vnd.google-apps.spreadsheet') {
                 await eliminarHojasHistorialFormatoDgF05(driveId);
-                const fechaCambio = fechaHoyIso();
                 const datosHistorial = origen !== 'consulta'
-                    ? { ...datosEntrada, fechaElaboracion: fechaCambio }
+                    ? { ...datosEntrada, fechaElaboracion: fechaParaHoja }
                     : datosEntrada;
                 const hist = await aplicarHistorialDgF05({
                     spreadsheetId: driveId,
@@ -2360,12 +2388,9 @@ async function guardarFormatoInterno(pool, body, options = {}) {
 
                 if (hist.aplicado && origen !== 'consulta') {
                     contenidoModificado = true;
-                    fechaModificacion = fechaCambio;
                 }
 
-                datosGuardar.fechaElaboracion = contenidoModificado && fechaModificacion
-                    ? fechaModificacion
-                    : fechaOriginal;
+                aplicarFechaGuardada();
 
                 let archivoDrive = null;
                 const tituloSync = String(hist.hojaVigente || '').trim()
@@ -2396,9 +2421,7 @@ async function guardarFormatoInterno(pool, body, options = {}) {
         }
     }
 
-    datosGuardar.fechaElaboracion = contenidoModificado && fechaModificacion
-        ? fechaModificacion
-        : fechaOriginal;
+    aplicarFechaGuardada();
 
     // Fallback: no reemplazar el archivo sistema. Adoptar plantilla en hoja del mes y volcar datos.
     const driveTrabajo = driveId || await resolverDriveFileId(registroPrevio);
@@ -2432,7 +2455,7 @@ async function guardarFormatoInterno(pool, body, options = {}) {
     return await construirRespuesta(registro, datosGuardar, archivoDrive);
 }
 
-async function sincronizarDesdeDrive(pool) {
+async function sincronizarDesdeDrive(pool, options = {}) {
     await asegurarTablaSgcFormatoDatos(pool);
     const registro = await obtenerRegistroDb(pool);
     const driveId = await resolverDriveFileId(registro);
@@ -2464,6 +2487,14 @@ async function sincronizarDesdeDrive(pool) {
         }
     }
 
+    const fechaManual = options.respetarFechaElaboracion
+        ? formatearFechaIso(datosDrive.fechaElaboracion)
+        : '';
+    const fechaVisiblePrevia = fechaVisibleRegistro(contenidoModificado, fechaModificacion, fechaOriginal)
+        || DATOS_DEFECTO.fechaElaboracion;
+    const fechaParaHoja = fechaManual || fechaVisiblePrevia;
+    datosDrive.fechaElaboracion = fechaParaHoja;
+
     const huboCambio = !datosPrevios || !datosSonEquivalentes(datosPrevios, datosDrive);
     if (!huboCambio) {
         const archivoDrive = await driveService
@@ -2472,25 +2503,32 @@ async function sincronizarDesdeDrive(pool) {
         return await construirRespuesta(registro, datosDrive, archivoDrive);
     }
 
-    const fechaCambio = fechaHoyIso();
     const hist = await aplicarHistorialDgF05({
         spreadsheetId: driveId,
         datosPrevios,
-        datosNuevos: { ...datosDrive, fechaElaboracion: fechaCambio },
+        datosNuevos: { ...datosDrive, fechaElaboracion: fechaParaHoja },
         origen: 'drive'
     });
 
     const datosGuardar = hist.datosGuardar;
     if (hist.aplicado) {
         contenidoModificado = true;
-        fechaModificacion = hist.tipoCambio === 'formato'
-            ? (datosGuardar.fechaRevision || excelHistorial.fechaAhoraMexicoIso())
-            : fechaCambio;
+    }
+    if (fechaManual) {
+        if (contenidoModificado) {
+            fechaModificacion = fechaManual;
+        } else {
+            fechaOriginal = fechaManual;
+        }
+    } else if (contenidoModificado && !fechaModificacion) {
+        fechaModificacion = fechaVisiblePrevia;
     }
 
-    datosGuardar.fechaElaboracion = contenidoModificado && fechaModificacion
-        ? fechaModificacion
-        : fechaOriginal;
+    datosGuardar.fechaElaboracion = fechaVisibleRegistro(
+        contenidoModificado,
+        fechaModificacion,
+        fechaOriginal
+    ) || fechaParaHoja;
 
     await guardarRegistroDb(pool, {
         driveFileId: driveId,

@@ -1509,6 +1509,11 @@
                           </small>
                         </div>
                         <div class="dg-f02-attach__file-actions" *ngIf="perf.pdfFirmado?.driveFileId">
+                          <button type="button" class="btn btn-sm dg-f02-attach__file-btn"
+                            (click)="toggleAthF02PdfViewer(pdf)">
+                            <i class="fas fa-eye mr-1" aria-hidden="true"></i>
+                            Abrir
+                          </button>
                           <button type="button" class="btn btn-sm dg-f02-attach__file-btn dg-f02-attach__file-btn--update"
                             [disabled]="athF02SubiendoPdf"
                             (click)="athF02InputActualizarPdf.click()">
@@ -4777,12 +4782,24 @@
                     <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'DG-F-05', titulo: 'Listado de partes interesadas', icono: 'fa-users' }"></ng-container>
 
                     <div class="dg-f05-table-panel">
-                      <div class="sgc-f-11-matriz__intro">
+                      <div class="sgc-f-11-matriz__intro dg-f05-intro">
                         <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-users" aria-hidden="true"></i></div>
-                        <div>
+                        <div class="dg-f05-intro-copy">
                           <h4 class="sgc-f-11-matriz__title">Partes interesadas y requisitos</h4>
                           <p class="sgc-f-11-matriz__hint">Partes interesadas internas y externas, sus necesidades y expectativas, nivel de influencia y seguimiento.</p>
                         </div>
+                        <label class="dg-f05-fecha-apartado">
+                          <span class="dg-f05-fecha-apartado__label">Fecha</span>
+                          <input class="dg-f05-fecha-apartado__input" type="date"
+                            name="dgF05_fecha" [(ngModel)]="dgF05Form.fechaElaboracion"
+                            [readonly]="!puedeEditarFechaElaboracionDgF05"
+                            [class.is-bloqueada]="!puedeEditarFechaElaboracionDgF05"
+                            [attr.tabindex]="puedeEditarFechaElaboracionDgF05 ? null : -1"
+                            [title]="puedeEditarFechaElaboracionDgF05
+                              ? 'Puedes cambiar la fecha. Se guarda con el formato.'
+                              : 'Solo el super administrador y Calidad pueden editar esta fecha.'"
+                            autocomplete="off">
+                        </label>
                       </div>
                       <div class="dg-f05-table-wrap">
                         <table class="dg-f05-table">
@@ -19571,6 +19588,40 @@
         (load)="onAthF02IframeLoad()"
         allow="clipboard-read; clipboard-write"
         sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-popups-to-escape-sandbox">
+      </iframe>
+    </div>
+  </div>
+</div>
+
+<div class="sgc-drive-editor-fullscreen" *ngIf="mostrarAthF02PdfViewer"
+  role="dialog" aria-modal="true" aria-label="Visor PDF ATH-F-02">
+  <div class="sgc-drive-editor-fullscreen__backdrop" (click)="toggleAthF02PdfViewer()"></div>
+  <div class="sgc-drive-editor-fullscreen__panel">
+    <div class="sgc-drive-editor-fullscreen__head">
+      <div class="sgc-drive-editor-fullscreen__title-wrap">
+        <span class="sgc-drive-editor-fullscreen__icon">
+          <i class="fas fa-file-pdf" aria-hidden="true"></i>
+        </span>
+        <div>
+          <strong class="sgc-drive-editor-fullscreen__title">{{ athF02PdfViewerActual?.nombreArchivo || athF02PerfilActivo?.pdfFirmado?.nombreArchivo || 'ATH-F-02 Perfil.pdf' }}</strong>
+          <small class="sgc-drive-editor-fullscreen__subtitle">Vista previa del PDF firmado · solo lectura</small>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-light" type="button" (click)="toggleAthF02PdfViewer()">
+        <i class="fas fa-times mr-1" aria-hidden="true"></i>Volver al formato
+      </button>
+    </div>
+    <div class="sgc-drive-editor-fullscreen__body">
+      <div class="sgc-drive-editor-fullscreen__loading" *ngIf="athF02PdfCargando">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Cargando PDF…</span>
+      </div>
+      <iframe *ngIf="athF02PdfEmbedUrlSafe"
+        class="sgc-drive-editor-fullscreen__iframe"
+        [src]="athF02PdfEmbedUrlSafe"
+        [title]="athF02PdfViewerActual?.nombreArchivo || 'ATH-F-02 Perfil.pdf'"
+        (load)="onAthF02PdfIframeLoad()"
+        allow="autoplay">
       </iframe>
     </div>
   </div>

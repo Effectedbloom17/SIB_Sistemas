@@ -2052,6 +2052,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   athF02ActualizandoPlantilla = false;
   athF02SubiendoPdf = false;
   athF02DescargandoPdf = false;
+  mostrarAthF02PdfViewer = false;
+  athF02PdfEmbedUrlSafe: SafeResourceUrl | null = null;
+  athF02PdfCargando = false;
+  athF02PdfViewerActual: AthF02PdfFirmado | null = null;
   private athF02EditorIframeListo = false;
   dgF01Form = this.crearDgF01Vacio();
 
@@ -3945,6 +3949,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   get puedeEditarFechaElaboracionDgF04(): boolean {
     return this.esPrivilegioRootOCalidadAfF02();
   }
+
+  /** DG-F-05: fecha del listado — solo super administrador (root) o Calidad (Sergio). */
+  get puedeEditarFechaElaboracionDgF05(): boolean {
+    return this.esPrivilegioRootOCalidadAfF02();
+  }
   get puedeEditarDocumentoCompletoAfF02(): boolean {
     return this.esPrivilegioRootOCalidadAfF02();
   }
@@ -5662,6 +5671,11 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (this.mostrarDgF03PdfViewer) {
       event.preventDefault();
       this.toggleDgF03PdfViewer();
+      return;
+    }
+    if (this.mostrarAthF02PdfViewer) {
+      event.preventDefault();
+      this.toggleAthF02PdfViewer();
       return;
     }
     if (this.mostrarSgcF07PdfViewer) {
@@ -31647,6 +31661,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   volverArchiveroAthF02(): void {
+    if (this.mostrarAthF02PdfViewer) {
+      this.toggleAthF02PdfViewer();
+    }
     this.athF02Vista = 'archivero';
     this.athF02PerfilActivo = null;
     this.athF02Form.perfilActivoId = null;
@@ -32037,25 +32054,134 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   private subirPdfFirmadoAthF02(pdfBase64: string, nombreArchivo: string): void {
-    if (this.athF02SubiendoPdf || !this.athF02PerfilActivo) {
+    if (!this.athF02PerfilActivo) {
+      this.cerrarModalSubidaPdfSgc();
+      return;
+    }
+    if (this.athF02SubiendoPdf) {
       return;
     }
     this.athF02SubiendoPdf = true;
-    this.backendService.subirPdfFirmadoAthF02(pdfBase64, nombreArchivo, this.athF02PerfilActivo.id)
+    this.sincronizarPerfilActivoEnFormAthF02();
+    const perfilId = this.athF02PerfilActivo.id;
+    const lanzar = () => this.enviarPdfFirmadoAthF02(pdfBase64, nombreArchivo, perfilId);
+    if (this.athF02CambiosPendientes || this.athF02Guardando) {
+      this.guardarAthF02AntesDePdf(perfilId, lanzar, 0);
+      return;
+    }
+    lanzar();
+  }
+
+  /** El PDF firmado se asocia al perfil ya guardado. Un perfil nuevo aún no está en el archivero. */
+  private guardarAthF02AntesDePdf(perfilId: string, alTerminar: () => void, intentos: number): void {
+    if (this.athF02Guardando) {
+      if (intentos > 180) {
+        this.athF02SubiendoPdf = false;
+        this.finalizarSubidaPdfSgc(false, undefined, 'El perfil sigue guardándose. Espera un momento e intenta subir el PDF de nuevo.');
+        return;
+      }
+      window.setTimeout(() => this.guardarAthF02AntesDePdf(perfilId, alTerminar, intentos + 1), 500);
+      return;
+    }
+    if (!this.athF02CambiosPendientes) {
+      alTerminar();
+      return;
+    }
+    this.athF02Guardando = true;
+    this.sincronizarPerfilActivoEnFormAthF02();
+    this.backendService.guardarAthF02Formato(
+      { ...this.athF02Form, perfilActivoId: this.athF02PerfilActivo?.id || perfilId },
+      false
+    )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.aplicarEstadoAthF02(res, true, false, true);
+          this.athF02CambiosPendientes = false;
+          this.athF02Guardando = false;
+          alTerminar();
+        },
+        error: (err) => {
+          this.athF02Guardando = false;
+          this.athF02SubiendoPdf = false;
+          const mensaje = err?.error?.message || 'No se pudo guardar el perfil antes de subir el PDF.';
+          this.finalizarSubidaPdfSgc(false, undefined, mensaje);
+        }
+      });
+  }
+
+  private enviarPdfFirmadoAthF02(pdfBase64: string, nombreArchivo: string, perfilId: string): void {
+    const id = this.athF02PerfilActivo?.id || perfilId;
+    if (!id) {
+      this.athF02SubiendoPdf = false;
+      this.finalizarSubidaPdfSgc(false, undefined, 'No se encontró el perfil. Guarda el perfil e inténtalo de nuevo.');
+      return;
+    }
+    this.backendService.subirPdfFirmadoAthF02(pdfBase64, nombreArchivo, id)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
           this.athF02SubiendoPdf = false;
-          this.aplicarEstadoAthF02(res);
-          if (this.athF02PerfilActivo && res?.pdfFirmado) {
-            this.athF02PerfilActivo.pdfFirmado = this.sanitizarPdfAthF02(res.pdfFirmado);
-            this.sincronizarPerfilActivoEnFormAthF02();
+          try {
+            this.aplicarEstadoAthF02(res);
+            if (this.athF02PerfilActivo && res?.pdfFirmado) {
+              this.athF02PerfilActivo.pdfFirmado = this.sanitizarPdfAthF02(res.pdfFirmado);
+              this.sincronizarPerfilActivoEnFormAthF02();
+            }
+            const nombreFinal = res?.pdfFirmado?.nombreArchivo || nombreArchivo;
+            this.finalizarSubidaPdfSgc(!!res?.success, nombreFinal);
+          } catch {
+            this.finalizarSubidaPdfSgc(false);
           }
         },
-        error: () => {
+        error: (err) => {
           this.athF02SubiendoPdf = false;
+          const mensaje = err?.error?.message;
+          this.finalizarSubidaPdfSgc(false, undefined, mensaje);
         }
       });
+  }
+
+  /** Abre el PDF firmado del perfil ATH-F-02 en el visor de solo lectura. */
+  toggleAthF02PdfViewer(pdf?: AthF02PdfFirmado | null): void {
+    const objetivo = pdf || this.athF02PerfilActivo?.pdfFirmado || null;
+    const id = objetivo?.driveFileId;
+    if (!id) {
+      return;
+    }
+
+    const mismoAbierto = this.mostrarAthF02PdfViewer
+      && this.athF02PdfViewerActual?.driveFileId === id;
+    const abrir = !mismoAbierto;
+    this.mostrarAthF02PdfViewer = abrir;
+
+    if (abrir) {
+      this.athF02PdfViewerActual = objetivo;
+      this.athF02PdfCargando = true;
+      const url = this.urlPdfProxyDrive(id);
+      if (!url) {
+        this.mostrarAthF02PdfViewer = false;
+        this.athF02PdfCargando = false;
+        this.athF02PdfViewerActual = null;
+        return;
+      }
+      this.athF02PdfEmbedUrlSafe = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+
+    if (!this.mostrarAthF02Editor) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+    }
+    this.athF02PdfEmbedUrlSafe = null;
+    this.athF02PdfCargando = false;
+    this.athF02PdfViewerActual = null;
+  }
+
+  onAthF02PdfIframeLoad(): void {
+    this.athF02PdfCargando = false;
   }
 
   private fijarEditorEmbedUrlAthF02(editorUrl: string | null, forzar = false): void {
@@ -39028,7 +39154,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     });
   }
 
-  private finalizarSubidaPdfSgc(exito: boolean, nombreArchivo?: string): void {
+  private finalizarSubidaPdfSgc(exito: boolean, nombreArchivo?: string, mensajeError?: string): void {
+    const detalleError = String(mensajeError || '').trim();
     this.cerrarModalSubidaPdfSgc();
     if (exito) {
       Swal.fire({
@@ -39047,7 +39174,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     Swal.fire({
       icon: 'error',
       title: 'No se pudo subir',
-      text: 'Ocurrió un problema al enviar el PDF a Google Drive. Intenta de nuevo.',
+      text: detalleError || 'Ocurrió un problema al enviar el PDF a Google Drive. Intenta de nuevo.',
       confirmButtonColor: '#15a596',
       confirmButtonText: 'OK'
     });

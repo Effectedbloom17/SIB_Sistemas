@@ -1,0 +1,121 @@
+:host {
+  font-family: 'Open Sans', sans-serif;
+}
+
+.header-bg-image {
+  background-image: url('/assets/img/medic.jpg');
+  background-size: cover;
+  background-position: center 60%;
+  background-repeat: no-repeat;
+  min-height: 180px;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(135deg, rgba(15, 54, 97, 0.88) 0%, rgba(26, 74, 122, 0.8) 50%, rgba(15, 39, 68, 0.9) 100%);
+  }
+}
+
+.header-icon {
+  background: rgba(255, 255, 255, 0.15);
+  width: 58px;
+  height: 58px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.header-title {
+  font-weight: 700;
+  font-size: 2rem;
+  letter-spacing: -0.5px;
+}
+
+.programacion-page {
+  position: relative;
+  z-index: 10;
+  margin-bottom: 2rem;
+}
+
+.panel {
+  border-radius: 15px;
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 1.4rem 1.6rem 0.6rem;
+}
+
+.panel-title {
+  color: #0f3661;
+  font-weight: 700;
+}
+
+.empresa-card {
+  border: 2px solid #7dd3fc;
+  border-radius: 16px;
+  cursor: pointer;
+}
+
+.avatar-empresa,
+.logo-empresa {
+  width: 50px;
+  height: 50px;
+  min-width: 50px;
+  border-radius: 50%;
+  margin-right: 0.8rem;
+}
+
+.avatar-empresa {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, #0f3661 0%, #1a4a7a 100%);
+  font-weight: 700;
+}
+
+.logo-empresa {
+  object-fit: contain;
+  background: #fff;
+  padding: 0.3rem;
+}
+
+.empresa-nombre {
+  color: #0f3661;
+}
+
+.ver-link {
+  color: #0f3661;
+  font-weight: 600;
+}
+
+label {
+  color: #0f3661;
+  font-weight: 600;
+}
+
+.tipos-estudio {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 150px;
+}
+
+.tipo-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tipo-check input {
+  margin: 0;
+}

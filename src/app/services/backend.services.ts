@@ -2445,6 +2445,33 @@ export class BackendServices {
         });
     }
 
+    obtenerEmpresasProgramacionEstudios(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/programacion-estudios/empresas`);
+    }
+
+    obtenerProgramacionesEstudios(empresaId?: number): Observable<any> {
+        const params = empresaId ? `?empresa_id=${empresaId}` : '';
+        return this.httpClient.get(`${this.baseUrl}/programacion-estudios${params}`);
+    }
+
+    guardarProgramacionEstudios(data: any): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/programacion-estudios`, data);
+    }
+
+    actualizarProgramacionEstudios(id: number, data: any): Observable<any> {
+        return this.httpClient.put(`${this.baseUrl}/programacion-estudios/${id}`, data);
+    }
+
+    eliminarProgramacionEstudios(id: number): Observable<any> {
+        return this.httpClient.delete(`${this.baseUrl}/programacion-estudios/${id}`);
+    }
+
+    subirPdfProgramacionEstudios(id: number, pdfBase64: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/programacion-estudios/${id}/pdf-firmado`, {
+            pdf_base64: pdfBase64
+        });
+    }
+
     obtenerEmpresasAudiometria(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/audiometrias/empresas`);
     }

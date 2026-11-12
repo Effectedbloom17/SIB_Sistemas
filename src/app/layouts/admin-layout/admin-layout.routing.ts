@@ -147,6 +147,11 @@ export const AdminLayoutRoutes: Routes = [
         loadChildren: () => import('../../pages/proteccion-civil/proteccion-civil.module').then(m => m.ProteccionCivilModule)
     },
 
+    {
+        path: 'programacion-estudios',
+        loadChildren: () => import('../../pages/programacion-estudios/programacion-estudios.module').then(m => m.ProgramacionEstudiosModule)
+    },
+
     // Expedientes Médicos (el más pesado: XLSX + jsPDF + html2canvas + ApexCharts)
     {
         path: 'expedientes-medicos',

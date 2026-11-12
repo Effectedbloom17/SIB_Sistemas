@@ -128,6 +128,7 @@ Referencias:
 | DG-F-06 · Cuadro de mando | Campo del formulario: **Año** → `Objetivos e indicadores {año}` |
 | SP-F-02 · Reporte de visita y recorrido | Folio (`SPF02-MMAA`) |
 | SP-F-07 · Plan del curso | Folio (`PC-…`) |
+| SP-F-30 · Programación de estudios médicos | Fecha de la programación + siglas de la empresa (`DD-MM-AA SIGLAS`) |
 
 En la tabla de §1.A (campos «¿Tiene archivero?» y «Si tiene archivero → nombre de hoja») deja escrito, antes de codear, si quieres **folio** o **qué campo** del formulario.
 
@@ -545,6 +546,18 @@ Requisitos:
 | Trabajo | Archivero: una pestaña por comparativa; **nombre = campo `Nombre de cotización`** (§2.1 opción 2); `copyTo` desde plantilla |
 | Código | `backend/sgcF28Service.js` |
 | Nota | El archivo sistema conserva histograma; no se escribe en la plantilla ni se reemplaza el libro entero |
+
+### SP-F-30 · Programación de estudios médicos
+
+| Rol | Link |
+| --- | --- |
+| Plantilla | `https://docs.google.com/spreadsheets/d/1FGyC1dUIKqtsfJ6I3iPtijtLtyCcG0qXbnSnbcPq4hk/edit` |
+| Sistema | Se crea en la carpeta Archivero: `https://drive.google.com/drive/folders/1yiuvk0l5cT0qSBg56VtnhV8Eo54FNVjc` |
+| Pestaña plantilla | `Plantilla` |
+| Trabajo | Archivero: una pestaña por programación; **nombre = fecha de la programación + siglas** (`16-11-26 BIZ`) |
+| PDFs firmados | `https://drive.google.com/drive/folders/1ZUDcM_Z6VfChLp9fDYDaV_H0M0c7layP` (Documentos Firmados) |
+| Código | `backend/spF30Service.js` |
+| Nota | Apartado de Médicos, arriba de Expedientes Médicos. No se escribe en la plantilla ni se reemplaza el libro del archivero |
 
 ### SGC-F-29 · Evaluación de proveedores
 
