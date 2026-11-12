@@ -1,8 +1,17 @@
 import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
+import Swal from 'sweetalert2';
 import { BackendServices } from 'src/app/services/backend.services';
 import { PdfPreviewLoaderService } from 'src/app/services/pdf-preview-loader.service';
+import { PdfThumbnailService } from 'src/app/services/pdf-thumbnail.service';
+
+interface MiniaturaHistorialPc {
+  urlStr: string | null;
+  cargando: boolean;
+  error: boolean;
+  reintento: number;
+}
 
 interface EmpresaHistorialPc {
   empresa_id: number;
@@ -23,6 +32,7 @@ interface CicloHistorialPc {
   fecha_inicio?: string | Date | null;
   fecha_cierre?: string | Date | null;
   fecha_ingreso_tramite?: string | Date | null;
+  fecha_vencimiento?: string | Date | null;
   pipc_titulos: string[];
   resumen: Record<string, number>;
   es_legacy?: boolean;
@@ -91,6 +101,7 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
   empresasFiltradas: EmpresaHistorialPc[] = [];
   empresaSeleccionada: EmpresaHistorialPc | null = null;
   seguimientoAbierto = false;
+  reabriendoCiclo = false;
   seguimientosPipc: Array<{
     resolutivoId: number;
     nombreAsignacion: string;
@@ -146,6 +157,13 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
   readonly zoomVisorMax = 300;
   readonly zoomVisorPaso = 25;
 
+  miniaturas: Record<number, MiniaturaHistorialPc> = {};
+  private readonly miniaturaObjectUrls = new Map<number, string>();
+  private miniaturaSubs: Subscription[] = [];
+  private miniaturaCola: ItemHistorialPc[] = [];
+  private miniaturasEnVuelo = 0;
+  private readonly miniaturaConcurrency = 2;
+
   private deepLinkEmpresaId: number | null = null;
   private deepLinkOperacionId: number | null = null;
   private routeSub?: Subscription;
@@ -153,6 +171,7 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
   constructor(
     private backendService: BackendServices,
     private pdfPreviewLoader: PdfPreviewLoaderService,
+    private pdfThumbnail: PdfThumbnailService,
     private route: ActivatedRoute,
     private router: Router
   ) {}
@@ -189,6 +208,7 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     this.visorSeq += 1;
     this.visorSub?.unsubscribe();
     this.routeSub?.unsubscribe();
+    this.limpiarMiniaturas();
     this.revocarVisorBlob();
     document.body.classList.remove('visor-fullscreen-open');
   }
@@ -215,6 +235,62 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
   alternarSeguimiento(event: Event): void {
     event.stopPropagation();
     this.seguimientoAbierto = !this.seguimientoAbierto;
+  }
+
+  async reabrirCicloPipc(): Promise<void> {
+    if (!this.puedeReabrirCiclo || this.reabriendoCiclo || !this.empresaSeleccionada || !this.cicloSeleccionado) {
+      return;
+    }
+
+    const result = await Swal.fire({
+      title: '¿Reabrir PIPC?',
+      html: '<p>El trámite volverá a <strong>PIPC Activos</strong> para darle seguimiento. Cuando termines podrás cerrarlo otra vez desde ahí.</p>',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#c0581e',
+      cancelButtonColor: '#6c757d',
+      confirmButtonText: '<i class="fas fa-undo mr-1"></i> Sí, reabrir',
+      cancelButtonText: 'Cancelar'
+    });
+    if (!result.isConfirmed) return;
+
+    this.reabriendoCiclo = true;
+    const empresaId = this.empresaSeleccionada.empresa_id;
+    const operacionId = this.cicloSeleccionado.operacion_id;
+    this.backendService.reabrirCicloCentroOperacionesPC(empresaId, operacionId).subscribe({
+      next: async (resp: any) => {
+        this.reabriendoCiclo = false;
+        if (!resp?.success) {
+          await Swal.fire({
+            icon: 'error',
+            title: 'No se pudo reabrir',
+            text: resp?.message || 'Intenta de nuevo.',
+            confirmButtonColor: '#c0581e'
+          });
+          return;
+        }
+        await Swal.fire({
+          icon: 'success',
+          title: 'PIPC reabierto',
+          text: resp?.message || 'Ya puedes continuar el seguimiento.',
+          confirmButtonColor: '#c0581e',
+          timer: 1800,
+          timerProgressBar: true
+        });
+        this.router.navigate(['/proteccion-civil'], {
+          queryParams: { vista: 'menuDocumentos', empresaId }
+        });
+      },
+      error: async (err) => {
+        this.reabriendoCiclo = false;
+        await Swal.fire({
+          icon: 'error',
+          title: 'No se pudo reabrir',
+          text: err?.error?.message || 'Intenta de nuevo.',
+          confirmButtonColor: '#c0581e'
+        });
+      }
+    });
   }
 
   textoFechaSeguimiento(valor: string): string {
@@ -333,6 +409,11 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     return this.esSeccionCompactaKey(this.seccionActiva);
   }
 
+  get puedeReabrirCiclo(): boolean {
+    const opId = Number(this.cicloSeleccionado?.operacion_id || 0);
+    return !!this.empresaSeleccionada && !!this.cicloSeleccionado && opId > 0 && !this.cicloSeleccionado.es_legacy;
+  }
+
   itemsDeApartado(apartado: string): ItemHistorialPc[] {
     return this.itemsFiltrados.filter((i) => i.apartado === apartado);
   }
@@ -380,6 +461,7 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
 
   onFiltroTextoChange(): void {
     this.asegurarSeccionActivaVisible();
+    this.precargarMiniaturasVisibles();
   }
 
   private inicializarSeccionActiva(): void {
@@ -512,6 +594,7 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
             .filter((y) => y > 1970)
         )].sort((a, b) => b - a);
         this.filtrarCiclos();
+        this.completarVigenciaSiFalta();
         this.cargandoCiclos = false;
         if (desdeDeepLink || this.deepLinkOperacionId) {
           this.abrirCicloDeepLink();
@@ -550,10 +633,15 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
       next: (resp: any) => {
         this.items = Array.isArray(resp?.items) ? resp.items : [];
         if (resp?.ciclo) {
-          this.cicloSeleccionado = { ...ciclo, ...resp.ciclo };
+          this.cicloSeleccionado = {
+            ...ciclo,
+            ...resp.ciclo,
+            fecha_vencimiento: resp.ciclo.fecha_vencimiento || ciclo.fecha_vencimiento || null
+          };
         }
         this.inicializarSeccionActiva();
         this.cargandoDetalle = false;
+        this.precargarMiniaturasVisibles();
       },
       error: () => {
         this.items = [];
@@ -566,6 +654,7 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     this.vista = 'lista';
     this.cicloSeleccionado = null;
     this.items = [];
+    this.limpiarMiniaturas();
     this.seguimientoAbierto = false;
     this.seguimientosPipc = [];
     this.cerrarVisor();
@@ -573,6 +662,7 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
 
   setSeccionActiva(key: string): void {
     this.seccionActiva = key;
+    this.precargarMiniaturasVisibles();
   }
 
   contarApartado(key: string, filtrado: boolean): number {
@@ -629,6 +719,105 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     empresa.logo_url = null;
   }
 
+  estadoVigencia(ciclo: CicloHistorialPc | null): 'vigente' | 'proximo' | 'urgente' | 'vencido' | 'sin_fecha' {
+    const dias = this.diasParaVencer(ciclo);
+    if (dias == null) return 'sin_fecha';
+    if (dias <= 0) return 'vencido';
+    if (dias <= 20) return 'urgente';
+    if (dias <= 40) return 'proximo';
+    return 'vigente';
+  }
+
+  textoDiasVigencia(ciclo: CicloHistorialPc | null): string {
+    const dias = this.diasParaVencer(ciclo);
+    if (dias == null) return 'Sin fecha';
+    if (dias < 0) {
+      const n = Math.abs(dias);
+      return n === 1 ? 'Venció hace 1 día' : `Venció hace ${n} días`;
+    }
+    if (dias === 0) return 'Vence hoy';
+    if (dias === 1) return 'Falta 1 día';
+    return `Faltan ${dias} días`;
+  }
+
+  etiquetaVigencia(ciclo: CicloHistorialPc | null): string {
+    switch (this.estadoVigencia(ciclo)) {
+      case 'vencido': return 'Vencido';
+      case 'urgente': return 'Por vencer';
+      case 'proximo': return 'Próximo a vencer';
+      case 'vigente': return 'Vigente';
+      default: return '';
+    }
+  }
+
+  private diasParaVencer(ciclo: CicloHistorialPc | null): number | null {
+    const fv = this.parseFechaCalendario(ciclo?.fecha_vencimiento);
+    if (!fv) return null;
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    return Math.round((fv.getTime() - hoy.getTime()) / 86400000);
+  }
+
+  private parseFechaCalendario(valor?: string | Date | null): Date | null {
+    if (!valor) return null;
+    if (valor instanceof Date && !Number.isNaN(valor.getTime())) {
+      return new Date(valor.getFullYear(), valor.getMonth(), valor.getDate());
+    }
+    const s = String(valor).trim();
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    const mx = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (mx) return new Date(Number(mx[3]), Number(mx[2]) - 1, Number(mx[1]));
+    return null;
+  }
+
+  private isoDesdeFecha(valor?: string | Date | null): string | null {
+    const fecha = this.parseFechaCalendario(valor);
+    if (!fecha) return null;
+    const y = fecha.getFullYear();
+    const m = String(fecha.getMonth() + 1).padStart(2, '0');
+    const d = String(fecha.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  private normalizarNombrePipc(valor?: string | null): string {
+    return String(valor || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /** El ciclo más reciente usa la fecha oficial del control de resolutivos. */
+  private completarVigenciaSiFalta(): void {
+    const empresaId = this.empresaSeleccionada?.empresa_id;
+    const reciente = this.ciclos.find((c) => !c.es_legacy);
+    if (!empresaId || !reciente) return;
+    this.backendService.listarResolutivosPC(empresaId).subscribe({
+      next: (resp: any) => this.aplicarVencimientoDesdeResolutivos(reciente, resp?.resolutivos || []),
+      error: () => {}
+    });
+  }
+
+  private aplicarVencimientoDesdeResolutivos(ciclo: CicloHistorialPc, resolutivos: any[]): void {
+    const pipc = (resolutivos || []).filter((row) => {
+      const tipo = String(row?.tipo_tramite || '').toLowerCase();
+      return (!tipo || tipo === 'pipc') && row?.fecha_vencimiento;
+    });
+    const titulos = new Set((ciclo.pipc_titulos || []).map((t) => this.normalizarNombrePipc(t)).filter(Boolean));
+    let elegidos = pipc;
+    if (titulos.size) {
+      const porNombre = pipc.filter((row) => titulos.has(this.normalizarNombrePipc(row.nombre_asignacion)));
+      if (porNombre.length) elegidos = porNombre;
+    }
+    const fechas = elegidos
+      .map((row) => this.isoDesdeFecha(row.fecha_vencimiento))
+      .filter((fecha): fecha is string => !!fecha)
+      .sort();
+    if (fechas.length) ciclo.fecha_vencimiento = fechas[0];
+  }
+
   tituloCiclo(ciclo: CicloHistorialPc): string {
     if (ciclo.es_legacy) return 'Historial previo de documentos';
     const titulos = (ciclo.pipc_titulos || []).filter(Boolean);
@@ -682,12 +871,254 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
 
   iconoArchivo(item: ItemHistorialPc): string {
     if (item.tipo_item === 'texto') return 'fa-align-left';
-    const t = `${item.mime_type || ''} ${item.nombre_archivo || ''}`.toLowerCase();
-    if (t.includes('pdf')) return 'fa-file-pdf';
-    if (t.includes('sheet') || t.includes('xls')) return 'fa-file-excel';
-    if (t.includes('word') || t.includes('doc')) return 'fa-file-word';
-    if (t.includes('image') || /\.(png|jpe?g|gif|webp)$/.test(t)) return 'fa-file-image';
-    return 'fa-file';
+    const m = String(item.mime_type || '').toLowerCase();
+    const n = String(item.nombre_archivo || item.nombre_documento || '').toLowerCase();
+    if (m.includes('pdf') || n.endsWith('.pdf')) return 'fa-file-pdf';
+    if (m.includes('csv') || n.endsWith('.csv')) return 'fa-file-csv';
+    if (m.includes('sheet') || m.includes('excel') || /\.xlsx?$/.test(n)) return 'fa-file-excel';
+    if (m.includes('word') || /\.docx?$/.test(n)) return 'fa-file-word';
+    if (m.includes('presentation') || m.includes('powerpoint') || /\.pptx?$/.test(n)) return 'fa-file-powerpoint';
+    if (m.includes('image') || /\.(png|jpe?g|gif|webp)$/.test(n)) return 'fa-file-image';
+    return 'fa-file-alt';
+  }
+
+  claseTileArchivo(item: ItemHistorialPc): string {
+    const m = String(item.mime_type || '').toLowerCase();
+    const n = String(item.nombre_archivo || item.nombre_documento || '').toLowerCase();
+    if (m.includes('pdf') || n.endsWith('.pdf')) return 'history-repo-tile--pdf';
+    if (m.includes('csv') || n.endsWith('.csv')) return 'history-repo-tile--csv';
+    if (m.includes('sheet') || m.includes('excel') || /\.xlsx?$/.test(n)) return 'history-repo-tile--excel';
+    if (m.includes('word') || /\.docx?$/.test(n)) return 'history-repo-tile--word';
+    if (m.includes('presentation') || m.includes('powerpoint') || /\.pptx?$/.test(n)) return 'history-repo-tile--ppt';
+    if (m.includes('image') || /\.(png|jpe?g|gif|webp)$/.test(n)) return 'history-repo-tile--imagen';
+    return 'history-repo-tile--otro';
+  }
+
+  etiquetaTipoArchivo(item: ItemHistorialPc): string {
+    const m = String(item.mime_type || '').toLowerCase();
+    const n = String(item.nombre_archivo || item.nombre_documento || '').toLowerCase();
+    if (m.includes('pdf') || n.endsWith('.pdf')) return 'PDF';
+    if (m.includes('csv') || n.endsWith('.csv')) return 'CSV';
+    if (m.includes('sheet') || m.includes('excel') || /\.xlsx?$/.test(n)) return 'Excel';
+    if (m.includes('word') || /\.docx?$/.test(n)) return 'Word';
+    if (m.includes('presentation') || m.includes('powerpoint') || /\.pptx?$/.test(n)) return 'PowerPoint';
+    if (m.includes('image') || /\.(png|jpe?g|gif|webp)$/.test(n)) return 'Imagen';
+    return 'Archivo';
+  }
+
+  abrirItemEnDrive(item: ItemHistorialPc, event?: Event): void {
+    event?.stopPropagation();
+    if (!item.drive_file_id) return;
+    window.open(`https://drive.google.com/file/d/${item.drive_file_id}/view`, '_blank');
+  }
+
+  miniatura(item: ItemHistorialPc): MiniaturaHistorialPc {
+    return this.miniaturas[item.item_id] || {
+      urlStr: null,
+      cargando: false,
+      error: false,
+      reintento: 0
+    };
+  }
+
+  onErrorMiniatura(item: ItemHistorialPc, event?: Event): void {
+    event?.stopPropagation();
+    const prev = this.miniatura(item);
+    if (!item.drive_file_id) {
+      this.marcarMiniaturaError(item.item_id);
+      return;
+    }
+    if (prev.reintento >= 2) {
+      this.marcarMiniaturaError(item.item_id);
+      return;
+    }
+    this.actualizarMiniatura(item.item_id, {
+      urlStr: null,
+      cargando: true,
+      error: false,
+      reintento: prev.reintento + 1
+    });
+    this.encolarMiniatura(item, true);
+  }
+
+  onLoadMiniatura(item: ItemHistorialPc): void {
+    const prev = this.miniatura(item);
+    if (prev.cargando || prev.error) {
+      this.actualizarMiniatura(item.item_id, {
+        ...prev,
+        cargando: false,
+        error: false
+      });
+    }
+  }
+
+  private precargarMiniaturasVisibles(): void {
+    const archivos = this.esSeccionCompacta
+      ? this.archivosDeApartado(this.seccionActiva)
+      : this.gruposSeccionActiva.flatMap((g) => g.archivos);
+    for (const item of archivos) {
+      this.asegurarMiniatura(item);
+    }
+  }
+
+  private asegurarMiniatura(item: ItemHistorialPc): void {
+    if (!item || item.tipo_item === 'texto' || !item.drive_file_id) return;
+    const prev = this.miniaturas[item.item_id];
+    if (prev?.urlStr || prev?.cargando) return;
+
+    // Primero thumbnail de Drive (rápido); si falla, onErrorMiniatura baja el archivo.
+    this.actualizarMiniatura(item.item_id, {
+      urlStr: this.urlThumbnailDrive(item.drive_file_id),
+      cargando: false,
+      error: false,
+      reintento: 0
+    });
+  }
+
+  private encolarMiniatura(item: ItemHistorialPc, prioritario: boolean): void {
+    if (prioritario) {
+      this.miniaturaCola.unshift(item);
+    } else {
+      this.miniaturaCola.push(item);
+    }
+    this.procesarColaMiniaturas();
+  }
+
+  private procesarColaMiniaturas(): void {
+    while (this.miniaturasEnVuelo < this.miniaturaConcurrency && this.miniaturaCola.length) {
+      const item = this.miniaturaCola.shift();
+      if (!item) break;
+      this.miniaturasEnVuelo += 1;
+      this.cargarMiniaturaItem(item);
+    }
+  }
+
+  private cargarMiniaturaItem(item: ItemHistorialPc): void {
+    const driveId = String(item.drive_file_id || '').trim();
+    const nombre = item.nombre_archivo || item.nombre_documento || 'archivo';
+    if (!driveId) {
+      this.marcarMiniaturaError(item.item_id);
+      this.miniaturasEnVuelo = Math.max(0, this.miniaturasEnVuelo - 1);
+      this.procesarColaMiniaturas();
+      return;
+    }
+
+    if (this.esArchivoPdf(item)) {
+      const sub = this.backendService.descargarArchivoDrive(driveId, nombre).subscribe({
+        next: async (blob) => {
+          try {
+            if (!blob || blob.size < 20) throw new Error('blob vacío');
+            const typed = blob.type === 'application/pdf'
+              ? blob
+              : new Blob([await blob.arrayBuffer()], { type: 'application/pdf' });
+            const thumb = await this.pdfThumbnail.renderizarPrimeraPagina(typed, 480);
+            this.aplicarBlobMiniatura(item.item_id, thumb);
+          } catch {
+            this.actualizarMiniatura(item.item_id, {
+              urlStr: this.urlThumbnailDrive(driveId, Date.now()),
+              cargando: false,
+              error: false,
+              reintento: this.miniatura(item).reintento
+            });
+          } finally {
+            this.miniaturasEnVuelo = Math.max(0, this.miniaturasEnVuelo - 1);
+            this.procesarColaMiniaturas();
+          }
+        },
+        error: () => {
+          this.actualizarMiniatura(item.item_id, {
+            urlStr: this.urlThumbnailDrive(driveId, Date.now()),
+            cargando: false,
+            error: false,
+            reintento: this.miniatura(item).reintento
+          });
+          this.miniaturasEnVuelo = Math.max(0, this.miniaturasEnVuelo - 1);
+          this.procesarColaMiniaturas();
+        }
+      });
+      this.miniaturaSubs.push(sub);
+      return;
+    }
+
+    const sub = this.backendService.descargarArchivoDrive(driveId, nombre).subscribe({
+      next: (blob) => {
+        if (!blob || blob.size < 20) {
+          this.marcarMiniaturaError(item.item_id);
+        } else {
+          const mime = blob.type?.startsWith('image/')
+            ? blob.type
+            : this.inferirMimeImagen(nombre);
+          const imageBlob = blob.type?.startsWith('image/')
+            ? blob
+            : new Blob([blob], { type: mime });
+          this.aplicarBlobMiniatura(item.item_id, imageBlob);
+        }
+        this.miniaturasEnVuelo = Math.max(0, this.miniaturasEnVuelo - 1);
+        this.procesarColaMiniaturas();
+      },
+      error: () => {
+        this.marcarMiniaturaError(item.item_id);
+        this.miniaturasEnVuelo = Math.max(0, this.miniaturasEnVuelo - 1);
+        this.procesarColaMiniaturas();
+      }
+    });
+    this.miniaturaSubs.push(sub);
+  }
+
+  private aplicarBlobMiniatura(itemId: number, blob: Blob): void {
+    const prevUrl = this.miniaturaObjectUrls.get(itemId);
+    if (prevUrl) {
+      URL.revokeObjectURL(prevUrl);
+      this.miniaturaObjectUrls.delete(itemId);
+    }
+    const url = URL.createObjectURL(blob);
+    this.miniaturaObjectUrls.set(itemId, url);
+    this.actualizarMiniatura(itemId, {
+      urlStr: url,
+      cargando: false,
+      error: false,
+      reintento: this.miniaturas[itemId]?.reintento || 0
+    });
+  }
+
+  private marcarMiniaturaError(itemId: number): void {
+    this.actualizarMiniatura(itemId, {
+      urlStr: null,
+      cargando: false,
+      error: true,
+      reintento: this.miniaturas[itemId]?.reintento || 0
+    });
+  }
+
+  private actualizarMiniatura(itemId: number, estado: MiniaturaHistorialPc): void {
+    this.miniaturas = { ...this.miniaturas, [itemId]: estado };
+  }
+
+  private urlThumbnailDrive(driveFileId: string, cacheBust = 0): string {
+    const base = `https://drive.google.com/thumbnail?id=${encodeURIComponent(driveFileId)}&sz=w400`;
+    return cacheBust ? `${base}&t=${cacheBust}` : base;
+  }
+
+  private esArchivoOffice(item: ItemHistorialPc): boolean {
+    const m = String(item.mime_type || '').toLowerCase();
+    const n = String(item.nombre_archivo || item.nombre_documento || '').toLowerCase();
+    return m.includes('word') || m.includes('sheet') || m.includes('excel')
+      || m.includes('presentation') || m.includes('powerpoint')
+      || /\.(docx?|xlsx?|pptx?|csv)$/.test(n);
+  }
+
+  private limpiarMiniaturas(): void {
+    for (const sub of this.miniaturaSubs) {
+      sub.unsubscribe();
+    }
+    this.miniaturaSubs = [];
+    this.miniaturaCola = [];
+    this.miniaturasEnVuelo = 0;
+    for (const url of this.miniaturaObjectUrls.values()) {
+      URL.revokeObjectURL(url);
+    }
+    this.miniaturaObjectUrls.clear();
+    this.miniaturas = {};
   }
 
   formatearTamano(bytes?: number | null): string {
@@ -900,16 +1331,18 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     document.body.classList.remove('visor-fullscreen-open');
   }
 
-  limpiarBusqueda(): void {
-    this.filtroTexto = '';
-    this.seccionFiltro = 'todos';
-    this.asegurarSeccionActivaVisible();
-  }
-
   onFiltroSeccionChange(): void {
     if (this.seccionFiltro !== 'todos') {
       this.seccionActiva = this.seccionFiltro;
     }
     this.asegurarSeccionActivaVisible();
+    this.precargarMiniaturasVisibles();
+  }
+
+  limpiarBusqueda(): void {
+    this.filtroTexto = '';
+    this.seccionFiltro = 'todos';
+    this.asegurarSeccionActivaVisible();
+    this.precargarMiniaturasVisibles();
   }
 }

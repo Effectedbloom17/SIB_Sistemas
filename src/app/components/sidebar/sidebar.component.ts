@@ -567,6 +567,14 @@ export class SidebarComponent implements OnInit, OnDestroy {
           title: esGestion ? 'Gestión de\nusuarios' : 'Directorio'
         };
       }
+      // Admin/root asignan PIPC; el resto gestiona asignaciones ya desplegadas
+      if (item.path === '/proteccion-civil/asignacion-pipc') {
+        const puedeAsignar = this.authService.esAdministradorOSuperior();
+        return {
+          ...item,
+          title: puedeAsignar ? 'Asignación\nde PIPC' : 'Gestión\nde PIPC'
+        };
+      }
       return item;
     });
   }

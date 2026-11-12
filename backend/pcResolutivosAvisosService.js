@@ -9,6 +9,9 @@
  * Urgente 20–1 días (pronto a vencer; NO vencidos) → al ingresar + ~3.5 h,
  * destinatarios: responsable, marisol12, leonel58 y root.
  * Fuera de esas ventanas (incl. vencidos) no se generan ni se muestran avisos.
+ *
+ * Registrar gestión (seguimiento) cierra los avisos del día, pero NO silencia para
+ * siempre: si al día siguiente sigue en ventana, vuelve a notificar.
  */
 
 const pcResolutivosService = require('./pcResolutivosService');
@@ -232,7 +235,8 @@ async function listarResolutivosElegibles(poolPC, poolUsuarios) {
         poolUsuarios,
         registrosSistema.map((r) => r.responsable_usuario_id)
     );
-    const gestionados = await idsResolutivosGestionados(poolPC);
+    // Gestión = seguimiento del día; no silencia el PIPC de por vida.
+    const gestionadosHoy = await idsResolutivosGestionadosHoy(poolPC);
     return registrosSistema.map((row) => {
         const diasRestantes = diasRestantesDeRegistro(row);
         const responsableUsername = usernames.get(Number(row.responsable_usuario_id || 0)) || '';
@@ -253,13 +257,20 @@ async function listarResolutivosElegibles(poolPC, poolUsuarios) {
         // Solo "Próximo a vencer" dentro de 40–21 / 20–1 (excluye vencidos).
         && item.estatus === 'Próximo a vencer'
         && enVentanaNotificacion(item.diasRestantes)
-        && !gestionados.has(item.resolutivoId)
+        && !gestionadosHoy.has(item.resolutivoId)
     );
 }
 
-async function idsResolutivosGestionados(poolPC) {
+/** Resolutivos con seguimiento registrado HOY (CDMX): mute temporal del día. */
+async function idsResolutivosGestionadosHoy(poolPC) {
     await asegurarTablas(poolPC);
-    const [rows] = await poolPC.query(`SELECT resolutivo_id FROM pc_resolutivo_gestion`);
+    const dia = fechaMexico();
+    const [rows] = await poolPC.query(
+        `SELECT resolutivo_id
+         FROM pc_resolutivo_gestion
+         WHERE DATE(gestionado_en) = ?`,
+        [dia]
+    );
     return new Set((rows || []).map((row) => Number(row.resolutivo_id)));
 }
 
@@ -444,6 +455,23 @@ async function tieneAvisoActivo(poolPC, resolutivoId, username, tipo) {
     return !!(rows && rows.length);
 }
 
+/** Evita recrear en el mismo día lo que el usuario ya cerró/gestionó. */
+async function fueDescartadoHoy(poolPC, resolutivoId, username, tipo, ahora) {
+    const dia = String(ahora || fechaHoraMexico()).slice(0, 10);
+    const [rows] = await poolPC.query(
+        `SELECT aviso_id
+         FROM pc_resolutivo_aviso
+         WHERE resolutivo_id = ?
+           AND LOWER(username) = ?
+           AND tipo = ?
+           AND descartado = 1
+           AND DATE(creado_en) = ?
+         LIMIT 1`,
+        [resolutivoId, normalizarUsername(username), tipo, dia]
+    );
+    return !!(rows && rows.length);
+}
+
 async function reactivarSilenciados(poolPC, username) {
     await asegurarTablas(poolPC);
     const user = normalizarUsername(username);
@@ -462,6 +490,7 @@ async function reactivarSilenciados(poolPC, username) {
 /**
  * Asegura avisos activos para el usuario (idempotente).
  * Cubre preventivo + urgente; no depende del cooldown de sesión.
+ * No recrea lo descartado el mismo día salvo forzarPopup (login / reenvío).
  */
 async function asegurarAvisosActivosUsuario(poolPC, poolUsuarios, username, opciones = {}) {
     await asegurarTablas(poolPC);
@@ -479,11 +508,19 @@ async function asegurarAvisosActivosUsuario(poolPC, poolUsuarios, username, opci
     const items = await listarResolutivosElegibles(poolPC, poolUsuarios);
     let creados = 0;
 
+    const puedeCrear = async (resolutivoId, tipo) => {
+        if (await tieneAvisoActivo(poolPC, resolutivoId, user, tipo)) return false;
+        if (!forzarPopup && (await fueDescartadoHoy(poolPC, resolutivoId, user, tipo, ahora))) {
+            return false;
+        }
+        return true;
+    };
+
     for (const item of items) {
         const dias = Number(item.diasRestantes);
 
         if (enVentanaUrgente(dias) && usuarioDebeRecibirUrgente(user, item, supervisores)) {
-            if (!(await tieneAvisoActivo(poolPC, item.resolutivoId, user, 'urgente_ingreso'))) {
+            if (await puedeCrear(item.resolutivoId, 'urgente_ingreso')) {
                 await insertarAviso(poolPC, {
                     resolutivoId: item.resolutivoId,
                     sesionId: null,
@@ -500,7 +537,7 @@ async function asegurarAvisosActivosUsuario(poolPC, poolUsuarios, username, opci
                 });
                 creados += 1;
             }
-            if (!(await tieneAvisoActivo(poolPC, item.resolutivoId, user, 'urgente_seguimiento'))) {
+            if (await puedeCrear(item.resolutivoId, 'urgente_seguimiento')) {
                 await insertarAviso(poolPC, {
                     resolutivoId: item.resolutivoId,
                     sesionId: null,
@@ -523,7 +560,7 @@ async function asegurarAvisosActivosUsuario(poolPC, poolUsuarios, username, opci
         if (enVentanaPreventiva(dias) && (
             item.responsableUsername === user || usuarioDebeRecibirUrgente(user, item, supervisores)
         )) {
-            if (!(await tieneAvisoActivo(poolPC, item.resolutivoId, user, 'ventana_diaria'))) {
+            if (await puedeCrear(item.resolutivoId, 'ventana_diaria')) {
                 await insertarAviso(poolPC, {
                     resolutivoId: item.resolutivoId,
                     sesionId: null,
@@ -760,14 +797,19 @@ async function listarAvisos(poolPC, poolUsuarios, username, opciones = {}) {
         console.warn('[PC-AVISO] No se pudieron generar urgentes de sesión:', error.message);
     }
 
-    // Al entrar (sesión nueva): reabrir silenciados y completar faltantes de la ventana ampliada.
-    // No recrear en cada poll lo que el usuario descartó a propósito (X / Aceptar todas).
-    if (sesionNueva && !forzarReenvio) {
+    // Completa faltantes en cada consulta (idempotente).
+    // Sesión nueva / reenvío: reabre silenciados y puede recrear lo del día.
+    // Poll normal: no recrea lo descartado hoy (cerrar / gestión).
+    if (!forzarReenvio) {
         try {
-            await reactivarSilenciados(poolPC, user);
-            await asegurarAvisosActivosUsuario(poolPC, poolUsuarios, user, { forzarPopup: true });
+            if (sesionNueva) {
+                await reactivarSilenciados(poolPC, user);
+            }
+            await asegurarAvisosActivosUsuario(poolPC, poolUsuarios, user, {
+                forzarPopup: sesionNueva
+            });
         } catch (error) {
-            console.warn('[PC-AVISO] No se pudieron asegurar avisos de sesión nueva:', error.message);
+            console.warn('[PC-AVISO] No se pudieron asegurar avisos activos:', error.message);
         }
     }
 
@@ -810,11 +852,11 @@ async function listarAvisos(poolPC, poolUsuarios, username, opciones = {}) {
         poolUsuarios,
         (rows || []).map((row) => row.empresa_id)
     );
-    let gestionados = new Set();
+    let gestionadosHoy = new Set();
     try {
-        gestionados = await idsResolutivosGestionados(poolPC);
+        gestionadosHoy = await idsResolutivosGestionadosHoy(poolPC);
     } catch (_error) {
-        gestionados = new Set();
+        gestionadosHoy = new Set();
     }
 
     const avisos = [];
@@ -827,10 +869,11 @@ async function listarAvisos(poolPC, poolUsuarios, username, opciones = {}) {
             : (row.dias_restantes == null ? null : Number(row.dias_restantes));
 
         // Fuera de ventana (vencidos <=0, >40, o resolutivo inexistente): no mostrar y auto-descartar.
+        // Gestión de hoy también mutea; gestiones de días previos ya no bloquean.
         const fueraDeVentana = vigentesIds
             ? (!vigentesIds.has(resolutivoId) || !enVentanaNotificacion(diasActuales))
             : (diasActuales != null && !enVentanaNotificacion(diasActuales));
-        if (fueraDeVentana || gestionados.has(resolutivoId)) {
+        if (fueraDeVentana || gestionadosHoy.has(resolutivoId)) {
             staleIds.push(Number(row.aviso_id));
             continue;
         }

@@ -2053,6 +2053,13 @@ export class BackendServices {
         );
     }
 
+    reabrirCicloCentroOperacionesPC(empresaId: number, operacionId: number): Observable<any> {
+        return this.httpClient.post(
+            `${this.baseUrl}/proteccion-civil/empresas/${empresaId}/centro-operaciones/reabrir-ciclo`,
+            { operacion_id: operacionId }
+        );
+    }
+
     obtenerRecorridoPC(empresaId: number): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/proteccion-civil/empresas/${empresaId}/recorrido`);
     }

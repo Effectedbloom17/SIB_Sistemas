@@ -1294,6 +1294,73 @@ function registerPcCentroOperacionesRoutes(app, deps) {
         }
     });
 
+    app.post('/api/proteccion-civil/empresas/:empresaId/centro-operaciones/reabrir-ciclo', requireAdminOrPC, verificarServicioProteccionCivilEmpresa, async (req, res) => {
+        try {
+            const pool = await resolvePool(deps);
+            const empresaId = Number(req.params.empresaId);
+            const operacionId = Number(req.body?.operacion_id || req.body?.operacionId || 0);
+
+            if (!Number.isInteger(empresaId) || empresaId <= 0 || !Number.isInteger(operacionId) || operacionId <= 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'empresaId y operacion_id son requeridos'
+                });
+            }
+
+            const activo = await obtenerCicloActivo(pool, empresaId);
+            if (activo && Number(activo.operacion_id) !== operacionId) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'Esta empresa ya tiene un PIPC activo. Ciérralo antes de reabrir otro ciclo.'
+                });
+            }
+
+            const [rows] = await pool.query(
+                `SELECT operacion_id, empresa_id, activo, ciclo_cerrado_at, pasos_completados
+                 FROM pc_centro_operaciones
+                 WHERE operacion_id = ? AND empresa_id = ?
+                 LIMIT 1`,
+                [operacionId, empresaId]
+            );
+            const ciclo = rows?.[0];
+            if (!ciclo) {
+                return res.status(404).json({ success: false, message: 'Ciclo no encontrado' });
+            }
+
+            if (!ciclo.ciclo_cerrado_at && Number(ciclo.activo) === 1) {
+                return res.json({
+                    success: true,
+                    ya_activo: true,
+                    message: 'El ciclo ya está abierto para seguimiento.',
+                    operacion_id: operacionId
+                });
+            }
+
+            const pasos = parsePasosCompletados(ciclo.pasos_completados)
+                .filter((paso) => paso !== 'finalizar');
+
+            await pool.query(
+                `UPDATE pc_centro_operaciones
+                 SET activo = 1,
+                     ciclo_cerrado_at = NULL,
+                     pasos_completados = ?,
+                     fecha_actualizacion = NOW()
+                 WHERE operacion_id = ? AND empresa_id = ?`,
+                [JSON.stringify(pasos), operacionId, empresaId]
+            );
+
+            res.json({
+                success: true,
+                ya_activo: false,
+                message: 'PIPC reabierto. Puedes darle seguimiento y volver a cerrarlo cuando termine.',
+                operacion_id: operacionId,
+                pasos_completados: pasos
+            });
+        } catch (error) {
+            handleError(res, error, 'Error al reabrir ciclo de operaciones');
+        }
+    });
+
     app.post('/api/proteccion-civil/empresas/:empresaId/centro-operaciones/cerrar-ciclo', requireAdminOrPC, verificarServicioProteccionCivilEmpresa, async (req, res) => {
         try {
             const pool = await resolvePool(deps);

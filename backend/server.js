@@ -2663,6 +2663,12 @@ function usuarioPuedeEliminarCursoProgramado(userDecoded) {
     return obtenerRolesUsuarioJwt(userDecoded).some(r => rolesAdmin.has(r));
 }
 
+/** Solo admin/root pueden crear PIPC nuevos; PC solo gestiona asignaciones existentes. */
+function usuarioPuedeAsignarPipcNuevo(userDecoded) {
+    const rolesAdmin = new Set(['root', 'administrador', 'super_admin', 'superadmin']);
+    return obtenerRolesUsuarioJwt(userDecoded).some(r => rolesAdmin.has(r));
+}
+
 function authMiddleware(req, res, next) {
     const authHeader = req.headers['authorization'];
     let token = authHeader && authHeader.split(' ')[1]; // Bearer <token>
@@ -34642,6 +34648,12 @@ app.post('/api/proteccion-civil/empresas/:empresaId/asignar-catalogo', requireAd
                         await registrarResolutivoTramite(padreId, nombreLimpio);
                         console.log(`[PC-ASIGNAR] Reutilizando asignación existente "${nombreLimpio}" (padre_id=${padreId})`);
                     } else {
+                        if (!usuarioPuedeAsignarPipcNuevo(req.user)) {
+                            return res.status(403).json({
+                                success: false,
+                                message: 'Solo administradores pueden asignar PIPC nuevos a una empresa. Puedes agregar requisitos a PIPC ya asignados.'
+                            });
+                        }
                         const [parentResult] = await poolProteccionCivil.query(`
                             INSERT INTO documento_proteccion_civil
                                 (empresa_id, nombre_documento, especificacion, obligatorio, estatus, catalogo_documento_id, asignado_por_usuario_id, tipo_entrada, fecha_asignacion, fecha_creacion)
@@ -34752,6 +34764,12 @@ app.post('/api/proteccion-civil/empresas/:empresaId/asignar-catalogo', requireAd
                         await registrarResolutivoTramite(padreExistente.documento_id, nombreLimpio);
                         resumen.push({ nombre: nombreLimpio, tipo: 'xlsx-error-actualizado', subdocumentos: 0 });
                     } else {
+                        if (!usuarioPuedeAsignarPipcNuevo(req.user)) {
+                            return res.status(403).json({
+                                success: false,
+                                message: 'Solo administradores pueden asignar PIPC nuevos a una empresa. Puedes agregar requisitos a PIPC ya asignados.'
+                            });
+                        }
                         const [fallbackResult] = await poolProteccionCivil.query(`
                             INSERT INTO documento_proteccion_civil
                                 (empresa_id, nombre_documento, especificacion, obligatorio, estatus, catalogo_documento_id, asignado_por_usuario_id, tipo_entrada, fecha_asignacion, fecha_creacion)
@@ -34773,6 +34791,12 @@ app.post('/api/proteccion-civil/empresas/:empresaId/asignar-catalogo', requireAd
                     await registrarResolutivoTramite(padreExistente.documento_id, nombreDoc);
                     resumen.push({ nombre: nombreDoc, tipo: 'individual-actualizado', subdocumentos: 0 });
                 } else {
+                    if (!usuarioPuedeAsignarPipcNuevo(req.user)) {
+                        return res.status(403).json({
+                            success: false,
+                            message: 'Solo administradores pueden asignar PIPC nuevos a una empresa. Puedes agregar requisitos a PIPC ya asignados.'
+                        });
+                    }
                     const [resultIndividual] = await poolProteccionCivil.query(`
                         INSERT INTO documento_proteccion_civil
                             (empresa_id, nombre_documento, especificacion, obligatorio, estatus, catalogo_documento_id, asignado_por_usuario_id, tipo_entrada, fecha_asignacion, fecha_creacion)

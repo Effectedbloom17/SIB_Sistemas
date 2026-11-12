@@ -35,6 +35,9 @@ export class ProteccionCivilAsignacionPipcComponent implements OnInit, OnDestroy
   @ViewChild(ProteccionCivilAsignarDocumentosComponent)
   asignarDocumentosCmp: ProteccionCivilAsignarDocumentosComponent | null = null;
 
+  /** Solo root/administrador pueden desplegar PIPC nuevos a una empresa. */
+  puedeAsignarNuevosPipc = false;
+
   pestanaActiva: PestanaAsignacionPipc = 'desplegar';
 
   empresas: EmpresaOpcion[] = [];
@@ -74,12 +77,63 @@ export class ProteccionCivilAsignacionPipcComponent implements OnInit, OnDestroy
       this.router.navigate(['/proteccion-civil']);
       return;
     }
+    this.puedeAsignarNuevosPipc = this.authService.esAdministradorOSuperior();
     this.aplicarPestanaDesdeRuta();
     this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe(() => {
       this.aplicarPestanaDesdeRuta();
     });
     this.cargarEmpresas();
     this.cargarUsuariosResponsables();
+  }
+
+  get tituloPagina(): string {
+    return this.puedeAsignarNuevosPipc ? 'Asignación de PIPC' : 'Gestión de PIPC';
+  }
+
+  get subtituloPagina(): string {
+    return this.puedeAsignarNuevosPipc
+      ? 'Despliega plantillas y administra formatos'
+      : 'Reasigna requisitos y administra el PIPC ya desplegado';
+  }
+
+  get tituloPestanaDesplegar(): string {
+    return this.puedeAsignarNuevosPipc ? 'Desplegar PIPC por empresa' : 'Gestionar asignaciones por empresa';
+  }
+
+  get ayudaPestanaDesplegar(): string {
+    return this.puedeAsignarNuevosPipc
+      ? 'Selecciona la empresa, el responsable y las plantillas PIPC a desplegar. La gestión del trámite se hace en PIPC Activos.'
+      : 'Selecciona la empresa y abre el PIPC ya asignado para volver a agregar requisitos eliminados. Solo un administrador puede asignar PIPC nuevos.';
+  }
+
+  get etiquetaTabDesplegarLarga(): string {
+    return this.puedeAsignarNuevosPipc ? 'Desplegar por empresa' : 'Gestionar asignaciones';
+  }
+
+  get etiquetaTabDesplegarCorta(): string {
+    return this.puedeAsignarNuevosPipc ? 'Desplegar' : 'Asignaciones';
+  }
+
+  get etiquetaTabCatalogoLarga(): string {
+    return this.puedeAsignarNuevosPipc ? 'Gestión de PIPC' : 'Catálogo de plantillas';
+  }
+
+  get etiquetaTabCatalogoCorta(): string {
+    return this.puedeAsignarNuevosPipc ? 'PIPC' : 'Catálogo';
+  }
+
+  get tituloCardGestion(): string {
+    return this.puedeAsignarNuevosPipc ? 'Gestión de PIPC' : 'Catálogo de plantillas';
+  }
+
+  get placeholderDesplegarTitulo(): string {
+    return this.puedeAsignarNuevosPipc ? '¿Listo para desplegar?' : '¿Qué asignación vamos a gestionar?';
+  }
+
+  get placeholderDesplegarDesc(): string {
+    return this.puedeAsignarNuevosPipc
+      ? 'Elige una empresa arriba para comenzar. Podrás asignar plantillas PIPC nuevas aunque la empresa ya tenga otras en gestión.'
+      : 'Elige una empresa con PIPC ya asignado. Podrás reabrir plantillas y volver a desplegar requisitos que se hayan borrado.';
   }
 
   setPestana(tab: PestanaAsignacionPipc): void {

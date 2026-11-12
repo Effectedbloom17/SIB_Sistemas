@@ -125,7 +125,7 @@
                   <div class="courses-pane-header">
                     <div>
                       <h5 class="courses-pane-title">{{ empresaSeleccionada.nombre_empresa }}</h5>
-                      <span class="courses-pane-subtitle">Selecciona año y mes para consultar historial</span>
+                      <span class="courses-pane-subtitle">Trámites finalizados y días para el vencimiento del PIPC</span>
                     </div>
                     <button type="button" class="btn-reset-company" (click)="limpiarSeleccionEmpresa()">
                       <i class="fas fa-times"></i> Quitar selección
@@ -157,19 +157,53 @@
                     <p class="text-muted mt-2 mb-0">No hay trámites para el año/mes seleccionado</p>
                   </div>
 
-                  <div class="courses-list" *ngIf="!cargandoCiclos && ciclosFiltrados.length > 0">
-                    <article class="course-item" *ngFor="let ciclo of ciclosVisibles; trackBy: trackByCicloId"
+                  <div class="courses-list"
+                       *ngIf="!cargandoCiclos && ciclosFiltrados.length > 0"
+                       [class.courses-list--centrado]="ciclosFiltrados.length <= 3">
+                    <article class="pipc-card" *ngFor="let ciclo of ciclosVisibles; trackBy: trackByCicloId"
+                      [attr.data-estado]="estadoVigencia(ciclo)"
                       role="button" tabindex="0"
                       (click)="abrirDetalleCiclo(ciclo)"
                       (keydown.enter)="abrirDetalleCiclo(ciclo)">
-                      <div class="course-main">
-                        <h6 class="course-name">{{ tituloCiclo(ciclo) }}</h6>
-                        <div class="course-meta-grid">
-                          <span><i class="fas fa-calendar-alt"></i> Cierre: {{ formatFecha(ciclo.fecha_cierre || ciclo.fecha_inicio) }}</span>
-                          <span><i class="fas fa-folder"></i> {{ ciclo.resumen?.total || 0 }} archivo(s)</span>
-                          <span><i class="fas fa-file-signature"></i> Oficios: {{ ciclo.resumen?.oficios || 0 }}</span>
-                          <span><i class="fas fa-stamp"></i> Resolutivos: {{ ciclo.resumen?.resolutivos || 0 }}</span>
+                      <div class="pipc-card__head">
+                        <div class="pipc-card__mark" aria-hidden="true">
+                          <i class="fas fa-shield-alt"></i>
                         </div>
+                        <div class="pipc-card__titles">
+                          <h6 class="pipc-card__name">{{ tituloCiclo(ciclo) }}</h6>
+                        </div>
+                        <div class="vigencia-pill" [attr.data-estado]="estadoVigencia(ciclo)">
+                          <span class="vigencia-pill__kicker">{{ etiquetaVigencia(ciclo) || 'Vigencia' }}</span>
+                          <span class="vigencia-pill__sep" aria-hidden="true">·</span>
+                          <strong class="vigencia-pill__dias">{{ textoDiasVigencia(ciclo) }}</strong>
+                          <ng-container *ngIf="ciclo.fecha_vencimiento">
+                            <span class="vigencia-pill__sep" aria-hidden="true">·</span>
+                            <span class="vigencia-pill__vence">
+                              {{ estadoVigencia(ciclo) === 'vencido' ? 'Venció' : 'Vence' }}
+                              {{ formatFecha(ciclo.fecha_vencimiento) }}
+                            </span>
+                          </ng-container>
+                        </div>
+                      </div>
+                      <div class="pipc-card__foot">
+                        <span class="pipc-stat">
+                          <i class="fas fa-folder"></i>
+                          <strong>{{ ciclo.resumen?.total || 0 }}</strong>
+                          {{ (ciclo.resumen?.total || 0) === 1 ? 'archivo' : 'archivos' }}
+                        </span>
+                        <span class="pipc-stat">
+                          <i class="fas fa-file-signature"></i>
+                          <strong>{{ ciclo.resumen?.oficios || 0 }}</strong>
+                          {{ (ciclo.resumen?.oficios || 0) === 1 ? 'oficio' : 'oficios' }}
+                        </span>
+                        <span class="pipc-stat">
+                          <i class="fas fa-stamp"></i>
+                          <strong>{{ ciclo.resumen?.resolutivos || 0 }}</strong>
+                          {{ (ciclo.resumen?.resolutivos || 0) === 1 ? 'resolutivo' : 'resolutivos' }}
+                        </span>
+                        <span class="pipc-card__abrir" aria-hidden="true">
+                          <i class="fas fa-chevron-right"></i>
+                        </span>
                       </div>
                     </article>
                   </div>
@@ -223,6 +257,17 @@
                 <span class="detalle-curso-nombre">{{ tituloCiclo(cicloSeleccionado) }}</span>
               </div>
               <div class="detalle-header-actions">
+                <button
+                  type="button"
+                  class="btn-reabrir-pipc"
+                  *ngIf="puedeReabrirCiclo"
+                  [disabled]="reabriendoCiclo"
+                  (click)="reabrirCicloPipc()"
+                  title="Reabrir PIPC para seguimiento"
+                >
+                  <i class="fas" [ngClass]="reabriendoCiclo ? 'fa-spinner fa-spin' : 'fa-undo'"></i>
+                  {{ reabriendoCiclo ? 'Reabriendo…' : 'Reabrir PIPC' }}
+                </button>
                 <div class="pc-hist-seguimiento" [class.is-abierto]="seguimientoAbierto">
                   <button type="button"
                           class="pc-hist-seguimiento__btn"
@@ -386,112 +431,125 @@
                     </div>
                   </div>
 
-                  <!-- Oficios / Observaciones / Resolutivos -->
-                  <div class="history-compact-grid" *ngIf="esSeccionCompacta">
+                  <!-- Oficios / Observaciones / Resolutivos: tiles como archivero -->
+                  <div class="history-repo-grid history-repo-grid--compacta" *ngIf="esSeccionCompacta">
+                    <ng-container *ngFor="let archivo of archivosDeApartado(seccionActiva)">
+                      <ng-container *ngTemplateOutlet="repoTileTpl; context: { $implicit: archivo, tituloHtml: true }"></ng-container>
+                    </ng-container>
+                  </div>
+
+                  <!-- Documentación / Extra: requisitos en 2 columnas -->
+                  <div class="history-req-stack" *ngIf="!esSeccionCompacta">
+                    <section
+                      class="history-req-block-repo"
+                      *ngFor="let grupo of gruposSeccionActiva"
+                      [attr.data-count]="grupo.archivos.length"
+                    >
+                      <div class="history-req-block-repo__head">
+                        <div class="history-req-block-repo__titles">
+                          <span class="history-req-block-repo__pipc" *ngIf="grupo.pipc">
+                            <i class="fas fa-shield-alt"></i> {{ grupo.pipc }}
+                          </span>
+                          <h6
+                            class="history-req-block-repo__title"
+                            [innerHTML]="getNombreArchivoResaltado(grupo.titulo)"
+                          ></h6>
+                        </div>
+                        <span class="history-req-block-repo__count">
+                          {{ grupo.archivos.length }}
+                          {{ grupo.archivos.length === 1 ? 'archivo' : 'archivos' }}
+                        </span>
+                      </div>
+
+                      <div class="history-repo-grid history-repo-grid--grupo"
+                           [attr.data-count]="grupo.archivos.length">
+                        <ng-container *ngFor="let archivo of grupo.archivos">
+                          <ng-container *ngTemplateOutlet="repoTileTpl; context: { $implicit: archivo, tituloHtml: false }"></ng-container>
+                        </ng-container>
+                      </div>
+                    </section>
+                  </div>
+
+                  <ng-template #repoTileTpl let-archivo let-tituloHtml="tituloHtml">
                     <article
-                      class="history-compact-card"
-                      *ngFor="let archivo of archivosDeApartado(seccionActiva)"
+                      class="history-repo-tile"
+                      [ngClass]="claseTileArchivo(archivo)"
                       (click)="abrirItem(archivo)"
                       role="button"
                       tabindex="0"
                       (keydown.enter)="abrirItem(archivo)"
                     >
-                      <div
-                        class="history-compact-card__icon"
-                        [style.background]="colorArchivo(archivo.mime_type, archivo.nombre_archivo)"
-                      >
-                        <i class="fas" [ngClass]="iconoArchivo(archivo)"></i>
-                      </div>
-                      <div class="history-compact-card__body">
-                        <strong
-                          class="history-compact-card__title"
-                          [innerHTML]="getNombreArchivoResaltado(archivo.nombre_documento)"
-                        ></strong>
-                        <span class="history-compact-card__file" *ngIf="archivo.nombre_archivo && archivo.nombre_archivo !== archivo.nombre_documento">
-                          {{ archivo.nombre_archivo }}
-                        </span>
-                        <span class="history-compact-card__meta">
-                          <i class="fas fa-calendar-alt"></i>
-                          {{ formatFechaCorta(archivo.fecha_referencia) }}
-                          <span *ngIf="archivo.pipc_titulo"> · {{ archivo.pipc_titulo }}</span>
-                        </span>
-                      </div>
-                      <div class="history-compact-card__actions" (click)="$event.stopPropagation()">
-                        <button type="button" class="action-btn action-preview" (click)="abrirItem(archivo, $event)" title="Ver">
-                          <i class="fas fa-eye"></i>
-                        </button>
-                        <button
-                          type="button"
-                          class="action-btn action-download"
-                          *ngIf="archivo.drive_file_id"
-                          (click)="descargarItem(archivo, $event)"
-                          title="Descargar"
-                        >
-                          <i class="fas fa-download"></i>
-                        </button>
-                      </div>
-                    </article>
-                  </div>
-
-                  <!-- Documentación / Extra: 2 requisitos por fila -->
-                  <div class="history-req-grid" *ngIf="!esSeccionCompacta">
-                    <article
-                      class="history-req-card"
-                      *ngFor="let grupo of gruposSeccionActiva"
-                    >
-                      <div class="history-req-card__head">
-                        <div class="history-req-card__titles">
-                          <span class="history-req-card__pipc" *ngIf="grupo.pipc">
-                            <i class="fas fa-shield-alt"></i> {{ grupo.pipc }}
-                          </span>
-                          <h6
-                            class="history-req-card__title"
-                            [innerHTML]="getNombreArchivoResaltado(grupo.titulo)"
-                          ></h6>
+                      <div class="history-repo-tile__preview">
+                        <div class="history-repo-tile__loader" *ngIf="miniatura(archivo).cargando" aria-hidden="true">
+                          <i class="fas fa-spinner fa-spin"></i>
                         </div>
-                        <span class="history-req-card__count">{{ grupo.archivos.length }} archivo(s)</span>
-                      </div>
-
-                      <div class="history-req-card__files">
+                        <img
+                          *ngIf="miniatura(archivo).urlStr && !miniatura(archivo).error"
+                          class="history-repo-tile__thumb"
+                          [src]="miniatura(archivo).urlStr | safe:'url'"
+                          [alt]="archivo.nombre_archivo || archivo.nombre_documento"
+                          loading="lazy"
+                          (load)="onLoadMiniatura(archivo)"
+                          (error)="onErrorMiniatura(archivo, $event)"
+                        >
                         <div
-                          *ngFor="let archivo of grupo.archivos"
-                          class="history-req-file"
-                          (click)="abrirItem(archivo)"
+                          class="history-repo-tile__placeholder"
+                          *ngIf="!miniatura(archivo).urlStr || miniatura(archivo).error"
+                          [class.is-loading]="miniatura(archivo).cargando"
                         >
-                          <div
-                            class="drive-file-icon drive-file-icon-sm"
-                            [style.background]="colorArchivo(archivo.mime_type, archivo.nombre_archivo)"
+                          <i class="fas" [ngClass]="iconoArchivo(archivo)"></i>
+                          <span>{{ etiquetaTipoArchivo(archivo) }}</span>
+                        </div>
+                        <span class="history-repo-tile__badge">{{ etiquetaTipoArchivo(archivo) }}</span>
+                        <div class="history-repo-tile__hover" (click)="$event.stopPropagation()">
+                          <button type="button" class="history-repo-tile__btn" title="Ver" (click)="abrirItem(archivo, $event)">
+                            <i class="fas fa-eye" aria-hidden="true"></i>
+                          </button>
+                          <button
+                            type="button"
+                            class="history-repo-tile__btn"
+                            *ngIf="archivo.drive_file_id"
+                            title="Descargar"
+                            (click)="descargarItem(archivo, $event)"
                           >
-                            <i class="fas" [ngClass]="iconoArchivo(archivo)"></i>
-                          </div>
-                          <div class="history-req-file__text">
-                            <span
-                              class="history-req-file__name"
-                              [title]="archivo.nombre_archivo || archivo.nombre_documento"
-                            >{{ archivo.nombre_archivo || archivo.nombre_documento }}</span>
-                            <small class="history-req-file__meta">
-                              {{ formatFechaCorta(archivo.fecha_referencia) }}
-                              <span *ngIf="archivo.tamano_bytes"> · {{ formatearTamano(archivo.tamano_bytes) }}</span>
-                            </small>
-                          </div>
-                          <div class="history-req-file__actions" (click)="$event.stopPropagation()">
-                            <button type="button" class="action-btn action-preview" (click)="abrirItem(archivo, $event)" title="Ver">
-                              <i class="fas fa-eye"></i>
-                            </button>
-                            <button
-                              type="button"
-                              class="action-btn action-download"
-                              *ngIf="archivo.drive_file_id"
-                              (click)="descargarItem(archivo, $event)"
-                              title="Descargar"
-                            >
-                              <i class="fas fa-download"></i>
-                            </button>
-                          </div>
+                            <i class="fas fa-download" aria-hidden="true"></i>
+                          </button>
+                          <button
+                            type="button"
+                            class="history-repo-tile__btn"
+                            *ngIf="archivo.drive_file_id"
+                            title="Abrir en Drive"
+                            (click)="abrirItemEnDrive(archivo, $event)"
+                          >
+                            <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                          </button>
                         </div>
                       </div>
+                      <div class="history-repo-tile__info">
+                        <h4
+                          class="history-repo-tile__name"
+                          *ngIf="tituloHtml"
+                          [title]="archivo.nombre_archivo || archivo.nombre_documento"
+                          [innerHTML]="getNombreArchivoResaltado(archivo.nombre_documento)"
+                        ></h4>
+                        <h4
+                          class="history-repo-tile__name"
+                          *ngIf="!tituloHtml"
+                          [title]="archivo.nombre_archivo || archivo.nombre_documento"
+                        >{{ archivo.nombre_archivo || archivo.nombre_documento }}</h4>
+                        <p class="history-repo-tile__meta mb-0">
+                          <span *ngIf="tituloHtml && archivo.nombre_archivo && archivo.nombre_archivo !== archivo.nombre_documento"
+                                class="history-repo-tile__file"
+                                [title]="archivo.nombre_archivo">{{ archivo.nombre_archivo }}</span>
+                          <span *ngIf="tituloHtml && archivo.nombre_archivo && archivo.nombre_archivo !== archivo.nombre_documento"
+                                class="history-repo-tile__dot" aria-hidden="true">·</span>
+                          <span>{{ formatFechaCorta(archivo.fecha_referencia) }}</span>
+                          <span *ngIf="archivo.tamano_bytes" class="history-repo-tile__dot" aria-hidden="true">·</span>
+                          <span *ngIf="archivo.tamano_bytes">{{ formatearTamano(archivo.tamano_bytes) }}</span>
+                        </p>
+                      </div>
                     </article>
-                  </div>
+                  </ng-template>
 
                   <div
                     class="docs-empty docs-empty--soft"
