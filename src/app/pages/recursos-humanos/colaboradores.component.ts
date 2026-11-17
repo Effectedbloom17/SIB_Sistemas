@@ -6,6 +6,7 @@ import Swal from 'sweetalert2';
 import { BackendServices } from 'src/app/services/backend.services';
 import { AuthService } from 'src/app/services/auth.service';
 import { DocumentPreviewService } from 'src/app/services/document-preview.service';
+import { UploadSourceChooserService } from 'src/app/services/upload-source-chooser.service';
 import {
   ORGANIGRAMA_COLUMNAS,
   ORGANIGRAMA_DIRECCION,
@@ -133,7 +134,8 @@ export class ColaboradoresComponent implements OnInit, OnDestroy {
     private auth: AuthService,
     private documentPreview: DocumentPreviewService,
     private route: ActivatedRoute,
-    private router: Router
+    private router: Router,
+    private uploadSourceChooser: UploadSourceChooserService
   ) {}
 
   ngOnInit(): void {
@@ -782,8 +784,29 @@ export class ColaboradoresComponent implements OnInit, OnDestroy {
     });
   }
 
-  dispararSubida(): void {
-    this.fileInput?.nativeElement?.click();
+  async dispararSubida(): Promise<void> {
+    if (!this.seleccionado || this.subiendo) {
+      return;
+    }
+    const origen = await this.uploadSourceChooser.elegir({
+      titulo: '¿Cómo quieres agregar el archivo?',
+      subtitulo: 'Elige si lo tomas de tu galería/archivos o si lo pegas desde el portapapeles.'
+    });
+    if (!origen) {
+      return;
+    }
+    if (origen === 'galeria') {
+      this.fileInput?.nativeElement?.click();
+      return;
+    }
+    const files = await this.uploadSourceChooser.esperarPegado({
+      titulo: 'Pega el archivo del expediente',
+      subtitulo: 'Copia el documento o imagen y pégalo con Ctrl+V.'
+    });
+    if (!files?.length) {
+      return;
+    }
+    this.subirArchivos(files, this.carpetaActualId || this.seleccionado.id);
   }
 
   onArchivosSeleccionados(event: Event): void {
@@ -888,6 +911,14 @@ export class ColaboradoresComponent implements OnInit, OnDestroy {
     }
     this.lastDropKey = dedupKey;
     this.lastDropAt = ahora;
+    this.subirArchivos(files, destinoId);
+  }
+
+  onPasteFiles(files: File[]): void {
+    if (!files?.length || !this.seleccionado || this.uploadLock || this.subiendo || this.moviendo) {
+      return;
+    }
+    const destinoId = this.carpetaActualId || this.seleccionado.id;
     this.subirArchivos(files, destinoId);
   }
 

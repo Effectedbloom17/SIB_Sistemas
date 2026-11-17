@@ -44,7 +44,7 @@ const MENU_GROUPS: { title?: string; paths: string[] }[] = [
     { title: 'Médicos', paths: ['/programacion-estudios', '/expedientes-medicos', '/audiometria', '/estadisticas-medicas'] },
     { title: 'SGC', paths: ['/sistema-gestion-calidad', '/sistema-gestion-calidad/procedimientos', '/sistema-gestion-calidad/instructivos', '/sistema-gestion-calidad/formatos', '/sistema-gestion-calidad/normativas', '/sistema-gestion-calidad/firmas', '/sistema-gestion-calidad/solicitud-documentos'] },
     { title: 'Seguridad', paths: ['/seguridad/normativas', '/seguridad/asignacion', '/seguridad/gestion'] },
-    { title: 'Recursos Humanos', paths: ['/recursos-humanos/residentes', '/recursos-humanos/colaboradores'] },
+    { title: 'Recursos Humanos', paths: ['/recursos-humanos/residentes', '/recursos-humanos/colaboradores', '/recursos-humanos/registros'] },
     { title: 'Ambiental', paths: ['/ambiental', '/control-tramites'] },
     { title: 'Control de Proyectos', paths: ['/control-proyectos', '/control-oficios', '/agenda'] },
     { title: 'Sensorización', paths: ['/sensores'] },
@@ -97,6 +97,8 @@ export const ROUTES: RouteInfo[] = [
     { path: '/recursos-humanos/residentes', title: 'Residentes', icon: '', iconFa: 'fa-user-friends', class: '', roles: ['root', 'administrador', 'rrhh'] },
     // Organigrama: todos excepto empresa (filtro en filterMenuByRole); expediente solo RRHH/admin
     { path: '/recursos-humanos/colaboradores', title: 'Colaboradores', icon: '', iconFa: 'fa-id-badge', class: '' },
+    // Debajo de Colaboradores · solo root + Rozana (filtro en filterMenuByRole)
+    { path: '/recursos-humanos/registros', title: 'Registros RH', icon: '', iconFa: 'fa-archive', class: '' },
     { path: '/control-proyectos', title: 'Control de avance\nde proyectos', icon: '', iconFa: 'fa-project-diagram', class: '' }, // Todos los perfiles; empresa en consulta
     // De momento solo superadministrador (root); reabrir a iot cuando corresponda
     { path: '/sensores', title: 'Sensores', icon: '', iconFa: 'fa-tint', class: '', roles: ['root'] },
@@ -515,6 +517,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
       if (item.path === '/recursos-humanos/residentes') {
         return userRoles.some(role => ['root', 'administrador', 'rrhh'].includes(role.toLowerCase()))
           || ['root', 'administrador', 'rrhh'].includes(String(userRole || '').toLowerCase());
+      }
+
+      // Registros RH: superadministrador (root) + Rozana
+      if (item.path === '/recursos-humanos/registros') {
+        return this.authService.puedeVerRegistrosRh();
       }
 
       // Colaboradores / organigrama: todos los perfiles internos excepto empresa

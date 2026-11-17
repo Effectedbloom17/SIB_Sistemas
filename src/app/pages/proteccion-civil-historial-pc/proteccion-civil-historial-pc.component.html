@@ -158,8 +158,7 @@
                   </div>
 
                   <div class="courses-list"
-                       *ngIf="!cargandoCiclos && ciclosFiltrados.length > 0"
-                       [class.courses-list--centrado]="ciclosFiltrados.length <= 3">
+                       *ngIf="!cargandoCiclos && ciclosFiltrados.length > 0">
                     <article class="pipc-card" *ngFor="let ciclo of ciclosVisibles; trackBy: trackByCicloId"
                       [attr.data-estado]="estadoVigencia(ciclo)"
                       role="button" tabindex="0"
@@ -432,16 +431,21 @@
                   </div>
 
                   <!-- Oficios / Observaciones / Resolutivos: tiles como archivero -->
-                  <div class="history-repo-grid history-repo-grid--compacta" *ngIf="esSeccionCompacta">
+                  <div class="history-repo-grid history-repo-grid--compacta"
+                       *ngIf="esSeccionCompacta"
+                       [attr.data-count]="archivosDeApartado(seccionActiva).length">
                     <ng-container *ngFor="let archivo of archivosDeApartado(seccionActiva)">
                       <ng-container *ngTemplateOutlet="repoTileTpl; context: { $implicit: archivo, tituloHtml: true }"></ng-container>
                     </ng-container>
                   </div>
 
-                  <!-- Documentación / Extra: requisitos en 2 columnas -->
-                  <div class="history-req-stack" *ngIf="!esSeccionCompacta">
+                  <!-- Documentación / Extra: requisitos o carpetas en 2 columnas -->
+                  <div class="history-req-stack"
+                       [class.history-req-stack--extra]="seccionActiva === 'extra'"
+                       *ngIf="!esSeccionCompacta">
                     <section
                       class="history-req-block-repo"
+                      [class.history-req-block-repo--carpeta]="seccionActiva === 'extra'"
                       *ngFor="let grupo of gruposSeccionActiva"
                       [attr.data-count]="grupo.archivos.length"
                     >
@@ -452,8 +456,21 @@
                           </span>
                           <h6
                             class="history-req-block-repo__title"
+                            *ngIf="seccionActiva === 'extra'"
+                          >
+                            <i class="fas"
+                               [ngClass]="grupo.esRaiz ? 'fa-file-alt' : 'fa-folder'"
+                               aria-hidden="true"></i>
+                            <span [innerHTML]="getNombreArchivoResaltado(grupo.titulo)"></span>
+                          </h6>
+                          <h6
+                            class="history-req-block-repo__title"
+                            *ngIf="seccionActiva !== 'extra'"
                             [innerHTML]="getNombreArchivoResaltado(grupo.titulo)"
                           ></h6>
+                          <span class="history-req-block-repo__sub" *ngIf="grupo.subtitulo">
+                            {{ grupo.subtitulo }}
+                          </span>
                         </div>
                         <span class="history-req-block-repo__count">
                           {{ grupo.archivos.length }}

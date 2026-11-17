@@ -473,8 +473,10 @@ $pdf-red-dark: #b91c1c;
       0 8px 24px rgba(15, 118, 110, 0.12),
       0 2px 6px rgba(15, 23, 42, 0.06);
 
-    .sgc-proc-card__overlay {
+    .sgc-proc-card__toolbar {
       opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
     }
 
     .sgc-proc-card__action {
@@ -544,72 +546,50 @@ $pdf-red-dark: #b91c1c;
   z-index: 2;
 }
 
-.sgc-proc-card__overlay {
+/* Toolbar estilo Registros RH (esquina superior derecha al hover) */
+.sgc-proc-card__toolbar {
   position: absolute;
-  inset: 0;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 5;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 0.22rem;
+  padding: 0.18rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 6px 14px rgba(15, 118, 110, 0.14);
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.sgc-proc-card__tool {
+  appearance: none;
+  border: 0;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 8px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  background: linear-gradient(180deg, rgba(15, 118, 110, 0.05) 0%, rgba(9, 82, 74, 0.75) 100%);
-  opacity: 0;
-  transition: opacity 0.22s ease;
-  z-index: 3;
-}
-
-.sgc-proc-card__open {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(6px);
-  padding: 0.45rem 0.85rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-}
-
-.sgc-proc-card__print {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
+  background: transparent;
+  color: $sgc-muted;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease;
+  font-size: 0.7rem;
+  transition: background 0.12s ease, color 0.12s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.28);
-    transform: translateY(-1px);
+    background: $sgc-teal-soft;
+    color: $sgc-teal-dark;
   }
 }
 
-.sgc-proc-card__replace {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #fff;
-  background: rgba(217, 119, 6, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease;
-
-  &:hover {
-    background: #b45309;
-    transform: translateY(-1px);
-  }
+.sgc-proc-card__tool--danger:hover {
+  background: #fff1f2;
+  color: #be123c;
 }
 
 .sgc-proc-card__body {
@@ -623,27 +603,6 @@ $pdf-red-dark: #b91c1c;
   justify-content: flex-end;
   gap: 0.4rem;
   margin-top: 0.55rem;
-}
-
-.sgc-proc-card__replace-btn {
-  width: 1.65rem;
-  height: 1.65rem;
-  border-radius: 50%;
-  border: 1px solid rgba(217, 119, 6, 0.28);
-  background: rgba(251, 191, 36, 0.15);
-  color: #b45309;
-  display: grid;
-  place-items: center;
-  font-size: 0.62rem;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
-
-  &:hover {
-    background: #d97706;
-    border-color: #d97706;
-    color: #fff;
-    transform: rotate(-12deg);
-  }
 }
 
 .sgc-proc-card__meta {
@@ -1310,6 +1269,22 @@ $pdf-red-dark: #b91c1c;
     .btn {
       flex: 1 1 0;
     }
+  }
+
+  /* En móvil el toolbar queda visible (como Registros RH) */
+  .sgc-proc-card__toolbar {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+}
+
+/* Tablets / pantallas táctiles: mismos botones siempre visibles */
+@media (max-width: 900px), (hover: none) {
+  .sgc-proc-card__toolbar {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
   }
 }
 

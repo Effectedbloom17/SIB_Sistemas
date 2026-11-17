@@ -775,6 +775,8 @@
 
                     <div *ngIf="!examenResueltoSubido && !paso5EdicionBloqueada">
                       <div class="drop-zone" [class.dragging]="arrastrando" [class.has-file]="examenResueltoArchivo"
+                        appPasteFiles [pasteDispatchInput]="true" pasteAccept="application/pdf,.pdf" tabindex="0"
+                        title="También puedes pegar un PDF con Ctrl+V"
                         (dragover)="onDragOver($event, 'diagnostico')" (dragleave)="onDragLeave($event, 'diagnostico')"
                         (drop)="onDrop($event, 'diagnostico')" (click)="fileInputExamen.click()">
                         <input #fileInputExamen type="file" accept=".pdf" style="display:none"
@@ -782,7 +784,7 @@
                         <div *ngIf="!examenResueltoArchivo" class="text-center">
                           <i class="fas fa-cloud-upload-alt fa-2x mb-2" style="color: #5e72e4; opacity: 0.7;"></i>
                           <p class="mb-1 font-weight-600 exam-drop-label">PDF de diagnóstico resuelto</p>
-                          <p class="mb-0 text-muted exam-drop-hint">Arrastra el archivo o haz clic para seleccionarlo</p>
+                          <p class="mb-0 text-muted exam-drop-hint">Arrastra, pega (Ctrl+V) o haz clic</p>
                           <p class="mb-0 text-muted exam-drop-hint small">PDF, máximo 512 MB</p>
                         </div>
                         <div *ngIf="examenResueltoArchivo" class="text-center">
@@ -838,7 +840,10 @@
 
                     <div *ngIf="!evaluacionResueltaSubida && !paso5EdicionBloqueada">
                       <div class="drop-zone" [class.dragging]="arrastrandoEvaluacion"
-                        [class.has-file]="evaluacionResueltaArchivo" (dragover)="onDragOver($event, 'final')"
+                        [class.has-file]="evaluacionResueltaArchivo"
+                        appPasteFiles [pasteDispatchInput]="true" pasteAccept="application/pdf,.pdf" tabindex="0"
+                        title="También puedes pegar un PDF con Ctrl+V"
+                        (dragover)="onDragOver($event, 'final')"
                         (dragleave)="onDragLeave($event, 'final')" (drop)="onDrop($event, 'final')"
                         (click)="fileInputEvaluacion.click()">
                         <input #fileInputEvaluacion type="file" accept=".pdf" style="display:none"
@@ -846,7 +851,7 @@
                         <div *ngIf="!evaluacionResueltaArchivo" class="text-center">
                           <i class="fas fa-cloud-upload-alt fa-2x mb-2" style="color: #5e72e4; opacity: 0.7;"></i>
                           <p class="mb-1 font-weight-600 exam-drop-label">PDF de evaluación final resuelta</p>
-                          <p class="mb-0 text-muted exam-drop-hint">Arrastra el archivo o haz clic para seleccionarlo</p>
+                          <p class="mb-0 text-muted exam-drop-hint">Arrastra, pega (Ctrl+V) o haz clic</p>
                           <p class="mb-0 text-muted exam-drop-hint small">PDF, máximo 512 MB</p>
                         </div>
                         <div *ngIf="evaluacionResueltaArchivo" class="text-center">
@@ -1062,14 +1067,18 @@
                         <!-- Zona de carga de fotos -->
                         <div *ngIf="!isPasoCompletado(6)" class="drop-zone evidencias-drop-zone" [class.dragging]="arrastrandoFotos"
                           [class.has-file]="fotosEvidenciaArchivos.length > 0"
-                          [class.is-disabled]="subiendoFotosEvidencia" (dragover)="onDragOverFotos($event)"
+                          [class.is-disabled]="subiendoFotosEvidencia"
+                          appPasteFiles pasteAccept="image/jpeg,image/png,image/jpg" [pasteListenDocument]="true"
+                          tabindex="0" title="También puedes pegar fotos con Ctrl+V"
+                          (filesPasted)="onPasteFotos($event)"
+                          (dragover)="onDragOverFotos($event)"
                           (dragleave)="onDragLeaveFotos($event)" (drop)="onDropFotos($event)"
                           (click)="!subiendoFotosEvidencia && fileInputFotos.click()">
                           <input #fileInputFotos type="file" accept="image/jpeg,image/png" multiple style="display:none"
                             [disabled]="subiendoFotosEvidencia" (change)="onFotosSeleccionadas($event)">
                           <div *ngIf="fotosEvidenciaArchivos.length === 0" class="text-center">
                             <i class="fas fa-cloud-upload-alt fa-2x mb-2 evidencias-drop-zone__icon"></i>
-                            <p class="mb-1 font-weight-600 small">Arrastra fotos aquí o haz clic para seleccionarlas</p>
+                            <p class="mb-1 font-weight-600 small">Arrastra o pega (Ctrl+V) fotos aquí</p>
                           </div>
                           <div *ngIf="fotosEvidenciaArchivos.length > 0" class="text-center">
                             <i class="fas fa-images fa-2x mb-2 evidencias-drop-zone__icon--ok"></i>
@@ -1158,6 +1167,9 @@
                         <!-- Zona de carga -->
                         <div *ngIf="!isPasoCompletado(6) && !listaFisicaSubida">
                           <div class="drop-zone lista-fisica-drop-zone"
+                            appPasteFiles [pasteDispatchInput]="true"
+                            pasteAccept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
+                            tabindex="0" title="También puedes pegar el archivo con Ctrl+V"
                             [class.dragging]="arrastrandoListaFisica"
                             [class.has-file]="!!listaFisicaArchivo"
                             [class.is-disabled]="subiendoListaFisica"
@@ -1169,7 +1181,7 @@
                               [disabled]="subiendoListaFisica" (change)="onListaFisicaSeleccionada($event)">
                             <div *ngIf="!listaFisicaArchivo" class="text-center">
                               <i class="fas fa-cloud-upload-alt fa-2x mb-2 lista-fisica-drop-zone__icon"></i>
-                              <p class="mb-1 font-weight-600 small">Arrastra el archivo aquí o haz clic</p>
+                              <p class="mb-1 font-weight-600 small">Arrastra, pega (Ctrl+V) o haz clic</p>
                               <small class="text-muted">PDF, JPG o PNG</small>
                             </div>
                             <div *ngIf="listaFisicaArchivo" class="text-center">

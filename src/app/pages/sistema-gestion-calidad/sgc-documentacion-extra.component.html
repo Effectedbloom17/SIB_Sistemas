@@ -207,6 +207,11 @@
               </div>
 
               <div class="repo-dropzone"
+                   appPasteFiles
+                   [pasteListenDocument]="true"
+                   tabindex="0"
+                   title="También puedes pegar archivos o imágenes con Ctrl+V"
+                   (filesPasted)="onDropzonePaste($event)"
                    [class.repo-dropzone--active]="dropzoneActiva"
                    (dragover)="onDropzoneDragOver($event)"
                    (dragleave)="onDropzoneDragLeave($event)"
@@ -215,7 +220,7 @@
                   <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
                 </div>
                 <p class="repo-dropzone__text mb-0">
-                  Arrastra y suelta los archivos aquí, o haz clic en
+                  Arrastra, pega (Ctrl+V) o haz clic en
                   <button type="button" class="repo-dropzone__link" (click)="abrirPanelSubida()">Subir</button>
                   arriba.
                 </p>
@@ -463,9 +468,12 @@
       </button>
     </header>
     <div class="sgc-extra-modal__body">
-      <p class="text-muted small mb-2">
+      <p class="text-muted small mb-2" *ngIf="modoSubida === 'galeria'">
         Se guardará con el mismo nombre del archivo. Puedes subir archivos sueltos o una carpeta completa;
         el sistema cargará todos los archivos que contenga. Sin límite de tamaño.
+      </p>
+      <p class="text-muted small mb-2" *ngIf="modoSubida === 'pegar'">
+        Copia una imagen o archivo y pégalo aquí con <strong>Ctrl+V</strong>. También puedes volver a elegir desde tu galería.
       </p>
       <p class="sgc-extra-upload-destino small mb-3" *ngIf="carpetaActual; else destinoRaiz">
         <i class="fas fa-folder mr-1" aria-hidden="true"></i>
@@ -478,7 +486,7 @@
         </p>
       </ng-template>
 
-      <div class="sgc-extra-upload-actions">
+      <div class="sgc-extra-upload-actions" *ngIf="modoSubida === 'galeria'">
         <label class="sgc-extra-upload-zone">
           <input type="file"
                  class="sgc-extra-upload-zone__input"
@@ -506,6 +514,22 @@
           <span class="sgc-extra-upload-zone__label">Seleccionar carpeta</span>
           <span class="sgc-extra-upload-zone__hint">Sube todo su contenido</span>
         </label>
+      </div>
+
+      <div class="sgc-extra-paste-zone"
+           *ngIf="modoSubida === 'pegar'"
+           appPasteFiles
+           [pasteListenDocument]="true"
+           tabindex="0"
+           (filesPasted)="onPasteEnPanelSubida($event)">
+        <span class="sgc-extra-paste-zone__icon" aria-hidden="true">
+          <i class="fas fa-paste"></i>
+        </span>
+        <strong>Pega aquí con Ctrl+V</strong>
+        <span>Imagen o archivo copiado desde web, captura o explorador</span>
+        <button type="button" class="btn btn-link btn-sm p-0 mt-2" (click)="volverAGaleriaSubida()">
+          Preferir galería / archivos
+        </button>
       </div>
 
       <div *ngIf="archivosSeleccionados.length" class="sgc-extra-upload-list">

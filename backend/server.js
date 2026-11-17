@@ -61,6 +61,7 @@ const { initChatSocket } = require('./chatSocket');
 const http = require('http');
 const rrhhResidentesService = require('./rrhhResidentesService');
 const rrhhColaboradoresService = require('./rrhhColaboradoresService');
+const rrhhRegistrosService = require('./rrhhRegistrosService');
 const pcCentroOperaciones = require('./pcCentroOperaciones');
 const pcHistorialCicloService = require('./pcHistorialCicloService');
 const pcRecorridoService = require('./pcRecorridoService');
@@ -1005,6 +1006,34 @@ const uploadRrhhColaborador = multer({
         const okExt = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext);
         if (okMime || okExt) return cb(null, true);
         return cb(new Error('Solo se permiten PDF, JPG, JPEG, PNG o WEBP'));
+    }
+});
+
+const uploadRrhhRegistros = multer({
+    storage: storageMemory,
+    limits: { fileSize: 25 * 1024 * 1024 },
+    fileFilter: function (req, file, cb) {
+        const mime = String(file.mimetype || '').toLowerCase();
+        const ext = path.extname(String(file.originalname || '')).toLowerCase();
+        const okMime = [
+            'application/pdf',
+            'image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp', 'image/gif',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'text/plain',
+            'application/rtf',
+            'application/octet-stream'
+        ].includes(mime);
+        const okExt = [
+            '.pdf', '.jpg', '.jpeg', '.png', '.webp', '.gif',
+            '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.rtf'
+        ].includes(ext);
+        if (okMime || okExt) return cb(null, true);
+        return cb(new Error('Solo se permiten PDF, imágenes, Word, Excel o PowerPoint'));
     }
 });
 
@@ -3017,7 +3046,7 @@ function requireRootOCalidadSgc(req, res, next) {
     }
     return res.status(403).json({
         success: false,
-        message: 'Solo root o el perfil de Calidad pueden reemplazar formatos de descarga'
+        message: 'Solo Super administrador o el perfil de Calidad pueden realizar esta acción'
     });
 }
 
@@ -3049,6 +3078,17 @@ const requireAdminOrMantenimiento = requireRole('root', 'administrador', 'manten
 
 /** Acceso a Recursos Humanos (datos sensibles): root | administrador | rrhh */
 const requireAdminOrRrhh = requireRole('root', 'administrador', 'rrhh');
+
+/** Registros RH (FORMATOS RH): solo root + whitelist username (RozanaRG). */
+function requireRegistrosRh(req, res, next) {
+    if (rrhhRegistrosService.usuarioPuedeRegistrosRh(req.user)) {
+        return next();
+    }
+    return res.status(403).json({
+        success: false,
+        message: 'No tiene acceso a Registros Recursos Humanos'
+    });
+}
 
 /** Organigrama Colaboradores: cualquier perfil interno autenticado, excepto empresa. */
 function requireInternoNoEmpresa(req, res, next) {
@@ -22135,6 +22175,7 @@ app.use('/api/empresas/:empresaId/repositorio', createEmpresaRepositorioRouter({
     getPool: () => pool,
     denyEmpresa,
     requireAdmin: requireRepoEmpresaWrite,
+    requireEliminar: requireRootOCalidadSgc,
     handleError,
     obtenerNombreUsuarioAccion
 }));
@@ -32799,6 +32840,62 @@ app.post('/api/sgc/procedimientos/:id/reemplazar', requireAdmin, async (req, res
     }
 });
 
+app.put('/api/sgc/procedimientos/:id/renombrar', requireAdmin, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id) || id <= 0) {
+            return res.status(400).json({ success: false, message: 'ID de procedimiento inválido.' });
+        }
+        const usuario = req.user?.usuario || req.user?.email || req.user?.nombre || req.user?.username || '';
+        const procedimiento = await sgcProcedimientosService.renombrarProcedimiento(
+            poolBiznagaSgc,
+            id,
+            req.body || {},
+            usuario
+        );
+        return res.json({
+            success: true,
+            message: 'Procedimiento renombrado.',
+            procedimiento
+        });
+    } catch (error) {
+        if (String(error.message || '').includes('no encontrado')) {
+            return res.status(404).json({ success: false, message: error.message });
+        }
+        if (String(error.message || '').includes('vacío')) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo renombrar el procedimiento');
+    }
+});
+
+app.delete('/api/sgc/procedimientos/:id', requireRootOCalidadSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id) || id <= 0) {
+            return res.status(400).json({ success: false, message: 'ID de procedimiento inválido.' });
+        }
+        const usuario = req.user?.usuario || req.user?.email || req.user?.nombre || req.user?.username || '';
+        const resultado = await sgcProcedimientosService.eliminarProcedimiento(
+            poolBiznagaSgc,
+            id,
+            usuario
+        );
+        return res.json({
+            success: true,
+            message: 'Procedimiento eliminado.',
+            ...resultado
+        });
+    } catch (error) {
+        if (String(error.message || '').includes('no encontrado')) {
+            return res.status(404).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo eliminar el procedimiento');
+    }
+});
+
 app.get('/api/sgc/instructivos', requireAdminOrSgc, async (req, res) => {
     try {
         await poolBiznagaSgcReady;
@@ -32858,6 +32955,62 @@ app.post('/api/sgc/instructivos/:id/reemplazar', requireAdmin, async (req, res) 
             return res.status(400).json({ success: false, message: error.message });
         }
         handleError(res, error, 'No se pudo reemplazar el archivo del instructivo');
+    }
+});
+
+app.put('/api/sgc/instructivos/:id/renombrar', requireAdmin, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id) || id <= 0) {
+            return res.status(400).json({ success: false, message: 'ID de instructivo inválido.' });
+        }
+        const usuario = req.user?.usuario || req.user?.email || req.user?.nombre || req.user?.username || '';
+        const instructivo = await sgcInstructivosService.renombrarInstructivo(
+            poolBiznagaSgc,
+            id,
+            req.body || {},
+            usuario
+        );
+        return res.json({
+            success: true,
+            message: 'Instructivo renombrado.',
+            instructivo
+        });
+    } catch (error) {
+        if (String(error.message || '').includes('no encontrado')) {
+            return res.status(404).json({ success: false, message: error.message });
+        }
+        if (String(error.message || '').includes('vacío')) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo renombrar el instructivo');
+    }
+});
+
+app.delete('/api/sgc/instructivos/:id', requireRootOCalidadSgc, async (req, res) => {
+    try {
+        await poolBiznagaSgcReady;
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id) || id <= 0) {
+            return res.status(400).json({ success: false, message: 'ID de instructivo inválido.' });
+        }
+        const usuario = req.user?.usuario || req.user?.email || req.user?.nombre || req.user?.username || '';
+        const resultado = await sgcInstructivosService.eliminarInstructivo(
+            poolBiznagaSgc,
+            id,
+            usuario
+        );
+        return res.json({
+            success: true,
+            message: 'Instructivo eliminado.',
+            ...resultado
+        });
+    } catch (error) {
+        if (String(error.message || '').includes('no encontrado')) {
+            return res.status(404).json({ success: false, message: error.message });
+        }
+        handleError(res, error, 'No se pudo eliminar el instructivo');
     }
 });
 
@@ -38722,6 +38875,173 @@ app.get('/api/rrhh/colaboradores/:folderId', requireAdminOrRrhh, async (req, res
         res.json({ success: true, ...payload });
     } catch (error) {
         responderErrorRrhhColaboradores(res, error, 'No se pudo abrir el expediente del colaborador');
+    }
+});
+
+// =====================================================
+// RECURSOS HUMANOS — Registros (FORMATOS RH, acceso privado)
+// =====================================================
+app.get('/api/rrhh/registros', requireRegistrosRh, async (req, res) => {
+    try {
+        const forzar = String(req.query.refresh || '') === '1';
+        const carpetaId = String(req.query.carpetaId || '').trim() || null;
+        const payload = await rrhhRegistrosService.listarContenido(carpetaId, { forzar });
+        res.json({ success: true, ...payload });
+    } catch (error) {
+        responderErrorRrhhColaboradores(res, error, 'No se pudo abrir Registros Recursos Humanos');
+    }
+});
+
+app.post('/api/rrhh/registros/carpetas', requireRegistrosRh, async (req, res) => {
+    try {
+        const parentId = String(req.body?.parentId || req.body?.carpetaId || '').trim() || null;
+        const nombre = String(req.body?.nombre || '').trim();
+        const carpeta = await rrhhRegistrosService.crearSubcarpeta(parentId, nombre);
+        res.json({ success: true, carpeta });
+    } catch (error) {
+        responderErrorRrhhColaboradores(res, error, 'No se pudo crear la carpeta');
+    }
+});
+
+app.post('/api/rrhh/registros/carpetas-sugeridas', requireRegistrosRh, async (req, res) => {
+    try {
+        const parentId = String(req.body?.parentId || req.body?.carpetaId || '').trim() || null;
+        const result = await rrhhRegistrosService.crearCarpetasSugeridas(parentId);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        responderErrorRrhhColaboradores(res, error, 'No se pudieron crear las carpetas sugeridas');
+    }
+});
+
+app.post('/api/rrhh/registros/archivos', requireRegistrosRh, uploadRrhhRegistros.single('file'), async (req, res) => {
+    try {
+        const parentId = String(req.body?.parentId || req.body?.carpetaId || '').trim() || null;
+        const result = await rrhhRegistrosService.subirDocumento(parentId, req.file);
+        // Compat: antes devolvía { archivo }; ahora también accion/ligado/mensaje
+        if (result?.archivo) {
+            return res.json({ success: true, ...result });
+        }
+        res.json({ success: true, archivo: result, accion: 'subido', ligado: false });
+    } catch (error) {
+        responderErrorRrhhColaboradores(res, error, 'No se pudo subir el archivo');
+    }
+});
+
+app.get('/api/rrhh/registros/ligar/buscar', requireRegistrosRh, async (req, res) => {
+    try {
+        const q = String(req.query.q || req.query.query || '').trim();
+        const parentId = String(req.query.parentId || req.query.carpetaId || '').trim() || null;
+        const result = await rrhhRegistrosService.buscarCandidatosLigar(q, { parentId });
+        res.json({ success: true, ...result });
+    } catch (error) {
+        responderErrorRrhhColaboradores(res, error, 'No se pudo buscar documentos');
+    }
+});
+
+app.post('/api/rrhh/registros/ligar', requireRegistrosRh, async (req, res) => {
+    try {
+        let fileId = String(req.body?.fileId || req.body?.id || '').trim();
+        const parentId = String(req.body?.parentId || req.body?.carpetaId || '').trim() || null;
+        const codigo = String(req.body?.codigo || '').trim();
+        const nombreDocumento = String(req.body?.nombreDocumento || req.body?.nombre || '').trim();
+
+        // Catálogo SGC (mismo flujo que Solicitud de cambios): resolver Drive por código
+        if (!fileId && (codigo || nombreDocumento)) {
+            if (codigo) {
+                await poolBiznagaSgcReady;
+                const formatosDescargaService = require('./sgcFormatosDescargaService');
+                const resuelto = await sgcSolicitudDocumentosService.resolverArchivoPorCodigo(
+                    poolBiznagaSgc,
+                    formatosDescargaService,
+                    codigo
+                );
+                fileId = String(
+                    resuelto?.drive_file_id_actual
+                    || resuelto?.sistema_drive_file_id
+                    || resuelto?.plantilla_drive_file_id
+                    || ''
+                ).trim();
+            }
+            if (!fileId) {
+                const intentos = [
+                    codigo && nombreDocumento ? `${codigo} ${nombreDocumento}` : '',
+                    nombreDocumento,
+                    codigo,
+                    codigo ? `${codigo}.pdf` : '',
+                    codigo ? `${codigo}.xlsx` : '',
+                    codigo ? `${codigo}.docx` : ''
+                ].filter(Boolean);
+                for (const nombreBusqueda of intentos) {
+                    const hit = await driveService.buscarArchivoGlobal(nombreBusqueda).catch(() => null);
+                    fileId = String(hit?.id || '').trim();
+                    if (fileId) break;
+                }
+            }
+        }
+
+        const result = await rrhhRegistrosService.ligarDocumentoResuelto({
+            fileId,
+            codigo,
+            nombreDocumento,
+            parentId
+        });
+        res.json({ success: true, ...result });
+    } catch (error) {
+        responderErrorRrhhColaboradores(res, error, 'No se pudo ligar el documento');
+    }
+});
+
+app.delete('/api/rrhh/registros/items/:itemId', requireRegistrosRh, async (req, res) => {
+    try {
+        const result = await rrhhRegistrosService.eliminarItem(req.params.itemId);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        responderErrorRrhhColaboradores(res, error, 'No se pudo eliminar el elemento');
+    }
+});
+
+app.patch('/api/rrhh/registros/items/:itemId', requireRegistrosRh, async (req, res) => {
+    try {
+        const nombre = String(req.body?.nombre || req.body?.name || '').trim();
+        const result = await rrhhRegistrosService.renombrarItem(req.params.itemId, nombre);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        responderErrorRrhhColaboradores(res, error, 'No se pudo renombrar el archivo');
+    }
+});
+
+app.get('/api/rrhh/registros/archivo/:fileId/miniatura', requireRegistrosRh, async (req, res) => {
+    try {
+        const archivo = await rrhhRegistrosService.servirArchivo(req.params.fileId, { miniatura: true });
+        if (!archivo?.buffer) {
+            return res.status(404).json({ success: false, message: 'Miniatura no disponible' });
+        }
+        return enviarArchivoRrhhColaborador(res, {
+            buffer: archivo.buffer,
+            contentType: archivo.mimeType || 'image/jpeg',
+            filename: archivo.nombre
+        });
+    } catch (error) {
+        responderErrorRrhhColaboradores(res, error, 'No se pudo generar la miniatura');
+    }
+});
+
+app.get('/api/rrhh/registros/archivo/:fileId', requireRegistrosRh, async (req, res) => {
+    try {
+        const archivo = await rrhhRegistrosService.servirArchivo(req.params.fileId);
+        if (!archivo?.buffer) {
+            return res.status(415).json({
+                success: false,
+                message: 'No se puede descargar este archivo desde la API'
+            });
+        }
+        return enviarArchivoRrhhColaborador(res, {
+            buffer: archivo.buffer,
+            contentType: archivo.mimeType,
+            filename: archivo.nombre
+        }, { descargar: String(req.query.download || '') === '1' });
+    } catch (error) {
+        responderErrorRrhhColaboradores(res, error, 'No se pudo abrir el archivo');
     }
 });
 

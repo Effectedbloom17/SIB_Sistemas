@@ -506,6 +506,21 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return match ? match[1].toUpperCase() : '';
   }
 
+  /** Separa `CODIGO · Nombre` para mostrar el texto completo en el dropdown. */
+  partesTituloBusqueda(titulo: string): { codigo: string | null; nombre: string } {
+    const raw = String(titulo || '').trim();
+    const sep = ' · ';
+    const idx = raw.indexOf(sep);
+    if (idx > 0) {
+      const left = raw.slice(0, idx).trim();
+      const right = raw.slice(idx + sep.length).trim();
+      if (left && right && /^[A-Z0-9]+(?:-[A-Z0-9]+)+$/i.test(left)) {
+        return { codigo: left.toUpperCase(), nombre: right };
+      }
+    }
+    return { codigo: null, nombre: raw };
+  }
+
   private rebuildCatalogoBusqueda(): void {
     const extras: BusquedaSistemaItem[] = [
       {
@@ -660,6 +675,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
         ruta: '/recursos-humanos/residentes',
         keywords: ['rrhh', 'residente', 'recursos humanos'],
         roles: ['root', 'administrador', 'rrhh']
+      },
+      {
+        id: 'fn-rrhh-registros',
+        titulo: 'Registros Recursos Humanos',
+        descripcion: 'Formatos, entregas y CVs (acceso privado)',
+        tipo: 'funcion',
+        icono: 'fa-folder-open',
+        ruta: '/recursos-humanos/registros',
+        keywords: ['rrhh', 'registros', 'formatos', 'cv', 'talento humano', 'recursos humanos']
       },
       {
         id: 'fn-repositorio',
@@ -887,6 +911,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
     if (item.ruta === '/proteccion-civil' && esEmpresa
       && !this.authService.empresaTieneServicioProteccionCivil()) {
       return false;
+    }
+    if (item.ruta === '/recursos-humanos/registros') {
+      return this.authService.puedeVerRegistrosRh();
     }
 
     if (!item.roles || item.roles.length === 0) {
@@ -1238,6 +1265,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
   onEvidenciasSeleccionadas(event: Event): void {
     const input = event.target as HTMLInputElement;
     const files = Array.from(input.files || []);
+    input.value = '';
+    this.agregarEvidenciasArchivos(files);
+  }
+
+  onEvidenciasPegadas(files: File[]): void {
+    this.agregarEvidenciasArchivos(files || []);
+  }
+
+  private agregarEvidenciasArchivos(files: File[]): void {
     const restantes = this.maxEvidencias - this.ticketEvidencias.length;
     for (const file of files.slice(0, Math.max(0, restantes))) {
       if (!this.esImagenEvidencia(file)) continue;
@@ -1255,7 +1291,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
       };
       reader.readAsDataURL(file);
     }
-    input.value = '';
   }
 
   private esImagenEvidencia(file: File): boolean {

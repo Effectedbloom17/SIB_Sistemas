@@ -70,6 +70,183 @@ export class GestionUsuariosComponent implements OnInit {
     return usuario?.usuario_id ?? usuario?.id ?? _index;
   }
 
+  /** Copia correo o teléfono del directorio al portapapeles. */
+  async copiarContactoDirectorio(usuario: any, tipo: 'correo' | 'teléfono'): Promise<void> {
+    const esCorreo = tipo === 'correo';
+    const texto = String(esCorreo ? usuario?.email : usuario?.telefono || '').trim();
+    if (!texto) {
+      return;
+    }
+
+    const ok = await this.escribirPortapapeles(texto);
+    const nombre = [usuario?.nombre, usuario?.apellido].filter(Boolean).join(' ').trim() || 'Colaborador';
+    const puesto = String(usuario?.organigrama || '').trim();
+    const area = String(usuario?.area_departamento || '').trim();
+    const meta = [puesto, area].filter(Boolean).join(' · ');
+    const icono = esCorreo ? 'fa-envelope' : 'fa-phone';
+    const etiqueta = esCorreo ? 'Correo' : 'Teléfono';
+    const esc = (v: string) =>
+      String(v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
+    if (!ok) {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'error',
+        title: `No se pudo copiar el ${tipo}`,
+        showConfirmButton: false,
+        timer: 2200,
+        timerProgressBar: true
+      });
+      return;
+    }
+
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 2800,
+      timerProgressBar: true,
+      width: '22.5rem',
+      padding: 0,
+      background: 'transparent',
+      customClass: {
+        popup: 'dir-copy-toast',
+        htmlContainer: 'dir-copy-toast__html',
+        timerProgressBar: 'dir-copy-toast__timer'
+      },
+      html: `
+        <style>
+          .dir-copy-toast.swal2-toast {
+            background: transparent !important;
+            box-shadow: none !important;
+            border: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+          }
+          .dir-copy-toast .swal2-html-container.dir-copy-toast__html {
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            text-align: left !important;
+          }
+          .dir-copy-toast .swal2-timer-progress-bar.dir-copy-toast__timer {
+            background: rgba(56, 81, 47, 0.35) !important;
+            height: 3px !important;
+          }
+          .dir-copy-card {
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+            padding: 0.85rem 0.95rem 0.95rem;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #ffffff 0%, #f7faf5 100%);
+            border: 1px solid rgba(56, 81, 47, 0.16);
+            box-shadow: 0 14px 34px rgba(47, 71, 40, 0.16);
+            color: #2f4728;
+            font-family: inherit;
+          }
+          .dir-copy-card__icon {
+            width: 2.35rem;
+            height: 2.35rem;
+            border-radius: 11px;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(145deg, #38512F 0%, #567051 100%);
+            color: #fff;
+            font-size: 0.92rem;
+            box-shadow: 0 6px 14px rgba(56, 81, 47, 0.28);
+          }
+          .dir-copy-card__body { min-width: 0; flex: 1; }
+          .dir-copy-card__kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            margin: 0 0 0.28rem;
+            color: #567051;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+          }
+          .dir-copy-card__kicker i { font-size: 0.62rem; }
+          .dir-copy-card__title {
+            margin: 0;
+            color: #24361f;
+            font-size: 0.98rem;
+            font-weight: 700;
+            line-height: 1.25;
+          }
+          .dir-copy-card__meta {
+            margin: 0.22rem 0 0;
+            color: #6b7f65;
+            font-size: 0.74rem;
+            font-weight: 600;
+            line-height: 1.3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .dir-copy-card__value {
+            display: block;
+            margin-top: 0.55rem;
+            padding: 0.42rem 0.55rem;
+            border-radius: 9px;
+            background: #eef3eb;
+            border: 1px solid rgba(56, 81, 47, 0.1);
+            color: #2f4728;
+            font-size: 0.78rem;
+            font-weight: 700;
+            line-height: 1.35;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+          }
+        </style>
+        <div class="dir-copy-card">
+          <div class="dir-copy-card__icon" aria-hidden="true"><i class="fas ${icono}"></i></div>
+          <div class="dir-copy-card__body">
+            <p class="dir-copy-card__kicker"><i class="fas fa-check-circle"></i> ${etiqueta} en portapapeles</p>
+            <p class="dir-copy-card__title">${esc(nombre)}</p>
+            ${meta ? `<p class="dir-copy-card__meta">${esc(meta)}</p>` : ''}
+            <span class="dir-copy-card__value">${esc(texto)}</span>
+          </div>
+        </div>
+      `
+    });
+  }
+
+  private async escribirPortapapeles(texto: string): Promise<boolean> {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(texto);
+        return true;
+      }
+    } catch {
+      // Continúa con fallback.
+    }
+
+    try {
+      const area = document.createElement('textarea');
+      area.value = texto;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.left = '-9999px';
+      document.body.appendChild(area);
+      area.select();
+      const copiado = document.execCommand('copy');
+      document.body.removeChild(area);
+      return copiado;
+    } catch {
+      return false;
+    }
+  }
+
   ngOnInit(): void {
     this.esRoot = this.authService.esSuperusuario();
     this.esAdministrador = this.authService.esAdministrador();

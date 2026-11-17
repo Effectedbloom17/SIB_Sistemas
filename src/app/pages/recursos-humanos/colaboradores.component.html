@@ -330,6 +330,11 @@
                 </div>
 
                 <div class="colab-repo__body"
+                     appPasteFiles
+                     [pasteListenDocument]="true"
+                     tabindex="0"
+                     title="También puedes pegar archivos con Ctrl+V"
+                     (filesPasted)="onPasteFiles($event)"
                      [class.is-drop-target]="dropOverBody && !dropOverCarpetaId"
                      (dragover)="onDragOver($event)"
                      (dragleave)="onDragLeave($event)"

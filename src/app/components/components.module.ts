@@ -11,6 +11,7 @@ import { BiznaguitaGestorAvisosComponent } from './biznaguita-gestor-avisos/bizn
 import { SafePipe } from '../pipes/safe.pipe';
 import { FechaCursoPipe } from '../pipes/fecha-curso.pipe';
 import { AutoResizeTextareaDirective } from '../directives/auto-resize-textarea.directive';
+import { PasteFilesDirective } from '../directives/paste-files.directive';
 import { RouterModule } from '@angular/router';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
 import { HttpClientModule } from '@angular/common/http';
@@ -33,7 +34,8 @@ import { HttpClientModule } from '@angular/common/http';
     BiznaguitaGestorAvisosComponent,
     SafePipe,
     FechaCursoPipe,
-    AutoResizeTextareaDirective
+    AutoResizeTextareaDirective,
+    PasteFilesDirective
   ],
   exports: [
     HttpClientModule,
@@ -46,7 +48,8 @@ import { HttpClientModule } from '@angular/common/http';
     BiznaguitaGestorAvisosComponent,
     SafePipe,
     FechaCursoPipe,
-    AutoResizeTextareaDirective
+    AutoResizeTextareaDirective,
+    PasteFilesDirective
   ]
 })
 export class ComponentsModule { }

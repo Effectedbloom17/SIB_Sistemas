@@ -6,6 +6,12 @@
 
   <div class="amb-arch__uploads"
        *ngIf="!soloResumen || (!archivosRaiz.length && !pendientesRaiz.length)"
+       appPasteFiles
+       pasteAccept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*,application/pdf"
+       [pasteListenDocument]="true"
+       tabindex="0"
+       title="También puedes pegar archivos o imágenes con Ctrl+V"
+       (filesPasted)="onPasteArchivos($event)"
        [class.is-dragover]="dragOver"
        [class.is-disabled]="tramiteId && !puedeSubir"
        (dragover)="onDragOver($event)"
@@ -17,7 +23,7 @@
              (change)="onArchivos($event, '')"
              [disabled]="tramiteId && !puedeSubir">
       <span class="amb-arch__upload-symbol"><i class="fas fa-cloud-upload-alt" aria-hidden="true"></i></span>
-      <strong>Arrastra tus archivos aquí o haz clic</strong>
+      <strong>Arrastra, pega (Ctrl+V) o haz clic</strong>
       <small>PDF, JPG, PNG o Word</small>
     </label>
   </div>

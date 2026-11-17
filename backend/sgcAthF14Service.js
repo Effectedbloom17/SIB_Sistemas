@@ -176,6 +176,52 @@ function sanitizarDatos(raw) {
     };
 }
 
+/** Cuántas filas traen fecha de ingreso usable. */
+function contarFilasConFecha(filas) {
+    return (Array.isArray(filas) ? filas : []).filter((f) => !!String(f?.fechaIngreso || '').trim()).length;
+}
+
+/**
+ * Fusiona listas por nombre: rellena fechas/días vacíos sin borrar lo que ya estaba.
+ * Orden: la primera lista tiene prioridad de nombre; las siguientes solo enriquecen huecos.
+ */
+function fusionarFilasAthF14(...listas) {
+    const mapa = new Map();
+    for (const lista of listas) {
+        const items = Array.isArray(lista) ? lista : [];
+        for (const item of items) {
+            const fila = sanitizarFila(item);
+            const key = claveNombre(fila.nombreCompleto);
+            if (!key) continue;
+            const prev = mapa.get(key);
+            if (!prev) {
+                mapa.set(key, { ...fila });
+                continue;
+            }
+            const fechaIngreso = prev.fechaIngreso || fila.fechaIngreso;
+            let diasDisponibles = prev.diasDisponibles;
+            if (!diasDisponibles && fila.diasDisponibles) {
+                diasDisponibles = fila.diasDisponibles;
+            }
+            mapa.set(key, {
+                nombreCompleto: prev.nombreCompleto || fila.nombreCompleto,
+                fechaIngreso,
+                diasDisponibles
+            });
+        }
+    }
+    return [...mapa.values()];
+}
+
+function fusionarDatosAthF14(base, ...extras) {
+    const limpioBase = sanitizarDatos(base || DATOS_DEFECTO);
+    const filasExtra = extras.map((e) => sanitizarDatos(e || {}).filas);
+    return sanitizarDatos({
+        ...limpioBase,
+        filas: fusionarFilasAthF14(limpioBase.filas, ...filasExtra)
+    });
+}
+
 function firmaContenido(datos) {
     const d = sanitizarDatos(datos || {});
     return {
@@ -617,6 +663,50 @@ async function leerFilasDesdeHoja(spreadsheetId, tituloHoja) {
 }
 
 /**
+ * Recolecta filas de historial / Plantilla para recuperar fechas que la BD o la hoja
+ * del mes hayan perdido (p. ej. tras un heal incompleto).
+ */
+async function recolectarFilasRespaldoDrive(spreadsheetId, tituloVigente = null) {
+    if (!spreadsheetId) return [];
+    let titulos = [];
+    try {
+        titulos = await driveService.listarHojasGoogleSheet(spreadsheetId);
+    } catch (err) {
+        console.warn('[ATH-F-14] No se pudieron listar hojas para respaldo:', err.message);
+        return [];
+    }
+    const vigentes = String(tituloVigente || '').trim();
+    const candidatos = (titulos || [])
+        .map((t) => String(t || '').trim())
+        .filter((t) => {
+            if (!t || t === vigentes) return false;
+            if (SHEET_TITLE_LEGACY.includes(t)) return true;
+            return excelHistorial.esHojaHistorialInformacion(t, CODIGO_FORMATO);
+        });
+    // Prioriza Plantilla y hojas recientes (más fechas útiles primero).
+    candidatos.sort((a, b) => {
+        const score = (t) => {
+            if (t === 'Plantilla') return 1000;
+            if (SHEET_TITLE_LEGACY.includes(t)) return 500;
+            const meta = excelHistorial.parsearFechaHojaHistorial(t, CODIGO_FORMATO);
+            return meta?.sortKey || 0;
+        };
+        return score(b) - score(a);
+    });
+
+    const acumulado = [];
+    for (const titulo of candidatos.slice(0, 8)) {
+        try {
+            const filas = await leerFilasDesdeHoja(spreadsheetId, titulo);
+            if (filas.length) acumulado.push(...filas);
+        } catch (err) {
+            console.warn(`[ATH-F-14] Respaldo «${titulo}» no legible:`, err.message);
+        }
+    }
+    return fusionarFilasAthF14(acumulado);
+}
+
+/**
  * ATH-F-14 solo usa pestañas ATHF14-MMAA / ATHF14-MMAA_N.
  * Cada guardado con cambios crea una versión nueva del mes.
  */
@@ -739,6 +829,8 @@ async function cargarFormato(pool) {
     let registro = await obtenerRegistroSgcPersistido(pool, CODIGO_FORMATO);
     let datos;
     let archivoDrive = null;
+    let filasHoja = [];
+    let tituloVigenteLeido = null;
 
     const driveFileId = await resolverDriveFileId(registro);
     if (driveFileId && driveFileId !== registro?.drive_file_id) {
@@ -755,23 +847,47 @@ async function cargarFormato(pool) {
         registro = await obtenerRegistroSgcPersistido(pool, CODIGO_FORMATO);
     }
 
-    const datosDb = registro?.datos_json ? sanitizarDatos(registro.datos_json) : null;
+    const datosDb = registro?.datos_json ? sanitizarDatos(registro.datos_json) : sanitizarDatos(DATOS_DEFECTO);
 
     if (driveFileId && driveFileId !== TEMPLATE_DRIVE_ID) {
         try {
             const titulo = await resolverTituloHojaVigente(driveFileId);
-            const filasHoja = await leerFilasDesdeHoja(driveFileId, titulo);
-            if (datosDb?.filas?.length) {
-                datos = datosDb;
-            } else if (filasHoja.length) {
-                datos = sanitizarDatos({ filas: filasHoja });
-            } else {
-                datos = datosDb || sanitizarDatos(DATOS_DEFECTO);
-            }
+            tituloVigenteLeido = titulo;
+            filasHoja = await leerFilasDesdeHoja(driveFileId, titulo);
             archivoDrive = await driveService.obtenerInfoArchivo(driveFileId).catch(() => ({ id: driveFileId }));
         } catch (err) {
             console.warn('[ATH-F-14] No se pudo leer archivo en Drive, usando BD:', err.message);
-            datos = datosDb;
+        }
+
+        // Fusionar BD + hoja vigente + respaldos (Plantilla / historial) para no perder fechas.
+        let filasRespaldo = [];
+        try {
+            filasRespaldo = await recolectarFilasRespaldoDrive(driveFileId, tituloVigenteLeido);
+        } catch (err) {
+            console.warn('[ATH-F-14] Respaldo Drive omitido:', err.message);
+        }
+        datos = fusionarDatosAthF14(datosDb, { filas: filasHoja }, { filas: filasRespaldo });
+
+        const fechasAntes = contarFilasConFecha(datosDb.filas);
+        const fechasDespues = contarFilasConFecha(datos.filas);
+        if (fechasDespues > fechasAntes) {
+            console.warn(
+                `[ATH-F-14] Recuperadas fechas desde Drive: BD tenía ${fechasAntes}, `
+                + `tras fusión ${fechasDespues}.`
+            );
+            try {
+                await persistirRegistroSgc(pool, CODIGO_FORMATO, {
+                    driveFileId,
+                    datos,
+                    fechaElaboracionOriginal: registro?.fecha_elaboracion_original || '2026-03-17',
+                    fechaModificacionContenido: registro?.fecha_modificacion_contenido || fechaHoyIso(),
+                    contenidoModificado: true,
+                    ultimaSyncDrive: fechaHoyIso()
+                });
+                registro = await obtenerRegistroSgcPersistido(pool, CODIGO_FORMATO);
+            } catch (persistErr) {
+                console.warn('[ATH-F-14] No se pudo persistir recuperación en BD:', persistErr.message);
+            }
         }
 
         const tituloMes = nombreHojaMesActual();
@@ -783,15 +899,21 @@ async function cargarFormato(pool) {
             const estructuraMesOk = existeMes
                 ? await hojaTieneEstructuraPlantilla(driveFileId, tituloVigente)
                 : false;
+            const fechasHoja = contarFilasConFecha(filasHoja);
+            const fechasFusion = contarFilasConFecha(datos.filas);
+            const hojaMasPobre = existeMes && fechasFusion > fechasHoja;
 
-            if (!existeMes || !estructuraMesOk) {
+            if (!existeMes || !estructuraMesOk || hojaMasPobre) {
                 const destino = tituloVigente || tituloMes;
                 if (!existeMes) {
                     console.warn(`[ATH-F-14] Falta hoja del mes «${tituloMes}»; se crea desde plantilla.`);
-                } else {
+                } else if (!estructuraMesOk) {
                     console.warn(`[ATH-F-14] «${destino}» no coincide con plantilla; se regenera.`);
+                } else {
+                    console.warn(
+                        `[ATH-F-14] «${destino}» tenía ${fechasHoja} fechas vs ${fechasFusion} fusionadas; se reescribe.`
+                    );
                 }
-                datos = datosDb || datos || sanitizarDatos(DATOS_DEFECTO);
                 try {
                     await reescribirHojaDesdePlantilla(driveFileId, destino, datos);
                     archivoDrive = await driveService.obtenerInfoArchivo(driveFileId).catch(() => archivoDrive);
@@ -802,6 +924,8 @@ async function cargarFormato(pool) {
         } catch (healOuter) {
             console.warn('[ATH-F-14] Heal de hoja del mes:', healOuter.message);
         }
+    } else {
+        datos = datosDb;
     }
 
     datos = sanitizarDatos(datos || datosDb || DATOS_DEFECTO);
@@ -849,11 +973,26 @@ async function guardarFormatoInterno(pool, body) {
 
     const rawEntrada = body?.datos || body || {};
     const filasCaptura = Array.isArray(rawEntrada?.filas) ? rawEntrada.filas : [];
-    const entrada = sanitizarDatos({
+    let entrada = sanitizarDatos({
         ...rawEntrada,
         _metaHoja: datosPrevios._metaHoja
     });
     const origen = String(body?.origen || 'sistema').toLowerCase();
+
+    // Evita que un guardado vacío/incompleto borre fechas ya persistidas.
+    const fechasPrevias = contarFilasConFecha(datosPrevios.filas);
+    const fechasEntrada = contarFilasConFecha(entrada.filas);
+    if (fechasPrevias > 0 && fechasEntrada < fechasPrevias) {
+        const fusion = fusionarDatosAthF14(entrada, datosPrevios);
+        const fechasFusion = contarFilasConFecha(fusion.filas);
+        if (fechasFusion > fechasEntrada) {
+            console.warn(
+                `[ATH-F-14] Guardado incompleto detectado (${fechasEntrada} fechas vs ${fechasPrevias} previas); `
+                + `se conservan fechas existentes.`
+            );
+            entrada = fusion;
+        }
+    }
 
     const huboCambio = !contenidoEsEquivalente(datosPrevios, entrada);
     let contenidoModificado = !!registroPrevio?.contenido_modificado;
@@ -973,5 +1112,7 @@ module.exports = {
     descargarPlantillaPdf,
     sanitizarDatos,
     claveNombre,
-    resolverAccesoSolicitud
+    resolverAccesoSolicitud,
+    fusionarDatosAthF14,
+    contarFilasConFecha
 };

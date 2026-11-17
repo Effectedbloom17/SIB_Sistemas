@@ -168,27 +168,41 @@
                       <div class="sgc-proc-card__shine" aria-hidden="true"></div>
                     </div>
                     <span class="sgc-proc-card__type">PDF</span>
-                    <div class="sgc-proc-card__overlay">
-                      <span class="sgc-proc-card__open">
-                        <i class="fas fa-expand" aria-hidden="true"></i>
-                        Ver procedimiento
-                      </span>
+                    <span class="sgc-proc-card__toolbar" (click)="$event.stopPropagation()">
+                      <button *ngIf="puedeGestionar && doc.id"
+                              type="button"
+                              class="sgc-proc-card__tool"
+                              title="Cambiar nombre"
+                              (click)="renombrarDocumento(doc, $event)">
+                        <i class="fas fa-pen" aria-hidden="true"></i>
+                      </button>
                       <button type="button"
-                              class="sgc-proc-card__print"
+                              class="sgc-proc-card__tool"
+                              title="Descargar"
+                              (click)="descargarDocumento(doc, $event)">
+                        <i class="fas fa-download" aria-hidden="true"></i>
+                      </button>
+                      <button type="button"
+                              class="sgc-proc-card__tool"
                               title="Imprimir"
                               (click)="imprimirDocumento(doc, $event)">
                         <i class="fas fa-print" aria-hidden="true"></i>
-                        Imprimir
                       </button>
                       <button *ngIf="puedeGestionar && doc.id"
                               type="button"
-                              class="sgc-proc-card__replace"
-                              title="Reemplazar archivo"
+                              class="sgc-proc-card__tool"
+                              title="Reemplazar PDF"
                               (click)="abrirPanelReemplazo(doc, $event)">
                         <i class="fas fa-sync-alt" aria-hidden="true"></i>
-                        Reemplazar
                       </button>
-                    </div>
+                      <button *ngIf="puedeEliminar && doc.id"
+                              type="button"
+                              class="sgc-proc-card__tool sgc-proc-card__tool--danger"
+                              title="Eliminar"
+                              (click)="eliminarDocumento(doc, $event)">
+                        <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                      </button>
+                    </span>
                   </div>
                   <div class="sgc-proc-card__body">
                     <div class="sgc-proc-card__meta">
@@ -197,13 +211,6 @@
                     </div>
                     <h5 class="sgc-proc-card__name">{{ doc.titulo }}</h5>
                     <div class="sgc-proc-card__footer">
-                      <button *ngIf="puedeGestionar && doc.id"
-                              type="button"
-                              class="sgc-proc-card__replace-btn"
-                              title="Reemplazar PDF"
-                              (click)="abrirPanelReemplazo(doc, $event)">
-                        <i class="fas fa-exchange-alt" aria-hidden="true"></i>
-                      </button>
                       <div class="sgc-proc-card__action" aria-hidden="true">
                         <i class="fas fa-arrow-right"></i>
                       </div>
@@ -243,8 +250,7 @@
           <i class="fas mr-1" [ngClass]="imprimiendo ? 'fa-spinner fa-spin' : 'fa-print'" aria-hidden="true"></i>
           Imprimir
         </button>
-        <button *ngIf="puedeGestionar"
-                type="button"
+        <button type="button"
                 class="btn btn-sm btn-outline-light sgc-proc-visor__btn"
                 (click)="descargarPdfVisor()"
                 [disabled]="!previewBlob && visorCargando">
@@ -271,8 +277,7 @@
       <div *ngIf="visorError" class="sgc-proc-visor__fallback">
         <i class="fas fa-exclamation-triangle fa-2x mb-3" aria-hidden="true"></i>
         <p class="mb-2">{{ visorError }}</p>
-        <button *ngIf="puedeGestionar"
-                type="button"
+        <button type="button"
                 class="btn btn-light btn-sm"
                 (click)="descargarPdfVisor()">
           <i class="fas fa-file-download mr-1" aria-hidden="true"></i>
@@ -394,10 +399,21 @@
     <div class="sgc-proc-modal__body">
       <div class="sgc-proc-replace-meta">
         <span class="sgc-proc-card__code">{{ documentoReemplazo.codigo }}</span>
-        <strong>{{ documentoReemplazo.titulo }}</strong>
         <p class="mb-0 text-muted small">
-          Se actualiza el PDF en Drive conservando el mismo registro y código en la base de datos.
+          Se actualiza el PDF en Drive. El código se conserva; puedes corregir el título si el documento cambió de nombre.
         </p>
+      </div>
+
+      <div class="sgc-proc-form-row">
+        <label class="sgc-proc-label" for="proc-titulo-reemplazo">Título en sistema</label>
+        <input id="proc-titulo-reemplazo"
+               type="text"
+               class="form-control form-control-sm sgc-proc-input"
+               placeholder="Nombre visible del procedimiento"
+               [(ngModel)]="formTituloReemplazo"
+               [disabled]="reemplazando"
+               maxlength="255"
+               autocomplete="off">
       </div>
 
       <label class="sgc-proc-drop" [class.sgc-proc-drop--ready]="!!archivoReemplazo" [class.sgc-proc-drop--busy]="reemplazando">
@@ -413,7 +429,7 @@
           {{ archivoReemplazo ? archivoReemplazo.name : 'Seleccionar PDF actualizado' }}
         </span>
         <span class="sgc-proc-drop__hint">
-          {{ archivoReemplazo ? (archivoReemplazo.size / 1024 | number:'1.0-0') + ' KB' : 'Reemplaza el contenido sin cambiar el código' }}
+          {{ archivoReemplazo ? (archivoReemplazo.size / 1024 | number:'1.0-0') + ' KB' : 'Si el PDF se llama «CÓDIGO Nombre.pdf», el título se autocompleta' }}
         </span>
       </label>
       <button *ngIf="archivoReemplazo && !reemplazando"
@@ -432,7 +448,7 @@
       <button type="button"
               class="btn btn-sm btn-warning"
               (click)="confirmarReemplazo()"
-              [disabled]="reemplazando || !archivoReemplazo">
+              [disabled]="reemplazando || !archivoReemplazo || !formTituloReemplazo.trim()">
         <i class="fas" [ngClass]="reemplazando ? 'fa-spinner fa-spin' : 'fa-sync-alt'" aria-hidden="true"></i>
         {{ reemplazando ? 'Actualizando…' : 'Reemplazar PDF' }}
       </button>

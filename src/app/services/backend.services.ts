@@ -5575,6 +5575,14 @@ export class BackendServices {
         return this.httpClient.post(`${this.baseUrl}/sgc/procedimientos/${id}/reemplazar`, payload);
     }
 
+    renombrarSgcProcedimiento(id: number, titulo: string): Observable<any> {
+        return this.httpClient.put(`${this.baseUrl}/sgc/procedimientos/${id}/renombrar`, { titulo });
+    }
+
+    eliminarSgcProcedimiento(id: number): Observable<any> {
+        return this.httpClient.delete(`${this.baseUrl}/sgc/procedimientos/${id}`);
+    }
+
     listarSgcInstructivos(): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/sgc/instructivos`);
     }
@@ -5600,6 +5608,14 @@ export class BackendServices {
         }
     ): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/sgc/instructivos/${id}/reemplazar`, payload);
+    }
+
+    renombrarSgcInstructivo(id: number, titulo: string): Observable<any> {
+        return this.httpClient.put(`${this.baseUrl}/sgc/instructivos/${id}/renombrar`, { titulo });
+    }
+
+    eliminarSgcInstructivo(id: number): Observable<any> {
+        return this.httpClient.delete(`${this.baseUrl}/sgc/instructivos/${id}`);
     }
 
     listarSgcDocumentacionExtra(): Observable<any> {
@@ -5977,6 +5993,93 @@ export class BackendServices {
     miniaturaRrhhColaboradorArchivo(fileId: string): Observable<Blob> {
         return this.httpClient.get(
             `${this.baseUrl}/rrhh/colaboradores/archivo/${encodeURIComponent(fileId)}/miniatura`,
+            { responseType: 'blob' }
+        );
+    }
+
+    // =====================================================
+    // Recursos Humanos — Registros (privado)
+    // =====================================================
+
+    listarRrhhRegistros(carpetaId?: string, forzar = false): Observable<any> {
+        const params = new URLSearchParams();
+        if (carpetaId) params.set('carpetaId', carpetaId);
+        if (forzar) params.set('refresh', '1');
+        const qs = params.toString();
+        return this.httpClient.get(`${this.baseUrl}/rrhh/registros${qs ? `?${qs}` : ''}`);
+    }
+
+    crearCarpetaRrhhRegistros(parentId: string, nombre: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/rrhh/registros/carpetas`, {
+            parentId,
+            nombre
+        });
+    }
+
+    crearCarpetasSugeridasRrhhRegistros(parentId: string): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/rrhh/registros/carpetas-sugeridas`, {
+            parentId
+        });
+    }
+
+    subirArchivoRrhhRegistros(parentId: string, file: File): Observable<any> {
+        const form = new FormData();
+        form.append('file', file, file.name);
+        form.append('parentId', parentId || '');
+        return this.httpClient.post(`${this.baseUrl}/rrhh/registros/archivos`, form, {
+            reportProgress: true,
+            observe: 'events'
+        });
+    }
+
+    renombrarRrhhRegistro(itemId: string, nombre: string): Observable<any> {
+        return this.httpClient.patch(
+            `${this.baseUrl}/rrhh/registros/items/${encodeURIComponent(itemId)}`,
+            { nombre }
+        );
+    }
+
+    buscarLigarRrhhRegistros(query: string, parentId?: string): Observable<any> {
+        const params = new URLSearchParams();
+        params.set('q', query || '');
+        if (parentId) params.set('parentId', parentId);
+        return this.httpClient.get(`${this.baseUrl}/rrhh/registros/ligar/buscar?${params.toString()}`);
+    }
+
+    ligarRrhhRegistro(payload: {
+        fileId?: string;
+        codigo?: string;
+        nombreDocumento?: string;
+        parentId?: string;
+    }): Observable<any> {
+        return this.httpClient.post(`${this.baseUrl}/rrhh/registros/ligar`, {
+            fileId: payload.fileId || '',
+            codigo: payload.codigo || '',
+            nombreDocumento: payload.nombreDocumento || '',
+            parentId: payload.parentId || ''
+        });
+    }
+
+    eliminarItemRrhhRegistros(itemId: string): Observable<any> {
+        return this.httpClient.delete(
+            `${this.baseUrl}/rrhh/registros/items/${encodeURIComponent(itemId)}`
+        );
+    }
+
+    obtenerMiniaturaRrhhRegistro(fileId: string): Observable<Blob> {
+        return this.httpClient.get(
+            `${this.baseUrl}/rrhh/registros/archivo/${encodeURIComponent(fileId)}/miniatura`,
+            { responseType: 'blob' }
+        );
+    }
+
+    descargarRrhhRegistroArchivo(fileId: string, filename?: string, descargar = false): Observable<Blob> {
+        const params = new URLSearchParams();
+        if (filename) params.set('filename', filename);
+        if (descargar) params.set('download', '1');
+        const qs = params.toString();
+        return this.httpClient.get(
+            `${this.baseUrl}/rrhh/registros/archivo/${encodeURIComponent(fileId)}${qs ? `?${qs}` : ''}`,
             { responseType: 'blob' }
         );
     }

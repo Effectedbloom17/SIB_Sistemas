@@ -153,6 +153,15 @@ export class RoleGuard implements CanActivate {
 
       const esExpediente = state.url.includes('/recursos-humanos/colaboradores/expediente');
       const esResidentes = state.url.includes('/recursos-humanos/residentes');
+      const esRegistros = state.url.includes('/recursos-humanos/registros')
+        || route.data?.['registrosRh'] === true;
+      if (esRegistros) {
+        if (!this.authService.puedeVerRegistrosRh()) {
+          this.router.navigate(['/recursos-humanos/colaboradores']);
+          return false;
+        }
+        return true;
+      }
       if (esExpediente || esResidentes) {
         const allowed = ['root', 'administrador', 'rrhh'];
         const ok = userRoles.some(r => allowed.includes(r.toLowerCase()))

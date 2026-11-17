@@ -550,6 +550,167 @@ $header-plexus-svg: url("data:image/svg+xml,%3Csvg width='420' height='280' view
   background: #27272a !important;
 }
 
+/* Recuperar cambios sin guardar — SGC */
+.swal2-popup.swal2-sgc-draft {
+  width: min(420px, 92vw) !important;
+  padding: 1.85rem 1.55rem 1.4rem !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(15, 118, 110, 0.12) !important;
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(20, 184, 166, 0.14), transparent 55%),
+    #ffffff !important;
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.03),
+    0 28px 64px rgba(15, 23, 42, 0.2) !important;
+}
+
+.swal2-popup.swal2-sgc-draft .swal2-title {
+  display: none !important;
+}
+
+.swal2-popup.swal2-sgc-draft .swal2-html-container {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  text-align: center !important;
+}
+
+.swal2-popup.swal2-sgc-draft .swal2-icon {
+  margin: 0.15rem auto 0.85rem !important;
+  border-color: rgba(15, 118, 110, 0.28) !important;
+  color: #0f766e !important;
+}
+
+.swal2-popup.swal2-sgc-draft .swal2-success-ring {
+  border-color: rgba(15, 118, 110, 0.28) !important;
+}
+
+.swal2-popup.swal2-sgc-draft .swal2-success [class^=swal2-success-line] {
+  background-color: #0f766e !important;
+}
+
+.sgc-draft-modal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  color: #334155;
+}
+
+.sgc-draft-modal__icon {
+  display: grid;
+  place-items: center;
+  width: 3.35rem;
+  height: 3.35rem;
+  border-radius: 1.05rem;
+  background: linear-gradient(145deg, #14b8a6 0%, #0f766e 100%);
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(15, 118, 110, 0.28);
+  font-size: 1.2rem;
+}
+
+.sgc-draft-modal__title {
+  margin: 0;
+  font-size: 1.22rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.sgc-draft-modal__text {
+  margin: 0;
+  max-width: 32ch;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+.sgc-draft-modal__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+  padding: 0.42rem 0.8rem;
+  border-radius: 999px;
+  background: #f0fdfa;
+  border: 1px solid #ccfbf1;
+  color: #0f766e;
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.sgc-draft-modal__meta strong {
+  color: #115e59;
+  font-weight: 700;
+}
+
+.swal2-popup.swal2-sgc-draft .swal2-sgc-draft__actions {
+  margin: 1.25rem 0 0 !important;
+  gap: 0.55rem !important;
+  width: 100%;
+}
+
+.swal2-popup.swal2-sgc-draft .swal2-sgc-draft__confirm {
+  flex: 1 1 auto;
+  margin: 0 !important;
+  border-radius: 12px !important;
+  padding: 0.72rem 1.1rem !important;
+  font-weight: 700 !important;
+  font-size: 0.9rem !important;
+  background: #0f766e !important;
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.28) !important;
+}
+
+.swal2-popup.swal2-sgc-draft .swal2-sgc-draft__confirm:hover {
+  background: #0d9488 !important;
+}
+
+.swal2-popup.swal2-sgc-draft .swal2-sgc-draft__cancel {
+  flex: 1 1 auto;
+  margin: 0 !important;
+  border-radius: 12px !important;
+  padding: 0.72rem 1.1rem !important;
+  font-weight: 650 !important;
+  font-size: 0.88rem !important;
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  box-shadow: none !important;
+}
+
+.swal2-popup.swal2-sgc-draft .swal2-sgc-draft__cancel:hover {
+  background: #e2e8f0 !important;
+  color: #334155 !important;
+}
+
+.swal2-popup.swal2-sgc-draft--toast {
+  padding: 1.5rem 1.35rem 1.2rem !important;
+}
+
+.swal2-popup.swal2-sgc-draft--toast .swal2-title {
+  display: block !important;
+  font-size: 1.12rem !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  margin: 0.2rem 0 0.45rem !important;
+}
+
+.swal2-popup.swal2-sgc-draft--toast .swal2-html-container {
+  font-size: 0.9rem !important;
+  color: #64748b !important;
+  line-height: 1.45 !important;
+}
+
+.swal2-popup.swal2-sgc-draft--toast .swal2-confirm {
+  border-radius: 12px !important;
+  font-weight: 700 !important;
+  box-shadow: 0 6px 14px rgba(15, 118, 110, 0.22) !important;
+}
+
+.swal2-popup.swal2-sgc-draft--toast .swal2-timer-progress-bar {
+  background: rgba(15, 118, 110, 0.45) !important;
+}
+
 /* Renombrar archivo — repositorio empresarial */
 .swal2-container.swal2-repo-rename-container.swal2-backdrop-show {
   background: rgba(26, 38, 32, 0.48) !important;

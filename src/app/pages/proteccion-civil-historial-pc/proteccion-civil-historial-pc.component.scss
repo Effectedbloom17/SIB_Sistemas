@@ -511,16 +511,12 @@
 .courses-list {
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
+  align-content: flex-start;
   gap: 0.7rem;
   flex: 1;
-  padding-top: 1.15rem;
-  min-height: 220px;
-}
-
-.courses-list--centrado {
-  justify-content: center;
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
+  padding-top: 0.35rem;
+  min-height: 0;
 }
 
 .pipc-card {
@@ -568,7 +564,7 @@
 
 .pipc-card__head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.75rem;
 }
 
@@ -592,7 +588,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding-top: 0.1rem;
+  align-self: stretch;
 }
 
 .pipc-card__name {
@@ -601,6 +597,9 @@
   font-weight: 700;
   color: #1f2937;
   line-height: 1.3;
+  display: flex;
+  align-items: center;
+  min-height: 1.3em;
 }
 
 .vigencia-pill {
@@ -1243,14 +1242,16 @@
     min-height: 0;
   }
 
-  .courses-list--centrado {
-    justify-content: flex-start;
-    padding-top: 0.75rem;
+  .history-repo-grid--compacta[data-count='3'],
+  .history-repo-grid--compacta[data-count='4'],
+  .history-repo-grid--grupo[data-count='3'],
+  .history-repo-grid--grupo[data-count='4'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 100%;
   }
 
-  .history-repo-grid--compacta,
-  .history-repo-grid--grupo {
-    grid-template-columns: 1fr;
+  .history-repo-tile {
+    max-width: none;
   }
 
   .detalle-header {
@@ -2186,13 +2187,14 @@
 .history-req-block-repo {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 1.15rem 1rem 0.95rem;
-  border-radius: 14px;
+  gap: 0.55rem;
+  padding: 0.85rem 0.85rem 0.75rem;
+  border-radius: 12px;
   background: linear-gradient(180deg, #fbfcfe 0%, #fff 100%);
   border: 1px solid #eef2f6;
   min-width: 0;
-  height: 100%;
+  height: auto;
+  align-self: start;
 }
 
 .history-req-block-repo__head {
@@ -2223,6 +2225,16 @@
   font-weight: 750;
   color: #32325d;
   line-height: 1.3;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+
+  > i {
+    color: #0f766e;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
 
   mark {
     background: #fde68a;
@@ -2230,6 +2242,29 @@
     padding: 0 0.15rem;
     border-radius: 3px;
   }
+}
+
+.history-req-block-repo__sub {
+  display: block;
+  margin-top: 0.18rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #8898aa;
+  line-height: 1.3;
+}
+
+.history-req-block-repo--carpeta {
+  border-color: #d8ebe7;
+  background: linear-gradient(180deg, #f4fbf9 0%, #ffffff 100%);
+
+  .history-req-block-repo__count {
+    background: #e6f4f1;
+    color: #0f766e;
+  }
+}
+
+.history-req-stack--extra {
+  grid-template-columns: 1fr;
 }
 
 .history-req-block-repo__count {
@@ -2244,34 +2279,76 @@
 
 .history-repo-grid {
   display: grid;
-  gap: 0.7rem;
+  gap: 0.5rem;
   width: 100%;
+  justify-content: start;
+  align-content: start;
 }
 
-.history-repo-grid--compacta {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-
-  @media (max-width: 575.98px) {
-    grid-template-columns: 1fr;
-  }
-}
-
+/* Por defecto: caben las que quepan; tiles compactos. */
+.history-repo-grid--compacta,
 .history-repo-grid--grupo {
-  /* Siempre 2 columnas (tamaño de celda de 2) para alinear 1, 2 o 3 archivos. */
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  flex: 1;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 148px));
+  flex: 0 0 auto;
   align-content: start;
 
   @media (max-width: 575.98px) {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/*
+ * 1–4 archivos: una sola fila forzada.
+ * Las columnas se encogen con el zoom para no pasar a 2 filas.
+ */
+.history-repo-grid--compacta[data-count='1'],
+.history-repo-grid--grupo[data-count='1'] {
+  grid-template-columns: minmax(0, 148px);
+  max-width: 148px;
+  gap: 0.45rem;
+}
+
+.history-repo-grid--compacta[data-count='2'],
+.history-repo-grid--grupo[data-count='2'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 300px;
+  gap: 0.45rem;
+}
+
+.history-repo-grid--compacta[data-count='3'],
+.history-repo-grid--grupo[data-count='3'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: 420px;
+  gap: 0.4rem;
+}
+
+.history-repo-grid--compacta[data-count='4'],
+.history-repo-grid--grupo[data-count='4'] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: 520px;
+  gap: 0.4rem;
+}
+
+.history-repo-grid--compacta[data-count='1'] .history-repo-tile,
+.history-repo-grid--compacta[data-count='2'] .history-repo-tile,
+.history-repo-grid--compacta[data-count='3'] .history-repo-tile,
+.history-repo-grid--compacta[data-count='4'] .history-repo-tile,
+.history-repo-grid--grupo[data-count='1'] .history-repo-tile,
+.history-repo-grid--grupo[data-count='2'] .history-repo-tile,
+.history-repo-grid--grupo[data-count='3'] .history-repo-tile,
+.history-repo-grid--grupo[data-count='4'] .history-repo-tile {
+  max-width: none;
+  min-width: 0;
 }
 
 .history-repo-tile {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 148px;
+  min-width: 0;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
   overflow: hidden;
   cursor: pointer;
@@ -2280,8 +2357,8 @@
   &:hover,
   &:focus-visible {
     border-color: rgba(192, 88, 30, 0.35);
-    box-shadow: 0 10px 28px rgba(24, 24, 27, 0.12);
-    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(24, 24, 27, 0.1);
+    transform: translateY(-1px);
     outline: none;
 
     .history-repo-tile__hover {
@@ -2291,7 +2368,8 @@
 
   &__preview {
     position: relative;
-    aspect-ratio: 4 / 3;
+    aspect-ratio: 1 / 1;
+    max-height: 118px;
     background: linear-gradient(160deg, #f1f5f9 0%, #e2e8f0 100%);
     overflow: hidden;
   }
@@ -2325,7 +2403,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.35rem;
+    gap: 0.28rem;
     color: #64748b;
     background: linear-gradient(145deg, rgba(241, 245, 249, 0.95), rgba(226, 232, 240, 0.9));
     z-index: 0;
@@ -2335,12 +2413,12 @@
     }
 
     i {
-      font-size: 2rem;
+      font-size: 1.45rem;
       opacity: 0.85;
     }
 
     span {
-      font-size: 0.65rem;
+      font-size: 0.58rem;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.06em;
@@ -2431,16 +2509,16 @@
   }
 
   &__info {
-    padding: 0.55rem 0.65rem 0.6rem;
+    padding: 0.42rem 0.5rem 0.48rem;
     border-top: 1px solid rgba(0, 0, 0, 0.04);
     min-width: 0;
   }
 
   &__name {
-    font-size: 0.78rem;
+    font-size: 0.72rem;
     font-weight: 600;
     color: #1f2937;
-    margin: 0 0 0.2rem;
+    margin: 0 0 0.15rem;
     line-height: 1.25;
     white-space: nowrap;
     overflow: hidden;
@@ -2455,11 +2533,11 @@
   }
 
   &__meta {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     color: #94a3b8;
     display: flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.2rem;
     flex-wrap: nowrap;
     min-width: 0;
   }

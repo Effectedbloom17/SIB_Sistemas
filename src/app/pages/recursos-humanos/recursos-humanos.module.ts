@@ -7,6 +7,7 @@ import { ComponentsModule } from '../../components/components.module';
 import { RoleGuard } from 'src/app/guards/role.guard';
 import { ResidentesComponent } from './residentes.component';
 import { ColaboradoresComponent } from './colaboradores.component';
+import { RegistrosRhComponent } from './registros-rh.component';
 
 /** Residentes y expediente documental: solo gestión RRHH. */
 const RRHH_GESTION_ROLES = ['root', 'administrador', 'rrhh'];
@@ -22,6 +23,12 @@ const routes: Routes = [
         component: ResidentesComponent,
         canActivate: [RoleGuard],
         data: { roles: RRHH_GESTION_ROLES }
+    },
+    {
+        path: 'registros',
+        component: RegistrosRhComponent,
+        canActivate: [RoleGuard],
+        data: { registrosRh: true }
     },
     {
         path: 'colaboradores/expediente/:id',
@@ -45,6 +52,6 @@ const routes: Routes = [
         ComponentsModule,
         RouterModule.forChild(routes)
     ],
-    declarations: [ResidentesComponent, ColaboradoresComponent]
+    declarations: [ResidentesComponent, ColaboradoresComponent, RegistrosRhComponent]
 })
 export class RecursosHumanosModule {}

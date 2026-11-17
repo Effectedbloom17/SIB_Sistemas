@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import Swal from 'sweetalert2';
 import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
+import { UploadSourceChooserService } from 'src/app/services/upload-source-chooser.service';
 import {
   EIN_F04_META,
   EinF02Evidencia,
@@ -75,7 +76,8 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     private backend: BackendServices,
     private route: ActivatedRoute,
     private router: Router,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private uploadSourceChooser: UploadSourceChooserService
   ) {}
 
   ngOnInit(): void {
@@ -471,11 +473,31 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
     };
   }
 
-  abrirSelectorEvidencias(): void {
+  async abrirSelectorEvidencias(): Promise<void> {
     if (this.subiendoEvidencias) {
       return;
     }
-    this.inputEvidencias?.nativeElement?.click();
+    const origen = await this.uploadSourceChooser.elegir({
+      titulo: '¿Cómo quieres agregar la evidencia?',
+      subtitulo: 'Puedes elegir fotos de tu galería o pegar una imagen copiada.',
+      etiquetaGaleria: 'Desde mi galería',
+      etiquetaPegar: 'Pegar imagen'
+    });
+    if (!origen) {
+      return;
+    }
+    if (origen === 'galeria') {
+      this.inputEvidencias?.nativeElement?.click();
+      return;
+    }
+    const files = await this.uploadSourceChooser.esperarPegado({
+      titulo: 'Pega la evidencia',
+      subtitulo: 'Copia una imagen y pégala con Ctrl+V.'
+    });
+    if (!files?.length) {
+      return;
+    }
+    this.agregarFotosPendientes(files);
   }
 
   onDragOverFotos(event: DragEvent): void {
@@ -498,6 +520,13 @@ export class EinF04ReporteComponent implements OnInit, OnDestroy {
       return;
     }
     this.agregarFotosPendientes(Array.from(event.dataTransfer?.files || []));
+  }
+
+  onPasteFotos(files: File[]): void {
+    if (this.subiendoEvidencias || !files?.length) {
+      return;
+    }
+    this.agregarFotosPendientes(files);
   }
 
   onEvidenciasSeleccionadas(event: Event): void {

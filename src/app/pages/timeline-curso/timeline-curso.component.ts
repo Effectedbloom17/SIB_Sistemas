@@ -4764,7 +4764,14 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
     this.limpiarFocoInputArchivo(input);
   }
 
-  private agregarFotosSeleccionadas(files: FileList): void {
+  onPasteFotos(files: File[]): void {
+    if (!files?.length) {
+      return;
+    }
+    this.agregarFotosSeleccionadas(files);
+  }
+
+  private agregarFotosSeleccionadas(files: FileList | File[]): void {
     if (this.subiendoFotosEvidencia) {
       return;
     }
@@ -4789,8 +4796,9 @@ export class TimelineCursoComponent implements OnInit, OnDestroy {
       return;
     }
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+    const lista = Array.from(files as ArrayLike<File>);
+    for (let i = 0; i < lista.length; i++) {
+      const file = lista[i];
       if (!permitidos.includes(file.type)) {
         rechazadosTipo++;
         continue;

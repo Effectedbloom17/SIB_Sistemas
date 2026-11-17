@@ -25,6 +25,8 @@ export interface DocumentPreviewData {
    * (evita fallos de iframe/blob y permisos de Drive embebido).
    */
   rrhhColaboradorFileId?: string;
+  /** Registros RH (FORMATOS RH): descarga autenticada. */
+  rrhhRegistrosFileId?: string;
   /** Evidencia SGC-F-29: descarga autenticada por id de documento. */
   sgcF29EvidenciaId?: number;
   /** Evidencia SGC-F-14: descarga autenticada por id de documento. */
@@ -55,6 +57,8 @@ export interface PreviewState {
   etiqueta: string;
   /** Descarga autenticada RRHH colaboradores */
   rrhhColaboradorFileId: string;
+  /** Descarga autenticada Registros RH */
+  rrhhRegistrosFileId: string;
   /** Descarga autenticada evidencias SGC-F-29 */
   sgcF29EvidenciaId: number;
   /** Descarga autenticada evidencias SGC-F-14 */
@@ -100,6 +104,7 @@ export class DocumentPreviewService {
       tema: 'default',
       etiqueta: '',
       rrhhColaboradorFileId: '',
+      rrhhRegistrosFileId: '',
       sgcF29EvidenciaId: 0,
       sgcF14EvidenciaId: 0,
       sgcF11EvidenciaId: 0,
@@ -150,6 +155,7 @@ export class DocumentPreviewService {
       tema,
       etiqueta: doc.etiqueta || '',
       rrhhColaboradorFileId: String(doc.rrhhColaboradorFileId || '').trim(),
+      rrhhRegistrosFileId: String(doc.rrhhRegistrosFileId || '').trim(),
       sgcF29EvidenciaId: Number(doc.sgcF29EvidenciaId) || 0,
       sgcF14EvidenciaId: Number(doc.sgcF14EvidenciaId) || 0,
       sgcF11EvidenciaId: Number(doc.sgcF11EvidenciaId) || 0,
@@ -205,12 +211,17 @@ export class DocumentPreviewService {
       return;
     }
 
-    // Expediente RRHH: blob autenticado (PDF/imagen)
+    // Expediente RRHH / Registros RH: blob autenticado (PDF/imagen)
     const rrhhId = this.currentState.rrhhColaboradorFileId || '';
-    if (rrhhId && (tipo === 'pdf' || tipo === 'imagen')) {
-      this.currentState.driveFileId = rrhhId;
+    const rrhhRegistrosId = this.currentState.rrhhRegistrosFileId || '';
+    const rrhhAuthId = rrhhId || rrhhRegistrosId;
+    if (rrhhAuthId && (tipo === 'pdf' || tipo === 'imagen')) {
+      this.currentState.driveFileId = rrhhAuthId;
       this.emit();
-      this.backendServices.descargarRrhhColaboradorArchivo(rrhhId, doc.archivo_nombre || doc.nombre).subscribe({
+      const req$ = rrhhRegistrosId
+        ? this.backendServices.descargarRrhhRegistroArchivo(rrhhRegistrosId, doc.archivo_nombre || doc.nombre)
+        : this.backendServices.descargarRrhhColaboradorArchivo(rrhhId, doc.archivo_nombre || doc.nombre);
+      req$.subscribe({
         next: async (blob) => {
           try {
             if (!blob || blob.size < 8 || (blob.type && blob.type.includes('json'))) {
@@ -230,10 +241,10 @@ export class DocumentPreviewService {
               this.emit();
             }
           } catch {
-            this.usarFallbackDrivePreview(rrhhId);
+            this.usarFallbackDrivePreview(rrhhAuthId);
           }
         },
-        error: () => this.usarFallbackDrivePreview(rrhhId)
+        error: () => this.usarFallbackDrivePreview(rrhhAuthId)
       });
       return;
     }
@@ -585,6 +596,7 @@ export class DocumentPreviewService {
     const driveId = String(
       this.currentState.driveFileId
       || this.currentState.rrhhColaboradorFileId
+      || this.currentState.rrhhRegistrosFileId
       || ''
     ).trim();
     if (driveId && this.currentState.tipo === 'pdf' && this.pdfFallbackNivel < 3) {
@@ -613,7 +625,9 @@ export class DocumentPreviewService {
   }
 
   abrirEnDrive(): void {
-    const id = this.currentState.driveFileId || this.currentState.rrhhColaboradorFileId;
+    const id = this.currentState.driveFileId
+      || this.currentState.rrhhColaboradorFileId
+      || this.currentState.rrhhRegistrosFileId;
     if (!id) {
       return;
     }
@@ -651,8 +665,12 @@ export class DocumentPreviewService {
       return;
     }
 
-    if (state.rrhhColaboradorFileId) {
-      this.backendServices.descargarRrhhColaboradorArchivo(state.rrhhColaboradorFileId, state.nombre, true).subscribe({
+    if (state.rrhhColaboradorFileId || state.rrhhRegistrosFileId) {
+      const id = state.rrhhRegistrosFileId || state.rrhhColaboradorFileId;
+      const req$ = state.rrhhRegistrosFileId
+        ? this.backendServices.descargarRrhhRegistroArchivo(id, state.nombre, true)
+        : this.backendServices.descargarRrhhColaboradorArchivo(id, state.nombre, true);
+      req$.subscribe({
         next: (blob) => {
           const url = URL.createObjectURL(blob);
           const link = document.createElement('a');

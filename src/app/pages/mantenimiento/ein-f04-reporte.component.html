@@ -350,6 +350,12 @@
 
                   <div
                     class="drop-zone evidencias-drop-zone"
+                    appPasteFiles
+                    pasteAccept="image/jpeg,image/png,image/webp,image/jpg"
+                    [pasteListenDocument]="true"
+                    tabindex="0"
+                    title="También puedes pegar imágenes con Ctrl+V"
+                    (filesPasted)="onPasteFotos($event)"
                     [class.dragging]="arrastrandoFotos"
                     [class.has-file]="fotosPendientes.length > 0"
                     [class.is-disabled]="subiendoEvidencias"

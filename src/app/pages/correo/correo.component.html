@@ -459,6 +459,10 @@
                 <div
                   *ngIf="borradorInline as borrador"
                   class="correo-compose-inline"
+                  appPasteFiles
+                  tabindex="0"
+                  title="También puedes pegar archivos o imágenes con Ctrl+V"
+                  (filesPasted)="onComposePaste($event, borrador)"
                   [attr.data-compose-id]="borrador.id"
                   [class.correo-compose-inline--empresa]="modoEmpresa"
                   [class.is-dragover]="borrador.soltandoAdjuntos"
@@ -752,6 +756,11 @@
 <div
   *ngFor="let borrador of composicionesFloat; let i = index; trackBy: trackComposeById"
   class="correo-compose-float"
+  appPasteFiles
+  [pasteEnabled]="!borrador.minimizado"
+  tabindex="0"
+  title="También puedes pegar archivos o imágenes con Ctrl+V"
+  (filesPasted)="onComposePaste($event, borrador)"
   [attr.data-compose-id]="borrador.id"
   [class.correo-compose-float--empresa]="modoEmpresa"
   [class.is-minimized]="borrador.minimizado"

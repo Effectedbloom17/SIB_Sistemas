@@ -134,7 +134,9 @@ interface ChartKpiBadge {
 
 type VistaEficaciaCap = 'anual' | 's1' | 's2' | 'comparativa';
 type VistaSatisfaccionCliente = 'mensual' | 'cuatrimestral';
+type VistaSatisfaccionCap = 'actual' | 'comparativa';
 type VistaAvanceProyectos = 'actual' | 'comparativa';
+type VistaProveedoresF29 = 'actual' | 'mensual';
 
 interface SatCuatrimestreResumen {
   id: 'c1' | 'c2' | 'c3';
@@ -228,6 +230,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   /** Vista del indicador de eficacia: año completo, semestre o comparativa. */
   vistaEficaciaCap: VistaEficaciaCap = 'anual';
   vistaSatisfaccionCliente: VistaSatisfaccionCliente = 'mensual';
+  vistaSatisfaccionCap: VistaSatisfaccionCap = 'actual';
 
   satDonutCentroValor: number | string = 0;
   satDonutCentroEtiqueta = 'Respuestas';
@@ -273,7 +276,9 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   donutSem2CentroPct = 0;
   proveedoresF29: any = null;
   proveedoresF29Expandido: string | null = null;
+  vistaProveedoresF29: VistaProveedoresF29 = 'actual';
   criteriosProveedoresF29List: Array<{ label: string; valor: number }> = [];
+  areasProveedoresF29List: Array<{ clave: string; label: string; valor: number; color: string; total: number }> = [];
   eficacia: any = null;
   quejasSugerencias: any = null;
 
@@ -282,6 +287,8 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   satisfaccionCapChart: Partial<SgcAreaChartOptions>;
   satisfaccionCapDimensionesChart: Partial<SgcAreaChartOptions>;
   satisfaccionCapDistribChart: Partial<SgcRadialChartOptions>;
+  satisfaccionCapCmpChart: Partial<SgcAreaChartOptions>;
+  satisfaccionCapCmpProvChart: Partial<SgcAreaChartOptions>;
   satisfaccionChart: Partial<SgcAreaChartOptions>;
   satisfaccionRespuestasChart: Partial<SgcRadialChartOptions>;
   quejasChart: Partial<SgcAreaChartOptions>;
@@ -294,6 +301,8 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
   audNcEstatusChart: Partial<SgcRadialChartOptions>;
   quejasSugerenciasChart: Partial<SgcRadialChartOptions>;
   proveedoresF29Chart: Partial<SgcRadialChartOptions>;
+  proveedoresF29MensualChart: Partial<SgcAreaChartOptions>;
+  proveedoresF29MensualDistChart: Partial<SgcAreaChartOptions>;
 
   mostrarFormQueja = false;
   guardandoQueja = false;
@@ -618,6 +627,14 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     if (res.proveedoresF29 != null) {
       this.proveedoresF29 = res.proveedoresF29;
       this.actualizarCriteriosProveedoresF29();
+      this.actualizarAreasProveedoresF29();
+      const mesesCmp = Array.isArray(res.proveedoresF29?.comparativaMensual?.meses)
+        ? res.proveedoresF29.comparativaMensual.meses
+        : [];
+      if (!mesesCmp.some((m: any) => (Number(m?.totalEvaluaciones) || 0) > 0)
+          && this.vistaProveedoresF29 === 'mensual') {
+        this.vistaProveedoresF29 = 'actual';
+      }
     }
     if (res.eficacia != null) {
       this.eficacia = res.eficacia;
@@ -748,6 +765,7 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     this.mostrarPreguntasSatisfaccion = false;
     this.mostrarHistogramaAud = false;
     this.vistaEficaciaCap = this.semestreEficaciaCapPorDefecto();
+    this.vistaSatisfaccionCap = 'actual';
     this.cargarDashboard(true);
   }
 
@@ -1016,6 +1034,211 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
 
   get hayDatosSatisfaccionCap(): boolean {
     return !!this.satisfaccionCapacitacion && (this.satisfaccionCapacitacion.totalRespuestas || 0) > 0;
+  }
+
+  get esComparativaSatisfaccionCap(): boolean {
+    return this.vistaSatisfaccionCap === 'comparativa';
+  }
+
+  get cuatrimestresComparativaSatCap(): Array<{
+    id: string;
+    clave: string;
+    etiqueta: string;
+    rango: string;
+    indice: number;
+    respuestas: number;
+    cursosConEncuesta: number;
+    tieneDatos: boolean;
+    proveedores: Array<{
+      id: string;
+      proveedor: string;
+      indice: number;
+      respuestas: number;
+      cursosConEncuesta: number;
+    }>;
+  }> {
+    const lista = this.satisfaccionCapacitacion?.comparativaCuatrimestral?.cuatrimestres;
+    if (Array.isArray(lista) && lista.length) {
+      return lista.map((c: any) => ({
+        id: String(c?.id || ''),
+        clave: String(c?.clave || ''),
+        etiqueta: String(c?.etiqueta || ''),
+        rango: String(c?.rango || ''),
+        indice: Number(c?.indice) || 0,
+        respuestas: Number(c?.respuestas) || 0,
+        cursosConEncuesta: Number(c?.cursosConEncuesta) || 0,
+        tieneDatos: !!(c?.tieneDatos || (Number(c?.respuestas) || 0) > 0),
+        proveedores: Array.isArray(c?.proveedores)
+          ? c.proveedores.map((p: any) => ({
+              id: String(p?.id || p?.proveedor || ''),
+              proveedor: String(p?.proveedor || 'Sin proveedor'),
+              indice: Number(p?.indice) || 0,
+              respuestas: Number(p?.respuestas) || 0,
+              cursosConEncuesta: Number(p?.cursosConEncuesta) || 0
+            }))
+          : []
+      }));
+    }
+    return [
+      { id: 'c1', clave: 'C1', etiqueta: '1er cuatrimestre', rango: 'Ene–Abr', indice: 0, respuestas: 0, cursosConEncuesta: 0, tieneDatos: false, proveedores: [] },
+      { id: 'c2', clave: 'C2', etiqueta: '2do cuatrimestre', rango: 'May–Ago', indice: 0, respuestas: 0, cursosConEncuesta: 0, tieneDatos: false, proveedores: [] },
+      { id: 'c3', clave: 'C3', etiqueta: '3er cuatrimestre', rango: 'Sep–Dic', indice: 0, respuestas: 0, cursosConEncuesta: 0, tieneDatos: false, proveedores: [] }
+    ];
+  }
+
+  get resumenKpisComparativaSatCap(): Array<{
+    etiqueta: string;
+    valor: string;
+    sub: string;
+    color: string;
+  }> {
+    const cuatris = this.cuatrimestresComparativaSatCap.filter((c) => c.tieneDatos);
+    if (!cuatris.length) return [];
+    const mejor = [...cuatris].sort((a, b) => b.indice - a.indice)[0];
+    const proveedoresUnicos = new Set<string>();
+    for (const c of cuatris) {
+      for (const p of c.proveedores) proveedoresUnicos.add(p.id || p.proveedor);
+    }
+    const promedio = Math.round(
+      cuatris.reduce((s, c) => s + (Number(c.indice) || 0), 0) / cuatris.length
+    );
+    return [
+      {
+        etiqueta: 'Cuatrimestres',
+        valor: String(cuatris.length),
+        sub: `de 3 · ${this.anioSeleccionado}`,
+        color: this.palette.teal
+      },
+      {
+        etiqueta: 'Promedio',
+        valor: `${promedio}%`,
+        sub: 'índice de evaluación',
+        color: this.colorCalificacionProveedor(promedio)
+      },
+      {
+        etiqueta: 'Mejor periodo',
+        valor: `${mejor.indice}%`,
+        sub: mejor.clave,
+        color: this.colorCalificacionProveedor(mejor.indice)
+      },
+      {
+        etiqueta: 'Proveedores',
+        valor: String(proveedoresUnicos.size),
+        sub: 'con encuesta SP-F-14',
+        color: this.palette.ambar
+      }
+    ];
+  }
+
+  seleccionarVistaSatisfaccionCap(vista: VistaSatisfaccionCap, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (this.vistaSatisfaccionCap === vista) return;
+    this.vistaSatisfaccionCap = vista;
+    if (vista === 'comparativa') {
+      this.actualizarChartsComparativaSatCap();
+    }
+  }
+
+  private actualizarChartsComparativaSatCap(): void {
+    const serie = ((this.satisfaccionCapacitacion?.serieMensual || []) as any[]);
+    const byMes = new Map<number, any>();
+    for (const item of serie) {
+      const mesNum = Number(item?.mes_num) || 0;
+      if (mesNum >= 1 && mesNum <= 12) byMes.set(mesNum, item);
+    }
+    const fallbackMes = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const mesLabel = (n: number) => String(byMes.get(n)?.mes || fallbackMes[n - 1]);
+    const valorMes = (n: number, campo: 'indice' | 'respuestas'): number =>
+      Number(byMes.get(n)?.[campo]) || 0;
+
+    // Huecos entre cuatrimestres: cortan el área en 3 olas (C1 / C2 / C3).
+    const gap1 = '\u200B';
+    const gap2 = '\u200B\u200B';
+    const categories = [
+      mesLabel(1), mesLabel(2), mesLabel(3), mesLabel(4), gap1,
+      mesLabel(5), mesLabel(6), mesLabel(7), mesLabel(8), gap2,
+      mesLabel(9), mesLabel(10), mesLabel(11), mesLabel(12)
+    ];
+    const indiceData: Array<number | null> = [
+      valorMes(1, 'indice'), valorMes(2, 'indice'), valorMes(3, 'indice'), valorMes(4, 'indice'), null,
+      valorMes(5, 'indice'), valorMes(6, 'indice'), valorMes(7, 'indice'), valorMes(8, 'indice'), null,
+      valorMes(9, 'indice'), valorMes(10, 'indice'), valorMes(11, 'indice'), valorMes(12, 'indice')
+    ];
+    const respuestasData: Array<number | null> = [
+      valorMes(1, 'respuestas'), valorMes(2, 'respuestas'), valorMes(3, 'respuestas'), valorMes(4, 'respuestas'), null,
+      valorMes(5, 'respuestas'), valorMes(6, 'respuestas'), valorMes(7, 'respuestas'), valorMes(8, 'respuestas'), null,
+      valorMes(9, 'respuestas'), valorMes(10, 'respuestas'), valorMes(11, 'respuestas'), valorMes(12, 'respuestas')
+    ];
+
+    const mesNumDesdeIdx = (idx: number): number | null => {
+      if (idx < 0 || idx === 4 || idx === 9) return null;
+      if (idx < 4) return idx + 1;
+      if (idx < 9) return idx;
+      return idx - 1;
+    };
+
+    this.satisfaccionCapCmpChart = {
+      ...this.satisfaccionCapCmpChart,
+      series: [
+        { name: 'Índice de evaluación', type: 'area', data: indiceData as any },
+        { name: 'Respuestas', type: 'column', data: respuestasData as any }
+      ],
+      colors: [this.palette.teal, '#94a3b8'],
+      xaxis: {
+        ...this.satisfaccionCapCmpChart.xaxis,
+        categories
+      },
+      grid: {
+        ...this.satisfaccionCapCmpChart.grid,
+        padding: {
+          ...(this.satisfaccionCapCmpChart.grid as any)?.padding,
+          top: 14,
+          right: 12,
+          bottom: 10,
+          left: 8
+        }
+      },
+      chart: {
+        ...this.satisfaccionCapCmpChart.chart,
+        height: 300
+      },
+      dataLabels: {
+        enabled: true,
+        enabledOnSeries: [0],
+        formatter: (v: number) => {
+          if (v == null || Number.isNaN(Number(v)) || Number(v) === 0) return '';
+          return `${Math.round(Number(v))}%`;
+        },
+        style: { fontSize: '10px', fontWeight: '700', colors: ['#0f766e'] },
+        background: { enabled: true, foreColor: '#fff', borderRadius: 4, padding: 3, opacity: 0.92, borderWidth: 0 }
+      },
+      tooltip: {
+        theme: 'dark',
+        shared: true,
+        y: {
+          formatter: (v: number, opts?: { seriesIndex?: number; dataPointIndex?: number }) => {
+            if (v == null || Number.isNaN(Number(v))) return 'Sin datos';
+            const mesNum = mesNumDesdeIdx(opts?.dataPointIndex ?? -1);
+            const cuatri = mesNum == null
+              ? ''
+              : (mesNum <= 4 ? 'C1' : mesNum <= 8 ? 'C2' : 'C3');
+            if (opts?.seriesIndex === 1) {
+              return `${Math.round(Number(v))} resp.${cuatri ? ` · ${cuatri}` : ''}`;
+            }
+            return `${Math.round(Number(v))}%${cuatri ? ` · ${cuatri}` : ''}`;
+          }
+        }
+      }
+    };
+  }
+
+  trackByCuatrimestreSatCap(_index: number, c: { id?: string; clave?: string }): string {
+    return c?.id || c?.clave || String(_index);
+  }
+
+  trackByProveedorSatCap(_index: number, p: { id?: string; proveedor?: string }): string {
+    return p?.id || p?.proveedor || String(_index);
   }
 
   get hayDatosSatisfaccion(): boolean {
@@ -2047,6 +2270,172 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       }
     };
 
+    this.satisfaccionCapCmpChart = {
+      series: [],
+      chart: {
+        ...this.chartBase(),
+        type: 'line',
+        height: 260,
+        dropShadow: { enabled: true, top: 6, left: 0, blur: 12, opacity: 0.07 }
+      },
+      colors: [this.palette.teal, '#94a3b8'],
+      stroke: { curve: 'smooth', width: [3, 0], lineCap: 'round' },
+      plotOptions: {
+        bar: {
+          columnWidth: '42%',
+          borderRadius: 7,
+          borderRadiusApplication: 'end'
+        }
+      },
+      fill: {
+        type: ['gradient', 'solid'],
+        gradient: {
+          shade: 'light',
+          type: 'vertical',
+          shadeIntensity: 0.4,
+          opacityFrom: 0.45,
+          opacityTo: 0.04,
+          stops: [0, 90, 100]
+        },
+        opacity: [1, 0.78]
+      },
+      dataLabels: {
+        enabled: true,
+        enabledOnSeries: [0],
+        formatter: (v: number) => (v == null || Number.isNaN(Number(v)) ? '' : `${Math.round(Number(v))}%`),
+        style: { fontSize: '10px', fontWeight: '700', colors: ['#0f766e'] },
+        background: { enabled: true, foreColor: '#fff', borderRadius: 4, padding: 3, opacity: 0.92, borderWidth: 0 }
+      },
+      markers: {
+        size: [4, 0],
+        strokeWidth: [2, 0],
+        strokeColors: ['#fff'],
+        hover: { size: 6 }
+      },
+      xaxis: { categories: [], ...axisLabels },
+      yaxis: [
+        {
+          seriesName: 'Índice de evaluación',
+          min: 0, max: 100, tickAmount: 5,
+          labels: { style: { colors: '#94a3b8', fontSize: '10px' }, formatter: (v: number) => `${Math.round(v)}%` }
+        },
+        {
+          seriesName: 'Respuestas',
+          opposite: true, min: 0, forceNiceScale: true,
+          labels: { style: { colors: '#cbd5e1', fontSize: '10px' }, formatter: (v: number) => `${Math.round(v)}` }
+        }
+      ],
+      annotations: {
+        yaxis: [{
+          y: 80,
+          borderColor: '#16a34a',
+          strokeDashArray: 4,
+          label: {
+            text: 'Umbral 80%',
+            style: { color: '#15803d', background: 'rgba(22,163,74,0.12)', fontSize: '10px', fontWeight: 700 }
+          }
+        }]
+      },
+      grid: {
+        ...gridModern,
+        padding: { top: 10, right: 12, bottom: 4, left: 6 }
+      },
+      legend: {
+        show: true,
+        position: 'bottom',
+        fontSize: '11px',
+        fontWeight: 600,
+        markers: { width: 8, height: 8, radius: 3 } as any,
+        itemMargin: { horizontal: 12, vertical: 2 }
+      },
+      tooltip: {
+        theme: 'dark',
+        shared: true,
+        y: { formatter: (v: number) => `${Math.round(Number(v) || 0)}` }
+      }
+    };
+
+    this.satisfaccionCapCmpProvChart = {
+      series: [],
+      chart: {
+        ...this.chartBase(),
+        type: 'bar',
+        height: 260,
+        toolbar: { show: false }
+      },
+      colors: [this.palette.teal],
+      plotOptions: {
+        bar: {
+          horizontal: true,
+          borderRadius: 7,
+          borderRadiusApplication: 'end',
+          barHeight: '52%',
+          distributed: true,
+          dataLabels: { position: 'top' }
+        }
+      },
+      dataLabels: {
+        enabled: true,
+        formatter: (v: number) => `${Math.round(Number(v) || 0)}%`,
+        offsetX: 8,
+        style: { fontSize: '11px', fontWeight: '800', colors: ['#0f172a'] }
+      },
+      stroke: { show: false, width: 0 },
+      xaxis: {
+        categories: [],
+        min: 0,
+        max: 100,
+        tickAmount: 5,
+        labels: {
+          style: { colors: '#94a3b8', fontSize: '10px' },
+          formatter: (v: string) => `${Math.round(Number(v) || 0)}%`
+        },
+        axisBorder: { show: false },
+        axisTicks: { show: false }
+      },
+      yaxis: {
+        labels: {
+          style: { colors: '#475569', fontSize: '11px', fontWeight: 600 },
+          maxWidth: 150
+        }
+      },
+      fill: {
+        type: 'gradient',
+        gradient: {
+          shade: 'light',
+          type: 'horizontal',
+          shadeIntensity: 0.22,
+          opacityFrom: 0.95,
+          opacityTo: 0.72,
+          stops: [0, 90, 100]
+        }
+      },
+      annotations: {
+        xaxis: [{
+          x: 80,
+          borderColor: '#16a34a',
+          strokeDashArray: 4,
+          label: {
+            text: '80%',
+            orientation: 'horizontal',
+            position: 'top',
+            style: {
+              color: '#15803d',
+              background: 'rgba(22,163,74,0.12)',
+              fontSize: '10px',
+              fontWeight: 700
+            }
+          }
+        }]
+      },
+      grid: gridModern,
+      legend: { show: false },
+      tooltip: {
+        theme: 'dark',
+        y: { formatter: (v: number) => `${Math.round(Number(v) || 0)}%` }
+      }
+    };
+
     this.satisfaccionCapDimensionesChart = {
       series: [{ name: 'Índice', data: [] }],
       chart: {
@@ -2399,6 +2788,136 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
         }
       },
       responsive: [this.CARRUSEL_DONUT_MOBILE]
+    };
+
+    this.proveedoresF29MensualChart = {
+      series: [],
+      chart: { ...this.chartBase(), type: 'area', height: 300 },
+      colors: [this.palette.teal],
+      stroke: { curve: 'smooth', width: 2.5 },
+      fill: {
+        type: 'gradient',
+        gradient: { shadeIntensity: 0.45, opacityFrom: 0.4, opacityTo: 0.04, stops: [0, 90, 100] }
+      },
+      dataLabels: {
+        enabled: true,
+        formatter: (v: number) => `${Math.round(Number(v) || 0)}%`,
+        style: { fontSize: '10px', fontWeight: '700', colors: ['#0f766e'] },
+        background: { enabled: true, foreColor: '#fff', borderRadius: 4, padding: 3, opacity: 0.92, borderWidth: 0 }
+      },
+      markers: { size: 4, hover: { size: 6 } },
+      xaxis: { categories: [], ...axisLabels },
+      yaxis: {
+        min: 0, max: 100, tickAmount: 5,
+        labels: { style: { colors: '#94a3b8', fontSize: '10px' }, formatter: (v: number) => `${Math.round(v)}%` }
+      },
+      annotations: {
+        yaxis: [{
+          y: 80,
+          borderColor: '#16a34a',
+          strokeDashArray: 4,
+          label: {
+            text: 'Umbral 80%',
+            style: { color: '#15803d', background: 'rgba(22,163,74,0.12)', fontSize: '10px', fontWeight: 700 }
+          }
+        }]
+      },
+      grid: gridModern,
+      legend: { show: false },
+      tooltip: {
+        theme: 'dark',
+        y: { formatter: (v: number) => `${Math.round(Number(v) || 0)}%` }
+      }
+    };
+
+    this.proveedoresF29MensualDistChart = {
+      series: [],
+      chart: {
+        ...this.chartBase(),
+        type: 'bar',
+        height: 300,
+        toolbar: { show: false }
+      },
+      colors: [this.palette.teal],
+      plotOptions: {
+        bar: {
+          horizontal: true,
+          borderRadius: 7,
+          borderRadiusApplication: 'end',
+          barHeight: '68%',
+          distributed: true,
+          dataLabels: { position: 'top' }
+        }
+      },
+      dataLabels: {
+        enabled: true,
+        formatter: (v: number) => `${Math.round(Number(v) || 0)}%`,
+        offsetX: 8,
+        style: {
+          fontSize: '11px',
+          fontWeight: '800',
+          colors: ['#0f172a']
+        }
+      },
+      stroke: { show: false, width: 0 },
+      xaxis: {
+        categories: [],
+        min: 0,
+        max: 100,
+        tickAmount: 5,
+        labels: {
+          style: { colors: '#94a3b8', fontSize: '10px' },
+          formatter: (v: string) => `${Math.round(Number(v) || 0)}%`
+        },
+        axisBorder: { show: false },
+        axisTicks: { show: false }
+      },
+      yaxis: {
+        labels: {
+          style: { colors: '#475569', fontSize: '11px', fontWeight: 600 },
+          maxWidth: 128
+        }
+      },
+      fill: {
+        type: 'gradient',
+        gradient: {
+          shade: 'light',
+          type: 'horizontal',
+          shadeIntensity: 0.22,
+          opacityFrom: 0.95,
+          opacityTo: 0.72,
+          stops: [0, 90, 100]
+        }
+      },
+      annotations: {
+        xaxis: [{
+          x: 80,
+          borderColor: '#16a34a',
+          strokeDashArray: 4,
+          label: {
+            text: '80%',
+            orientation: 'horizontal',
+            position: 'top',
+            style: {
+              color: '#15803d',
+              background: 'rgba(22,163,74,0.12)',
+              fontSize: '10px',
+              fontWeight: 700
+            }
+          }
+        }]
+      },
+      grid: {
+        ...gridModern,
+        xaxis: { lines: { show: true } },
+        yaxis: { lines: { show: false } },
+        padding: { top: 8, right: 28, left: 4, bottom: 0 }
+      },
+      legend: { show: false },
+      tooltip: {
+        theme: 'dark',
+        y: { formatter: (v: number) => `${Math.round(Number(v) || 0)}%` }
+      }
     };
 
     this.eficaciaChart = {
@@ -2829,6 +3348,8 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
       }
     };
     this.resetProveedoresF29DonutCentro();
+    this.actualizarChartsComparativaMensualProveedoresF29();
+    this.actualizarChartsComparativaSatCap();
 
     this.actualizarEficaciaChart();
     this.actualizarAudNcHistogramaChart();
@@ -4309,6 +4830,139 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     }));
   }
 
+  /** Meses con evaluación (sin vacíos) para la comparativa SGC-F-29. */
+  get comparativaMensualProveedoresF29(): Array<{
+    clave: string;
+    anio: number;
+    mes_num: number;
+    etiqueta: string;
+    promedioCalificacion: number;
+    totalEvaluaciones: number;
+    totalProveedores: number;
+    aprobados: number;
+    reprobados: number;
+    proveedores: Array<{
+      proveedor: string;
+      promedioCalificacion: number;
+      totalEvaluaciones: number;
+      aprobado: boolean;
+    }>;
+  }> {
+    const meses = this.proveedoresF29?.comparativaMensual?.meses;
+    if (!Array.isArray(meses) || !meses.length) return [];
+    return meses.filter((m: any) => (Number(m?.totalEvaluaciones) || 0) > 0);
+  }
+
+  get hayComparativaMensualProveedoresF29(): boolean {
+    return this.comparativaMensualProveedoresF29.length > 0;
+  }
+
+  get esVistaMensualProveedoresF29(): boolean {
+    return this.vistaProveedoresF29 === 'mensual';
+  }
+
+  get resumenKpisComparativaMensualF29(): Array<{
+    etiqueta: string;
+    valor: string;
+    sub: string;
+    color: string;
+  }> {
+    const meses = this.comparativaMensualProveedoresF29;
+    if (!meses.length) return [];
+    const ultimo = meses[meses.length - 1];
+    const mejor = [...meses].sort((a, b) => b.promedioCalificacion - a.promedioCalificacion)[0];
+    const promedioAnio = Math.round(
+      meses.reduce((s, m) => s + (Number(m.promedioCalificacion) || 0), 0) / meses.length
+    );
+    return [
+      {
+        etiqueta: 'Meses con datos',
+        valor: String(meses.length),
+        sub: String(this.anioSeleccionado),
+        color: this.palette.teal
+      },
+      {
+        etiqueta: 'Promedio anual',
+        valor: `${promedioAnio}%`,
+        sub: 'solo meses evaluados',
+        color: this.colorCalificacionProveedor(promedioAnio)
+      },
+      {
+        etiqueta: 'Mejor mes',
+        valor: `${mejor.promedioCalificacion}%`,
+        sub: mejor.etiqueta,
+        color: this.colorCalificacionProveedor(mejor.promedioCalificacion)
+      },
+      {
+        etiqueta: 'Último mes',
+        valor: `${ultimo.promedioCalificacion}%`,
+        sub: ultimo.etiqueta,
+        color: this.colorCalificacionProveedor(ultimo.promedioCalificacion)
+      }
+    ];
+  }
+
+  seleccionarVistaProveedoresF29(vista: VistaProveedoresF29, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (this.vistaProveedoresF29 === vista) return;
+    this.vistaProveedoresF29 = vista;
+    if (vista === 'mensual') {
+      this.actualizarChartsComparativaMensualProveedoresF29();
+    }
+  }
+
+  trackByMesProveedorF29(_index: number, m: { clave?: string; anio?: number; mes_num?: number }): string {
+    return m?.clave || `${m?.anio || 0}-${m?.mes_num || 0}`;
+  }
+
+  private actualizarChartsComparativaMensualProveedoresF29(): void {
+    const meses = this.comparativaMensualProveedoresF29;
+    const cats = meses.map((m) => m.etiqueta);
+    this.proveedoresF29MensualChart = {
+      ...this.proveedoresF29MensualChart,
+      series: [{
+        name: 'Promedio evaluación',
+        data: meses.map((m) => Number(m.promedioCalificacion) || 0)
+      }],
+      xaxis: {
+        ...this.proveedoresF29MensualChart.xaxis,
+        categories: cats
+      }
+    };
+    const areas = this.areasProveedoresF29;
+    const coloresArea = areas.map((a) => a.color || this.colorCalificacionProveedor(a.valor));
+    this.proveedoresF29MensualDistChart = {
+      ...this.proveedoresF29MensualDistChart,
+      series: [{
+        name: 'Promedio',
+        data: areas.map((a) => Number(a.valor) || 0)
+      }],
+      colors: coloresArea.length ? coloresArea : [this.palette.teal],
+      xaxis: {
+        ...this.proveedoresF29MensualDistChart.xaxis,
+        categories: areas.map((a) => a.label)
+      },
+      chart: {
+        ...this.proveedoresF29MensualDistChart.chart,
+        height: Math.max(260, 48 + Math.max(areas.length, 1) * 48)
+      },
+      tooltip: {
+        theme: 'dark',
+        y: {
+          formatter: (v: number, opts?: { dataPointIndex?: number }) => {
+            const idx = opts?.dataPointIndex ?? -1;
+            const area = areas[idx];
+            const pct = `${Math.round(Number(v) || 0)}%`;
+            if (!area) return pct;
+            const n = Number(area.total) || 0;
+            return `${pct} · ${n} eval.`;
+          }
+        }
+      }
+    };
+  }
+
   toggleExpandProveedorF29(nombre: string, event?: Event): void {
     event?.preventDefault();
     event?.stopPropagation();
@@ -4324,6 +4978,10 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     return this.criteriosProveedoresF29List;
   }
 
+  get areasProveedoresF29(): Array<{ clave: string; label: string; valor: number; color: string; total: number }> {
+    return this.areasProveedoresF29List;
+  }
+
   private actualizarCriteriosProveedoresF29(): void {
     const c = this.proveedoresF29?.criterios || {};
     this.criteriosProveedoresF29List = [
@@ -4336,8 +4994,58 @@ export class SistemaGestionCalidadComponent implements OnInit, OnDestroy {
     ];
   }
 
+  private actualizarAreasProveedoresF29(): void {
+    const desdeApi = Array.isArray(this.proveedoresF29?.promedioPorArea)
+      ? this.proveedoresF29.promedioPorArea
+      : [];
+    if (desdeApi.length) {
+      this.areasProveedoresF29List = desdeApi
+        .map((a: any) => ({
+          clave: String(a?.clave || ''),
+          label: String(a?.nombre || a?.clave || 'Sin área'),
+          valor: Number(a?.promedioCalificacion) || 0,
+          color: String(a?.color || this.colorCalificacionProveedor(a?.promedioCalificacion)),
+          total: Number(a?.totalEvaluaciones) || 0
+        }))
+        .filter((a: { total: number }) => a.total > 0);
+      return;
+    }
+
+    // Fallback: agrupa evaluaciones locales por areaClave.
+    const mapa = new Map<string, { label: string; sum: number; count: number; color: string }>();
+    for (const ev of (this.proveedoresF29?.proveedores || []) as any[]) {
+      const calif = Number(ev?.calificacion);
+      if (!Number.isFinite(calif)) continue;
+      const clave = String(ev?.areaClave || '').trim() || '__sin_area';
+      if (!mapa.has(clave)) {
+        mapa.set(clave, {
+          label: clave === '__sin_area' ? 'Sin área' : clave,
+          sum: 0,
+          count: 0,
+          color: this.colorCalificacionProveedor(calif)
+        });
+      }
+      const row = mapa.get(clave)!;
+      row.sum += calif;
+      row.count += 1;
+    }
+    this.areasProveedoresF29List = Array.from(mapa.entries())
+      .map(([clave, row]) => ({
+        clave: clave === '__sin_area' ? '' : clave,
+        label: row.label,
+        valor: row.count ? Math.round(row.sum / row.count) : 0,
+        color: row.color,
+        total: row.count
+      }))
+      .sort((a, b) => b.valor - a.valor);
+  }
+
   trackByCriterioProveedor(_index: number, c: { label: string }): string {
     return c.label;
+  }
+
+  trackByAreaProveedor(_index: number, a: { clave?: string; label: string }): string {
+    return a.clave || a.label;
   }
 
   trackByMesSat(_index: number, m: { mes_num: number; anio?: number | null }): string {

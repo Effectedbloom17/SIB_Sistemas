@@ -401,7 +401,13 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     return this.itemsDeApartado(this.seccionActiva);
   }
 
-  get gruposSeccionActiva(): Array<{ titulo: string; pipc?: string | null; archivos: ItemHistorialPc[] }> {
+  get gruposSeccionActiva(): Array<{
+    titulo: string;
+    subtitulo?: string | null;
+    pipc?: string | null;
+    esRaiz?: boolean;
+    archivos: ItemHistorialPc[];
+  }> {
     return this.gruposDeApartado(this.seccionActiva);
   }
 
@@ -430,9 +436,54 @@ export class ProteccionCivilHistorialPcComponent implements OnInit, OnDestroy {
     return ['oficios', 'observaciones', 'resolutivos'].includes(apartado);
   }
 
-  gruposDeApartado(apartado: string): Array<{ titulo: string; pipc?: string | null; archivos: ItemHistorialPc[] }> {
+  gruposDeApartado(apartado: string): Array<{
+    titulo: string;
+    subtitulo?: string | null;
+    pipc?: string | null;
+    esRaiz?: boolean;
+    archivos: ItemHistorialPc[];
+  }> {
     const items = this.archivosDeApartado(apartado);
-    if (apartado === 'documentacion' || apartado === 'extra') {
+
+    // Documentación Extra: agrupar por carpeta (como se suben en gestión).
+    if (apartado === 'extra') {
+      const map = new Map<string, {
+        titulo: string;
+        subtitulo?: string | null;
+        esRaiz?: boolean;
+        archivos: ItemHistorialPc[];
+      }>();
+      for (const item of items) {
+        const rutaRaw = String(item.grupo_titulo || '').trim();
+        const esRaiz = !rutaRaw || /^documentaci[oó]n\s+extra$/i.test(rutaRaw);
+        const key = esRaiz ? '__raiz__' : rutaRaw.replace(/\\/g, '/');
+        if (!map.has(key)) {
+          if (esRaiz) {
+            map.set(key, {
+              titulo: 'Documentación extra',
+              subtitulo: 'Archivos sueltos (fuera de carpetas)',
+              esRaiz: true,
+              archivos: []
+            });
+          } else {
+            const partes = key.split('/').filter(Boolean);
+            map.set(key, {
+              titulo: partes[partes.length - 1] || key,
+              subtitulo: partes.length > 1 ? key : null,
+              esRaiz: false,
+              archivos: []
+            });
+          }
+        }
+        map.get(key)!.archivos.push(item);
+      }
+      return [...map.values()].sort((a, b) => {
+        if (!!a.esRaiz !== !!b.esRaiz) return a.esRaiz ? 1 : -1;
+        return a.titulo.localeCompare(b.titulo, 'es');
+      });
+    }
+
+    if (apartado === 'documentacion') {
       const map = new Map<string, { titulo: string; pipc?: string | null; archivos: ItemHistorialPc[] }>();
       for (const item of items) {
         const requisito = String(item.nombre_documento || 'Documento').trim() || 'Documento';
