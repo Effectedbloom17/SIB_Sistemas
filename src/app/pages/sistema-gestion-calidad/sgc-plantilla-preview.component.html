@@ -7679,20 +7679,26 @@
                         </div>
                       </div>
 
-                      <div class="sgc-f-28-archivero__stats" *ngIf="sgcF28Form.comparativas.length">
+                      <div class="sgc-f-28-archivero__stats" *ngIf="sgcF28ComparativasActivas.length || (esSuperAdminSgcF28 && sgcF28ComparativasDesactivadas.length)">
                         <span class="sgc-f-28-stat">
-                          <strong>{{ sgcF28Form.comparativas.length }}</strong>
-                          {{ sgcF28Form.comparativas.length === 1 ? 'cotización' : 'cotizaciones' }}
+                          <strong>{{ sgcF28ComparativasActivas.length }}</strong>
+                          {{ sgcF28ComparativasActivas.length === 1 ? 'cotización' : 'cotizaciones' }}
                         </span>
                         <span class="sgc-f-28-stat sgc-f-28-stat--muted"
-                          *ngIf="sgcF28Busqueda.trim() && sgcF28ComparativasVista.length !== sgcF28Form.comparativas.length">
+                          *ngIf="esSuperAdminSgcF28 && sgcF28ComparativasDesactivadas.length">
+                          {{ sgcF28ComparativasDesactivadas.length }}
+                          {{ sgcF28ComparativasDesactivadas.length === 1 ? 'oculta' : 'ocultas' }}
+                        </span>
+                        <span class="sgc-f-28-stat sgc-f-28-stat--muted"
+                          *ngIf="sgcF28Busqueda.trim() && sgcF28ComparativasVista.length !== (esSuperAdminSgcF28 ? sgcF28Form.comparativas.length : sgcF28ComparativasActivas.length)">
                           {{ sgcF28ComparativasVista.length }} en vista
                         </span>
                       </div>
 
                       <ul class="sgc-f-28-grid" *ngIf="sgcF28ComparativasVista.length; else sgcF28Vacio">
                         <li class="sgc-f-28-tile" *ngFor="let c of sgcF28ComparativasVista; let ti = index; trackBy: trackByCriterioIdSgcF28"
-                          [attr.data-tone]="tonoTarjetaSgcF28(c, ti)">
+                          [attr.data-tone]="tonoTarjetaSgcF28(c, ti)"
+                          [class.sgc-f-28-tile--inactiva]="c.activo === false">
                           <button type="button" class="sgc-f-28-tile__body" (click)="abrirComparativaSgcF28(c)">
                             <span class="sgc-f-28-tile__accent" aria-hidden="true"></span>
                             <span class="sgc-f-28-tile__meta">
@@ -7701,6 +7707,7 @@
                                   <i class="fas fa-file-invoice-dollar" aria-hidden="true"></i>
                                 </span>
                                 <span class="sgc-f-28-tile__pills">
+                                  <span class="sgc-f-28-tile__badge-off" *ngIf="c.activo === false">Oculta</span>
                                   <span class="sgc-f-28-tile__count">{{ c.criterios.length }} crit.</span>
                                   <span class="sgc-f-28-tile__provpill">
                                     {{ conteoProveedoresSgcF28(c) || 0 }} prov.
@@ -7726,10 +7733,25 @@
                               </span>
                             </span>
                           </button>
-                          <button type="button" class="sgc-f-28-tile__del" (click)="eliminarComparativaSgcF28(c, $event)"
-                            title="Eliminar" aria-label="Eliminar comparativa">
-                            <i class="fas fa-trash-alt" aria-hidden="true"></i>
-                          </button>
+                          <div class="sgc-f-28-tile__actions">
+                            <button type="button" class="sgc-f-28-tile__del" *ngIf="c.activo !== false"
+                              (click)="eliminarComparativaSgcF28(c, $event)"
+                              title="Ocultar del archivero" aria-label="Ocultar comparativa">
+                              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="sgc-f-28-tile__reactivar"
+                              *ngIf="esSuperAdminSgcF28 && c.activo === false"
+                              (click)="reactivarComparativaSgcF28(c, $event)"
+                              title="Reactivar" aria-label="Reactivar comparativa">
+                              <i class="fas fa-undo" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="sgc-f-28-tile__del sgc-f-28-tile__del--hard"
+                              *ngIf="esSuperAdminSgcF28 && c.activo === false"
+                              (click)="borrarDefinitivoComparativaSgcF28(c, $event)"
+                              title="Borrar definitivamente" aria-label="Borrar comparativa definitivamente">
+                              <i class="fas fa-times" aria-hidden="true"></i>
+                            </button>
+                          </div>
                         </li>
                       </ul>
                       <ng-template #sgcF28Vacio>
@@ -7757,6 +7779,13 @@
                         Archivero
                       </button>
                       <span class="sgc-f-28-nav__crumb" *ngIf="comp.nombreCotizacion">{{ comp.nombreCotizacion }}</span>
+                      <span class="sgc-f-28-nav__badge-off" *ngIf="comp.activo === false">Oculta</span>
+                      <button type="button" class="sgc-f-28-nav__reactivar"
+                        *ngIf="esSuperAdminSgcF28 && comp.activo === false"
+                        (click)="reactivarComparativaSgcF28(comp, $event)">
+                        <i class="fas fa-undo" aria-hidden="true"></i>
+                        Reactivar
+                      </button>
                     </div>
 
                     <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'SGC-F-28', titulo: 'Comparativa de proveedores', icono: 'fa-balance-scale', extraClass: 'sgc-f-28-doc__header' }"></ng-container>

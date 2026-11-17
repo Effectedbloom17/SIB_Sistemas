@@ -1214,6 +1214,8 @@ interface SgcF28Comparativa {
   criterios: SgcF28Criterio[];
   /** Nombre real de la pestaña en el Excel sistema (puede llevar sufijo « 2»). */
   nombreHoja?: string;
+  /** Soft-delete: false = oculto en archivero (superadmin puede reactivar / borrar definitivo). */
+  activo?: boolean;
 }
 
 interface SgcF28FormData {
@@ -22995,7 +22997,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       fechaCreacion: this.fechaHoyIsoLocalSgcF28(),
       proveedores: Array.from({ length: 5 }, () => this.crearProveedorSgcF28Vacio()),
       criterios: [],
-      nombreHoja: ''
+      nombreHoja: '',
+      activo: true
     };
   }
 
@@ -23087,7 +23090,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       fechaCreacion: String(raw.fechaCreacion || this.fechaHoyIsoLocalSgcF28()).trim(),
       proveedores,
       criterios,
-      nombreHoja: String(raw.nombreHoja || raw.nombre_hoja || '').trim()
+      nombreHoja: String(raw.nombreHoja || raw.nombre_hoja || '').trim(),
+      activo: raw.activo !== false
     };
   }
 
@@ -23097,8 +23101,14 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       ? base.comparativas.map((c) => this.normalizarComparativaSgcF28(c))
       : [];
     let activa = String(base.comparativaActivaId || '').trim() || null;
+    const activas = comparativas.filter((c) => c.activo !== false);
     if (activa && !comparativas.some((c) => c.id === activa)) {
-      activa = comparativas[0]?.id || null;
+      activa = activas[0]?.id || comparativas[0]?.id || null;
+    } else if (activa) {
+      const hit = comparativas.find((c) => c.id === activa);
+      if (hit && hit.activo === false && activas.length) {
+        activa = activas[0].id;
+      }
     }
     return {
       revision: String(base.revision || '00').trim() || '00',
@@ -23191,6 +23201,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private asegurarEstructuraComparativaSgcF28(comp: SgcF28Comparativa | null): void {
     if (!comp) {
       return;
+    }
+    if (comp.activo == null) {
+      comp.activo = true;
     }
     if (!Array.isArray(comp.proveedores)) {
       comp.proveedores = [];
@@ -23305,9 +23318,24 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return 'Compara hasta 5 proveedores por cotización (3 visibles por defecto). Cada «nombre de cotización» genera su propia hoja en Excel. Agrega criterios tipados y reordénalos arrastrando la fila.';
   }
 
+  /** Superadmin (root): ve desactivadas, reactiva o borra definitivo. */
+  get esSuperAdminSgcF28(): boolean {
+    return this.authService.esRoot();
+  }
+
+  get sgcF28ComparativasActivas(): SgcF28Comparativa[] {
+    return (this.sgcF28Form.comparativas || []).filter((c) => c.activo !== false);
+  }
+
+  get sgcF28ComparativasDesactivadas(): SgcF28Comparativa[] {
+    return (this.sgcF28Form.comparativas || []).filter((c) => c.activo === false);
+  }
+
   get sgcF28ComparativasVista(): SgcF28Comparativa[] {
     const q = String(this.sgcF28Busqueda || '').trim().toLowerCase();
-    const lista = this.sgcF28Form.comparativas || [];
+    const lista = this.esSuperAdminSgcF28
+      ? (this.sgcF28Form.comparativas || [])
+      : this.sgcF28ComparativasActivas;
     if (!q) {
       return lista;
     }
@@ -23347,6 +23375,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!comp) {
       return;
     }
+    if (comp.activo === false && !this.esSuperAdminSgcF28) {
+      return;
+    }
     try {
       this.asegurarEstructuraComparativaSgcF28(comp);
       this.sgcF28Form.comparativaActivaId = comp.id;
@@ -23370,22 +23401,85 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.sgcF28DragCriterioFrom = null;
   }
 
-  eliminarComparativaSgcF28(comp: SgcF28Comparativa, event?: Event): void {
-    event?.preventDefault();
-    event?.stopPropagation();
-    if (!confirm(`¿Eliminar la comparativa «${comp.nombreCotizacion || 'sin nombre'}»?`)) {
-      return;
-    }
-    this.sgcF28Form.comparativas = (this.sgcF28Form.comparativas || []).filter((c) => c.id !== comp.id);
-    if (this.sgcF28Form.comparativaActivaId === comp.id) {
-      this.sgcF28Form.comparativaActivaId = this.sgcF28Form.comparativas[0]?.id || null;
+  private reasignarActivaTrasCambioSgcF28(idEliminado?: string): void {
+    const activas = this.sgcF28ComparativasActivas;
+    if (idEliminado && this.sgcF28Form.comparativaActivaId === idEliminado) {
+      this.sgcF28Form.comparativaActivaId = activas[0]?.id || null;
       this.sincronizarComparativaActivaSgcF28();
     }
-    if (!this.sgcF28Form.comparativas.length) {
+    if (!activas.length) {
       this.sgcF28Vista = 'archivero';
       this.sgcF28ComparativaActiva = null;
     }
+  }
+
+  /** Soft-delete: marca activo=false; la info permanece y el superadmin puede reactivarla. */
+  eliminarComparativaSgcF28(comp: SgcF28Comparativa, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!comp || comp.activo === false) {
+      return;
+    }
+    const etiqueta = comp.nombreCotizacion || 'sin nombre';
+    void Swal.fire({
+      icon: 'warning',
+      title: '¿Quitar del archivero?',
+      html: `Se ocultará <strong>${etiqueta}</strong>.<br>
+        <small>No se borra la información; el superadministrador puede reactivarla o eliminarla definitivamente.</small>`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, ocultar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b45309'
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      comp.activo = false;
+      this.reasignarActivaTrasCambioSgcF28(comp.id);
+      this.onSgcF28Editado();
+      this.persistirSgcF28();
+    });
+  }
+
+  reactivarComparativaSgcF28(comp: SgcF28Comparativa, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!this.esSuperAdminSgcF28 || !comp || comp.activo !== false) {
+      return;
+    }
+    comp.activo = true;
     this.onSgcF28Editado();
+    this.persistirSgcF28();
+    void Swal.fire({
+      icon: 'success',
+      title: 'Comparativa reactivada',
+      timer: 1600,
+      showConfirmButton: false
+    });
+  }
+
+  /** Hard-delete: solo superadmin; elimina la cotización del JSON de forma permanente. */
+  borrarDefinitivoComparativaSgcF28(comp: SgcF28Comparativa, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!this.esSuperAdminSgcF28 || !comp) {
+      return;
+    }
+    const etiqueta = comp.nombreCotizacion || 'sin nombre';
+    void Swal.fire({
+      icon: 'error',
+      title: '¿Borrar definitivamente?',
+      html: `Se eliminará <strong>${etiqueta}</strong> de forma permanente.<br>
+        <small>Esta acción no se puede deshacer.</small>`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, borrar definitivo',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c'
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      this.sgcF28Form.comparativas = (this.sgcF28Form.comparativas || []).filter((c) => c.id !== comp.id);
+      this.reasignarActivaTrasCambioSgcF28(comp.id);
+      this.onSgcF28Editado();
+      this.persistirSgcF28();
+    });
   }
 
   onTipoNuevoCriterioSgcF28Change(): void {

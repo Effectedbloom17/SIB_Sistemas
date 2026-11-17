@@ -388,13 +388,14 @@ export class AuthService {
    * Registros Recursos Humanos (FORMATOS RH):
    * - Superadministrador (rol root)
    * - Rozana (RozanaRG / bizna4116)
+   * - María Fernanda Becerra Hernández (mafer295)
    */
   public puedeVerRegistrosRh(): boolean {
     if (this.esSuperusuario() || this.esRoot()) {
       return true;
     }
     const username = String(this.getUsername() || '').toLowerCase().trim();
-    return username === 'rozanarg' || username === 'bizna4116';
+    return username === 'rozanarg' || username === 'bizna4116' || username === 'mafer295';
   }
 
   /** Actualiza el flag de delegación SGC (p. ej. tras consultar /mi-permiso). */

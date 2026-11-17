@@ -30454,10 +30454,48 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
   display: none !important;
 }
 
-.sgc-f-28-tile__del {
+.sgc-f-28-tile--inactiva {
+  opacity: 0.72;
+  border-style: dashed;
+  border-color: rgba(148, 163, 184, 0.55);
+  background: #f8fafc;
+
+  &:hover {
+    border-color: rgba(148, 163, 184, 0.7);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  }
+
+  .sgc-f-28-tile__accent {
+    background: linear-gradient(180deg, #94a3b8, #cbd5e1);
+  }
+}
+
+.sgc-f-28-tile__badge-off {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+}
+
+.sgc-f-28-tile__actions {
   position: absolute;
-  top: 0.45rem;
-  right: 0.45rem;
+  top: 0.4rem;
+  right: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  z-index: 2;
+}
+
+.sgc-f-28-tile__del,
+.sgc-f-28-tile__reactivar {
   width: 1.7rem;
   height: 1.7rem;
   border: 0;
@@ -30468,8 +30506,17 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
   transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
 
   .sgc-f-28-tile:hover & { opacity: 1; }
+  .sgc-f-28-tile--inactiva & { opacity: 1; }
+}
 
+.sgc-f-28-tile__del {
   &:hover { background: #fee2e2; color: #b91c1c; }
+
+  &--hard:hover { background: #fecaca; color: #991b1b; }
+}
+
+.sgc-f-28-tile__reactivar {
+  &:hover { background: #dcfce7; color: #15803d; }
 }
 
 .sgc-f-28-empty {
@@ -30511,8 +30558,39 @@ $sgc28-soft: rgba(21, 165, 150, 0.08);
 .sgc-f-28-nav {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.75rem;
   padding: 0.75rem 1rem 0;
+}
+
+.sgc-f-28-nav__badge-off {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+}
+
+.sgc-f-28-nav__reactivar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: #166534;
+  background: #dcfce7;
+  transition: background 0.15s ease;
+
+  &:hover { background: #bbf7d0; }
 }
 
 .sgc-f-28-nav__back {

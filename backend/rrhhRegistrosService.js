@@ -1,7 +1,7 @@
 /**
  * Recursos Humanos — Registros Recursos Humanos (privado).
  * Carpeta Drive «FORMATOS RH» (excluida del expediente de colaboradores).
- * Acceso: root + whitelist de username (Rozana / Talento Humano).
+ * Acceso: root + whitelist de username (Rozana / María Fernanda / Talento Humano).
  */
 const { google } = require('googleapis');
 const axios = require('axios');
@@ -15,7 +15,7 @@ const CARPETA_DRIVE_URL = `https://drive.google.com/drive/folders/${CARPETA_REGI
 const TITULO_MODULO = 'Registros Recursos Humanos';
 
 /** Solo estas cuentas (además de root en middleware). */
-const USERNAMES_REGISTROS_RH = new Set(['rozanarg', 'bizna4116']);
+const USERNAMES_REGISTROS_RH = new Set(['rozanarg', 'bizna4116', 'mafer295']);
 
 const MIME_FOLDER = 'application/vnd.google-apps.folder';
 const MIME_PDF = 'application/pdf';

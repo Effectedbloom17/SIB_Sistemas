@@ -290,8 +290,14 @@ function crearComparativaVacia() {
         fechaCreacion: excelHistorial.fechaAhoraMexicoIso(),
         proveedores: Array.from({ length: MAX_PROVEEDORES }, () => crearProveedorVacio()),
         criterios: [],
-        nombreHoja: ''
+        nombreHoja: '',
+        activo: true
     };
+}
+
+/** Soft-delete: activo=false oculta del archivero (sigue en JSON hasta borrado definitivo). */
+function comparativaEstaActiva(comp) {
+    return !comp || comp.activo !== false;
 }
 
 function sanitizarComparativa(raw) {
@@ -311,7 +317,8 @@ function sanitizarComparativa(raw) {
         fechaCreacion: formatearFechaIso(raw.fechaCreacion) || base.fechaCreacion,
         proveedores,
         criterios,
-        nombreHoja: sanitizarNombreHoja(raw.nombreHoja || raw.nombre_hoja || '')
+        nombreHoja: sanitizarNombreHoja(raw.nombreHoja || raw.nombre_hoja || ''),
+        activo: raw.activo !== false
     };
 }
 
@@ -349,8 +356,14 @@ function sanitizarDatos(raw) {
         catalogo = aprenderCatalogo(catalogo, c.criterios);
     }
     let activa = String(base.comparativaActivaId || '').trim() || null;
+    const activas = comparativas.filter(comparativaEstaActiva);
     if (activa && !comparativas.some((c) => c.id === activa)) {
-        activa = comparativas[0]?.id || null;
+        activa = activas[0]?.id || comparativas[0]?.id || null;
+    } else if (activa) {
+        const hit = comparativas.find((c) => c.id === activa);
+        if (hit && !comparativaEstaActiva(hit) && activas.length) {
+            activa = activas[0].id;
+        }
     }
     return {
         revision: String(base.revision || DATOS_DEFECTO.revision).trim() || '00',
@@ -366,7 +379,9 @@ function resolverComparativaActiva(datos) {
     const meta = sanitizarDatos(datos);
     if (!meta.comparativas.length) return crearComparativaVacia();
     const hit = meta.comparativas.find((c) => c.id === meta.comparativaActivaId);
-    return hit || meta.comparativas[0];
+    if (hit && comparativaEstaActiva(hit)) return hit;
+    const primeraActiva = meta.comparativas.find(comparativaEstaActiva);
+    return primeraActiva || hit || meta.comparativas[0];
 }
 
 function datosConComparativaActiva(datos, comparativa) {
@@ -377,7 +392,7 @@ function datosConComparativaActiva(datos, comparativa) {
 }
 
 function comparativaTieneContenido(comp) {
-    if (!comp) return false;
+    if (!comp || !comparativaEstaActiva(comp)) return false;
     if (String(comp.nombreCotizacion || '').trim()) return true;
     if ((comp.criterios || []).length) return true;
     return (comp.proveedores || []).some((p) =>
@@ -1456,6 +1471,7 @@ async function sincronizarHojasComparativasEnDrive(spreadsheetId, datos, datosPr
 function firmaComparativa(c) {
     return JSON.stringify({
         nombreCotizacion: c.nombreCotizacion,
+        activo: c.activo !== false,
         proveedores: c.proveedores,
         criterios: (c.criterios || []).map((cr) => ({
             tipo: cr.tipo,
@@ -1947,11 +1963,15 @@ async function sincronizarDesdeDrive(pool) {
                         || tituloHojaCoincide(sanitizarNombreHoja(c.nombreCotizacion), titulo);
                 });
                 if (idx < 0) continue;
-                const leida = await leerComparativaDesdeHoja(driveFileId, titulo, comparativasActualizadas[idx]);
+                const previa = comparativasActualizadas[idx];
+                // Soft-delete: no rehidratar desde Drive ni reactivar por sync.
+                if (!comparativaEstaActiva(previa)) continue;
+                const leida = await leerComparativaDesdeHoja(driveFileId, titulo, previa);
                 comparativasActualizadas[idx] = sanitizarComparativa({
                     ...leida,
-                    id: comparativasActualizadas[idx].id,
-                    nombreHoja: titulo
+                    id: previa.id,
+                    nombreHoja: titulo,
+                    activo: previa.activo !== false
                 });
             } catch (err) {
                 console.warn(`[SGC-F-28] No se pudo leer hoja "${titulo}":`, err.message);

@@ -232,10 +232,12 @@
                 <tr *ngFor="let fila of filas; trackBy: trackByFila">
                   <td class="mt-sticky mt-sticky--infra">
                     <textarea
-                      class="mt-cell-textarea"
-                      rows="2"
+                      #infraTextarea
+                      class="mt-cell-textarea mt-cell-textarea--auto"
+                      rows="1"
                       [(ngModel)]="fila.infraestructura"
-                      (ngModelChange)="onCampoFilaChange()"
+                      (ngModelChange)="onCampoFilaChange(); ajustarTextareaCelda(infraTextarea)"
+                      (input)="ajustarTextareaCelda(infraTextarea)"
                       aria-label="Infraestructura"
                     ></textarea>
                   </td>
@@ -245,8 +247,8 @@
                       class="mt-cell-textarea mt-cell-textarea--auto"
                       rows="1"
                       [(ngModel)]="fila.responsable"
-                      (ngModelChange)="onCampoFilaChange(); ajustarTextareaResponsable(respTextarea)"
-                      (input)="ajustarTextareaResponsable(respTextarea)"
+                      (ngModelChange)="onCampoFilaChange(); ajustarTextareaCelda(respTextarea)"
+                      (input)="ajustarTextareaCelda(respTextarea)"
                       aria-label="Responsable"
                     ></textarea>
                   </td>

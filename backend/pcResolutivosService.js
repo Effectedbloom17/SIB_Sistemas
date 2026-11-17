@@ -174,8 +174,8 @@ function limpiarFilasEjemploPlantilla(worksheet) {
  * 1) Vencido: hoy >= fecha_contacto + 40 días
  * 2) Próximo a vencer: fecha_contacto está en ventana de 40 días
  *    (desde hoy-39 hasta hoy+40; p.ej. hoy 15/07 → 22/08 es próximo, 29/09 es vigente)
- * 3) Vigentes: tiene fecha de aprobación (contacto aún lejano o fuera de ventana crítica)
- * 4) En tramite: en cualquier otro caso
+ * 3) Vigentes: contacto aún lejano, o tiene fecha de aprobación sin contacto crítico
+ * 4) En tramite: sin fecha operativa (ni contacto ni aprobación)
  */
 function calcularEstatusResolutivo(fechaAprobacionOpciones, asignacionIncompleta = false) {
     let fechaAprobacion = null;
@@ -208,8 +208,10 @@ function calcularEstatusResolutivo(fechaAprobacionOpciones, asignacionIncompleta
 
         // Dentro del margen de 40 días (antes o ya llegada la fecha de contacto) → Próximo
         // Ej.: hoy 15/07/2026, contacto 22/08/2026 (+38) → Próximo
-        //      hoy 15/07/2026, contacto 29/09/2026 (+76) → no entra aquí
+        //      hoy 15/07/2026, contacto 29/09/2026 (+76) → Vigente
         if (diasHastaContacto <= 40) return 'Próximo a vencer';
+
+        return 'Vigentes';
     }
 
     const fa = parseFechaInput(fechaAprobacion);
@@ -1448,11 +1450,12 @@ function obtenerFechaBucketResolutivo(row, estatus) {
     return obtenerFechaReferenciaResolutivo(row);
 }
 
-const ESTATUS_ATENCION_RESOLUTIVO = ['En tramite', 'Próximo a vencer', 'Vencido'];
+// Atención operativa: vigentes (con vigencia) + críticos. En trámite se excluye (sin fecha).
+const ESTATUS_ATENCION_RESOLUTIVO = ['Vigentes', 'Próximo a vencer', 'Vencido'];
 const ORDEN_ATENCION_RESOLUTIVO = {
     Vencido: 0,
     'Próximo a vencer': 1,
-    'En tramite': 2
+    Vigentes: 2
 };
 
 function calcularDiasHastaContacto(fechaContacto) {

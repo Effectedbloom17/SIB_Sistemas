@@ -1303,6 +1303,10 @@
       color: #5e72e4;
       background: rgba(94, 114, 228, 0.12);
     }
+    &--vigente {
+      color: #2dce89;
+      background: rgba(45, 206, 137, 0.12);
+    }
     &--proximo {
       color: #fb6340;
       background: rgba(251, 99, 64, 0.12);
@@ -1484,6 +1488,11 @@
     background: linear-gradient(180deg, rgba(94, 114, 228, 0.14) 0%, rgba(94, 114, 228, 0.03) 100%);
   }
 
+  &.is-vigente {
+    color: #2dce89;
+    background: linear-gradient(180deg, rgba(45, 206, 137, 0.16) 0%, rgba(45, 206, 137, 0.04) 100%);
+  }
+
   &.is-sin-fecha {
     color: #8898aa;
     background: linear-gradient(180deg, rgba(136, 152, 170, 0.12) 0%, rgba(136, 152, 170, 0.03) 100%);
@@ -1609,7 +1618,7 @@
     color: #8898aa;
   }
 
-  &--tramite.is-active { border-color: #5e72e4; box-shadow: 0 0 0 2px rgba(94, 114, 228, 0.18); }
+  &--vigente.is-active { border-color: #2dce89; box-shadow: 0 0 0 2px rgba(45, 206, 137, 0.18); }
   &--proximo.is-active { border-color: #fb6340; box-shadow: 0 0 0 2px rgba(251, 99, 64, 0.18); }
   &--vencido.is-active { border-color: #f5365c; box-shadow: 0 0 0 2px rgba(245, 54, 92, 0.18); }
 }

@@ -3079,7 +3079,7 @@ const requireAdminOrMantenimiento = requireRole('root', 'administrador', 'manten
 /** Acceso a Recursos Humanos (datos sensibles): root | administrador | rrhh */
 const requireAdminOrRrhh = requireRole('root', 'administrador', 'rrhh');
 
-/** Registros RH (FORMATOS RH): solo root + whitelist username (RozanaRG). */
+/** Registros RH (FORMATOS RH): solo root + whitelist username (RozanaRG / mafer295). */
 function requireRegistrosRh(req, res, next) {
     if (rrhhRegistrosService.usuarioPuedeRegistrosRh(req.user)) {
         return next();
@@ -25918,6 +25918,7 @@ chatSocketIo = initChatSocket(server, {
         await pcCentroOperaciones.ensureCentroOperacionesTable(poolProteccionCivil);
         await pcCentroOperaciones.ensureCentroOperacionesFechasColumns(poolProteccionCivil, addColumnIfNotExists);
         await pcCentroOperaciones.ensureResponsablePipcColumn(poolProteccionCivil, addColumnIfNotExists);
+        await pcCentroOperaciones.ensureMostrarEnActivosColumn(poolProteccionCivil, addColumnIfNotExists);
         await pcCentroOperaciones.ensureClaveWorkflowColumn(poolProteccionCivil, addColumnIfNotExists);
         await pcHistorialCicloService.ensureHistorialCicloTables(poolProteccionCivil);
         await pcRecorridoService.ensureTablas(poolProteccionCivil);
@@ -33951,7 +33952,7 @@ app.get('/api/proteccion-civil/empresas', requireAdminOrPC, async (req, res) => 
         try {
             const [ciclos] = await poolProteccionCivil.query(`
                 SELECT empresa_id, pasos_completados, activo, ciclo_cerrado_at,
-                       responsable_pipc_usuario_id, fechas_workflow
+                       responsable_pipc_usuario_id, fechas_workflow, mostrar_en_activos
                 FROM pc_centro_operaciones
                 ORDER BY activo DESC, operacion_id DESC
             `);
@@ -33977,10 +33978,18 @@ app.get('/api/proteccion-civil/empresas', requireAdminOrPC, async (req, res) => 
             const empresaId = Number(empresa.empresa_id);
             const ciclo = cicloPorEmpresa.get(empresaId);
             const responsableId = Number(ciclo?.responsable_pipc_usuario_id || 0) || null;
+            // Flag de soft-hide: Activos lo filtra en front; Asignación de PIPC lo ignora.
+            const mostrarEnActivos = !(
+                ciclo
+                && Number(ciclo.activo) === 1
+                && !ciclo.ciclo_cerrado_at
+                && !pcCentroOperaciones.cicloVisibleEnActivos(ciclo)
+            );
             const empresaBase = {
                 ...empresa,
                 pasos_completados: pcCentroOperaciones.parsePasosCompletados(ciclo?.pasos_completados),
                 ciclo_cerrado: !!(ciclo?.ciclo_cerrado_at) && Number(ciclo?.activo) === 0,
+                mostrar_en_activos: mostrarEnActivos,
                 responsable_pipc_usuario_id: responsableId,
                 responsable_pipc_nombre: responsableId ? (nombresResponsables.get(responsableId) || null) : null
             };

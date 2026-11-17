@@ -912,7 +912,9 @@
     width: 120px;
     text-align: left;
     z-index: 12;
-    vertical-align: middle;
+    vertical-align: top;
+    overflow: visible;
+    height: auto;
   }
 
   &--resp {

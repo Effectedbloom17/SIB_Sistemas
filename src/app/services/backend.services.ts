@@ -1801,6 +1801,31 @@ export class BackendServices {
         );
     }
 
+    /** PIPC ocultos de Activos (solo root). Soft-hide sin borrar datos. */
+    obtenerPipcOcultos(): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/proteccion-civil/pipc-ocultos`);
+    }
+
+    /** Oculta el ciclo activo de PIPC Activos (conserva información). */
+    ocultarPipcActivo(empresaId: number): Observable<any> {
+        return this.httpClient.post(
+            `${this.baseUrl}/proteccion-civil/empresas/${empresaId}/centro-operaciones/ocultar`,
+            {}
+        );
+    }
+
+    /** Restablece visibilidad en PIPC Activos (solo root). */
+    restablecerPipcActivo(empresaId: number, operacionId?: number): Observable<any> {
+        const body: any = {};
+        if (operacionId && Number(operacionId) > 0) {
+            body.operacion_id = Number(operacionId);
+        }
+        return this.httpClient.post(
+            `${this.baseUrl}/proteccion-civil/empresas/${empresaId}/centro-operaciones/restablecer`,
+            body
+        );
+    }
+
     // Obtener documentos de PC de una empresa
     obtenerDocumentosProteccionCivil(empresaId: number): Observable<any> {
         return this.httpClient.get(`${this.baseUrl}/proteccion-civil/empresas/${empresaId}/documentos`);
