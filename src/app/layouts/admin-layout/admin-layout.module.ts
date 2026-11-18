@@ -9,6 +9,7 @@ import { ClipboardModule } from 'ngx-clipboard';
 import { AdminLayoutRoutes } from './admin-layout.routing';
 import { ComponentsModule } from '../../components/components.module';
 import { DashboardComponent } from '../../pages/dashboard/dashboard.component';
+import { DashboardPipcComponent } from '../../pages/dashboard/dashboard-pipc.component';
 import { UserProfileComponent } from '../../pages/user-profile/user-profile.component';
 import { HomeComponent } from '../../pages/home/home.component';
 import { CalendarioComponent } from '../../pages/calendario/calendario.component';
@@ -44,6 +45,7 @@ import * as echarts from 'echarts';
   ],
   declarations: [
     DashboardComponent,
+    DashboardPipcComponent,
     UserProfileComponent,
     HomeComponent,
     CalendarioComponent,

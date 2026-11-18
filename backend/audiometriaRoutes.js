@@ -613,7 +613,7 @@ function registrarRutasAudiometria(app, deps) {
             await asegurarTabla(poolMedicos, dbMedicos);
             let sql = `SELECT id, empresa_id, instructor_id, folio, tipo_audiometria, nombre,
                               fecha_elaboracion, ocupacion, edad, personal_elaboro, cedula_profesional,
-                              drive_file_id, drive_url, created_at, updated_at
+                              drive_file_id, drive_url, datos_json, created_at, updated_at
                        FROM audiometria WHERE activo = 1`;
             const params = [];
             if (req.query.empresa_id) {
@@ -622,7 +622,7 @@ function registrarRutasAudiometria(app, deps) {
             }
             sql += ' ORDER BY created_at DESC';
             const [rows] = await poolMedicos.query(sql, params);
-            res.json({ success: true, audiometrias: rows.map((row) => filaPublica(row, false)) });
+            res.json({ success: true, audiometrias: rows.map((row) => filaPublica(row, true)) });
         } catch (error) {
             console.error('[ERROR] Listar audiometrías:', error.message);
             res.status(500).json({ success: false, message: 'Error al obtener audiometrías' });
@@ -644,7 +644,14 @@ function registrarRutasAudiometria(app, deps) {
             res.json({ success: true, audiometria: filaPublica(rows[0], true) });
         } catch (error) {
             console.error('[ERROR] Obtener audiometría:', error.message);
-            res.status(500).json({ success: false, message: 'Error al obtener la audiometría' });
+            const sinConexion = ['ECONNRESET', 'ETIMEDOUT', 'PROTOCOL_CONNECTION_LOST', 'ECONNREFUSED']
+                .includes(String(error.code || ''));
+            res.status(500).json({
+                success: false,
+                message: sinConexion
+                    ? 'La base de datos no respondió. Intenta de nuevo.'
+                    : 'Error al obtener la audiometría'
+            });
         }
     });
 

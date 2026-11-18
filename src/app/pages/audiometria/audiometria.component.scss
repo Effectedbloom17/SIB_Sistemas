@@ -426,7 +426,7 @@
 
 .preview-controls {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
@@ -1009,7 +1009,7 @@
   }
 }
 
-@page {
+@page audiometria-print {
   size: letter portrait;
   margin: 0;
 }
@@ -1018,12 +1018,30 @@
   .no-print,
   .header,
   .preview-controls { display: none !important; }
-  .audiometria-page { margin: 0 !important; }
+
+  .audiometria-page {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    page: audiometria-print;
+  }
+
+  .preview-wrapper {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
   .hc-document {
-    box-shadow: none;
-    width: 216mm;
+    box-shadow: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 10mm 8mm !important;
+    box-sizing: border-box !important;
     height: auto;
     overflow: visible;
+    page: audiometria-print;
 
     .hc-table {
       font-size: 8px;
@@ -1037,6 +1055,12 @@
     .hc-col-header { font-size: 9px; }
     .grafico-caja-titulo { font-size: 12px; }
     .eje-texto { font-size: 9px; }
+    .graficos-divididos {
+      width: 100%;
+      margin: 4px 0 0;
+      box-sizing: border-box;
+    }
+    .audiograma { width: 100%; height: auto; }
 
     .hc-diagnostico,
     .hc-diagnostico td,
@@ -1048,4 +1072,23 @@
       padding-bottom: 1px !important;
     }
   }
+
+  .aud-print-pagina {
+    display: block !important;
+    position: fixed;
+    right: 8mm;
+    bottom: 3mm;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 9pt;
+    line-height: 1;
+    color: #222;
+  }
+
+  .aud-print-pagina::after {
+    content: counter(page) "/" counter(pages);
+  }
+}
+
+.aud-print-pagina {
+  display: none;
 }

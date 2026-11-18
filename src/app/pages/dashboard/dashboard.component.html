@@ -39,23 +39,12 @@
   </div>
 </div>
 
-<div class="dash-vista-embebida"
-     [class.dash-vista-embebida--pipc]="vistaPanel === 'pipc'"
-     [class.dash-vista-embebida--ambiental]="vistaPanel === 'ambiental'"
-     [hidden]="vistaPanel === 'panel'">
-  <div class="dash-vista-estado text-center py-5" *ngIf="cargandoVista">
-    <div class="spinner-border" style="color: #38512F;" role="status"></div>
-    <p class="text-muted mt-2 mb-0">Cargando vista...</p>
+<div class="container-fluid dash-panel dash-body" *ngIf="vistaPanel === 'pipc'">
+  <div class="row justify-content-center">
+    <div class="col-xl-11">
+      <app-dashboard-pipc></app-dashboard-pipc>
+    </div>
   </div>
-  <div class="dash-vista-estado text-center py-5" *ngIf="errorVista && !cargandoVista">
-    <i class="fas fa-exclamation-triangle fa-2x text-warning mb-3"></i>
-    <p class="text-muted mb-3">No se pudo abrir esta vista.</p>
-    <button type="button" class="btn btn-sm text-white px-4" style="background: #38512F; border-radius: 20px;"
-            (click)="reintentarVista()">
-      <i class="fas fa-sync-alt mr-2"></i>Reintentar
-    </button>
-  </div>
-  <ng-container #vistaHost></ng-container>
 </div>
 
 <div class="container-fluid dash-panel" *ngIf="vistaPanel === 'panel'"

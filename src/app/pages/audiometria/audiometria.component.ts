@@ -4,7 +4,6 @@ import { BackendServices } from 'src/app/services/backend.services';
 import { environment } from 'src/environments/environment';
 import { formatearFechaDdmmaaaa, obtenerFechaHoyLocal } from 'src/app/utils/fecha.util';
 import Swal from 'sweetalert2';
-import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -121,6 +120,7 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
   maxPasoAlcanzado = 1;
   ayudaBinauralAbierta = false;
   guardando = false;
+  descargandoExcel = false;
   generandoPdf = false;
 
   empresas: any[] = [];
@@ -139,6 +139,7 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
   editandoId: number | null = null;
   folio = '';
   excelUrl = '';
+  driveFileId = '';
   origenPreview: 'formulario' | 'historial' = 'formulario';
   firmaUrlDoctor = '';
 
@@ -291,8 +292,10 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
       Swal.fire({ icon: 'warning', title: 'Falta el nombre', text: 'Escribe el nombre para generar el reporte.', confirmButtonColor: '#0f3661' });
       return;
     }
-    this.origenPreview = 'formulario';
-    this.vistaActual = 'preview';
+    this.guardar(() => {
+      this.origenPreview = 'formulario';
+      this.vistaActual = 'preview';
+    });
   }
 
   volverAlFormulario(): void {
@@ -336,18 +339,52 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
   }
 
   abrirRegistro(id: number): void {
+    const registroId = Number(id);
+    if (!Number.isInteger(registroId) || registroId <= 0) {
+      Swal.fire('No se pudo abrir', 'Ese registro no tiene identificador. Recarga el historial e intenta de nuevo.', 'error');
+      return;
+    }
+    const enMemoria = this.registros.find((registro) => Number(registro.id) === registroId);
+    if (enMemoria?.datos) {
+      this.mostrarRegistro(enMemoria, 'historial');
+      return;
+    }
+    this.pedirRegistro(registroId, true);
+  }
+
+  private pedirRegistro(id: number, reintentar: boolean): void {
     this.backendServices.obtenerAudiometria(id).subscribe({
       next: (resp: any) => {
         if (!resp?.success || !resp.audiometria) {
           Swal.fire('No encontrada', 'Esa audiometría ya no está disponible.', 'warning');
           return;
         }
-        this.aplicarRegistro(resp.audiometria);
-        this.origenPreview = 'historial';
-        this.vistaActual = 'preview';
+        this.mostrarRegistro(resp.audiometria, 'historial');
       },
-      error: () => Swal.fire('Error', 'No se pudo abrir la audiometría.', 'error')
+      error: (err) => {
+        const transitorio = !err?.status || err.status === 0 || err.status >= 500;
+        if (reintentar && transitorio) {
+          this.pedirRegistro(id, false);
+          return;
+        }
+        const detalle = err?.error?.message
+          || (err?.status === 0
+            ? 'El servidor no respondió. Revisa que el sistema siga encendido y vuelve a intentar.'
+            : 'No se pudo abrir la audiometría.');
+        Swal.fire('Error', detalle, 'error');
+      }
     });
+  }
+
+  private mostrarRegistro(registro: any, origen: 'formulario' | 'historial'): void {
+    try {
+      this.aplicarRegistro(registro);
+    } catch (error) {
+      Swal.fire('Error', 'El reporte está guardado, pero no se pudo mostrar.', 'error');
+      return;
+    }
+    this.origenPreview = origen;
+    this.vistaActual = origen === 'historial' ? 'preview' : 'formulario';
   }
 
   editarRegistro(id: number | null = this.editandoId): void {
@@ -394,7 +431,7 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
     });
   }
 
-  guardar(): void {
+  guardar(alGuardar?: () => void): void {
     if (!String(this.formulario.nombre || '').trim()) {
       Swal.fire({ icon: 'warning', title: 'Falta el nombre', confirmButtonColor: '#0f3661' });
       return;
@@ -415,6 +452,7 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
         this.editandoId = resp.id || this.editandoId;
         this.folio = resp.folio || this.folio;
         this.excelUrl = resp.drive_url || this.excelUrl;
+        alGuardar?.();
         const folio = this.folio ? `Folio ${this.folio}` : 'El registro quedó guardado.';
         if (resp.drive_url) {
           Swal.fire({
@@ -617,124 +655,51 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
     return `${base},${punto.y - 6} ${punta},${punto.y} ${base},${punto.y + 6}`;
   }
 
-  descargarExcel(): void {
-    const wb = XLSX.utils.book_new();
-    const filas: any[][] = [];
-    const merges: XLSX.Range[] = [];
-    let r = 0;
-    const columnas = 16;
-    const add = (celdas: { v: string; colspan: number }[]) => {
-      const row = new Array(columnas).fill('');
-      let col = 0;
-      celdas.forEach((celda) => {
-        row[col] = celda.v;
-        if (celda.colspan > 1) {
-          merges.push({ s: { r, c: col }, e: { r, c: col + celda.colspan - 1 } });
-        }
-        col += celda.colspan;
+  descargarExcelLleno(): void {
+    const fileId = this.idArchivoDrive();
+    if (!fileId) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'No se pudo descargar',
+        text: 'Este reporte todavía no tiene el Excel llenado.',
+        confirmButtonColor: '#0f3661'
       });
-      filas.push(row);
-      r += 1;
-    };
-    const f = this.formulario;
-    add([{ v: 'HISTORIA CLINICA', colspan: 16 }]);
-    add([{ v: `EMPRESA: ${this.empresaSeleccionada?.nombre_empresa || ''}`, colspan: 10 }, { v: `FOLIO: ${this.folio || ''}`, colspan: 6 }]);
-    add([{ v: `TIPO DE AUDIOMETRÍA: ${f.tipoAudiometria || ''}`, colspan: 16 }]);
-    add([{ v: `NOMBRE: ${f.nombre || ''}`, colspan: 16 }]);
-    add([
-      { v: `FECHA ELABORACIÓN: ${this.fechaReporte()}`, colspan: 6 },
-      { v: `ÁREA DE TRABAJO: ${f.ocupacion || ''}`, colspan: 6 },
-      { v: `EDAD: ${f.edad || ''}`, colspan: 4 }
-    ]);
-    add([
-      { v: `USO DE PROTECTOR AUDITIVO: ${f.usoProtector || ''}`, colspan: 8 },
-      { v: `AÑOS EN PUESTO: ${f.anosEnPuesto || ''}`, colspan: 8 }
-    ]);
-    add([
-      { v: `EXPOSICIÓN A RUIDO (HORAS AL DÍA): ${f.horasExposicion || ''}`, colspan: 8 },
-      { v: `TIPO DE RUIDO: ${f.tipoRuido || ''}`, colspan: 8 }
-    ]);
-    const sn = (valor: unknown) => this.textoSiNo(valor);
-    add([{ v: '1. ANTECEDENTES HEREDO-FAMILIARES', colspan: 16 }]);
-    add([
-      { v: 'FAMILIAR CON PERDIDA AUDITIVA', colspan: 4 },
-      { v: `UNILATERAL: ${sn(f.perdidaUnilateral)}`, colspan: 6 },
-      { v: `BILATERAL: ${sn(f.perdidaBilateral)}`, colspan: 6 }
-    ]);
-    add([
-      { v: 'FAMILIAR CON ALGUNA ENFERMEDAD OÍDO', colspan: 4 },
-      { v: `SÚBITA: ${sn(f.enfermedadSubita)}`, colspan: 4 },
-      { v: `PROGRESIVA: ${sn(f.enfermedadProgresiva)}`, colspan: 4 },
-      { v: `FLUCTUANTE: ${sn(f.enfermedadFluctuante)}`, colspan: 4 }
-    ]);
-    add([
-      { v: `FAMILIAR CON PERDIDA AUDITIVA: ${sn(f.perdidaAuditiva)}`, colspan: 6 },
-      { v: `PARENTESCO: ${f.perdidaParentesco || ''}`, colspan: 10 }
-    ]);
-    add([
-      { v: `FAMILIAR CON ALGUNA ENFERMEDAD OÍDO: ${sn(f.enfermedadOido)}`, colspan: 6 },
-      { v: `CUÁL: ${f.enfermedadCual || ''}`, colspan: 5 },
-      { v: `PARENTESCO: ${f.enfermedadParentesco || ''}`, colspan: 5 }
-    ]);
-    add([
-      { v: `TRASTORNOS DE COMUNICACIÓN: ${sn(f.trastornosComunicacion)}`, colspan: 6 },
-      { v: `TIPO: ${f.trastornosTipo || ''}`, colspan: 5 },
-      { v: `OBSERVACIONES: ${f.trastornosObservaciones || ''}`, colspan: 5 }
-    ]);
-    add([{ v: `OBSERVACIONES: ${f.observacionesHeredo || ''}`, colspan: 16 }]);
-    add([{ v: '2. ANTECEDENTES OTOLÓGICOS', colspan: 16 }]);
-    add([
-      { v: `MENINGITIS, PARÁLISIS FACIAL, HERPES ZOSTER, PAROTIDITIS, RUBÉOLA, FIEBRE TIFOIDEA: ${sn(f.infecciosos)}`, colspan: 8 },
-      { v: `TRAUMATISMO, DAÑO DE OÍDO: ${sn(f.traumatismo)}`, colspan: 8 }
-    ]);
-    add([
-      { v: `USO DE AUDÍFONOS: ${sn(f.audifonos)}`, colspan: 8 },
-      { v: `HORAS AL DÍA: ${f.audifonosHoras || ''}`, colspan: 8 }
-    ]);
-    add([
-      { v: `EXPOSICIÓN A QUÍMICOS: ${sn(f.quimicos)}`, colspan: 8 },
-      { v: `HORAS AL DÍA: ${f.quimicosHoras || ''}`, colspan: 8 }
-    ]);
-    add([
-      { v: `USO DE OTOTÓXICOS (ESTREPTOMICINA, QUININAS, GENTAMICINA, SALICILATOS, KANAMICINA, TOBRAMICINA, FUROSEMIDA): ${f.ototoxicos || ''}`, colspan: 8 },
-      { v: `RUIDO EXTRALABORAL (DISCOTECA, AUTOMOVILISMO, AVIACIÓN, MOTOCICLISMO, ETC.): ${f.ruidoExtralaboral || ''}`, colspan: 8 }
-    ]);
-    add([{ v: 'D', colspan: 16 }]);
-    add([
-      { v: `DISMINUCIÓN DE LA AUDICIÓN: ${sn(f.disminucionAudicion)}`, colspan: 8 },
-      { v: `OTALGIA: ${sn(f.otalgia)}`, colspan: 8 }
-    ]);
-    add([
-      { v: `TINNITUS: ${f.tinnitus || ''}`, colspan: 8 },
-      { v: `MAREOS: ${sn(f.mareos)}`, colspan: 8 }
-    ]);
-    add([
-      { v: `VÉRTIGO: ${sn(f.vertigo)}`, colspan: 8 },
-      { v: `OTORREA: ${sn(f.otorrea)}`, colspan: 8 }
-    ]);
-    add([
-      { v: `OYE BIEN: ${sn(f.oyeBien)}`, colspan: 6 },
-      { v: `SI NO OYE BIEN, DESDE CUÁNDO: ${f.oyeBienDesdeCuando || ''}`, colspan: 10 }
-    ]);
-    add([
-      { v: `DEBE PEDIR QUE REPITAN LAS FRASES: ${sn(f.repetirFrases)}`, colspan: 8 },
-      { v: `DEBE AUMENTAR EL VOL. DE T.V.: ${sn(f.aumentarVolumenTv)}`, colspan: 8 }
-    ]);
-    add([
-      { v: `OYE MEJOR CUANDO HAY RUIDO: ${sn(f.oyeMejorConRuido)}`, colspan: 8 },
-      { v: `LE MOLESTAN LOS RUIDOS INTENSOS: ${sn(f.molestanRuidosIntensos)}`, colspan: 8 }
-    ]);
-    add([
-      { v: 'OÍDO DERECHO', colspan: 8 },
-      { v: 'OÍDO IZQUIERDO', colspan: 8 }
-    ]);
+      return;
+    }
+    const nombre = [this.folio, this.formulario.nombre]
+      .map((parte) => String(parte || '').trim())
+      .filter(Boolean)
+      .join(' ') || 'audiometria';
+    this.descargandoExcel = true;
+    this.backendServices.descargarArchivoDrive(fileId, nombre).subscribe({
+      next: (blob) => {
+        this.descargandoExcel = false;
+        const url = URL.createObjectURL(blob);
+        const enlace = document.createElement('a');
+        enlace.href = url;
+        enlace.download = nombre.toLowerCase().endsWith('.xlsx') ? nombre : `${nombre}.xlsx`;
+        document.body.appendChild(enlace);
+        enlace.click();
+        enlace.remove();
+        URL.revokeObjectURL(url);
+      },
+      error: () => {
+        this.descargandoExcel = false;
+        Swal.fire({
+          icon: 'error',
+          title: 'No se pudo descargar',
+          text: 'No se pudo bajar el Excel llenado.',
+          confirmButtonColor: '#0f3661'
+        });
+      }
+    });
+  }
 
-    const ws = XLSX.utils.aoa_to_sheet(filas);
-    ws['!merges'] = merges;
-    ws['!cols'] = new Array(columnas).fill({ wch: 14 });
-    XLSX.utils.book_append_sheet(wb, ws, 'Plantilla');
-    const nombre = String(f.nombre || 'paciente').replace(/[^\w\-]+/g, '_');
-    XLSX.writeFile(wb, `Audiometria_${nombre}_${this.formulario.fechaElaboracion || 'sin_fecha'}.xlsx`);
+  private idArchivoDrive(): string {
+    const directo = String(this.driveFileId || '').trim();
+    if (directo) return directo;
+    const match = String(this.excelUrl || '').match(/\/d\/([a-zA-Z0-9_-]+)/);
+    return match?.[1] || '';
   }
 
   async descargarPDF(): Promise<void> {
@@ -747,7 +712,6 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
       const pdf = new jsPDF('p', 'mm', 'letter');
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      // Área que muchas impresoras no alcanzan a pintar. Más chico que el margen lateral.
       const margenVertical = 8;
       const altoDisponible = pageHeight - margenVertical * 2;
       const escala = Math.min(pageWidth / canvas.width, altoDisponible / canvas.height);
@@ -798,6 +762,7 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
     this.editandoId = null;
     this.folio = '';
     this.excelUrl = '';
+    this.driveFileId = '';
     this.pasoActual = 1;
     this.maxPasoAlcanzado = 1;
     this.origenPreview = 'formulario';
@@ -901,7 +866,9 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
       cedulaProfesional: datos.cedulaProfesional || registro.cedula_profesional || ''
     };
     this.umbrales = this.umbralesVacios();
-    (datos.umbrales || []).forEach((guardado: any) => {
+    const umbrales = Array.isArray(datos.umbrales) ? datos.umbrales : [];
+    umbrales.forEach((guardado: any) => {
+      if (!guardado) return;
       const destino = this.umbrales.find((item) => item.frecuencia === Number(guardado.frecuencia));
       if (!destino) return;
       destino.vaOd = guardado.vaOd ?? '';
@@ -912,6 +879,7 @@ export class AudiometriaComponent implements OnInit, OnDestroy {
     this.editandoId = registro.id;
     this.folio = registro.folio || '';
     this.excelUrl = registro.drive_url || '';
+    this.driveFileId = registro.drive_file_id || '';
     this.maxPasoAlcanzado = this.pasos.length;
   }
 

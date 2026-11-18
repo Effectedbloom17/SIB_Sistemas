@@ -1498,6 +1498,14 @@ async function obtenerEstadisticasResolutivosPipc(poolSgc, poolPC = null, poolBi
     );
 
     const atencionResolutivos = [];
+    const cargaResolutivos = [];
+    const mesesLabelsVencimiento = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const vencimientosPorMes = mesesLabelsVencimiento.map((mesLabel, idx) => ({
+        mes: idx + 1,
+        mes_label: mesLabel,
+        total: 0
+    }));
+    const tiposMap = new Map();
     let totalAnio = 0;
     const hoy = new Date();
     const mesActualCal = hoy.getMonth() + 1;
@@ -1510,8 +1518,27 @@ async function obtenerEstadisticasResolutivosPipc(poolSgc, poolPC = null, poolBi
         const estatus = normalizarEstatusOperativo(row.estatus);
         distribucionMap.set(estatus, (distribucionMap.get(estatus) || 0) + 1);
 
+        const mapeado = mapearResolutivoAtencion(row, estatus);
+        cargaResolutivos.push(mapeado);
         if (ESTATUS_ATENCION_RESOLUTIVO.includes(estatus)) {
-            atencionResolutivos.push(mapearResolutivoAtencion(row, estatus));
+            atencionResolutivos.push(mapeado);
+        }
+
+        const tipo = String(row.tipo_tramite || '').trim();
+        if (tipo) {
+            if (!tiposMap.has(tipo)) {
+                tiposMap.set(tipo, { tipo, vigentes: 0, proximo: 0, vencido: 0, tramite: 0, total: 0 });
+            }
+            const bucket = tiposMap.get(tipo);
+            bucket.total += 1;
+            if (estatus === 'Vigentes') bucket.vigentes += 1;
+            else if (estatus === 'Próximo a vencer') bucket.proximo += 1;
+            else if (estatus === 'Vencido') bucket.vencido += 1;
+            else bucket.tramite += 1;
+        }
+        const fechaVencimiento = parseFechaInput(row.fecha_vencimiento);
+        if (fechaVencimiento && fechaVencimiento.getFullYear() === anioNum) {
+            vencimientosPorMes[fechaVencimiento.getMonth()].total += 1;
         }
 
         let fechaRef = obtenerFechaBucketResolutivo(row, estatus);
@@ -1596,7 +1623,10 @@ async function obtenerEstadisticasResolutivosPipc(poolSgc, poolPC = null, poolBi
         variacion_mensual: variacionMensual,
         distribucion,
         por_mes: porMes,
+        vencimientos_por_mes: vencimientosPorMes,
+        por_tipo: [...tiposMap.values()].sort((a, b) => b.total - a.total || a.tipo.localeCompare(b.tipo, 'es')),
         estatus_orden: ESTATUS_RESOLUTIVO_ORDEN,
+        carga: cargaResolutivos,
         atencion: {
             total: atencionResolutivos.length,
             por_estatus: atencionPorEstatus,

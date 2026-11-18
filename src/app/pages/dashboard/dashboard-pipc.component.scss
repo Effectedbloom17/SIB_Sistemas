@@ -1,0 +1,229 @@
+@import '../proteccion-civil/proteccion-civil-analytics.scss';
+
+$primary: #38512F;
+$text-dark: #32325d;
+$text-muted: #8898aa;
+$border: #e9ecef;
+
+.kpi-bar {
+  display: flex;
+  flex-wrap: wrap;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 16px rgba(50, 50, 93, 0.08);
+  overflow: hidden;
+}
+
+.kpi-cell {
+  flex: 1 1 130px;
+  min-width: 0;
+  text-align: center;
+  padding: 1.1rem 0.5rem 1rem;
+  position: relative;
+
+  &:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 18%;
+    bottom: 18%;
+    width: 1px;
+    background: $border;
+  }
+}
+
+.kpi-cell-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+  i { font-size: 0.82rem; color: #fff; }
+}
+
+.kpi-cell-valor {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: $text-dark;
+  line-height: 1.15;
+}
+
+.kpi-percent-symbol { font-size: 0.7em; margin-left: 1px; }
+
+.kpi-cell-label {
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: $text-muted;
+  margin-top: 2px;
+}
+
+.kpi-cell-sub {
+  font-size: 0.68rem;
+  color: $text-muted;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.kpi-cell-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.pc-vence__head { padding: 1.15rem 1.35rem 0.4rem; }
+.pc-vence__cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0.8rem 1.35rem 0.2rem;
+}
+.pc-vence-card {
+  border-radius: 14px;
+  padding: 0.85rem 0.9rem;
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--vence-color) 28%, #fff);
+  box-shadow: 0 6px 16px rgba(50, 50, 93, 0.05);
+}
+.pc-vence-card__label {
+  display: block;
+  color: var(--vence-color);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.pc-vence-card__val {
+  display: block;
+  margin-top: 0.15rem;
+  color: $text-dark;
+  font-size: 1.55rem;
+  line-height: 1.1;
+}
+.pc-vence-card__hint { display: block; color: $text-muted; font-size: 0.75rem; }
+.pc-vence__charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 0.6rem 1.1rem 1.1rem;
+}
+.pc-vence-panel {
+  min-width: 0;
+  h3 { margin: 0; color: $text-dark; font-size: 0.95rem; font-weight: 700; }
+  p { margin: 0.15rem 0 0.4rem; color: $text-muted; font-size: 0.78rem; }
+}
+
+.pc-gantt-rango,
+.pc-carga-kpi {
+  border: 1px solid #e6ebf1;
+  background: #fff;
+  border-radius: 999px;
+  color: $text-dark;
+  font-weight: 700;
+}
+.pc-gantt-rango { padding: 0.35rem 0.8rem; font-size: 0.78rem; }
+.pc-gantt-rango.is-active,
+.pc-carga-kpi.is-active { border-color: $primary; color: $primary; background: #f4f7f2; }
+.pc-carga-kpis { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-bottom: 0.9rem; }
+.pc-carga-kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 140px;
+  padding: 0.55rem 0.85rem;
+  border-radius: 14px;
+  span { font-size: 0.72rem; color: $text-muted; font-weight: 600; }
+  strong { font-size: 1.25rem; line-height: 1.1; }
+}
+.pc-carga-kpi--proximo.is-active { border-color: #fb6340; color: #fb6340; }
+.pc-carga-kpi--vencido.is-active { border-color: #f5365c; color: #f5365c; }
+.pc-carga-board { padding: 0.4rem 1.15rem 1.15rem; }
+.pc-carga-vacio { color: $text-muted; text-align: center; padding: 1.5rem 0; }
+
+.pc-gantt-scroll { overflow-x: auto; }
+.pc-gantt { min-width: 760px; }
+.pc-gantt__hint { color: $text-muted; font-size: 0.78rem; margin-bottom: 0.45rem; }
+.pc-gantt__head,
+.pc-gantt__row { display: grid; grid-template-columns: 280px 1fr; gap: 0.6rem; align-items: center; }
+.pc-gantt__escala {
+  display: grid;
+  grid-template-columns: repeat(var(--pc-gantt-meses), minmax(42px, 1fr));
+  position: relative;
+}
+.pc-gantt__year { font-size: 0.72rem; font-weight: 800; color: $text-dark; }
+.pc-gantt__month { font-size: 0.62rem; color: $text-muted; font-weight: 700; text-align: center; }
+.pc-gantt__body { position: relative; }
+.pc-gantt__row { min-height: 46px; margin-bottom: 0.35rem; }
+.pc-gantt__pill {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-left: 3px solid #8898aa;
+  padding-left: 0.45rem;
+  min-width: 0;
+}
+.pc-gantt__logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+.pc-gantt__logo--fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef2f7;
+  color: $text-dark;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+.pc-gantt__empresa {
+  min-width: 0;
+  strong, small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  strong { font-size: 0.82rem; color: $text-dark; }
+  small { color: $text-muted; font-size: 0.7rem; }
+}
+.pc-gantt__dias { font-size: 0.72rem; font-weight: 800; white-space: nowrap; }
+.pc-gantt__label { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; min-width: 0; }
+.pc-gantt__track { position: relative; height: 14px; background: #f4f6f8; border-radius: 999px; }
+.pc-gantt__bar { position: absolute; top: 0; bottom: 0; border-radius: 999px; }
+.pc-gantt__hoy-col { position: absolute; inset: 0 0 0 280px; pointer-events: none; }
+.pc-gantt__hoy {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px solid #38512F;
+}
+.pc-gantt__hoy span {
+  position: absolute;
+  top: -2px;
+  left: 4px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #38512F;
+}
+.pc-gantt__leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-top: 0.7rem;
+  color: $text-muted;
+  font-size: 0.75rem;
+  i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.3rem; }
+}
+
+@media (max-width: 900px) {
+  .pc-vence__cards,
+  .pc-vence__charts { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 680px) {
+  .pc-vence__cards,
+  .pc-vence__charts { grid-template-columns: 1fr; }
+}

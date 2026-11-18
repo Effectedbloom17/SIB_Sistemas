@@ -536,26 +536,23 @@
           <div class="d-flex justify-content-between mt-4 aud-form-nav">
             <button type="button" class="btn btn-outline-secondary" (click)="pasoAnterior()" [disabled]="pasoActual === 1">Anterior</button>
             <button *ngIf="pasoActual < pasos.length" type="button" class="btn btn-success" (click)="pasoSiguiente()">Siguiente</button>
-            <button *ngIf="pasoActual === pasos.length" type="button" class="btn btn-success" (click)="verReporte()">Ver reporte</button>
+            <button *ngIf="pasoActual === pasos.length" type="button" class="btn btn-success" (click)="verReporte()" [disabled]="guardando">{{ guardando ? 'Guardando...' : 'Ver reporte' }}</button>
           </div>
         </div>
       </div>
 
       <div *ngIf="vistaActual === 'preview'" class="preview-wrapper">
         <div class="preview-controls no-print">
-          <button type="button" class="btn btn-link text-muted preview-back" (click)="origenPreview === 'historial' ? verHistorial() : volverAlFormulario()">
-            <i class="fas fa-arrow-left mr-1"></i> {{ origenPreview === 'historial' ? 'Historial' : 'Formulario' }}
-          </button>
           <div class="preview-actions">
-            <button type="button" class="btn btn-success btn-sm" (click)="guardar()" [disabled]="guardando">
-              {{ guardando ? 'Guardando...' : 'Finalizar' }}
+            <button *ngIf="editandoId" type="button" class="btn btn-outline-dark btn-sm" (click)="editarRegistro(editandoId)">Editar</button>
+            <button type="button" class="btn btn-outline-success btn-sm" (click)="descargarExcelLleno()" [disabled]="descargandoExcel">
+              {{ descargandoExcel ? 'Descargando...' : 'Excel' }}
             </button>
-            <a *ngIf="excelUrl" class="btn btn-outline-success btn-sm" [href]="excelUrl" target="_blank" rel="noopener">Excel en Drive</a>
-            <button type="button" class="btn btn-outline-success btn-sm" (click)="descargarExcel()">Plantilla Excel</button>
             <button type="button" class="btn btn-outline-primary btn-sm" (click)="descargarPDF()" [disabled]="generandoPdf">PDF</button>
             <button type="button" class="btn btn-outline-secondary btn-sm" (click)="imprimir()">Imprimir</button>
-            <button *ngIf="editandoId" type="button" class="btn btn-outline-dark btn-sm" (click)="editarRegistro(editandoId)">Editar</button>
-            <button *ngIf="editandoId" type="button" class="btn btn-outline-danger btn-sm" (click)="eliminarRegistro(editandoId)">Eliminar</button>
+            <button type="button" class="btn btn-success btn-sm" (click)="verHistorial()">
+              Finalizar
+            </button>
           </div>
         </div>
 
@@ -699,6 +696,7 @@
             </tr>
           </table>
         </div>
+        <span class="aud-print-pagina" aria-hidden="true"></span>
       </div>
 
       <div *ngIf="vistaActual === 'historial'" class="card shadow-lg border-0 panel aud-historial-card">

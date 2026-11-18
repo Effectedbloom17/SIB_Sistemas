@@ -2205,6 +2205,9 @@ $header-plexus-svg: url("data:image/svg+xml,%3Csvg width='420' height='280' view
   app-navbar,
   app-footer,
   app-document-preview,
+  app-biznaguita-gestor-avisos,
+  .biz-gestor,
+  .cp-aviso-cambio,
   .sidebar-custom,
   .sidebar,
   .sidenav,
@@ -2304,6 +2307,11 @@ $header-plexus-svg: url("data:image/svg+xml,%3Csvg width='420' height='280' view
     border: none !important;
     border-radius: 0 !important;
     overflow: visible !important;
+  }
+
+  #audiometria-print {
+    padding: 10mm 8mm !important;
+    box-sizing: border-box !important;
   }
 
   // Page break control
