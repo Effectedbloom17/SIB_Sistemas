@@ -10376,17 +10376,16 @@
                               <p class="sgc-f-09-item__text sgc-f-09-item__text--empty"
                                 *ngIf="!item.evidencias?.length">—</p>
                             </div>
-                          </div>
-
-                          <div class="sgc-f-09-item__hallazgo">
-                            <span class="sgc-f-09-item__label">Descripción del hallazgo</span>
-                            <textarea
-                              class="dg-f05-field dg-f05-field--textarea sgc-f-09-hallazgo"
-                              [name]="'sgcF09_hall_' + item.id"
-                              [(ngModel)]="item.hallazgo"
-                              rows="2"
-                              placeholder="Describe el hallazgo u observación…"
-                              [attr.aria-label]="'Descripción del hallazgo ' + item.requisito"></textarea>
+                            <div class="sgc-f-09-item__hallazgo">
+                              <span class="sgc-f-09-item__label">Descripción del hallazgo</span>
+                              <textarea
+                                class="dg-f05-field dg-f05-field--textarea sgc-f-09-hallazgo"
+                                [name]="'sgcF09_hall_' + item.id"
+                                [(ngModel)]="item.hallazgo"
+                                rows="3"
+                                placeholder="Describe el hallazgo u observación…"
+                                [attr.aria-label]="'Descripción del hallazgo ' + item.requisito"></textarea>
+                            </div>
                           </div>
                         </article>
                       </div>

@@ -28211,202 +28211,766 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       {
         seccion: 'Contexto de la organización',
         requisito: '4.1',
-        descripcion: 'Comprensión de la organización y de su contexto.',
+        descripcion: 'Comprensión de la organización y de su contexto',
         preguntas: [
-          '¿Se determinan las cuestiones internas y externas?',
-          '¿Con qué frecuencia?',
-          '¿Quiénes participan?',
-          '¿Cómo se da seguimiento?'
+          '¿Cómo determinas tus cuestiones externas o internas del SGC?',
+          '¿Con qué frecuencia determinas las cuestiones internas o externas de tu organización?',
+          '¿Quién participó en la realización de este análisis?',
+          '¿Cómo le das seguimiento a estas cuestiones internas y externas?'
         ],
-        evidencias: ['FODA', 'Lluvia de ideas', 'CANVAS', 'PEST', '5 fuerzas de Porter']
+        evidencias: ['FODA', 'Lluvia de ideas', 'CANVAS', 'PEST', '5 fuerzas de porter']
       },
       {
         seccion: 'Contexto de la organización',
         requisito: '4.2',
-        descripcion: 'Comprensión de las necesidades y expectativas de las partes interesadas.',
+        descripcion: 'Comprensión de las necesidades y expectativas de las partes interesadas',
         preguntas: [
-          '¿Quiénes son las partes interesadas?',
-          '¿Dónde se documentan sus necesidades y expectativas?'
+          '¿Quiénes son tus partes interesadas?',
+          '¿Dónde determinas a tus partes interesadas?',
+          '¿Cuáles son las necesidades y expectativas de tus partes interesadas?'
         ],
-        evidencias: ['Lista maestra de partes interesadas', 'Procedimiento']
+        evidencias: ['Lista maestra de partes interesadas.', 'Procedimiento.']
       },
       {
         seccion: 'Contexto de la organización',
         requisito: '4.3',
-        descripcion: 'Determinación del alcance del sistema de gestión de la calidad.',
+        descripcion: 'Determinación del alcance del sistema de gestión de la calidad',
         preguntas: [
-          '¿Dónde está documentado el alcance?',
-          '¿Dónde está disponible?',
-          '¿Cuáles son las exclusiones?'
+          '¿En dónde se encuentra documentado el alcance del SGC?',
+          '¿Dónde se encuentra disponible?',
+          '¿Cuáles son tus exclusiones?'
         ],
-        evidencias: ['Manual', 'Formato', 'Certificado']
+        evidencias: ['Manual.', 'Formato.', 'Certificado.']
       },
       {
         seccion: 'Contexto de la organización',
         requisito: '4.4',
-        descripcion: 'Sistema de gestión de la calidad y sus procesos.',
+        descripcion: 'Sistema de gestión de la calidad y sus procesos',
         preguntas: [
-          '¿Se han determinado los procesos necesarios?',
-          '¿Cómo se gestionan entradas, salidas, controles e indicadores?'
+          '¿Dónde se determinan los procesos y sus interacciones?',
+          '¿Dónde determinas las entradas y salidas de los procesos?',
+          '¿En dónde determinas los criterios y los métodos necesarios para el control de estos procesos?'
         ],
-        evidencias: ['Mapa de procesos', 'Fichas de proceso', 'Indicadores']
+        evidencias: [
+          'Mapa de interacción de procesos.',
+          'Entradas y salidas de los procesos.',
+          'Manual de Calidad / Procedimientos.'
+        ]
       },
       {
         seccion: 'Liderazgo',
-        requisito: '5.1',
-        descripcion: 'Liderazgo y compromiso.',
+        requisito: '5.1.1',
+        descripcion: 'Liderazgo',
         preguntas: [
-          '¿Cómo demuestra la alta dirección liderazgo y compromiso con el SGC?',
-          '¿Se comunican la importancia y los resultados?'
+          '¿Cómo demuestras tu liderazgo y compromiso con respecto al SGC?'
         ],
-        evidencias: ['Actas de revisión', 'Comunicados', 'Evidencias de participación']
+        evidencias: ['Respuesta verbal.']
       },
       {
         seccion: 'Liderazgo',
-        requisito: '5.2',
-        descripcion: 'Política.',
+        requisito: '5.1.2',
+        descripcion: 'Enfoque al cliente',
         preguntas: [
-          '¿Existe política de calidad?',
-          '¿Está disponible, se comunica y se mantiene como información documentada?'
+          '¿Cómo te aseguras de que se determinan y cumplen regularmente los requisitos del cliente y los legales y reglamentarios aplicables?',
+          '¿Cómo te aseguras de que se determinan y se consideran los riesgos y oportunidades que podrían afectar a la satisfacción del cliente?',
+          '¿Qué acciones han implementado para conocer el grado de satisfacción del cliente?'
         ],
-        evidencias: ['SGC-PO-01', 'Difusión', 'Registros de comunicación']
+        evidencias: [
+          'Cotización / Contrato / O.C cliente.',
+          'Matriz de requisitos legales.',
+          'FODA.',
+          'Matriz de riesgos (AMEF-cliente).',
+          'Buzón de quejas.',
+          'Encuestas de satisfacción del cliente.',
+          'Planes de acción para la satisfacción del cliente.'
+        ]
+      },
+      {
+        seccion: 'Liderazgo',
+        requisito: '5.2.1',
+        descripcion: 'Establecimiento de la política de calidad',
+        preguntas: [
+          '¿Han establecido e implementado una política de calidad?',
+          '¿Quién estableció la política de calidad?',
+          '¿Incluye un compromiso de cumplir con los requisitos aplicables y de mejora continua del SGC?'
+        ],
+        evidencias: ['Política de calidad (escrita).']
+      },
+      {
+        seccion: 'Liderazgo',
+        requisito: '5.2.2',
+        descripcion: 'Comunicación de la política de calidad',
+        preguntas: [
+          '¿En dónde está disponible la política de calidad?',
+          '¿Se mantiene como información documentada?',
+          '¿Cómo comunicas la política de calidad?',
+          '¿Está disponible para las partes interesadas?',
+          '¿En dónde?'
+        ],
+        evidencias: [
+          'Política de calidad disponible en toda la organización.',
+          'Conozcan los empleados.',
+          'Disponible para partes interesadas.'
+        ]
       },
       {
         seccion: 'Liderazgo',
         requisito: '5.3',
-        descripcion: 'Roles, responsabilidades y autoridades en la organización.',
+        descripcion: 'Roles, responsabilidades y autoridades de la organización',
         preguntas: [
-          '¿Están definidos y comunicados los roles, responsabilidades y autoridades del SGC?'
+          '¿En dónde se determinan las responsabilidades y autoridades para los roles pertinentes de la organización?',
+          '¿Cómo se comunican estas responsabilidades y autoridades en la organización?',
+          '¿Se ha designado responsabilidad y autoridad para asegurarse de que el SGC es conforme a los requisitos de la norma ISO 9001:2015?'
         ],
-        evidencias: ['Organigrama', 'Descripciones de puesto', 'Matriz RACI']
+        evidencias: [
+          'Organigrama.',
+          'Manual.',
+          'Procedimientos.',
+          'DP.',
+          'Nombramiento del coordinador del SGC.',
+          'Matriz de responsabilidades.'
+        ]
       },
       {
         seccion: 'Planificación',
         requisito: '6.1',
-        descripcion: 'Acciones para abordar riesgos y oportunidades.',
+        descripcion: 'Acciones para abordar riesgos y oportunidades',
         preguntas: [
-          '¿Se determinan riesgos y oportunidades?',
-          '¿Qué acciones se planifican y cómo se evalúa su eficacia?'
+          '¿En dónde planificas las acciones para abordar riesgos y oportunidades?',
+          '¿En dónde planificas las cuestiones internas y externas y los requisitos de las partes interesadas?'
         ],
-        evidencias: ['Matriz de riesgos', 'Planes de acción', 'Seguimiento']
+        evidencias: [
+          'Matriz de riesgos de todos los procesos, incluyendo riesgos para partes interesadas.',
+          'Matriz de riesgos estratégicos.',
+          'FODA.',
+          'Planes de acción.'
+        ]
       },
       {
         seccion: 'Planificación',
         requisito: '6.2',
-        descripcion: 'Objetivos de la calidad y planificación para lograrlos.',
+        descripcion: 'Objetivos de la calidad y planificación para lograrlos',
         preguntas: [
-          '¿Hay objetivos medibles?',
-          '¿Quién es responsable?',
-          '¿Qué recursos y plazos se definen?'
+          '¿Dónde determinas tus objetivos de calidad?'
         ],
-        evidencias: ['Objetivos de calidad', 'Tablero de indicadores', 'Planes']
+        evidencias: ['Matriz de objetivos.', 'Cuadro de mando.', 'Manual.', 'Formatos.']
+      },
+      {
+        seccion: 'Planificación',
+        requisito: '6.2.2',
+        descripcion: 'Objetivos de la calidad y planificación para lograrlos',
+        preguntas: [
+          '¿Cómo planeas tus objetivos de calidad?'
+        ],
+        evidencias: ['Planes de acción']
+      },
+      {
+        seccion: 'Planificación',
+        requisito: '6.3',
+        descripcion: 'Planificación de los cambios',
+        preguntas: [
+          '¿Qué cambios tuvieron en los últimos 3 meses?'
+        ],
+        evidencias: ['Planificación de los cambios.', 'Formato para cambios.']
       },
       {
         seccion: 'Apoyo',
-        requisito: '7.1',
-        descripcion: 'Recursos.',
+        requisito: '7.1 y 7.1.1',
+        descripcion: 'Recursos',
         preguntas: [
-          '¿Se determinan y proporcionan los recursos necesarios (personas, infraestructura, ambiente, seguimiento)?'
+          '¿Existe presupuesto específico para el establecimiento, implementación, mantenimiento y mejora continua del SGC?'
         ],
-        evidencias: ['Presupuestos', 'Inventarios', 'Mantenimiento', 'Calibración']
+        evidencias: [
+          'Presupuesto anual para el SGC.',
+          'Programa Operativo Anual.',
+          'Resultados de la Junta de revisión por la dirección.'
+        ]
+      },
+      {
+        seccion: 'Apoyo',
+        requisito: '7.1.2',
+        descripcion: 'Personas',
+        preguntas: [
+          '¿En dónde determinas y proporcionas a las personas necesarias para la implementación eficaz del SGC y para la operación y control de sus procesos?'
+        ],
+        evidencias: [
+          'Organigrama (con el número de personas requeridas por puesto).',
+          'Plantilla de personal'
+        ]
+      },
+      {
+        seccion: 'Apoyo',
+        requisito: '7.1.3',
+        descripcion: 'Infraestructura',
+        preguntas: [
+          '¿En dónde se determina la infraestructura con la que cuenta la organización?',
+          '¿Cómo le das mantenimiento a la planta?',
+          '¿Cómo le das mantenimiento al equipo de cómputo?',
+          '¿Cómo le das mantenimiento al parque vehicular?',
+          '¿Cómo le das mantenimiento a las tecnologías de la información y la comunicación?'
+        ],
+        evidencias: [
+          'Listado de infraestructura (Inventario de infraestructura, de equipo de cómputo y parque vehicular).',
+          'Programas de mantenimiento.',
+          'Solicitud de mantenimiento.',
+          'Bitácoras de mantenimiento.',
+          'Facturas de servicios de mantenimiento.'
+        ]
+      },
+      {
+        seccion: 'Apoyo',
+        requisito: '7.1.4',
+        descripcion: 'Ambiente para operación de los procesos',
+        preguntas: [
+          '¿Cómo determinas, proporcionas y mantienes el ambiente necesario para la operación de los procesos?'
+        ],
+        evidencias: [
+          'Encuestas de clima laboral (análisis y planes de acción).',
+          'Actividades recreativas.',
+          'Cursos de manejo del estrés y cuidado de las emociones.',
+          'Manejo de conflictos.',
+          'Programas de inclusión.',
+          'Programas de prevención y promoción de la salud.',
+          'Estudios de iluminación, ruido, etc.'
+        ]
+      },
+      {
+        seccion: 'Apoyo',
+        requisito: '7.1.5',
+        descripcion: 'Recursos de seguimiento y medición',
+        preguntas: [
+          '¿Qué recursos de seguimiento y medición tienes para verificar la conformidad de los productos o servicios con los requisitos?'
+        ],
+        evidencias: [
+          'Listado maestro de equipos de medición.',
+          'Programa de mantenimiento de equipos de medición.',
+          'Bitácoras de calibración.'
+        ]
+      },
+      {
+        seccion: 'Apoyo',
+        requisito: '7.1.5.2',
+        descripcion: 'Trazabilidad de las mediciones',
+        preguntas: [
+          '¿Cuentas con un programa de calibración de equipos de medición?',
+          '¿En dónde documentas que la calibración se llevó a cabo?',
+          '¿Cómo identificas a los equipos de medición para determinar su estado?',
+          '¿Cómo proteges a los equipos de medición contra daño o deterioro?'
+        ],
+        evidencias: [
+          'Equipo de medición motivo de calibración y verificación.',
+          'Programa de calibración de equipos de medición.',
+          'Certificados de calibración.',
+          'Bitácoras de calibración.',
+          'Etiquetas de calibración'
+        ]
+      },
+      {
+        seccion: 'Apoyo',
+        requisito: '7.1.6',
+        descripcion: 'Conocimientos de la organización',
+        preguntas: [
+          '¿En dónde se encuentran documentados los conocimientos necesarios para la operación de los procesos?'
+        ],
+        evidencias: [
+          'Registros de capacitación.',
+          'Fichas de conocimiento.',
+          'Capacitación por clientes / proveedores.',
+          'Listado de conocimientos.',
+          'Videoconferencias.',
+          'Conocimientos documentados de clientes o proveedores.'
+        ]
       },
       {
         seccion: 'Apoyo',
         requisito: '7.2',
-        descripcion: 'Competencia.',
+        descripcion: 'Competencia',
         preguntas: [
-          '¿Cómo se determina la competencia requerida?',
-          '¿Se mantiene información documentada como evidencia?'
+          '¿Cómo determinas la competencia de las personas que trabajan para la organización?',
+          'En caso de ser necesario, ¿qué acciones se toman para que un trabajador adquiera la competencia necesaria?',
+          '¿Cómo evalúas la eficacia de las acciones tomadas?'
         ],
-        evidencias: ['Matriz de competencia', 'DC-3', 'Evaluaciones', 'Capacitación']
+        evidencias: [
+          'Expedientes de personal (títulos, cédulas, certificados, constancias, CV, cartas de recomendación, solicitud de empleo, etc.).',
+          'Descripciones de puestos.',
+          'Programa de capacitación.',
+          'DNC´s.',
+          'Solicitudes de capacitación.',
+          'Evaluación de la capacitación, diplomas o certificados.'
+        ]
+      },
+      {
+        seccion: 'Apoyo',
+        requisito: '7.3',
+        descripcion: 'Toma de conciencia',
+        preguntas: [
+          '¿Cómo se asegura la organización de que sus colaboradores tomen conciencia de:',
+          'La política de calidad.',
+          'Los objetivos de calidad.',
+          'Su contribución a la eficacia del SGC (beneficios de una mejora del desempeño).',
+          'Las implicaciones del incumplimiento de los requisitos del SGC.'
+        ],
+        evidencias: [
+          'Plática de inducción.',
+          'Presentación audiovisual o textual.',
+          'Folletos o trípticos.',
+          'Lonas.',
+          'Campañas de sensibilización.'
+        ]
+      },
+      {
+        seccion: 'Apoyo',
+        requisito: '7.4',
+        descripcion: 'Comunicación',
+        preguntas: [
+          '¿En dónde determinas las comunicaciones internas y externas pertinentes al SGC?',
+          '¿Qué comunicas?',
+          '¿Cuándo comunicas?',
+          '¿A quién comunicas?',
+          '¿Cómo comunicas?',
+          '¿Quién comunica?'
+        ],
+        evidencias: [
+          'Manual de calidad.',
+          'Matriz de comunicación.',
+          'Políticas de comunicación.',
+          'Procedimiento de comunicación.'
+        ]
       },
       {
         seccion: 'Apoyo',
         requisito: '7.5',
-        descripcion: 'Información documentada.',
+        descripcion: 'Información documentada',
         preguntas: [
-          '¿Cómo se controla la creación, actualización y control de la información documentada?'
+          '¿Cómo se identifican tus documentos?',
+          '¿Qué formato tienen?',
+          '¿Qué medios de soporte utilizan?',
+          '¿Quién revisa y aprueba los documentos?',
+          '¿En dónde está disponible la información documentada del SGC?',
+          '¿Cómo proteges a la información documentada?',
+          '¿Cómo distribuyes y recuperas la información documentada?',
+          '¿Dónde se almacenan los registros?',
+          '¿Cómo preservas la legibilidad?',
+          '¿Cómo controlas la versión de cambios?',
+          '¿Cómo controlas a los documentos de origen externo?'
         ],
-        evidencias: ['SGC-F-01', 'SGC-F-02', 'SGC-F-03', 'Control de registros']
+        evidencias: [
+          'Procedimiento de control de información documentada.',
+          'Código.',
+          'Papel / electrónico / video / audio.',
+          'Documentos firmados aprobados.',
+          'Tabla de identificación de requerimientos mínimos.',
+          'Listas maestras de control.',
+          'Formato para cambios a documentos.',
+          'Lista de distribución.'
+        ]
       },
       {
         seccion: 'Operación',
         requisito: '8.1',
-        descripcion: 'Planificación y control operacional.',
+        descripcion: 'Planificación y control operacional',
         preguntas: [
-          '¿Se planifican, implementan y controlan los procesos necesarios para cumplir los requisitos?'
+          'Capítulo introductorio'
         ],
-        evidencias: ['Planes de trabajo', 'Instructivos', 'Registros operativos']
+        evidencias: [
+          'Diagrama de flujo operacional.',
+          'Procedimiento operacional.',
+          'Caracterización de procesos.',
+          'Listas de chequeo.',
+          'Indicadores.',
+          'Plano programa de producción.',
+          'Criterios de aceptación.'
+        ]
       },
       {
         seccion: 'Operación',
-        requisito: '8.2',
-        descripcion: 'Requisitos para los productos y servicios.',
+        requisito: '8.2.1',
+        descripcion: 'Comunicación del cliente',
         preguntas: [
-          '¿Cómo se determinan y revisan los requisitos del cliente?',
-          '¿Cómo se comunica con el cliente?'
+          '¿Cómo proporcionas la información relativa a los productos / servicios?',
+          '¿A través de qué medio tratas las consultas, los contratos o pedidos y los cambios?',
+          '¿A través de qué medio los clientes te retroalimentan sobre los productos / servicios, incluyendo las quejas?',
+          '¿Cómo comunicas al cliente sobre la manipulación y control de su propiedad?',
+          '¿Cómo comunicas los requisitos específicos para acciones de contingencia, cuando sea pertinente?'
         ],
-        evidencias: ['Cotizaciones', 'Contratos', 'Bitácoras de atención', 'Quejas']
+        evidencias: [
+          'Catálogo en página web.',
+          'Propuesta de valor.',
+          'Publicidad.',
+          'Teléfonos / correo electrónico.',
+          'Reuniones con el cliente.',
+          'Buzón de quejas.',
+          'Cláusulas de contratos o cotizaciones.'
+        ]
       },
       {
         seccion: 'Operación',
-        requisito: '8.5',
-        descripcion: 'Producción y provisión del servicio.',
+        requisito: '8.2.2',
+        descripcion: 'Determinación de los requisitos de productos y servicios',
         preguntas: [
-          '¿Existen controles para la provisión del servicio?',
-          '¿Cómo se identifica y se preserva el producto/servicio?'
+          '¿En dónde se determinan los requisitos para los productos o servicios, incluyendo los requisitos legales y reglamentarios para los productos / servicios y los requisitos considerados necesarios por la organización?'
         ],
-        evidencias: ['Procedimientos operativos', 'Checklists', 'Registros de servicio']
+        evidencias: [
+          'Contratos.',
+          'Cotizaciones.',
+          'Catálogos de productos y servicios.',
+          'Matriz de requisitos legales.',
+          'OC del cliente.',
+          'Análisis de factibilidad.'
+        ]
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.2.3.1',
+        descripcion: 'Revisión de los requisitos del cliente',
+        preguntas: [
+          '¿Cómo te aseguras de que la organización tiene la capacidad de cumplir los requisitos para los productos / servicios que se van a ofrecer a los clientes?'
+        ],
+        evidencias: [
+          'Análisis de factibilidad.',
+          'Firma de contrato.',
+          'Actas de revisión.',
+          'Aceptaciones del cliente (cotización).',
+          'Órdenes de venta o pedido.',
+          'Catálogos de servicios.',
+          'Concursos o licitaciones (presentar la documentación establecida en la convocatoria se considera revisión de los requisitos).'
+        ]
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.2.4',
+        descripcion: 'Cambios en los requisitos para los productos y servicios',
+        preguntas: [
+          'Cuando hay cambios en los requisitos para los productos y servicios, ¿cómo te aseguras de que las personas pertinentes sean conscientes de ellos?'
+        ],
+        evidencias: ['Respuesta verbal.']
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.3, 8.3.2',
+        descripcion: 'Planificación del diseño y desarrollo',
+        preguntas: [
+          '¿Cómo planeas el diseño y desarrollo de los productos o servicios?'
+        ],
+        evidencias: ['Procedimiento de diseño y desarrollo.', 'Plan de diseño.']
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.3.3',
+        descripcion: 'Entradas para el diseño y desarrollo',
+        preguntas: [
+          '¿Cuáles son tus entradas para el diseño y desarrollo y en dónde se documentan?'
+        ],
+        evidencias: ['Formato para entradas del diseño y desarrollo.']
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.3.4',
+        descripcion: 'Controles para el diseño y desarrollo',
+        preguntas: [
+          '¿Cuáles son los controles que aplicas al diseño y desarrollo y en dónde se documentan?'
+        ],
+        evidencias: ['Formatos de control para el diseño y desarrollo.']
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.3.5',
+        descripcion: 'Salidas para el diseño y desarrollo',
+        preguntas: [
+          '¿Cuáles son tus salidas para el diseño y desarrollo y en dónde se encuentran documentadas?'
+        ],
+        evidencias: ['Planos.', 'Dibujos.', 'Maquetas.', 'Bosquejos.', 'Fichas técnicas.']
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.3.6',
+        descripcion: 'Cambios del diseño y desarrollo',
+        preguntas: [
+          '¿En dónde identificas, revisas y controlas los cambios hechos durante el diseño y desarrollo de los productos o servicios?'
+        ],
+        evidencias: ['Formatos para el control de cambios.']
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.4',
+        descripcion: 'Control de los procesos, productos y servicios suministrados externamente',
+        preguntas: [
+          '¿Qué criterios tomas en cuenta para la selección de proveedores?',
+          '¿Qué criterios tomas en cuenta para la evaluación de tus proveedores?',
+          '¿Cada cuánto tiempo los evalúas?',
+          '¿Cuál es la calificación mínima de selección y evaluación?',
+          '¿Qué acciones tomas cuando no aprueban las evaluaciones?'
+        ],
+        evidencias: ['Evaluación de proveedores.', 'Criterios de selección de proveedores.']
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.4.2',
+        descripcion: 'Tipo y alcance del control',
+        preguntas: [
+          '¿En dónde declaras los controles que debes hacerle a los proveedores externos?'
+        ],
+        evidencias: [
+          'Formato Tipo, alcance y control de proveedores.',
+          'Contratos donde vengan los controles que se van a aplicar al proveedor externo.',
+          'Auditorías a proveedores externos.'
+        ]
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.4.3',
+        descripcion: 'Información para los proveedores externos',
+        preguntas: [
+          '¿Cómo comunicas tus requisitos a los proveedores externos?'
+        ],
+        evidencias: [
+          'Orden de compra.',
+          'Cotización.',
+          'Contrato (que especifique los requisitos para los procesos, productos y servicios; la aprobación de métodos, procesos y equipos, la liberación de productos y servicios; la competencia del personal, medidas de seguridad, actividades de verificación o validación en las instalaciones del proveedor).'
+        ]
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.5.1',
+        descripcion: 'Control de la producción y provisión del servicio',
+        preguntas: [
+          '¿Qué documentos utilizas para el control de la producción?',
+          '¿Qué actividades de seguimiento y medición a los procesos desempeñas para verificar la conformidad de los productos con los requisitos?'
+        ],
+        evidencias: [
+          'Controles operacionales: órdenes de venta (O. V.) o de producción (O.P.).',
+          'Procedimientos operativos, manuales, instructivos, protocolos, listados maestros, etc.',
+          'Indicadores.',
+          'Resultados de las mediciones vs los criterios de aceptación.',
+          'Hojas viajeras.',
+          'Actividades de seguimiento y medición (auditorías a los procesos, inspecciones, reuniones de seguimiento, seguimiento a PQRS, etc.).'
+        ]
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.5.2',
+        descripcion: 'Identificación y trazabilidad',
+        preguntas: [
+          '¿Cómo identificas las salidas para asegurar la conformidad de los productos / servicios?',
+          '¿Cómo identificas el estado de las salidas con respecto a los requisitos de seguimiento y medición, a través de la producción?',
+          '¿Qué documentos permiten la trazabilidad de los productos?'
+        ],
+        evidencias: [
+          'Códigos (de barras, numéricos, alfanuméricos, etc.).',
+          'Tickets.',
+          'No. de lote.',
+          'Etiquetas.',
+          'Hojas viajeras.',
+          'Etiquetas de producto conforme / no conforme.',
+          'Estos códigos o números de identificación deben aparecer en: órdenes de compra, venta y producción; registros de despacho de materia prima y productos; registros de quejas del cliente.'
+        ]
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.5.3',
+        descripcion: 'Propiedad del cliente',
+        preguntas: [
+          '¿Cómo identificas a las propiedades del cliente o proveedores externos?',
+          '¿Qué acciones se toman cuando la propiedad del cliente se pierde, se deteriora o se considera inadecuada para su uso y en dónde se registra?'
+        ],
+        evidencias: [
+          'Formato de identificación de propiedad del cliente.',
+          'Formato de pérdida o deterioro de propiedad del cliente.',
+          'Avisos de privacidad de datos personales.',
+          'Acuerdos de confidencialidad.'
+        ]
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.5.4',
+        descripcion: 'Preservación',
+        preguntas: [
+          '¿Cómo preservas las salidas durante la producción / prestación del servicio, para asegurarse de la conformidad de los requisitos?'
+        ],
+        evidencias: [
+          'Identificación.',
+          'Manipulación.',
+          'Control de la contaminación.',
+          'El embalaje (IT o procedimientos).',
+          'El almacenamiento.',
+          'La distribución o el transporte.',
+          'La transmisión de la información.',
+          'La protección.'
+        ]
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.5.5',
+        descripcion: 'Actividades posteriores a la entrega',
+        preguntas: [
+          '¿Qué actividades posteriores a la entrega ofreces y dónde las declaras?'
+        ],
+        evidencias: [
+          'Actividades cubiertas por la garantía.',
+          'Obligaciones contractuales (servicios de mantenimiento).',
+          'Servicios suplementarios (reciclaje o la disposición final).',
+          'Cláusulas de contrato.'
+        ]
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.5.6',
+        descripcion: 'Control de cambios al programa de producción',
+        preguntas: [
+          '¿Cómo controlas los cambios para la producción / prestación del servicio?',
+          '¿En dónde se documentan los resultados de la revisión de los cambios, las personas que autorizan el cambio y las acciones necesarias que surjan de la revisión?'
+        ],
+        evidencias: ['Formatos de control de cambios a la producción.']
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.6',
+        descripcion: 'Liberación de productos y servicios',
+        preguntas: [
+          '¿Qué documentos acreditan la liberación de los productos / servicios?',
+          'Los documentos deben incluir evidencia de la conformidad con los criterios de aceptación y la trazabilidad a las personas que autorizan la liberación.'
+        ],
+        evidencias: [
+          'Hojas de liberación de producto / servicio.',
+          'Reportes de auditoría final de producto.',
+          'Formatos, correos electrónicos, firmas, etc.'
+        ]
+      },
+      {
+        seccion: 'Operación',
+        requisito: '8.7',
+        descripcion: 'Salidas no conformes',
+        preguntas: [
+          '¿Cómo identificas y controlas a las salidas que no son conformes con sus requisitos, para prevenir su uso o entrega no intencionada?',
+          '¿Qué acciones se realizan para tratar a las salidas no conformes?',
+          '¿Qué registros se tienen para las salidas no conformes?'
+        ],
+        evidencias: [
+          'Catálogo de acciones para las salidas no conformes.',
+          'Bitácora de salidas no conformes.',
+          'Hojas de salidas no conformes.',
+          'Acciones correctivas (si es necesario).'
+        ]
       },
       {
         seccion: 'Evaluación del desempeño',
         requisito: '9.1',
-        descripcion: 'Seguimiento, medición, análisis y evaluación.',
+        descripcion: 'Seguimiento y medición',
         preguntas: [
-          '¿Qué se mide?',
-          '¿Con qué frecuencia?',
-          '¿Cómo se analiza y evalúa el desempeño y la satisfacción del cliente?'
+          '¿Qué necesita seguimiento?',
+          '¿Cada cuándo se le va a dar seguimiento?',
+          '¿Cada cuándo se deben analizar y evaluar los resultados del seguimiento?',
+          '¿Qué necesita medición?',
+          '¿Cada cuándo se va a hacer la medición?',
+          '¿Cada cuándo se deben analizar y evaluar los resultados de la medición?'
         ],
-        evidencias: ['Cuadro de mando', 'Encuestas', 'Análisis de indicadores']
+        evidencias: [
+          'Matriz de riesgos.',
+          'Partes interesadas.',
+          'Selección y evaluación de proveedores.',
+          'FODA.',
+          'Planes de acción.',
+          'Compromisos derivados de la revisión por la dirección.',
+          'Percepciones de los clientes.',
+          'Objetivos de calidad e indicadores.',
+          'Características de calidad.',
+          'Tiempos de entrega.',
+          'Cantidad de salidas no conformes.',
+          'Quejas de los clientes.'
+        ]
+      },
+      {
+        seccion: 'Evaluación del desempeño',
+        requisito: '9.1.2',
+        descripcion: 'Satisfacción del cliente',
+        preguntas: [
+          '¿Qué métodos utilizas para saber las percepciones de los clientes respecto a los productos y servicios?',
+          '¿Cada cuánto le das seguimiento y revisas esta información?'
+        ],
+        evidencias: [
+          'Encuestas de satisfacción.',
+          'Llamadas, reuniones o felicitaciones por parte de los clientes.',
+          'Informes de los agentes comerciales.'
+        ]
+      },
+      {
+        seccion: 'Evaluación del desempeño',
+        requisito: '9.1.3',
+        descripcion: 'Análisis y evaluación',
+        preguntas: [
+          '¿A través de qué métodos analizas y evalúas los datos y la información que surgen del seguimiento y la medición?'
+        ],
+        evidencias: ['Indicadores.', 'Técnicas estadísticas.']
       },
       {
         seccion: 'Evaluación del desempeño',
         requisito: '9.2',
-        descripcion: 'Auditoría interna.',
+        descripcion: 'Auditoría interna',
         preguntas: [
-          '¿Se planifica y realiza el programa de auditoría?',
-          '¿Se reportan resultados y se dan seguimientos?'
+          '¿Tienes programa de auditoría?',
+          '¿Cuentas con un plan de auditoría?',
+          '¿Cómo seleccionas a los auditores?',
+          '¿Qué criterios utilizas para la selección de auditores?',
+          '¿En dónde declaras a los auditores?',
+          '¿Cómo demuestras la competencia de los auditores internos?',
+          '¿En dónde determinas los resultados de la auditoría?'
         ],
-        evidencias: ['SGC-F-07', 'SGC-F-08', 'SGC-F-09', 'SGC-F-10', 'Evidencias de seguimiento']
+        evidencias: [
+          'Selección y criterios de auditores.',
+          'Listado de auditores internos.',
+          'Competencia de auditores (curso de auditores y constancias de acreditación).',
+          'Calificación de auditores.',
+          'Programa de auditoría.',
+          'Plan de auditoría.',
+          'Informe de auditoría.'
+        ]
       },
       {
         seccion: 'Evaluación del desempeño',
         requisito: '9.3',
-        descripcion: 'Revisión por la dirección.',
+        descripcion: 'Revisión por la dirección',
         preguntas: [
-          '¿Se realiza la revisión por la dirección?',
-          '¿Se consideran entradas y salidas requeridas por la norma?'
+          '¿Cuentas con un programa de revisión por la dirección?',
+          '¿Me muestras la evidencia de que la revisión por la dirección se llevó a cabo?',
+          '¿Me muestras la evidencia de los resultados de la revisión por la dirección?'
         ],
-        evidencias: ['Acta de revisión por la dirección', 'Acuerdos y seguimiento']
+        evidencias: [
+          'Programa de revisión por la dirección.',
+          'Presentación de las revisiones.',
+          'Lista de asistencia.',
+          'Evidencia fotográfica.',
+          'Informe firmado por la dirección general (minuta) que contenga las decisiones y acciones relacionadas con oportunidades de mejora, la necesidad de recursos y cambios al SGC.'
+        ]
+      },
+      {
+        seccion: 'Mejora',
+        requisito: '10 y 10.3',
+        descripcion: 'Mejora continua',
+        preguntas: [
+          '¿En dónde o cómo determinas las oportunidades de mejora?'
+        ],
+        evidencias: [
+          'FODA.',
+          'Listado de proyectos de mejora.',
+          'Planes de acción para proyectos de mejora.',
+          'Evidencia final o de avances de mejora.',
+          'Acciones correctivas.',
+          'Cambios abruptos.',
+          'Innovación y reorganización.'
+        ]
       },
       {
         seccion: 'Mejora',
         requisito: '10.2',
-        descripcion: 'No conformidad y acción correctiva.',
+        descripcion: 'No conformidad y acción correctiva',
         preguntas: [
-          '¿Cómo se reaccionan ante NC?',
-          '¿Se analiza causa, se implementan acciones y se verifica eficacia?'
+          '¿Cómo reaccionas o intervienes ante una no conformidad, incluida cualquiera originada por quejas de los clientes?'
         ],
-        evidencias: ['SGC-F-04', 'SGC-F-05', 'Análisis de causa raíz', 'Evidencias de cierre']
-      },
-      {
-        seccion: 'Mejora',
-        requisito: '10.3',
-        descripcion: 'Mejora continua.',
-        preguntas: [
-          '¿Cómo se determina e implementa la mejora continua del SGC?'
-        ],
-        evidencias: ['Planes de mejora', 'Proyectos Kaizen', 'Resultados de indicadores']
+        evidencias: [
+          'Procedimiento.',
+          'Bitácora de no conformidades y acciones correctivas.',
+          'Reporte de acciones correctivas (8Ds).'
+        ]
       }
     ];
 
