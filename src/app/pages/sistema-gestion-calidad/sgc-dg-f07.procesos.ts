@@ -1,3 +1,6 @@
+/** Verde = gestión, Azul = clave, Naranja = soporte (mapa de procesos). */
+export type DgF07ColorGrupo = 'gestion' | 'clave' | 'soporte';
+
 export interface DgF07ProcesoDef {
   slug: string;
   etiqueta: string;
@@ -11,6 +14,15 @@ export interface DgF07ProcesoDef {
   recursos: string;
   criteriosMetodos: string;
   indicadores: string;
+  /** Solo procesos dados de alta desde el sistema. */
+  color?: DgF07ColorGrupo;
+  esCustom?: boolean;
+}
+
+export interface DgF07ProcesoExtraMeta {
+  slug: string;
+  etiqueta: string;
+  color: DgF07ColorGrupo;
 }
 
 export const DG_F07_PROCESOS: DgF07ProcesoDef[] = [

@@ -12,6 +12,7 @@ import {
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { SgcDashboardCacheService } from 'src/app/services/sgc-dashboard-cache.service';
+import { environment } from 'src/environments/environment';
 
 export type SgcEficaciaRadialChartOptions = {
   series: ApexNonAxisChartSeries;
@@ -107,7 +108,8 @@ export class SgcEficaciaAuditoriasComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.initChart();
-    this.cargar(false);
+    // En local forzamos datos frescos para no arrastrar históricos del cache.
+    this.cargar(!environment.production);
     this.readyOnce = true;
   }
 

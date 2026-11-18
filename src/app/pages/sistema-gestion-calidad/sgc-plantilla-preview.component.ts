@@ -15,7 +15,12 @@ import { DocumentPreviewService } from 'src/app/services/document-preview.servic
 import { PdfPreviewLoaderService } from 'src/app/services/pdf-preview-loader.service';
 import { SgcDashboardCacheService } from 'src/app/services/sgc-dashboard-cache.service';
 import { environment } from 'src/environments/environment';
-import { DG_F07_PROCESOS, DgF07ProcesoDef } from './sgc-dg-f07.procesos';
+import {
+  DG_F07_PROCESOS,
+  DgF07ColorGrupo,
+  DgF07ProcesoDef,
+  DgF07ProcesoExtraMeta
+} from './sgc-dg-f07.procesos';
 import {
   CapituloFormatoConfig,
   PlantillaFormato,
@@ -2545,6 +2550,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF10Busqueda = '';
   /** Fuerza recarga del gráfico de eficacia encima del archivero. */
   sgcF10EficaciaRefreshKey = 0;
+  /** Consulta de un informe cerrado sin pisar el vigente. */
+  sgcF10ConsultandoHistorico = false;
+  private sgcF10VigenteBackup: SgcF10FormData | null = null;
   sgcF10Cargando = false;
   sgcF10Guardando = false;
   sgcF10GuardandoHistorico = false;
@@ -2569,6 +2577,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     pdfDriveFileId?: string | null;
     pdfDriveFileName?: string | null;
     cerradoEn?: string | null;
+    origen?: string | null;
+    datos?: any;
   }> = [];
   sgcF10HistorialPdfs: DgF02PdfFirmado[] = [];
   sgcF10PdfFirmado: DgF02PdfFirmado | null = null;
@@ -3824,11 +3834,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       colFactor: 'Amenazas'
     }
   ];
-  readonly dgF07Procesos = DG_F07_PROCESOS;
+  dgF07Procesos: DgF07ProcesoDef[] = DG_F07_PROCESOS.map((p) => ({ ...p }));
   dgF07ProcesoActivoSlug = DG_F07_PROCESOS[0]?.slug ?? '';
   dgF07ProcesosDesactivados = new Set<string>();
   dgF07VisibilidadGuardandoSlug: string | null = null;
   dgF07Forms: Record<string, DgF07ProcesoForm> = this.crearDgF07Forms();
+  dgF07ProcesosExtra: DgF07ProcesoExtraMeta[] = [];
   dgF07Busqueda = '';
   dgF07PanelBusquedaAbierto = false;
 
@@ -4921,7 +4932,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return this.dgF07Procesos.find((p) => p.slug === this.dgF07ProcesoActivoSlug) ?? null;
   }
 
-  private readonly dgF07ColorMapa = new Map<string, 'gestion' | 'clave' | 'contexto' | 'soporte'>([
+  /** Verde=gestión, Azul=clave (único), Naranja=soporte. Ya no hay segundo azul (contexto). */
+  private readonly dgF07ColorMapa = new Map<string, DgF07ColorGrupo>([
     ['planeacion-estrategica', 'gestion'],
     ['liderazgo', 'gestion'],
     ['seg-med-an-y-eval', 'gestion'],
@@ -4942,12 +4954,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     ['verificacion-iluminacion', 'clave'],
     ['salud-ocupacional', 'clave'],
     ['proteccion-civil', 'clave'],
-    ['control-de-documentos', 'contexto'],
-    ['comunicacion', 'contexto'],
-    ['ambiente-para-la-opera', 'contexto'],
-    ['toma-de-conciencia', 'contexto'],
-    ['conocimientos-de-la-org', 'contexto'],
-    ['recursos-de-medicion', 'contexto'],
+    ['control-de-documentos', 'clave'],
+    ['comunicacion', 'clave'],
+    ['ambiente-para-la-opera', 'clave'],
+    ['toma-de-conciencia', 'clave'],
+    ['conocimientos-de-la-org', 'clave'],
+    ['recursos-de-medicion', 'clave'],
     ['proveeduria-externa', 'soporte'],
     ['reclutamiento-sel-y-cont', 'soporte'],
     ['competencia-y-cap', 'soporte'],
@@ -4955,7 +4967,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   ]);
 
   claseColorProcesoDgF07(slug: string): string {
-    const grupo = this.dgF07ColorMapa.get(slug);
+    const def = this.dgF07Procesos.find((p) => p.slug === slug);
+    const grupo = def?.color || this.dgF07ColorMapa.get(slug);
     return grupo ? `dg-f07-nav__tab--${grupo}` : '';
   }
 
@@ -5838,7 +5851,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const slug = this.plantillaSlug;
     if (slug === 'dg-f-04') return this.dgF04Form;
     if (slug === 'dg-f-05') return this.dgF05Form;
-    if (slug === 'dg-f-07') return { procesos: this.dgF07Forms };
+    if (slug === 'dg-f-07') return this.obtenerDatosDgF07ParaGuardar();
     if (slug === 'dg-f-01') return this.dgF01Form;
     if (slug === 'dg-f-02') return this.dgF02Form;
     if (slug === 'dg-f-03') return this.dgF03Form;
@@ -5955,7 +5968,12 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     const slug = this.plantillaSlug;
     const d = datos as any;
     if (slug === 'dg-f-05') { this.dgF05Form = d; this.dgF05CambiosPendientes = true; return; }
-    if (slug === 'dg-f-07' && d.procesos) { this.dgF07Forms = d.procesos; this.dgF07CambiosPendientes = true; return; }
+    if (slug === 'dg-f-07' && d.procesos) {
+      this.aplicarProcesosExtraDgF07(d.procesosExtra);
+      this.dgF07Forms = this.procesosDesdeServidorDgF07(d.procesos);
+      this.dgF07CambiosPendientes = true;
+      return;
+    }
     if (slug === 'dg-f-01') { this.dgF01Form = d; this.dgF01CambiosPendientes = true; return; }
     if (slug === 'dg-f-02') { this.dgF02Form = d; this.dgF02CambiosPendientes = true; return; }
     if (slug === 'dg-f-03') { this.dgF03Form = d; this.dgF03CambiosPendientes = true; return; }
@@ -6019,7 +6037,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       return this.backendService.guardarDgF05Formato(this.dgF05Form, false);
     }
     if (slug === 'dg-f-07') {
-      return this.backendService.guardarDgF07Formato({ procesos: this.dgF07Forms }, false);
+      return this.backendService.guardarDgF07Formato(this.obtenerDatosDgF07ParaGuardar(), false);
     }
     if (slug === 'sgc-f-06') {
       return this.backendService.guardarSgcF06Formato(this.obtenerDatosSgcF06ParaGuardar(), false);
@@ -9558,6 +9576,17 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       });
   }
 
+  /** Informes dinámicos del sistema (no seed) además del vigente. */
+  private esInformeDinamicoSistemaSgcF10(origen: string | null | undefined): boolean {
+    const o = String(origen || '').trim().toLowerCase();
+    // Seed precedente = Word/histórico estático; no se lista en el archivero dinámico.
+    if (!o) return true;
+    if (o === 'seed_precedente' || o === 'seed' || o === 'historico' || o === 'histórico') {
+      return false;
+    }
+    return true;
+  }
+
   get sgcF10HistorialVista(): Array<{
     id: number;
     auditoriaNo: string;
@@ -9572,9 +9601,20 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     pdfDriveFileId?: string | null;
     pdfDriveFileName?: string | null;
     cerradoEn?: string | null;
+    origen?: string | null;
+    datos?: any;
   }> {
+    const vigenteNo = String(this.sgcF10Form?.auditoriaNo || '').replace(/\D/g, '');
     const q = String(this.sgcF10Busqueda || '').trim().toLowerCase();
-    const lista = [...(this.sgcF10Historial || [])].reverse();
+    const lista = [...(this.sgcF10Historial || [])]
+      .reverse()
+      .filter((h) => {
+        const no = String(h.auditoriaNo || '').replace(/\D/g, '');
+        if (vigenteNo && no && no === vigenteNo) {
+          return false;
+        }
+        return this.esInformeDinamicoSistemaSgcF10(h.origen);
+      });
     if (!q) {
       return lista;
     }
@@ -9584,10 +9624,15 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         h.fechasAuditoria,
         h.empresa,
         h.ubicaciones,
-        h.pdfDriveFileName
+        h.pdfDriveFileName,
+        'sistema'
       ].map((x) => String(x || '').toLowerCase()).join(' ');
       return blob.includes(q);
     });
+  }
+
+  get sgcF10TotalInformesSistema(): number {
+    return (this.sgcF10CoincideBusquedaVigente ? 1 : 0) + this.sgcF10HistorialVista.length;
   }
 
   get sgcF10CoincideBusquedaVigente(): boolean {
@@ -9664,6 +9709,13 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   }
 
   volverArchiveroSgcF10(): void {
+    if (this.sgcF10ConsultandoHistorico && this.sgcF10VigenteBackup) {
+      this.sgcF10IgnorarAutoSave = true;
+      this.sgcF10Form = this.sgcF10VigenteBackup;
+      this.sgcF10VigenteBackup = null;
+      this.sgcF10ConsultandoHistorico = false;
+      this.sgcF10CambiosPendientes = false;
+    }
     this.sgcF10Vista = 'archivero';
     this.cerrarClasifSgcF10();
     this.sgcF10EficaciaRefreshKey += 1;
@@ -9676,7 +9728,23 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     driveFileId?: string | null;
     editorUrl?: string | null;
     auditoriaNo?: string;
+    datos?: any;
   }): void {
+    // Abrir en el editor del sistema (dinámico) si hay datos guardados.
+    if (item?.datos && typeof item.datos === 'object') {
+      if (!this.sgcF10ConsultandoHistorico) {
+        this.sgcF10VigenteBackup = this.normalizarSgcF10Form(this.sgcF10Form);
+      }
+      this.sgcF10IgnorarAutoSave = true;
+      this.sgcF10ConsultandoHistorico = true;
+      this.sgcF10Form = this.normalizarSgcF10Form(item.datos);
+      this.sgcF10HallazgoEditandoIdx = null;
+      this.sgcF10CambiosPendientes = false;
+      this.cerrarClasifSgcF10();
+      this.sincronizarRefsSgcF10DesdeCatalogos();
+      this.sgcF10Vista = 'editor';
+      return;
+    }
     const url = String(item?.editorUrl || '').trim()
       || (item?.driveFileId
         ? `https://docs.google.com/document/d/${encodeURIComponent(item.driveFileId)}/view`
@@ -10384,6 +10452,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     if (!this.puedeGestionarPlantillasSgc) {
       return;
     }
+    // No pisar el vigente al consultar un informe cerrado.
+    if (this.sgcF10ConsultandoHistorico) {
+      return;
+    }
     if (!this.sgcF10Listo || this.sgcF10Guardando || this.sgcF10GuardandoHistorico) {
       return;
     }
@@ -10461,7 +10533,9 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         editorUrl: h?.editorUrl || null,
         pdfDriveFileId: h?.pdfDriveFileId || null,
         pdfDriveFileName: h?.pdfDriveFileName || null,
-        cerradoEn: h?.cerradoEn || null
+        cerradoEn: h?.cerradoEn || null,
+        origen: h?.origen || null,
+        datos: h?.datos || null
       }));
     }
 
@@ -29901,6 +29975,226 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     window.setTimeout(() => this.scrollDgF07TabActivo(), 0);
   }
 
+  onNombreProcesoDgF07Change(nombre: string): void {
+    const slug = this.dgF07ProcesoActivoSlug;
+    if (!slug) {
+      return;
+    }
+    const texto = String(nombre || '').trim();
+    const def = this.dgF07Procesos.find((p) => p.slug === slug);
+    if (def && texto) {
+      def.etiqueta = texto;
+      def.nombreProceso = texto;
+    }
+    const extra = this.dgF07ProcesosExtra.find((p) => p.slug === slug);
+    if (extra && texto) {
+      extra.etiqueta = texto;
+    }
+  }
+
+  async agregarProcesoDgF07(): Promise<void> {
+    if (!this.puedeGestionarPlantillasSgc) {
+      return;
+    }
+
+    const result = await Swal.fire({
+      title: 'Nuevo proceso',
+      html: `
+        <div style="text-align:left;padding:0 .25rem">
+          <label for="dgF07NuevoNombre" style="display:block;font-size:.82rem;font-weight:700;margin:0 0 .35rem;color:#334155">Nombre del proceso</label>
+          <input id="dgF07NuevoNombre" class="swal2-input" type="text"
+            placeholder="Ej. Gestión de riesgos" autocomplete="off"
+            style="width:100%;margin:0 0 1rem;box-sizing:border-box">
+          <p style="display:block;font-size:.82rem;font-weight:700;margin:0 0 .5rem;color:#334155">Color (mapa de procesos)</p>
+          <div role="radiogroup" aria-label="Color del proceso" style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <label style="flex:1;min-width:5.5rem;display:flex;align-items:center;gap:.4rem;padding:.55rem .65rem;border-radius:8px;border:1px solid #6f8f32;background:#93ba47;color:#24320c;font-size:.8rem;font-weight:700;cursor:pointer">
+              <input type="radio" name="dgF07NuevoColor" value="gestion" checked>
+              <span>Verde</span>
+            </label>
+            <label style="flex:1;min-width:5.5rem;display:flex;align-items:center;gap:.4rem;padding:.55rem .65rem;border-radius:8px;border:1px solid #1a8fb3;background:#3cbde4;color:#083344;font-size:.8rem;font-weight:700;cursor:pointer">
+              <input type="radio" name="dgF07NuevoColor" value="clave">
+              <span>Azul</span>
+            </label>
+            <label style="flex:1;min-width:5.5rem;display:flex;align-items:center;gap:.4rem;padding:.55rem .65rem;border-radius:8px;border:1px solid #d06a1e;background:#f89449;color:#3b2208;font-size:.8rem;font-weight:700;cursor:pointer">
+              <input type="radio" name="dgF07NuevoColor" value="soporte">
+              <span>Naranja</span>
+            </label>
+          </div>
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Agregar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#15a596',
+      preConfirm: () => {
+        const nombre = String(
+          (document.getElementById('dgF07NuevoNombre') as HTMLInputElement | null)?.value || ''
+        ).trim();
+        if (!nombre) {
+          Swal.showValidationMessage('Escribe el nombre del proceso.');
+          return false;
+        }
+        const colorEl = document.querySelector(
+          'input[name="dgF07NuevoColor"]:checked'
+        ) as HTMLInputElement | null;
+        const colorRaw = String(colorEl?.value || 'gestion');
+        const color: DgF07ColorGrupo =
+          colorRaw === 'clave' || colorRaw === 'soporte' ? colorRaw : 'gestion';
+        return { nombre, color };
+      }
+    });
+
+    if (!result.isConfirmed || !result.value) {
+      return;
+    }
+
+    const { nombre, color } = result.value as { nombre: string; color: DgF07ColorGrupo };
+    const nombreNorm = this.normalizarBusquedaDgF07(nombre);
+    if (this.dgF07Procesos.some((p) =>
+      this.normalizarBusquedaDgF07(p.etiqueta) === nombreNorm
+      || this.normalizarBusquedaDgF07(p.nombreProceso) === nombreNorm
+    )) {
+      void Swal.fire({
+        icon: 'warning',
+        title: 'Proceso ya existe',
+        text: 'Ya hay un proceso con ese nombre.',
+        confirmButtonColor: '#15a596'
+      });
+      return;
+    }
+    const slug = this.crearSlugProcesoDgF07(nombre);
+    if (!slug) {
+      void Swal.fire({
+        icon: 'error',
+        title: 'Nombre no válido',
+        text: 'Usa un nombre con letras o números.',
+        confirmButtonColor: '#15a596'
+      });
+      return;
+    }
+
+    const def: DgF07ProcesoDef = {
+      slug,
+      etiqueta: nombre,
+      nombreProceso: nombre,
+      responsable: '',
+      objetivo: '',
+      procesoAnterior: '',
+      procesoSiguiente: '',
+      entradas: [],
+      salidas: [],
+      recursos: '',
+      criteriosMetodos: '',
+      indicadores: '',
+      color,
+      esCustom: true
+    };
+    this.dgF07Procesos = [...this.dgF07Procesos, def];
+    this.dgF07ProcesosExtra = [
+      ...this.dgF07ProcesosExtra,
+      { slug, etiqueta: nombre, color }
+    ];
+    this.dgF07Forms = {
+      ...this.dgF07Forms,
+      [slug]: {
+        nombreProceso: nombre,
+        responsable: '',
+        objetivo: '',
+        procesoAnterior: '',
+        procesoSiguiente: '',
+        entradas: '',
+        salidas: '',
+        recursos: '',
+        criteriosMetodos: '',
+        indicadores: ''
+      }
+    };
+    this.dgF07ProcesoActivoSlug = slug;
+    this.onDgF07Editado();
+    window.setTimeout(() => this.scrollDgF07TabActivo(), 0);
+  }
+
+  private crearSlugProcesoDgF07(nombre: string): string {
+    const base = String(nombre || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60);
+    if (!base) {
+      return '';
+    }
+    let slug = base;
+    let n = 2;
+    while (this.dgF07Procesos.some((p) => p.slug === slug)) {
+      slug = `${base}-${n}`;
+      n += 1;
+    }
+    return slug;
+  }
+
+  private obtenerDatosDgF07ParaGuardar(): {
+    procesos: Record<string, DgF07ProcesoForm>;
+    procesosExtra: DgF07ProcesoExtraMeta[];
+  } {
+    return {
+      procesos: this.dgF07Forms,
+      procesosExtra: this.dgF07ProcesosExtra.map((p) => ({
+        slug: p.slug,
+        etiqueta: p.etiqueta,
+        color: p.color
+      }))
+    };
+  }
+
+  private aplicarProcesosExtraDgF07(lista: unknown): void {
+    const extras = (Array.isArray(lista) ? lista : [])
+      .map((item) => {
+        if (!item || typeof item !== 'object') {
+          return null;
+        }
+        const raw = item as Record<string, unknown>;
+        const slug = String(raw.slug || '').trim();
+        const etiqueta = String(raw.etiqueta || raw.nombreProceso || slug).trim();
+        // compat: "contexto" era el segundo azul; unificar a azul único (clave)
+        const colorRaw = String(raw.color || 'gestion');
+        const color: DgF07ColorGrupo =
+          colorRaw === 'clave' || colorRaw === 'contexto'
+            ? 'clave'
+            : colorRaw === 'soporte'
+              ? 'soporte'
+              : 'gestion';
+        if (!slug || !etiqueta) {
+          return null;
+        }
+        return { slug, etiqueta, color } as DgF07ProcesoExtraMeta;
+      })
+      .filter((x): x is DgF07ProcesoExtraMeta => !!x);
+
+    this.dgF07ProcesosExtra = extras;
+    const catalogo = DG_F07_PROCESOS.map((p) => ({ ...p }));
+    const customDefs: DgF07ProcesoDef[] = extras.map((e) => ({
+      slug: e.slug,
+      etiqueta: e.etiqueta,
+      nombreProceso: e.etiqueta,
+      responsable: '',
+      objetivo: '',
+      procesoAnterior: '',
+      procesoSiguiente: '',
+      entradas: [],
+      salidas: [],
+      recursos: '',
+      criteriosMetodos: '',
+      indicadores: '',
+      color: e.color,
+      esCustom: true
+    }));
+    this.dgF07Procesos = [...catalogo, ...customDefs];
+    this.asegurarProcesoVisibleDgF07();
+  }
+
   async alternarVisibilidadProcesoDgF07(proceso: DgF07ProcesoDef, event: Event): Promise<void> {
     event.preventDefault();
     event.stopPropagation();
@@ -30382,7 +30676,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
 
     if (this.dgF07CambiosPendientes && this.dgF07Listo && !this.dgF07Guardando) {
       this.dgF07Guardando = true;
-      this.backendService.guardarDgF07Formato({ procesos: this.dgF07Forms }, false)
+      this.backendService.guardarDgF07Formato(this.obtenerDatosDgF07ParaGuardar(), false)
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: (res) => {
@@ -31312,7 +31606,7 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     this.dgF07Guardando = true;
     const editorAbierto = this.mostrarDgF07Editor;
     const editorActivo = false;
-    this.backendService.guardarDgF07Formato({ procesos: this.dgF07Forms }, false)
+    this.backendService.guardarDgF07Formato(this.obtenerDatosDgF07ParaGuardar(), false)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
@@ -31369,7 +31663,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       this.dgF07IgnorarAutoSave = true;
       this.dgF07Listo = false;
       this.dgF07FormMontado = false;
+      this.aplicarProcesosExtraDgF07(res.datos.procesosExtra);
       this.dgF07Forms = this.procesosDesdeServidorDgF07(res.datos.procesos);
+    } else if (res.datos && Object.prototype.hasOwnProperty.call(res.datos, 'procesosExtra')) {
+      this.aplicarProcesosExtraDgF07(res.datos.procesosExtra);
     }
 
     if (res.datos && Object.prototype.hasOwnProperty.call(res.datos, 'procesosDesactivados')) {
@@ -31408,11 +31705,23 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   private procesosDesdeServidorDgF07(procesos: Record<string, DgF07ProcesoForm>): Record<string, DgF07ProcesoForm> {
     const base = this.crearDgF07Forms();
     const resultado: Record<string, DgF07ProcesoForm> = {};
+    const defs = this.dgF07Procesos.length ? this.dgF07Procesos : DG_F07_PROCESOS;
 
-    for (const p of DG_F07_PROCESOS) {
-      const remoto = procesos[p.slug];
+    for (const p of defs) {
+      const remoto = procesos?.[p.slug];
       if (!remoto) {
-        resultado[p.slug] = base[p.slug];
+        resultado[p.slug] = base[p.slug] || {
+          nombreProceso: p.nombreProceso || p.etiqueta || '',
+          responsable: '',
+          objetivo: '',
+          procesoAnterior: '',
+          procesoSiguiente: '',
+          entradas: '',
+          salidas: '',
+          recursos: '',
+          criteriosMetodos: '',
+          indicadores: ''
+        };
         continue;
       }
       resultado[p.slug] = {
@@ -31427,6 +31736,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
         criteriosMetodos: remoto.criteriosMetodos ?? '',
         indicadores: remoto.indicadores ?? ''
       };
+      if (resultado[p.slug].nombreProceso) {
+        p.etiqueta = resultado[p.slug].nombreProceso;
+        p.nombreProceso = resultado[p.slug].nombreProceso;
+      }
     }
 
     return resultado;

@@ -8,7 +8,9 @@ const {
     guardar,
     obtenerPorId,
     subirPdfFirmado,
-    siglasEmpresa
+    siglasEmpresa,
+    listarVersiones,
+    contarVersiones
 } = require('./spF30Service');
 
 let empresaSiglasColumnChecked = false;
@@ -156,10 +158,36 @@ function registrarRutasProgramacionEstudios(app, deps) {
             }
             sql += ' ORDER BY fecha_programacion DESC, id DESC';
             const [rows] = await poolMedicos.query(sql, params);
-            res.json({ success: true, programaciones: rows.map((row) => filaPublica(row)) });
+            const programaciones = [];
+            for (const row of rows) {
+                const versionesTotales = await contarVersiones(poolMedicos, row.id);
+                programaciones.push(filaPublica(row, { versiones_totales: versionesTotales }));
+            }
+            res.json({ success: true, programaciones });
         } catch (error) {
             console.error('[ERROR] Listar programaciones de estudios:', error.message);
             res.status(500).json({ success: false, message: 'Error al obtener las programaciones' });
+        }
+    });
+
+    app.get('/api/programacion-estudios/:id/versiones', async (req, res) => {
+        try {
+            await deps.poolMedicosReady;
+            const poolMedicos = poolMedicosDe(deps);
+            await asegurarTabla(poolMedicos, dbMedicos);
+            const row = await obtenerPorId(poolMedicos, req.params.id);
+            if (!row) {
+                return res.status(404).json({ success: false, message: 'Programación no encontrada' });
+            }
+            const versiones = await listarVersiones(poolMedicos, row.id);
+            res.json({
+                success: true,
+                version_actual: Number(row.version_actual || 1) || 1,
+                versiones
+            });
+        } catch (error) {
+            console.error('[ERROR] Versiones programación de estudios:', error.message);
+            res.status(500).json({ success: false, message: 'Error al obtener el historial de versiones' });
         }
     });
 
@@ -172,7 +200,11 @@ function registrarRutasProgramacionEstudios(app, deps) {
             if (!row) {
                 return res.status(404).json({ success: false, message: 'Programación no encontrada' });
             }
-            res.json({ success: true, programacion: filaPublica(row) });
+            const versionesTotales = await contarVersiones(poolMedicos, row.id);
+            res.json({
+                success: true,
+                programacion: filaPublica(row, { versiones_totales: versionesTotales })
+            });
         } catch (error) {
             console.error('[ERROR] Obtener programación de estudios:', error.message);
             res.status(500).json({ success: false, message: 'Error al obtener la programación' });

@@ -226,35 +226,90 @@
             <i class="fas fa-folder-open"></i>
             <p class="mb-0">Esta empresa todavía no tiene programaciones.</p>
           </div>
-          <div class="table-responsive pe-table-wrap" *ngIf="!cargandoLista && programaciones.length">
-            <table class="table align-items-center mb-0 pe-table">
-              <thead>
-                <tr>
-                  <th>Hoja</th>
-                  <th>Fecha de programación</th>
-                  <th>Persona que acude</th>
-                  <th>Estudios</th>
-                  <th>Firmado</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let item of programaciones">
-                  <td class="font-weight-bold">{{ item.hoja_titulo }}</td>
-                  <td>{{ item.fecha_programacion }}</td>
-                  <td>{{ item.persona_acude || '—' }}</td>
-                  <td>{{ item.fecha_realizacion || '—' }}</td>
-                  <td>
-                    <a *ngIf="item.pdf_url" [href]="item.pdf_url" target="_blank" rel="noopener">PDF</a>
-                    <span *ngIf="!item.pdf_url" class="text-muted">Pendiente</span>
-                  </td>
-                  <td class="text-right text-nowrap">
-                    <button class="btn btn-sm btn-outline-primary mr-2" type="button" (click)="editarProgramacion(item)">Abrir</button>
-                    <button class="btn btn-sm btn-outline-secondary" type="button" (click)="quitarProgramacion(item)">Quitar</button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+
+          <div class="pe-docs" *ngIf="!cargandoLista && programaciones.length">
+            <article
+              class="pe-doc-card"
+              *ngFor="let item of programaciones"
+              role="button"
+              tabindex="0"
+              (click)="editarProgramacion(item)"
+              (keydown.enter)="editarProgramacion(item)">
+              <div class="pe-doc-card__preview" aria-hidden="true">
+                <div class="pe-doc-sheet">
+                  <div class="pe-doc-sheet__bar">
+                    <span></span><span></span><span></span>
+                  </div>
+                  <div class="pe-doc-sheet__code">SP-F-30</div>
+                  <div class="pe-doc-sheet__title">{{ item.hoja_titulo || 'Programación' }}</div>
+                  <div class="pe-doc-sheet__lines">
+                    <i></i><i></i><i></i><i></i>
+                  </div>
+                  <div class="pe-doc-sheet__stamp" *ngIf="item.pdf_url">PDF</div>
+                </div>
+              </div>
+
+              <div class="pe-doc-card__body">
+                <div class="pe-doc-card__top">
+                  <div class="pe-doc-card__headline">
+                    <span class="pe-doc-card__eyebrow">Hoja del archivero</span>
+                    <h4 class="pe-doc-card__name">{{ item.hoja_titulo || 'Sin título' }}</h4>
+                    <p class="pe-doc-card__person">
+                      <i class="fas fa-user-md"></i>
+                      {{ item.persona_acude || 'Sin persona registrada' }}
+                    </p>
+                  </div>
+                  <div class="pe-doc-card__top-actions" (click)="$event.stopPropagation()">
+                    <button type="button" class="pe-doc-btn" [class.is-muted]="!item.pdf_url" (click)="abrirPdfItem(item)" title="Abrir PDF">
+                      <i class="fas fa-file-pdf"></i>
+                    </button>
+                    <button type="button" class="pe-doc-btn" (click)="imprimirProgramacion(item)" title="Imprimir">
+                      <i class="fas fa-print"></i>
+                    </button>
+                    <button type="button" class="pe-doc-btn pe-doc-btn--danger" (click)="quitarProgramacion(item)" title="Quitar">
+                      <i class="fas fa-trash-alt"></i>
+                    </button>
+                    <span class="pe-doc-card__version">v{{ item.version_actual || 1 }}</span>
+                  </div>
+                </div>
+
+                <div class="pe-doc-card__stats">
+                  <div class="pe-doc-stat">
+                    <div class="pe-doc-stat__icon"><i class="fas fa-calendar-alt"></i></div>
+                    <div>
+                      <span class="pe-doc-stat__label">Fecha</span>
+                      <strong>{{ item.fecha_programacion || '—' }}</strong>
+                    </div>
+                  </div>
+                  <div class="pe-doc-stat">
+                    <div class="pe-doc-stat__icon pe-doc-stat__icon--days"><i class="fas fa-calendar-day"></i></div>
+                    <div>
+                      <span class="pe-doc-stat__label">Días</span>
+                      <strong>{{ item.total_dias || 0 }}</strong>
+                    </div>
+                  </div>
+                  <div class="pe-doc-stat">
+                    <div class="pe-doc-stat__icon pe-doc-stat__icon--patients"><i class="fas fa-user-injured"></i></div>
+                    <div>
+                      <span class="pe-doc-stat__label">Pacientes</span>
+                      <strong>{{ item.total_pacientes || 0 }}</strong>
+                    </div>
+                  </div>
+                </div>
+                <div class="pe-doc-card__days">
+                  <span class="pe-doc-card__days-label">Pacientes por día</span>
+                  <div class="pe-doc-card__day-chips" *ngIf="item.pacientes_por_dia?.length; else sinDias">
+                    <span class="pe-day-chip" *ngFor="let d of item.pacientes_por_dia">
+                      <b>{{ d.dia || 'Sin día' }}</b>
+                      <em>{{ d.pacientes || 0 }}</em>
+                    </span>
+                  </div>
+                  <ng-template #sinDias>
+                    <span class="pe-doc-card__days-empty">Sin desglose</span>
+                  </ng-template>
+                </div>
+              </div>
+            </article>
           </div>
         </div>
       </div>
@@ -265,15 +320,52 @@
           <button class="pe-back" type="button" (click)="volverALista()">
             <i class="fas fa-arrow-left"></i> Volver al archivero
           </button>
-          <span class="pe-eyebrow">Edición · SP-F-30</span>
-          <h2 class="pe-panel__title">{{ editandoId ? 'Editar programación' : 'Nueva programación' }}</h2>
-          <p class="pe-help">
-            <i class="fas fa-info-circle"></i>
-            La plantilla de Excel no se modifica. Cada guardado escribe una hoja en el archivero.
-            <span *ngIf="nombreHoja"> El nombre de la hoja será <strong>{{ nombreHoja }}</strong>.</span>
-          </p>
+          <div class="pe-lista-head">
+            <div>
+              <span class="pe-eyebrow">Edición · SP-F-30</span>
+              <h2 class="pe-panel__title mb-0">{{ editandoId ? 'Editar programación' : 'Nueva programación' }}</h2>
+              <p class="pe-help mb-0">
+                <i class="fas fa-info-circle"></i>
+                La plantilla de Excel no se modifica. Cada guardado escribe una hoja en el archivero.
+                <span *ngIf="nombreHoja"> El nombre de la hoja será <strong>{{ nombreHoja }}</strong>.</span>
+              </p>
+            </div>
+            <div class="pe-edit-toolbar" *ngIf="editandoId">
+              <span class="pe-version-pill">Versión actual v{{ versionActual }}</span>
+              <button type="button" class="btn pe-btn-outline btn-sm" *ngIf="!edicionHabilitada" (click)="habilitarEdicion()">
+                <i class="fas fa-pen"></i> Habilitar edición
+              </button>
+              <button type="button" class="btn pe-btn-outline btn-sm" *ngIf="edicionHabilitada" (click)="cancelarEdicion()">
+                <i class="fas fa-lock"></i> Cancelar edición
+              </button>
+              <button type="button" class="btn pe-btn-outline btn-sm" (click)="mostrarHistorialVersiones = !mostrarHistorialVersiones">
+                <i class="fas fa-history"></i> Historial
+              </button>
+            </div>
+          </div>
         </div>
         <div class="card-body pe-panel__body">
+          <div class="pe-lock-banner" *ngIf="editandoId && !edicionHabilitada">
+            <i class="fas fa-lock"></i>
+            Vista en solo lectura. Pulsa <strong>Habilitar edición</strong> para modificar y registrar una nueva versión.
+          </div>
+          <div class="pe-versions" *ngIf="mostrarHistorialVersiones">
+            <div class="pe-versions__head">
+              <h5>Historial de versiones</h5>
+              <small *ngIf="cargandoVersiones">Cargando...</small>
+            </div>
+            <div *ngIf="!cargandoVersiones && versiones.length === 0" class="pe-versions__empty">
+              Aún no hay versiones anteriores. Se crearán al guardar cambios.
+            </div>
+            <ul *ngIf="versiones.length">
+              <li *ngFor="let ver of versiones">
+                <strong>v{{ ver.version_num }}</strong>
+                <span>{{ ver.created_at | date:'dd/MM/yyyy HH:mm' }}</span>
+                <span>{{ ver.usuario_nombre || 'Sistema' }}</span>
+                <small>{{ ver.nota || 'Edición' }}</small>
+              </li>
+            </ul>
+          </div>
           <ng-container *ngIf="empresaSeleccionada">
             <ng-container *ngTemplateOutlet="chipEmpresa"></ng-container>
           </ng-container>
@@ -306,6 +398,7 @@
           <button type="button"
                   class="pe-chip__edit"
                   (click)="iniciarEdicionSiglas()"
+                  [disabled]="!edicionHabilitada"
                   title="Editar siglas"
                   aria-label="Editar siglas">
             <i class="fas fa-pencil-alt"></i>
@@ -340,7 +433,7 @@
 
 <!-- Formulario densificado -->
 <ng-template #formularioProgramacion>
-  <div class="pe-form">
+  <div class="pe-form" [class.is-locked]="!edicionHabilitada">
     <section class="pe-section">
       <div class="pe-section__head">
         <h3 class="pe-section__title"><i class="fas fa-clipboard-list"></i> Datos de la programación</h3>
@@ -351,15 +444,15 @@
       <div class="pe-grid pe-grid--datos">
         <div class="pe-form-group">
           <label>Fecha de la programación</label>
-          <input class="form-control pe-control" type="date" [(ngModel)]="formulario.fechaProgramacion">
+          <input class="form-control pe-control" type="date" [(ngModel)]="formulario.fechaProgramacion" [disabled]="!edicionHabilitada" [readonly]="!edicionHabilitada">
         </div>
         <div class="pe-form-group pe-form-group--wide">
           <label>Persona que acude</label>
-          <input class="form-control pe-control" [(ngModel)]="formulario.personaAcude" placeholder="Nombre de quien asiste">
+          <input class="form-control pe-control" [(ngModel)]="formulario.personaAcude" placeholder="Nombre de quien asiste" [disabled]="!edicionHabilitada" [readonly]="!edicionHabilitada">
         </div>
         <div class="pe-form-group">
           <label>Fecha de realización de estudios</label>
-          <input class="form-control pe-control" type="date" [(ngModel)]="formulario.fechaRealizacion">
+          <input class="form-control pe-control" type="date" [(ngModel)]="formulario.fechaRealizacion" [disabled]="!edicionHabilitada" [readonly]="!edicionHabilitada">
         </div>
       </div>
     </section>
@@ -369,70 +462,75 @@
         <h3 class="pe-section__title">
           <i class="fas fa-calendar-day"></i> Días de atención
         </h3>
-        <button class="btn btn-sm pe-btn-outline" type="button" (click)="asignarOtroDia()">
+        <button class="btn btn-sm pe-btn-outline" type="button" (click)="asignarOtroDia()" [disabled]="!edicionHabilitada">
           <i class="fas fa-calendar-plus"></i> Asignar otro día
         </button>
       </div>
 
       <div class="pe-days">
         <article class="pe-day" *ngFor="let dia of formulario.dias; let di = index">
-          <header class="pe-day__head">
-            <div class="pe-day__title-wrap">
-              <span class="pe-day__badge"><i class="fas fa-calendar-check"></i></span>
-              <div class="pe-form-group mb-0 pe-day__title-field">
-                <label>Día de la programación</label>
-                <input class="form-control pe-control pe-control--sm"
-                       [(ngModel)]="dia.dia"
-                       [placeholder]="'Ej. 10 de Noviembre'"
-                       [attr.aria-label]="'Día ' + (di + 1)">
-              </div>
+          <header class="pe-day__indicator">
+            <div class="pe-day__cal" aria-hidden="true">
+              <span class="pe-day__cal-lbl">Día</span>
+              <strong class="pe-day__cal-num">{{ di + 1 }}</strong>
+            </div>
+            <div class="pe-day__indicator-main">
+              <span class="pe-day__title">Día de la programación</span>
+              <input class="pe-day__name-input"
+                     [(ngModel)]="dia.dia"
+                     [placeholder]="'Ej. 10 de Noviembre'"
+                     [attr.aria-label]="'Día ' + (di + 1) + ' de la programación'"
+                     [disabled]="!edicionHabilitada"
+                     [readonly]="!edicionHabilitada">
             </div>
             <div class="pe-day__actions">
-              <button type="button" class="pe-day__btn pe-day__btn--danger" (click)="quitarDia(di)" title="Quitar día">
+              <button type="button" class="pe-day__btn pe-day__btn--danger" (click)="quitarDia(di)" title="Quitar día" [disabled]="!edicionHabilitada">
                 <i class="fas fa-trash-alt"></i>
               </button>
             </div>
           </header>
 
-          <div class="pe-day__label" *ngIf="dia.dia">{{ tituloDia(dia, di) }}</div>
-
+          <div class="pe-day__body">
           <div class="pe-workers">
             <div class="pe-worker" *ngFor="let fila of dia.trabajadores; let ti = index">
               <div class="pe-worker__index">{{ ti + 1 }}</div>
               <div class="pe-worker__fields pe-worker__fields--row">
                 <div class="pe-form-group pe-form-group--name">
                   <label>Nombre</label>
-                  <input class="form-control pe-control pe-control--sm" [(ngModel)]="fila.nombre" placeholder="Nombre del trabajador">
+                  <input class="form-control pe-control pe-control--sm" [(ngModel)]="fila.nombre" placeholder="Nombre del trabajador" [disabled]="!edicionHabilitada" [readonly]="!edicionHabilitada">
                 </div>
                 <div class="pe-form-group pe-form-group--area">
                   <label>Área / puesto</label>
-                  <input class="form-control pe-control pe-control--sm" [(ngModel)]="fila.areaPuesto" placeholder="Área o puesto">
+                  <input class="form-control pe-control pe-control--sm" [(ngModel)]="fila.areaPuesto" placeholder="Área o puesto" [disabled]="!edicionHabilitada" [readonly]="!edicionHabilitada">
                 </div>
                 <div class="pe-form-group pe-form-group--tipos">
                   <label>Tipo de estudio</label>
-                  <div class="pe-tipos pe-tipos--row">
+                  <div class="pe-tipos pe-tipos--row pe-tipos--end">
                     <button type="button"
                             class="pe-tipo pe-tipo--chip"
                             *ngFor="let tipo of tiposEstudio"
                             [class.is-on]="tieneTipo(fila, tipo.key)"
+                            [disabled]="!edicionHabilitada"
                             (click)="toggleTipo(fila, tipo.key)"
                             [attr.aria-pressed]="tieneTipo(fila, tipo.key)"
                             [title]="tipo.key">
                       <i class="fas" [ngClass]="tipo.icon"></i>
-                      <span>{{ tipo.short }}</span>
+                      <span class="pe-tipo__full">{{ tipo.key }}</span>
+                      <span class="pe-tipo__short">{{ tipo.short }}</span>
                     </button>
                   </div>
                 </div>
               </div>
-              <button class="pe-worker__remove" type="button" (click)="quitarTrabajador(dia, ti)" title="Quitar trabajador" aria-label="Quitar trabajador">
+              <button class="pe-worker__remove" type="button" (click)="quitarTrabajador(dia, ti)" title="Quitar trabajador" aria-label="Quitar trabajador" [disabled]="!edicionHabilitada">
                 <i class="fas fa-times"></i>
               </button>
             </div>
           </div>
 
-          <button type="button" class="pe-add-worker" (click)="agregarTrabajador(dia)">
+          <button type="button" class="pe-add-worker" (click)="agregarTrabajador(dia)" [disabled]="!edicionHabilitada">
             <i class="fas fa-user-plus"></i> Asignar trabajador
           </button>
+          </div>
         </article>
       </div>
     </section>
@@ -440,11 +538,11 @@
     <section class="pe-section pe-section--obs">
       <div class="pe-form-group mb-0">
         <label>Observaciones</label>
-        <textarea class="form-control pe-control" rows="2" [(ngModel)]="formulario.observaciones" placeholder="Notas adicionales de la programación..."></textarea>
+        <textarea class="form-control pe-control" rows="2" [(ngModel)]="formulario.observaciones" placeholder="Notas adicionales de la programación..." [disabled]="!edicionHabilitada" [readonly]="!edicionHabilitada"></textarea>
       </div>
     </section>
 
-    <div class="pe-actions pe-actions--end">
+    <div class="pe-actions pe-actions--end" *ngIf="edicionHabilitada">
       <div class="pe-save-block">
         <div class="pe-save-progress" *ngIf="guardando || progresoGuardado > 0">
           <div class="pe-save-progress__track">
@@ -454,7 +552,7 @@
         </div>
         <button class="btn pe-btn-primary pe-btn-primary--wide" type="button" (click)="guardar()" [disabled]="guardando || guardandoSiglas">
           <i class="fas" [ngClass]="guardando ? 'fa-spinner fa-spin' : 'fa-save'"></i>
-          {{ guardando ? 'Guardando programación...' : 'Guardar programación' }}
+          {{ guardando ? 'Guardando programación...' : (editandoId ? 'Guardar nueva versión' : 'Guardar programación') }}
         </button>
       </div>
     </div>

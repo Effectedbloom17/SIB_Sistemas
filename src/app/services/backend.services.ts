@@ -2505,6 +2505,10 @@ export class BackendServices {
         return this.httpClient.delete(`${this.baseUrl}/programacion-estudios/${id}`);
     }
 
+    obtenerVersionesProgramacionEstudios(id: number): Observable<any> {
+        return this.httpClient.get(`${this.baseUrl}/programacion-estudios/${id}/versiones`);
+    }
+
     subirPdfProgramacionEstudios(id: number, pdfBase64: string): Observable<any> {
         return this.httpClient.post(`${this.baseUrl}/programacion-estudios/${id}/pdf-firmado`, {
             pdf_base64: pdfBase64

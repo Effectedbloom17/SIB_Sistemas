@@ -119,9 +119,30 @@ function parseJson(valor) {
     }
 }
 
-function filaPublica(row) {
+function resumenFilas(filas) {
+    const lista = Array.isArray(filas) ? filas : [];
+    const porDia = new Map();
+    lista.forEach((fila) => {
+        const dia = texto(fila?.dia) || 'Sin día';
+        if (!porDia.has(dia)) porDia.set(dia, 0);
+        if (texto(fila?.nombre)) porDia.set(dia, porDia.get(dia) + 1);
+        else if (!texto(fila?.nombre) && (fila?.areaPuesto || fila?.tipoEstudio)) {
+            porDia.set(dia, porDia.get(dia) + 1);
+        }
+    });
+    const dias = Array.from(porDia.entries()).map(([dia, pacientes]) => ({ dia, pacientes }));
+    const totalPacientes = dias.reduce((acc, item) => acc + item.pacientes, 0);
+    return {
+        total_dias: dias.length,
+        total_pacientes: totalPacientes || lista.filter((f) => texto(f?.nombre)).length,
+        pacientes_por_dia: dias
+    };
+}
+
+function filaPublica(row, extras = {}) {
     const datos = parseJson(row.datos_json);
     const filas = sanitizarFilas(datos.filas);
+    const resumen = resumenFilas(filas);
     return {
         id: row.id,
         empresa_id: row.empresa_id,
@@ -132,6 +153,11 @@ function filaPublica(row) {
         fecha_realizacion: fechaIso(row.fecha_realizacion),
         observaciones: texto(datos.observaciones || ''),
         filas,
+        total_dias: resumen.total_dias,
+        total_pacientes: resumen.total_pacientes,
+        pacientes_por_dia: resumen.pacientes_por_dia,
+        version_actual: Number(row.version_actual || extras.version_actual || 1) || 1,
+        versiones_totales: Number(extras.versiones_totales || row.versiones_totales || 0) || 0,
         drive_file_id: row.drive_file_id || null,
         drive_url: row.drive_url || null,
         pdf_file_id: row.pdf_file_id || null,
@@ -145,27 +171,50 @@ function filaPublica(row) {
 async function asegurarTabla(pool, dbKey) {
     if (!pool) throw errorHttp('Base de médicos no disponible', 503);
     if (TABLA_LISTA.get(dbKey)) return TABLA_LISTA.get(dbKey);
-    const promesa = pool.query(`
-        CREATE TABLE IF NOT EXISTS programacion_estudios (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            empresa_id INT NULL,
-            fecha_programacion DATE NULL,
-            siglas VARCHAR(12) NULL,
-            hoja_titulo VARCHAR(100) NULL,
-            persona_acude VARCHAR(200) NULL,
-            fecha_realizacion DATE NULL,
-            datos_json LONGTEXT NULL,
-            drive_file_id VARCHAR(128) NULL,
-            drive_url VARCHAR(500) NULL,
-            pdf_file_id VARCHAR(128) NULL,
-            pdf_url VARCHAR(500) NULL,
-            pdf_nombre VARCHAR(255) NULL,
-            activo TINYINT(1) NOT NULL DEFAULT 1,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_prog_estudios_empresa (empresa_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `).then(() => true);
+    const promesa = (async () => {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS programacion_estudios (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                empresa_id INT NULL,
+                fecha_programacion DATE NULL,
+                siglas VARCHAR(12) NULL,
+                hoja_titulo VARCHAR(100) NULL,
+                persona_acude VARCHAR(200) NULL,
+                fecha_realizacion DATE NULL,
+                datos_json LONGTEXT NULL,
+                drive_file_id VARCHAR(128) NULL,
+                drive_url VARCHAR(500) NULL,
+                pdf_file_id VARCHAR(128) NULL,
+                pdf_url VARCHAR(500) NULL,
+                pdf_nombre VARCHAR(255) NULL,
+                version_actual INT NOT NULL DEFAULT 1,
+                activo TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_prog_estudios_empresa (empresa_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        `);
+        try {
+            await pool.query('ALTER TABLE programacion_estudios ADD COLUMN version_actual INT NOT NULL DEFAULT 1');
+        } catch (error) {
+            if (error.code !== 'ER_DUP_FIELDNAME') throw error;
+        }
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS programacion_estudios_versiones (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                programacion_id INT NOT NULL,
+                version_num INT NOT NULL,
+                snapshot_json LONGTEXT NOT NULL,
+                usuario_id INT NULL,
+                usuario_nombre VARCHAR(200) NULL,
+                nota VARCHAR(255) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_prog_estudios_ver_prog (programacion_id),
+                UNIQUE KEY uq_prog_estudios_ver (programacion_id, version_num)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        `);
+        return true;
+    })();
     TABLA_LISTA.set(dbKey, promesa);
     try {
         await promesa;
@@ -173,6 +222,70 @@ async function asegurarTabla(pool, dbKey) {
         TABLA_LISTA.delete(dbKey);
         throw error;
     }
+}
+
+async function contarVersiones(pool, programacionId) {
+    const [rows] = await pool.query(
+        'SELECT COUNT(*) AS total FROM programacion_estudios_versiones WHERE programacion_id = ?',
+        [programacionId]
+    );
+    return Number(rows[0]?.total || 0);
+}
+
+async function listarVersiones(pool, programacionId) {
+    const [rows] = await pool.query(
+        `SELECT id, programacion_id, version_num, usuario_id, usuario_nombre, nota, created_at, snapshot_json
+         FROM programacion_estudios_versiones
+         WHERE programacion_id = ?
+         ORDER BY version_num DESC`,
+        [programacionId]
+    );
+    return (rows || []).map((row) => {
+        const snap = parseJson(row.snapshot_json);
+        return {
+            id: row.id,
+            programacion_id: row.programacion_id,
+            version_num: row.version_num,
+            usuario_id: row.usuario_id,
+            usuario_nombre: row.usuario_nombre || '',
+            nota: row.nota || '',
+            created_at: row.created_at,
+            hoja_titulo: snap.hoja_titulo || '',
+            fecha_programacion: snap.fecha_programacion || '',
+            persona_acude: snap.persona_acude || '',
+            total_dias: snap.total_dias || 0,
+            total_pacientes: snap.total_pacientes || 0
+        };
+    });
+}
+
+async function registrarVersionPrevia(pool, previo, meta = {}) {
+    if (!previo?.id) return null;
+    const publica = filaPublica(previo);
+    const versionNum = Number(previo.version_actual || 1) || 1;
+    const snapshot = {
+        ...publica,
+        guardado_en: new Date().toISOString()
+    };
+    await pool.query(
+        `INSERT INTO programacion_estudios_versiones
+            (programacion_id, version_num, snapshot_json, usuario_id, usuario_nombre, nota)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+            snapshot_json = VALUES(snapshot_json),
+            usuario_id = VALUES(usuario_id),
+            usuario_nombre = VALUES(usuario_nombre),
+            nota = VALUES(nota)`,
+        [
+            previo.id,
+            versionNum,
+            JSON.stringify(snapshot),
+            meta.usuarioId || null,
+            texto(meta.usuarioNombre).slice(0, 200) || null,
+            texto(meta.nota || 'Edición de programación').slice(0, 255) || null
+        ]
+    );
+    return versionNum;
 }
 
 function afirmarNoEsPlantilla(fileId) {
@@ -339,7 +452,7 @@ function payloadDe(body, nombreEmpresa) {
     };
 }
 
-async function guardarRegistro(pool, id, datos, drive) {
+async function guardarRegistro(pool, id, datos, drive, versionActual = 1) {
     const json = JSON.stringify({
         observaciones: datos.observaciones,
         filas: datos.filas
@@ -353,14 +466,15 @@ async function guardarRegistro(pool, id, datos, drive) {
         datos.fechaRealizacion || null,
         json,
         drive.driveFileId,
-        drive.driveUrl
+        drive.driveUrl,
+        versionActual
     ];
     if (id) {
         await pool.query(
             `UPDATE programacion_estudios
              SET empresa_id = ?, fecha_programacion = ?, siglas = ?, hoja_titulo = ?,
                  persona_acude = ?, fecha_realizacion = ?, datos_json = ?,
-                 drive_file_id = ?, drive_url = ?
+                 drive_file_id = ?, drive_url = ?, version_actual = ?
              WHERE id = ? AND activo = 1`,
             [...valores, id]
         );
@@ -369,8 +483,8 @@ async function guardarRegistro(pool, id, datos, drive) {
     const [result] = await pool.query(
         `INSERT INTO programacion_estudios
             (empresa_id, fecha_programacion, siglas, hoja_titulo, persona_acude,
-             fecha_realizacion, datos_json, drive_file_id, drive_url)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             fecha_realizacion, datos_json, drive_file_id, drive_url, version_actual)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         valores
     );
     return result.insertId;
@@ -403,9 +517,20 @@ async function guardar(pool, body, nombreEmpresa, id) {
         console.error('[SP-F-30] Sync Drive falló; se guarda en BD:', driveWarning);
     }
 
-    const guardadoId = await guardarRegistro(pool, id || null, datos, drive);
+    let versionActual = 1;
+    if (previo) {
+        await registrarVersionPrevia(pool, previo, {
+            usuarioId: Number(body?.usuario_id || body?.usuarioId) || null,
+            usuarioNombre: body?.usuario_nombre || body?.usuarioNombre || '',
+            nota: body?.nota_version || 'Edición de programación'
+        });
+        versionActual = (Number(previo.version_actual || 1) || 1) + 1;
+    }
+
+    const guardadoId = await guardarRegistro(pool, id || null, datos, drive, versionActual);
     const row = await obtenerPorId(pool, guardadoId);
-    const publica = filaPublica(row);
+    const versionesTotales = await contarVersiones(pool, guardadoId);
+    const publica = filaPublica(row, { versiones_totales: versionesTotales });
     if (driveWarning) publica.drive_warning = driveWarning;
     return publica;
 }
@@ -450,5 +575,7 @@ module.exports = {
     filaPublica,
     guardar,
     obtenerPorId,
-    subirPdfFirmado
+    subirPdfFirmado,
+    listarVersiones,
+    contarVersiones
 };

@@ -1,4 +1,5 @@
 import { Component, ElementRef, OnDestroy, OnInit, Renderer2 } from '@angular/core';
+import { AuthService } from 'src/app/services/auth.service';
 import { BackendServices } from 'src/app/services/backend.services';
 import { obtenerFechaHoyLocal } from 'src/app/utils/fecha.util';
 import Swal from 'sweetalert2';
@@ -75,11 +76,19 @@ export class ProgramacionEstudiosComponent implements OnInit, OnDestroy {
   mensajeProgreso = '';
   private progresoTimer: ReturnType<typeof setInterval> | null = null;
 
+  /** false = solo lectura hasta pulsar Habilitar edición */
+  edicionHabilitada = true;
+  versionActual = 1;
+  versiones: any[] = [];
+  cargandoVersiones = false;
+  mostrarHistorialVersiones = false;
+
   private mainContentEl: HTMLElement | null = null;
   private logoErrorIds = new Set<number>();
 
   constructor(
     private backendServices: BackendServices,
+    private authService: AuthService,
     private renderer: Renderer2,
     private elRef: ElementRef
   ) {}
@@ -273,6 +282,10 @@ export class ProgramacionEstudiosComponent implements OnInit, OnDestroy {
   nuevaProgramacion(): void {
     this.modoArchivero = false;
     this.editandoSiglas = false;
+    this.edicionHabilitada = true;
+    this.versionActual = 1;
+    this.versiones = [];
+    this.mostrarHistorialVersiones = false;
     this.resetFormularioNuevo(this.resolverSiglasEmpresa(this.empresaSeleccionada));
     this.vistaActual = 'programar';
   }
@@ -284,6 +297,9 @@ export class ProgramacionEstudiosComponent implements OnInit, OnDestroy {
     this.pdfUrl = item.pdf_url || '';
     this.pdfNombre = item.pdf_nombre || '';
     this.editandoSiglas = false;
+    this.edicionHabilitada = false;
+    this.versionActual = Number(item.version_actual || 1) || 1;
+    this.mostrarHistorialVersiones = false;
     const filas = Array.isArray(item.filas) && item.filas.length
       ? item.filas.map((fila: FilaEstudio) => ({
           dia: fila.dia || '',
@@ -302,6 +318,98 @@ export class ProgramacionEstudiosComponent implements OnInit, OnDestroy {
       dias: this.agruparPorDia(filas)
     };
     this.vistaActual = 'formulario';
+    this.cargarVersiones(item.id);
+  }
+
+  habilitarEdicion(): void {
+    this.edicionHabilitada = true;
+  }
+
+  cancelarEdicion(): void {
+    if (!this.editandoId) return;
+    this.edicionHabilitada = false;
+    this.editandoSiglas = false;
+    const actual = this.programaciones.find((p) => p.id === this.editandoId);
+    if (actual) this.editarProgramacion(actual);
+  }
+
+  cargarVersiones(programacionId: number): void {
+    if (!programacionId) return;
+    this.cargandoVersiones = true;
+    this.backendServices.obtenerVersionesProgramacionEstudios(programacionId).subscribe({
+      next: (resp: any) => {
+        this.cargandoVersiones = false;
+        this.versionActual = Number(resp?.version_actual || this.versionActual || 1) || 1;
+        this.versiones = Array.isArray(resp?.versiones) ? resp.versiones : [];
+      },
+      error: () => {
+        this.cargandoVersiones = false;
+        this.versiones = [];
+      }
+    });
+  }
+
+  resumenDias(item: any): string {
+    const dias = Array.isArray(item?.pacientes_por_dia) ? item.pacientes_por_dia : [];
+    if (!dias.length) return 'Sin días registrados';
+    return dias.map((d: any) => `${d.dia || 'Sin día'}: ${d.pacientes || 0}`).join(' · ');
+  }
+
+  abrirPdfItem(item: any): void {
+    const url = item?.pdf_url;
+    if (!url) {
+      Swal.fire({
+        icon: 'info',
+        title: 'PDF pendiente',
+        text: 'Esta programación aún no tiene versión firmada en PDF.',
+        confirmButtonColor: '#0f3661'
+      });
+      return;
+    }
+    window.open(url, '_blank', 'noopener');
+  }
+
+  imprimirProgramacion(item: any): void {
+    if (item?.pdf_url) {
+      const win = window.open(item.pdf_url, '_blank', 'noopener');
+      if (win) {
+        setTimeout(() => {
+          try { win.print(); } catch (_) { /* ignore */ }
+        }, 800);
+      }
+      return;
+    }
+    if (item?.drive_url) {
+      window.open(item.drive_url, '_blank', 'noopener');
+      return;
+    }
+    const html = this.htmlImpresion(item);
+    const win = window.open('', '_blank', 'noopener,width=900,height=700');
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
+  }
+
+  private htmlImpresion(item: any): string {
+    const dias = Array.isArray(item?.pacientes_por_dia) ? item.pacientes_por_dia : [];
+    const filas = Array.isArray(item?.filas) ? item.filas : [];
+    const filasHtml = filas.map((f: any) =>
+      `<tr><td>${f.dia || ''}</td><td>${f.nombre || ''}</td><td>${f.areaPuesto || ''}</td><td>${f.tipoEstudio || ''}</td></tr>`
+    ).join('');
+    const diasHtml = dias.map((d: any) => `<li>${d.dia}: ${d.pacientes} paciente(s)</li>`).join('');
+    return `<!doctype html><html><head><title>${item?.hoja_titulo || 'Programación'}</title>
+      <style>body{font-family:Arial,sans-serif;padding:24px;color:#123} table{width:100%;border-collapse:collapse;margin-top:12px}
+      th,td{border:1px solid #ccd;padding:6px 8px;font-size:12px;text-align:left} h1{font-size:18px;margin:0 0 8px}
+      .meta{color:#456;font-size:13px}</style></head><body>
+      <h1>SP-F-30 · ${item?.hoja_titulo || ''}</h1>
+      <p class="meta">Empresa: ${this.empresaSeleccionada?.nombre_empresa || ''} · Fecha: ${item?.fecha_programacion || ''} · Persona: ${item?.persona_acude || '—'}</p>
+      <p class="meta">Días: ${item?.total_dias || 0} · Pacientes: ${item?.total_pacientes || 0}</p>
+      <ul>${diasHtml}</ul>
+      <table><thead><tr><th>Día</th><th>Nombre</th><th>Área</th><th>Estudio</th></tr></thead>
+      <tbody>${filasHtml || '<tr><td colspan="4">Sin filas</td></tr>'}</tbody></table>
+      </body></html>`;
   }
 
   volverALista(): void {
@@ -312,6 +420,7 @@ export class ProgramacionEstudiosComponent implements OnInit, OnDestroy {
   }
 
   iniciarEdicionSiglas(): void {
+    if (!this.edicionHabilitada) return;
     this.siglasEdicion = this.siglasEmpresaActual || this.siglasDe(this.empresaSeleccionada?.nombre_empresa);
     this.editandoSiglas = true;
   }
@@ -329,11 +438,12 @@ export class ProgramacionEstudiosComponent implements OnInit, OnDestroy {
   }
 
   asignarOtroDia(): void {
-    if (this.contarTrabajadores() >= 40) return;
+    if (!this.edicionHabilitada || this.contarTrabajadores() >= 40) return;
     this.formulario.dias.push(this.diaVacio());
   }
 
   quitarDia(indice: number): void {
+    if (!this.edicionHabilitada) return;
     if (this.formulario.dias.length === 1) {
       this.formulario.dias[0] = this.diaVacio();
       return;
@@ -342,11 +452,12 @@ export class ProgramacionEstudiosComponent implements OnInit, OnDestroy {
   }
 
   agregarTrabajador(dia: DiaProgramacion): void {
-    if (this.contarTrabajadores() >= 40) return;
+    if (!this.edicionHabilitada || this.contarTrabajadores() >= 40) return;
     dia.trabajadores.push(this.trabajadorVacio());
   }
 
   quitarTrabajador(dia: DiaProgramacion, indice: number): void {
+    if (!this.edicionHabilitada) return;
     if (dia.trabajadores.length === 1) {
       dia.trabajadores[0] = this.trabajadorVacio();
       return;
@@ -370,7 +481,17 @@ export class ProgramacionEstudiosComponent implements OnInit, OnDestroy {
       Swal.fire({ icon: 'warning', title: 'Faltan las siglas', text: 'Edita las siglas de la empresa en la parte superior.', confirmButtonColor: '#0f3661' });
       return;
     }
+    if (this.editandoId && !this.edicionHabilitada) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Edición bloqueada',
+        text: 'Pulsa «Habilitar edición» para modificar y guardar una nueva versión.',
+        confirmButtonColor: '#0f3661'
+      });
+      return;
+    }
     const filas = this.aplanarDias();
+    const usuario = this.authService.usuarioActualValue;
     const payload = {
       empresa_id: this.empresaSeleccionada.empresa_id,
       nombre_empresa: this.empresaSeleccionada.nombre_empresa,
@@ -379,7 +500,10 @@ export class ProgramacionEstudiosComponent implements OnInit, OnDestroy {
       persona_acude: this.formulario.personaAcude,
       fecha_realizacion: this.formulario.fechaRealizacion || null,
       observaciones: this.formulario.observaciones,
-      filas
+      filas,
+      usuario_id: usuario?.usuario_id || usuario?.id || null,
+      usuario_nombre: [usuario?.nombre, usuario?.apellido_paterno].filter(Boolean).join(' ') || usuario?.username || '',
+      nota_version: 'Edición de programación'
     };
     this.guardando = true;
     this.iniciarProgresoGuardado();
@@ -396,11 +520,13 @@ export class ProgramacionEstudiosComponent implements OnInit, OnDestroy {
           this.pdfUrl = programacion.pdf_url || this.pdfUrl;
           this.pdfNombre = programacion.pdf_nombre || this.pdfNombre;
           this.formulario.siglas = programacion.siglas || this.formulario.siglas;
+          this.versionActual = Number(programacion.version_actual || this.versionActual || 1) || 1;
         }
         if (this.empresaSeleccionada) {
           this.empresaSeleccionada.siglas = siglas;
         }
         this.siglasEnBd = true;
+        this.edicionHabilitada = false;
         this.guardando = false;
         const warning = programacion?.drive_warning;
         Swal.fire({
@@ -434,6 +560,7 @@ export class ProgramacionEstudiosComponent implements OnInit, OnDestroy {
   }
 
   toggleTipo(fila: TrabajadorFila, tipo: string): void {
+    if (!this.edicionHabilitada) return;
     const elegidos = new Set(this.listaTipos(fila.tipoEstudio));
     if (elegidos.has(tipo)) elegidos.delete(tipo);
     else elegidos.add(tipo);
@@ -547,6 +674,9 @@ export class ProgramacionEstudiosComponent implements OnInit, OnDestroy {
     this.driveUrl = '';
     this.pdfUrl = '';
     this.pdfNombre = '';
+    this.edicionHabilitada = true;
+    this.versionActual = 1;
+    this.versiones = [];
     this.formulario = this.formularioVacio(siglas);
   }
 

@@ -140,13 +140,57 @@ function sanitizarProceso(raw) {
     };
 }
 
-function sanitizarProcesosDesactivados(raw) {
+function normalizarColorProceso(raw) {
+    const valor = String(raw || '').trim().toLowerCase();
+    // "contexto" era el segundo azul; unificar a azul único (clave).
+    if (valor === 'clave' || valor === 'contexto' || valor === 'azul') return 'clave';
+    if (valor === 'soporte' || valor === 'naranja') return 'soporte';
+    return 'gestion';
+}
+
+function sanitizarProcesosExtra(raw, slugsCatalogo = null) {
     const lista = Array.isArray(raw) ? raw : [];
+    const catalogo = slugsCatalogo instanceof Set
+        ? slugsCatalogo
+        : new Set(PROCESOS_MAP.map((p) => p.slug));
+    const vistos = new Set();
+    const salida = [];
+    for (const item of lista) {
+        if (!item || typeof item !== 'object') continue;
+        const slug = String(item.slug || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9-]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 80);
+        if (!slug || catalogo.has(slug) || vistos.has(slug)) continue;
+        const etiqueta = String(item.etiqueta || item.nombreProceso || slug).trim().slice(0, 120);
+        if (!etiqueta) continue;
+        vistos.add(slug);
+        salida.push({
+            slug,
+            etiqueta,
+            color: normalizarColorProceso(item.color)
+        });
+    }
+    return salida;
+}
+
+function sanitizarProcesosDesactivados(raw, slugsPermitidos = null) {
+    const lista = Array.isArray(raw) ? raw : [];
+    const permitidos = slugsPermitidos instanceof Set
+        ? slugsPermitidos
+        : null;
     const vistos = new Set();
     const salida = [];
     for (const item of lista) {
         const slug = String(item || '').trim();
-        if (!SHEET_BY_SLUG[slug] || vistos.has(slug)) continue;
+        if (!slug || vistos.has(slug)) continue;
+        if (permitidos) {
+            if (!permitidos.has(slug)) continue;
+        } else if (!SHEET_BY_SLUG[slug]) {
+            continue;
+        }
         vistos.add(slug);
         salida.push(slug);
     }
@@ -156,15 +200,54 @@ function sanitizarProcesosDesactivados(raw) {
 function sanitizarDatos(raw) {
     const base = raw && typeof raw === 'object' ? raw : {};
     const fuente = base.procesos && typeof base.procesos === 'object' ? base.procesos : base;
+    const procesosExtra = sanitizarProcesosExtra(base.procesosExtra);
     const procesos = {};
     for (const { slug } of PROCESOS_MAP) {
         procesos[slug] = sanitizarProceso(fuente[slug] || {});
     }
-    const resultado = { procesos };
+    for (const extra of procesosExtra) {
+        procesos[extra.slug] = sanitizarProceso(fuente[extra.slug] || {
+            nombreProceso: extra.etiqueta
+        });
+    }
+    const slugsPermitidos = new Set(Object.keys(procesos));
+    const resultado = { procesos, procesosExtra };
     if (Object.prototype.hasOwnProperty.call(base, 'procesosDesactivados')) {
-        resultado.procesosDesactivados = sanitizarProcesosDesactivados(base.procesosDesactivados);
+        resultado.procesosDesactivados = sanitizarProcesosDesactivados(
+            base.procesosDesactivados,
+            slugsPermitidos
+        );
     }
     return resultado;
+}
+
+function fusionarProcesosExtraDesdeDb(datosPrincipales, datosDb) {
+    const principal = sanitizarDatos(datosPrincipales || {});
+    if (!datosDb || typeof datosDb !== 'object') {
+        return principal;
+    }
+    const extrasDb = sanitizarProcesosExtra(datosDb.procesosExtra);
+    if (!extrasDb.length) {
+        return principal;
+    }
+    const fuenteDb = datosDb.procesos && typeof datosDb.procesos === 'object'
+        ? datosDb.procesos
+        : {};
+    const extrasMap = new Map(principal.procesosExtra.map((e) => [e.slug, e]));
+    for (const extra of extrasDb) {
+        if (!extrasMap.has(extra.slug)) {
+            extrasMap.set(extra.slug, extra);
+        }
+        if (!principal.procesos[extra.slug] && fuenteDb[extra.slug]) {
+            principal.procesos[extra.slug] = sanitizarProceso(fuenteDb[extra.slug]);
+        } else if (!principal.procesos[extra.slug]) {
+            principal.procesos[extra.slug] = sanitizarProceso({
+                nombreProceso: extra.etiqueta
+            });
+        }
+    }
+    principal.procesosExtra = [...extrasMap.values()];
+    return principal;
 }
 
 function leerProcesosDesactivadosDeRegistro(registro) {
@@ -173,7 +256,9 @@ function leerProcesosDesactivadosDeRegistro(registro) {
         const parsed = typeof registro.datos_json === 'string'
             ? JSON.parse(registro.datos_json)
             : registro.datos_json;
-        return sanitizarProcesosDesactivados(parsed?.procesosDesactivados);
+        const datos = sanitizarDatos(parsed || {});
+        const slugs = new Set(Object.keys(datos.procesos || {}));
+        return sanitizarProcesosDesactivados(parsed?.procesosDesactivados, slugs);
     } catch {
         return [];
     }
@@ -583,35 +668,48 @@ async function obtenerRegistroDb(pool) {
 
 async function guardarRegistroDb(pool, payload) {
     const incoming = payload?.datos && typeof payload.datos === 'object' ? payload.datos : {};
+    const datos = sanitizarDatos(incoming);
+    const slugsPermitidos = new Set(Object.keys(datos.procesos || {}));
     let procesosDesactivados;
     if (Object.prototype.hasOwnProperty.call(incoming, 'procesosDesactivados')) {
-        procesosDesactivados = sanitizarProcesosDesactivados(incoming.procesosDesactivados);
+        procesosDesactivados = sanitizarProcesosDesactivados(
+            incoming.procesosDesactivados,
+            slugsPermitidos
+        );
     } else {
         const registro = await obtenerRegistroDb(pool);
-        procesosDesactivados = leerProcesosDesactivadosDeRegistro(registro);
+        procesosDesactivados = sanitizarProcesosDesactivados(
+            leerProcesosDesactivadosDeRegistro(registro),
+            slugsPermitidos
+        );
     }
-    const datos = sanitizarDatos(incoming);
     datos.procesosDesactivados = procesosDesactivados;
     await persistirRegistroSgc(pool, CODIGO_FORMATO, { ...payload, datos });
 }
 
 async function actualizarVisibilidadProceso(pool, slug, activo) {
     const slugLimpio = String(slug || '').trim();
-    if (!SHEET_BY_SLUG[slugLimpio]) {
+    const registro = await obtenerRegistroDb(pool);
+    const datos = await leerDatosRegistro(registro) || sanitizarDatos({});
+    const slugsPermitidos = new Set(Object.keys(datos.procesos || {}));
+    if (!slugLimpio || !slugsPermitidos.has(slugLimpio)) {
         const error = new Error('Proceso no reconocido.');
         error.statusCode = 400;
         throw error;
     }
 
-    const registro = await obtenerRegistroDb(pool);
-    const datos = await leerDatosRegistro(registro) || sanitizarDatos({});
-    const desactivados = new Set(leerProcesosDesactivadosDeRegistro(registro));
+    const desactivados = new Set(
+        sanitizarProcesosDesactivados(
+            leerProcesosDesactivadosDeRegistro(registro),
+            slugsPermitidos
+        )
+    );
     if (activo) {
         desactivados.delete(slugLimpio);
     } else {
         desactivados.add(slugLimpio);
     }
-    const procesosDesactivados = sanitizarProcesosDesactivados([...desactivados]);
+    const procesosDesactivados = sanitizarProcesosDesactivados([...desactivados], slugsPermitidos);
 
     await guardarRegistroDb(pool, {
         driveFileId: registro?.drive_file_id || null,
@@ -649,7 +747,13 @@ async function leerDatosRegistro(registro) {
 function datosSonEquivalentes(a, b) {
     const sa = sanitizarDatos(a);
     const sb = sanitizarDatos(b);
-    return JSON.stringify(sa.procesos) === JSON.stringify(sb.procesos);
+    return JSON.stringify({
+        procesos: sa.procesos,
+        procesosExtra: sa.procesosExtra || []
+    }) === JSON.stringify({
+        procesos: sb.procesos,
+        procesosExtra: sb.procesosExtra || []
+    });
 }
 
 function procesoTieneContenido(proceso) {
@@ -715,10 +819,12 @@ async function cargarFormato(pool) {
         registro = await obtenerRegistroDb(pool);
     }
 
+    const datosDbPrevios = await leerDatosRegistro(registro);
+
     if (driveFileId) {
         try {
             const buffer = await descargarBufferDrive(driveFileId);
-            datos = await leerDatosDesdeBuffer(buffer);
+            datos = fusionarProcesosExtraDesdeDb(await leerDatosDesdeBuffer(buffer), datosDbPrevios);
             archivoDrive = await driveService.obtenerInfoArchivo(driveFileId).catch(() => null);
         } catch (err) {
             console.warn('[DG-F-07] No se pudo leer archivo en Drive, usando BD/plantilla:', err.message);
@@ -727,7 +833,7 @@ async function cargarFormato(pool) {
     }
 
     if (!datos) {
-        datos = await leerDatosRegistro(registro);
+        datos = datosDbPrevios;
     }
 
     if (!datos || datosEstanVacios(datos)) {
@@ -860,8 +966,6 @@ async function sincronizarDesdeDrive(pool) {
     await new Promise((resolve) => setTimeout(resolve, 900));
 
     const buffer = await descargarBufferDrive(registro.drive_file_id);
-    const datosDrive = sanitizarDatos(await leerDatosDesdeBuffer(buffer));
-
     let datosPrevios = null;
     if (registro.datos_json) {
         try {
@@ -874,6 +978,7 @@ async function sincronizarDesdeDrive(pool) {
             datosPrevios = null;
         }
     }
+    const datosDrive = fusionarProcesosExtraDesdeDb(await leerDatosDesdeBuffer(buffer), datosPrevios);
 
     const huboCambio = !datosPrevios || !datosSonEquivalentes(datosPrevios, datosDrive);
     const contenidoModificado = huboCambio ? true : !!registro.contenido_modificado;

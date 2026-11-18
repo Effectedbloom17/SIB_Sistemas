@@ -345,7 +345,7 @@
                     Actualizar versiones
                   </button>
                   <button
-                    *ngIf="(plantillaSlug === 'ath-f-13' ? athF13PuedeSolicitar : plantillaSlug === 'ath-f-14' ? puedeEditarAthF14 : puedeGestionarPlantillasSgc) && plantillaSlug !== 'sgc-f-05' && (plantillaSlug !== 'sgc-f-10' || sgcF10Vista === 'editor') && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'ath-f-06' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-27-medicion' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || plantillaSlug === 'ath-f-03' || plantillaSlug === 'ath-f-13' || plantillaSlug === 'ath-f-14' || plantillaSlug === 'sgc-f-17' || plantillaSlug === 'sgc-f-19' || plantillaSlug === 'sgc-f-20')"
+                    *ngIf="(plantillaSlug === 'ath-f-13' ? athF13PuedeSolicitar : plantillaSlug === 'ath-f-14' ? puedeEditarAthF14 : puedeGestionarPlantillasSgc) && plantillaSlug !== 'sgc-f-05' && (plantillaSlug !== 'sgc-f-10' || (sgcF10Vista === 'editor' && !sgcF10ConsultandoHistorico)) && (plantillaSlug === 'dg-f-05' || plantillaSlug === 'dg-f-07' || plantillaSlug === 'sgc-f-06' || plantillaSlug === 'sgc-f-07' || plantillaSlug === 'sgc-f-08' || plantillaSlug === 'sgc-f-10' || plantillaSlug === 'sgc-f-14' || plantillaSlug === 'sgc-f-25' || plantillaSlug === 'sgc-f-03' || plantillaSlug === 'sgc-f-16' || plantillaSlug === 'sgc-f-22' || plantillaSlug === 'sgc-f-24' || plantillaSlug === 'ath-f-06' || plantillaSlug === 'sgc-f-27' || plantillaSlug === 'sgc-f-27-medicion' || plantillaSlug === 'sgc-f-29' || plantillaSlug === 'sgc-f-28' || plantillaSlug === 'sp-f-02' || plantillaSlug === 'sp-f-07' || plantillaSlug === 'ath-f-02' || plantillaSlug === 'ath-f-07' || plantillaSlug === 'ath-f-08' || plantillaSlug === 'ath-f-09' || plantillaSlug === 'ath-f-11' || plantillaSlug === 'sgc-f-18' || plantillaSlug === 'sgc-f-11' || plantillaSlug === 'sgc-f-12' || plantillaSlug === 'sgc-f-01' || plantillaSlug === 'sgc-f-02' || plantillaSlug === 'sgc-f-04' || plantillaSlug === 'dg-f-06' || plantillaSlug === 'ath-f-03' || plantillaSlug === 'ath-f-13' || plantillaSlug === 'ath-f-14' || plantillaSlug === 'sgc-f-17' || plantillaSlug === 'sgc-f-19' || plantillaSlug === 'sgc-f-20')"
                     type="button"
                     class="btn btn-sm sgc-btn-save-info"
                     [disabled]="driveSyncCargando || driveSyncGuardando"
@@ -10422,7 +10422,7 @@
                           <div class="sgc-f-04-archivero__intro-text">
                             <h4 class="sgc-f-04-archivero__title">Archivero de informes de auditoría</h4>
                             <p class="sgc-f-04-archivero__hint">
-                              Continúa el informe en captura. Usa «Nuevo informe» para guardar el actual y abrir uno vacío. Los PDF firmados se suben desde el informe; la documentación física va abajo.
+                              Se listan todos los informes dinámicos del sistema (vigente + guardados). Usa «Nuevo informe» para archivar el actual y abrir uno vacío. La documentación física va abajo.
                             </p>
                           </div>
                         </div>
@@ -10446,10 +10446,14 @@
                       </div>
 
                       <div class="sgc-f-04-archivero__stats">
-                        <span class="sgc-f-04-archivero__stat">1 informe en captura</span>
-                        <span class="sgc-f-04-archivero__stat"
-                          *ngIf="sgcF10HistorialVista.length">
-                          · {{ sgcF10HistorialVista.length }} cerrado{{ sgcF10HistorialVista.length !== 1 ? 's' : '' }}
+                        <span class="sgc-f-04-archivero__stat">
+                          {{ sgcF10TotalInformesSistema }} informe{{ sgcF10TotalInformesSistema !== 1 ? 's' : '' }} del sistema
+                        </span>
+                        <span class="sgc-f-04-archivero__stat" *ngIf="sgcF10CoincideBusquedaVigente">
+                          · 1 en captura
+                        </span>
+                        <span class="sgc-f-04-archivero__stat" *ngIf="sgcF10HistorialVista.length">
+                          · {{ sgcF10HistorialVista.length }} guardado{{ sgcF10HistorialVista.length !== 1 ? 's' : '' }}
                         </span>
                         <span class="sgc-f-04-archivero__stat sgc-f-04-archivero__stat--muted"
                           *ngIf="sgcF10Busqueda.trim() && !sgcF10CoincideBusquedaVigente && !sgcF10HistorialVista.length">
@@ -10502,12 +10506,12 @@
                           </button>
                         </li>
 
-                        <li class="sgc-f-04-book sgc-f-04-book--cerrado"
+                        <li class="sgc-f-04-book sgc-f-04-book--sistema"
                           *ngFor="let h of sgcF10HistorialVista"
                           [class.sgc-f-04-book--pdf]="!!h.pdfDriveFileId">
                           <button type="button" class="sgc-f-04-book__tap"
                             (click)="abrirHistoricoSgcF10(h)"
-                            [attr.aria-label]="'Abrir histórico No. ' + (h.auditoriaNo || '')">
+                            [attr.aria-label]="'Abrir informe del sistema No. ' + (h.auditoriaNo || '')">
                             <span class="sgc-f-04-book__binding" aria-hidden="true">
                               <span class="sgc-f-04-book__ring"></span>
                               <span class="sgc-f-04-book__ring"></span>
@@ -10519,16 +10523,13 @@
                             <span class="sgc-f-04-book__page">
                               <span class="sgc-f-04-book__corner" aria-hidden="true"></span>
                               <span class="sgc-f-04-book__head">
-                                <span class="sgc-f-04-book__icon"
-                                  [class.sgc-f-04-book__icon--pdf]="!!h.pdfDriveFileId">
-                                  <i class="fas"
-                                    [ngClass]="h.pdfDriveFileId ? 'fa-file-pdf' : 'fa-file-alt'"
-                                    aria-hidden="true"></i>
+                                <span class="sgc-f-04-book__icon">
+                                  <i class="fas fa-file-alt" aria-hidden="true"></i>
                                 </span>
-                                <span class="sgc-f-04-book__estado sgc-f-04-book__estado--cerrado">Cerrado</span>
+                                <span class="sgc-f-04-book__estado">Sistema</span>
                               </span>
                               <span class="sgc-f-04-book__origen">Auditoría No. {{ h.auditoriaNo || '—' }}</span>
-                              <span class="sgc-f-04-book__folio">{{ h.empresa?.trim() || h.ubicaciones || 'Informe histórico' }}</span>
+                              <span class="sgc-f-04-book__folio">{{ h.empresa?.trim() || h.ubicaciones || 'Informe del sistema' }}</span>
                               <span class="sgc-f-24-book-tipos" *ngIf="h.totalNc || h.totalOp">
                                 <span class="sgc-f-24-book-tipos__badge sgc-f-10-book-badge sgc-f-10-book-badge--nc"
                                   *ngIf="h.totalNc">
@@ -10544,7 +10545,7 @@
                               </span>
                               <span class="sgc-f-04-book__foot">
                                 <span class="sgc-f-04-book__fecha" *ngIf="h.fechasAuditoria">{{ h.fechasAuditoria }}</span>
-                                <span class="sgc-f-04-book__fuente">Histórico</span>
+                                <span class="sgc-f-04-book__fuente">Dinámico</span>
                               </span>
                             </span>
                           </button>
@@ -10676,9 +10677,10 @@
                       </button>
                       <span class="sgc-f-04-editor-bar__folio" *ngIf="sgcF10Form.auditoriaNo">
                         Auditoría No. {{ sgcF10Form.auditoriaNo }}
+                        <ng-container *ngIf="sgcF10ConsultandoHistorico"> · consulta</ng-container>
                       </span>
                       <button type="button" class="sgc-f-04-archivero__btn-nuevo sgc-f-10-editor-nuevo"
-                        *ngIf="puedeGestionarPlantillasSgc"
+                        *ngIf="puedeGestionarPlantillasSgc && !sgcF10ConsultandoHistorico"
                         (click)="nuevoInformeSgcF10()"
                         [disabled]="sgcF10GuardandoHistorico || sgcF10Guardando">
                         <i class="fas"
@@ -10695,7 +10697,8 @@
                           <div class="sgc-f-10-intro__icon"><i class="fas fa-file-signature" aria-hidden="true"></i></div>
                           <div>
                             <h4 class="sgc-f-10-intro__title">Informe de auditoría</h4>
-                            <p class="sgc-f-10-intro__hint">Datos generales, hallazgos y conclusiones del ciclo de auditoría interna (ISO 9001 · 9.2). Usa «Guardar información» para conservar el borrador; al final puedes subir la versión firmada en PDF.</p>
+                            <p class="sgc-f-10-intro__hint" *ngIf="!sgcF10ConsultandoHistorico">Datos generales, hallazgos y conclusiones del ciclo de auditoría interna (ISO 9001 · 9.2). Usa «Guardar información» para conservar el borrador; al final puedes subir la versión firmada en PDF.</p>
+                            <p class="sgc-f-10-intro__hint" *ngIf="sgcF10ConsultandoHistorico">Consulta del informe guardado No. {{ sgcF10Form.auditoriaNo }}. El vigente en captura no se modifica.</p>
                           </div>
                         </div>
                         <div class="sgc-f-10-intro__meta sgc-f-10-intro__meta--split" aria-live="polite">
@@ -15481,11 +15484,19 @@
                               (click)="seleccionarProcesoDgF07(p.slug)">
                         {{ p.etiqueta }}
                       </button>
+                      <button *ngIf="puedeGestionarPlantillasSgc"
+                              type="button"
+                              class="dg-f07-nav__tab dg-f07-nav__tab--add"
+                              (click)="agregarProcesoDgF07()"
+                              title="Agregar proceso"
+                              aria-label="Agregar proceso">
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                      </button>
                     </div>
                   </nav>
 
                   <article class="dg-f05-doc dg-f07-doc" *ngIf="dgF07FormActivo as proc">
-                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'DG-F-07', titulo: 'Caracterización de procesos', icono: 'fa-sitemap' }"></ng-container>
+                    <ng-container *ngTemplateOutlet="sgcDocHeaderListaMaestra; context: { codigo: 'DG-F-07', titulo: (proc.nombreProceso || 'Caracterización de procesos'), icono: 'fa-sitemap' }"></ng-container>
 
                     <div class="sgc-f-11-matriz__intro dg-f07-intro">
                       <div class="sgc-f-11-matriz__intro-icon"><i class="fas fa-sitemap" aria-hidden="true"></i></div>
@@ -15514,7 +15525,9 @@
                           <td class="if-doc__label">Nombre del proceso:</td>
                           <td class="if-doc__val">
                             <input class="if-doc__input w-100 border-0 bg-transparent" type="text"
-                              name="dgF07_nombre" [(ngModel)]="proc.nombreProceso" autocomplete="off">
+                              name="dgF07_nombre" [(ngModel)]="proc.nombreProceso"
+                              (ngModelChange)="onNombreProcesoDgF07Change($event)"
+                              autocomplete="off">
                           </td>
                           <td class="if-doc__label">Responsable:</td>
                           <td class="if-doc__val">

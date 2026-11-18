@@ -2134,6 +2134,7 @@ module.exports = {
     subirDocumentoFisico,
     eliminarDocumentoFisico,
     seedHistoricosPrecedentes,
+    insertarHistorialInmutable,
     sincronizarDesdeDrive,
     actualizarPlantillaDesdeSistema,
     sanitizarDatos,
