@@ -9,7 +9,9 @@
             </div>
             <h1 class="text-white mb-0 dg-header-title">Diagramas</h1>
             <p class="text-white mb-0 mt-1 dg-header-subtitle">
-              Editor de diagrams.net dentro del SIB. Los diagramas se guardan aquí.
+              {{ observador
+                ? 'Consulta los diagramas desde el teléfono. Para crearlos o editarlos usa la computadora.'
+                : 'Editor de diagrams.net dentro del SIB. Los diagramas se guardan aquí.' }}
             </p>
           </div>
         </div>
@@ -24,13 +26,13 @@
           <i class="fas fa-search" aria-hidden="true"></i>
           <input type="search" [(ngModel)]="busqueda" placeholder="Buscar diagrama" aria-label="Buscar diagrama">
         </label>
-        <button type="button" class="btn dg-btn" (click)="abrirFormulario()">
+        <button type="button" class="btn dg-btn" *ngIf="!observador" (click)="abrirFormulario()">
           <i class="fas fa-plus" aria-hidden="true"></i>
           Nuevo diagrama
         </button>
       </div>
 
-      <form class="dg-nuevo" *ngIf="creando" (ngSubmit)="crear()">
+      <form class="dg-nuevo" *ngIf="creando && !observador" (ngSubmit)="crear()">
         <input
           type="text"
           name="tituloNuevo"
@@ -55,8 +57,8 @@
           <p>{{ item.editor_nombre || item.autor_nombre || 'Equipo Biznaga' }}</p>
           <p class="dg-card__fecha">Actualizado {{ fecha(item.updated_at || item.created_at) }}</p>
           <div class="dg-card__acciones">
-            <button type="button" class="btn dg-btn dg-btn--sm" (click)="abrir(item)">Abrir</button>
-            <button type="button" class="btn dg-btn dg-btn--ghost dg-btn--sm" (click)="eliminar(item, $event)">Eliminar</button>
+            <button type="button" class="btn dg-btn dg-btn--sm" (click)="abrir(item)">{{ observador ? 'Ver' : 'Abrir' }}</button>
+            <button type="button" class="btn dg-btn dg-btn--ghost dg-btn--sm" *ngIf="!observador" (click)="eliminar(item, $event)">Eliminar</button>
           </div>
         </article>
       </div>
@@ -64,7 +66,10 @@
       <div class="dg-vacio" *ngIf="!cargando && !error && !diagramasVisibles.length">
         <p *ngIf="busqueda.trim(); else sinDiagramas">No hay diagramas con ese nombre.</p>
         <ng-template #sinDiagramas>
-          <p>Todavía no hay diagramas. Crea el primero para abrirlo en el editor.</p>
+          <p *ngIf="observador; else invitaCrear">Todavía no hay diagramas.</p>
+          <ng-template #invitaCrear>
+            <p>Todavía no hay diagramas. Crea el primero para abrirlo en el editor.</p>
+          </ng-template>
         </ng-template>
       </div>
     </div>
@@ -85,6 +90,7 @@
       [(ngModel)]="tituloEdicion"
       maxlength="180"
       aria-label="Nombre del diagrama"
+      [readonly]="observador"
       (blur)="guardarTitulo()"
       (keyup.enter)="guardarTitulo()">
     <div class="dg-presentes" *ngIf="presentes.length" [attr.aria-label]="textoPresentes">
@@ -111,7 +117,7 @@
     [src]="urlEditor"
     referrerpolicy="no-referrer"
     allow="clipboard-read; clipboard-write"
-    title="Editor de diagrams.net">
+    [title]="observador ? 'Visor de diagrams.net' : 'Editor de diagrams.net'">
   </iframe>
   </div>
 </section>

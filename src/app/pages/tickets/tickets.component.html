@@ -433,3 +433,113 @@
     </div>
   </div>
 </div>
+
+<div class="tk-sheet" *ngIf="ticketAbierto as ficha" (click)="cerrarFicha()">
+  <div class="tk-sheet__panel" role="dialog" aria-modal="true" [attr.aria-label]="tituloTicket(ficha)" (click)="$event.stopPropagation()">
+    <header class="tk-sheet__head">
+      <div>
+        <p class="tk-board-card__project">{{ autorLabel(ficha) }} · {{ ficha.area || 'General' }}</p>
+        <h3>{{ tituloTicket(ficha) }}</h3>
+      </div>
+      <button type="button" class="tk-sheet__close" (click)="cerrarFicha()" aria-label="Cerrar">
+        <i class="fas fa-times"></i>
+      </button>
+    </header>
+
+    <div class="tk-board-card__meta">
+      <div class="tk-status" [attr.data-estado]="ficha.estado" (click)="$event.stopPropagation()">
+        <button type="button" class="tk-status__btn" #estadoBtnFicha
+          [disabled]="actualizandoId != null"
+          [attr.aria-expanded]="estatusMenuId === ficha.ticket_id"
+          [attr.aria-label]="'Estado del ticket ' + ficha.ticket_id"
+          (click)="alternarMenuEstatus(ficha, estadoBtnFicha, $event)">
+          <span class="tk-status__dot" aria-hidden="true"></span>
+          {{ estadoLabel(ficha.estado) }}
+          <i class="fas fa-chevron-down" aria-hidden="true"></i>
+        </button>
+        <div class="tk-status__menu" *ngIf="estatusMenuId === ficha.ticket_id && estatusMenuPos"
+          role="listbox"
+          [attr.aria-label]="'Cambiar estado del ticket ' + ficha.ticket_id"
+          [style.top.px]="estatusMenuPos.top"
+          [style.left.px]="estatusMenuPos.left"
+          (click)="$event.stopPropagation()">
+          <button type="button" class="tk-status__opt" *ngFor="let op of opcionesEstatus"
+            role="option"
+            [attr.data-estado]="op.valor"
+            [attr.aria-selected]="ficha.estado === op.valor"
+            [class.is-current]="ficha.estado === op.valor"
+            (click)="elegirEstatus(ficha, op.valor, $event)">
+            <span class="tk-status__dot" aria-hidden="true"></span>
+            <span>{{ op.label }}</span>
+            <i class="fas fa-check tk-status__check" *ngIf="ficha.estado === op.valor" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+      <span class="tk-board-side">
+        <span class="tk-menu tk-prio" [attr.data-prioridad]="prioridadClave(ficha.prioridad)">{{ prioridadLabel(ficha.prioridad) }}</span>
+        <span class="tk-board-av" [attr.data-tipo]="ficha.tipo === 'falla' ? 'falla' : 'sugerencia'" [title]="autorLabel(ficha)">{{ inicialesAutor(ficha) }}</span>
+      </span>
+    </div>
+
+    <p class="tk-board-card__when">
+      <i class="fas fa-clock" aria-hidden="true"></i>{{ tiempoRelativo(ficha.created_at) }}
+      <span class="tk-plazo" *ngIf="avisoPrioridad(ficha)?.nivel === 'calma'">{{ avisoPrioridad(ficha)?.texto }}</span>
+    </p>
+
+    <section class="tk-panel-block">
+      <span class="tk-section-label">Descripción</span>
+      <p>{{ ficha.descripcion || 'Este ticket no incluye una descripción.' }}</p>
+    </section>
+
+    <ng-container *ngIf="avisoPrioridad(ficha) as aviso">
+      <p class="tk-aviso-detalle" *ngIf="aviso.nivel !== 'calma'" [attr.data-nivel]="aviso.nivel">{{ aviso.texto }}</p>
+    </ng-container>
+
+    <dl class="tk-facts">
+      <div>
+        <dt>Área</dt>
+        <dd><i class="fas {{ areaIcon(ficha.area) }}"></i>{{ ficha.area || 'General' }}</dd>
+      </div>
+      <div>
+        <dt>Tipo</dt>
+        <dd [attr.data-tipo]="ficha.tipo || 'sugerencia'">
+          <i class="fas" [class.fa-exclamation-triangle]="ficha.tipo === 'falla'"
+            [class.fa-lightbulb]="ficha.tipo !== 'falla'"></i>
+          {{ tipoLabel(ficha.tipo) }}
+        </dd>
+      </div>
+      <div>
+        <dt>Prioridad</dt>
+        <dd [attr.data-prioridad]="prioridadClave(ficha.prioridad)">
+          <i class="fas fa-flag"></i>{{ prioridadLabel(ficha.prioridad) }}
+        </dd>
+      </div>
+      <div>
+        <dt>Solicitante</dt>
+        <dd><i class="fas fa-user"></i>{{ autorLabel(ficha) }}</dd>
+      </div>
+    </dl>
+
+    <section class="tk-evidence">
+      <div class="tk-evidence-head">
+        <span class="tk-section-label">Evidencia</span>
+        <em *ngIf="ficha.evidencias?.length">{{ ficha.evidencias.length }}</em>
+      </div>
+      <div class="tk-evidence-thumbs" *ngIf="ficha.evidencias?.length">
+        <button type="button" class="tk-evidence-thumb"
+          *ngFor="let ev of ficha.evidencias; trackBy: trackByEvidenciaId"
+          (click)="abrirEvidencia(ficha.ticket_id, ev.evidencia_id)"
+          [title]="ev.descripcion || 'Ver evidencia'">
+          <img *ngIf="evidenciaSrc(ficha.ticket_id, ev.evidencia_id) as src"
+            [src]="src"
+            [alt]="ev.descripcion || 'Evidencia'">
+          <span class="tk-evidencia-placeholder tk-evidencia-placeholder--error"
+            *ngIf="evidenciaFallida(ficha.ticket_id, ev.evidencia_id)">
+            <i class="fas fa-image"></i>
+          </span>
+        </button>
+      </div>
+      <p class="tk-info-empty" *ngIf="!ficha.evidencias?.length">Sin evidencias adjuntas</p>
+    </section>
+  </div>
+</div>

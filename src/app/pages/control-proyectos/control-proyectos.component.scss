@@ -13389,3 +13389,159 @@ thead .cp-activities-table__sticky {
     }
   }
 }
+
+@media (max-width: 767.98px) {
+  :host .header.header-bg-image.cp-hero {
+    min-height: 0;
+    align-items: flex-start !important;
+    padding-top: 4.6rem !important;
+    padding-bottom: 3.8rem !important;
+  }
+
+  .cp-hero-title {
+    font-size: 1.35rem;
+    line-height: 1.15;
+  }
+
+  .cp-main-wrap {
+    margin-top: -1.5rem;
+  }
+
+  .cp-shell-body {
+    padding: 0.85rem 0.65rem;
+  }
+
+  .cp-view-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .cp-view-nav__item,
+  .cp-view-nav__register {
+    width: 100%;
+    margin-left: 0;
+    min-width: 0;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+    line-height: 1.15;
+    font-size: 0.72rem;
+    padding: 0.48rem 0.35rem;
+  }
+
+  .cp-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .cp-kpi-card {
+    min-width: 0;
+    gap: 0.45rem;
+    padding: 0.7rem 0.6rem;
+  }
+
+  .cp-kpi-card__title {
+    font-size: 0.64rem;
+    letter-spacing: 0.02em;
+  }
+
+  .cp-kpi-card__value {
+    font-size: 1.35rem;
+  }
+
+  .cp-dashboard__intro {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .cp-dashboard__intro > div {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .cp-dashboard__refresh {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .cp-avance-hero-head {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .cp-avance-hero-head__main {
+    min-width: 0;
+    flex: 1 1 auto;
+    gap: 0.55rem;
+  }
+
+  .cp-avance-hero-title {
+    font-size: 0.95rem;
+  }
+
+  .cp-avance-hero-kpi {
+    min-width: 0;
+    padding: 0.4rem 0.6rem;
+    text-align: center;
+  }
+
+  .cp-avance-hero-kpi__val {
+    font-size: 1.35rem;
+  }
+
+  .cp-avance-dual {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cp-avance-panel__header > div {
+    min-width: 0;
+  }
+
+  .cp-avance-panel__title,
+  .cp-avance-panel__sub,
+  .cp-feature-carousel__timer-text {
+    overflow-wrap: normal;
+    word-break: normal;
+    white-space: normal;
+  }
+
+  .cp-avance-donut-chart-wrap {
+    width: 168px;
+    max-width: 168px;
+    height: 168px;
+    min-height: 168px;
+  }
+
+  .cp-eficacia-legend--rules {
+    max-height: none;
+    overflow: visible;
+    touch-action: pan-y;
+  }
+
+  .cp-dash-echart,
+  .cp-avance-donut-chart-wrap,
+  .cp-chart-carousel,
+  .cp-feature-carousel__track {
+    touch-action: pan-y;
+  }
+
+  .cp-feature-carousel__footer-main {
+    min-width: 0;
+  }
+
+  .cp-note {
+    display: block;
+    line-height: 1.45;
+  }
+
+  .cp-note > i {
+    margin-right: 0.35rem;
+  }
+
+  .cp-note__link {
+    display: inline;
+    white-space: nowrap;
+  }
+}

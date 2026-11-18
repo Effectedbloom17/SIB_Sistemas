@@ -1230,3 +1230,143 @@ thead .mt-sticky-end {
 .mt-collapse .mt-shell {
   box-shadow: none !important;
 }
+
+@media (max-width: 767.98px) {
+  :host .header.header-bg-image.mt-hero {
+    min-height: 0;
+    align-items: flex-start !important;
+    padding-top: 4.85rem !important;
+    padding-bottom: 4.5rem !important;
+  }
+
+  .mt-main-wrap.mt--5 {
+    margin-top: -1.65rem !important;
+  }
+
+  .mt-kpi-bar--six {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .mt-kpi-cell {
+    min-height: 0;
+    padding: 0.55rem 0.28rem 0.45rem;
+  }
+
+  .mt-kpi-bar--six .mt-kpi-cell::after {
+    display: none;
+  }
+
+  .mt-kpi-bar--six .mt-kpi-cell:not(:nth-child(3n))::after {
+    display: block;
+  }
+
+  .mt-kpi-cell-label {
+    font-size: 0.54rem;
+    letter-spacing: 0;
+    line-height: 1.15;
+    line-clamp: 3;
+    -webkit-line-clamp: 3;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
+  .mt-kpi-cell-sub {
+    font-size: 0.54rem;
+    line-height: 1.2;
+  }
+
+  .mt-bars {
+    touch-action: pan-y;
+  }
+
+  .mt-toolbar--programa .mt-toolbar__fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 6.4rem;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .mt-toolbar--programa .mt-filter-control {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .mt-collapse,
+  .mt-collapse__body,
+  .mt-shell,
+  .mt-shell-body {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .mt-grid-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    max-height: none;
+    touch-action: pan-x pan-y;
+  }
+
+  .mt-grid thead th.mt-sticky--infra {
+    left: 0;
+    z-index: 8;
+    background: #cbd5e1;
+  }
+
+  .mt-grid tbody td.mt-sticky--infra {
+    left: 0;
+    z-index: 6;
+    width: 9.4rem;
+    min-width: 9.4rem;
+    max-width: 9.4rem;
+    background: #fff;
+    box-shadow: 4px 0 8px -4px rgba(15, 23, 42, 0.3);
+  }
+
+  .mt-grid thead th.mt-sticky--resp,
+  .mt-grid thead th.mt-sticky--tipo,
+  .mt-grid thead th.mt-month,
+  .mt-grid thead tr.mt-grid__weeks th {
+    z-index: 2;
+  }
+
+  .mt-sticky--resp {
+    min-width: 8.4rem;
+    width: 8.4rem;
+    max-width: none;
+  }
+
+  .mt-sticky--tipo {
+    min-width: 3.2rem;
+    width: 3.2rem;
+  }
+
+  .mt-sticky--infra .mt-cell-textarea,
+  .mt-sticky--resp .mt-cell-textarea {
+    display: block;
+    width: 100%;
+    height: auto;
+    min-height: 2.5rem;
+    max-height: none;
+    overflow: hidden;
+    field-sizing: content;
+    resize: none;
+  }
+
+  .mt-slot,
+  .mt-grid .mt-grid__weeks th {
+    min-width: 1.55rem;
+    width: 1.55rem;
+  }
+
+  .mt-grid-actions {
+    position: sticky;
+    left: 0;
+    width: max-content;
+    max-width: 100%;
+  }
+
+  .mt-collapse__title {
+    line-height: 1.25;
+  }
+}

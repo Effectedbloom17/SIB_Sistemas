@@ -323,3 +323,58 @@
     margin: 0.55rem 0.75rem 0.7rem;
   }
 }
+
+@media (max-width: 767.98px) {
+  :host .header.header-bg-image {
+    min-height: 0;
+    align-items: flex-start !important;
+    padding-top: 4.85rem !important;
+    padding-bottom: 4.5rem !important;
+  }
+
+  .dg-header-title {
+    font-size: 1.55rem;
+    line-height: 1.2;
+  }
+
+  .dg-header-subtitle {
+    font-size: 0.82rem;
+    line-height: 1.35;
+    padding: 0 0.85rem;
+  }
+
+  .dg-page.mt--5 {
+    margin-top: -1.65rem !important;
+  }
+
+  .dg-buscar {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .dg-buscar input {
+    min-width: 0;
+  }
+
+  .dg-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dg-card {
+    min-height: 0;
+    padding: 0.75rem;
+  }
+
+  .dg-card h2,
+  .dg-card p,
+  .dg-card__fecha {
+    overflow-wrap: anywhere;
+  }
+
+  .dg-titulo[readonly] {
+    border-color: transparent;
+    background: transparent;
+    pointer-events: none;
+  }
+}

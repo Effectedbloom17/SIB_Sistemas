@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { GoogleCalendarService } from '../../services/google-calendar.service';
 import { BackendServices } from '../../services/backend.services';
 import { AuthService } from '../../services/auth.service';
@@ -19,6 +19,7 @@ interface CalendarSidebarItem {
 })
 export class CalendarioComponent implements OnInit {
   calendarSrc: string;
+  modoEmbedActual: 'MONTH' | 'AGENDA' = 'MONTH';
   readonly calendarObjetivoId: string;
   googleCalendarConnected = false;
   googleCalendarAccountEmail: string | null = null;
@@ -55,9 +56,14 @@ export class CalendarioComponent implements OnInit {
   ) {
     this.calendarObjetivoId = this.googleCalendarService.getTargetCalendarId();
     this.inicializarCalendariosSidebarBase();
-    this.calendarSrc = this.googleCalendarService.getCalendarEmbedUrl({
-      calendarIds: this.obtenerCalendariosSeleccionados()
-    });
+    this.actualizarIframeCalendario();
+  }
+
+  @HostListener('window:resize')
+  ajustarCalendarioAlAncho(): void {
+    if (this.modoEmbed() !== this.modoEmbedActual) {
+      this.actualizarIframeCalendario();
+    }
   }
 
   async ngOnInit(): Promise<void> {
@@ -434,10 +440,16 @@ export class CalendarioComponent implements OnInit {
     ];
   }
 
+  private modoEmbed(): 'MONTH' | 'AGENDA' {
+    return typeof window !== 'undefined' && window.innerWidth <= 767 ? 'AGENDA' : 'MONTH';
+  }
+
   private actualizarIframeCalendario(refreshToken?: number): void {
+    this.modoEmbedActual = this.modoEmbed();
     this.calendarSrc = this.googleCalendarService.getCalendarEmbedUrl({
       refreshToken,
-      calendarIds: this.obtenerCalendariosSeleccionados()
+      calendarIds: this.obtenerCalendariosSeleccionados(),
+      mode: this.modoEmbedActual
     });
   }
 

@@ -1115,7 +1115,7 @@ button.sgc-cap-doc.sgc-fmt-doc {
     height: auto !important;
   }
 
-  .sgc-fmt-panel .sgc-cap-nav__list {
+  .sgc-fmt-panel .sgc-cap-nav__carousel .sgc-cap-nav__list {
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
@@ -1166,5 +1166,28 @@ button.sgc-cap-doc.sgc-fmt-doc {
 
   .sgc-fmt-visor__actions .sgc-fmt-visor__close {
     flex: 0 0 auto;
+  }
+
+  .sgc-nom-panel .sgc-fmt-panel__tools {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "search";
+  }
+
+  .sgc-nom-panel .sgc-cap-nav__list {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100%;
+    min-height: 4.35rem !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    gap: 0.45rem;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
   }
 }

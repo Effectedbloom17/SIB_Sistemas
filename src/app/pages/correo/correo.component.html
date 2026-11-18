@@ -40,7 +40,19 @@
                 Redactar
               </button>
 
-              <nav class="correo-nav">
+              <button
+                type="button"
+                class="correo-nav-toggle"
+                [attr.aria-expanded]="carpetasMovilAbiertas"
+                (click)="carpetasMovilAbiertas = !carpetasMovilAbiertas">
+                <span class="correo-nav-toggle-label">
+                  <i class="fas" [ngClass]="'fa-' + iconoCarpeta(carpetaActivaInfo?.icono || 'inbox')"></i>
+                  {{ etiquetaCarpetaActiva }}
+                </span>
+                <i class="fas fa-chevron-down correo-nav-toggle-arrow" [class.is-open]="carpetasMovilAbiertas"></i>
+              </button>
+
+              <nav class="correo-nav" [class.is-open]="carpetasMovilAbiertas">
                 <button
                   *ngFor="let carpeta of carpetasDisponibles"
                   type="button"

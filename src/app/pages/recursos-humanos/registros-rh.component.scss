@@ -1480,3 +1480,145 @@ $rr-folder: #d97706;
     pointer-events: auto;
   }
 }
+
+@media (max-width: 767.98px) {
+  :host .rrhh-hero.header-bg-image.rrhh-hero--compact {
+    min-height: 168px;
+    align-items: flex-start !important;
+    padding-top: 4.5rem !important;
+    padding-bottom: 3.8rem !important;
+  }
+
+  .rrhh-hero-title {
+    font-size: 1.15rem;
+    line-height: 1.2;
+    padding: 0 0.7rem;
+  }
+
+  .rrhh-hero-sub {
+    font-size: 0.68rem;
+    line-height: 1.3;
+    padding: 0 0.85rem;
+  }
+
+  .rrhh-main {
+    margin-top: -1.35rem !important;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+  }
+
+  .rr-shell {
+    padding: 0.75rem 0.6rem 0.9rem !important;
+  }
+
+  .rr-top {
+    gap: 0.55rem;
+  }
+
+  .rr-top__actions {
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+
+  .rr-top__actions .rr-btn {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .rr-hub {
+    gap: 0.6rem;
+    padding: 0.75rem 0.65rem;
+  }
+
+  .rr-repo-nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem;
+  }
+
+  .rr-repo-nav__title {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+
+  .rr-repo-nav__item {
+    padding: 0.4rem 0.45rem;
+    background: #fff;
+    border-color: rgba(219, 39, 119, 0.12);
+  }
+
+  .rr-hub__upload {
+    display: none;
+  }
+
+  .rr-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "crumbs crumbs"
+      "search meta";
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0.55rem;
+  }
+
+  .rr-crumbs {
+    grid-area: crumbs;
+    flex: none;
+  }
+
+  .rr-search {
+    grid-area: search;
+    flex: none;
+    flex-basis: auto;
+    max-width: none;
+    min-width: 0;
+    width: 100%;
+    height: auto;
+  }
+
+  .rr-toolbar__meta {
+    grid-area: meta;
+    margin-left: 0;
+  }
+
+  .rr-newfolder {
+    flex-wrap: nowrap;
+    padding: 0.5rem 0.55rem;
+  }
+
+  .rr-newfolder .rr-btn {
+    white-space: nowrap;
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+
+  .rr-folders,
+  .rr-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .rr-tile {
+    min-height: 0;
+  }
+
+  .rr-tile__preview {
+    height: 72px;
+  }
+
+  .rr-tile__body {
+    min-height: 0;
+    padding: 0.45rem 0.45rem 0.55rem;
+  }
+
+  .rr-tile__name {
+    -webkit-line-clamp: 2;
+    font-size: 0.68rem;
+  }
+
+  .rr-panel {
+    min-height: 0;
+    touch-action: pan-y;
+  }
+}

@@ -238,3 +238,43 @@ $mt-slate-soft: rgba(30, 41, 59, 0.08);
     max-width: 58vw;
   }
 }
+
+@media (max-width: 767.98px) {
+  .mt-toolbar--drive {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mt-toolbar--drive .mt-toolbar__fields,
+  .mt-toolbar--drive .mt-drive-toolbar {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  .mt-drive-toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+    gap: 0.45rem;
+  }
+
+  .mt-drive-toolbar .mt-status,
+  .mt-drive-toolbar .mt-btn-drive {
+    grid-column: 1 / -1;
+  }
+
+  .mt-drive-toolbar .mt-btn-save-info,
+  .mt-drive-toolbar .mt-btn-pdf,
+  .mt-drive-toolbar .mt-btn-drive {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin: 0;
+    white-space: nowrap;
+    padding: 0.42rem 0.5rem;
+    font-size: 0.74rem;
+  }
+}

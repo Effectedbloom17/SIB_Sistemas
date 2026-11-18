@@ -1,4 +1,4 @@
-import { Component, ElementRef, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, HostListener, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { DiagramasService, DiagramaDetalle, DiagramaResumen } from 'src/app/services/diagramas.service';
@@ -50,6 +50,7 @@ export class DiagramasComponent implements OnInit, OnDestroy {
   mensajeGuardado = '';
   presentes: Presente[] = [];
   enVivo = false;
+  observador = false;
   volverUrl: string | null = null;
 
   private rev = 0;
@@ -75,6 +76,7 @@ export class DiagramasComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    this.observador = window.innerWidth <= 767;
     window.addEventListener('message', this.onMensaje);
     this.diagramasSocket.onEstado().pipe(takeUntil(this.fin$)).subscribe((conectado) => {
       this.enVivo = conectado;
@@ -115,6 +117,7 @@ export class DiagramasComponent implements OnInit, OnDestroy {
   }
 
   get etiquetaGuardado(): string {
+    if (this.observador) return 'Solo lectura';
     if (this.estadoGuardado === 'guardando') return 'Guardando…';
     if (this.estadoGuardado === 'pendiente') return 'Cambios sin guardar';
     if (this.estadoGuardado === 'guardado') return 'Guardado en el SIB';
@@ -128,6 +131,19 @@ export class DiagramasComponent implements OnInit, OnDestroy {
     const otros = this.presentes.filter((persona) => !persona.soyYo).length;
     if (!otros) return 'Solo tú';
     return otros === 1 ? '1 persona más' : `${otros} personas más`;
+  }
+
+  @HostListener('window:resize')
+  ajustarAncho(): void {
+    const ahora = window.innerWidth <= 767;
+    if (ahora === this.observador) return;
+    if (ahora) this.flushGuardado();
+    this.observador = ahora;
+    if (!this.editando) return;
+    this.editorListo = false;
+    this.rev += 1;
+    this.urlEditor = this.construirUrl();
+    this.armarEsperaInit();
   }
 
   cargar(): void {
@@ -146,6 +162,7 @@ export class DiagramasComponent implements OnInit, OnDestroy {
   }
 
   abrirFormulario(): void {
+    if (this.observador) return;
     this.creando = true;
     this.tituloNuevo = '';
     this.error = null;
@@ -157,6 +174,7 @@ export class DiagramasComponent implements OnInit, OnDestroy {
   }
 
   crear(): void {
+    if (this.observador) return;
     const titulo = this.tituloNuevo.trim();
     if (!titulo || this.creandoAhora) return;
     this.creandoAhora = true;
@@ -229,6 +247,7 @@ export class DiagramasComponent implements OnInit, OnDestroy {
   }
 
   guardarTitulo(): void {
+    if (this.observador) return;
     const id = this.diagramaId;
     const titulo = this.tituloEdicion.trim();
     if (!id || !titulo) return;
@@ -256,6 +275,7 @@ export class DiagramasComponent implements OnInit, OnDestroy {
 
   eliminar(item: DiagramaResumen, event?: Event): void {
     event?.stopPropagation();
+    if (this.observador) return;
     const ok = window.confirm(`¿Eliminar el diagrama "${item.titulo}"? Esta acción no se puede deshacer.`);
     if (!ok) return;
     this.diagramasService.eliminar(item.diagrama_id).subscribe({
@@ -302,7 +322,10 @@ export class DiagramasComponent implements OnInit, OnDestroy {
   }
 
   private construirUrl(): SafeResourceUrl {
-    const url = `${EDITOR_ORIGEN}/?embed=1&proto=json&spin=1&lang=es&libraries=1&ui=atlas&rev=${this.rev}`;
+    const base = `${EDITOR_ORIGEN}/?embed=1&proto=json&spin=1&lang=es&rev=${this.rev}`;
+    const url = this.observador
+      ? `${base}&lightbox=1&nav=1&layers=1`
+      : `${base}&libraries=1&ui=atlas`;
     return this.sanitizer.bypassSecurityTrustResourceUrl(url);
   }
 
@@ -335,8 +358,8 @@ export class DiagramasComponent implements OnInit, OnDestroy {
         marco.postMessage(JSON.stringify({
           action: 'load',
           xml: this.xmlActual || XML_VACIO,
-          autosave: 1,
-          diffSync: true,
+          autosave: this.observador ? 0 : 1,
+          diffSync: !this.observador,
           title: `${this.tituloEdicion || 'diagrama'}.drawio`
         }), EDITOR_ORIGEN);
         return;
@@ -369,6 +392,7 @@ export class DiagramasComponent implements OnInit, OnDestroy {
   };
 
   private programarGuardado(xml: string, inmediato: boolean): void {
+    if (this.observador) return;
     this.pendienteXml = xml;
     this.estadoGuardado = 'pendiente';
     if (this.timerGuardado) clearTimeout(this.timerGuardado);
@@ -380,6 +404,10 @@ export class DiagramasComponent implements OnInit, OnDestroy {
   }
 
   private flushGuardado(): void {
+    if (this.observador) {
+      this.pendienteXml = null;
+      return;
+    }
     if (this.timerGuardado) {
       clearTimeout(this.timerGuardado);
       this.timerGuardado = null;
@@ -434,7 +462,7 @@ export class DiagramasComponent implements OnInit, OnDestroy {
   }
 
   private publicarCambio(msg: { xml?: string; checksum?: string; patch?: unknown }): void {
-    if (!this.diagramaId || !this.enVivo) return;
+    if (this.observador || !this.diagramaId || !this.enVivo) return;
     const patch = msg.patch && typeof msg.patch === 'object' ? msg.patch : null;
     const xml = typeof msg.xml === 'string' && msg.xml.length <= 700_000 ? msg.xml : '';
     if (!patch && !xml) return;

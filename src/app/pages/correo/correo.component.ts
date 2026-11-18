@@ -173,6 +173,7 @@ export class CorreoComponent implements OnInit, OnDestroy {
   mensajeExito = '';
   vistaActiva: VistaCorreo = 'lista';
   carpetaActiva = 'inbox';
+  carpetasMovilAbiertas = false;
   private cargaCorreosToken = 0;
   private iframeBlobUrl: string | null = null;
   private iframeBlobFallbackIntentado = false;
@@ -1151,6 +1152,7 @@ export class CorreoComponent implements OnInit, OnDestroy {
     if (!carpeta?.disponible) {
       return;
     }
+    this.carpetasMovilAbiertas = false;
     if (this.carpetaActiva === carpetaId && this.vistaActiva === 'lista') {
       return;
     }

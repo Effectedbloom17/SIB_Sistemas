@@ -3691,3 +3691,149 @@ $asig-line: #e5e7eb;
     &:hover { background: #e5e7eb; }
   }
 }
+
+@media (max-width: 767.98px) {
+  :host .header.header-bg-image.seg-hero {
+    min-height: 210px;
+    align-items: flex-start !important;
+    padding-top: 4.55rem !important;
+    padding-bottom: 4.8rem !important;
+
+    .seg-hero-icon { margin-bottom: 0.45rem !important; }
+
+    .seg-hero-title {
+      font-size: 1.22rem;
+      line-height: 1.2;
+      margin-bottom: 0 !important;
+      padding: 0 0.6rem;
+    }
+  }
+
+  .seg-main-wrap {
+    margin-top: -1.6rem !important;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+  }
+
+  .asig-top {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.5rem 0.45rem;
+  }
+
+  .asig-pasos {
+    flex: 1 1 auto;
+    min-width: 0;
+
+    li:not(:last-child)::after { width: 0.65rem; }
+
+    &__btn {
+      font-size: 0.68rem;
+      padding: 0.3rem 0.32rem;
+      gap: 0.25rem;
+    }
+  }
+
+  .board { gap: 0.55rem; }
+
+  .board-main,
+  .board-side,
+  .board-col {
+    max-height: none;
+    min-height: 0;
+  }
+
+  .board-side { overflow: visible; }
+
+  .board-list,
+  .board-col__body {
+    max-height: none;
+    overflow: visible;
+    touch-action: pan-y;
+  }
+
+  .norm-seek {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+    padding: 0.5rem 0.4rem 0.35rem;
+
+    .asig-filter {
+      flex: 0 0 auto;
+      width: 100%;
+    }
+  }
+
+  .chip-row,
+  .norm-seek .chip-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible;
+    width: 100%;
+    gap: 0.32rem;
+    padding: 0;
+
+    .seg-chip {
+      width: 100%;
+      min-width: 0;
+      justify-content: center;
+      padding: 0.34rem 0.15rem;
+      font-size: 0.64rem;
+    }
+  }
+
+  .ncard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+    padding: 0.15rem 0.35rem 0.45rem;
+  }
+
+  .ncard__media {
+    height: 56px;
+    padding: 0.35rem;
+  }
+
+  .ncard__body {
+    padding: 0.38rem 0.42rem 0.42rem;
+
+    strong { font-size: 0.64rem; }
+
+    em {
+      font-size: 0.62rem;
+      -webkit-line-clamp: 3;
+    }
+  }
+
+  .asig-footer {
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    padding: 0.55rem 0.5rem;
+  }
+
+  .asig-btn-ghost,
+  .asig-btn-primary {
+    padding: 0.48rem 0.6rem;
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+
+  .puntos-nav__label {
+    writing-mode: horizontal-tb;
+    transform: none;
+    letter-spacing: 0.04em;
+  }
+
+  .puntos-search {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: auto;
+  }
+
+  .pub-sum { gap: 0.3rem; }
+
+  .resumen-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+}

@@ -646,6 +646,12 @@ export class TicketsComponent implements OnInit, OnDestroy {
       });
   }
 
+  cerrarFicha(): void {
+    this.expandidoId = null;
+    this.seleccionadoId = null;
+    this.cerrarMenuEstatus();
+  }
+
   seleccionarTicket(ticket: TicketItem): void {
     if (this.expandidoId === ticket.ticket_id) {
       this.expandidoId = null;

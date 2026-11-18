@@ -236,8 +236,10 @@ export class GoogleCalendarService {
     refreshToken?: number;
     calendarIds?: string[];
     focusDate?: Date | null;
+    mode?: 'MONTH' | 'AGENDA' | 'WEEK';
   }): string {
     const config = typeof options === 'number' ? { refreshToken: options } : (options || {});
+    const mode = typeof options === 'object' && options?.mode ? options.mode : 'MONTH';
     const calendarIdsRaw = Array.isArray(config.calendarIds) ? config.calendarIds : [];
 
     const calendarIds = [
@@ -247,7 +249,7 @@ export class GoogleCalendarService {
 
     const params = new URLSearchParams();
     params.set('ctz', 'America/Mexico_City');
-    params.set('mode', 'MONTH');
+    params.set('mode', mode);
     params.set('showTitle', '0');
     params.set('showPrint', '0');
     params.set('showTabs', '1');

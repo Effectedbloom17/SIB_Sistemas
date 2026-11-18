@@ -1772,3 +1772,204 @@ $rrhh-surface: #fff7fb;
     align-items: flex-start;
   }
 }
+
+@media (max-width: 767.98px) {
+  .rrhh-hero.header-bg-image {
+    min-height: 210px;
+    align-items: flex-start !important;
+    padding-top: 4.55rem !important;
+    padding-bottom: 4.6rem !important;
+
+    .rrhh-hero-icon {
+      margin-bottom: 0.45rem !important;
+    }
+
+    .rrhh-hero-title {
+      font-size: 1.35rem;
+      line-height: 1.2;
+      margin-bottom: 0.2rem !important;
+    }
+
+    .rrhh-hero-sub {
+      font-size: 0.72rem;
+      padding: 0 0.75rem;
+    }
+  }
+
+  .rrhh-main {
+    margin-top: -1.55rem !important;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+  }
+
+  .rrhh-shell-body {
+    padding: 0.7rem 0.55rem 0.9rem;
+  }
+
+  .rrhh-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.45rem;
+  }
+
+  .rrhh-toolbar__filters {
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+  }
+
+  .rrhh-search {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .rrhh-year {
+    flex: 0 0 auto;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+
+    input {
+      width: 3.4rem;
+    }
+  }
+
+  .rrhh-toolbar__actions {
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+  }
+
+  .rrhh-toolbar__actions .rrhh-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    white-space: nowrap;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+  }
+
+  .rrhh-badges {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .rrhh-badge {
+    min-width: 0;
+    padding: 0.45rem 0.35rem 0.55rem;
+  }
+
+  .rrhh-badge__photo {
+    width: 4.6rem;
+    height: 4.6rem;
+  }
+
+  .rrhh-badge__name {
+    font-size: 0.74rem;
+    overflow-wrap: anywhere;
+    min-height: 2.5em;
+  }
+
+  .rrhh-badge__meta {
+    overflow-wrap: anywhere;
+  }
+
+  .rrhh-modal__foot,
+  .rrhh-wizard__footer {
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+  }
+
+  .rrhh-wizard__footer > div {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+  }
+
+  .rrhh-modal__foot .rrhh-btn,
+  .rrhh-wizard__footer .rrhh-btn {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .rrhh-modal {
+    padding: 0.4rem;
+    align-items: stretch;
+  }
+
+  .rrhh-modal__dialog--detail {
+    width: 100%;
+    max-height: calc(100vh - 0.8rem);
+  }
+
+  .rrhh-detail-body {
+    min-height: 0;
+    padding: 0.65rem 0.55rem 0.75rem !important;
+  }
+
+  .rrhh-detail-hero {
+    padding: 0.75rem 0.7rem 0.8rem;
+  }
+
+  .rrhh-detail-hero__content {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.65rem;
+    padding-right: 1.6rem;
+  }
+
+  .rrhh-detail-hero__photo {
+    width: 3.4rem;
+    height: 3.4rem;
+    border-radius: 14px;
+  }
+
+  .rrhh-detail-hero__info h2 {
+    font-size: 0.92rem;
+    margin: 0.15rem 0 0.3rem;
+  }
+
+  .rrhh-detail-hero__pills {
+    gap: 0.25rem;
+    margin-bottom: 0;
+  }
+
+  .rrhh-detail-panels {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+  .rrhh-panel {
+    padding: 0.7rem 0.6rem 0.75rem;
+  }
+
+  .rrhh-panel__grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+  }
+
+  .rrhh-panel__grid--contact,
+  .rrhh-panel--datos .rrhh-panel__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rrhh-panel--accent .rrhh-panel__grid--single {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .rrhh-panel--accent .rrhh-panel__grid--single .rrhh-kv--wide {
+    grid-column: auto;
+  }
+
+  .rrhh-kv {
+    padding: 0.4rem 0.45rem;
+  }
+
+  .rrhh-kv strong {
+    font-size: 0.7rem;
+    overflow-wrap: anywhere;
+  }
+}

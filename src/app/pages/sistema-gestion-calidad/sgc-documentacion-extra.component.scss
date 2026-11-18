@@ -1702,4 +1702,120 @@ $di-btn-gradient: linear-gradient(135deg, #27272a 0%, #3f3f46 55%, #52525b 100%)
     height: 100vh;
     border-radius: 0;
   }
+
+  :host .header.header-bg-image.sgc-hero {
+    min-height: 0;
+    align-items: flex-start !important;
+    padding-top: 4.55rem !important;
+    padding-bottom: 3.4rem !important;
+  }
+
+  .sgc-hero-title {
+    font-size: 1.4rem;
+    line-height: 1.15;
+  }
+
+  .sgc-main-wrap {
+    margin-top: -1.45rem !important;
+  }
+
+  .sgc-shell-body {
+    padding: 0.9rem 0.7rem 1.15rem;
+  }
+
+  .repo-side-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .repo-side-nav__title {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+
+  .repo-side-nav__item {
+    min-width: 0;
+    background: #fff;
+    border-color: rgba(212, 212, 216, 0.9);
+    padding: 0.45rem 0.5rem;
+  }
+
+  .repo-toolbar__actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .repo-toolbar__search-row {
+    flex: 1 1 100%;
+    max-width: none;
+    width: 100%;
+  }
+
+  .repo-toolbar__right {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .sgc-extra-btn-folder {
+    flex: 1 1 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .repo-dropzone {
+    display: none;
+  }
+
+  .repo-folders,
+  .sgc-extra-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .repo-folder-card,
+  .sgc-extra-tile {
+    min-width: 0;
+  }
+
+  .repo-folder-card__name {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .repo-table {
+    min-width: 36rem;
+  }
+
+  .repo-table-wrap {
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+
+  .sgc-extra-state__actions {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+  }
+
+  .sgc-extra-state__actions .btn {
+    flex: 1 1 0;
+    margin: 0 !important;
+    white-space: nowrap;
+  }
+
+  .sgc-extra-upload-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sgc-extra-upload-zone__label {
+    font-size: 0.78rem;
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
 }

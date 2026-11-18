@@ -1191,6 +1191,12 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     const categorias = usarGrupos
       ? cats.map((c) => c.prefijo)
       : (normas.length ? normas.map((n) => this.codigoCorto(n.codigo)) : ['Sin datos']);
+    const etiquetasEjeMovil = usarGrupos
+      ? categorias
+      : (normas.length ? normas.map((n) => this.etiquetaEjeMovil(n.codigo)) : categorias);
+    const titulosEje = usarGrupos
+      ? categorias
+      : (normas.length ? normas.map((n) => n.codigo) : categorias);
     const datos = usarGrupos
       ? cats.map((c) => c.avance)
       : (normas.length ? normas.map((n) => n.avance) : [0]);
@@ -1257,7 +1263,31 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
       tooltip: {
         theme: 'light',
         y: { formatter: (v: number) => `${Math.round(v)}%` }
-      }
+      },
+      responsive: [
+        {
+          breakpoint: 768,
+          options: {
+            chart: { height: 236 },
+            xaxis: {
+              categories: etiquetasEjeMovil,
+              labels: {
+                rotate: 0,
+                hideOverlappingLabels: false,
+                trim: false,
+                style: { fontSize: '10px', colors: '#64748b', fontWeight: 700 }
+              }
+            },
+            grid: { padding: { left: 2, right: 4, bottom: 0 } },
+            tooltip: {
+              x: {
+                formatter: (_val: string, opts: { dataPointIndex?: number }) =>
+                  titulosEje[opts?.dataPointIndex ?? -1] || _val
+              }
+            }
+          }
+        }
+      ]
     };
   }
 
@@ -1607,6 +1637,11 @@ export class SeguridadGestionComponent implements OnInit, OnDestroy {
     const raw = String(codigo || '').trim();
     const m = raw.match(/^(NOM-\d+(?:-\d+)?)/i);
     return m ? m[1].toUpperCase() : (raw || 'NOM');
+  }
+
+  /** Eje del teléfono: NOM-036-1-STPS-2018 → 036-1. El código completo queda en el tooltip. */
+  private etiquetaEjeMovil(codigo: string): string {
+    return this.codigoCorto(codigo).replace(/^NOM-/i, '');
   }
 
   colorAvance(pct: number): string {

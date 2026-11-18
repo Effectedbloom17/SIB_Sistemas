@@ -2281,6 +2281,8 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
   sgcF01FilasVista: SgcF01Documento[] = this.sgcF01Form.documentos.slice();
   /** Grupos por sección Excel (orden fijo del catálogo). */
   sgcF01GruposVista: SgcF01GrupoVista[] = [];
+  /** Secciones abiertas en el teléfono. En escritorio la lista siempre se ve. */
+  private sgcF01GruposAbiertos = new Set<string>();
   sgcF01Resumen: { total: number; vinculados: number; actualizadosDesdeSistema: number } | null = {
     total: this.sgcF01Form.documentos.length,
     vinculados: 0,
@@ -40200,6 +40202,21 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
     return grupo?.id || String(_i);
   }
 
+  grupoF01Abierto(id: string): boolean {
+    return this.sgcF01GruposAbiertos.has(id);
+  }
+
+  alternarGrupoF01(id: string): void {
+    if (typeof window !== 'undefined' && window.innerWidth > 767) {
+      return;
+    }
+    if (this.sgcF01GruposAbiertos.has(id)) {
+      this.sgcF01GruposAbiertos.delete(id);
+    } else {
+      this.sgcF01GruposAbiertos.add(id);
+    }
+  }
+
   /** Destino del formato dinámico (Centro SGC u otra área del sistema). */
   destinoFormatoSistemaF01(codigo: string | null | undefined): DestinoFormatoSistema | null {
     return resolverDestinoFormatoSistema(codigo, this.authService.esSuperusuario());
@@ -40560,6 +40577,10 @@ export class SgcPlantillaPreviewComponent implements OnInit, OnDestroy {
       grupos.push({ id: 'otros', titulo: 'OTROS', documentos: otros });
     }
     this.sgcF01GruposVista = grupos;
+    const hayFiltro = !!q || !!seccionFiltro || this.sgcF01SoloConEnlace;
+    if (hayFiltro) {
+      this.sgcF01GruposAbiertos = new Set(grupos.map((g) => g.id));
+    }
   }
 
   agregarDocumentoSgcF01(): void {

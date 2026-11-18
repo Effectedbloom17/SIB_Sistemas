@@ -1341,6 +1341,104 @@ $warning: #c87012;
   .sgc-version-field > div { grid-template-columns: 1fr; }
 }
 
+@media (max-width: 767.98px) {
+  :host .header.header-bg-image.sgc-hero {
+    min-height: 220px;
+    align-items: flex-start !important;
+    padding-top: 4.7rem !important;
+    padding-bottom: 5rem !important;
+    background-position: center 38%;
+
+    .sgc-hero-icon {
+      margin-bottom: 0.5rem !important;
+      width: 2.7rem;
+      height: 2.7rem;
+      font-size: 1.15rem;
+    }
+
+    .sgc-hero-tagline {
+      margin-bottom: 0.2rem !important;
+      font-size: 0.68rem;
+    }
+
+    .sgc-hero-title {
+      font-size: 1.28rem;
+      line-height: 1.2;
+      padding: 0 0.75rem;
+    }
+  }
+
+  .sgc-main-wrap {
+    margin-top: -1.7rem !important;
+  }
+
+  .sgc-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .sgc-inbox__header {
+    padding: 0.85rem 0.75rem 0.55rem;
+  }
+
+  .sgc-inbox__header h2 {
+    font-size: 1.02rem;
+  }
+
+  .sgc-search {
+    width: 100%;
+    overflow: visible;
+
+    i {
+      flex-shrink: 0;
+    }
+  }
+
+  .sgc-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+    padding: 0 0.75rem 0.75rem;
+
+    button {
+      width: 100%;
+      min-width: 0;
+      padding: 0.42rem 0.4rem;
+      text-align: center;
+    }
+  }
+
+  .sgc-request__text strong {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .sgc-request__person > em,
+  .sgc-request__puesto {
+    white-space: normal;
+  }
+
+  .sgc-wizard-card__footer,
+  .sgc-wizard-card__footer--actions,
+  .sgc-close-simple {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
+
+  .sgc-wizard-card__footer .sgc-btn,
+  .sgc-wizard-card__footer--actions .sgc-btn,
+  .sgc-close-simple .sgc-btn {
+    width: auto;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }

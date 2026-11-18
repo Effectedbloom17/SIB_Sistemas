@@ -4817,3 +4817,178 @@ button.ges-req-card {
     transform: none !important;
   }
 }
+
+@media (max-width: 767.98px) {
+  :host .header.header-bg-image.seg-hero {
+    min-height: 210px;
+    align-items: flex-start !important;
+    padding-top: 4.55rem !important;
+    padding-bottom: 4.8rem !important;
+
+    .seg-hero-icon { margin-bottom: 0.45rem !important; }
+
+    .seg-hero-title {
+      font-size: 1.22rem;
+      line-height: 1.2;
+      margin-bottom: 0 !important;
+      padding: 0 0.6rem;
+    }
+  }
+
+  .seg-main-wrap {
+    margin-top: -1.6rem !important;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+  }
+
+  .ges-strip {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.55rem;
+    padding: 0.75rem 0.7rem 0.7rem;
+  }
+
+  .ges-strip__lead {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+
+  .ges-strip__stats {
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+  }
+
+  .ges-kpi {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.4rem 0.25rem;
+
+    span { font-size: 0.95rem; }
+    em { font-size: 0.56rem; letter-spacing: 0.03em; text-align: center; }
+  }
+
+  .ges-strip .ges-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .ges-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+    padding: 0.55rem 0.7rem 0.25rem;
+  }
+
+  .ges-search--grow {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+
+  .ges-toolbar .seg-search input {
+    width: 100%;
+  }
+
+  .ges-board-hint {
+    white-space: normal;
+    line-height: 1.35;
+  }
+
+  .ges-emp-board {
+    padding: 0.35rem 0.55rem 0.9rem;
+    touch-action: pan-y;
+  }
+
+  .ges-emp-grid--board {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+  }
+
+  .ges-emp-card.ges-emp-card--board:hover .ges-emp-card__hover-panel {
+    max-height: 0;
+    opacity: 0;
+    margin-top: 0;
+  }
+
+  .ges-dash {
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+  }
+
+  .ges-dash ::ng-deep .apexcharts-canvas {
+    touch-action: pan-y;
+  }
+
+  .ges-picker {
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+    padding: 0.7rem 0.55rem;
+  }
+
+  .ges-picker__head {
+    flex-direction: column;
+    align-items: stretch;
+
+    > div:first-child { min-width: 0; }
+
+    .ges-search {
+      flex: 0 0 auto;
+      min-width: 0;
+      width: 100%;
+    }
+  }
+
+  .ges-picker__chips {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.32rem;
+  }
+
+  .ges-picker__chips .seg-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    padding: 0.34rem 0.15rem;
+    font-size: 0.62rem;
+    white-space: nowrap;
+  }
+
+  .ges-nom-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .ges-nom-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .ges-nom-card__media {
+    height: 58px;
+    padding: 0.35rem;
+  }
+
+  .ges-nom-card__body {
+    padding: 0.45rem 0.45rem 0.4rem;
+    min-width: 0;
+
+    strong {
+      font-size: 0.66rem;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+
+    em {
+      font-size: 0.66rem;
+      min-height: 0;
+      -webkit-line-clamp: 3;
+    }
+  }
+
+  .ges-nom-card__meta {
+    font-size: 0.58rem;
+    flex-wrap: wrap;
+  }
+}

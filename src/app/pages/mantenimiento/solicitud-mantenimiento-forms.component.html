@@ -278,6 +278,15 @@
                       [fill]="infraChart.fill"
                       [stroke]="infraChart.stroke">
                     </apx-chart>
+                    <ul class="mt-chart-list">
+                      <li *ngFor="let item of porInfraestructura; let i = index; trackBy: trackByStat">
+                        <span class="mt-chart-list__name">{{ item.etiqueta }}</span>
+                        <span class="mt-chart-list__meta">
+                          <span class="mt-chart-list__track"><span class="mt-chart-list__fill" [style.width.%]="item.porcentaje" [style.background]="colorInfra(i)"></span></span>
+                          <strong>{{ item.cantidad }} ({{ item.porcentaje }}%)</strong>
+                        </span>
+                      </li>
+                    </ul>
                   </div>
                 </section>
                 <section class="mt-chart-panel mt-chart-panel--prio" *ngIf="porPrioridad.length" aria-label="Por prioridad">
@@ -361,7 +370,16 @@
                     [tooltip]="ubicChart.tooltip"
                     [fill]="ubicChart.fill"
                     [stroke]="ubicChart.stroke">
-                  </apx-chart>
+                    </apx-chart>
+                  <ul class="mt-chart-list">
+                    <li *ngFor="let item of porUbicacion; let i = index; trackBy: trackByStat">
+                      <span class="mt-chart-list__name">{{ item.etiqueta }}</span>
+                      <span class="mt-chart-list__meta">
+                        <span class="mt-chart-list__track"><span class="mt-chart-list__fill" [style.width.%]="item.porcentaje" [style.background]="colorUbicacion(i)"></span></span>
+                        <strong>{{ item.cantidad }} ({{ item.porcentaje }}%)</strong>
+                      </span>
+                    </li>
+                  </ul>
                 </div>
               </section>
 

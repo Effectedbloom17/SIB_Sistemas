@@ -1129,3 +1129,77 @@ $qys-muted: #64748b;
     margin-right: 1.15rem;
   }
 }
+
+@media (max-width: 767.98px) {
+  :host .header.header-bg-image {
+    min-height: 0;
+    align-items: flex-start !important;
+    padding-top: 4.85rem !important;
+    padding-bottom: 4.5rem !important;
+  }
+
+  .op-header-title {
+    font-size: 1.45rem;
+    line-height: 1.2;
+    padding: 0 0.5rem;
+  }
+
+  .op-header-subtitle {
+    font-size: 0.82rem;
+    line-height: 1.3;
+    padding: 0 0.75rem;
+  }
+
+  .op-page-wrap.mt--5 {
+    margin-top: -1.65rem !important;
+  }
+
+  .op-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .op-stat-label {
+    line-height: 1.2;
+    overflow-wrap: normal;
+  }
+
+  .op-search {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .op-search input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .op-inbox-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .op-inbox-tabs .op-chip {
+    width: 100%;
+    white-space: nowrap;
+    text-align: center;
+    font-size: 0.72rem;
+    padding: 0.42rem 0.35rem;
+  }
+
+  .op-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .op-management-actions {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .op-management-actions select {
+    min-width: 0;
+    max-width: 100%;
+  }
+}

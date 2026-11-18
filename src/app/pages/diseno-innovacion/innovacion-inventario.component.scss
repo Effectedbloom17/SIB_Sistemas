@@ -2788,3 +2788,113 @@ $di-btn-gradient: linear-gradient(135deg, #27272a 0%, #3f3f46 55%, #52525b 100%)
     transform: translate(-50%, -50%) scale(1);
   }
 }
+
+@media (max-width: 767.98px) {
+  :host .header.header-bg-image.di-inv-hero {
+    min-height: 0;
+    align-items: flex-start !important;
+    padding-top: 4.55rem !important;
+    padding-bottom: 3.4rem !important;
+  }
+
+  .di-inv-hero-title {
+    font-size: 1.4rem;
+    line-height: 1.15;
+  }
+
+  .di-inv-main-wrap {
+    margin-top: -1.45rem !important;
+  }
+
+  .di-inv-shell-body {
+    padding: 0.9rem 0.7rem 1.15rem;
+  }
+
+  .di-inv-page-header__copy {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .di-inv-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .di-inv-action {
+    justify-content: center;
+    min-width: 0;
+    white-space: nowrap;
+    padding: 0.5rem 0.45rem;
+    font-size: 0.74rem;
+  }
+
+  .di-inv-action--manage {
+    grid-column: 1 / -1;
+  }
+
+  .di-inv-controls {
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 0;
+  }
+
+  .di-inv-search {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .di-inv-search input {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .di-inv-controls__side {
+    margin-left: 0;
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .di-inv-select {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .di-inv-select select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .di-inv-product__meta-row {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.35rem;
+  }
+
+  .di-inv-product__meta-row .di-inv-tipo-badge {
+    flex: 0 1 auto;
+    min-width: min-content;
+    max-width: 100%;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
+  .di-inv-product__size {
+    flex: 0 0 auto;
+    max-width: 100%;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .di-inv-product__footer {
+    flex-wrap: nowrap;
+    gap: 0.3rem;
+  }
+}

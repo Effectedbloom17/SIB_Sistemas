@@ -17297,11 +17297,18 @@
                       <section class="sgc-f-01-grupo"
                         *ngFor="let grupo of sgcF01GruposVista; trackBy: trackBySgcF01Grupo"
                         [attr.data-seccion]="grupo.id">
-                        <header class="sgc-f-01-grupo__head">
+                        <header class="sgc-f-01-grupo__head" (click)="alternarGrupoF01(grupo.id)">
                           <span class="sgc-f-01-grupo__marker" aria-hidden="true"></span>
                           <h4 class="sgc-f-01-grupo__title">{{ grupo.titulo }}</h4>
                           <span class="sgc-f-01-grupo__count">{{ grupo.documentos.length }}</span>
+                          <button type="button" class="sgc-f-01-grupo__toggle"
+                            [attr.aria-expanded]="grupoF01Abierto(grupo.id)"
+                            [attr.aria-label]="(grupoF01Abierto(grupo.id) ? 'Contraer ' : 'Desplegar ') + grupo.titulo"
+                            (click)="alternarGrupoF01(grupo.id); $event.stopPropagation()">
+                            <i class="fas fa-chevron-down" [class.is-open]="grupoF01Abierto(grupo.id)" aria-hidden="true"></i>
+                          </button>
                         </header>
+                        <div class="sgc-f-01-grupo__panel" [class.is-open]="grupoF01Abierto(grupo.id)">
                         <div class="dg-f05-table-wrap sgc-f-01-table-wrap">
                           <table class="dg-f05-table sgc-f-01-table">
                             <thead>
@@ -17377,6 +17384,7 @@
                               </tr>
                             </tbody>
                           </table>
+                        </div>
                         </div>
                       </section>
                     </div>
